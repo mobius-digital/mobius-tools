@@ -279,7 +279,7 @@ const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/pulse/';
  *
  * `short` is the platform's short display name ("Meta", "Google", "Shopify").
  */
-function buildAlertMessage(short, transitions, { withButton, alertId, sentNote } = {}) {
+function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, link } = {}) {
   const isRecovery = transitions.every(t => t.to === 'operational');
   const hasOutage = transitions.some(t => t.to === 'outage');
   const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
@@ -304,8 +304,11 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote }
   });
 
   blocks.push({ type: 'divider' });
+  const links = link
+    ? `<${link}|View details →>   ·   <${DASHBOARD_URL}|Pulse dashboard>`
+    : `<${DASHBOARD_URL}|Pulse dashboard →>`;
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
-    text: `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}   ·   <${DASHBOARD_URL}|View dashboard →>` }] });
+    text: `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}   ·   ${links}` }] });
 
   if (sentNote) {
     blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: sentNote }] });
@@ -329,13 +332,14 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote }
 async function sendAlert(env, settings, platformId, transitions) {
   const platform = PLATFORMS.find(p => p.id === platformId);
   const name = platform ? (platform.short || platform.name) : platformId;
+  const link = platform ? platform.link : null;
   const alertId = `alert:${Date.now()}:${platformId}`;
   // Store the payload so the button click can re-render it for client channels
-  await env.KV.put(alertId, JSON.stringify({ platformName: name, transitions }),
+  await env.KV.put(alertId, JSON.stringify({ platformName: name, link, transitions }),
                    { expirationTtl: 7 * 24 * 3600 });
   await slackApi(env, 'chat.postMessage', {
     channel: settings.channels.internal,
-    ...buildAlertMessage(name, transitions, { withButton: true, alertId }),
+    ...buildAlertMessage(name, transitions, { withButton: true, alertId, link }),
     unfurl_links: false,
   });
 }
@@ -384,7 +388,8 @@ async function handleSlackInteract(request, env, ctx) {
       for (const ch of clients) {
         const r = await slackApi(env, 'chat.postMessage', {
           channel: ch,
-          ...buildAlertMessage(stored.platformName, stored.transitions, { withButton: false }),
+          ...buildAlertMessage(stored.platformName, stored.transitions,
+            { withButton: false, link: stored.link }),
           unfurl_links: false,
         });
         if (r.ok) sent++;
@@ -401,7 +406,8 @@ async function handleSlackInteract(request, env, ctx) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           replace_original: true,
-          ...buildAlertMessage(stored.platformName, stored.transitions, { withButton: false, sentNote }),
+          ...buildAlertMessage(stored.platformName, stored.transitions,
+            { withButton: false, sentNote, link: stored.link }),
         }),
       });
     }
