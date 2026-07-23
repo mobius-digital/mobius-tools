@@ -210,20 +210,29 @@ async function runPoll(env, { force = false } = {}) {
     };
   }
 
-  // Persist state + history
+  // Persist. KV free tier allows 1k writes/day, so only write what changed:
+  // lastRun every poll (the watchdog heartbeat), state/history on change only.
   const now = new Date().toISOString();
-  const history = (await env.KV.get('history', 'json')) || [];
-  for (const t of transitions) {
-    history.unshift({ ts: now, ...t,
-      kind: t.to === 'operational' ? 'resolved' : 'incident' });
-  }
-  if (history.length > HISTORY_CAP) history.length = HISTORY_CAP;
+  const writes = [env.KV.put('lastRun', now)];
 
-  await Promise.all([
-    env.KV.put('state', JSON.stringify(newState)),
-    env.KV.put('history', JSON.stringify(history)),
-    env.KV.put('lastRun', now),
-  ]);
+  const stateStr = JSON.stringify(newState);
+  // strip volatile checkedAt before comparing so quiet polls skip the write
+  const stable = s => s.replace(/"checkedAt":"[^"]*"/g, '');
+  if (stable(stateStr) !== stable(JSON.stringify(prevState))) {
+    writes.push(env.KV.put('state', stateStr));
+  }
+
+  if (transitions.length) {
+    const history = (await env.KV.get('history', 'json')) || [];
+    for (const t of transitions) {
+      history.unshift({ ts: now, ...t,
+        kind: t.to === 'operational' ? 'resolved' : 'incident' });
+    }
+    if (history.length > HISTORY_CAP) history.length = HISTORY_CAP;
+    writes.push(env.KV.put('history', JSON.stringify(history)));
+  }
+
+  await Promise.all(writes);
 
   // Slack alerts — grouped per platform, honoring per-platform toggles
   const alertable = transitions.filter(t =>
