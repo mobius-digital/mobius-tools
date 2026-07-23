@@ -264,25 +264,19 @@ function fmtWhen() {
   }) + ' UTC';
 }
 
-/**
- * One card per affected service, AdStatus-style hierarchy:
- *   ⚠️ <Platform> — <Category>          (e.g. "Meta — Ads Manager")
- *   <Status headline>                    (e.g. "Outage detected")
- *   <sub-category detail from the feed>  (e.g. "Ads Creation and Editing: Major disruptions")
- */
-function serviceCard(short, t) {
-  const icon = t.to === 'operational' ? '✅' : '⚠️';
-  // strip a redundant platform prefix ("Google Ad Manager" → "Ad Manager")
-  const category = t.service.replace(new RegExp(`^${short}\\s+`, 'i'), '');
-  const status = t.to === 'operational' ? 'Recovered'
-    : t.to === 'outage' ? 'Outage detected'
-    : 'Degraded performance';
-  const note = t.note && t.to !== 'operational' ? `\n${t.note.slice(0, 200)}` : '';
-  return `*${icon}  ${short} — ${category}*\n*${status}*${note}`;
-}
+const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/pulse/';
 
 /**
- * Build a Slack message in the colored-bar attachment style.
+ * Build a Slack message mirroring the AdStatus card as closely as Slack
+ * Block Kit allows:
+ *
+ *   ▌ ⚠️ Meta — Ads Manager                      title
+ *   ▌ ───────────────────────                    divider
+ *   ▌ Outage detected                            bold status headline
+ *   ▌ Ads Creation and Editing: Major disr…      small gray detail (context)
+ *   ▌ ───────────────────────                    divider
+ *   ▌ Detected at: … · View dashboard →          gray footer + blue link
+ *
  * `short` is the platform's short display name ("Meta", "Google", "Shopify").
  */
 function buildAlertMessage(short, transitions, { withButton, alertId, sentNote } = {}) {
@@ -290,33 +284,41 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote }
   const hasOutage = transitions.some(t => t.to === 'outage');
   const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
 
-  const body = transitions.map(t => serviceCard(short, t)).join('\n\n');
+  const blocks = [];
+  transitions.forEach((t, i) => {
+    if (i > 0) blocks.push({ type: 'divider' });
+    const icon = t.to === 'operational' ? '✅' : '⚠️';
+    // strip a redundant platform prefix ("Google Ad Manager" → "Ad Manager")
+    const category = t.service.replace(new RegExp(`^${short}\\s+`, 'i'), '');
+    const status = t.to === 'operational' ? 'Recovered'
+      : t.to === 'outage' ? 'Outage detected'
+      : 'Degraded performance';
+    blocks.push({ type: 'section', text: { type: 'mrkdwn',
+      text: `${icon}  *${short} — ${category}*` } });
+    blocks.push({ type: 'divider' });
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${status}*` } });
+    if (t.note && t.to !== 'operational') {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
+        text: t.note.slice(0, 250) }] });
+    }
+  });
 
-  const blocks = [
-    { type: 'section', text: { type: 'mrkdwn', text: body } },
-    { type: 'context', elements: [{ type: 'mrkdwn',
-      text: `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}  •  Mobius Pulse` }] },
-  ];
+  blocks.push({ type: 'divider' });
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
+    text: `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}   ·   <${DASHBOARD_URL}|View dashboard →>` }] });
+
   if (sentNote) {
     blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: sentNote }] });
   }
-  const actions = [];
   if (withButton) {
-    actions.push({
+    blocks.push({ type: 'actions', elements: [{
       type: 'button',
       style: isRecovery ? 'primary' : 'danger',
       text: { type: 'plain_text', text: '📣 Send to client channels', emoji: true },
       action_id: 'send_to_clients',
       value: alertId,
-    });
+    }] });
   }
-  actions.push({
-    type: 'button',
-    text: { type: 'plain_text', text: 'View dashboard →', emoji: true },
-    action_id: 'view_dashboard',
-    url: 'https://tools.go-mobius-digital.com/pulse/',
-  });
-  blocks.push({ type: 'actions', elements: actions });
 
   return {
     text: `${short}: ${transitions.map(t => `${t.service} → ${t.to}`).join(', ')}`,
