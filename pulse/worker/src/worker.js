@@ -277,18 +277,23 @@ function alertBlocks(platformName, transitions, { withButton, alertId } = {}) {
     { type: 'context', elements: [{ type: 'mrkdwn',
       text: `Mobius Pulse  •  ${new Date().toUTCString()}` }] },
   ];
+  const actions = [];
   if (withButton) {
-    blocks.push({
-      type: 'actions',
-      elements: [{
-        type: 'button',
-        style: isRecovery ? 'primary' : 'danger',
-        text: { type: 'plain_text', text: '📣 Send to client channels', emoji: true },
-        action_id: 'send_to_clients',
-        value: alertId,
-      }],
+    actions.push({
+      type: 'button',
+      style: isRecovery ? 'primary' : 'danger',
+      text: { type: 'plain_text', text: '📣 Send to client channels', emoji: true },
+      action_id: 'send_to_clients',
+      value: alertId,
     });
   }
+  actions.push({
+    type: 'button',
+    text: { type: 'plain_text', text: 'View dashboard', emoji: true },
+    action_id: 'view_dashboard',
+    url: 'https://tools.go-mobius-digital.com/pulse/',
+  });
+  blocks.push({ type: 'actions', elements: actions });
   return blocks;
 }
 

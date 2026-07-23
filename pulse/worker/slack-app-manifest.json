@@ -1,12 +1,12 @@
 {
   "display_information": {
-    "name": "Mobius Ad Status",
+    "name": "Mobius Pulse",
     "description": "Real-time ad platform outage alerts (Meta, Google Ads, Shopify + more)",
     "background_color": "#0c161d"
   },
   "features": {
     "bot_user": {
-      "display_name": "Ad Status",
+      "display_name": "Mobius Pulse",
       "always_online": true
     }
   },
