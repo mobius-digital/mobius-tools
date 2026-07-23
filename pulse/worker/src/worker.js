@@ -19,7 +19,7 @@
 
 const PLATFORMS = [
   {
-    id: 'meta', name: 'Meta Ads', color: '#0866FF',
+    id: 'meta', short: 'Meta', name: 'Meta Ads', color: '#0866FF',
     type: 'metastatus',
     url: 'https://metastatus.com/data/orgs.json',
     link: 'https://metastatus.com',
@@ -29,7 +29,7 @@ const PLATFORMS = [
            'whatsapp-business-api', 'ig-boost'],
   },
   {
-    id: 'google-ads', name: 'Google Ads', color: '#4285F4',
+    id: 'google-ads', short: 'Google', name: 'Google Ads', color: '#4285F4',
     type: 'google_incidents',
     url: 'https://ads.google.com/status/publisher/incidents.json',
     link: 'https://ads.google.com/status/publisher/',
@@ -37,7 +37,7 @@ const PLATFORMS = [
     services: null,
   },
   {
-    id: 'shopify', name: 'Shopify', color: '#5E8E3E',
+    id: 'shopify', short: 'Shopify', name: 'Shopify', color: '#5E8E3E',
     type: 'statuspage',
     url: 'https://www.shopifystatus.com/api/v2/summary.json',
     link: 'https://www.shopifystatus.com',
@@ -45,21 +45,21 @@ const PLATFORMS = [
                  'Point of Sale', 'Reports and Analytics', 'Support', 'Oxygen', 'Third party services'],
   },
   {
-    id: 'pinterest', name: 'Pinterest Ads', color: '#E60023',
+    id: 'pinterest', short: 'Pinterest', name: 'Pinterest Ads', color: '#E60023',
     type: 'statuspage',
     url: 'https://status.pinterest.com/api/v2/summary.json',
     link: 'https://status.pinterest.com',
     components: null,
   },
   {
-    id: 'openai', name: 'OpenAI / ChatGPT', color: '#10A37F',
+    id: 'openai', short: 'OpenAI', name: 'OpenAI / ChatGPT', color: '#10A37F',
     type: 'statuspage',
     url: 'https://status.openai.com/api/v2/summary.json',
     link: 'https://status.openai.com',
     components: null,
   },
   {
-    id: 'anthropic', name: 'Claude / Anthropic', color: '#D97757',
+    id: 'anthropic', short: 'Claude', name: 'Claude / Anthropic', color: '#D97757',
     type: 'statuspage',
     url: 'https://status.anthropic.com/api/v2/summary.json',
     link: 'https://status.anthropic.com',
@@ -257,8 +257,6 @@ async function slackApi(env, method, body) {
   return json;
 }
 
-const STATE_LABEL = { outage: 'Outage', degraded: 'Degraded performance', operational: 'Recovered' };
-
 function fmtWhen() {
   return new Date().toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -267,28 +265,34 @@ function fmtWhen() {
 }
 
 /**
- * Build a Slack message in the colored-bar attachment style:
- * bold headline, service lines with plain-text detail, "Detected at" footer.
+ * One card per affected service, AdStatus-style hierarchy:
+ *   ⚠️ <Platform> — <Category>          (e.g. "Meta — Ads Manager")
+ *   <Status headline>                    (e.g. "Outage detected")
+ *   <sub-category detail from the feed>  (e.g. "Ads Creation and Editing: Major disruptions")
  */
-function buildAlertMessage(platformName, transitions, { withButton, alertId, sentNote } = {}) {
+function serviceCard(short, t) {
+  const icon = t.to === 'operational' ? '✅' : '⚠️';
+  // strip a redundant platform prefix ("Google Ad Manager" → "Ad Manager")
+  const category = t.service.replace(new RegExp(`^${short}\\s+`, 'i'), '');
+  const status = t.to === 'operational' ? 'Recovered'
+    : t.to === 'outage' ? 'Outage detected'
+    : 'Degraded performance';
+  const note = t.note && t.to !== 'operational' ? `\n${t.note.slice(0, 200)}` : '';
+  return `*${icon}  ${short} — ${category}*\n*${status}*${note}`;
+}
+
+/**
+ * Build a Slack message in the colored-bar attachment style.
+ * `short` is the platform's short display name ("Meta", "Google", "Shopify").
+ */
+function buildAlertMessage(short, transitions, { withButton, alertId, sentNote } = {}) {
   const isRecovery = transitions.every(t => t.to === 'operational');
   const hasOutage = transitions.some(t => t.to === 'outage');
   const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
 
-  const headline = isRecovery
-    ? `✅  ${platformName} — recovered`
-    : transitions.length === 1
-      ? `⚠️  ${platformName} — ${transitions[0].service}`
-      : `⚠️  ${platformName} — ${transitions.length} services affected`;
-
-  const body = transitions.map(t => {
-    const line = `*${t.service}*  ·  ${STATE_LABEL[t.to] || t.to}`;
-    const note = t.note && t.to !== 'operational' ? `\n${t.note.slice(0, 200)}` : '';
-    return line + note;
-  }).join('\n\n');
+  const body = transitions.map(t => serviceCard(short, t)).join('\n\n');
 
   const blocks = [
-    { type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
     { type: 'section', text: { type: 'mrkdwn', text: body } },
     { type: 'context', elements: [{ type: 'mrkdwn',
       text: `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}  •  Mobius Pulse` }] },
@@ -315,14 +319,14 @@ function buildAlertMessage(platformName, transitions, { withButton, alertId, sen
   blocks.push({ type: 'actions', elements: actions });
 
   return {
-    text: `${platformName}: ${transitions.map(t => `${t.service} → ${t.to}`).join(', ')}`,
+    text: `${short}: ${transitions.map(t => `${t.service} → ${t.to}`).join(', ')}`,
     attachments: [{ color, blocks }],
   };
 }
 
 async function sendAlert(env, settings, platformId, transitions) {
   const platform = PLATFORMS.find(p => p.id === platformId);
-  const name = platform ? platform.name : platformId;
+  const name = platform ? (platform.short || platform.name) : platformId;
   const alertId = `alert:${Date.now()}:${platformId}`;
   // Store the payload so the button click can re-render it for client channels
   await env.KV.put(alertId, JSON.stringify({ platformName: name, transitions }),
