@@ -296,7 +296,6 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, 
   const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
 
   const blocks = [];
-  const notes = [];
   transitions.forEach((t, i) => {
     const icon = t.to === 'operational' ? '✅' : '⚠️';
     // strip a redundant platform prefix ("Google Ad Manager" → "Ad Manager")
@@ -307,19 +306,18 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, 
     blocks.push({ type: 'section', text: { type: 'mrkdwn',
       text: `${icon}  *${short} — ${category}*` } });
     if (i === 0) blocks.push({ type: 'divider' });
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${status}*` } });
-    if (t.note && t.to !== 'operational') notes.push(t.note.slice(0, 250));
+    // status + detail share one section — a separate context block for the
+    // detail plus the second divider would trip Slack's "Show more" collapse
+    const detail = t.note && t.to !== 'operational' ? `\n${t.note.slice(0, 250)}` : '';
+    blocks.push({ type: 'section', text: { type: 'mrkdwn',
+      text: `*${status}*${detail}` } });
   });
 
-  // detail + footer (+ sent-confirmation) share one gray context block
+  blocks.push({ type: 'divider' });
   const links = link
     ? `<${link}|View details →>   ·   <${DASHBOARD_URL}|Pulse dashboard>`
     : `<${DASHBOARD_URL}|Pulse dashboard →>`;
   const footerLines = [
-    ...notes,
-    // character-drawn rule: a real divider block here would push the card
-    // over Slack's block budget and trigger "Show more"
-    '─'.repeat(30),
     `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}   ·   ${links}`,
     ...(sentNote ? [sentNote] : []),
   ];
