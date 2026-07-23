@@ -70,7 +70,7 @@
   .banner .again{margin-left:auto;text-align:right;color:var(--muted);font-size:12px;white-space:nowrap}
 
   /* ---------- Platform grid ---------- */
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;transition:box-shadow .15s,transform .15s}
   .card:hover{box-shadow:0 6px 20px rgba(19,32,43,.07);transform:translateY(-1px)}
   .card-top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
@@ -457,9 +457,7 @@ function render(){
 
   // grid
   $('grid').innerHTML = ps.map(p=>{
-    const shown = p.services.slice(0,6);
-    const hidden = p.services.length-shown.length;
-    const rows = shown.map(s=>`
+    const rows = p.services.map(s=>`
       <li><span class="dot" data-s="${s.state}"></span>${esc(s.name)}
         <span class="note">${s.state==='operational'?'':esc((s.note||s.state).slice(0,60))}</span></li>`).join('');
     return `<div class="card">
@@ -469,17 +467,8 @@ function render(){
         <span class="chip" data-s="${p.worst}">${p.worst}</span>
       </div>
       ${p.services.length ? `<ul class="svc">${rows}</ul>` : `<div class="err">${esc(p.error||'no data')}</div>`}
-      ${hidden>0?`<button class="more-btn" data-p="${p.id}">Show ${hidden} more services</button>`:''}
     </div>`;
   }).join('');
-  document.querySelectorAll('.more-btn').forEach(b=>b.addEventListener('click',()=>{
-    const p = ps.find(x=>x.id===b.dataset.p);
-    const card = b.closest('.card');
-    card.querySelector('.svc').innerHTML = p.services.map(s=>`
-      <li><span class="dot" data-s="${s.state}"></span>${esc(s.name)}
-        <span class="note">${s.state==='operational'?'':esc((s.note||s.state).slice(0,60))}</span></li>`).join('');
-    b.remove();
-  }));
 
   // incidents
   const feed = $('feed');
