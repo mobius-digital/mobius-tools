@@ -1,0 +1,63 @@
+# Watchdog for the Mobius Pulse ad-platform monitor.
+#
+# Runs on GitHub's infrastructure (independent of Cloudflare). If the
+# Cloudflare Worker is unreachable — or its last poll is stale — this posts
+# a warning straight to Slack via an Incoming Webhook, so the monitor can
+# never go down silently.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   AD_STATUS_WORKER_URL        e.g. https://mobius-ad-status.<acct>.workers.dev
+#   AD_STATUS_WATCHDOG_WEBHOOK  Slack Incoming Webhook URL (separate delivery
+#                               path from the bot token on purpose)
+
+name: Mobius Pulse watchdog
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check monitor heartbeat
+        env:
+          WORKER_URL: ${{ secrets.AD_STATUS_WORKER_URL }}
+          WEBHOOK: ${{ secrets.AD_STATUS_WATCHDOG_WEBHOOK }}
+        run: |
+          set -u
+          if [ -z "${WORKER_URL:-}" ] || [ -z "${WEBHOOK:-}" ]; then
+            echo "Secrets not configured yet — skipping."
+            exit 0
+          fi
+
+          alert() {
+            curl -sS -X POST -H 'Content-Type: application/json' \
+              -d "{\"text\":\"⚠️ *Mobius Pulse monitor may be down.* $1\nDashboard: https://tools.go-mobius-digital.com/pulse/\"}" \
+              "$WEBHOOK" || true
+          }
+
+          resp="$(curl -fsS -m 25 "$WORKER_URL/health" 2>/dev/null)" || {
+            echo "Worker unreachable"
+            alert "The Cloudflare Worker did not respond to a health check from GitHub Actions."
+            exit 0
+          }
+
+          last="$(echo "$resp" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("lastRun") or "")')"
+          if [ -z "$last" ]; then
+            echo "No lastRun yet (worker deployed but never polled?)"
+            alert "The Worker responded but has no record of a completed poll yet."
+            exit 0
+          fi
+
+          age=$(python3 - "$last" <<'EOF'
+          import sys, datetime
+          last = datetime.datetime.fromisoformat(sys.argv[1].replace("Z", "+00:00"))
+          print(int((datetime.datetime.now(datetime.timezone.utc) - last).total_seconds()))
+          EOF
+          )
+          echo "Last poll was ${age}s ago"
+          if [ "$age" -gt 1500 ]; then
+            alert "The Worker is reachable but its last successful poll was $((age / 60)) minutes ago (cron may be failing)."
+          fi

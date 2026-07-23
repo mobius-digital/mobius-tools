@@ -1,0 +1,21 @@
+# Mobius Ad Status — Cloudflare Worker config
+# Deploy:  npx wrangler deploy   (from this folder)
+name = "mobius-ad-status"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# Poll every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
+
+# KV namespace for state / settings / incident history.
+# Create it once with:  npx wrangler kv namespace create AD_STATUS
+# then paste the id it prints below.
+[[kv_namespaces]]
+binding = "KV"
+id = "8d86cf02552b40b5a58886ab0e4bc44d"
+
+# Secrets (set once, never committed):
+#   npx wrangler secret put SLACK_BOT_TOKEN
+#   npx wrangler secret put SLACK_SIGNING_SECRET
+#   npx wrangler secret put ADMIN_TOKEN

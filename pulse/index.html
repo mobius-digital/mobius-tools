@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobius Pulse — Live Ad Platform Status</title>
+<meta name="description" content="Mobius Pulse — live status of Meta Ads, Google Ads, Shopify and more. Free ad platform outage monitor by Mobius Digital.">
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F8FA; --surface:#FFFFFF;
+    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
+    --line:#DFE7EC; --line-strong:#C4D2DB;
+    --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
+    --hd:#0C161D; --hd-line:#1D2C38;
+    --good:#1C7A46; --good-bg:#E4F2E9;
+    --warn:#8F6412; --warn-bg:#F8EED6;
+    --bad:#9C3A2E;  --bad-bg:#F7E7E4;
+    --unk:#647684;  --unk-bg:#EDF1F4;
+    --radius:12px;
+    --sans:'Instrument Sans',system-ui,sans-serif;
+    --serif:'Instrument Serif',Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;font-feature-settings:"tnum" 1}
+  button{font:inherit;cursor:pointer;color:inherit;background:none;border:none}
+  input,select{font:inherit;color:var(--ink)}
+  ::placeholder{color:#8195A2}
+  a{color:var(--brand-ink)}
+
+  /* ---------- Header ---------- */
+  header{position:sticky;top:0;z-index:20;background:var(--hd);color:#DFEAF2}
+  .hd{display:flex;align-items:center;gap:16px;padding:12px 26px;flex-wrap:wrap;max-width:1200px;margin:0 auto}
+  .mark{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
+  .mark img{height:32px;width:32px;border-radius:8px;display:block}
+  .mark b{font-weight:700;letter-spacing:.06em;font-size:13px}
+  .mark b span{color:var(--brand)}
+  .hd-sep{width:1px;height:28px;background:var(--hd-line)}
+  .hd-title{font-family:var(--serif);font-size:21px;color:#fff;white-space:nowrap}
+  .hd-title em{font-style:italic;color:var(--brand)}
+  .hd-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .hd-chip{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--hd-line);border-radius:99px;padding:6px 12px;color:#9FB4C2;white-space:nowrap}
+  .hd-chip[data-s="live"]{color:#7BE0A3;border-color:rgba(123,224,163,.35)}
+  .hd-chip[data-s="limited"]{color:#F2CE7B;border-color:rgba(242,206,123,.35)}
+  .hd-chip[data-s="down"]{color:#F2938A;border-color:rgba(242,147,138,.4)}
+  .hd-btn{border:1px solid var(--hd-line);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:#BFD3E0;white-space:nowrap}
+  .hd-btn:hover{border-color:var(--brand);color:#fff}
+
+  /* ---------- Layout ---------- */
+  main{max-width:1200px;margin:0 auto;padding:26px 26px 80px}
+  section{margin-bottom:34px}
+  h2{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+
+  /* ---------- Banner ---------- */
+  .banner{display:flex;align-items:center;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 26px;margin-bottom:30px}
+  .beacon{position:relative;width:16px;height:16px;flex:none}
+  .beacon i{position:absolute;inset:0;border-radius:50%;background:var(--good)}
+  .beacon i.ring{animation:pulse 2s ease-out infinite;opacity:.5}
+  .banner[data-s="degraded"] .beacon i{background:var(--warn)}
+  .banner[data-s="outage"] .beacon i{background:var(--bad)}
+  .banner[data-s="unknown"] .beacon i{background:var(--unk)}
+  @keyframes pulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(2.6);opacity:0}}
+  .banner h1{font-family:var(--serif);font-weight:400;font-size:28px;line-height:1.2}
+  .banner .meta{color:var(--muted);font-size:13px;margin-top:2px}
+  .banner .again{margin-left:auto;text-align:right;color:var(--muted);font-size:12px;white-space:nowrap}
+
+  /* ---------- Platform grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;transition:box-shadow .15s,transform .15s}
+  .card:hover{box-shadow:0 6px 20px rgba(19,32,43,.07);transform:translateY(-1px)}
+  .card-top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+  .tile{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex:none;letter-spacing:.02em}
+  .card-top .nm{font-weight:600;font-size:15px}
+  .card-top .nm a{color:inherit;text-decoration:none}
+  .card-top .nm a:hover{color:var(--brand-ink)}
+  .chip{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:99px;padding:4px 11px;white-space:nowrap}
+  .chip[data-s="operational"]{color:var(--good);background:var(--good-bg)}
+  .chip[data-s="degraded"]{color:var(--warn);background:var(--warn-bg)}
+  .chip[data-s="outage"]{color:var(--bad);background:var(--bad-bg)}
+  .chip[data-s="unknown"]{color:var(--unk);background:var(--unk-bg)}
+  .svc{list-style:none;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
+  .svc li{display:flex;align-items:center;gap:9px;padding:4.5px 0;font-size:13px;color:var(--ink-2)}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--good)}
+  .dot[data-s="degraded"]{background:var(--warn)}
+  .dot[data-s="outage"]{background:var(--bad);box-shadow:0 0 0 0 rgba(156,58,46,.5);animation:throb 1.6s infinite}
+  .dot[data-s="unknown"]{background:var(--unk)}
+  @keyframes throb{0%{box-shadow:0 0 0 0 rgba(156,58,46,.45)}70%{box-shadow:0 0 0 7px rgba(156,58,46,0)}100%{box-shadow:0 0 0 0 rgba(156,58,46,0)}}
+  .svc .note{margin-left:auto;color:var(--muted);font-size:11.5px;text-transform:capitalize;text-align:right;max-width:45%}
+  .more-btn{width:100%;text-align:center;color:var(--brand-ink);font-size:12px;font-weight:600;padding:7px 0 2px}
+  .more-btn:hover{text-decoration:underline}
+  .card .err{color:var(--muted);font-size:12.5px;font-style:italic;padding:6px 0 2px}
+
+  /* ---------- Link-only ---------- */
+  .links{display:flex;flex-wrap:wrap;gap:9px}
+  .link-chip{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 14px 7px 8px;font-size:13px;font-weight:600;color:var(--ink-2);text-decoration:none;transition:border-color .15s}
+  .link-chip:hover{border-color:var(--brand)}
+  .link-chip .tile{width:24px;height:24px;border-radius:6px;font-size:11px}
+  .link-chip svg{width:11px;height:11px;color:var(--muted)}
+
+  /* ---------- Incidents ---------- */
+  .feed{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:8px 22px}
+  .inc{display:flex;gap:14px;padding:13px 0;border-bottom:1px solid var(--line);align-items:baseline}
+  .inc:last-child{border-bottom:none}
+  .inc .when{color:var(--muted);font-size:12px;white-space:nowrap;min-width:110px}
+  .inc .what b{font-weight:600}
+  .inc .tag{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:99px;padding:2.5px 9px;margin-left:8px;vertical-align:1px}
+  .inc .tag[data-k="incident"]{color:var(--bad);background:var(--bad-bg)}
+  .inc .tag[data-k="resolved"]{color:var(--good);background:var(--good-bg)}
+  .feed .empty{color:var(--muted);padding:18px 0;font-size:13.5px;font-style:italic}
+
+  /* ---------- Slack promo ---------- */
+  .promo{display:flex;gap:20px;align-items:center;background:var(--hd);color:#DFEAF2;border-radius:var(--radius);padding:24px 28px;flex-wrap:wrap}
+  .promo h3{font-family:var(--serif);font-weight:400;font-size:22px;color:#fff}
+  .promo p{font-size:13.5px;color:#9FB4C2;max-width:520px;margin-top:4px}
+  .promo .cta{margin-left:auto;background:var(--brand);color:var(--hd);border-radius:9px;padding:11px 20px;font-weight:700;font-size:14px;white-space:nowrap}
+  .promo .cta:hover{filter:brightness(1.07)}
+
+  /* ---------- Modal ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(12,22,29,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto}
+  .overlay.open{display:flex}
+  .modal{background:var(--surface);border-radius:14px;max-width:640px;width:100%;padding:26px 28px;box-shadow:0 24px 60px rgba(12,22,29,.3)}
+  .modal h3{font-family:var(--serif);font-weight:400;font-size:22px;margin-bottom:2px}
+  .modal .hint{color:var(--muted);font-size:12.5px;margin-bottom:16px}
+  .frow{margin-bottom:14px}
+  .frow label{display:block;font-weight:600;font-size:12.5px;margin-bottom:5px;color:var(--ink-2)}
+  .frow input[type=text],.frow input[type=password],.frow select{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 12px;font-size:13.5px;background:#fff}
+  .frow input:focus,.frow select:focus{outline:2px solid var(--brand);outline-offset:-1px;border-color:var(--brand)}
+  .btn{background:var(--brand-ink);color:#fff;border-radius:8px;padding:9px 16px;font-weight:600;font-size:13.5px}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.ghost{background:var(--brand-soft);color:var(--brand-ink)}
+  .btn.sm{padding:6px 12px;font-size:12.5px}
+  .btn-row{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:18px}
+  .modal .status-line{font-size:12.5px;color:var(--muted);margin-left:auto}
+  .divider{border-top:1px solid var(--line);margin:18px 0 16px}
+  .toggles{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
+  .tog{display:flex;align-items:center;gap:9px;font-size:13.5px;padding:5px 0}
+  .tog input{accent-color:var(--brand-ink);width:15px;height:15px}
+  .chan-list{max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+  .chan-list .tog{padding:4px 0}
+  .chan-list .pv{color:var(--muted);font-size:11px;margin-left:4px}
+  .note-warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 14px;font-size:12.5px;margin-bottom:14px}
+  .close-x{float:right;font-size:20px;color:var(--muted);padding:2px 8px}
+  .close-x:hover{color:var(--ink)}
+
+  footer{border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;padding:22px 26px;text-align:center}
+  footer a{color:var(--brand-ink);text-decoration:none}
+
+  @media(max-width:640px){
+    .hd{padding:10px 16px}
+    .hd-title{display:none}
+    main{padding:18px 14px 60px}
+    .banner{flex-wrap:wrap;padding:18px}
+    .banner .again{margin-left:0;text-align:left}
+    .toggles{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd">
+    <a class="mark" href="../">
+      <img src="../favicon.png" alt="Mobius Digital">
+      <b>MOBIUS<span>&nbsp;DIGITAL</span></b>
+    </a>
+    <div class="hd-sep"></div>
+    <div class="hd-title"><em>Pulse</em></div>
+    <div class="hd-right">
+      <span class="hd-chip" id="modeChip" data-s="limited">Connecting…</span>
+      <button class="hd-btn" id="refreshBtn">↻ Refresh</button>
+      <button class="hd-btn" id="settingsBtn">⚙ Settings</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="banner" data-s="unknown">
+    <div class="beacon"><i class="ring"></i><i></i></div>
+    <div>
+      <h1 id="bannerTitle">Checking ad platforms…</h1>
+      <div class="meta" id="bannerMeta">Live status of the platforms DTC brands run on.</div>
+    </div>
+    <div class="again" id="nextCheck"></div>
+  </div>
+
+  <section>
+    <h2>Monitored platforms</h2>
+    <div class="sub">Checked every 5 minutes. Issues post to Slack automatically.</div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section>
+    <h2>Recent incidents</h2>
+    <div class="sub">Every detected status change, newest first.</div>
+    <div class="feed" id="feed"><div class="empty">Incident history appears once the monitor worker is connected.</div></div>
+  </section>
+
+  <section>
+    <h2>More platforms</h2>
+    <div class="sub">No public machine-readable status feed yet — direct links to each platform.</div>
+    <div class="links" id="links"></div>
+  </section>
+
+  <section>
+    <div class="promo">
+      <div>
+        <h3>Outage alerts, straight to Slack.</h3>
+        <p>When Meta, Google Ads or Shopify go down, the Mobius team knows within minutes — and can push the alert to every client channel with one click.</p>
+      </div>
+      <button class="cta" id="promoBtn">Set up alerts →</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Built by <a href="https://go-mobius-digital.com">Mobius Digital</a> · Part of <a href="../">Mobius Tools</a> · Status data © respective platforms
+</footer>
+
+<!-- ---------- Settings modal ---------- -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <button class="close-x" id="closeBtn">×</button>
+    <h3>Monitor settings</h3>
+    <div class="hint">Connect to your deployed Cloudflare Worker to manage Slack alerts. Config is stored only in this browser.</div>
+
+    <div class="frow">
+      <label>Worker URL</label>
+      <input type="text" id="inWorker" placeholder="https://mobius-ad-status.your-account.workers.dev">
+    </div>
+    <div class="frow">
+      <label>Admin token</label>
+      <input type="password" id="inToken" placeholder="the ADMIN_TOKEN secret you set on the worker">
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="connectBtn">Connect</button>
+      <span class="status-line" id="connStatus"></span>
+    </div>
+
+    <div id="adminArea" style="display:none">
+      <div class="divider"></div>
+
+      <div class="frow">
+        <label>Internal alert channel <span style="font-weight:400;color:var(--muted)">(alerts land here first)</span></label>
+        <select id="inInternal"></select>
+      </div>
+
+      <div class="frow">
+        <label>Client channels <span style="font-weight:400;color:var(--muted)">(the "Send to clients" button posts to all checked)</span></label>
+        <div class="chan-list" id="clientChans"></div>
+        <div class="hint" style="margin:6px 0 0">Only channels the bot has been invited to can be selected — <code>/invite @Ad Status</code> in Slack first.</div>
+      </div>
+
+      <div class="frow">
+        <label>Platform notifications</label>
+        <div class="toggles" id="platToggles"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="saveBtn">Save settings</button>
+        <button class="btn ghost" id="testBtn">Send test alert</button>
+        <button class="btn ghost" id="pollBtn">Poll now</button>
+        <span class="status-line" id="saveStatus"></span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="hint" style="margin:0">
+      Haven't deployed the worker yet? Follow the
+      <a href="https://github.com/mobius-digital/mobius-tools/tree/main/pulse/worker" target="_blank" rel="noopener">setup guide</a>
+      — free Cloudflare Worker + Slack app, ~15 minutes.
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   Mobius Ad Status — dashboard
+   Two data modes:
+   1. WORKER mode — reads /api/status from the Cloudflare Worker
+      (full coverage + incident history + Slack settings).
+   2. DIRECT mode — no worker configured/reachable: the browser reads
+      the CORS-friendly status feeds directly. Reduced coverage, but
+      the dashboard itself never depends on a single provider.
+   ================================================================ */
+
+// After you deploy the worker, paste its URL here so every visitor
+// gets full coverage without touching Settings:
+const DEFAULT_WORKER_URL = 'https://mobius-ad-status.mobius-digital.workers.dev';
+
+const LS = { worker:'adstatus.workerUrl', token:'adstatus.adminToken' };
+const workerUrl = () => (localStorage.getItem(LS.worker) || DEFAULT_WORKER_URL).replace(/\/+$/,'');
+
+const PLATFORMS = [
+  { id:'meta',       name:'Meta Ads',          color:'#0866FF', abbr:'M',  link:'https://metastatus.com',
+    direct:{ type:'metastatus', url:'https://metastatus.com/data/orgs.json',
+      orgs:['ads-manager','marketing-api','fbs','graph-api','catalog','fb-ig-shops','audience-network','facebook-login','ctx','whatsapp-business-api','ig-boost'] } },
+  { id:'google-ads', name:'Google Ads',        color:'#4285F4', abbr:'G',  link:'https://ads.google.com/status/publisher/',
+    direct:{ type:'google', url:'https://ads.google.com/status/publisher/incidents.json' } },
+  { id:'shopify',    name:'Shopify',           color:'#5E8E3E', abbr:'S',  link:'https://www.shopifystatus.com',
+    direct:{ type:'statuspage', url:'https://www.shopifystatus.com/api/v2/summary.json',
+      components:['Admin','Checkout','Storefront','API & Mobile','API','Point of Sale','Reports and Analytics','Support','Oxygen','Third party services'] } },
+  { id:'pinterest',  name:'Pinterest Ads',     color:'#E60023', abbr:'P',  link:'https://status.pinterest.com',
+    direct:{ type:'statuspage', url:'https://status.pinterest.com/api/v2/summary.json' } },
+  { id:'openai',     name:'OpenAI / ChatGPT',  color:'#10A37F', abbr:'AI', link:'https://status.openai.com',
+    direct:{ type:'statuspage', url:'https://status.openai.com/api/v2/summary.json' } },
+  { id:'anthropic',  name:'Claude / Anthropic',color:'#D97757', abbr:'C',  link:'https://status.anthropic.com',
+    direct:{ type:'statuspage', url:'https://status.anthropic.com/api/v2/summary.json' } },
+];
+
+const LINK_ONLY = [
+  { name:'Microsoft Ads',    color:'#00A4EF', abbr:'MS', link:'https://status.ads.microsoft.com/' },
+  { name:'TikTok Ads',       color:'#111111', abbr:'T',  link:'https://ads.tiktok.com/' },
+  { name:'LinkedIn Ads',     color:'#0A66C2', abbr:'in', link:'https://www.linkedin.com/campaignmanager/' },
+  { name:'Snapchat Ads',     color:'#F5D400', abbr:'👻', link:'https://ads.snapchat.com/' },
+  { name:'X Ads',            color:'#111111', abbr:'X',  link:'https://ads.x.com/' },
+  { name:'Amazon Ads',       color:'#FF9900', abbr:'A',  link:'https://advertising.amazon.com/' },
+  { name:'Apple Search Ads', color:'#555555', abbr:'AS', link:'https://searchads.apple.com/' },
+];
+
+const RANK = { operational:0, unknown:0.5, degraded:1, outage:2 };
+const $ = id => document.getElementById(id);
+
+/* ---------------- direct-mode parsers ---------------- */
+function dpStatuspage(json, cfg){
+  return (json.components||[])
+    .filter(c=>!c.group)
+    .filter(c=>!cfg.components || cfg.components.includes(c.name))
+    .map(c=>({ name:c.name,
+      state:c.status==='operational'?'operational'
+        :(c.status==='degraded_performance'||c.status==='under_maintenance')?'degraded':'outage',
+      note:(c.status||'').replace(/_/g,' ') }));
+}
+function dpMetastatus(json, cfg){
+  return json.filter(o=>!cfg.orgs||cfg.orgs.includes(o.id)).map(o=>{
+    let worst='operational', note='No known issues';
+    for(const s of o.services||[]){
+      const t=String(s.status||'').toLowerCase();
+      let st='operational';
+      if(t && !t.includes('no known issues') && !t.includes('resolved'))
+        st=(t.includes('major')||t.includes('outage'))?'outage':'degraded';
+      if(RANK[st]>RANK[worst]){worst=st;note=`${s.name}: ${s.status}`;}
+    }
+    return { name:o.name, state:worst, note };
+  });
+}
+function dpGoogle(json){
+  const open=(json||[]).filter(i=>!i.end);
+  if(!open.length) return [{name:'All Google Ads products',state:'operational',note:'No open incidents'}];
+  const by=new Map();
+  for(const i of open){
+    const n=String(i.service_name||'Google Ads').trim();
+    const sev=String(i.status_impact||i.severity||'').toLowerCase();
+    const st=(sev.includes('outage')&&!sev.includes('partial'))?'outage':'degraded';
+    if(!by.has(n)||RANK[st]>RANK[by.get(n).state]) by.set(n,{name:n,state:st,note:(i.external_desc||'').slice(0,140)});
+  }
+  return [...by.values()];
+}
+const DIRECT = { statuspage:dpStatuspage, metastatus:dpMetastatus, google:dpGoogle };
+
+/* ---------------- data loading ---------------- */
+let lastData = null;
+
+async function load(){
+  const wu = workerUrl();
+  if(wu){
+    try{
+      const r = await fetch(`${wu}/api/status`, {cache:'no-store'});
+      if(r.ok){
+        const d = await r.json();
+        lastData = normalizeWorker(d);
+        setMode(isFresh(d.lastRun) ? 'live' : 'down');
+        render();
+        return;
+      }
+    }catch(e){ /* fall through to direct */ }
+    setMode('down');
+  }
+  await loadDirect(wu ? 'down' : 'limited');
+}
+
+function isFresh(iso){
+  if(!iso) return false;
+  return (Date.now() - Date.parse(iso)) < 20*60*1000;
+}
+
+function normalizeWorker(d){
+  const platforms = PLATFORMS.map(p=>{
+    const w = (d.platforms||[]).find(x=>x.id===p.id);
+    const st = w && w.state;
+    return { ...p,
+      worst: st ? st.worst : 'unknown',
+      ok: st ? st.ok : false,
+      services: st ? Object.values(st.services||{}) : [],
+      error: st ? st.error : 'no data yet' };
+  });
+  return { platforms, incidents: d.incidents||[], lastRun: d.lastRun };
+}
+
+async function loadDirect(mode){
+  const results = await Promise.all(PLATFORMS.map(async p=>{
+    try{
+      const r = await fetch(p.direct.url, {cache:'no-store'});
+      if(!r.ok) throw new Error('http '+r.status);
+      const j = await r.json();
+      const services = DIRECT[p.direct.type](j, p.direct);
+      const worst = services.reduce((w,s)=>RANK[s.state]>RANK[w]?s.state:w,'operational');
+      return { ...p, worst, ok:true, services };
+    }catch(e){
+      return { ...p, worst:'unknown', ok:false, services:[], error:'browser can’t reach this feed — worker covers it' };
+    }
+  }));
+  lastData = { platforms: results, incidents:[], lastRun:new Date().toISOString(), direct:true };
+  setMode(mode);
+  render();
+}
+
+/* ---------------- rendering ---------------- */
+function setMode(m){
+  const chip = $('modeChip');
+  chip.dataset.s = m;
+  chip.textContent = m==='live' ? '● Monitor live' : m==='down' ? '● Monitor down' : '● Limited mode';
+  chip.title = m==='live' ? 'Cloudflare Worker is polling and posting Slack alerts.'
+    : m==='down' ? 'Worker unreachable or stale — showing what the browser can fetch directly.'
+    : 'No worker connected — the browser reads public feeds directly. Slack alerts need the worker.';
+}
+
+function esc(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
+function ago(iso){
+  const s=(Date.now()-Date.parse(iso))/1000;
+  if(s<90) return 'just now';
+  if(s<3600) return `${Math.round(s/60)} min ago`;
+  if(s<86400) return `${Math.round(s/3600)} h ago`;
+  return `${Math.round(s/86400)} d ago`;
+}
+
+function render(){
+  if(!lastData) return;
+  const ps = lastData.platforms;
+
+  // banner
+  const worst = ps.reduce((w,p)=>RANK[p.worst]>RANK[w]?p.worst:w,'operational');
+  const issues = ps.filter(p=>p.worst==='degraded'||p.worst==='outage');
+  const banner = $('banner');
+  banner.dataset.s = worst==='unknown' && ps.every(p=>!p.ok) ? 'unknown' : worst;
+  $('bannerTitle').textContent =
+    issues.length===0 ? 'All ad platforms operational'
+    : issues.length===1 ? `${issues[0].name} is reporting issues`
+    : `${issues.length} platforms reporting issues`;
+  $('bannerMeta').textContent = lastData.lastRun
+    ? `Last checked ${ago(lastData.lastRun)}${lastData.direct?' · fetched directly by your browser':' · by the Mobius monitor'}`
+    : 'Waiting for first check…';
+
+  // grid
+  $('grid').innerHTML = ps.map(p=>{
+    const shown = p.services.slice(0,6);
+    const hidden = p.services.length-shown.length;
+    const rows = shown.map(s=>`
+      <li><span class="dot" data-s="${s.state}"></span>${esc(s.name)}
+        <span class="note">${s.state==='operational'?'':esc((s.note||s.state).slice(0,60))}</span></li>`).join('');
+    return `<div class="card">
+      <div class="card-top">
+        <div class="tile" style="background:${p.color}">${esc(p.abbr)}</div>
+        <div class="nm"><a href="${p.link}" target="_blank" rel="noopener">${esc(p.name)}</a></div>
+        <span class="chip" data-s="${p.worst}">${p.worst}</span>
+      </div>
+      ${p.services.length ? `<ul class="svc">${rows}</ul>` : `<div class="err">${esc(p.error||'no data')}</div>`}
+      ${hidden>0?`<button class="more-btn" data-p="${p.id}">Show ${hidden} more services</button>`:''}
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.more-btn').forEach(b=>b.addEventListener('click',()=>{
+    const p = ps.find(x=>x.id===b.dataset.p);
+    const card = b.closest('.card');
+    card.querySelector('.svc').innerHTML = p.services.map(s=>`
+      <li><span class="dot" data-s="${s.state}"></span>${esc(s.name)}
+        <span class="note">${s.state==='operational'?'':esc((s.note||s.state).slice(0,60))}</span></li>`).join('');
+    b.remove();
+  }));
+
+  // incidents
+  const feed = $('feed');
+  if(lastData.incidents.length){
+    feed.innerHTML = lastData.incidents.map(i=>`
+      <div class="inc">
+        <div class="when" title="${esc(i.ts)}">${ago(i.ts)}</div>
+        <div class="what"><b>${esc(i.platform)}</b> — ${esc(i.service)}
+          <span class="tag" data-k="${i.kind}">${i.kind==='resolved'?'resolved':'issue'}</span>
+          <div style="color:var(--muted);font-size:12.5px">${esc(i.from)} → ${esc(i.to)}${i.note&&i.kind!=='resolved'?` · ${esc(String(i.note).slice(0,140))}`:''}</div>
+        </div>
+      </div>`).join('');
+  } else {
+    feed.innerHTML = `<div class="empty">${lastData.direct
+      ? 'Incident history appears once the monitor worker is connected (Settings → Worker URL).'
+      : 'No status changes recorded yet — quiet is good. 🎉'}</div>`;
+  }
+
+  // link-only chips
+  $('links').innerHTML = LINK_ONLY.map(l=>`
+    <a class="link-chip" href="${l.link}" target="_blank" rel="noopener">
+      <span class="tile" style="background:${l.color}">${esc(l.abbr)}</span>${esc(l.name)}
+      <svg viewBox="0 0 12 12" fill="none"><path d="M3 9L9 3M9 3H4.5M9 3V7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    </a>`).join('');
+}
+
+/* ---------------- auto refresh ---------------- */
+let nextAt = Date.now()+60000;
+setInterval(()=>{
+  const s = Math.max(0, Math.round((nextAt-Date.now())/1000));
+  $('nextCheck').textContent = `auto-refresh in ${s}s`;
+  if(s===0){ nextAt = Date.now()+60000; load(); }
+},1000);
+$('refreshBtn').addEventListener('click',()=>{ nextAt=Date.now()+60000; load(); });
+
+/* ================= settings modal ================= */
+const overlay=$('overlay');
+const openModal=()=>{ overlay.classList.add('open');
+  $('inWorker').value = localStorage.getItem(LS.worker)||DEFAULT_WORKER_URL;
+  $('inToken').value = localStorage.getItem(LS.token)||''; };
+$('settingsBtn').addEventListener('click',openModal);
+$('promoBtn').addEventListener('click',openModal);
+$('closeBtn').addEventListener('click',()=>overlay.classList.remove('open'));
+overlay.addEventListener('click',e=>{ if(e.target===overlay) overlay.classList.remove('open'); });
+
+const api = async (path, opts={}) => {
+  const wu = ($('inWorker').value||'').trim().replace(/\/+$/,'');
+  const tok = ($('inToken').value||'').trim();
+  const r = await fetch(wu+path, { ...opts, headers:{
+    'Authorization':`Bearer ${tok}`, 'Content-Type':'application/json', ...(opts.headers||{}) }});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || `HTTP ${r.status}`);
+  return r.json();
+};
+
+let channels=[], settings=null;
+
+$('connectBtn').addEventListener('click', async ()=>{
+  const st=$('connStatus'); st.textContent='Connecting…';
+  try{
+    localStorage.setItem(LS.worker, ($('inWorker').value||'').trim().replace(/\/+$/,''));
+    localStorage.setItem(LS.token, ($('inToken').value||'').trim());
+    [settings, {channels}] = await Promise.all([ api('/api/settings'), api('/api/channels') ]);
+    renderAdmin();
+    $('adminArea').style.display='block';
+    st.textContent='✓ Connected';
+    nextAt=Date.now()+60000; load();
+  }catch(e){
+    $('adminArea').style.display='none';
+    st.textContent = `✗ ${e.message==='unauthorized'?'Wrong admin token':'Could not reach worker — '+e.message}`;
+  }
+});
+
+function renderAdmin(){
+  const member = channels.filter(c=>c.is_member);
+  $('inInternal').innerHTML = `<option value="">— choose a channel —</option>` +
+    member.map(c=>`<option value="${c.id}" ${settings.channels.internal===c.id?'selected':''}>#${esc(c.name)}${c.is_private?' 🔒':''}</option>`).join('');
+  $('clientChans').innerHTML = member.map(c=>`
+    <label class="tog"><input type="checkbox" value="${c.id}" ${settings.channels.clients.includes(c.id)?'checked':''}>
+      #${esc(c.name)}${c.is_private?'<span class="pv">🔒 private</span>':''}</label>`).join('')
+    || `<div style="color:var(--muted);font-size:13px;padding:6px 0">The bot isn’t in any channels yet — <code>/invite @Ad Status</code> in Slack, then reconnect.</div>`;
+  $('platToggles').innerHTML = PLATFORMS.map(p=>`
+    <label class="tog"><input type="checkbox" data-plat="${p.id}" ${settings.platforms?.[p.id]?.alerts!==false?'checked':''}>
+      ${esc(p.name)}</label>`).join('');
+}
+
+$('saveBtn').addEventListener('click', async ()=>{
+  const st=$('saveStatus'); st.textContent='Saving…';
+  try{
+    const body={ channels:{
+        internal: $('inInternal').value,
+        clients: [...$('clientChans').querySelectorAll('input:checked')].map(i=>i.value) },
+      platforms: Object.fromEntries([...$('platToggles').querySelectorAll('input')]
+        .map(i=>[i.dataset.plat,{alerts:i.checked}])) };
+    settings = await api('/api/settings',{method:'PUT',body:JSON.stringify(body)});
+    st.textContent='✓ Saved';
+  }catch(e){ st.textContent='✗ '+e.message; }
+});
+
+$('testBtn').addEventListener('click', async ()=>{
+  const st=$('saveStatus'); st.textContent='Sending test…';
+  try{ await api('/api/test',{method:'POST'}); st.textContent='✓ Test alert sent — check Slack'; }
+  catch(e){ st.textContent='✗ '+e.message; }
+});
+
+$('pollBtn').addEventListener('click', async ()=>{
+  const st=$('saveStatus'); st.textContent='Polling…';
+  try{ const r=await api('/api/poll',{method:'POST'});
+    st.textContent=`✓ Checked ${r.checked} platforms, ${r.transitions} changes`;
+    nextAt=Date.now()+60000; load();
+  }catch(e){ st.textContent='✗ '+e.message; }
+});
+
+/* go */
+load();
+</script>
+</body>
+</html>
