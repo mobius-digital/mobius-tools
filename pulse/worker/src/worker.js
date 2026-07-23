@@ -317,6 +317,9 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, 
     : `<${DASHBOARD_URL}|Pulse dashboard →>`;
   const footerLines = [
     ...notes,
+    // character-drawn rule: a real divider block here would push the card
+    // over Slack's block budget and trigger "Show more"
+    '─'.repeat(30),
     `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}   ·   ${links}`,
     ...(sentNote ? [sentNote] : []),
   ];
