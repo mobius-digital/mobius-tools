@@ -277,33 +277,33 @@ const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/pulse/';
 
 /**
  * Build a Slack message mirroring the AdStatus card as closely as Slack
- * Block Kit allows:
+ * Block Kit allows without ever collapsing behind "Show more":
  *
- *   ▌ ⚠️ Meta — Ads Manager                      title
- *   ▌ ───────────────────────                    divider
- *   ▌ Outage detected                            bold status headline
- *   ▌ Ads Creation and Editing: Major disr…      small gray detail (context)
- *   ▌ ───────────────────────                    divider
- *   ▌ Detected at: … · View dashboard →          gray footer + blue link
+ *   🟥  Meta — Ads Manager                       title + severity chip
+ *   ───────────────────────                      divider
+ *   Outage detected                              bold status headline
+ *   Ads Creation and Editing: Major disr…        small gray detail (context)
+ *   ───────────────────────                      divider
+ *   Detected at: … · View details → · dashboard  gray footer + blue links
  *
+ * Top-level blocks are used (not a colored-bar attachment) because Slack
+ * force-collapses multi-section attachments behind "Show more".
  * `short` is the platform's short display name ("Meta", "Google", "Shopify").
  */
 function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, link } = {}) {
   const isRecovery = transitions.every(t => t.to === 'operational');
-  const hasOutage = transitions.some(t => t.to === 'outage');
-  const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
 
   const blocks = [];
   transitions.forEach((t, i) => {
     if (i > 0) blocks.push({ type: 'divider' });
-    const icon = t.to === 'operational' ? '✅' : '⚠️';
+    const chip = t.to === 'operational' ? '🟩' : t.to === 'outage' ? '🟥' : '🟨';
     // strip a redundant platform prefix ("Google Ad Manager" → "Ad Manager")
     const category = t.service.replace(new RegExp(`^${short}\\s+`, 'i'), '');
     const status = t.to === 'operational' ? 'Recovered'
       : t.to === 'outage' ? 'Outage detected'
       : 'Degraded performance';
     blocks.push({ type: 'section', text: { type: 'mrkdwn',
-      text: `${icon}  *${short} — ${category}*` } });
+      text: `${chip}  *${short} — ${category}*` } });
     blocks.push({ type: 'divider' });
     blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${status}*` } });
     if (t.note && t.to !== 'operational') {
@@ -334,7 +334,7 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, 
 
   return {
     text: `${short}: ${transitions.map(t => `${t.service} → ${t.to}`).join(', ')}`,
-    attachments: [{ color, blocks }],
+    blocks,
   };
 }
 
