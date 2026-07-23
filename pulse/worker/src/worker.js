@@ -487,14 +487,22 @@ export default {
       }
 
       if (path === '/api/channels') {
-        // List channels the bot can see; is_member = bot can post there
+        // List channels the bot can see; is_member = bot can post there.
+        // NB: conversations.list ignores JSON bodies — params must go in the
+        // query string, otherwise `types` falls back to public_channel only
+        // and private client channels never appear.
         const chans = [];
         let cursor = '';
         do {
-          const r = await slackApi(env, 'conversations.list', {
+          const qs = new URLSearchParams({
             types: 'public_channel,private_channel',
-            exclude_archived: true, limit: 200, cursor: cursor || undefined,
+            exclude_archived: 'true', limit: '200',
+            ...(cursor ? { cursor } : {}),
           });
+          const res = await fetch(`https://slack.com/api/conversations.list?${qs}`, {
+            headers: { 'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}` },
+          });
+          const r = await res.json();
           if (!r.ok) return json({ error: r.error || 'slack error' }, 502);
           for (const c of r.channels || []) {
             chans.push({ id: c.id, name: c.name, is_member: !!c.is_member, is_private: !!c.is_private });
