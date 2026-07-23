@@ -301,7 +301,7 @@ async function hmacHex(secret, msg) {
  * to separate blocks — context lines stack).
  * `short` is the platform's short display name ("Meta", "Google", "Shopify").
  */
-function buildAlertMessage(short, transitions, { sendUrl, sentNote, link } = {}) {
+function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, link } = {}) {
   const isRecovery = transitions.every(t => t.to === 'operational');
   const hasOutage = transitions.some(t => t.to === 'outage');
   const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
@@ -324,17 +324,27 @@ function buildAlertMessage(short, transitions, { sendUrl, sentNote, link } = {})
       text: `*${status}*${detail}` } });
   });
 
-  blocks.push({ type: 'divider' });
+  // no divider here: the fan-out button costs one block, and button +
+  // second divider together tip the card into Slack's "Show more" collapse
   const links = link
     ? `<${link}|View details →>   ·   <${DASHBOARD_URL}|Pulse dashboard>`
     : `<${DASHBOARD_URL}|Pulse dashboard →>`;
   const footerLines = [
     `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}   ·   ${links}`,
   ];
-  if (sendUrl) footerLines.push(`📣  *<${sendUrl}|Send to client channels>*`);
   if (sentNote) footerLines.push(sentNote);
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
     text: footerLines.join('\n') }] });
+
+  if (withButton) {
+    blocks.push({ type: 'actions', elements: [{
+      type: 'button',
+      style: isRecovery ? 'primary' : 'danger',
+      text: { type: 'plain_text', text: '📣 Send to client channels', emoji: true },
+      action_id: 'send_to_clients',
+      value: alertId,
+    }] });
+  }
 
   // fallback lives on the attachment (not top-level text) so no summary
   // line renders above the card
@@ -352,11 +362,9 @@ async function sendAlert(env, settings, platformId, transitions) {
   const name = platform ? (platform.short || platform.name) : platformId;
   const link = platform ? platform.link : null;
   const alertId = `alert:${Date.now()}:${platformId}`;
-  const sig = await hmacHex(env.ADMIN_TOKEN, alertId);
-  const sendUrl = `${WORKER_ORIGIN}/fan?id=${encodeURIComponent(alertId)}&sig=${sig}`;
   const r = await slackApi(env, 'chat.postMessage', {
     channel: settings.channels.internal,
-    ...buildAlertMessage(name, transitions, { sendUrl, link }),
+    ...buildAlertMessage(name, transitions, { withButton: true, alertId, link }),
     unfurl_links: false,
   });
   // Store the payload (+ message location) so the fan-out link can re-render
