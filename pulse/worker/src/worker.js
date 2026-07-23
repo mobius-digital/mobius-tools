@@ -274,6 +274,17 @@ function fmtWhen() {
 }
 
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/pulse/';
+const WORKER_ORIGIN = 'https://mobius-ad-status.mobius-digital.workers.dev';
+
+/** HMAC-SHA256 hex — signs the fan-out links so only recipients of the
+ *  Slack alert (i.e. the team) can trigger a send. */
+async function hmacHex(secret, msg) {
+  const key = await crypto.subtle.importKey('raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
+  return [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 /**
  * Build a Slack message in the AdStatus colored-bar card style:
@@ -290,7 +301,7 @@ const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/pulse/';
  * to separate blocks — context lines stack).
  * `short` is the platform's short display name ("Meta", "Google", "Shopify").
  */
-function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, link } = {}) {
+function buildAlertMessage(short, transitions, { sendUrl, sentNote, link } = {}) {
   const isRecovery = transitions.every(t => t.to === 'operational');
   const hasOutage = transitions.some(t => t.to === 'outage');
   const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
@@ -308,7 +319,7 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, 
     if (i === 0) blocks.push({ type: 'divider' });
     // status + detail share one section — a separate context block for the
     // detail plus the second divider would trip Slack's "Show more" collapse
-    const detail = t.note && t.to !== 'operational' ? `\n${t.note.slice(0, 250)}` : '';
+    const detail = t.note && t.to !== 'operational' ? `\n_${t.note.slice(0, 250)}_` : '';
     blocks.push({ type: 'section', text: { type: 'mrkdwn',
       text: `*${status}*${detail}` } });
   });
@@ -319,20 +330,11 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, 
     : `<${DASHBOARD_URL}|Pulse dashboard →>`;
   const footerLines = [
     `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}   ·   ${links}`,
-    ...(sentNote ? [sentNote] : []),
   ];
+  if (sendUrl) footerLines.push(`📣  *<${sendUrl}|Send to client channels>*`);
+  if (sentNote) footerLines.push(sentNote);
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
     text: footerLines.join('\n') }] });
-
-  if (withButton) {
-    blocks.push({ type: 'actions', elements: [{
-      type: 'button',
-      style: isRecovery ? 'primary' : 'danger',
-      text: { type: 'plain_text', text: '📣 Send to client channels', emoji: true },
-      action_id: 'send_to_clients',
-      value: alertId,
-    }] });
-  }
 
   // fallback lives on the attachment (not top-level text) so no summary
   // line renders above the card
@@ -350,14 +352,75 @@ async function sendAlert(env, settings, platformId, transitions) {
   const name = platform ? (platform.short || platform.name) : platformId;
   const link = platform ? platform.link : null;
   const alertId = `alert:${Date.now()}:${platformId}`;
-  // Store the payload so the button click can re-render it for client channels
-  await env.KV.put(alertId, JSON.stringify({ platformName: name, link, transitions }),
-                   { expirationTtl: 7 * 24 * 3600 });
-  await slackApi(env, 'chat.postMessage', {
+  const sig = await hmacHex(env.ADMIN_TOKEN, alertId);
+  const sendUrl = `${WORKER_ORIGIN}/fan?id=${encodeURIComponent(alertId)}&sig=${sig}`;
+  const r = await slackApi(env, 'chat.postMessage', {
     channel: settings.channels.internal,
-    ...buildAlertMessage(name, transitions, { withButton: true, alertId, link }),
+    ...buildAlertMessage(name, transitions, { sendUrl, link }),
     unfurl_links: false,
   });
+  // Store the payload (+ message location) so the fan-out link can re-render
+  // it for client channels and update the original card afterwards.
+  await env.KV.put(alertId, JSON.stringify({
+    platformName: name, link, transitions,
+    channel: r.channel || settings.channels.internal, ts: r.ts || null,
+  }), { expirationTtl: 7 * 24 * 3600 });
+}
+
+/** Minimal branded HTML page returned after a fan-out link click. */
+function fanPage(title, body) {
+  return new Response(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} — Mobius Pulse</title>
+<style>body{font-family:system-ui,sans-serif;background:#0C161D;color:#DFEAF2;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}
+.card{max-width:420px;padding:40px}h1{font-size:44px;margin:0 0 12px}p{color:#9FB4C2;line-height:1.6}
+a{color:#62BDEA}</style></head><body><div class="card"><h1>${title}</h1><p>${body}</p>
+<p><a href="${DASHBOARD_URL}">Open Pulse dashboard →</a></p></div></body></html>`,
+    { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+
+async function handleFanOut(url, env) {
+  const id = url.searchParams.get('id') || '';
+  const sig = url.searchParams.get('sig') || '';
+  const expected = await hmacHex(env.ADMIN_TOKEN, id);
+  if (!sig || sig !== expected) return fanPage('⛔', 'This link is not valid.');
+
+  const stored = await env.KV.get(id, 'json');
+  if (!stored) return fanPage('⌛', 'This alert has expired (fan-out links live for 7 days).');
+  if (stored.sentAt) {
+    return fanPage('✅', `Already sent to ${stored.sentCount} client channel${stored.sentCount === 1 ? '' : 's'} at ${stored.sentAt}. No duplicates were sent.`);
+  }
+
+  const settings = await getSettings(env);
+  const clients = settings.channels?.clients || [];
+  if (!clients.length) return fanPage('⚠️', 'No client channels are configured — add them in the dashboard Settings.');
+
+  let sent = 0;
+  for (const ch of clients) {
+    const r = await slackApi(env, 'chat.postMessage', {
+      channel: ch,
+      ...buildAlertMessage(stored.platformName, stored.transitions, { link: stored.link }),
+      unfurl_links: false,
+    });
+    if (r.ok) sent++;
+  }
+
+  stored.sentAt = fmtWhen();
+  stored.sentCount = sent;
+  await env.KV.put(id, JSON.stringify(stored), { expirationTtl: 7 * 24 * 3600 });
+
+  // Update the original card: swap the send link for a confirmation line
+  if (stored.channel && stored.ts) {
+    await slackApi(env, 'chat.update', {
+      channel: stored.channel, ts: stored.ts,
+      ...buildAlertMessage(stored.platformName, stored.transitions, {
+        link: stored.link,
+        sentNote: `📣 Sent to ${sent}/${clients.length} client channel${clients.length === 1 ? '' : 's'} at ${stored.sentAt}`,
+      }),
+    });
+  }
+
+  return fanPage('📣', `Sent to ${sent} of ${clients.length} client channel${clients.length === 1 ? '' : 's'}. The alert card in Slack has been updated. You can close this tab.`);
 }
 
 /** Verify Slack request signature (v0 scheme). */
@@ -504,6 +567,10 @@ export default {
         })),
         incidents: (history || []).slice(0, 60),
       });
+    }
+
+    if (path === '/fan' && request.method === 'GET') {
+      return handleFanOut(url, env);
     }
 
     if (path === '/slack/interact' && request.method === 'POST') {
