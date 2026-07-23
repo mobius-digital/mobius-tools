@@ -257,26 +257,45 @@ async function slackApi(env, method, body) {
   return json;
 }
 
-const EMOJI = { outage: '🔴', degraded: '🟡', operational: '🟢' };
+const STATE_LABEL = { outage: 'Outage', degraded: 'Degraded performance', operational: 'Recovered' };
 
-function alertBlocks(platformName, transitions, { withButton, alertId } = {}) {
+function fmtWhen() {
+  return new Date().toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  }) + ' UTC';
+}
+
+/**
+ * Build a Slack message in the colored-bar attachment style:
+ * bold headline, service lines with plain-text detail, "Detected at" footer.
+ */
+function buildAlertMessage(platformName, transitions, { withButton, alertId, sentNote } = {}) {
   const isRecovery = transitions.every(t => t.to === 'operational');
-  const headline = isRecovery
-    ? `✅ ${platformName} — recovered`
-    : `🚨 ${platformName} — issue detected`;
+  const hasOutage = transitions.some(t => t.to === 'outage');
+  const color = isRecovery ? '#2EB67D' : hasOutage ? '#D0342C' : '#ECB22E';
 
-  const lines = transitions.map(t => {
-    const arrow = `${EMOJI[t.from] || '⚪'} → ${EMOJI[t.to] || '⚪'}`;
-    const note = t.note && t.to !== 'operational' ? `\n        _${t.note.slice(0, 150)}_` : '';
-    return `•  *${t.service}*   ${arrow}  *${t.to.toUpperCase()}*${note}`;
-  }).join('\n');
+  const headline = isRecovery
+    ? `✅  ${platformName} — recovered`
+    : transitions.length === 1
+      ? `⚠️  ${platformName} — ${transitions[0].service}`
+      : `⚠️  ${platformName} — ${transitions.length} services affected`;
+
+  const body = transitions.map(t => {
+    const line = `*${t.service}*  ·  ${STATE_LABEL[t.to] || t.to}`;
+    const note = t.note && t.to !== 'operational' ? `\n${t.note.slice(0, 200)}` : '';
+    return line + note;
+  }).join('\n\n');
 
   const blocks = [
-    { type: 'header', text: { type: 'plain_text', text: headline, emoji: true } },
-    { type: 'section', text: { type: 'mrkdwn', text: lines } },
+    { type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
+    { type: 'section', text: { type: 'mrkdwn', text: body } },
     { type: 'context', elements: [{ type: 'mrkdwn',
-      text: `Mobius Pulse  •  ${new Date().toUTCString()}` }] },
+      text: `${isRecovery ? 'Resolved' : 'Detected'} at: ${fmtWhen()}  •  Mobius Pulse` }] },
   ];
+  if (sentNote) {
+    blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: sentNote }] });
+  }
   const actions = [];
   if (withButton) {
     actions.push({
@@ -289,12 +308,16 @@ function alertBlocks(platformName, transitions, { withButton, alertId } = {}) {
   }
   actions.push({
     type: 'button',
-    text: { type: 'plain_text', text: 'View dashboard', emoji: true },
+    text: { type: 'plain_text', text: 'View dashboard →', emoji: true },
     action_id: 'view_dashboard',
     url: 'https://tools.go-mobius-digital.com/pulse/',
   });
   blocks.push({ type: 'actions', elements: actions });
-  return blocks;
+
+  return {
+    text: `${platformName}: ${transitions.map(t => `${t.service} → ${t.to}`).join(', ')}`,
+    attachments: [{ color, blocks }],
+  };
 }
 
 async function sendAlert(env, settings, platformId, transitions) {
@@ -306,8 +329,7 @@ async function sendAlert(env, settings, platformId, transitions) {
                    { expirationTtl: 7 * 24 * 3600 });
   await slackApi(env, 'chat.postMessage', {
     channel: settings.channels.internal,
-    text: `${name}: ${transitions.map(t => `${t.service} → ${t.to}`).join(', ')}`,
-    blocks: alertBlocks(name, transitions, { withButton: true, alertId }),
+    ...buildAlertMessage(name, transitions, { withButton: true, alertId }),
     unfurl_links: false,
   });
 }
@@ -356,26 +378,25 @@ async function handleSlackInteract(request, env, ctx) {
       for (const ch of clients) {
         const r = await slackApi(env, 'chat.postMessage', {
           channel: ch,
-          text: `${stored.platformName} status update`,
-          blocks: alertBlocks(stored.platformName, stored.transitions, { withButton: false }),
+          ...buildAlertMessage(stored.platformName, stored.transitions, { withButton: false }),
           unfurl_links: false,
         });
         if (r.ok) sent++;
       }
     }
 
-    // Replace the button on the original message with a confirmation line.
-    const original = payload.message;
-    if (original && payload.response_url) {
-      const blocks = (original.blocks || []).filter(b => b.type !== 'actions');
-      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
-        text: sent > 0
-          ? `📣 Sent to ${sent}/${clients.length} client channel${clients.length === 1 ? '' : 's'} by ${user}`
-          : `⚠️ Not sent — ${clients.length === 0 ? 'no client channels configured in settings' : 'alert expired or Slack error'}` }] });
+    // Rebuild the original message without the fan-out button + a confirmation line.
+    if (stored && payload.response_url) {
+      const sentNote = sent > 0
+        ? `📣 Sent to ${sent}/${clients.length} client channel${clients.length === 1 ? '' : 's'} by ${user}`
+        : `⚠️ Not sent — ${clients.length === 0 ? 'no client channels configured in settings' : 'alert expired or Slack error'}`;
       await fetch(payload.response_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replace_original: true, text: original.text || 'status update', blocks }),
+        body: JSON.stringify({
+          replace_original: true,
+          ...buildAlertMessage(stored.platformName, stored.transitions, { withButton: false, sentNote }),
+        }),
       });
     }
   })());
@@ -524,7 +545,7 @@ export default {
         await sendAlert(env, settings, 'meta', [{
           platformId: 'meta', platform: 'Meta Ads', service: 'Test alert',
           from: 'operational', to: 'outage',
-          note: 'This is a test from the Mobius Ad Status dashboard. Click the button to test client fan-out.',
+          note: 'This is a test from the Mobius Pulse dashboard. Click the button to test client fan-out.',
         }]);
         return json({ ok: true });
       }
