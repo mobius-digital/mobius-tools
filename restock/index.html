@@ -744,6 +744,18 @@ function moqHTML(prod) {
     <span id="moqMsg">${status}</span>
   </div>`;
 }
+/** Bulk-fill the MOQ table by product type (or all) — nothing saves until "Save changed MOQs". */
+function moqFill() {
+  const type = $('#moqFillType').value;
+  const val = $('#moqFillVal').value.trim();
+  let hit = 0;
+  document.querySelectorAll('#moqTable input').forEach(inp => {
+    if (type === '__all' || inp.dataset.type === type) { inp.value = val; hit++; }
+  });
+  const msg = $('#moqBulkMsg');
+  msg.textContent = `Filled ${hit} row${hit === 1 ? '' : 's'} with ${val === '' ? 'blank (no MOQ)' : val} — review, then Save changed MOQs.`;
+  msg.className = 'msg';
+}
 async function saveMoqBulk(btn) {
   const msg = $('#moqBulkMsg');
   const changed = [...document.querySelectorAll('#moqTable input')].filter(inp =>
@@ -994,12 +1006,23 @@ function openSettings() {
       <details>
         <summary style="font-size:13px;color:var(--brand-ink);cursor:pointer">Edit MOQs for all products at once</summary>
         <div class="msg" style="margin:10px 0 8px">Blank = no MOQ. Each save writes to the product's <code>custom.moq</code> metafield in Shopify. Only changed rows are saved.</div>
+        <div class="frow" style="margin-bottom:6px">
+          <select id="moqFillType" style="min-width:150px">
+            <option value="__all">All products</option>
+            ${[...new Set((S.report?.products||[]).map(p=>p.type).filter(Boolean))].sort()
+              .map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}
+          </select>
+          <input type="number" id="moqFillVal" min="0" placeholder="MOQ" style="width:90px">
+          <button class="btn" onclick="moqFill()">Fill rows ↓</button>
+          <span class="mini">fills the table — review, then Save (blank MOQ clears)</span>
+        </div>
         <div style="max-height:320px;overflow-y:auto"><table id="moqTable">
-          <tr><th>Product</th><th class="r">MOQ</th></tr>
+          <tr><th>Product</th><th>Type</th><th class="r">MOQ</th></tr>
           ${(S.report?.products || []).slice().sort((a,b)=>a.title.localeCompare(b.title)).map(p => `
             <tr><td>${esc(p.title)}</td>
+            <td><span class="tag">${esc(p.type||'—')}</span></td>
             <td class="r"><input type="number" min="0" placeholder="—" value="${p.moq??''}"
-              data-pid="${p.id}" data-orig="${p.moq??''}"
+              data-pid="${p.id}" data-type="${esc(p.type||'')}" data-orig="${p.moq??''}"
               style="width:90px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 8px"></td></tr>`).join('')}
         </table></div>
         <div class="actions">
