@@ -1,14 +1,14 @@
 # Mobius Restock — Inventory Forecast Worker
 
-Snapshots Shopify inventory + sales daily, computes a **weighted sell-through
+Snapshots Shopify inventory + sales hourly, computes a **weighted sell-through
 velocity** per variant, projects days-of-stock remaining, and compares that to
-each product's manufacturer lead time. Slack gets a morning digest plus an
+each product's manufacturer lead time. Slack gets a daily digest (send time configurable in Settings) plus an
 instant ping the moment anything crosses into "reorder now".
 
 | Piece | Runs on | Job |
 | --- | --- | --- |
 | Dashboard | GitHub Pages | `tools.go-mobius-digital.com/restock` — report UI + settings |
-| Forecast worker | Cloudflare Workers (free) | daily snapshots, forecast math, Slack alerts, API |
+| Forecast worker | Cloudflare Workers (free) | hourly snapshots, forecast math, Slack alerts, API |
 
 ## The forecast math
 

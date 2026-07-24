@@ -4,10 +4,10 @@ name = "mobius-restock"
 main = "src/worker.js"
 compatibility_date = "2026-07-01"
 
-# 11:00 UTC = digest run (6am Central); 17:00 / 23:00 = intraday checks
-# that can fire instant "reorder point crossed" alerts.
+# Hourly: every run can fire instant "reorder point crossed" alerts; the
+# daily digest sends on the run matching settings.digestHourLocal (store tz).
 [triggers]
-crons = ["0 11 * * *", "0 17 * * *", "0 23 * * *"]
+crons = ["0 * * * *"]
 
 # KV namespace for history / catalog / settings / state.
 # Create once with:  npx wrangler kv namespace create RESTOCK

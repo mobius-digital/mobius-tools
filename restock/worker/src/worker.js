@@ -285,7 +285,7 @@ const DEFAULT_SETTINGS = {
   bufferDays: 10,          // customs / anything-goes-wrong padding
   watchWindow: 30,         // days ahead of the reorder point to start watching
   targetCoverDays: 180,    // reorder suggestions aim for this much coverage
-  digestHourUTC: 11,       // 6am Central (7am in DST edge — close enough)
+  digestHourLocal: 6,      // store-local hour the morning digest sends
   digestMode: 'always',    // 'always' | 'issues'
   reviewedDefaults: false, // dashboard shows a "review lead times" banner until true
   profiles: [
@@ -621,7 +621,6 @@ async function runSnapshot(env, store, { digest = false, forceDigest = false } =
   await Promise.all([
     env.KV.put(`history:${store.id}`, JSON.stringify(history)),
     env.KV.put(`catalog:${store.id}`, JSON.stringify(catalog)),
-    env.KV.put(`report:${store.id}`, JSON.stringify(report)),
     env.KV.put('lastRun', new Date().toISOString()),
   ]);
 
@@ -706,10 +705,12 @@ const storeFrom = url => STORES.find(s => s.id === (url.searchParams.get('store'
 export default {
   async scheduled(event, env, ctx) {
     const settings = await getSettings(env);
-    const hour = new Date().getUTCHours();
-    const digest = hour === settings.digestHourUTC;
-    ctx.waitUntil(Promise.allSettled(
-      STORES.map(s => runSnapshot(env, s, { digest }))));
+    const digestHour = settings.digestHourLocal ?? 6;
+    ctx.waitUntil(Promise.allSettled(STORES.map(s => {
+      const localHour = (+new Intl.DateTimeFormat('en-US',
+        { timeZone: s.tz, hour: 'numeric', hour12: false }).format(new Date())) % 24;
+      return runSnapshot(env, s, { digest: localHour === digestHour });
+    })));
   },
 
   async fetch(request, env, ctx) {
@@ -742,9 +743,15 @@ export default {
       }
 
       if (path === '/api/report') {
-        const report = await env.KV.get(`report:${store.id}`, 'json');
-        if (!report) return json({ error: 'no snapshot yet — run one from Settings' }, 404);
-        return json(report);
+        // computed live from the latest snapshot data, so settings changes
+        // (mutes, lead times, thresholds) apply immediately — no re-snapshot
+        const [catalog, history, settings] = await Promise.all([
+          env.KV.get(`catalog:${store.id}`, 'json'),
+          getHistory(env, store),
+          getSettings(env),
+        ]);
+        if (!catalog) return json({ error: 'no snapshot yet — run one from Settings' }, 404);
+        return json(computeReport(store, catalog, history, settings));
       }
 
       if (path === '/api/settings' && request.method === 'GET') {
@@ -762,7 +769,7 @@ export default {
           bufferDays: num(body.bufferDays, cur.bufferDays, 0, 120),
           watchWindow: num(body.watchWindow, cur.watchWindow, 0, 180),
           targetCoverDays: num(body.targetCoverDays, cur.targetCoverDays, 30, 720),
-          digestHourUTC: num(body.digestHourUTC, cur.digestHourUTC, 0, 23),
+          digestHourLocal: num(body.digestHourLocal, cur.digestHourLocal ?? 6, 0, 23),
           digestMode: body.digestMode === 'issues' ? 'issues' : 'always',
           reviewedDefaults: body.reviewedDefaults === undefined
             ? cur.reviewedDefaults : !!body.reviewedDefaults,

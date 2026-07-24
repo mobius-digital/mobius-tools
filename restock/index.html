@@ -235,6 +235,11 @@
   .msg.ok{color:var(--good)} .msg.bad{color:var(--bad)}
   .ptable td input{width:70px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 8px}
   .ptable td input.nm{width:130px}
+  #typeTable select{width:100%;max-width:260px;border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;background:#fff}
+  #typeTable td{padding:6px 8px}
+  #typeTable tr.unm td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+  #typeTable tr.unm select{border-color:var(--warn);background:var(--warn-bg)}
+  #typeTable .tcount{font-size:11px;color:var(--muted);display:block}
   .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line-strong);border-top-color:var(--brand-ink);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px}
   @keyframes spin{to{transform:rotate(360deg)}}
   footer{max-width:1200px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
@@ -606,7 +611,7 @@ function renderSheet() {
       <td class="r"><b>${fmtD(v.daysLeft)}</b></td>
       <td class="r">${v.suggestedQty??'—'}</td>
       <td class="r"><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
-      <td class="r"><button class="mutebtn" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'unmute':'mute'}</button></td>
+      <td class="r"><button class="mutebtn" title="${v.muted?'Resume alerts for this variant':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'unmute':'mute'}</button></td>
     </tr>`).join('');
 
   const navPrev = isVar ? S.openVar<=0 : S.open<=0;
@@ -726,12 +731,17 @@ function planCalc() {
 }
 
 async function toggleMute(key) {
+  const prodId = S.visible[S.open]?.id;
   const muted = new Set(S.settings.muted);
   muted.has(key) ? muted.delete(key) : muted.add(key);
   S.settings.muted = [...muted];
   await api('/api/settings', { method:'PUT', body: JSON.stringify({ muted: S.settings.muted }) });
   await refreshReport(true);
-  if (S.open >= 0) renderSheet();
+  // muting resorts the list — re-find the product so the sheet doesn't jump
+  if (S.open >= 0 && prodId != null) {
+    const ni = S.visible.findIndex(p => p.id === prodId);
+    if (ni >= 0) { S.open = ni; renderSheet(); } else closeSheet();
+  }
 }
 
 /* ================= actions ================= */
@@ -796,8 +806,12 @@ function openInfo() {
     <h5>6 · Reorder quantities</h5>
     <p><code>order = velocity × (target coverage + lead time) − on-hand</code> — enough to survive the lead-time burn <i>and</i> hit the coverage target (default 180d) after it lands. Multi-variant products order per variant, since each size/loft sells at its own pace.</p>
 
-    <h5>7 · Slack cadence</h5>
-    <p>Morning digest at ~6am Central (🔴 + 🟡 with order suggestions). Silent checks at noon and 6pm ping <b>instantly</b> if anything newly crosses red — transitions only, no repeat nagging. <b>Mute</b> discontinued items from any product panel to silence them everywhere.</p>
+    <h5>7 · Snapshots & Slack cadence</h5>
+    <p>A <b>snapshot</b> is one full refresh cycle: pull the current catalog + inventory from Shopify, update the last few days of sales, recompute every forecast, and fire alerts if anything newly crossed red. Snapshots run <b>every hour</b> automatically; "Run snapshot now" in Settings does one on demand.</p>
+    <p>The daily <b>digest</b> (🔴 + 🟡 lists with order suggestions) sends once a day at the time you pick in Settings. Instant 🔴 alerts can fire on <i>any</i> hourly check — transitions only, no repeat nagging.</p>
+
+    <h5>8 · Muting</h5>
+    <p>The <b>mute</b> button (in any product panel's variant table) silences an item everywhere — no alerts, no digest lines, and it moves to the gray "Other" bucket instead of showing red. Use it for discontinued products or dead size-runs you never plan to restock. Muting is reversible (unmute the same way) and takes effect immediately.</p>
 
     <h5>Data notes</h5>
     <p>Sales come from Shopify orders (cancellations excluded); inventory is the live total across locations. History deepens daily — young history (&lt;90d) means the 90-day window leans on what exists. Forecasts are math, not prophecy: they assume tomorrow sells like the recent past.</p>
@@ -807,22 +821,29 @@ function openInfo() {
 
 /* ================= settings modal ================= */
 $('#btnSettings').onclick = openSettings;
+function hourLabel(h){ const ap=h<12?'AM':'PM'; const hh=h%12===0?12:h%12; return `${hh}:00 ${ap}`; }
 function openSettings() {
   if (!S.tok) return;
   const st = S.settings; if (!st) return;
   const types = new Set(Object.keys(st.typeMap));
-  if (S.report) for (const p of S.report.products) types.add(p.type || '');
-  const typeRows = [...types].sort().map(t => `
-    <tr><td>${t ? esc(t) : '<i>(no type)</i>'}</td><td>
-      <select data-type="${esc(t)}">
+  const typeCount = {};
+  if (S.report) for (const p of S.report.products) {
+    types.add(p.type || '');
+    typeCount[p.type || ''] = (typeCount[p.type || ''] || 0) + 1;
+  }
+  const typeRows = [...types].sort((a,b)=>a.localeCompare(b)).map(t => `
+    <tr class="${st.typeMap[t]?'':'unm'}"><td>${t ? esc(t) : '<i>(no type)</i>'}<span class="tcount">${typeCount[t]?typeCount[t]+' product'+(typeCount[t]>1?'s':''):'no active products'}</span></td><td>
+      <select data-type="${esc(t)}" onchange="this.closest('tr').classList.toggle('unm', !this.value)">
         <option value="">— unmapped —</option>
         ${st.profiles.map(p=>`<option value="${esc(p.id)}" ${st.typeMap[t]===p.id?'selected':''}>${esc(p.name)} (${p.productionDays}+${p.shippingDays}d)</option>`).join('')}
       </select></td></tr>`).join('');
-  const profRows = st.profiles.map((p,i) => `
-    <tr data-i="${i}"><td><input class="nm" value="${esc(p.name)}"></td>
+  const profRows = st.profiles.map(p => `
+    <tr data-pid="${esc(p.id)}"><td><input class="nm" value="${esc(p.name)}"></td>
       <td class="r"><input type="number" value="${p.productionDays}" min="0"></td>
       <td class="r"><input type="number" value="${p.shippingDays}" min="0"></td>
-      <td class="r"><button class="btn danger" onclick="this.closest('tr').remove()">✕</button></td></tr>`).join('');
+      <td class="r"><button class="btn danger" onclick="this.closest('tr').remove();syncTypeOptions()">✕</button></td></tr>`).join('');
+  const hourOpts = Array.from({length:24},(_,h)=>
+    `<option value="${h}" ${(st.digestHourLocal??6)===h?'selected':''}>${hourLabel(h)}</option>`).join('');
 
   $('#mbox').innerHTML = `
     <button class="x" onclick="closeModal()">✕</button>
@@ -831,12 +852,14 @@ function openSettings() {
     <div class="set"><h5>Slack</h5>
       <div class="frow"><label>Alert channel</label>
         <select id="setChannel" style="min-width:220px"><option value="">loading channels…</option></select></div>
-      <div class="frow"><label>Digest</label>
+      <div class="frow"><label>Daily digest</label>
         <select id="setDigestMode">
-          <option value="always" ${st.digestMode==='always'?'selected':''}>Every morning, even all-clear</option>
+          <option value="always" ${st.digestMode==='always'?'selected':''}>Every day, even all-clear</option>
           <option value="issues" ${st.digestMode==='issues'?'selected':''}>Only when something needs attention</option>
         </select></div>
-      <div class="msg">Instant alerts fire whenever a variant newly crosses into 🔴, on any of the 3 daily checks.</div>
+      <div class="frow"><label>Digest send time (Central)</label>
+        <select id="setDigestHour">${hourOpts}</select></div>
+      <div class="msg">Inventory is re-checked every hour — instant 🔴 alerts can fire at any hour the moment something crosses its reorder point.</div>
     </div>
 
     <div class="set"><h5>Thresholds</h5>
@@ -874,7 +897,27 @@ function openSettings() {
       <span class="msg" id="saveMsg"></span>
     </div>`;
   $('#modal').classList.add('open');
+  $('#profTable').addEventListener('input', syncTypeOptions);
   loadChannels(st);
+}
+/** Read profile rows as they currently stand (stable ids; temp ids for new rows). */
+function readProfileRows() {
+  return [...$('#profTable').querySelectorAll('tr')].slice(1).map(tr => {
+    const [nm, pd, sd] = tr.querySelectorAll('input');
+    const name = nm.value.trim();
+    return name ? { id: tr.dataset.pid, name,
+      productionDays: +pd.value||0, shippingDays: +sd.value||0 } : null;
+  }).filter(Boolean);
+}
+/** Keep the type-map dropdowns in sync while profiles are edited — no save/reopen needed. */
+function syncTypeOptions() {
+  const profs = readProfileRows();
+  document.querySelectorAll('#typeTable select').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— unmapped —</option>' + profs.map(p =>
+      `<option value="${esc(p.id)}" ${p.id===cur?'selected':''}>${esc(p.name)} (${p.productionDays}+${p.shippingDays}d)</option>`).join('');
+    sel.closest('tr').classList.toggle('unm', !sel.value);
+  });
 }
 function closeModal(){ $('#modal').classList.remove('open'); }
 $('#modal').addEventListener('click', e => { if (e.target.id==='modal') closeModal(); });
@@ -891,32 +934,41 @@ async function loadChannels(st) {
 }
 function addProfile() {
   const tr = document.createElement('tr');
+  tr.dataset.pid = 'new-' + Math.random().toString(36).slice(2, 8);
   tr.innerHTML = `<td><input class="nm" value="New profile"></td>
     <td class="r"><input type="number" value="60" min="0"></td>
     <td class="r"><input type="number" value="30" min="0"></td>
-    <td class="r"><button class="btn danger" onclick="this.closest('tr').remove()">✕</button></td>`;
+    <td class="r"><button class="btn danger" onclick="this.closest('tr').remove();syncTypeOptions()">✕</button></td>`;
   $('#profTable').appendChild(tr);
+  syncTypeOptions();
 }
 async function saveSettings(btn) {
   btn.disabled = true;
-  const profiles = [...$('#profTable').querySelectorAll('tr')].slice(1).map(tr => {
-    const [nm, pd, sd] = tr.querySelectorAll('input');
-    const name = nm.value.trim();
-    return name ? { id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40) || 'p', name,
-      productionDays: +pd.value||0, shippingDays: +sd.value||0 } : null;
-  }).filter(Boolean);
-  const idsSeen = new Set();
-  for (const p of profiles) { while (idsSeen.has(p.id)) p.id += '2'; idsSeen.add(p.id); }
-  const oldById = Object.fromEntries(S.settings.profiles.map((p,i)=>[i,p.id]));
+  // Existing rows keep their stable id (renames don't orphan the type map);
+  // new rows get a slug id, and temp ids in the dropdowns are remapped.
+  const idMap = {};
+  const taken = new Set();
+  const profiles = readProfileRows().map(p => {
+    let id = p.id;
+    if (!id || id.startsWith('new-')) {
+      const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40) || 'profile';
+      let final = slug, k = 2;
+      while (taken.has(final)) final = `${slug}-${k++}`;
+      idMap[id] = final; id = final;
+    }
+    taken.add(id);
+    return { ...p, id };
+  });
   const typeMap = {};
   [...$('#typeTable').querySelectorAll('select')].forEach(sel => {
-    if (sel.value) typeMap[sel.dataset.type] = sel.value;
+    const v = idMap[sel.value] || sel.value;
+    if (v && profiles.some(p => p.id === v)) typeMap[sel.dataset.type] = v;
   });
-  // remap type selections that referenced a renamed profile row by position
   const body = {
     bufferDays: +$('#setBuffer').value, watchWindow: +$('#setWatch').value,
     targetCoverDays: +$('#setCover').value,
     digestMode: $('#setDigestMode').value,
+    digestHourLocal: +$('#setDigestHour').value,
     profiles, typeMap, reviewedDefaults: true,
     stores: { [S.store]: { channel: $('#setChannel').value } },
   };
@@ -924,10 +976,9 @@ async function saveSettings(btn) {
     S.url = $('#setUrl').value.trim(); S.tok = $('#setTok').value.trim();
     localStorage.setItem(LS.url, S.url); localStorage.setItem(LS.tok, S.tok);
     S.settings = await api('/api/settings', { method:'PUT', body: JSON.stringify(body) });
-    $('#saveMsg').textContent = 'Saved ✓ — re-running snapshot to apply…'; $('#saveMsg').className='msg ok';
-    await api('/api/snapshot?store='+S.store, { method:'POST' }).catch(()=>{});
-    await refreshReport(true);
-    $('#saveMsg').textContent = 'Saved ✓';
+    await refreshReport(true);          // report is computed live — applies instantly
+    openSettings();                     // re-render the modal with saved state
+    $('#saveMsg').textContent = 'Saved ✓ — applied'; $('#saveMsg').className = 'msg ok';
   } catch(e) { $('#saveMsg').textContent = e.message; $('#saveMsg').className='msg bad'; }
   btn.disabled = false;
 }
