@@ -125,15 +125,17 @@
   .pname .tags{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center}
   .tag{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--unk-bg);color:var(--muted);border-radius:99px;padding:2px 9px}
   .tag.lead{background:var(--brand-soft);color:var(--brand-ink);text-transform:none;letter-spacing:0}
-  .tag.oo{background:var(--brand-soft);color:var(--brand-ink);text-transform:none;letter-spacing:0;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
-  .tag.oo .oox{cursor:pointer;font-weight:700;padding:0 1px;opacity:.5}
-  .tag.oo .oox:hover{opacity:1;color:var(--bad)}
-  .tag.oo.confirm{background:var(--bad-bg);color:var(--bad)}
-  .oomini{display:inline-block;white-space:nowrap;color:var(--brand-ink);font-size:11px}
-  .oomini .oox{cursor:pointer;font-weight:700;padding:0 2px;opacity:.5}
-  .oomini .oox:hover{opacity:1;color:var(--bad)}
-  .oomini.confirm{color:var(--bad);font-weight:600}
-  .mutebtn.confirm{color:var(--bad);border-color:var(--bad)}
+  /* on-order chip — the ONE component for open POs, used identically in the
+     dashboard rows, expanded variants, and the product/variant panel */
+  .oochip{display:inline-flex;align-items:center;gap:8px;background:var(--brand-soft);color:var(--brand-ink);border-radius:99px;padding:3px 4px 3px 11px;font-size:11px;font-weight:600;white-space:nowrap;line-height:1.6}
+  .oochip .oow{color:var(--warn)}
+  .oochip .ooact{cursor:pointer;border-radius:99px;padding:2px 9px;background:var(--surface);border:1px solid var(--line-strong);font-size:10.5px;font-weight:700;color:var(--ink-2);white-space:nowrap}
+  .oochip .ooact:hover{border-color:var(--bad);color:var(--bad)}
+  .oochip .ooact.edit:hover{border-color:var(--brand-ink);color:var(--brand-ink)}
+  .oochip.confirm{background:var(--bad-bg);color:var(--bad)}
+  .oochip.confirm .ooact:hover{border-color:var(--ink);color:var(--ink)}
+  .oochip input{border:1px solid var(--line-strong);border-radius:6px;padding:2px 6px;font-size:11.5px;background:#fff;color:var(--ink);font-weight:600}
+  .oochip input[type=number]{width:60px}
   .num{text-align:right;font-weight:600}
   .num small{display:block;font-weight:400;color:var(--muted);font-size:11px}
   .dleft{text-align:right;font-weight:700;font-size:16px}
@@ -605,11 +607,59 @@ function ooInfo(p) {
     eta: etas[0], multi: new Set(etas).size > 1,
     overdue: vs.some(v => v.onOrder.overdue), ids: vs.map(v => v.id) };
 }
-/** Product-level on-order tag for list rows: qty, landing date, ✕ to clear all. */
-function ooTagHTML(p) {
+/** The on-order chip — same component everywhere an open PO shows up.
+ *  Variant chip: qty + landing date + ✎ edit + ✕ clear.
+ *  Product chip (multi-variant aggregate): total + first landing + ✕ clear all. */
+function ooChipHTML(p, v) {
+  if (v) {
+    const o = v.onOrder;
+    if (!o) return '';
+    return `<span class="oochip"><span>✈ ${o.qty} on order · lands ~${fmtYmd(o.eta)}${o.overdue?' · <b class="oow">overdue</b>':''}</span><b class="ooact edit" title="Fix the ordered quantity or PO date in place" onclick="editPO(event,'${p.id}','${v.id}')">✎ edit</b><b class="ooact" title="Clear this variant's on-order flag — order cancelled, marked by mistake, or arrived unnoticed" onclick="clearPOs(event,'${p.id}','${v.id}')">✕ clear</b></span>`;
+  }
   const oo = ooInfo(p);
   if (!oo) return '';
-  return `<span class="tag oo"><span>✈ ${oo.qty} on order · ${oo.multi?'first ':''}lands ~${fmtYmd(oo.eta)}${oo.overdue?' · <b style="color:var(--warn)">overdue</b>':''}</span><b class="oox" title="Clear the on-order flag on all ${oo.n} variant${oo.n>1?'s':''} of this product" onclick="clearPOs(event,'${p.id}')">✕</b></span>`;
+  return `<span class="oochip"><span>✈ ${oo.qty} on order · ${oo.multi?'first ':''}lands ~${fmtYmd(oo.eta)}${oo.overdue?' · <b class="oow">overdue</b>':''}</span><b class="ooact" title="Clear the on-order flag on all ${oo.n} variants of this product" onclick="clearPOs(event,'${p.id}')">✕ clear all</b></span>`;
+}
+/** Product-row / stat chip: single-PO products get the full variant chip
+ *  (with edit); multi-PO products get the aggregate chip. */
+function ooChipFor(p) {
+  const vs = p.variants.filter(v => v.onOrder);
+  if (!vs.length) return '';
+  return vs.length === 1 ? ooChipHTML(p, vs[0]) : ooChipHTML(p);
+}
+/** ✎ edit — swap the chip for an inline qty + PO-date form; save rewrites the
+ *  record (ETA recomputes as date + lead) without touching anything else. */
+function editPO(ev, pid, vid) {
+  ev.stopPropagation();
+  const p = S.report?.products.find(x => x.id === pid);
+  const v = p?.variants.find(x => x.id === vid);
+  const o = v?.onOrder;
+  if (!o) return;
+  const host = ev.target.closest('.oochip');
+  if (!host || host.dataset.confirming) return;
+  host.dataset.confirming = '1';
+  host.onclick = e => e.stopPropagation();
+  host.innerHTML = `<span>✈</span><input type="number" value="${o.qty}" min="1" title="Ordered quantity">
+    <span>placed</span><input type="date" value="${o.placedAt}" max="${todayYMD()}" title="PO date — arrival = this date + lead time">
+    <b class="ooact edit" data-save>✓ save</b><b class="ooact" data-cancel>✗ cancel</b>`;
+  const restore = () => { if (S.open >= 0) renderSheet(); if ($('#rows')) renderRows(); };
+  host.querySelector('[data-cancel]').onclick = e => { e.stopPropagation(); restore(); };
+  host.querySelector('[data-save]').onclick = async e => {
+    e.stopPropagation();
+    const qty = Math.max(1, Math.floor(Number(host.querySelector('input[type=number]').value) || o.qty));
+    const placedAt = host.querySelector('input[type=date]').value || o.placedAt;
+    const saveB = host.querySelector('[data-save]');
+    saveB.textContent = '⏳'; saveB.onclick = null;
+    try {
+      await api('/api/on-order?store=' + S.store, { method: 'POST',
+        body: JSON.stringify({ set: [{ variantId: vid, qty, leadDays: p.leadDays ?? 0 }], placedAt }) });
+    } catch(err) { saveB.textContent = 'failed'; setTimeout(restore, 1800); return; }
+    await refreshReport(true);
+    if (S.open >= 0) {
+      const ni = S.visible.findIndex(x => x.id === pid);
+      if (ni >= 0) { S.open = ni; renderSheet(); } else closeSheet();
+    }
+  };
 }
 /** Clear open POs — the whole product (no vid) or a single variant (vid).
  *  Wired to the dashboard pill's ✕, the expanded variant rows' ✕, and the
@@ -624,15 +674,14 @@ function clearPOs(ev, pid, vid) {
   if (!vs.length) return;
   const ids = vs.map(v => v.id);
   const qty = vs.reduce((s, v) => s + v.onOrder.qty, 0);
-  const host = ev.target.closest('.tag.oo, .oomini') || ev.target.closest('button');
+  const host = ev.target.closest('.oochip');
   if (!host || host.dataset.confirming) return;
   host.dataset.confirming = '1';
-  host.removeAttribute('onclick');
   host.onclick = e => e.stopPropagation();   // don't let stray clicks open the product
   host.classList.add('confirm');
-  host.innerHTML = `clear ${ids.length > 1 ? ids.length + ' POs' : 'PO'} (${qty} units)?
-    <b data-yes style="cursor:pointer;padding:0 3px">✓ yes</b>
-    <b data-no style="cursor:pointer;padding:0 3px;opacity:.6">✗ no</b>`;
+  host.innerHTML = `<span>clear ${ids.length > 1 ? ids.length + ' POs' : 'this PO'} (${qty} units)?</span>
+    <b class="ooact" data-yes>✓ yes, clear</b>
+    <b class="ooact" data-no>✗ keep</b>`;
   const restore = () => { if (S.open >= 0) renderSheet(); if ($('#rows')) renderRows(); };
   host.querySelector('[data-no]').onclick = e => { e.stopPropagation(); restore(); };
   host.querySelector('[data-yes]').onclick = async e => {
@@ -682,7 +731,7 @@ function renderRows() {
     <div class="prow" onclick="openSheet(${i})">
       <img class="pimg" src="${esc(p.image||'')}" onerror="this.style.visibility='hidden'" alt="">
       <div class="pname"><b>${esc(p.title)}</b>
-        <div class="tags">${p.type?`<span class="tag">${esc(p.type)}</span>`:''}${lead}${ooTagHTML(p)}${p.variants.some(v=>v.trend==='spiking')?'<span class="tag" style="background:var(--warn-bg);color:var(--warn)">⚡ spiking</span>':''}${p.variants.some(v=>v.isNew)?'<span class="tag" style="background:var(--brand-soft);color:var(--brand-ink)">🆕 new</span>':''}${multi?`<span class="tag">${p.variants.length} variants</span>`:''}</div></div>
+        <div class="tags">${p.type?`<span class="tag">${esc(p.type)}</span>`:''}${lead}${ooChipFor(p)}${p.variants.some(v=>v.trend==='spiking')?'<span class="tag" style="background:var(--warn-bg);color:var(--warn)">⚡ spiking</span>':''}${p.variants.some(v=>v.isNew)?'<span class="tag" style="background:var(--brand-soft);color:var(--brand-ink)">🆕 new</span>':''}${multi?`<span class="tag">${p.variants.length} variants</span>`:''}</div></div>
       <div class="num">${p.totalInv}<small>on hand</small></div>
       <div class="num">${fmtV(p.velocity)}/day<small>sell-through</small></div>
       <div class="dleft">${fmtD(p.daysLeft)}${alert}</div>
@@ -692,7 +741,7 @@ function renderRows() {
     if (open) html += p.variants.map((v, vi) => `
       <div class="vsub" onclick="openVar(${i},${vi})">
         <span></span>
-        <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}${v.onOrder?` <span class="oomini">✈ ${v.onOrder.qty} on order · lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' · <b style="color:var(--warn)">overdue</b>':''} <b class="oox" title="Clear this variant's on-order flag" onclick="clearPOs(event,'${p.id}','${v.id}')">✕</b></span>`:''}</div>
+        <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}${v.onOrder?` ${ooChipHTML(p,v)}`:''}</div>
         <div class="num" style="text-align:right">${v.inv}</div>
         <div class="num" style="text-align:right">${fmtV(v.velocity)}/day</div>
         <div class="dleft">${fmtD(v.daysLeft)}<small>&nbsp;</small></div>
@@ -1069,14 +1118,14 @@ function renderSheet() {
 
   const vrows = p.variants.map((v, vi) => `
     <tr class="${v.muted?'mutedrow':''}" ${multi?`onclick="openVar(${S.open},${vi})" style="cursor:pointer" title="Open variant detail"`:''}>
-      <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}${variantFlags(v)}${v.onOrder?`<div class="mini" style="color:var(--brand-ink)">✈ ${v.onOrder.qty} on order (placed ${fmtYmd(v.onOrder.placedAt)}) · lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' · <b style="color:var(--warn)">overdue — confirm arrival</b>':''}</div>`:''}</td>
+      <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}${variantFlags(v)}${v.onOrder?`<div style="margin-top:4px">${ooChipHTML(p,v)}</div><div class="mini">placed ${fmtYmd(v.onOrder.placedAt)}</div>`:''}</td>
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}<div class="mini">${v.damped?'damped':''}${v.isNew?'new':''}</div></td>
       <td class="r">${v.windows.map(w=>fmtV(w.rate)).join(' / ')}</td>
       <td class="r"><b>${fmtD(v.daysLeft)}</b></td>
       <td class="r">${v.suggestedQty??'—'}</td>
       <td class="r"><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
-      <td class="r"><button class="mutebtn ${v.muted?'muted':''}" title="${v.muted?'This variant is muted — no alerts or digests. Click to resume.':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'🔕 muted — unmute':'mute'}</button>${v.onOrder?`<button class="mutebtn" style="margin-top:4px;display:block;margin-left:auto" title="Remove the on-order flag — use if the order was cancelled, or the stock arrived but wasn't auto-detected" onclick="clearPOs(event,'${p.id}','${v.id}')">✈ clear PO</button>`:''}</td>
+      <td class="r"><button class="mutebtn ${v.muted?'muted':''}" title="${v.muted?'This variant is muted — no alerts or digests. Click to resume.':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'🔕 muted — unmute':'mute'}</button></td>
     </tr>`).join('');
 
   const navPrev = isVar ? S.openVar<=0 : S.open<=0;
@@ -1095,7 +1144,7 @@ function renderSheet() {
     </div>
     ${trendNote(p)}
     <div class="statgrid">
-      <div class="stat"><div class="lb">On hand</div><div class="vl">${p.totalInv}</div><div class="sm">${isVar?'this variant':'across '+p.variants.length+' variant'+(p.variants.length>1?'s':'')}${oo?`<br><span style="color:var(--brand-ink)">✈ +${oo.qty} on order · ${oo.multi?'first ':''}lands ~${fmtYmd(oo.eta)}</span>${oo.overdue?' <b style="color:var(--warn)">overdue</b>':''}`:''}</div></div>
+      <div class="stat"><div class="lb">On hand</div><div class="vl">${p.totalInv}</div><div class="sm">${isVar?'this variant':'across '+p.variants.length+' variant'+(p.variants.length>1?'s':'')}</div>${oo?`<div style="margin-top:7px">${ooChipFor(p)}</div>`:''}</div>
       <div class="stat"><div class="lb">Sell-through</div><div class="vl">${fmtV(p.velocity)}<span style="font-size:13px;font-weight:400">/day</span></div><div class="sm">≈ ${fmtV(p.velocity*7)}/wk · ${fmtV(p.velocity*30)}/mo</div></div>
       <div class="stat"><div class="lb">Days of stock</div><div class="vl">${fmtD(p.daysLeft)}</div><div class="sm">${p.daysLeft!=null?'runs out ~'+futureDate(p.daysLeft):'no meaningful sales'}</div></div>
       <div class="stat"><div class="lb">Lead time</div><div class="vl">${p.leadDays!=null?p.leadDays+'d':'—'}</div><div class="sm">${leadDetail}</div></div>
@@ -1117,7 +1166,7 @@ function renderSheet() {
     </div>
 
     <div class="panel"><h4>${isVar?'This variant':'Variants'}</h4>
-      <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.${multi?' Click a variant for its own charts and planner.':''}${!isVar&&oo?` <button class="mutebtn" onclick="clearPOs(event,'${prod.id}')" title="Remove the on-order flag from all ${oo.n} variant${oo.n>1?'s':''} of this product at once — they go back to their normal forecast status">✈ clear all POs (${oo.n})</button>`:''}</div>
+      <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.${multi?' Click a variant for its own charts and planner.':''}</div>
       <div style="overflow-x:auto"><table>
         <tr><th>SKU / variant</th><th class="r">Stock</th><th class="r">Vel/day</th><th class="r">14/30/90</th><th class="r">Days left</th><th class="r">Need</th><th class="r">Status</th><th></th></tr>
         ${vrows}</table></div>
@@ -1363,7 +1412,8 @@ function openInfo() {
     <h5>8 · Marking orders as placed ✈</h5>
     <p>When you actually place a PO, hit <b>✈ Mark as ordered</b> on that product's card in the Order report. A small confirm appears asking for the <b>PO date</b> — it defaults to today, so just backdate it if you placed the order on an earlier day (each product card gets its own date). The landing ETA is always PO date + lead time. On confirm, the checked quantities are recorded as <b>incoming stock</b>: those variants flip from red to <span class="chip" data-s="onorder">✈ On order</span>, stop appearing in Slack digests and new order suggestions, and their "need" is computed net of what's already coming.</p>
     <p>To see just what's ordered, click the <b>✈ On order</b> tile on the dashboard (it appears whenever POs are open) — it filters the list to open POs, each showing quantity, order date, and expected landing date.</p>
-    <p>The flag <b>clears itself</b> when the restock lands — any hourly check that sees inventory jump by at least half the ordered quantity counts as arrival. If the ETA passes with no arrival, the variant shows <b>overdue — confirm arrival</b>. You can also clear flags manually whenever an order is cancelled, arrived unnoticed, or was marked by mistake: <b>✈ clear PO</b> next to a single variant, <b>✈ clear all POs</b> in the product panel, or the <b>✕</b> on the blue on-order tag right in the dashboard list — all take effect immediately. If the ordered quantity is too small to outlast even the <i>next</i> lead-time cycle, the variant stays red — ordered, but still short.</p>
+    <p>Everywhere an open PO appears — dashboard row, expanded variant, or the product panel — it's the same blue chip: <span class="oochip" style="pointer-events:none"><span>✈ 600 on order · lands ~Oct 18</span><b class="ooact edit">✎ edit</b><b class="ooact">✕ clear</b></span>. <b>✎ edit</b> fixes a wrong quantity or PO date in place (the arrival estimate recalculates). <b>✕ clear</b> removes the flag — for cancelled orders, mistaken clicks, or arrivals that weren't auto-detected — with an in-chip yes/no confirm, never a browser popup. On multi-variant products the chip on the dashboard row clears all of that product's POs at once; each variant's own chip handles just itself.</p>
+    <p>The flag also <b>clears itself</b> when the restock lands — any hourly check that sees inventory jump by at least half the ordered quantity counts as arrival. If the ETA passes with no arrival, the chip shows <b>overdue</b> so you can confirm and clear it yourself. If the ordered quantity is too small to outlast even the <i>next</i> lead-time cycle, the variant stays red — ordered, but still short.</p>
 
     <h5>9 · Muting</h5>
     <p>The <b>mute</b> button (in any product panel's variant table) silences an item everywhere — no alerts, no digest lines, and it moves to the gray "Other" bucket instead of showing red. Use it for discontinued products or dead size-runs you never plan to restock. Muting is reversible (unmute the same way) and takes effect immediately.</p>
