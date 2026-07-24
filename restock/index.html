@@ -733,12 +733,35 @@ function moqHTML(prod) {
         : `<span style="color:var(--warn);font-weight:600">combined need ${need} is under MOQ — consider waiting until more variants need reordering</span>`)
     : '<span class="mini">no MOQ set — demand numbers shown without an order threshold</span>';
   return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:13px">
-    <b>MOQ</b>
+    <b>Product MOQ</b><span class="mini">(applies to all variants combined)</span>
     <input type="number" id="moqInput" value="${prod.moq??''}" placeholder="—" min="0"
       style="width:90px;border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px">
     <button class="btn" onclick="saveMoq(this,'${prod.id}')">Save</button>
     <span id="moqMsg">${status}</span>
   </div>`;
+}
+async function saveMoqBulk(btn) {
+  const msg = $('#moqBulkMsg');
+  const changed = [...document.querySelectorAll('#moqTable input')].filter(inp =>
+    String(inp.value.trim()) !== String(inp.dataset.orig));
+  if (!changed.length) { msg.textContent = 'Nothing changed.'; msg.className = 'msg'; return; }
+  btn.disabled = true;
+  let done = 0;
+  try {
+    for (const inp of changed) {
+      msg.innerHTML = `<span class="spin"></span> Saving ${++done}/${changed.length}…`;
+      await api('/api/set-moq?store=' + S.store, { method: 'POST',
+        body: JSON.stringify({ productId: inp.dataset.pid, moq: Math.max(0, Number(inp.value) || 0) }) });
+      inp.dataset.orig = inp.value.trim();
+    }
+    await refreshReport(true);
+    msg.textContent = `Saved ${changed.length} MOQ${changed.length > 1 ? 's' : ''} to Shopify ✓`;
+    msg.className = 'msg ok';
+  } catch(e) {
+    msg.textContent = `Saved ${done - 1} of ${changed.length} — ${e.message}`;
+    msg.className = 'msg bad';
+  }
+  btn.disabled = false;
 }
 async function saveMoq(btn, pid) {
   const moq = Math.max(0, Number($('#moqInput').value) || 0);
@@ -963,6 +986,25 @@ function openSettings() {
 
     ${noTypeFixHTML()}
 
+    <div class="set" data-selfsave><h5>MOQs — bulk edit</h5>
+      <details>
+        <summary style="font-size:13px;color:var(--brand-ink);cursor:pointer">Edit MOQs for all products at once</summary>
+        <div class="msg" style="margin:10px 0 8px">Blank = no MOQ. Each save writes to the product's <code>custom.moq</code> metafield in Shopify. Only changed rows are saved.</div>
+        <div style="max-height:320px;overflow-y:auto"><table id="moqTable">
+          <tr><th>Product</th><th class="r">MOQ</th></tr>
+          ${(S.report?.products || []).slice().sort((a,b)=>a.title.localeCompare(b.title)).map(p => `
+            <tr><td>${esc(p.title)}</td>
+            <td class="r"><input type="number" min="0" placeholder="—" value="${p.moq??''}"
+              data-pid="${p.id}" data-orig="${p.moq??''}"
+              style="width:90px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 8px"></td></tr>`).join('')}
+        </table></div>
+        <div class="actions">
+          <button class="btn" onclick="saveMoqBulk(this)">Save changed MOQs</button>
+          <span class="msg" id="moqBulkMsg"></span>
+        </div>
+      </details>
+    </div>
+
     <div class="set"><h5>Data</h5>
       <div class="actions">
         <button class="btn" onclick="doSnapshot(this)">Run snapshot now</button>
@@ -1081,7 +1123,7 @@ $('#modal').addEventListener('click', e => { if (e.target.id==='modal') closeMod
 // any edit inside the settings modal marks it dirty (password applies instantly, so it's exempt)
 $('#mbox').addEventListener('input', e => {
   if (S.modalKind === 'settings' && e.target.id !== 'newPass'
-      && !e.target.closest('[data-fixrow]')) S.dirty = true;
+      && !e.target.closest('[data-fixrow],[data-selfsave]')) S.dirty = true;
 });
 
 async function loadChannels(st) {
