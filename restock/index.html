@@ -159,6 +159,35 @@
   .panel h4{font-family:var(--serif);font-weight:400;font-size:18px;margin-bottom:2px}
   .panel .sub{margin-bottom:12px}
   .chart{width:100%;height:150px;display:block}
+  /* interactive daily-sales chart */
+  .chartwrap{position:relative;margin-top:8px}
+  .cbars{display:flex;align-items:flex-end;gap:1px;height:150px;border-bottom:1px solid var(--line)}
+  .cday{flex:1;height:100%;display:flex;align-items:flex-end;border-radius:2px}
+  .cday i{width:100%;background:var(--brand);opacity:.78;border-radius:2px 2px 0 0;pointer-events:none}
+  .cday:hover{background:var(--brand-soft)}
+  .cday:hover i{opacity:1;background:var(--brand-ink)}
+  .cday.nodata{background:repeating-linear-gradient(-45deg,#F0F4F7 0 4px,transparent 4px 8px)}
+  .cday.tick{border-left:1px dashed var(--line)}
+  .lineov{position:absolute;left:0;top:0;width:100%;height:150px;pointer-events:none}
+  .cticks{position:relative;height:24px;font-size:10.5px;color:var(--muted)}
+  .cticks span{position:absolute;top:5px;transform:translateX(-50%);white-space:nowrap}
+  .ctip{position:absolute;background:var(--hd);color:#DFEAF2;font-size:11.5px;line-height:1.45;border-radius:7px;padding:6px 10px;pointer-events:none;display:none;z-index:6;white-space:nowrap;transform:translate(-50%,-110%);box-shadow:0 4px 14px rgba(12,22,29,.3)}
+  .ctip b{color:#fff}
+  .nodata-note{position:absolute;top:8px;font-size:10.5px;color:var(--muted);transform:translateX(-50%);font-style:italic}
+  /* variant mix bars */
+  .mixrow{display:grid;grid-template-columns:190px 1fr 130px;gap:12px;align-items:center;padding:5px 0;font-size:12.5px}
+  .mixrow .mname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--ink-2)}
+  .mixrow .mname:hover{color:var(--brand-ink)}
+  .mixbar{height:20px;background:var(--brand-soft);border-radius:5px;position:relative;overflow:hidden}
+  .mixbar i{position:absolute;inset:0;width:0;background:var(--brand);border-radius:5px;opacity:.85}
+  .mixrow.top .mixbar i{background:var(--brand-ink)}
+  .mixrow .mval{color:var(--muted);text-align:right;white-space:nowrap}
+  /* info modal */
+  .info h5{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--brand-ink);margin:18px 0 6px}
+  .info p{font-size:13.5px;color:var(--ink-2);margin-bottom:8px}
+  .info table{margin:8px 0}
+  .info code{background:var(--unk-bg);border-radius:5px;padding:1px 6px;font-size:12px}
+  .info .ex{background:var(--brand-soft);border-radius:9px;padding:11px 14px;font-size:13px;color:var(--brand-ink);margin:8px 0}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
   td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
@@ -220,6 +249,7 @@
     <div class="hd-right">
       <span class="hd-chip" id="connChip" data-s="off">Not connected</span>
       <button class="hd-btn" id="btnRefresh" style="display:none">↻ Refresh</button>
+      <button class="hd-btn" id="btnInfo">ℹ How it works</button>
       <button class="hd-btn" id="btnSettings">⚙ Settings</button>
     </div>
   </div>
@@ -277,7 +307,7 @@ async function boot() {
     $('#btnRefresh').style.display = '';
     render(report.__err || null);
   } catch (e) {
-    if (/unauthorized/i.test(e.message)) { S.tok=''; localStorage.removeItem(LS.tok); return renderGate('That admin token was rejected.'); }
+    if (/unauthorized/i.test(e.message)) { S.tok=''; localStorage.removeItem(LS.tok); return renderGate('Wrong password — try again.'); }
     setChip('Worker down', 'down');
     $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p>
       <button class="cta" onclick="boot()">Retry</button></div>`;
@@ -286,22 +316,27 @@ async function boot() {
 function setChip(t, s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
 
 function renderGate(err) {
-  setChip('Not connected','off');
+  setChip('Signed out','off');
   $('#main').innerHTML = `
   <div class="gate">
-    <h1>Connect to your worker</h1>
-    <p>Restock needs the forecast worker URL and its admin token. These stay in this browser only.</p>
-    <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
-    <label>Admin token</label><input id="gTok" type="password" placeholder="paste ADMIN_TOKEN">
+    <h1>Sign in</h1>
+    <p>Lucky Golf inventory forecast. You'll stay signed in on this device.</p>
+    <label>Password</label><input id="gTok" type="password" placeholder="password" autofocus>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
-    <button class="cta" id="gGo">Connect</button>
+    <button class="cta" id="gGo">Sign in</button>
+    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Advanced</summary>
+      <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
+    </details>
   </div>`;
-  $('#gGo').onclick = () => {
-    S.url = $('#gUrl').value.trim() || DEFAULT_WORKER_URL;
+  const go = () => {
+    S.url = ($('#gUrl').value || '').trim() || DEFAULT_WORKER_URL;
     S.tok = $('#gTok').value.trim();
     localStorage.setItem(LS.url, S.url); localStorage.setItem(LS.tok, S.tok);
     boot();
   };
+  $('#gGo').onclick = go;
+  $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
+  $('#gTok').focus();
 }
 
 /* ================= main render ================= */
@@ -494,24 +529,61 @@ function trendNote(p) {
   return '';
 }
 
-function salesChartSVG(p) {
-  const W=960,H=150,pad=6,n=p.series.length;
-  const max=Math.max(1,...p.series), bw=(W-pad*2)/n;
-  let bars='', line='';
-  const avg=[];
-  for(let i=0;i<n;i++){
-    const from=Math.max(0,i-6), win=p.series.slice(from,i+1);
-    avg.push(win.reduce((a,b)=>a+b,0)/win.length);
-  }
-  for(let i=0;i<n;i++){
-    const h=(p.series[i]/max)*(H-30);
-    bars+=`<rect x="${(pad+i*bw).toFixed(1)}" y="${(H-20-h).toFixed(1)}" width="${Math.max(1,bw-1.2).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="var(--brand)" opacity="${p.series[i]?0.75:0.18}"><title>${addD(p.seriesEnd,-(n-1-i))}: ${p.series[i]} sold</title></rect>`;
-  }
-  line = avg.map((v,i)=>`${i?'L':'M'}${(pad+i*bw+bw/2).toFixed(1)},${(H-20-(v/max)*(H-30)).toFixed(1)}`).join('');
-  const lbl=(off)=>`<text x="${pad+off*(W-pad*2)}" y="${H-4}" font-size="10" fill="var(--muted)" text-anchor="${off?'end':'start'}">${off?addD(p.seriesEnd,0):addD(p.seriesEnd,-(n-1))}</text>`;
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}<path d="${line}" fill="none" stroke="var(--brand-ink)" stroke-width="1.8" opacity=".8"/>${lbl(0)}${lbl(1)}</svg>`;
-}
 function addD(ymd,n){ const d=new Date(ymd+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(5,10); }
+function ymdAdd(ymd,n){ const d=new Date(ymd+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function mdLabel(ymd){ return `${MONTHS[+ymd.slice(5,7)-1]} ${+ymd.slice(8,10)}`; }
+
+/** Interactive daily-sales chart: date ticks + hover tooltip (units + 7d avg). */
+function salesChartHTML(p) {
+  const n = p.series.length, H = 150;
+  const hs = S.report?.historyStart || null;
+  const dayOf = i => ymdAdd(p.seriesEnd, -(n-1-i));
+  let startIdx = 0;
+  if (hs) while (startIdx < n && dayOf(startIdx) < hs) startIdx++;
+  const data = [];
+  for (let i=0;i<n;i++){
+    const nodata = i < startIdx;
+    const from = Math.max(startIdx, i-6);
+    const win = p.series.slice(from, i+1);
+    data.push({ day: dayOf(i), qty: p.series[i], nodata,
+      avg: nodata ? 0 : win.reduce((a,b)=>a+b,0)/win.length });
+  }
+  S.chart = data;
+  const max = Math.max(1, ...data.filter(d=>!d.nodata).map(d=>d.qty));
+  // week ticks anchored to the most recent day, every 7 columns
+  const ticks = [];
+  for (let i=n-1; i>=startIdx; i-=7) ticks.push(i);
+  const bars = data.map((d,i)=>{
+    const h = d.nodata ? 0 : Math.max(d.qty/max*100, d.qty>0?2:0);
+    return `<div class="cday ${d.nodata?'nodata':''} ${ticks.includes(i)&&i!==n-1?'tick':''}" data-i="${i}"><i style="height:${h.toFixed(1)}%"></i></div>`;
+  }).join('');
+  const line = data.map((d,i)=> d.nodata ? '' :
+    `${i===startIdx?'M':'L'}${i+0.5},${(H-(d.avg/max)*H*0.94).toFixed(1)}`).join('');
+  const tickHtml = ticks.map(i =>
+    `<span style="left:${((i+0.5)/n*100).toFixed(2)}%">${mdLabel(data[i].day)}</span>`).join('');
+  const noNote = startIdx>0 && startIdx<n
+    ? `<div class="nodata-note" style="left:${(startIdx/2/n*100).toFixed(1)}%">tracking starts ${mdLabel(data[startIdx].day)}</div>` : '';
+  return `<div class="chartwrap" onmousemove="chartHover(event)" onmouseleave="chartHover(null)">
+    ${noNote}
+    <svg class="lineov" viewBox="0 0 ${n} ${H}" preserveAspectRatio="none"><path d="${line}" fill="none" stroke="var(--brand-ink)" stroke-width="1.6" opacity=".85" vector-effect="non-scaling-stroke"/></svg>
+    <div class="cbars">${bars}</div>
+    <div class="cticks">${tickHtml}</div>
+    <div class="ctip" id="ctip"></div>
+  </div>`;
+}
+function chartHover(e) {
+  const tip = $('#ctip'); if (!tip) return;
+  const d = e && e.target.closest('.cday');
+  if (!d) { tip.style.display='none'; return; }
+  const info = S.chart[+d.dataset.i];
+  if (!info || info.nodata) { tip.style.display='none'; return; }
+  tip.innerHTML = `<b>${mdLabel(info.day)}</b> — ${info.qty} unit${info.qty===1?'':'s'}<br>7-day avg: ${info.avg.toFixed(1)}/day`;
+  tip.style.display = 'block';
+  const r = d.getBoundingClientRect(), w = d.closest('.chartwrap').getBoundingClientRect();
+  tip.style.left = Math.min(Math.max(r.left - w.left + r.width/2, 70), w.width-70) + 'px';
+  tip.style.top = Math.max(150 - (info.qty/Math.max(1,...S.chart.filter(x=>!x.nodata).map(x=>x.qty)))*150, 24) + 'px';
+}
 
 function renderSheet() {
   const prod = S.visible[S.open]; if (!prod) return;
@@ -560,7 +632,9 @@ function renderSheet() {
       <div class="stat"><div class="lb">Status</div><div class="vl"><span class="chip" data-s="${p.status}" style="font-size:13px">${STATUS_LABEL[p.status]}</span></div><div class="sm">${isVar||p.variants.length===1?'':statusDigestText(prod)}</div></div>
     </div>
 
-    <div class="panel"><h4>Daily sales — last 90 days</h4><div class="sub">Bars = units/day (${isVar?'this variant only':'all variants'}) · line = 7-day average</div>${salesChartSVG(p)}</div>
+    <div class="panel"><h4>Daily sales — last 90 days</h4><div class="sub">Bars = units/day (${isVar?'this variant only':'all variants'}) · line = 7-day average · hover for detail</div>${salesChartHTML(p)}</div>
+
+    ${multi ? variantMixHTML(p) : ''}
 
     <div class="panel"><h4>How the velocity is computed</h4>
       <div class="sub">Recency-weighted blend — recent enough to react, long enough to ignore flukes.</div>
@@ -592,6 +666,28 @@ function renderSheet() {
       <div class="scen" id="scen"></div>
     </div>`}`;
   if (!multi) planCalc();
+}
+/** Horizontal bars: which variants drive the sell-through. */
+function variantMixHTML(p) {
+  const active = p.variants.filter(v => v.velocity > 0.001)
+    .sort((a,b) => b.velocity - a.velocity);
+  if (!active.length) return '';
+  const total = active.reduce((s,v) => s + v.velocity, 0);
+  const max = active[0].velocity;
+  const quiet = p.variants.length - active.length;
+  const rows = active.map((v,i) => {
+    const vi = p.variants.indexOf(v);
+    return `
+    <div class="mixrow ${i===0?'top':''}">
+      <div class="mname" onclick="openVar(${S.open},${vi})" title="Open variant">${esc(v.sku||v.title||'variant')}${v.title&&v.sku?` <span style="color:var(--muted)">· ${esc(v.title)}</span>`:''}</div>
+      <div class="mixbar"><i style="width:${(v.velocity/max*100).toFixed(1)}%"></i></div>
+      <div class="mval">${fmtV(v.velocity)}/day · ${(v.velocity/total*100).toFixed(0)}%</div>
+    </div>`;
+  }).join('');
+  return `<div class="panel"><h4>Variant mix — who's selling</h4>
+    <div class="sub">Share of this product's blended sell-through. Click a name to open that variant.</div>
+    ${rows}${quiet?`<div class="mini" style="margin-top:8px">${quiet} variant${quiet>1?'s':''} with no meaningful recent sales not shown.</div>`:''}
+  </div>`;
 }
 function statusDigestText(p) {
   const names = { stockout:'out', reorder:'reorder', watch:'watch', healthy:'ok', slow:'slow', unmapped:'unmapped', dormant:'dormant', muted:'muted' };
@@ -659,6 +755,56 @@ async function doSnapshot(btn) {
   btn.textContent = old; btn.disabled = false;
 }
 
+/* ================= info modal ================= */
+$('#btnInfo').onclick = openInfo;
+function openInfo() {
+  $('#mbox').innerHTML = `
+    <button class="x" onclick="closeModal()">✕</button>
+    <h3>How Restock works</h3>
+    <div class="info">
+    <p>Restock answers one question for every product: <b>"if I keep selling at my real pace, will I run out before a reorder could arrive?"</b> It snapshots Shopify three times a day, forecasts per <b>variant</b> (each loft, size, and color is its own forecast), and alerts Slack when action is needed.</p>
+
+    <h5>1 · Sell-through velocity</h5>
+    <p>One window is never trusted on its own — yesterday can be a fluke, a single week can be a promo, a quarter can hide a trend. Velocity is a recency-weighted blend of three windows (all ending yesterday, so today's partial day never skews it):</p>
+    <table><tr><th>Window</th><th>Weight</th><th>Why</th></tr>
+      <tr><td>14 days</td><td class="r"><b>45%</b></td><td>reacts to real trend changes, smooths single-day flukes</td></tr>
+      <tr><td>30 days</td><td class="r"><b>35%</b></td><td>the stabilizer</td></tr>
+      <tr><td>90 days</td><td class="r"><b>20%</b></td><td>long-run baseline</td></tr></table>
+    <p>Days where a variant sat at <b>zero stock</b> with zero sales don't count against it — being sold out isn't the same as selling slowly.</p>
+
+    <h5>2 · Promo damper ⚡</h5>
+    <p>If the 14-day rate runs hotter than <b>2× the 90-day baseline</b>, the item is flagged ⚡ <i>spiking</i> and the 14-day input is capped at 2× baseline in the blend. Forecasts still tighten (they should), but one viral week can't extrapolate into a panic order.</p>
+    <div class="ex">Baseline 1/day, promo week hits 5/day → uncapped blend would claim ~2.8/day; the damped blend says ~1.6/day.</div>
+
+    <h5>3 · New products 🆕</h5>
+    <p>Windows start at the variant's <b>launch date</b>, so a product that's 10 days old is judged on its 10 real days — not diluted across 90 days of pre-launch zeros. New launches skip the promo damper (a strong launch <i>is</i> the baseline) and carry a 🆕 flag until they have 14 days of history.</p>
+
+    <h5>4 · Status thresholds</h5>
+    <p><code>days left = on-hand ÷ velocity</code> compared to <code>lead time = production + shipping + buffer</code>:</p>
+    <table><tr><th>Status</th><th>Meaning</th></tr>
+      <tr><td><span class="chip" data-s="reorder">Reorder now</span></td><td>days left ≤ lead time — order today or you'll stock out</td></tr>
+      <tr><td><span class="chip" data-s="stockout">Out of stock</span></td><td>inventory ≤ 0 with recent sales</td></tr>
+      <tr><td><span class="chip" data-s="watch">Watch</span></td><td>days left ≤ lead time + watch window (default 30d)</td></tr>
+      <tr><td><span class="chip" data-s="healthy">Healthy</span></td><td>comfortable runway</td></tr>
+      <tr><td><span class="chip" data-s="unmapped">Unmapped</span></td><td>no lead-time profile for its product type — fix in Settings</td></tr>
+      <tr><td><span class="chip" data-s="dormant">Dormant</span></td><td>no stock and no sales in 90d — probably discontinued</td></tr></table>
+    <div class="ex">100 units · selling 1/day → 100 days left. Lead time 60d production + 30d shipping + 10d buffer = 100d → <b>reorder now</b>: by the time a new batch lands you'd be at zero.</div>
+
+    <h5>5 · Lead times</h5>
+    <p>Resolved per product, most specific wins: ① Shopify metafield <code>custom.lead_time_days</code> on the product → ② the profile mapped to its <b>product type</b> in Settings → ③ neither = flagged unmapped. New products inherit automatically from their type — nothing to configure per SKU.</p>
+
+    <h5>6 · Reorder quantities</h5>
+    <p><code>order = velocity × (target coverage + lead time) − on-hand</code> — enough to survive the lead-time burn <i>and</i> hit the coverage target (default 180d) after it lands. Multi-variant products order per variant, since each size/loft sells at its own pace.</p>
+
+    <h5>7 · Slack cadence</h5>
+    <p>Morning digest at ~6am Central (🔴 + 🟡 with order suggestions). Silent checks at noon and 6pm ping <b>instantly</b> if anything newly crosses red — transitions only, no repeat nagging. <b>Mute</b> discontinued items from any product panel to silence them everywhere.</p>
+
+    <h5>Data notes</h5>
+    <p>Sales come from Shopify orders (cancellations excluded); inventory is the live total across locations. History deepens daily — young history (&lt;90d) means the 90-day window leans on what exists. Forecasts are math, not prophecy: they assume tomorrow sells like the recent past.</p>
+    </div>`;
+  $('#modal').classList.add('open');
+}
+
 /* ================= settings modal ================= */
 $('#btnSettings').onclick = openSettings;
 function openSettings() {
@@ -720,7 +866,7 @@ function openSettings() {
 
     <div class="set"><h5>Connection</h5>
       <div class="frow"><label>Worker URL</label><input type="text" id="setUrl" value="${esc(S.url)}"></div>
-      <div class="frow"><label>Admin token</label><input type="text" id="setTok" value="${esc(S.tok)}"></div>
+      <div class="frow"><label>Password</label><input type="text" id="setTok" value="${esc(S.tok)}"></div>
     </div>
 
     <div class="actions">
