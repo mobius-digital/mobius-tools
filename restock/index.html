@@ -92,6 +92,9 @@
   .rows{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
   .rowh,.prow{display:grid;grid-template-columns:52px 1fr 90px 110px 110px 150px 34px;gap:14px;align-items:center;padding:12px 20px}
   .rowh{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding-top:14px;padding-bottom:10px}
+  .rowh span[data-key]{cursor:pointer;user-select:none}
+  .rowh span[data-key]:hover{color:var(--ink)}
+  .rowh span[data-key].on{color:var(--brand-ink)}
   .prow{border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s}
   .prow:last-child{border-bottom:none}
   .prow:hover{background:#F8FBFD}
@@ -171,8 +174,9 @@
   .lineov{position:absolute;left:0;top:0;width:100%;height:150px;pointer-events:none}
   .cticks{position:relative;height:24px;font-size:10.5px;color:var(--muted)}
   .cticks span{position:absolute;top:5px;transform:translateX(-50%);white-space:nowrap}
-  .ctip{position:absolute;background:var(--hd);color:#DFEAF2;font-size:11.5px;line-height:1.45;border-radius:7px;padding:6px 10px;pointer-events:none;display:none;z-index:6;white-space:nowrap;transform:translate(-50%,-110%);box-shadow:0 4px 14px rgba(12,22,29,.3)}
+  .ctip{position:absolute;background:var(--hd);color:#DFEAF2;font-size:11.5px;line-height:1.45;border-radius:7px;padding:6px 10px;pointer-events:none;display:none;z-index:6;white-space:nowrap;transform:translate(-50%,-100%);box-shadow:0 4px 14px rgba(12,22,29,.3)}
   .ctip b{color:#fff}
+  .cdot{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--brand-ink);border:2px solid #fff;box-shadow:0 1px 4px rgba(12,22,29,.35);transform:translate(-50%,-50%);pointer-events:none;display:none;z-index:5}
   .nodata-note{position:absolute;top:8px;font-size:10.5px;color:var(--muted);transform:translateX(-50%);font-style:italic}
   /* variant mix bars */
   .mixrow{display:grid;grid-template-columns:190px 1fr 130px;gap:12px;align-items:center;padding:5px 0;font-size:12.5px}
@@ -282,7 +286,7 @@ let S = {
   tok: localStorage.getItem(LS.tok) || '',
   store: localStorage.getItem(LS.store) || 'lucky',
   report: null, settings: null, stores: null,
-  filter: 'all', q: '', open: -1, openVar: -1, visible: [], expand: new Set(),
+  filter: 'all', q: '', open: -1, openVar: -1, visible: [], expand: new Set(), sort: null,
 };
 
 async function api(path, opts = {}) {
@@ -440,10 +444,31 @@ function toggleExpand(ev, id) {
 function variantFlags(v) {
   return (v.isNew?' 🆕':'') + (v.trend==='spiking'?' ⚡':'');
 }
+/* Column sorting — first click uses each column's natural direction,
+ * second click flips it. Default order (no sort) is urgency. */
+const SORTS = {
+  title:  { dir: 1,  cmp: (a,b) => a.title.localeCompare(b.title) },
+  inv:    { dir: -1, cmp: (a,b) => a.totalInv - b.totalInv },
+  vel:    { dir: -1, cmp: (a,b) => a.velocity - b.velocity },
+  days:   { dir: 1,  cmp: (a,b) => (a.daysLeft ?? 1e9) - (b.daysLeft ?? 1e9) },
+  status: { dir: -1, cmp: (a,b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || ((a.daysLeft ?? 1e9) - (b.daysLeft ?? 1e9)) },
+};
+function sortBy(key) {
+  S.sort = (S.sort?.key === key)
+    ? { key, dir: -S.sort.dir }
+    : { key, dir: SORTS[key].dir };
+  renderRows();
+}
+function sortHead(key, label, right) {
+  const on = S.sort?.key === key;
+  const arr = on ? (S.sort.dir === 1 ? ' ▲' : ' ▼') : '';
+  return `<span data-key="${key}" class="${on?'on':''}" onclick="sortBy('${key}')" ${right?'style="text-align:right"':''} title="Sort by ${label.toLowerCase()}">${label}${arr}</span>`;
+}
 function renderRows() {
   const q = S.q.trim().toLowerCase();
   S.visible = S.report.products.filter(p => matchFilter(p) &&
     (!q || (p.title+' '+p.type+' '+p.vendor+' '+p.variants.map(v=>v.sku).join(' ')).toLowerCase().includes(q)));
+  if (S.sort) S.visible = [...S.visible].sort((a,b) => SORTS[S.sort.key].cmp(a,b) * S.sort.dir);
   const rows = S.visible.map((p, i) => {
     const lead = p.leadDays!=null ? `<span class="tag lead">lead ${p.leadDays}d${p.leadSource==='metafield'?' · metafield':''}</span>` : `<span class="tag">no lead time</span>`;
     const alert = p.alertCount ? `<small>${p.alertCount} variant${p.alertCount>1?'s':''} 🔴</small>` : `<small>&nbsp;</small>`;
@@ -473,7 +498,7 @@ function renderRows() {
     return html;
   }).join('');
   $('#rows').innerHTML = `<div class="rows">
-    <div class="rowh"><span></span><span>Product</span><span style="text-align:right">Stock</span><span style="text-align:right">Velocity</span><span style="text-align:right">Days left</span><span style="text-align:right">Status</span><span></span></div>
+    <div class="rowh"><span></span>${sortHead('title','Product')}${sortHead('inv','Stock',1)}${sortHead('vel','Velocity',1)}${sortHead('days','Days left',1)}${sortHead('status','Status',1)}<span></span></div>
     ${rows || '<div class="empty">Nothing matches this filter.</div>'}</div>`;
 }
 
@@ -556,6 +581,7 @@ function salesChartHTML(p) {
   }
   S.chart = data;
   const max = Math.max(1, ...data.filter(d=>!d.nodata).map(d=>d.qty));
+  S.chartMax = max;
   // week ticks anchored to the most recent day, every 7 columns
   const ticks = [];
   for (let i=n-1; i>=startIdx; i-=7) ticks.push(i);
@@ -575,19 +601,27 @@ function salesChartHTML(p) {
     <div class="cbars">${bars}</div>
     <div class="cticks">${tickHtml}</div>
     <div class="ctip" id="ctip"></div>
+    <div class="cdot" id="cdot"></div>
   </div>`;
 }
 function chartHover(e) {
-  const tip = $('#ctip'); if (!tip) return;
+  const tip = $('#ctip'), dot = $('#cdot'); if (!tip) return;
   const d = e && e.target.closest('.cday');
-  if (!d) { tip.style.display='none'; return; }
-  const info = S.chart[+d.dataset.i];
-  if (!info || info.nodata) { tip.style.display='none'; return; }
+  const info = d && S.chart[+d.dataset.i];
+  if (!info || info.nodata) { tip.style.display='none'; if (dot) dot.style.display='none'; return; }
   tip.innerHTML = `<b>${mdLabel(info.day)}</b> — ${info.qty} unit${info.qty===1?'':'s'}<br>7-day avg: ${info.avg.toFixed(1)}/day`;
-  tip.style.display = 'block';
   const r = d.getBoundingClientRect(), w = d.closest('.chartwrap').getBoundingClientRect();
-  tip.style.left = Math.min(Math.max(r.left - w.left + r.width/2, 70), w.width-70) + 'px';
-  tip.style.top = Math.max(150 - (info.qty/Math.max(1,...S.chart.filter(x=>!x.nodata).map(x=>x.qty)))*150, 24) + 'px';
+  const x = r.left - w.left + r.width/2;
+  // tooltip lives in the gutter above the chart so it never covers bars or the line
+  tip.style.left = Math.min(Math.max(x, 85), w.width - 85) + 'px';
+  tip.style.top = '-6px';
+  tip.style.display = 'block';
+  // marker dot pinned to the 7-day-average line at the hovered day
+  if (dot) {
+    dot.style.left = x + 'px';
+    dot.style.top = (150 - (info.avg / S.chartMax) * 150 * 0.94) + 'px';
+    dot.style.display = 'block';
+  }
 }
 
 function renderSheet() {
@@ -772,7 +806,7 @@ function openInfo() {
     <button class="x" onclick="closeModal()">✕</button>
     <h3>How Restock works</h3>
     <div class="info">
-    <p>Restock answers one question for every product: <b>"if I keep selling at my real pace, will I run out before a reorder could arrive?"</b> It snapshots Shopify three times a day, forecasts per <b>variant</b> (each loft, size, and color is its own forecast), and alerts Slack when action is needed.</p>
+    <p>Restock answers one question for every product: <b>"if I keep selling at my real pace, will I run out before a reorder could arrive?"</b> It checks Shopify every hour, forecasts per <b>variant</b> (each loft, size, and color is its own forecast), and alerts Slack when action is needed.</p>
 
     <h5>1 · Sell-through velocity</h5>
     <p>One window is never trusted on its own — yesterday can be a fluke, a single week can be a promo, a quarter can hide a trend. Velocity is a recency-weighted blend of three windows (all ending yesterday, so today's partial day never skews it):</p>
