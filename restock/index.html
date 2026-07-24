@@ -300,6 +300,9 @@
   .rep-cardacts{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .rep-cardacts .btn{padding:5px 10px;font-size:11.5px}
   .rep-cardacts .mult{width:58px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 7px;font-size:12px;text-align:right}
+  .oopop{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;background:var(--brand-soft);border-radius:9px;padding:4px 8px;font-size:12px;font-weight:600;color:var(--brand-ink)}
+  .oopop input{border:1px solid var(--line-strong);border-radius:7px;padding:4px 6px;font:inherit;font-size:12.5px;background:#fff;color:var(--ink)}
+  .oopop .btn{padding:5px 10px;font-size:11.5px}
   .rowdays{font-size:10.5px;color:var(--muted);white-space:nowrap;text-align:right}
 
   /* ---------- Responsive: tablet (761–1020px) ---------- */
@@ -744,28 +747,43 @@ function scaleCard(btn) {
   if (moq) fillToTarget(card, Math.round(moq * m));
 }
 /** Record the checked quantities as a placed PO — the worker treats them as
- *  incoming stock (status ✈ on order) until the restock lands in Shopify. */
-async function markOrdered(btn) {
+ *  incoming stock (status ✈ on order) until the restock lands in Shopify.
+ *  Clicking opens an inline confirm with a PO-date picker (defaults to today,
+ *  backdatable) so each order carries its own date. */
+function markOrdered(btn) {
   const card = btn.closest('.rep-card');
-  const lead = Number(card.dataset.lead) || 0;
-  const items = [...card.querySelectorAll('tr:not(.unchecked)')].map(tr => {
+  const collect = () => [...card.querySelectorAll('tr:not(.unchecked)')].map(tr => {
     const qty = Number(tr.querySelector('.qty')?.value) || 0;
-    return qty > 0 && tr.dataset.vid ? { variantId: tr.dataset.vid, qty, leadDays: lead } : null;
+    return qty > 0 && tr.dataset.vid ? { variantId: tr.dataset.vid, qty, leadDays: Number(card.dataset.lead) || 0 } : null;
   }).filter(Boolean);
-  if (!items.length) {
+  if (!collect().length) {
     btn.textContent = 'Nothing selected';
     setTimeout(() => btn.textContent = '✈ Mark as ordered', 1600);
     return;
   }
-  const placedAt = $('#poDate')?.value || todayYMD();
-  btn.disabled = true; btn.textContent = '⏳ marking…';
-  try {
-    await api('/api/on-order?store=' + S.store, { method: 'POST', body: JSON.stringify({ set: items, placedAt }) });
-    await refreshReport();   // report view re-renders — these variants flip to ✈ on order
-  } catch(e) {
-    btn.disabled = false; btn.textContent = '✈ Mark as ordered';
-    alert('Mark as ordered failed: ' + e.message);
-  }
+  if (card.querySelector('.oopop')) return;
+  btn.style.display = 'none';
+  const pop = document.createElement('span');
+  pop.className = 'oopop';
+  pop.innerHTML = `<span>PO placed on</span>
+    <input type="date" value="${todayYMD()}" max="${todayYMD()}" title="The date you actually placed this order — backdate it if that was earlier. Arrival estimate = this date + lead time.">
+    <button class="btn pri">✓ Mark ordered</button><button class="btn">Cancel</button>`;
+  btn.after(pop);
+  const [okBtn, cancelBtn] = pop.querySelectorAll('button');
+  cancelBtn.onclick = () => { pop.remove(); btn.style.display = ''; };
+  okBtn.onclick = async () => {
+    const items = collect();   // re-read — qtys may have been edited since the popover opened
+    if (!items.length) { cancelBtn.onclick(); return; }
+    const placedAt = pop.querySelector('input').value || todayYMD();
+    okBtn.disabled = true; okBtn.textContent = '⏳ marking…';
+    try {
+      await api('/api/on-order?store=' + S.store, { method: 'POST', body: JSON.stringify({ set: items, placedAt }) });
+      await refreshReport();   // report view re-renders — these variants flip to ✈ on order
+    } catch(e) {
+      okBtn.disabled = false; okBtn.textContent = '✓ Mark ordered';
+      alert('Mark as ordered failed: ' + e.message);
+    }
+  };
 }
 /** Clear a variant's open-PO flag (order cancelled, or arrival wasn't auto-detected). */
 async function clearOrdered(vid) {
@@ -822,9 +840,6 @@ function renderReport() {
       <div><h1>Reorder report</h1>
         <div class="meta">${esc(r.storeName)} · ${date} · quantities target ${S.settings?.targetCoverDays || 180}d coverage after lead time — edit before copying</div></div>
       <div class="acts">
-        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)" title="The date the PO was (or will be) placed — ✈ Mark as ordered uses it, and the landing ETA = this date + the product's lead time. Backdate it if you placed the order earlier.">PO date
-          <input type="date" id="poDate" value="${todayYMD()}" max="${todayYMD()}"
-            style="border:1px solid var(--line-strong);border-radius:8px;padding:6px 9px;font:inherit;color:var(--ink);background:var(--surface)"></label>
         <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
         <button class="btn pri" onclick="S.view='list';render()">← Back to dashboard</button>
       </div>
@@ -1332,7 +1347,7 @@ function openInfo() {
     <p>The daily <b>digest</b> (🔴 + 🟡 lists with order suggestions) sends once a day at the time you pick in Settings. Instant 🔴 alerts can fire on <i>any</i> hourly check — transitions only, no repeat nagging.</p>
 
     <h5>8 · Marking orders as placed ✈</h5>
-    <p>When you actually place a PO, hit <b>✈ Mark as ordered</b> on that product's card in the Order report — if you placed the order on an earlier day, set the <b>PO date</b> field (top of the report) first; the landing ETA is always PO date + lead time. The checked quantities are recorded as <b>incoming stock</b>: those variants flip from red to <span class="chip" data-s="onorder">✈ On order</span>, stop appearing in Slack digests and new order suggestions, and their "need" is computed net of what's already coming.</p>
+    <p>When you actually place a PO, hit <b>✈ Mark as ordered</b> on that product's card in the Order report. A small confirm appears asking for the <b>PO date</b> — it defaults to today, so just backdate it if you placed the order on an earlier day (each product card gets its own date). The landing ETA is always PO date + lead time. On confirm, the checked quantities are recorded as <b>incoming stock</b>: those variants flip from red to <span class="chip" data-s="onorder">✈ On order</span>, stop appearing in Slack digests and new order suggestions, and their "need" is computed net of what's already coming.</p>
     <p>To see just what's ordered, click the <b>✈ On order</b> tile on the dashboard (it appears whenever POs are open) — it filters the list to open POs, each showing quantity, order date, and expected landing date.</p>
     <p>The flag <b>clears itself</b> when the restock lands — any hourly check that sees inventory jump by at least half the ordered quantity counts as arrival. If the ETA passes with no arrival, the variant shows <b>overdue — confirm arrival</b>. You can also clear flags manually whenever an order is cancelled, arrived unnoticed, or was marked by mistake: <b>✈ clear PO</b> next to a single variant, <b>✈ clear all POs</b> in the product panel, or the <b>✕</b> on the blue on-order tag right in the dashboard list — all take effect immediately. If the ordered quantity is too small to outlast even the <i>next</i> lead-time cycle, the variant stays red — ordered, but still short.</p>
 
