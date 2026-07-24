@@ -128,7 +128,12 @@
   .tag.oo{background:var(--brand-soft);color:var(--brand-ink);text-transform:none;letter-spacing:0;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
   .tag.oo .oox{cursor:pointer;font-weight:700;padding:0 1px;opacity:.5}
   .tag.oo .oox:hover{opacity:1;color:var(--bad)}
+  .tag.oo.confirm{background:var(--bad-bg);color:var(--bad)}
   .oomini{display:inline-block;white-space:nowrap;color:var(--brand-ink);font-size:11px}
+  .oomini .oox{cursor:pointer;font-weight:700;padding:0 2px;opacity:.5}
+  .oomini .oox:hover{opacity:1;color:var(--bad)}
+  .oomini.confirm{color:var(--bad);font-weight:600}
+  .mutebtn.confirm{color:var(--bad);border-color:var(--bad)}
   .num{text-align:right;font-weight:600}
   .num small{display:block;font-weight:400;color:var(--muted);font-size:11px}
   .dleft{text-align:right;font-weight:700;font-size:16px}
@@ -604,23 +609,44 @@ function ooInfo(p) {
 function ooTagHTML(p) {
   const oo = ooInfo(p);
   if (!oo) return '';
-  return `<span class="tag oo"><span>✈ ${oo.qty} on order · ${oo.multi?'first ':''}lands ~${fmtYmd(oo.eta)}${oo.overdue?' · <b style="color:var(--warn)">overdue</b>':''}</span><b class="oox" title="Clear the on-order flag on all ${oo.n} variant${oo.n>1?'s':''} of this product" onclick="clearProductPO(event,'${p.id}')">✕</b></span>`;
+  return `<span class="tag oo"><span>✈ ${oo.qty} on order · ${oo.multi?'first ':''}lands ~${fmtYmd(oo.eta)}${oo.overdue?' · <b style="color:var(--warn)">overdue</b>':''}</span><b class="oox" title="Clear the on-order flag on all ${oo.n} variant${oo.n>1?'s':''} of this product" onclick="clearPOs(event,'${p.id}')">✕</b></span>`;
 }
-/** Clear every open PO on a product — from the dashboard row's ✕ or the panel button. */
-async function clearProductPO(ev, pid) {
+/** Clear open POs — the whole product (no vid) or a single variant (vid).
+ *  Wired to the dashboard pill's ✕, the expanded variant rows' ✕, and the
+ *  product panel's buttons. Confirmation happens in place: the clicked
+ *  pill/button/note turns into a "clear N POs? yes / no" prompt — no browser
+ *  popups. */
+function clearPOs(ev, pid, vid) {
   ev.stopPropagation();
   const p = S.report?.products.find(x => x.id === pid);
-  const oo = p && ooInfo(p);
-  if (!oo) return;
-  if (!confirm(`Clear the on-order flag on ${oo.n} variant${oo.n>1?'s':''} of "${p.title}" (${oo.qty} units)?\n\nThey go back to their normal forecast status immediately.`)) return;
-  try {
-    await api('/api/on-order?store=' + S.store, { method: 'POST', body: JSON.stringify({ clear: oo.ids }) });
-  } catch(e) { alert('Clear failed: ' + e.message); return; }
-  await refreshReport(true);
-  if (S.open >= 0) {   // panel open — re-find the product after the list resorts
-    const ni = S.visible.findIndex(x => x.id === pid);
-    if (ni >= 0) { S.open = ni; renderSheet(); } else closeSheet();
-  }
+  if (!p) return;
+  const vs = p.variants.filter(v => v.onOrder && (!vid || v.id === vid));
+  if (!vs.length) return;
+  const ids = vs.map(v => v.id);
+  const qty = vs.reduce((s, v) => s + v.onOrder.qty, 0);
+  const host = ev.target.closest('.tag.oo, .oomini') || ev.target.closest('button');
+  if (!host || host.dataset.confirming) return;
+  host.dataset.confirming = '1';
+  host.removeAttribute('onclick');
+  host.onclick = e => e.stopPropagation();   // don't let stray clicks open the product
+  host.classList.add('confirm');
+  host.innerHTML = `clear ${ids.length > 1 ? ids.length + ' POs' : 'PO'} (${qty} units)?
+    <b data-yes style="cursor:pointer;padding:0 3px">✓ yes</b>
+    <b data-no style="cursor:pointer;padding:0 3px;opacity:.6">✗ no</b>`;
+  const restore = () => { if (S.open >= 0) renderSheet(); if ($('#rows')) renderRows(); };
+  host.querySelector('[data-no]').onclick = e => { e.stopPropagation(); restore(); };
+  host.querySelector('[data-yes]').onclick = async e => {
+    e.stopPropagation();
+    host.innerHTML = '⏳ clearing…';
+    try {
+      await api('/api/on-order?store=' + S.store, { method: 'POST', body: JSON.stringify({ clear: ids }) });
+    } catch(err) { host.innerHTML = 'failed — try again'; setTimeout(restore, 1800); return; }
+    await refreshReport(true);
+    if (S.open >= 0) {   // panel open — re-find the product after the list resorts
+      const ni = S.visible.findIndex(x => x.id === pid);
+      if (ni >= 0) { S.open = ni; renderSheet(); } else closeSheet();
+    }
+  };
 }
 /* Column sorting — first click uses each column's natural direction,
  * second click flips it. Default order (no sort) is urgency. */
@@ -666,7 +692,7 @@ function renderRows() {
     if (open) html += p.variants.map((v, vi) => `
       <div class="vsub" onclick="openVar(${i},${vi})">
         <span></span>
-        <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}${v.onOrder?` <span class="oomini">✈ ${v.onOrder.qty} on order · lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' · <b style="color:var(--warn)">overdue</b>':''}</span>`:''}</div>
+        <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}${v.onOrder?` <span class="oomini">✈ ${v.onOrder.qty} on order · lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' · <b style="color:var(--warn)">overdue</b>':''} <b class="oox" title="Clear this variant's on-order flag" onclick="clearPOs(event,'${p.id}','${v.id}')">✕</b></span>`:''}</div>
         <div class="num" style="text-align:right">${v.inv}</div>
         <div class="num" style="text-align:right">${fmtV(v.velocity)}/day</div>
         <div class="dleft">${fmtD(v.daysLeft)}<small>&nbsp;</small></div>
@@ -784,18 +810,6 @@ function markOrdered(btn) {
       alert('Mark as ordered failed: ' + e.message);
     }
   };
-}
-/** Clear a variant's open-PO flag (order cancelled, or arrival wasn't auto-detected). */
-async function clearOrdered(vid) {
-  const prodId = S.visible[S.open]?.id;
-  try {
-    await api('/api/on-order?store=' + S.store, { method: 'POST', body: JSON.stringify({ clear: [vid] }) });
-  } catch(e) { alert('Clear failed: ' + e.message); return; }
-  await refreshReport(true);
-  if (S.open >= 0 && prodId != null) {   // clearing resorts the list — re-find the product
-    const ni = S.visible.findIndex(p => p.id === prodId);
-    if (ni >= 0) { S.open = ni; renderSheet(); } else closeSheet();
-  }
 }
 /** Keep the scale button's label showing the live target: multiplier × MOQ. */
 function scaleHint(inp) {
@@ -1062,7 +1076,7 @@ function renderSheet() {
       <td class="r"><b>${fmtD(v.daysLeft)}</b></td>
       <td class="r">${v.suggestedQty??'—'}</td>
       <td class="r"><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
-      <td class="r"><button class="mutebtn ${v.muted?'muted':''}" title="${v.muted?'This variant is muted — no alerts or digests. Click to resume.':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'🔕 muted — unmute':'mute'}</button>${v.onOrder?`<button class="mutebtn" style="margin-top:4px;display:block;margin-left:auto" title="Remove the on-order flag — use if the order was cancelled, or the stock arrived but wasn't auto-detected" onclick="event.stopPropagation();clearOrdered('${v.id}')">✈ clear PO</button>`:''}</td>
+      <td class="r"><button class="mutebtn ${v.muted?'muted':''}" title="${v.muted?'This variant is muted — no alerts or digests. Click to resume.':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'🔕 muted — unmute':'mute'}</button>${v.onOrder?`<button class="mutebtn" style="margin-top:4px;display:block;margin-left:auto" title="Remove the on-order flag — use if the order was cancelled, or the stock arrived but wasn't auto-detected" onclick="clearPOs(event,'${p.id}','${v.id}')">✈ clear PO</button>`:''}</td>
     </tr>`).join('');
 
   const navPrev = isVar ? S.openVar<=0 : S.open<=0;
@@ -1103,7 +1117,7 @@ function renderSheet() {
     </div>
 
     <div class="panel"><h4>${isVar?'This variant':'Variants'}</h4>
-      <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.${multi?' Click a variant for its own charts and planner.':''}${!isVar&&oo?` <button class="mutebtn" onclick="clearProductPO(event,'${prod.id}')" title="Remove the on-order flag from all ${oo.n} variant${oo.n>1?'s':''} of this product at once — they go back to their normal forecast status">✈ clear all POs (${oo.n})</button>`:''}</div>
+      <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.${multi?' Click a variant for its own charts and planner.':''}${!isVar&&oo?` <button class="mutebtn" onclick="clearPOs(event,'${prod.id}')" title="Remove the on-order flag from all ${oo.n} variant${oo.n>1?'s':''} of this product at once — they go back to their normal forecast status">✈ clear all POs (${oo.n})</button>`:''}</div>
       <div style="overflow-x:auto"><table>
         <tr><th>SKU / variant</th><th class="r">Stock</th><th class="r">Vel/day</th><th class="r">14/30/90</th><th class="r">Days left</th><th class="r">Need</th><th class="r">Status</th><th></th></tr>
         ${vrows}</table></div>
