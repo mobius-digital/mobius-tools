@@ -802,6 +802,7 @@ async function doSnapshot(btn) {
 /* ================= info modal ================= */
 $('#btnInfo').onclick = openInfo;
 function openInfo() {
+  S.modalKind = 'info';
   $('#mbox').innerHTML = `
     <button class="x" onclick="closeModal()">✕</button>
     <h3>How Restock works</h3>
@@ -859,6 +860,7 @@ function hourLabel(h){ const ap=h<12?'AM':'PM'; const hh=h%12===0?12:h%12; retur
 function openSettings() {
   if (!S.tok) return;
   const st = S.settings; if (!st) return;
+  S.modalKind = 'settings'; S.dirty = false;
   const types = new Set(Object.keys(st.typeMap));
   const typeCount = {};
   if (S.report) for (const p of S.report.products) {
@@ -921,9 +923,14 @@ function openSettings() {
       <div class="msg" id="dataMsg"></div>
     </div>
 
+    <div class="set"><h5>Change password</h5>
+      <div class="frow"><label>New password</label><input type="text" id="newPass" placeholder="at least 8 characters" autocomplete="off"></div>
+      <div class="actions"><button class="btn" onclick="changePassword(this)">Update password</button><span class="msg" id="passMsg"></span></div>
+      <div class="msg">Takes effect immediately for everyone; this device stays signed in with the new one.</div>
+    </div>
+
     <div class="set"><h5>Connection</h5>
       <div class="frow"><label>Worker URL</label><input type="text" id="setUrl" value="${esc(S.url)}"></div>
-      <div class="frow"><label>Password</label><input type="text" id="setTok" value="${esc(S.tok)}"></div>
     </div>
 
     <div class="actions">
@@ -953,8 +960,17 @@ function syncTypeOptions() {
     sel.closest('tr').classList.toggle('unm', !sel.value);
   });
 }
-function closeModal(){ $('#modal').classList.remove('open'); }
+function closeModal(){
+  if (S.modalKind === 'settings' && S.dirty &&
+      !confirm('You have unsaved changes.\n\nOK = discard them · Cancel = stay (use "Save settings" to keep them)')) return;
+  S.dirty = false;
+  $('#modal').classList.remove('open');
+}
 $('#modal').addEventListener('click', e => { if (e.target.id==='modal') closeModal(); });
+// any edit inside the settings modal marks it dirty (password applies instantly, so it's exempt)
+$('#mbox').addEventListener('input', e => {
+  if (S.modalKind === 'settings' && e.target.id !== 'newPass') S.dirty = true;
+});
 
 async function loadChannels(st) {
   try {
@@ -1007,13 +1023,26 @@ async function saveSettings(btn) {
     stores: { [S.store]: { channel: $('#setChannel').value } },
   };
   try {
-    S.url = $('#setUrl').value.trim(); S.tok = $('#setTok').value.trim();
-    localStorage.setItem(LS.url, S.url); localStorage.setItem(LS.tok, S.tok);
+    S.url = $('#setUrl').value.trim() || DEFAULT_WORKER_URL;
+    localStorage.setItem(LS.url, S.url);
     S.settings = await api('/api/settings', { method:'PUT', body: JSON.stringify(body) });
+    S.dirty = false;
     await refreshReport(true);          // report is computed live — applies instantly
     openSettings();                     // re-render the modal with saved state
     $('#saveMsg').textContent = 'Saved ✓ — applied'; $('#saveMsg').className = 'msg ok';
   } catch(e) { $('#saveMsg').textContent = e.message; $('#saveMsg').className='msg bad'; }
+  btn.disabled = false;
+}
+async function changePassword(btn) {
+  const msg = $('#passMsg'), pw = $('#newPass').value.trim();
+  if (pw.length < 8) { msg.textContent = 'At least 8 characters.'; msg.className = 'msg bad'; return; }
+  btn.disabled = true;
+  try {
+    await api('/api/password', { method: 'POST', body: JSON.stringify({ password: pw }) });
+    S.tok = pw; localStorage.setItem(LS.tok, pw);
+    $('#newPass').value = '';
+    msg.textContent = 'Password updated ✓ — this device is signed in with it.'; msg.className = 'msg ok';
+  } catch(e) { msg.textContent = e.message; msg.className = 'msg bad'; }
   btn.disabled = false;
 }
 async function doBackfill(btn) {

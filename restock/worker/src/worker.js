@@ -695,9 +695,20 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
   status, headers: { 'Content-Type': 'application/json', ...CORS },
 });
 
-function isAdmin(request, env) {
+async function sha256hex(s) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Valid credentials: the dashboard-set password (hash in KV) or the
+ *  ADMIN_TOKEN secret, which stays valid as a master/recovery key. */
+async function isAdmin(request, env) {
   const auth = request.headers.get('Authorization') || '';
-  return env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`;
+  if (!auth.startsWith('Bearer ')) return false;
+  const tok = auth.slice(7);
+  if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
+  const stored = await env.KV.get('passwordHash');
+  return !!stored && (await sha256hex(tok)) === stored;
 }
 
 const storeFrom = url => STORES.find(s => s.id === (url.searchParams.get('store') || STORES[0].id));
@@ -723,7 +734,7 @@ export default {
     }
 
     if (!path.startsWith('/api/')) return json({ error: 'not found' }, 404);
-    if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+    if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
     const store = storeFrom(url);
     if (!store) return json({ error: 'unknown store' }, 400);
 
@@ -830,6 +841,14 @@ export default {
 
       if (path === '/api/digest' && request.method === 'POST') {
         return json(await runSnapshot(env, store, { forceDigest: true }));
+      }
+
+      if (path === '/api/password' && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const pw = String(body.password || '');
+        if (pw.length < 8) return json({ error: 'password must be at least 8 characters' }, 400);
+        await env.KV.put('passwordHash', await sha256hex(pw));
+        return json({ ok: true });
       }
 
       if (path === '/api/backfill' && request.method === 'POST') {
