@@ -885,7 +885,7 @@ function openInfo() {
     <p>Resolved per product, most specific wins: ① Shopify metafield <code>custom.lead_time_days</code> on the product → ② the profile mapped to its <b>product type</b> in Settings → ③ neither = flagged unmapped. New products inherit automatically from their type — nothing to configure per SKU.</p>
 
     <h5>6 · Reorder quantities & MOQ</h5>
-    <p><code>need = velocity × (target coverage + lead time) − on-hand</code> — enough to survive the lead-time burn <i>and</i> hit the coverage target (default 180d) after it lands. Multi-variant products compute this per variant, since each size/loft sells at its own pace. It's a <b>demand signal, not an order instruction</b>.</p>
+    <p><code>need = velocity × (target coverage + lead time) − on-hand</code> — enough to survive the lead-time burn <i>and</i> still land with your target coverage. The target is the <b>"Target coverage (days)"</b> number in Settings → Thresholds (default 180) — change it and every need quantity, MOQ comparison, and planner scenario recalculates immediately. Multi-variant products compute this per variant, since each size/loft sells at its own pace. It's a <b>demand signal, not an order instruction</b>.</p>
     <p>Set a product's <b>MOQ</b> in its reorder planner (saved to Shopify as metafield <code>custom.moq</code>). Restock then compares the <i>combined</i> need across all variants against it — Slack and the dashboard say "MOQ met ✓" or "under MOQ — consider waiting" so you know whether to order now or wait until more variants need restocking.</p>
 
     <h5>7 · Snapshots & Slack cadence</h5>
