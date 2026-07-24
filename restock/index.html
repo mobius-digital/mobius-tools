@@ -84,7 +84,10 @@
 
   /* ---------- Toolbar ---------- */
   .toolbar{display:flex;gap:10px;align-items:center;margin:22px 0 12px;flex-wrap:wrap}
-  .search{flex:1;min-width:200px;border:1px solid var(--line-strong);border-radius:9px;padding:9px 13px;background:var(--surface)}
+  .searchwrap{position:relative;flex:1;min-width:200px}
+  .search{width:100%;border:1px solid var(--line-strong);border-radius:9px;padding:9px 34px 9px 13px;background:var(--surface)}
+  .sclear{position:absolute;right:6px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;padding:5px 8px;border-radius:6px}
+  .sclear:hover{color:var(--ink);background:var(--unk-bg)}
   .fchip{border:1px solid var(--line-strong);background:var(--surface);border-radius:99px;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
   .fchip.on{background:var(--hd);border-color:var(--hd);color:#fff}
 
@@ -192,6 +195,14 @@
   .info table{margin:8px 0}
   .info code{background:var(--unk-bg);border-radius:5px;padding:1px 6px;font-size:12px}
   .info .ex{background:var(--brand-soft);border-radius:9px;padding:11px 14px;font-size:13px;color:var(--brand-ink);margin:8px 0}
+  /* combo (styled type picker — native datalist mispositions inside the modal) */
+  .combo{position:relative;flex:1;min-width:150px}
+  .combo input{width:100%}
+  .combo-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--line-strong);border-radius:9px;box-shadow:0 8px 24px rgba(12,22,29,.15);max-height:210px;overflow-y:auto;z-index:20;display:none}
+  .combo-list div{padding:8px 13px;cursor:pointer;font-size:13px}
+  .combo-list div:hover{background:var(--brand-soft);color:var(--brand-ink)}
+  .combo-list .newt{color:var(--muted);font-style:italic;cursor:default}
+  .combo-list .newt:hover{background:none;color:var(--muted)}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
   td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
@@ -385,7 +396,12 @@ function render(reportErr) {
       </div>
     </div>
     <div class="toolbar">
-      <input class="search" placeholder="Search products, SKUs, types…" value="${esc(S.q)}" oninput="S.q=this.value;renderRows()">
+      <div class="searchwrap">
+        <input class="search" id="searchBox" placeholder="Search products, SKUs, types…" value="${esc(S.q)}"
+          oninput="S.q=this.value;$('#sclear').style.display=this.value?'':'none';renderRows()">
+        <button class="sclear" id="sclear" style="display:${S.q?'':'none'}" title="Clear search"
+          onclick="S.q='';$('#searchBox').value='';this.style.display='none';renderRows();$('#searchBox').focus()">✕</button>
+      </div>
       <button class="fchip ${S.filter==='all'?'on':''}" onclick="setFilter('all')">All products</button>
     </div>
     <div id="rows"></div>`;
@@ -951,16 +967,42 @@ function noTypeFixHTML() {
     ...(S.report?.products || []).map(p => p.type).filter(Boolean),
     ...Object.keys(S.settings?.typeMap || {}).filter(Boolean),
   ])].sort();
+  S.allTypes = existing;
   return `<div class="set"><h5>⚠️ Products missing a type</h5>
     <div class="msg" style="margin:0 0 10px">These have a blank Product Type in Shopify, so they can't inherit a lead-time profile. Assign one here — it's <b>written straight back to Shopify</b>. Pick an existing type or type a brand-new one.</div>
-    <datalist id="allTypes">${existing.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
     ${noType.map(p => `<div class="frow" data-fixrow="${p.id}">
       <label style="min-width:200px" title="${esc(p.title)}">${esc(p.title)}</label>
-      <input type="text" list="allTypes" placeholder="e.g. Head Cover" style="flex:1;min-width:150px">
+      <div class="combo">
+        <input type="text" placeholder="e.g. Head Cover" autocomplete="off"
+          onfocus="showCombo(this)" oninput="showCombo(this)" onblur="hideCombo(this)"
+          onkeydown="if(event.key==='Escape')hideCombo(this,0)">
+        <div class="combo-list"></div>
+      </div>
       <button class="btn" onclick="applyType(this,'${p.id}')">Apply</button>
     </div>`).join('')}
     <div class="msg" id="typeFixMsg"></div>
   </div>`;
+}
+function showCombo(inp) {
+  const list = inp.parentElement.querySelector('.combo-list');
+  const q = inp.value.trim().toLowerCase();
+  const hits = (S.allTypes || []).filter(t => !q || t.toLowerCase().includes(q));
+  list.innerHTML = hits.map(t => `<div onmousedown="pickCombo(event,this)">${esc(t)}</div>`).join('')
+    + (q && !hits.some(t => t.toLowerCase() === q)
+        ? `<div class="newt">↳ new type "${esc(inp.value.trim())}" — hit Apply to create it</div>` : '');
+  list.style.display = list.innerHTML ? 'block' : 'none';
+}
+function pickCombo(ev, el) {
+  ev.preventDefault(); // fires before blur so the click always lands
+  const combo = el.closest('.combo');
+  combo.querySelector('input').value = el.textContent;
+  combo.querySelector('.combo-list').style.display = 'none';
+}
+function hideCombo(inp, delay = 150) {
+  setTimeout(() => {
+    const l = inp.parentElement.querySelector('.combo-list');
+    if (l) l.style.display = 'none';
+  }, delay);
 }
 async function applyType(btn, pid) {
   const row = btn.closest('[data-fixrow]');
