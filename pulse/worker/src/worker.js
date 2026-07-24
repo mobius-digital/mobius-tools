@@ -200,8 +200,12 @@ async function runPoll(env, { force = false } = {}) {
       svcStates[s.key] = { name: s.name, state: s.state, note: s.note };
       const before = prev.services?.[s.key]?.state;
       if (before && before !== s.state && s.state !== 'unknown' && before !== 'unknown') {
+        // on recovery the platform has usually cleared its incident text, so
+        // quote what the service is recovering FROM (the previous note)
+        const note = s.state === 'operational'
+          ? (prev.services?.[s.key]?.note || '') : s.note;
         transitions.push({ platformId: r.id, platform: r.name, service: s.name,
-                           from: before, to: s.state, note: s.note });
+                           from: before, to: s.state, note });
       }
     }
     newState[r.id] = {
@@ -269,8 +273,9 @@ async function slackApi(env, method, body) {
 function fmtWhen() {
   return new Date().toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
-  }) + ' UTC';
+    hour: 'numeric', minute: '2-digit',
+    timeZone: 'America/Chicago', timeZoneName: 'short',
+  });
 }
 
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/pulse/';
@@ -319,7 +324,10 @@ function buildAlertMessage(short, transitions, { withButton, alertId, sentNote, 
     if (i === 0) blocks.push({ type: 'divider' });
     // status + detail share one section — a separate context block for the
     // detail plus the second divider would trip Slack's "Show more" collapse
-    const detail = t.note && t.to !== 'operational' ? `\n_${t.note.slice(0, 250)}_` : '';
+    const noteTxt = (t.note || '').slice(0, 250);
+    const detail = !noteTxt ? ''
+      : t.to === 'operational' ? `\n_Was: ${noteTxt}_`
+      : `\n_${noteTxt}_`;
     blocks.push({ type: 'section', text: { type: 'mrkdwn',
       text: `*${status}*${detail}` } });
   });
