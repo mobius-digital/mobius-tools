@@ -290,10 +290,18 @@
   .rep-card tr.unchecked td{opacity:.45}
   .rep-card tr.unchecked td:first-child{opacity:1}
   .rep-empty{color:var(--muted);font-style:italic;padding:30px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  .rep-cardacts{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .rep-cardacts .btn{padding:5px 10px;font-size:11.5px}
+  .rep-cardacts .mult{width:58px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 7px;font-size:12px;text-align:right}
+  .rowdays{font-size:10.5px;color:var(--muted);white-space:nowrap;text-align:right}
+  @page{margin:12mm}
   @media print{
-    header,.rep-top .acts,.rep-ghead .acts,footer,.notice{display:none!important}
+    header,.rep-top .acts,.rep-ghead .acts,.rep-cardacts,footer,.notice,.scrim,.sheet,.modal{display:none!important}
     body{background:#fff}
-    .rep-group{border:none;padding:10px 0}
+    main{padding:0;max-width:none}
+    .rep-group{border:none;padding:0 0 6px;margin-bottom:6px;break-inside:auto}
+    .rep-ghead{break-after:avoid}
+    .rep-card{break-inside:avoid;margin:6px 0}
     .rep-card input[type=checkbox]{display:none}
     .rep-card tr.unchecked{display:none}
     .rep-card .qty{border:none}
@@ -564,36 +572,68 @@ function renderRows() {
 
 /* ================= order report ================= */
 function repCardHTML(p, vars) {
-  const moqBadge = p.moq
-    ? (p.moqMet
-        ? `<span class="rep-moq met">MOQ ${p.moq} met ✓ — order now</span>`
-        : `<span class="rep-moq under">need ${p.combinedNeed} of MOQ ${p.moq} — consider waiting</span>`)
-    : `<span class="rep-moq none">no MOQ set</span>`;
   const rows = vars.map(v => {
     const red = v.status === 'stockout' || v.status === 'reorder';
     return `
-    <tr class="${red ? '' : 'unchecked'}">
+    <tr class="${red ? '' : 'unchecked'}" data-vel="${v.velocity}" data-inv="${v.inv}" data-need="${v.suggestedQty ?? 0}">
       <td><input type="checkbox" ${red ? 'checked' : ''} onchange="this.closest('tr').classList.toggle('unchecked',!this.checked);repTotals()"></td>
       <td data-sku="${esc(v.sku || v.title || 'variant')}"><b>${esc(v.sku || v.title || '—')}</b>${v.sku && v.title ? `<span class="mini"> · ${esc(v.title)}</span>` : ''}</td>
       <td><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}/d</td>
       <td class="r">${fmtD(v.daysLeft)}</td>
-      <td class="r"><input class="qty" type="number" min="0" value="${v.suggestedQty ?? 0}" oninput="repTotals()"></td>
+      <td class="r"><input class="qty" type="number" min="0" value="${v.suggestedQty ?? 0}" oninput="repTotals()"><div class="rowdays"></div></td>
     </tr>`;
   }).join('');
   return `
-  <div class="rep-card" data-title="${esc(p.title)}" data-lead="${p.leadDays ?? ''}">
+  <div class="rep-card" data-title="${esc(p.title)}" data-lead="${p.leadDays ?? ''}" data-moq="${p.moq ?? ''}">
     <div class="rep-phead">
       <img src="${esc(p.image || '')}" onerror="this.style.display='none'" alt="">
       <b>${esc(p.title)}</b>
       ${p.leadDays != null ? `<span class="tag lead">lead ${p.leadDays}d</span>` : ''}
-      ${moqBadge}
+      <span class="rep-moq none"></span>
+      <span class="rep-cardacts">
+        ${p.moq ? `<button class="btn" onclick="autoMoq(this)" title="Check every variant and split the MOQ across them proportional to how fast each sells (never below its own need)">⚡ Fill to MOQ</button>` : ''}
+        <input class="mult" type="number" value="1.5" step="0.25" min="0.1" title="Multiplier">
+        <button class="btn" onclick="scaleCard(this)" title="Multiply every checked quantity — the velocity-based mix stays proportional">× Scale</button>
+      </span>
     </div>
     <div style="overflow-x:auto"><table>
       <tr><th></th><th>SKU / variant</th><th>Status</th><th class="r">On hand</th><th class="r">Vel</th><th class="r">Days left</th><th class="r">Order qty</th></tr>
       ${rows}</table></div>
   </div>`;
+}
+/** Check all variants and allocate the MOQ across them proportional to velocity —
+ *  each variant keeps at least its own need; the shortfall pads the fast movers. */
+function autoMoq(btn) {
+  const card = btn.closest('.rep-card');
+  const moq = Number(card.dataset.moq) || 0;
+  const trs = [...card.querySelectorAll('tr')].filter(tr => tr.querySelector('.qty'));
+  trs.forEach(tr => { tr.querySelector('input[type=checkbox]').checked = true; tr.classList.remove('unchecked'); });
+  const needs = trs.map(tr => Number(tr.dataset.need) || 0);
+  const vels = trs.map(tr => Number(tr.dataset.vel) || 0);
+  const needSum = needs.reduce((a, b) => a + b, 0);
+  const velSum = vels.reduce((a, b) => a + b, 0);
+  let qtys;
+  if (needSum >= moq) qtys = needs;
+  else {
+    const deficit = moq - needSum;
+    qtys = needs.map((n, i) => n + (velSum > 0 ? deficit * vels[i] / velSum : deficit / trs.length));
+    qtys = qtys.map(Math.round);
+    let diff = moq - qtys.reduce((a, b) => a + b, 0);   // rounding drift → settle on the fastest seller
+    if (diff !== 0) qtys[vels.indexOf(Math.max(...vels))] += diff;
+  }
+  trs.forEach((tr, i) => tr.querySelector('.qty').value = Math.max(0, qtys[i]));
+  repTotals();
+}
+/** Scale every checked quantity by the multiplier — proportions stay velocity-shaped. */
+function scaleCard(btn) {
+  const card = btn.closest('.rep-card');
+  const m = Math.max(0.1, parseFloat(card.querySelector('.mult').value) || 1);
+  card.querySelectorAll('tr:not(.unchecked) .qty').forEach(q => {
+    q.value = Math.round((Number(q.value) || 0) * m);
+  });
+  repTotals();
 }
 function renderReport() {
   const r = S.report;
@@ -603,10 +643,16 @@ function renderReport() {
     const reds = p.variants.filter(v => v.status === 'stockout' || v.status === 'reorder');
     const watch = p.variants.filter(v => v.status === 'watch');
     if (!reds.length && !watch.length) continue;
+    // with an MOQ, also list healthy selling variants (unchecked) so
+    // "Fill to MOQ" can pad the order across the product's full mix
+    const extras = p.moq
+      ? p.variants.filter(v => !reds.includes(v) && !watch.includes(v)
+          && v.velocity > 0.001 && !['muted', 'dormant'].includes(v.status))
+      : [];
     const key = p.profileName || 'No profile assigned';
     if (!groups.has(key)) groups.set(key, { red: [], yellow: [] });
-    if (reds.length) groups.get(key).red.push({ p, vars: [...reds, ...watch] });
-    else groups.get(key).yellow.push({ p, vars: watch });
+    if (reds.length) groups.get(key).red.push({ p, vars: [...reds, ...watch, ...extras] });
+    else groups.get(key).yellow.push({ p, vars: [...watch, ...extras] });
   }
   const gHtml = [...groups.entries()].map(([g, { red, yellow }]) => `
     <div class="rep-group" data-group="${esc(g)}">
@@ -633,6 +679,36 @@ function renderReport() {
   window.scrollTo(0, 0);
 }
 function repTotals() {
+  document.querySelectorAll('.rep-card').forEach(card => {
+    const lead = Number(card.dataset.lead) || 0;
+    const moq = Number(card.dataset.moq) || 0;
+    let sel = 0;
+    card.querySelectorAll('tr').forEach(tr => {
+      const q = tr.querySelector('.qty'); if (!q) return;
+      const qty = Number(q.value) || 0;
+      const days = tr.querySelector('.rowdays');
+      const vel = Number(tr.dataset.vel) || 0;
+      const checked = !tr.classList.contains('unchecked');
+      if (checked) sel += qty;
+      // live per-row coverage: how long you'd be stocked after this order lands
+      if (checked && qty > 0 && vel > 0.001) {
+        const after = ((Number(tr.dataset.inv) || 0) + qty) / vel - lead;
+        days.textContent = after <= 0 ? 'sells out before it lands'
+          : `≈ ${Math.round(after)}d after landing`;
+      } else days.textContent = '';
+    });
+    const badge = card.querySelector('.rep-moq');
+    if (moq) {
+      const met = sel >= moq;
+      badge.className = `rep-moq ${met ? 'met' : 'under'}`;
+      badge.textContent = met
+        ? `selected ${sel} / MOQ ${moq} ✓ met`
+        : `selected ${sel} / MOQ ${moq} — ${moq - sel} short`;
+    } else {
+      badge.className = 'rep-moq none';
+      badge.textContent = `selected ${sel} · no MOQ`;
+    }
+  });
   document.querySelectorAll('.rep-group').forEach(gr => {
     let units = 0, count = 0;
     gr.querySelectorAll('tr:not(.unchecked) .qty').forEach(q => {
