@@ -279,6 +279,18 @@ function pruneHistory(history, tz) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  On-order (open POs)                                                */
+/* ------------------------------------------------------------------ */
+
+/** { [variantId]: { qty, placedAt: 'YYYY-MM-DD', eta: 'YYYY-MM-DD' } } —
+ *  quantities already ordered from the manufacturer but not yet received.
+ *  Set from the dashboard's "Mark as ordered"; auto-cleared when a restock
+ *  lands in Shopify (see runSnapshot) or manually from the dashboard. */
+async function getOnOrder(env, store) {
+  return (await env.KV.get(`onorder:${store.id}`, 'json')) || {};
+}
+
+/* ------------------------------------------------------------------ */
 /*  Settings                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -374,10 +386,11 @@ function blendVelocity(rates, { isNew = false } = {}) {
   return { velocity: vel, velocityRaw: velRaw, trend, damped: vel !== velRaw };
 }
 
-const STATUS_RANK = { stockout: 5, reorder: 4, watch: 3, unmapped: 2, healthy: 1, slow: 1, dormant: 0, muted: 0 };
+const STATUS_RANK = { stockout: 5, reorder: 4, watch: 3, onorder: 2.5, unmapped: 2, healthy: 1, slow: 1, dormant: 0, muted: 0 };
 
-function computeReport(store, catalog, history, settings) {
-  const endDay = addDays(localDate(store.tz), -1); // windows end yesterday (today is partial)
+function computeReport(store, catalog, history, settings, onOrder = {}) {
+  const today = localDate(store.tz);
+  const endDay = addDays(today, -1); // windows end yesterday (today is partial)
   const historyDays = history.startDate
     ? Math.max(0, Math.round((Date.parse(endDay) - Date.parse(history.startDate)) / 86400000) + 1)
     : 0;
@@ -410,8 +423,20 @@ function computeReport(store, catalog, history, settings) {
       const series = [];
       for (let i = 89; i >= 0; i--) series.push(history.days[addDays(endDay, -i)]?.[v.id] || 0);
 
+      // open PO: judge urgency on effective stock (on-hand + incoming), so a
+      // placed order stops screaming red — unless it's too small to cover the
+      // next lead-time cycle too, in which case red stays red.
+      const oo = onOrder[v.id] || null;
+      const effInv = Math.max(v.inv, 0) + (oo?.qty || 0);
+      const effDays = velocity > 0.001 ? effInv / velocity : null;
+
       let status;
       if (muted) status = 'muted';
+      else if (oo) {
+        if (effDays != null && leadDays != null && effDays <= leadDays) {
+          status = v.inv <= 0 ? 'stockout' : 'reorder'; // ordered, but still short
+        } else status = 'onorder';
+      }
       else if (v.inv <= 0) status = noSales90 ? 'dormant' : 'stockout';
       else if (!leadSource) status = 'unmapped';
       else if (velocity <= 0.001) status = 'slow';
@@ -420,11 +445,12 @@ function computeReport(store, catalog, history, settings) {
       else status = 'healthy';
 
       const suggestedQty = velocity > 0.001 && leadDays != null
-        ? Math.max(0, Math.ceil(velocity * (settings.targetCoverDays + leadDays) - Math.max(v.inv, 0)))
+        ? Math.max(0, Math.ceil(velocity * (settings.targetCoverDays + leadDays) - effInv))
         : null;
 
       return {
         id: v.id, sku: v.sku, title: v.title, inv: v.inv,
+        onOrder: oo ? { qty: oo.qty, placedAt: oo.placedAt, eta: oo.eta, overdue: today > oo.eta } : null,
         windows: rates.map((r, i) => ({ days: WINDOWS[i].days, sold: r.sold, rate: +r.rate.toFixed(4), covered: r.days })),
         velocity: +velocity.toFixed(4), velocityRaw: +velocityRaw.toFixed(4),
         trend, damped, isNew, ageDays,
@@ -467,7 +493,7 @@ function computeReport(store, catalog, history, settings) {
   products.sort((a, b) => (STATUS_RANK[b.status] - STATUS_RANK[a.status])
     || ((a.daysLeft ?? 1e9) - (b.daysLeft ?? 1e9)));
 
-  const counts = { stockout: 0, reorder: 0, watch: 0, unmapped: 0, healthy: 0, slow: 0, dormant: 0, muted: 0 };
+  const counts = { stockout: 0, reorder: 0, watch: 0, onorder: 0, unmapped: 0, healthy: 0, slow: 0, dormant: 0, muted: 0 };
   for (const p of products) for (const v of p.variants) counts[v.status]++;
 
   return {
@@ -550,6 +576,7 @@ function digestMessage(store, report, settings) {
     { type: 'section', text: { type: 'mrkdwn', text: `📦  *${store.name} — Inventory digest* · ${date}` } },
     { type: 'section', text: { type: 'mrkdwn',
       text: `🔴 ${c.stockout + c.reorder} reorder now · 🟡 ${c.watch} watch · 🟢 ${c.healthy + c.slow} healthy` +
+            ((c.onorder || 0) ? ` · ✈️ ${c.onorder} on order` : '') +
             (c.unmapped ? ` · ⚠️ ${c.unmapped} unmapped` : '') } },
     { type: 'divider' },
   ];
@@ -599,9 +626,10 @@ function redAlertMessage(store, items) {
 
 async function runSnapshot(env, store, { digest = false, forceDigest = false } = {}) {
   const settings = await getSettings(env);
-  const [history, prevState] = await Promise.all([
+  const [history, prevState, onOrder] = await Promise.all([
     getHistory(env, store),
     env.KV.get(`state:${store.id}`, 'json').then(v => v || { variants: {} }),
+    getOnOrder(env, store),
   ]);
 
   // 1. catalog + inventory snapshot
@@ -611,6 +639,20 @@ async function runSnapshot(env, store, { digest = false, forceDigest = false } =
   for (const p of catalog.products) for (const v of p.variants) {
     if (v.tracked) invToday[v.id] = v.inv;
   }
+  // open POs: a big inventory jump since the last check = the shipment landed
+  // → clear the record. Sales only push inventory down, so a rise of ≥half the
+  // ordered qty can't be anything but a restock (threshold tolerates partial
+  // receipts and same-day sales).
+  const prevInv = history.inventory[today] || history.inventory[addDays(today, -1)] || {};
+  let ooChanged = false;
+  for (const [vid, rec] of Object.entries(onOrder)) {
+    const before = prevInv[vid], now = invToday[vid];
+    if (now === undefined) { delete onOrder[vid]; ooChanged = true; continue; } // variant gone
+    if (before !== undefined && now - before >= Math.max(1, Math.ceil(rec.qty * 0.5))) {
+      delete onOrder[vid]; ooChanged = true;
+    }
+  }
+  if (ooChanged) await env.KV.put(`onorder:${store.id}`, JSON.stringify(onOrder));
   history.inventory[today] = invToday;
 
   // 2. re-pull sales for the last 3 local days (idempotent overwrite)
@@ -621,7 +663,7 @@ async function runSnapshot(env, store, { digest = false, forceDigest = false } =
   pruneHistory(history, store.tz);
 
   // 3. compute + detect transitions
-  const report = computeReport(store, catalog, history, settings);
+  const report = computeReport(store, catalog, history, settings, onOrder);
   const newState = { variants: {}, lastDigestDate: prevState.lastDigestDate || null };
   const newReds = [];
   for (const p of report.products) {
@@ -773,13 +815,42 @@ export default {
       if (path === '/api/report') {
         // computed live from the latest snapshot data, so settings changes
         // (mutes, lead times, thresholds) apply immediately — no re-snapshot
-        const [catalog, history, settings] = await Promise.all([
+        const [catalog, history, settings, onOrder] = await Promise.all([
           env.KV.get(`catalog:${store.id}`, 'json'),
           getHistory(env, store),
           getSettings(env),
+          getOnOrder(env, store),
         ]);
         if (!catalog) return json({ error: 'no snapshot yet — run one from Settings' }, 404);
-        return json(computeReport(store, catalog, history, settings));
+        return json(computeReport(store, catalog, history, settings, onOrder));
+      }
+
+      if (path === '/api/on-order' && request.method === 'POST') {
+        // body: { set: [{variantId, qty, leadDays}], clear: [variantId] } —
+        // placedAt = today, eta = today + leadDays (the product's lead time)
+        const body = await request.json().catch(() => ({}));
+        const key = `onorder:${store.id}`;
+        const cur = await getOnOrder(env, store);
+        const today = localDate(store.tz);
+        let set = 0, cleared = 0;
+        if (Array.isArray(body.set)) {
+          for (const it of body.set.slice(0, 500)) {
+            const vid = String(it.variantId || '').replace(/\D/g, '');
+            const qty = Math.floor(Number(it.qty) || 0);
+            if (!vid || qty < 1) continue;
+            const lead = Math.min(730, Math.max(0, Math.floor(Number(it.leadDays) || 0)));
+            cur[vid] = { qty, placedAt: today, eta: addDays(today, lead) };
+            set++;
+          }
+        }
+        if (Array.isArray(body.clear)) {
+          for (const v of body.clear.slice(0, 500)) {
+            const vid = String(v).replace(/\D/g, '');
+            if (cur[vid]) { delete cur[vid]; cleared++; }
+          }
+        }
+        await env.KV.put(key, JSON.stringify(cur));
+        return json({ ok: true, set, cleared, open: Object.keys(cur).length });
       }
 
       if (path === '/api/settings' && request.method === 'GET') {
