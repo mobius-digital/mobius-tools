@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobius Restock — Inventory Forecast</title>
+<meta name="description" content="Mobius Restock — inventory forecasting and reorder alerts for Shopify. Weighted sell-through velocity, lead-time aware, by Mobius Digital.">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F8FA; --surface:#FFFFFF;
+    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
+    --line:#DFE7EC; --line-strong:#C4D2DB;
+    --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
+    --hd:#0C161D; --hd-line:#1D2C38;
+    --good:#1C7A46; --good-bg:#E4F2E9;
+    --warn:#8F6412; --warn-bg:#F8EED6;
+    --bad:#9C3A2E;  --bad-bg:#F7E7E4;
+    --unk:#647684;  --unk-bg:#EDF1F4;
+    --radius:12px;
+    --sans:'Instrument Sans',system-ui,sans-serif;
+    --serif:'Instrument Serif',Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;font-feature-settings:"tnum" 1}
+  button{font:inherit;cursor:pointer;color:inherit;background:none;border:none}
+  input,select{font:inherit;color:var(--ink)}
+  ::placeholder{color:#8195A2}
+  a{color:var(--brand-ink)}
+
+  /* ---------- Header ---------- */
+  header{position:sticky;top:0;z-index:20;background:var(--hd);color:#DFEAF2}
+  .hd{display:flex;align-items:center;gap:16px;padding:12px 26px;flex-wrap:wrap;max-width:1200px;margin:0 auto}
+  .mark{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
+  .mark img{height:32px;width:32px;border-radius:8px;display:block}
+  .mark b{font-weight:700;letter-spacing:.06em;font-size:13px}
+  .mark b span{color:var(--brand)}
+  .hd-sep{width:1px;height:28px;background:var(--hd-line)}
+  .hd-title{font-family:var(--serif);font-size:21px;color:#fff;white-space:nowrap}
+  .hd-title em{font-style:italic;color:var(--brand)}
+  .hd-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .hd-chip{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--hd-line);border-radius:99px;padding:6px 12px;color:#9FB4C2;white-space:nowrap}
+  .hd-chip[data-s="live"]{color:#7BE0A3;border-color:rgba(123,224,163,.35)}
+  .hd-chip[data-s="down"]{color:#F2938A;border-color:rgba(242,147,138,.4)}
+  .hd-btn{border:1px solid var(--hd-line);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:#BFD3E0;white-space:nowrap}
+  .hd-btn:hover{border-color:var(--brand);color:#fff}
+
+  main{max-width:1200px;margin:0 auto;padding:26px 26px 90px}
+  h2{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+
+  /* ---------- Connect gate ---------- */
+  .gate{max-width:460px;margin:60px auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:34px}
+  .gate h1{font-family:var(--serif);font-weight:400;font-size:28px;margin-bottom:6px}
+  .gate p{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+  .gate label{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 5px}
+  .gate input{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px 12px}
+  .gate .cta{width:100%;margin-top:20px;background:var(--brand);color:var(--hd);border-radius:9px;padding:12px;font-weight:700;font-size:14.5px}
+  .gate .err{color:var(--bad);font-size:13px;margin-top:12px}
+
+  /* ---------- Banners ---------- */
+  .banner{display:flex;align-items:center;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 24px;margin-bottom:16px;flex-wrap:wrap}
+  .banner h1{font-family:var(--serif);font-weight:400;font-size:26px;line-height:1.2}
+  .banner .meta{color:var(--muted);font-size:13px;margin-top:2px}
+  .banner .again{margin-left:auto;text-align:right;color:var(--muted);font-size:12px;white-space:nowrap}
+  .counts{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .count{border-radius:10px;padding:10px 16px;text-align:center;min-width:86px;cursor:pointer;border:1px solid transparent}
+  .count b{display:block;font-size:22px;line-height:1.1}
+  .count span{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .count[data-k="red"]{background:var(--bad-bg);color:var(--bad)}
+  .count[data-k="yellow"]{background:var(--warn-bg);color:var(--warn)}
+  .count[data-k="green"]{background:var(--good-bg);color:var(--good)}
+  .count[data-k="gray"]{background:var(--unk-bg);color:var(--unk)}
+  .count.on{border-color:currentColor}
+  .notice{display:flex;gap:12px;align-items:center;border-radius:var(--radius);padding:13px 18px;font-size:13.5px;margin-bottom:12px}
+  .notice.warn{background:var(--warn-bg);color:var(--warn)}
+  .notice.info{background:var(--brand-soft);color:var(--brand-ink)}
+  .notice button{margin-left:auto;font-weight:700;text-decoration:underline;white-space:nowrap}
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{display:flex;gap:10px;align-items:center;margin:22px 0 12px;flex-wrap:wrap}
+  .search{flex:1;min-width:200px;border:1px solid var(--line-strong);border-radius:9px;padding:9px 13px;background:var(--surface)}
+  .fchip{border:1px solid var(--line-strong);background:var(--surface);border-radius:99px;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+  .fchip.on{background:var(--hd);border-color:var(--hd);color:#fff}
+
+  /* ---------- Product rows ---------- */
+  .rows{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .rowh,.prow{display:grid;grid-template-columns:52px 1fr 90px 110px 110px 130px;gap:14px;align-items:center;padding:12px 20px}
+  .rowh{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding-top:14px;padding-bottom:10px}
+  .prow{border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s}
+  .prow:last-child{border-bottom:none}
+  .prow:hover{background:#F8FBFD}
+  .pimg{width:44px;height:44px;border-radius:9px;object-fit:cover;background:var(--unk-bg);border:1px solid var(--line)}
+  .pname b{font-weight:600;font-size:14.5px;display:block}
+  .pname .tags{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center}
+  .tag{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--unk-bg);color:var(--muted);border-radius:99px;padding:2px 9px}
+  .tag.lead{background:var(--brand-soft);color:var(--brand-ink);text-transform:none;letter-spacing:0}
+  .num{text-align:right;font-weight:600}
+  .num small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+  .dleft{text-align:right;font-weight:700;font-size:16px}
+  .dleft small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+  .chip{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:99px;padding:5px 12px;white-space:nowrap;justify-self:end}
+  .chip[data-s="stockout"],.chip[data-s="reorder"]{color:var(--bad);background:var(--bad-bg)}
+  .chip[data-s="watch"]{color:var(--warn);background:var(--warn-bg)}
+  .chip[data-s="healthy"],.chip[data-s="slow"]{color:var(--good);background:var(--good-bg)}
+  .chip[data-s="unmapped"],.chip[data-s="dormant"],.chip[data-s="muted"]{color:var(--unk);background:var(--unk-bg)}
+  .empty{color:var(--muted);padding:26px;text-align:center;font-style:italic}
+  @media (max-width:760px){
+    .rowh{display:none}
+    .prow{grid-template-columns:44px 1fr 90px;gap:10px}
+    .prow .num{display:none}
+    .prow .dleft{grid-column:3}
+    .prow .chip{display:none}
+  }
+
+  /* ---------- Bottom sheet ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(12,22,29,.5);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--bg);border-radius:18px 18px 0 0;max-height:92vh;overflow-y:auto;transform:translateY(102%);transition:transform .28s cubic-bezier(.3,.9,.3,1);box-shadow:0 -12px 40px rgba(12,22,29,.25)}
+  .sheet.open{transform:translateY(0)}
+  .sh-in{max-width:1040px;margin:0 auto;padding:20px 26px 60px}
+  .sh-top{display:flex;align-items:center;gap:14px;position:sticky;top:0;background:var(--bg);padding:6px 0 14px;z-index:5}
+  .sh-top img{width:52px;height:52px;border-radius:11px;object-fit:cover;border:1px solid var(--line);background:var(--surface)}
+  .sh-top h3{font-family:var(--serif);font-weight:400;font-size:24px;line-height:1.15}
+  .sh-top .sm{color:var(--muted);font-size:12.5px}
+  .sh-nav{margin-left:auto;display:flex;gap:8px}
+  .sh-nav button{width:38px;height:38px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);font-size:16px;display:flex;align-items:center;justify-content:center}
+  .sh-nav button:hover{border-color:var(--brand-ink)}
+  .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .stat .lb{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .stat .vl{font-size:22px;font-weight:700;margin-top:2px}
+  .stat .sm{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+  .panel h4{font-family:var(--serif);font-weight:400;font-size:18px;margin-bottom:2px}
+  .panel .sub{margin-bottom:12px}
+  .chart{width:100%;height:150px;display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  td.r,th.r{text-align:right}
+  .mini{font-size:11px;color:var(--muted)}
+  .mutebtn{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line-strong);border-radius:99px;padding:3px 10px}
+  .mutebtn:hover{color:var(--bad);border-color:var(--bad)}
+  .trendnote{font-size:12.5px;border-radius:9px;padding:9px 13px;margin-bottom:12px;display:inline-block}
+  .trendnote.spike{background:var(--warn-bg);color:var(--warn)}
+  .trendnote.rise{background:var(--brand-soft);color:var(--brand-ink)}
+  .trendnote.fall{background:var(--unk-bg);color:var(--unk)}
+
+  /* planner */
+  .plan-in{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .plan-in input{width:120px;border:1px solid var(--line-strong);border-radius:9px;padding:9px 12px;font-weight:700;font-size:16px}
+  .plan-out{font-size:14px}
+  .plan-out b{color:var(--brand-ink)}
+  .scen{display:grid;gap:8px;margin-top:12px}
+  .scen .srow{display:grid;grid-template-columns:150px 1fr 190px;gap:12px;align-items:center;font-size:12.5px}
+  .sbar{height:22px;border-radius:6px;background:var(--brand-soft);position:relative;overflow:hidden}
+  .sbar i{position:absolute;inset:0;width:0;background:var(--brand);border-radius:6px;opacity:.85}
+  .sbar.acc i{background:var(--good)}
+  .srow .sm{color:var(--muted);text-align:right}
+
+  /* ---------- Modal (settings) ---------- */
+  .modal{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;background:rgba(12,22,29,.5);overflow-y:auto;padding:40px 16px}
+  .modal.open{display:flex}
+  .mbox{background:var(--bg);border-radius:16px;max-width:720px;width:100%;padding:26px 28px;position:relative}
+  .mbox h3{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:14px}
+  .mbox .x{position:absolute;top:18px;right:20px;font-size:20px;color:var(--muted)}
+  .set{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px}
+  .set h5{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .frow{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+  .frow label{font-size:13px;color:var(--ink-2);min-width:170px}
+  .frow input,.frow select{border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;background:#fff}
+  .frow input[type=number]{width:90px}
+  .frow input[type=text]{flex:1;min-width:160px}
+  .btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:9px;padding:9px 15px;font-weight:600;font-size:13px}
+  .btn:hover{border-color:var(--brand-ink)}
+  .btn.pri{background:var(--brand);border-color:var(--brand);color:var(--hd);font-weight:700}
+  .btn.danger{color:var(--bad)}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .msg{font-size:12.5px;margin-top:10px;color:var(--muted)}
+  .msg.ok{color:var(--good)} .msg.bad{color:var(--bad)}
+  .ptable td input{width:70px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 8px}
+  .ptable td input.nm{width:130px}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line-strong);border-top-color:var(--brand-ink);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  footer{max-width:1200px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hd">
+    <a class="mark" href="https://go-mobius-digital.com"><img src="../favicon.png" alt=""><b>MOBIUS<span> DIGITAL</span></b></a>
+    <div class="hd-sep"></div>
+    <div class="hd-title">Mobius <em>Restock</em></div>
+    <div class="hd-right">
+      <span class="hd-chip" id="connChip" data-s="off">Not connected</span>
+      <button class="hd-btn" id="btnRefresh" style="display:none">↻ Refresh</button>
+      <button class="hd-btn" id="btnSettings">⚙ Settings</button>
+    </div>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"><div class="sh-in" id="sheetIn"></div></div>
+
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+
+<footer>Mobius Restock · forecasts use a 14/30/90-day weighted sell-through blend with promo damping · not gospel, just math.</footer>
+
+<script>
+'use strict';
+/* ================= config / state ================= */
+const DEFAULT_WORKER_URL = 'https://mobius-restock.mobius-digital.workers.dev';
+const LS = { url:'restock_worker', tok:'restock_token', store:'restock_store' };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let S = {
+  url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
+  tok: localStorage.getItem(LS.tok) || '',
+  store: localStorage.getItem(LS.store) || 'lucky',
+  report: null, settings: null, stores: null,
+  filter: 'all', q: '', open: -1, visible: [],
+};
+
+async function api(path, opts = {}) {
+  const res = await fetch(S.url.replace(/\/+$/,'') + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + S.tok,
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers||{}) },
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  return j;
+}
+
+/* ================= boot ================= */
+async function boot() {
+  if (!S.tok) return renderGate();
+  setChip('…', 'off');
+  try {
+    const [report, settings, stores] = await Promise.all([
+      api('/api/report?store=' + S.store).catch(e => ({ __err: e.message })),
+      api('/api/settings'),
+      api('/api/stores'),
+    ]);
+    S.settings = settings; S.stores = stores;
+    S.report = report.__err ? null : report;
+    setChip('Live', 'live');
+    $('#btnRefresh').style.display = '';
+    render(report.__err || null);
+  } catch (e) {
+    if (/unauthorized/i.test(e.message)) { S.tok=''; localStorage.removeItem(LS.tok); return renderGate('That admin token was rejected.'); }
+    setChip('Worker down', 'down');
+    $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p>
+      <button class="cta" onclick="boot()">Retry</button></div>`;
+  }
+}
+function setChip(t, s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
+
+function renderGate(err) {
+  setChip('Not connected','off');
+  $('#main').innerHTML = `
+  <div class="gate">
+    <h1>Connect to your worker</h1>
+    <p>Restock needs the forecast worker URL and its admin token. These stay in this browser only.</p>
+    <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
+    <label>Admin token</label><input id="gTok" type="password" placeholder="paste ADMIN_TOKEN">
+    ${err ? `<div class="err">${esc(err)}</div>` : ''}
+    <button class="cta" id="gGo">Connect</button>
+  </div>`;
+  $('#gGo').onclick = () => {
+    S.url = $('#gUrl').value.trim() || DEFAULT_WORKER_URL;
+    S.tok = $('#gTok').value.trim();
+    localStorage.setItem(LS.url, S.url); localStorage.setItem(LS.tok, S.tok);
+    boot();
+  };
+}
+
+/* ================= main render ================= */
+const RED = ['stockout','reorder'], YEL = ['watch'], GRN = ['healthy','slow'], GRY = ['unmapped','dormant','muted'];
+const STATUS_LABEL = { stockout:'Out of stock', reorder:'Reorder now', watch:'Watch', healthy:'Healthy', slow:'Slow mover', unmapped:'Unmapped', dormant:'Dormant', muted:'Muted' };
+
+function fmtD(d){ return d==null ? '—' : d>=9000 ? '∞' : d+'d'; }
+function fmtV(v){ return v>=10 ? v.toFixed(1) : v>=0.1 ? v.toFixed(2) : v>0 ? v.toFixed(3) : '0'; }
+function fmtWhen(iso){ return iso ? new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'; }
+
+function render(reportErr) {
+  const m = $('#main');
+  if (reportErr || !S.report) {
+    m.innerHTML = `
+      ${bannersHTML(true)}
+      <div class="gate"><h1>No snapshot yet</h1>
+      <p>${esc(reportErr || 'Run the first snapshot to pull your catalog and start the forecast.')}</p>
+      <button class="cta" onclick="doSnapshot(this)">Run first snapshot</button>
+      <div class="msg" id="gateMsg"></div></div>`;
+    return;
+  }
+  const r = S.report, c = r.counts;
+  const red = c.stockout + c.reorder, yel = c.watch, grn = c.healthy + c.slow, gry = c.unmapped + c.dormant + c.muted;
+  const worstTitle = red ? `${red} variant${red>1?'s':''} need${red>1?'':'s'} reordering` :
+    yel ? `${yel} variant${yel>1?'s':''} to watch` : 'All stock levels healthy';
+
+  m.innerHTML = `
+    ${bannersHTML(false)}
+    <div class="banner">
+      <div><h1>${esc(r.storeName)} — ${worstTitle}</h1>
+        <div class="meta">Snapshot ${fmtWhen(r.generatedAt)} · ${r.historyDays} days of sales history${r.historyDays<90?' (young — forecasts sharpen as history builds)':''}</div></div>
+      <div class="counts">
+        <div class="count ${S.filter==='red'?'on':''}" data-k="red" onclick="setFilter('red')"><b>${red}</b><span>Reorder</span></div>
+        <div class="count ${S.filter==='yellow'?'on':''}" data-k="yellow" onclick="setFilter('yellow')"><b>${yel}</b><span>Watch</span></div>
+        <div class="count ${S.filter==='green'?'on':''}" data-k="green" onclick="setFilter('green')"><b>${grn}</b><span>Healthy</span></div>
+        <div class="count ${S.filter==='gray'?'on':''}" data-k="gray" onclick="setFilter('gray')"><b>${gry}</b><span>Other</span></div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input class="search" placeholder="Search products, SKUs, types…" value="${esc(S.q)}" oninput="S.q=this.value;renderRows()">
+      <button class="fchip ${S.filter==='all'?'on':''}" onclick="setFilter('all')">All products</button>
+    </div>
+    <div id="rows"></div>`;
+  renderRows();
+}
+
+function bannersHTML(gateMode) {
+  let h = '';
+  if (S.settings && !S.settings.reviewedDefaults) {
+    h += `<div class="notice info">🛠️ Lead-time profiles are seeded with <b>&nbsp;example numbers&nbsp;</b> (Clubs 60+30, Soft Goods 45+30, Accessories 30+30). Set your real production &amp; shipping days.
+      <button onclick="openSettings()">Review now →</button></div>`;
+  }
+  if (!gateMode && S.report?.unmappedTypes?.length) {
+    h += `<div class="notice warn">⚠️ ${S.report.unmappedTypes.length} product type${S.report.unmappedTypes.length>1?'s have':' has'} no lead-time profile: ${S.report.unmappedTypes.map(esc).join(', ')} — these can't be forecast against a reorder point.
+      <button onclick="openSettings()">Map them →</button></div>`;
+  }
+  const st = S.stores?.stores?.find(s => s.id === S.store);
+  if (st && !st.hasToken) {
+    h += `<div class="notice warn">🔑 The worker has no Shopify token for ${esc(st.name)} yet — snapshots will fail until <code>SHOPIFY_TOKEN_${st.id.toUpperCase()}</code> is set (see restock/worker/README.md).</div>`;
+  }
+  if (st && st.hasToken && S.stores && !S.stores.slackConfigured) {
+    h += `<div class="notice warn">💬 No Slack token set — the dashboard works, but digests and alerts won't send until <code>SLACK_BOT_TOKEN</code> is set.</div>`;
+  }
+  return h;
+}
+
+function setFilter(f){ S.filter = S.filter===f ? 'all' : f; render(); }
+
+function matchFilter(p) {
+  if (S.filter==='all') return true;
+  const set = { red:RED, yellow:YEL, green:GRN, gray:GRY }[S.filter];
+  return p.variants.some(v => set.includes(v.status));
+}
+function renderRows() {
+  const q = S.q.trim().toLowerCase();
+  S.visible = S.report.products.filter(p => matchFilter(p) &&
+    (!q || (p.title+' '+p.type+' '+p.vendor+' '+p.variants.map(v=>v.sku).join(' ')).toLowerCase().includes(q)));
+  const rows = S.visible.map((p, i) => {
+    const lead = p.leadDays!=null ? `<span class="tag lead">lead ${p.leadDays}d${p.leadSource==='metafield'?' · metafield':''}</span>` : `<span class="tag">no lead time</span>`;
+    const alert = p.alertCount ? `<small>${p.alertCount} variant${p.alertCount>1?'s':''} 🔴</small>` : `<small>&nbsp;</small>`;
+    return `
+    <div class="prow" onclick="openSheet(${i})">
+      <img class="pimg" src="${esc(p.image||'')}" onerror="this.style.visibility='hidden'" alt="">
+      <div class="pname"><b>${esc(p.title)}</b>
+        <div class="tags">${p.type?`<span class="tag">${esc(p.type)}</span>`:''}${lead}${p.variants.some(v=>v.trend==='spiking')?'<span class="tag" style="background:var(--warn-bg);color:var(--warn)">⚡ spiking</span>':''}</div></div>
+      <div class="num">${p.totalInv}<small>on hand</small></div>
+      <div class="num">${fmtV(p.velocity)}/day<small>sell-through</small></div>
+      <div class="dleft">${fmtD(p.daysLeft)}${alert}</div>
+      <span class="chip" data-s="${p.status}">${STATUS_LABEL[p.status]}</span>
+    </div>`;
+  }).join('');
+  $('#rows').innerHTML = `<div class="rows">
+    <div class="rowh"><span></span><span>Product</span><span style="text-align:right">Stock</span><span style="text-align:right">Velocity</span><span style="text-align:right">Days left</span><span style="text-align:right">Status</span></div>
+    ${rows || '<div class="empty">Nothing matches this filter.</div>'}</div>`;
+}
+
+/* ================= bottom sheet ================= */
+function openSheet(i) {
+  S.open = i;
+  renderSheet();
+  $('#scrim').classList.add('open'); $('#sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSheet(){ S.open=-1; $('#scrim').classList.remove('open'); $('#sheet').classList.remove('open'); document.body.style.overflow=''; }
+$('#scrim').onclick = closeSheet;
+document.addEventListener('keydown', e => {
+  if (S.open<0) return;
+  if (e.key==='Escape') closeSheet();
+  if (e.key==='ArrowRight') nav(1);
+  if (e.key==='ArrowLeft') nav(-1);
+});
+function nav(d){ const n=S.open+d; if(n>=0&&n<S.visible.length){S.open=n;renderSheet();$('#sheet').scrollTop=0;} }
+
+function trendNote(p) {
+  const spike = p.variants.filter(v=>v.trend==='spiking').length;
+  const rise = p.variants.filter(v=>v.trend==='rising').length;
+  const fall = p.variants.filter(v=>v.trend==='falling').length;
+  if (spike) return `<div class="trendnote spike">⚡ Sales are spiking well above the 90-day norm (promo?). The projection caps the spike at 2× baseline so one hot week doesn't trigger panic orders.</div>`;
+  if (rise) return `<div class="trendnote rise">↗ Selling faster than the 90-day baseline — days-left leans on the recent rate.</div>`;
+  if (fall && !rise) return `<div class="trendnote fall">↘ Cooling off vs the 90-day baseline.</div>`;
+  return '';
+}
+
+function salesChartSVG(p) {
+  const W=960,H=150,pad=6,n=p.series.length;
+  const max=Math.max(1,...p.series), bw=(W-pad*2)/n;
+  let bars='', line='';
+  const avg=[];
+  for(let i=0;i<n;i++){
+    const from=Math.max(0,i-6), win=p.series.slice(from,i+1);
+    avg.push(win.reduce((a,b)=>a+b,0)/win.length);
+  }
+  for(let i=0;i<n;i++){
+    const h=(p.series[i]/max)*(H-30);
+    bars+=`<rect x="${(pad+i*bw).toFixed(1)}" y="${(H-20-h).toFixed(1)}" width="${Math.max(1,bw-1.2).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="var(--brand)" opacity="${p.series[i]?0.75:0.18}"><title>${addD(p.seriesEnd,-(n-1-i))}: ${p.series[i]} sold</title></rect>`;
+  }
+  line = avg.map((v,i)=>`${i?'L':'M'}${(pad+i*bw+bw/2).toFixed(1)},${(H-20-(v/max)*(H-30)).toFixed(1)}`).join('');
+  const lbl=(off)=>`<text x="${pad+off*(W-pad*2)}" y="${H-4}" font-size="10" fill="var(--muted)" text-anchor="${off?'end':'start'}">${off?addD(p.seriesEnd,0):addD(p.seriesEnd,-(n-1))}</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}<path d="${line}" fill="none" stroke="var(--brand-ink)" stroke-width="1.8" opacity=".8"/>${lbl(0)}${lbl(1)}</svg>`;
+}
+function addD(ymd,n){ const d=new Date(ymd+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(5,10); }
+
+function renderSheet() {
+  const p = S.visible[S.open]; if (!p) return;
+  const st = S.settings || {};
+  const lb = p.leadBreakdown;
+  const leadDetail = !lb ? 'not mapped' : lb.override!=null
+    ? `${lb.override}d metafield + ${lb.buffer}d buffer`
+    : `${lb.production}d production + ${lb.shipping}d shipping + ${lb.buffer}d buffer`;
+  const sug = p.variants.reduce((s,v)=>s+(v.suggestedQty||0),0);
+
+  const vrows = p.variants.map(v => `
+    <tr>
+      <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}</td>
+      <td class="r">${v.inv}</td>
+      <td class="r">${fmtV(v.velocity)}<div class="mini">${v.damped?'damped':''}</div></td>
+      <td class="r">${v.windows.map(w=>fmtV(w.rate)).join(' / ')}</td>
+      <td class="r"><b>${fmtD(v.daysLeft)}</b></td>
+      <td class="r">${v.suggestedQty??'—'}</td>
+      <td class="r"><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
+      <td class="r"><button class="mutebtn" onclick="toggleMute('v${v.id}')">${v.muted?'unmute':'mute'}</button></td>
+    </tr>`).join('');
+
+  const wrow = (v => v ? v.windows.map((w,i)=>`
+    <tr><td>${w.days}-day</td><td class="r">${w.sold} sold</td><td class="r">${fmtV(w.rate)}/day</td>
+    <td class="r">${[45,35,20][i]}%</td><td class="r mini">${w.covered<w.days?`only ${w.covered}d of data`:''}</td></tr>`).join('') : '')
+    (null);
+
+  $('#sheetIn').innerHTML = `
+    <div class="sh-top">
+      <img src="${esc(p.image||'')}" onerror="this.style.visibility='hidden'" alt="">
+      <div><h3>${esc(p.title)}</h3><div class="sm">${esc(p.type||'no type')} · ${esc(p.vendor)} · ${p.profileName?`profile: ${esc(p.profileName)}`:'no profile'}</div></div>
+      <div class="sh-nav">
+        <button onclick="nav(-1)" ${S.open<=0?'disabled':''}>←</button>
+        <button onclick="nav(1)" ${S.open>=S.visible.length-1?'disabled':''}>→</button>
+        <button onclick="closeSheet()">✕</button>
+      </div>
+    </div>
+    ${trendNote(p)}
+    <div class="statgrid">
+      <div class="stat"><div class="lb">On hand</div><div class="vl">${p.totalInv}</div><div class="sm">across ${p.variants.length} variant${p.variants.length>1?'s':''}</div></div>
+      <div class="stat"><div class="lb">Sell-through</div><div class="vl">${fmtV(p.velocity)}<span style="font-size:13px;font-weight:400">/day</span></div><div class="sm">≈ ${fmtV(p.velocity*7)}/wk · ${fmtV(p.velocity*30)}/mo</div></div>
+      <div class="stat"><div class="lb">Days of stock</div><div class="vl">${fmtD(p.daysLeft)}</div><div class="sm">${p.daysLeft!=null?'runs out ~'+futureDate(p.daysLeft):'no meaningful sales'}</div></div>
+      <div class="stat"><div class="lb">Lead time</div><div class="vl">${p.leadDays!=null?p.leadDays+'d':'—'}</div><div class="sm">${leadDetail}</div></div>
+      <div class="stat"><div class="lb">Status</div><div class="vl"><span class="chip" data-s="${p.status}" style="font-size:13px">${STATUS_LABEL[p.status]}</span></div><div class="sm">${p.alertCount?p.alertCount+' variant(s) at reorder':'worst variant shown'}</div></div>
+    </div>
+
+    <div class="panel"><h4>Daily sales — last 90 days</h4><div class="sub">Bars = units/day (all variants) · line = 7-day average</div>${salesChartSVG(p)}</div>
+
+    <div class="panel"><h4>How the velocity is computed</h4>
+      <div class="sub">Recency-weighted blend — recent enough to react, long enough to ignore flukes.</div>
+      <table><tr><th>Window</th><th class="r">Units</th><th class="r">Rate</th><th class="r">Weight</th><th></th></tr>
+      ${p.variants.length===1 ? p.variants[0].windows.map((w,i)=>`
+        <tr><td>${w.days}-day</td><td class="r">${w.sold} sold</td><td class="r">${fmtV(w.rate)}/day</td><td class="r">${[45,35,20][i]}%</td><td class="r mini">${w.covered<w.days?`only ${w.covered}d of data`:''}</td></tr>`).join('')
+        : (()=>{const agg=[0,1,2].map(i=>({days:[14,30,90][i],sold:p.variants.reduce((s,v)=>s+v.windows[i].sold,0),rate:p.variants.reduce((s,v)=>s+v.windows[i].rate,0)}));
+           return agg.map((w,i)=>`<tr><td>${w.days}-day</td><td class="r">${w.sold} sold</td><td class="r">${fmtV(w.rate)}/day</td><td class="r">${[45,35,20][i]}%</td><td></td></tr>`).join('');})()}
+      <tr><td><b>Blended</b></td><td></td><td class="r"><b>${fmtV(p.velocity)}/day</b></td><td></td><td></td></tr></table>
+    </div>
+
+    <div class="panel"><h4>Variants</h4>
+      <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.</div>
+      <div style="overflow-x:auto"><table>
+        <tr><th>SKU / variant</th><th class="r">Stock</th><th class="r">Vel/day</th><th class="r">14/30/90</th><th class="r">Days left</th><th class="r">Order</th><th class="r">Status</th><th></th></tr>
+        ${vrows}</table></div>
+    </div>
+
+    <div class="panel"><h4>Reorder planner</h4>
+      <div class="sub">If you place an order today it lands in ~${p.leadDays??'?'} days — you'll burn ~${p.leadDays!=null?Math.ceil(p.velocity*p.leadDays):'?'} units waiting. How long does a given order keep you stocked?</div>
+      <div class="plan-in">
+        <span>Order</span><input type="number" id="planQty" value="${sug||100}" min="0" oninput="planCalc()"><span>units →</span>
+        <span class="plan-out" id="planOut"></span>
+      </div>
+      <div class="scen" id="scen"></div>
+    </div>`;
+  planCalc();
+}
+function todayYMD(){ return new Date().toISOString().slice(0,10); }
+function futureDate(days){ const d=new Date(); d.setDate(d.getDate()+days);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',
+    ...(d.getFullYear()!==new Date().getFullYear()?{year:'2-digit'}:{})}); }
+
+function planCalc() {
+  const p = S.visible[S.open]; if (!p) return;
+  const qty = Math.max(0, Number($('#planQty')?.value) || 0);
+  const v = p.velocity, L = p.leadDays ?? 0, tgt = S.settings?.targetCoverDays || 180;
+  const out = $('#planOut'), scen = $('#scen');
+  if (v <= 0.001) { out.innerHTML = 'No meaningful sales — coverage is effectively unlimited.'; scen.innerHTML=''; return; }
+  const total = (Math.max(p.totalInv,0) + qty) / v;           // days from today
+  const after = total - L;                                     // days of cover once it lands
+  const until = new Date(); until.setDate(until.getDate() + Math.round(total));
+  out.innerHTML = after <= 0
+    ? `<b>not enough</b> — you'd sell out ~${Math.abs(Math.round(after))}d before it even arrives`
+    : `covered until <b>${until.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</b> — ~<b>${Math.round(after)}d</b> of stock after it lands (~${(after/30).toFixed(1)} months)`;
+
+  const scenarios = [
+    { lbl: `${Math.round(tgt*0.67)}d cover`, q: Math.max(0, Math.ceil(v*(tgt*0.67+L)-Math.max(p.totalInv,0))) },
+    { lbl: `${tgt}d cover (target)`, q: Math.max(0, Math.ceil(v*(tgt+L)-Math.max(p.totalInv,0))), acc: true },
+    { lbl: `${Math.round(tgt*1.5)}d cover`, q: Math.max(0, Math.ceil(v*(tgt*1.5+L)-Math.max(p.totalInv,0))) },
+  ];
+  const maxQ = Math.max(...scenarios.map(s=>s.q), qty, 1);
+  scen.innerHTML = scenarios.map(s => `
+    <div class="srow"><span>${s.lbl}</span>
+      <div class="sbar ${s.acc?'acc':''}"><i style="width:${(s.q/maxQ*100).toFixed(1)}%"></i></div>
+      <span class="sm">order ~${s.q} units</span></div>`).join('');
+}
+
+async function toggleMute(key) {
+  const muted = new Set(S.settings.muted);
+  muted.has(key) ? muted.delete(key) : muted.add(key);
+  S.settings.muted = [...muted];
+  await api('/api/settings', { method:'PUT', body: JSON.stringify({ muted: S.settings.muted }) });
+  await refreshReport(true);
+  if (S.open >= 0) renderSheet();
+}
+
+/* ================= actions ================= */
+async function refreshReport(silent) {
+  try {
+    S.report = await api('/api/report?store=' + S.store);
+    if (!silent || S.open<0) render();
+    else renderRows();
+  } catch(e) { if (!silent) render(e.message); }
+}
+$('#btnRefresh').onclick = () => doSnapshot($('#btnRefresh'));
+async function doSnapshot(btn) {
+  const old = btn.textContent; btn.textContent = '⏳ snapshotting…'; btn.disabled = true;
+  try {
+    await api('/api/snapshot?store=' + S.store, { method:'POST' });
+    await refreshReport();
+  } catch(e) {
+    const gm = $('#gateMsg'); if (gm) { gm.textContent = e.message; gm.className='msg bad'; }
+    else alert('Snapshot failed: ' + e.message);
+  }
+  btn.textContent = old; btn.disabled = false;
+}
+
+/* ================= settings modal ================= */
+$('#btnSettings').onclick = openSettings;
+function openSettings() {
+  if (!S.tok) return;
+  const st = S.settings; if (!st) return;
+  const types = new Set(Object.keys(st.typeMap));
+  if (S.report) for (const p of S.report.products) types.add(p.type || '');
+  const typeRows = [...types].sort().map(t => `
+    <tr><td>${t ? esc(t) : '<i>(no type)</i>'}</td><td>
+      <select data-type="${esc(t)}">
+        <option value="">— unmapped —</option>
+        ${st.profiles.map(p=>`<option value="${esc(p.id)}" ${st.typeMap[t]===p.id?'selected':''}>${esc(p.name)} (${p.productionDays}+${p.shippingDays}d)</option>`).join('')}
+      </select></td></tr>`).join('');
+  const profRows = st.profiles.map((p,i) => `
+    <tr data-i="${i}"><td><input class="nm" value="${esc(p.name)}"></td>
+      <td class="r"><input type="number" value="${p.productionDays}" min="0"></td>
+      <td class="r"><input type="number" value="${p.shippingDays}" min="0"></td>
+      <td class="r"><button class="btn danger" onclick="this.closest('tr').remove()">✕</button></td></tr>`).join('');
+
+  $('#mbox').innerHTML = `
+    <button class="x" onclick="closeModal()">✕</button>
+    <h3>Settings</h3>
+
+    <div class="set"><h5>Slack</h5>
+      <div class="frow"><label>Alert channel</label>
+        <select id="setChannel" style="min-width:220px"><option value="">loading channels…</option></select></div>
+      <div class="frow"><label>Digest</label>
+        <select id="setDigestMode">
+          <option value="always" ${st.digestMode==='always'?'selected':''}>Every morning, even all-clear</option>
+          <option value="issues" ${st.digestMode==='issues'?'selected':''}>Only when something needs attention</option>
+        </select></div>
+      <div class="msg">Instant alerts fire whenever a variant newly crosses into 🔴, on any of the 3 daily checks.</div>
+    </div>
+
+    <div class="set"><h5>Thresholds</h5>
+      <div class="frow"><label>Buffer days (customs etc.)</label><input type="number" id="setBuffer" value="${st.bufferDays}" min="0"></div>
+      <div class="frow"><label>Watch window (days early)</label><input type="number" id="setWatch" value="${st.watchWindow}" min="0"></div>
+      <div class="frow"><label>Target coverage (days)</label><input type="number" id="setCover" value="${st.targetCoverDays}" min="30"></div>
+    </div>
+
+    <div class="set"><h5>Lead-time profiles</h5>
+      <table class="ptable" id="profTable"><tr><th>Name</th><th class="r">Production d</th><th class="r">Shipping d</th><th></th></tr>${profRows}</table>
+      <div class="actions"><button class="btn" onclick="addProfile()">+ Add profile</button></div>
+    </div>
+
+    <div class="set"><h5>Product type → profile</h5>
+      <div class="msg" style="margin:0 0 8px">New products inherit automatically from their Shopify product type. Per-product override: metafield <code>custom.lead_time_days</code>.</div>
+      <table id="typeTable"><tr><th>Product type</th><th>Profile</th></tr>${typeRows}</table>
+    </div>
+
+    <div class="set"><h5>Data</h5>
+      <div class="actions">
+        <button class="btn" onclick="doSnapshot(this)">Run snapshot now</button>
+        <button class="btn" onclick="doBackfill(this)">Backfill 90 days of sales</button>
+        <button class="btn" onclick="doDigest(this)">Send digest to Slack now</button>
+      </div>
+      <div class="msg" id="dataMsg"></div>
+    </div>
+
+    <div class="set"><h5>Connection</h5>
+      <div class="frow"><label>Worker URL</label><input type="text" id="setUrl" value="${esc(S.url)}"></div>
+      <div class="frow"><label>Admin token</label><input type="text" id="setTok" value="${esc(S.tok)}"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn pri" onclick="saveSettings(this)">Save settings</button>
+      <span class="msg" id="saveMsg"></span>
+    </div>`;
+  $('#modal').classList.add('open');
+  loadChannels(st);
+}
+function closeModal(){ $('#modal').classList.remove('open'); }
+$('#modal').addEventListener('click', e => { if (e.target.id==='modal') closeModal(); });
+
+async function loadChannels(st) {
+  try {
+    const { channels } = await api('/api/channels');
+    const cur = st.stores?.[S.store]?.channel || '';
+    $('#setChannel').innerHTML = '<option value="">— none —</option>' + channels
+      .map(c => `<option value="${esc(c.id)}" ${c.id===cur?'selected':''}>#${esc(c.name)}${c.is_member?'':' (invite bot first)'}</option>`).join('');
+  } catch(e) {
+    $('#setChannel').innerHTML = `<option value="">Slack not configured (${esc(e.message)})</option>`;
+  }
+}
+function addProfile() {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input class="nm" value="New profile"></td>
+    <td class="r"><input type="number" value="60" min="0"></td>
+    <td class="r"><input type="number" value="30" min="0"></td>
+    <td class="r"><button class="btn danger" onclick="this.closest('tr').remove()">✕</button></td>`;
+  $('#profTable').appendChild(tr);
+}
+async function saveSettings(btn) {
+  btn.disabled = true;
+  const profiles = [...$('#profTable').querySelectorAll('tr')].slice(1).map(tr => {
+    const [nm, pd, sd] = tr.querySelectorAll('input');
+    const name = nm.value.trim();
+    return name ? { id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40) || 'p', name,
+      productionDays: +pd.value||0, shippingDays: +sd.value||0 } : null;
+  }).filter(Boolean);
+  const idsSeen = new Set();
+  for (const p of profiles) { while (idsSeen.has(p.id)) p.id += '2'; idsSeen.add(p.id); }
+  const oldById = Object.fromEntries(S.settings.profiles.map((p,i)=>[i,p.id]));
+  const typeMap = {};
+  [...$('#typeTable').querySelectorAll('select')].forEach(sel => {
+    if (sel.value) typeMap[sel.dataset.type] = sel.value;
+  });
+  // remap type selections that referenced a renamed profile row by position
+  const body = {
+    bufferDays: +$('#setBuffer').value, watchWindow: +$('#setWatch').value,
+    targetCoverDays: +$('#setCover').value,
+    digestMode: $('#setDigestMode').value,
+    profiles, typeMap, reviewedDefaults: true,
+    stores: { [S.store]: { channel: $('#setChannel').value } },
+  };
+  try {
+    S.url = $('#setUrl').value.trim(); S.tok = $('#setTok').value.trim();
+    localStorage.setItem(LS.url, S.url); localStorage.setItem(LS.tok, S.tok);
+    S.settings = await api('/api/settings', { method:'PUT', body: JSON.stringify(body) });
+    $('#saveMsg').textContent = 'Saved ✓ — re-running snapshot to apply…'; $('#saveMsg').className='msg ok';
+    await api('/api/snapshot?store='+S.store, { method:'POST' }).catch(()=>{});
+    await refreshReport(true);
+    $('#saveMsg').textContent = 'Saved ✓';
+  } catch(e) { $('#saveMsg').textContent = e.message; $('#saveMsg').className='msg bad'; }
+  btn.disabled = false;
+}
+async function doBackfill(btn) {
+  const msg = $('#dataMsg'); btn.disabled = true;
+  msg.innerHTML = '<span class="spin"></span> Backfilling… this pulls every order from the last 90 days in chunks.';
+  try {
+    let done = false, total = 0, guard = 0;
+    while (!done && guard++ < 40) {
+      const r = await api('/api/backfill?store='+S.store, { method:'POST', body: JSON.stringify({ days: 90 }) });
+      done = r.done; total = r.ordersProcessed;
+      msg.innerHTML = `<span class="spin"></span> ${total} orders processed…`;
+    }
+    msg.innerHTML = `Backfill complete — ${total} orders. Running snapshot…`;
+    await api('/api/snapshot?store='+S.store, { method:'POST' });
+    await refreshReport(true);
+    msg.textContent = `Backfill complete — ${total} orders → forecast updated.`; msg.className='msg ok';
+  } catch(e) { msg.textContent = 'Backfill: ' + e.message; msg.className='msg bad'; }
+  btn.disabled = false;
+}
+async function doDigest(btn) {
+  const msg = $('#dataMsg'); btn.disabled = true;
+  try { await api('/api/digest?store='+S.store, { method:'POST' });
+    msg.textContent = 'Digest sent ✓ — check Slack.'; msg.className='msg ok';
+  } catch(e) { msg.textContent = e.message; msg.className='msg bad'; }
+  btn.disabled = false;
+}
+
+boot();
+</script>
+</body>
+</html>

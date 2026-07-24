@@ -1,0 +1,21 @@
+# Mobius Restock — Cloudflare Worker config
+# Deploy:  npx wrangler deploy   (from this folder)
+name = "mobius-restock"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# 11:00 UTC = digest run (6am Central); 17:00 / 23:00 = intraday checks
+# that can fire instant "reorder point crossed" alerts.
+[triggers]
+crons = ["0 11 * * *", "0 17 * * *", "0 23 * * *"]
+
+# KV namespace for history / catalog / settings / state.
+# Create once with:  npx wrangler kv namespace create RESTOCK
+[[kv_namespaces]]
+binding = "KV"
+id = "f81a5169973c43bd9903c14a9ca7b0c2"
+
+# Secrets (set once, never committed):
+#   npx wrangler secret put ADMIN_TOKEN
+#   npx wrangler secret put SLACK_BOT_TOKEN        (same Slack app as Pulse)
+#   npx wrangler secret put SHOPIFY_TOKEN_LUCKY    (Lucky Golf custom app token)
