@@ -848,23 +848,35 @@ export default {
         const pid = String(body.productId || '').replace(/\D/g, '');
         const type = String(body.type || '').trim().slice(0, 80);
         if (!pid || !type) return json({ error: 'productId and type required' }, 400);
-        try {
-          const data = await shopify(env, store, `
-            mutation($product: ProductUpdateInput!) {
-              productUpdate(product: $product) {
-                product { id productType }
-                userErrors { field message }
+        const MUT = `
+          mutation($product: ProductUpdateInput!) {
+            productUpdate(product: $product) {
+              product { id productType }
+              userErrors { field message }
+            }
+          }`;
+        const vars = { product: { id: `gid://shopify/Product/${pid}`, productType: type } };
+        let data;
+        for (let attempt = 0; ; attempt++) {
+          try {
+            data = await shopify(env, store, MUT, vars);
+            break;
+          } catch (err) {
+            const m = String(err.message || err);
+            if (/ACCESS_DENIED|write_products/i.test(m)) {
+              // scopes may have been widened after the current token was cached —
+              // force a fresh token once before concluding the scope is missing
+              if (attempt === 0 && clientCreds(env, store)) {
+                await getAccessToken(env, store, { force: true });
+                continue;
               }
-            }`, { product: { id: `gid://shopify/Product/${pid}`, productType: type } });
-          const errs = data.productUpdate?.userErrors;
-          if (errs?.length) return json({ error: errs.map(e => e.message).join('; ') }, 400);
-        } catch (err) {
-          const m = String(err.message || err);
-          if (/ACCESS_DENIED|write_products/i.test(m)) {
-            return json({ error: 'Shopify app lacks the write_products scope — add it in the Dev Dashboard (Apps → Mobius Restock → scopes), release + reinstall, then retry.' }, 403);
+              return json({ error: 'Shopify app lacks the write_products scope — add it in the Dev Dashboard (Apps → Mobius Restock → scopes), release + reinstall, then retry.' }, 403);
+            }
+            throw err;
           }
-          throw err;
         }
+        const errs = data.productUpdate?.userErrors;
+        if (errs?.length) return json({ error: errs.map(e => e.message).join('; ') }, 400);
         // patch the cached catalog so the dashboard reflects it immediately
         const catalog = await env.KV.get(`catalog:${store.id}`, 'json');
         if (catalog) {
