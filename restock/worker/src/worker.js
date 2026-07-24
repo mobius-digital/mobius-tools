@@ -165,6 +165,7 @@ query($after: String) {
       id title productType vendor
       featuredMedia { preview { image { url(transform: {maxWidth: 160, maxHeight: 160}) } } }
       leadMeta: metafield(namespace: "custom", key: "lead_time_days") { value }
+      moqMeta: metafield(namespace: "custom", key: "moq") { value }
       variants(first: 100) { edges { node {
         id title sku inventoryQuantity createdAt
         inventoryItem { tracked }
@@ -181,7 +182,9 @@ async function fetchCatalog(env, store) {
     const page = data.products;
     for (const { node: p } of page.edges) {
       const override = parseInt(p.leadMeta?.value, 10);
+      const moq = parseInt(p.moqMeta?.value, 10);
       products.push({
+        moq: Number.isFinite(moq) && moq > 0 ? moq : null,
         id: gidTail(p.id),
         title: p.title,
         type: p.productType || '',
@@ -442,8 +445,11 @@ function computeReport(store, catalog, history, settings) {
     const worst = variants.reduce((w, v) => STATUS_RANK[v.status] > STATUS_RANK[w] ? v.status : w, 'dormant');
     const alertable = variants.filter(v => v.status === 'reorder' || v.status === 'stockout');
 
+    const combinedNeed = variants.reduce((s, v) => s + (v.suggestedQty || 0), 0);
     products.push({
       id: p.id, title: p.title, type: p.type, vendor: p.vendor, image: p.image,
+      moq: p.moq ?? null, combinedNeed,
+      moqMet: p.moq ? combinedNeed >= p.moq : null,
       leadDays, leadSource, profileName: profile?.name || null,
       leadBreakdown: leadSource === 'profile'
         ? { production: profile.productionDays, shipping: profile.shippingDays, buffer: settings.bufferDays }
@@ -492,13 +498,23 @@ async function slackApi(env, method, body) {
 const fmtDays = d => d == null ? '—' : d >= 9000 ? '∞' : `${d}d`;
 const skuOr = v => v.sku || v.title || 'variant';
 
-/** One status line for a variant: "~34d left · lead 85d · order ~402 ⚡" */
+/** One status line for a variant: "~34d left · lead 85d · need ~402 ⚡" —
+ *  "need" is demand for the coverage target, not an order instruction. */
 function lineBody(p, v) {
   const lead = p.leadDays != null ? ` · lead ${p.leadDays}d` : '';
-  const order = v.suggestedQty ? ` · order ~${v.suggestedQty}` : '';
+  const need = v.suggestedQty ? ` · need ~${v.suggestedQty}` : '';
   const flag = v.trend === 'spiking' ? ' ⚡' : v.isNew ? ' 🆕' : '';
   const left = v.status === 'stockout' ? '*OUT OF STOCK*' : `~${fmtDays(v.daysLeft)} left`;
-  return `${left}${lead}${order}${flag}`;
+  return `${left}${lead}${need}${flag}`;
+}
+
+/** MOQ context for a product: compares combined demand across ALL variants
+ *  (that's the number a product-level MOQ is judged against). */
+function moqNote(p) {
+  if (!p.moq) return '';
+  return p.combinedNeed >= p.moq
+    ? ` · MOQ ${p.moq} met ✓`
+    : ` · combined need ${p.combinedNeed} of MOQ ${p.moq} — consider waiting`;
 }
 
 /** Product-grouped lines: single-variant products on one line, multi-variant
@@ -506,10 +522,11 @@ function lineBody(p, v) {
 function productLines(p, statuses, maxVariants = 8) {
   const hits = p.variants.filter(v => statuses.includes(v.status));
   if (!hits.length) return null;
-  if (p.variants.length === 1) return `*${p.title}* — ${lineBody(p, hits[0])}`;
+  if (p.variants.length === 1) return `*${p.title}* — ${lineBody(p, hits[0])}${moqNote(p)}`;
+  const combined = p.combinedNeed ? ` · need ~${p.combinedNeed} total` : '';
   const rows = hits.slice(0, maxVariants).map(v => `        •  \`${skuOr(v)}\` — ${lineBody(p, v)}`);
   if (hits.length > maxVariants) rows.push(`        _…and ${hits.length - maxVariants} more variants_`);
-  return `*${p.title}*  (${hits.length}/${p.variants.length} variants)\n${rows.join('\n')}`;
+  return `*${p.title}*  (${hits.length}/${p.variants.length} variants${combined}${moqNote(p)})\n${rows.join('\n')}`;
 }
 
 function digestMessage(store, report, settings) {
@@ -543,7 +560,7 @@ function digestMessage(store, report, settings) {
   if (!reds.length && !yellows.length) blocks.push({ type: 'section',
     text: { type: 'mrkdwn', text: '✅ All clear — nothing needs reordering today.' } });
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
-    text: `⚡ spiking (damped in projections) · 🆕 new product (young data)   ·   <${DASHBOARD_URL}|Open Restock dashboard →>` }] });
+    text: `"need" = demand to hit the coverage target, not an order instruction · ⚡ spiking (damped) · 🆕 new product   ·   <${DASHBOARD_URL}|Open Restock dashboard →>` }] });
 
   return {
     attachments: [{ color, fallback: `${store.name} inventory: ${issues} reorder, ${c.watch} watch`, blocks }],
@@ -559,8 +576,8 @@ function redAlertMessage(store, items) {
   }
   const lines = [...byProduct.values()].map(({ p, vs }) =>
     p.variants.length === 1
-      ? `*${p.title}* — ${lineBody(p, vs[0])}`
-      : `*${p.title}*\n${vs.slice(0, 8).map(v => `        •  \`${skuOr(v)}\` — ${lineBody(p, v)}`).join('\n')}`);
+      ? `*${p.title}* — ${lineBody(p, vs[0])}${moqNote(p)}`
+      : `*${p.title}*${moqNote(p)}\n${vs.slice(0, 8).map(v => `        •  \`${skuOr(v)}\` — ${lineBody(p, v)}`).join('\n')}`);
   const blocks = [
     { type: 'section', text: { type: 'mrkdwn',
       text: `🔴  *${store.name} — Reorder point crossed*` } },
@@ -884,6 +901,37 @@ export default {
           if (p) { p.type = type; await env.KV.put(`catalog:${store.id}`, JSON.stringify(catalog)); }
         }
         return json({ ok: true, productId: pid, type });
+      }
+
+      if (path === '/api/set-moq' && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const pid = String(body.productId || '').replace(/\D/g, '');
+        const moq = Math.max(0, Math.floor(Number(body.moq) || 0)); // 0 = no MOQ
+        if (!pid) return json({ error: 'productId required' }, 400);
+        try {
+          const data = await shopify(env, store, `
+            mutation($m: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $m) {
+                metafields { id }
+                userErrors { field message }
+              }
+            }`, { m: [{ ownerId: `gid://shopify/Product/${pid}`, namespace: 'custom',
+                        key: 'moq', type: 'number_integer', value: String(moq) }] });
+          const errs = data.metafieldsSet?.userErrors;
+          if (errs?.length) return json({ error: errs.map(e => e.message).join('; ') }, 400);
+        } catch (err) {
+          const m = String(err.message || err);
+          if (/ACCESS_DENIED|write_products/i.test(m)) {
+            return json({ error: 'Shopify app lacks the write_products scope — add it in the Dev Dashboard, then retry.' }, 403);
+          }
+          throw err;
+        }
+        const catalog = await env.KV.get(`catalog:${store.id}`, 'json');
+        if (catalog) {
+          const p = catalog.products.find(p => p.id === pid);
+          if (p) { p.moq = moq > 0 ? moq : null; await env.KV.put(`catalog:${store.id}`, JSON.stringify(catalog)); }
+        }
+        return json({ ok: true, productId: pid, moq: moq > 0 ? moq : null });
       }
 
       if (path === '/api/password' && request.method === 'POST') {

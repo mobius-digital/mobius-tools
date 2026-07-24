@@ -704,13 +704,14 @@ function renderSheet() {
     <div class="panel"><h4>${isVar?'This variant':'Variants'}</h4>
       <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.${multi?' Click a variant for its own charts and planner.':''}</div>
       <div style="overflow-x:auto"><table>
-        <tr><th>SKU / variant</th><th class="r">Stock</th><th class="r">Vel/day</th><th class="r">14/30/90</th><th class="r">Days left</th><th class="r">Order</th><th class="r">Status</th><th></th></tr>
+        <tr><th>SKU / variant</th><th class="r">Stock</th><th class="r">Vel/day</th><th class="r">14/30/90</th><th class="r">Days left</th><th class="r">Need</th><th class="r">Status</th><th></th></tr>
         ${vrows}</table></div>
     </div>
 
     ${multi ? `
     <div class="panel"><h4>Reorder planner</h4>
-      <div class="sub">This product reorders <b>by variant</b> — each size/loft has its own sell-through, so one combined number would skew the order. The "Order" column above targets ${st.targetCoverDays||180}d of coverage per variant${sug?` (combined: ~<b>${sug}</b> units across ${p.variants.filter(v=>v.suggestedQty>0).length} variants)`:''}. Click any variant row to plan it individually.</div>
+      <div class="sub">This product reorders <b>by variant</b> — each size/loft has its own sell-through, so one combined number would skew the order. The "Need" column above targets ${st.targetCoverDays||180}d of coverage per variant${sug?` (combined: ~<b>${sug}</b> units across ${p.variants.filter(v=>v.suggestedQty>0).length} variants)`:''}. Click any variant row to plan it individually.</div>
+      ${moqHTML(prod)}
     </div>` : `
     <div class="panel"><h4>Reorder planner</h4>
       <div class="sub">If you place an order today it lands in ~${p.leadDays??'?'} days — you'll burn ~${p.leadDays!=null?Math.ceil(p.velocity*p.leadDays):'?'} units waiting. How long does a given order keep you stocked?</div>
@@ -719,8 +720,37 @@ function renderSheet() {
         <span class="plan-out" id="planOut"></span>
       </div>
       <div class="scen" id="scen"></div>
+      ${moqHTML(prod)}
     </div>`}`;
   if (!multi) planCalc();
+}
+/** MOQ status line + inline editor (product-level; saved to Shopify metafield custom.moq). */
+function moqHTML(prod) {
+  const need = prod.combinedNeed || 0;
+  const status = prod.moq
+    ? (need >= prod.moq
+        ? `<span style="color:var(--good);font-weight:600">combined need ${need} meets MOQ ✓</span>`
+        : `<span style="color:var(--warn);font-weight:600">combined need ${need} is under MOQ — consider waiting until more variants need reordering</span>`)
+    : '<span class="mini">no MOQ set — demand numbers shown without an order threshold</span>';
+  return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:13px">
+    <b>MOQ</b>
+    <input type="number" id="moqInput" value="${prod.moq??''}" placeholder="—" min="0"
+      style="width:90px;border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px">
+    <button class="btn" onclick="saveMoq(this,'${prod.id}')">Save</button>
+    <span id="moqMsg">${status}</span>
+  </div>`;
+}
+async function saveMoq(btn, pid) {
+  const moq = Math.max(0, Number($('#moqInput').value) || 0);
+  const msg = $('#moqMsg');
+  btn.disabled = true; msg.innerHTML = '<span class="spin"></span> saving to Shopify…';
+  try {
+    await api('/api/set-moq?store=' + S.store, { method: 'POST',
+      body: JSON.stringify({ productId: pid, moq }) });
+    await refreshReport(true);
+    const ni = S.visible.findIndex(p => p.id === pid);
+    if (ni >= 0) { S.open = ni; renderSheet(); }
+  } catch(e) { msg.innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; btn.disabled = false; }
 }
 /** Horizontal bars: which variants drive the sell-through. */
 function variantMixHTML(p) {
@@ -854,8 +884,9 @@ function openInfo() {
     <h5>5 · Lead times</h5>
     <p>Resolved per product, most specific wins: ① Shopify metafield <code>custom.lead_time_days</code> on the product → ② the profile mapped to its <b>product type</b> in Settings → ③ neither = flagged unmapped. New products inherit automatically from their type — nothing to configure per SKU.</p>
 
-    <h5>6 · Reorder quantities</h5>
-    <p><code>order = velocity × (target coverage + lead time) − on-hand</code> — enough to survive the lead-time burn <i>and</i> hit the coverage target (default 180d) after it lands. Multi-variant products order per variant, since each size/loft sells at its own pace.</p>
+    <h5>6 · Reorder quantities & MOQ</h5>
+    <p><code>need = velocity × (target coverage + lead time) − on-hand</code> — enough to survive the lead-time burn <i>and</i> hit the coverage target (default 180d) after it lands. Multi-variant products compute this per variant, since each size/loft sells at its own pace. It's a <b>demand signal, not an order instruction</b>.</p>
+    <p>Set a product's <b>MOQ</b> in its reorder planner (saved to Shopify as metafield <code>custom.moq</code>). Restock then compares the <i>combined</i> need across all variants against it — Slack and the dashboard say "MOQ met ✓" or "under MOQ — consider waiting" so you know whether to order now or wait until more variants need restocking.</p>
 
     <h5>7 · Snapshots & Slack cadence</h5>
     <p>A <b>snapshot</b> is one full refresh cycle: pull the current catalog + inventory from Shopify, update the last few days of sales, recompute every forecast, and fire alerts if anything newly crossed red. Snapshots run <b>every hour</b> automatically; "Run snapshot now" in Settings does one on demand.</p>
