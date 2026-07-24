@@ -57,20 +57,36 @@ cd restock/worker
 npx wrangler kv namespace create RESTOCK   # paste printed id into wrangler.toml
 npx wrangler secret put ADMIN_TOKEN        # long random string; paste into dashboard Settings
 npx wrangler secret put SLACK_BOT_TOKEN    # reuse the Mobius Pulse Slack app's xoxb- token
-npx wrangler secret put SHOPIFY_TOKEN_LUCKY
+npx wrangler secret put SHOPIFY_CLIENT_ID_LUCKY
+npx wrangler secret put SHOPIFY_CLIENT_SECRET_LUCKY
 npx wrangler deploy
 ```
 
-### Shopify token (per store)
+### Shopify credentials (per store)
 
-Shopify Admin → **Settings → Apps and sales channels → Develop apps →
-Create an app** ("Mobius Restock") → **Configure Admin API scopes**: enable
-`read_products`, `read_orders`, `read_inventory` → **Install app** → copy the
-Admin API access token (`shpat_…`) → `npx wrangler secret put SHOPIFY_TOKEN_LUCKY`.
+Since Jan 2026 Shopify custom apps are created in the **Dev Dashboard**
+([dev.shopify.com](https://dev.shopify.com)) — the old in-admin flow with a
+one-time `shpat_` token is gone for new apps.
+
+1. Sign in at **dev.shopify.com** with the account that owns the store, pick
+   the store's organization.
+2. **Apps → Create app** → name it "Mobius Restock".
+3. Configure **access scopes**: `read_products`, `read_orders`,
+   `read_inventory` → release the version and **install the app on the store**.
+4. App → **Settings** → copy **Client ID** and **Client secret** →
+   `npx wrangler secret put SHOPIFY_CLIENT_ID_LUCKY` / `…CLIENT_SECRET_LUCKY`.
+
+The worker exchanges these for a 24-hour access token automatically
+(client-credentials grant, cached in KV, self-refreshing). Client credentials
+only work when the app and store are in the **same Dev Dashboard org** — if
+you hit `shop_not_permitted`, check the store appears under that org.
+
+> A legacy static token still works if you have one: set `SHOPIFY_TOKEN_LUCKY`
+> instead and it takes precedence.
 
 > Reading orders older than 60 days needs the `read_all_orders` scope, which
-> Shopify grants on request (Apps → your app → ask for access). Without it the
-> 90-day backfill still works — it just starts from the oldest order it can see.
+> Shopify grants on request. Without it the 90-day backfill still works — it
+> just starts from the oldest order it can see.
 
 ### Slack
 
@@ -88,7 +104,8 @@ profiles — they're sensible examples, not your real numbers.
 ## Adding a store later
 
 1. Append to `STORES` in `src/worker.js` (id, name, myshopify domain, timezone).
-2. `npx wrangler secret put SHOPIFY_TOKEN_<ID>` with that store's token.
+2. Create a Dev Dashboard app for that store (steps above) and set
+   `SHOPIFY_CLIENT_ID_<ID>` + `SHOPIFY_CLIENT_SECRET_<ID>`.
 3. `npx wrangler deploy`, pick its Slack channel in Settings, backfill.
 
 ## Worker API

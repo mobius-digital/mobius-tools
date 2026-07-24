@@ -17,5 +17,7 @@ id = "f81a5169973c43bd9903c14a9ca7b0c2"
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put ADMIN_TOKEN
-#   npx wrangler secret put SLACK_BOT_TOKEN        (same Slack app as Pulse)
-#   npx wrangler secret put SHOPIFY_TOKEN_LUCKY    (Lucky Golf custom app token)
+#   npx wrangler secret put SLACK_BOT_TOKEN            (same Slack app as Pulse)
+#   npx wrangler secret put SHOPIFY_CLIENT_ID_LUCKY    (Dev Dashboard app → Settings)
+#   npx wrangler secret put SHOPIFY_CLIENT_SECRET_LUCKY
+# (legacy static-token alternative: SHOPIFY_TOKEN_LUCKY)

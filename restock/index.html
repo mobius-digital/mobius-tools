@@ -341,7 +341,7 @@ function bannersHTML(gateMode) {
   }
   const st = S.stores?.stores?.find(s => s.id === S.store);
   if (st && !st.hasToken) {
-    h += `<div class="notice warn">🔑 The worker has no Shopify token for ${esc(st.name)} yet — snapshots will fail until <code>SHOPIFY_TOKEN_${st.id.toUpperCase()}</code> is set (see restock/worker/README.md).</div>`;
+    h += `<div class="notice warn">🔑 The worker has no Shopify credentials for ${esc(st.name)} yet — snapshots will fail until <code>SHOPIFY_CLIENT_ID_${st.id.toUpperCase()}</code> + <code>SHOPIFY_CLIENT_SECRET_${st.id.toUpperCase()}</code> are set (see restock/worker/README.md).</div>`;
   }
   if (st && st.hasToken && S.stores && !S.stores.slackConfigured) {
     h += `<div class="notice warn">💬 No Slack token set — the dashboard works, but digests and alerts won't send until <code>SLACK_BOT_TOKEN</code> is set.</div>`;

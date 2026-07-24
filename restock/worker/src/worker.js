@@ -12,8 +12,11 @@
  * Secrets (wrangler secret put <NAME>):
  *   ADMIN_TOKEN            — long random string; guards the API
  *   SLACK_BOT_TOKEN        — xoxb- token (same Slack app as Mobius Pulse)
- *   SHOPIFY_TOKEN_LUCKY    — Admin API token for Lucky Golf
- *                            (one SHOPIFY_TOKEN_<STOREID> per store)
+ *   SHOPIFY_CLIENT_ID_LUCKY + SHOPIFY_CLIENT_SECRET_LUCKY
+ *                          — Dev Dashboard app credentials for Lucky Golf
+ *                            (one pair per store; worker exchanges them for
+ *                            24h access tokens via client_credentials grant).
+ *                            Legacy alternative: SHOPIFY_TOKEN_<STOREID>.
  */
 
 /* ------------------------------------------------------------------ */
@@ -85,13 +88,53 @@ const gidTail = gid => String(gid || '').split('/').pop();
 /*  Shopify Admin GraphQL                                              */
 /* ------------------------------------------------------------------ */
 
-function shopifyToken(env, store) {
-  return env[`SHOPIFY_TOKEN_${store.id.toUpperCase()}`];
+/* Auth: either a static token (legacy custom app / offline token) via
+ * SHOPIFY_TOKEN_<ID>, or — the post-2026 Dev Dashboard flow — a client
+ * credentials grant via SHOPIFY_CLIENT_ID_<ID> + SHOPIFY_CLIENT_SECRET_<ID>.
+ * Client-credentials tokens expire every 24h; we exchange + cache in KV. */
+
+const staticToken = (env, store) => env[`SHOPIFY_TOKEN_${store.id.toUpperCase()}`];
+function clientCreds(env, store) {
+  const u = store.id.toUpperCase();
+  const id = env[`SHOPIFY_CLIENT_ID_${u}`], secret = env[`SHOPIFY_CLIENT_SECRET_${u}`];
+  return id && secret ? { id, secret } : null;
+}
+const hasShopifyAuth = (env, store) => !!(staticToken(env, store) || clientCreds(env, store));
+
+async function getAccessToken(env, store, { force = false } = {}) {
+  const st = staticToken(env, store);
+  if (st) return st;
+  const creds = clientCreds(env, store);
+  if (!creds) {
+    const u = store.id.toUpperCase();
+    throw new Error(`missing Shopify credentials: set SHOPIFY_CLIENT_ID_${u} + SHOPIFY_CLIENT_SECRET_${u} (Dev Dashboard app) or SHOPIFY_TOKEN_${u}`);
+  }
+  const key = `shoptoken:${store.id}`;
+  if (!force) {
+    const cached = await env.KV.get(key, 'json');
+    if (cached && cached.expiresAt > Date.now() + 10 * 60 * 1000) return cached.token;
+  }
+  const res = await fetch(`https://${store.domain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: creds.id, client_secret: creds.secret,
+    }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.access_token) {
+    throw new Error(`Shopify token exchange failed (HTTP ${res.status}): ${JSON.stringify(j).slice(0, 200)}`);
+  }
+  const ttl = j.expires_in || 86399;
+  await env.KV.put(key, JSON.stringify({
+    token: j.access_token, expiresAt: Date.now() + ttl * 1000,
+  }), { expirationTtl: ttl });
+  return j.access_token;
 }
 
 async function shopify(env, store, query, variables = {}) {
-  const token = shopifyToken(env, store);
-  if (!token) throw new Error(`missing secret SHOPIFY_TOKEN_${store.id.toUpperCase()}`);
+  let token = await getAccessToken(env, store);
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`https://${store.domain}/admin/api/${API_VERSION}/graphql.json`, {
       method: 'POST',
@@ -99,6 +142,11 @@ async function shopify(env, store, query, variables = {}) {
       body: JSON.stringify({ query, variables }),
     });
     if (res.status === 429) { await new Promise(r => setTimeout(r, 1500)); continue; }
+    if (res.status === 401 && !staticToken(env, store)) {
+      // cached client-credentials token expired or the secret was rotated
+      token = await getAccessToken(env, store, { force: true });
+      continue;
+    }
     const json = await res.json();
     if (json.errors?.some(e => e.extensions?.code === 'THROTTLED')) {
       await new Promise(r => setTimeout(r, 1500)); continue;
@@ -650,7 +698,7 @@ export default {
           const history = await getHistory(env, s);
           out.push({
             id: s.id, name: s.name, domain: s.domain, tz: s.tz,
-            hasToken: !!shopifyToken(env, s),
+            hasToken: hasShopifyAuth(env, s),
             historyStart: history.startDate,
             historyDays: Object.keys(history.days).length,
           });
