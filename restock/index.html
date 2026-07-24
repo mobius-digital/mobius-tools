@@ -297,6 +297,70 @@
   .rep-cardacts .btn{padding:5px 10px;font-size:11.5px}
   .rep-cardacts .mult{width:58px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 7px;font-size:12px;text-align:right}
   .rowdays{font-size:10.5px;color:var(--muted);white-space:nowrap;text-align:right}
+
+  /* ---------- Responsive: tablet (761–1020px) ---------- */
+  @media (min-width:761px) and (max-width:1020px){
+    main{padding:20px 16px 70px}
+    .hd{padding:10px 16px}
+    .rowh,.prow,.vsub{grid-template-columns:46px 1fr 72px 92px 92px 126px 30px;gap:10px;padding:11px 14px}
+    .vsub{padding:8px 14px}
+    .mixrow{grid-template-columns:150px 1fr 120px}
+  }
+  /* ---------- Responsive: mobile (≤760px) ---------- */
+  @media (max-width:760px){
+    input,select{font-size:16px}   /* ≥16px stops iOS zooming the page on focus */
+    main{padding:14px 10px 60px}
+    .hd{padding:9px 10px;gap:8px}
+    .hd-sep{display:none}
+    .mark b{display:none}
+    .mark img{height:28px;width:28px}
+    .hd-title{font-size:18px}
+    .hd-right{gap:6px}
+    .hd-btn{padding:6px 9px;font-size:12px}
+    .hd-chip{padding:5px 9px;font-size:10px}
+    .banner{padding:13px 13px;gap:10px}
+    .banner h1{font-size:20px}
+    .banner .again{display:none}
+    .counts{margin-left:0;width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:6px}
+    .count{min-width:0;padding:8px 4px}
+    .count b{font-size:19px}
+    .count span{font-size:10px}
+    .notice{padding:11px 13px;font-size:12.5px}
+    .toolbar{margin:16px 0 10px}
+    /* bottom sheet / product panel */
+    .sh-in{padding:12px 12px 50px}
+    .sh-top{flex-wrap:wrap}
+    .sh-top img{width:40px;height:40px}
+    .sh-top h3{font-size:19px}
+    .statgrid{grid-template-columns:1fr 1fr;gap:8px}
+    .stat{padding:11px 12px}
+    .stat .vl{font-size:19px}
+    .panel{padding:13px 12px}
+    .panel h4{font-size:16.5px}
+    .cticks span:nth-child(even){display:none}  /* weekly ticks overlap at this width — show every other */
+    .mixrow{grid-template-columns:1fr 112px;grid-template-areas:"name val" "bar bar";gap:3px 8px;padding:7px 0}
+    .mixrow .mname{grid-area:name}
+    .mixrow .mixbar{grid-area:bar}
+    .mixrow .mval{grid-area:val}
+    .plan-in input{width:96px}
+    .scen .srow{grid-template-columns:1fr auto;grid-template-areas:"l s" "b b";gap:3px 8px}
+    .scen .srow>span:first-child{grid-area:l}
+    .scen .srow .sbar{grid-area:b}
+    .scen .srow .sm{grid-area:s}
+    /* modals */
+    .modal{padding:14px 6px}
+    .mbox{padding:18px 14px;border-radius:12px}
+    .frow label{min-width:120px}
+    /* order report */
+    .rep-top h1{font-size:24px}
+    .rep-top .acts{margin-left:0;width:100%;flex-wrap:wrap;gap:6px}
+    .rep-group{padding:12px 10px}
+    .rep-ghead h2{font-size:19px}
+    .rep-ghead .acts{margin-left:0;width:100%;flex-wrap:wrap}
+    .rep-card{padding:10px 8px}
+    .rep-cardacts{margin-left:0;width:100%}
+    footer{padding:0 12px 30px}
+  }
   @page{margin:12mm}
   @media print{
     header,.rep-top .acts,.rep-ghead .acts,.rep-cardacts,footer,.notice,.scrim,.sheet,.modal{display:none!important}
