@@ -262,6 +262,42 @@
   .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line-strong);border-top-color:var(--brand-ink);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px}
   @keyframes spin{to{transform:rotate(360deg)}}
   footer{max-width:1200px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
+
+  /* ---------- Order report ---------- */
+  .rep-top{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+  .rep-top h1{font-family:var(--serif);font-weight:400;font-size:30px}
+  .rep-top .meta{color:var(--muted);font-size:13px}
+  .rep-top .acts{margin-left:auto;display:flex;gap:8px}
+  .rep-group{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;break-inside:avoid}
+  .rep-ghead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--hd);padding-bottom:10px;margin-bottom:6px}
+  .rep-ghead h2{font-family:var(--serif);font-weight:400;font-size:22px;margin:0}
+  .rep-ghead .gtotal{color:var(--muted);font-size:13px}
+  .rep-ghead .acts{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .rep-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:16px 0 6px;padding:5px 12px;border-radius:99px;display:inline-block}
+  .rep-sec.red{background:var(--bad-bg);color:var(--bad)}
+  .rep-sec.yellow{background:var(--warn-bg);color:var(--warn)}
+  .rep-card{border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:8px 0;break-inside:avoid}
+  .rep-phead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .rep-phead img{width:34px;height:34px;border-radius:7px;object-fit:cover;border:1px solid var(--line)}
+  .rep-phead b{font-size:14.5px}
+  .rep-moq{font-size:11px;font-weight:700;border-radius:99px;padding:3px 10px}
+  .rep-moq.met{background:var(--good-bg);color:var(--good)}
+  .rep-moq.under{background:var(--warn-bg);color:var(--warn)}
+  .rep-moq.none{background:var(--unk-bg);color:var(--unk)}
+  .rep-card table{font-size:12.5px}
+  .rep-card td,.rep-card th{padding:6px 8px}
+  .rep-card .qty{width:76px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 8px;font-weight:700;text-align:right}
+  .rep-card tr.unchecked td{opacity:.45}
+  .rep-card tr.unchecked td:first-child{opacity:1}
+  .rep-empty{color:var(--muted);font-style:italic;padding:30px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  @media print{
+    header,.rep-top .acts,.rep-ghead .acts,footer,.notice{display:none!important}
+    body{background:#fff}
+    .rep-group{border:none;padding:10px 0}
+    .rep-card input[type=checkbox]{display:none}
+    .rep-card tr.unchecked{display:none}
+    .rep-card .qty{border:none}
+  }
 </style>
 </head>
 <body>
@@ -273,6 +309,7 @@
     <div class="hd-right">
       <span class="hd-chip" id="connChip" data-s="off">Not connected</span>
       <button class="hd-btn" id="btnRefresh" style="display:none">↻ Refresh</button>
+      <button class="hd-btn" id="btnReport" style="display:none">📋 Order report</button>
       <button class="hd-btn" id="btnInfo">ℹ How it works</button>
       <button class="hd-btn" id="btnSettings">⚙ Settings</button>
     </div>
@@ -302,6 +339,7 @@ let S = {
   store: localStorage.getItem(LS.store) || 'lucky',
   report: null, settings: null, stores: null,
   filter: 'all', q: '', open: -1, openVar: -1, visible: [], expand: new Set(), sort: null,
+  view: 'list',
 };
 
 async function api(path, opts = {}) {
@@ -329,6 +367,7 @@ async function boot() {
     S.report = report.__err ? null : report;
     setChip('Live', 'live');
     $('#btnRefresh').style.display = '';
+    $('#btnReport').style.display = S.report ? '' : 'none';
     render(report.__err || null);
   } catch (e) {
     if (/unauthorized/i.test(e.message)) { S.tok=''; localStorage.removeItem(LS.tok); return renderGate('Wrong password — try again.'); }
@@ -372,6 +411,7 @@ function fmtV(v){ return v>=10 ? v.toFixed(1) : v>=0.1 ? v.toFixed(2) : v>0 ? v.
 function fmtWhen(iso){ return iso ? new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'; }
 
 function render(reportErr) {
+  if (S.view === 'report' && S.report) return renderReport();
   const m = $('#main');
   if (reportErr || !S.report) {
     m.innerHTML = `
@@ -520,6 +560,116 @@ function renderRows() {
   $('#rows').innerHTML = `<div class="rows">
     <div class="rowh"><span></span>${sortHead('title','Product')}${sortHead('inv','Stock',1)}${sortHead('vel','Velocity',1)}${sortHead('days','Days left',1)}${sortHead('status','Status',1)}<span></span></div>
     ${rows || '<div class="empty">Nothing matches this filter.</div>'}</div>`;
+}
+
+/* ================= order report ================= */
+function repCardHTML(p, vars) {
+  const moqBadge = p.moq
+    ? (p.moqMet
+        ? `<span class="rep-moq met">MOQ ${p.moq} met ✓ — order now</span>`
+        : `<span class="rep-moq under">need ${p.combinedNeed} of MOQ ${p.moq} — consider waiting</span>`)
+    : `<span class="rep-moq none">no MOQ set</span>`;
+  const rows = vars.map(v => {
+    const red = v.status === 'stockout' || v.status === 'reorder';
+    return `
+    <tr class="${red ? '' : 'unchecked'}">
+      <td><input type="checkbox" ${red ? 'checked' : ''} onchange="this.closest('tr').classList.toggle('unchecked',!this.checked);repTotals()"></td>
+      <td data-sku="${esc(v.sku || v.title || 'variant')}"><b>${esc(v.sku || v.title || '—')}</b>${v.sku && v.title ? `<span class="mini"> · ${esc(v.title)}</span>` : ''}</td>
+      <td><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
+      <td class="r">${v.inv}</td>
+      <td class="r">${fmtV(v.velocity)}/d</td>
+      <td class="r">${fmtD(v.daysLeft)}</td>
+      <td class="r"><input class="qty" type="number" min="0" value="${v.suggestedQty ?? 0}" oninput="repTotals()"></td>
+    </tr>`;
+  }).join('');
+  return `
+  <div class="rep-card" data-title="${esc(p.title)}" data-lead="${p.leadDays ?? ''}">
+    <div class="rep-phead">
+      <img src="${esc(p.image || '')}" onerror="this.style.display='none'" alt="">
+      <b>${esc(p.title)}</b>
+      ${p.leadDays != null ? `<span class="tag lead">lead ${p.leadDays}d</span>` : ''}
+      ${moqBadge}
+    </div>
+    <div style="overflow-x:auto"><table>
+      <tr><th></th><th>SKU / variant</th><th>Status</th><th class="r">On hand</th><th class="r">Vel</th><th class="r">Days left</th><th class="r">Order qty</th></tr>
+      ${rows}</table></div>
+  </div>`;
+}
+function renderReport() {
+  const r = S.report;
+  const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const groups = new Map(); // manufacturer group (lead-time profile) → {red:[], yellow:[]}
+  for (const p of r.products) {
+    const reds = p.variants.filter(v => v.status === 'stockout' || v.status === 'reorder');
+    const watch = p.variants.filter(v => v.status === 'watch');
+    if (!reds.length && !watch.length) continue;
+    const key = p.profileName || 'No profile assigned';
+    if (!groups.has(key)) groups.set(key, { red: [], yellow: [] });
+    if (reds.length) groups.get(key).red.push({ p, vars: [...reds, ...watch] });
+    else groups.get(key).yellow.push({ p, vars: watch });
+  }
+  const gHtml = [...groups.entries()].map(([g, { red, yellow }]) => `
+    <div class="rep-group" data-group="${esc(g)}">
+      <div class="rep-ghead">
+        <h2>${esc(g)}</h2><span class="gtotal"></span>
+        <div class="acts">
+          <button class="btn" onclick="copyGroup(this,'${esc(g)}')">📋 Copy order for ${esc(g)}</button>
+        </div>
+      </div>
+      ${red.length ? `<div class="rep-sec red">🔴 Order now — past the reorder point</div>` + red.map(x => repCardHTML(x.p, x.vars)).join('') : ''}
+      ${yellow.length ? `<div class="rep-sec yellow">🟡 Watch — approaching the order window, consider adding to this order</div>` + yellow.map(x => repCardHTML(x.p, x.vars)).join('') : ''}
+    </div>`).join('');
+  $('#main').innerHTML = `
+    <div class="rep-top">
+      <div><h1>Reorder report</h1>
+        <div class="meta">${esc(r.storeName)} · ${date} · quantities target ${S.settings?.targetCoverDays || 180}d coverage after lead time — edit before copying</div></div>
+      <div class="acts">
+        <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
+        <button class="btn pri" onclick="S.view='list';render()">← Back to dashboard</button>
+      </div>
+    </div>
+    ${gHtml || '<div class="rep-empty">Nothing needs reordering — every variant is healthy. 🎉</div>'}`;
+  repTotals();
+  window.scrollTo(0, 0);
+}
+function repTotals() {
+  document.querySelectorAll('.rep-group').forEach(gr => {
+    let units = 0, count = 0;
+    gr.querySelectorAll('tr:not(.unchecked) .qty').forEach(q => {
+      const n = Number(q.value) || 0;
+      if (n > 0) { units += n; count++; }
+    });
+    gr.querySelector('.gtotal').textContent = `${units} units · ${count} variant${count === 1 ? '' : 's'} selected`;
+  });
+}
+function copyGroup(btn, g) {
+  const gr = document.querySelector(`.rep-group[data-group="${CSS.escape(g)}"]`);
+  const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const lines = [`${S.report.storeName} — Purchase order draft · ${date}`, `Manufacturer group: ${g}`, ''];
+  let grand = 0;
+  gr.querySelectorAll('.rep-card').forEach(card => {
+    const rows = [...card.querySelectorAll('tr:not(.unchecked)')].map(tr => {
+      const qty = Number(tr.querySelector('.qty')?.value) || 0;
+      const sku = tr.querySelector('[data-sku]')?.dataset.sku;
+      return qty > 0 && sku ? { sku, qty } : null;
+    }).filter(Boolean);
+    if (!rows.length) return;
+    lines.push(card.dataset.title + (card.dataset.lead ? `  (lead ~${card.dataset.lead}d)` : ''));
+    for (const { sku, qty } of rows) { lines.push(`  • ${sku} — ${qty} units`); grand += qty; }
+    lines.push('');
+  });
+  if (!grand) { btn.textContent = 'Nothing selected'; setTimeout(() => btn.textContent = `📋 Copy order for ${g}`, 1600); return; }
+  lines.push(`TOTAL: ${grand} units`);
+  const text = lines.join('\n');
+  const done = () => { btn.textContent = '✓ Copied — paste anywhere'; setTimeout(() => btn.textContent = `📋 Copy order for ${g}`, 2200); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } finally { ta.remove(); }
 }
 
 /* ================= bottom sheet ================= */
@@ -872,6 +1022,7 @@ async function refreshReport(silent) {
   } catch(e) { if (!silent) render(e.message); }
 }
 $('#btnRefresh').onclick = () => doSnapshot($('#btnRefresh'));
+$('#btnReport').onclick = () => { S.view = S.view === 'report' ? 'list' : 'report'; render(); };
 async function doSnapshot(btn) {
   const old = btn.textContent; btn.textContent = '⏳ snapshotting…'; btn.disabled = true;
   try {
