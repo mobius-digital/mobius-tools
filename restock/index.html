@@ -914,6 +914,8 @@ function openSettings() {
       <table id="typeTable"><tr><th>Product type</th><th>Profile</th></tr>${typeRows}</table>
     </div>
 
+    ${noTypeFixHTML()}
+
     <div class="set"><h5>Data</h5>
       <div class="actions">
         <button class="btn" onclick="doSnapshot(this)">Run snapshot now</button>
@@ -940,6 +942,42 @@ function openSettings() {
   $('#modal').classList.add('open');
   $('#profTable').addEventListener('input', syncTypeOptions);
   loadChannels(st);
+}
+/** Products with a blank Shopify product type + inline fix that writes back to Shopify. */
+function noTypeFixHTML() {
+  const noType = (S.report?.products || []).filter(p => !p.type);
+  if (!noType.length) return '';
+  const existing = [...new Set([
+    ...(S.report?.products || []).map(p => p.type).filter(Boolean),
+    ...Object.keys(S.settings?.typeMap || {}).filter(Boolean),
+  ])].sort();
+  return `<div class="set"><h5>⚠️ Products missing a type</h5>
+    <div class="msg" style="margin:0 0 10px">These have a blank Product Type in Shopify, so they can't inherit a lead-time profile. Assign one here — it's <b>written straight back to Shopify</b>. Pick an existing type or type a brand-new one.</div>
+    <datalist id="allTypes">${existing.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+    ${noType.map(p => `<div class="frow" data-fixrow="${p.id}">
+      <label style="min-width:200px" title="${esc(p.title)}">${esc(p.title)}</label>
+      <input type="text" list="allTypes" placeholder="e.g. Head Cover" style="flex:1;min-width:150px">
+      <button class="btn" onclick="applyType(this,'${p.id}')">Apply</button>
+    </div>`).join('')}
+    <div class="msg" id="typeFixMsg"></div>
+  </div>`;
+}
+async function applyType(btn, pid) {
+  const row = btn.closest('[data-fixrow]');
+  const type = row.querySelector('input').value.trim();
+  const msg = $('#typeFixMsg');
+  if (!type) { msg.textContent = 'Pick or type a product type first.'; msg.className = 'msg bad'; return; }
+  btn.disabled = true; msg.innerHTML = '<span class="spin"></span> Writing to Shopify…'; msg.className = 'msg';
+  try {
+    await api('/api/set-type?store=' + S.store, { method: 'POST',
+      body: JSON.stringify({ productId: pid, type }) });
+    await refreshReport(true);
+    const wasDirty = S.dirty;
+    openSettings(); S.dirty = wasDirty;   // keep any other unsaved edits flagged
+    const isNewType = !(S.settings.typeMap || {})[type];
+    $('#saveMsg').textContent = `Type "${type}" saved to Shopify ✓${isNewType ? ' — now map it to a profile above' : ''}`;
+    $('#saveMsg').className = 'msg ok';
+  } catch(e) { msg.textContent = e.message; msg.className = 'msg bad'; btn.disabled = false; }
 }
 /** Read profile rows as they currently stand (stable ids; temp ids for new rows). */
 function readProfileRows() {
@@ -969,7 +1007,8 @@ function closeModal(){
 $('#modal').addEventListener('click', e => { if (e.target.id==='modal') closeModal(); });
 // any edit inside the settings modal marks it dirty (password applies instantly, so it's exempt)
 $('#mbox').addEventListener('input', e => {
-  if (S.modalKind === 'settings' && e.target.id !== 'newPass') S.dirty = true;
+  if (S.modalKind === 'settings' && e.target.id !== 'newPass'
+      && !e.target.closest('[data-fixrow]')) S.dirty = true;
 });
 
 async function loadChannels(st) {

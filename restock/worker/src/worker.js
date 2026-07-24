@@ -843,6 +843,37 @@ export default {
         return json(await runSnapshot(env, store, { forceDigest: true }));
       }
 
+      if (path === '/api/set-type' && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const pid = String(body.productId || '').replace(/\D/g, '');
+        const type = String(body.type || '').trim().slice(0, 80);
+        if (!pid || !type) return json({ error: 'productId and type required' }, 400);
+        try {
+          const data = await shopify(env, store, `
+            mutation($product: ProductUpdateInput!) {
+              productUpdate(product: $product) {
+                product { id productType }
+                userErrors { field message }
+              }
+            }`, { product: { id: `gid://shopify/Product/${pid}`, productType: type } });
+          const errs = data.productUpdate?.userErrors;
+          if (errs?.length) return json({ error: errs.map(e => e.message).join('; ') }, 400);
+        } catch (err) {
+          const m = String(err.message || err);
+          if (/ACCESS_DENIED|write_products/i.test(m)) {
+            return json({ error: 'Shopify app lacks the write_products scope — add it in the Dev Dashboard (Apps → Mobius Restock → scopes), release + reinstall, then retry.' }, 403);
+          }
+          throw err;
+        }
+        // patch the cached catalog so the dashboard reflects it immediately
+        const catalog = await env.KV.get(`catalog:${store.id}`, 'json');
+        if (catalog) {
+          const p = catalog.products.find(p => p.id === pid);
+          if (p) { p.type = type; await env.KV.put(`catalog:${store.id}`, JSON.stringify(catalog)); }
+        }
+        return json({ ok: true, productId: pid, type });
+      }
+
       if (path === '/api/password' && request.method === 'POST') {
         const body = await request.json().catch(() => ({}));
         const pw = String(body.password || '');
