@@ -90,11 +90,28 @@
 
   /* ---------- Product rows ---------- */
   .rows{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .rowh,.prow{display:grid;grid-template-columns:52px 1fr 90px 110px 110px 130px;gap:14px;align-items:center;padding:12px 20px}
+  .rowh,.prow{display:grid;grid-template-columns:52px 1fr 90px 110px 110px 150px 34px;gap:14px;align-items:center;padding:12px 20px}
   .rowh{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding-top:14px;padding-bottom:10px}
   .prow{border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s}
   .prow:last-child{border-bottom:none}
   .prow:hover{background:#F8FBFD}
+  .chev{width:28px;height:28px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);color:var(--muted);font-size:11px;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+  .chev:hover{border-color:var(--brand-ink);color:var(--brand-ink)}
+  .chev.open{transform:rotate(90deg)}
+  .sdig{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+  .pill{font-size:10.5px;font-weight:700;border-radius:99px;padding:3px 9px;white-space:nowrap}
+  .pill[data-k="red"]{color:var(--bad);background:var(--bad-bg)}
+  .pill[data-k="yellow"]{color:var(--warn);background:var(--warn-bg)}
+  .pill[data-k="green"]{color:var(--good);background:var(--good-bg)}
+  .pill[data-k="gray"]{color:var(--unk);background:var(--unk-bg)}
+  .vsub{display:grid;grid-template-columns:52px 1fr 90px 110px 110px 150px 34px;gap:14px;align-items:center;padding:8px 20px;border-bottom:1px solid var(--line);background:#F8FBFD;cursor:pointer}
+  .vsub:hover{background:var(--brand-soft)}
+  .vsub .vname{font-size:13px;color:var(--ink-2);padding-left:26px;position:relative}
+  .vsub .vname::before{content:'└';position:absolute;left:8px;color:var(--line-strong)}
+  .vsub .vname b{font-weight:600;color:var(--ink)}
+  .vsub .num{font-size:13px;font-weight:500}
+  .vsub .dleft{font-size:13.5px}
+  .vsub .chip{font-size:10px;padding:3.5px 10px}
   .pimg{width:44px;height:44px;border-radius:9px;object-fit:cover;background:var(--unk-bg);border:1px solid var(--line)}
   .pname b{font-weight:600;font-size:14.5px;display:block}
   .pname .tags{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center}
@@ -112,11 +129,13 @@
   .empty{color:var(--muted);padding:26px;text-align:center;font-style:italic}
   @media (max-width:760px){
     .rowh{display:none}
-    .prow{grid-template-columns:44px 1fr 90px;gap:10px}
-    .prow .num{display:none}
-    .prow .dleft{grid-column:3}
-    .prow .chip{display:none}
+    .prow,.vsub{grid-template-columns:44px 1fr 80px 34px;gap:10px}
+    .prow .num,.vsub .num{display:none}
+    .prow .dleft,.vsub .dleft{grid-column:3}
+    .prow .sdig,.prow>.chip,.vsub .chip{display:none}
   }
+  .backbtn{border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+  .backbtn:hover{border-color:var(--brand-ink);color:var(--brand-ink)}
 
   /* ---------- Bottom sheet ---------- */
   .scrim{position:fixed;inset:0;background:rgba(12,22,29,.5);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -228,7 +247,7 @@ let S = {
   tok: localStorage.getItem(LS.tok) || '',
   store: localStorage.getItem(LS.store) || 'lucky',
   report: null, settings: null, stores: null,
-  filter: 'all', q: '', open: -1, visible: [],
+  filter: 'all', q: '', open: -1, openVar: -1, visible: [], expand: new Set(),
 };
 
 async function api(path, opts = {}) {
@@ -349,12 +368,37 @@ function bannersHTML(gateMode) {
   return h;
 }
 
-function setFilter(f){ S.filter = S.filter===f ? 'all' : f; render(); }
+function setFilter(f){ S.filter = S.filter===f ? 'all' : f; S.expand = new Set(); render(); }
 
 function matchFilter(p) {
   if (S.filter==='all') return true;
   const set = { red:RED, yellow:YEL, green:GRN, gray:GRY }[S.filter];
   return p.variants.some(v => set.includes(v.status));
+}
+function bucketOf(v){ return RED.includes(v.status)?'red':YEL.includes(v.status)?'yellow':GRN.includes(v.status)?'green':'gray'; }
+function statusCellHTML(p) {
+  const g = { red:0, yellow:0, green:0, gray:0 };
+  for (const v of p.variants) g[bucketOf(v)]++;
+  const buckets = Object.entries(g).filter(([,n]) => n>0);
+  if (p.variants.length === 1 || buckets.length === 1) {
+    return `<span class="chip" data-s="${p.status}" style="justify-self:end">${STATUS_LABEL[p.status]}</span>`;
+  }
+  const lbl = { red: g.red===1 && p.variants.find(v=>v.status==='stockout') ? 'out' : 'reorder',
+                yellow:'watch', green:'ok', gray:'other' };
+  return `<div class="sdig">${buckets.map(([k,n]) =>
+    `<span class="pill" data-k="${k}">${n} ${k==='red'?(p.statusCounts?.stockout&&!p.statusCounts?.reorder?'out':'reorder'):lbl[k]}</span>`).join('')}</div>`;
+}
+function isExpanded(p) {
+  const auto = S.filter!=='all' && p.variants.length>1;
+  return S.expand.has(p.id) ? !auto : auto;
+}
+function toggleExpand(ev, id) {
+  ev.stopPropagation();
+  S.expand.has(id) ? S.expand.delete(id) : S.expand.add(id);
+  renderRows();
+}
+function variantFlags(v) {
+  return (v.isNew?' 🆕':'') + (v.trend==='spiking'?' ⚡':'');
 }
 function renderRows() {
   const q = S.q.trim().toLowerCase();
@@ -363,43 +407,87 @@ function renderRows() {
   const rows = S.visible.map((p, i) => {
     const lead = p.leadDays!=null ? `<span class="tag lead">lead ${p.leadDays}d${p.leadSource==='metafield'?' · metafield':''}</span>` : `<span class="tag">no lead time</span>`;
     const alert = p.alertCount ? `<small>${p.alertCount} variant${p.alertCount>1?'s':''} 🔴</small>` : `<small>&nbsp;</small>`;
-    return `
+    const multi = p.variants.length > 1;
+    const open = multi && isExpanded(p);
+    let html = `
     <div class="prow" onclick="openSheet(${i})">
       <img class="pimg" src="${esc(p.image||'')}" onerror="this.style.visibility='hidden'" alt="">
       <div class="pname"><b>${esc(p.title)}</b>
-        <div class="tags">${p.type?`<span class="tag">${esc(p.type)}</span>`:''}${lead}${p.variants.some(v=>v.trend==='spiking')?'<span class="tag" style="background:var(--warn-bg);color:var(--warn)">⚡ spiking</span>':''}</div></div>
+        <div class="tags">${p.type?`<span class="tag">${esc(p.type)}</span>`:''}${lead}${p.variants.some(v=>v.trend==='spiking')?'<span class="tag" style="background:var(--warn-bg);color:var(--warn)">⚡ spiking</span>':''}${p.variants.some(v=>v.isNew)?'<span class="tag" style="background:var(--brand-soft);color:var(--brand-ink)">🆕 new</span>':''}${multi?`<span class="tag">${p.variants.length} variants</span>`:''}</div></div>
       <div class="num">${p.totalInv}<small>on hand</small></div>
       <div class="num">${fmtV(p.velocity)}/day<small>sell-through</small></div>
       <div class="dleft">${fmtD(p.daysLeft)}${alert}</div>
-      <span class="chip" data-s="${p.status}">${STATUS_LABEL[p.status]}</span>
+      ${statusCellHTML(p)}
+      ${multi?`<button class="chev ${open?'open':''}" onclick="toggleExpand(event,'${p.id}')" title="Show variants">▶</button>`:'<span></span>'}
     </div>`;
+    if (open) html += p.variants.map((v, vi) => `
+      <div class="vsub" onclick="openVar(${i},${vi})">
+        <span></span>
+        <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}</div>
+        <div class="num" style="text-align:right">${v.inv}</div>
+        <div class="num" style="text-align:right">${fmtV(v.velocity)}/day</div>
+        <div class="dleft">${fmtD(v.daysLeft)}<small>&nbsp;</small></div>
+        <span class="chip" data-s="${v.status}" style="justify-self:end">${STATUS_LABEL[v.status]}</span>
+        <span></span>
+      </div>`).join('');
+    return html;
   }).join('');
   $('#rows').innerHTML = `<div class="rows">
-    <div class="rowh"><span></span><span>Product</span><span style="text-align:right">Stock</span><span style="text-align:right">Velocity</span><span style="text-align:right">Days left</span><span style="text-align:right">Status</span></div>
+    <div class="rowh"><span></span><span>Product</span><span style="text-align:right">Stock</span><span style="text-align:right">Velocity</span><span style="text-align:right">Days left</span><span style="text-align:right">Status</span><span></span></div>
     ${rows || '<div class="empty">Nothing matches this filter.</div>'}</div>`;
 }
 
 /* ================= bottom sheet ================= */
 function openSheet(i) {
-  S.open = i;
+  S.open = i; S.openVar = -1;
   renderSheet();
   $('#scrim').classList.add('open'); $('#sheet').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
-function closeSheet(){ S.open=-1; $('#scrim').classList.remove('open'); $('#sheet').classList.remove('open'); document.body.style.overflow=''; }
+function openVar(i, vi) {
+  S.open = i; S.openVar = vi;
+  renderSheet();
+  $('#scrim').classList.add('open'); $('#sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  $('#sheet').scrollTop = 0;
+}
+function closeSheet(){ S.open=-1; S.openVar=-1; $('#scrim').classList.remove('open'); $('#sheet').classList.remove('open'); document.body.style.overflow=''; }
 $('#scrim').onclick = closeSheet;
 document.addEventListener('keydown', e => {
   if (S.open<0) return;
-  if (e.key==='Escape') closeSheet();
+  if (e.key==='Escape') { S.openVar>=0 ? openVar_back() : closeSheet(); }
   if (e.key==='ArrowRight') nav(1);
   if (e.key==='ArrowLeft') nav(-1);
 });
-function nav(d){ const n=S.open+d; if(n>=0&&n<S.visible.length){S.open=n;renderSheet();$('#sheet').scrollTop=0;} }
+function openVar_back(){ const i=S.open; S.openVar=-1; renderSheet(); $('#sheet').scrollTop=0; }
+function nav(d){
+  if (S.openVar>=0) { // variant mode: move between this product's variants
+    const p = S.visible[S.open]; const n = S.openVar+d;
+    if (p && n>=0 && n<p.variants.length){ S.openVar=n; renderSheet(); $('#sheet').scrollTop=0; }
+    return;
+  }
+  const n=S.open+d; if(n>=0&&n<S.visible.length){S.open=n;renderSheet();$('#sheet').scrollTop=0;}
+}
+/** Variant view = a synthetic single-variant "product" so the sheet and
+ *  planner logic apply unchanged, scoped to that variant's own numbers. */
+function variantView(prod, vi) {
+  const v = prod.variants[vi];
+  return { ...prod,
+    title: prod.title, subTitle: (v.sku && v.title) ? `${v.sku} · ${v.title}` : (v.sku || v.title || 'variant'),
+    totalInv: v.inv, velocity: v.velocity, daysLeft: v.daysLeft, status: v.status,
+    alertCount: 0, series: v.series || [], variants: [v], isVariantView: true,
+  };
+}
 
 function trendNote(p) {
+  const isNew = p.variants.filter(v=>v.isNew);
   const spike = p.variants.filter(v=>v.trend==='spiking').length;
   const rise = p.variants.filter(v=>v.trend==='rising').length;
   const fall = p.variants.filter(v=>v.trend==='falling').length;
+  if (isNew.length) {
+    const age = Math.min(...isNew.map(v=>v.ageDays??99));
+    return `<div class="trendnote rise">🆕 New product — forecasting from just ${age} day${age===1?'':'s'} of sales since launch (windows start at launch, so early numbers aren't diluted). Confidence improves daily.</div>`;
+  }
   if (spike) return `<div class="trendnote spike">⚡ Sales are spiking well above the 90-day norm (promo?). The projection caps the spike at 2× baseline so one hot week doesn't trigger panic orders.</div>`;
   if (rise) return `<div class="trendnote rise">↗ Selling faster than the 90-day baseline — days-left leans on the recent rate.</div>`;
   if (fall && !rise) return `<div class="trendnote fall">↘ Cooling off vs the 90-day baseline.</div>`;
@@ -426,51 +514,53 @@ function salesChartSVG(p) {
 function addD(ymd,n){ const d=new Date(ymd+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(5,10); }
 
 function renderSheet() {
-  const p = S.visible[S.open]; if (!p) return;
+  const prod = S.visible[S.open]; if (!prod) return;
+  const isVar = S.openVar >= 0 && prod.variants[S.openVar];
+  const p = isVar ? variantView(prod, S.openVar) : prod;
   const st = S.settings || {};
   const lb = p.leadBreakdown;
   const leadDetail = !lb ? 'not mapped' : lb.override!=null
     ? `${lb.override}d metafield + ${lb.buffer}d buffer`
     : `${lb.production}d production + ${lb.shipping}d shipping + ${lb.buffer}d buffer`;
   const sug = p.variants.reduce((s,v)=>s+(v.suggestedQty||0),0);
+  const multi = !isVar && p.variants.length > 1;
 
-  const vrows = p.variants.map(v => `
-    <tr>
-      <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}</td>
+  const vrows = p.variants.map((v, vi) => `
+    <tr ${multi?`onclick="openVar(${S.open},${vi})" style="cursor:pointer" title="Open variant detail"`:''}>
+      <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}${variantFlags(v)}</td>
       <td class="r">${v.inv}</td>
-      <td class="r">${fmtV(v.velocity)}<div class="mini">${v.damped?'damped':''}</div></td>
+      <td class="r">${fmtV(v.velocity)}<div class="mini">${v.damped?'damped':''}${v.isNew?'new':''}</div></td>
       <td class="r">${v.windows.map(w=>fmtV(w.rate)).join(' / ')}</td>
       <td class="r"><b>${fmtD(v.daysLeft)}</b></td>
       <td class="r">${v.suggestedQty??'—'}</td>
       <td class="r"><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
-      <td class="r"><button class="mutebtn" onclick="toggleMute('v${v.id}')">${v.muted?'unmute':'mute'}</button></td>
+      <td class="r"><button class="mutebtn" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'unmute':'mute'}</button></td>
     </tr>`).join('');
 
-  const wrow = (v => v ? v.windows.map((w,i)=>`
-    <tr><td>${w.days}-day</td><td class="r">${w.sold} sold</td><td class="r">${fmtV(w.rate)}/day</td>
-    <td class="r">${[45,35,20][i]}%</td><td class="r mini">${w.covered<w.days?`only ${w.covered}d of data`:''}</td></tr>`).join('') : '')
-    (null);
-
+  const navPrev = isVar ? S.openVar<=0 : S.open<=0;
+  const navNext = isVar ? S.openVar>=prod.variants.length-1 : S.open>=S.visible.length-1;
   $('#sheetIn').innerHTML = `
     <div class="sh-top">
       <img src="${esc(p.image||'')}" onerror="this.style.visibility='hidden'" alt="">
-      <div><h3>${esc(p.title)}</h3><div class="sm">${esc(p.type||'no type')} · ${esc(p.vendor)} · ${p.profileName?`profile: ${esc(p.profileName)}`:'no profile'}</div></div>
+      <div><h3>${esc(p.title)}${isVar?` <span style="color:var(--brand-ink)">· ${esc(p.subTitle)}</span>`:''}</h3>
+        <div class="sm">${isVar?`variant ${S.openVar+1} of ${prod.variants.length} · `:''}${esc(p.type||'no type')} · ${esc(p.vendor)} · ${p.profileName?`profile: ${esc(p.profileName)}`:'no profile'}</div></div>
       <div class="sh-nav">
-        <button onclick="nav(-1)" ${S.open<=0?'disabled':''}>←</button>
-        <button onclick="nav(1)" ${S.open>=S.visible.length-1?'disabled':''}>→</button>
+        ${isVar?`<button class="backbtn" style="width:auto" onclick="openVar_back()">← All variants</button>`:''}
+        <button onclick="nav(-1)" ${navPrev?'disabled':''} title="${isVar?'previous variant':'previous product'}">←</button>
+        <button onclick="nav(1)" ${navNext?'disabled':''} title="${isVar?'next variant':'next product'}">→</button>
         <button onclick="closeSheet()">✕</button>
       </div>
     </div>
     ${trendNote(p)}
     <div class="statgrid">
-      <div class="stat"><div class="lb">On hand</div><div class="vl">${p.totalInv}</div><div class="sm">across ${p.variants.length} variant${p.variants.length>1?'s':''}</div></div>
+      <div class="stat"><div class="lb">On hand</div><div class="vl">${p.totalInv}</div><div class="sm">${isVar?'this variant':'across '+p.variants.length+' variant'+(p.variants.length>1?'s':'')}</div></div>
       <div class="stat"><div class="lb">Sell-through</div><div class="vl">${fmtV(p.velocity)}<span style="font-size:13px;font-weight:400">/day</span></div><div class="sm">≈ ${fmtV(p.velocity*7)}/wk · ${fmtV(p.velocity*30)}/mo</div></div>
       <div class="stat"><div class="lb">Days of stock</div><div class="vl">${fmtD(p.daysLeft)}</div><div class="sm">${p.daysLeft!=null?'runs out ~'+futureDate(p.daysLeft):'no meaningful sales'}</div></div>
       <div class="stat"><div class="lb">Lead time</div><div class="vl">${p.leadDays!=null?p.leadDays+'d':'—'}</div><div class="sm">${leadDetail}</div></div>
-      <div class="stat"><div class="lb">Status</div><div class="vl"><span class="chip" data-s="${p.status}" style="font-size:13px">${STATUS_LABEL[p.status]}</span></div><div class="sm">${p.alertCount?p.alertCount+' variant(s) at reorder':'worst variant shown'}</div></div>
+      <div class="stat"><div class="lb">Status</div><div class="vl"><span class="chip" data-s="${p.status}" style="font-size:13px">${STATUS_LABEL[p.status]}</span></div><div class="sm">${isVar||p.variants.length===1?'':statusDigestText(prod)}</div></div>
     </div>
 
-    <div class="panel"><h4>Daily sales — last 90 days</h4><div class="sub">Bars = units/day (all variants) · line = 7-day average</div>${salesChartSVG(p)}</div>
+    <div class="panel"><h4>Daily sales — last 90 days</h4><div class="sub">Bars = units/day (${isVar?'this variant only':'all variants'}) · line = 7-day average</div>${salesChartSVG(p)}</div>
 
     <div class="panel"><h4>How the velocity is computed</h4>
       <div class="sub">Recency-weighted blend — recent enough to react, long enough to ignore flukes.</div>
@@ -482,13 +572,17 @@ function renderSheet() {
       <tr><td><b>Blended</b></td><td></td><td class="r"><b>${fmtV(p.velocity)}/day</b></td><td></td><td></td></tr></table>
     </div>
 
-    <div class="panel"><h4>Variants</h4>
-      <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.</div>
+    <div class="panel"><h4>${isVar?'This variant':'Variants'}</h4>
+      <div class="sub">Rates shown as 14d / 30d / 90d. Reorder quantities target ${st.targetCoverDays||180} days of coverage after the lead time.${multi?' Click a variant for its own charts and planner.':''}</div>
       <div style="overflow-x:auto"><table>
         <tr><th>SKU / variant</th><th class="r">Stock</th><th class="r">Vel/day</th><th class="r">14/30/90</th><th class="r">Days left</th><th class="r">Order</th><th class="r">Status</th><th></th></tr>
         ${vrows}</table></div>
     </div>
 
+    ${multi ? `
+    <div class="panel"><h4>Reorder planner</h4>
+      <div class="sub">This product reorders <b>by variant</b> — each size/loft has its own sell-through, so one combined number would skew the order. The "Order" column above targets ${st.targetCoverDays||180}d of coverage per variant${sug?` (combined: ~<b>${sug}</b> units across ${p.variants.filter(v=>v.suggestedQty>0).length} variants)`:''}. Click any variant row to plan it individually.</div>
+    </div>` : `
     <div class="panel"><h4>Reorder planner</h4>
       <div class="sub">If you place an order today it lands in ~${p.leadDays??'?'} days — you'll burn ~${p.leadDays!=null?Math.ceil(p.velocity*p.leadDays):'?'} units waiting. How long does a given order keep you stocked?</div>
       <div class="plan-in">
@@ -496,8 +590,13 @@ function renderSheet() {
         <span class="plan-out" id="planOut"></span>
       </div>
       <div class="scen" id="scen"></div>
-    </div>`;
-  planCalc();
+    </div>`}`;
+  if (!multi) planCalc();
+}
+function statusDigestText(p) {
+  const names = { stockout:'out', reorder:'reorder', watch:'watch', healthy:'ok', slow:'slow', unmapped:'unmapped', dormant:'dormant', muted:'muted' };
+  return Object.entries(p.statusCounts||{}).filter(([,n])=>n>0)
+    .map(([s,n])=>`${n} ${names[s]||s}`).join(' · ');
 }
 function todayYMD(){ return new Date().toISOString().slice(0,10); }
 function futureDate(days){ const d=new Date(); d.setDate(d.getDate()+days);
@@ -505,7 +604,8 @@ function futureDate(days){ const d=new Date(); d.setDate(d.getDate()+days);
     ...(d.getFullYear()!==new Date().getFullYear()?{year:'2-digit'}:{})}); }
 
 function planCalc() {
-  const p = S.visible[S.open]; if (!p) return;
+  const prod = S.visible[S.open]; if (!prod) return;
+  const p = S.openVar>=0 && prod.variants[S.openVar] ? variantView(prod, S.openVar) : prod;
   const qty = Math.max(0, Number($('#planQty')?.value) || 0);
   const v = p.velocity, L = p.leadDays ?? 0, tgt = S.settings?.targetCoverDays || 180;
   const out = $('#planOut'), scen = $('#scen');

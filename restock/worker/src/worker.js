@@ -166,7 +166,7 @@ query($after: String) {
       featuredMedia { preview { image { url(transform: {maxWidth: 160, maxHeight: 160}) } } }
       leadMeta: metafield(namespace: "custom", key: "lead_time_days") { value }
       variants(first: 100) { edges { node {
-        id title sku inventoryQuantity
+        id title sku inventoryQuantity createdAt
         inventoryItem { tracked }
       } } }
     } }
@@ -193,6 +193,7 @@ async function fetchCatalog(env, store) {
           title: v.title === 'Default Title' ? '' : v.title,
           sku: v.sku || '',
           inv: v.inventoryQuantity ?? 0,
+          createdAt: v.createdAt || null,
           tracked: !!v.inventoryItem?.tracked,
         })),
       });
@@ -321,14 +322,18 @@ async function getSettings(env) {
  * Sales rate for one variant over a trailing window ending yesterday.
  * Days where the variant sat at zero stock with zero sales are excluded
  * from the denominator — being sold out must not read as selling slowly.
+ * Days before the variant existed (`sinceDay` = its Shopify createdAt)
+ * are excluded entirely — a 10-day-old product is judged on its 10 real
+ * days, not diluted across a 90-day window of pre-launch zeros.
  * (Inventory snapshots only exist from tracking start, so backfilled
  * days always count.)
  */
-function windowRate(history, vid, endDay, days, tz) {
+function windowRate(history, vid, endDay, days, sinceDay) {
   let sold = 0, eff = 0, have = 0;
   for (let i = 0; i < days; i++) {
     const day = addDays(endDay, -i);
     if (history.startDate && day < history.startDate) break;
+    if (sinceDay && day < sinceDay) break;
     have++;
     const qty = history.days[day]?.[vid] || 0;
     const inv = history.inventory[day]?.[vid];
@@ -339,11 +344,14 @@ function windowRate(history, vid, endDay, days, tz) {
   return { sold, days: have, eff: Math.max(eff, 1), rate: have ? sold / Math.max(eff, 1) : 0 };
 }
 
-function blendVelocity(rates) {
+function blendVelocity(rates, { isNew = false } = {}) {
   const [r14, r30, r90] = rates;
-  // promo damper: cap the short window's contribution when it's spiking
+  // promo damper: cap the short window's contribution when it's spiking.
+  // Skipped for new products — their windows are launch-truncated, so a
+  // strong launch is the baseline, not a spike to damp away.
   const ratio = r90.rate > 0.02 ? r14.rate / r90.rate : (r14.rate > 0 ? 99 : 1);
-  const damped14 = ratio > SPIKE_CAP && r90.rate > 0.02 ? r90.rate * SPIKE_CAP : r14.rate;
+  const spike = !isNew && ratio > SPIKE_CAP && r90.rate > 0.02;
+  const damped14 = spike ? r90.rate * SPIKE_CAP : r14.rate;
 
   let vel = 0, velRaw = 0, wSum = 0;
   WINDOWS.forEach((w, i) => {
@@ -354,8 +362,10 @@ function blendVelocity(rates) {
     wSum += w.weight;
   });
   if (wSum > 0) { vel /= wSum; velRaw /= wSum; }
+  else if (rates[0].days > 0) { vel = velRaw = rates[0].rate; } // <7d old: use what exists
 
-  const trend = ratio >= SPIKE_FLAG ? 'spiking'
+  const trend = isNew ? 'new'
+    : ratio >= SPIKE_FLAG ? 'spiking'
     : ratio >= RISE_FLAG ? 'rising'
     : ratio <= FALL_FLAG ? 'falling' : 'steady';
   return { velocity: vel, velocityRaw: velRaw, trend, damped: vel !== velRaw };
@@ -384,11 +394,18 @@ function computeReport(store, catalog, history, settings) {
     const productMuted = settings.muted.includes(`p${p.id}`);
 
     const variants = tracked.map(v => {
-      const rates = WINDOWS.map(w => windowRate(history, v.id, endDay, w.days, store.tz));
-      const { velocity, velocityRaw, trend, damped } = blendVelocity(rates);
+      const launchDay = v.createdAt ? localDate(store.tz, new Date(v.createdAt)) : null;
+      const ageDays = launchDay
+        ? Math.max(0, Math.round((Date.parse(endDay) - Date.parse(launchDay)) / 86400000) + 1)
+        : null;
+      const isNew = ageDays != null && ageDays < 14;
+      const rates = WINDOWS.map(w => windowRate(history, v.id, endDay, w.days, launchDay));
+      const { velocity, velocityRaw, trend, damped } = blendVelocity(rates, { isNew });
       const daysLeft = velocity > 0.001 ? v.inv / velocity : null;
       const muted = productMuted || settings.muted.includes(`v${v.id}`);
       const noSales90 = rates[2].sold === 0;
+      const series = [];
+      for (let i = 89; i >= 0; i--) series.push(history.days[addDays(endDay, -i)]?.[v.id] || 0);
 
       let status;
       if (muted) status = 'muted';
@@ -407,20 +424,18 @@ function computeReport(store, catalog, history, settings) {
         id: v.id, sku: v.sku, title: v.title, inv: v.inv,
         windows: rates.map((r, i) => ({ days: WINDOWS[i].days, sold: r.sold, rate: +r.rate.toFixed(4), covered: r.days })),
         velocity: +velocity.toFixed(4), velocityRaw: +velocityRaw.toFixed(4),
-        trend, damped, daysLeft: daysLeft != null ? Math.round(daysLeft) : null,
-        status, muted, suggestedQty,
+        trend, damped, isNew, ageDays,
+        daysLeft: daysLeft != null ? Math.round(daysLeft) : null,
+        status, muted, suggestedQty, series,
       };
     });
 
-    // product-level series for charts: total units/day, last 90 days
-    const series = [];
-    for (let i = 89; i >= 0; i--) {
-      const day = addDays(endDay, -i);
-      let qty = 0;
-      const bucket = history.days[day];
-      if (bucket) for (const v of tracked) qty += bucket[v.id] || 0;
-      series.push(qty);
-    }
+    // product-level series = sum of variant series
+    const series = Array.from({ length: 90 },
+      (_, i) => variants.reduce((s, v) => s + v.series[i], 0));
+
+    const statusCounts = {};
+    for (const v of variants) statusCounts[v.status] = (statusCounts[v.status] || 0) + 1;
 
     const totalInv = tracked.reduce((s, v) => s + v.inv, 0);
     const velocity = variants.reduce((s, v) => s + v.velocity, 0);
@@ -436,7 +451,7 @@ function computeReport(store, catalog, history, settings) {
           ? { override: p.leadOverride, buffer: settings.bufferDays } : null,
       totalInv, velocity: +velocity.toFixed(4),
       daysLeft: velocity > 0.001 ? Math.round(totalInv / velocity) : null,
-      status: worst, muted: productMuted,
+      status: worst, statusCounts, muted: productMuted,
       alertCount: alertable.length,
       seriesEnd: endDay, series,
       variants,
@@ -477,13 +492,24 @@ async function slackApi(env, method, body) {
 const fmtDays = d => d == null ? '—' : d >= 9000 ? '∞' : `${d}d`;
 const skuOr = v => v.sku || v.title || 'variant';
 
-function variantLine(p, v) {
-  const name = v.title && v.sku ? `${v.sku} · ${v.title}` : skuOr(v);
+/** One status line for a variant: "~34d left · lead 85d · order ~402 ⚡" */
+function lineBody(p, v) {
   const lead = p.leadDays != null ? ` · lead ${p.leadDays}d` : '';
   const order = v.suggestedQty ? ` · order ~${v.suggestedQty}` : '';
-  const spike = v.trend === 'spiking' ? ' ⚡' : '';
+  const flag = v.trend === 'spiking' ? ' ⚡' : v.isNew ? ' 🆕' : '';
   const left = v.status === 'stockout' ? '*OUT OF STOCK*' : `~${fmtDays(v.daysLeft)} left`;
-  return `• \`${name}\` — ${left}${lead}${order}${spike}`;
+  return `${left}${lead}${order}${flag}`;
+}
+
+/** Product-grouped lines: single-variant products on one line, multi-variant
+ *  products as a bold product name with indented variant bullets. */
+function productLines(p, statuses, maxVariants = 8) {
+  const hits = p.variants.filter(v => statuses.includes(v.status));
+  if (!hits.length) return null;
+  if (p.variants.length === 1) return `*${p.title}* — ${lineBody(p, hits[0])}`;
+  const rows = hits.slice(0, maxVariants).map(v => `        •  \`${skuOr(v)}\` — ${lineBody(p, v)}`);
+  if (hits.length > maxVariants) rows.push(`        _…and ${hits.length - maxVariants} more variants_`);
+  return `*${p.title}*  (${hits.length}/${p.variants.length} variants)\n${rows.join('\n')}`;
 }
 
 function digestMessage(store, report, settings) {
@@ -495,13 +521,13 @@ function digestMessage(store, report, settings) {
 
   const reds = [], yellows = [];
   for (const p of report.products) {
-    for (const v of p.variants) {
-      if (v.status === 'stockout' || v.status === 'reorder') reds.push(variantLine(p, v));
-      else if (v.status === 'watch') yellows.push(variantLine(p, v));
-    }
+    const r = productLines(p, ['stockout', 'reorder']);
+    if (r) reds.push(r);
+    const y = productLines(p, ['watch']);
+    if (y) yellows.push(y);
   }
   const cap = (arr, n) => arr.length > n
-    ? [...arr.slice(0, n), `_…and ${arr.length - n} more — see the dashboard_`] : arr;
+    ? [...arr.slice(0, n), `_…and ${arr.length - n} more products — see the dashboard_`] : arr;
 
   const blocks = [
     { type: 'section', text: { type: 'mrkdwn', text: `📦  *${store.name} — Inventory digest* · ${date}` } },
@@ -511,13 +537,13 @@ function digestMessage(store, report, settings) {
     { type: 'divider' },
   ];
   if (reds.length) blocks.push({ type: 'section', text: { type: 'mrkdwn',
-    text: `*🔴 Reorder now*\n${cap(reds, 12).join('\n')}`.slice(0, 2900) } });
+    text: `*🔴 Reorder now*\n${cap(reds, 8).join('\n')}`.slice(0, 2900) } });
   if (yellows.length) blocks.push({ type: 'section', text: { type: 'mrkdwn',
-    text: `*🟡 Watch — order window approaching*\n${cap(yellows, 12).join('\n')}`.slice(0, 2900) } });
+    text: `*🟡 Watch — order window approaching*\n${cap(yellows, 8).join('\n')}`.slice(0, 2900) } });
   if (!reds.length && !yellows.length) blocks.push({ type: 'section',
     text: { type: 'mrkdwn', text: '✅ All clear — nothing needs reordering today.' } });
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
-    text: `⚡ = sales spiking (damped in projections)   ·   <${DASHBOARD_URL}|Open Restock dashboard →>` }] });
+    text: `⚡ spiking (damped in projections) · 🆕 new product (young data)   ·   <${DASHBOARD_URL}|Open Restock dashboard →>` }] });
 
   return {
     attachments: [{ color, fallback: `${store.name} inventory: ${issues} reorder, ${c.watch} watch`, blocks }],
@@ -525,13 +551,22 @@ function digestMessage(store, report, settings) {
 }
 
 function redAlertMessage(store, items) {
-  // items: [{product, variant}]
+  // items: [{p: product, v: variant}] — group under product names
+  const byProduct = new Map();
+  for (const { p, v } of items) {
+    if (!byProduct.has(p.id)) byProduct.set(p.id, { p, vs: [] });
+    byProduct.get(p.id).vs.push(v);
+  }
+  const lines = [...byProduct.values()].map(({ p, vs }) =>
+    p.variants.length === 1
+      ? `*${p.title}* — ${lineBody(p, vs[0])}`
+      : `*${p.title}*\n${vs.slice(0, 8).map(v => `        •  \`${skuOr(v)}\` — ${lineBody(p, v)}`).join('\n')}`);
   const blocks = [
     { type: 'section', text: { type: 'mrkdwn',
       text: `🔴  *${store.name} — Reorder point crossed*` } },
     { type: 'divider' },
     { type: 'section', text: { type: 'mrkdwn',
-      text: items.map(({ p, v }) => variantLine(p, v)).slice(0, 20).join('\n').slice(0, 2900) } },
+      text: lines.slice(0, 12).join('\n').slice(0, 2900) } },
     { type: 'context', elements: [{ type: 'mrkdwn',
       text: `At current sell-through these run out inside their manufacturer lead time.   ·   <${DASHBOARD_URL}|Open dashboard →>` }] },
   ];
