@@ -826,12 +826,16 @@ export default {
       }
 
       if (path === '/api/on-order' && request.method === 'POST') {
-        // body: { set: [{variantId, qty, leadDays}], clear: [variantId] } —
-        // placedAt = today, eta = today + leadDays (the product's lead time)
+        // body: { set: [{variantId, qty, leadDays}], placedAt?, clear: [variantId] } —
+        // placedAt defaults to today (backdatable, never future);
+        // eta = placedAt + leadDays (the product's lead time)
         const body = await request.json().catch(() => ({}));
         const key = `onorder:${store.id}`;
         const cur = await getOnOrder(env, store);
         const today = localDate(store.tz);
+        let placedAt = /^\d{4}-\d{2}-\d{2}$/.test(body.placedAt || '') ? body.placedAt : today;
+        if (placedAt > today) placedAt = today;
+        if (placedAt < addDays(today, -400)) placedAt = addDays(today, -400);
         let set = 0, cleared = 0;
         if (Array.isArray(body.set)) {
           for (const it of body.set.slice(0, 500)) {
@@ -839,7 +843,7 @@ export default {
             const qty = Math.floor(Number(it.qty) || 0);
             if (!vid || qty < 1) continue;
             const lead = Math.min(730, Math.max(0, Math.floor(Number(it.leadDays) || 0)));
-            cur[vid] = { qty, placedAt: today, eta: addDays(today, lead) };
+            cur[vid] = { qty, placedAt, eta: addDays(placedAt, lead) };
             set++;
           }
         }

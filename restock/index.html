@@ -76,6 +76,7 @@
   .count[data-k="yellow"]{background:var(--warn-bg);color:var(--warn)}
   .count[data-k="green"]{background:var(--good-bg);color:var(--good)}
   .count[data-k="gray"]{background:var(--unk-bg);color:var(--unk)}
+  .count[data-k="onorder"]{background:var(--brand-soft);color:var(--brand-ink)}
   .count.on{border-color:currentColor}
   .notice{display:flex;gap:12px;align-items:center;border-radius:var(--radius);padding:13px 18px;font-size:13.5px;margin-bottom:12px}
   .notice.warn{background:var(--warn-bg);color:var(--warn)}
@@ -110,6 +111,7 @@
   .pill[data-k="yellow"]{color:var(--warn);background:var(--warn-bg)}
   .pill[data-k="green"]{color:var(--good);background:var(--good-bg)}
   .pill[data-k="gray"]{color:var(--unk);background:var(--unk-bg)}
+  .pill[data-k="onorder"]{color:var(--brand-ink);background:var(--brand-soft)}
   .vsub{display:grid;grid-template-columns:52px 1fr 90px 110px 110px 150px 34px;gap:14px;align-items:center;padding:8px 20px;border-bottom:1px solid var(--line);background:#F8FBFD;cursor:pointer}
   .vsub:hover{background:var(--brand-soft)}
   .vsub .vname{font-size:13px;color:var(--ink-2);padding-left:26px;position:relative}
@@ -412,7 +414,7 @@ function renderGate(err) {
 }
 
 /* ================= main render ================= */
-const RED = ['stockout','reorder'], YEL = ['watch'], GRN = ['healthy','slow','onorder'], GRY = ['unmapped','dormant','muted'];
+const RED = ['stockout','reorder'], YEL = ['watch'], ONO = ['onorder'], GRN = ['healthy','slow'], GRY = ['unmapped','dormant','muted'];
 const STATUS_LABEL = { stockout:'Out of stock', reorder:'Reorder now', watch:'Watch', onorder:'✈ On order', healthy:'Healthy', slow:'Slow mover', unmapped:'Unmapped', dormant:'Dormant', muted:'Muted' };
 const STATUS_RANK = { stockout:5, reorder:4, watch:3, onorder:2.5, unmapped:2, healthy:1, slow:1, dormant:0, muted:0 };
 
@@ -435,7 +437,7 @@ function render(reportErr) {
     return;
   }
   const r = S.report, c = r.counts;
-  const red = c.stockout + c.reorder, yel = c.watch, grn = c.healthy + c.slow + (c.onorder||0), gry = c.unmapped + c.dormant + c.muted;
+  const red = c.stockout + c.reorder, yel = c.watch, ono = c.onorder||0, grn = c.healthy + c.slow, gry = c.unmapped + c.dormant + c.muted;
   const worstTitle = red ? `${red} variant${red>1?'s':''} need${red>1?'':'s'} reordering` :
     yel ? `${yel} variant${yel>1?'s':''} to watch` : 'All stock levels healthy';
 
@@ -447,6 +449,7 @@ function render(reportErr) {
       <div class="counts">
         <div class="count ${S.filter==='red'?'on':''}" data-k="red" onclick="setFilter('red')"><b>${red}</b><span>Reorder</span></div>
         <div class="count ${S.filter==='yellow'?'on':''}" data-k="yellow" onclick="setFilter('yellow')"><b>${yel}</b><span>Watch</span></div>
+        ${ono?`<div class="count ${S.filter==='onorder'?'on':''}" data-k="onorder" onclick="setFilter('onorder')" title="Variants with an open PO — click to see just what's ordered"><b>${ono}</b><span>✈ On order</span></div>`:''}
         <div class="count ${S.filter==='green'?'on':''}" data-k="green" onclick="setFilter('green')"><b>${grn}</b><span>Healthy</span></div>
         <div class="count ${S.filter==='gray'?'on':''}" data-k="gray" onclick="setFilter('gray')"><b>${gry}</b><span>Other</span></div>
       </div>
@@ -488,19 +491,19 @@ function setFilter(f){ S.filter = S.filter===f ? 'all' : f; S.expand = new Set()
 
 function matchFilter(p) {
   if (S.filter==='all') return true;
-  const set = { red:RED, yellow:YEL, green:GRN, gray:GRY }[S.filter];
+  const set = { red:RED, yellow:YEL, onorder:ONO, green:GRN, gray:GRY }[S.filter];
   return p.variants.some(v => set.includes(v.status));
 }
-function bucketOf(v){ return RED.includes(v.status)?'red':YEL.includes(v.status)?'yellow':GRN.includes(v.status)?'green':'gray'; }
+function bucketOf(v){ return RED.includes(v.status)?'red':YEL.includes(v.status)?'yellow':ONO.includes(v.status)?'onorder':GRN.includes(v.status)?'green':'gray'; }
 function statusCellHTML(p) {
-  const g = { red:0, yellow:0, green:0, gray:0 };
+  const g = { red:0, yellow:0, onorder:0, green:0, gray:0 };
   for (const v of p.variants) g[bucketOf(v)]++;
   const buckets = Object.entries(g).filter(([,n]) => n>0);
   if (p.variants.length === 1 || buckets.length === 1) {
     return `<span class="chip" data-s="${p.status}" style="justify-self:end">${STATUS_LABEL[p.status]}</span>`;
   }
   const lbl = { red: g.red===1 && p.variants.find(v=>v.status==='stockout') ? 'out' : 'reorder',
-                yellow:'watch', green:'ok', gray:'other' };
+                yellow:'watch', onorder:'✈ ordered', green:'ok', gray:'other' };
   return `<div class="sdig">${buckets.map(([k,n]) =>
     `<span class="pill" data-k="${k}">${n} ${k==='red'?(p.statusCounts?.stockout&&!p.statusCounts?.reorder?'out':'reorder'):lbl[k]}</span>`).join('')}</div>`;
 }
@@ -581,7 +584,7 @@ function repCardHTML(p, vars) {
     return `
     <tr class="${red ? '' : 'unchecked'}" data-vid="${v.id}" data-vel="${v.velocity}" data-inv="${v.inv}" data-need="${v.suggestedQty ?? 0}">
       <td><input type="checkbox" ${red ? 'checked' : ''} onchange="this.closest('tr').classList.toggle('unchecked',!this.checked);repTotals()"></td>
-      <td data-sku="${esc(v.sku || v.title || 'variant')}"><b>${esc(v.sku || v.title || '—')}</b>${v.sku && v.title ? `<span class="mini"> · ${esc(v.title)}</span>` : ''}${v.onOrder ? `<div class="mini" style="color:var(--brand-ink)">✈ ${v.onOrder.qty} already on order · lands ~${fmtYmd(v.onOrder.eta)}</div>` : ''}</td>
+      <td data-sku="${esc(v.sku || v.title || 'variant')}"><b>${esc(v.sku || v.title || '—')}</b>${v.sku && v.title ? `<span class="mini"> · ${esc(v.title)}</span>` : ''}${v.onOrder ? `<div class="mini" style="color:var(--brand-ink)">✈ ${v.onOrder.qty} already on order (placed ${fmtYmd(v.onOrder.placedAt)}) · lands ~${fmtYmd(v.onOrder.eta)}</div>` : ''}</td>
       <td><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}/d</td>
@@ -654,10 +657,10 @@ async function markOrdered(btn) {
     setTimeout(() => btn.textContent = '✈ Mark as ordered', 1600);
     return;
   }
-  const units = items.reduce((s, i) => s + i.qty, 0);
+  const placedAt = $('#poDate')?.value || todayYMD();
   btn.disabled = true; btn.textContent = '⏳ marking…';
   try {
-    await api('/api/on-order?store=' + S.store, { method: 'POST', body: JSON.stringify({ set: items }) });
+    await api('/api/on-order?store=' + S.store, { method: 'POST', body: JSON.stringify({ set: items, placedAt }) });
     await refreshReport();   // report view re-renders — these variants flip to ✈ on order
   } catch(e) {
     btn.disabled = false; btn.textContent = '✈ Mark as ordered';
@@ -719,6 +722,9 @@ function renderReport() {
       <div><h1>Reorder report</h1>
         <div class="meta">${esc(r.storeName)} · ${date} · quantities target ${S.settings?.targetCoverDays || 180}d coverage after lead time — edit before copying</div></div>
       <div class="acts">
+        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)" title="The date the PO was (or will be) placed — ✈ Mark as ordered uses it, and the landing ETA = this date + the product's lead time. Backdate it if you placed the order earlier.">PO date
+          <input type="date" id="poDate" value="${todayYMD()}" max="${todayYMD()}"
+            style="border:1px solid var(--line-strong);border-radius:8px;padding:6px 9px;font:inherit;color:var(--ink);background:var(--surface)"></label>
         <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
         <button class="btn pri" onclick="S.view='list';render()">← Back to dashboard</button>
       </div>
@@ -934,7 +940,7 @@ function renderSheet() {
 
   const vrows = p.variants.map((v, vi) => `
     <tr class="${v.muted?'mutedrow':''}" ${multi?`onclick="openVar(${S.open},${vi})" style="cursor:pointer" title="Open variant detail"`:''}>
-      <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}${variantFlags(v)}${v.onOrder?`<div class="mini" style="color:var(--brand-ink)">✈ ${v.onOrder.qty} on order · lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' · <b style="color:var(--warn)">overdue — confirm arrival</b>':''}</div>`:''}</td>
+      <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}${variantFlags(v)}${v.onOrder?`<div class="mini" style="color:var(--brand-ink)">✈ ${v.onOrder.qty} on order (placed ${fmtYmd(v.onOrder.placedAt)}) · lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' · <b style="color:var(--warn)">overdue — confirm arrival</b>':''}</div>`:''}</td>
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}<div class="mini">${v.damped?'damped':''}${v.isNew?'new':''}</div></td>
       <td class="r">${v.windows.map(w=>fmtV(w.rate)).join(' / ')}</td>
@@ -1094,7 +1100,7 @@ function statusDigestText(p) {
   return Object.entries(p.statusCounts||{}).filter(([,n])=>n>0)
     .map(([s,n])=>`${n} ${names[s]||s}`).join(' · ');
 }
-function todayYMD(){ return new Date().toISOString().slice(0,10); }
+function todayYMD(){ return new Date().toLocaleDateString('en-CA'); } // local YYYY-MM-DD
 function futureDate(days){ const d=new Date(); d.setDate(d.getDate()+days);
   return d.toLocaleDateString('en-US',{month:'short',day:'numeric',
     ...(d.getFullYear()!==new Date().getFullYear()?{year:'2-digit'}:{})}); }
@@ -1209,7 +1215,8 @@ function openInfo() {
     <p>The daily <b>digest</b> (🔴 + 🟡 lists with order suggestions) sends once a day at the time you pick in Settings. Instant 🔴 alerts can fire on <i>any</i> hourly check — transitions only, no repeat nagging.</p>
 
     <h5>8 · Marking orders as placed ✈</h5>
-    <p>When you actually place a PO, hit <b>✈ Mark as ordered</b> on that product's card in the Order report. The checked quantities are recorded as <b>incoming stock</b>: those variants flip from red to <span class="chip" data-s="onorder">✈ On order</span>, stop appearing in Slack digests and new order suggestions, and their "need" is computed net of what's already coming. The dashboard shows the quantity and expected landing date (order date + lead time).</p>
+    <p>When you actually place a PO, hit <b>✈ Mark as ordered</b> on that product's card in the Order report — if you placed the order on an earlier day, set the <b>PO date</b> field (top of the report) first; the landing ETA is always PO date + lead time. The checked quantities are recorded as <b>incoming stock</b>: those variants flip from red to <span class="chip" data-s="onorder">✈ On order</span>, stop appearing in Slack digests and new order suggestions, and their "need" is computed net of what's already coming.</p>
+    <p>To see just what's ordered, click the <b>✈ On order</b> tile on the dashboard (it appears whenever POs are open) — it filters the list to open POs, each showing quantity, order date, and expected landing date.</p>
     <p>The flag <b>clears itself</b> when the restock lands — any hourly check that sees inventory jump by at least half the ordered quantity counts as arrival. If the ETA passes with no arrival, the variant shows <b>overdue — confirm arrival</b>; you can always clear a flag manually (✈ clear PO in the product panel) if an order is cancelled or arrived unnoticed. If the ordered quantity is too small to outlast even the <i>next</i> lead-time cycle, the variant stays red — ordered, but still short.</p>
 
     <h5>9 · Muting</h5>
