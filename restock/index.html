@@ -593,9 +593,9 @@ function repCardHTML(p, vars) {
       ${p.leadDays != null ? `<span class="tag lead">lead ${p.leadDays}d</span>` : ''}
       <span class="rep-moq none"></span>
       <span class="rep-cardacts">
-        ${p.moq ? `<button class="btn" onclick="autoMoq(this)" title="Check every variant and split the MOQ across them proportional to how fast each sells (never below its own need)">⚡ Fill to MOQ</button>` : ''}
-        <input class="mult" type="number" value="1.5" step="0.25" min="0.1" title="Multiplier">
-        <button class="btn" onclick="scaleCard(this)" title="Multiply every checked quantity — the velocity-based mix stays proportional">× Scale</button>
+        ${p.moq ? `<button class="btn" onclick="autoMoq(this)" title="Check every variant and split the MOQ across them proportional to how fast each sells (never below its own need)">⚡ Fill to MOQ</button>
+        <input class="mult" type="number" value="1" step="0.25" min="0.1" title="Multiplier applied to the MOQ — press Enter to apply" oninput="scaleHint(this)" onkeydown="if(event.key==='Enter')scaleCard(this)">
+        <button class="btn scalebtn" onclick="scaleCard(this)" title="Order multiplier × MOQ total units, split across variants by how fast each sells — never below a variant's own need">× MOQ = ${p.moq} units</button>` : ''}
       </span>
     </div>
     <div style="overflow-x:auto"><table>
@@ -603,11 +603,9 @@ function repCardHTML(p, vars) {
       ${rows}</table></div>
   </div>`;
 }
-/** Check all variants and allocate the MOQ across them proportional to velocity —
+/** Check all variants and split `target` units across them proportional to velocity —
  *  each variant keeps at least its own need; the shortfall pads the fast movers. */
-function autoMoq(btn) {
-  const card = btn.closest('.rep-card');
-  const moq = Number(card.dataset.moq) || 0;
+function fillToTarget(card, target) {
   const trs = [...card.querySelectorAll('tr')].filter(tr => tr.querySelector('.qty'));
   trs.forEach(tr => { tr.querySelector('input[type=checkbox]').checked = true; tr.classList.remove('unchecked'); });
   const needs = trs.map(tr => Number(tr.dataset.need) || 0);
@@ -615,25 +613,35 @@ function autoMoq(btn) {
   const needSum = needs.reduce((a, b) => a + b, 0);
   const velSum = vels.reduce((a, b) => a + b, 0);
   let qtys;
-  if (needSum >= moq) qtys = needs;
+  if (needSum >= target) qtys = needs;
   else {
-    const deficit = moq - needSum;
+    const deficit = target - needSum;
     qtys = needs.map((n, i) => n + (velSum > 0 ? deficit * vels[i] / velSum : deficit / trs.length));
     qtys = qtys.map(Math.round);
-    let diff = moq - qtys.reduce((a, b) => a + b, 0);   // rounding drift → settle on the fastest seller
+    let diff = target - qtys.reduce((a, b) => a + b, 0); // rounding drift → settle on the fastest seller
     if (diff !== 0) qtys[vels.indexOf(Math.max(...vels))] += diff;
   }
   trs.forEach((tr, i) => tr.querySelector('.qty').value = Math.max(0, qtys[i]));
   repTotals();
 }
-/** Scale every checked quantity by the multiplier — proportions stay velocity-shaped. */
+function autoMoq(btn) {
+  const card = btn.closest('.rep-card');
+  fillToTarget(card, Number(card.dataset.moq) || 0);
+}
+/** Order multiplier × MOQ total units, velocity-split (Fill to MOQ at 1×). */
 function scaleCard(btn) {
   const card = btn.closest('.rep-card');
   const m = Math.max(0.1, parseFloat(card.querySelector('.mult').value) || 1);
-  card.querySelectorAll('tr:not(.unchecked) .qty').forEach(q => {
-    q.value = Math.round((Number(q.value) || 0) * m);
-  });
-  repTotals();
+  const moq = Number(card.dataset.moq) || 0;
+  if (moq) fillToTarget(card, Math.round(moq * m));
+}
+/** Keep the scale button's label showing the live target: multiplier × MOQ. */
+function scaleHint(inp) {
+  const card = inp.closest('.rep-card');
+  const moq = Number(card.dataset.moq) || 0;
+  if (!moq) return;
+  const m = Math.max(0.1, parseFloat(inp.value) || 1);
+  card.querySelector('.scalebtn').textContent = `× MOQ = ${Math.round(moq * m)} units`;
 }
 function renderReport() {
   const r = S.report;
