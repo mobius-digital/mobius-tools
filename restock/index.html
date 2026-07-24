@@ -125,6 +125,10 @@
   .pname .tags{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center}
   .tag{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--unk-bg);color:var(--muted);border-radius:99px;padding:2px 9px}
   .tag.lead{background:var(--brand-soft);color:var(--brand-ink);text-transform:none;letter-spacing:0}
+  .tag.oo{background:var(--brand-soft);color:var(--brand-ink);text-transform:none;letter-spacing:0;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+  .tag.oo .oox{cursor:pointer;font-weight:700;padding:0 1px;opacity:.5}
+  .tag.oo .oox:hover{opacity:1;color:var(--bad)}
+  .oomini{display:inline-block;white-space:nowrap;color:var(--brand-ink);font-size:11px}
   .num{text-align:right;font-weight:600}
   .num small{display:block;font-weight:400;color:var(--muted);font-size:11px}
   .dleft{text-align:right;font-weight:700;font-size:16px}
@@ -597,7 +601,7 @@ function ooInfo(p) {
 function ooTagHTML(p) {
   const oo = ooInfo(p);
   if (!oo) return '';
-  return `<span class="tag" style="background:var(--brand-soft);color:var(--brand-ink);text-transform:none;letter-spacing:0">✈ ${oo.qty} on order · ${oo.multi?'first ':''}lands ~${fmtYmd(oo.eta)}${oo.overdue?' · <b style="color:var(--warn)">overdue</b>':''}&nbsp;<b style="cursor:pointer" title="Clear the on-order flag on all ${oo.n} variant${oo.n>1?'s':''} of this product" onclick="clearProductPO(event,'${p.id}')">✕</b></span>`;
+  return `<span class="tag oo"><span>✈ ${oo.qty} on order · ${oo.multi?'first ':''}lands ~${fmtYmd(oo.eta)}${oo.overdue?' · <b style="color:var(--warn)">overdue</b>':''}</span><b class="oox" title="Clear the on-order flag on all ${oo.n} variant${oo.n>1?'s':''} of this product" onclick="clearProductPO(event,'${p.id}')">✕</b></span>`;
 }
 /** Clear every open PO on a product — from the dashboard row's ✕ or the panel button. */
 async function clearProductPO(ev, pid) {
@@ -659,7 +663,7 @@ function renderRows() {
     if (open) html += p.variants.map((v, vi) => `
       <div class="vsub" onclick="openVar(${i},${vi})">
         <span></span>
-        <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}${v.onOrder?`<span class="mini" style="color:var(--brand-ink)"> · ✈ ${v.onOrder.qty} lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' <b style="color:var(--warn)">overdue</b>':''}</span>`:''}</div>
+        <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}${v.onOrder?` <span class="oomini">✈ ${v.onOrder.qty} on order · lands ~${fmtYmd(v.onOrder.eta)}${v.onOrder.overdue?' · <b style="color:var(--warn)">overdue</b>':''}</span>`:''}</div>
         <div class="num" style="text-align:right">${v.inv}</div>
         <div class="num" style="text-align:right">${fmtV(v.velocity)}/day</div>
         <div class="dleft">${fmtD(v.daysLeft)}<small>&nbsp;</small></div>
