@@ -211,6 +211,10 @@
   .mini{font-size:11px;color:var(--muted)}
   .mutebtn{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line-strong);border-radius:99px;padding:3px 10px}
   .mutebtn:hover{color:var(--bad);border-color:var(--bad)}
+  .mutebtn.muted{background:var(--bad);border-color:var(--bad);color:#fff}
+  .mutebtn.muted:hover{background:var(--surface);color:var(--bad)}
+  tr.mutedrow td{opacity:.55}
+  tr.mutedrow td:last-child{opacity:1}
   .trendnote{font-size:12.5px;border-radius:9px;padding:9px 13px;margin-bottom:12px;display:inline-block}
   .trendnote.spike{background:var(--warn-bg);color:var(--warn)}
   .trendnote.rise{background:var(--brand-soft);color:var(--brand-ink)}
@@ -653,7 +657,7 @@ function renderSheet() {
   const multi = !isVar && p.variants.length > 1;
 
   const vrows = p.variants.map((v, vi) => `
-    <tr ${multi?`onclick="openVar(${S.open},${vi})" style="cursor:pointer" title="Open variant detail"`:''}>
+    <tr class="${v.muted?'mutedrow':''}" ${multi?`onclick="openVar(${S.open},${vi})" style="cursor:pointer" title="Open variant detail"`:''}>
       <td><b>${esc(v.sku||v.title||'—')}</b>${v.sku&&v.title?`<div class="mini">${esc(v.title)}</div>`:''}${variantFlags(v)}</td>
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}<div class="mini">${v.damped?'damped':''}${v.isNew?'new':''}</div></td>
@@ -661,7 +665,7 @@ function renderSheet() {
       <td class="r"><b>${fmtD(v.daysLeft)}</b></td>
       <td class="r">${v.suggestedQty??'—'}</td>
       <td class="r"><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
-      <td class="r"><button class="mutebtn" title="${v.muted?'Resume alerts for this variant':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'unmute':'mute'}</button></td>
+      <td class="r"><button class="mutebtn ${v.muted?'muted':''}" title="${v.muted?'This variant is muted — no alerts or digests. Click to resume.':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'🔕 muted — unmute':'mute'}</button></td>
     </tr>`).join('');
 
   const navPrev = isVar ? S.openVar<=0 : S.open<=0;
