@@ -343,7 +343,7 @@ async function getSettings(env) {
  * (Inventory snapshots only exist from tracking start, so backfilled
  * days always count.)
  */
-function windowRate(history, vid, endDay, days, sinceDay) {
+function windowRate(history, vid, endDay, days, sinceDay, recon) {
   let sold = 0, eff = 0, have = 0;
   for (let i = 0; i < days; i++) {
     const day = addDays(endDay, -i);
@@ -351,12 +351,44 @@ function windowRate(history, vid, endDay, days, sinceDay) {
     if (sinceDay && day < sinceDay) break;
     have++;
     const qty = history.days[day]?.[vid] || 0;
-    const inv = history.inventory[day]?.[vid];
+    const inv = history.inventory[day]?.[vid] ?? recon?.[day]?.[vid];
     const oosDay = inv !== undefined && inv <= 0 && qty === 0;
     if (!oosDay) eff++;
     sold += qty;
   }
-  return { sold, days: have, eff: Math.max(eff, 1), rate: have ? sold / Math.max(eff, 1) : 0 };
+  // eff = days the variant was actually buyable; 0 ⇒ window has no signal.
+  // Rate denominator floors at 3 buyable days so a single lucky in-stock day
+  // can't extrapolate into a whole velocity (conservative for thin data).
+  return { sold, days: have, eff, rate: have ? sold / Math.max(eff, Math.min(3, have)) : 0 };
+}
+
+/**
+ * Reconstruct inventory for backfilled days that predate daily snapshots.
+ * Walking backwards from the earliest snapshot: stock(day) = stock(day+1) +
+ * units sold that day — so the day the count crosses zero IS the stockout
+ * date, and the dead days beyond it get excluded from velocity math.
+ * Restocks inside the window make the reconstruction an overestimate, which
+ * only errs on the safe side (a day is never wrongly marked out-of-stock).
+ */
+function reconstructInventory(history) {
+  const tracked = Object.keys(history.inventory).sort();
+  if (!tracked.length || !history.startDate) return null;
+  const earliest = tracked[0];
+  if (history.startDate >= earliest) return null;
+  const recon = {};
+  const running = { ...(history.inventory[earliest] || {}) };
+  let day = addDays(earliest, -1);
+  for (let guard = 0; day >= history.startDate && guard < HISTORY_DAYS + 5; guard++) {
+    const sales = history.days[day] || {};
+    const bucket = {};
+    for (const vid of Object.keys(running)) {
+      running[vid] += sales[vid] || 0;
+      bucket[vid] = running[vid];
+    }
+    recon[day] = bucket;
+    day = addDays(day, -1);
+  }
+  return recon;
 }
 
 function blendVelocity(rates, { isNew = false } = {}) {
@@ -371,13 +403,17 @@ function blendVelocity(rates, { isNew = false } = {}) {
   let vel = 0, velRaw = 0, wSum = 0;
   WINDOWS.forEach((w, i) => {
     if (rates[i].days < Math.min(7, w.days)) return; // window has no real data yet
+    if (rates[i].eff === 0) return; // out of stock the whole window — no signal, don't drag to zero
     const rate = i === 0 ? damped14 : rates[i].rate;
     vel += rate * w.weight;
     velRaw += rates[i].rate * w.weight;
     wSum += w.weight;
   });
   if (wSum > 0) { vel /= wSum; velRaw /= wSum; }
-  else if (rates[0].days > 0) { vel = velRaw = rates[0].rate; } // <7d old: use what exists
+  else { // nothing qualified (very new, or OOS everywhere): first window with any signal
+    const w = rates.find(r => r.days > 0 && r.eff > 0);
+    if (w) vel = velRaw = w.rate;
+  }
 
   const trend = isNew ? 'new'
     : ratio >= SPIKE_FLAG ? 'spiking'
@@ -395,6 +431,7 @@ function computeReport(store, catalog, history, settings, onOrder = {}) {
     ? Math.max(0, Math.round((Date.parse(endDay) - Date.parse(history.startDate)) / 86400000) + 1)
     : 0;
   const profileById = Object.fromEntries(settings.profiles.map(p => [p.id, p]));
+  const recon = reconstructInventory(history);
   const unmappedTypes = new Set();
   const products = [];
 
@@ -415,7 +452,7 @@ function computeReport(store, catalog, history, settings, onOrder = {}) {
         ? Math.max(0, Math.round((Date.parse(endDay) - Date.parse(launchDay)) / 86400000) + 1)
         : null;
       const isNew = ageDays != null && ageDays < 14;
-      const rates = WINDOWS.map(w => windowRate(history, v.id, endDay, w.days, launchDay));
+      const rates = WINDOWS.map(w => windowRate(history, v.id, endDay, w.days, launchDay, recon));
       const { velocity, velocityRaw, trend, damped } = blendVelocity(rates, { isNew });
       const daysLeft = velocity > 0.001 ? v.inv / velocity : null;
       const muted = productMuted || settings.muted.includes(`v${v.id}`);

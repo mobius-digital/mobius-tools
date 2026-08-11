@@ -1378,7 +1378,7 @@ function openInfo() {
       <tr><td>14 days</td><td class="r"><b>45%</b></td><td>reacts to real trend changes, smooths single-day flukes</td></tr>
       <tr><td>30 days</td><td class="r"><b>35%</b></td><td>the stabilizer</td></tr>
       <tr><td>90 days</td><td class="r"><b>20%</b></td><td>long-run baseline</td></tr></table>
-    <p>Days where a variant sat at <b>zero stock</b> with zero sales don't count against it — being sold out isn't the same as selling slowly.</p>
+    <p>Days where a variant sat at <b>zero stock</b> with zero sales don't count against it — being sold out isn't the same as selling slowly. For days before daily tracking began, stock levels are <b>reconstructed backwards</b> from today's count plus each day's sales, which pinpoints the exact stockout date — so an item that's been sold out for weeks is judged by how fast it sold <i>when it was buyable</i>. A window spent entirely out of stock is skipped rather than counted as zero.</p>
 
     <h5>2 · Promo damper ⚡</h5>
     <p>If the 14-day rate runs hotter than <b>2× the 90-day baseline</b>, the item is flagged ⚡ <i>spiking</i> and the 14-day input is capped at 2× baseline in the blend. Forecasts still tighten (they should), but one viral week can't extrapolate into a panic order.</p>

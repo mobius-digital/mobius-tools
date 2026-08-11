@@ -27,8 +27,12 @@ Safeguards:
   capped at 2× for projections and the item is flagged ⚡ *spiking* instead of
   blindly extrapolating a promo week.
 - **Stockout exclusion** — days where a variant sat at zero stock with zero sales
-  don't count in the denominator (being sold out ≠ selling slowly). Applies from
-  the day tracking starts (Shopify has no historical inventory API).
+  don't count in the denominator (being sold out ≠ selling slowly). For days
+  before daily snapshots existed, inventory is **reconstructed backwards**
+  (stock that day = next day's stock + that day's sales), pinpointing the
+  stockout date; restocks make the reconstruction an overestimate, which only
+  errs toward counting a day as in-stock (safe). A window that was out of
+  stock end-to-end drops out of the blend entirely instead of dragging it to 0.
 - Windows with no real data yet (new products) drop out of the blend and the
   remaining weights renormalize.
 
