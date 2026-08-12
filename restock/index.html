@@ -498,6 +498,7 @@ const STATUS_LABEL = { stockout:'Out of stock', reorder:'Reorder now', watch:'Wa
 const STATUS_RANK = { stockout:5, reorder:4, watch:3, onorder:2.5, unmapped:2, healthy:1, slow:1, dormant:0, muted:0 };
 
 function fmtD(d){ return d==null ? '—' : d>=9000 ? '∞' : d+'d'; }
+function sellOutDate(d){ return d!=null && d>0 && d<9000 ? '≈ '+futureDate(d) : ''; }
 function fmtV(v){ return v>=10 ? v.toFixed(1) : v>=0.1 ? v.toFixed(2) : v>0 ? v.toFixed(3) : '0'; }
 function fmtWhen(iso){ return iso ? new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'; }
 function fmtYmd(ymd){ return ymd ? new Date(ymd+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',
@@ -724,7 +725,8 @@ function renderRows() {
   if (S.sort) S.visible = [...S.visible].sort((a,b) => SORTS[S.sort.key].cmp(a,b) * S.sort.dir);
   const rows = S.visible.map((p, i) => {
     const lead = p.leadDays!=null ? `<span class="tag lead">lead ${p.leadDays}d${p.leadSource==='metafield'?' · metafield':''}</span>` : `<span class="tag">no lead time</span>`;
-    const alert = p.alertCount ? `<small>${p.alertCount} variant${p.alertCount>1?'s':''} 🔴</small>` : `<small>&nbsp;</small>`;
+    const dsub = [sellOutDate(p.daysLeft), p.alertCount ? `${p.alertCount} 🔴` : ''].filter(Boolean).join(' · ');
+    const alert = `<small>${dsub || '&nbsp;'}</small>`;
     const multi = p.variants.length > 1;
     const open = multi && isExpanded(p);
     let html = `
@@ -744,7 +746,7 @@ function renderRows() {
         <div class="vname"><b>${esc(v.sku||v.title||'variant')}</b>${v.sku&&v.title?` · ${esc(v.title)}`:''}${variantFlags(v)}${v.onOrder?` ${ooChipHTML(p,v)}`:''}</div>
         <div class="num" style="text-align:right">${v.inv}</div>
         <div class="num" style="text-align:right">${fmtV(v.velocity)}/day</div>
-        <div class="dleft">${fmtD(v.daysLeft)}<small>&nbsp;</small></div>
+        <div class="dleft">${fmtD(v.daysLeft)}<small>${sellOutDate(v.daysLeft)||'&nbsp;'}</small></div>
         <span class="chip" data-s="${v.status}" style="justify-self:end">${STATUS_LABEL[v.status]}</span>
         <span></span>
       </div>`).join('');
@@ -766,7 +768,7 @@ function repCardHTML(p, vars) {
       <td><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}/d</td>
-      <td class="r">${fmtD(v.daysLeft)}</td>
+      <td class="r">${fmtD(v.daysLeft)}${sellOutDate(v.daysLeft)?`<div class="mini">${sellOutDate(v.daysLeft)}</div>`:''}</td>
       <td class="r"><input class="qty" type="number" min="0" value="${v.suggestedQty ?? 0}" oninput="repTotals()"><div class="rowdays"></div></td>
     </tr>`;
   }).join('');
@@ -1122,7 +1124,7 @@ function renderSheet() {
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}<div class="mini">${v.damped?'damped':''}${v.isNew?'new':''}</div></td>
       <td class="r">${v.windows.map(w=>fmtV(w.rate)).join(' / ')}</td>
-      <td class="r"><b>${fmtD(v.daysLeft)}</b></td>
+      <td class="r"><b>${fmtD(v.daysLeft)}</b>${sellOutDate(v.daysLeft)?`<div class="mini">${sellOutDate(v.daysLeft)}</div>`:''}</td>
       <td class="r">${v.suggestedQty??'—'}</td>
       <td class="r"><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
       <td class="r"><button class="mutebtn ${v.muted?'muted':''}" title="${v.muted?'This variant is muted — no alerts or digests. Click to resume.':'Silence this variant everywhere — alerts, digests, and counts. For discontinued items you won\'t restock.'}" onclick="event.stopPropagation();toggleMute('v${v.id}')">${v.muted?'🔕 muted — unmute':'mute'}</button></td>
