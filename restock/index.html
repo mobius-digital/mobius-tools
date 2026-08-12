@@ -927,9 +927,10 @@ function repTotals() {
       if (checked) sel += qty;
       // live per-row coverage: how long you'd be stocked after this order lands
       if (checked && qty > 0 && vel > 0.001) {
-        const after = ((Number(tr.dataset.inv) || 0) + qty) / vel - lead;
+        const total = ((Number(tr.dataset.inv) || 0) + qty) / vel; // days from today
+        const after = total - lead;
         days.textContent = after <= 0 ? 'sells out before it lands'
-          : `≈ ${Math.round(after)}d after landing`;
+          : `≈ ${Math.round(after)}d after landing → ~${futureDate(Math.round(total))}`;
       } else days.textContent = '';
     });
     const badge = card.querySelector('.rep-moq');
