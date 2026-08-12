@@ -304,6 +304,12 @@
   .rep-card tr.unchecked td{opacity:.45}
   .rep-card tr.unchecked td:first-child{opacity:1}
   .rep-empty{color:var(--muted);font-style:italic;padding:30px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  .covbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 18px;margin-bottom:16px;font-size:13.5px}
+  .covbar input[type=date]{border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;font:inherit}
+  .covbar .cbx{display:flex;align-items:center;gap:6px;color:var(--ink-2);cursor:pointer}
+  .covbar .covsum{color:var(--muted);font-size:12.5px}
+  .covbar .covsum.warn{color:var(--warn);font-weight:600}
+  .rep-sec.cov{background:var(--brand-soft);color:var(--brand-ink)}
   .rep-cardacts{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .rep-cardacts .btn{padding:5px 10px;font-size:11.5px}
   .rep-cardacts .mult{width:58px;border:1px solid var(--line-strong);border-radius:7px;padding:5px 7px;font-size:12px;text-align:right}
@@ -377,7 +383,7 @@
   }
   @page{margin:12mm}
   @media print{
-    header,.rep-top .acts,.rep-ghead .acts,.rep-cardacts,footer,.notice,.scrim,.sheet,.modal{display:none!important}
+    header,.rep-top .acts,.rep-ghead .acts,.rep-cardacts,.covbar,footer,.notice,.scrim,.sheet,.modal{display:none!important}
     body{background:#fff}
     main{padding:0;max-width:none}
     .rep-group{border:none;padding:0 0 6px;margin-bottom:6px;break-inside:auto}
@@ -758,18 +764,45 @@ function renderRows() {
 }
 
 /* ================= order report ================= */
+/** 🎯 coverage check: date by which everything must still be in stock
+ *  (e.g. manufacturer back from CNY + lead time). Stored per browser. */
+function getCoverage() {
+  const d = localStorage.getItem('restock_covdate');
+  if (!d) return null;
+  const days = Math.ceil((new Date(d + 'T12:00:00') - Date.now()) / 86400000);
+  if (!(days > 0)) { localStorage.removeItem('restock_covdate'); return null; }
+  return { dateStr: d, days, withLead: localStorage.getItem('restock_covlead') !== '0' };
+}
+function covDateLabel(d) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US',
+    { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function setCov() {
+  const d = $('#covDate').value;
+  if (d) localStorage.setItem('restock_covdate', d);
+  else localStorage.removeItem('restock_covdate');
+  localStorage.setItem('restock_covlead', $('#covLead').checked ? '1' : '0');
+  renderReport();
+}
+function clearCov() {
+  localStorage.removeItem('restock_covdate');
+  renderReport();
+}
 function repCardHTML(p, vars) {
   const rows = vars.map(v => {
+    const covShort = S.covNeed?.[v.id] || 0;
     const red = v.status === 'stockout' || v.status === 'reorder';
+    const checked = red || covShort > 0;
+    const qty = Math.max(v.suggestedQty ?? 0, covShort);
     return `
-    <tr class="${red ? '' : 'unchecked'}" data-vid="${v.id}" data-vel="${v.velocity}" data-inv="${v.inv}" data-need="${v.suggestedQty ?? 0}">
-      <td><input type="checkbox" ${red ? 'checked' : ''} onchange="this.closest('tr').classList.toggle('unchecked',!this.checked);repTotals()"></td>
-      <td data-sku="${esc(v.sku || v.title || 'variant')}"><b>${esc(v.sku || v.title || '—')}</b>${v.sku && v.title ? `<span class="mini"> · ${esc(v.title)}</span>` : ''}${v.onOrder ? `<div class="mini" style="color:var(--brand-ink)">✈ ${v.onOrder.qty} already on order (placed ${fmtYmd(v.onOrder.placedAt)}) · lands ~${fmtYmd(v.onOrder.eta)}</div>` : ''}</td>
+    <tr class="${checked ? '' : 'unchecked'}" data-vid="${v.id}" data-vel="${v.velocity}" data-inv="${v.inv}" data-need="${qty}">
+      <td><input type="checkbox" ${checked ? 'checked' : ''} onchange="this.closest('tr').classList.toggle('unchecked',!this.checked);repTotals()"></td>
+      <td data-sku="${esc(v.sku || v.title || 'variant')}"><b>${esc(v.sku || v.title || '—')}</b>${v.sku && v.title ? `<span class="mini"> · ${esc(v.title)}</span>` : ''}${covShort ? ` <span title="needs ${covShort} units to last until ${S.covLabel}">🎯</span>` : ''}${v.onOrder ? `<div class="mini" style="color:var(--brand-ink)">✈ ${v.onOrder.qty} already on order (placed ${fmtYmd(v.onOrder.placedAt)}) · lands ~${fmtYmd(v.onOrder.eta)}</div>` : ''}</td>
       <td><span class="chip" data-s="${v.status}">${STATUS_LABEL[v.status]}</span></td>
       <td class="r">${v.inv}</td>
       <td class="r">${fmtV(v.velocity)}/d</td>
       <td class="r">${fmtD(v.daysLeft)}${sellOutDate(v.daysLeft)?`<div class="mini">${sellOutDate(v.daysLeft)}</div>`:''}</td>
-      <td class="r"><input class="qty" type="number" min="0" value="${v.suggestedQty ?? 0}" oninput="repTotals()"><div class="rowdays"></div></td>
+      <td class="r"><input class="qty" type="number" min="0" value="${qty}" oninput="repTotals()"><div class="rowdays"></div></td>
     </tr>`;
   }).join('');
   return `
@@ -873,23 +906,54 @@ function scaleHint(inp) {
 function renderReport() {
   const r = S.report;
   const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const groups = new Map(); // manufacturer group (lead-time profile) → {red:[], yellow:[]}
+  // 🎯 coverage check: which variants won't last until the chosen date
+  // (+ each product's lead time, so a post-blackout order still saves them)
+  const cov = getCoverage();
+  const covNeed = {};
+  if (cov) for (const p of r.products) for (const v of p.variants) {
+    if (v.muted || v.status === 'dormant' || v.velocity <= 0.001) continue;
+    const needDays = cov.days + (cov.withLead ? (p.leadDays || 0) : 0);
+    const req = Math.ceil(v.velocity * needDays - Math.max(v.inv, 0));
+    if (req > 0) covNeed[v.id] = req;
+  }
+  S.covNeed = covNeed;
+  S.covLabel = cov ? covDateLabel(cov.dateStr) : '';
+
+  const groups = new Map(); // manufacturer group (lead-time profile) → {red:[], yellow:[], cov:[]}
   for (const p of r.products) {
     const reds = p.variants.filter(v => v.status === 'stockout' || v.status === 'reorder');
     const watch = p.variants.filter(v => v.status === 'watch');
-    if (!reds.length && !watch.length) continue;
+    const covFails = cov
+      ? p.variants.filter(v => covNeed[v.id] && !reds.includes(v) && !watch.includes(v))
+      : [];
+    if (!reds.length && !watch.length && !covFails.length) continue;
     // with an MOQ, also list healthy selling variants (unchecked) so
     // "Fill to MOQ" can pad the order across the product's full mix
     const extras = p.moq
-      ? p.variants.filter(v => !reds.includes(v) && !watch.includes(v)
+      ? p.variants.filter(v => !reds.includes(v) && !watch.includes(v) && !covFails.includes(v)
           && v.velocity > 0.001 && !['muted', 'dormant'].includes(v.status))
       : [];
     const key = p.profileName || 'No profile assigned';
-    if (!groups.has(key)) groups.set(key, { red: [], yellow: [] });
-    if (reds.length) groups.get(key).red.push({ p, vars: [...reds, ...watch, ...extras] });
-    else groups.get(key).yellow.push({ p, vars: [...watch, ...extras] });
+    if (!groups.has(key)) groups.set(key, { red: [], yellow: [], cov: [] });
+    const vars = [...reds, ...watch, ...covFails, ...extras];
+    if (reds.length) groups.get(key).red.push({ p, vars });
+    else if (watch.length) groups.get(key).yellow.push({ p, vars });
+    else groups.get(key).cov.push({ p, vars });
   }
-  const gHtml = [...groups.entries()].map(([g, { red, yellow }]) => `
+  const shortCount = Object.keys(covNeed).length;
+  const covBar = `
+    <div class="covbar">
+      <b>🎯 Coverage check</b>
+      <span>everything must last until</span>
+      <input type="date" id="covDate" value="${cov ? cov.dateStr : ''}" onchange="setCov()">
+      <label class="cbx"><input type="checkbox" id="covLead" ${!cov || cov.withLead ? 'checked' : ''} onchange="setCov()"> + lead time after that date</label>
+      ${cov ? `<button class="btn" onclick="clearCov()">Clear</button>
+        <span class="covsum ${shortCount ? 'warn' : ''}">${shortCount
+          ? `${shortCount} variant${shortCount === 1 ? '' : 's'} fall short of ${S.covLabel} — flagged 🎯, quantities bumped to cover`
+          : `everything survives until ${S.covLabel} ✓`}</span>`
+      : `<span class="covsum">pick a date (e.g. when a manufacturer is back from holiday) to see what won't survive</span>`}
+    </div>`;
+  const gHtml = [...groups.entries()].map(([g, { red, yellow, cov: covList }]) => `
     <div class="rep-group" data-group="${esc(g)}">
       <div class="rep-ghead">
         <h2>${esc(g)}</h2><span class="gtotal"></span>
@@ -899,6 +963,7 @@ function renderReport() {
       </div>
       ${red.length ? `<div class="rep-sec red">🔴 Order now — past the reorder point</div>` + red.map(x => repCardHTML(x.p, x.vars)).join('') : ''}
       ${yellow.length ? `<div class="rep-sec yellow">🟡 Watch — approaching the order window, consider adding to this order</div>` + yellow.map(x => repCardHTML(x.p, x.vars)).join('') : ''}
+      ${covList.length ? `<div class="rep-sec cov">🎯 Fine today — but won't survive until ${S.covLabel}</div>` + covList.map(x => repCardHTML(x.p, x.vars)).join('') : ''}
     </div>`).join('');
   $('#main').innerHTML = `
     <div class="rep-top">
@@ -909,6 +974,7 @@ function renderReport() {
         <button class="btn pri" onclick="S.view='list';render()">← Back to dashboard</button>
       </div>
     </div>
+    ${covBar}
     ${gHtml || '<div class="rep-empty">Nothing needs reordering — every variant is healthy. 🎉</div>'}`;
   repTotals();
   window.scrollTo(0, 0);
@@ -1407,6 +1473,9 @@ function openInfo() {
     <h5>6 · Reorder quantities & MOQ</h5>
     <p><code>need = velocity × (target coverage + lead time) − on-hand</code> — enough to survive the lead-time burn <i>and</i> still land with your target coverage. The target is the <b>"Target coverage (days)"</b> number in Settings → Thresholds (default 180) — change it and every need quantity, MOQ comparison, and planner scenario recalculates immediately. Multi-variant products compute this per variant, since each size/loft sells at its own pace. It's a <b>demand signal, not an order instruction</b>.</p>
     <p>Set a product's <b>MOQ</b> in its reorder planner (saved to Shopify as metafield <code>custom.moq</code>). Restock then compares the <i>combined</i> need across all variants against it — Slack and the dashboard say "MOQ met ✓" or "under MOQ — consider waiting" so you know whether to order now or wait until more variants need restocking.</p>
+
+    <h5>6b · Coverage check 🎯 (holiday blackouts)</h5>
+    <p>In the Order Report, pick a date everything must survive until — e.g. the day a manufacturer returns from Chinese New Year — with "+ lead time" on, since a post-holiday order still takes the full lead time to arrive. Anything that won't make it is flagged 🎯 with its exact shortfall, currently-healthy products that would die mid-window get their own section, and order quantities bump automatically to cover through the date. The tool gives the <i>what and how much</i>; confirm the <i>order-by deadline</i> with the manufacturer (factories have cutoffs before holidays that only they know).</p>
 
     <h5>7 · Snapshots & Slack cadence</h5>
     <p>A <b>snapshot</b> is one full refresh cycle: pull the current catalog + inventory from Shopify, update the last few days of sales, recompute every forecast, and fire alerts if anything newly crossed red. Snapshots run <b>every hour</b> automatically; "Run snapshot now" in Settings does one on demand.</p>
