@@ -327,7 +327,7 @@ export function EventEditor({
               className={`input${fieldErrors.name ? " input--invalid" : ""}`}
               value={form.name}
               onChange={(changeEvent) => set("name", changeEvent.target.value)}
-              placeholder="e.g. Patriot Putter Restock"
+              placeholder="e.g. Spring Collection Restock"
               maxLength={120}
             />
             {fieldErrors.name && <p className="field__error">{fieldErrors.name}</p>}

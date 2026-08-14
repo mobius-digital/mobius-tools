@@ -1,0 +1,139 @@
+# Launch Calendar
+
+A single source of truth for what's launching, when, and which marketing
+channels need to care. Built to be screen-shared on a weekly marketing call.
+
+It answers three questions:
+
+1. What's happening over the next 4 weeks?
+2. Is each date locked, or still soft?
+3. What does my channel — paid, email, organic, SMS — need to do about it?
+
+It is deliberately **not** a project manager. There are no tasks, subtasks or
+checklists. Teams keep their own workflows; this is the shared picture above them.
+
+---
+
+## What you are looking at
+
+This is a **Next.js application**, not a single HTML file. It needs Node.js to
+run, a build step to deploy, and a Postgres database (Supabase) to store
+anything. You cannot open it by double-clicking a file.
+
+- **Frontend:** Next.js (App Router), deploys to Vercel
+- **Backend:** Supabase (Postgres + Realtime)
+- **Access:** one shared password, no user accounts
+
+## Running it locally
+
+```bash
+npm install
+cp .env.example .env.local     # then fill in the values
+npm run dev
+```
+
+Then open http://localhost:3000. You will hit a password screen first — the
+password is whatever you set as `APP_PASSWORD`.
+
+Other commands:
+
+```bash
+npm test        # 79 unit tests over the date, collision and changelog logic
+npm run build   # production build
+```
+
+## Setting up the database
+
+1. Create a Supabase project (the free tier is plenty).
+2. Open the SQL editor and run [`supabase/schema.sql`](supabase/schema.sql).
+   That creates both tables, the enums, the row-level security policies and the
+   realtime publication.
+3. Copy the project URL and keys from Settings → API into `.env.local`.
+
+The app starts with an empty board and an invitation to add the first event.
+No demo data ships with it.
+
+## Making it yours
+
+**Everything brand-specific lives in [`brand.config.ts`](brand.config.ts).**
+That is the whole of it — no other file contains a colour, a font, a brand name
+or a logo path. They all read from that config through CSS variables.
+
+To rebrand:
+
+1. Edit `brand.config.ts` — name, colours, font family and weights.
+2. Replace `public/logo.svg`. Draw it with `fill="currentColor"` /
+   `stroke="currentColor"` so it picks up your accent colour automatically.
+3. Redeploy.
+
+Two worked examples sit next to it — `brand.config.example-dark.ts` and
+`brand.config.example-light.ts`. Copy either over `brand.config.ts` to see the
+entire app change theme with no code edits.
+
+Things worth knowing before you pick a palette:
+
+- `primaryText` sits on top of `primary`, so those two must contrast.
+- `scrim` is the wash behind modals. It has to darken the page in a light theme
+  *and* a dark one, so it is the one value that cannot be derived from the rest.
+- Lettering uses a shade of `primary` pulled towards `text`, so a bright accent
+  stays readable as small text. Fills and borders keep the pure colour. Both
+  shipped palettes measure at WCAG AA or better.
+- `font.family` is fetched from Google Fonts at runtime, so any family available
+  there works without touching code.
+
+## Deploying
+
+Import the repository into Vercel. If the app sits in a subdirectory, set the
+**Root Directory** accordingly. Add four environment variables:
+
+| Variable | Where it comes from |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API (server-only) |
+| `APP_PASSWORD` | You choose it — this is the shared team password |
+
+Changing `APP_PASSWORD` later invalidates every existing session.
+
+## How it works
+
+**Pipeline** is the default view and the one built for the Monday call. It shows
+four weeks with attention deliberately falling off: this week gets a day rail
+and full cards, week two condenses to dated lines, weeks three and four collapse
+to a summary you can open. Launches and their run-up work are interleaved in
+date order, because "assets due Wednesday" often matters more than a launch
+three weeks out.
+
+**Calendar** shows the same data as a timeline, month or week at a time. Events
+span from teaser start through promo end. It warns when two launches that both
+have a `primary` channel land within seven days of each other.
+
+**Changelog** records every date, status, channel and name change automatically,
+with before-and-after wording. Nobody has to remember to write it down.
+
+**Channel filter** is on both views. Picking a channel narrows the board to what
+that channel is involved in and elevates its most important work. The choice is
+remembered per device and travels in the URL, so a filtered view can be shared.
+
+### A few decisions you may want to revisit
+
+- Dates are calendar dates with no time component, handled as `YYYY-MM-DD`
+  strings throughout so a launch cannot appear to shift a day for viewers in
+  another timezone.
+- Anyone past the password can edit anything. The safeguard is visibility, not
+  permissions — every card shows who last touched it and when.
+- Deleting means setting status to `cancelled`. The row survives so its history
+  stays readable. Permanent deletion is behind a separate confirm.
+- A launch whose date has passed but was never closed out does not disappear; it
+  moves to a collapsed "past their launch date" strip.
+
+## Status
+
+Working and tested locally. Two things have **not** been exercised:
+
+- **Supabase Realtime.** Development ran against a local stub with no websocket,
+  so live multi-editor updates are unverified. The app degrades gracefully when
+  the connection is unavailable — it shows a "Not live" indicator and keeps
+  working — but the happy path needs confirming against a real project.
+- **Browsers other than Chromium.** Layout and behaviour have not been checked
+  in Safari or Firefox.

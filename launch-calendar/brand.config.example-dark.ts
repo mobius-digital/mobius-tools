@@ -1,12 +1,12 @@
 /**
- * The original near-black Lucky Golf palette.
+ * Worked example: a near-black theme with a warm accent.
  *
- * Not imported by anything — copy it over `brand.config.ts` to switch the whole
- * app back to dark. Kept alongside the live config so the light/dark choice
- * stays a one-file swap rather than a rewrite.
+ * Not imported by anything. Copy it over `brand.config.ts` to see the whole app
+ * flip to dark — it is here to prove that a theme change is one file and no
+ * code, and to show what a full palette looks like filled in.
  */
 export const brand = {
-  name: "Lucky Golf",
+  name: "Example Dark",
   logoUrl: "/logo.svg",
   colors: {
     background: "#0E0E0E", // near-black
