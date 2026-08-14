@@ -83,8 +83,16 @@ Things worth knowing before you pick a palette:
 
 ## Deploying
 
-Import the repository into Vercel. If the app sits in a subdirectory, set the
-**Root Directory** accordingly. Add four environment variables:
+**Easiest path — one account.** Sign up for Vercel with GitHub and import this
+repository (if the app sits in a subdirectory, set the **Root Directory**
+accordingly). Then, in the Vercel project, open **Storage → Create Database →
+Supabase**: the database is provisioned through Vercel's marketplace and the
+connection keys are injected into the project automatically. You add only one
+variable yourself — `APP_PASSWORD`, the shared team password — then open the
+Supabase dashboard from Vercel and run [`supabase/schema.sql`](supabase/schema.sql)
+in the SQL editor.
+
+**Or with a separate Supabase account**, add the variables by hand:
 
 | Variable | Where it comes from |
 |---|---|
@@ -93,7 +101,9 @@ Import the repository into Vercel. If the app sits in a subdirectory, set the
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API (server-only) |
 | `APP_PASSWORD` | You choose it — this is the shared team password |
 
-Changing `APP_PASSWORD` later invalidates every existing session.
+Both key-naming schemes work — the app also accepts the
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` name that the marketplace integration
+injects. Changing `APP_PASSWORD` later invalidates every existing session.
 
 ## How it works
 

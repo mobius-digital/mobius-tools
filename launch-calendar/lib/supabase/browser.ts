@@ -14,13 +14,19 @@ let client: SupabaseClient | null = null;
 export function getBrowserClient(): SupabaseClient {
   if (client) return client;
 
+  // NEXT_PUBLIC_ vars are inlined into the client bundle at build time. Both
+  // the classic anon-key name and the publishable-key name Vercel's
+  // marketplace integration injects are accepted.
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
     throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and " +
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY. See .env.example.",
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and either " +
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. " +
+        "See .env.example.",
     );
   }
 

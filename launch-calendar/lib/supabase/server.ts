@@ -8,15 +8,22 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * server would silently skip its changelog entry.
  */
 export function createServerClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Both naming schemes are accepted: the classic anon-key names from a
+  // hand-made Supabase project, and the publishable-key names that Vercel's
+  // marketplace integration injects automatically.
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
     throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and either " +
-        "SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY. See .env.example.",
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) " +
+        "and a key — SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY, or " +
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. See .env.example.",
     );
   }
 
