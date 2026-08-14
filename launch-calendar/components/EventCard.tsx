@@ -11,12 +11,15 @@ export function EventCard({
   onOpen,
   showDate = true,
   colliding = false,
+  stale = false,
 }: {
   event: LaunchEvent;
   onOpen: (event: LaunchEvent) => void;
   showDate?: boolean;
   /** Clashes are surfaced here too — the Pipeline is the view people live in. */
   colliding?: boolean;
+  /** Untouched for 21+ days while launching inside 30 (PRD §6). */
+  stale?: boolean;
 }) {
   return (
     <article
@@ -45,6 +48,14 @@ export function EventCard({
               title="Another launch with a primary channel lands within 7 days of this one"
             >
               clash
+            </span>
+          )}
+          {stale && (
+            <span
+              className="stale-flag"
+              title="Not updated in 3+ weeks and launching within 30 days — worth confirming this is still accurate"
+            >
+              needs review
             </span>
           )}
         </span>

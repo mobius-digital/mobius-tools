@@ -88,6 +88,12 @@ export function BoardLegend() {
               </span>
               Two big launches within 7 days of each other
             </li>
+            <li>
+              <span className="stale-flag" aria-hidden>
+                needs review
+              </span>
+              Untouched for 3+ weeks with launch coming up — confirm it is current
+            </li>
           </ul>
         </div>
 

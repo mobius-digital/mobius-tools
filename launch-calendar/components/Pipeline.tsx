@@ -8,12 +8,13 @@ import { BoardLegend } from "./BoardLegend";
 import { ConnectionDot } from "./ConnectionDot";
 import { FilterBar } from "./FilterBar";
 import { RecentChanges } from "./RecentChanges";
-import { WEEKDAY_LABELS, addDays, formatLong, formatShort, todayIso } from "@/lib/dates";
+import { WEEKDAY_LABELS, addDays, daysSince, formatLong, formatShort, todayIso } from "@/lib/dates";
 import {
   MILESTONE_ICONS,
   MILESTONE_LABELS,
   buildPipeline,
   entriesByDay,
+  isStale,
   type PipelineEntry,
   type PipelineWeek,
 } from "@/lib/pipeline";
@@ -46,12 +47,14 @@ function entryTooltip(entry: PipelineEntry): string {
 function EntryRow({
   entry,
   colliding,
+  stale = false,
   elevation,
   onOpen,
   showStatusMenu = false,
 }: {
   entry: PipelineEntry;
   colliding: boolean;
+  stale?: boolean;
   elevation?: string;
   onOpen: (event: LaunchEvent) => void;
   showStatusMenu?: boolean;
@@ -86,6 +89,14 @@ function EntryRow({
             title="Another launch with a primary channel lands within 7 days of this one"
           >
             clash
+          </span>
+        )}
+        {entry.kind === "launch" && stale && (
+          <span
+            className="stale-flag"
+            title="Not updated in 3+ weeks and launching within 30 days — worth confirming this is still accurate"
+          >
+            needs review
           </span>
         )}
       </button>
@@ -155,10 +166,12 @@ function DayRail({
 function SummaryWeek({
   week,
   colliding,
+  staleFor,
   onOpen,
 }: {
   week: PipelineWeek;
   colliding: Set<string>;
+  staleFor: (event: LaunchEvent) => boolean;
   onOpen: (event: LaunchEvent) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -193,6 +206,9 @@ function SummaryWeek({
                   {colliding.has(event.id) && (
                     <span className="clash-flag clash-flag--mini">clash</span>
                   )}
+                  {staleFor(event) && (
+                    <span className="stale-flag stale-flag--mini">review</span>
+                  )}
                 </span>
               ))}
             </span>
@@ -221,6 +237,7 @@ function SummaryWeek({
               key={entry.key}
               entry={entry}
               colliding={colliding.has(entry.event.id)}
+              stale={staleFor(entry.event)}
               onOpen={onOpen}
               showStatusMenu
             />
@@ -256,6 +273,10 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
   const colliding = useMemo(() => collidingEventIds(events), [events]);
 
   const [thisWeek, weekTwo, ...laterWeeks] = pipeline.weeks;
+
+  // PRD §6: untouched for 21+ days while launching inside the next 30.
+  const staleFor = (event: LaunchEvent) =>
+    isStale(event, today, daysSince(event.updated_at));
   const dueThisWeek = thisWeek.entries.length;
   const boardIsEmpty = events.length === 0;
 
@@ -341,6 +362,7 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
                     event={entry.event}
                     onOpen={openEditor}
                     colliding={colliding.has(entry.event.id)}
+                    stale={staleFor(entry.event)}
                   />
                 ) : (
                   <EntryRow
@@ -407,6 +429,7 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
                 key={entry.key}
                 entry={entry}
                 colliding={colliding.has(entry.event.id)}
+                stale={staleFor(entry.event)}
                 elevation={elevationFor(entry.event, channel)}
                 onOpen={openEditor}
                 showStatusMenu
@@ -421,6 +444,7 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
           key={week.key}
           week={week}
           colliding={colliding}
+          staleFor={staleFor}
           onOpen={openEditor}
         />
       ))}
