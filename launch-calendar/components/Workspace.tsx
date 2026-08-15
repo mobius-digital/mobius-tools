@@ -9,7 +9,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getBrowserClient } from "@/lib/supabase/browser";
 import { filterByChannel, isChannelFilter, type ChannelFilter } from "@/lib/channels";
 import type { ChangelogEntry, EventStatus, IsoDate, LaunchEvent } from "@/lib/types";
 import { EventEditor } from "./EventEditor";
@@ -17,8 +16,14 @@ import { useDisplayName } from "./DisplayName";
 
 const CHANNEL_STORAGE_KEY = "lc_channel_filter";
 
-/** Given up on after this many consecutive realtime failures. */
-const MAX_REALTIME_RETRIES = 3;
+/**
+ * How often the board re-checks the server for other people's edits.
+ *
+ * D1 cannot push changes the way a hosted Postgres can, so this polls instead.
+ * Ten seconds is fast enough that a date moved during a call lands before
+ * anyone has finished talking about it, and light enough to be free.
+ */
+const POLL_MS = 10_000;
 
 /**
  * A single shared empty array for callers that pass no history.
@@ -144,68 +149,49 @@ export function Workspace({
     }
   }, []);
 
+  // Poll for other people's edits, and pause while the tab is hidden so a
+  // backgrounded board costs nothing.
   useEffect(() => {
-    let channels: { unsubscribe: () => void }[] = [];
-    let failures = 0;
-    let abandoned = false;
+    let cancelled = false;
 
-    try {
-      const supabase = getBrowserClient();
+    async function refresh() {
+      if (document.hidden) return;
 
-      const eventsChannel = supabase
-        .channel("events-stream")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "events" },
-          (payload) => {
-            const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as
-              | LaunchEvent
-              | null;
-            if (!row?.id) return;
-            applyChange(row, payload.eventType === "DELETE");
-          },
-        )
-        .subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            failures = 0;
-            setConnection("live");
-            return;
-          }
+      try {
+        const [eventsRes, logRes] = await Promise.all([
+          fetch("/api/events", { cache: "no-store" }),
+          fetch("/api/changelog?limit=20", { cache: "no-store" }),
+        ]);
 
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            failures += 1;
-            if (failures >= MAX_REALTIME_RETRIES && !abandoned) {
-              // Stop hammering a server that is not going to answer; the app
-              // stays fully usable, it just will not update by itself.
-              abandoned = true;
-              setConnection("offline");
-              for (const entry of channels) entry.unsubscribe();
-            }
-          }
-        });
+        if (cancelled || !eventsRes.ok) {
+          if (!cancelled) setConnection("offline");
+          return;
+        }
 
-      const changelogChannel = supabase
-        .channel("changelog-stream")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "changelog" },
-          (payload) => {
-            const row = payload.new as ChangelogEntry | null;
-            if (!row?.id) return;
-            setRecentChanges((current) => [row, ...current].slice(0, 100));
-          },
-        )
-        .subscribe();
+        const body = (await eventsRes.json()) as { events?: LaunchEvent[] };
+        if (body.events) setEvents(sortEvents(body.events));
 
-      channels = [eventsChannel, changelogChannel];
-    } catch {
-      setConnection("offline");
+        if (logRes.ok) {
+          const log = (await logRes.json()) as { entries?: ChangelogEntry[] };
+          if (log.entries) setRecentChanges(log.entries);
+        }
+
+        setConnection("live");
+      } catch {
+        if (!cancelled) setConnection("offline");
+      }
     }
 
+    void refresh();
+    const timer = setInterval(() => void refresh(), POLL_MS);
+    document.addEventListener("visibilitychange", refresh);
+
     return () => {
-      for (const entry of channels) entry.unsubscribe();
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [applyChange]);
+  }, []);
 
   const openEditor = useCallback((event?: LaunchEvent) => {
     setEditing(event ?? null);

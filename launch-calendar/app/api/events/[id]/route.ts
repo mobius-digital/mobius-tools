@@ -11,7 +11,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type Context = { params: { id: string } };
+type Context = { params: Promise<{ id: string }> };
 
 function failure(error: unknown, fallback: string) {
   if (error instanceof ValidationError) {
@@ -30,6 +30,7 @@ function failure(error: unknown, fallback: string) {
 }
 
 export async function PATCH(request: Request, { params }: Context) {
+  const { id } = await params;
   let body: {
     event?: unknown;
     editor?: unknown;
@@ -50,11 +51,11 @@ export async function PATCH(request: Request, { params }: Context) {
     // (which is just a status change with its own wording in the changelog).
     let event;
     if (body.intent === "cancel") {
-      event = await cancelEvent(params.id, editor);
+      event = await cancelEvent(id, editor);
     } else if (body.intent === "status") {
-      event = await setEventStatus(params.id, body.status, editor);
+      event = await setEventStatus(id, body.status, editor);
     } else {
-      event = await updateEvent(params.id, body.event, editor);
+      event = await updateEvent(id, body.event, editor);
     }
 
     return NextResponse.json({ event });
@@ -64,10 +65,11 @@ export async function PATCH(request: Request, { params }: Context) {
 }
 
 export async function DELETE(request: Request, { params }: Context) {
+  const { id } = await params;
   try {
     const url = new URL(request.url);
     const editor = validateEditorName(url.searchParams.get("editor"));
-    await deleteEvent(params.id, editor);
+    await deleteEvent(id, editor);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return failure(error, "Could not delete event.");

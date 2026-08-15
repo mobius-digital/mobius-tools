@@ -4,18 +4,19 @@ import { PasswordForm } from "@/components/PasswordForm";
 
 export const dynamic = "force-dynamic";
 
-export default function PasswordPage({
+export default async function PasswordPage({
   searchParams,
 }: {
-  searchParams: { from?: string };
+  searchParams: Promise<{ from?: string }>;
 }) {
+  const params = await searchParams;
   const configured = isPasswordConfigured();
 
   // Only ever redirect back to a path on this site.
   const from =
-    searchParams.from && searchParams.from.startsWith("/") &&
-    !searchParams.from.startsWith("//")
-      ? searchParams.from
+    params.from && params.from.startsWith("/") &&
+    !params.from.startsWith("//")
+      ? params.from
       : "/";
 
   return (

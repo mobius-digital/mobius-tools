@@ -1,0 +1,37 @@
+/**
+ * Launch Calendar — Cloudflare Worker config.
+ *
+ * Deploy:  npm run deploy      (from this folder)
+ * Logs:    npx wrangler tail
+ *
+ * The D1 id below is filled in once, by running:
+ *   npx wrangler d1 create launch-calendar
+ * then pasting the id it prints.
+ *
+ * The shared team password is a secret, never committed:
+ *   npx wrangler secret put APP_PASSWORD
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "launch-calendar",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "launch-calendar",
+      "database_id": "PASTE_DATABASE_ID_HERE"
+    }
+  ]
+}

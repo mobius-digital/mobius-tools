@@ -3,10 +3,10 @@
 import { useWorkspace } from "./Workspace";
 
 const COPY = {
-  connecting: "Connecting for live updates…",
-  live: "Live — other people's edits appear here automatically",
+  connecting: "Checking for updates…",
+  live: "Up to date — the board re-checks every few seconds",
   offline:
-    "Live updates are off. Your own edits still save normally; reload to pick up other people's.",
+    "Can't reach the server. Your own edits still save; other people's will appear once the connection is back.",
 } as const;
 
 /**

@@ -17,12 +17,15 @@ checklists. Teams keep their own workflows; this is the shared picture above the
 ## What you are looking at
 
 This is a **Next.js application**, not a single HTML file. It needs Node.js to
-run, a build step to deploy, and a Postgres database (Supabase) to store
-anything. You cannot open it by double-clicking a file.
+build and a database to store anything, so you deploy it rather than opening it.
+Both halves run on Cloudflare.
 
-- **Frontend:** Next.js (App Router), deploys to Vercel
-- **Backend:** Supabase (Postgres + Realtime)
+- **Frontend + backend:** Next.js (App Router) running as a Cloudflare Worker
+- **Database:** Cloudflare D1
 - **Access:** one shared password, no user accounts
+
+Everything lives on Cloudflare — one account, one deploy, no third-party
+database to sign up for.
 
 ## Running it locally
 
@@ -42,13 +45,33 @@ npm test        # 79 unit tests over the date, collision and changelog logic
 npm run build   # production build
 ```
 
-## Setting up the database
+## First-time setup
 
-1. Create a Supabase project (the free tier is plenty).
-2. Open the SQL editor and run [`supabase/schema.sql`](supabase/schema.sql).
-   That creates both tables, the enums, the row-level security policies and the
-   realtime publication.
-3. Copy the project URL and keys from Settings → API into `.env.local`.
+You need a Cloudflare account and nothing else.
+
+```bash
+npm install
+npx wrangler login                        # opens a browser once
+npx wrangler d1 create launch-calendar    # prints a database_id
+```
+
+Paste that `database_id` into `wrangler.jsonc`, then:
+
+```bash
+npm run db:remote                         # creates the tables
+npx wrangler secret put APP_PASSWORD      # the shared team password
+npm run deploy
+```
+
+That's it — you get a `*.workers.dev` URL. Every later change is `npm run deploy`.
+
+To run it locally instead:
+
+```bash
+npm run db:local                          # local copy of the tables
+echo "APP_PASSWORD=whatever" > .dev.vars
+npm run preview                           # runs the real Worker locally
+```
 
 The app starts with an empty board and an invitation to add the first event.
 No demo data ships with it.
@@ -64,7 +87,7 @@ To rebrand:
 1. Edit `brand.config.ts` — name, colours, font family and weights.
 2. Replace `public/logo.svg`. Draw it with `fill="currentColor"` /
    `stroke="currentColor"` so it picks up your accent colour automatically.
-3. Redeploy.
+3. `npm run deploy`.
 
 Two worked examples sit next to it — `brand.config.example-dark.ts` and
 `brand.config.example-light.ts`. Copy either over `brand.config.ts` to see the
@@ -81,30 +104,6 @@ Things worth knowing before you pick a palette:
 - `font.family` is fetched from Google Fonts at runtime, so any family available
   there works without touching code.
 
-## Deploying
-
-**Easiest path — one account.** Sign up for Vercel with GitHub and import this
-repository (if the app sits in a subdirectory, set the **Root Directory**
-accordingly). Then, in the Vercel project, open **Storage → Create Database →
-Supabase**: the database is provisioned through Vercel's marketplace and the
-connection keys are injected into the project automatically. You add only one
-variable yourself — `APP_PASSWORD`, the shared team password — then open the
-Supabase dashboard from Vercel and run [`supabase/schema.sql`](supabase/schema.sql)
-in the SQL editor.
-
-**Or with a separate Supabase account**, add the variables by hand:
-
-| Variable | Where it comes from |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API (server-only) |
-| `APP_PASSWORD` | You choose it — this is the shared team password |
-
-Both key-naming schemes work — the app also accepts the
-`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` name that the marketplace integration
-injects. Changing `APP_PASSWORD` later invalidates every existing session.
-
 ## How it works
 
 **Pipeline** is the default view and the one built for the Monday call. It shows
@@ -119,7 +118,8 @@ span from teaser start through promo end. It warns when two launches that both
 have a `primary` channel land within seven days of each other.
 
 **Changelog** records every date, status, channel and name change automatically,
-with before-and-after wording. Nobody has to remember to write it down.
+with before-and-after wording. It is written server-side on every edit, so it
+cannot be skipped. Nobody has to remember to write it down.
 
 **Channel filter** is on both views. Picking a channel narrows the board to what
 that channel is involved in and elevates its most important work. The choice is
@@ -139,11 +139,14 @@ remembered per device and travels in the URL, so a filtered view can be shared.
 
 ## Status
 
-Working and tested locally. Two things have **not** been exercised:
+Working and tested end to end against a real Cloudflare Worker and D1 database:
+the password gate, event CRUD, the changelog, and all three views.
 
-- **Supabase Realtime.** Development ran against a local stub with no websocket,
-  so live multi-editor updates are unverified. The app degrades gracefully when
-  the connection is unavailable — it shows a "Not live" indicator and keeps
-  working — but the happy path needs confirming against a real project.
-- **Browsers other than Chromium.** Layout and behaviour have not been checked
-  in Safari or Firefox.
+Two notes:
+
+- **Updates are polled, not pushed.** The board re-checks the server every ten
+  seconds and pauses while the tab is hidden. D1 has no realtime subscriptions,
+  so a change made by someone else appears within about ten seconds rather than
+  instantly. For a weekly planning board that is a fair trade for staying on one
+  platform.
+- **Browsers other than Chromium** have not been checked.
