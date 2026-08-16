@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Launch Calendar — How to use it</title>
+<style>
+  :root {
+    --bg: #F7F7F8;
+    --surface: #FFFFFF;
+    --ink: #18181B;
+    --muted: #6B7280;
+    --accent: #2563EB;
+    --accent-ink: #1D4ED8;
+    --danger: #B91C1C;
+    --tentative: #8B8B93;
+    --line: rgba(24,24,27,0.12);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 40px; }
+  h1 { font-size: 2rem; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 1.05rem; margin: 0; }
+  h2 {
+    font-size: 1.3rem; margin: 48px 0 14px; padding-top: 28px;
+    border-top: 1px solid var(--line);
+  }
+  h2:first-of-type { border-top: 0; padding-top: 0; }
+  h3 { font-size: 1rem; margin: 26px 0 8px; }
+  p { margin: 0 0 14px; }
+  .lead { font-size: 1.05rem; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 7px; }
+  strong { font-weight: 600; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 20px 22px; margin: 18px 0;
+  }
+  .note {
+    background: rgba(37,99,235,0.06); border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0; padding: 14px 18px; margin: 18px 0;
+  }
+  .note strong { color: var(--accent-ink); }
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  .pill {
+    display: inline-block; font-size: 0.7rem; letter-spacing: 0.06em;
+    text-transform: uppercase; font-weight: 600; padding: 2px 8px;
+    border-radius: 4px; white-space: nowrap;
+  }
+  .p-confirmed { color: var(--accent-ink); border: 1px solid rgba(37,99,235,0.45); background: rgba(37,99,235,0.10); }
+  .p-tentative { color: var(--tentative); border: 1px dashed var(--tentative); }
+  .p-risk { color: var(--danger); border: 1px solid var(--danger); background: rgba(185,28,28,0.08); }
+  .p-clash { color: var(--danger); border: 1px solid rgba(185,28,28,0.5); background: rgba(185,28,28,0.10); }
+  .p-review { color: var(--accent-ink); border: 1px dashed rgba(37,99,235,0.55); background: rgba(37,99,235,0.07); }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li {
+    counter-increment: s; position: relative; padding-left: 42px; margin-bottom: 18px;
+  }
+  .steps li::before {
+    content: counter(s); position: absolute; left: 0; top: 1px;
+    width: 27px; height: 27px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 0.85rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 18px 0; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .tile h4 { margin: 0 0 6px; font-size: 0.95rem; }
+  .tile p { margin: 0; font-size: 0.9rem; color: var(--muted); }
+  code { background: rgba(24,24,27,0.06); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+  @media print { body { background: #fff; } .wrap { padding: 0; } h2 { page-break-after: avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Launch Calendar</h1>
+  <p class="sub">What's launching, when, and which channels need to care.</p>
+</header>
+
+<p class="lead">This is the shared picture of everything your brand is putting out over
+the next four weeks. It exists to answer three questions without anyone having to
+ask them in Slack:</p>
+
+<div class="grid">
+  <div class="tile"><h4>What's coming up?</h4><p>Everything launching in the next four weeks, and the work leading up to it.</p></div>
+  <div class="tile"><h4>Is that date real?</h4><p>Locked, still soft, or wobbling — visible at a glance.</p></div>
+  <div class="tile"><h4>What do I have to do?</h4><p>Filter to your channel and see only what involves you.</p></div>
+</div>
+
+<div class="note">
+  <strong>It is not a project manager.</strong> No tasks, no subtasks, no checklists.
+  Your team keeps whatever workflow it already has. This sits above all of that as
+  the one place everybody agrees on what is happening and when.
+</div>
+
+<h2>The three screens</h2>
+
+<h3>Pipeline — your default view</h3>
+<p>This is the one to have open during a weekly marketing call. It shows four weeks,
+and it deliberately gets quieter as you look further out:</p>
+<ul>
+  <li><strong>This week</strong> — full detail, plus a Mon–Sun strip showing the shape of the week at a glance.</li>
+  <li><strong>Week 2</strong> — one line per item.</li>
+  <li><strong>Weeks 3 and 4</strong> — a single summary line each. Click to open.</li>
+</ul>
+<p>Launches and their run-up work are mixed together in date order — so "assets due
+Wednesday" sits above a launch that is still three weeks away, because that is the
+order things actually need doing.</p>
+
+<h3>Calendar — the timeline</h3>
+<p>The same information as a month or week grid. Each event stretches from the day
+teasers start through to the end of the promo, so you can see where things overlap
+and where the gaps are. Click any empty day to add something on that date.</p>
+
+<h3>Changelog — what changed</h3>
+<p>Every edit, recorded automatically. Nobody has to remember to write it down.</p>
+
+<h2>Reading the board</h2>
+
+<h3>Is this date real?</h3>
+<table>
+  <tr><th style="width:130px">Status</th><th>What it means</th></tr>
+  <tr><td><span class="pill p-confirmed">Confirmed</span></td><td>The date is locked. Build against it.</td></tr>
+  <tr><td><span class="pill p-tentative">Tentative</span></td><td>Still soft and may move. Do not prep hard against it.</td></tr>
+  <tr><td><span class="pill p-risk">At risk</span></td><td>Was confirmed, now in danger of slipping. Somebody should chase it.</td></tr>
+  <tr><td>Completed</td><td>Shipped. Hidden from the board unless you tick "Show completed".</td></tr>
+  <tr><td>Cancelled</td><td>Killed. Hidden everywhere, but its history stays in the changelog.</td></tr>
+</table>
+<p>Tentative events are drawn with a dashed, faded outline on purpose — so nobody
+accidentally builds a campaign around a date that is still a guess.</p>
+
+<h3>Run-up work</h3>
+<p>An event can have up to four dates besides its launch. The three that matter to
+other people show up on the board as their own entries:</p>
+<table>
+  <tr><td style="width:130px">🔔 <strong>Assets due</strong></td><td>Creative and assets have to be finished</td></tr>
+  <tr><td>📣 <strong>Teasers start</strong></td><td>Pre-launch comms begin</td></tr>
+  <tr><td>📦 <strong>Inventory lands</strong></td><td>Product physically in hand</td></tr>
+</table>
+<p>This is why one event can appear in two different weeks — its assets deadline in
+one, its launch in another.</p>
+
+<h3>Two warnings</h3>
+<p><span class="pill p-clash">clash</span> &nbsp;Two launches that both have a
+<em>primary</em> channel are landing within seven days of each other. Sometimes
+that is the plan — the flag just makes sure it is a decision, not an accident.</p>
+<p style="margin-top:14px"><span class="pill p-review">needs review</span> &nbsp;Nobody
+has touched this in three weeks and it launches within the month. Worth confirming
+it is still accurate. Opening and saving it clears the flag.</p>
+
+<h2>Channels — the most useful button</h2>
+<p>Along the top you will see <strong>All channels · Paid · Email · Organic · SMS</strong>.
+Pick yours, and the board narrows to only the events your channel is involved in,
+with your most important work emphasised.</p>
+<p>Your choice is remembered, so you land pre-filtered every time. The web address
+changes too, so a filtered view can be pasted to a colleague.</p>
+
+<h3>What the priorities mean</h3>
+<table>
+  <tr><td style="width:130px"><strong>Primary</strong></td><td>This channel is building something. It is on the hook.</td></tr>
+  <tr><td><strong>Supporting</strong></td><td>Helping, but not leading.</td></tr>
+  <tr><td><strong>FYI</strong></td><td>Just needs to know it is happening.</td></tr>
+</table>
+<p>Priorities are not decoration — the clash warning only fires on <em>primary</em>
+channels, because two big pushes colliding matters and two FYIs do not.</p>
+
+<h2>Adding and updating</h2>
+
+<h3>Adding an event</h3>
+<ol class="steps">
+  <li>Click <strong>New event</strong> — or click a day on the Calendar to start with that date filled in.</li>
+  <li>Fill in the name, a one-line brief, the launch date, which channels are involved, and who owns it.</li>
+  <li>Add run-up dates if you know them. You can always come back.</li>
+  <li>Save.</li>
+</ol>
+<p>The first time you edit anything, it asks for your name. That name gets stamped
+on everything you touch, so the team can see who moved what.</p>
+
+<h3>Changing a status quickly</h3>
+<p>You do not need to open an event to change its status. Click the status button on
+any card and pick a new one. That is the main thing a weekly call produces — "that
+shipped", "that date is locked now", "that one is wobbling" — so it is one click.</p>
+
+<h3>Deleting</h3>
+<p>Set the status to <strong>Cancelled</strong>. It disappears from the planning
+views but its history survives. Permanent deletion is tucked behind a separate
+confirm in the editor, and you rarely want it.</p>
+
+<h2>Running your weekly meeting off it</h2>
+<ol class="steps">
+  <li>Open the <strong>Pipeline</strong> and share your screen. No prep needed.</li>
+  <li>Read <strong>This week</strong> top to bottom. It is already in the order things need doing.</li>
+  <li>Check <strong>Recent changes</strong> at the bottom — that is everything that moved since you last met.</li>
+  <li>Deal with anything flagged <span class="pill p-clash">clash</span> or <span class="pill p-review">needs review</span>.</li>
+  <li>Update statuses live as you talk. Everyone else's board catches up within about ten seconds.</li>
+  <li>Glance at Weeks 3 and 4 so nothing sneaks up.</li>
+</ol>
+
+<h2>Good habits</h2>
+<div class="card">
+  <ul style="margin-bottom:0">
+    <li><strong>Be honest about Tentative.</strong> The whole system rests on people trusting that Confirmed means confirmed.</li>
+    <li><strong>Every event needs an owner.</strong> That is who to ask, not who created it.</li>
+    <li><strong>Write the brief for a media buyer.</strong> One sentence: what is the offer or angle.</li>
+    <li><strong>Close things out.</strong> Mark launches Completed once they ship, or they pile up in the "past their launch date" strip.</li>
+    <li><strong>Put run-up dates in.</strong> Assets and teaser dates are what make this useful to channels rather than just a list of launches.</li>
+  </ul>
+</div>
+
+<h2>Worth knowing</h2>
+<ul>
+  <li><strong>One shared password.</strong> No individual accounts. Anyone who is in can edit anything — the safeguard is that every card shows who last touched it and when.</li>
+  <li><strong>Updates take about ten seconds.</strong> The board re-checks the server on a timer rather than instantly.</li>
+  <li><strong>It works on a phone,</strong> though it is designed for a laptop or a shared screen.</li>
+  <li><strong>Nothing is lost.</strong> Every date, status, channel and name change is recorded in the changelog with what it was before.</li>
+</ul>
+
+<footer>
+  Launch Calendar · internal planning tool · see <code>SETUP.md</code> for installation
+</footer>
+
+</div>
+</body>
+</html>
