@@ -64,7 +64,7 @@ npx wrangler d1 create launch-calendar
 ```
 
 This prints a block of text containing a `database_id` — a long string like
-`633ebfdd-85b5-420c-9d6b-352b47de42b2`. **Copy it.**
+`a1b2c3d4-e5f6-7890-abcd-ef1234567890`. **Copy it.**
 
 Open `wrangler.jsonc` in any text editor. Find this line:
 
