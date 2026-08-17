@@ -8,6 +8,8 @@ import { BoardLegend } from "./BoardLegend";
 import { ConnectionDot } from "./ConnectionDot";
 import { FilterBar } from "./FilterBar";
 import { RecentChanges } from "./RecentChanges";
+import { SettingsMenu } from "./SettingsMenu";
+import { Walkthrough, resetTour, tourIsUnseen } from "./Walkthrough";
 import { WEEKDAY_LABELS, addDays, daysSince, formatLong, formatShort, todayIso } from "@/lib/dates";
 import {
   MILESTONE_ICONS,
@@ -253,6 +255,17 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
   const [showCompleted, setShowCompleted] = useState(false);
   const [beyondOpen, setBeyondOpen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+
+  // The tour runs itself the first time somebody opens the board on a device.
+  useEffect(() => {
+    if (tourIsUnseen()) setTourOpen(true);
+  }, []);
+
+  function replayTour() {
+    resetTour();
+    setTourOpen(true);
+  }
 
   // Start from the server's date so the first paint matches, then correct to
   // the viewer's own calendar day — a reader in Los Angeles and a server in UTC
@@ -296,6 +309,11 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
         >
           Add the first event
         </button>
+        <button type="button" className="firstrun__tour" onClick={replayTour}>
+          or take the two-minute tour
+        </button>
+
+        <Walkthrough open={tourOpen} onClose={() => setTourOpen(false)} />
       </div>
     );
   }
@@ -312,6 +330,7 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
 
         <div className="page-header__actions">
           <ConnectionDot />
+          <SettingsMenu onReplayTour={replayTour} />
           <label className="toggle">
             <input
               type="checkbox"
@@ -492,6 +511,8 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
       </section>
 
       <RecentChanges />
+
+      <Walkthrough open={tourOpen} onClose={() => setTourOpen(false)} />
     </>
   );
 }
