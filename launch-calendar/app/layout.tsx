@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { ACCESS_JWT_HEADER, verifyAccessJwt } from "@/lib/access";
 import { brand } from "@/brand.config";
 import { brandCssVariables, googleFontUrl } from "@/lib/brand";
 import { Nav } from "@/components/Nav";
@@ -10,11 +12,16 @@ export const metadata: Metadata = {
   description: `What's launching, when, and which channels need to care — ${brand.name}.`,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // With Cloudflare Access on, the signed-in identity comes from the verified
+  // token rather than from a name somebody typed into their own browser.
+  const identity = await verifyAccessJwt(
+    (await headers()).get(ACCESS_JWT_HEADER),
+  );
   return (
     <html lang="en">
       <head>
@@ -28,7 +35,7 @@ export default function RootLayout({
         <style dangerouslySetInnerHTML={{ __html: brandCssVariables() }} />
       </head>
       <body>
-        <DisplayNameProvider>
+        <DisplayNameProvider identity={identity?.name ?? null}>
           <div className="shell">
             <Nav />
             <main className="main">{children}</main>

@@ -22,7 +22,8 @@ Both halves run on Cloudflare.
 
 - **Frontend + backend:** Next.js (App Router) running as a Cloudflare Worker
 - **Database:** Cloudflare D1
-- **Access:** one shared password, no user accounts
+- **Access:** one shared password by default, or Cloudflare Access (Google/
+  Microsoft/Okta SSO) when `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set
 
 Everything lives on Cloudflare — one account, one deploy, no third-party
 database to sign up for.
@@ -130,8 +131,12 @@ remembered per device and travels in the URL, so a filtered view can be shared.
 - Dates are calendar dates with no time component, handled as `YYYY-MM-DD`
   strings throughout so a launch cannot appear to shift a day for viewers in
   another timezone.
-- Anyone past the password can edit anything. The safeguard is visibility, not
-  permissions — every card shows who last touched it and when.
+- Anyone past the gate can edit anything. The safeguard is visibility, not
+  permissions — every card shows who last touched it and when. Under Cloudflare
+  Access that name is verified rather than self-declared.
+- The shared password lives in the database, not in a Cloudflare secret, so it
+  can be changed from Settings without a redeploy. `APP_PASSWORD` seeds it on a
+  fresh deployment.
 - Deleting means setting status to `cancelled`. The row survives so its history
   stays readable. Permanent deletion is behind a separate confirm.
 - A launch whose date has passed but was never closed out does not disappear; it

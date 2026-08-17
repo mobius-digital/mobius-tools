@@ -24,6 +24,8 @@ type DisplayNameContextValue = {
   ensureName: () => Promise<string | null>;
   /** Opens the prompt to change an already-stored name. */
   promptForName: () => Promise<string | null>;
+  /** True when the name came from a verified login rather than being typed. */
+  verified: boolean;
 };
 
 const DisplayNameContext = createContext<DisplayNameContextValue | null>(null);
@@ -36,7 +38,14 @@ export function useDisplayName(): DisplayNameContextValue {
   return context;
 }
 
-export function DisplayNameProvider({ children }: { children: ReactNode }) {
+export function DisplayNameProvider({
+  identity = null,
+  children,
+}: {
+  /** A verified name from Cloudflare Access, when that is switched on. */
+  identity?: string | null;
+  children: ReactNode;
+}) {
   const [name, setName] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -45,8 +54,13 @@ export function DisplayNameProvider({ children }: { children: ReactNode }) {
   const resolverRef = useRef<((value: string | null) => void) | null>(null);
 
   useEffect(() => {
+    // A verified identity wins: there is nothing to ask and nothing to edit.
+    if (identity) {
+      setName(identity);
+      return;
+    }
     setName(window.localStorage.getItem(STORAGE_KEY) ?? "");
-  }, []);
+  }, [identity]);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -63,6 +77,8 @@ export function DisplayNameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const ensureName = useCallback(async () => {
+    if (identity) return identity;
+
     const stored = window.localStorage.getItem(STORAGE_KEY) ?? "";
     if (stored.trim()) {
       // Keep React state in step if another tab set it.
@@ -70,12 +86,15 @@ export function DisplayNameProvider({ children }: { children: ReactNode }) {
       return stored;
     }
     return openPrompt("");
-  }, [openPrompt]);
+  }, [identity, openPrompt]);
 
   const promptForName = useCallback(async () => {
+    // Nothing to prompt for when the name comes from a verified login.
+    if (identity) return identity;
+
     const stored = window.localStorage.getItem(STORAGE_KEY) ?? "";
     return openPrompt(stored);
-  }, [openPrompt]);
+  }, [identity, openPrompt]);
 
   function settle(value: string | null) {
     setOpen(false);
@@ -98,7 +117,9 @@ export function DisplayNameProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <DisplayNameContext.Provider value={{ name, ensureName, promptForName }}>
+    <DisplayNameContext.Provider
+      value={{ name, ensureName, promptForName, verified: Boolean(identity) }}
+    >
       {children}
 
       {open && (

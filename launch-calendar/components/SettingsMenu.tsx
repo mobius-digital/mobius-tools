@@ -12,7 +12,7 @@ import { ChangePassword } from "./ChangePassword";
  * are editing as, and replaying the tour.
  */
 export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
-  const { name, promptForName } = useDisplayName();
+  const { name, promptForName, verified } = useDisplayName();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -54,20 +54,27 @@ export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
 
       {open && (
         <div className="settings__list" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            className="settings__item"
-            onClick={() => {
-              setOpen(false);
-              void promptForName();
-            }}
-          >
-            <span className="settings__label">Change your name</span>
-            <span className="settings__hint">
-              {name ? `Editing as ${name}` : "Not set on this device yet"}
-            </span>
-          </button>
+          {verified ? (
+            <div className="settings__item settings__item--static">
+              <span className="settings__label">Signed in as {name}</span>
+              <span className="settings__hint">Verified by your organisation's login</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              className="settings__item"
+              onClick={() => {
+                setOpen(false);
+                void promptForName();
+              }}
+            >
+              <span className="settings__label">Change your name</span>
+              <span className="settings__hint">
+                {name ? `Editing as ${name}` : "Not set on this device yet"}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -82,18 +89,22 @@ export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
             <span className="settings__hint">A two-minute tour of the board</span>
           </button>
 
-          <button
-            type="button"
-            role="menuitem"
-            className="settings__item"
-            onClick={() => {
-              setOpen(false);
-              setChangingPassword(true);
-            }}
-          >
-            <span className="settings__label">Change the team password</span>
-            <span className="settings__hint">Signs everybody out</span>
-          </button>
+          {/* The shared password is unused when your organisation's login is
+              handling sign-in, so offering to change it would only confuse. */}
+          {!verified && (
+            <button
+              type="button"
+              role="menuitem"
+              className="settings__item"
+              onClick={() => {
+                setOpen(false);
+                setChangingPassword(true);
+              }}
+            >
+              <span className="settings__label">Change the team password</span>
+              <span className="settings__hint">Signs everybody out</span>
+            </button>
+          )}
         </div>
       )}
 

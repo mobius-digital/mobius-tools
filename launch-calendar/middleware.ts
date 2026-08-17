@@ -1,14 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, safeEqual, sessionToken } from "@/lib/auth";
+import { ACCESS_JWT_HEADER, accessIsConfigured, verifyAccessJwt } from "@/lib/access";
 
 /**
- * Gates every page and API route behind the shared password.
+ * Gates every page and API route.
  *
- * The matcher below excludes the password screen itself, the endpoint that
- * grants the cookie, and static assets — everything else redirects when the
- * cookie is missing or stale.
+ * Two modes. With Cloudflare Access configured, Cloudflare has already
+ * authenticated the person and the only job here is to verify the token it
+ * passed along. Without it, the app's own shared-password cookie is the gate.
  */
 export async function middleware(request: NextRequest) {
+  if (accessIsConfigured()) {
+    const identity = await verifyAccessJwt(
+      request.headers.get(ACCESS_JWT_HEADER),
+    );
+
+    // Access itself owns the login screen, so there is nowhere useful to
+    // redirect to — a request without a valid token should simply be refused.
+    if (!identity) {
+      return new NextResponse("Not authorised.", { status: 401 });
+    }
+
+    return NextResponse.next();
+  }
+
   const presented = request.cookies.get(SESSION_COOKIE)?.value;
   const expected = await sessionToken();
 

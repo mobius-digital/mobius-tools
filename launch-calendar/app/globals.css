@@ -2431,3 +2431,12 @@ button {
   font-size: 0.78rem;
   color: var(--color-text-muted);
 }
+
+/* A settings row that states a fact rather than offering an action. */
+.settings__item--static {
+  cursor: default;
+}
+
+.settings__item--static:hover {
+  background: none;
+}

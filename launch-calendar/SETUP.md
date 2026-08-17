@@ -176,16 +176,55 @@ deploy to see the whole app change.
 
 ---
 
+## Optional: sign in with Google instead of a shared password
+
+If your team is on Google Workspace (or Microsoft, Okta, GitHub), Cloudflare can
+handle sign-in for you. Then nobody types a password, and every edit is stamped
+with a **verified** name instead of one somebody typed into their own browser.
+
+Free for up to 50 people, and it works on your `workers.dev` address.
+
+1. In the Cloudflare dashboard go to **Zero Trust** → **Settings** →
+   **Authentication**, and add **Google** (or your provider) as a login method.
+2. Go to **Access** → **Applications** → **Add an application** → **Self-hosted**.
+   Point it at your Worker, and add a policy such as *Emails ending in
+   `@yourcompany.com`*.
+3. On the application's overview, copy the **Application Audience (AUD) tag**.
+4. Back in your project, set two variables:
+
+```bash
+npx wrangler secret put ACCESS_TEAM_DOMAIN
+```
+Enter your team domain, e.g. `yourteam.cloudflareaccess.com`
+
+```bash
+npx wrangler secret put ACCESS_AUD
+```
+Enter the AUD tag you copied.
+
+```bash
+npm run deploy
+```
+
+From then on the app stops asking for its own password, Google handles login, and
+names come from people's accounts. The "change your name" and "change the team
+password" options disappear from Settings, because neither applies any more.
+
+To go back, remove those two variables and redeploy.
+
+---
+
 ## Everyday use
 
-| What you want | What to run |
+| What you want | What to do |
 |---|---|
 | Publish any change | `npm run deploy` |
-| Change the team password | `npx wrangler secret put APP_PASSWORD` |
+| Change the team password | **Settings → Change the team password**, inside the app |
 | Try changes before publishing | `npm run preview` |
 
-Changing the password immediately signs everyone out; they log back in with the
-new one.
+Changing the password signs everyone else out — you stay signed in — and the
+change is recorded in the changelog. It needs the current password, so an
+unattended laptop cannot be used to lock the team out.
 
 ---
 
