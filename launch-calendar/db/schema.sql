@@ -47,3 +47,11 @@ CREATE TABLE IF NOT EXISTS changelog (
 
 CREATE INDEX IF NOT EXISTS changelog_created_at_idx ON changelog (created_at DESC);
 CREATE INDEX IF NOT EXISTS changelog_event_id_idx ON changelog (event_id);
+
+-- Small key/value store. Holds the shared team password hash, so the password
+-- can be changed from inside the app rather than needing a redeploy.
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

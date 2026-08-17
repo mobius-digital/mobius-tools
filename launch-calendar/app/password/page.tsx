@@ -10,7 +10,7 @@ export default async function PasswordPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const params = await searchParams;
-  const configured = isPasswordConfigured();
+  const configured = await isPasswordConfigured();
 
   // Only ever redirect back to a path on this site.
   const from =

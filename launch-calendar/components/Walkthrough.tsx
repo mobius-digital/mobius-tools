@@ -200,11 +200,27 @@ export function Walkthrough({
 
   useEffect(() => {
     if (!open) return;
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") finish();
+      if (event.key !== "Escape") return;
+
+      // Escape belongs to whatever is on top. While the editor, a dialog or a
+      // status menu is open, that keypress is meant for them — ending the tour
+      // as well would mean closing the editor mid-tour silently kills it.
+      const somethingElseIsOpen = document.querySelector(
+        ".sheet, .dialog, .status-menu__list",
+      );
+      if (somethingElseIsOpen) return;
+
+      finish();
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+
+    // Capture phase, deliberately. React's handlers sit inside the document and
+    // run first on the way up, so by the time a bubbling listener saw the key
+    // the editor had already closed itself and the guard above found nothing
+    // open — which ended the tour every time somebody pressed Escape.
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [open, finish]);
 
   useEffect(() => {

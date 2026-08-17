@@ -1,51 +1,104 @@
+import { getDb } from "./db";
+import { hashPassword, sessionTokenFor, verifyPassword } from "./password";
+
+export {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  timingSafeEqual as safeEqual,
+} from "./password";
+
 /**
- * Shared-password gate (PRD §6).
+ * Reading and changing the shared team password.
  *
- * There are no accounts. The whole site sits behind one password; passing it
- * sets a long-lived cookie whose value is derived from the password itself, so
- * rotating APP_PASSWORD invalidates every session that was already open.
- *
- * Uses Web Crypto rather than node:crypto so the same helper runs in
- * middleware (edge runtime) and in the route handler.
+ * The stored hash is the source of truth. `APP_PASSWORD` is only the seed for a
+ * brand new deployment: the first time anybody signs in, the env value is hashed
+ * into the database and from then on the app owns it, which is what lets the
+ * password be changed from Settings without a redeploy.
  */
 
-export const SESSION_COOKIE = "lc_session";
+const SETTINGS_KEY = "password_hash";
 
-/** 90 days, in seconds. "Checked once" in the PRD means a long-lived cookie. */
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 90;
+async function readStoredHash(): Promise<string | null> {
+  const row = await getDb()
+    .prepare(`SELECT value FROM settings WHERE key = ?`)
+    .bind(SETTINGS_KEY)
+    .first<{ value: string }>();
 
-const TOKEN_SALT = "launch-calendar:v1";
+  return row?.value ?? null;
+}
 
-function toBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function writeStoredHash(hash: string): Promise<void> {
+  await getDb()
+    .prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    )
+    .bind(SETTINGS_KEY, hash, new Date().toISOString())
+    .run();
 }
 
 /**
- * The cookie value for the currently configured password, or null when
- * APP_PASSWORD is unset — in which case nothing can authenticate and the gate
- * stays closed rather than falling open.
+ * The hash the app should currently be checking against, seeding it from
+ * APP_PASSWORD the first time. Null means the deployment has no password at all
+ * and nobody can sign in — deliberately, rather than falling open.
  */
-export async function sessionToken(): Promise<string | null> {
-  const password = process.env.APP_PASSWORD;
-  if (!password) return null;
+export async function currentPasswordHash(): Promise<string | null> {
+  const stored = await readStoredHash();
+  if (stored) return stored;
 
-  const data = new TextEncoder().encode(`${TOKEN_SALT}:${password}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return toBase64Url(new Uint8Array(digest));
+  const seed = process.env.APP_PASSWORD;
+  if (!seed) return null;
+
+  const hash = await hashPassword(seed);
+  await writeStoredHash(hash);
+  return hash;
 }
 
-/** Constant-time-ish comparison, so a wrong guess leaks no length information. */
-export function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+export async function isPasswordConfigured(): Promise<boolean> {
+  try {
+    return (await currentPasswordHash()) !== null;
+  } catch {
+    return false;
   }
-  return mismatch === 0;
 }
 
-export function isPasswordConfigured(): boolean {
-  return Boolean(process.env.APP_PASSWORD);
+/** The cookie value a valid session should carry right now. */
+export async function sessionToken(): Promise<string | null> {
+  const hash = await currentPasswordHash();
+  return hash ? sessionTokenFor(hash) : null;
+}
+
+export async function checkPassword(candidate: string): Promise<boolean> {
+  const hash = await currentPasswordHash();
+  if (!hash) return false;
+  return verifyPassword(candidate, hash);
+}
+
+/**
+ * Changes the password, after proving the current one. Returns the new session
+ * token so the person doing it is not signed out by their own change.
+ */
+export async function changePassword(
+  currentPassword: string,
+  nextPassword: string,
+): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+  const hash = await currentPasswordHash();
+  if (!hash) return { ok: false, error: "This deployment has no password set." };
+
+  if (!(await verifyPassword(currentPassword, hash))) {
+    return { ok: false, error: "That is not the current password." };
+  }
+
+  const trimmed = nextPassword.trim();
+  if (trimmed.length < 8) {
+    return { ok: false, error: "Use at least 8 characters." };
+  }
+  if (await verifyPassword(trimmed, hash)) {
+    return { ok: false, error: "That is already the password." };
+  }
+
+  const nextHash = await hashPassword(trimmed);
+  await writeStoredHash(nextHash);
+
+  return { ok: true, token: await sessionTokenFor(nextHash) };
 }

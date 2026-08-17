@@ -24,9 +24,14 @@ const EVENT_COLUMNS = `id, name, type, status, brief, launch_date, promo_end_dat
   inventory_date, asset_deadline, teaser_start, channels, owner, notes,
   created_at, updated_at, updated_by`;
 
-/** Writes one changelog row per change, best-effort. */
+/**
+ * Writes one changelog row per change, best-effort.
+ *
+ * `id` is nullable because not everything worth logging is an event — a
+ * password change is not, and the foreign key would reject a made-up id.
+ */
 async function recordChanges(
-  event: Pick<LaunchEvent, "id" | "name">,
+  event: { id: string | null; name: string },
   summaries: string[],
   editor: string,
 ): Promise<void> {
@@ -50,6 +55,20 @@ async function recordChanges(
   } catch (error) {
     console.error(`Changelog write failed for ${event.id}:`, error);
   }
+}
+
+/**
+ * Records a password change in the shared history.
+ *
+ * It is not an event edit, but it is the single most disruptive thing anyone
+ * can do here — everybody else gets signed out — so it belongs in the log.
+ */
+export async function recordPasswordChange(editor: string): Promise<void> {
+  await recordChanges(
+    { id: null, name: "Team settings" },
+    ["Team password changed — everyone will need to sign in again"],
+    editor,
+  );
 }
 
 export async function listEvents(): Promise<LaunchEvent[]> {

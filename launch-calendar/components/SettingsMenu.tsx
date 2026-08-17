@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useDisplayName } from "./DisplayName";
+import { ChangePassword } from "./ChangePassword";
 
 /**
  * The small settings menu in the nav.
@@ -13,6 +14,7 @@ import { useDisplayName } from "./DisplayName";
 export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
   const { name, promptForName } = useDisplayName();
   const [open, setOpen] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,7 +81,24 @@ export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
             <span className="settings__label">Replay the walkthrough</span>
             <span className="settings__hint">A two-minute tour of the board</span>
           </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className="settings__item"
+            onClick={() => {
+              setOpen(false);
+              setChangingPassword(true);
+            }}
+          >
+            <span className="settings__label">Change the team password</span>
+            <span className="settings__hint">Signs everybody out</span>
+          </button>
         </div>
+      )}
+
+      {changingPassword && (
+        <ChangePassword onClose={() => setChangingPassword(false)} />
       )}
     </div>
   );

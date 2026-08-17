@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
-  safeEqual,
+  checkPassword,
+  isPasswordConfigured,
   sessionToken,
 } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const configured = process.env.APP_PASSWORD;
+  const configured = await isPasswordConfigured();
 
   if (!configured) {
     return NextResponse.json(
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
 
-  if (!safeEqual(submitted, configured)) {
+  if (!(await checkPassword(submitted))) {
     return NextResponse.json(
       { error: "That password is not right." },
       { status: 401 },
