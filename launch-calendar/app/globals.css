@@ -2156,6 +2156,15 @@ button {
  * First run
  * ----------------------------------------------------------------------- */
 
+/* Sits above the empty-state card so Settings is reachable on a board with
+   nothing on it yet — the very first thing a new team sees. */
+.firstrun__bar {
+  display: flex;
+  justify-content: flex-end;
+  max-width: 34rem;
+  margin: var(--space-5) auto calc(var(--space-5) * -1);
+}
+
 .firstrun {
   max-width: 34rem;
   margin: var(--space-7) auto;

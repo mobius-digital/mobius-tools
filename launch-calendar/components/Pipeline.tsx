@@ -295,7 +295,15 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
 
   if (boardIsEmpty) {
     return (
-      <div className="firstrun">
+      <>
+        {/* Settings has to live here too. A brand new team sees this screen and
+            nothing else, and this is exactly when they need to change the
+            password they were handed. */}
+        <div className="firstrun__bar">
+          <SettingsMenu onReplayTour={replayTour} />
+        </div>
+
+        <div className="firstrun">
         <h1 className="firstrun__title">Nothing on the board yet</h1>
         <p className="firstrun__body">
           This is where the team sees what is launching over the next four weeks,
@@ -314,7 +322,8 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
         </button>
 
         <Walkthrough open={tourOpen} onClose={() => setTourOpen(false)} />
-      </div>
+        </div>
+      </>
     );
   }
 
