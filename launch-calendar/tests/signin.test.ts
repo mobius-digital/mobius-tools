@@ -4,7 +4,7 @@ import { nameFromEmail, normaliseEmail } from "../lib/identity.ts";
 import { cleanLabel, keyFromLabel } from "../lib/validation.ts";
 
 test("normaliseEmail accepts a real address and lowercases it", () => {
-  assert.equal(normaliseEmail("  Cole@Go-Mobius-Digital.com "), "cole@go-mobius-digital.com");
+  assert.equal(normaliseEmail("  Dana@Example.COM "), "dana@example.com");
 });
 
 test("normaliseEmail rejects things that are not addresses", () => {
