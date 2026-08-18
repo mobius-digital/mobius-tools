@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDisplayName } from "./DisplayName";
 import { ChangePassword } from "./ChangePassword";
+import { SignInSettings } from "./SignInSettings";
 
 /**
  * The small settings menu in the nav.
@@ -15,6 +16,7 @@ export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
   const { name, promptForName, verified } = useDisplayName();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [editingSignIn, setEditingSignIn] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,6 +91,21 @@ export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
             <span className="settings__hint">A two-minute tour of the board</span>
           </button>
 
+          <button
+            type="button"
+            role="menuitem"
+            className="settings__item"
+            onClick={() => {
+              setOpen(false);
+              setEditingSignIn(true);
+            }}
+          >
+            <span className="settings__label">Who can sign in</span>
+            <span className="settings__hint">
+              Shared password, or invite people by email
+            </span>
+          </button>
+
           {/* The shared password is unused when your organisation's login is
               handling sign-in, so offering to change it would only confuse. */}
           {!verified && (
@@ -111,6 +128,8 @@ export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
       {changingPassword && (
         <ChangePassword onClose={() => setChangingPassword(false)} />
       )}
+
+      {editingSignIn && <SignInSettings onClose={() => setEditingSignIn(false)} />}
     </div>
   );
 }

@@ -55,3 +55,11 @@ CREATE TABLE IF NOT EXISTS settings (
   value      TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- Who may sign in with Google. Empty means nobody, which is why switching to
+-- Google sign-in is refused until at least one address is on the list.
+CREATE TABLE IF NOT EXISTS allowed_emails (
+  email      TEXT PRIMARY KEY,
+  added_by   TEXT,
+  created_at TEXT NOT NULL
+);

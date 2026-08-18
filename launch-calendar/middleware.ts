@@ -1,34 +1,38 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, safeEqual, sessionToken } from "@/lib/auth";
-import { ACCESS_JWT_HEADER, accessIsConfigured, verifyAccessJwt } from "@/lib/access";
+import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
+import { emailIsAllowed, signInConfig } from "@/lib/signin";
 
 /**
  * Gates every page and API route.
  *
- * Two modes. With Cloudflare Access configured, Cloudflare has already
- * authenticated the person and the only job here is to verify the token it
- * passed along. Without it, the app's own shared-password cookie is the gate.
+ * A signed-in Google session is accepted whenever one is presented and still
+ * valid, and the shared password is accepted in password mode — or in Google
+ * mode while the fallback is deliberately left on, which is what stops a wrong
+ * client ID locking a team out of their own board.
  */
 export async function middleware(request: NextRequest) {
-  if (accessIsConfigured()) {
-    const identity = await verifyAccessJwt(
-      request.headers.get(ACCESS_JWT_HEADER),
-    );
+  const config = await signInConfig();
 
-    // Access itself owns the login screen, so there is nowhere useful to
-    // redirect to — a request without a valid token should simply be refused.
-    if (!identity) {
-      return new NextResponse("Not authorised.", { status: 401 });
-    }
+  const identity = await readIdentityToken(
+    request.cookies.get(IDENTITY_COOKIE)?.value,
+  );
 
+  // Checked on every request, not just at sign-in: removing somebody from the
+  // invite list has to end the session they already have open.
+  if (identity && config.mode === "google" && (await emailIsAllowed(identity.email))) {
     return NextResponse.next();
   }
 
-  const presented = request.cookies.get(SESSION_COOKIE)?.value;
-  const expected = await sessionToken();
+  const passwordAccepted =
+    config.mode === "password" || config.passwordFallback;
 
-  if (expected && presented && safeEqual(presented, expected)) {
-    return NextResponse.next();
+  if (passwordAccepted) {
+    const presented = request.cookies.get(SESSION_COOKIE)?.value;
+    const expected = await sessionToken();
+    if (expected && presented && safeEqual(presented, expected)) {
+      return NextResponse.next();
+    }
   }
 
   const target = request.nextUrl.clone();
@@ -40,9 +44,12 @@ export async function middleware(request: NextRequest) {
 
   const response = NextResponse.redirect(target);
 
-  // A cookie that no longer matches (rotated password) is cleared rather than
-  // left to be re-sent on every subsequent request.
-  if (presented) response.cookies.delete(SESSION_COOKIE);
+  // Cookies that no longer open anything — a rotated password, a revoked
+  // invitation — are cleared rather than re-sent on every later request.
+  if (request.cookies.get(SESSION_COOKIE)) response.cookies.delete(SESSION_COOKIE);
+  if (identity === null && request.cookies.get(IDENTITY_COOKIE)) {
+    response.cookies.delete(IDENTITY_COOKIE);
+  }
 
   return response;
 }
@@ -52,7 +59,7 @@ export const config = {
     /*
      * Everything except:
      *   password        — the gate itself
-     *   api/auth        — the endpoint that issues the cookie
+     *   api/auth        — the endpoints that issue a cookie
      *   _next/*         — build output
      *   logo.svg, favicon.ico, and other root-level static files
      */

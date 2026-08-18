@@ -178,39 +178,46 @@ deploy to see the whole app change.
 
 ## Optional: sign in with Google instead of a shared password
 
-If your team is on Google Workspace (or Microsoft, Okta, GitHub), Cloudflare can
-handle sign-in for you. Then nobody types a password, and every edit is stamped
-with a **verified** name instead of one somebody typed into their own browser.
+Rather than one password everybody shares, you can invite people by email and
+have them sign in with their own Google account. Only the addresses you list can
+get in, and every edit is stamped with a **verified** name instead of one the
+person typed themselves.
 
-Free for up to 50 people, and it works on your `workers.dev` address.
+It is all set up inside the app — **Settings → Who can sign in** — and takes
+effect immediately. There is nothing to redeploy.
 
-1. In the Cloudflare dashboard go to **Zero Trust** → **Settings** →
-   **Authentication**, and add **Google** (or your provider) as a login method.
-2. Go to **Access** → **Applications** → **Add an application** → **Self-hosted**.
-   Point it at your Worker, and add a policy such as *Emails ending in
-   `@yourcompany.com`*.
-3. On the application's overview, copy the **Application Audience (AUD) tag**.
-4. Back in your project, set two variables:
+**One thing to get first: a Google client ID.**
 
-```bash
-npx wrangler secret put ACCESS_TEAM_DOMAIN
-```
-Enter your team domain, e.g. `yourteam.cloudflareaccess.com`
+1. Go to [Google Cloud → Credentials](https://console.cloud.google.com/apis/credentials)
+   and sign in.
+2. Create a project if you do not have one.
+3. **Create credentials → OAuth client ID → Web application**.
+4. Under **Authorised JavaScript origins**, add your app's address, e.g.
+   `https://launch-calendar.yourname.workers.dev` — no trailing slash.
+5. Create it. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`).
 
-```bash
-npx wrangler secret put ACCESS_AUD
-```
-Enter the AUD tag you copied.
+The client ID is not a secret; it is visible in every page that offers a Google
+button. You do not need the client secret at all.
 
-```bash
-npm run deploy
-```
+**Then, in the app:**
 
-From then on the app stops asking for its own password, Google handles login, and
-names come from people's accounts. The "change your name" and "change the team
-password" options disappear from Settings, because neither applies any more.
+1. **Settings → Who can sign in**
+2. Paste the client ID into the Google client ID box and press **Save**
+3. Add each person's email under **Invited people**
+4. Choose **Google sign-in, by invitation**
 
-To go back, remove those two variables and redeploy.
+Send everyone the same link as before. They will get a Google button instead of
+a password box.
+
+**Leave "Also accept the team password" ticked until you have confirmed Google
+sign-in works.** It is the way back in if the client ID is wrong. Untick it once
+somebody has signed in successfully with Google.
+
+Adding or removing someone later is the same screen, and takes effect at once —
+a person you remove is signed out on their next page load.
+
+> Signing in with Google needs a Google account on that address — a Workspace
+> address or a Gmail. It does not have to be a Workspace domain.
 
 ---
 
@@ -220,6 +227,7 @@ To go back, remove those two variables and redeploy.
 |---|---|
 | Publish any change | `npm run deploy` |
 | Change the team password | **Settings → Change the team password**, inside the app |
+| Invite or remove people | **Settings → Who can sign in**, inside the app |
 | Try changes before publishing | `npm run preview` |
 
 Changing the password signs everyone else out — you stay signed in — and the

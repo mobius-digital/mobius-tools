@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { ACCESS_JWT_HEADER, verifyAccessJwt } from "@/lib/access";
+import { cookies } from "next/headers";
 import { brand } from "@/brand.config";
 import { brandCssVariables, googleFontUrl } from "@/lib/brand";
 import { Nav } from "@/components/Nav";
 import { DisplayNameProvider } from "@/components/DisplayName";
+import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,11 +17,12 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // With Cloudflare Access on, the signed-in identity comes from the verified
-  // token rather than from a name somebody typed into their own browser.
-  const identity = await verifyAccessJwt(
-    (await headers()).get(ACCESS_JWT_HEADER),
+  // After a Google sign-in the name comes from the person's own account, so
+  // edits are stamped with a verified identity rather than one they typed.
+  const identity = await readIdentityToken(
+    (await cookies()).get(IDENTITY_COOKIE)?.value,
   );
+
   return (
     <html lang="en">
       <head>

@@ -22,8 +22,8 @@ Both halves run on Cloudflare.
 
 - **Frontend + backend:** Next.js (App Router) running as a Cloudflare Worker
 - **Database:** Cloudflare D1
-- **Access:** one shared password by default, or Cloudflare Access (Google/
-  Microsoft/Okta SSO) when `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set
+- **Access:** one shared password, or Google sign-in against an invite list —
+  chosen from inside the app, no redeploy
 
 Everything lives on Cloudflare — one account, one deploy, no third-party
 database to sign up for.
@@ -131,9 +131,13 @@ remembered per device and travels in the URL, so a filtered view can be shared.
 - Dates are calendar dates with no time component, handled as `YYYY-MM-DD`
   strings throughout so a launch cannot appear to shift a day for viewers in
   another timezone.
-- Anyone past the gate can edit anything. The safeguard is visibility, not
-  permissions — every card shows who last touched it and when. Under Cloudflare
-  Access that name is verified rather than self-declared.
+- Anyone past the gate can edit anything — there is one level of access, not a
+  role system. The safeguard is visibility: every card shows who last touched it
+  and when. Under Google sign-in that name is verified rather than self-declared.
+- Google sign-in uses an ID token verified in the Worker against Google's
+  published keys, checking audience, issuer, expiry and `email_verified`. Only a
+  client ID is involved — no client secret to store. Membership is re-checked on
+  every request, so removing somebody ends the session they already have open.
 - The shared password lives in the database, not in a Cloudflare secret, so it
   can be changed from Settings without a redeploy. `APP_PASSWORD` seeds it on a
   fresh deployment.

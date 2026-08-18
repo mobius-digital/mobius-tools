@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { signInConfig } from "@/lib/signin";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
@@ -10,6 +11,16 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  // Handing back a working cookie the gate will then refuse would loop somebody
+  // between the password screen and the board with no explanation.
+  const signIn = await signInConfig();
+  if (signIn.mode === "google" && !signIn.passwordFallback) {
+    return NextResponse.json(
+      { error: "This board uses Google sign-in. Use the Google button instead." },
+      { status: 403 },
+    );
+  }
+
   const configured = await isPasswordConfigured();
 
   if (!configured) {
