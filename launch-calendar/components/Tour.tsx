@@ -6,6 +6,8 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -52,8 +54,12 @@ type Step = {
   /** When this becomes true the step completes on its own. */
   done?: (ctx: TourContext) => boolean;
   /**
-   * Keep the step even when its target is missing. Used for the editor fields,
-   * which do not exist until the editor has been opened a moment earlier.
+   * Do not skip this step just because its target is missing at the instant we
+   * arrive — wait for it. Used for anything that appears a beat later than the
+   * step does: the editor fields, and the first card after it is saved.
+   *
+   * If it still has not appeared after the grace period the step is skipped,
+   * so the reader never sits looking at a tip that highlights nothing.
    */
   keepIfMissing?: boolean;
 };
@@ -109,7 +115,7 @@ const STEPS: Step[] = [
     target: ".fieldset .channel-rows",
     keepIfMissing: true,
     title: "Channels — who has work to do",
-    body: "Tick every channel involved, then say how much it matters to each. Primary means this launch is that channel's main event — it clears the decks. Supporting means they help but it is not their headline. Awareness means they just need to know it is happening. Only Primary counts toward clash warnings, so use it honestly.",
+    body: "Tick every channel involved, then set how much it matters to each. Primary — this channel builds something; it is their main event. Supporting — they help, but it is not their headline. FYI — they just need to know it is happening. Say a wedge restock: Paid is Primary because it carries the launch, Email is Supporting with one send, Organic is FYI so social does not schedule something competing. Only Primary counts toward clash warnings, so use it honestly.",
   },
   {
     id: "f-owner",
@@ -119,15 +125,24 @@ const STEPS: Step[] = [
     body: "The person to ask when a date looks wrong. “Cole”, not “Marketing”. One name means nobody has to guess who to chase.",
   },
   {
+    id: "f-type",
+    target: "#event-type",
+    keepIfMissing: true,
+    title: "Type — what kind of thing this is",
+    body: "Product launch for something genuinely new. Promo for a discount or offer on what you already sell. Restock when stock returns. Content moment for a campaign with no direct offer behind it. Evergreen push for turning up spend on something always-on. It is there so the board can be read at a glance, not to drive any logic.",
+  },
+  {
     id: "f-status",
     target: "#event-status",
     keepIfMissing: true,
     title: "Status — is this date real?",
-    body: "Confirmed means build against it. Tentative means it could still move, so do not book media yet. At risk means it was locked and is now wobbling — that is the one that earns a red flag on the board.",
+    body: "Confirmed — locked, build against it. Tentative — it could still move, so do not book media yet. At risk — it was locked and is now slipping; this is the one that earns a red flag. Completed — it shipped, and it drops off the board unless you tick “Show completed”. Cancelled — it is off, but the event and its history stay so nobody wonders what happened to it.",
   },
   {
     id: "f-runup",
-    target: ".date-grid",
+    // Not just ".date-grid": the launch date sits in one of those too, and it
+    // comes first, so the plain selector spotlighted the wrong field.
+    target: ".date-grid:not(.date-grid--single)",
     keepIfMissing: true,
     title: "Run-up dates — what makes this useful to everyone else",
     body: "These are the deadlines behind the launch, and they are why other channels care. Assets due: when creative must be finished — usually a week or two before. Teaser start: when you begin hinting publicly. Inventory: when stock actually lands. Promo end: when the offer stops. Fill in the ones you know; leave the rest blank.",
@@ -194,7 +209,7 @@ const STEPS: Step[] = [
   {
     id: "calendar",
     goto: "/calendar",
-    target: ".cal__grid, .cal-week",
+    target: ".cal",
     title: "Calendar — the same launches as a timeline",
     body: "Each launch stretches from its teaser start to the end of its promo, so you can see overlaps at a glance. Switch between month and week at the top.",
   },
@@ -208,9 +223,16 @@ const STEPS: Step[] = [
   {
     id: "changelog",
     goto: "/changelog",
-    target: ".changelog, .feed",
+    target: ".log-day, .empty",
     title: "Changelog — who changed what, and when",
     body: "Written automatically on every edit, so nobody has to remember to record anything. If a date moved and you want to know who moved it and when, it is here.",
+  },
+  {
+    id: "settings",
+    goto: "/",
+    target: ".nav .settings",
+    title: "Settings — the four things you can change",
+    body: "Change your name, which is what gets stamped on your edits. Replay this walkthrough. Who can sign in — a shared password, or invite people by email to sign in with Google. And change the team password, which signs everybody else out.",
   },
   {
     id: "done",
@@ -297,6 +319,8 @@ function Walkthrough({
   // usable while the tour is up. The tour paints above everything, so it steps
   // aside entirely rather than burying the dialog under its own dim.
   const [dialogOpen, setDialogOpen] = useState(false);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [tipHeight, setTipHeight] = useState(0);
 
   const step = STEPS[index];
 
@@ -351,6 +375,29 @@ function Walkthrough({
     }, 200);
     return () => window.clearInterval(timer);
   }, []);
+
+  /**
+   * A step that waited for its target and never got one is skipped.
+   *
+   * Without this, "keep waiting" turned into "sit here forever pointing at
+   * nothing" whenever the thing genuinely was not on the page — an empty week
+   * has no card, so the status-menu step had nothing to highlight.
+   */
+  useEffect(() => {
+    if (!step?.target || !step.keepIfMissing) return;
+    if (document.querySelector(step.target)) return;
+
+    const deadline = window.setTimeout(() => {
+      if (!document.querySelector(step.target!)) next();
+    }, 1200);
+
+    return () => window.clearTimeout(deadline);
+  }, [step, next]);
+
+  useLayoutEffect(() => {
+    const measured = tipRef.current?.offsetHeight ?? 0;
+    if (measured && measured !== tipHeight) setTipHeight(measured);
+  });
 
   // Keep the spotlight on the target through scrolling and layout changes.
   useEffect(() => {
@@ -415,17 +462,37 @@ function Walkthrough({
       }
     : null;
 
+  /**
+   * Placed against the tip's measured height rather than a guess.
+   *
+   * The old version assumed 240px was enough room below; the longer steps are
+   * closer to 400, so their buttons ended up under the bottom of the window
+   * with no way to reach them.
+   */
   const tipStyle: React.CSSProperties = spotlight
     ? (() => {
-        const below = spotlight.top + spotlight.height + 14;
-        const roomBelow = window.innerHeight - below > 240;
+        const margin = 16;
+        const height = tipHeight || 260;
         const left = Math.max(
-          16,
+          margin,
           Math.min(spotlight.left, window.innerWidth - 400),
         );
-        return roomBelow
-          ? { top: below, left }
-          : { bottom: window.innerHeight - spotlight.top + 14, left };
+
+        const below = spotlight.top + spotlight.height + 14;
+        const above = spotlight.top - height - 14;
+
+        let top: number;
+        if (below + height + margin <= window.innerHeight) {
+          top = below;
+        } else if (above >= margin) {
+          top = above;
+        } else {
+          // Neither side fits — sit it where it is fully visible and let it
+          // overlap the target rather than fall off the screen.
+          top = Math.max(margin, window.innerHeight - height - margin);
+        }
+
+        return { top, left };
       })()
     : { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
 
@@ -437,7 +504,7 @@ function Walkthrough({
         <div className="tour__dim" aria-hidden />
       )}
 
-      <div className="tour__tip" style={tipStyle}>
+      <div className="tour__tip" style={tipStyle} ref={tipRef}>
         <div className="tour__progress">
           <span className="tour__count">
             {index + 1} of {STEPS.length}

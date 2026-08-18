@@ -2671,3 +2671,10 @@ button {
   background: var(--color-primary);
   transition: width 200ms ease;
 }
+
+/* A long step on a short screen scrolls inside the tip rather than growing
+   past the bottom of the window. */
+.tour__tip {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
