@@ -12,14 +12,33 @@ it is yours.
 
 | File | What it is | Read it when |
 |---|---|---|
-| **`SETUP.md`** | Step-by-step installation, about 20 minutes | Now — this is the one to follow |
+| **`CLAUDE.md`** | Setup instructions for Claude Code — it reads this on its own | You don't; Claude does |
+| **`SETUP.md`** | The same installation, step by step, for doing it by hand | If you are not using Claude Code |
 | **`GUIDE.html`** | Illustrated guide to using the board, with screenshots. Open it in any browser. | After setup — and send it to your team |
 | `README.md` | Technical overview for whoever maintains it | If you are a developer, or hand it to one |
 | `brand.config.ts` | Every colour, the font, the name and logo — the one file to change to make it yours | After setup, when you want it branded |
 | `PRD.md` | The original product spec — why it works the way it does | Only if you want the reasoning |
 | everything else | The application source | Leave it alone unless you know what it is |
 
-## The short version
+## Using Claude Code? Do this instead
+
+Open this folder in Claude Code and type:
+
+```
+/setup
+```
+
+(or just say *"set this up for me"*). Claude reads the instructions bundled in
+this folder, runs the installation itself, asks you the one or two things only
+you can answer — mainly clicking **Allow** when Cloudflare opens a browser tab —
+and hands you the live address at the end. About ten minutes. It knows about
+the Windows and OneDrive traps and steers around them.
+
+You need Node.js installed (https://nodejs.org, the LTS button) and a free
+Cloudflare account (https://dash.cloudflare.com/sign-up). Claude will check for
+both and tell you if either is missing.
+
+## Doing it by hand instead
 
 1. Open **`SETUP.md`** and follow it top to bottom. It assumes you are not a
    developer. You will type a few commands; each one is given to you exactly.

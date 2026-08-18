@@ -6,6 +6,10 @@ team can open.
 
 You do not need to be a developer, but you will type a few commands.
 
+> **Using Claude Code?** You can skip all of this: open the folder in Claude Code
+> and type `/setup`. It runs these same steps for you and asks only what it must.
+> This document is the by-hand version, and the reference if anything goes wrong.
+
 ---
 
 ## Before you start
