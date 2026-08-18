@@ -2678,3 +2678,11 @@ button {
   max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
+
+/* How many events use a type, beside its name in Settings. */
+.types__usage {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}

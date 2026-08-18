@@ -232,7 +232,7 @@ const STEPS: Step[] = [
     goto: "/",
     target: ".nav .settings",
     title: "Settings — the four things you can change",
-    body: "Change your name, which is what gets stamped on your edits. Replay this walkthrough. Who can sign in — a shared password, or invite people by email to sign in with Google. And change the team password, which signs everybody else out.",
+    body: "Change your name, which is what gets stamped on your edits. Replay this walkthrough. Event types — rename the options in that Type dropdown, or add your own. Who can sign in — a shared password, or invite people by email to sign in with Google. And change the team password, which signs everybody else out.",
   },
   {
     id: "done",

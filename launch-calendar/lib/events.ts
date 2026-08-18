@@ -1,5 +1,6 @@
 import { getDb, rowToEvent } from "./db";
 import { NotFoundError, validateEventInput } from "./validation";
+import { listEventTypes } from "./eventTypes";
 import { describeCreation, describeDeletion, diffEvents } from "./changelog";
 import { EVENT_STATUSES, type ChangelogEntry, type EventStatus, type LaunchEvent } from "./types";
 
@@ -71,6 +72,11 @@ export async function recordPasswordChange(editor: string): Promise<void> {
   );
 }
 
+/** The type keys this board currently accepts. */
+async function allowedTypeKeys(): Promise<string[]> {
+  return (await listEventTypes()).map((option) => option.key);
+}
+
 export async function listEvents(): Promise<LaunchEvent[]> {
   const { results } = await getDb()
     .prepare(`SELECT ${EVENT_COLUMNS} FROM events ORDER BY launch_date ASC, name ASC`)
@@ -101,7 +107,7 @@ export async function listChangelog(limit = 100): Promise<ChangelogEntry[]> {
 }
 
 export async function createEvent(raw: unknown, editor: string): Promise<LaunchEvent> {
-  const input = validateEventInput(raw);
+  const input = validateEventInput(raw, await allowedTypeKeys());
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
@@ -142,7 +148,7 @@ export async function updateEvent(
   raw: unknown,
   editor: string,
 ): Promise<LaunchEvent> {
-  const input = validateEventInput(raw);
+  const input = validateEventInput(raw, await allowedTypeKeys());
 
   const existing = await getEvent(id);
   if (!existing) throw new NotFoundError();

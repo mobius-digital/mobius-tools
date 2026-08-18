@@ -228,6 +228,7 @@ a person you remove is signed out on their next page load.
 | Publish any change | `npm run deploy` |
 | Change the team password | **Settings → Change the team password**, inside the app |
 | Invite or remove people | **Settings → Who can sign in**, inside the app |
+| Rename or add event types | **Settings → Event types**, inside the app |
 | Try changes before publishing | `npm run preview` |
 
 Changing the password signs everyone else out — you stay signed in — and the

@@ -21,7 +21,7 @@ import {
 } from "@/lib/pipeline";
 import { collidingEventIds } from "@/lib/calendar";
 import { elevationFor } from "@/lib/channels";
-import { EVENT_TYPE_LABELS, type LaunchEvent } from "@/lib/types";
+import { type LaunchEvent } from "@/lib/types";
 
 /**
  * The Pipeline is a briefing, not a timeline.
@@ -250,7 +250,7 @@ function SummaryWeek({
 }
 
 export function Pipeline({ serverToday }: { serverToday: string }) {
-  const { events, filteredEvents, channel, openEditor } = useWorkspace();
+  const { events, filteredEvents, channel, openEditor, typeLabel } = useWorkspace();
   const { replay } = useTour();
   const [showCompleted, setShowCompleted] = useState(false);
   const [beyondOpen, setBeyondOpen] = useState(false);
@@ -493,7 +493,7 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
                     </span>
                     <span className="beyond__name">{event.name}</span>
                     <span className="beyond__type">
-                      {EVENT_TYPE_LABELS[event.type]}
+                      {typeLabel(event.type)}
                     </span>
                     <span
                       className={`status-dot status-dot--${event.status}`}

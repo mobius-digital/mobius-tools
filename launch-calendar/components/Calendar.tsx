@@ -20,7 +20,7 @@ import {
   todayIso,
 } from "@/lib/dates";
 import { buildMonthCalendar, type SpanSegment } from "@/lib/calendar";
-import { EVENT_TYPE_LABELS } from "@/lib/types";
+
 
 function SpanBar({
   segment,
@@ -30,6 +30,7 @@ function SpanBar({
   onOpen: (event: SpanSegment["event"]) => void;
 }) {
   const { event } = segment;
+  const { typeLabel } = useWorkspace();
 
   const classes = [
     "span",
@@ -47,7 +48,7 @@ function SpanBar({
       className={classes}
       style={{ gridColumn: `${segment.startCol + 1} / ${segment.endCol + 2}` }}
       onClick={() => onOpen(event)}
-      title={`${event.name} — ${EVENT_TYPE_LABELS[event.type]}. Bar runs from teaser start to promo end; ● marks launch day.`}
+      title={`${event.name} — ${typeLabel(event.type)}. Bar runs from teaser start to promo end; ● marks launch day.`}
       aria-label={`${event.name}, edit`}
     >
       {segment.launchCol !== null && (
@@ -61,7 +62,7 @@ function SpanBar({
 }
 
 export function Calendar({ serverToday }: { serverToday: string }) {
-  const { events, filteredEvents, openEditor, createEventOn } = useWorkspace();
+  const { events, filteredEvents, openEditor, createEventOn, typeLabel } = useWorkspace();
   const [expandedClash, setExpandedClash] = useState<string | null>(null);
 
   const [today, setToday] = useState(serverToday);
@@ -285,7 +286,7 @@ export function Calendar({ serverToday }: { serverToday: string }) {
                       </span>
                       <span className="beyond__name">{event.name}</span>
                       <span className="beyond__type">
-                        {EVENT_TYPE_LABELS[event.type]}
+                        {typeLabel(event.type)}
                       </span>
                       <StatusBadge status={event.status} />
                     </button>

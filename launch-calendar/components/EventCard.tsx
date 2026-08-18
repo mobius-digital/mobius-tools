@@ -1,6 +1,7 @@
 "use client";
 
-import { EVENT_TYPE_LABELS, type LaunchEvent } from "@/lib/types";
+import { type LaunchEvent } from "@/lib/types";
+import { useWorkspace } from "./Workspace";
 import { formatShort } from "@/lib/dates";
 import { ChannelChips } from "./ChannelChips";
 import { RelativeTime } from "./RelativeTime";
@@ -21,6 +22,8 @@ export function EventCard({
   /** Untouched for 21+ days while launching inside 30 (PRD §6). */
   stale?: boolean;
 }) {
+  const { typeLabel } = useWorkspace();
+
   return (
     <article
       className={`card card--${event.status}${colliding ? " card--colliding" : ""}`}
@@ -41,7 +44,7 @@ export function EventCard({
         </span>
 
         <span className="card__tags">
-          <span className="type-badge">{EVENT_TYPE_LABELS[event.type]}</span>
+          <span className="type-badge">{typeLabel(event.type)}</span>
           {colliding && (
             <span
               className="clash-flag"

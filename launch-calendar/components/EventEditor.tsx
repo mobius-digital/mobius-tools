@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useDisplayName } from "./DisplayName";
+import { useWorkspace } from "./Workspace";
 import {
   CHANNEL_KEYS,
   CHANNEL_LABELS,
@@ -9,8 +10,6 @@ import {
   EMPTY_CHANNELS,
   EVENT_STATUSES,
   EVENT_STATUS_LABELS,
-  EVENT_TYPES,
-  EVENT_TYPE_LABELS,
   type ChannelPriority,
   type Channels,
   type EventStatus,
@@ -120,6 +119,7 @@ export function EventEditor({
   onSaved: (event: LaunchEvent, deleted: boolean) => void;
 }) {
   const { ensureName } = useDisplayName();
+  const { eventTypes } = useWorkspace();
   const [form, setForm] = useState<FormState>(() =>
     toFormState(event, defaultLaunchDate),
   );
@@ -464,11 +464,16 @@ export function EventEditor({
                   set("type", changeEvent.target.value as EventType)
                 }
               >
-                {EVENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {EVENT_TYPE_LABELS[type]}
+                {eventTypes.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
                   </option>
                 ))}
+                {/* An event created under a type that has since been removed
+                    keeps its value rather than silently switching to another. */}
+                {!eventTypes.some((option) => option.key === form.type) && form.type && (
+                  <option value={form.type}>{form.type}</option>
+                )}
               </select>
               {fieldErrors.type && <p className="field__error">{fieldErrors.type}</p>}
             </div>

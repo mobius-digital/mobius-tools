@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDisplayName } from "./DisplayName";
 import { ChangePassword } from "./ChangePassword";
 import { SignInSettings } from "./SignInSettings";
+import { EventTypeSettings } from "./EventTypeSettings";
 import { useTour } from "./Tour";
 
 /**
@@ -19,6 +20,7 @@ export function SettingsMenu() {
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [editingSignIn, setEditingSignIn] = useState(false);
+  const [editingTypes, setEditingTypes] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,6 +101,21 @@ export function SettingsMenu() {
             className="settings__item"
             onClick={() => {
               setOpen(false);
+              setEditingTypes(true);
+            }}
+          >
+            <span className="settings__label">Event types</span>
+            <span className="settings__hint">
+              The options in the Type dropdown
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className="settings__item"
+            onClick={() => {
+              setOpen(false);
               setEditingSignIn(true);
             }}
           >
@@ -132,6 +149,8 @@ export function SettingsMenu() {
       )}
 
       {editingSignIn && <SignInSettings onClose={() => setEditingSignIn(false)} />}
+
+      {editingTypes && <EventTypeSettings onClose={() => setEditingTypes(false)} />}
     </div>
   );
 }

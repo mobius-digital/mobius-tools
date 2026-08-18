@@ -131,6 +131,10 @@ remembered per device and travels in the URL, so a filtered view can be shared.
 - Dates are calendar dates with no time component, handled as `YYYY-MM-DD`
   strings throughout so a launch cannot appear to shift a day for viewers in
   another timezone.
+- Event types are per-board, edited from Settings and stored in the database.
+  Status and channel deliberately are not: the app branches on both — clash
+  detection, the at-risk flag, what "Show completed" hides — so a custom value
+  would have no defined behaviour. Type is a label nothing reads.
 - Anyone past the gate can edit anything — there is one level of access, not a
   role system. The safeguard is visibility: every card shows who last touched it
   and when. Under Google sign-in that name is verified rather than self-declared.

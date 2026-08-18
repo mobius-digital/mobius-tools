@@ -3,7 +3,9 @@
 -- Apply with:  npx wrangler d1 execute launch-calendar --remote --file=./db/schema.sql
 --
 -- SQLite has no enums and no jsonb, so:
---   * type/status are TEXT with CHECK constraints
+--   * status is TEXT with a CHECK constraint, because the app branches on it
+--   * type is plain TEXT: boards define their own types from Settings, so the
+--     valid set lives in the settings table and is enforced in the app layer
 --   * channels is TEXT holding JSON, parsed in the app layer
 -- Access control is the shared password gate in front of the whole site, so
 -- there is no row-level security here; the database is only reachable from the
@@ -12,9 +14,7 @@
 CREATE TABLE IF NOT EXISTS events (
   id             TEXT PRIMARY KEY,
   name           TEXT NOT NULL,
-  type           TEXT NOT NULL CHECK (type IN (
-                   'product_launch','promo','restock',
-                   'content_moment','evergreen_push','other')),
+  type           TEXT NOT NULL,
   status         TEXT NOT NULL DEFAULT 'tentative' CHECK (status IN (
                    'confirmed','tentative','at_risk','completed','cancelled')),
   brief          TEXT NOT NULL DEFAULT '',

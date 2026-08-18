@@ -72,15 +72,21 @@ export function normaliseChannels(raw: unknown): Channels {
  * Validates and normalises editor input, returning a row-shaped value ready to
  * write, or throwing `ValidationError` with per-field messages.
  */
-export function validateEventInput(raw: unknown): EventInput {
+export function validateEventInput(
+  raw: unknown,
+  allowedTypes?: readonly string[],
+): EventInput {
   const input = (raw ?? {}) as Record<string, unknown>;
   const errors: FieldErrors = {};
 
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (!name) errors.name = "Give the event a name.";
 
+  // Checked against the board's configured list when the caller supplies one,
+  // since types are editable; the built-in list is the fallback.
   const type = input.type as EventType;
-  if (!EVENT_TYPES.includes(type)) errors.type = "Choose a type.";
+  const allowed = allowedTypes ?? (EVENT_TYPES as readonly string[]);
+  if (typeof type !== "string" || !allowed.includes(type)) errors.type = "Choose a type.";
 
   const status = input.status as EventStatus;
   if (!EVENT_STATUSES.includes(status)) errors.status = "Choose a status.";
@@ -174,4 +180,27 @@ export function validateEditorName(raw: unknown): string {
     });
   }
   return name.slice(0, 40);
+}
+
+/**
+ * "Tour Drop" -> "tour_drop".
+ *
+ * The key is what events store, so it has to survive the label being renamed
+ * later — that is the whole reason the two are kept apart.
+ */
+export function keyFromLabel(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+}
+
+/** Tidies a user-supplied label, or null if it is not usable as one. */
+export function cleanLabel(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const label = raw.trim().replace(/\s+/g, " ");
+  if (label.length < 2 || label.length > 40) return null;
+  return label;
 }

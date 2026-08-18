@@ -7,7 +7,15 @@ export const EVENT_TYPES = [
   "other",
 ] as const;
 
-export type EventType = (typeof EVENT_TYPES)[number];
+/**
+ * Type is a free label, not an enum.
+ *
+ * Boards can define their own — a golf brand wants "Tour Drop", not
+ * "Content Moment" — so this cannot be a closed union. Nothing branches on the
+ * value; it exists to be read. Status and channel stay closed unions precisely
+ * because they do drive behaviour.
+ */
+export type EventType = string;
 
 export const EVENT_STATUSES = [
   "confirmed",
@@ -110,7 +118,8 @@ export const CHANNEL_LABELS: Record<ChannelKey, string> = {
   sms: "SMS",
 };
 
-export const EVENT_TYPE_LABELS: Record<EventType, string> = {
+/** Labels for the built-in types, and the seed for a new board. */
+export const EVENT_TYPE_LABELS: Record<string, string> = {
   product_launch: "Product Launch",
   promo: "Promo",
   restock: "Restock",
@@ -118,6 +127,11 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   evergreen_push: "Evergreen Push",
   other: "Other",
 };
+
+/** The list a board starts with, before anybody edits it. */
+export const DEFAULT_EVENT_TYPES: { key: string; label: string }[] = EVENT_TYPES.map(
+  (key) => ({ key, label: EVENT_TYPE_LABELS[key] }),
+);
 
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
   confirmed: "Confirmed",

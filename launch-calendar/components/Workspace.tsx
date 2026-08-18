@@ -10,7 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import { filterByChannel, isChannelFilter, type ChannelFilter } from "@/lib/channels";
-import type { ChangelogEntry, EventStatus, IsoDate, LaunchEvent } from "@/lib/types";
+import { DEFAULT_EVENT_TYPES, type ChangelogEntry, type EventStatus, type IsoDate, type LaunchEvent } from "@/lib/types";
+import type { EventTypeOption } from "@/lib/eventTypes";
 import { EventEditor } from "./EventEditor";
 import { useDisplayName } from "./DisplayName";
 
@@ -52,6 +53,10 @@ type WorkspaceContextValue = {
   createEventOn: (launchDate: IsoDate) => void;
   /** One-click status change from a card or row. */
   setStatus: (event: LaunchEvent, status: EventStatus) => Promise<void>;
+  /** The board's event types, in the order they should be offered. */
+  eventTypes: EventTypeOption[];
+  /** Label for a stored type key, falling back to the key if it was removed. */
+  typeLabel: (key: string) => string;
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -71,10 +76,12 @@ function sortEvents(events: LaunchEvent[]): LaunchEvent[] {
 export function Workspace({
   initialEvents,
   initialChangelog = NO_CHANGES,
+  eventTypes = DEFAULT_EVENT_TYPES,
   children,
 }: {
   initialEvents: LaunchEvent[];
   initialChangelog?: ChangelogEntry[];
+  eventTypes?: EventTypeOption[];
   children: ReactNode;
 }) {
   const { ensureName } = useDisplayName();
@@ -245,6 +252,16 @@ export function Workspace({
     [events, channel],
   );
 
+  /**
+   * An event keeps its type key even if that type is later removed, so an
+   * unknown key falls back to showing the key rather than rendering blank.
+   */
+  const typeLabel = useCallback(
+    (key: string) =>
+      eventTypes.find((option) => option.key === key)?.label ?? key,
+    [eventTypes],
+  );
+
   const value = useMemo(
     () => ({
       events,
@@ -256,6 +273,8 @@ export function Workspace({
       openEditor,
       createEventOn,
       setStatus,
+      eventTypes,
+      typeLabel,
     }),
     [
       events,
@@ -267,6 +286,8 @@ export function Workspace({
       openEditor,
       createEventOn,
       setStatus,
+      eventTypes,
+      typeLabel,
     ],
   );
 
