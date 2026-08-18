@@ -3,6 +3,7 @@ import { isPasswordConfigured } from "@/lib/auth";
 import { signInConfig } from "@/lib/signin";
 import { PasswordForm } from "@/components/PasswordForm";
 import { GoogleSignIn } from "@/components/GoogleSignIn";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,7 @@ export default async function PasswordPage({
   return (
     <div className="gate">
       <div className="gate__card">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={brand.logoUrl} alt="" className="gate__logo" aria-hidden />
+        <BrandLogo className="gate__logo" />
         <h1 className="gate__title">{brand.name} Launch Calendar</h1>
 
         {googleMode ? (

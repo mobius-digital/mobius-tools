@@ -77,8 +77,9 @@ or a logo path. They all read from that config through CSS variables.
 To rebrand:
 
 1. Edit `brand.config.ts` — name, colours, font family and weights.
-2. Replace `public/logo.svg`. Draw it with `fill="currentColor"` /
-   `stroke="currentColor"` so it picks up your accent colour automatically.
+2. Replace `public/logo.svg` with a roughly square mark. By default it is
+   painted through a CSS mask in your accent colour, so a single-colour SVG
+   works on any theme; set `logoTint: false` for a full-colour logo or PNG.
 3. `npm run deploy`.
 
 Two worked examples sit next to it — `brand.config.example-dark.ts` and

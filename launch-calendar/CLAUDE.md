@@ -134,10 +134,21 @@ Then open the address in the browser for them and say:
 
 ### 8. Offer the two optional things — do not do them unprompted
 
-- **Branding.** "Want it in your colours? Give me your brand colours (hex codes),
-  a font name, and a logo SVG, and I'll put them in — one file, then redeploy."
-  Everything goes in `brand.config.ts`; the logo replaces `public/logo.svg` and
-  should use `currentColor` so it picks up the accent. Then `npm run deploy`.
+- **Branding.** "Want it in your colours? I need: your brand name; hex codes
+  for page background, card surface, accent, text and muted text; the name of a
+  Google Fonts family; and a logo mark as an SVG. Then I'll put them in — one
+  file — and redeploy." When they hand these over:
+  - Everything goes in `brand.config.ts`. Set `primaryText` to whichever of
+    white or the text colour contrasts with the accent (check the ratio).
+  - The logo replaces `public/logo.svg`. It renders 28px tall next to the name
+    as text, so it must be a **mark, not a wordmark** — say so if they send a
+    wide logo, and ask for the icon version. A single-colour SVG is painted in
+    the accent via CSS mask (`logoTint: true`); a full-colour logo or PNG needs
+    `logoTint: false`.
+  - If their font is not on Google Fonts, say so plainly and use the closest
+    family that is; do not attempt to self-host during setup.
+  - `npm run deploy`, then open the address and eyeball the nav, a card and
+    the sign-in screen for contrast.
 - **Google sign-in instead of a shared password.** "Later, if you'd rather people
   sign in with Google by invitation, that's switched on inside the app — I can
   walk you through the one Google step when you want it." Steps are in `SETUP.md`

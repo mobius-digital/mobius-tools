@@ -352,6 +352,7 @@ button {
   width: 40px;
   height: 40px;
   color: var(--color-accent-ink);
+  color: var(--color-accent-ink);
   margin-bottom: var(--space-4);
 }
 
@@ -2693,4 +2694,11 @@ button {
 }
 .identity--static:hover {
   border-color: var(--border-subtle);
+}
+
+/* A single-colour logo painted through a CSS mask, so the file supplies the
+   shape and the page supplies the colour. */
+.logo--tinted {
+  display: inline-block;
+  background-color: currentColor;
 }

@@ -11,6 +11,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: `Launch Calendar · ${brand.name}`,
   description: `What's launching, when, and which channels need to care — ${brand.name}.`,
+  icons: { icon: brand.logoUrl },
 };
 
 export default async function RootLayout({

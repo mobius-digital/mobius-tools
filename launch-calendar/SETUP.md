@@ -176,13 +176,43 @@ with your Google account — I've added you."*
 
 ## Making it look like your brand
 
-Open **`brand.config.ts`**. That one file holds every colour, the font, and the
-name. Nothing else in the codebase contains a brand value.
+### What to have ready from your design system
+
+| You need | Format | Notes |
+|---|---|---|
+| **Brand name** | text | Shown in the top bar and the sign-in screen |
+| **Colours** — page background, card surface, accent, text, muted text | hex codes, e.g. `#C9A227` | Six values; a danger red is optional (a sensible one is provided) |
+| **Font** | the name of a family on [Google Fonts](https://fonts.google.com) | Inter, DM Sans, Manrope, Space Grotesk… If your brand font is **not** on Google Fonts it cannot be used without developer work — pick the closest Google family for now |
+| **Logo mark** | an SVG, roughly square | See below — this is a small mark, not your full wordmark |
+
+### The logo slot, honestly
+
+The logo appears at **28 pixels tall** in the top bar and 40 on the sign-in
+screen, next to your brand name rendered as text. So it wants your **mark or
+icon** — the bit that works at favicon size — not a wide wordmark, which would
+be unreadable at that height.
+
+Two ways to supply it, set by `logoTint` in `brand.config.ts`:
+
+- **`logoTint: true`** (default) — give a **single-colour SVG**. The app paints
+  it in your accent colour, so one file works on a light theme and a dark one.
+  Any fill or stroke colour inside the file is ignored; only the shape is used.
+- **`logoTint: false`** — give a **full-colour logo** (SVG or PNG). Shown exactly
+  as drawn. Use this if your mark has more than one colour.
+
+Either way, replace `public/logo.svg` (keep the filename, or update `logoUrl`).
+The same file is used as the browser-tab icon.
+
+### The one file
+
+Open **`brand.config.ts`**. That file holds every colour, the font, the name and
+the logo setting. Nothing else in the codebase contains a brand value.
 
 ```ts
 export const brand = {
   name: "Your Brand",
   logoUrl: "/logo.svg",
+  logoTint: true,            // single-colour mark painted in your accent
   colors: {
     background: "#F7F7F8",   // the page
     surface:    "#FFFFFF",   // cards and panels
@@ -202,10 +232,7 @@ export const brand = {
 };
 ```
 
-Change the values, then replace `public/logo.svg` with your own logo. Draw it
-using `currentColor` and it picks up your accent automatically.
-
-Then:
+Change the values, replace the logo, then:
 
 ```bash
 npm run deploy
@@ -223,6 +250,10 @@ deploy to see the whole app change.
   whether your theme is light or dark, so keep it dark.
 - Small text in your accent colour is automatically darkened (or lightened on a
   dark theme) so it stays readable. Buttons and borders keep the pure colour.
+
+**Using Claude Code?** Give it the table above filled in — hex codes, font name,
+and the SVG — and say "apply this brand". It edits the file, checks the contrast,
+and deploys.
 
 ---
 

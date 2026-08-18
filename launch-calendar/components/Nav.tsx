@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { brand } from "@/brand.config";
 import { DisplayNameBadge } from "@/components/DisplayName";
+import { BrandLogo } from "@/components/BrandLogo";
 import { SettingsMenu } from "@/components/SettingsMenu";
 
 /** Extended as views land; every entry must point at a route that exists. */
@@ -22,8 +23,7 @@ export function Nav() {
   return (
     <nav className="nav">
       <Link href="/" className="nav__brand">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={brand.logoUrl} alt="" className="nav__logo" aria-hidden />
+        <BrandLogo className="nav__logo" />
         <span className="nav__name">{brand.name}</span>
       </Link>
       <span className="nav__product" aria-hidden>

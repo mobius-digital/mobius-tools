@@ -7,6 +7,12 @@
 export const brand = {
   name: "Example Light",
   logoUrl: "/logo.svg",
+  /**
+   * true  — a single-colour SVG mark, painted in your accent colour (works on
+   *         light and dark themes from one file). This is the default.
+   * false — a full-colour logo or PNG, shown exactly as drawn.
+   */
+  logoTint: true,
   colors: {
     background: "#F4F4F0", // warm off-white
     surface: "#FFFFFF",
