@@ -101,7 +101,8 @@ npx wrangler secret put APP_PASSWORD
 It asks for a value. Type the password your team will use and press Enter.
 **Nothing appears as you type — that is normal.**
 
-This is the only password. Everyone on the team uses the same one.
+Everyone on the team uses the same one. You can change it later from inside the
+app, or switch to Google sign-in — no terminal needed for either.
 
 ---
 
@@ -121,6 +122,51 @@ Open it. You should see a password screen, and your password gets you in to an
 empty board.
 
 **You are done.** Send that address and the password to your team.
+
+---
+
+## Your first ten minutes on the board
+
+Before you send anyone the link, do these yourself once so you can answer the
+first question that comes back:
+
+1. **Open the address.** Sign in with the password from Step 6.
+2. **Take the walkthrough.** It starts on its own the first time. It has you
+   create your first event and explains every field as you reach it. About four
+   minutes. Skip it if you must — it is under Settings → Replay the walkthrough
+   any time.
+3. **Change the password** — Settings → Change the team password. The one you
+   typed in Step 6 has been in a terminal window; pick the real one now.
+4. **Rename the event types** if yours differ — Settings → Event types. "Content
+   Moment" may not be what your team calls it.
+5. **Put two or three real launches on the board** so it is not empty when the
+   team arrives. An empty board teaches nothing.
+
+Then send the message below.
+
+## A message to send your team
+
+Copy, fill in the two blanks, send. It is deliberately short.
+
+> **Subject: The launch calendar is live**
+>
+> Hi all — one place for what's launching, when, and which channels need to
+> care. It replaces the "when is X going out again?" thread.
+>
+> Link: `[YOUR ADDRESS]`
+> Password: `[YOUR PASSWORD]`
+>
+> Two minutes when you first open it: it walks you through itself, and asks
+> for your name so edits are stamped with who made them.
+>
+> The habit that makes it work: if you know a date, put it on the board. If a
+> date moves, move it there first. Mark it **Tentative** if it might still
+> move — the whole thing rests on people being honest about that.
+>
+> Filter to your channel top-left and you'll only see what involves you.
+
+If you switch to Google sign-in later, swap the password line for *"Sign in
+with your Google account — I've added you."*
 
 ---
 
@@ -189,12 +235,24 @@ effect immediately. There is nothing to redeploy.
 **One thing to get first: a Google client ID.**
 
 1. Go to [Google Cloud → Credentials](https://console.cloud.google.com/apis/credentials)
-   and sign in.
-2. Create a project if you do not have one.
-3. **Create credentials → OAuth client ID → Web application**.
-4. Under **Authorised JavaScript origins**, add your app's address, e.g.
-   `https://launch-calendar.yourname.workers.dev` — no trailing slash.
-5. Create it. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`).
+   and sign in with the Google account you run the business from.
+2. Create a project if it asks (any name — "Launch Calendar" is fine).
+3. **Create credentials → OAuth client ID.**
+   - If it says *"you must first configure your consent screen"*, click
+     **Configure consent screen → Get started**. App name `Launch Calendar`,
+     your email as support and contact. For **Audience** choose **External**
+     unless every single person is on your own Google Workspace domain — External
+     is what lets a Gmail address or a freelancer in. Agree and create.
+   - Then in the left menu open **Audience** and click **Publish app**. Without
+     this Google only lets in people you have separately listed as "test users",
+     which duplicates the invite list you are about to manage in the app.
+   - Now back to **Clients → Create client**.
+4. Application type **Web application**. Name it anything.
+5. Under **Authorised JavaScript origins** click **Add URI** and paste your app's
+   address exactly, e.g. `https://launch-calendar.yourname.workers.dev` — no
+   trailing slash. Leave *redirect URIs* empty.
+6. Create it. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`).
+   Ignore the client secret — this app never uses it.
 
 The client ID is not a secret; it is visible in every page that offers a Google
 button. You do not need the client secret at all.
@@ -252,3 +310,20 @@ or Google Drive. Move it somewhere like `C:\dev\` and try again.
 `database_id` in `wrangler.jsonc` is wrong. Check it matches `wrangler d1 list`.
 
 **The site says no APP_PASSWORD is set** — redo Step 6, then `npm run deploy`.
+
+**The site shows an error mentioning `settings` or `allowed_emails`** — a table is
+missing. Run Step 5 again; it is safe to repeat.
+
+**The "Google sign-in, by invitation" option is greyed out** — it says why
+underneath: it needs the client ID saved *and* at least one email invited before
+it can be chosen, so that switching can never lock everybody out.
+
+**Google says "Access blocked" or "app has not been verified"** — the consent
+screen is still in testing. In Google Cloud go to **Audience → Publish app**.
+
+**Google says "origin mismatch"** — the JavaScript origin in Google Cloud does not
+exactly match your address. Check for a trailing slash or `http` vs `https`.
+
+**Someone was invited but cannot get in** — check the address you invited is the
+one they are signing in to Google with. A work address and a personal Gmail are
+different accounts.

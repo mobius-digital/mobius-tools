@@ -2686,3 +2686,11 @@ button {
   color: var(--color-text-muted);
   margin-top: 0.1rem;
 }
+
+/* The nav identity when it came from Google: informational, not a control. */
+.identity--static {
+  cursor: default;
+}
+.identity--static:hover {
+  border-color: var(--border-subtle);
+}

@@ -478,21 +478,30 @@ function Walkthrough({
           Math.min(spotlight.left, window.innerWidth - 400),
         );
 
+        const width = 384; // 24rem, matching .tour__tip
         const below = spotlight.top + spotlight.height + 14;
         const above = spotlight.top - height - 14;
 
-        let top: number;
-        if (below + height + margin <= window.innerHeight) {
-          top = below;
-        } else if (above >= margin) {
-          top = above;
-        } else {
-          // Neither side fits — sit it where it is fully visible and let it
-          // overlap the target rather than fall off the screen.
-          top = Math.max(margin, window.innerHeight - height - margin);
+        if (below + height + margin <= window.innerHeight) return { top: below, left };
+        if (above >= margin) return { top: above, left };
+
+        // No room above or below — a tall target such as the channel rows.
+        // Sit beside it instead, on whichever side has space, so the tip never
+        // covers the thing it is describing. The editor is a right-hand sheet,
+        // so the left is usually wide open.
+        const besideTop = Math.min(
+          Math.max(margin, spotlight.top),
+          window.innerHeight - height - margin,
+        );
+        if (spotlight.left - width - 14 >= margin) {
+          return { top: besideTop, left: spotlight.left - width - 14 };
+        }
+        if (spotlight.left + spotlight.width + 14 + width <= window.innerWidth - margin) {
+          return { top: besideTop, left: spotlight.left + spotlight.width + 14 };
         }
 
-        return { top, left };
+        // Nowhere fits — keep it fully visible and accept the overlap.
+        return { top: Math.max(margin, window.innerHeight - height - margin), left };
       })()
     : { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
 

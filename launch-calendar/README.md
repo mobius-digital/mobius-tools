@@ -28,22 +28,13 @@ Both halves run on Cloudflare.
 Everything lives on Cloudflare — one account, one deploy, no third-party
 database to sign up for.
 
-## Running it locally
+## Commands
 
 ```bash
-npm install
-cp .env.example .env.local     # then fill in the values
-npm run dev
-```
-
-Then open http://localhost:3000. You will hit a password screen first — the
-password is whatever you set as `APP_PASSWORD`.
-
-Other commands:
-
-```bash
-npm test        # 79 unit tests over the date, collision and changelog logic
-npm run build   # production build
+npm test          # 86 unit tests over dates, collisions, changelog and validation
+npm run typecheck # tsc --noEmit
+npm run preview   # build and run the real Worker locally (needs .dev.vars + db:local)
+npm run deploy    # build and publish to Cloudflare
 ```
 
 ## First-time setup
