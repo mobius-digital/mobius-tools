@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { brand } from "@/brand.config";
 import { DisplayNameBadge } from "@/components/DisplayName";
+import { SettingsMenu } from "@/components/SettingsMenu";
 
 /** Extended as views land; every entry must point at a route that exists. */
 const LINKS: { href: string; label: string }[] = [
@@ -48,6 +49,7 @@ export function Nav() {
           );
         })}
         <DisplayNameBadge />
+        <SettingsMenu />
       </div>
     </nav>
   );

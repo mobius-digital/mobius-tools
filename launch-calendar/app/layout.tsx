@@ -4,6 +4,7 @@ import { brand } from "@/brand.config";
 import { brandCssVariables, googleFontUrl } from "@/lib/brand";
 import { Nav } from "@/components/Nav";
 import { DisplayNameProvider } from "@/components/DisplayName";
+import { TourProvider } from "@/components/Tour";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import "./globals.css";
 
@@ -37,10 +38,14 @@ export default async function RootLayout({
       </head>
       <body>
         <DisplayNameProvider identity={identity?.name ?? null}>
-          <div className="shell">
-            <Nav />
-            <main className="main">{children}</main>
-          </div>
+          {/* Mounted here, not in a page, so the tour survives moving between
+              Pipeline, Calendar and Changelog. */}
+          <TourProvider>
+            <div className="shell">
+              <Nav />
+              <main className="main">{children}</main>
+            </div>
+          </TourProvider>
         </DisplayNameProvider>
       </body>
     </html>

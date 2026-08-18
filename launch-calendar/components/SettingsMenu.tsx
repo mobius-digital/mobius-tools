@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDisplayName } from "./DisplayName";
 import { ChangePassword } from "./ChangePassword";
 import { SignInSettings } from "./SignInSettings";
+import { useTour } from "./Tour";
 
 /**
  * The small settings menu in the nav.
@@ -12,8 +13,9 @@ import { SignInSettings } from "./SignInSettings";
  * menu holds only the things a person genuinely needs to reach again — who they
  * are editing as, and replaying the tour.
  */
-export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
+export function SettingsMenu() {
   const { name, promptForName, verified } = useDisplayName();
+  const { replay } = useTour();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [editingSignIn, setEditingSignIn] = useState(false);
@@ -84,7 +86,7 @@ export function SettingsMenu({ onReplayTour }: { onReplayTour: () => void }) {
             className="settings__item"
             onClick={() => {
               setOpen(false);
-              onReplayTour();
+              replay();
             }}
           >
             <span className="settings__label">Replay the walkthrough</span>

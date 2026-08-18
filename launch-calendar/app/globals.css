@@ -2592,3 +2592,82 @@ button {
 .gate__alt summary:hover {
   color: var(--color-accent-ink);
 }
+
+/* --------------------------------------------------------------------------
+ * Sign-in settings: blocked option, folded setup, banner error
+ * ----------------------------------------------------------------------- */
+
+.field__error--banner {
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-danger) 35%, transparent);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.choice__option--blocked {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.choice__option--blocked:hover {
+  border-color: var(--border-subtle);
+}
+
+.choice__blocker {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-accent-ink);
+}
+
+.disclose {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.disclose__summary {
+  cursor: pointer;
+  font-weight: var(--weight-heading);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.disclose__state {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.disclose[open] .disclose__summary {
+  margin-bottom: var(--space-3);
+}
+
+/* Tour progress: a count and a bar, rather than a row of dots that got
+   unreadable once the tour grew past a handful of steps. */
+.tour__count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tour__bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-subtle);
+  margin-top: var(--space-2);
+  overflow: hidden;
+}
+
+.tour__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 200ms ease;
+}
