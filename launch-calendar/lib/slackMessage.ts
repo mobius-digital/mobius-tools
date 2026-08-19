@@ -271,9 +271,10 @@ function eventBlocks(
   const title = titleFor(item, channelKey, typeLabel, channelLabel);
   // A note change is not bulleted — the note itself is printed below, marked
   // new or updated, and a bullet saying "Note added" above it would just be
-  // the same fact twice.
+  // the same fact twice. Likewise "Event cancelled" under a title that already
+  // reads Cancelled, over a detail line that says Cancelled again.
   const lines = item.lines
-    .filter((line) => !NOTE_LINES.has(line))
+    .filter((line) => !NOTE_LINES.has(line) && line !== "Event cancelled")
     .map((line) => `• ${escape(line)}`)
     .join("\n");
   const blocks: unknown[] = [section(lines ? `${title}\n${lines}` : title)];

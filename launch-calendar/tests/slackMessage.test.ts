@@ -308,6 +308,21 @@ test("every change message says what kind of change it is", () => {
   );
 });
 
+test("a cancellation is not bulleted under a title that already says Cancelled", () => {
+  const alone = buildEventMessage(item({ lines: ["Event cancelled"] }), OPTIONS);
+  const first = (blocksOf(alone)[0] as { text: { text: string } }).text.text;
+  assert.ok(!first.includes(String.fromCharCode(10)), "title only, no redundant bullet");
+
+  // Other lines still ride along; only the cancellation bullet is dropped.
+  const withDate = buildEventMessage(
+    item({ lines: ["Launch date moved Aug 12 → Aug 27", "Event cancelled"] }),
+    OPTIONS,
+  );
+  const text = (blocksOf(withDate)[0] as { text: { text: string } }).text.text;
+  assert.match(text, /• Launch date moved/);
+  assert.doesNotMatch(text, /Event cancelled/);
+});
+
 test("when several things changed, the title is the one that matters most", () => {
   // A cancelled event also had its date moved: cancelled wins the headline.
   const both = buildEventMessage(
