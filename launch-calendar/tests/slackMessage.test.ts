@@ -323,6 +323,19 @@ test("a cancellation is not bulleted under a title that already says Cancelled",
   assert.doesNotMatch(text, /Event cancelled/);
 });
 
+test("an assets card does not repeat 'Assets link added' under its own title", () => {
+  // A date move and the assets link in the same window merge into one card
+  // headed Assets are in; the link bullet would only restate that.
+  const merged = buildEventMessage(
+    item({ kind: "assets", lines: ["Launch date moved Aug 12 → Aug 27", "Assets link added"] }),
+    OPTIONS,
+  );
+  const text = (blocksOf(merged)[0] as { text: { text: string } }).text.text;
+  assert.match(text, /Assets are in/);
+  assert.match(text, /• Launch date moved/);
+  assert.doesNotMatch(text, /Assets link added/);
+});
+
 test("when several things changed, the title is the one that matters most", () => {
   // A cancelled event also had its date moved: cancelled wins the headline.
   const both = buildEventMessage(

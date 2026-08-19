@@ -269,12 +269,12 @@ function eventBlocks(
   channelLabel: (key: string) => string,
 ): unknown[] {
   const title = titleFor(item, channelKey, typeLabel, channelLabel);
-  // A note change is not bulleted — the note itself is printed below, marked
-  // new or updated, and a bullet saying "Note added" above it would just be
-  // the same fact twice. Likewise "Event cancelled" under a title that already
-  // reads Cancelled, over a detail line that says Cancelled again.
+  // A bullet that only restates the title is dropped: "Note added" (the note
+  // itself is printed below, marked new or updated), "Event cancelled" under
+  // a Cancelled title, "Assets link added" under Assets are in. Bullets that
+  // add something — where a date moved *from*, what the status *was* — stay.
   const lines = item.lines
-    .filter((line) => !NOTE_LINES.has(line) && line !== "Event cancelled")
+    .filter((line) => !NOTE_LINES.has(line) && !saidByTitle(item.kind, line))
     .map((line) => `• ${escape(line)}`)
     .join("\n");
   const blocks: unknown[] = [section(lines ? `${title}\n${lines}` : title)];
@@ -301,6 +301,13 @@ function eventBlocks(
  */
 /** The changelog's own words for a note change, so the card can recognise them. */
 const NOTE_LINES = new Set(["Note added", "Note updated", "Note removed"]);
+
+/** Change lines the title already states, by the kind of post they appear on. */
+function saidByTitle(kind: NotifyItem["kind"], line: string): boolean {
+  if (line === "Event cancelled") return true;
+  if (kind === "assets") return line === "Assets link added" || line === "Assets link updated";
+  return false;
+}
 
 /** How to label the note line: fresh, rewritten, or just along for the ride. */
 function noteState(lines: string[]): "new" | "updated" | "unchanged" {
