@@ -1,0 +1,24 @@
+# Mobius Account Health — Cloudflare Worker config
+# Deploy:  npx wrangler deploy   (from this folder)
+name = "mobius-account-health"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# Nightly at 03:30 UTC: re-pull the last 3 days of daily insights for every
+# active account (Meta conversions settle late) + pull new activity-log events.
+[triggers]
+crons = ["30 3 * * *"]
+
+# D1 database. Create once with:
+#   npx wrangler d1 create mobius-account-health
+# then paste the returned database_id below and apply the schema:
+#   npx wrangler d1 execute mobius-account-health --remote --file=schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "mobius-account-health"
+database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
+
+# Secrets (set once, never committed):
+#   npx wrangler secret put META_TOKEN        system-user token, ads_read on every client ad account
+#   npx wrangler secret put ADMIN_TOKEN       long random string; master key for the dashboard
+#   npx wrangler secret put SLACK_BOT_TOKEN   (Chat 2) same Slack app as Pulse / Restock
