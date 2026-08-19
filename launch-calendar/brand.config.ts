@@ -21,6 +21,18 @@
  */
 export const brand = {
   name: "Your Brand",
+  /**
+   * What the app calls itself — in the nav, the tab title, the sign-in page,
+   * and as the name on its Slack posts. "Marketing Calendar" is the default; a
+   * team that only ever ships product launches might prefer "Launch Calendar". Purely a label: nothing else changes.
+   */
+  productName: "Marketing Calendar",
+  /**
+   * The name under the icon when somebody adds the app to their phone or
+   * tablet home screen. iOS shows about eleven characters before it starts
+   * trimming, so keep this short — "Calendar", "LG Calendar", "Launches".
+   */
+  shortName: "LG Calendar",
   logoUrl: "/logo.svg",
   /**
    * true  — a single-colour SVG mark, painted in your accent colour (works on

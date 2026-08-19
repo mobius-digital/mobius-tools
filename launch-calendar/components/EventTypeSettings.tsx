@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useDisplayName } from "./DisplayName";
+import { announceBoardConfigChange } from "@/lib/boardConfigEvents";
 
 /**
  * The board's event types, editable.
@@ -60,6 +61,9 @@ export function EventTypeSettings({ onClose }: { onClose: () => void }) {
         }
 
         setData(body);
+        // The board is outside this dialog; tell it so the new list is on the
+        // New event form and the filter bar before this dialog even closes.
+        announceBoardConfigChange();
         return true;
       } catch {
         setError("Network error — check your connection and try again.");

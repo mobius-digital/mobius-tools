@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { brand } from "@/brand.config";
 import {
   createContext,
   useCallback,
@@ -68,7 +69,7 @@ const STEPS: Step[] = [
   {
     id: "welcome",
     goto: "/",
-    title: "Welcome to the Launch Calendar",
+    title: `Welcome to the ${brand.productName}`,
     body: "This is where your team sees what is launching, when, and which channels need to care. A few minutes and you will know your way around — including how to add your first launch.",
   },
   {
@@ -115,7 +116,7 @@ const STEPS: Step[] = [
     target: ".fieldset .channel-rows",
     keepIfMissing: true,
     title: "Channels — who has work to do",
-    body: "Tick every channel involved, then set how much it matters to each. Primary — this channel builds something; it is their main event. Supporting — they help, but it is not their headline. FYI — they just need to know it is happening. Say a wedge restock: Paid is Primary because it carries the launch, Email is Supporting with one send, Organic is FYI so social does not schedule something competing. Only Primary counts toward clash warnings, so use it honestly.",
+    body: "Tick every channel involved, then set how much it matters to each. Primary — this channel builds something; it is their main event. Supporting — they help, but it is not their headline. FYI — they just need to know it is happening. Say a wedge restock: Paid is Primary because it carries the launch, Email is Supporting with one send, Organic is FYI so social does not schedule something competing. Only Primary counts toward clash warnings, so use it honestly. Run a channel that is not listed here — Affiliate, Retail? Add it in Settings → Channels and it appears on this form.",
   },
   {
     id: "f-owner",
@@ -148,11 +149,18 @@ const STEPS: Step[] = [
     body: "These are the deadlines behind the launch, and they are why other channels care. Assets due: when creative must be finished — usually a week or two before. Teaser start: when you begin hinting publicly. Inventory: when stock actually lands. Promo end: when the offer stops. Fill in the ones you know; leave the rest blank.",
   },
   {
+    id: "f-assets",
+    target: "#event-assets-link",
+    keepIfMissing: true,
+    title: "Assets link — one place for the finished files",
+    body: "Leave it empty until there is something to point at. When the photos, video or copy are ready, paste the folder link here — one link, a Drive or Dropbox folder holds the rest. The moment you save it, every channel on the event is told “assets are in” with a button straight to the folder, and the card grows a small Assets link. Nobody has to go looking.",
+  },
+  {
     id: "f-notes",
     target: "#event-notes",
     keepIfMissing: true,
     title: "Notes — the caveats",
-    body: "Anything that would otherwise live in a DM. “Waiting on the factory to confirm shipping.” “Do not promote before the PR embargo lifts on the 12th.” This is the field that stops people asking the same question twice.",
+    body: "Anything that would otherwise live in a DM. “Waiting on the factory to confirm shipping.” “Do not promote before the PR embargo lifts on the 12th.” This is the field that stops people asking the same question twice — and it rides along on every Slack message about the event, so when a date moves, the reason moves with it. Writing or changing a note is itself a Slack notification — “embargo lifted, go” is news even when no date moved.",
   },
   {
     id: "save",
@@ -231,8 +239,8 @@ const STEPS: Step[] = [
     id: "settings",
     goto: "/",
     target: ".nav .settings",
-    title: "Settings — the four things you can change",
-    body: "Change your name, which is what gets stamped on your edits. Replay this walkthrough. Event types — rename the options in that Type dropdown, or add your own. Who can sign in — a shared password, or invite people by email to sign in with Google. And change the team password, which signs everybody else out.",
+    title: "Settings — everything a team can change",
+    body: "Change your name, which is what gets stamped on your edits. Replay this walkthrough. Add to your phone — the two taps that put the board on a phone or tablet home screen as its own full-screen app, no App Store. Event types — rename the options in that Type dropdown, or add your own. Channels — add a marketing channel the board does not have yet; it gets its own filter chip, its own row on every event and its own Slack channel to notify. Slack notifications — point each channel at a Slack channel and the board posts when a launch is added, moved, changes status or gets its assets, plus a reminder a week out; several edits to one event within 15 minutes arrive as one message. Who can sign in — a shared password, or invite people by email to sign in with Google. And change the team password, which signs everybody else out.",
   },
   {
     id: "done",

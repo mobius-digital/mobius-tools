@@ -4,6 +4,10 @@ import { signInConfig } from "@/lib/signin";
 import { PasswordForm } from "@/components/PasswordForm";
 import { GoogleSignIn } from "@/components/GoogleSignIn";
 import { BrandLogo } from "@/components/BrandLogo";
+import { GateScene } from "@/components/GateScene";
+import { listChannels } from "@/lib/channelOptions";
+import { listEventTypes } from "@/lib/eventTypes";
+import { DEFAULT_CHANNELS, DEFAULT_EVENT_TYPES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +20,14 @@ export default async function PasswordPage({
   const [configured, config] = await Promise.all([
     isPasswordConfigured(),
     signInConfig(),
+  ]);
+
+  // The scene shows this board's own channels and types. They are decoration,
+  // so a database hiccup here falls back to the defaults rather than taking the
+  // sign-in page down with it.
+  const [channels, eventTypes] = await Promise.all([
+    listChannels().catch(() => DEFAULT_CHANNELS),
+    listEventTypes().catch(() => DEFAULT_EVENT_TYPES),
   ]);
 
   // Only ever redirect back to a path on this site.
@@ -32,9 +44,15 @@ export default async function PasswordPage({
 
   return (
     <div className="gate">
-      <div className="gate__card">
-        <BrandLogo className="gate__logo" />
-        <h1 className="gate__title">{brand.name} Launch Calendar</h1>
+      <GateScene channels={channels} eventTypes={eventTypes} />
+
+      <section className="gate__panel">
+        <div className="gate__card">
+          <div className="gate__brand">
+            <BrandLogo className="gate__logo" />
+            <span className="gate__brandname">{brand.name}</span>
+          </div>
+          <h1 className="gate__title">{brand.productName}</h1>
 
         {googleMode ? (
           <>
@@ -63,7 +81,13 @@ export default async function PasswordPage({
             in. Set <code>APP_PASSWORD</code> in the environment and redeploy.
           </p>
         )}
-      </div>
+        </div>
+
+        <p className="gate__fine">
+          One shared board for the whole team. Every change is recorded with who
+          made it.
+        </p>
+      </section>
     </div>
   );
 }

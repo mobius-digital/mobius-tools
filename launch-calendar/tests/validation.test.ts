@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   ValidationError,
   normaliseChannels,
+  normaliseLink,
   validateEditorName,
   validateEventInput,
 } from "../lib/validation.ts";
@@ -192,4 +193,47 @@ test("editor name is required and bounded", () => {
   for (const bad of ["", "   ", null, undefined, 7]) {
     assert.throws(() => validateEditorName(bad), ValidationError);
   }
+});
+
+/* ---------------------------------------------------------------- */
+/*  Assets link                                                      */
+/* ---------------------------------------------------------------- */
+
+test("normaliseLink accepts a normal https folder link as-is", () => {
+  assert.equal(
+    normaliseLink("https://drive.google.com/drive/folders/abc?usp=sharing"),
+    "https://drive.google.com/drive/folders/abc?usp=sharing",
+  );
+});
+
+test("normaliseLink forgives a missing scheme", () => {
+  assert.equal(normaliseLink("drive.google.com/x"), "https://drive.google.com/x");
+  assert.equal(normaliseLink("  www.dropbox.com/sh/abc  "), "https://www.dropbox.com/sh/abc");
+});
+
+test("normaliseLink treats blank as no link", () => {
+  assert.equal(normaliseLink(""), null);
+  assert.equal(normaliseLink("   "), null);
+  assert.equal(normaliseLink(undefined), null);
+  assert.equal(normaliseLink(null), null);
+});
+
+test("normaliseLink refuses things that are not web links", () => {
+  assert.equal(normaliseLink("javascript:alert(1)"), false);
+  assert.equal(normaliseLink("ftp://files.example.com"), false);
+  assert.equal(normaliseLink("just some words"), false);
+  assert.equal(normaliseLink("localhost"), false);
+});
+
+test("validateEventInput reports a bad assets link on its own field", () => {
+  const errors = errorsFrom(baseEvent({ assets_link: "not a link at all" }));
+  assert.match(errors.assets_link, /link/);
+});
+
+test("validateEventInput stores a good assets link and nulls a blank one", () => {
+  assert.equal(
+    validateEventInput(baseEvent({ assets_link: "drive.google.com/x" })).assets_link,
+    "https://drive.google.com/x",
+  );
+  assert.equal(validateEventInput(baseEvent({ assets_link: "" })).assets_link, null);
 });

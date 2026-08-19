@@ -5,6 +5,9 @@ import { useDisplayName } from "./DisplayName";
 import { ChangePassword } from "./ChangePassword";
 import { SignInSettings } from "./SignInSettings";
 import { EventTypeSettings } from "./EventTypeSettings";
+import { SlackSettings } from "./SlackSettings";
+import { ChannelSettings } from "./ChannelSettings";
+import { InstallGuide } from "./InstallGuide";
 import { useTour } from "./Tour";
 
 /**
@@ -21,6 +24,9 @@ export function SettingsMenu() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [editingSignIn, setEditingSignIn] = useState(false);
   const [editingTypes, setEditingTypes] = useState(false);
+  const [editingSlack, setEditingSlack] = useState(false);
+  const [editingChannels, setEditingChannels] = useState(false);
+  const [showingInstall, setShowingInstall] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -101,12 +107,57 @@ export function SettingsMenu() {
             className="settings__item"
             onClick={() => {
               setOpen(false);
+              setShowingInstall(true);
+            }}
+          >
+            <span className="settings__label">Add to your phone</span>
+            <span className="settings__hint">
+              An icon on your home screen, full-screen, no App Store
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className="settings__item"
+            onClick={() => {
+              setOpen(false);
               setEditingTypes(true);
             }}
           >
             <span className="settings__label">Event types</span>
             <span className="settings__hint">
               The options in the Type dropdown
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className="settings__item"
+            onClick={() => {
+              setOpen(false);
+              setEditingChannels(true);
+            }}
+          >
+            <span className="settings__label">Channels</span>
+            <span className="settings__hint">
+              Paid, Email, Organic, SMS — and any you add
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className="settings__item"
+            onClick={() => {
+              setOpen(false);
+              setEditingSlack(true);
+            }}
+          >
+            <span className="settings__label">Slack notifications</span>
+            <span className="settings__hint">
+              Which Slack channel hears about which marketing channel
             </span>
           </button>
 
@@ -151,6 +202,12 @@ export function SettingsMenu() {
       {editingSignIn && <SignInSettings onClose={() => setEditingSignIn(false)} />}
 
       {editingTypes && <EventTypeSettings onClose={() => setEditingTypes(false)} />}
+
+      {editingSlack && <SlackSettings onClose={() => setEditingSlack(false)} />}
+
+      {editingChannels && <ChannelSettings onClose={() => setEditingChannels(false)} />}
+
+      {showingInstall && <InstallGuide onClose={() => setShowingInstall(false)} />}
     </div>
   );
 }

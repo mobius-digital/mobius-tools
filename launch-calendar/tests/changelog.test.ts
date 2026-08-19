@@ -33,6 +33,7 @@ function makeEvent(overrides: Partial<LaunchEvent> = {}): LaunchEvent {
     channels: channels({ paid: "primary" }),
     owner: "Dana",
     notes: null,
+    assets_link: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: "2026-07-27T00:00:00Z",
     updated_by: "Cole",
@@ -45,11 +46,10 @@ test("an unchanged save writes no history", () => {
   assert.deepEqual(diffEvents(before, makeEvent()), []);
 });
 
-test("brief, notes and owner edits are not logged", () => {
+test("brief and owner edits are not logged", () => {
   const before = makeEvent();
   const after = makeEvent({
     brief: "Completely different brief",
-    notes: "Some notes",
     owner: "Morgan",
   });
   assert.deepEqual(diffEvents(before, after), []);
@@ -88,7 +88,7 @@ test("clearing a date says so, and says what it was", () => {
 test("status changes read plainly, and cancellation gets its own wording", () => {
   assert.deepEqual(
     diffEvents(makeEvent(), makeEvent({ status: "confirmed" })),
-    ["Status: tentative → confirmed"],
+    ["Status changed: tentative → confirmed"],
   );
   assert.deepEqual(
     diffEvents(makeEvent(), makeEvent({ status: "cancelled" })),
@@ -96,7 +96,7 @@ test("status changes read plainly, and cancellation gets its own wording", () =>
   );
   assert.deepEqual(
     diffEvents(makeEvent({ status: "confirmed" }), makeEvent({ status: "at_risk" })),
-    ["Status: confirmed → at risk"],
+    ["Status changed: confirmed → at risk"],
   );
 });
 
@@ -128,7 +128,7 @@ test("one save touching three things yields three separate entries", () => {
 
   assert.equal(lines.length, 3);
   assert.ok(lines.some((line) => line.startsWith("Renamed")));
-  assert.ok(lines.some((line) => line.startsWith("Status:")));
+  assert.ok(lines.some((line) => line.startsWith("Status changed:")));
   assert.ok(lines.some((line) => line.startsWith("Launch date moved")));
 });
 
@@ -140,5 +140,21 @@ test("creation and deletion carry the launch date", () => {
   assert.equal(
     describeDeletion(makeEvent()),
     "Event deleted permanently (was launching Aug 12)",
+  );
+});
+
+test("a note written, rewritten or cleared is logged without repeating its text", () => {
+  assert.deepEqual(diffEvents(makeEvent(), makeEvent({ notes: "Customs is slow." })), ["Note added"]);
+  assert.deepEqual(
+    diffEvents(makeEvent({ notes: "Customs is slow." }), makeEvent({ notes: "Customs cleared — date holds." })),
+    ["Note updated"],
+  );
+  assert.deepEqual(diffEvents(makeEvent({ notes: "Customs is slow." }), makeEvent({ notes: null })), ["Note removed"]);
+});
+
+test("whitespace-only note edits are not a change", () => {
+  assert.deepEqual(
+    diffEvents(makeEvent({ notes: "Customs is slow." }), makeEvent({ notes: "  Customs   is slow.  " })),
+    [],
   );
 });

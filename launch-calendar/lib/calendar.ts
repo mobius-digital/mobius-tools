@@ -1,6 +1,6 @@
 import { diffDays, maxIso, minIso } from "./dates.ts";
 import { visibleEvents, type PipelineOptions } from "./pipeline.ts";
-import { CHANNEL_KEYS, type IsoDate, type LaunchEvent } from "./types.ts";
+import type { IsoDate, LaunchEvent } from "./types.ts";
 
 /**
  * Calendar-view maths (PRD §4.2): how far an event stretches, which events
@@ -26,8 +26,8 @@ export function eventSpan(event: LaunchEvent): Span {
 
 /** True when any involved channel is marked `primary`. */
 export function hasPrimaryChannel(event: LaunchEvent): boolean {
-  return CHANNEL_KEYS.some(
-    (key) => event.channels[key].involved && event.channels[key].priority === "primary",
+  return Object.values(event.channels).some(
+    (state) => state?.involved && state.priority === "primary",
   );
 }
 

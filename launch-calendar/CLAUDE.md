@@ -1,4 +1,4 @@
-# Launch Calendar — instructions for Claude Code
+# Marketing Calendar — instructions for Claude Code
 
 This folder is a marketing planning board: a Next.js app that runs as a Cloudflare
 Worker with a D1 (SQLite) database. Everything runs on one free Cloudflare account.
@@ -36,9 +36,12 @@ Work out, without asking:
   Use `npm.cmd` and `npx.cmd` for every command below. Try plain `npm` once; if
   it fails with "running scripts is disabled", switch and do not mention it again.
 - **Where the folder is.** If the path contains `OneDrive`, `Dropbox`, `Google
-  Drive` or `iCloud`, the build will fail with locked-file errors. Tell them in
-  one sentence and offer to copy the folder to `C:\dev\launch-calendar` (Windows)
-  or `~/dev/launch-calendar` (Mac) and continue there. Do it if they agree.
+  Drive` or `iCloud`, the build will fail with locked-file errors. If the full
+  path is very long (over about 120 characters — Downloads inside a deeply
+  nested folder, a temp directory), the deploy step crashes with "The Workers
+  runtime failed to start". Either way: tell them in one sentence and offer to
+  copy the folder to `C:\dev\launch-calendar` (Windows) or
+  `~/dev/launch-calendar` (Mac) and continue there. Do it if they agree.
 - **Node.js.** Run `node --version`. Need 18 or newer. If missing, send them to
   https://nodejs.org (LTS), and wait — you cannot install it for them.
 
@@ -117,6 +120,16 @@ synced location (see step 0), or a previous build's process is still holding a
 file. On Windows, `taskkill /F /IM workerd.exe` then retry once. If it still
 fails, move the folder out of the synced location.
 
+If it fails with **"The Workers runtime failed to start" / MiniflareCoreError /
+`std::terminate()`** — the folder path is too long for the local runtime the
+deploy briefly starts. Copy the folder to `C:\dev\launch-calendar` (or
+`~/dev/launch-calendar`) and run `npm run deploy` again from there. Nothing on
+Cloudflare needs redoing — the database, secret and id all carry over.
+
+The address may answer **404 for the first few seconds** after a first deploy
+while Cloudflare spreads it out. Wait ten seconds and check again before
+concluding anything.
+
 ### 7. Verify — do not skip this
 
 - `curl -s -o /dev/null -w "%{http_code}" ADDRESS/` should print `307` (the
@@ -140,6 +153,11 @@ Then open the address in the browser for them and say:
   file — and redeploy." When they hand these over:
   - Everything goes in `brand.config.ts`. Set `primaryText` to whichever of
     white or the text colour contrasts with the accent (check the ratio).
+    Ask whether they want the app to call itself something other than
+    "Marketing Calendar" (`productName`) — some teams prefer "Launch Calendar".
+    Leave the default if they have no preference. `shortName` is the label
+    under the icon once the board is on a phone home screen (about 11
+    characters fit) — set it to something like their initials + "Calendar".
   - The logo replaces `public/logo.svg`. It renders 28px tall next to the name
     as text, so it must be a **mark, not a wordmark** — say so if they send a
     wide logo, and ask for the icon version. A single-colour SVG is painted in
@@ -147,12 +165,24 @@ Then open the address in the browser for them and say:
     `logoTint: false`.
   - If their font is not on Google Fonts, say so plainly and use the closest
     family that is; do not attempt to self-host during setup.
+  - `npm run icons` regenerates the phone home-screen icons in
+    `public/icons/` from the new logo and colours. It needs Google Chrome on
+    this machine; if there is none, say so and leave the existing PNGs — the
+    app still works, the icon is just the default blue one until someone with
+    Chrome runs it (or drops in their own PNGs with the same names).
   - `npm run deploy`, then open the address and eyeball the nav, a card and
     the sign-in screen for contrast.
 - **Google sign-in instead of a shared password.** "Later, if you'd rather people
   sign in with Google by invitation, that's switched on inside the app — I can
   walk you through the one Google step when you want it." Steps are in `SETUP.md`
   under "Optional: sign in with Google". Do not start this during first setup.
+- **Slack notifications.** "Later, the board can post to Slack when a launch is
+  added, moved or changes status — one Slack channel per marketing channel. I
+  can walk you through it when you want it." Steps are in `SETUP.md` under
+  "Optional: post to Slack when things change". Do not start this during first
+  setup. When they do want it: they create the Slack app and paste the bot token
+  into **Settings → Slack notifications** themselves — never ask them to send you
+  the token, and never put it in a file.
 
 ---
 
@@ -160,7 +190,9 @@ Then open the address in the browser for them and say:
 
 - Do not run `wrangler login` more than once, or `d1 create` more than once.
 - Do not put secrets or the database id anywhere but where they belong
-  (`wrangler secret put`, `wrangler.jsonc`). Never commit `.dev.vars`.
+  (`wrangler secret put`, `wrangler.jsonc`). Never commit `.dev.vars`. The Slack
+  bot token belongs in the app's own Settings screen, typed by them — not in a
+  file, not in a message to you.
 - Do not modify anything under `app/`, `components/`, `lib/` during setup.
   Setup touches exactly one source file: `wrangler.jsonc`.
 - Do not switch the app to Google sign-in during setup, and never turn off
@@ -176,8 +208,29 @@ Then open the address in the browser for them and say:
 - Local run: `npm run db:local`, put `APP_PASSWORD=anything` in `.dev.vars`,
   then `npm run preview`.
 - All brand values live in `brand.config.ts` — nothing else contains a colour.
-- Password, sign-in mode, invite list and event types are all in the database and
-  changed from the app's Settings menu. No redeploy for any of them.
-- Statuses and channels are deliberately not editable — the app branches on
-  them. Event types are.
+- Password, sign-in mode, invite list, event types and Slack notifications are
+  all in the database and changed from the app's Settings menu. No redeploy for
+  any of them.
+- Slack notifications need a cron trigger, which is why `wrangler.jsonc` points
+  `main` at `worker-entry.js` rather than at `.open-next/worker.js` — the
+  generated worker cannot carry a `scheduled` handler across a rebuild. Do not
+  "fix" that back.
+- A board created before Slack notifications existed needs the tables and the
+  assets column once:
+  `npx wrangler d1 execute launch-calendar --remote --file=./db/migrations/002-slack-notifications.sql`
+  then `--file=./db/migrations/003-assets-link.sql`. A fresh `db/schema.sql`
+  already includes both.
+- Event types and channels are both editable from Settings (Settings → Event
+  types, Settings → Channels). Statuses are deliberately not — the app branches
+  on them.
+- Adding a channel needs no migration: channels live as JSON on each event and
+  every read fills in the board's current list.
 - Dates are `YYYY-MM-DD` strings throughout; never introduce `Date` round-trips.
+- The board installs to a phone or tablet home screen (Settings → Add to your
+  phone). `app/manifest.ts` builds the manifest from `brand.config.ts`;
+  `public/icons/*.png` come from `npm run icons`; `public/sw.js` is a small
+  service worker that only caches build assets and the `/offline` screen —
+  never pages or API data. The middleware matcher deliberately lets
+  `manifest.webmanifest`, `icons/`, `sw.js` and `offline` through without a
+  session, because phones fetch them cookieless at install time; removing
+  those exclusions makes "Add to Home Screen" silently produce a bookmark.

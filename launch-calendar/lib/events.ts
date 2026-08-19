@@ -1,7 +1,9 @@
 import { getDb, rowToEvent } from "./db";
 import { NotFoundError, validateEventInput } from "./validation";
 import { listEventTypes } from "./eventTypes";
+import { channelKeys, channelLabeller, hydrateChannels, listChannels } from "./channelOptions";
 import { describeCreation, describeDeletion, diffEvents } from "./changelog";
+import { queueChanged, queueCreated } from "./slackNotify";
 import { EVENT_STATUSES, type ChangelogEntry, type EventStatus, type LaunchEvent } from "./types";
 
 export {
@@ -22,7 +24,7 @@ export {
  */
 
 const EVENT_COLUMNS = `id, name, type, status, brief, launch_date, promo_end_date,
-  inventory_date, asset_deadline, teaser_start, channels, owner, notes,
+  inventory_date, asset_deadline, teaser_start, channels, owner, notes, assets_link,
   created_at, updated_at, updated_by`;
 
 /**
@@ -77,21 +79,44 @@ async function allowedTypeKeys(): Promise<string[]> {
   return (await listEventTypes()).map((option) => option.key);
 }
 
-export async function listEvents(): Promise<LaunchEvent[]> {
-  const { results } = await getDb()
-    .prepare(`SELECT ${EVENT_COLUMNS} FROM events ORDER BY launch_date ASC, name ASC`)
-    .all();
+/**
+ * Validates against both configurable lists at once.
+ *
+ * Read together so a save cannot see a type list from before an edit and a
+ * channel list from after it.
+ */
+async function validateAgainstBoard(raw: unknown) {
+  const [types, channels] = await Promise.all([allowedTypeKeys(), listChannels()]);
+  return validateEventInput(raw, types, channels);
+}
 
-  return (results ?? []).map(rowToEvent);
+/**
+ * Every read fills in the board's current channel list, so an event saved
+ * before "Affiliate" existed still shows an Affiliate row (uninvolved) in the
+ * editor, and one saved with a since-removed channel does not resurrect it.
+ */
+function hydrate(event: LaunchEvent, keys: readonly string[]): LaunchEvent {
+  return { ...event, channels: hydrateChannels(event.channels, keys) };
+}
+
+export async function listEvents(): Promise<LaunchEvent[]> {
+  const [{ results }, keys] = await Promise.all([
+    getDb()
+      .prepare(`SELECT ${EVENT_COLUMNS} FROM events ORDER BY launch_date ASC, name ASC`)
+      .all(),
+    channelKeys(),
+  ]);
+
+  return (results ?? []).map((row) => hydrate(rowToEvent(row), keys));
 }
 
 export async function getEvent(id: string): Promise<LaunchEvent | null> {
-  const row = await getDb()
-    .prepare(`SELECT ${EVENT_COLUMNS} FROM events WHERE id = ?`)
-    .bind(id)
-    .first();
+  const [row, keys] = await Promise.all([
+    getDb().prepare(`SELECT ${EVENT_COLUMNS} FROM events WHERE id = ?`).bind(id).first(),
+    channelKeys(),
+  ]);
 
-  return row ? rowToEvent(row) : null;
+  return row ? hydrate(rowToEvent(row), keys) : null;
 }
 
 export async function listChangelog(limit = 100): Promise<ChangelogEntry[]> {
@@ -107,16 +132,16 @@ export async function listChangelog(limit = 100): Promise<ChangelogEntry[]> {
 }
 
 export async function createEvent(raw: unknown, editor: string): Promise<LaunchEvent> {
-  const input = validateEventInput(raw, await allowedTypeKeys());
+  const input = await validateAgainstBoard(raw);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
   await getDb()
     .prepare(
       `INSERT INTO events (id, name, type, status, brief, launch_date, promo_end_date,
-        inventory_date, asset_deadline, teaser_start, channels, owner, notes,
+        inventory_date, asset_deadline, teaser_start, channels, owner, notes, assets_link,
         created_at, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -132,6 +157,7 @@ export async function createEvent(raw: unknown, editor: string): Promise<LaunchE
       JSON.stringify(input.channels),
       input.owner,
       input.notes,
+      input.assets_link,
       now,
       now,
       editor,
@@ -140,6 +166,7 @@ export async function createEvent(raw: unknown, editor: string): Promise<LaunchE
 
   const created = (await getEvent(id)) as LaunchEvent;
   await recordChanges(created, [describeCreation(created)], editor);
+  await queueCreated(created, editor);
   return created;
 }
 
@@ -148,7 +175,7 @@ export async function updateEvent(
   raw: unknown,
   editor: string,
 ): Promise<LaunchEvent> {
-  const input = validateEventInput(raw, await allowedTypeKeys());
+  const input = await validateAgainstBoard(raw);
 
   const existing = await getEvent(id);
   if (!existing) throw new NotFoundError();
@@ -157,7 +184,7 @@ export async function updateEvent(
     .prepare(
       `UPDATE events SET name = ?, type = ?, status = ?, brief = ?, launch_date = ?,
         promo_end_date = ?, inventory_date = ?, asset_deadline = ?, teaser_start = ?,
-        channels = ?, owner = ?, notes = ?, updated_at = ?, updated_by = ?
+        channels = ?, owner = ?, notes = ?, assets_link = ?, updated_at = ?, updated_by = ?
        WHERE id = ?`,
     )
     .bind(
@@ -173,6 +200,7 @@ export async function updateEvent(
       JSON.stringify(input.channels),
       input.owner,
       input.notes,
+      input.assets_link,
       new Date().toISOString(),
       editor,
       id,
@@ -182,7 +210,10 @@ export async function updateEvent(
   const updated = (await getEvent(id)) as LaunchEvent;
   // Diffed against the pre-edit row, named with the post-edit name so a rename
   // reads under the name people will look for.
-  await recordChanges(updated, diffEvents(existing, updated), editor);
+  const changes = diffEvents(existing, updated, await channelLabeller());
+  await recordChanges(updated, changes, editor);
+  // Slack is told with the same words the history uses, from the same diff.
+  await queueChanged(existing, updated, changes, editor);
   return updated;
 }
 
@@ -207,7 +238,9 @@ export async function setEventStatus(
     .run();
 
   const updated = (await getEvent(id)) as LaunchEvent;
-  await recordChanges(updated, diffEvents(existing, updated), editor);
+  const changes = diffEvents(existing, updated, await channelLabeller());
+  await recordChanges(updated, changes, editor);
+  await queueChanged(existing, updated, changes, editor);
   return updated;
 }
 

@@ -1,4 +1,4 @@
-Set up and deploy this Launch Calendar for me.
+Set up and deploy this Marketing Calendar for me.
 
 Follow the "Setup runbook" in this project's CLAUDE.md exactly, start to finish:
 detect my operating system and folder location first, then install, connect to

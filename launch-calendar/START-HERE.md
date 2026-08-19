@@ -1,4 +1,4 @@
-# Launch Calendar — start here
+# Marketing Calendar — start here
 
 You have been sent a marketing planning board: one shared picture of what is
 launching, when, and which channels need to care about it. Built to be
@@ -58,7 +58,12 @@ card needed to set it up.
   can switch to inviting people by email and having them sign in with Google
   instead — Settings → Who can sign in. `SETUP.md` covers the one-time step.
 - **What you call things.** The event types (Product Launch, Promo, Restock…)
-  are yours to rename — Settings → Event types.
+  are yours to rename — Settings → Event types. The marketing channels (Paid,
+  Email, Organic, SMS) are yours to add to — Settings → Channels.
+- **Whether Slack hears about it.** The board can post to Slack when a launch is
+  added, moved or changes status, and remind you a week before each one — one
+  Slack channel per marketing channel. Off until you set it up; `SETUP.md`
+  covers the one-time step.
 
 ## If you get stuck
 

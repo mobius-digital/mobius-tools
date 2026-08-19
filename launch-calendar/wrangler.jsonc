@@ -1,5 +1,5 @@
 /**
- * Launch Calendar — Cloudflare Worker config.
+ * Marketing Calendar — Cloudflare Worker config.
  *
  * Deploy:  npm run deploy      (from this folder)
  * Logs:    npx wrangler tail
@@ -14,7 +14,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "launch-calendar",
-  "main": ".open-next/worker.js",
+  // Not .open-next/worker.js directly: worker-entry.js wraps it to add the
+  // cron handler, which the generated file cannot carry across a rebuild.
+  "main": "worker-entry.js",
   "compatibility_date": "2026-07-01",
   "compatibility_flags": ["nodejs_compat"],
 
@@ -25,6 +27,12 @@
 
   "observability": {
     "enabled": true
+  },
+
+  // Slack notifications: flushes the 15-minute batch window and runs the daily
+  // reminder sweep. Nothing happens on a board that has not configured Slack.
+  "triggers": {
+    "crons": ["*/5 * * * *"]
   },
 
   "d1_databases": [

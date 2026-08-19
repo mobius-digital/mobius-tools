@@ -40,6 +40,7 @@ export function rowToEvent(row: D1Row): LaunchEvent {
     channels: JSON.parse(String(row.channels)) as Channels,
     owner: String(row.owner),
     notes: (row.notes as string | null) ?? null,
+    assets_link: (row.assets_link as string | null) ?? null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
     updated_by: String(row.updated_by),

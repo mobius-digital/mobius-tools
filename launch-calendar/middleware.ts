@@ -60,9 +60,15 @@ export const config = {
      * Everything except:
      *   password        — the gate itself
      *   api/auth        — the endpoints that issue a cookie
+     *   api/cron        — the scheduled tick, which has no cookie to present
+     *                     and guards itself with a per-tick nonce instead
      *   _next/*         — build output
      *   logo.svg, favicon.ico, and other root-level static files
+     *   manifest.webmanifest, icons/*, sw.js, offline
+     *                   — what a phone fetches (without cookies) when the board
+     *                     is added to a home screen; a redirect here makes iOS
+     *                     silently install a bookmark instead of an app
      */
-    "/((?!password|api/auth|_next/static|_next/image|favicon.ico|logo.svg).*)",
+    "/((?!password|api/auth|api/cron|_next/static|_next/image|favicon.ico|logo.svg|manifest.webmanifest|icons/|sw.js|offline).*)",
   ],
 };

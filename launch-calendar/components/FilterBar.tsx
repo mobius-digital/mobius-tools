@@ -1,16 +1,7 @@
 "use client";
 
 import { useWorkspace } from "./Workspace";
-import { CHANNEL_FILTERS, type ChannelFilter } from "@/lib/channels";
-import { CHANNEL_LABELS } from "@/lib/types";
-
-const LABELS: Record<ChannelFilter, string> = {
-  all: "All channels",
-  paid: CHANNEL_LABELS.paid,
-  email: CHANNEL_LABELS.email,
-  organic: CHANNEL_LABELS.organic,
-  sms: CHANNEL_LABELS.sms,
-};
+import { channelFilters, type ChannelFilter } from "@/lib/channels";
 
 /**
  * The channel lens, shared by both views (PRD §4.3).
@@ -21,12 +12,16 @@ const LABELS: Record<ChannelFilter, string> = {
  * can be pasted to a colleague.
  */
 export function FilterBar() {
-  const { channel, setChannel, events, filteredEvents } = useWorkspace();
+  const { channel, setChannel, events, filteredEvents, channelOptions, channelLabel } =
+    useWorkspace();
+
+  const labelFor = (option: ChannelFilter) =>
+    option === "all" ? "All channels" : channelLabel(option);
 
   return (
     <div className="filters">
       <div className="filters__chips" role="group" aria-label="Filter by channel">
-        {CHANNEL_FILTERS.map((option) => {
+        {channelFilters(channelOptions.map((option) => option.key)).map((option) => {
           const active = option === channel;
           return (
             <button
@@ -36,7 +31,7 @@ export function FilterBar() {
               onClick={() => setChannel(option)}
               aria-pressed={active}
             >
-              {LABELS[option]}
+              {labelFor(option)}
             </button>
           );
         })}
@@ -45,7 +40,7 @@ export function FilterBar() {
       {channel !== "all" && (
         <p className="filters__note">
           Showing {filteredEvents.length} of {events.length} — everything{" "}
-          {LABELS[channel].toLowerCase()} is involved in. Its most important work
+          {labelFor(channel).toLowerCase()} is involved in. Its most important work
           is highlighted.
         </p>
       )}

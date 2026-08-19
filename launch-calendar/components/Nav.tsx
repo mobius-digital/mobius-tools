@@ -27,7 +27,7 @@ export function Nav() {
         <span className="nav__name">{brand.name}</span>
       </Link>
       <span className="nav__product" aria-hidden>
-        Launch Calendar
+        {brand.productName}
       </span>
 
       <div className="nav__links">

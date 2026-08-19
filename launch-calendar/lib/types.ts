@@ -27,9 +27,24 @@ export const EVENT_STATUSES = [
 
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
+/**
+ * The channels a fresh board starts with.
+ *
+ * Channels used to be a closed union, because the app branches on them — the
+ * filter bar, "what's mine" elevation, clash detection, the Slack mapping. They
+ * still drive all of that, but the *set* is now per board, edited from Settings
+ * and stored beside the event types. What stays fixed is the shape: every
+ * channel is a stable key plus a label, and every event carries a state for
+ * every configured key. Priority stays a closed union — it is what the app
+ * actually branches on.
+ */
 export const CHANNEL_KEYS = ["paid", "email", "organic", "sms"] as const;
 
-export type ChannelKey = (typeof CHANNEL_KEYS)[number];
+/** A channel key. Free-form because boards define their own; see above. */
+export type ChannelKey = string;
+
+/** One configurable channel: a stable key stored on events, and a label. */
+export type ChannelOption = { key: string; label: string };
 
 export const CHANNEL_PRIORITIES = ["primary", "supporting", "fyi"] as const;
 
@@ -41,6 +56,26 @@ export type ChannelState = {
 };
 
 export type Channels = Record<ChannelKey, ChannelState>;
+
+/** A complete, all-uninvolved channel map for the given keys, in that order. */
+export function emptyChannels(keys: readonly string[]): Channels {
+  const result: Channels = {};
+  for (const key of keys) result[key] = { involved: false, priority: null };
+  return result;
+}
+
+/**
+ * Fills in any configured channel an event was saved without, and drops any
+ * it carries that the board no longer has, so every reader sees the same
+ * complete shape in the configured order. Pure; applied on every read.
+ */
+export function hydrateChannels(channels: Channels, keys: readonly string[]): Channels {
+  const result: Channels = {};
+  for (const key of keys) {
+    result[key] = channels[key] ?? { involved: false, priority: null };
+  }
+  return result;
+}
 
 /** The five date columns, in the order they appear on a card. */
 export const DATE_FIELDS = [
@@ -74,6 +109,8 @@ export type LaunchEvent = {
   channels: Channels;
   owner: string;
   notes: string | null;
+  /** Where the finished assets live — a folder link. Filling it in is news. */
+  assets_link: string | null;
   created_at: string;
   updated_at: string;
   updated_by: string;
@@ -93,6 +130,7 @@ export type EventInput = {
   channels: Channels;
   owner: string;
   notes: string | null;
+  assets_link: string | null;
 };
 
 export type ChangelogEntry = {
@@ -104,19 +142,27 @@ export type ChangelogEntry = {
   created_at: string;
 };
 
-export const EMPTY_CHANNELS: Channels = {
-  paid: { involved: false, priority: null },
-  email: { involved: false, priority: null },
-  organic: { involved: false, priority: null },
-  sms: { involved: false, priority: null },
-};
+/** The built-in four, uninvolved. Callers with a configured list use `emptyChannels`. */
+export const EMPTY_CHANNELS: Channels = emptyChannels(CHANNEL_KEYS);
 
-export const CHANNEL_LABELS: Record<ChannelKey, string> = {
+/** Labels for the built-in channels, and the seed for a new board. */
+export const CHANNEL_LABELS: Record<string, string> = {
   paid: "Paid",
   email: "Email",
   organic: "Organic",
   sms: "SMS",
 };
+
+/** The list a board starts with, before anybody edits it. */
+export const DEFAULT_CHANNELS: ChannelOption[] = CHANNEL_KEYS.map((key) => ({
+  key,
+  label: CHANNEL_LABELS[key],
+}));
+
+/** Label for a channel key when no configured list is to hand. */
+export function fallbackChannelLabel(key: string): string {
+  return CHANNEL_LABELS[key] ?? key;
+}
 
 /** Labels for the built-in types, and the seed for a new board. */
 export const EVENT_TYPE_LABELS: Record<string, string> = {

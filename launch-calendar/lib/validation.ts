@@ -1,10 +1,11 @@
 import { isValidIso } from "./dates.ts";
 import {
   CHANNEL_KEYS,
-  CHANNEL_LABELS,
   CHANNEL_PRIORITIES,
+  DEFAULT_CHANNELS,
   EVENT_STATUSES,
   EVENT_TYPES,
+  type ChannelOption,
   type ChannelPriority,
   type Channels,
   type EventInput,
@@ -44,14 +45,18 @@ function asOptionalDate(value: unknown): string | null {
 }
 
 /**
- * Forces the four channels into a complete, self-consistent shape: every key
- * present, and no priority left on a channel that is not involved.
+ * Forces the channels into a complete, self-consistent shape: every configured
+ * key present, in configured order, nothing that is not configured, and no
+ * priority left on a channel that is not involved.
  */
-export function normaliseChannels(raw: unknown): Channels {
+export function normaliseChannels(
+  raw: unknown,
+  keys: readonly string[] = CHANNEL_KEYS,
+): Channels {
   const source = (raw ?? {}) as Record<string, unknown>;
   const result = {} as Channels;
 
-  for (const key of CHANNEL_KEYS) {
+  for (const key of keys) {
     const entry = (source[key] ?? {}) as Record<string, unknown>;
     const involved = entry.involved === true;
     const priority = entry.priority;
@@ -75,6 +80,7 @@ export function normaliseChannels(raw: unknown): Channels {
 export function validateEventInput(
   raw: unknown,
   allowedTypes?: readonly string[],
+  channelOptions: readonly ChannelOption[] = DEFAULT_CHANNELS,
 ): EventInput {
   const input = (raw ?? {}) as Record<string, unknown>;
   const errors: FieldErrors = {};
@@ -116,8 +122,9 @@ export function validateEventInput(
     optionalDates[field] = value;
   }
 
-  const channels = normaliseChannels(input.channels);
-  const involved = CHANNEL_KEYS.filter((key) => channels[key].involved);
+  const channelKeys = channelOptions.map((option) => option.key);
+  const channels = normaliseChannels(input.channels, channelKeys);
+  const involved = channelKeys.filter((key) => channels[key].involved);
 
   if (involved.length === 0) {
     errors.channels = "At least one channel has to be involved.";
@@ -126,7 +133,9 @@ export function validateEventInput(
       (key) => channels[key].priority === null,
     );
     if (missingPriority.length > 0) {
-      const names = missingPriority.map((key) => CHANNEL_LABELS[key]).join(", ");
+      const names = missingPriority
+        .map((key) => channelOptions.find((option) => option.key === key)?.label ?? key)
+        .join(", ");
       errors.channels = `Set a priority for ${names}.`;
     }
   }
@@ -151,6 +160,11 @@ export function validateEventInput(
     errors.teaser_start = "Teasers have to start on or before launch day.";
   }
 
+  const assets_link = normaliseLink(input.assets_link);
+  if (assets_link === false) {
+    errors.assets_link = "That does not look like a link — it should start with https://";
+  }
+
   if (Object.keys(errors).length > 0) throw new ValidationError(errors);
 
   return {
@@ -169,7 +183,34 @@ export function validateEventInput(
       typeof input.notes === "string" && input.notes.trim() !== ""
         ? input.notes.trim()
         : null,
+    assets_link: assets_link || null,
   };
+}
+
+/**
+ * A pasted link, tidied — or `false` when it is not one.
+ *
+ * Only http(s) is accepted, because this value ends up as a clickable button in
+ * Slack and on a card, and a `javascript:` or bare-word "link" would either do
+ * nothing or something nobody intended. A missing scheme is forgiven and
+ * `https://` assumed, since that is what people paste from an address bar most
+ * of the time anyway.
+ */
+export function normaliseLink(raw: unknown): string | null | false {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+    if (!url.hostname.includes(".")) return false;
+    return url.toString().length > 2000 ? false : url.toString();
+  } catch {
+    return false;
+  }
 }
 
 export function validateEditorName(raw: unknown): string {

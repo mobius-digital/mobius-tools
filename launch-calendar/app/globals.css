@@ -216,6 +216,19 @@ button {
   color: var(--color-text-muted);
 }
 
+/* An action that is real but secondary: outlined in the accent, no fill. */
+.button--outline {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+  color: var(--color-accent-ink);
+  font-weight: var(--font-weight-heading);
+}
+
+.button--outline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  border-color: var(--color-primary);
+}
+
 .button--quiet:hover:not(:disabled) {
   color: var(--color-text);
   background: var(--surface-raised);
@@ -262,6 +275,27 @@ button {
   resize: vertical;
   min-height: 88px;
   line-height: 1.5;
+}
+
+/* The browser's own chevron sits flush against the border and ignores padding,
+   so it is replaced with one drawn from two gradient squares in currentColor —
+   no image, no hex, and it inherits the field's text colour. */
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: calc(var(--space-3) * 2 + 10px);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - var(--space-3) - 5px) 50%,
+    calc(100% - var(--space-3)) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.select:disabled {
+  opacity: 0.6;
 }
 
 .input::placeholder,
@@ -330,35 +364,320 @@ button {
  * Password gate
  * ----------------------------------------------------------------------- */
 
+/* --------------------------------------------------------------------------
+ * The sign-in screen
+ *
+ * Split in two: the product in miniature on the left — an abstract Pipeline
+ * drawn from brand tokens, with this board's own channel and type names — and
+ * the sign-in card on the right. Full-bleed: the main column's padding and
+ * width cap are lifted for this one page.
+ * ----------------------------------------------------------------------- */
+
+.main:has(> .gate) {
+  max-width: none;
+  padding: 0;
+}
+
 .gate {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ---- the scene ---- */
+
+.gate__scene {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 70vh;
-  padding: var(--space-5) 0;
+  padding: var(--space-7) var(--space-6);
+  color: var(--color-text);
+  background:
+    radial-gradient(
+      120% 90% at 0% 0%,
+      color-mix(in srgb, var(--color-primary) 18%, var(--color-background)) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      90% 80% at 100% 100%,
+      color-mix(in srgb, var(--color-primary) 10%, var(--color-background)) 0%,
+      transparent 55%
+    ),
+    color-mix(in srgb, var(--color-primary) 5%, var(--color-background));
+}
+
+/* A faint week grid behind everything — seven columns, like the day strip. */
+.gate__scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
+  background-size: calc(100% / 7) 64px;
+  mask-image: radial-gradient(80% 80% at 50% 50%, black 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(80% 80% at 50% 50%, black 30%, transparent 100%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.scene {
+  position: relative;
+  width: 100%;
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.scene__top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.scene__today {
+  display: block;
+  min-height: 1.2em;
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-ink);
+}
+
+.scene__headline {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.4vw, 2.1rem);
+  line-height: 1.15;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -0.01em;
+  max-width: 19ch;
+}
+
+/* The miniature board: a day strip and four week lanes. */
+.scene__board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 24px 60px -30px color-mix(in srgb, var(--color-scrim) 45%, transparent);
+}
+
+.scene__strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-left: calc(4.6rem + var(--space-3));
+  margin-bottom: var(--space-2);
+}
+
+.scene__day {
+  position: relative;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scene__day--today {
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+}
+
+.scene__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: scene-pulse 2.4s ease-in-out infinite;
+}
+
+.scene__mark {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.scene__week {
+  display: grid;
+  grid-template-columns: 4.6rem 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 30px;
+}
+
+.scene__weeklabel {
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.scene__week:first-of-type .scene__weeklabel {
+  color: var(--color-text);
+}
+
+.scene__lane {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 10px;
+  gap: 6px 6px;
+  padding: 2px 0;
+}
+
+/* A span: teaser start to promo end. Confirmed is solid, tentative lighter,
+   at-risk in the danger colour. Primary is the full bar; supporting is
+   thinner. Grows in from the left, staggered by row. */
+.scene__span {
+  grid-column: var(--start) / var(--end);
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  transform-origin: left center;
+  animation: scene-grow 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--delay) * 70ms + 200ms);
+}
+
+.scene__span--supporting {
+  height: 6px;
+  align-self: center;
+  opacity: 0.55;
+}
+
+.scene__span--tentative {
+  background: color-mix(in srgb, var(--color-tentative) 70%, var(--color-surface));
+}
+
+.scene__span--risk {
+  background: var(--color-danger);
+}
+
+/* This board's own words: channels first, then a few event types. */
+.scene__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.scene__chip {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+}
+
+.scene__chip--channel {
+  color: var(--color-accent-ink);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  font-weight: var(--font-weight-heading);
+}
+
+.scene__foot {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+@keyframes scene-grow {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scene-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-primary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene__span {
+    animation: none;
+  }
+  .scene__dot {
+    animation: none;
+  }
+}
+
+/* ---- the form side ---- */
+
+.gate__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-7) var(--space-6);
+  background: var(--color-background);
 }
 
 .gate__card {
   width: 100%;
-  max-width: 22rem;
+  max-width: 23rem;
   background: var(--color-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
   text-align: center;
+  box-shadow: 0 20px 50px -30px color-mix(in srgb, var(--color-scrim) 40%, transparent);
+}
+
+.gate__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  color: var(--color-accent-ink);
 }
 
 .gate__logo {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   color: var(--color-accent-ink);
-  color: var(--color-accent-ink);
-  margin-bottom: var(--space-4);
+}
+
+.gate__brandname {
+  font-weight: var(--font-weight-heading);
+  letter-spacing: 0.02em;
 }
 
 .gate__title {
-  font-size: 1.25rem;
-  margin-bottom: var(--space-2);
+  font-size: 1.5rem;
+  margin: 0 0 var(--space-2);
+  letter-spacing: -0.01em;
 }
 
 .gate__subtitle {
@@ -372,6 +691,46 @@ button {
   flex-direction: column;
   gap: var(--space-3);
   text-align: left;
+}
+
+.gate__fine {
+  margin: 0;
+  max-width: 23rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 860px) {
+  .gate {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .gate__scene {
+    padding: var(--space-6) var(--space-5) var(--space-5);
+    align-items: flex-start;
+  }
+
+  /* On a phone the board would be a smear; keep the words, drop the picture. */
+  .scene {
+    gap: var(--space-4);
+  }
+
+  .scene__board,
+  .scene__foot {
+    display: none;
+  }
+
+  .scene__headline {
+    max-width: none;
+    font-size: 1.35rem;
+  }
+
+  .gate__panel {
+    padding: var(--space-6) var(--space-5) var(--space-7);
+    justify-content: flex-start;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -2701,4 +3060,257 @@ button {
 .logo--tinted {
   display: inline-block;
   background-color: currentColor;
+}
+
+/* --------------------------------------------------------------------------
+ * Slack settings: the channel map, reminder timing, confirmation note
+ * ----------------------------------------------------------------------- */
+
+.slack-map {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.slack-map__row {
+  display: grid;
+  /* The label column is fixed so the four pickers line up as one list rather
+     than stepping in and out with the width of "Organic" versus "SMS". */
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.slack-map__label {
+  font-weight: var(--font-weight-heading);
+  font-size: 0.9rem;
+}
+
+.slack-map__unmapped {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.slack-timing {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.slack-timing .field {
+  flex: 1 1 10rem;
+}
+
+/* Success is quieter than failure: it confirms and gets out of the way. */
+.dialog__note {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 520px) {
+  .slack-map__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .slack-map__label {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The assets link on a card: quiet, but a real link. It sits in the footer so
+   it reads as a fact about the event rather than a call to action. */
+.card__assets {
+  color: var(--color-accent-ink);
+  font-size: 0.8rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.card__assets:hover {
+  text-decoration: underline;
+}
+
+/* The Slack queue line: a count and, when there is something to send, a button. */
+.slack-queue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.slack-queue .button {
+  min-height: 32px;
+}
+
+/* --------------------------------------------------------------------------
+ * On a home screen
+ *
+ * Added to a phone or tablet, the board runs full-screen under the notch and
+ * the home indicator. These insets are zero everywhere else, so nothing here
+ * changes the laptop layout.
+ * ----------------------------------------------------------------------- */
+
+.nav {
+  padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
+  padding-left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
+  padding-right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+}
+
+.main {
+  padding-left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
+  padding-right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+  padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+}
+
+/* The editor sheet reaches the bottom edge; keep its buttons above the bar. */
+.sheet__footer {
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+}
+
+/* No browser back button once installed: the editor's own Close has to be
+   easy to find, and the tour tip must not hide under the home indicator. */
+.tour__tip {
+  margin-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+}
+
+/* --------------------------------------------------------------------------
+ * Phone calendar
+ * ----------------------------------------------------------------------- */
+
+/* A span narrower than its own text is noise: keep the colour and the dot
+   (status still reads), drop the letters. Tapping still opens the event. */
+.span {
+  container-type: inline-size;
+}
+
+@container (max-width: 4.5rem) {
+  .span__name {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Five buttons in month view fall as three and two, equal widths; the
+     three in week view fill one row. */
+  .cal-nav .button {
+    flex: 1 1 30%;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+    font-size: 0.85rem;
+  }
+
+  .page-header__actions {
+    width: 100%;
+  }
+
+  /* The primary action takes the end of its row rather than a row of its own. */
+  .page-header__actions .button--primary {
+    margin-left: auto;
+  }
+
+  .cal-day {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Offline screen (served by the service worker when there is no connection)
+ * ----------------------------------------------------------------------- */
+
+.offline {
+  max-width: 28rem;
+  margin: 10vh auto 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.offline__title {
+  font-size: 1.5rem;
+}
+
+.offline__body {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+ * "Add to your phone" guide
+ * ----------------------------------------------------------------------- */
+
+.install__steps {
+  margin: 0 0 var(--space-4);
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+}
+
+.install__steps li::marker {
+  color: var(--color-accent-ink);
+  font-weight: var(--font-weight-heading);
+}
+
+.install__device {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.install__device:first-of-type {
+  margin-top: 0;
+}
+
+.install__note {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.install__tab {
+  display: flex;
+  width: 100%;
+  margin-bottom: var(--space-4);
+}
+
+.install__tab .segmented__option {
+  flex: 1 1 0;
+  white-space: nowrap;
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+/* Already on the home screen: a thank-you, not instructions. */
+.install__done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 0.9rem;
+  margin: 0 0 var(--space-4);
 }

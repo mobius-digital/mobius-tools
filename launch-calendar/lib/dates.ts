@@ -251,3 +251,8 @@ export function daysSince(timestamp: string, now: Date = new Date()): number {
   if (Number.isNaN(then)) return 0;
   return Math.floor((now.getTime() - then) / MS_PER_DAY);
 }
+
+/** "Thu Aug 27" — the weekday matters when a launch date is read in Slack. */
+export function formatWithWeekday(iso: IsoDate): string {
+  return `${WEEKDAY_LABELS[weekdayIndex(iso)]} ${formatShort(iso)}`;
+}

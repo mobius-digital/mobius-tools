@@ -4,10 +4,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useDisplayName } from "./DisplayName";
 import { useWorkspace } from "./Workspace";
 import {
-  CHANNEL_KEYS,
-  CHANNEL_LABELS,
+  emptyChannels,
   CHANNEL_PRIORITIES,
-  EMPTY_CHANNELS,
   EVENT_STATUSES,
   EVENT_STATUS_LABELS,
   type ChannelPriority,
@@ -33,11 +31,13 @@ type FormState = {
   channels: Channels;
   owner: string;
   notes: string;
+  assets_link: string;
 };
 
 function toFormState(
   event: LaunchEvent | null,
   defaultLaunchDate: string | null,
+  channelKeys: readonly string[],
 ): FormState {
   return {
     name: event?.name ?? "",
@@ -49,9 +49,10 @@ function toFormState(
     asset_deadline: event?.asset_deadline ?? "",
     inventory_date: event?.inventory_date ?? "",
     promo_end_date: event?.promo_end_date ?? "",
-    channels: event ? structuredClone(event.channels) : structuredClone(EMPTY_CHANNELS),
+    channels: event ? structuredClone(event.channels) : emptyChannels(channelKeys),
     owner: event?.owner ?? "",
     notes: event?.notes ?? "",
+    assets_link: event?.assets_link ?? "",
   };
 }
 
@@ -119,9 +120,13 @@ export function EventEditor({
   onSaved: (event: LaunchEvent, deleted: boolean) => void;
 }) {
   const { ensureName } = useDisplayName();
-  const { eventTypes } = useWorkspace();
+  const { eventTypes, channelOptions } = useWorkspace();
   const [form, setForm] = useState<FormState>(() =>
-    toFormState(event, defaultLaunchDate),
+    toFormState(
+      event,
+      defaultLaunchDate,
+      channelOptions.map((option) => option.key),
+    ),
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -148,11 +153,7 @@ export function EventEditor({
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function setChannel(
-    key: (typeof CHANNEL_KEYS)[number],
-    involved: boolean,
-    priority: ChannelPriority | null,
-  ) {
+  function setChannel(key: string, involved: boolean, priority: ChannelPriority | null) {
     setForm((current) => ({
       ...current,
       channels: { ...current.channels, [key]: { involved, priority } },
@@ -234,6 +235,7 @@ export function EventEditor({
       inventory_date: form.inventory_date || null,
       promo_end_date: form.promo_end_date || null,
       notes: form.notes || null,
+      assets_link: form.assets_link || null,
     };
 
     const result = await withEditor(
@@ -389,8 +391,8 @@ export function EventEditor({
             )}
 
             <div className="channel-rows">
-              {CHANNEL_KEYS.map((key) => {
-                const state = form.channels[key];
+              {channelOptions.map(({ key, label }) => {
+                const state = form.channels[key] ?? { involved: false, priority: null };
                 return (
                   <div className="channel-row" key={key}>
                     <label className="channel-row__toggle">
@@ -407,14 +409,14 @@ export function EventEditor({
                           )
                         }
                       />
-                      <span>{CHANNEL_LABELS[key]}</span>
+                      <span>{label}</span>
                     </label>
 
                     <select
                       className="select select--compact"
                       value={state.priority ?? ""}
                       disabled={!state.involved}
-                      aria-label={`${CHANNEL_LABELS[key]} priority`}
+                      aria-label={`${label} priority`}
                       onChange={(changeEvent) =>
                         setChannel(
                           key,
@@ -536,6 +538,33 @@ export function EventEditor({
             </div>
           </fieldset>
 
+          {/* One link, not many: a folder holds the rest. Filling it in is what
+              tells Slack the assets have landed, which is why it is a field and
+              not a line in the notes — a note edit cannot be told from a typo. */}
+          <div className="field">
+            <label className="field__label" htmlFor="event-assets-link">
+              Assets link
+            </label>
+            <input
+              id="event-assets-link"
+              type="url"
+              inputMode="url"
+              className={`input${fieldErrors.assets_link ? " input--invalid" : ""}`}
+              value={form.assets_link}
+              onChange={(changeEvent) => set("assets_link", changeEvent.target.value)}
+              placeholder="Drive or Dropbox folder with the finished photos, video, copy…"
+              maxLength={2000}
+            />
+            {fieldErrors.assets_link ? (
+              <p className="field__error">{fieldErrors.assets_link}</p>
+            ) : (
+              <p className="field__hint">
+                Add it once the assets are ready — every channel on this event is
+                told, with a button straight to the folder.
+              </p>
+            )}
+          </div>
+
           <div className="field">
             <label className="field__label" htmlFor="event-notes">
               Notes
@@ -548,6 +577,11 @@ export function EventEditor({
               placeholder="Freeform detail, links to briefs or docs."
               rows={3}
             />
+            <p className="field__hint">
+              The place to say why — “customs is slow, may slip a week”. Travels
+              with every Slack message about this event, and writing or changing
+              it is a notification in its own right.
+            </p>
           </div>
 
           {!isNew && (

@@ -1,17 +1,36 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { brand } from "@/brand.config";
 import { brandCssVariables, googleFontUrl } from "@/lib/brand";
+import { APPLE_TOUCH_ICON } from "@/lib/homeScreen";
 import { Nav } from "@/components/Nav";
 import { DisplayNameProvider } from "@/components/DisplayName";
 import { TourProvider } from "@/components/Tour";
+import { ServiceWorker } from "@/components/ServiceWorker";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: `Launch Calendar · ${brand.name}`,
+  title: `${brand.productName} · ${brand.name}`,
   description: `What's launching, when, and which channels need to care — ${brand.name}.`,
-  icons: { icon: brand.logoUrl },
+  icons: { icon: brand.logoUrl, apple: APPLE_TOUCH_ICON },
+  manifest: "/manifest.webmanifest",
+  // Added to a home screen, the board opens full-screen under its short name
+  // rather than as a Safari tab. The manifest carries the same for Android.
+  appleWebApp: {
+    capable: true,
+    title: brand.shortName,
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: brand.colors.surface,
+  // Lets the page run under the notch and home indicator; the nav and main
+  // pad themselves with env(safe-area-inset-*) so nothing sits beneath them.
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({
@@ -48,6 +67,7 @@ export default async function RootLayout({
             </div>
           </TourProvider>
         </DisplayNameProvider>
+        <ServiceWorker />
       </body>
     </html>
   );

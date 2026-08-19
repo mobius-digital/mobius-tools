@@ -1,4 +1,7 @@
-import { CHANNEL_KEYS, CHANNEL_LABELS, type Channels } from "@/lib/types";
+"use client";
+
+import { useWorkspace } from "./Workspace";
+import type { Channels } from "@/lib/types";
 
 /**
  * Channel chips carry the priority in their weight: a `primary` channel is the
@@ -6,7 +9,12 @@ import { CHANNEL_KEYS, CHANNEL_LABELS, type Channels } from "@/lib/types";
  * card should answer "does my channel need to do anything" without any legend.
  */
 export function ChannelChips({ channels }: { channels: Channels }) {
-  const involved = CHANNEL_KEYS.filter((key) => channels[key].involved);
+  const { channelOptions, channelLabel } = useWorkspace();
+
+  // Configured order, so chips line up the same way on every card.
+  const involved = channelOptions
+    .map((option) => option.key)
+    .filter((key) => channels[key]?.involved);
 
   if (involved.length === 0) return null;
 
@@ -16,7 +24,7 @@ export function ChannelChips({ channels }: { channels: Channels }) {
         const priority = channels[key].priority ?? "fyi";
         return (
           <li key={key} className={`chip chip--${priority}`}>
-            {CHANNEL_LABELS[key]}
+            {channelLabel(key)}
             <span className="chip__priority">{priority}</span>
           </li>
         );

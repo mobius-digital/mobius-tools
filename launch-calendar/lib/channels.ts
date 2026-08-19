@@ -16,10 +16,19 @@ import {
 
 export type ChannelFilter = ChannelKey | "all";
 
-export const CHANNEL_FILTERS: ChannelFilter[] = ["all", ...CHANNEL_KEYS];
+/** The filter options for a given channel list — "all" first, then each key. */
+export function channelFilters(keys: readonly string[] = CHANNEL_KEYS): ChannelFilter[] {
+  return ["all", ...keys];
+}
 
-export function isChannelFilter(value: unknown): value is ChannelFilter {
-  return typeof value === "string" && CHANNEL_FILTERS.includes(value as ChannelFilter);
+/** The built-in list's filters; boards with their own channels use `channelFilters`. */
+export const CHANNEL_FILTERS: ChannelFilter[] = channelFilters();
+
+export function isChannelFilter(
+  value: unknown,
+  keys: readonly string[] = CHANNEL_KEYS,
+): value is ChannelFilter {
+  return typeof value === "string" && channelFilters(keys).includes(value);
 }
 
 export function filterByChannel(
@@ -27,7 +36,9 @@ export function filterByChannel(
   channel: ChannelFilter,
 ): LaunchEvent[] {
   if (channel === "all") return events;
-  return events.filter((event) => event.channels[channel].involved);
+  // Optional chaining: an event saved before a channel was added carries no
+  // entry for it until its next save, and that reads as "not involved".
+  return events.filter((event) => event.channels[channel]?.involved === true);
 }
 
 /**
@@ -43,7 +54,7 @@ export function elevationFor(
 ): ChannelPriority | "none" {
   if (channel === "all") return "none";
   const state = event.channels[channel];
-  if (!state.involved) return "none";
+  if (!state?.involved) return "none";
   return state.priority ?? "fyi";
 }
 

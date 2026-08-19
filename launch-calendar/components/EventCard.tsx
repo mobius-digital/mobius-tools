@@ -72,6 +72,18 @@ export function EventCard({
         <span className="card__owner" title="Accountable for keeping this current">
           Owner · {event.owner}
         </span>
+        {event.assets_link && (
+          <a
+            className="card__assets"
+            href={event.assets_link}
+            target="_blank"
+            rel="noreferrer"
+            title="Open the assets folder"
+            onClick={(clickEvent) => clickEvent.stopPropagation()}
+          >
+            Assets ↗
+          </a>
+        )}
         <span className="card__updated">
           Updated by {event.updated_by} ·{" "}
           <RelativeTime timestamp={event.updated_at} />

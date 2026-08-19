@@ -21,6 +21,10 @@ import {
 } from "@/lib/dates";
 import { buildMonthCalendar, type SpanSegment } from "@/lib/calendar";
 
+/** Where the last-chosen Month/Week view is remembered, per device. */
+const VIEW_KEY = "lc_cal_view";
+/** Below this, seven columns cannot show a name — matches the phone CSS. */
+const PHONE_QUERY = "(max-width: 640px)";
 
 function SpanBar({
   segment,
@@ -83,6 +87,26 @@ export function Calendar({ serverToday }: { serverToday: string }) {
   }, [serverToday]);
 
   /**
+   * The view you chose last time is the view you get back. Before any choice
+   * has been made, a phone opens on the week: seven month columns at phone
+   * width cut every event name down to its first letter, and the week answers
+   * "what lands on which day" — the question somebody on a phone is asking.
+   */
+  useEffect(() => {
+    let preferred: "month" | "week" | null = null;
+    try {
+      const stored = window.localStorage.getItem(VIEW_KEY);
+      if (stored === "month" || stored === "week") preferred = stored;
+    } catch {
+      // Private mode or storage disabled: fall through to the width default.
+    }
+    if (!preferred && window.matchMedia(PHONE_QUERY).matches) preferred = "week";
+    if (preferred && preferred !== view) switchView(preferred);
+    // Runs once, on mount: a later resize must not yank the view around.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
    * Switching resolution should land somewhere useful. Going to week view from
    * the month you are standing in gives you *this* week, not whichever week
    * happens to contain the 1st — which is usually in the previous month.
@@ -98,6 +122,11 @@ export function Calendar({ serverToday }: { serverToday: string }) {
     }
 
     setView(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Nothing to do: the choice just will not survive a reload.
+    }
   }
 
   const grid = useMemo(
