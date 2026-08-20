@@ -460,48 +460,100 @@ function agg(rows) {
   };
 }
 
+async function accountOverview(env, a) {
+  const today = localDate(a.tz);
+  const from = addDays(today, -70);
+  const { results: rows } = await env.DB.prepare(
+    `SELECT * FROM daily_insights WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
+  ).bind(a.act_id, from).all();
+  const byDate = Object.fromEntries(rows.map(r => [r.date, r]));
+  const range = (n, endOffset = 1) => {            // last n full days ending yesterday by default
+    const out = [];
+    for (let i = endOffset; i < n + endOffset; i++) { const d = byDate[addDays(today, -i)]; if (d) out.push(d); }
+    return out;
+  };
+  const ym = monthOf(today), pm = prevMonth(ym);
+  const dom = +today.slice(8, 10);
+  const dim = daysInMonth(today);
+  const mtdRows = rows.filter(r => r.date.startsWith(ym));
+  const mtd = mtdRows.reduce((s, r) => s + r.spend, 0);
+  const lastMonthRows = rows.filter(r => r.date.startsWith(pm));
+  const lastMonthTotal = lastMonthRows.reduce((s, r) => s + r.spend, 0);
+  const lastMonthSameDay = lastMonthRows.filter(r => +r.date.slice(8, 10) <= dom).reduce((s, r) => s + r.spend, 0);
+  const elapsed = (dom - 1 + localHourFrac(a.tz) / 24) / dim;    // fraction of month elapsed
+  const budget = a.budgets?.[ym] ?? a.monthly_budget ?? null;
+  const expected = budget != null ? budget * elapsed : null;
+  return {
+    act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, today,
+    last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
+    today_spend: byDate[today]?.spend ?? null,
+    mtd: { spend: mtd, budget, expected, pace_pct: expected ? mtd / expected - 1 : null,
+      projected: elapsed > 0.02 ? mtd / elapsed : null, elapsed, days_in_month: dim, day_of_month: dom,
+      last_month_same_day: lastMonthSameDay, last_month_total: lastMonthTotal,
+      vs_last_month_pct: lastMonthSameDay ? mtd / lastMonthSameDay - 1 : null },
+    l7: agg(range(7)), l30: agg(range(30)), prev7: agg(range(7, 8)), prev30: agg(range(30, 31)),
+    days_of_data: rows.length,
+    changes_24h: (await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM activities WHERE act_id = ?1 AND event_time >= ?2`,
+    ).bind(a.act_id, new Date(Date.now() - 86400e3).toISOString()).first())?.n ?? 0,
+  };
+}
+
 async function overview(env) {
   const accounts = await listAccounts(env, true);
   const out = [];
-  for (const a of accounts) {
-    const today = localDate(a.tz);
-    const from = addDays(today, -70);
-    const { results: rows } = await env.DB.prepare(
-      `SELECT * FROM daily_insights WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
-    ).bind(a.act_id, from).all();
-    const byDate = Object.fromEntries(rows.map(r => [r.date, r]));
-    const range = (n, endOffset = 1) => {            // last n full days ending yesterday by default
-      const out = [];
-      for (let i = endOffset; i < n + endOffset; i++) { const d = byDate[addDays(today, -i)]; if (d) out.push(d); }
-      return out;
-    };
-    const ym = monthOf(today), pm = prevMonth(ym);
-    const dom = +today.slice(8, 10);
-    const dim = daysInMonth(today);
-    const mtdRows = rows.filter(r => r.date.startsWith(ym));
-    const mtd = mtdRows.reduce((s, r) => s + r.spend, 0);
-    const lastMonthRows = rows.filter(r => r.date.startsWith(pm));
-    const lastMonthTotal = lastMonthRows.reduce((s, r) => s + r.spend, 0);
-    const lastMonthSameDay = lastMonthRows.filter(r => +r.date.slice(8, 10) <= dom).reduce((s, r) => s + r.spend, 0);
-    const elapsed = (dom - 1 + localHourFrac(a.tz) / 24) / dim;    // fraction of month elapsed
-    const budget = a.budgets?.[ym] ?? a.monthly_budget ?? null;
-    const expected = budget != null ? budget * elapsed : null;
-    out.push({
-      act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, today,
-      last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
-      today_spend: byDate[today]?.spend ?? null,
-      mtd: { spend: mtd, budget, expected, pace_pct: expected ? mtd / expected - 1 : null,
-        projected: elapsed > 0.02 ? mtd / elapsed : null, elapsed,
-        last_month_same_day: lastMonthSameDay, last_month_total: lastMonthTotal,
-        vs_last_month_pct: lastMonthSameDay ? mtd / lastMonthSameDay - 1 : null },
-      l7: agg(range(7)), l30: agg(range(30)), prev7: agg(range(7, 8)), prev30: agg(range(30, 31)),
-      days_of_data: rows.length,
-      changes_24h: (await env.DB.prepare(
-        `SELECT COUNT(*) AS n FROM activities WHERE act_id = ?1 AND event_time >= ?2`,
-      ).bind(a.act_id, new Date(Date.now() - 86400e3).toISOString()).first())?.n ?? 0,
-    });
-  }
+  for (const a of accounts) out.push(await accountOverview(env, a));
   return out;
+}
+
+/* Chart-strip events: the changes worth marking under an Averages chart. */
+async function seriesEvents(env, actId, fromISO) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, event_time, category, summary, reason, suggested_reason, manual FROM activities
+     WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1
+       AND (category IN ('budget','new_campaign','campaign_paused','campaign_relaunched','bid_strategy','targeting') OR manual = 1)
+     ORDER BY event_time`,
+  ).bind(actId, fromISO).all();
+  return results;
+}
+
+/* ---- settings helpers + Slack ---- */
+
+async function getSetting(env, key) {
+  return (await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first())?.value ?? null;
+}
+async function putSetting(env, key, value) {
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+    .bind(key, value).run();
+}
+
+async function slackPost(env, channel, text, blocks) {
+  const res = await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel, text, ...(blocks ? { blocks } : {}) }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!j.ok) throw new Error(`Slack: ${j.error || res.status}`);
+}
+
+/** Nightly Slack alert when any budgeted account's MTD spend drifts off pace. */
+async function paceAlerts(env) {
+  if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
+  const channel = await getSetting(env, 'slackChannel');
+  if (!channel) return { skipped: 'no slackChannel in settings' };
+  const thr = +(await getSetting(env, 'paceAlertPct')) || 0.15;
+  const off = (await overview(env)).filter(a => a.mtd.pace_pct != null && Math.abs(a.mtd.pace_pct) >= thr);
+  if (!off.length) return { ok: true, offPace: 0 };
+  const lines = off.map(a => {
+    const m = a.mtd, dir = m.pace_pct > 0 ? 'over' : 'under';
+    return `• *${a.name}* — ${money(m.spend, a.currency)} MTD vs ${money(m.expected, a.currency)} expected (*${Math.round(Math.abs(m.pace_pct) * 100)}% ${dir}*) · projected ${money(m.projected, a.currency)} of ${money(m.budget, a.currency)} budget`;
+  });
+  await slackPost(env, channel, `Budget pace: ${off.length} account${off.length > 1 ? 's' : ''} off by ≥${Math.round(thr * 100)}%`, [
+    { type: 'section', text: { type: 'mrkdwn', text: `*⏱ Budget pace — ${off.length} account${off.length > 1 ? 's' : ''} off by ≥${Math.round(thr * 100)}%*\n${lines.join('\n')}` } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}|Account Health> · MTD spend vs budget × share of month elapsed, checked nightly` }] },
+  ]);
+  return { ok: true, offPace: off.length };
 }
 
 /* ------------------------------------------------------------------ */
@@ -589,8 +641,9 @@ async function nightly(env) {
   const accounts = await listAccounts(env, true);
   const results = [];
   for (const a of accounts) results.push(await syncAccount(env, a));
+  const pace = await paceAlerts(env).catch(e => ({ error: e.message }));
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('lastRun', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-    .bind(JSON.stringify({ at: new Date().toISOString(), results })).run();
+    .bind(JSON.stringify({ at: new Date().toISOString(), results, pace })).run();
   return results;
 }
 
@@ -614,6 +667,28 @@ export default {
       const { credential } = await request.json().catch(() => ({}));
       const r = await googleLogin(env, credential);
       return r.error ? json({ error: r.error }, r.status) : json(r);
+    }
+
+    /* Read-only client share links — token in the URL is the auth. */
+    let sm;
+    if ((sm = path.match(/^\/api\/share\/([A-Za-z0-9-]{16,})$/)) && request.method === 'GET') {
+      try {
+        const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
+        const t = tokens[sm[1]];
+        if (!t) return json({ error: 'This share link is no longer valid.' }, 404);
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(t.act_id).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        acct.budgets = safeJson(acct.budgets_json, {});
+        const ov = await accountOverview(env, acct);
+        const from = addDays(localDate(acct.tz), -180);
+        const { results: rows } = await env.DB.prepare(
+          `SELECT date, spend, impressions, clicks, link_clicks, purchases, revenue, video_views FROM daily_insights
+           WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
+        ).bind(t.act_id, from).all();
+        const events = await seriesEvents(env, t.act_id, addDays(localDate(acct.tz), -180));
+        return json({ share: true, account: { name: acct.name, currency: acct.currency, tz: acct.tz },
+          rows, events, mtd: ov.mtd, today: ov.today, today_spend: ov.today_spend });
+      } catch (e) { return json({ error: e.message }, 500); }
     }
 
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -669,6 +744,61 @@ export default {
 
       /* ---- data ---- */
       if (path === '/api/overview') return json({ accounts: await overview(env) });
+
+      if (path === '/api/series') {
+        const act = url.searchParams.get('act');
+        const days = Math.min(+url.searchParams.get('days') || 90, 400);
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const from = addDays(localDate(acct.tz), -days);
+        const { results: rows } = await env.DB.prepare(
+          `SELECT * FROM daily_insights WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
+        ).bind(act, from).all();
+        return json({ account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz, today: localDate(acct.tz) },
+          rows, events: await seriesEvents(env, act, from) });
+      }
+
+      if (path === '/api/share' && request.method === 'POST') {
+        const { act_id } = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(act_id).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
+        let token = Object.keys(tokens).find(k => tokens[k].act_id === act_id);   // one stable link per client
+        if (!token) {
+          token = crypto.randomUUID().replace(/-/g, '');
+          tokens[token] = { act_id, created: new Date().toISOString() };
+          await putSetting(env, 'shareTokens', JSON.stringify(tokens));
+        }
+        return json({ ok: true, url: `${DASHBOARD_URL}?share=${token}` });
+      }
+      if (path === '/api/share' && request.method === 'DELETE') {
+        const { act_id } = await request.json().catch(() => ({}));
+        const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
+        for (const k of Object.keys(tokens)) if (tokens[k].act_id === act_id) delete tokens[k];
+        await putSetting(env, 'shareTokens', JSON.stringify(tokens));
+        return json({ ok: true });
+      }
+
+      if (path === '/api/settings' && request.method === 'GET') {
+        return json({
+          slackChannel: await getSetting(env, 'slackChannel'),
+          paceAlertPct: +(await getSetting(env, 'paceAlertPct')) || 0.15,
+          hasSlackToken: !!env.SLACK_BOT_TOKEN,
+        });
+      }
+      if (path === '/api/settings' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        if ('slackChannel' in b) await putSetting(env, 'slackChannel', b.slackChannel || '');
+        if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));
+        return json({ ok: true });
+      }
+      if (path === '/api/slack-test' && request.method === 'POST') {
+        if (!env.SLACK_BOT_TOKEN) return json({ error: 'SLACK_BOT_TOKEN secret is not set — see worker README' }, 400);
+        const channel = await getSetting(env, 'slackChannel');
+        if (!channel) return json({ error: 'Set a Slack channel ID first' }, 400);
+        await slackPost(env, channel, 'Account Health is wired up ✓ — nightly budget-pace alerts will post here.');
+        return json({ ok: true });
+      }
 
       if (path === '/api/insights') {
         const act = url.searchParams.get('act');

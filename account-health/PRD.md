@@ -29,7 +29,7 @@ budgets, password).
 |---|---|---|
 | 0 | Foundation: this PRD, CLAUDE.md, Worker + D1, nightly sync of daily insights + activities, dashboard shell (gate, client picker, Overview, Settings), README | ✅ built 2026-08-19 — awaiting Meta token |
 | 1 | Change Log page: feed, type filters, search, reason tag + confirm, manual add, **Summarise** (Claude → daily / weekly update) | ✅ built 2026-08-20 — needs `ANTHROPIC_API_KEY` secret for Summarise |
-| 2 | Averages page (7v30 cards, 3/7/14/30 table, change-log strip) + MTD Pacing (vs budget, vs last month) + Slack off-pace alert + per-client share link | ⬜ |
+| 2 | Averages page (7v30 cards, 3/7/14/30 table, change-log strip) + MTD Pacing (vs budget, vs last month) + Slack off-pace alert + per-client share link | ✅ built 2026-08-20 — Slack alerts need `SLACK_BOT_TOKEN` secret + channel in Settings |
 | 3 | Creative Rotation: ad-level pulls with first-spend date, freshness %, spend-weighted age, fresh vs stale CPA, weekly age-bucket bars | ⬜ |
 | 4 | Intraday Pacing (hourly curves), all-clients pacing row, alert polish, handoff docs | ⬜ |
 
@@ -99,6 +99,11 @@ POST /api/activities/bulk-confirm          {ids: [...]} → sets confirmed=1 whe
 POST /api/activities                       manual entry {act_id, event_time, category, summary, reason, note, actor}
 POST /api/summarise                        {act|'all', from, to, template: daily|weekly|client} → Claude-written update
                                            (claude-opus-5; needs ANTHROPIC_API_KEY secret; 'client' needs one account)
+GET  /api/series?act=&days=                daily rows + chart-strip events (budget/launch/pause/manual)
+POST /api/share                            {act_id} → stable read-only link (?share=token); DELETE revokes
+GET  /api/share/:token                     NO auth — read-only bundle for the client view
+GET/PUT /api/settings                      {slackChannel, paceAlertPct}; nightly() posts Slack pace alerts
+POST /api/slack-test                       posts a test message to the configured channel
 PUT  /api/password                         {password}
 ```
 

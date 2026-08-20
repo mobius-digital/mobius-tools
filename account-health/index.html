@@ -138,6 +138,30 @@
   .modal .hint{color:var(--muted);font-size:12.5px;margin-bottom:12px;line-height:1.5}
   .modal input,.modal textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;background:var(--surface)}
   .modal textarea{min-height:76px;resize:vertical}
+
+  /* Averages (Chat 2) */
+  .av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:12px;margin-bottom:14px}
+  .av-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px 10px;border-top:3px solid var(--line-strong)}
+  .av-card.good{border-top-color:var(--good)} .av-card.bad{border-top-color:var(--bad)}
+  .av-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+  .av-label{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  .av-val{font-size:19px;font-weight:700;white-space:nowrap}
+  .av-card svg{display:block;width:100%;height:46px}
+  .av-trend{font-size:11.5px;font-weight:600;margin-top:5px;color:var(--muted)}
+  .av-trend.good{color:var(--good)} .av-trend.bad{color:var(--bad)}
+  .strip{position:relative;height:30px}
+  .strip .dot{position:absolute;top:9px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);cursor:default;border:1.5px solid #fff;box-shadow:0 0 0 1px var(--line-strong)}
+  .av-client{font-family:var(--serif);font-size:19px;margin:20px 0 10px}
+  .av-client:first-of-type{margin-top:4px}
+
+  /* Pacing (Chat 2: month-to-date) */
+  .pace-bar{position:relative;height:14px;background:var(--unk-bg);border-radius:99px;margin:12px 0 6px}
+  .pace-bar .fill{position:absolute;top:0;bottom:0;left:0;background:var(--brand);border-radius:99px;min-width:3px}
+  .pace-bar .fill.over{background:var(--bad)}
+  .pace-bar .mark{position:absolute;top:-4px;bottom:-4px;width:2.5px;background:var(--hd);border-radius:2px}
+  .pc-stats{display:flex;gap:30px;flex-wrap:wrap;margin-top:10px}
+  .pc-stats .st b{display:block;font-size:16.5px;font-weight:700}
+  .pc-stats .st span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
   .cl-it .what{line-height:1.55}
   .cl-it .acts{display:flex;gap:7px;align-items:center;white-space:nowrap}
   .cl-it .acts select{padding:4px 26px 4px 7px;font-size:12px;color:var(--muted);max-width:160px;background-position:right 9px center}
@@ -170,9 +194,9 @@
   </div>
   <nav class="tabs" id="tabs" style="display:none"><div class="in">
     <button data-t="overview">Overview</button>
-    <button data-t="pacing">Pacing <span class="soon">chat 2/4</span></button>
+    <button data-t="pacing">Pacing <span class="soon">hourly · chat 4</span></button>
     <button data-t="changelog">Change Log</button>
-    <button data-t="averages">Averages <span class="soon">chat 2</span></button>
+    <button data-t="averages">Averages</button>
     <button data-t="creative">Creative Rotation <span class="soon">chat 3</span></button>
     <button data-t="settings">Settings</button>
   </div></nav>
@@ -233,6 +257,8 @@ function delta(cur, prev, lowerIsBetter=false) {
 
 /* ---------- boot ---------- */
 async function boot() {
+  const shareTok = new URLSearchParams(location.search).get('share');
+  if (shareTok) return renderShareView(shareTok);
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
@@ -305,8 +331,7 @@ function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   ({ overview: renderOverview, settings: renderSettings, changelog: renderChangeLog,
-     pacing: () => renderSoon('Pacing', 'Today\'s cumulative spend against the last-7-day curve, plus month-to-date vs budget and vs last month. Month-to-date lands in Chat 2; the hourly curve in Chat 4.'),
-     averages: () => renderSoon('Averages', '7-day vs 30-day moving averages for spend, ROAS, CPA, CTR, CPM and thumbstop, with budget moves and launches marked under the chart. Chat 2.'),
+     pacing: renderPacing, averages: renderAverages,
      creative: () => renderSoon('Creative Rotation', 'Share of spend on fresh creative, spend-weighted creative age, and fresh vs stale CPA. Chat 3.'),
   })[tab]();
 }
@@ -607,6 +632,202 @@ function clDrawPanel() {
   }
 }
 
+/* ---------- Averages (Chat 2) ---------- */
+const AV = { win: localStorage.getItem('ah_av_win') || '90' };
+const AV_METRICS = [
+  { k:'spend', label:'Spend/day', num:r=>r.spend, den:()=>1, fmt:(v,c)=>fmtK(v,c), lower:false },
+  { k:'roas', label:'ROAS', num:r=>r.revenue, den:r=>r.spend, fmt:v=>fmtX(v), lower:false },
+  { k:'cpa', label:'CPA', num:r=>r.spend, den:r=>r.purchases, fmt:(v,c)=>fmtMoney(v,c), lower:true },
+  { k:'ctr', label:'CTR', num:r=>(r.link_clicks||r.clicks), den:r=>r.impressions, fmt:v=>v==null?'—':(v*100).toFixed(2)+'%', lower:false },
+  { k:'cpm', label:'CPM', num:r=>r.spend*1000, den:r=>r.impressions, fmt:(v,c)=>fmtMoney(v,c), lower:true },
+  { k:'thumbstop', label:'Thumbstop', num:r=>r.video_views, den:r=>r.impressions, fmt:v=>v==null?'—':(v*100).toFixed(1)+'%', lower:false },
+];
+
+/** Trailing k-day moving value at each row index (ratio of sums, so CPA/ROAS are true blends). */
+function maSeries(rows, m, k) {
+  return rows.map((_, i) => {
+    if (i < k - 1) return null;
+    let n = 0, d = 0;
+    for (let j = i - k + 1; j <= i; j++) { n += m.num(rows[j]) || 0; d += (m.den(rows[j]) ?? 1) || 0; }
+    return d ? n / d : null;
+  });
+}
+function lastVal(arr) { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]; return null; }
+
+function trendLabel(d37, d730, lower) {
+  if (d37 == null) return { t: '—', cls: 'unk' };
+  if (Math.abs(d37) < 0.025) return { t: 'flat', cls: 'unk' };
+  const goodNow = lower ? d37 < 0 : d37 > 0;
+  const good730 = d730 == null ? null : (lower ? d730 < 0 : d730 > 0);
+  if (goodNow) return { t: good730 === false ? 'recovering' : 'improving', cls: 'good' };
+  return { t: good730 === false ? 'declining' : 'slipping', cls: 'bad' };
+}
+
+function sparkSVG(s7, s30, w = 200, h = 46) {
+  const vals = [...s7, ...s30].filter(v => v != null);
+  if (!vals.length) return `<svg viewBox="0 0 ${w} ${h}"></svg>`;
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * 0.1; min -= pad; max += pad;
+  const n = s7.length;
+  const pt = (i, v) => `${(i / Math.max(1, n - 1) * w).toFixed(1)},${(h - (v - min) / (max - min) * h).toFixed(1)}`;
+  const line = s => s.map((v, i) => v == null ? null : pt(i, v)).filter(Boolean).join(' ');
+  const both = s7.map((v, i) => v != null && s30[i] != null ? i : null).filter(i => i != null);
+  const area = both.length > 1
+    ? `<polygon points="${both.map(i => pt(i, s7[i])).join(' ')} ${both.slice().reverse().map(i => pt(i, s30[i])).join(' ')}" fill="#62BDEA" opacity=".16"/>` : '';
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${area}
+    <polyline points="${line(s30)}" fill="none" stroke="#9FB0BC" stroke-width="1.4"/>
+    <polyline points="${line(s7)}" fill="none" stroke="#14608C" stroke-width="1.8"/></svg>`;
+}
+
+/** rows must be full days only (today excluded). */
+function buildAvCards(rows, currency) {
+  return `<div class="av-grid">` + AV_METRICS.map(m => {
+    const s7 = maSeries(rows, m, 7), s30 = maSeries(rows, m, 30), s3 = maSeries(rows, m, 3);
+    const v7 = lastVal(s7), v30 = lastVal(s30), v3 = lastVal(s3);
+    const d37 = v3 != null && v7 ? v3 / v7 - 1 : null;
+    const d730 = v7 != null && v30 ? v7 / v30 - 1 : null;
+    const tr = trendLabel(d37, d730, m.lower);
+    return `<div class="av-card ${tr.cls}">
+      <div class="av-top"><span class="av-label">${m.label}</span><b class="av-val">${m.fmt(v7, currency)}</b></div>
+      ${sparkSVG(s7, s30)}
+      <div class="av-trend ${tr.cls}">${tr.t}${d37 != null ? ` · 3v7 ${fmtPct(d37)}` : ''}</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+function buildAvStrip(events, fromYmd, toYmd) {
+  if (!events?.length) return '';
+  const span = Math.max(1, (new Date(toYmd) - new Date(fromYmd)) / 86400e3);
+  const color = c => c === 'budget' ? 'var(--warn)' : /paused/.test(c) ? 'var(--bad)' : /relaunch/.test(c) ? 'var(--good)' : 'var(--brand-ink)';
+  const dots = events.map(ev => {
+    const d = String(ev.event_time).slice(0, 10);
+    const x = (new Date(d) - new Date(fromYmd)) / 86400e3 / span * 100;
+    if (x < 0 || x > 100) return '';
+    return `<span class="dot" style="left:${x.toFixed(2)}%;background:${color(ev.category)}" title="${esc(d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''))}"></span>`;
+  }).join('');
+  return `<div class="card" style="padding:10px 20px 4px"><div class="strip">${dots}</div>
+    <p class="tiny" style="margin-bottom:8px">Changes in this window — <span style="color:var(--warn)">●</span> budget · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other. Hover for detail; full story in the Change Log tab.</p></div>`;
+}
+
+function buildAvTable(rows, currency) {
+  const win = n => rows.slice(-n);
+  const prev = n => rows.slice(-2 * n, -n);
+  const cell = (m, n) => {
+    const st = r => { let a = 0, b = 0; r.forEach(x => { a += m.num(x) || 0; b += (m.den(x) ?? 1) || 0; }); return b ? a / b : null; };
+    const cur = st(win(n)), pr = st(prev(n));
+    return `<td class="num"><b>${m.fmt(cur, currency)}</b> <span class="tiny">was ${m.fmt(pr, currency)}</span>${delta(cur, pr, m.lower)}</td>`;
+  };
+  return `<div class="card"><h3 style="margin-bottom:8px">The averages, in numbers</h3>
+    <p class="hint" style="margin-bottom:10px">Each window vs the same-length window right before it. Windows end yesterday; the last 3 days are still settling.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Metric</th><th class="num">3-day</th><th class="num">7-day</th><th class="num">14-day</th><th class="num">30-day</th></tr></thead>
+    <tbody>${AV_METRICS.map(m => `<tr><td><b>${m.label}</b></td>${[3, 7, 14, 30].map(n => cell(m, n)).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+}
+
+async function shareLink(btn, actId) {
+  btn.disabled = true;
+  try {
+    const r = await api('/api/share', { method: 'POST', body: JSON.stringify({ act_id: actId }) });
+    await navigator.clipboard.writeText(r.url);
+    btn.textContent = 'Link copied ✓';
+  } catch (e) { btn.textContent = e.message; }
+  setTimeout(() => { btn.textContent = '↗ Share with client'; btn.disabled = false; }, 2200);
+}
+
+async function renderAverages() {
+  const active = S.accounts.filter(a => a.active);
+  const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
+  $('#main').innerHTML = `<h2>Averages</h2>
+    <p class="sub">One question per card: is the 7-day (blue) on the good side of the 30-day (gray), and did that just change? Green top = winning vs the account's own baseline, red = losing. Windows end yesterday — the last 3 days of conversions are still settling.</p>
+    ${setupBanner()}
+    <div class="row">${['30','60','90','180'].map(w => `<button class="chip ${AV.win===w?'on':''}" data-w="${w}">${w}d</button>`).join('')}
+      <span style="flex:1"></span>
+      ${single ? `<button class="btn" id="avShare" title="Creates a read-only link for this client — no sign-in needed, internal notes stay hidden">↗ Share with client</button>` : ''}</div>
+    <div id="avBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
+    AV.win = c.dataset.w; localStorage.setItem('ah_av_win', AV.win); renderAverages();
+  });
+  if (single) $('#avShare').onclick = () => shareLink($('#avShare'), single.act_id);
+  try {
+    const targets = single ? [single] : active;
+    if (!targets.length) { $('#avBody').innerHTML = ''; return; }
+    const series = await Promise.all(targets.map(a => api(`/api/series?act=${a.act_id}&days=${+AV.win + 32}`)));
+    $('#avBody').innerHTML = series.map((s, i) => {
+      const full = s.rows.filter(r => r.date < s.account.today);       // full days only
+      const rows = full.slice(-(+AV.win));
+      const fromYmd = rows[0]?.date || s.account.today;
+      return `${single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`}
+        ${rows.length < 7 ? `<div class="card"><span class="hint">Not enough data yet for ${esc(targets[i].name)} — needs at least a week of history.</span></div>`
+          : buildAvCards(rows, s.account.currency)
+            + (single ? buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
+    }).join('');
+  } catch (e) { $('#avBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
+}
+
+/* ---------- Pacing (Chat 2: month-to-date; hourly curve lands in Chat 4) ---------- */
+function buildPaceCard(a, opts = {}) {
+  const m = a.mtd, cur = a.currency;
+  const paceCls = m.pace_pct == null ? 'unk' : Math.abs(m.pace_pct) <= 0.1 ? 'good' : Math.abs(m.pace_pct) <= 0.25 ? 'warn' : 'bad';
+  const pct = m.budget ? Math.min(100, m.spend / m.budget * 100) : 0;
+  const markPct = m.budget && m.expected != null ? Math.min(100, m.expected / m.budget * 100) : null;
+  const daysLeft = m.days_in_month && m.day_of_month ? m.days_in_month - m.day_of_month : null;
+  return `<div class="card">
+    <div class="row" style="margin-bottom:2px">
+      <h3 style="font-size:16px">${esc(a.name)}</h3>
+      ${m.pace_pct != null ? `<span class="pill ${paceCls}">${fmtPct(m.pace_pct, 0)} vs pace</span>` : `<span class="pill unk">no budget set</span>`}
+      <span style="flex:1"></span><span class="tiny">${daysLeft != null ? daysLeft + ' days left in the month' : ''}</span>
+    </div>
+    ${m.budget ? `<div class="pace-bar"><div class="fill ${m.expected != null && m.spend > m.expected * 1.1 ? 'over' : ''}" style="width:${pct.toFixed(1)}%"></div>
+      ${markPct != null ? `<div class="mark" style="left:${markPct.toFixed(1)}%" title="Where spend should be by today (budget × share of month elapsed)"></div>` : ''}</div>
+      <p class="tiny">The dark marker is where spend should sit right now; the bar is actual month-to-date.</p>` :
+      opts.share ? '' : `<p class="hint">Set a monthly budget in Settings to unlock pace tracking for this client.</p>`}
+    <div class="pc-stats">
+      <div class="st"><b>${fmtK(m.spend, cur)}</b><span>MTD spend</span></div>
+      <div class="st"><b>${m.budget != null ? fmtK(m.budget, cur) : '—'}</b><span>Budget</span></div>
+      <div class="st"><b>${m.expected != null ? fmtK(m.expected, cur) : '—'}</b><span>Expected by now</span></div>
+      <div class="st"><b>${fmtK(m.projected, cur)}</b><span>Projected month</span></div>
+      <div class="st"><b>${fmtK(m.last_month_same_day, cur)}${delta(m.spend, m.last_month_same_day)}</b><span>Last month, same day</span></div>
+      <div class="st"><b>${fmtK(a.today_spend, cur)}</b><span>Spend today</span></div>
+    </div></div>`;
+}
+
+async function renderPacing() {
+  const single = S.act !== 'all';
+  $('#main').innerHTML = `<h2>Pacing</h2>
+    <p class="sub">Month-to-date spend against each client's budget and against last month. The dark marker on each bar is where spend should be today if the month lands exactly on budget. The hour-by-hour curve for "are we pacing hot today?" arrives in Chat 4.</p>
+    ${setupBanner()}
+    ${single ? `<div class="row"><span style="flex:1"></span><button class="btn" id="pcShare" title="Creates a read-only link for this client — no sign-in needed">↗ Share with client</button></div>` : ''}
+    <div id="pcBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  if (single) $('#pcShare').onclick = () => shareLink($('#pcShare'), S.act);
+  try {
+    const data = (await api('/api/overview')).accounts;
+    S.overview = data;
+    const list = single ? data.filter(a => a.act_id === S.act) : data;
+    $('#pcBody').innerHTML = list.length ? list.map(a => buildPaceCard(a)).join('') : '';
+  } catch (e) { $('#pcBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
+}
+
+/* ---------- Read-only client share view (?share=token) ---------- */
+async function renderShareView(token) {
+  setChip('Shared view', 'off');
+  ['#tabs', '#clientPick'].forEach(s => $(s).style.display = 'none');
+  ['#btnSync', '#btnOut'].forEach(s => $(s).style.display = 'none');
+  $('#main').innerHTML = `<div class="card"><span class="hint">Loading…</span></div>`;
+  try {
+    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/share/' + encodeURIComponent(token));
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'This link is no longer valid.');
+    const full = d.rows.filter(r => r.date < d.today);
+    const rows = full.slice(-90);
+    $('#main').innerHTML = `<h2>${esc(d.account.name)}</h2>
+      <p class="sub">Meta ads performance, prepared by Mobius Digital. Numbers are Meta-reported; the most recent 3 days are still settling as conversions arrive.</p>
+      ${buildPaceCard({ name: 'This month', currency: d.account.currency, mtd: d.mtd, today_spend: d.today_spend }, { share: true })}
+      ${rows.length >= 7 ? buildAvCards(rows, d.account.currency) + buildAvTable(rows, d.account.currency) : ''}`;
+  } catch (e) {
+    $('#main').innerHTML = `<div class="gate"><h1>Link not available</h1><p>${esc(e.message)}</p></div>`;
+  }
+}
+
 function renderSoon(title, text) {
   $('#main').innerHTML = `<h2>${esc(title)}</h2><p class="sub">${esc(text)}</p>${setupBanner()}
     <div class="card soon-card"><span class="tag">Coming next</span><h3>${esc(title)} isn't built yet</h3><p class="hint">The data layer for it is already syncing (see Settings). This page is its own chat in the build plan — open <code>account-health/PRD.md</code> and say "build the ${esc(title)} page".</p></div>`;
@@ -617,6 +838,17 @@ async function renderSettings() {
   $('#main').innerHTML = `<h2>Settings</h2><p class="sub">Which ad accounts to track, each client's monthly budget (drives the pacing maths), and the dashboard password.</p>${setupBanner()}
     <div class="row"><button class="btn primary" id="btnDiscover">Discover accounts from Meta</button><span class="tiny">Pulls every ad account the Meta token can see. Run again whenever a client is added.</span></div>
     <div class="card settings"><div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly budget</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
+    <div class="card"><h3>Slack pace alerts</h3>
+      <p class="hint" style="margin-bottom:10px">After the nightly sync, posts to Slack when any budgeted client's month-to-date spend drifts off pace. Uses the same Slack bot as Pulse and Restock.</p>
+      <div class="row">
+        <input type="text" id="slackCh" placeholder="Channel ID, e.g. C0AQ1UDMYCF" style="width:220px;border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px">
+        <label class="tiny">alert when off by ≥</label>
+        <input type="number" id="slackThr" min="5" max="100" step="5" style="width:70px">
+        <label class="tiny">%</label>
+        <button class="btn" id="slackSave">Save</button>
+        <button class="btn" id="slackTest">Send test message</button>
+        <span class="tiny" id="slackMsg"></span>
+      </div></div>
     <div class="card"><h3>Dashboard password</h3><p class="hint" style="margin-bottom:8px">Anyone with this can read every client's numbers. The worker's ADMIN_TOKEN keeps working as a master key.</p>
       <div class="row"><input type="password" id="pw1" placeholder="new password" style="border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px"><button class="btn" id="btnPw">Set password</button><span class="tiny" id="pwMsg"></span></div></div>`;
   const tb = $('#accRows');
@@ -660,6 +892,25 @@ async function renderSettings() {
     try { const r = await api('/api/discover', { method:'POST' }); S.accounts = r.accounts; draw(); renderPicker(); b.textContent = `Found ${r.found} accounts`; }
     catch (err) { b.textContent = 'Discover accounts from Meta'; alert(err.message); }
     setTimeout(() => { b.disabled=false; b.textContent='Discover accounts from Meta'; }, 2500);
+  };
+  api('/api/settings').then(s => {
+    $('#slackCh').value = s.slackChannel || '';
+    $('#slackThr').value = Math.round((s.paceAlertPct || 0.15) * 100);
+    if (!s.hasSlackToken) $('#slackMsg').textContent = 'SLACK_BOT_TOKEN secret not set on the worker yet — alerts stay off until it is (see worker README).';
+  }).catch(() => {});
+  $('#slackSave').onclick = async () => {
+    try {
+      await api('/api/settings', { method:'PUT', body: JSON.stringify({ slackChannel: $('#slackCh').value.trim(), paceAlertPct: (+$('#slackThr').value || 15) / 100 }) });
+      $('#slackMsg').textContent = 'Saved.';
+    } catch (e) { $('#slackMsg').textContent = e.message; }
+  };
+  $('#slackTest').onclick = async () => {
+    $('#slackMsg').textContent = 'Sending…';
+    try {
+      await api('/api/settings', { method:'PUT', body: JSON.stringify({ slackChannel: $('#slackCh').value.trim() }) });
+      await api('/api/slack-test', { method:'POST' });
+      $('#slackMsg').textContent = 'Posted ✓ — check the channel.';
+    } catch (e) { $('#slackMsg').textContent = e.message; }
   };
   $('#btnPw').onclick = async () => {
     try { await api('/api/password', { method:'PUT', body: JSON.stringify({ password: $('#pw1').value }) }); $('#pwMsg').textContent = 'Saved — sign in with the new password next time.'; }

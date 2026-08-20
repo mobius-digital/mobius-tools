@@ -45,6 +45,20 @@ npx wrangler secret put ANTHROPIC_API_KEY
 
 Until it's set, the rest of the Change Log works fine — only Summarise errors.
 
+## 2c. Slack pace alerts (you do this — optional)
+
+The nightly sync posts to Slack when any budgeted client's MTD spend drifts off pace.
+Uses the same Slack bot as Pulse/Restock — copy its bot token (Slack app → OAuth &
+Permissions → Bot User OAuth Token, starts `xoxb-`):
+
+```
+npx wrangler secret put SLACK_BOT_TOKEN
+```
+
+Then in the dashboard → **Settings → Slack pace alerts**: paste the channel ID
+(channel → ⚙ → copy channel ID; invite the bot to that channel first), set the
+threshold (default 15%), **Save**, then **Send test message**.
+
 ## 3. Dashboard
 
 `account-health/index.html` → https://tools.go-mobius-digital.com/account-health/ (GitHub Pages,
