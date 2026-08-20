@@ -5,7 +5,7 @@ dashboards (Pacing / Change Log / Creative Rotation / Averages) — each page
 answers **one question a media buyer asks every day**, for **every client at
 once**.
 
-Live at `https://tools.go-mobius-digital.com/health/` once deployed.
+Live at `https://tools.go-mobius-digital.com/account-health/` once deployed.
 
 ---
 

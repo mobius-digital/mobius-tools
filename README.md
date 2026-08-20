@@ -11,6 +11,7 @@ These are simple, fast, browser-based utilities to help ecommerce and DTC teams 
 | [ROAS Calculator](roas-calculator/) | Calculate return on ad spend, break-even ROAS, and profitability for your paid campaigns. |
 | [Mobius Pulse](pulse/) | Live outage monitor for Meta Ads, Google Ads, Shopify and more — with one-click Slack alerts to client channels. ([worker setup](pulse/worker/)) |
 | [Account Health](account-health/) | Internal: pacing, change log, moving averages and creative rotation for every client Meta ad account. ([plan](account-health/PRD.md) · [worker setup](account-health/worker/)) |
+| [Mobius HQ](hq/) | Internal directory — one Google sign-in for every internal tool. |
 
 ## About
 

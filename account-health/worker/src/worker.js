@@ -23,7 +23,7 @@ const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
 const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle late)
 const ACTIVITY_BACKFILL_DAYS = 90;
-const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/health/';
+const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/account-health/';
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -366,11 +366,65 @@ async function sha256hex(s) {
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/* ---- Google sign-in + shared sessions (used by /hq and every tool) ---- */
+
+const ALLOWED_DOMAIN = 'go-mobius-digital.com';
+const SESSION_DAYS = 30;
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function hmacKey(env) {
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN || 'dev'),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+
+/** Session token: base64url(email|exp) + '.' + HMAC. Verified by every tool worker sharing SESSION_SECRET. */
+async function mintSession(env, email) {
+  const exp = Date.now() + SESSION_DAYS * 86400e3;
+  const payload = btoa(`${email}|${exp}`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const sig = b64u(await crypto.subtle.sign('HMAC', await hmacKey(env), new TextEncoder().encode(payload)));
+  return { token: `mds.${payload}.${sig}`, email, exp };
+}
+
+async function verifySession(env, token) {
+  const m = /^mds\.([\w-]+)\.([\w-]+)$/.exec(token || '');
+  if (!m) return null;
+  const sig = b64u(await crypto.subtle.sign('HMAC', await hmacKey(env), new TextEncoder().encode(m[1])));
+  if (sig !== m[2]) return null;
+  let email, exp;
+  try { [email, exp] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return null; }
+  if (+exp < Date.now()) return null;
+  return { email, exp: +exp };
+}
+
+async function emailAllowed(env, email) {
+  if (!email) return false;
+  if (email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) return true;
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null);
+  const extra = safeJson(row?.value, []);
+  return extra.map(e => String(e).toLowerCase()).includes(email.toLowerCase());
+}
+
+/** Verify a Google ID token (from Google Identity Services) and mint a session. */
+async function googleLogin(env, credential) {
+  if (!env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID.startsWith('PASTE')) {
+    return { error: 'Google sign-in is not configured yet', status: 501 };
+  }
+  const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  const info = await res.json().catch(() => ({}));
+  if (!res.ok || info.aud !== env.GOOGLE_CLIENT_ID) return { error: 'Invalid Google token', status: 401 };
+  if (info.email_verified !== 'true' && info.email_verified !== true) return { error: 'Email not verified', status: 401 };
+  if (!(await emailAllowed(env, info.email))) return { error: `${info.email} is not a Mobius account`, status: 403 };
+  const s = await mintSession(env, info.email);
+  return { ...s, name: info.name || '', picture: info.picture || '' };
+}
+
 async function isAdmin(request, env) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return false;
   const tok = auth.slice(7);
   if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
+  const sess = await verifySession(env, tok);
+  if (sess && (await emailAllowed(env, sess.email))) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
   return !!row?.value && (await sha256hex(tok)) === row.value;
 }
@@ -400,7 +454,18 @@ export default {
     }
     if (path === '/' ) return Response.redirect(DASHBOARD_URL, 302);
 
+    if (path === '/api/google-login' && request.method === 'POST') {
+      const { credential } = await request.json().catch(() => ({}));
+      const r = await googleLogin(env, credential);
+      return r.error ? json({ error: r.error }, r.status) : json(r);
+    }
+
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+
+    if (path === '/api/me') {
+      const sess = await verifySession(env, (request.headers.get('Authorization') || '').slice(7));
+      return json({ email: sess?.email || null, exp: sess?.exp || null, master: !sess });
+    }
 
     try {
       /* ---- accounts ---- */

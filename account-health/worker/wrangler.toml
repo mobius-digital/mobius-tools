@@ -18,7 +18,13 @@ binding = "DB"
 database_name = "mobius-account-health"
 database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 
+# Public config (Google OAuth client id is public by design; used to verify sign-ins).
+[vars]
+GOOGLE_CLIENT_ID = "PASTE_GOOGLE_CLIENT_ID"
+
 # Secrets (set once, never committed):
 #   npx wrangler secret put META_TOKEN        system-user token, ads_read on every client ad account
 #   npx wrangler secret put ADMIN_TOKEN       long random string; master key for the dashboard
+#   npx wrangler secret put SESSION_SECRET    long random string; signs Google sessions (share the SAME
+#                                             value across all tool workers so one sign-in works everywhere)
 #   npx wrangler secret put SLACK_BOT_TOKEN   (Chat 2) same Slack app as Pulse / Restock

@@ -148,9 +148,16 @@ const LS = { url:'ah_worker', tok:'ah_token', act:'ah_act', tab:'ah_tab' };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/* Shared Mobius session (set by /hq Google sign-in; same origin, all tools). */
+function sharedSession() {
+  const t = localStorage.getItem('mobius_session');
+  const exp = +localStorage.getItem('mobius_session_exp') || 0;
+  return t && (exp === 0 || exp > Date.now() + 60e3) ? t : null;
+}
+
 const S = {
   url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
-  tok: localStorage.getItem(LS.tok) || '',
+  tok: localStorage.getItem(LS.tok) || sharedSession() || '',
   act: localStorage.getItem(LS.act) || 'all',
   tab: localStorage.getItem(LS.tab) || 'overview',
   accounts: [], overview: null, health: null,
@@ -196,7 +203,12 @@ async function boot() {
     renderPicker();
     show(S.tab);
   } catch (e) {
-    if (/unauthorized/i.test(e.message)) { S.tok=''; localStorage.removeItem(LS.tok); return renderGate('Wrong password — try again.'); }
+    if (/unauthorized/i.test(e.message)) {
+      const wasShared = S.tok && S.tok === sharedSession();
+      S.tok=''; localStorage.removeItem(LS.tok);
+      if (wasShared) { ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); return renderGate('Your session expired — sign in again.'); }
+      return renderGate('Wrong password — try again.');
+    }
     setChip('Worker down','down');
     $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p><button class="cta" onclick="boot()">Retry</button></div>`;
   }
@@ -209,12 +221,13 @@ function renderGate(err) {
   $('#btnSync').style.display='none'; $('#btnOut').style.display='none';
   $('#main').innerHTML = `
   <div class="gate">
-    <h1>Sign in</h1>
-    <p>Pacing, change log, averages and creative rotation for every client ad account. You'll stay signed in on this device.</p>
-    <label>Password</label><input id="gTok" type="password" placeholder="password" autofocus>
+    <h1>Account Health</h1>
+    <p>Pacing, change log, averages and creative rotation for every client ad account. Sign in once at Mobius HQ and every internal tool opens.</p>
+    <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/account-health/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
-    <button class="cta" id="gGo">Sign in</button>
-    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Advanced</summary>
+    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
+      <label>Password</label><input id="gTok" type="password" placeholder="password">
+      <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
       <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
     </details>
   </div>`;
@@ -226,9 +239,8 @@ function renderGate(err) {
   };
   $('#gGo').onclick = go;
   $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
-  $('#gTok').focus();
 }
-$('#btnOut').onclick = () => { S.tok=''; localStorage.removeItem(LS.tok); renderGate(); };
+$('#btnOut').onclick = () => { S.tok=''; localStorage.removeItem(LS.tok); ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); renderGate(); };
 $('#btnSync').onclick = async () => {
   const b = $('#btnSync'); b.disabled = true; b.textContent = 'Syncing…';
   try {

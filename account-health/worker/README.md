@@ -35,7 +35,7 @@ numbers and 90 days of the activity log in the background (a minute or two per a
 
 ## 3. Dashboard
 
-`account-health/index.html` → https://tools.go-mobius-digital.com/health/ (GitHub Pages,
+`account-health/index.html` → https://tools.go-mobius-digital.com/account-health/ (GitHub Pages,
 same as the other tools). It talks to `https://mobius-account-health.mobius-digital.workers.dev`.
 Sign in with the ADMIN_TOKEN the first time, then set a friendlier password in Settings.
 
