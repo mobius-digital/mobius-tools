@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   target_roas         REAL,                      -- KPI guardrail: 7d ROAS below this = breach
   slack_channel       TEXT,                      -- per-brand alerts channel (falls back to settings.slackChannel)
   ads_backfill_done   INTEGER NOT NULL DEFAULT 0,-- 90d ad-level backfill finished (walks back 14d per sync until set)
+  tw_shop             TEXT,                      -- Triple Whale shop domain (pulls Google Ads spend into the money math)
+  google_spend_json   TEXT,                      -- cached {ym, metric, mtd, lm_same_day, lm_total, updated}
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,

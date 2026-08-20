@@ -375,7 +375,7 @@ async function renderOverview() {
     return `<tr>
       <td><b>${esc(a.name)}</b><br><span class="tiny">${a.last_error ? `<span style="color:var(--bad)">⚠ ${esc(a.last_error).slice(0,60)}</span>` : `synced ${fmtAgo(a.last_sync_insights)}${stale?' ⚠':''} · ${a.changes_24h} changes/24h`}</span></td>
       <td class="num">${fmtK(a.today_spend, a.currency)}</td>
-      <td class="num"><b>${fmtK(m.spend, a.currency)}</b><br><span class="tiny">${m.budget != null ? 'of ' + fmtK(m.budget, a.currency) : 'no budget set'}</span></td>
+      <td class="num"><b>${fmtK(m.combined ?? m.spend, a.currency)}</b><br><span class="tiny">${m.google != null ? `M ${fmtK(m.spend, a.currency)} · G ${fmtK(m.google, a.currency)}` : ''}${m.budget != null ? `${m.google != null ? ' · ' : ''}of ${fmtK(m.budget, a.currency)}` : m.google != null ? '' : 'no target set'}</span></td>
       <td class="num">${m.pace_pct != null ? `<span class="pill ${paceCls}">${fmtPct(m.pace_pct,0)} vs pace</span>`
         : (a.target_cpa || a.target_roas) ? (kpiChips(a).breaches ? '<span class="pill bad">KPI breach</span>' : '<span class="pill good">KPIs ok · scaling</span>')
         : '<span class="pill unk">set target</span>'}<br><span class="tiny">proj. ${fmtK(m.projected, a.currency)}</span></td>
@@ -449,7 +449,8 @@ const PAGE_HELP = {
     <p><b>KPI clients</b> (no monthly target): the chips are the whole story. Green chips = KPIs holding, keep scaling. Red chip = the guardrail broke — pull back or fix creative before pushing more spend.</p>
     <p><b>The "Today, live" card</b> (one client selected): today's cumulative spend vs the average shape of the last 7 days. "vs L7 pace" over +10% = running hot, under −10% = delivery running cold — worth a look at Ads Manager either way. ↻ Refresh re-pulls from Meta.</p>
     <p><b>Projected month</b> = straight-line estimate if the current daily pace continues; <b>Projected today</b> = same idea using today's hourly pace.</p>
-    <p><b>You don't have to check this page</b> — Slack pings the right channel automatically when someone drifts off pace or breaches a KPI. Numbers are Meta spend only for now.</p>`,
+    <p><b>Money counts every platform:</b> the monthly bars use Meta + Google spend combined (Google comes from Triple Whale, refreshed nightly — the breakdown line under the bar shows the split). Performance metrics everywhere else stay Meta-only on purpose. The "Today, live" curve is Meta.</p>
+    <p><b>You don't have to check this page</b> — Slack pings the right channel automatically when someone drifts off pace or breaches a KPI.</p>`,
   changelog: `
     <p><b>What this page is:</b> the permanent record of what we changed, when, who, and why — pulled from Meta automatically every night. Nobody has to write anything down.</p>
     <p><b>Daily habit (optional, ~3 clicks):</b> when you make a move that matters — budget change, kill, launch — find it here and tag the <b>why</b>. Amber suggestions are pre-filled guesses; ✓ accepts one. Use <b>+ note</b> for context worth remembering.</p>
@@ -1026,8 +1027,9 @@ function kpiChips(a) {
 function buildPaceCard(a, opts = {}) {
   const m = a.mtd, cur = a.currency;
   const kpi = kpiChips(a);
+  const allSpend = m.combined ?? m.spend;    // Meta + Google when TW is connected
   const paceCls = m.pace_pct == null ? 'unk' : Math.abs(m.pace_pct) <= 0.1 ? 'good' : Math.abs(m.pace_pct) <= 0.25 ? 'warn' : 'bad';
-  const pct = m.budget ? Math.min(100, m.spend / m.budget * 100) : 0;
+  const pct = m.budget ? Math.min(100, allSpend / m.budget * 100) : 0;
   const markPct = m.budget && m.expected != null ? Math.min(100, m.expected / m.budget * 100) : null;
   const daysLeft = m.days_in_month && m.day_of_month ? m.days_in_month - m.day_of_month : null;
   const headPill = m.pace_pct != null ? `<span class="pill ${paceCls}">${fmtPct(m.pace_pct, 0)} vs pace</span>`
@@ -1039,14 +1041,15 @@ function buildPaceCard(a, opts = {}) {
       ${headPill}
       <span style="flex:1"></span><span class="tiny">${daysLeft != null ? daysLeft + ' days left in the month' : ''}</span>
     </div>
-    ${m.budget ? `<div class="pace-bar"><div class="fill ${m.expected != null && m.spend > m.expected * 1.1 ? 'over' : ''}" style="width:${pct.toFixed(1)}%"></div>
+    ${m.budget ? `<div class="pace-bar"><div class="fill ${m.expected != null && allSpend > m.expected * 1.1 ? 'over' : ''}" style="width:${pct.toFixed(1)}%"></div>
       ${markPct != null ? `<div class="mark" style="left:${markPct.toFixed(1)}%" title="Where spend should be by today (monthly target × share of month elapsed)"></div>` : ''}</div>
-      <p class="tiny">The dark marker is where spend should sit right now; the bar is actual month-to-date.</p>` :
+      <p class="tiny">The dark marker is where spend should sit right now; the bar is actual month-to-date${m.google != null ? ' across Meta + Google' : ''}.</p>` :
       kpi.any ? `<p class="tiny" style="margin:6px 0 4px">No spend cap — this client scales as long as the guardrails hold.</p>` :
       opts.share ? '' : `<p class="hint">Give this client a monthly target or KPI guardrails (CPA cap / ROAS floor) in Settings to unlock pace tracking.</p>`}
     ${kpi.any ? `<div class="row" style="margin:8px 0 2px">${kpi.html}</div>` : ''}
+    ${m.google != null ? `<p class="tiny" style="margin:6px 0 0"><b>Meta ${fmtK(m.spend, cur)}</b> + <b>Google ${fmtK(m.google, cur)}</b> = <b>${fmtK(m.combined, cur)}</b> <span title="Google spend comes from Triple Whale and refreshes nightly (and via Settings → Refresh)">· Google via Triple Whale, ${fmtAgo(m.google_updated)}</span></p>` : ''}
     <div class="pc-stats">
-      <div class="st"><b>${fmtK(m.spend, cur)}</b><span>MTD spend</span></div>
+      <div class="st"><b>${fmtK(allSpend, cur)}</b><span>MTD spend${m.google != null ? ' · all platforms' : ''}</span></div>
       <div class="st"><b>${m.budget != null ? fmtK(m.budget, cur) : '—'}</b><span>Budget</span></div>
       <div class="st"><b>${m.expected != null ? fmtK(m.expected, cur) : '—'}</b><span>Expected by now</span></div>
       <div class="st"><b>${fmtK(m.projected, cur)}</b><span>Projected month</span></div>
@@ -1059,7 +1062,7 @@ function buildPaceCard(a, opts = {}) {
 async function renderPacing() {
   const single = S.act !== 'all';
   $('#main').innerHTML = `<h2>Pacing</h2>
-    <p class="sub">Two questions: <b>is today running hot or cold vs a normal day</b> (the live curve), and <b>is the month on track vs the target</b> (the bars). Today's curve is pulled live from Meta when you open or refresh. Spend is Meta only for now — the Google spend line is approved and queued.</p>
+    <p class="sub">Two questions: <b>is today running hot or cold vs a normal day</b> (the live curve, Meta), and <b>is the month on track vs the target</b> (the bars — Meta + Google combined once Triple Whale is connected in Settings). Today's curve is pulled live from Meta when you open or refresh.</p>
     ${setupBanner()}
     <div class="row"><span style="flex:1"></span><button class="help-btn" data-help="pacing">? How to use</button>${single ? `<button class="btn" id="pcShare" title="Creates a read-only link for this client — no sign-in needed">↗ Share with client</button>` : ''}</div>
     ${single ? `<div id="hpToday"><div class="card"><span class="hint">Pulling today's hourly spend from Meta…</span></div></div>` : ''}
@@ -1225,12 +1228,16 @@ function renderSoon(title, text) {
 async function renderSettings() {
   $('#main').innerHTML = `<h2>Settings</h2><p class="sub">Which ad accounts to track, each client's monthly budget (drives the pacing maths), and the dashboard password.</p>${setupBanner()}
     <div class="row"><button class="btn primary" id="btnDiscover">Discover accounts from Meta</button><span class="tiny">Pulls every ad account the Meta token can see. Run again whenever a client is added.</span></div>
-    <div class="card settings"><p class="hint" style="margin-bottom:10px">Two ways to steer a client: a <b>monthly target</b> (a budget cap or a spend goal — pacing tracks it either way), or <b>KPI guardrails</b> (no cap; scale freely while 7-day CPA stays under the cap and 7-day ROAS above the floor). Set one or both — leave blank what doesn't apply.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly target</th><th>CPA cap</th><th>ROAS floor</th><th>Alerts channel</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
-    <div class="card"><h3>Slack pace alerts</h3>
-      <p class="hint" style="margin-bottom:10px">After the nightly sync, posts to Slack when a client drifts off its monthly target or breaches a KPI guardrail. <b>Per-brand channels are picked in the table above</b> (the "Alerts channel" column — each row saves instantly and flashes green). This one is just the fallback for any brand without its own. Same Slack bot as Pulse and Restock.</p>
+    <div class="card settings"><p class="hint" style="margin-bottom:10px">Two ways to steer a client: a <b>monthly target</b> (a budget cap or a spend goal — pacing tracks it either way; it means <b>total ad spend, Meta + Google</b> once Triple Whale is connected), or <b>KPI guardrails</b> (no cap; scale freely while 7-day CPA stays under the cap and 7-day ROAS above the floor). Set one or both — leave blank what doesn't apply.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly target</th><th>CPA cap</th><th>ROAS floor</th><th>Alerts channel</th><th title="The client's Triple Whale shop — used only to pull Google Ads spend into the Pacing money math">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
+    <div class="card"><h3>Google spend (via Triple Whale)</h3>
+      <p class="hint" style="margin-bottom:10px">Pulls each client's <b>Google Ads spend</b> from Triple Whale so Pacing and budgets count <i>total</i> ad spend, not just Meta. Performance metrics stay Meta-only by design. Needs the <code>TW_API_KEY</code> secret on the worker (README §2d); refreshes every night, or on demand here.</p>
+      <div class="row"><button class="btn" id="gsRefresh">↻ Refresh Google spend now</button><span class="tiny" id="gsMsg"></span></div></div>
+    <div class="card"><h3>Slack alert settings</h3>
+      <p class="hint" style="margin-bottom:10px">Alerts post after the nightly sync when a client drifts off its monthly target or breaches a KPI guardrail. <b>Where each brand posts is set in the table above</b> ("Alerts channel" column). This card sets the shared bits: the threshold, and an optional <b>fallback channel</b> that only catches brands with no channel of their own — use an internal ops channel here, or leave it on "no fallback" to silence unrouted brands.</p>
       <div class="row">
-        <select id="slackCh" style="min-width:230px"><option value="">Loading channels…</option></select>
+        <label class="tiny">fallback channel</label>
+        <select id="slackCh" style="min-width:220px"><option value="">Loading channels…</option></select>
         <label class="tiny">alert when off by ≥</label>
         <input type="number" id="slackThr" min="5" max="100" step="5" style="width:70px">
         <label class="tiny">%</label>
@@ -1258,9 +1265,10 @@ async function renderSettings() {
       <td><div class="unit-in" style="width:90px"><span>${sym(a.currency)}</span><input type="text" inputmode="decimal" value="${a.target_cpa != null ? (+a.target_cpa).toLocaleString('en-US') : ''}" placeholder="—" data-k="target_cpa"></div></td>
       <td><div class="unit-in" style="width:76px"><input type="text" inputmode="decimal" value="${a.target_roas ?? ''}" placeholder="—" data-k="target_roas"><span>x</span></div></td>
       <td>${chCell(a)}</td>
+      <td><input type="text" value="${esc(a.tw_shop || '')}" placeholder="shop.myshopify.com" data-k="tw_shop" style="width:180px"></td>
       <td class="tiny">${fmtAgo(a.last_sync_insights)}${a.last_error ? `<br><span style="color:var(--bad)">⚠ ${esc(a.last_error).slice(0,80)}</span>` : ''}</td>
       <td><button class="btn" data-act="sync" ${a.active?'':'disabled'}>Sync</button></td>
-    </tr>`).join('') : `<tr><td colspan="10" class="tiny">Nothing here yet — click “Discover accounts from Meta”.</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="11" class="tiny">Nothing here yet — click “Discover accounts from Meta”.</td></tr>`;
   };
   draw();
   tb.addEventListener('click', async e => {
@@ -1313,7 +1321,7 @@ async function renderSettings() {
     }
     try {
       const { channels } = await api('/api/slack-channels');
-      $('#slackCh').innerHTML = '<option value="">— pick a channel —</option>' + channels.map(c =>
+      $('#slackCh').innerHTML = '<option value="">— no fallback —</option>' + channels.map(c =>
         `<option value="${esc(c.id)}" ${s.slackChannel === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite the bot first'}</option>`).join('');
       chList = channels; draw();
     } catch (e) {
@@ -1335,6 +1343,14 @@ async function renderSettings() {
       await api('/api/slack-test', { method:'POST' });
       $('#slackMsg').textContent = 'Posted ✓ — check the channel.';
     } catch (e) { $('#slackMsg').textContent = e.message; }
+  };
+  $('#gsRefresh').onclick = async () => {
+    const b = $('#gsRefresh'); b.disabled = true; $('#gsMsg').textContent = 'Pulling from Triple Whale…';
+    try {
+      const r = await api('/api/google-refresh', { method: 'POST' });
+      $('#gsMsg').textContent = r.results.map(x => x.ok ? `${x.name} ✓ ${x.metric}` : `${x.name}: ${x.error || x.skipped}`).join(' · ');
+    } catch (e) { $('#gsMsg').textContent = e.message; }
+    b.disabled = false;
   };
   $('#btnPw').onclick = async () => {
     try { await api('/api/password', { method:'PUT', body: JSON.stringify({ password: $('#pw1').value }) }); $('#pwMsg').textContent = 'Saved — sign in with the new password next time.'; }

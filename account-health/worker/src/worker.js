@@ -521,6 +521,52 @@ async function writeUpdate(env, { act, from, to, template }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Google spend via Triple Whale ("performance = Meta, money = all")  */
+/* ------------------------------------------------------------------ */
+
+async function twSummary(env, shopDomain, start, end) {
+  const res = await fetch('https://api.triplewhale.com/api/v2/summary-page/get-data', {
+    method: 'POST',
+    headers: { 'x-api-key': env.TW_API_KEY, 'content-type': 'application/json' },
+    body: JSON.stringify({ shopDomain, period: { start, end } }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Triple Whale: ${body.message || body.error || `HTTP ${res.status}`}`);
+  // Normalise to {name: value} — TW's response shape has varied across versions.
+  const map = {};
+  const add = (k, v) => { if (k != null && typeof v === 'number' && isFinite(v)) map[String(k)] = v; };
+  const arr = Array.isArray(body.metrics) ? body.metrics : Array.isArray(body) ? body : null;
+  if (arr) for (const it of arr) add(it.metricName ?? it.name ?? it.id, it.value ?? it.metricValue);
+  else if (body.metrics && typeof body.metrics === 'object') for (const [k, v] of Object.entries(body.metrics)) add(k, typeof v === 'object' ? v?.value : v);
+  else for (const [k, v] of Object.entries(body)) add(k, v);
+  return map;
+}
+
+function pickGoogleSpend(map) {
+  const keys = Object.keys(map);
+  const hit = keys.find(k => /google/i.test(k) && /spend|cost|ads/i.test(k) && !/organic|roas|cpa|conv|click|impr/i.test(k));
+  return hit ? { key: hit, value: map[hit] } : { keys };
+}
+
+/** Cache this month's + last month's Google spend for one account into accounts.google_spend_json. */
+async function refreshGoogleSpend(env, acct) {
+  if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY secret not set' };
+  if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop set' };
+  const today = localDate(acct.tz);
+  const ym = monthOf(today), pm = prevMonth(ym);
+  const dim = daysInMonth(pm + '-15');
+  const lmSame = `${pm}-${String(Math.min(+today.slice(8, 10), dim)).padStart(2, '0')}`;
+  const mtdMap = await twSummary(env, acct.tw_shop, `${ym}-01`, today);
+  const g1 = pickGoogleSpend(mtdMap);
+  if (g1.keys) return { name: acct.name, error: `no Google-spend metric found; TW returned: ${g1.keys.slice(0, 40).join(', ') || '(no metrics)'}` };
+  const lmSameV = pickGoogleSpend(await twSummary(env, acct.tw_shop, `${pm}-01`, lmSame)).value ?? 0;
+  const lmTotalV = pickGoogleSpend(await twSummary(env, acct.tw_shop, `${pm}-01`, `${pm}-${String(dim).padStart(2, '0')}`)).value ?? 0;
+  const data = { ym, metric: g1.key, mtd: g1.value ?? 0, lm_same_day: lmSameV, lm_total: lmTotalV, updated: new Date().toISOString() };
+  await env.DB.prepare(`UPDATE accounts SET google_spend_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(data)).run();
+  return { name: acct.name, ok: true, metric: g1.key, mtd: data.mtd };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Intraday pacing (Chat 4) — today's hourly curve vs the L7 shape    */
 /* ------------------------------------------------------------------ */
 
@@ -678,15 +724,22 @@ async function accountOverview(env, a) {
   const elapsed = (dom - 1 + localHourFrac(a.tz) / 24) / dim;    // fraction of month elapsed
   const budget = a.budgets?.[ym] ?? a.monthly_budget ?? null;
   const expected = budget != null ? budget * elapsed : null;
+  // Google spend (Triple Whale cache) folds into the money math — performance stays Meta-only.
+  const gRaw = safeJson(a.google_spend_json, null);
+  const g = gRaw && gRaw.ym === ym ? gRaw : null;
+  const combined = mtd + (g?.mtd || 0);
+  const lmSameAll = lastMonthSameDay + (g?.lm_same_day || 0);
+  const lmTotalAll = lastMonthTotal + (g?.lm_total || 0);
   return {
     act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, today,
     target_cpa: a.target_cpa ?? null, target_roas: a.target_roas ?? null, slack_channel: a.slack_channel ?? null,
     last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
     today_spend: byDate[today]?.spend ?? null,
-    mtd: { spend: mtd, budget, expected, pace_pct: expected ? mtd / expected - 1 : null,
-      projected: elapsed > 0.02 ? mtd / elapsed : null, elapsed, days_in_month: dim, day_of_month: dom,
-      last_month_same_day: lastMonthSameDay, last_month_total: lastMonthTotal,
-      vs_last_month_pct: lastMonthSameDay ? mtd / lastMonthSameDay - 1 : null },
+    mtd: { spend: mtd, google: g ? g.mtd : null, combined, google_updated: g?.updated ?? null,
+      budget, expected, pace_pct: expected ? combined / expected - 1 : null,
+      projected: elapsed > 0.02 ? combined / elapsed : null, elapsed, days_in_month: dim, day_of_month: dom,
+      last_month_same_day: lmSameAll, last_month_total: lmTotalAll,
+      vs_last_month_pct: lmSameAll ? combined / lmSameAll - 1 : null },
     l7: agg(range(7)), l30: agg(range(30)), prev7: agg(range(7, 8)), prev30: agg(range(30, 31)),
     days_of_data: rows.length,
     changes_24h: (await env.DB.prepare(
@@ -860,9 +913,11 @@ async function nightly(env) {
   const accounts = await listAccounts(env, true);
   const results = [];
   for (const a of accounts) results.push(await syncAccount(env, a));
+  const google = [];
+  for (const a of accounts) google.push(await refreshGoogleSpend(env, a).catch(e => ({ name: a.name, error: e.message })));
   const pace = await paceAlerts(env).catch(e => ({ error: e.message }));
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('lastRun', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-    .bind(JSON.stringify({ at: new Date().toISOString(), results, pace })).run();
+    .bind(JSON.stringify({ at: new Date().toISOString(), results, google, pace })).run();
   return results;
 }
 
@@ -931,7 +986,7 @@ export default {
         const numOrKeep = (v, keep) => v === '' ? null : (v ?? keep);
         await env.DB.prepare(
           `UPDATE accounts SET active = ?2, name = ?3, monthly_budget = ?4, budgets_json = ?5, tz = ?6,
-             target_cpa = ?7, target_roas = ?8, slack_channel = ?9 WHERE act_id = ?1`,
+             target_cpa = ?7, target_roas = ?8, slack_channel = ?9, tw_shop = ?10 WHERE act_id = ?1`,
         ).bind(m[1],
           body.active != null ? (body.active ? 1 : 0) : cur.active,
           body.name ?? cur.name,
@@ -941,6 +996,7 @@ export default {
           numOrKeep(body.target_cpa, cur.target_cpa),
           numOrKeep(body.target_roas, cur.target_roas),
           numOrKeep(body.slack_channel, cur.slack_channel),
+          numOrKeep(body.tw_shop, cur.tw_shop),
         ).run();
         // First activation → kick off a backfill in the background.
         if (body.active && !cur.active && !cur.last_sync_insights) {
@@ -1029,7 +1085,14 @@ export default {
           slackChannel: await getSetting(env, 'slackChannel'),
           paceAlertPct: +(await getSetting(env, 'paceAlertPct')) || 0.15,
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
+          hasTwKey: !!env.TW_API_KEY,
         });
+      }
+      if (path === '/api/google-refresh' && request.method === 'POST') {
+        const accounts = await listAccounts(env, true);
+        const results = [];
+        for (const a of accounts) results.push(await refreshGoogleSpend(env, a).catch(e => ({ name: a.name, error: e.message })));
+        return json({ ok: true, results });
       }
       if (path === '/api/settings' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));

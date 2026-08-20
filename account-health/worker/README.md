@@ -55,9 +55,22 @@ Permissions → Bot User OAuth Token, starts `xoxb-`):
 npx wrangler secret put SLACK_BOT_TOKEN
 ```
 
-Then in the dashboard → **Settings → Slack pace alerts**: paste the channel ID
-(channel → ⚙ → copy channel ID; invite the bot to that channel first), set the
-threshold (default 15%), **Save**, then **Send test message**.
+Then in the dashboard → **Settings → Slack alert settings**: pick each brand's
+channel in the accounts table (invite the bot to each channel first), optionally a
+fallback channel, **Save**, then **Send test message**.
+
+## 2d. Triple Whale key (you do this — adds Google spend to Pacing)
+
+Pacing counts total ad spend (Meta + Google). Google spend comes from Triple Whale:
+
+1. app.triplewhale.com → Settings → **API Keys** → Create Key (read scopes are enough).
+2. From this folder:
+   ```
+   npx wrangler secret put TW_API_KEY
+   ```
+3. Dashboard → Settings: each client's **Triple Whale shop** domain is prefilled;
+   click **↻ Refresh Google spend now** to verify (it reports which TW metric it
+   matched per client). Refreshes automatically every night after that.
 
 ## 3. Dashboard
 
