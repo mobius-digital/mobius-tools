@@ -427,7 +427,7 @@ async function syncAccount(env, acct, days) {
       ? new Date(new Date(acct.last_sync_activities).getTime() - 6 * 3600e3).toISOString()  // 6h overlap
       : new Date(Date.now() - ACTIVITY_BACKFILL_DAYS * 86400e3).toISOString();
     out.activities = await syncActivities(env, acct, since);
-    out.ad = await syncAdDaily(env, acct, { maxSlices: 2 });
+    out.ad = await syncAdDaily(env, acct, { maxSlices: 8 });
   } catch (e) {
     out.error = e.message;
     await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, e.message).run();
@@ -629,7 +629,49 @@ async function syncTwDaily(env, acct, days = 10) {
          ON CONFLICT(act_id, date, metric) DO UPDATE SET value = excluded.value, synced_at = excluded.synced_at`,
       ).bind(acct.act_id, date, id, v));
   for (let i = 0; i < stmts.length; i += 40) await env.DB.batch(stmts.slice(i, i + 40));
+  if (Array.isArray(res.raw?.metrics)) {
+    await putSetting(env, `twCatalog:${acct.act_id}`,
+      JSON.stringify(res.raw.metrics.map(m => ({ id: m.metricId ?? m.id, title: m.title })).slice(0, 400))).catch(() => {});
+  }
   return { name: acct.name, ok: true, metrics: Object.keys(daily).length, from: start, to: today, rows: stmts.length };
+}
+
+/** Suggested monthly goals from the trailing 28 full days: run-rate sales/spend, trailing aMER. */
+async function suggestGoals(env, acct) {
+  const today = localDate(acct.tz);
+  const from = addDays(today, -28);
+  const { results } = await env.DB.prepare(
+    `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3
+     AND metric IN ('netSales','totalSales','newCustomerSales','blendedAds','ga_adCost','grossProfit','totalProductCosts','totalPaymentGatewayCosts')`,
+  ).bind(acct.act_id, from, today).all();
+  const piv = {};
+  for (const r of results) (piv[r.metric] ??= {})[r.date] = r.value;
+  const dates = Object.keys(piv.netSales || piv.totalSales || {}).sort();
+  if (dates.length < 14) return { error: 'need at least 14 days of Triple Whale history — hit “Refresh Triple Whale data” first' };
+  const { results: metaRows } = await env.DB.prepare(
+    `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date < ?3`,
+  ).bind(acct.act_id, from, today).all();
+  const metaBy = Object.fromEntries(metaRows.map(r => [r.date, r.spend]));
+  let sales = 0, spend = 0, newRev = 0, marginNum = 0, marginDen = 0;
+  for (const d of dates) {
+    const s = piv.netSales?.[d] ?? piv.totalSales?.[d] ?? 0;
+    sales += s;
+    spend += piv.blendedAds?.[d] ?? ((metaBy[d] ?? 0) + (piv.ga_adCost?.[d] ?? 0));
+    newRev += piv.newCustomerSales?.[d] ?? 0;
+    const gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
+    if (gp != null && s > 0) { marginNum += gp; marginDen += s; }
+  }
+  const n = dates.length, dim = daysInMonth(today);
+  const round = (v, step) => Math.round(v / step) * step;
+  return {
+    ok: true, days_used: n,
+    sales: Math.max(500, round(sales / n * dim, 500)),
+    spend: acct.monthly_budget ?? Math.max(250, round(spend / n * dim, 250)),
+    spend_source: acct.monthly_budget != null ? 'the monthly target in Settings' : 'trailing 28-day run-rate',
+    amer: spend > 0 && newRev > 0 ? Math.round(newRev / spend * 20) / 20 : null,
+    margin_28d: marginDen > 0 ? marginNum / marginDen : null,
+    daily_sales: sales / n, daily_spend: spend / n,
+  };
 }
 
 /** Month goals for an account: month override merged over "default". Null if none set. */
@@ -710,6 +752,8 @@ async function briefData(env, acct, upTo) {
       google_spend: gSpend,
       meta_roas: mrow && mrow.spend ? mrow.revenue / mrow.spend : null,
       meta_purchases: mrow?.purchases ?? null,
+      google_roas: piv.ga_ROAS?.[date] ?? null,
+      blended_roas: piv.totalRoas?.[date] ?? null,
       gross_profit: piv.grossProfit?.[date] ?? null,
       cogs: piv.totalProductCosts?.[date] ?? null,
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
@@ -759,14 +803,52 @@ function buildBriefText(data, date, narrative) {
   if (bits.length) L.push(`Revenue split: ${bits.join(' · ')}`);
   const ch = [];
   if (a.meta_spend != null) ch.push(`Meta ${fm(a.meta_spend)}${a.meta_roas != null ? ` at ${fx(a.meta_roas)} (Meta-attributed)` : ''}`);
-  if (a.google_spend != null) ch.push(`Google ${fm(a.google_spend)}`);
+  if (a.google_spend != null) ch.push(`Google ${fm(a.google_spend)}${a.google_roas != null ? ` at ${fx(a.google_roas)}` : ''}`);
   if (ch.length) L.push(`Channels: ${ch.join(' · ')}`);
   const m = data.mtd;
   if (m.sales != null && m.sales_f) {
     L.push(`MTD: Net Sales ${fm(m.sales)} vs ${fm(m.sales_f)} plan (${m.sales >= m.sales_f ? '+' : ''}${Math.round((m.sales / m.sales_f - 1) * 100)}%)` +
       (m.spend != null && m.spend_f ? ` · Spend ${fm(m.spend)} vs ${fm(m.spend_f)}` : ''));
   }
+  if (m.sales != null && data.goals?.sales) {
+    // Plan-share projection: how the month lands if we keep hitting the same % of plan.
+    const daysDone = data.days.filter(x => x.date <= date && x.a?.sales != null).length;
+    const proj = m.sales_f ? m.sales / m.sales_f * data.goals.sales : daysDone ? m.sales / daysDone * data.days.length : null;
+    if (proj != null) L.push(`Projected month: Net Sales ${fm(proj)} vs ${fm(data.goals.sales)} goal (${proj >= data.goals.sales ? '+' : ''}${Math.round((proj / data.goals.sales - 1) * 100)}%)`);
+  }
+  const wk = data.week;
+  if (wk) {
+    L.push('', `*Week in review — ${wk.from} → ${wk.to}*`);
+    L.push(`Net Sales ${fm(wk.a.sales)} vs ${fm(wk.f.sales)} plan${pct(wk.a.sales, wk.f.sales)} · Spend ${fm(wk.a.spend)} vs ${fm(wk.f.spend)} · CM ${fm(wk.a.cm)} vs ${fm(wk.f.cm)} · aMER ${fx(wk.a.amer)}`);
+    if (wk.best) L.push(`Best day ${wk.best.date} (${fm(wk.best.sales)}) · slowest ${wk.worst.date} (${fm(wk.worst.sales)})`);
+  }
   return L.join('\n') + (narrative ? `\n\n${narrative}` : '');
+}
+
+/** Aggregate the 7 days ending at `date` (crosses month boundaries when needed). */
+async function weeklyBlock(env, acct, data, date) {
+  const dates = [];
+  for (let i = 6; i >= 0; i--) dates.push(addDays(date, -i));
+  const byDate = {};
+  for (const x of data.days) byDate[x.date] = x;
+  for (const mo of [...new Set(dates.filter(dd => !byDate[dd]).map(monthOf))]) {
+    const end = dates.filter(dd => monthOf(dd) === mo).pop();
+    for (const x of (await briefData(env, acct, end)).days) if (!byDate[x.date]) byDate[x.date] = x;
+  }
+  const rows = dates.map(dd => byDate[dd]).filter(Boolean);
+  const sum = get => { let s = 0, any = false; for (const r of rows) { const v = get(r); if (v != null) { s += v; any = true; } } return any ? s : null; };
+  const a = { sales: sum(r => r.a?.sales), spend: sum(r => r.a?.spend), cm: sum(r => r.a?.cm), new_rev: sum(r => r.a?.new_rev) };
+  a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
+  const withSales = rows.filter(r => r.a?.sales != null);
+  const best = withSales.slice().sort((x, y) => y.a.sales - x.a.sales)[0];
+  const worst = withSales.slice().sort((x, y) => x.a.sales - y.a.sales)[0];
+  return {
+    from: dates[0], to: dates[6],
+    f: { sales: sum(r => r.f.sales ?? null), spend: sum(r => r.f.spend ?? null), cm: sum(r => r.f.cm ?? null) },
+    a,
+    best: best ? { date: best.date, sales: best.a.sales } : null,
+    worst: worst ? { date: worst.date, sales: worst.a.sales } : null,
+  };
 }
 
 const BRIEF_SYSTEM = `You are a senior media buyer at Mobius Digital writing the narrative section of a client's daily performance brief. A numbers block (forecast vs actual for yesterday) is prepended by the system — do NOT repeat it as a list.
@@ -782,7 +864,7 @@ Rules: use ONLY the numbers provided — never invent or extrapolate figures. Mo
 async function writeBriefNarrative(env, acct, data, date) {
   const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
-    `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)}`);
+    `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)} GoogleROAS ${f2(x.a?.google_roas)}`);
   const { results: evs } = await env.DB.prepare(
     `SELECT event_time, category, summary, reason, note FROM activities
      WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
@@ -795,16 +877,21 @@ async function writeBriefNarrative(env, acct, data, date) {
       `Goals this month: ${JSON.stringify(data.goals)}. Meta ROAS floor: ${acct.target_roas ?? 'none'}. Forecast weighting: ${data.weights}.\n` +
       `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data (gross profit, or net sales − COGS − payment fees) − ad spend'}.\n\n` +
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
+      (data.week ? `This brief also carries a week-in-review block (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)} — weigh the weekly picture in So What?/What's Next?, not just the single day.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}`,
   });
 }
 
-/** Build the full brief for one account+day. Returns {data, text} or {data, error}. */
+/** Build the full brief for one account+day. Returns {data, text} or {data, error}.
+ *  When `date` is a Sunday the Monday-morning send adds a week-in-review block. */
 async function makeBrief(env, acct, date) {
   const data = await briefData(env, acct, date);
   const day = data.days.find(x => x.date === date);
   if (!data.goals) return { data, error: 'no goals set for this month — set them on the Daily Brief page' };
   if (!day?.a || day.a.sales == null) return { data, error: `no Triple Whale sales data for ${date} yet — try “Refresh Triple Whale data”` };
+  if (new Date(date + 'T12:00:00Z').getUTCDay() === 0) {
+    data.week = await weeklyBlock(env, acct, data, date).catch(() => null);
+  }
   let narrative = null, narrative_error = null;
   try { narrative = await writeBriefNarrative(env, acct, data, date); } catch (e) { narrative_error = e.message; }
   return { data, text: buildBriefText(data, date, narrative), narrative_error };
@@ -900,6 +987,40 @@ async function hourlyPacing(env, acct) {
 /*  Creative rotation maths (Chat 3)                                   */
 /* ------------------------------------------------------------------ */
 
+/** Per-ad rollup for the selected window: who's carrying spend, who's earning it.
+ *  Verdicts are relative to the account's own window CPA, never absolute benchmarks. */
+async function adBreakdown(env, acct, windowDays, freshDays) {
+  const today = localDate(acct.tz);
+  const from = addDays(today, -windowDays);
+  const { results } = await env.DB.prepare(
+    `SELECT d.ad_id, a.name, a.first_spend_date, a.created_time,
+            SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue, SUM(d.impressions) AS impressions
+     FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
+     WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date < ?3
+     GROUP BY d.ad_id HAVING SUM(d.spend) > 0
+     ORDER BY spend DESC LIMIT 40`,
+  ).bind(acct.act_id, from, today).all();
+  if (!results.length) return null;
+  const tot = results.reduce((a, r) => ({ spend: a.spend + r.spend, purch: a.purch + r.purchases }), { spend: 0, purch: 0 });
+  const acctCpa = tot.purch ? tot.spend / tot.purch : null;
+  const ads = results.map(r => {
+    const cpa = r.purchases ? r.spend / r.purchases : null;
+    const origin = r.created_time && r.first_spend_date && String(r.created_time).slice(0, 10) < r.first_spend_date
+      ? String(r.created_time).slice(0, 10) : r.first_spend_date;
+    const age = origin ? Math.max(0, ymdDiff(today, origin)) : null;
+    let verdict = null;
+    if (acctCpa != null) {
+      if (cpa == null && r.spend >= acctCpa * 1.5) verdict = 'cut';           // spent 1.5 CPAs, zero purchases
+      else if (cpa != null && cpa <= acctCpa * 0.8) verdict = 'scale';
+      else if (cpa != null && cpa >= acctCpa * 1.4) verdict = 'cut';
+    }
+    return { ad_id: r.ad_id, name: r.name || r.ad_id, spend: r.spend, purchases: r.purchases,
+      revenue: r.revenue, cpa, roas: r.spend ? r.revenue / r.spend : null,
+      share: tot.spend ? r.spend / tot.spend : 0, age, fresh: age != null && age <= freshDays, verdict };
+  });
+  return { window: windowDays, acct_cpa: acctCpa, total_spend: tot.spend, ads };
+}
+
 async function creative(env, acct, freshDays, windowDays) {
   const today = localDate(acct.tz);
   const from = addDays(today, -97);
@@ -960,6 +1081,7 @@ async function creative(env, acct, freshDays, windowDays) {
       staleCpa: cur.stalePurch ? cur.staleSpend / cur.stalePurch : null,
     },
     weekly,
+    ads: await adBreakdown(env, acct, Math.max(windowDays, 7), freshDays),
     insight: half >= 3 ? {
       n: half,
       topShare: avgShare(ranked.slice(0, half)), topCpa: median(ranked.slice(0, half)),
@@ -1071,13 +1193,38 @@ async function slackPost(env, channel, text, blocks) {
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
 }
 
-/** Nightly Slack alerts: pace drift + KPI breaches. Each brand posts to its own
+/** Did an account stop delivering? Compares yesterday's spend to its own L7 median.
+ *  Catches paused campaigns, billing failures and policy blocks the morning after. */
+async function deliveryAlerts(env) {
+  const out = [];
+  for (const a of await listAccounts(env, true)) {
+    const today = localDate(a.tz), y = addDays(today, -1);
+    const { results } = await env.DB.prepare(
+      `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date < ?3 ORDER BY date`,
+    ).bind(a.act_id, addDays(today, -8), today).all();
+    const yRow = results.find(r => r.date === y);
+    const prior = results.filter(r => r.date !== y).map(r => r.spend).sort((x, z) => x - z);
+    if (prior.length < 4) continue;                       // not enough history to judge
+    const med = prior[Math.floor(prior.length / 2)];
+    if (med < 50) continue;                               // tiny spender: skip, too noisy
+    const spend = yRow?.spend ?? 0;
+    if (spend <= med * 0.4) {
+      out.push({ act: a, line: spend === 0
+        ? `🚨 *${a.name}* spent *nothing* yesterday (normal day ≈ ${money(med, a.currency)}). Check billing, campaign status and policy.`
+        : `⚠️ *${a.name}* spent ${money(spend, a.currency)} yesterday — ${Math.round((1 - spend / med) * 100)}% below its normal ${money(med, a.currency)}. Delivery may be throttled or something got paused.` });
+    }
+  }
+  return out;
+}
+
+/** Nightly Slack alerts: pace drift + KPI breaches + delivery drops. Each brand posts to its own
  *  channel when one is set; brands without one share the default channel. */
 async function paceAlerts(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
   const def = await getSetting(env, 'slackChannel');
   const thr = +(await getSetting(env, 'paceAlertPct')) || 0.15;
   const data = await overview(env);
+  const drops = await deliveryAlerts(env).catch(() => []);
   const byChannel = new Map();
   for (const a of data) {
     const parts = [];
@@ -1091,6 +1238,8 @@ async function paceAlerts(env) {
     if (a.target_roas && a.l7.roas != null && a.l7.roas < a.target_roas * 0.95) {
       parts.push(`🎯 7d ROAS ${a.l7.roas.toFixed(2)}x vs ${a.target_roas}x floor`);
     }
+    const drop = drops.find(d => d.act.act_id === a.act_id);
+    if (drop) parts.unshift(drop.line);
     if (!parts.length) continue;
     const ch = a.slack_channel || def;
     if (!ch) continue;
@@ -1342,7 +1491,7 @@ export default {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         let backfill = null;
-        if (!acct.ads_backfill_done) backfill = await syncAdDaily(env, acct, { maxSlices: 2 });
+        if (!acct.ads_backfill_done) backfill = await syncAdDaily(env, acct, { maxSlices: 3 });
         else {
           const missing = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND created_time IS NULL`).bind(act).first();
           if (missing?.n > 0) ctx.waitUntil(syncAdMeta(env, acct).catch(() => {}));  // heal ages for pre-history ads
@@ -1481,6 +1630,12 @@ export default {
         const results = [];
         for (const a of accounts) results.push(await syncTwDaily(env, a, days).catch(e => ({ name: a.name, error: e.message })));
         return json({ ok: true, results });
+      }
+      if (path === '/api/goal-suggest' && request.method === 'GET') {
+        const act = url.searchParams.get('act');
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        return json(await suggestGoals(env, acct));
       }
       if (path === '/api/brief' && request.method === 'GET') {
         const act = url.searchParams.get('act');

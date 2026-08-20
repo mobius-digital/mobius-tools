@@ -176,6 +176,10 @@
   .pc-stats .st span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
 
   /* Creative Rotation (Chat 3) */
+  .ad-name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  .vd{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:5px;padding:2px 6px}
+  .vd.scale{background:var(--good-bg);color:var(--good)} .vd.cut{background:var(--bad-bg);color:var(--bad)}
+  .vd.fresh{background:var(--brand-soft);color:var(--brand-ink)}
   .cr-quote{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--good);border-radius:var(--radius);padding:12px 17px;font-size:13.5px;margin-bottom:14px}
   .cl-it .what{line-height:1.55}
   .cl-it .acts{display:flex;gap:7px;align-items:center;white-space:nowrap}
@@ -485,6 +489,7 @@ const PAGE_HELP = {
     <p><b>The problem this page catches:</b> ads wear out. The same people see them over and over, performance slowly fades, and CPA creeps up. Teams usually notice <i>after</i> the spike. This page shows whether we're feeding the account new ads <i>before</i> that happens.</p>
     <p><b>The four cards, in order:</b> ① how much of the budget went to new ads (the number to protect — if it keeps falling, we're coasting) · ② the average age of the ads the money ran on (creeping up = same warning) · ③ <b>Fresh CPA</b> — CPA from new ads · ④ <b>Stale CPA</b> — CPA from older ads.</p>
     <p><b>Fresh vs stale CPA:</b> don't panic if fresh looks pricier — new ads need a few days for Meta to optimize. What matters is the pattern over weeks, which is what the highlighted sentence and the bottom chart show: when we launch more, does CPA hold or improve? If yes, there's no excuse to slow the launch cadence.</p>
+    <p><b>The ad table:</b> every ad that spent in the window, biggest spender first, with a <b>scale</b> / <b>cut or fix</b> read based on how its CPA compares to this account's own average. It's the "what do I actually do today" list — but give brand-new ads a few days before judging them.</p>
     <p><b>The bars:</b> one bar per week, dark green = brand-new ads' share of that week's spend. Watch whether the dark green is growing or dying.</p>
     <p><b>What's a good new-ad share?</b> Rough zones: with "new = ≤7 days" aim for ~10–20%; ≤14 days ~15–30%; ≤30 days ~25–45%. Below the zone = coasting (fatigue builds, CPA pays later). Way above it every week = churning — winners never mature, or nothing is sticking. Two overrides: scaling accounts should sit at the top of the zone or higher, and if Fresh CPA keeps beating Stale CPA, push above the band without guilt.</p>
     <p><b>When to look:</b> Monday creative meeting, once a week. This is a weeks-scale question — daily checking tells you nothing new.</p>`,
@@ -1201,6 +1206,25 @@ function crCards(d) {
   </div>`;
 }
 
+/** Which individual ads are carrying the spend — and earning it. */
+function crAds(d) {
+  const a = d.ads; if (!a || !a.ads.length) return '';
+  const cur = d.account.currency;
+  const scale = a.ads.filter(x => x.verdict === 'scale').length, cut = a.ads.filter(x => x.verdict === 'cut').length;
+  const rows = a.ads.slice(0, 15).map(x => `<tr>
+    <td><b class="ad-name" title="${esc(x.name)}">${esc(x.name)}</b>
+      <span class="tiny">${x.age == null ? '' : x.age + 'd old'}${x.fresh ? ' · <span class="vd fresh">new</span>' : ''}</span></td>
+    <td class="num">${fmtK(x.spend, cur)}<br><span class="tiny">${(x.share * 100).toFixed(0)}% of spend</span></td>
+    <td class="num">${x.purchases ? Math.round(x.purchases) : '—'}</td>
+    <td class="num"><b>${fmtMoney(x.cpa, cur)}</b>${x.cpa != null && a.acct_cpa ? delta(x.cpa, a.acct_cpa, true) : ''}</td>
+    <td class="num">${fmtX(x.roas)}</td>
+    <td>${x.verdict === 'scale' ? '<span class="vd scale">scale</span>' : x.verdict === 'cut' ? '<span class="vd cut">cut / fix</span>' : '<span class="tiny">holding</span>'}</td></tr>`).join('');
+  return `<div class="card"><h3 style="margin-bottom:2px">Which ads are carrying the spend — and earning it?</h3>
+    <p class="hint" style="margin-bottom:10px">Every ad that spent in the last ${a.window} days, biggest first. <b>Scale</b> = CPA at least 20% better than this account's ${fmtMoney(a.acct_cpa, cur)} average; <b>cut / fix</b> = 40%+ worse, or spending with no purchases at all. Judged against the account's own average, never an outside benchmark — and give new ads a few days before acting.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Purchases</th><th class="num">CPA <span class="tiny">vs acct</span></th><th class="num">ROAS</th><th>Read</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="tiny" style="margin-top:8px">${a.ads.length > 15 ? `Showing the top 15 of ${a.ads.length} spending ads. ` : ''}${scale} to scale · ${cut} to cut or fix. ROAS/CPA are Meta-attributed.</p></div>`;
+}
+
 async function renderCreative() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
@@ -1232,6 +1256,7 @@ async function renderCreative() {
       if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet — hit ↻ Sync now.</span></div>`}`;
       const ins = d.insight;
       return `${head}${bfBanner}${crCards(d)}
+        ${single ? crAds(d) : ''}
         ${ins ? `<div class="cr-quote">${(() => {
           const cur2 = d.account.currency, hi = fmtMoney(ins.topCpa, cur2), lo = fmtMoney(ins.botCpa, cur2);
           if (ins.topCpa <= ins.botCpa * 0.95) return `<b>Launching more has been working for this account.</b> In weeks heavy on new ads, CPA averaged ${hi}. In weeks light on new ads, ${lo}.`;
@@ -1456,6 +1481,7 @@ async function renderBrief() {
         <label class="tiny">ad spend</label><div class="unit-in" style="width:110px"><span>${sym(cur)}</span><input id="gSpend" type="text" inputmode="decimal" value="${g.spend != null ? (+g.spend).toLocaleString('en-US') : ''}" placeholder="—"></div>
         <label class="tiny">aMER</label><div class="unit-in" style="width:74px"><input id="gAmer" type="text" inputmode="decimal" value="${g.amer ?? ''}" placeholder="—"><span>x</span></div>
         <label class="tiny">margin</label><div class="unit-in" style="width:74px"><input id="gCm" type="text" inputmode="decimal" value="${g.cm_pct != null ? Math.round(g.cm_pct * 100) : ''}" placeholder="auto"><span>%</span></div>
+        <button class="btn" id="gSuggest" title="Fills the fields from the trailing 28 days: net sales and spend at run-rate for this month's length, aMER as actually achieved. A beat-your-own-average plan — raise it if the month should grow.">✨ Suggest from history</button>
         <button class="btn primary" id="gSave">Save goals</button>
         <span class="tiny" id="gMsg"></span>
       </div>
@@ -1500,6 +1526,18 @@ async function renderBrief() {
     const b = $('#bfTwSync'); b.disabled = true; $('#bfTwMsg').textContent = 'Pulling 70 days from Triple Whale…';
     try { const r = await api('/api/tw-sync?act=' + S.act + '&days=70', { method: 'POST' }); const x = r.results[0]; $('#bfTwMsg').textContent = x.ok ? `✓ ${x.metrics} metrics, ${x.from} → ${x.to}` : (x.error || x.skipped); if (x.ok) return renderBrief(); }
     catch (e) { $('#bfTwMsg').textContent = e.message; }
+    b.disabled = false;
+  };
+  $('#gSuggest').onclick = async () => {
+    const b = $('#gSuggest'); b.disabled = true; $('#gMsg').textContent = 'Reading the last 28 days…';
+    try {
+      const r = await api('/api/goal-suggest?act=' + S.act);
+      if (r.error) { $('#gMsg').textContent = r.error; b.disabled = false; return; }
+      $('#gSales').value = (+r.sales).toLocaleString('en-US');
+      $('#gSpend').value = (+r.spend).toLocaleString('en-US');
+      if (r.amer != null) $('#gAmer').value = String(r.amer);
+      $('#gMsg').textContent = `Run-rate: ${fmtK(r.daily_sales, cur)}/day sales · ${fmtK(r.daily_spend, cur)}/day spend (spend goal from ${r.spend_source}). Review, adjust, then Save.`;
+    } catch (e) { $('#gMsg').textContent = e.message; }
     b.disabled = false;
   };
   $('#gSave').onclick = async () => {
