@@ -342,7 +342,7 @@ function renderPicker() {
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
-  if (hb) helpModal({ averages: 'How to use Averages', pacing: 'How to use Pacing', changelog: 'How to use the Change Log', creative: 'How to use Creative Rotation' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+  if (hb) helpModal({ averages: 'How to use Averages', pacing: 'How to use Pacing', changelog: 'How to use the Change Log', creative: 'How to use Creative Rotation', settings: 'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
 });
 
 function show(tab) {
@@ -457,6 +457,19 @@ const PAGE_HELP = {
     <p><b>✗</b> hides junk from summaries. <b>+ Add change</b> records things Meta can't see (promo started, landing page swapped, tracking fixed).</p>
     <p><b>✦ Summarise:</b> Claude writes the daily standup, weekly recap, or a client-safe update from the tagged changes + performance. The more whys you tag, the smarter it reads.</p>
     <p><b>Forensics:</b> CPA spiked Tuesday? Set the dates to Tuesday and see exactly what changed.</p>`,
+  settings: `
+    <p><b>Everything saves instantly</b> — the moment you change a cell it's stored, and the field flashes green to confirm. There is no save button for the table.</p>
+    <p><b>Discover accounts from Meta:</b> re-scans for ad accounts the Meta token can see. Run it when you onboard a new client.</p>
+    <p><b>The client table, column by column:</b><br>
+    • <b>Track toggle</b> — whether this account syncs and appears anywhere.<br>
+    • <b>Monthly target</b> — total ad spend goal or cap for the month (Meta + Google combined once Triple Whale is connected). Powers the Pacing bars and pace alerts.<br>
+    • <b>CPA cap / ROAS floor</b> — KPI guardrails for scale-freely clients: 7-day CPA above the cap or ROAS below the floor = red chip + Slack alert. Use with or instead of a monthly target.<br>
+    • <b>Alerts channel</b> — the Slack channel this brand's alerts post to.<br>
+    • <b>Triple Whale shop</b> — the client's TW shop domain; used only to pull their Google Ads spend into the money math. Already prefilled.<br>
+    • <b>Sync</b> — pull fresh Meta data for that one client right now.</p>
+    <p><b>Google spend card:</b> shows whether the Triple Whale connection works — "Refresh now" re-pulls each client's Google spend and reports what it found. Otherwise it refreshes itself nightly.</p>
+    <p><b>Slack alert settings:</b> the alert threshold (how far off pace before we ping), a test button, and an optional fallback channel for brands without one in the table.</p>
+    <p><b>Dashboard password:</b> a shared read-everything password as an alternative to Google sign-in.</p>`,
   creative: `
     <p><b>What this page is:</b> is new creative actually getting spend, and does fresh beat stale? An ad's age counts from its first day of spend.</p>
     <p><b>Freshness %</b> = share of spend on new ads. If it's collapsing week over week (the green in the bars shrinking), the account is coasting on old creative — that's usually how fatigue starts.</p>
@@ -1256,10 +1269,10 @@ function renderSoon(title, text) {
 
 /* ---------- Settings ---------- */
 async function renderSettings() {
-  $('#main').innerHTML = `<h2>Settings</h2><p class="sub">Which ad accounts to track, each client's monthly budget (drives the pacing maths), and the dashboard password.</p>${setupBanner()}
-    <div class="row"><button class="btn primary" id="btnDiscover">Discover accounts from Meta</button><span class="tiny">Pulls every ad account the Meta token can see. Run again whenever a client is added.</span></div>
+  $('#main').innerHTML = `<h2>Settings</h2><p class="sub">Everything configurable in one place: which accounts to track, each client's spend target and KPI guardrails, where their Slack alerts go, and the Google-spend connection. <b>Every cell saves the moment you change it</b> — a green flash means saved.</p>${setupBanner()}
+    <div class="row"><button class="btn primary" id="btnDiscover">Discover accounts from Meta</button><span class="tiny">Pulls every ad account the Meta token can see. Run again whenever a client is added.</span><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
     <div class="card settings"><p class="hint" style="margin-bottom:10px">Two ways to steer a client: a <b>monthly target</b> (a budget cap or a spend goal — pacing tracks it either way; it means <b>total ad spend, Meta + Google</b> once Triple Whale is connected), or <b>KPI guardrails</b> (no cap; scale freely while 7-day CPA stays under the cap and 7-day ROAS above the floor). Set one or both — leave blank what doesn't apply.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly target</th><th>CPA cap</th><th>ROAS floor</th><th>Alerts channel</th><th title="The client's Triple Whale shop — used only to pull Google Ads spend into the Pacing money math">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th title="Whether this account syncs and shows anywhere">Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th title="Total monthly ad-spend goal or cap (Meta + Google) — powers the Pacing bars and pace alerts">Monthly target</th><th title="KPI guardrail: 7-day CPA above this = breach (red chip + Slack alert)">CPA cap</th><th title="KPI guardrail: 7-day ROAS below this = breach">ROAS floor</th><th title="Which Slack channel this brand's alerts post to">Alerts channel</th><th title="The client's Triple Whale shop — used only to pull Google Ads spend into the Pacing money math">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
     <div class="card"><h3>Google spend (via Triple Whale)</h3>
       <p class="hint" style="margin-bottom:10px">Pulls each client's <b>Google Ads spend</b> from Triple Whale so Pacing and budgets count <i>total</i> ad spend, not just Meta. Performance metrics stay Meta-only by design. Needs the <code>TW_API_KEY</code> secret on the worker (README §2d); refreshes every night, or on demand here.</p>
       <div class="row"><button class="btn" id="gsRefresh">↻ Refresh Google spend now</button><span class="tiny" id="gsMsg"></span></div></div>
