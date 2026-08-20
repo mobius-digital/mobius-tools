@@ -812,7 +812,7 @@ function avFocus(mKey) {
   const cur = d.account.currency;
   $('#avFocus').innerHTML = `<div class="card" style="border-color:var(--brand)">
     <div class="row" style="margin-bottom:2px"><h3>${m.label}, day by day</h3><span style="flex:1"></span><button class="btn" id="avFocusClose">✕ Close</button></div>
-    <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline. Move over (or tap) the chart to read exact values; dots on the bottom rail are changes we made.</p>
+    <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline — both are <b>per-day averages</b> over the window ending at that date (never totals; CPA/ROAS are blended from the window's total spend and purchases). A "—" means there isn't enough history before that date yet. Hover or tap for exact values; dots on the bottom rail are changes we made.</p>
     <div id="fxReadout" style="font-size:13px;height:52px;overflow:hidden;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 11px;margin-bottom:8px">Hover or tap anywhere on the chart…</div>
     ${focusSVG(d.rows, d.events, m, cur)}</div>`;
   $('#avFocus').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
