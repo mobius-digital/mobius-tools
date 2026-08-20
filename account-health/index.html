@@ -155,7 +155,8 @@
   .av-trend.good{color:var(--good)} .av-trend.bad{color:var(--bad)}
   .av-card.clickable{cursor:pointer;transition:border-color .12s, box-shadow .12s}
   .av-card.clickable:hover{border-color:var(--brand-ink);box-shadow:0 3px 14px rgba(12,22,29,.08)}
-  .info-i{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border:1px solid var(--line-strong);border-radius:50%;font-size:9px;font-weight:700;color:var(--muted);cursor:help;vertical-align:1px}
+  .info-i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid var(--line-strong);border-radius:50%;font-size:9.5px;font-weight:700;color:var(--muted);cursor:pointer;vertical-align:1px;text-transform:none}
+  .info-i:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .help-body{font-size:13.5px;line-height:1.6;max-height:60vh;overflow-y:auto}
   .help-body p{margin-bottom:9px}
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
@@ -340,6 +341,16 @@ function renderPicker() {
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
+/* ⓘ icons open their explanation on click/tap (capture phase so a card's own click doesn't also fire). */
+document.addEventListener('click', e => {
+  const ii = e.target.closest('.info-i');
+  if (!ii) return;
+  const holder = ii.title ? ii : ii.closest('[title]');
+  if (!holder?.title) return;
+  e.stopPropagation(); e.preventDefault();
+  const label = ii.closest('.av-label')?.textContent.replace(/\s*i\s*$/, '').trim() || 'What this means';
+  helpModal(label, `<p>${esc(holder.title)}</p>`);
+}, true);
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
   if (hb) helpModal({ averages: 'How to use Averages', pacing: 'How to use Pacing', changelog: 'How to use the Change Log', creative: 'How to use Creative Rotation', settings: 'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
@@ -1208,7 +1219,12 @@ async function renderCreative() {
       if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet — hit ↻ Sync now.</span></div>`}`;
       const ins = d.insight;
       return `${head}${bfBanner}${crCards(d)}
-        ${ins ? `<div class="cr-quote">In the ${ins.n} weeks we gave new ads the <b>most</b> budget (~${(ins.topShare * 100).toFixed(0)}% of spend), a purchase cost <b>${fmtMoney(ins.topCpa, d.account.currency)}</b>. In the ${ins.n} weeks we launched the <b>least</b> (~${(ins.botShare * 100).toFixed(0)}%), it cost <b>${fmtMoney(ins.botCpa, d.account.currency)}</b>. ${ins.topCpa <= ins.botCpa * 0.95 ? '→ Launching more has come with <b>cheaper</b> purchases here.' : ins.topCpa >= ins.botCpa * 1.05 ? '→ Heavy launch weeks ran a bit pricier — new ads need a few days to settle before judging them.' : '→ Launching more hasn’t cost us efficiency — no excuse to coast.'}</div>` : ''}
+        ${ins ? `<div class="cr-quote">${(() => {
+          const cur2 = d.account.currency, hi = fmtMoney(ins.topCpa, cur2), lo = fmtMoney(ins.botCpa, cur2);
+          if (ins.topCpa <= ins.botCpa * 0.95) return `<b>Launching more has been working for this account.</b> In weeks heavy on new ads, CPA averaged ${hi}. In weeks light on new ads, ${lo}.`;
+          if (ins.topCpa >= ins.botCpa * 1.05) return `<b>Heavy launch weeks ran a little pricier here</b> — CPA ${hi} vs ${lo} in quiet weeks. Normal: new ads need a few days to settle, so judge them on week two.`;
+          return `<b>Launching more hasn't cost this account anything</b> — CPA was about the same in heavy launch weeks (${hi}) and quiet ones (${lo}). No reason to slow the launch pace.`;
+        })()} <span class="tiny">(comparing the ${ins.n} weeks with the highest new-ad share vs the ${ins.n} lowest, last ~13 weeks)</span></div>` : ''}
         ${single ? `<div class="card"><h3 style="margin-bottom:2px">Where each week's budget went, by ad age</h3><p class="hint" style="margin-bottom:6px">Each bar is one week of spend, split by how old the ads were. <b>Dark green at the bottom = brand-new ads.</b> If the dark green keeps shrinking week after week, the account is coasting on old creative. Hover or tap a week for its numbers.</p>
           <div class="tiny" id="crBarsRo" style="min-height:18px;font-weight:600"></div>${crBars(d.weekly)}
           <p class="tiny" style="margin-top:6px">${CR_LABELS.map((l, ci) => `<span style="color:${CR_COLORS[ci]}">■</span> ${l}`).join(' &nbsp; ')}</p></div>
@@ -1241,12 +1257,14 @@ function wireCreativeCharts(d) {
   const barW = (900 - 30) / n;
   attach('crBarsSvg', 'crBarsRo', vx => Math.floor((vx - 30) / barW), i => 30 + (i + 0.5) * barW,
     w => {
-      const ages = w.shares.map((s, bi) => s >= 0.005 ? `${(s * 100).toFixed(0)}% on ${CR_LABELS[bi]}-old ads` : null).filter(Boolean).join(' · ');
-      return `<b>week of ${fmtWeek(w.week)}</b> — spent ${fmtK(w.spend, cur)}, a purchase cost ${fmtMoney(w.cpa, cur)} · ${ages || 'no spend'}`;
+      const nz = w.shares.map((s, bi) => ({ s, bi })).filter(x => x.s >= 0.005);
+      const ages = nz.length === 1 ? `all of it went to ads ${CR_LABELS[nz[0].bi]} old`
+        : nz.map(x => `${(x.s * 100).toFixed(0)}% to ads ${CR_LABELS[x.bi]} old`).join(' · ');
+      return `<b>week of ${fmtWeek(w.week)}</b> · spend ${fmtK(w.spend, cur)} · CPA ${fmtMoney(w.cpa, cur)} · ${ages || 'no spend'}`;
     });
   const iw = 900 - 48 - 44;
   attach('crDualSvg', 'crDualRo', vx => Math.round((vx - 48) / iw * (n - 1)), i => 48 + i / Math.max(1, n - 1) * iw,
-    w => `<b>week of ${fmtWeek(w.week)}</b> — a purchase cost <span style="color:#1C7A46;font-weight:700">${fmtMoney(w.cpa, cur)}</span>, with <span style="color:#C9962B;font-weight:700">${(w.freshShare * 100).toFixed(0)}% of budget on new ads</span>`);
+    w => `<b>week of ${fmtWeek(w.week)}</b> · <span style="color:#1C7A46;font-weight:700">CPA ${fmtMoney(w.cpa, cur)}</span> · <span style="color:#C9962B;font-weight:700">${(w.freshShare * 100).toFixed(0)}% of spend on new ads</span>`);
 }
 
 /* ---------- Read-only client share view (?share=token) ---------- */
