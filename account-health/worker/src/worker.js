@@ -547,18 +547,25 @@ async function twSummary(env, shopDomain, start, end) {
   const res = await fetch('https://api.triplewhale.com/api/v2/summary-page/get-data', {
     method: 'POST',
     headers: { 'x-api-key': env.TW_API_KEY, 'content-type': 'application/json' },
-    body: JSON.stringify({ shopDomain, period: { start, end } }),
+    body: JSON.stringify({ shopDomain, period: { start, end }, todayHour: 24 }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Triple Whale: ${body.message || body.error || `HTTP ${res.status}`}`);
   // Normalise to {name: value} — TW's response shape has varied across versions.
   const map = {};
-  const add = (k, v) => { if (k != null && typeof v === 'number' && isFinite(v)) map[String(k)] = v; };
-  const arr = Array.isArray(body.metrics) ? body.metrics : Array.isArray(body) ? body : null;
-  if (arr) for (const it of arr) add(it.metricName ?? it.name ?? it.id, it.value ?? it.metricValue);
-  else if (body.metrics && typeof body.metrics === 'object') for (const [k, v] of Object.entries(body.metrics)) add(k, typeof v === 'object' ? v?.value : v);
-  else for (const [k, v] of Object.entries(body)) add(k, v);
-  return map;
+  const num = v => typeof v === 'number' && isFinite(v) ? v
+    : typeof v === 'string' && v.trim() !== '' && isFinite(+v) ? +v
+    : v && typeof v === 'object' ? num(v.value ?? v.metricValue ?? v.total) : null;
+  const add = (k, v) => { const n = num(v); if (k != null && n != null) map[String(k)] = n; };
+  const walk = node => {
+    if (Array.isArray(node)) { for (const it of node) if (it && typeof it === 'object') add(it.metricName ?? it.name ?? it.id ?? it.key, it.value ?? it.metricValue ?? it.total ?? it); return; }
+    if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) {
+      if (Array.isArray(v) || (v && typeof v === 'object' && !('value' in v) && !('total' in v) && num(v) == null)) walk(v);
+      else add(k, v);
+    }
+  };
+  walk(body);
+  return { map, raw: body };
 }
 
 function pickGoogleSpend(map) {
@@ -575,13 +582,18 @@ async function refreshGoogleSpend(env, acct) {
   const ym = monthOf(today), pm = prevMonth(ym);
   const dim = daysInMonth(pm + '-15');
   const lmSame = `${pm}-${String(Math.min(+today.slice(8, 10), dim)).padStart(2, '0')}`;
-  const mtdMap = await twSummary(env, acct.tw_shop, `${ym}-01`, today);
+  const mtdRes = await twSummary(env, acct.tw_shop, `${ym}-01`, today);
+  const mtdMap = mtdRes.map;
   // Stash the full metric-name list — tells us exactly what TW exposes (attribution models etc.)
   await putSetting(env, `twMetrics:${acct.act_id}`, JSON.stringify(Object.keys(mtdMap))).catch(() => {});
   const g1 = pickGoogleSpend(mtdMap);
-  if (g1.keys) return { name: acct.name, error: `no Google-spend metric found; TW returned: ${g1.keys.slice(0, 40).join(', ') || '(no metrics)'}` };
-  const lmSameV = pickGoogleSpend(await twSummary(env, acct.tw_shop, `${pm}-01`, lmSame)).value ?? 0;
-  const lmTotalV = pickGoogleSpend(await twSummary(env, acct.tw_shop, `${pm}-01`, `${pm}-${String(dim).padStart(2, '0')}`)).value ?? 0;
+  if (g1.keys) {
+    // Keep the raw response so the parser can be adapted to TW's real shape.
+    await putSetting(env, `twRaw:${acct.act_id}`, JSON.stringify(mtdRes.raw).slice(0, 8000)).catch(() => {});
+    return { name: acct.name, error: `no Google-spend metric found; TW returned: ${g1.keys.slice(0, 40).join(', ') || '(no metrics — raw response captured for debugging)'}` };
+  }
+  const lmSameV = pickGoogleSpend((await twSummary(env, acct.tw_shop, `${pm}-01`, lmSame)).map).value ?? 0;
+  const lmTotalV = pickGoogleSpend((await twSummary(env, acct.tw_shop, `${pm}-01`, `${pm}-${String(dim).padStart(2, '0')}`)).map).value ?? 0;
   const data = { ym, metric: g1.key, mtd: g1.value ?? 0, lm_same_day: lmSameV, lm_total: lmTotalV, updated: new Date().toISOString() };
   await env.DB.prepare(`UPDATE accounts SET google_spend_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(data)).run();
   return { name: acct.name, ok: true, metric: g1.key, mtd: data.mtd };
