@@ -922,6 +922,31 @@ function buildMomentum(fullRows, todayRow, currency) {
     <div class="tbl-wrap"><table><thead><tr><th>Metric</th><th class="num">Today</th><th class="num">Yesterday <span class="tiny">vs 7d</span></th><th class="num">3-day avg <span class="tiny">vs 7d</span></th><th class="num">7-day avg</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
+/** Attribution check: Meta's claim vs blended truth vs TW pixel, same 7 days. */
+function buildAttribution(a) {
+  const t = a?.tw7;
+  if (!t || (t.blended_roas == null && t.pixel_attr_roas == null)) return '';
+  const cur = a.currency, meta = a.l7?.roas;
+  let verdict = '';
+  if (meta && t.blended_roas) {
+    const r = meta / t.blended_roas;
+    verdict = r >= 1.15 ? `Meta is claiming ~${Math.round((r - 1) * 100)}% more than blended reality — normal self-credit, but lean on blended for scale decisions.`
+      : r <= 0.9 ? 'Meta is reporting less than blended reality — unusual; worth a look at tracking.'
+      : "Meta's claim is close to blended reality this week — its numbers can be trusted as-is.";
+  }
+  return `<div class="card"><h3 style="margin-bottom:2px">Attribution check — is Meta telling the truth?</h3>
+    <p class="hint" style="margin-bottom:10px">The same last 7 days through three lenses. <b>Blended</b> = total store revenue ÷ total ad spend (all platforms, via Triple Whale) — no platform can game it. <b>TW pixel</b> = Triple Whale's pixel-attributed ROAS across paid channels. First-click / last-click model splits aren't exposed by TW's API — open Triple Whale itself for those.</p>
+    <div class="pc-stats">
+      <div class="st"><b>${fmtX(meta)}</b><span>ROAS · Meta says</span></div>
+      <div class="st"><b>${fmtX(t.blended_roas)}</b><span>ROAS · blended truth</span></div>
+      <div class="st"><b>${fmtX(t.pixel_attr_roas)}</b><span>ROAS · TW pixel</span></div>
+      <div class="st"><b>${fmtMoney(a.l7?.cpa, cur)}</b><span>CPA · Meta says</span></div>
+      <div class="st"><b>${fmtMoney(t.blended_cpa, cur)}</b><span>CPA · blended</span></div>
+    </div>
+    ${verdict ? `<p class="tiny" style="margin-top:9px;font-weight:600">${verdict}</p>` : ''}
+    <p class="tiny" style="margin-top:3px">Updates nightly via Triple Whale (${fmtAgo(a.mtd?.google_updated)}).</p></div>`;
+}
+
 async function shareLink(btn, actId) {
   btn.disabled = true;
   try {
@@ -952,7 +977,11 @@ async function renderAverages() {
   try {
     const targets = single ? [single] : active;
     if (!targets.length) { $('#avBody').innerHTML = ''; return; }
-    const series = await Promise.all(targets.map(a => api(`/api/series?act=${a.act_id}&days=${+AV.win + 32}`)));
+    const [series, ovr] = await Promise.all([
+      Promise.all(targets.map(a => api(`/api/series?act=${a.act_id}&days=${+AV.win + 32}`))),
+      single ? api('/api/overview').catch(() => null) : Promise.resolve(null),
+    ]);
+    const ovAcc = single ? ovr?.accounts?.find(x => x.act_id === single.act_id) : null;
     const legend = `<p class="tiny" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">━</span> 7-day average (recent form) &nbsp;·&nbsp; <span style="color:#9FB0BC;font-weight:700">━</span> 30-day average (the baseline) — the shaded gap shows how far current form is from normal</p>`;
     $('#avBody').innerHTML = series.map((s, i) => {
       const full = s.rows.filter(r => r.date < s.account.today);       // full days only
@@ -963,7 +992,7 @@ async function renderAverages() {
       return `${single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`}
         ${rows.length < 7 ? `<div class="card"><span class="hint">Not enough data yet for ${esc(targets[i].name)} — needs at least a week of history.</span></div>`
           : legend + buildAvCards(rows, s.account.currency, single)
-            + (single ? `<div id="avFocus"></div>` + buildMomentum(full, todayRow, s.account.currency) + buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
+            + (single ? `<div id="avFocus"></div>` + buildMomentum(full, todayRow, s.account.currency) + buildAttribution(ovAcc) + buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
     }).join('');
     document.querySelectorAll('#avBody .av-card[data-m]').forEach(c => c.onclick = () => avFocus(c.dataset.m));
     document.querySelectorAll('#avBody .strip .dot').forEach(el => el.onclick = () => { const t = $('#stripDetail'); if (t) t.textContent = '⚑ ' + el.dataset.detail; });

@@ -577,8 +577,10 @@ async function twSummary(env, shopDomain, start, end) {
 }
 
 function pickGoogleSpend(map) {
+  if (map.ga_adCost != null) return { key: 'ga_adCost', value: map.ga_adCost };   // TW's Google Ads spend (verified 2026-08-20)
   const keys = Object.keys(map);
-  const hit = keys.find(k => /google/i.test(k) && /spend|cost|ads/i.test(k) && !/organic|roas|cpa|conv|click|impr/i.test(k));
+  const hit = keys.find(k => /google/i.test(k) && /spend|adcost/i.test(k)
+    && !/organic|roas|cpa|conv|click|impr|ctr|cpc|cpm|bench|peer/i.test(k));
   return hit ? { key: hit, value: map[hit] } : { keys };
 }
 
@@ -599,8 +601,9 @@ async function refreshGoogleSpend(env, acct) {
   await putSetting(env, `twMetrics:${acct.act_id}`, JSON.stringify(catalog)).catch(() => {});
   let g1 = pickGoogleSpend(mtdMap);
   if (g1.keys && Array.isArray(mtdRes.raw?.metrics)) {
-    // Second chance: find the metric whose service is google-ads and title says spend/cost.
-    const cand = mtdRes.raw.metrics.find(m => (m.services || []).some(s => /google/i.test(s)) && /spend|cost/i.test(m.title || '') && !/roas|cpa|conv/i.test(m.title || ''));
+    // Second chance: currency metric on the google-ads service titled like spend.
+    const cand = mtdRes.raw.metrics.find(m => (m.services || []).includes('google-ads') && m.type === 'currency'
+      && /^google ads$|spend/i.test(m.title || '') && !/roas|cpa|conv|cpc|cpm|ctr|peer/i.test(m.title || ''));
     const k = cand && (cand.metricId ?? cand.id);
     if (k != null && mtdMap[k] != null) g1 = { key: k, value: mtdMap[k] };
   }
@@ -611,7 +614,14 @@ async function refreshGoogleSpend(env, acct) {
   }
   const lmSameV = pickGoogleSpend((await twSummary(env, acct.tw_shop, `${pm}-01`, lmSame)).map).value ?? 0;
   const lmTotalV = pickGoogleSpend((await twSummary(env, acct.tw_shop, `${pm}-01`, `${pm}-${String(dim).padStart(2, '0')}`)).map).value ?? 0;
-  const data = { ym, metric: g1.key, mtd: g1.value ?? 0, lm_same_day: lmSameV, lm_total: lmTotalV, updated: new Date().toISOString() };
+  // Attribution snapshot, last 7 full days: blended truth + pixel-attributed, for the Averages "Attribution check".
+  const l7Map = (await twSummary(env, acct.tw_shop, addDays(today, -7), addDays(today, -1))).map;
+  const attr7 = {
+    blended_roas: l7Map.totalRoas ?? null, blended_cpa: l7Map.totalCpa ?? null,
+    blended_spend: l7Map.blendedAds ?? null, blended_sales: l7Map.blendedSales ?? null,
+    pixel_attr_roas: l7Map.blendedAttributedRoas ?? null,
+  };
+  const data = { ym, metric: g1.key, mtd: g1.value ?? 0, lm_same_day: lmSameV, lm_total: lmTotalV, attr7, updated: new Date().toISOString() };
   await env.DB.prepare(`UPDATE accounts SET google_spend_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(data)).run();
   return { name: acct.name, ok: true, metric: g1.key, mtd: data.mtd };
 }
@@ -792,6 +802,7 @@ async function accountOverview(env, a) {
     target_cpa: a.target_cpa ?? null, target_roas: a.target_roas ?? null, slack_channel: a.slack_channel ?? null,
     last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
     today_spend: byDate[today]?.spend ?? null,
+    tw7: g?.attr7 ?? null,
     mtd: { spend: mtd, google: g ? g.mtd : null, combined, google_updated: g?.updated ?? null,
       budget, expected, pace_pct: expected ? combined / expected - 1 : null,
       projected: elapsed > 0.02 ? combined / elapsed : null, elapsed, days_in_month: dim, day_of_month: dom,
