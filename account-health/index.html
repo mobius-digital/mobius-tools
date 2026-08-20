@@ -132,6 +132,12 @@
   .cl-it .note:hover{color:var(--ink)}
   .note-btn{font-size:11.5px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:7px;padding:5px 9px;white-space:nowrap}
   .note-btn:hover{color:var(--ink);border-color:var(--brand-ink);border-style:solid}
+  .modal-wrap{position:fixed;inset:0;background:rgba(12,22,29,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 0}
+  .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;width:100%;max-width:460px;box-shadow:0 18px 50px rgba(12,22,29,.25)}
+  .modal h3{font-size:15.5px;font-weight:700;margin-bottom:4px}
+  .modal .hint{color:var(--muted);font-size:12.5px;margin-bottom:12px;line-height:1.5}
+  .modal input,.modal textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;background:var(--surface)}
+  .modal textarea{min-height:76px;resize:vertical}
   .cl-it .what{line-height:1.55}
   .cl-it .acts{display:flex;gap:7px;align-items:center;white-space:nowrap}
   .cl-it .acts select{padding:4px 26px 4px 7px;font-size:12px;color:var(--muted);max-width:160px;background-position:right 9px center}
@@ -343,6 +349,35 @@ async function renderOverview() {
     <p class="tiny" style="margin-top:10px">Budget pace = MTD spend vs (monthly budget × share of month elapsed). Green within ±10%, amber within ±25%. 7d/30d windows end yesterday; the last 3 days are still settling.</p>`;
 }
 
+/* ---------- in-app dialog (replaces browser prompt()) ---------- */
+function modal({ title, hint, value = '', placeholder = '', multiline = false, save = 'Save' }) {
+  return new Promise(resolve => {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal">
+      <h3>${esc(title)}</h3>${hint ? `<p class="hint">${esc(hint)}</p>` : ''}
+      ${multiline ? `<textarea id="mVal" placeholder="${esc(placeholder)}"></textarea>` : `<input id="mVal" type="text" placeholder="${esc(placeholder)}">`}
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0">
+        <button class="btn" data-m="cancel">Cancel</button>
+        <button class="btn primary" data-m="ok">${esc(save)}</button>
+      </div></div>`;
+    document.body.appendChild(w);
+    const inp = w.querySelector('#mVal');
+    inp.value = value || '';
+    inp.focus();
+    if (inp.setSelectionRange) inp.setSelectionRange(inp.value.length, inp.value.length);
+    const done = v => { w.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = e => {
+      if (e.key === 'Escape') done(null);
+      if (e.key === 'Enter' && (!multiline || e.ctrlKey || e.metaKey)) done(inp.value);
+    };
+    document.addEventListener('keydown', onKey);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
+    w.querySelector('[data-m="ok"]').onclick = () => done(inp.value);
+    w.querySelector('[data-m="cancel"]').onclick = () => done(null);
+  });
+}
+
 /* ---------- Change Log (Chat 1) ---------- */
 const CL = {
   range: localStorage.getItem('ah_cl_range') || '7',
@@ -405,7 +440,12 @@ async function renderChangeLog() {
     const sel = e.target.closest('select[data-id]'); if (!sel) return;
     const r = CL.rows.find(x => x.id === sel.dataset.id); if (!r) return;
     if (sel.value === '__custom') {
-      const v = prompt('Why was this change made?', r.reason && !CL_REASONS.includes(r.reason) ? r.reason : '');
+      const v = await modal({
+        title: 'Custom reason',
+        hint: 'Your own "why" for when the presets don\'t fit — e.g. "iOS update broke tracking". It\'s saved as this change\'s reason and Claude uses it in updates just like a preset one.',
+        placeholder: 'Why was this change made?',
+        value: r.reason && !CL_REASONS.includes(r.reason) ? r.reason : '',
+      });
       if (v == null || !v.trim()) return clDrawFeed();   // cancelled — restore display
       r.reason = v.trim();
     } else if (sel.value === '__sugg') {
@@ -420,7 +460,12 @@ async function renderChangeLog() {
     const btn = e.target.closest('[data-id][data-do]'); if (!btn) return;
     const r = CL.rows.find(x => x.id === btn.dataset.id); if (!r) return;
     if (btn.dataset.do === 'note') {
-      const v = prompt('Note — extra context for this change (Claude reads it too):', r.note || '');
+      const v = await modal({
+        title: r.note ? 'Edit note' : 'Add a note',
+        hint: 'Extra context that travels with this change — it shows in italics underneath, and Claude reads it when writing updates. The "why?" dropdown is the reason; a note is anything extra worth remembering.',
+        placeholder: 'e.g. ROAS held 3 days — revisit Friday before scaling further',
+        value: r.note || '', multiline: true,
+      });
       if (v == null) return;
       r.note = v;
       await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify({ note: v }) }).catch(err => alert(err.message));
@@ -504,10 +549,14 @@ function clDrawPanel() {
         <select id="adWhy"><option value="">why?</option>${CL_REASONS.map(x => `<option>${x}</option>`).join('')}<option value="__custom">Custom…</option></select>
         <button class="btn primary" id="adGo">Save</button>
       </div><span class="tiny" id="adMsg"></span></div>`;
-    $('#adWhy').onchange = () => {
+    $('#adWhy').onchange = async () => {
       const sel = $('#adWhy');
       if (sel.value !== '__custom') return;
-      const v = prompt('Why was this change made?');
+      const v = await modal({
+        title: 'Custom reason',
+        hint: 'Your own "why" for when the presets don\'t fit. It\'s saved as this change\'s reason and Claude uses it in updates.',
+        placeholder: 'Why was this change made?',
+      });
       if (v && v.trim()) {
         const o = document.createElement('option'); o.textContent = v.trim();
         sel.insertBefore(o, sel.querySelector('option[value="__custom"]'));
