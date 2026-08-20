@@ -221,16 +221,30 @@ const money = (n, cur) => {
   catch { return `${cur} ${n.toFixed(2)}`; }
 };
 
+/** Budget extra_data comes in two shapes: flat {old_value, new_value} in cents, or
+ *  "composite_data" where each side is {type:'payment_amount', currency, old_value|new_value,
+ *  additional_value:'Per day'|...}. Normalise both to {oldCents, newCents, cur, perStr}. */
+function budgetValues(x, ev) {
+  let oldV = x.old_value, newV = x.new_value;
+  let cur = x.currency, perStr = `${x.type || ''} ${ev.event_type || ''}`;
+  if (oldV && typeof oldV === 'object') { cur = oldV.currency || cur; perStr += ` ${oldV.additional_value || ''}`; oldV = oldV.old_value ?? oldV.new_value; }
+  if (newV && typeof newV === 'object') { cur = newV.currency || cur; perStr += ` ${newV.additional_value || ''}`; newV = newV.new_value ?? newV.old_value; }
+  if (oldV == null || newV == null || !isFinite(+oldV) || !isFinite(+newV)) return null;
+  return { oldCents: +oldV, newCents: +newV, cur, perStr };
+}
+
 /** One readable line per event: "Budget: $210.00/day → $300.00/day" etc. */
 function summarise(ev, category, currency) {
   const x = safeJson(ev.extra_data, {});
   const obj = ev.object_name ? ` "${ev.object_name}"` : '';
   const kind = (ev.object_type || '').toLowerCase().replace('adset', 'ad set').replace('adgroup', 'ad');
-  if (category === 'budget' && x.old_value != null && x.new_value != null) {
-    const old = +x.old_value / 100, nu = +x.new_value / 100;   // Meta reports cents
-    const per = /lifetime/i.test(x.type || ev.event_type || '') ? '/lifetime' : '/day';
-    const cur = x.currency || currency;
-    return `Budget: ${money(old, cur)}${per} → ${money(nu, cur)}${per}${obj}`;
+  if (category === 'budget') {
+    const b = budgetValues(x, ev);
+    if (b) {
+      const per = /lifetime/i.test(b.perStr) ? '/lifetime' : '/day';
+      const cur = b.cur || currency;
+      return `Budget: ${money(b.oldCents / 100, cur)}${per} → ${money(b.newCents / 100, cur)}${per}${obj}`;
+    }
   }
   if (category === 'ad_paused') return `Paused ad${obj}`;
   if (category === 'ad_relaunched') return `Relaunched ad${obj}`;
