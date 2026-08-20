@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   target_cpa          REAL,                      -- KPI guardrail: 7d CPA above this = breach
   target_roas         REAL,                      -- KPI guardrail: 7d ROAS below this = breach
   slack_channel       TEXT,                      -- per-brand alerts channel (falls back to settings.slackChannel)
+  ads_backfill_done   INTEGER NOT NULL DEFAULT 0,-- 90d ad-level backfill finished (walks back 14d per sync until set)
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,

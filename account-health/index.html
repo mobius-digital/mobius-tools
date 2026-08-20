@@ -696,9 +696,9 @@ function buildAvCards(rows, currency) {
     const d730 = v7 != null && v30 ? v7 / v30 - 1 : null;
     const tr = trendLabel(d37, d730, m.lower);
     return `<div class="av-card ${tr.cls}">
-      <div class="av-top"><span class="av-label">${m.label}</span><b class="av-val">${m.fmt(v7, currency)}</b></div>
+      <div class="av-top"><span class="av-label">${m.label}</span><span style="text-align:right"><b class="av-val">${m.fmt(v7, currency)}</b><br><span class="tiny">7-day avg</span></span></div>
       ${sparkSVG(s7, s30)}
-      <div class="av-trend ${tr.cls}">${tr.t}${d37 != null ? ` · 3v7 ${fmtPct(d37)}` : ''}</div>
+      <div class="av-trend ${tr.cls}" title="Compares the average of the last 3 days against the last 7 — an early read on whether the metric just turned">${tr.t}${d37 != null ? ` · last 3d vs last 7d: ${fmtPct(d37)}` : ''}</div>
     </div>`;
   }).join('') + `</div>`;
 }
@@ -713,8 +713,10 @@ function buildAvStrip(events, fromYmd, toYmd) {
     if (x < 0 || x > 100) return '';
     return `<span class="dot" style="left:${x.toFixed(2)}%;background:${color(ev.category)}" title="${esc(d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''))}"></span>`;
   }).join('');
-  return `<div class="card" style="padding:10px 20px 4px"><div class="strip">${dots}</div>
-    <p class="tiny" style="margin-bottom:8px">Changes in this window — <span style="color:var(--warn)">●</span> budget · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other. Hover for detail; full story in the Change Log tab.</p></div>`;
+  return `<div class="card" style="padding:14px 20px 4px"><h3 style="margin-bottom:0">Changes we made in this window</h3>
+    <p class="hint">Each dot is a change from the Change Log, placed on the same timeline as the charts above — so you can see whether a move we made lines up with a metric turning. Hover any dot for the details.</p>
+    <div class="strip">${dots}</div>
+    <p class="tiny" style="margin-bottom:8px"><span style="color:var(--warn)">●</span> budget change · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other</p></div>`;
 }
 
 function buildAvTable(rows, currency) {
@@ -731,6 +733,24 @@ function buildAvTable(rows, currency) {
     <tbody>${AV_METRICS.map(m => `<tr><td><b>${m.label}</b></td>${[3, 7, 14, 30].map(n => cell(m, n)).join('')}</tr>`).join('')}</tbody></table></div></div>`;
 }
 
+/** Today vs yesterday vs 3-day vs 7-day — the "did something just break?" view. */
+function buildMomentum(fullRows, todayRow, currency) {
+  const win = n => fullRows.slice(-n);
+  const stat = (m, list) => { let a = 0, b = 0; list.forEach(r => { a += m.num(r) || 0; b += (m.den(r) ?? 1) || 0; }); return b ? a / b : null; };
+  const rows = AV_METRICS.map(m => {
+    const t = todayRow ? stat(m, [todayRow]) : null;
+    const y = stat(m, win(1)), d3 = stat(m, win(3)), d7 = stat(m, win(7));
+    return `<tr><td><b>${m.label}</b></td>
+      <td class="num">${m.fmt(t, currency)}<span class="tiny"> so far</span></td>
+      <td class="num">${m.fmt(y, currency)}${delta(y, d7, m.lower)}</td>
+      <td class="num">${m.fmt(d3, currency)}${delta(d3, d7, m.lower)}</td>
+      <td class="num">${m.fmt(d7, currency)}</td></tr>`;
+  }).join('');
+  return `<div class="card"><h3 style="margin-bottom:2px">Momentum — is anything breaking right now?</h3>
+    <p class="hint" style="margin-bottom:10px">Today vs yesterday vs the short averages. The % tags compare each column to the 7-day average — if yesterday or the 3-day is way off it, something changed very recently: check the change dots below and the Change Log. Today is a partial day and conversions lag, so read its column as an early signal only.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Metric</th><th class="num">Today</th><th class="num">Yesterday <span class="tiny">vs 7d</span></th><th class="num">3-day avg <span class="tiny">vs 7d</span></th><th class="num">7-day avg</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
 async function shareLink(btn, actId) {
   btn.disabled = true;
   try {
@@ -745,9 +765,11 @@ async function renderAverages() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
   $('#main').innerHTML = `<h2>Averages</h2>
-    <p class="sub">One question per card: is the 7-day (blue) on the good side of the 30-day (gray), and did that just change? Green top = winning vs the account's own baseline, red = losing. Windows end yesterday — the last 3 days of conversions are still settling.</p>
+    <p class="sub">One question per card: <b>is this metric's recent form (blue line = 7-day average) better or worse than its own baseline (gray line = 30-day average)?</b> Green top border = beating the baseline, red = losing to it. Meta data only. Averages end yesterday — the last 3 days of conversions are still settling.</p>
     ${setupBanner()}
-    <div class="row">${['30','60','90','180'].map(w => `<button class="chip ${AV.win===w?'on':''}" data-w="${w}">${w}d</button>`).join('')}
+    <div class="row">
+      <span class="tiny" style="font-weight:700" title="How far back the charts look. This only changes how much history the lines show — the cards' current values are always the last 7 days.">History shown:</span>
+      ${['30','60','90','180'].map(w => `<button class="chip ${AV.win===w?'on':''}" data-w="${w}">last ${w} days</button>`).join('')}
       <span style="flex:1"></span>
       ${single ? `<button class="btn" id="avShare" title="Creates a read-only link for this client — no sign-in needed, internal notes stay hidden">↗ Share with client</button>` : ''}</div>
     <div id="avBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
@@ -759,14 +781,16 @@ async function renderAverages() {
     const targets = single ? [single] : active;
     if (!targets.length) { $('#avBody').innerHTML = ''; return; }
     const series = await Promise.all(targets.map(a => api(`/api/series?act=${a.act_id}&days=${+AV.win + 32}`)));
+    const legend = `<p class="tiny" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">━</span> 7-day average (recent form) &nbsp;·&nbsp; <span style="color:#9FB0BC;font-weight:700">━</span> 30-day average (the baseline) — the shaded gap shows how far current form is from normal</p>`;
     $('#avBody').innerHTML = series.map((s, i) => {
       const full = s.rows.filter(r => r.date < s.account.today);       // full days only
+      const todayRow = s.rows.find(r => r.date === s.account.today) || null;
       const rows = full.slice(-(+AV.win));
       const fromYmd = rows[0]?.date || s.account.today;
       return `${single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`}
         ${rows.length < 7 ? `<div class="card"><span class="hint">Not enough data yet for ${esc(targets[i].name)} — needs at least a week of history.</span></div>`
-          : buildAvCards(rows, s.account.currency)
-            + (single ? buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
+          : legend + buildAvCards(rows, s.account.currency)
+            + (single ? buildMomentum(full, todayRow, s.account.currency) + buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
     }).join('');
   } catch (e) { $('#avBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
 }
@@ -824,7 +848,7 @@ function buildPaceCard(a, opts = {}) {
 async function renderPacing() {
   const single = S.act !== 'all';
   $('#main').innerHTML = `<h2>Pacing</h2>
-    <p class="sub">Month-to-date spend against each client's budget and against last month. The dark marker on each bar is where spend should be today if the month lands exactly on budget. The hour-by-hour curve for "are we pacing hot today?" arrives in Chat 4.</p>
+    <p class="sub">Month-to-date spend against each client's monthly target and against last month. The dark marker on each bar is where spend should be today if the month lands exactly on target. <b>Spend shown is Meta only for now</b> — the Google spend line is approved and queued. The hour-by-hour "are we pacing hot today?" curve is the next build.</p>
     ${setupBanner()}
     ${single ? `<div class="row"><span style="flex:1"></span><button class="btn" id="pcShare" title="Creates a read-only link for this client — no sign-in needed">↗ Share with client</button></div>` : ''}
     <div id="pcBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
@@ -927,9 +951,11 @@ async function renderCreative() {
     const res = await Promise.all(targets.map(a => api(`/api/creative?act=${a.act_id}&fresh=${CR.fresh}&window=${CR.win}`)));
     $('#crBody').innerHTML = res.map((d, i) => {
       const head = single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`;
-      if (d.empty) return `${head}<div class="card"><span class="hint">${d.syncing ? `First-time ad-level backfill just started for ${esc(targets[i].name)} — refresh in a minute or two.` : 'No ad-level data yet — hit ↻ Sync now.'}</span></div>`;
+      const bf = d.backfill;
+      const bfBanner = bf ? `<div class="notice warn">⏳ <div><b>Loading ad history for ${esc(targets[i].name)} — ${bf.error ? 'hit an error' : `${bf.daysDone ?? 0} of ${bf.daysTotal ?? 90} days in`}.</b> ${bf.error ? `<code>${esc(bf.error)}</code>` : 'Each refresh (and every nightly sync) pulls more; numbers firm up as it completes.'}</div></div>` : '';
+      if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet — hit ↻ Sync now.</span></div>`}`;
       const ins = d.insight;
-      return `${head}${crCards(d)}
+      return `${head}${bfBanner}${crCards(d)}
         ${ins ? `<div class="cr-quote">In the ${ins.n} weeks with the most spend on fresh creative (~${(ins.topShare * 100).toFixed(0)}% ≤${d.fresh}d), median CPA was <b>${fmtMoney(ins.topCpa, d.account.currency)}</b> — vs <b>${fmtMoney(ins.botCpa, d.account.currency)}</b> in the ${ins.n} weeks with the least (~${(ins.botShare * 100).toFixed(0)}%).</div>` : ''}
         ${single ? `<div class="card"><h3 style="margin-bottom:2px">Weekly spend share by creative age</h3><p class="hint" style="margin-bottom:8px">Darkest = freshest; watch the fresh green expand or collapse.</p>${crBars(d.weekly)}
           <p class="tiny" style="margin-top:6px">${CR_LABELS.map((l, ci) => `<span style="color:${CR_COLORS[ci]}">■</span> ${l}`).join(' &nbsp; ')}</p></div>

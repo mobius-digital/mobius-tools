@@ -325,18 +325,15 @@ async function syncActivities(env, acct, sinceISO) {
 
 const ymdDiff = (a, b) => Math.round((new Date(a + 'T12:00:00Z') - new Date(b + 'T12:00:00Z')) / 86400e3);
 
-/** Multi-row inserts (14 rows/statement, 30 statements/batch) keep subrequests low on 90-day backfills. */
-async function syncAdDaily(env, acct, days) {
-  const today = localDate(acct.tz);
-  const adCount = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1`).bind(acct.act_id).first())?.n ?? 0;
-  const window = days ?? (adCount ? RESYNC_DAYS : BACKFILL_DAYS);
-  const since = addDays(today, -window);
+/** One 14-day slice of level=ad insights. Small on purpose — Meta rejects huge ad-level
+ *  pulls, and slices keep each invocation well under Workers subrequest limits. */
+async function syncAdSlice(env, acct, since, until) {
   const rows = await metaAll(env, `${acct.act_id}/insights`, {
     level: 'ad', time_increment: 1,
-    time_range: { since, until: today },
+    time_range: { since, until },
     fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,actions,action_values',
     limit: 500,
-  }, 80);
+  }, 25);
   const daily = rows.filter(r => r.ad_id).map(r => [acct.act_id, r.ad_id, r.date_start, +r.spend || 0, +r.impressions || 0,
     pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES)]);
   const stmts = [];
@@ -361,11 +358,42 @@ async function syncAdDaily(env, acct, days) {
     ).bind(...chunk.flat()));
   }
   for (let i = 0; i < stmts.length; i += 30) await env.DB.batch(stmts.slice(i, i + 30));
+  return rows.length;
+}
+
+async function updFirstSpend(env, actId) {
   await env.DB.prepare(
     `UPDATE ads SET first_spend_date = (SELECT MIN(d.date) FROM ad_daily d
        WHERE d.act_id = ads.act_id AND d.ad_id = ads.ad_id AND d.spend > 0) WHERE act_id = ?1`,
-  ).bind(acct.act_id).run();
-  return rows.length;
+  ).bind(actId).run();
+}
+
+/** Resumable ad-level sync. Backfill walks backwards 14 days at a time until 90 days are
+ *  in; once done, each call is a cheap 3-day resync. Errors land in accounts.last_error. */
+async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
+  const today = localDate(acct.tz);
+  try {
+    if (acct.ads_backfill_done) {
+      const n = await syncAdSlice(env, acct, addDays(today, -RESYNC_DAYS), today);
+      await updFirstSpend(env, acct.act_id);
+      return { rows: n, done: true };
+    }
+    const target = addDays(today, -BACKFILL_DAYS);
+    let cursor = (await env.DB.prepare(`SELECT MIN(date) AS d FROM ad_daily WHERE act_id = ?1`).bind(acct.act_id).first())?.d || today;
+    let total = 0, slices = maxSlices;
+    while (slices-- > 0 && cursor > target) {
+      const since = addDays(cursor, -14) < target ? target : addDays(cursor, -14);
+      total += await syncAdSlice(env, acct, since, cursor);
+      cursor = since;
+    }
+    const done = cursor <= target;
+    if (done) await env.DB.prepare(`UPDATE accounts SET ads_backfill_done = 1 WHERE act_id = ?1`).bind(acct.act_id).run();
+    await updFirstSpend(env, acct.act_id);
+    return { rows: total, done, daysDone: Math.min(BACKFILL_DAYS, Math.max(0, ymdDiff(today, cursor))), daysTotal: BACKFILL_DAYS };
+  } catch (e) {
+    await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, `ad sync: ${e.message}`).run().catch(() => {});
+    return { error: e.message };
+  }
 }
 
 /** Full sync for one account. `days` overrides the insights window. */
@@ -378,7 +406,7 @@ async function syncAccount(env, acct, days) {
       ? new Date(new Date(acct.last_sync_activities).getTime() - 6 * 3600e3).toISOString()  // 6h overlap
       : new Date(Date.now() - ACTIVITY_BACKFILL_DAYS * 86400e3).toISOString();
     out.activities = await syncActivities(env, acct, since);
-    out.ad_rows = await syncAdDaily(env, acct, days);
+    out.ad = await syncAdDaily(env, acct, { maxSlices: 2 });
   } catch (e) {
     out.error = e.message;
     await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, e.message).run();
@@ -909,11 +937,10 @@ export default {
         const windowDays = Math.min(+url.searchParams.get('window') || 14, 30);
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
+        let backfill = null;
+        if (!acct.ads_backfill_done) backfill = await syncAdDaily(env, acct, { maxSlices: 2 });
         const r = await creative(env, acct, freshDays, windowDays);
-        if (r.empty) {                     // first visit: kick the ad-level backfill in the background
-          ctx.waitUntil(syncAdDaily(env, acct, BACKFILL_DAYS).catch(() => {}));
-          return json({ empty: true, syncing: true });
-        }
+        if (backfill && !backfill.done) r.backfill = backfill;   // progress or error for the banner
         return json(r);
       }
 
