@@ -796,13 +796,31 @@ async function sha256hex(s) {
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Valid credentials: the dashboard-set password (hash in KV) or the
- *  ADMIN_TOKEN secret, which stays valid as a master/recovery key. */
+/* Shared Mobius Google session — minted by the mobius-account-health worker
+ * (/api/google-login), verified here with the same SESSION_SECRET secret. */
+const MOBIUS_DOMAIN = 'go-mobius-digital.com';
+async function validSession(env, token) {
+  const m = /^mds\.([\w-]+)\.([\w-]+)$/.exec(token || '');
+  if (!m || !env.SESSION_SECRET) return false;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = btoa(String.fromCharCode(...new Uint8Array(
+    await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(m[1])))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  if (sig !== m[2]) return false;
+  let email, exp;
+  try { [email, exp] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return false; }
+  return +exp > Date.now() && String(email).toLowerCase().endsWith('@' + MOBIUS_DOMAIN);
+}
+
+/** Valid credentials: a Mobius Google session, the dashboard-set password
+ *  (hash in KV), or the ADMIN_TOKEN secret as a master/recovery key. */
 async function isAdmin(request, env) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return false;
   const tok = auth.slice(7);
   if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
+  if (await validSession(env, tok)) return true;
   const stored = await env.KV.get('passwordHash');
   return !!stored && (await sha256hex(tok)) === stored;
 }

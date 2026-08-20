@@ -533,9 +533,27 @@ async function getSettings(env) {
   return s;
 }
 
-function isAdmin(request, env) {
+/* Shared Mobius Google session — minted by the mobius-account-health worker
+ * (/api/google-login), verified here with the same SESSION_SECRET secret. */
+const MOBIUS_DOMAIN = 'go-mobius-digital.com';
+async function validSession(env, token) {
+  const m = /^mds\.([\w-]+)\.([\w-]+)$/.exec(token || '');
+  if (!m || !env.SESSION_SECRET) return false;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = btoa(String.fromCharCode(...new Uint8Array(
+    await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(m[1])))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  if (sig !== m[2]) return false;
+  let email, exp;
+  try { [email, exp] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return false; }
+  return +exp > Date.now() && String(email).toLowerCase().endsWith('@' + MOBIUS_DOMAIN);
+}
+
+async function isAdmin(request, env) {
   const auth = request.headers.get('Authorization') || '';
-  return env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`;
+  if (env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`) return true;
+  return auth.startsWith('Bearer ') && (await validSession(env, auth.slice(7)));
 }
 
 /* ------------------------------------------------------------------ */
@@ -595,7 +613,7 @@ export default {
 
     /* ---- admin ---- */
     if (path.startsWith('/api/')) {
-      if (!isAdmin(request, env)) return json({ error: 'unauthorized' }, 401);
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
 
       if (path === '/api/settings' && request.method === 'GET') {
         return json(await getSettings(env));

@@ -428,9 +428,16 @@ const LS = { url:'restock_worker', tok:'restock_token', store:'restock_store' };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/* Shared Mobius session (set by /hq Google sign-in; same origin, all tools). */
+function sharedSession() {
+  const t = localStorage.getItem('mobius_session');
+  const exp = +localStorage.getItem('mobius_session_exp') || 0;
+  return t && (exp === 0 || exp > Date.now() + 60e3) ? t : null;
+}
+
 let S = {
   url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
-  tok: localStorage.getItem(LS.tok) || '',
+  tok: localStorage.getItem(LS.tok) || sharedSession() || '',
   store: localStorage.getItem(LS.store) || 'lucky',
   report: null, settings: null, stores: null,
   filter: 'all', q: '', open: -1, openVar: -1, visible: [], expand: new Set(), sort: null,
@@ -466,7 +473,12 @@ async function boot() {
     $('#btnReport').style.display = S.report ? '' : 'none';
     render(report.__err || null);
   } catch (e) {
-    if (/unauthorized/i.test(e.message)) { S.tok=''; localStorage.removeItem(LS.tok); return renderGate('Wrong password — try again.'); }
+    if (/unauthorized/i.test(e.message)) {
+      const wasShared = S.tok && S.tok === sharedSession();
+      S.tok=''; localStorage.removeItem(LS.tok);
+      if (wasShared) { ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); return renderGate('Your session expired — sign in again.'); }
+      return renderGate('Wrong password — try again.');
+    }
     setChip('Worker down', 'down');
     $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p>
       <button class="cta" onclick="boot()">Retry</button></div>`;
@@ -478,12 +490,13 @@ function renderGate(err) {
   setChip('Signed out','off');
   $('#main').innerHTML = `
   <div class="gate">
-    <h1>Sign in</h1>
-    <p>Lucky Golf inventory forecast. You'll stay signed in on this device.</p>
-    <label>Password</label><input id="gTok" type="password" placeholder="password" autofocus>
+    <h1>Mobius Restock</h1>
+    <p>Lucky Golf inventory forecast. Sign in once at Mobius HQ and every internal tool opens.</p>
+    <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/restock/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
-    <button class="cta" id="gGo">Sign in</button>
-    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Advanced</summary>
+    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
+      <label>Password</label><input id="gTok" type="password" placeholder="password">
+      <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
       <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
     </details>
   </div>`;
@@ -495,7 +508,6 @@ function renderGate(err) {
   };
   $('#gGo').onclick = go;
   $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
-  $('#gTok').focus();
 }
 
 /* ================= main render ================= */

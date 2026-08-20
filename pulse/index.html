@@ -234,7 +234,7 @@
     </div>
     <div class="frow">
       <label>Admin token</label>
-      <input type="password" id="inToken" placeholder="the ADMIN_TOKEN secret you set on the worker">
+      <input type="password" id="inToken" placeholder="blank = your Mobius Google sign-in (via /hq)">
     </div>
     <div class="btn-row">
       <button class="btn" id="connectBtn">Connect</button>
@@ -514,9 +514,15 @@ $('promoBtn').addEventListener('click',openModal);
 $('closeBtn').addEventListener('click',()=>overlay.classList.remove('open'));
 overlay.addEventListener('click',e=>{ if(e.target===overlay) overlay.classList.remove('open'); });
 
+/* Shared Mobius session (set by /hq Google sign-in) — used when no admin token is entered. */
+const sharedSession = () => {
+  const t = localStorage.getItem('mobius_session');
+  const exp = +localStorage.getItem('mobius_session_exp') || 0;
+  return t && (exp === 0 || exp > Date.now() + 60e3) ? t : '';
+};
 const api = async (path, opts={}) => {
   const wu = ($('inWorker').value||'').trim().replace(/\/+$/,'');
-  const tok = ($('inToken').value||'').trim();
+  const tok = ($('inToken').value||'').trim() || sharedSession();
   const r = await fetch(wu+path, { ...opts, headers:{
     'Authorization':`Bearer ${tok}`, 'Content-Type':'application/json', ...(opts.headers||{}) }});
   if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || `HTTP ${r.status}`);
