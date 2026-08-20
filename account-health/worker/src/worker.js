@@ -557,14 +557,22 @@ async function twSummary(env, shopDomain, start, end) {
     : typeof v === 'string' && v.trim() !== '' && isFinite(+v) ? +v
     : v && typeof v === 'object' ? num(v.value ?? v.metricValue ?? v.total) : null;
   const add = (k, v) => { const n = num(v); if (k != null && n != null) map[String(k)] = n; };
-  const walk = node => {
-    if (Array.isArray(node)) { for (const it of node) if (it && typeof it === 'object') add(it.metricName ?? it.name ?? it.id ?? it.key, it.value ?? it.metricValue ?? it.total ?? it); return; }
-    if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) {
-      if (Array.isArray(v) || (v && typeof v === 'object' && !('value' in v) && !('total' in v) && num(v) == null)) walk(v);
-      else add(k, v);
+  if (Array.isArray(body.metrics)) {
+    // Real observed shape: {metrics: [{id, metricId, title, values: {current, previous}, charts…}]}
+    for (const it of body.metrics) {
+      if (!it || typeof it !== 'object') continue;
+      add(it.metricId ?? it.id ?? it.metricName ?? it.name, it.values?.current ?? it.value ?? it.metricValue ?? it.total);
     }
-  };
-  walk(body);
+  } else {
+    const walk = node => {
+      if (Array.isArray(node)) { for (const it of node) if (it && typeof it === 'object') add(it.metricName ?? it.name ?? it.id ?? it.key, it.values?.current ?? it.value ?? it.metricValue ?? it.total ?? it); return; }
+      if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) {
+        if (Array.isArray(v) || (v && typeof v === 'object' && !('value' in v) && !('total' in v) && num(v) == null)) walk(v);
+        else add(k, v);
+      }
+    };
+    walk(body);
+  }
   return { map, raw: body };
 }
 
@@ -584,9 +592,18 @@ async function refreshGoogleSpend(env, acct) {
   const lmSame = `${pm}-${String(Math.min(+today.slice(8, 10), dim)).padStart(2, '0')}`;
   const mtdRes = await twSummary(env, acct.tw_shop, `${ym}-01`, today);
   const mtdMap = mtdRes.map;
-  // Stash the full metric-name list — tells us exactly what TW exposes (attribution models etc.)
-  await putSetting(env, `twMetrics:${acct.act_id}`, JSON.stringify(Object.keys(mtdMap))).catch(() => {});
-  const g1 = pickGoogleSpend(mtdMap);
+  // Stash the full metric catalog (id/title/type/services) — the map for attribution-model design.
+  const catalog = Array.isArray(mtdRes.raw?.metrics)
+    ? mtdRes.raw.metrics.map(m => ({ id: m.metricId ?? m.id, title: m.title, type: m.type, services: m.services }))
+    : Object.keys(mtdMap);
+  await putSetting(env, `twMetrics:${acct.act_id}`, JSON.stringify(catalog)).catch(() => {});
+  let g1 = pickGoogleSpend(mtdMap);
+  if (g1.keys && Array.isArray(mtdRes.raw?.metrics)) {
+    // Second chance: find the metric whose service is google-ads and title says spend/cost.
+    const cand = mtdRes.raw.metrics.find(m => (m.services || []).some(s => /google/i.test(s)) && /spend|cost/i.test(m.title || '') && !/roas|cpa|conv/i.test(m.title || ''));
+    const k = cand && (cand.metricId ?? cand.id);
+    if (k != null && mtdMap[k] != null) g1 = { key: k, value: mtdMap[k] };
+  }
   if (g1.keys) {
     // Keep the raw response so the parser can be adapted to TW's real shape.
     await putSetting(env, `twRaw:${acct.act_id}`, JSON.stringify(mtdRes.raw).slice(0, 8000)).catch(() => {});
