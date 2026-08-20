@@ -20,7 +20,7 @@ database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 
 # Public config (Google OAuth client id is public by design; used to verify sign-ins).
 [vars]
-GOOGLE_CLIENT_ID = "PASTE_GOOGLE_CLIENT_ID"
+GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put META_TOKEN        system-user token, ads_read on every client ad account
