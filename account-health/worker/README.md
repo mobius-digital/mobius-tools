@@ -59,18 +59,18 @@ Then in the dashboard → **Settings → Slack alert settings**: pick each brand
 channel in the accounts table (invite the bot to each channel first), optionally a
 fallback channel, **Save**, then **Send test message**.
 
-## 2d. Triple Whale key (you do this — adds Google spend to Pacing)
+## 2d. Triple Whale key (you do this — powers the Daily Brief only)
 
-Pacing counts total ad spend (Meta + Google). Google spend comes from Triple Whale:
+The four Meta pages never touch Triple Whale; the Daily Brief's store-level money
+(net sales, blended spend, COGS) does:
 
 1. app.triplewhale.com → Settings → **API Keys** → Create Key (read scopes are enough).
 2. From this folder:
    ```
    npx wrangler secret put TW_API_KEY
    ```
-3. Dashboard → Settings: each client's **Triple Whale shop** domain is prefilled;
-   click **↻ Refresh Google spend now** to verify (it reports which TW metric it
-   matched per client). Refreshes automatically every night after that.
+3. Dashboard → Settings: each client's **Triple Whale shop** domain is prefilled.
+   Verify from the Daily Brief page → **↻ Refresh Triple Whale data**.
 
 ## 2e. Daily Brief (you do this — per client, ~1 minute)
 
@@ -94,8 +94,8 @@ Sign in with the ADMIN_TOKEN the first time, then set a friendlier password in S
 ## Scheduled jobs
 
 - **03:30 UTC** — for every active account, re-pull the last 3 days of daily insights
-  (Meta conversions keep arriving for ~72h), new activity-log events, Google spend and
-  10 days of Triple Whale daily metrics; then pace/KPI Slack alerts. `/health` shows
+  (Meta conversions keep arriving for ~72h), new activity-log events, and 10 days of
+  Triple Whale daily metrics (Daily Brief); then pace/KPI Slack alerts. `/health` shows
   the last run.
 - **14:00 UTC** — Daily Briefs for every brand with auto-post on (see 2e).
 

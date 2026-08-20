@@ -63,6 +63,14 @@ Chats 3 and 4 are optional; the tool is already useful after Chat 2.
 - **Currency** is per account (Meta reports it); the Overview shows each
   client in its own currency and never sums across currencies.
 
+## Scope decision (2026-08-20, after shipping and reverting)
+
+Google spend (via Triple Whale) was added to Pacing/Overview money, then **removed
+at Cole's call**: mixing platforms made it impossible to tell at a glance which
+numbers were Meta. **The four Meta pages + Overview are Meta-only, always.** Triple
+Whale stays for the Daily Brief (store-level money, labelled as such). If
+cross-platform reporting is wanted, it gets its own dashboard.
+
 ## Decisions (Chat 5 — Daily Brief)
 
 - **Money = Triple Whale, performance = Meta** (unchanged): Net Sales uses TW

@@ -40,7 +40,7 @@ account-health/
 ## Build status: EVERYTHING IS SHIPPED (phases 0–5 + extras, 2026-08-20)
 
 All four pages, Overview, Settings, Summarise (Claude), share links, per-brand
-Slack alerts, KPI guardrails, Google spend via Triple Whale, intraday pacing,
+Slack alerts, KPI guardrails, intraday pacing,
 auto-suggested reasons, in-app help guides, **Daily Brief** (Chat 5 —
 CTC-style forecast-vs-actual with Claude narrative, auto-posts 14:00 UTC per
 enabled brand). Secrets set: META_TOKEN, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN,
@@ -65,9 +65,13 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
 - **claude-opus-5 spends thinking tokens INSIDE max_tokens** — a "1200-token"
   call returns truncated text mid-sentence. Give narrative calls ≥6000.
 
-- **Scope rule: performance = Meta only, money = all platforms.** Google spend
-  (from Triple Whale, per-brand `tw_shop`) appears ONLY in Pacing bars, Overview
-  MTD, and pace alerts.
+- **Scope rule (Cole, 2026-08-20, after trying the alternative): the four Meta
+  pages + Overview are 100% META-ONLY.** Every number there matches Ads Manager.
+  Google spend was folded into Pacing/Overview money and then REMOVED — mixing
+  sources made it impossible to tell what was Meta at a glance. Triple Whale is
+  used ONLY by the Daily Brief page (store-level money, clearly labelled) and by
+  `syncTwDaily`. Do not reintroduce blended/Google numbers into the Meta pages;
+  a separate Google dashboard is the agreed path if that's ever wanted.
 - **Cole's UX rules** (see memory `ui-preferences`): media-buyer vocabulary
   (CPA/ROAS — never dumb down terms like "fresh/stale"), conclusion-first
   sentences, questions as titles, click-openable ⓘ on every stat, crosshair
