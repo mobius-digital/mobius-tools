@@ -675,7 +675,7 @@ export default {
 
     if (path === '/health') {
       const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastRun'`).first().catch(() => null);
-      return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY });
+      return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY, hasSlackToken: !!env.SLACK_BOT_TOKEN });
     }
     if (path === '/' ) return Response.redirect(DASHBOARD_URL, 302);
 
@@ -812,6 +812,25 @@ export default {
         if ('slackChannel' in b) await putSetting(env, 'slackChannel', b.slackChannel || '');
         if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));
         return json({ ok: true });
+      }
+      if (path === '/api/slack-channels') {
+        if (!env.SLACK_BOT_TOKEN) return json({ error: 'SLACK_BOT_TOKEN secret is not set' }, 400);
+        const out = [];
+        let cursor;
+        do {
+          const u = new URL('https://slack.com/api/conversations.list');
+          u.searchParams.set('limit', '200');
+          u.searchParams.set('exclude_archived', 'true');
+          u.searchParams.set('types', 'public_channel,private_channel');
+          if (cursor) u.searchParams.set('cursor', cursor);
+          const r = await fetch(u, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+          const j = await r.json().catch(() => ({}));
+          if (!j.ok) return json({ error: `Slack: ${j.error || r.status}` }, 400);
+          out.push(...j.channels.map(c => ({ id: c.id, name: c.name, member: !!c.is_member })));
+          cursor = j.response_metadata?.next_cursor;
+        } while (cursor);
+        out.sort((a, b) => (b.member - a.member) || a.name.localeCompare(b.name));
+        return json({ channels: out });
       }
       if (path === '/api/slack-test' && request.method === 'POST') {
         if (!env.SLACK_BOT_TOKEN) return json({ error: 'SLACK_BOT_TOKEN secret is not set — see worker README' }, 400);
