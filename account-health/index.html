@@ -152,6 +152,9 @@
   .av-card svg{display:block;width:100%;height:46px}
   .av-trend{font-size:11.5px;font-weight:600;margin-top:5px;color:var(--muted)}
   .av-trend.good{color:var(--good)} .av-trend.bad{color:var(--bad)}
+  .av-card.clickable{cursor:pointer;transition:border-color .12s, box-shadow .12s}
+  .av-card.clickable:hover{border-color:var(--brand-ink);box-shadow:0 3px 14px rgba(12,22,29,.08)}
+  .info-i{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border:1px solid var(--line-strong);border-radius:50%;font-size:9px;font-weight:700;color:var(--muted);cursor:help;vertical-align:1px}
   .strip{position:relative;height:30px}
   .strip .dot{position:absolute;top:9px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);cursor:default;border:1.5px solid #fff;box-shadow:0 0 0 1px var(--line-strong)}
   .av-client{font-family:var(--serif);font-size:19px;margin:20px 0 10px}
@@ -687,20 +690,80 @@ function sparkSVG(s7, s30, w = 200, h = 46) {
     <polyline points="${line(s7)}" fill="none" stroke="#14608C" stroke-width="1.8"/></svg>`;
 }
 
-/** rows must be full days only (today excluded). */
-function buildAvCards(rows, currency) {
+const AV_DEFS = {
+  spend: 'Ad spend per day, Meta-reported.',
+  roas: 'Revenue ÷ spend, as Meta attributes it. Higher is better.',
+  cpa: 'Spend ÷ purchases — what one purchase costs. Lower is better.',
+  ctr: 'Link clicks ÷ impressions — are people clicking the ads. Higher is better.',
+  cpm: 'Cost per 1,000 impressions — what Meta charges for attention. Lower is better.',
+  thumbstop: '3-second video views ÷ impressions — how often people stop scrolling. Higher is better.',
+};
+
+/** rows must be full days only (today excluded). interactive = clickable cards (single-client view). */
+function buildAvCards(rows, currency, interactive = false) {
   return `<div class="av-grid">` + AV_METRICS.map(m => {
     const s7 = maSeries(rows, m, 7), s30 = maSeries(rows, m, 30), s3 = maSeries(rows, m, 3);
     const v7 = lastVal(s7), v30 = lastVal(s30), v3 = lastVal(s3);
     const d37 = v3 != null && v7 ? v3 / v7 - 1 : null;
     const d730 = v7 != null && v30 ? v7 / v30 - 1 : null;
     const tr = trendLabel(d37, d730, m.lower);
-    return `<div class="av-card ${tr.cls}">
-      <div class="av-top"><span class="av-label">${m.label}</span><span style="text-align:right"><b class="av-val">${m.fmt(v7, currency)}</b><br><span class="tiny">7-day avg</span></span></div>
+    return `<div class="av-card ${tr.cls}${interactive ? ' clickable' : ''}" ${interactive ? `data-m="${m.k}" title="Click for the full day-by-day ${m.label} chart with dates and changes"` : ''}>
+      <div class="av-top"><span class="av-label">${m.label} <span class="info-i" title="${esc(AV_DEFS[m.k])} The big number is the 7-day average; the blue line is that average over time vs the gray 30-day baseline.">i</span></span><span style="text-align:right"><b class="av-val">${m.fmt(v7, currency)}</b><br><span class="tiny">7-day avg</span></span></div>
       ${sparkSVG(s7, s30)}
       <div class="av-trend ${tr.cls}" title="Compares the average of the last 3 days against the last 7 — an early read on whether the metric just turned">${tr.t}${d37 != null ? ` · last 3d vs last 7d: ${fmtPct(d37)}` : ''}</div>
     </div>`;
   }).join('') + `</div>`;
+}
+
+/** Full-size day-by-day chart for one metric: daily values + 7d/30d averages + change dots, with a real date axis. */
+function focusSVG(rows, events, m, currency) {
+  const w = 940, h = 250, pl = 56, pr = 14, pt = 12, pb = 40;
+  const daily = rows.map(r => { const den = (m.den(r) ?? 1) || 0; return den ? (m.num(r) || 0) / den : null; });
+  const s7 = maSeries(rows, m, 7), s30 = maSeries(rows, m, 30);
+  const vals = [...daily, ...s7, ...s30].filter(v => v != null);
+  if (!vals.length) return '<p class="hint">No data.</p>';
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * 0.08; min -= pad; max += pad;
+  const n = rows.length;
+  const x = i => pl + i / Math.max(1, n - 1) * (w - pl - pr);
+  const y = v => pt + (1 - (v - min) / (max - min)) * (h - pt - pb);
+  const line = arr => arr.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(' ');
+  const hover = s7.map((v, i) => v == null ? '' :
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="6" fill="transparent"><title>${rows[i].date} — day: ${m.fmt(daily[i], currency)} · 7d avg: ${m.fmt(v, currency)}</title></circle>`).join('');
+  const ticks = Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)).map(i =>
+    `<text x="${x(i).toFixed(1)}" y="${h - 6}" font-size="10" text-anchor="middle" fill="#647684">${rows[i].date.slice(5)}</text>
+     <line x1="${x(i).toFixed(1)}" y1="${pt}" x2="${x(i).toFixed(1)}" y2="${h - pb + 4}" stroke="#DFE7EC" stroke-width="1"/>`).join('');
+  const dateIdx = Object.fromEntries(rows.map((r, i) => [r.date, i]));
+  const railY = h - pb + 12;
+  const color = c => c === 'budget' ? '#8F6412' : /paused/.test(c) ? '#9C3A2E' : /relaunch/.test(c) ? '#1C7A46' : '#14608C';
+  const evDots = (events || []).map(ev => {
+    const d = String(ev.event_time).slice(0, 10);
+    const i = dateIdx[d]; if (i == null) return '';
+    return `<circle cx="${x(i).toFixed(1)}" cy="${railY}" r="4.5" fill="${color(ev.category)}" stroke="#fff" stroke-width="1.2"><title>${esc(d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''))}</title></circle>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h + 14}" style="width:100%;height:auto">
+    ${ticks}
+    <polyline points="${line(daily)}" fill="none" stroke="#C4D2DB" stroke-width="1.2"/>
+    <polyline points="${line(s30)}" fill="none" stroke="#9FB0BC" stroke-width="1.7"/>
+    <polyline points="${line(s7)}" fill="none" stroke="#14608C" stroke-width="2.2"/>
+    ${hover}
+    <line x1="${pl}" y1="${railY}" x2="${w - pr}" y2="${railY}" stroke="#DFE7EC"/>${evDots}
+    <text x="2" y="${pt + 9}" font-size="10" fill="#647684">${m.fmt(max, currency)}</text>
+    <text x="2" y="${h - pb}" font-size="10" fill="#647684">${m.fmt(min, currency)}</text>
+    <text x="2" y="${railY + 4}" font-size="9" fill="#647684">changes</text>
+  </svg>`;
+}
+
+function avFocus(mKey) {
+  const d = AV.cur; if (!d) return;
+  const m = AV_METRICS.find(xx => xx.k === mKey);
+  $('#avFocus').innerHTML = `<div class="card" style="border-color:var(--brand)">
+    <div class="row" style="margin-bottom:2px"><h3>${m.label}, day by day</h3><span style="flex:1"></span><button class="btn" id="avFocusClose">✕ Close</button></div>
+    <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline. The dots on the bottom rail are changes we made — hover any point or dot for the date and detail.</p>
+    ${focusSVG(d.rows, d.events, m, d.account.currency)}</div>`;
+  $('#avFocus').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('#avFocusClose').onclick = () => { $('#avFocus').innerHTML = ''; };
 }
 
 function buildAvStrip(events, fromYmd, toYmd) {
@@ -716,7 +779,9 @@ function buildAvStrip(events, fromYmd, toYmd) {
   return `<div class="card" style="padding:14px 20px 4px"><h3 style="margin-bottom:0">Changes we made in this window</h3>
     <p class="hint">Each dot is a change from the Change Log, placed on the same timeline as the charts above — so you can see whether a move we made lines up with a metric turning. Hover any dot for the details.</p>
     <div class="strip">${dots}</div>
-    <p class="tiny" style="margin-bottom:8px"><span style="color:var(--warn)">●</span> budget change · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other</p></div>`;
+    <div class="tiny" style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:4px">
+      <span>${fromYmd}</span><span>${new Date((new Date(fromYmd).getTime() + new Date(toYmd).getTime()) / 2).toISOString().slice(0, 10)}</span><span>${toYmd}</span></div>
+    <p class="tiny" style="margin:6px 0 8px"><span style="color:var(--warn)">●</span> budget change · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other — hover a dot for the date and what changed</p></div>`;
 }
 
 function buildAvTable(rows, currency) {
@@ -765,7 +830,7 @@ async function renderAverages() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
   $('#main').innerHTML = `<h2>Averages</h2>
-    <p class="sub">One question per card: <b>is this metric's recent form (blue line = 7-day average) better or worse than its own baseline (gray line = 30-day average)?</b> Green top border = beating the baseline, red = losing to it. Meta data only. Averages end yesterday — the last 3 days of conversions are still settling.</p>
+    <p class="sub">Each card answers one question: <b>are the last 7 days better than this account's own normal (its last 30 days)?</b> The word under each card is the verdict — green words are good, red are bad. <b>Click any card</b> for the full day-by-day chart with dates and the changes we made. Meta data only; averages end yesterday because the last ~3 days of conversions are still settling.</p>
     ${setupBanner()}
     <div class="row">
       <span class="tiny" style="font-weight:700" title="How far back the charts look. This only changes how much history the lines show — the cards' current values are always the last 7 days.">History shown:</span>
@@ -787,11 +852,13 @@ async function renderAverages() {
       const todayRow = s.rows.find(r => r.date === s.account.today) || null;
       const rows = full.slice(-(+AV.win));
       const fromYmd = rows[0]?.date || s.account.today;
+      if (single) AV.cur = { rows, events: s.events, account: s.account };
       return `${single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`}
         ${rows.length < 7 ? `<div class="card"><span class="hint">Not enough data yet for ${esc(targets[i].name)} — needs at least a week of history.</span></div>`
-          : legend + buildAvCards(rows, s.account.currency)
-            + (single ? buildMomentum(full, todayRow, s.account.currency) + buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
+          : legend + buildAvCards(rows, s.account.currency, single)
+            + (single ? `<div id="avFocus"></div>` + buildMomentum(full, todayRow, s.account.currency) + buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
     }).join('');
+    document.querySelectorAll('#avBody .av-card[data-m]').forEach(c => c.onclick = () => avFocus(c.dataset.m));
   } catch (e) { $('#avBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
 }
 
