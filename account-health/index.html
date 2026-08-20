@@ -1169,9 +1169,9 @@ function crCards(d) {
   const c = d.cards, cur = d.account.currency;
   const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
   const verdict = c.freshCpa == null || c.staleCpa == null ? ''
-    : c.freshCpa <= c.staleCpa * 0.95 ? 'new ads buy customers cheaper — good sign for launching more'
-    : c.freshCpa >= c.staleCpa * 1.05 ? 'older ads are cheaper right now — normal; new ads need a few days to settle'
-    : 'new and old ads cost about the same';
+    : c.freshCpa <= c.staleCpa * 0.95 ? 'fresh converts cheaper — good sign for launching more'
+    : c.freshCpa >= c.staleCpa * 1.05 ? 'stale is cheaper right now — normal; fresh ads need a few days to settle'
+    : 'fresh and stale cost about the same';
   const lbl = 'style="white-space:normal;line-height:1.45;display:block"';
   return `<div class="av-grid" style="grid-template-columns:repeat(auto-fill,minmax(225px,1fr))">
     <div class="av-card ${dpp == null ? '' : dpp >= 0 ? 'good' : 'bad'}"><span class="av-label" ${lbl} title="Of everything spent in the selected period, the share that went to ads ≤${d.fresh} days old. Falling week after week = coasting on old creative.">Budget going to new ads <span class="info-i">i</span></span>
@@ -1180,9 +1180,9 @@ function crCards(d) {
     <div class="av-card"><span class="av-label" ${lbl} title="The average age of the ads the money actually ran on, weighted by spend. 64 days = the typical dollar went to a two-month-old ad.">How old are the ads we're funding? <span class="info-i">i</span></span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.swAge == null ? '—' : Math.round(c.swAge) + ' days'}</b>
       <div class="av-trend">average age of the ads behind the spend</div></div>
-    <div class="av-card"><span class="av-label" ${lbl} title="Cost per purchase from ads ≤${d.fresh} days old, over the selected period">CPA on new ads <span class="info-i">i</span></span>
-      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend">${c.freshCpa == null ? 'no purchases from new ads in this period yet' : `what a purchase costs from ads ≤${d.fresh}d old`}</div></div>
-    <div class="av-card"><span class="av-label" ${lbl} title="Cost per purchase from ads older than ${d.fresh} days, over the selected period">CPA on older ads <span class="info-i">i</span></span>
+    <div class="av-card"><span class="av-label" ${lbl} title="CPA from ads ≤${d.fresh} days old ('fresh'), over the selected period">Fresh CPA (≤${d.fresh}d) <span class="info-i">i</span></span>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend">${c.freshCpa == null ? 'no purchases from fresh ads in this period yet' : `CPA from ads ≤${d.fresh}d old`}</div></div>
+    <div class="av-card"><span class="av-label" ${lbl} title="CPA from ads older than ${d.fresh} days ('stale'), over the selected period">Stale CPA (>${d.fresh}d) <span class="info-i">i</span></span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.staleCpa, cur)}</b>
       <div class="av-trend">${verdict}</div></div>
   </div>`;
