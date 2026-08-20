@@ -557,6 +557,8 @@ async function refreshGoogleSpend(env, acct) {
   const dim = daysInMonth(pm + '-15');
   const lmSame = `${pm}-${String(Math.min(+today.slice(8, 10), dim)).padStart(2, '0')}`;
   const mtdMap = await twSummary(env, acct.tw_shop, `${ym}-01`, today);
+  // Stash the full metric-name list — tells us exactly what TW exposes (attribution models etc.)
+  await putSetting(env, `twMetrics:${acct.act_id}`, JSON.stringify(Object.keys(mtdMap))).catch(() => {});
   const g1 = pickGoogleSpend(mtdMap);
   if (g1.keys) return { name: acct.name, error: `no Google-spend metric found; TW returned: ${g1.keys.slice(0, 40).join(', ') || '(no metrics)'}` };
   const lmSameV = pickGoogleSpend(await twSummary(env, acct.tw_shop, `${pm}-01`, lmSame)).value ?? 0;
@@ -933,7 +935,7 @@ export default {
 
     if (path === '/health') {
       const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastRun'`).first().catch(() => null);
-      return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY, hasSlackToken: !!env.SLACK_BOT_TOKEN });
+      return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY, hasSlackToken: !!env.SLACK_BOT_TOKEN, hasTwKey: !!env.TW_API_KEY });
     }
     if (path === '/' ) return Response.redirect(DASHBOARD_URL, 302);
 
