@@ -1101,7 +1101,7 @@ function crBars(weekly) {
   const w = 900, h = 175;
   const n = weekly.length; if (!n) return '';
   const padL = 30, bw = (w - padL) / n, bh = h - 34;
-  let out = '';
+  let out = `<line class="fx-guide" x1="0" x2="0" y1="6" y2="${h - 24}" stroke="#14608C" stroke-width="1.4" opacity="0" pointer-events="none"/>`;
   weekly.forEach((wk, i) => {
     let y = 10;
     const x = padL + i * bw;
@@ -1113,7 +1113,7 @@ function crBars(weekly) {
     out += `<text x="${(x + bw / 2).toFixed(1)}" y="${h - 9}" font-size="9.5" text-anchor="middle" fill="#647684">${wk.week.slice(5)}</text>`;
   });
   out += `<text x="0" y="17" font-size="9.5" fill="#647684">100%</text><text x="0" y="${h - 26}" font-size="9.5" fill="#647684">0%</text>`;
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">${out}</svg>`;
+  return `<svg id="crBarsSvg" viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;touch-action:none">${out}</svg>`;
 }
 
 function crDual(weekly, currency) {
@@ -1129,7 +1129,8 @@ function crDual(weekly, currency) {
   const cpaLine = weekly.map((wk, i) => wk.cpa == null ? null : `${x(i).toFixed(1)},${yC(wk.cpa).toFixed(1)}`).filter(Boolean).join(' ');
   const fLine = weekly.map((wk, i) => `${x(i).toFixed(1)},${yF(wk.freshShare).toFixed(1)}`).join(' ');
   const dots = weekly.map((wk, i) => wk.cpa == null ? '' : `<circle cx="${x(i).toFixed(1)}" cy="${yC(wk.cpa).toFixed(1)}" r="2.6" fill="#1C7A46"><title>${wk.week} · CPA ${fmtMoney(wk.cpa, currency)} · fresh ${(wk.freshShare * 100).toFixed(0)}%</title></circle>`).join('');
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">
+  return `<svg id="crDualSvg" viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;touch-action:none">
+    <line class="fx-guide" x1="0" x2="0" y1="${padT}" y2="${h - padB}" stroke="#14608C" stroke-width="1" opacity="0" pointer-events="none"/>
     <polyline points="${fLine}" fill="none" stroke="#C9962B" stroke-width="1.6" opacity=".85"/>
     <polyline points="${cpaLine}" fill="none" stroke="#1C7A46" stroke-width="2"/>${dots}
     <text x="2" y="${padT + 8}" font-size="9.5" fill="#1C7A46">${fmtMoney(cMax, currency)}</text>
@@ -1144,10 +1145,10 @@ function crCards(d) {
   const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
   const cheaper = c.freshCpa != null && c.staleCpa != null ? (c.freshCpa <= c.staleCpa ? 'fresh converts cheaper' : 'stale converts cheaper right now') : '';
   return `<div class="av-grid" style="grid-template-columns:repeat(auto-fill,minmax(225px,1fr))">
-    <div class="av-card ${dpp == null ? '' : dpp >= 0 ? 'good' : 'bad'}"><span class="av-label">Freshness · % of spend on ≤${d.fresh}d creative</span>
+    <div class="av-card ${dpp == null ? '' : dpp >= 0 ? 'good' : 'bad'}"><span class="av-label" style="white-space:normal;line-height:1.45;display:block">Freshness · % of spend on ≤${d.fresh}d creative</span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.freshShare == null ? '—' : (c.freshShare * 100).toFixed(1) + '%'}</b>
       <div class="av-trend ${dpp == null ? 'unk' : dpp >= 0 ? 'good' : 'bad'}">${dpp == null ? 'no prior window yet' : `vs ${(c.freshSharePrev * 100).toFixed(1)}% prior · ${dpp >= 0 ? '▲' : '▼'}${Math.abs(dpp).toFixed(1)}pp`}</div></div>
-    <div class="av-card"><span class="av-label">Spend-weighted creative age</span>
+    <div class="av-card"><span class="av-label" style="white-space:normal;line-height:1.45;display:block">Spend-weighted creative age</span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.swAge == null ? '—' : Math.round(c.swAge) + ' days'}</b>
       <div class="av-trend">mean age of a spent ${sym(cur) === '$' ? 'dollar' : 'unit'}</div></div>
     <div class="av-card"><span class="av-label">Fresh CPA (≤${d.fresh}d)</span>
@@ -1190,11 +1191,40 @@ async function renderCreative() {
       const ins = d.insight;
       return `${head}${bfBanner}${crCards(d)}
         ${ins ? `<div class="cr-quote">In the ${ins.n} weeks with the most spend on fresh creative (~${(ins.topShare * 100).toFixed(0)}% ≤${d.fresh}d), median CPA was <b>${fmtMoney(ins.topCpa, d.account.currency)}</b> — vs <b>${fmtMoney(ins.botCpa, d.account.currency)}</b> in the ${ins.n} weeks with the least (~${(ins.botShare * 100).toFixed(0)}%).</div>` : ''}
-        ${single ? `<div class="card"><h3 style="margin-bottom:2px">Weekly spend share by creative age</h3><p class="hint" style="margin-bottom:8px">Darkest = freshest; watch the fresh green expand or collapse.</p>${crBars(d.weekly)}
+        ${single ? `<div class="card"><h3 style="margin-bottom:2px">Weekly spend share by creative age</h3><p class="hint" style="margin-bottom:6px">Darkest = freshest; watch the fresh green expand or collapse. Hover or tap a week for its numbers.</p>
+          <div class="tiny" id="crBarsRo" style="min-height:18px;font-weight:600"></div>${crBars(d.weekly)}
           <p class="tiny" style="margin-top:6px">${CR_LABELS.map((l, ci) => `<span style="color:${CR_COLORS[ci]}">■</span> ${l}`).join(' &nbsp; ')}</p></div>
-        <div class="card"><h3 style="margin-bottom:2px">Freshness vs CPA</h3><p class="hint" style="margin-bottom:8px">The correlation, week by week. Green = CPA (left axis), amber = % of spend on ≤${d.fresh}d creative (right axis).</p>${crDual(d.weekly, d.account.currency)}</div>` : ''}`;
+        <div class="card"><h3 style="margin-bottom:2px">Freshness vs CPA</h3><p class="hint" style="margin-bottom:6px">The correlation, week by week. <span style="color:#1C7A46;font-weight:700">Green</span> = CPA (left axis), <span style="color:#C9962B;font-weight:700">amber</span> = % of spend on ≤${d.fresh}d creative (right axis). Hover or tap for exact weeks.</p>
+          <div class="tiny" id="crDualRo" style="min-height:18px;font-weight:600"></div>${crDual(d.weekly, d.account.currency)}</div>` : ''}`;
     }).join('');
+    if (single && res[0] && !res[0].empty) wireCreativeCharts(res[0]);
   } catch (e) { $('#crBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
+}
+
+/** Crosshair readouts for the Creative Rotation charts — hover and tap both work. */
+function wireCreativeCharts(d) {
+  const wk = d.weekly, cur = d.account.currency, n = wk.length;
+  if (!n) return;
+  const attach = (svgId, roId, toIdx, guideX, fmt) => {
+    const svg = document.getElementById(svgId), ro = document.getElementById(roId);
+    if (!svg || !ro) return;
+    const g = svg.querySelector('.fx-guide');
+    const f = e => {
+      const r = svg.getBoundingClientRect();
+      const vx = (e.clientX - r.left) / r.width * 900;
+      const i = Math.max(0, Math.min(n - 1, toIdx(vx)));
+      if (g) { const gx = guideX(i); g.setAttribute('x1', gx); g.setAttribute('x2', gx); g.setAttribute('opacity', '.5'); }
+      ro.innerHTML = fmt(wk[i]);
+    };
+    svg.addEventListener('pointermove', f);
+    svg.addEventListener('pointerdown', f);
+  };
+  const barW = (900 - 30) / n;
+  attach('crBarsSvg', 'crBarsRo', vx => Math.floor((vx - 30) / barW), i => 30 + (i + 0.5) * barW,
+    w => `<b>week of ${w.week}</b> · spend ${fmtK(w.spend, cur)} · CPA ${fmtMoney(w.cpa, cur)} · ${w.shares.map((s, bi) => `${CR_LABELS[bi]}: ${(s * 100).toFixed(0)}%`).join(' · ')}`);
+  const iw = 900 - 48 - 44;
+  attach('crDualSvg', 'crDualRo', vx => Math.round((vx - 48) / iw * (n - 1)), i => 48 + i / Math.max(1, n - 1) * iw,
+    w => `<b>week of ${w.week}</b> · <span style="color:#1C7A46;font-weight:700">CPA ${fmtMoney(w.cpa, cur)}</span> · <span style="color:#C9962B;font-weight:700">fresh ≤${d.fresh}d: ${(w.freshShare * 100).toFixed(0)}% of spend</span> · total ${fmtK(w.spend, cur)}`);
 }
 
 /* ---------- Read-only client share view (?share=token) ---------- */
