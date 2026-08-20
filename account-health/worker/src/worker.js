@@ -253,7 +253,9 @@ function summarise(ev, category, currency) {
   if (category === 'new_creative') return `New ad${obj}`;
   if (category === 'new_adset') return `New ad set${obj}`;
   if (category === 'new_campaign') return `New campaign${obj}`;
-  if (x.old_value != null && x.new_value != null && typeof x.old_value !== 'object') {
+  // Only print old → new when both are short scalars — Meta stuffs whole JSON blobs in here for audience/targeting events.
+  const printable = v => v != null && typeof v !== 'object' && String(v).length <= 60 && !/^[[{]/.test(String(v).trim());
+  if (printable(x.old_value) && printable(x.new_value)) {
     return `${ev.translated_event_type || ev.event_type}: ${x.old_value} → ${x.new_value}${obj}`;
   }
   return `${ev.translated_event_type || ev.event_type}${obj}`;
@@ -311,7 +313,7 @@ async function syncActivities(env, acct, sinceISO) {
       ev.actor_name || null, ev.object_type || null, ev.object_id || null, ev.object_name || null,
       typeof ev.extra_data === 'string' ? ev.extra_data : JSON.stringify(ev.extra_data ?? null),
       cat, summarise(ev, cat, acct.currency),
-      cat === 'name' ? -1 : 0,   // renames are auto-dismissed noise; a ✓ or ✗ click can still override
+      (cat === 'name' || /^asa_auto/.test(ev.object_name || '')) ? -1 : 0,   // renames + Meta's auto-generated ASC audiences are noise; ✓/✗ can override
       suggestReason(cat, ev, insights));
   });
   for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
@@ -516,6 +518,56 @@ async function writeUpdate(env, { act, from, to, template }) {
     user: `Window: ${from} to ${to} (previous window ${prevFrom}..${prevTo} for comparison).\nTags marked "suggested reason (auto, unreviewed)" are machine-inferred from performance direction, not stated by the team — hedge accordingly.\n\n${packs.join('\n\n')}`,
   });
   return { text, template: template || 'daily', model: ANTHROPIC_MODEL, from, to, accounts: accounts.map(a => a.name) };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Intraday pacing (Chat 4) — today's hourly curve vs the L7 shape    */
+/* ------------------------------------------------------------------ */
+
+/** Pull today + last 7 days of hourly spend live from Meta, cache in hourly_insights,
+ *  and build today's cumulative curve vs the average last-7-days curve. */
+async function hourlyPacing(env, acct) {
+  const today = localDate(acct.tz);
+  const since = addDays(today, -7);
+  const rows = await metaAll(env, `${acct.act_id}/insights`, {
+    level: 'account', time_increment: 1,
+    breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone',
+    time_range: { since, until: today },
+    fields: 'spend,impressions,actions,action_values',
+    limit: 500,
+  }, 10);
+  const hourOf = r => Math.min(23, Math.max(0, +String(r.hourly_stats_aggregated_by_advertiser_time_zone || '').slice(0, 2) || 0));
+  const stmts = rows.map(r => env.DB.prepare(
+    `INSERT INTO hourly_insights (act_id, date, hour, spend, impressions, purchases, revenue, synced_at)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,datetime('now'))
+     ON CONFLICT(act_id, date, hour) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
+       purchases = excluded.purchases, revenue = excluded.revenue, synced_at = excluded.synced_at`,
+  ).bind(acct.act_id, r.date_start, hourOf(r), +r.spend || 0, +r.impressions || 0,
+    pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES)));
+  for (let i = 0; i < stmts.length; i += 40) await env.DB.batch(stmts.slice(i, i + 40));
+
+  const byDay = {};
+  for (const r of rows) (byDay[r.date_start] ??= Array(24).fill(0))[hourOf(r)] += +r.spend || 0;
+  const cum = arr => { let s = 0; return arr.map(v => +(s += v).toFixed(2)); };
+  const todayCum = cum(byDay[today] || Array(24).fill(0));
+  const prevDays = [];
+  for (let i = 1; i <= 7; i++) { const d = byDay[addDays(today, -i)]; if (d) prevDays.push(cum(d)); }
+  const l7cum = Array.from({ length: 24 }, (_, h) => prevDays.length ? +(prevDays.reduce((s, d) => s + d[h], 0) / prevDays.length).toFixed(2) : null);
+  const curHour = Math.floor(localHourFrac(acct.tz));
+  const lastFull = Math.max(0, curHour - 1);        // compare through the last completed hour on both sides
+  const spent = todayCum[lastFull] ?? 0;
+  const l7ByNow = l7cum[lastFull];
+  const l7Total = l7cum[23];
+  return {
+    account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz },
+    today, hour: curHour,
+    today_cum: todayCum.slice(0, Math.max(1, curHour)),   // elapsed hours only
+    l7_cum: l7cum,
+    spent, l7_by_now: l7ByNow, l7_daily_avg: l7Total,
+    vs_pace: l7ByNow ? spent / l7ByNow - 1 : null,
+    projected: l7ByNow && l7Total ? +(spent / (l7ByNow / l7Total)).toFixed(2) : null,
+    pulled_at: new Date().toISOString(),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -929,6 +981,13 @@ export default {
         ).bind(act, from).all();
         return json({ account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz, today: localDate(acct.tz) },
           rows, events: await seriesEvents(env, act, from) });
+      }
+
+      if (path === '/api/pacing') {
+        const act = url.searchParams.get('act');
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        return json(await hourlyPacing(env, acct));
       }
 
       if (path === '/api/creative') {

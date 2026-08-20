@@ -31,7 +31,7 @@ budgets, password).
 | 1 | Change Log page: feed, type filters, search, reason tag + confirm, manual add, **Summarise** (Claude → daily / weekly update) | ✅ built 2026-08-20 — needs `ANTHROPIC_API_KEY` secret for Summarise |
 | 2 | Averages page (7v30 cards, 3/7/14/30 table, change-log strip) + MTD Pacing (vs budget, vs last month) + Slack off-pace alert + per-client share link | ✅ built 2026-08-20 — Slack alerts need `SLACK_BOT_TOKEN` secret + channel in Settings |
 | 3 | Creative Rotation: ad-level pulls with first-spend date, freshness %, spend-weighted age, fresh vs stale CPA, weekly age-bucket bars | ✅ built 2026-08-20 — first visit auto-kicks the 90d ad-level backfill |
-| 4 | Intraday Pacing (hourly curves), all-clients pacing row, alert polish, handoff docs | ⬜ |
+| 4 | Intraday Pacing (hourly curves), all-clients pacing row, alert polish, handoff docs | ✅ built 2026-08-20 — GET /api/pacing pulls live from Meta on page open |
 
 Chats 3 and 4 are optional; the tool is already useful after Chat 2.
 
