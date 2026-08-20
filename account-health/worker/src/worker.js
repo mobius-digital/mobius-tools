@@ -779,13 +779,17 @@ async function putSetting(env, key, value) {
 }
 
 async function slackPost(env, channel, text, blocks) {
-  const res = await fetch('https://slack.com/api/chat.postMessage', {
+  // Post as "Mobius Account Health" (needs the chat:write.customize scope on the shared
+  // bot); if that scope is missing, fall back to posting under the bot's default name.
+  const send = payload => fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ channel, text, ...(blocks ? { blocks } : {}) }),
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!j.ok) throw new Error(`Slack: ${j.error || res.status}`);
+    body: JSON.stringify(payload),
+  }).then(r => r.json().catch(() => ({})));
+  const base = { channel, text, ...(blocks ? { blocks } : {}) };
+  let j = await send({ ...base, username: 'Mobius Account Health', icon_emoji: ':bar_chart:' });
+  if (!j.ok && /missing_scope|invalid_arg/i.test(j.error || '')) j = await send(base);
+  if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
 }
 
 /** Nightly Slack alerts: pace drift + KPI breaches. Each brand posts to its own
