@@ -600,7 +600,7 @@ async function accountOverview(env, a) {
   const expected = budget != null ? budget * elapsed : null;
   return {
     act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, today,
-    target_cpa: a.target_cpa ?? null, target_roas: a.target_roas ?? null,
+    target_cpa: a.target_cpa ?? null, target_roas: a.target_roas ?? null, slack_channel: a.slack_channel ?? null,
     last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
     today_spend: byDate[today]?.spend ?? null,
     mtd: { spend: mtd, budget, expected, pace_pct: expected ? mtd / expected - 1 : null,
@@ -653,38 +653,46 @@ async function slackPost(env, channel, text, blocks) {
   if (!j.ok) throw new Error(`Slack: ${j.error || res.status}`);
 }
 
-/** Nightly Slack alert when any budgeted account's MTD spend drifts off pace. */
+/** Nightly Slack alerts: pace drift + KPI breaches. Each brand posts to its own
+ *  channel when one is set; brands without one share the default channel. */
 async function paceAlerts(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
-  const channel = await getSetting(env, 'slackChannel');
-  if (!channel) return { skipped: 'no slackChannel in settings' };
+  const def = await getSetting(env, 'slackChannel');
   const thr = +(await getSetting(env, 'paceAlertPct')) || 0.15;
   const data = await overview(env);
-  const off = data.filter(a => a.mtd.pace_pct != null && Math.abs(a.mtd.pace_pct) >= thr);
-  const paceLines = off.map(a => {
-    const m = a.mtd, dir = m.pace_pct > 0 ? 'over' : 'under';
-    return `• *${a.name}* — ${money(m.spend, a.currency)} MTD vs ${money(m.expected, a.currency)} expected (*${Math.round(Math.abs(m.pace_pct) * 100)}% ${dir}*) · projected ${money(m.projected, a.currency)} of ${money(m.budget, a.currency)} target`;
-  });
-  // KPI guardrails (scale-freely clients, or budgeted clients that also set them)
-  const kpiLines = data.map(a => {
-    const bad = [];
+  const byChannel = new Map();
+  for (const a of data) {
+    const parts = [];
+    if (a.mtd.pace_pct != null && Math.abs(a.mtd.pace_pct) >= thr) {
+      const m = a.mtd, dir = m.pace_pct > 0 ? 'over' : 'under';
+      parts.push(`⏱ ${money(m.spend, a.currency)} MTD vs ${money(m.expected, a.currency)} expected (*${Math.round(Math.abs(m.pace_pct) * 100)}% ${dir}*) · projected ${money(m.projected, a.currency)} of ${money(m.budget, a.currency)} target`);
+    }
     if (a.target_cpa && a.l7.cpa != null && a.l7.cpa > a.target_cpa * 1.05) {
-      bad.push(`7d CPA ${money(a.l7.cpa, a.currency)} vs ${money(a.target_cpa, a.currency)} cap (*${Math.round((a.l7.cpa / a.target_cpa - 1) * 100)}% over*)`);
+      parts.push(`🎯 7d CPA ${money(a.l7.cpa, a.currency)} vs ${money(a.target_cpa, a.currency)} cap (*${Math.round((a.l7.cpa / a.target_cpa - 1) * 100)}% over*)`);
     }
     if (a.target_roas && a.l7.roas != null && a.l7.roas < a.target_roas * 0.95) {
-      bad.push(`7d ROAS ${a.l7.roas.toFixed(2)}x vs ${a.target_roas}x floor`);
+      parts.push(`🎯 7d ROAS ${a.l7.roas.toFixed(2)}x vs ${a.target_roas}x floor`);
     }
-    return bad.length ? `• *${a.name}* — ${bad.join(' · ')}` : null;
-  }).filter(Boolean);
-  if (!paceLines.length && !kpiLines.length) return { ok: true, offPace: 0, kpiBreaches: 0 };
-  const sections = [];
-  if (paceLines.length) sections.push(`*⏱ Spend pace — ${paceLines.length} off target by ≥${Math.round(thr * 100)}%*\n${paceLines.join('\n')}`);
-  if (kpiLines.length) sections.push(`*🎯 KPI guardrails — ${kpiLines.length} breaching*\n${kpiLines.join('\n')}`);
-  await slackPost(env, channel, `Account Health: ${paceLines.length} off pace, ${kpiLines.length} KPI breach${kpiLines.length === 1 ? '' : 'es'}`, [
-    { type: 'section', text: { type: 'mrkdwn', text: sections.join('\n\n') } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}|Account Health> · pace = MTD spend vs monthly target × month elapsed · KPI = 7-day CPA/ROAS vs guardrails · checked nightly` }] },
-  ]);
-  return { ok: true, offPace: paceLines.length, kpiBreaches: kpiLines.length };
+    if (!parts.length) continue;
+    const ch = a.slack_channel || def;
+    if (!ch) continue;
+    if (!byChannel.has(ch)) byChannel.set(ch, []);
+    byChannel.get(ch).push(`*${a.name}*\n${parts.map(p => `  ${p}`).join('\n')}`);
+  }
+  if (!byChannel.size) return { ok: true, alerts: 0 };
+  let alerts = 0;
+  const results = [];
+  for (const [ch, blocks] of byChannel) {
+    alerts += blocks.length;
+    try {
+      await slackPost(env, ch, `Account Health: ${blocks.length} account${blocks.length > 1 ? 's' : ''} need attention`, [
+        { type: 'section', text: { type: 'mrkdwn', text: blocks.join('\n\n') } },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}|Account Health> · ⏱ pace = MTD spend vs monthly target × month elapsed · 🎯 KPI = 7-day CPA/ROAS vs guardrails · checked nightly` }] },
+      ]);
+      results.push({ channel: ch, sent: blocks.length });
+    } catch (e) { results.push({ channel: ch, error: e.message }); }
+  }
+  return { ok: true, alerts, channels: results };
 }
 
 /* ------------------------------------------------------------------ */
@@ -843,7 +851,7 @@ export default {
         const numOrKeep = (v, keep) => v === '' ? null : (v ?? keep);
         await env.DB.prepare(
           `UPDATE accounts SET active = ?2, name = ?3, monthly_budget = ?4, budgets_json = ?5, tz = ?6,
-             target_cpa = ?7, target_roas = ?8 WHERE act_id = ?1`,
+             target_cpa = ?7, target_roas = ?8, slack_channel = ?9 WHERE act_id = ?1`,
         ).bind(m[1],
           body.active != null ? (body.active ? 1 : 0) : cur.active,
           body.name ?? cur.name,
@@ -852,6 +860,7 @@ export default {
           body.tz ?? cur.tz,
           numOrKeep(body.target_cpa, cur.target_cpa),
           numOrKeep(body.target_roas, cur.target_roas),
+          numOrKeep(body.slack_channel, cur.slack_channel),
         ).run();
         // First activation → kick off a backfill in the background.
         if (body.active && !cur.active && !cur.last_sync_insights) {

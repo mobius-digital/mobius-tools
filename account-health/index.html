@@ -970,9 +970,9 @@ async function renderSettings() {
   $('#main').innerHTML = `<h2>Settings</h2><p class="sub">Which ad accounts to track, each client's monthly budget (drives the pacing maths), and the dashboard password.</p>${setupBanner()}
     <div class="row"><button class="btn primary" id="btnDiscover">Discover accounts from Meta</button><span class="tiny">Pulls every ad account the Meta token can see. Run again whenever a client is added.</span></div>
     <div class="card settings"><p class="hint" style="margin-bottom:10px">Two ways to steer a client: a <b>monthly target</b> (a budget cap or a spend goal — pacing tracks it either way), or <b>KPI guardrails</b> (no cap; scale freely while 7-day CPA stays under the cap and 7-day ROAS above the floor). Set one or both — leave blank what doesn't apply.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly target</th><th>CPA cap</th><th>ROAS floor</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly target</th><th>CPA cap</th><th>ROAS floor</th><th>Alerts channel</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
     <div class="card"><h3>Slack pace alerts</h3>
-      <p class="hint" style="margin-bottom:10px">After the nightly sync, posts to Slack when any budgeted client's month-to-date spend drifts off pace. Uses the same Slack bot as Pulse and Restock.</p>
+      <p class="hint" style="margin-bottom:10px">After the nightly sync, posts to Slack when a client drifts off its monthly target or breaches a KPI guardrail. Each client with an <b>Alerts channel</b> set above posts there; everyone else lands in this default channel. Same Slack bot as Pulse and Restock.</p>
       <div class="row">
         <select id="slackCh" style="min-width:230px"><option value="">Loading channels…</option></select>
         <label class="tiny">alert when off by ≥</label>
@@ -985,6 +985,11 @@ async function renderSettings() {
     <div class="card"><h3>Dashboard password</h3><p class="hint" style="margin-bottom:8px">Anyone with this can read every client's numbers. The worker's ADMIN_TOKEN keeps working as a master key.</p>
       <div class="row"><input type="password" id="pw1" placeholder="new password" style="border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px"><button class="btn" id="btnPw">Set password</button><span class="tiny" id="pwMsg"></span></div></div>`;
   const tb = $('#accRows');
+  let chList = null;   // Slack channels, loaded async below
+  const chCell = a => chList
+    ? `<select data-k="slack_channel" style="max-width:175px"><option value="">— default —</option>${chList.map(c =>
+        `<option value="${esc(c.id)}" ${a.slack_channel === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')}</select>`
+    : `<span class="tiny">…</span>`;
   const draw = () => {
     tb.innerHTML = S.accounts.length ? S.accounts.map(a => `<tr data-id="${a.act_id}">
       <td><div class="toggle ${a.active?'on':''}" data-k="active" title="${a.active?'Tracking':'Not tracked'}"></div></td>
@@ -994,9 +999,10 @@ async function renderSettings() {
       <td><div class="unit-in" style="width:130px"><span>${sym(a.currency)}</span><input type="text" inputmode="decimal" value="${a.monthly_budget != null ? (+a.monthly_budget).toLocaleString('en-US') : ''}" placeholder="—" data-k="monthly_budget"></div></td>
       <td><div class="unit-in" style="width:90px"><span>${sym(a.currency)}</span><input type="text" inputmode="decimal" value="${a.target_cpa != null ? (+a.target_cpa).toLocaleString('en-US') : ''}" placeholder="—" data-k="target_cpa"></div></td>
       <td><div class="unit-in" style="width:76px"><input type="text" inputmode="decimal" value="${a.target_roas ?? ''}" placeholder="—" data-k="target_roas"><span>x</span></div></td>
+      <td>${chCell(a)}</td>
       <td class="tiny">${fmtAgo(a.last_sync_insights)}${a.last_error ? `<br><span style="color:var(--bad)">⚠ ${esc(a.last_error).slice(0,80)}</span>` : ''}</td>
       <td><button class="btn" data-act="sync" ${a.active?'':'disabled'}>Sync</button></td>
-    </tr>`).join('') : `<tr><td colspan="9" class="tiny">Nothing here yet — click “Discover accounts from Meta”.</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="10" class="tiny">Nothing here yet — click “Discover accounts from Meta”.</td></tr>`;
   };
   draw();
   tb.addEventListener('click', async e => {
@@ -1046,6 +1052,7 @@ async function renderSettings() {
       const { channels } = await api('/api/slack-channels');
       $('#slackCh').innerHTML = '<option value="">— pick a channel —</option>' + channels.map(c =>
         `<option value="${esc(c.id)}" ${s.slackChannel === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite the bot first'}</option>`).join('');
+      chList = channels; draw();
     } catch (e) {
       $('#slackCh').outerHTML = `<input type="text" id="slackCh" value="${esc(s.slackChannel || '')}" placeholder="Channel ID, e.g. C0AQ1UDMYCF" style="width:220px;border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px">`;
       $('#slackMsg').textContent = e.message;

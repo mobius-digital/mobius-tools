@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   budgets_json        TEXT NOT NULL DEFAULT '{}',-- {"2026-08": 15000, ...} month overrides
   target_cpa          REAL,                      -- KPI guardrail: 7d CPA above this = breach
   target_roas         REAL,                      -- KPI guardrail: 7d ROAS below this = breach
+  slack_channel       TEXT,                      -- per-brand alerts channel (falls back to settings.slackChannel)
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,
