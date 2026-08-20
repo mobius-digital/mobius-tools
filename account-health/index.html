@@ -47,7 +47,7 @@
   .hd-chip[data-s="down"]{color:#F2938A;border-color:rgba(242,147,138,.4)}
   .hd-btn{border:1px solid var(--hd-line);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:#BFD3E0;white-space:nowrap}
   .hd-btn:hover{border-color:var(--brand);color:#fff}
-  .hd select{background:#15232D;color:#DFEAF2;border:1px solid var(--hd-line);border-radius:8px;padding:7px 10px;font-size:13px}
+  .hd select{background:#15232D;color:#DFEAF2;border:1px solid var(--hd-line);border-radius:8px;padding:7px 32px 7px 12px;font-size:13px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239FB4C2' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 
   nav.tabs{background:var(--hd);border-top:1px solid var(--hd-line)}
   nav.tabs .in{max-width:1240px;margin:0 auto;padding:0 26px;display:flex;gap:4px;overflow-x:auto}
@@ -102,6 +102,7 @@
 
   .settings input[type=number],.settings input[type=text]{border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;width:120px}
   .settings input[type=text]{width:180px}
+  .flash-saved{border-color:var(--good) !important;box-shadow:0 0 0 2px var(--good-bg);transition:box-shadow .2s}
   .unit-in{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);padding:0 7px}
   .unit-in span{color:var(--muted);font-size:12.5px;flex:none}
   .settings .unit-in input{border:none;border-radius:0;padding:6px 3px;width:100%;min-width:0;background:transparent;outline:none}
@@ -1227,7 +1228,7 @@ async function renderSettings() {
     <div class="card settings"><p class="hint" style="margin-bottom:10px">Two ways to steer a client: a <b>monthly target</b> (a budget cap or a spend goal — pacing tracks it either way), or <b>KPI guardrails</b> (no cap; scale freely while 7-day CPA stays under the cap and 7-day ROAS above the floor). Set one or both — leave blank what doesn't apply.</p>
     <div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly target</th><th>CPA cap</th><th>ROAS floor</th><th>Alerts channel</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
     <div class="card"><h3>Slack pace alerts</h3>
-      <p class="hint" style="margin-bottom:10px">After the nightly sync, posts to Slack when a client drifts off its monthly target or breaches a KPI guardrail. Each client with an <b>Alerts channel</b> set above posts there; everyone else lands in this default channel. Same Slack bot as Pulse and Restock.</p>
+      <p class="hint" style="margin-bottom:10px">After the nightly sync, posts to Slack when a client drifts off its monthly target or breaches a KPI guardrail. <b>Per-brand channels are picked in the table above</b> (the "Alerts channel" column — each row saves instantly and flashes green). This one is just the fallback for any brand without its own. Same Slack bot as Pulse and Restock.</p>
       <div class="row">
         <select id="slackCh" style="min-width:230px"><option value="">Loading channels…</option></select>
         <label class="tiny">alert when off by ≥</label>
@@ -1240,11 +1241,13 @@ async function renderSettings() {
     <div class="card"><h3>Dashboard password</h3><p class="hint" style="margin-bottom:8px">Anyone with this can read every client's numbers. The worker's ADMIN_TOKEN keeps working as a master key.</p>
       <div class="row"><input type="password" id="pw1" placeholder="new password" style="border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px"><button class="btn" id="btnPw">Set password</button><span class="tiny" id="pwMsg"></span></div></div>`;
   const tb = $('#accRows');
-  let chList = null;   // Slack channels, loaded async below
-  const chCell = a => chList
+  let chList = null;   // Slack channels: null = loading, 'error' = list unavailable (fall back to typing an ID)
+  const chCell = a => Array.isArray(chList)
     ? `<select data-k="slack_channel" style="max-width:175px"><option value="">— default —</option>${chList.map(c =>
         `<option value="${esc(c.id)}" ${a.slack_channel === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')}</select>`
-    : `<span class="tiny">…</span>`;
+    : chList === 'error'
+    ? `<input type="text" data-k="slack_channel" value="${esc(a.slack_channel || '')}" placeholder="channel ID" style="width:130px" title="Channel list unavailable — paste the channel ID (channel name → About tab)">`
+    : `<span class="tiny">loading channels…</span>`;
   const draw = () => {
     tb.innerHTML = S.accounts.length ? S.accounts.map(a => `<tr data-id="${a.act_id}">
       <td><div class="toggle ${a.active?'on':''}" data-k="active" title="${a.active?'Tracking':'Not tracked'}"></div></td>
@@ -1287,7 +1290,12 @@ async function renderSettings() {
       a[k] = num;
       e.target.value = num == null ? '' : (k === 'target_roas' ? String(num) : num.toLocaleString('en-US'));
     } else a[k] = v;
-    await api('/api/accounts/'+a.act_id, { method:'PUT', body: JSON.stringify({ [k]: numeric ? (num == null ? '' : num) : v }) }).catch(err => alert(err.message));
+    try {
+      await api('/api/accounts/'+a.act_id, { method:'PUT', body: JSON.stringify({ [k]: numeric ? (num == null ? '' : num) : v }) });
+      const el = e.target.closest('.unit-in') || e.target;    // green "saved" flash so saves are visible
+      el.classList.add('flash-saved');
+      setTimeout(() => el.classList.remove('flash-saved'), 1300);
+    } catch (err) { alert(err.message); }
     if (k === 'name') renderPicker();
   });
   $('#btnDiscover').onclick = async () => {
@@ -1309,8 +1317,9 @@ async function renderSettings() {
         `<option value="${esc(c.id)}" ${s.slackChannel === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite the bot first'}</option>`).join('');
       chList = channels; draw();
     } catch (e) {
+      chList = 'error'; draw();
       $('#slackCh').outerHTML = `<input type="text" id="slackCh" value="${esc(s.slackChannel || '')}" placeholder="Channel ID, e.g. C0AQ1UDMYCF" style="width:220px;border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px">`;
-      $('#slackMsg').textContent = e.message;
+      $('#slackMsg').textContent = 'Couldn\'t list channels (' + e.message + ') — paste channel IDs instead.';
     }
   }).catch(() => {});
   $('#slackSave').onclick = async () => {
