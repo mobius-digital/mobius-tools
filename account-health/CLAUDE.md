@@ -37,17 +37,37 @@ account-health/
   `npx.cmd wrangler d1 execute mobius-account-health --remote --file=schema.sql`.
 - Dashboard deploys by committing `index.html` (GitHub Pages).
 
-## Where each chat plugs in
+## Build status: EVERYTHING IS SHIPPED (phases 0–4 + extras, 2026-08-20)
 
-| Chat | Worker | Dashboard |
-|---|---|---|
-| 1 Change Log | routes already exist (`GET/POST /api/activities`, `PATCH /api/activities/:id`); add `POST /api/summarise` (Claude API call over activities + insights) | replace `renderChangeLog()` with the full page: date chips, type filters, search, reason dropdown + ✓/✗ confirm, "+ Add", Summarise with templates |
-| 2 Averages + MTD Pacing | add `GET /api/series?act=&days=` returning daily rows + activities for the strip; Slack off-pace alert in `nightly()`; `GET /api/share/:token` read-only | `renderAverages()` (7v30 cards with sparklines, 3/7/14/30 table), `renderPacing()` MTD section, share link |
-| 3 Creative Rotation | `syncAdDaily()` (level=ad insights → `ad_daily`, `ads` with first_spend_date), `GET /api/creative?act=&fresh=14&window=14` | `renderCreative()` |
-| 4 Intraday Pacing | `syncHourly()` (breakdown hourly_stats_aggregated_by_advertiser_time_zone → `hourly_insights`) pulled on demand from the page, `GET /api/pacing?act=&date=` | today-vs-L7 curve in `renderPacing()`, all-clients pacing row |
+All four pages, Overview, Settings, Summarise (Claude), share links, per-brand
+Slack alerts, KPI guardrails, Google spend via Triple Whale, intraday pacing,
+auto-suggested reasons, in-app help guides. Secrets set: META_TOKEN,
+ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TW_API_KEY, ADMIN_TOKEN, SESSION_SECRET.
 
-When a chat finishes, tick its row in `PRD.md` → Build plan, and update the
-`<span class="soon">` labels in `index.html`'s nav.
+Next planned feature: **attribution-model comparison row** (Meta-reported vs TW
+Pixel models vs blended) — design it from the TW metric catalog stashed in
+`settings.twMetrics:<act_id>` by `refreshGoogleSpend()`.
+
+## Hard-won rules (do not relearn these)
+
+- **Scope rule: performance = Meta only, money = all platforms.** Google spend
+  (from Triple Whale, per-brand `tw_shop`) appears ONLY in Pacing bars, Overview
+  MTD, and pace alerts.
+- **Cole's UX rules** (see memory `ui-preferences`): media-buyer vocabulary
+  (CPA/ROAS — never dumb down terms like "fresh/stale"), conclusion-first
+  sentences, questions as titles, click-openable ⓘ on every stat, crosshair
+  readouts on every chart (hover AND tap), "? How to use" guide per page,
+  in-app modals only, zero required daily clicks, no unread-count badges.
+- **Meta data traps:** budget `extra_data` comes flat or as `composite_data`
+  (cents, nested); never print long/JSON old→new values in summaries;
+  `asa_auto*` audiences + renames auto-dismiss (confirmed=-1); ad-level pulls
+  must be sliced (14d) and resumable; ads older than the history window need
+  `created_time` as their age origin.
+- **Windows/tooling:** deploy ONLY from `account-health/worker/` (running
+  wrangler at repo root scaffolds junk `wrangler.jsonc` — delete it and restore
+  `.gitignore` if it happens); PowerShell 5.1 for Cole = `;` not `&&`; commit
+  messages via `git commit -F <file>`; D1 repairs via wrangler pull → node →
+  UPDATE .sql file; Cloudflare API sometimes throws transient 7403 — retry.
 
 ## Meta API notes
 
