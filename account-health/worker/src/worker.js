@@ -554,7 +554,7 @@ export default {
 
     if (path === '/health') {
       const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastRun'`).first().catch(() => null);
-      return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN });
+      return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY });
     }
     if (path === '/' ) return Response.redirect(DASHBOARD_URL, 302);
 
