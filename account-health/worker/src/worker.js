@@ -370,6 +370,23 @@ async function updFirstSpend(env, actId) {
   ).bind(actId).run();
 }
 
+/** True creation dates from Meta — without them, ads older than our 90-day history
+ *  would all look "brand new" at the start of the window. */
+async function syncAdMeta(env, acct) {
+  const rows = await metaAll(env, `${acct.act_id}/ads`, { fields: 'id,created_time', limit: 500 }, 10);
+  const vals = rows.filter(r => r.id && r.created_time).map(r => [acct.act_id, r.id, r.created_time]);
+  const stmts = [];
+  for (let i = 0; i < vals.length; i += 30) {
+    const chunk = vals.slice(i, i + 30);
+    stmts.push(env.DB.prepare(
+      `INSERT INTO ads (act_id, ad_id, created_time) VALUES ` + chunk.map(() => '(?,?,?)').join(',') +
+      ` ON CONFLICT(act_id, ad_id) DO UPDATE SET created_time = excluded.created_time`,
+    ).bind(...chunk.flat()));
+  }
+  for (let i = 0; i < stmts.length; i += 30) await env.DB.batch(stmts.slice(i, i + 30));
+  return vals.length;
+}
+
 /** Resumable ad-level sync. Backfill walks backwards 14 days at a time until 90 days are
  *  in; once done, each call is a cheap 3-day resync. Errors land in accounts.last_error. */
 async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
@@ -378,6 +395,7 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
     if (acct.ads_backfill_done) {
       const n = await syncAdSlice(env, acct, addDays(today, -RESYNC_DAYS), today);
       await updFirstSpend(env, acct.act_id);
+      await syncAdMeta(env, acct);
       return { rows: n, done: true };
     }
     const target = addDays(today, -BACKFILL_DAYS);
@@ -391,6 +409,7 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
     const done = cursor <= target;
     if (done) await env.DB.prepare(`UPDATE accounts SET ads_backfill_done = 1 WHERE act_id = ?1`).bind(acct.act_id).run();
     await updFirstSpend(env, acct.act_id);
+    await syncAdMeta(env, acct);
     return { rows: total, done, daysDone: Math.min(BACKFILL_DAYS, Math.max(0, ymdDiff(today, cursor))), daysTotal: BACKFILL_DAYS };
   } catch (e) {
     await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, `ad sync: ${e.message}`).run().catch(() => {});
@@ -626,12 +645,19 @@ async function creative(env, acct, freshDays, windowDays) {
   const today = localDate(acct.tz);
   const from = addDays(today, -97);
   const { results: rows } = await env.DB.prepare(
-    `SELECT d.date, d.spend, d.purchases, a.first_spend_date
+    `SELECT d.date, d.spend, d.purchases, a.first_spend_date, a.created_time
      FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
      WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date < ?3 AND d.spend > 0 AND a.first_spend_date IS NOT NULL`,
   ).bind(acct.act_id, from, today).all();
   if (!rows.length) return { empty: true };
-  for (const r of rows) r.age = Math.max(0, ymdDiff(r.date, r.first_spend_date));
+  // Ads already spending when our history starts would look "brand new" — for those,
+  // fall back to Meta's true creation date so their age is honest.
+  const clipEdge = addDays(from, 2);
+  for (const r of rows) {
+    const created = r.created_time ? String(r.created_time).slice(0, 10) : null;
+    const origin = r.first_spend_date <= clipEdge && created && created < r.first_spend_date ? created : r.first_spend_date;
+    r.age = Math.max(0, ymdDiff(r.date, origin));
+  }
 
   const winFrom = addDays(today, -windowDays), prevFrom = addDays(today, -2 * windowDays);
   const split = list => {
@@ -1060,6 +1086,10 @@ export default {
         if (!acct) return json({ error: 'unknown account' }, 404);
         let backfill = null;
         if (!acct.ads_backfill_done) backfill = await syncAdDaily(env, acct, { maxSlices: 2 });
+        else {
+          const missing = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND created_time IS NULL`).bind(act).first();
+          if (missing?.n > 0) ctx.waitUntil(syncAdMeta(env, acct).catch(() => {}));  // heal ages for pre-history ads
+        }
         const r = await creative(env, acct, freshDays, windowDays);
         if (backfill && !backfill.done) r.backfill = backfill;   // progress or error for the banner
         return json(r);

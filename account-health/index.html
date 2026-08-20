@@ -471,10 +471,11 @@ const PAGE_HELP = {
     <p><b>Slack alert settings:</b> the alert threshold (how far off pace before we ping), a test button, and an optional fallback channel for brands without one in the table.</p>
     <p><b>Dashboard password:</b> a shared read-everything password as an alternative to Google sign-in.</p>`,
   creative: `
-    <p><b>What this page is:</b> is new creative actually getting spend, and does fresh beat stale? An ad's age counts from its first day of spend.</p>
-    <p><b>Freshness %</b> = share of spend on new ads. If it's collapsing week over week (the green in the bars shrinking), the account is coasting on old creative — that's usually how fatigue starts.</p>
-    <p><b>Fresh CPA vs stale CPA:</b> if fresh consistently converts cheaper, that's the argument for a faster launch cadence — show the client this page.</p>
-    <p><b>Weekly rhythm:</b> check this in the Monday creative meeting, not daily — rotation is a weeks-scale question.</p>`,
+    <p><b>The problem this page catches:</b> ads wear out. The same people see them over and over, performance slowly fades, and CPA creeps up. Teams usually notice <i>after</i> the spike. This page shows whether we're feeding the account new ads <i>before</i> that happens.</p>
+    <p><b>The four cards, in order:</b> ① how much of the budget went to new ads (the number to protect — if it keeps falling, we're coasting) · ② the average age of the ads the money ran on (creeping up = same warning) · ③ what a purchase costs from new ads · ④ what it costs from older ads.</p>
+    <p><b>New vs old CPA:</b> don't panic if new ads look pricier — they need a few days for Meta to optimize. What matters is the pattern over weeks, which is what the highlighted sentence and the bottom chart show: when we launch more, does CPA hold or improve? If yes, there's no excuse to slow the launch cadence.</p>
+    <p><b>The bars:</b> one bar per week, dark green = brand-new ads' share of that week's spend. Watch whether the dark green is growing or dying.</p>
+    <p><b>When to look:</b> Monday creative meeting, once a week. This is a weeks-scale question — daily checking tells you nothing new.</p>`,
 };
 
 /* ---------- Change Log (Chat 1) ---------- */
@@ -1156,19 +1157,23 @@ function crDual(weekly, currency) {
 function crCards(d) {
   const c = d.cards, cur = d.account.currency;
   const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
-  const cheaper = c.freshCpa != null && c.staleCpa != null ? (c.freshCpa <= c.staleCpa ? 'fresh converts cheaper' : 'stale converts cheaper right now') : '';
+  const verdict = c.freshCpa == null || c.staleCpa == null ? ''
+    : c.freshCpa <= c.staleCpa * 0.95 ? 'new ads buy customers cheaper — good sign for launching more'
+    : c.freshCpa >= c.staleCpa * 1.05 ? 'older ads are cheaper right now — normal; new ads need a few days to settle'
+    : 'new and old ads cost about the same';
+  const lbl = 'style="white-space:normal;line-height:1.45;display:block"';
   return `<div class="av-grid" style="grid-template-columns:repeat(auto-fill,minmax(225px,1fr))">
-    <div class="av-card ${dpp == null ? '' : dpp >= 0 ? 'good' : 'bad'}"><span class="av-label" style="white-space:normal;line-height:1.45;display:block">Freshness · % of spend on ≤${d.fresh}d creative</span>
+    <div class="av-card ${dpp == null ? '' : dpp >= 0 ? 'good' : 'bad'}"><span class="av-label" ${lbl} title="Of everything spent in the selected period, the share that went to ads ≤${d.fresh} days old. Falling week after week = coasting on old creative.">Budget going to new ads <span class="info-i">i</span></span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.freshShare == null ? '—' : (c.freshShare * 100).toFixed(1) + '%'}</b>
-      <div class="av-trend ${dpp == null ? 'unk' : dpp >= 0 ? 'good' : 'bad'}">${dpp == null ? 'no prior window yet' : `vs ${(c.freshSharePrev * 100).toFixed(1)}% prior · ${dpp >= 0 ? '▲' : '▼'}${Math.abs(dpp).toFixed(1)}pp`}</div></div>
-    <div class="av-card"><span class="av-label" style="white-space:normal;line-height:1.45;display:block">Spend-weighted creative age</span>
+      <div class="av-trend ${dpp == null ? 'unk' : dpp >= 0 ? 'good' : 'bad'}">${dpp == null ? `of spend went to ads ≤${d.fresh} days old` : `was ${(c.freshSharePrev * 100).toFixed(1)}% the period before · ${dpp >= 0 ? '▲' : '▼'}${Math.abs(dpp).toFixed(1)}pp`}</div></div>
+    <div class="av-card"><span class="av-label" ${lbl} title="The average age of the ads the money actually ran on, weighted by spend. 64 days = the typical dollar went to a two-month-old ad.">How old are the ads we're funding? <span class="info-i">i</span></span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.swAge == null ? '—' : Math.round(c.swAge) + ' days'}</b>
-      <div class="av-trend">mean age of a spent ${sym(cur) === '$' ? 'dollar' : 'unit'}</div></div>
-    <div class="av-card"><span class="av-label">Fresh CPA (≤${d.fresh}d)</span>
-      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend"></div></div>
-    <div class="av-card"><span class="av-label">Stale CPA (>${d.fresh}d)</span>
+      <div class="av-trend">average age of the ads behind the spend</div></div>
+    <div class="av-card"><span class="av-label" ${lbl} title="Cost per purchase from ads ≤${d.fresh} days old, over the selected period">CPA on new ads <span class="info-i">i</span></span>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend">${c.freshCpa == null ? 'no purchases from new ads in this period yet' : `what a purchase costs from ads ≤${d.fresh}d old`}</div></div>
+    <div class="av-card"><span class="av-label" ${lbl} title="Cost per purchase from ads older than ${d.fresh} days, over the selected period">CPA on older ads <span class="info-i">i</span></span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.staleCpa, cur)}</b>
-      <div class="av-trend">${cheaper}</div></div>
+      <div class="av-trend">${verdict}</div></div>
   </div>`;
 }
 
@@ -1176,13 +1181,13 @@ async function renderCreative() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
   $('#main').innerHTML = `<h2>Creative Rotation</h2>
-    <p class="sub">How much spend goes to <b>new creative</b> — and what happens to CPA as spend concentrates on fresh vs old. An ad's age counts from its first day of spend. Numbers are Meta-reported.</p>
+    <p class="sub"><b>One question: are we feeding this account new ads, or coasting on old ones?</b> Old ads wear out and CPA creeps up — this page shows the coasting before the CPA spike. An ad counts as "new" for its first days of spending (you pick how many below).</p>
     ${setupBanner()}
     <div class="row">
-      <span class="tiny" style="font-weight:700">“New” =</span>
-      ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">≤ ${v} days</button>`).join('')}
-      <span class="tiny" style="font-weight:700;margin-left:14px">Measured over</span>
-      ${[['1', 'Yesterday'], ['7', 'L7'], ['14', 'L14']].map(([v, l]) => `<button class="chip ${CR.win === v ? 'on' : ''}" data-g="${v}">${l}</button>`).join('')}
+      <span class="tiny" style="font-weight:700" title="An ad younger than this counts as new">An ad is “new” for its first:</span>
+      ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">${v} days</button>`).join('')}
+      <span class="tiny" style="font-weight:700;margin-left:14px" title="The cards look at spend from this recent period">Look at the last:</span>
+      ${[['1', '1 day'], ['7', '7 days'], ['14', '14 days']].map(([v, l]) => `<button class="chip ${CR.win === v ? 'on' : ''}" data-g="${v}">${l}</button>`).join('')}
       <span style="flex:1"></span>
       <button class="help-btn" data-help="creative">? How to use</button>
     </div>
@@ -1203,11 +1208,11 @@ async function renderCreative() {
       if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet — hit ↻ Sync now.</span></div>`}`;
       const ins = d.insight;
       return `${head}${bfBanner}${crCards(d)}
-        ${ins ? `<div class="cr-quote">In the ${ins.n} weeks with the most spend on fresh creative (~${(ins.topShare * 100).toFixed(0)}% ≤${d.fresh}d), median CPA was <b>${fmtMoney(ins.topCpa, d.account.currency)}</b> — vs <b>${fmtMoney(ins.botCpa, d.account.currency)}</b> in the ${ins.n} weeks with the least (~${(ins.botShare * 100).toFixed(0)}%).</div>` : ''}
-        ${single ? `<div class="card"><h3 style="margin-bottom:2px">Weekly spend share by creative age</h3><p class="hint" style="margin-bottom:6px">Darkest = freshest; watch the fresh green expand or collapse. Hover or tap a week for its numbers.</p>
+        ${ins ? `<div class="cr-quote">In the ${ins.n} weeks we gave new ads the <b>most</b> budget (~${(ins.topShare * 100).toFixed(0)}% of spend), a purchase cost <b>${fmtMoney(ins.topCpa, d.account.currency)}</b>. In the ${ins.n} weeks we launched the <b>least</b> (~${(ins.botShare * 100).toFixed(0)}%), it cost <b>${fmtMoney(ins.botCpa, d.account.currency)}</b>. ${ins.topCpa <= ins.botCpa * 0.95 ? '→ Launching more has come with <b>cheaper</b> purchases here.' : ins.topCpa >= ins.botCpa * 1.05 ? '→ Heavy launch weeks ran a bit pricier — new ads need a few days to settle before judging them.' : '→ Launching more hasn’t cost us efficiency — no excuse to coast.'}</div>` : ''}
+        ${single ? `<div class="card"><h3 style="margin-bottom:2px">Where each week's budget went, by ad age</h3><p class="hint" style="margin-bottom:6px">Each bar is one week of spend, split by how old the ads were. <b>Dark green at the bottom = brand-new ads.</b> If the dark green keeps shrinking week after week, the account is coasting on old creative. Hover or tap a week for its numbers.</p>
           <div class="tiny" id="crBarsRo" style="min-height:18px;font-weight:600"></div>${crBars(d.weekly)}
           <p class="tiny" style="margin-top:6px">${CR_LABELS.map((l, ci) => `<span style="color:${CR_COLORS[ci]}">■</span> ${l}`).join(' &nbsp; ')}</p></div>
-        <div class="card"><h3 style="margin-bottom:2px">Freshness vs CPA</h3><p class="hint" style="margin-bottom:6px">The correlation, week by week. <span style="color:#1C7A46;font-weight:700">Green</span> = CPA (left axis), <span style="color:#C9962B;font-weight:700">amber</span> = % of spend on ≤${d.fresh}d creative (right axis). Hover or tap for exact weeks.</p>
+        <div class="card"><h3 style="margin-bottom:2px">Does launching more new ads change what a purchase costs?</h3><p class="hint" style="margin-bottom:6px"><span style="color:#1C7A46;font-weight:700">Green line</span> = cost per purchase that week. <span style="color:#C9962B;font-weight:700">Amber line</span> = share of budget on new ads that week. The thing to look for: when amber goes up, does green come down? Hover or tap for exact weeks.</p>
           <div class="tiny" id="crDualRo" style="min-height:18px;font-weight:600"></div>${crDual(d.weekly, d.account.currency)}</div>` : ''}`;
     }).join('');
     if (single && res[0] && !res[0].empty) wireCreativeCharts(res[0]);
@@ -1232,12 +1237,16 @@ function wireCreativeCharts(d) {
     svg.addEventListener('pointermove', f);
     svg.addEventListener('pointerdown', f);
   };
+  const fmtWeek = w => new Date(w + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const barW = (900 - 30) / n;
   attach('crBarsSvg', 'crBarsRo', vx => Math.floor((vx - 30) / barW), i => 30 + (i + 0.5) * barW,
-    w => `<b>week of ${w.week}</b> · spend ${fmtK(w.spend, cur)} · CPA ${fmtMoney(w.cpa, cur)} · ${w.shares.map((s, bi) => `${CR_LABELS[bi]}: ${(s * 100).toFixed(0)}%`).join(' · ')}`);
+    w => {
+      const ages = w.shares.map((s, bi) => s >= 0.005 ? `${(s * 100).toFixed(0)}% on ${CR_LABELS[bi]}-old ads` : null).filter(Boolean).join(' · ');
+      return `<b>week of ${fmtWeek(w.week)}</b> — spent ${fmtK(w.spend, cur)}, a purchase cost ${fmtMoney(w.cpa, cur)} · ${ages || 'no spend'}`;
+    });
   const iw = 900 - 48 - 44;
   attach('crDualSvg', 'crDualRo', vx => Math.round((vx - 48) / iw * (n - 1)), i => 48 + i / Math.max(1, n - 1) * iw,
-    w => `<b>week of ${w.week}</b> · <span style="color:#1C7A46;font-weight:700">CPA ${fmtMoney(w.cpa, cur)}</span> · <span style="color:#C9962B;font-weight:700">fresh ≤${d.fresh}d: ${(w.freshShare * 100).toFixed(0)}% of spend</span> · total ${fmtK(w.spend, cur)}`);
+    w => `<b>week of ${fmtWeek(w.week)}</b> — a purchase cost <span style="color:#1C7A46;font-weight:700">${fmtMoney(w.cpa, cur)}</span>, with <span style="color:#C9962B;font-weight:700">${(w.freshShare * 100).toFixed(0)}% of budget on new ads</span>`);
 }
 
 /* ---------- Read-only client share view (?share=token) ---------- */
