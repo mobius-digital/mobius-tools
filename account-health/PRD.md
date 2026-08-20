@@ -93,7 +93,9 @@ POST /api/sync?act=&days=                  backfill one/all accounts (insights +
 GET  /api/insights?act=&from=&to=          daily rows
 GET  /api/overview                         all active accounts: MTD spend, budget pace, 7d/30d CPA & ROAS
 GET  /api/activities?act=&from=&to=        act='all' (or omitted) = every active account, rows carry account_name
-PATCH /api/activities/:id                  {reason, note, confirmed, category} — any subset
+PATCH /api/activities/:id                  {reason, note, confirmed, dismissed, category} — any subset
+                                           confirmed: 1 deliberate / 0 untouched / -1 dismissed (noise, excluded from summaries)
+POST /api/activities/bulk-confirm          {ids: [...]} → sets confirmed=1 where currently 0
 POST /api/activities                       manual entry {act_id, event_time, category, summary, reason, note, actor}
 POST /api/summarise                        {act|'all', from, to, template: daily|weekly|client} → Claude-written update
                                            (claude-opus-5; needs ANTHROPIC_API_KEY secret; 'client' needs one account)

@@ -375,7 +375,7 @@ async function writeUpdate(env, { act, from, to, template }) {
   for (const a of accounts) {
     const { results: evs } = await env.DB.prepare(
       `SELECT event_time, category, summary, actor, reason, note, confirmed, manual FROM activities
-       WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 ORDER BY event_time`,
+       WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1 ORDER BY event_time`,
     ).bind(a.act_id, from, to + 'T23:59:59').all();
     const cur = agg((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results);
     const prev = agg((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, prevFrom, prevTo).all()).results);
@@ -642,13 +642,29 @@ export default {
         ).bind(...(all ? [from, to, limit] : [from, to, limit, act])).all();
         return json({ rows: results });
       }
+      if (path === '/api/activities/bulk-confirm' && request.method === 'POST') {
+        const { ids } = await request.json().catch(() => ({}));
+        if (!Array.isArray(ids) || !ids.length) return json({ error: 'ids required' }, 400);
+        let n = 0;
+        for (let i = 0; i < ids.length && i < 4000; i += 50) {
+          const chunk = ids.slice(i, i + 50);
+          const r = await env.DB.prepare(
+            `UPDATE activities SET confirmed = 1 WHERE confirmed = 0 AND id IN (${chunk.map(() => '?').join(',')})`,
+          ).bind(...chunk).run();
+          n += r.meta?.changes ?? 0;
+        }
+        return json({ ok: true, confirmed: n });
+      }
       if ((m = path.match(/^\/api\/activities\/(.+)$/)) && request.method === 'PATCH') {
         const body = await request.json();
+        // confirmed: 1 = confirmed deliberate, 0 = untouched, -1 = dismissed (noise; excluded from summaries)
+        const confirmed = body.dismissed != null ? (body.dismissed ? -1 : 0)
+          : body.confirmed == null ? null : (body.confirmed ? 1 : 0);
         await env.DB.prepare(
           `UPDATE activities SET reason = COALESCE(?2, reason), note = COALESCE(?3, note),
              confirmed = COALESCE(?4, confirmed), category = COALESCE(?5, category) WHERE id = ?1`,
         ).bind(decodeURIComponent(m[1]), body.reason ?? null, body.note ?? null,
-          body.confirmed == null ? null : (body.confirmed ? 1 : 0), body.category ?? null).run();
+          confirmed, body.category ?? null).run();
         return json({ ok: true });
       }
       if (path === '/api/activities' && request.method === 'POST') {   // manual entry
