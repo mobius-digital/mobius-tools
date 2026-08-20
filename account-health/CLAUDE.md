@@ -49,6 +49,17 @@ TW_API_KEY, ADMIN_TOKEN, SESSION_SECRET.
 Cole's remaining step for the Daily Brief: per client, set monthly goals on
 the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
 
+## Later additions (2026-08-20 night)
+
+- **Per-ad table** on Creative Rotation: `adBreakdown()` rolls up `ad_daily`
+  for the window and verdicts each ad against the ACCOUNT'S OWN window CPA
+  (scale ≤0.8×, cut ≥1.4× or spend with zero purchases). Never absolute
+  benchmarks.
+- **`deliveryAlerts()`**: yesterday's spend vs the account's L7 median; ≤40%
+  (or zero) prepends a 🚨 line to that brand's nightly Slack alert. Guards:
+  ≥4 days of history, median ≥ $50.
+- Ad backfill slices: 8 per nightly run, 3 per Creative-Rotation visit.
+
 ## Hard-won rules (do not relearn these)
 
 - **Triple Whale summary-page** (`twSummary`): metrics live in `metrics[]` with
