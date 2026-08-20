@@ -165,6 +165,9 @@
   .pc-stats{display:flex;gap:30px;flex-wrap:wrap;margin-top:10px}
   .pc-stats .st b{display:block;font-size:16.5px;font-weight:700}
   .pc-stats .st span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+
+  /* Creative Rotation (Chat 3) */
+  .cr-quote{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--good);border-radius:var(--radius);padding:12px 17px;font-size:13.5px;margin-bottom:14px}
   .cl-it .what{line-height:1.55}
   .cl-it .acts{display:flex;gap:7px;align-items:center;white-space:nowrap}
   .cl-it .acts select{padding:4px 26px 4px 7px;font-size:12px;color:var(--muted);max-width:160px;background-position:right 9px center}
@@ -200,7 +203,7 @@
     <button data-t="pacing">Pacing <span class="soon">hourly · chat 4</span></button>
     <button data-t="changelog">Change Log</button>
     <button data-t="averages">Averages</button>
-    <button data-t="creative">Creative Rotation <span class="soon">chat 3</span></button>
+    <button data-t="creative">Creative Rotation</button>
     <button data-t="settings">Settings</button>
   </div></nav>
 </header>
@@ -334,8 +337,7 @@ function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   ({ overview: renderOverview, settings: renderSettings, changelog: renderChangeLog,
-     pacing: renderPacing, averages: renderAverages,
-     creative: () => renderSoon('Creative Rotation', 'Share of spend on fresh creative, spend-weighted creative age, and fresh vs stale CPA. Chat 3.'),
+     pacing: renderPacing, averages: renderAverages, creative: renderCreative,
   })[tab]();
 }
 
@@ -833,6 +835,107 @@ async function renderPacing() {
     const list = single ? data.filter(a => a.act_id === S.act) : data;
     $('#pcBody').innerHTML = list.length ? list.map(a => buildPaceCard(a)).join('') : '';
   } catch (e) { $('#pcBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
+}
+
+/* ---------- Creative Rotation (Chat 3) ---------- */
+const CR = { fresh: localStorage.getItem('ah_cr_fresh') || '14', win: localStorage.getItem('ah_cr_win') || '14' };
+const CR_COLORS = ['#1C7A46', '#4C9A66', '#8FC1A4', '#C3DCCC', '#D8D3C8'];
+const CR_LABELS = ['0–7d', '8–14d', '15–30d', '31–60d', '60d+'];
+
+function crBars(weekly) {
+  const w = 900, h = 175;
+  const n = weekly.length; if (!n) return '';
+  const padL = 30, bw = (w - padL) / n, bh = h - 34;
+  let out = '';
+  weekly.forEach((wk, i) => {
+    let y = 10;
+    const x = padL + i * bw;
+    wk.shares.forEach((s, bi) => {
+      const hh = s * bh;
+      if (hh > 0.5) out += `<rect x="${(x + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="1.5" fill="${CR_COLORS[bi]}"><title>${wk.week} · ${CR_LABELS[bi]}: ${(s * 100).toFixed(0)}% of spend</title></rect>`;
+      y += hh;
+    });
+    out += `<text x="${(x + bw / 2).toFixed(1)}" y="${h - 9}" font-size="9.5" text-anchor="middle" fill="#647684">${wk.week.slice(5)}</text>`;
+  });
+  out += `<text x="0" y="17" font-size="9.5" fill="#647684">100%</text><text x="0" y="${h - 26}" font-size="9.5" fill="#647684">0%</text>`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">${out}</svg>`;
+}
+
+function crDual(weekly, currency) {
+  const w = 900, h = 175, padL = 48, padR = 44, padT = 12, padB = 24;
+  if (weekly.filter(wk => wk.cpa != null).length < 2) return '';
+  const iw = w - padL - padR, ih = h - padT - padB;
+  const cpas = weekly.filter(wk => wk.cpa != null).map(wk => wk.cpa);
+  const cMin = Math.min(...cpas) * 0.9, cMax = Math.max(...cpas) * 1.08;
+  const fMax = Math.max(0.01, ...weekly.map(wk => wk.freshShare)) * 1.15;
+  const x = i => padL + i / Math.max(1, weekly.length - 1) * iw;
+  const yC = v => padT + (1 - (v - cMin) / (cMax - cMin || 1)) * ih;
+  const yF = v => padT + (1 - v / fMax) * ih;
+  const cpaLine = weekly.map((wk, i) => wk.cpa == null ? null : `${x(i).toFixed(1)},${yC(wk.cpa).toFixed(1)}`).filter(Boolean).join(' ');
+  const fLine = weekly.map((wk, i) => `${x(i).toFixed(1)},${yF(wk.freshShare).toFixed(1)}`).join(' ');
+  const dots = weekly.map((wk, i) => wk.cpa == null ? '' : `<circle cx="${x(i).toFixed(1)}" cy="${yC(wk.cpa).toFixed(1)}" r="2.6" fill="#1C7A46"><title>${wk.week} · CPA ${fmtMoney(wk.cpa, currency)} · fresh ${(wk.freshShare * 100).toFixed(0)}%</title></circle>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">
+    <polyline points="${fLine}" fill="none" stroke="#C9962B" stroke-width="1.6" opacity=".85"/>
+    <polyline points="${cpaLine}" fill="none" stroke="#1C7A46" stroke-width="2"/>${dots}
+    <text x="2" y="${padT + 8}" font-size="9.5" fill="#1C7A46">${fmtMoney(cMax, currency)}</text>
+    <text x="2" y="${h - padB}" font-size="9.5" fill="#1C7A46">${fmtMoney(cMin, currency)}</text>
+    <text x="${w - 2}" y="${padT + 8}" font-size="9.5" fill="#C9962B" text-anchor="end">${(fMax * 100).toFixed(0)}%</text>
+    <text x="${w - 2}" y="${h - padB}" font-size="9.5" fill="#C9962B" text-anchor="end">0%</text>
+  </svg>`;
+}
+
+function crCards(d) {
+  const c = d.cards, cur = d.account.currency;
+  const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
+  const cheaper = c.freshCpa != null && c.staleCpa != null ? (c.freshCpa <= c.staleCpa ? 'fresh converts cheaper' : 'stale converts cheaper right now') : '';
+  return `<div class="av-grid" style="grid-template-columns:repeat(auto-fill,minmax(225px,1fr))">
+    <div class="av-card ${dpp == null ? '' : dpp >= 0 ? 'good' : 'bad'}"><span class="av-label">Freshness · % of spend on ≤${d.fresh}d creative</span>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.freshShare == null ? '—' : (c.freshShare * 100).toFixed(1) + '%'}</b>
+      <div class="av-trend ${dpp == null ? 'unk' : dpp >= 0 ? 'good' : 'bad'}">${dpp == null ? 'no prior window yet' : `vs ${(c.freshSharePrev * 100).toFixed(1)}% prior · ${dpp >= 0 ? '▲' : '▼'}${Math.abs(dpp).toFixed(1)}pp`}</div></div>
+    <div class="av-card"><span class="av-label">Spend-weighted creative age</span>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.swAge == null ? '—' : Math.round(c.swAge) + ' days'}</b>
+      <div class="av-trend">mean age of a spent ${sym(cur) === '$' ? 'dollar' : 'unit'}</div></div>
+    <div class="av-card"><span class="av-label">Fresh CPA (≤${d.fresh}d)</span>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend"></div></div>
+    <div class="av-card"><span class="av-label">Stale CPA (>${d.fresh}d)</span>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.staleCpa, cur)}</b>
+      <div class="av-trend">${cheaper}</div></div>
+  </div>`;
+}
+
+async function renderCreative() {
+  const active = S.accounts.filter(a => a.active);
+  const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
+  $('#main').innerHTML = `<h2>Creative Rotation</h2>
+    <p class="sub">How much spend goes to <b>new creative</b> — and what happens to CPA as spend concentrates on fresh vs old. An ad's age counts from its first day of spend. Numbers are Meta-reported.</p>
+    ${setupBanner()}
+    <div class="row">
+      <span class="tiny" style="font-weight:700">“New” =</span>
+      ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">≤ ${v} days</button>`).join('')}
+      <span class="tiny" style="font-weight:700;margin-left:14px">Measured over</span>
+      ${[['1', 'Yesterday'], ['7', 'L7'], ['14', 'L14']].map(([v, l]) => `<button class="chip ${CR.win === v ? 'on' : ''}" data-g="${v}">${l}</button>`).join('')}
+    </div>
+    <div id="crBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
+    if (c.dataset.f) { CR.fresh = c.dataset.f; localStorage.setItem('ah_cr_fresh', CR.fresh); }
+    if (c.dataset.g) { CR.win = c.dataset.g; localStorage.setItem('ah_cr_win', CR.win); }
+    renderCreative();
+  });
+  const targets = single ? [single] : active;
+  if (!targets.length) { $('#crBody').innerHTML = ''; return; }
+  try {
+    const res = await Promise.all(targets.map(a => api(`/api/creative?act=${a.act_id}&fresh=${CR.fresh}&window=${CR.win}`)));
+    $('#crBody').innerHTML = res.map((d, i) => {
+      const head = single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`;
+      if (d.empty) return `${head}<div class="card"><span class="hint">${d.syncing ? `First-time ad-level backfill just started for ${esc(targets[i].name)} — refresh in a minute or two.` : 'No ad-level data yet — hit ↻ Sync now.'}</span></div>`;
+      const ins = d.insight;
+      return `${head}${crCards(d)}
+        ${ins ? `<div class="cr-quote">In the ${ins.n} weeks with the most spend on fresh creative (~${(ins.topShare * 100).toFixed(0)}% ≤${d.fresh}d), median CPA was <b>${fmtMoney(ins.topCpa, d.account.currency)}</b> — vs <b>${fmtMoney(ins.botCpa, d.account.currency)}</b> in the ${ins.n} weeks with the least (~${(ins.botShare * 100).toFixed(0)}%).</div>` : ''}
+        ${single ? `<div class="card"><h3 style="margin-bottom:2px">Weekly spend share by creative age</h3><p class="hint" style="margin-bottom:8px">Darkest = freshest; watch the fresh green expand or collapse.</p>${crBars(d.weekly)}
+          <p class="tiny" style="margin-top:6px">${CR_LABELS.map((l, ci) => `<span style="color:${CR_COLORS[ci]}">■</span> ${l}`).join(' &nbsp; ')}</p></div>
+        <div class="card"><h3 style="margin-bottom:2px">Freshness vs CPA</h3><p class="hint" style="margin-bottom:8px">The correlation, week by week. Green = CPA (left axis), amber = % of spend on ≤${d.fresh}d creative (right axis).</p>${crDual(d.weekly, d.account.currency)}</div>` : ''}`;
+    }).join('');
+  } catch (e) { $('#crBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
 }
 
 /* ---------- Read-only client share view (?share=token) ---------- */

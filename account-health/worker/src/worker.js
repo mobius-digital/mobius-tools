@@ -319,6 +319,55 @@ async function syncActivities(env, acct, sinceISO) {
   return rows.length;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Sync: ad-level daily (Chat 3 — creative rotation)                  */
+/* ------------------------------------------------------------------ */
+
+const ymdDiff = (a, b) => Math.round((new Date(a + 'T12:00:00Z') - new Date(b + 'T12:00:00Z')) / 86400e3);
+
+/** Multi-row inserts (14 rows/statement, 30 statements/batch) keep subrequests low on 90-day backfills. */
+async function syncAdDaily(env, acct, days) {
+  const today = localDate(acct.tz);
+  const adCount = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1`).bind(acct.act_id).first())?.n ?? 0;
+  const window = days ?? (adCount ? RESYNC_DAYS : BACKFILL_DAYS);
+  const since = addDays(today, -window);
+  const rows = await metaAll(env, `${acct.act_id}/insights`, {
+    level: 'ad', time_increment: 1,
+    time_range: { since, until: today },
+    fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,actions,action_values',
+    limit: 500,
+  }, 80);
+  const daily = rows.filter(r => r.ad_id).map(r => [acct.act_id, r.ad_id, r.date_start, +r.spend || 0, +r.impressions || 0,
+    pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES)]);
+  const stmts = [];
+  for (let i = 0; i < daily.length; i += 14) {
+    const chunk = daily.slice(i, i + 14);
+    stmts.push(env.DB.prepare(
+      `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue) VALUES ` +
+      chunk.map(() => '(?,?,?,?,?,?,?)').join(',') +
+      ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
+        purchases = excluded.purchases, revenue = excluded.revenue`,
+    ).bind(...chunk.flat()));
+  }
+  const ads = new Map();
+  for (const r of rows) if (r.ad_id && !ads.has(r.ad_id)) ads.set(r.ad_id, [acct.act_id, r.ad_id, r.ad_name || r.ad_id, r.adset_id || null, r.campaign_id || null]);
+  const adRows = [...ads.values()];
+  for (let i = 0; i < adRows.length; i += 20) {
+    const chunk = adRows.slice(i, i + 20);
+    stmts.push(env.DB.prepare(
+      `INSERT INTO ads (act_id, ad_id, name, adset_id, campaign_id) VALUES ` +
+      chunk.map(() => '(?,?,?,?,?)').join(',') +
+      ` ON CONFLICT(act_id, ad_id) DO UPDATE SET name = excluded.name, adset_id = excluded.adset_id, campaign_id = excluded.campaign_id`,
+    ).bind(...chunk.flat()));
+  }
+  for (let i = 0; i < stmts.length; i += 30) await env.DB.batch(stmts.slice(i, i + 30));
+  await env.DB.prepare(
+    `UPDATE ads SET first_spend_date = (SELECT MIN(d.date) FROM ad_daily d
+       WHERE d.act_id = ads.act_id AND d.ad_id = ads.ad_id AND d.spend > 0) WHERE act_id = ?1`,
+  ).bind(acct.act_id).run();
+  return rows.length;
+}
+
 /** Full sync for one account. `days` overrides the insights window. */
 async function syncAccount(env, acct, days) {
   const out = { act_id: acct.act_id, name: acct.name };
@@ -329,6 +378,7 @@ async function syncAccount(env, acct, days) {
       ? new Date(new Date(acct.last_sync_activities).getTime() - 6 * 3600e3).toISOString()  // 6h overlap
       : new Date(Date.now() - ACTIVITY_BACKFILL_DAYS * 86400e3).toISOString();
     out.activities = await syncActivities(env, acct, since);
+    out.ad_rows = await syncAdDaily(env, acct, days);
   } catch (e) {
     out.error = e.message;
     await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, e.message).run();
@@ -438,6 +488,71 @@ async function writeUpdate(env, { act, from, to, template }) {
     user: `Window: ${from} to ${to} (previous window ${prevFrom}..${prevTo} for comparison).\nTags marked "suggested reason (auto, unreviewed)" are machine-inferred from performance direction, not stated by the team — hedge accordingly.\n\n${packs.join('\n\n')}`,
   });
   return { text, template: template || 'daily', model: ANTHROPIC_MODEL, from, to, accounts: accounts.map(a => a.name) };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Creative rotation maths (Chat 3)                                   */
+/* ------------------------------------------------------------------ */
+
+async function creative(env, acct, freshDays, windowDays) {
+  const today = localDate(acct.tz);
+  const from = addDays(today, -97);
+  const { results: rows } = await env.DB.prepare(
+    `SELECT d.date, d.spend, d.purchases, a.first_spend_date
+     FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
+     WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date < ?3 AND d.spend > 0 AND a.first_spend_date IS NOT NULL`,
+  ).bind(acct.act_id, from, today).all();
+  if (!rows.length) return { empty: true };
+  for (const r of rows) r.age = Math.max(0, ymdDiff(r.date, r.first_spend_date));
+
+  const winFrom = addDays(today, -windowDays), prevFrom = addDays(today, -2 * windowDays);
+  const split = list => {
+    const s = { freshSpend: 0, freshPurch: 0, staleSpend: 0, stalePurch: 0, ageSpend: 0, total: 0 };
+    for (const r of list) {
+      s.total += r.spend; s.ageSpend += r.age * r.spend;
+      if (r.age <= freshDays) { s.freshSpend += r.spend; s.freshPurch += r.purchases; }
+      else { s.staleSpend += r.spend; s.stalePurch += r.purchases; }
+    }
+    return s;
+  };
+  const cur = split(rows.filter(r => r.date >= winFrom));
+  const prev = split(rows.filter(r => r.date >= prevFrom && r.date < winFrom));
+
+  const weekStart = d => { const dt = new Date(d + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay()); return dt.toISOString().slice(0, 10); };
+  const weeks = {};
+  for (const r of rows) {
+    const w = weekStart(r.date);
+    const o = weeks[w] ??= { week: w, spend: 0, purchases: 0, b: [0, 0, 0, 0, 0], freshSpend: 0 };
+    o.spend += r.spend; o.purchases += r.purchases; o.freshSpend += r.age <= freshDays ? r.spend : 0;
+    o.b[r.age <= 7 ? 0 : r.age <= 14 ? 1 : r.age <= 30 ? 2 : r.age <= 60 ? 3 : 4] += r.spend;
+  }
+  const weekly = Object.values(weeks).sort((a, b) => a.week < b.week ? -1 : 1).map(w => ({
+    week: w.week, spend: w.spend,
+    cpa: w.purchases ? w.spend / w.purchases : null,
+    freshShare: w.spend ? w.freshSpend / w.spend : 0,
+    shares: w.b.map(x => w.spend ? x / w.spend : 0),
+  }));
+  const ranked = weekly.filter(w => w.cpa != null && w.spend > 0).slice().sort((a, b) => b.freshShare - a.freshShare);
+  const half = Math.min(6, Math.floor(ranked.length / 2));
+  const median = l => { const s = l.map(w => w.cpa).sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : null; };
+  const avgShare = l => l.length ? l.reduce((s, w) => s + w.freshShare, 0) / l.length : 0;
+  return {
+    account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, today },
+    fresh: freshDays, window: windowDays,
+    cards: {
+      freshShare: cur.total ? cur.freshSpend / cur.total : null,
+      freshSharePrev: prev.total ? prev.freshSpend / prev.total : null,
+      swAge: cur.total ? cur.ageSpend / cur.total : null,
+      freshCpa: cur.freshPurch ? cur.freshSpend / cur.freshPurch : null,
+      staleCpa: cur.stalePurch ? cur.staleSpend / cur.stalePurch : null,
+    },
+    weekly,
+    insight: half >= 3 ? {
+      n: half,
+      topShare: avgShare(ranked.slice(0, half)), topCpa: median(ranked.slice(0, half)),
+      botShare: avgShare(ranked.slice(-half)), botCpa: median(ranked.slice(-half)),
+    } : null,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -777,6 +892,20 @@ export default {
         ).bind(act, from).all();
         return json({ account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz, today: localDate(acct.tz) },
           rows, events: await seriesEvents(env, act, from) });
+      }
+
+      if (path === '/api/creative') {
+        const act = url.searchParams.get('act');
+        const freshDays = Math.min(+url.searchParams.get('fresh') || 14, 60);
+        const windowDays = Math.min(+url.searchParams.get('window') || 14, 30);
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const r = await creative(env, acct, freshDays, windowDays);
+        if (r.empty) {                     // first visit: kick the ad-level backfill in the background
+          ctx.waitUntil(syncAdDaily(env, acct, BACKFILL_DAYS).catch(() => {}));
+          return json({ empty: true, syncing: true });
+        }
+        return json(r);
       }
 
       if (path === '/api/share' && request.method === 'POST') {
