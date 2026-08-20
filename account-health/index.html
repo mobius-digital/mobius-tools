@@ -155,6 +155,10 @@
   .av-card.clickable{cursor:pointer;transition:border-color .12s, box-shadow .12s}
   .av-card.clickable:hover{border-color:var(--brand-ink);box-shadow:0 3px 14px rgba(12,22,29,.08)}
   .info-i{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border:1px solid var(--line-strong);border-radius:50%;font-size:9px;font-weight:700;color:var(--muted);cursor:help;vertical-align:1px}
+  .help-body{font-size:13.5px;line-height:1.6;max-height:60vh;overflow-y:auto}
+  .help-body p{margin-bottom:9px}
+  .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
+  .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .strip{position:relative;height:30px}
   .strip .dot{position:absolute;top:9px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);cursor:default;border:1.5px solid #fff;box-shadow:0 0 0 1px var(--line-strong)}
   .av-client{font-family:var(--serif);font-size:19px;margin:20px 0 10px}
@@ -335,6 +339,10 @@ function renderPicker() {
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
+document.addEventListener('click', e => {
+  const hb = e.target.closest('.help-btn[data-help]');
+  if (hb) helpModal({ averages: 'How to use Averages', pacing: 'How to use Pacing', changelog: 'How to use the Change Log', creative: 'How to use Creative Rotation' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+});
 
 function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
@@ -413,6 +421,46 @@ function modal({ title, hint, value = '', placeholder = '', multiline = false, s
   });
 }
 
+/* ---------- "How to use" page guides ---------- */
+function helpModal(title, html) {
+  const w = document.createElement('div');
+  w.className = 'modal-wrap';
+  w.innerHTML = `<div class="modal" style="max-width:580px"><h3>${esc(title)}</h3><div class="help-body">${html}</div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-m="ok">Got it</button></div></div>`;
+  document.body.appendChild(w);
+  const done = () => { w.remove(); document.removeEventListener('keydown', k); };
+  const k = e => { if (e.key === 'Escape') done(); };
+  document.addEventListener('keydown', k);
+  w.addEventListener('mousedown', e => { if (e.target === w) done(); });
+  w.querySelector('[data-m="ok"]').onclick = done;
+}
+
+const PAGE_HELP = {
+  averages: `
+    <p><b>What this page is:</b> every metric compared to this account's <i>own</i> last-30-days normal. Not industry benchmarks — its own baseline. That's how you spot "something changed" without a spreadsheet.</p>
+    <p><b>The 10-second daily read:</b> scan the verdict words on the cards. All green/flat → move on. Red on CPA or ROAS → click that card, look at where it turned, and check the change dots on the bottom rail — did it turn right after something we did?</p>
+    <p><b>Momentum table:</b> the "did something break in the last day or two" check. If Yesterday or the 3-day is 15%+ off the 7-day, investigate today, not next week.</p>
+    <p><b>Judging rules:</b> ignore moves under ~5% (noise). The last 3 days always look worse than they'll end up — conversions keep landing for ~72h. Trust the 7-day vs 30-day comparison before reacting; use the 3-day only as an early warning.</p>
+    <p><b>Sharing:</b> "↗ Share with client" makes a read-only link with none of our internal notes.</p>`,
+  pacing: `
+    <p><b>What this page is:</b> is each client's spend where it should be this month?</p>
+    <p><b>The bar:</b> actual month-to-date spend. <b>The dark marker:</b> where spend should sit today if the month lands exactly on target. Bar behind the marker = underspending; past it = running hot. Within ±10% is green — don't micro-correct inside that band.</p>
+    <p><b>KPI clients</b> (no monthly target): the chips are the whole story. Green chips = KPIs holding, keep scaling. Red chip = the guardrail broke — pull back or fix creative before pushing more spend.</p>
+    <p><b>Projected month</b> = straight-line estimate if the current daily pace continues.</p>
+    <p><b>You don't have to check this page</b> — Slack pings the right channel automatically when someone drifts off pace or breaches a KPI. Numbers are Meta spend only for now.</p>`,
+  changelog: `
+    <p><b>What this page is:</b> the permanent record of what we changed, when, who, and why — pulled from Meta automatically every night. Nobody has to write anything down.</p>
+    <p><b>Daily habit (optional, ~3 clicks):</b> when you make a move that matters — budget change, kill, launch — find it here and tag the <b>why</b>. Amber suggestions are pre-filled guesses; ✓ accepts one. Use <b>+ note</b> for context worth remembering.</p>
+    <p><b>✗</b> hides junk from summaries. <b>+ Add change</b> records things Meta can't see (promo started, landing page swapped, tracking fixed).</p>
+    <p><b>✦ Summarise:</b> Claude writes the daily standup, weekly recap, or a client-safe update from the tagged changes + performance. The more whys you tag, the smarter it reads.</p>
+    <p><b>Forensics:</b> CPA spiked Tuesday? Set the dates to Tuesday and see exactly what changed.</p>`,
+  creative: `
+    <p><b>What this page is:</b> is new creative actually getting spend, and does fresh beat stale? An ad's age counts from its first day of spend.</p>
+    <p><b>Freshness %</b> = share of spend on new ads. If it's collapsing week over week (the green in the bars shrinking), the account is coasting on old creative — that's usually how fatigue starts.</p>
+    <p><b>Fresh CPA vs stale CPA:</b> if fresh consistently converts cheaper, that's the argument for a faster launch cadence — show the client this page.</p>
+    <p><b>Weekly rhythm:</b> check this in the Monday creative meeting, not daily — rotation is a weeks-scale question.</p>`,
+};
+
 /* ---------- Change Log (Chat 1) ---------- */
 const CL = {
   range: localStorage.getItem('ah_cl_range') || '7',
@@ -444,6 +492,7 @@ async function renderChangeLog() {
       <input type="date" id="clTo" value="${to}" max="${ymdLocal(new Date())}">
       <span style="flex:1"></span>
       <input class="search" id="clQ" placeholder="Search changes…" value="${esc(CL.q)}">
+      <button class="help-btn" data-help="changelog">? How to use</button>
       <button class="btn" id="clAddBtn">+ Add change</button>
       <button class="btn primary" id="clSumBtn">✦ Summarise</button>
     </div>
@@ -742,8 +791,9 @@ function focusSVG(rows, events, m, currency) {
     const i = dateIdx[d]; if (i == null) return '';
     return `<circle cx="${x(i).toFixed(1)}" cy="${railY}" r="4.5" fill="${color(ev.category)}" stroke="#fff" stroke-width="1.2"><title>${esc(d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''))}</title></circle>`;
   }).join('');
-  return `<svg viewBox="0 0 ${w} ${h + 14}" style="width:100%;height:auto">
+  return `<svg viewBox="0 0 ${w} ${h + 14}" style="width:100%;height:auto;touch-action:none">
     ${ticks}
+    <line class="fx-guide" x1="0" x2="0" y1="${pt}" y2="${h - pb + 18}" stroke="#14608C" stroke-width="1" opacity="0" pointer-events="none"/>
     <polyline points="${line(daily)}" fill="none" stroke="#C4D2DB" stroke-width="1.2"/>
     <polyline points="${line(s30)}" fill="none" stroke="#9FB0BC" stroke-width="1.7"/>
     <polyline points="${line(s7)}" fill="none" stroke="#14608C" stroke-width="2.2"/>
@@ -758,12 +808,33 @@ function focusSVG(rows, events, m, currency) {
 function avFocus(mKey) {
   const d = AV.cur; if (!d) return;
   const m = AV_METRICS.find(xx => xx.k === mKey);
+  const cur = d.account.currency;
   $('#avFocus').innerHTML = `<div class="card" style="border-color:var(--brand)">
     <div class="row" style="margin-bottom:2px"><h3>${m.label}, day by day</h3><span style="flex:1"></span><button class="btn" id="avFocusClose">✕ Close</button></div>
-    <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline. The dots on the bottom rail are changes we made — hover any point or dot for the date and detail.</p>
-    ${focusSVG(d.rows, d.events, m, d.account.currency)}</div>`;
+    <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline. Move over (or tap) the chart to read exact values; dots on the bottom rail are changes we made.</p>
+    <div id="fxReadout" style="font-size:13px;min-height:36px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 11px;margin-bottom:8px">Hover or tap anywhere on the chart…</div>
+    ${focusSVG(d.rows, d.events, m, cur)}</div>`;
   $('#avFocus').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   $('#avFocusClose').onclick = () => { $('#avFocus').innerHTML = ''; };
+  /* crosshair: works on hover AND tap, names every line with its value */
+  const svg = $('#avFocus svg'), guide = svg.querySelector('.fx-guide'), ro = $('#fxReadout');
+  const rows = d.rows, n = rows.length, W = 940, pl = 56, pr = 14;
+  const daily = rows.map(r => { const den = (m.den(r) ?? 1) || 0; return den ? (m.num(r) || 0) / den : null; });
+  const s7 = maSeries(rows, m, 7), s30 = maSeries(rows, m, 30);
+  const inspect = clientX => {
+    const rect = svg.getBoundingClientRect();
+    const vx = (clientX - rect.left) / rect.width * W;
+    const i = Math.max(0, Math.min(n - 1, Math.round((vx - pl) / (W - pl - pr) * (n - 1))));
+    const gx = pl + i / Math.max(1, n - 1) * (W - pl - pr);
+    guide.setAttribute('x1', gx); guide.setAttribute('x2', gx); guide.setAttribute('opacity', '.55');
+    const evs = (d.events || []).filter(ev => String(ev.event_time).slice(0, 10) === rows[i].date);
+    ro.innerHTML = `<b>${rows[i].date}</b> &nbsp; <span style="color:#8195A2">that day:</span> <b>${m.fmt(daily[i], cur)}</b>
+      &nbsp; <span style="color:#14608C;font-weight:700">7-day avg:</span> <b>${m.fmt(s7[i], cur)}</b>
+      &nbsp; <span style="color:#8195A2;font-weight:700">30-day avg:</span> <b>${m.fmt(s30[i], cur)}</b>
+      ${evs.length ? `<br><span class="tiny">⚑ changed that day: ${evs.map(e2 => esc(e2.summary || e2.category)).join(' · ')}</span>` : ''}`;
+  };
+  svg.addEventListener('pointermove', e => inspect(e.clientX));
+  svg.addEventListener('pointerdown', e => inspect(e.clientX));
 }
 
 function buildAvStrip(events, fromYmd, toYmd) {
@@ -774,14 +845,16 @@ function buildAvStrip(events, fromYmd, toYmd) {
     const d = String(ev.event_time).slice(0, 10);
     const x = (new Date(d) - new Date(fromYmd)) / 86400e3 / span * 100;
     if (x < 0 || x > 100) return '';
-    return `<span class="dot" style="left:${x.toFixed(2)}%;background:${color(ev.category)}" title="${esc(d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''))}"></span>`;
+    const detail = esc(d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''));
+    return `<span class="dot" style="left:${x.toFixed(2)}%;background:${color(ev.category)};cursor:pointer" title="${detail}" data-detail="${detail}"></span>`;
   }).join('');
   return `<div class="card" style="padding:14px 20px 4px"><h3 style="margin-bottom:0">Changes we made in this window</h3>
     <p class="hint">Each dot is a change from the Change Log, placed on the same timeline as the charts above — so you can see whether a move we made lines up with a metric turning. Hover any dot for the details.</p>
     <div class="strip">${dots}</div>
     <div class="tiny" style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:4px">
       <span>${fromYmd}</span><span>${new Date((new Date(fromYmd).getTime() + new Date(toYmd).getTime()) / 2).toISOString().slice(0, 10)}</span><span>${toYmd}</span></div>
-    <p class="tiny" style="margin:6px 0 8px"><span style="color:var(--warn)">●</span> budget change · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other — hover a dot for the date and what changed</p></div>`;
+    <p class="tiny" id="stripDetail" style="margin:6px 0 2px;min-height:16px;font-weight:600"></p>
+    <p class="tiny" style="margin:2px 0 8px"><span style="color:var(--warn)">●</span> budget change · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other — click or hover a dot for the date and what changed</p></div>`;
 }
 
 function buildAvTable(rows, currency) {
@@ -836,6 +909,7 @@ async function renderAverages() {
       <span class="tiny" style="font-weight:700" title="How far back the charts look. This only changes how much history the lines show — the cards' current values are always the last 7 days.">History shown:</span>
       ${['30','60','90','180'].map(w => `<button class="chip ${AV.win===w?'on':''}" data-w="${w}">last ${w} days</button>`).join('')}
       <span style="flex:1"></span>
+      <button class="help-btn" data-help="averages">? How to use</button>
       ${single ? `<button class="btn" id="avShare" title="Creates a read-only link for this client — no sign-in needed, internal notes stay hidden">↗ Share with client</button>` : ''}</div>
     <div id="avBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
   document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
@@ -859,6 +933,7 @@ async function renderAverages() {
             + (single ? `<div id="avFocus"></div>` + buildMomentum(full, todayRow, s.account.currency) + buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
     }).join('');
     document.querySelectorAll('#avBody .av-card[data-m]').forEach(c => c.onclick = () => avFocus(c.dataset.m));
+    document.querySelectorAll('#avBody .strip .dot').forEach(el => el.onclick = () => { const t = $('#stripDetail'); if (t) t.textContent = '⚑ ' + el.dataset.detail; });
   } catch (e) { $('#avBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
 }
 
@@ -917,7 +992,7 @@ async function renderPacing() {
   $('#main').innerHTML = `<h2>Pacing</h2>
     <p class="sub">Month-to-date spend against each client's monthly target and against last month. The dark marker on each bar is where spend should be today if the month lands exactly on target. <b>Spend shown is Meta only for now</b> — the Google spend line is approved and queued. The hour-by-hour "are we pacing hot today?" curve is the next build.</p>
     ${setupBanner()}
-    ${single ? `<div class="row"><span style="flex:1"></span><button class="btn" id="pcShare" title="Creates a read-only link for this client — no sign-in needed">↗ Share with client</button></div>` : ''}
+    <div class="row"><span style="flex:1"></span><button class="help-btn" data-help="pacing">? How to use</button>${single ? `<button class="btn" id="pcShare" title="Creates a read-only link for this client — no sign-in needed">↗ Share with client</button>` : ''}</div>
     <div id="pcBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
   if (single) $('#pcShare').onclick = () => shareLink($('#pcShare'), S.act);
   try {
@@ -1005,6 +1080,8 @@ async function renderCreative() {
       ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">≤ ${v} days</button>`).join('')}
       <span class="tiny" style="font-weight:700;margin-left:14px">Measured over</span>
       ${[['1', 'Yesterday'], ['7', 'L7'], ['14', 'L14']].map(([v, l]) => `<button class="chip ${CR.win === v ? 'on' : ''}" data-g="${v}">${l}</button>`).join('')}
+      <span style="flex:1"></span>
+      <button class="help-btn" data-help="creative">? How to use</button>
     </div>
     <div id="crBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
   document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
