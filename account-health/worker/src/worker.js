@@ -259,6 +259,38 @@ function summarise(ev, category, currency) {
   return `${ev.translated_event_type || ev.event_type}${obj}`;
 }
 
+/** 'good' | 'bad' | null — how the account was trending going into `day` (3d vs 30d). */
+function perfSignal(insights, day) {
+  const win = n => insights.filter(r => r.date < day && r.date >= addDays(day, -n));
+  const stat = rows => {
+    const s = rows.reduce((a, r) => ({ spend: a.spend + r.spend, pur: a.pur + r.purchases, rev: a.rev + r.revenue }), { spend: 0, pur: 0, rev: 0 });
+    return { roas: s.spend ? s.rev / s.spend : null, cpa: s.pur ? s.spend / s.pur : null };
+  };
+  const a = stat(win(3)), b = stat(win(30));
+  if (a.roas == null || b.roas == null) return null;
+  const good = a.roas >= b.roas * 1.05 || (a.cpa != null && b.cpa != null && a.cpa <= b.cpa * 0.95);
+  const bad = a.roas <= b.roas * 0.95 || (a.cpa != null && b.cpa != null && a.cpa >= b.cpa * 1.05);
+  return good && !bad ? 'good' : bad && !good ? 'bad' : null;
+}
+
+/** Auto-suggested "why" — only where the data direction makes it defensible. */
+function suggestReason(cat, ev, insights) {
+  const day = String(ev.event_time || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  if (cat === 'budget') {
+    const b = budgetValues(safeJson(ev.extra_data, {}), ev);
+    if (!b || b.newCents === b.oldCents) return null;
+    const sig = perfSignal(insights, day);
+    if (b.newCents > b.oldCents && sig === 'good') return 'Positive performance';
+    if (b.newCents < b.oldCents && sig === 'bad') return 'Negative performance';
+    return null;
+  }
+  if (cat === 'ad_paused' || cat === 'campaign_paused') {
+    return perfSignal(insights, day) === 'bad' ? 'Negative performance' : null;
+  }
+  return null;
+}
+
 async function syncActivities(env, acct, sinceISO) {
   const since = Math.floor(new Date(sinceISO).getTime() / 1000);
   const until = Math.floor(Date.now() / 1000);
@@ -266,17 +298,21 @@ async function syncActivities(env, acct, sinceISO) {
     fields: 'event_time,event_type,translated_event_type,actor_name,object_type,object_id,object_name,extra_data',
     since, until, limit: 500,
   }, 40);
+  const { results: insights } = await env.DB.prepare(
+    `SELECT date, spend, purchases, revenue FROM daily_insights WHERE act_id = ?1 ORDER BY date`,
+  ).bind(acct.act_id).all();
   const stmts = rows.map(ev => {
     const cat = classify(ev);
     const id = ev.id || `${acct.act_id}:${ev.event_time}:${ev.event_type}:${ev.object_id || ''}`;
     return env.DB.prepare(
-      `INSERT OR IGNORE INTO activities (id, act_id, event_time, event_type, translated, actor, object_type, object_id, object_name, extra_json, category, summary, confirmed)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
+      `INSERT OR IGNORE INTO activities (id, act_id, event_time, event_type, translated, actor, object_type, object_id, object_name, extra_json, category, summary, confirmed, suggested_reason)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`,
     ).bind(id, acct.act_id, ev.event_time, ev.event_type || null, ev.translated_event_type || null,
       ev.actor_name || null, ev.object_type || null, ev.object_id || null, ev.object_name || null,
       typeof ev.extra_data === 'string' ? ev.extra_data : JSON.stringify(ev.extra_data ?? null),
       cat, summarise(ev, cat, acct.currency),
-      cat === 'name' ? -1 : 0);   // renames are auto-dismissed noise; a ✓ or ✗ click can still override
+      cat === 'name' ? -1 : 0,   // renames are auto-dismissed noise; a ✓ or ✗ click can still override
+      suggestReason(cat, ev, insights));
   });
   for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
   await env.DB.prepare(`UPDATE accounts SET last_sync_activities = datetime('now') WHERE act_id = ?1`).bind(acct.act_id).run();
@@ -371,8 +407,9 @@ function packAccount(a, cur, prev, events, from, to) {
     `Previous window (same length): ${stat(prev)}`,
     `Changes (${events.length}${events.length > 120 ? ', first 120 shown' : ''}):`];
   for (const ev of events.slice(0, 120)) {
-    const tags = [ev.reason && `reason: ${ev.reason}`, ev.note && `note: ${ev.note}`,
-      ev.confirmed ? 'confirmed' : null, ev.manual ? 'manual entry' : null].filter(Boolean);
+    const tags = [ev.reason ? `reason: ${ev.reason}` : ev.suggested_reason ? `suggested reason (auto, unreviewed): ${ev.suggested_reason}` : null,
+      ev.note && `note: ${ev.note}`,
+      ev.confirmed === 1 ? 'confirmed' : null, ev.manual ? 'manual entry' : null].filter(Boolean);
     lines.push(`- ${String(ev.event_time).slice(0, 16).replace('T', ' ')} [${ev.category}] ${ev.summary}${ev.actor ? ` (by ${ev.actor})` : ''}${tags.length ? ` {${tags.join('; ')}}` : ''}`);
   }
   if (!events.length) lines.push('- (no changes logged in this window)');
@@ -389,7 +426,7 @@ async function writeUpdate(env, { act, from, to, template }) {
   const packs = [];
   for (const a of accounts) {
     const { results: evs } = await env.DB.prepare(
-      `SELECT event_time, category, summary, actor, reason, note, confirmed, manual FROM activities
+      `SELECT event_time, category, summary, actor, reason, suggested_reason, note, confirmed, manual FROM activities
        WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1 ORDER BY event_time`,
     ).bind(a.act_id, from, to + 'T23:59:59').all();
     const cur = agg((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results);
@@ -398,7 +435,7 @@ async function writeUpdate(env, { act, from, to, template }) {
   }
   const text = await claude(env, {
     system: tpl.system,
-    user: `Window: ${from} to ${to} (previous window ${prevFrom}..${prevTo} for comparison).\n\n${packs.join('\n\n')}`,
+    user: `Window: ${from} to ${to} (previous window ${prevFrom}..${prevTo} for comparison).\nTags marked "suggested reason (auto, unreviewed)" are machine-inferred from performance direction, not stated by the team — hedge accordingly.\n\n${packs.join('\n\n')}`,
   });
   return { text, template: template || 'daily', model: ANTHROPIC_MODEL, from, to, accounts: accounts.map(a => a.name) };
 }

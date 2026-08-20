@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS activities (
   category     TEXT NOT NULL DEFAULT 'other',    -- auto-classified (see worker CATEGORIES)
   summary      TEXT,                             -- one-line human description, e.g. "Budget: $210/day → $300/day"
   reason       TEXT,                             -- human tag (Chat 1)
+  suggested_reason TEXT,                         -- heuristic guess from perf data; ✓ promotes it to reason
   note         TEXT,
   confirmed    INTEGER NOT NULL DEFAULT 0,
   manual       INTEGER NOT NULL DEFAULT 0,
