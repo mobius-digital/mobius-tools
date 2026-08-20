@@ -270,12 +270,13 @@ async function syncActivities(env, acct, sinceISO) {
     const cat = classify(ev);
     const id = ev.id || `${acct.act_id}:${ev.event_time}:${ev.event_type}:${ev.object_id || ''}`;
     return env.DB.prepare(
-      `INSERT OR IGNORE INTO activities (id, act_id, event_time, event_type, translated, actor, object_type, object_id, object_name, extra_json, category, summary)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
+      `INSERT OR IGNORE INTO activities (id, act_id, event_time, event_type, translated, actor, object_type, object_id, object_name, extra_json, category, summary, confirmed)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
     ).bind(id, acct.act_id, ev.event_time, ev.event_type || null, ev.translated_event_type || null,
       ev.actor_name || null, ev.object_type || null, ev.object_id || null, ev.object_name || null,
       typeof ev.extra_data === 'string' ? ev.extra_data : JSON.stringify(ev.extra_data ?? null),
-      cat, summarise(ev, cat, acct.currency));
+      cat, summarise(ev, cat, acct.currency),
+      cat === 'name' ? -1 : 0);   // renames are auto-dismissed noise; a ✓ or ✗ click can still override
   });
   for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
   await env.DB.prepare(`UPDATE accounts SET last_sync_activities = datetime('now') WHERE act_id = ?1`).bind(acct.act_id).run();
