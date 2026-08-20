@@ -13,6 +13,7 @@
  *   ADMIN_TOKEN   — master key for the dashboard (a dashboard password can also
  *                   be set in Settings; its hash lives in the settings table)
  *   SLACK_BOT_TOKEN — (Chat 2) same Slack app as Pulse / Restock
+ *   ANTHROPIC_API_KEY — (Chat 1) Claude API key for POST /api/summarise
  *
  * Build plan lives in ../PRD.md. This file is Chat 0 (foundation); Chats 1–4
  * add routes + sync jobs for Change Log, Averages/Pacing, Creative Rotation,
@@ -285,6 +286,109 @@ async function syncAccount(env, acct, days) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Summarise (Chat 1) — Claude writes the daily/weekly update         */
+/* ------------------------------------------------------------------ */
+
+const ANTHROPIC_MODEL = 'claude-opus-5';
+
+async function claude(env, { system, user, maxTokens = 4000 }) {
+  if (!env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY secret is not set — run `npx wrangler secret put ANTHROPIC_API_KEY` in account-health/worker/');
+  }
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: user }],
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error?.message || `Claude API HTTP ${res.status}`);
+  if (body.stop_reason === 'refusal') throw new Error('Claude declined to write this summary');
+  return body.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+}
+
+const SUMMARISE_TEMPLATES = {
+  daily: {
+    label: 'Daily standup',
+    system: `You are a senior media buyer at Mobius Digital writing the internal daily Slack update.
+Write a tight update from the change log + performance data you're given. Rules:
+- One short section per client (bold name), bullets under it. Skip clients with nothing to say.
+- Lead each bullet with what changed and why (use the reason/note tags when present), then a one-line read on performance if the data supports it.
+- Ignore housekeeping noise (renames, drafts, system events) unless it's the only activity.
+- Money stays in each account's own currency. The last ~3 days of conversions are still settling — hedge accordingly.
+- Plain text with Slack-style *bold*, no headers, no preamble, no sign-off.`,
+  },
+  weekly: {
+    label: 'Weekly recap',
+    system: `You are a senior media buyer at Mobius Digital writing the internal weekly recap.
+For each client with meaningful activity or spend, write a short block:
+- *Client name* — performance vs the previous window (spend, CPA, ROAS — only metrics that actually moved),
+- what we changed and why (group related changes; use reason/note tags),
+- one line on what's next if the changes imply it.
+Ignore housekeeping noise. Money stays in each account's own currency; the last ~3 days are still settling.
+Plain text with Slack-style *bold*, no preamble, no sign-off.`,
+  },
+  client: {
+    label: 'Client-facing update',
+    system: `You are writing a client-facing update from Mobius Digital, their paid-social agency, about their Meta ads account.
+Rules:
+- Warm, confident, plain English — no internal jargon, no ad-account IDs, no "activity log".
+- Summarise what was done and why it's good for them, then how the account is trending (only well-supported numbers, in their currency).
+- Recent conversions still settle for ~72h — phrase recent performance carefully.
+- 100–180 words, no subject line, no greeting or sign-off placeholders.`,
+  },
+};
+
+/** Compact plain-text data pack for one account: window stats + change list. */
+function packAccount(a, cur, prev, events, from, to) {
+  const f = n => n == null ? '—' : (Math.round(n * 100) / 100).toString();
+  const stat = s => `spend ${f(s.spend)} ${a.currency}, purchases ${f(s.purchases)}, CPA ${f(s.cpa)}, ROAS ${f(s.roas)}, CTR ${s.ctr == null ? '—' : (s.ctr * 100).toFixed(2) + '%'}`;
+  const lines = [`## ${a.name} (${a.currency})`,
+    `Window ${from}..${to}: ${stat(cur)}`,
+    `Previous window (same length): ${stat(prev)}`,
+    `Changes (${events.length}${events.length > 120 ? ', first 120 shown' : ''}):`];
+  for (const ev of events.slice(0, 120)) {
+    const tags = [ev.reason && `reason: ${ev.reason}`, ev.note && `note: ${ev.note}`,
+      ev.confirmed ? 'confirmed' : null, ev.manual ? 'manual entry' : null].filter(Boolean);
+    lines.push(`- ${String(ev.event_time).slice(0, 16).replace('T', ' ')} [${ev.category}] ${ev.summary}${ev.actor ? ` (by ${ev.actor})` : ''}${tags.length ? ` {${tags.join('; ')}}` : ''}`);
+  }
+  if (!events.length) lines.push('- (no changes logged in this window)');
+  return lines.join('\n');
+}
+
+async function writeUpdate(env, { act, from, to, template }) {
+  const tpl = SUMMARISE_TEMPLATES[template] || SUMMARISE_TEMPLATES.daily;
+  const accounts = (await listAccounts(env, true)).filter(a => act === 'all' || !act ? true : a.act_id === act);
+  if (!accounts.length) throw new Error('no matching active account');
+  if (template === 'client' && accounts.length > 1) throw new Error('pick one client for a client-facing update');
+  const days = Math.max(1, Math.round((new Date(to) - new Date(from)) / 86400e3) + 1);
+  const prevFrom = addDays(from, -days), prevTo = addDays(from, -1);
+  const packs = [];
+  for (const a of accounts) {
+    const { results: evs } = await env.DB.prepare(
+      `SELECT event_time, category, summary, actor, reason, note, confirmed, manual FROM activities
+       WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 ORDER BY event_time`,
+    ).bind(a.act_id, from, to + 'T23:59:59').all();
+    const cur = agg((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results);
+    const prev = agg((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, prevFrom, prevTo).all()).results);
+    packs.push(packAccount(a, cur, prev, evs, from, to));
+  }
+  const text = await claude(env, {
+    system: tpl.system,
+    user: `Window: ${from} to ${to} (previous window ${prevFrom}..${prevTo} for comparison).\n\n${packs.join('\n\n')}`,
+  });
+  return { text, template: template || 'daily', model: ANTHROPIC_MODEL, from, to, accounts: accounts.map(a => a.name) };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Overview maths (all clients in one table)                          */
 /* ------------------------------------------------------------------ */
 
@@ -529,9 +633,13 @@ export default {
         const from = url.searchParams.get('from') || '2000-01-01';
         const to = url.searchParams.get('to') || '2999-12-31T23:59:59';
         const limit = Math.min(+url.searchParams.get('limit') || 500, 2000);
-        const { results } = await env.DB.prepare(
-          `SELECT * FROM activities WHERE act_id = ?1 AND event_time BETWEEN ?2 AND ?3 ORDER BY event_time DESC LIMIT ?4`,
-        ).bind(act, from, to, limit).all();
+        const all = !act || act === 'all';
+        const { results } = await env.DB.prepare(all
+          ? `SELECT a.*, acc.name AS account_name FROM activities a JOIN accounts acc ON acc.act_id = a.act_id
+             WHERE acc.active = 1 AND a.event_time BETWEEN ?1 AND ?2 ORDER BY a.event_time DESC LIMIT ?3`
+          : `SELECT a.*, acc.name AS account_name FROM activities a JOIN accounts acc ON acc.act_id = a.act_id
+             WHERE a.act_id = ?4 AND a.event_time BETWEEN ?1 AND ?2 ORDER BY a.event_time DESC LIMIT ?3`,
+        ).bind(...(all ? [from, to, limit] : [from, to, limit, act])).all();
         return json({ rows: results });
       }
       if ((m = path.match(/^\/api\/activities\/(.+)$/)) && request.method === 'PATCH') {
@@ -552,6 +660,13 @@ export default {
         ).bind(id, b.act_id, b.event_time || new Date().toISOString(), b.category || 'other',
           b.summary || '', b.reason ?? null, b.note ?? null, b.actor || 'manual').run();
         return json({ ok: true, id });
+      }
+      if (path === '/api/summarise' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(b.from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b.to || '')) {
+          return json({ error: 'from/to must be YYYY-MM-DD' }, 400);
+        }
+        return json(await writeUpdate(env, b));
       }
 
       /* ---- settings ---- */

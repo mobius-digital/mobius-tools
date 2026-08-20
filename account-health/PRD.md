@@ -28,7 +28,7 @@ budgets, password).
 | Chat | Scope | Status |
 |---|---|---|
 | 0 | Foundation: this PRD, CLAUDE.md, Worker + D1, nightly sync of daily insights + activities, dashboard shell (gate, client picker, Overview, Settings), README | ✅ built 2026-08-19 — awaiting Meta token |
-| 1 | Change Log page: feed, type filters, search, reason tag + confirm, manual add, **Summarise** (Claude → daily / weekly update) | ⬜ |
+| 1 | Change Log page: feed, type filters, search, reason tag + confirm, manual add, **Summarise** (Claude → daily / weekly update) | ✅ built 2026-08-20 — needs `ANTHROPIC_API_KEY` secret for Summarise |
 | 2 | Averages page (7v30 cards, 3/7/14/30 table, change-log strip) + MTD Pacing (vs budget, vs last month) + Slack off-pace alert + per-client share link | ⬜ |
 | 3 | Creative Rotation: ad-level pulls with first-spend date, freshness %, spend-weighted age, fresh vs stale CPA, weekly age-bucket bars | ⬜ |
 | 4 | Intraday Pacing (hourly curves), all-clients pacing row, alert polish, handoff docs | ⬜ |
@@ -92,7 +92,11 @@ POST /api/discover                         re-pull /me/adaccounts from Meta
 POST /api/sync?act=&days=                  backfill one/all accounts (insights + activities)
 GET  /api/insights?act=&from=&to=          daily rows
 GET  /api/overview                         all active accounts: MTD spend, budget pace, 7d/30d CPA & ROAS
-GET  /api/activities?act=&from=&to=        (Chat 1 extends with PATCH for reason/confirm)
+GET  /api/activities?act=&from=&to=        act='all' (or omitted) = every active account, rows carry account_name
+PATCH /api/activities/:id                  {reason, note, confirmed, category} — any subset
+POST /api/activities                       manual entry {act_id, event_time, category, summary, reason, note, actor}
+POST /api/summarise                        {act|'all', from, to, template: daily|weekly|client} → Claude-written update
+                                           (claude-opus-5; needs ANTHROPIC_API_KEY secret; 'client' needs one account)
 PUT  /api/password                         {password}
 ```
 

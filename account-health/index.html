@@ -111,6 +111,32 @@
   .feed .it:last-child{border-bottom:none}
   .feed .cat{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:2px 7px;justify-self:start}
 
+  /* Change Log (Chat 1) */
+  .chip{border:1px solid var(--line-strong);border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:600;background:var(--surface)}
+  .chip.on{background:var(--hd);color:#fff;border-color:var(--hd)}
+  .catpill{border:1px solid var(--line);border-radius:99px;padding:4px 11px;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft)}
+  .catpill.off{background:transparent;color:var(--muted);border-style:dashed;opacity:.75}
+  .catpill i{font-style:normal;font-weight:600;opacity:.65;margin-left:4px}
+  main input[type=date],main .search,main select{border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--surface)}
+  main .search{min-width:190px}
+  .cl-day{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:14px 0 6px;border-bottom:1px solid var(--line)}
+  .cl-day:first-child{padding-top:0}
+  .cl-it{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px 14px;padding:10px 0;border-bottom:1px solid var(--line);align-items:start;font-size:13px}
+  .cl-it:last-child{border-bottom:none}
+  .cl-it .who{color:var(--muted);font-size:11.5px;line-height:1.4;padding-top:2px}
+  .cl-it .what .cat{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:2px 7px;margin-right:7px;white-space:nowrap}
+  .cl-it .what .client{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);background:var(--unk-bg);border-radius:6px;padding:2px 7px;margin-right:7px;white-space:nowrap}
+  .cl-it .what .txt{overflow-wrap:anywhere}
+  .cl-it .note{color:var(--muted);font-size:12px;margin-top:3px;font-style:italic}
+  .cl-it .acts{display:flex;gap:7px;align-items:center;white-space:nowrap}
+  .cl-it .acts select{padding:4px 7px;font-size:12px;color:var(--muted);max-width:150px}
+  .cl-it .acts select.set{color:var(--ink);border-color:var(--line-strong)}
+  .icon-btn{border:1px solid var(--line-strong);border-radius:7px;width:28px;height:28px;font-size:13px;line-height:1;color:var(--muted);flex:none}
+  .icon-btn:hover{border-color:var(--brand-ink);color:var(--ink)}
+  .icon-btn.ok.on{background:var(--good-bg);border-color:#BFDFC9;color:var(--good)}
+  .sum-out{white-space:pre-wrap;font-family:var(--sans);font-size:13.5px;line-height:1.6;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin-top:12px;overflow-wrap:anywhere}
+  @media (max-width:720px){ .cl-it{grid-template-columns:1fr} .cl-it .acts{justify-content:flex-start} }
+
   footer{max-width:1240px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
   @media (max-width:720px){ .hd{padding:10px 14px} main{padding:16px 14px 60px} .feed .it{grid-template-columns:1fr} }
 </style>
@@ -131,7 +157,7 @@
   <nav class="tabs" id="tabs" style="display:none"><div class="in">
     <button data-t="overview">Overview</button>
     <button data-t="pacing">Pacing <span class="soon">chat 2/4</span></button>
-    <button data-t="changelog">Change Log <span class="soon">chat 1</span></button>
+    <button data-t="changelog">Change Log</button>
     <button data-t="averages">Averages <span class="soon">chat 2</span></button>
     <button data-t="creative">Creative Rotation <span class="soon">chat 3</span></button>
     <button data-t="settings">Settings</button>
@@ -309,16 +335,190 @@ async function renderOverview() {
     <p class="tiny" style="margin-top:10px">Budget pace = MTD spend vs (monthly budget × share of month elapsed). Green within ±10%, amber within ±25%. 7d/30d windows end yesterday; the last 3 days are still settling.</p>`;
 }
 
-/* ---------- Change Log (raw feed for now; full page in Chat 1) ---------- */
+/* ---------- Change Log (Chat 1) ---------- */
+const CL = {
+  range: localStorage.getItem('ah_cl_range') || '7',
+  from: null, to: null,           // used when range === 'custom'
+  q: '', hide: new Set(),         // hidden categories
+  rows: [], truncated: false, panel: null,   // panel: 'add' | 'sum' | null
+};
+const CL_REASONS = ['Scaling','Performance fix','Creative refresh','Testing','Budget cap','Client request','Promo / seasonal','Housekeeping','Revert / mistake'];
+const CL_ADD_CATS = ['budget','new_creative','new_adset','new_campaign','ad_paused','ad_relaunched','campaign_paused','campaign_relaunched','bid_strategy','targeting','optimisation','schedule','other'];
+const ymdLocal = d => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+function clDates() {
+  const shift = n => ymdLocal(new Date(Date.now() - n*86400e3));
+  if (CL.range === 'today') return [shift(0), shift(0)];
+  if (CL.range === 'yday') return [shift(1), shift(1)];
+  if (CL.range === 'custom') return [CL.from || shift(6), CL.to || shift(0)];
+  return [shift(+CL.range - 1), shift(0)];
+}
+
 async function renderChangeLog() {
-  const act = S.act === 'all' ? (S.accounts.find(a=>a.active)?.act_id) : S.act;
-  $('#main').innerHTML = `<h2>Change Log</h2><p class="sub">What we changed on this account, when, and why. The full page — type filters, search, reason tags, confirm, and <b>Summarise</b> into a daily/weekly update — lands in Chat 1. For now this is the raw feed proving the sync works.</p>${setupBanner()}
-    ${S.act === 'all' ? `<div class="notice">Pick a client in the header to see its feed.</div>` : ''}<div class="card"><span class="hint">Loading…</span></div>`;
-  if (!act) { $('#main .card').remove(); return; }
+  const [from, to] = clDates();
+  $('#main').innerHTML = `<h2>Change Log</h2>
+    <p class="sub">Every change on the account — Meta's activity log plus manual entries — with why it was made. Tag the reason, confirm it was deliberate, and let Claude write the update.</p>
+    ${setupBanner()}
+    <div class="row">
+      ${[['today','Today'],['yday','Yesterday'],['7','7 days'],['14','14 days'],['30','30 days']].map(([v,l]) =>
+        `<button class="chip ${CL.range===v?'on':''}" data-r="${v}">${l}</button>`).join('')}
+      <input type="date" id="clFrom" value="${from}" max="${ymdLocal(new Date())}">
+      <span class="tiny">→</span>
+      <input type="date" id="clTo" value="${to}" max="${ymdLocal(new Date())}">
+      <span style="flex:1"></span>
+      <input class="search" id="clQ" placeholder="Search changes…" value="${esc(CL.q)}">
+      <button class="btn" id="clAddBtn">+ Add change</button>
+      <button class="btn primary" id="clSumBtn">✦ Summarise</button>
+    </div>
+    <div id="clPanel"></div>
+    <div class="row" id="clCats" style="gap:6px"></div>
+    <div class="card" id="clFeed"><span class="hint">Loading…</span></div>`;
+
+  document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
+    CL.range = c.dataset.r; localStorage.setItem('ah_cl_range', CL.range); renderChangeLog();
+  });
+  const onDate = () => {
+    CL.range = 'custom'; CL.from = $('#clFrom').value; CL.to = $('#clTo').value;
+    if (CL.from && CL.to && CL.from <= CL.to) renderChangeLog();
+  };
+  $('#clFrom').onchange = onDate; $('#clTo').onchange = onDate;
+  $('#clQ').oninput = () => { CL.q = $('#clQ').value; clDrawFeed(); };
+  $('#clAddBtn').onclick = () => { CL.panel = CL.panel === 'add' ? null : 'add'; clDrawPanel(); };
+  $('#clSumBtn').onclick = () => { CL.panel = CL.panel === 'sum' ? null : 'sum'; clDrawPanel(); };
+  clDrawPanel();
+
   try {
-    const { rows } = await api(`/api/activities?act=${act}&limit=80`);
-    $('#main .card').innerHTML = rows.length ? `<div class="feed">${rows.map(r => `<div class="it"><span class="tiny">${esc(new Date(r.event_time).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}))}<br>${esc(r.actor||'')}</span><span class="cat">${esc(r.category.replace(/_/g,' '))}</span><span>${esc(r.summary || r.translated || r.event_type)}</span></div>`).join('')}</div>` : `<span class="hint">No changes pulled yet for this account.</span>`;
-  } catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
+    const { rows } = await api(`/api/activities?act=${S.act}&from=${from}&to=${to}T23:59:59&limit=2000`);
+    CL.rows = rows; CL.truncated = rows.length >= 2000;
+    clDrawFeed();
+  } catch (e) { $('#clFeed').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
+
+  /* row actions: reason select, note, confirm */
+  $('#clFeed').addEventListener('change', async e => {
+    const sel = e.target.closest('select[data-id]'); if (!sel) return;
+    const r = CL.rows.find(x => x.id === sel.dataset.id); if (!r) return;
+    r.reason = sel.value || null;
+    sel.classList.toggle('set', !!sel.value);
+    await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify({ reason: sel.value || '' }) }).catch(err => alert(err.message));
+  });
+  $('#clFeed').addEventListener('click', async e => {
+    const btn = e.target.closest('button[data-id]'); if (!btn) return;
+    const r = CL.rows.find(x => x.id === btn.dataset.id); if (!r) return;
+    if (btn.dataset.do === 'ok') {
+      r.confirmed = r.confirmed ? 0 : 1;
+      btn.classList.toggle('on', !!r.confirmed); btn.title = r.confirmed ? 'Confirmed — we meant to do this' : 'Not confirmed yet';
+      await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify({ confirmed: !!r.confirmed }) }).catch(err => alert(err.message));
+    }
+    if (btn.dataset.do === 'note') {
+      const v = prompt('Note for this change:', r.note || '');
+      if (v == null) return;
+      r.note = v;
+      await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify({ note: v }) }).catch(err => alert(err.message));
+      clDrawFeed();
+    }
+  });
+}
+
+function clDrawFeed() {
+  const q = CL.q.trim().toLowerCase();
+  const match = r => !q || [r.summary, r.object_name, r.actor, r.note, r.reason, r.account_name, r.category]
+    .some(v => v && String(v).toLowerCase().includes(q));
+  const searched = CL.rows.filter(match);
+
+  const counts = {};
+  searched.forEach(r => counts[r.category] = (counts[r.category] || 0) + 1);
+  $('#clCats').innerHTML = Object.entries(counts).sort((a,b) => b[1]-a[1]).map(([c,n]) =>
+    `<button class="catpill ${CL.hide.has(c)?'off':''}" data-c="${c}">${esc(c.replace(/_/g,' '))}<i>${n}</i></button>`).join('');
+  document.querySelectorAll('#clCats .catpill').forEach(p => p.onclick = () => {
+    CL.hide.has(p.dataset.c) ? CL.hide.delete(p.dataset.c) : CL.hide.add(p.dataset.c);
+    clDrawFeed();
+  });
+
+  const rows = searched.filter(r => !CL.hide.has(r.category));
+  if (!rows.length) { $('#clFeed').innerHTML = `<span class="hint">${CL.rows.length ? 'Nothing matches the current filters.' : 'No changes in this window.'}</span>`; return; }
+
+  const showClient = S.act === 'all';
+  let html = '', day = '';
+  for (const r of rows) {
+    const d = parseTs(r.event_time);
+    const dLabel = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    if (dLabel !== day) { day = dLabel; html += `<div class="cl-day">${dLabel}</div>`; }
+    html += `<div class="cl-it">
+      <div class="who">${d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}<br>${esc(r.actor || '')}${r.manual ? ' · manual' : ''}</div>
+      <div class="what">
+        ${showClient ? `<span class="client">${esc(r.account_name || '')}</span>` : ''}<span class="cat">${esc((r.category||'other').replace(/_/g,' '))}</span><span class="txt">${esc(r.summary || r.translated || r.event_type || '')}</span>
+        ${r.note ? `<div class="note">“${esc(r.note)}”</div>` : ''}
+      </div>
+      <div class="acts">
+        <select data-id="${esc(r.id)}" class="${r.reason?'set':''}"><option value="">why?</option>${CL_REASONS.map(x =>
+          `<option ${r.reason===x?'selected':''}>${x}</option>`).join('')}${r.reason && !CL_REASONS.includes(r.reason) ? `<option selected>${esc(r.reason)}</option>` : ''}</select>
+        <button class="icon-btn" data-id="${esc(r.id)}" data-do="note" title="Add a note">✎</button>
+        <button class="icon-btn ok ${r.confirmed?'on':''}" data-id="${esc(r.id)}" data-do="ok" title="${r.confirmed?'Confirmed — we meant to do this':'Not confirmed yet'}">✓</button>
+      </div>
+    </div>`;
+  }
+  $('#clFeed').innerHTML = html + (CL.truncated ? `<p class="tiny" style="margin-top:10px">Showing the most recent 2,000 changes — narrow the window to see everything.</p>` : '');
+}
+
+function clDrawPanel() {
+  const el = $('#clPanel');
+  if (!CL.panel) { el.innerHTML = ''; return; }
+  const [from, to] = clDates();
+  const active = S.accounts.filter(a => a.active);
+  if (CL.panel === 'add') {
+    el.innerHTML = `<div class="card"><h3>Add a change</h3>
+      <p class="hint" style="margin-bottom:10px">For things Meta's log can't see — landing page swaps, promo starts, tracking fixes.</p>
+      <div class="row">
+        <select id="adAct">${active.map(a => `<option value="${a.act_id}" ${a.act_id===S.act?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
+        <input type="datetime-local" id="adTime" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60e3).toISOString().slice(0,16)}">
+        <select id="adCat">${CL_ADD_CATS.map(c => `<option value="${c}">${c.replace(/_/g,' ')}</option>`).join('')}</select>
+      </div>
+      <div class="row">
+        <input class="search" id="adSum" placeholder="What changed? e.g. Launched 20% off promo on site" style="flex:1;min-width:240px">
+        <select id="adWhy"><option value="">why?</option>${CL_REASONS.map(x => `<option>${x}</option>`).join('')}</select>
+        <button class="btn primary" id="adGo">Save</button>
+      </div><span class="tiny" id="adMsg"></span></div>`;
+    $('#adGo').onclick = async () => {
+      const summary = $('#adSum').value.trim();
+      if (!summary) return $('#adMsg').textContent = 'Say what changed first.';
+      $('#adGo').disabled = true;
+      try {
+        await api('/api/activities', { method:'POST', body: JSON.stringify({
+          act_id: $('#adAct').value, event_time: new Date($('#adTime').value).toISOString(),
+          category: $('#adCat').value, summary, reason: $('#adWhy').value || null,
+          actor: localStorage.getItem('mobius_session_email') || 'manual',
+        }) });
+        CL.panel = null; renderChangeLog();
+      } catch (e) { $('#adMsg').textContent = e.message; $('#adGo').disabled = false; }
+    };
+  }
+  if (CL.panel === 'sum') {
+    const scope = S.act === 'all' ? 'all clients' : (active.find(a => a.act_id === S.act)?.name || 'this client');
+    el.innerHTML = `<div class="card"><h3>Summarise with Claude</h3>
+      <p class="hint" style="margin-bottom:10px">Writes from the tagged changes + performance for <b>${esc(scope)}</b>, ${from} → ${to}. Reasons and notes you've tagged make it noticeably better.</p>
+      <div class="row">
+        <select id="sumTpl">
+          <option value="daily">Daily standup (internal)</option>
+          <option value="weekly">Weekly recap (internal)</option>
+          <option value="client">Client-facing update</option>
+        </select>
+        <button class="btn primary" id="sumGo">Write it</button>
+        <span class="tiny" id="sumMsg"></span>
+      </div>
+      <div id="sumOut"></div></div>`;
+    $('#sumGo').onclick = async () => {
+      const tpl = $('#sumTpl').value;
+      if (tpl === 'client' && S.act === 'all') return $('#sumMsg').textContent = 'Pick one client in the header for a client-facing update.';
+      $('#sumGo').disabled = true; $('#sumMsg').textContent = 'Claude is writing… (~20s)';
+      try {
+        const r = await api('/api/summarise', { method:'POST', body: JSON.stringify({ act: S.act, from, to, template: tpl }) });
+        $('#sumMsg').textContent = '';
+        $('#sumOut').innerHTML = `<div class="sum-out" id="sumTxt">${esc(r.text)}</div>
+          <div class="row" style="margin:10px 0 0"><button class="btn" id="sumCopy">Copy</button><span class="tiny">${esc(r.model)}</span></div>`;
+        $('#sumCopy').onclick = () => { navigator.clipboard.writeText($('#sumTxt').textContent); $('#sumCopy').textContent = 'Copied ✓'; setTimeout(() => $('#sumCopy').textContent = 'Copy', 1500); };
+      } catch (e) { $('#sumMsg').textContent = e.message; }
+      $('#sumGo').disabled = false;
+    };
+  }
 }
 
 function renderSoon(title, text) {
