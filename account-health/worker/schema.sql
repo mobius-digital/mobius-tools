@@ -8,8 +8,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   currency            TEXT NOT NULL DEFAULT 'USD',
   tz                  TEXT NOT NULL DEFAULT 'America/Chicago',
   active              INTEGER NOT NULL DEFAULT 0,
-  monthly_budget      REAL,                      -- default budget per calendar month
+  monthly_budget      REAL,                      -- monthly spend target (cap or goal) per calendar month
   budgets_json        TEXT NOT NULL DEFAULT '{}',-- {"2026-08": 15000, ...} month overrides
+  target_cpa          REAL,                      -- KPI guardrail: 7d CPA above this = breach
+  target_roas         REAL,                      -- KPI guardrail: 7d ROAS below this = breach
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,

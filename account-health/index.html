@@ -359,7 +359,9 @@ async function renderOverview() {
       <td><b>${esc(a.name)}</b><br><span class="tiny">${a.last_error ? `<span style="color:var(--bad)">⚠ ${esc(a.last_error).slice(0,60)}</span>` : `synced ${fmtAgo(a.last_sync_insights)}${stale?' ⚠':''} · ${a.changes_24h} changes/24h`}</span></td>
       <td class="num">${fmtK(a.today_spend, a.currency)}</td>
       <td class="num"><b>${fmtK(m.spend, a.currency)}</b><br><span class="tiny">${m.budget != null ? 'of ' + fmtK(m.budget, a.currency) : 'no budget set'}</span></td>
-      <td class="num">${m.pace_pct == null ? '<span class="pill unk">set budget</span>' : `<span class="pill ${paceCls}">${fmtPct(m.pace_pct,0)} vs pace</span>`}<br><span class="tiny">proj. ${fmtK(m.projected, a.currency)}</span></td>
+      <td class="num">${m.pace_pct != null ? `<span class="pill ${paceCls}">${fmtPct(m.pace_pct,0)} vs pace</span>`
+        : (a.target_cpa || a.target_roas) ? (kpiChips(a).breaches ? '<span class="pill bad">KPI breach</span>' : '<span class="pill good">KPIs ok · scaling</span>')
+        : '<span class="pill unk">set target</span>'}<br><span class="tiny">proj. ${fmtK(m.projected, a.currency)}</span></td>
       <td class="num">${fmtK(m.last_month_same_day, a.currency)}${delta(m.spend, m.last_month_same_day)}<br><span class="tiny">full month ${fmtK(m.last_month_total, a.currency)}</span></td>
       <td class="num">${fmtMoney(a.l7.cpa, a.currency)}${delta(a.l7.cpa, a.l30.cpa, true)}<br><span class="tiny">30d ${fmtMoney(a.l30.cpa, a.currency)}</span></td>
       <td class="num">${fmtX(a.l7.roas)}${delta(a.l7.roas, a.l30.roas)}<br><span class="tiny">30d ${fmtX(a.l30.roas)}</span></td>
@@ -765,22 +767,45 @@ async function renderAverages() {
 }
 
 /* ---------- Pacing (Chat 2: month-to-date; hourly curve lands in Chat 4) ---------- */
+/** KPI guardrail chips: 7d CPA vs cap, 7d ROAS vs floor. Returns { html, breaches }. */
+function kpiChips(a) {
+  const chips = [];
+  let breaches = 0;
+  if (a.target_cpa && a.l7?.cpa != null) {
+    const over = a.l7.cpa > a.target_cpa * 1.05;
+    if (over) breaches++;
+    chips.push(`<span class="pill ${over ? 'bad' : 'good'}" title="7-day CPA vs the cap set in Settings">CPA ${fmtMoney(a.l7.cpa, a.currency)} vs ${fmtMoney(a.target_cpa, a.currency)} cap</span>`);
+  }
+  if (a.target_roas && a.l7?.roas != null) {
+    const under = a.l7.roas < a.target_roas * 0.95;
+    if (under) breaches++;
+    chips.push(`<span class="pill ${under ? 'bad' : 'good'}" title="7-day ROAS vs the floor set in Settings">ROAS ${fmtX(a.l7.roas)} vs ${a.target_roas}x floor</span>`);
+  }
+  return { html: chips.join(' '), breaches, any: chips.length > 0 };
+}
+
 function buildPaceCard(a, opts = {}) {
   const m = a.mtd, cur = a.currency;
+  const kpi = kpiChips(a);
   const paceCls = m.pace_pct == null ? 'unk' : Math.abs(m.pace_pct) <= 0.1 ? 'good' : Math.abs(m.pace_pct) <= 0.25 ? 'warn' : 'bad';
   const pct = m.budget ? Math.min(100, m.spend / m.budget * 100) : 0;
   const markPct = m.budget && m.expected != null ? Math.min(100, m.expected / m.budget * 100) : null;
   const daysLeft = m.days_in_month && m.day_of_month ? m.days_in_month - m.day_of_month : null;
+  const headPill = m.pace_pct != null ? `<span class="pill ${paceCls}">${fmtPct(m.pace_pct, 0)} vs pace</span>`
+    : kpi.any ? `<span class="pill ${kpi.breaches ? 'bad' : 'good'}">${kpi.breaches ? 'KPI breach — pull back' : 'KPIs healthy — clear to scale'}</span>`
+    : `<span class="pill unk">no target set</span>`;
   return `<div class="card">
     <div class="row" style="margin-bottom:2px">
       <h3 style="font-size:16px">${esc(a.name)}</h3>
-      ${m.pace_pct != null ? `<span class="pill ${paceCls}">${fmtPct(m.pace_pct, 0)} vs pace</span>` : `<span class="pill unk">no budget set</span>`}
+      ${headPill}
       <span style="flex:1"></span><span class="tiny">${daysLeft != null ? daysLeft + ' days left in the month' : ''}</span>
     </div>
     ${m.budget ? `<div class="pace-bar"><div class="fill ${m.expected != null && m.spend > m.expected * 1.1 ? 'over' : ''}" style="width:${pct.toFixed(1)}%"></div>
-      ${markPct != null ? `<div class="mark" style="left:${markPct.toFixed(1)}%" title="Where spend should be by today (budget × share of month elapsed)"></div>` : ''}</div>
+      ${markPct != null ? `<div class="mark" style="left:${markPct.toFixed(1)}%" title="Where spend should be by today (monthly target × share of month elapsed)"></div>` : ''}</div>
       <p class="tiny">The dark marker is where spend should sit right now; the bar is actual month-to-date.</p>` :
-      opts.share ? '' : `<p class="hint">Set a monthly budget in Settings to unlock pace tracking for this client.</p>`}
+      kpi.any ? `<p class="tiny" style="margin:6px 0 4px">No spend cap — this client scales as long as the guardrails hold.</p>` :
+      opts.share ? '' : `<p class="hint">Give this client a monthly target or KPI guardrails (CPA cap / ROAS floor) in Settings to unlock pace tracking.</p>`}
+    ${kpi.any ? `<div class="row" style="margin:8px 0 2px">${kpi.html}</div>` : ''}
     <div class="pc-stats">
       <div class="st"><b>${fmtK(m.spend, cur)}</b><span>MTD spend</span></div>
       <div class="st"><b>${m.budget != null ? fmtK(m.budget, cur) : '—'}</b><span>Budget</span></div>
@@ -821,7 +846,8 @@ async function renderShareView(token) {
     const rows = full.slice(-90);
     $('#main').innerHTML = `<h2>${esc(d.account.name)}</h2>
       <p class="sub">Meta ads performance, prepared by Mobius Digital. Numbers are Meta-reported; the most recent 3 days are still settling as conversions arrive.</p>
-      ${buildPaceCard({ name: 'This month', currency: d.account.currency, mtd: d.mtd, today_spend: d.today_spend }, { share: true })}
+      ${buildPaceCard({ name: 'This month', currency: d.account.currency, mtd: d.mtd, today_spend: d.today_spend,
+        l7: d.l7, target_cpa: d.target_cpa, target_roas: d.target_roas }, { share: true })}
       ${rows.length >= 7 ? buildAvCards(rows, d.account.currency) + buildAvTable(rows, d.account.currency) : ''}`;
   } catch (e) {
     $('#main').innerHTML = `<div class="gate"><h1>Link not available</h1><p>${esc(e.message)}</p></div>`;
@@ -837,7 +863,8 @@ function renderSoon(title, text) {
 async function renderSettings() {
   $('#main').innerHTML = `<h2>Settings</h2><p class="sub">Which ad accounts to track, each client's monthly budget (drives the pacing maths), and the dashboard password.</p>${setupBanner()}
     <div class="row"><button class="btn primary" id="btnDiscover">Discover accounts from Meta</button><span class="tiny">Pulls every ad account the Meta token can see. Run again whenever a client is added.</span></div>
-    <div class="card settings"><div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly budget</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
+    <div class="card settings"><p class="hint" style="margin-bottom:10px">Two ways to steer a client: a <b>monthly target</b> (a budget cap or a spend goal — pacing tracks it either way), or <b>KPI guardrails</b> (no cap; scale freely while 7-day CPA stays under the cap and 7-day ROAS above the floor). Set one or both — leave blank what doesn't apply.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Track</th><th>Client name</th><th>Ad account</th><th>Currency · tz</th><th>Monthly target</th><th>CPA cap</th><th>ROAS floor</th><th>Last sync</th><th></th></tr></thead><tbody id="accRows"></tbody></table></div></div>
     <div class="card"><h3>Slack pace alerts</h3>
       <p class="hint" style="margin-bottom:10px">After the nightly sync, posts to Slack when any budgeted client's month-to-date spend drifts off pace. Uses the same Slack bot as Pulse and Restock.</p>
       <div class="row">
@@ -859,9 +886,11 @@ async function renderSettings() {
       <td class="tiny">${esc(a.act_id.replace('act_',''))}${a.account_status && a.account_status !== 1 ? ' <span class="pill warn">status ' + a.account_status + '</span>' : ''}</td>
       <td class="tiny">${esc(a.currency)} · ${esc(a.tz)}</td>
       <td><input type="number" min="0" step="100" value="${a.monthly_budget ?? ''}" placeholder="—" data-k="monthly_budget"></td>
+      <td><input type="number" min="0" step="1" value="${a.target_cpa ?? ''}" placeholder="—" data-k="target_cpa" style="width:70px"></td>
+      <td><input type="number" min="0" step="0.1" value="${a.target_roas ?? ''}" placeholder="—" data-k="target_roas" style="width:70px"></td>
       <td class="tiny">${fmtAgo(a.last_sync_insights)}${a.last_error ? `<br><span style="color:var(--bad)">⚠ ${esc(a.last_error).slice(0,80)}</span>` : ''}</td>
       <td><button class="btn" data-act="sync" ${a.active?'':'disabled'}>Sync</button></td>
-    </tr>`).join('') : `<tr><td colspan="7" class="tiny">Nothing here yet — click “Discover accounts from Meta”.</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="9" class="tiny">Nothing here yet — click “Discover accounts from Meta”.</td></tr>`;
   };
   draw();
   tb.addEventListener('click', async e => {
@@ -883,8 +912,9 @@ async function renderSettings() {
     const k = e.target.dataset.k; if (!k) return;
     const a = S.accounts.find(x => x.act_id === tr.dataset.id);
     const v = e.target.value;
-    a[k] = k === 'monthly_budget' ? (v === '' ? null : +v) : v;
-    await api('/api/accounts/'+a.act_id, { method:'PUT', body: JSON.stringify({ [k]: k === 'monthly_budget' ? (v === '' ? '' : +v) : v }) }).catch(err => alert(err.message));
+    const numeric = ['monthly_budget', 'target_cpa', 'target_roas'].includes(k);
+    a[k] = numeric ? (v === '' ? null : +v) : v;
+    await api('/api/accounts/'+a.act_id, { method:'PUT', body: JSON.stringify({ [k]: numeric ? (v === '' ? '' : +v) : v }) }).catch(err => alert(err.message));
     if (k === 'name') renderPicker();
   });
   $('#btnDiscover').onclick = async () => {

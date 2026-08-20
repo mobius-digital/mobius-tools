@@ -485,6 +485,7 @@ async function accountOverview(env, a) {
   const expected = budget != null ? budget * elapsed : null;
   return {
     act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, today,
+    target_cpa: a.target_cpa ?? null, target_roas: a.target_roas ?? null,
     last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
     today_spend: byDate[today]?.spend ?? null,
     mtd: { spend: mtd, budget, expected, pace_pct: expected ? mtd / expected - 1 : null,
@@ -543,17 +544,32 @@ async function paceAlerts(env) {
   const channel = await getSetting(env, 'slackChannel');
   if (!channel) return { skipped: 'no slackChannel in settings' };
   const thr = +(await getSetting(env, 'paceAlertPct')) || 0.15;
-  const off = (await overview(env)).filter(a => a.mtd.pace_pct != null && Math.abs(a.mtd.pace_pct) >= thr);
-  if (!off.length) return { ok: true, offPace: 0 };
-  const lines = off.map(a => {
+  const data = await overview(env);
+  const off = data.filter(a => a.mtd.pace_pct != null && Math.abs(a.mtd.pace_pct) >= thr);
+  const paceLines = off.map(a => {
     const m = a.mtd, dir = m.pace_pct > 0 ? 'over' : 'under';
-    return `• *${a.name}* — ${money(m.spend, a.currency)} MTD vs ${money(m.expected, a.currency)} expected (*${Math.round(Math.abs(m.pace_pct) * 100)}% ${dir}*) · projected ${money(m.projected, a.currency)} of ${money(m.budget, a.currency)} budget`;
+    return `• *${a.name}* — ${money(m.spend, a.currency)} MTD vs ${money(m.expected, a.currency)} expected (*${Math.round(Math.abs(m.pace_pct) * 100)}% ${dir}*) · projected ${money(m.projected, a.currency)} of ${money(m.budget, a.currency)} target`;
   });
-  await slackPost(env, channel, `Budget pace: ${off.length} account${off.length > 1 ? 's' : ''} off by ≥${Math.round(thr * 100)}%`, [
-    { type: 'section', text: { type: 'mrkdwn', text: `*⏱ Budget pace — ${off.length} account${off.length > 1 ? 's' : ''} off by ≥${Math.round(thr * 100)}%*\n${lines.join('\n')}` } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}|Account Health> · MTD spend vs budget × share of month elapsed, checked nightly` }] },
+  // KPI guardrails (scale-freely clients, or budgeted clients that also set them)
+  const kpiLines = data.map(a => {
+    const bad = [];
+    if (a.target_cpa && a.l7.cpa != null && a.l7.cpa > a.target_cpa * 1.05) {
+      bad.push(`7d CPA ${money(a.l7.cpa, a.currency)} vs ${money(a.target_cpa, a.currency)} cap (*${Math.round((a.l7.cpa / a.target_cpa - 1) * 100)}% over*)`);
+    }
+    if (a.target_roas && a.l7.roas != null && a.l7.roas < a.target_roas * 0.95) {
+      bad.push(`7d ROAS ${a.l7.roas.toFixed(2)}x vs ${a.target_roas}x floor`);
+    }
+    return bad.length ? `• *${a.name}* — ${bad.join(' · ')}` : null;
+  }).filter(Boolean);
+  if (!paceLines.length && !kpiLines.length) return { ok: true, offPace: 0, kpiBreaches: 0 };
+  const sections = [];
+  if (paceLines.length) sections.push(`*⏱ Spend pace — ${paceLines.length} off target by ≥${Math.round(thr * 100)}%*\n${paceLines.join('\n')}`);
+  if (kpiLines.length) sections.push(`*🎯 KPI guardrails — ${kpiLines.length} breaching*\n${kpiLines.join('\n')}`);
+  await slackPost(env, channel, `Account Health: ${paceLines.length} off pace, ${kpiLines.length} KPI breach${kpiLines.length === 1 ? '' : 'es'}`, [
+    { type: 'section', text: { type: 'mrkdwn', text: sections.join('\n\n') } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}|Account Health> · pace = MTD spend vs monthly target × month elapsed · KPI = 7-day CPA/ROAS vs guardrails · checked nightly` }] },
   ]);
-  return { ok: true, offPace: off.length };
+  return { ok: true, offPace: paceLines.length, kpiBreaches: kpiLines.length };
 }
 
 /* ------------------------------------------------------------------ */
@@ -687,7 +703,8 @@ export default {
         ).bind(t.act_id, from).all();
         const events = await seriesEvents(env, t.act_id, addDays(localDate(acct.tz), -180));
         return json({ share: true, account: { name: acct.name, currency: acct.currency, tz: acct.tz },
-          rows, events, mtd: ov.mtd, today: ov.today, today_spend: ov.today_spend });
+          rows, events, mtd: ov.mtd, today: ov.today, today_spend: ov.today_spend,
+          l7: ov.l7, target_cpa: ov.target_cpa, target_roas: ov.target_roas });
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
@@ -708,14 +725,18 @@ export default {
         const body = await request.json();
         const cur = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(m[1]).first();
         if (!cur) return json({ error: 'unknown account' }, 404);
+        const numOrKeep = (v, keep) => v === '' ? null : (v ?? keep);
         await env.DB.prepare(
-          `UPDATE accounts SET active = ?2, name = ?3, monthly_budget = ?4, budgets_json = ?5, tz = ?6 WHERE act_id = ?1`,
+          `UPDATE accounts SET active = ?2, name = ?3, monthly_budget = ?4, budgets_json = ?5, tz = ?6,
+             target_cpa = ?7, target_roas = ?8 WHERE act_id = ?1`,
         ).bind(m[1],
           body.active != null ? (body.active ? 1 : 0) : cur.active,
           body.name ?? cur.name,
-          body.monthly_budget === '' ? null : (body.monthly_budget ?? cur.monthly_budget),
+          numOrKeep(body.monthly_budget, cur.monthly_budget),
           body.budgets ? JSON.stringify(body.budgets) : cur.budgets_json,
           body.tz ?? cur.tz,
+          numOrKeep(body.target_cpa, cur.target_cpa),
+          numOrKeep(body.target_roas, cur.target_roas),
         ).run();
         // First activation → kick off a backfill in the background.
         if (body.active && !cur.active && !cur.last_sync_insights) {
