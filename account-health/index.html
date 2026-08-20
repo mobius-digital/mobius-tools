@@ -345,7 +345,6 @@ const CL = {
   range: localStorage.getItem('ah_cl_range') || '7',
   from: null, to: null,           // used when range === 'custom'
   q: '', hide: new Set(),         // hidden categories
-  view: 'all',                    // 'all' | 'todo' (to confirm) | 'done' (confirmed only)
   rows: [], truncated: false, panel: null,   // panel: 'add' | 'sum' | null
 };
 const CL_REASONS = ['Positive performance','Negative performance','Testing','Creative refresh','Budget cap','Client request','Promo / seasonal','Housekeeping','Revert / mistake'];
@@ -362,7 +361,7 @@ function clDates() {
 async function renderChangeLog() {
   const [from, to] = clDates();
   $('#main').innerHTML = `<h2>Change Log</h2>
-    <p class="sub">Every change on the account — Meta's activity log plus manual entries — with why it was made. Tag the reason, confirm it was deliberate, and let Claude write the update.</p>
+    <p class="sub">Every change on the account — Meta's activity log plus manual entries — with why it was made. Tag a reason on the moves that matter and let Claude write the update. ✓ and ✗ are optional: ✓ locks in a change (and accepts an amber suggested reason), ✗ hides noise from summaries.</p>
     ${setupBanner()}
     <div class="row">
       ${[['today','Today'],['yday','Yesterday'],['7','7 days'],['14','14 days'],['30','30 days'],['90','90 days']].map(([v,l]) =>
@@ -374,13 +373,6 @@ async function renderChangeLog() {
       <input class="search" id="clQ" placeholder="Search changes…" value="${esc(CL.q)}">
       <button class="btn" id="clAddBtn">+ Add change</button>
       <button class="btn primary" id="clSumBtn">✦ Summarise</button>
-    </div>
-    <div class="row">
-      <button class="chip ${CL.view==='todo'?'on':''}" id="clTodo">To confirm (<span id="clTodoN">…</span>)</button>
-      <label class="tiny" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="clDone" ${CL.view==='done'?'checked':''}> confirmed only</label>
-      <button class="btn" id="clConfirmAll">✓ Confirm all shown</button>
-      <span class="tiny" id="clBulkMsg"></span>
-      <span class="tiny" style="margin-left:auto">✓ = deliberate, goes in updates · ✗ = noise, kept out of summaries</span>
     </div>
     <div id="clPanel"></div>
     <div class="row" id="clCats" style="gap:6px"></div>
@@ -397,30 +389,6 @@ async function renderChangeLog() {
   $('#clQ').oninput = () => { CL.q = $('#clQ').value; clDrawFeed(); };
   $('#clAddBtn').onclick = () => { CL.panel = CL.panel === 'add' ? null : 'add'; clDrawPanel(); };
   $('#clSumBtn').onclick = () => { CL.panel = CL.panel === 'sum' ? null : 'sum'; clDrawPanel(); };
-  $('#clTodo').onclick = () => {
-    CL.view = CL.view === 'todo' ? 'all' : 'todo';
-    $('#clDone').checked = false; $('#clTodo').classList.toggle('on', CL.view === 'todo');
-    clDrawFeed();
-  };
-  $('#clDone').onchange = () => {
-    CL.view = $('#clDone').checked ? 'done' : 'all';
-    $('#clTodo').classList.remove('on');
-    clDrawFeed();
-  };
-  $('#clConfirmAll').onclick = async () => {
-    const ids = clVisibleBase().filter(r => r.confirmed === 0).map(r => r.id);
-    if (!ids.length) return $('#clBulkMsg').textContent = 'Nothing left to confirm in view.';
-    if (!confirm(`Mark ${ids.length} shown change${ids.length > 1 ? 's' : ''} as confirmed?`)) return;
-    const b = $('#clConfirmAll'); b.disabled = true;
-    try {
-      const r = await api('/api/activities/bulk-confirm', { method:'POST', body: JSON.stringify({ ids }) });
-      const set = new Set(ids);
-      CL.rows.forEach(x => { if (set.has(x.id) && x.confirmed === 0) x.confirmed = 1; });
-      $('#clBulkMsg').textContent = `Confirmed ${r.confirmed}.`;
-      clDrawFeed();
-    } catch (e) { $('#clBulkMsg').textContent = e.message; }
-    b.disabled = false;
-  };
   clDrawPanel();
 
   try {
@@ -478,9 +446,6 @@ function clSearched() {
   return CL.rows.filter(r => !q || [r.summary, r.object_name, r.actor, r.note, r.reason, r.account_name, r.category]
     .some(v => v && String(v).toLowerCase().includes(q)));
 }
-/** Rows passing search + category filters — what "Confirm all shown" acts on. */
-function clVisibleBase() { return clSearched().filter(r => !CL.hide.has(r.category)); }
-
 function clDrawFeed() {
   const searched = clSearched();
 
@@ -493,11 +458,7 @@ function clDrawFeed() {
     clDrawFeed();
   });
 
-  const base = searched.filter(r => !CL.hide.has(r.category));
-  $('#clTodoN').textContent = base.filter(r => r.confirmed === 0).length;
-  const rows = CL.view === 'todo' ? base.filter(r => r.confirmed === 0)
-             : CL.view === 'done' ? base.filter(r => r.confirmed === 1)
-             : base;
+  const rows = searched.filter(r => !CL.hide.has(r.category));
   if (!rows.length) { $('#clFeed').innerHTML = `<span class="hint">${CL.rows.length ? 'Nothing matches the current filters.' : 'No changes in this window.'}</span>`; return; }
 
   const showClient = S.act === 'all';
