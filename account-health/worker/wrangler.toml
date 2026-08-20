@@ -4,10 +4,11 @@ name = "mobius-account-health"
 main = "src/worker.js"
 compatibility_date = "2026-07-01"
 
-# Nightly at 03:30 UTC: re-pull the last 3 days of daily insights for every
-# active account (Meta conversions settle late) + pull new activity-log events.
+# 03:30 UTC nightly: re-pull the last 3 days of daily insights for every active
+# account (Meta conversions settle late) + activity-log events + TW daily metrics.
+# 14:00 UTC (7am PT / 10am ET): post the Daily Brief to each enabled brand's Slack.
 [triggers]
-crons = ["30 3 * * *"]
+crons = ["30 3 * * *", "0 14 * * *"]
 
 # D1 database. Create once with:
 #   npx wrangler d1 create mobius-account-health

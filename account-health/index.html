@@ -210,6 +210,7 @@
   <nav class="tabs" id="tabs" style="display:none"><div class="in">
     <button data-t="overview">Overview</button>
     <button data-t="pacing">Pacing</button>
+    <button data-t="brief">Daily Brief</button>
     <button data-t="changelog">Change Log</button>
     <button data-t="averages">Averages</button>
     <button data-t="creative">Creative Rotation</button>
@@ -353,14 +354,14 @@ document.addEventListener('click', e => {
 }, true);
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
-  if (hb) helpModal({ averages: 'How to use Averages', pacing: 'How to use Pacing', changelog: 'How to use the Change Log', creative: 'How to use Creative Rotation', settings: 'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+  if (hb) helpModal({ averages: 'How to use Averages', pacing: 'How to use Pacing', changelog: 'How to use the Change Log', creative: 'How to use Creative Rotation', settings: 'How Settings works', brief: 'How the Daily Brief works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
 });
 
 function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   ({ overview: renderOverview, settings: renderSettings, changelog: renderChangeLog,
-     pacing: renderPacing, averages: renderAverages, creative: renderCreative,
+     pacing: renderPacing, averages: renderAverages, creative: renderCreative, brief: renderBrief,
   })[tab]();
 }
 
@@ -488,6 +489,16 @@ const PAGE_HELP = {
     <p><b>The bars:</b> one bar per week, dark green = brand-new ads' share of that week's spend. Watch whether the dark green is growing or dying.</p>
     <p><b>What's a good new-ad share?</b> Rough zones: with "new = ≤7 days" aim for ~10–20%; ≤14 days ~15–30%; ≤30 days ~25–45%. Below the zone = coasting (fatigue builds, CPA pays later). Way above it every week = churning — winners never mature, or nothing is sticking. Two overrides: scaling accounts should sit at the top of the zone or higher, and if Fresh CPA keeps beating Stale CPA, push above the band without guilt.</p>
     <p><b>When to look:</b> Monday creative meeting, once a week. This is a weeks-scale question — daily checking tells you nothing new.</p>`,
+  brief: `
+    <p><b>What this page is:</b> the client-facing daily update, the way top agencies run it — every day compared against a <i>plan</i>, so "£3,215" stops being trivia and becomes "we missed by 9%". Set monthly goals once; the tool forecasts each day, measures the actual, writes the story, and posts it to the brand's Slack channel every morning.</p>
+    <p><b>The metrics:</b><br>
+    • <b>Net Sales</b> — Shopify money via Triple Whale (after discounts and refunds, incl. shipping) — not ad-platform-attributed revenue.<br>
+    • <b>Total Spend</b> — all platforms blended (Meta + Google), from Triple Whale.<br>
+    • <b>aMER</b> — new-customer revenue ÷ total ad spend. The honest ads number: it ignores platform attribution and asks how much <i>new</i> money showed up per ad dollar.<br>
+    • <b>Contribution Margin</b> — net sales minus product costs, fees and ad spend: did the day actually make money? Uses the client's real COGS from Triple Whale when they maintain it, or your margin-% override.</p>
+    <p><b>The forecast:</b> your monthly goal spread across the days of the month using the account's own trailing 28-day weekday pattern (weekends and weekdays get their real shares). Spend is forecast flat. The plan is frozen for the month — it doesn't drift to flatter us.</p>
+    <p><b>The narrative:</b> Claude writes Notes → So What? → What's Next? from the numbers <i>plus the Change Log</i> — so the more whys you tag there, the sharper the story ("CPA recovered after Tuesday's budget trim"), exactly like an analyst who was watching all day.</p>
+    <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning (~7am PT / 10am ET), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
 };
 
 /* ---------- Change Log (Chat 1) ---------- */
@@ -1325,6 +1336,249 @@ function renderSoon(title, text) {
 }
 
 /* ---------- Settings ---------- */
+/* ---------- Daily Brief (Chat 5) — forecast vs actual, CTC-style ---------- */
+const BF = { date: null };
+
+function confirmModal(title, hint, cta = 'Yes, do it') {
+  return new Promise(resolve => {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal"><h3>${esc(title)}</h3><p class="hint">${esc(hint)}</p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0">
+        <button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">${esc(cta)}</button></div></div>`;
+    document.body.appendChild(w);
+    const done = v => { w.remove(); resolve(v); };
+    w.addEventListener('mousedown', e => { if (e.target === w) done(false); });
+    w.querySelector('[data-m="no"]').onclick = () => done(false);
+    w.querySelector('[data-m="yes"]').onclick = () => done(true);
+  });
+}
+
+async function renderBriefAll() {
+  $('#main').innerHTML = `<h2>Daily Brief</h2>
+    <p class="sub">Every client's yesterday against its plan — Contribution Margin, Net Sales, Spend and aMER, forecast vs actual. Pick a client (dropdown top-right) to set goals, read the full brief, and post it to Slack.</p>
+    ${setupBanner()}<div class="card"><span class="hint">Loading every client…</span></div>`;
+  const active = S.accounts.filter(a => a.active);
+  const data = await Promise.all(active.map(a => api('/api/brief?act=' + a.act_id).catch(() => null)));
+  const cell = (a2, f2, cur, fx2) => {
+    const fmt = fx2 ? (n => n == null ? '—' : n.toFixed(2) + 'x') : (n => fmtK(n, cur));
+    if (a2 == null) return `<td class="num"><span class="tiny">no data</span></td>`;
+    const off = f2 ? a2 / f2 - 1 : null;
+    const cls = off == null ? 'unk' : (fx2 ? a2 >= f2 : off >= 0) ? 'good' : Math.abs(off) <= 0.15 ? 'warn' : 'bad';
+    return `<td class="num"><b>${fmt(a2)}</b> <span class="tiny">plan ${fmt(f2)}</span>${off != null ? `<span class="pill ${cls}" style="margin-left:6px">${fmtPct(off, 0)}</span>` : ''}</td>`;
+  };
+  const rows = active.map((a, i) => {
+    const d = data[i];
+    const day = d?.days?.find(x => x.date === d.date);
+    const enabled = d?.brief_enabled;
+    const last = d?.history?.[0];
+    return `<tr data-id="${a.act_id}" style="cursor:pointer">
+      <td><b>${esc(a.name)}</b><br><span class="tiny">${d?.goals ? 'goals set' : 'no goals yet'} · auto-post ${enabled ? 'on' : 'off'}${last ? ` · last: ${esc(last.status)} ${esc(last.date)}` : ''}</span></td>
+      ${d && day?.a ? cell(day.a.cm, day.f.cm, a.currency) + cell(day.a.sales, day.f.sales, a.currency) + cell(day.a.spend, day.f.spend, a.currency) + cell(day.a.amer, day.f.amer, a.currency, true)
+        : `<td colspan="4"><span class="tiny">${d ? 'no Triple Whale data for yesterday — open the client and hit “Refresh Triple Whale data”' : 'couldn’t load'}</span></td>`}
+    </tr>`;
+  }).join('');
+  $('#main .card').innerHTML = `<div class="tbl-wrap"><table>
+    <thead><tr><th>Client</th><th class="num">CM yesterday</th><th class="num">Net Sales</th><th class="num">Total Spend</th><th class="num">aMER</th></tr></thead>
+    <tbody>${rows || '<tr><td class="tiny">No active clients.</td></tr>'}</tbody></table></div>
+    <p class="tiny" style="margin-top:10px">Net Sales, spend and aMER come from Triple Whale (all platforms); aMER = new-customer revenue ÷ total ad spend. Click a client to open its brief.</p>`;
+  $('#main tbody').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+    S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
+    $('#clientPick').value = S.act; show('brief');
+  });
+}
+
+function briefChartSVG(d) {
+  const w = 940, h = 230, pl = 56, pr = 14, pt = 12, pb = 26;
+  const days = d.days, n = days.length;
+  let cf = 0, ca = 0;
+  const plan = [], act = [];
+  for (const x of days) {
+    cf += x.f.sales ?? 0; plan.push(x.f.sales != null ? cf : null);
+    if (x.date <= d.up_to && x.a?.sales != null) { ca += x.a.sales; act.push(ca); } else act.push(null);
+  }
+  const vals = [...plan, ...act].filter(v => v != null);
+  if (!vals.length) return { svg: '<p class="hint">No data to chart yet.</p>', plan, act };
+  let min = 0, max = Math.max(...vals) * 1.06 || 1;
+  const x = i => pl + i / Math.max(1, n - 1) * (w - pl - pr);
+  const y = v => pt + (1 - (v - min) / (max - min)) * (h - pt - pb);
+  const line = arr => arr.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(' ');
+  const ticks = Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)).map(i =>
+    `<text x="${x(i).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="#647684">${days[i].date.slice(5)}</text>`).join('');
+  const cur = d.account.currency;
+  const svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;touch-action:none" id="bfSvg">
+    ${ticks}
+    <line class="fx-guide" x1="0" x2="0" y1="${pt}" y2="${h - pb + 4}" stroke="#14608C" stroke-width="1" opacity="0" pointer-events="none"/>
+    <polyline points="${line(plan)}" fill="none" stroke="#9FB0BC" stroke-width="1.8" stroke-dasharray="5 4"/>
+    <polyline points="${line(act)}" fill="none" stroke="#14608C" stroke-width="2.4"/>
+    <text x="2" y="${pt + 9}" font-size="10" fill="#647684">${fmtK(max, cur)}</text>
+    <text x="2" y="${h - pb}" font-size="10" fill="#647684">${fmtK(0, cur)}</text>
+  </svg>`;
+  return { svg, plan, act };
+}
+
+async function renderBrief() {
+  if (S.act === 'all') return renderBriefAll();
+  const acct = S.accounts.find(a => a.act_id === S.act);
+  $('#main').innerHTML = `<h2>Daily Brief</h2>
+    <p class="sub">Did ${esc(acct?.name || 'this client')} beat the plan yesterday? Forecast vs actual on the money that matters, the story behind it, and one click (or zero — flip auto-post) to put it in the client's Slack.</p>
+    ${setupBanner()}<div class="card"><span class="hint">Loading…</span></div>`;
+  let d;
+  try { d = await api('/api/brief?act=' + S.act + (BF.date ? '&date=' + BF.date : '')); }
+  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  BF.cur = d;
+  const cur = d.account.currency;
+  const day = d.days.find(x => x.date === d.date);
+  const f = day?.f || {}, a = day?.a || {};
+  const g = d.goals || {};
+  const fx = n => n == null ? '—' : n.toFixed(2) + 'x';
+  const offPill = (aV, fV, lowerIsBetter = false) => {
+    if (aV == null || !fV) return '';
+    const off = aV / fV - 1;
+    const good = lowerIsBetter ? off <= 0.05 : off >= 0;
+    const cls = good ? 'good' : Math.abs(off) <= 0.15 ? 'warn' : 'bad';
+    return `<span class="pill ${cls}">${fmtPct(off, 0)} vs plan</span>`;
+  };
+  const statCard = (label, aV, fV, fmt, info, lower = false) => `
+    <div class="card" style="margin:0">
+      <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
+      <div style="font-size:26px;font-weight:700;margin:4px 0 2px">${fmt(aV)}</div>
+      <div class="tiny">plan ${fmt(fV)} ${offPill(aV, fV, lower)}</div>
+    </div>`;
+  const yd = new Date(d.date + 'T12:00:00Z').toUTCString().slice(0, 11);
+  const noTw = !a || a.sales == null;
+  const chart = briefChartSVG(d);
+  const marginPct = d.cm_pct != null ? Math.round(d.cm_pct * 100) : d.margin_28d != null ? Math.round(d.margin_28d * 100) : null;
+  const hist = (d.history || []).map(hh => `
+    <details style="margin:6px 0"><summary style="cursor:pointer;font-size:13px"><b>${esc(hh.date)}</b> · <span class="pill ${hh.status === 'sent' ? 'good' : hh.status === 'skipped' ? 'warn' : hh.status === 'error' ? 'bad' : 'unk'}">${esc(hh.status)}</span>${hh.posted_at ? ` <span class="tiny">${fmtAgo(hh.posted_at)}</span>` : ''}</summary>
+    <pre style="white-space:pre-wrap;font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:6px">${esc(hh.text || '')}</pre></details>`).join('');
+
+  $('#main .card').remove();
+  $('#main').insertAdjacentHTML('beforeend', `
+    <div class="row" style="margin-bottom:12px">
+      <label class="tiny">day</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
+      <button class="btn" id="bfTwSync">↻ Refresh Triple Whale data</button>
+      <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet — hit refresh'}</span>
+      <span style="flex:1"></span><button class="help-btn" data-help="brief">? How to use</button>
+    </div>
+    ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set the monthly goals below — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
+    ${noTw && d.goals ? `<div class="notice warn">⚠️ <div>No Triple Whale sales data for ${d.date} yet — hit “Refresh Triple Whale data”, and check the shop domain in Settings if it persists.</div></div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px">
+      ${statCard('Contribution Margin — ' + yd, a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a margin % in the goals below.'))}
+      ${statCard('Net Sales', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify money via Triple Whale: after discounts and refunds, including shipping. Not ad-platform-attributed revenue — this is what actually hit the store.')}
+      ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
+      ${statCard('aMER', a.amer, f.amer, fx, 'Acquisition Marketing Efficiency Ratio = new-customer revenue ÷ total ad spend. Ignores every platform’s attribution and asks: how much NEW money showed up per ad dollar?')}
+    </div>
+    <div class="card"><h3 style="margin-bottom:4px">Where the money came from</h3>
+      <p style="font-size:14px;margin:4px 0">${a.new_rev != null ? `<b>${fmtMoney(a.new_rev, cur)}</b> from new customers · <b>${fmtMoney(a.ret_rev, cur)}</b> returning` : '<span class="tiny">no split available</span>'}
+      ${a.meta_spend != null ? ` &nbsp;·&nbsp; Meta ${fmtMoney(a.meta_spend, cur)}${a.meta_roas != null ? ` at ${fx(a.meta_roas)} <span class="info-i" title="Meta-attributed ROAS from the Meta API — conversions keep settling for ~72h, so recent days read low. The Net Sales and aMER numbers above don't have this problem.">i</span>` : ''}` : ''}${a.google_spend != null ? ` · Google ${fmtMoney(a.google_spend, cur)}` : ''}</p></div>
+    <div class="card"><h3 style="margin-bottom:2px">The month vs the plan</h3>
+      <p class="hint" style="margin-bottom:6px">Cumulative net sales: <span style="color:#14608C;font-weight:700">blue</span> = actual, <span style="color:#8195A2;font-weight:700">dashed gray</span> = the plan. Forecast weighting: ${esc(d.weights)}.${d.mtd.sales != null && d.mtd.sales_f ? ` So far: <b>${fmtK(d.mtd.sales, cur)}</b> vs <b>${fmtK(d.mtd.sales_f, cur)}</b> planned (${fmtPct(d.mtd.sales / d.mtd.sales_f - 1, 0)}).` : ''}</p>
+      <div id="bfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart for exact values…</div>
+      ${chart.svg}</div>
+    <div class="card"><h3 style="margin-bottom:6px">Goals for ${d.month}</h3>
+      <p class="hint" style="margin-bottom:10px">The plan the whole page measures against. Net sales is the month's revenue goal; spend is total ad budget (all platforms); aMER is the efficiency goal; margin % is optional — leave blank to use the client's real cost data from Triple Whale${d.margin_28d != null ? ` (their trailing 28-day margin is <b>${Math.round(d.margin_28d * 100)}%</b>)` : ''}.</p>
+      <div class="row" style="flex-wrap:wrap;gap:10px">
+        <label class="tiny">net sales</label><div class="unit-in" style="width:120px"><span>${sym(cur)}</span><input id="gSales" type="text" inputmode="decimal" value="${g.sales != null ? (+g.sales).toLocaleString('en-US') : ''}" placeholder="—"></div>
+        <label class="tiny">ad spend</label><div class="unit-in" style="width:110px"><span>${sym(cur)}</span><input id="gSpend" type="text" inputmode="decimal" value="${g.spend != null ? (+g.spend).toLocaleString('en-US') : ''}" placeholder="—"></div>
+        <label class="tiny">aMER</label><div class="unit-in" style="width:74px"><input id="gAmer" type="text" inputmode="decimal" value="${g.amer ?? ''}" placeholder="—"><span>x</span></div>
+        <label class="tiny">margin</label><div class="unit-in" style="width:74px"><input id="gCm" type="text" inputmode="decimal" value="${g.cm_pct != null ? Math.round(g.cm_pct * 100) : ''}" placeholder="auto"><span>%</span></div>
+        <button class="btn primary" id="gSave">Save goals</button>
+        <span class="tiny" id="gMsg"></span>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="toggle ${d.brief_enabled ? 'on' : ''}" id="bfAuto"></div>
+        <span style="font-size:13.5px">Auto-post to Slack every morning (~7am PT / 10am ET), covering yesterday — goes to this brand's alerts channel${acct?.slack_channel ? '' : ' (<b>none set</b> — pick one in Settings first)'}.</span>
+      </div></div>
+    <div class="card"><h3 style="margin-bottom:6px">The brief itself</h3>
+      <p class="hint" style="margin-bottom:8px">The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What's Next? from the numbers and the Change Log (takes ~20s). Nothing posts to the client until you hit Post — or flip auto-post above.</p>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn primary" id="bfWrite">✦ Write the brief for ${esc(d.date)}</button>
+        <button class="btn" id="bfPost" style="display:none">Post to Slack</button>
+        <button class="btn" id="bfCopy" style="display:none">Copy</button>
+        <span class="tiny" id="bfMsg"></span>
+      </div>
+      <pre id="bfText" style="display:none;white-space:pre-wrap;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px"></pre></div>
+    ${hist ? `<div class="card"><h3 style="margin-bottom:4px">Sent briefs</h3>${hist}</div>` : ''}
+  `);
+
+  /* chart crosshair — hover AND tap */
+  const svg = $('#bfSvg');
+  if (svg) {
+    const guide = svg.querySelector('.fx-guide'), ro = $('#bfReadout');
+    const n = d.days.length, W = 940, pl = 56, pr = 14;
+    svg.addEventListener('pointermove', ev => inspect(ev.clientX));
+    svg.addEventListener('pointerdown', ev => inspect(ev.clientX));
+    function inspect(clientX) {
+      const rect = svg.getBoundingClientRect();
+      const vx = (clientX - rect.left) / rect.width * W;
+      const i = Math.max(0, Math.min(n - 1, Math.round((vx - pl) / (W - pl - pr) * (n - 1))));
+      const gx = pl + i / Math.max(1, n - 1) * (W - pl - pr);
+      guide.setAttribute('x1', gx); guide.setAttribute('x2', gx); guide.setAttribute('opacity', '.55');
+      const dd = d.days[i];
+      ro.innerHTML = `<b>${dd.date}</b> &nbsp; <span style="color:#14608C;font-weight:700">actual so far:</span> <b>${chart.act[i] != null ? fmtK(chart.act[i], cur) : '—'}</b>
+        &nbsp; <span style="color:#8195A2;font-weight:700">plan so far:</span> <b>${chart.plan[i] != null ? fmtK(chart.plan[i], cur) : '—'}</b>
+        ${dd.a?.sales != null ? ` &nbsp; <span class="tiny">that day: ${fmtK(dd.a.sales, cur)} vs ${dd.f.sales != null ? fmtK(dd.f.sales, cur) : '—'} plan</span>` : ''}`;
+    }
+  }
+
+  $('#bfDate').onchange = e => { BF.date = e.target.value || null; renderBrief(); };
+  $('#bfTwSync').onclick = async () => {
+    const b = $('#bfTwSync'); b.disabled = true; $('#bfTwMsg').textContent = 'Pulling 70 days from Triple Whale…';
+    try { const r = await api('/api/tw-sync?act=' + S.act + '&days=70', { method: 'POST' }); const x = r.results[0]; $('#bfTwMsg').textContent = x.ok ? `✓ ${x.metrics} metrics, ${x.from} → ${x.to}` : (x.error || x.skipped); if (x.ok) return renderBrief(); }
+    catch (e) { $('#bfTwMsg').textContent = e.message; }
+    b.disabled = false;
+  };
+  $('#gSave').onclick = async () => {
+    const num = id => { const v = $(id).value.replace(/[^0-9.]/g, ''); return v === '' ? null : +v; };
+    const goals = { ...(acct?.goals || {}) };
+    const monthGoals = {};
+    const s2 = num('#gSales'), sp = num('#gSpend'), am = num('#gAmer'), cm = num('#gCm');
+    if (s2 != null) monthGoals.sales = s2;
+    if (sp != null) monthGoals.spend = sp;
+    if (am != null) monthGoals.amer = am;
+    if (cm != null) monthGoals.cm_pct = cm / 100;
+    goals[d.month] = monthGoals;
+    goals.default = { ...monthGoals };            // future months inherit until overridden
+    try {
+      await api('/api/accounts/' + S.act, { method: 'PUT', body: JSON.stringify({ goals }) });
+      if (acct) acct.goals = goals;
+      $('#gMsg').textContent = 'Saved ✓';
+      renderBrief();
+    } catch (e) { $('#gMsg').textContent = e.message; }
+  };
+  $('#bfAuto').onclick = async e => {
+    const on = !e.target.classList.contains('on');
+    if (on && !d.goals) { $('#gMsg').textContent = 'Set goals first — auto-post needs a plan to compare against.'; return; }
+    if (on && !acct?.slack_channel) { $('#gMsg').textContent = 'Pick this brand’s Slack channel in Settings first.'; return; }
+    e.target.classList.toggle('on', on);
+    try { await api('/api/accounts/' + S.act, { method: 'PUT', body: JSON.stringify({ brief_enabled: on }) }); }
+    catch (err) { alert(err.message); e.target.classList.toggle('on', !on); }
+  };
+  $('#bfWrite').onclick = async () => {
+    const b = $('#bfWrite'); b.disabled = true; $('#bfMsg').textContent = 'Claude is writing… (~20s)';
+    try {
+      const r = await api('/api/brief-preview', { method: 'POST', body: JSON.stringify({ act: S.act, date: d.date }) });
+      $('#bfText').style.display = ''; $('#bfText').textContent = r.text;
+      $('#bfPost').style.display = ''; $('#bfCopy').style.display = '';
+      $('#bfMsg').textContent = r.narrative_error ? `numbers only — narrative failed: ${r.narrative_error}` : '';
+    } catch (e) { $('#bfMsg').textContent = e.message; }
+    b.disabled = false;
+  };
+  $('#bfPost').onclick = async () => {
+    const ch = acct?.slack_channel;
+    const ok = await confirmModal('Post this brief to the client’s Slack?',
+      `This sends the brief for ${d.date} to ${ch ? 'this brand’s alerts channel' : 'the fallback channel'} — the client will see it.`, 'Post it');
+    if (!ok) return;
+    $('#bfMsg').textContent = 'Posting…';
+    try { const r = await api('/api/brief-send', { method: 'POST', body: JSON.stringify({ act: S.act, date: d.date }) }); $('#bfMsg').textContent = `Posted ✓ to ${r.channel}`; }
+    catch (e) { $('#bfMsg').textContent = e.message; }
+  };
+  $('#bfCopy').onclick = () => { navigator.clipboard.writeText($('#bfText').textContent).then(() => $('#bfMsg').textContent = 'Copied ✓'); };
+}
+const addDaysStr = (ymd, n) => { const dt = new Date(ymd + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() + n); return dt.toISOString().slice(0, 10); };
+
 async function renderSettings() {
   $('#main').innerHTML = `<h2>Settings</h2><p class="sub">Everything configurable in one place: which accounts to track, each client's spend target and KPI guardrails, where their Slack alerts go, and the Google-spend connection. <b>Every cell saves the moment you change it</b> — a green flash means saved.</p>${setupBanner()}
     <div class="row"><button class="btn primary" id="btnDiscover">Discover accounts from Meta</button><span class="tiny">Pulls every ad account the Meta token can see. Run again whenever a client is added.</span><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>

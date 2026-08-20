@@ -540,7 +540,8 @@ async function writeUpdate(env, { act, from, to, template }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Google spend via Triple Whale ("performance = Meta, money = all")  */
+/*  Triple Whale client (Daily Brief only — the four Meta pages never    */
+/*  touch it; spend on those pages is Meta-reported, matching Ads Mgr)   */
 /* ------------------------------------------------------------------ */
 
 async function twSummary(env, shopDomain, start, end) {
@@ -574,56 +575,6 @@ async function twSummary(env, shopDomain, start, end) {
     walk(body);
   }
   return { map, raw: body };
-}
-
-function pickGoogleSpend(map) {
-  if (map.ga_adCost != null) return { key: 'ga_adCost', value: map.ga_adCost };   // TW's Google Ads spend (verified 2026-08-20)
-  const keys = Object.keys(map);
-  const hit = keys.find(k => /google/i.test(k) && /spend|adcost/i.test(k)
-    && !/organic|roas|cpa|conv|click|impr|ctr|cpc|cpm|bench|peer/i.test(k));
-  return hit ? { key: hit, value: map[hit] } : { keys };
-}
-
-/** Cache this month's + last month's Google spend for one account into accounts.google_spend_json. */
-async function refreshGoogleSpend(env, acct) {
-  if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY secret not set' };
-  if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop set' };
-  const today = localDate(acct.tz);
-  const ym = monthOf(today), pm = prevMonth(ym);
-  const dim = daysInMonth(pm + '-15');
-  const lmSame = `${pm}-${String(Math.min(+today.slice(8, 10), dim)).padStart(2, '0')}`;
-  const mtdRes = await twSummary(env, acct.tw_shop, `${ym}-01`, today);
-  const mtdMap = mtdRes.map;
-  // Stash the full metric catalog (id/title/type/services) — the map for attribution-model design.
-  const catalog = Array.isArray(mtdRes.raw?.metrics)
-    ? mtdRes.raw.metrics.map(m => ({ id: m.metricId ?? m.id, title: m.title, type: m.type, services: m.services }))
-    : Object.keys(mtdMap);
-  await putSetting(env, `twMetrics:${acct.act_id}`, JSON.stringify(catalog)).catch(() => {});
-  let g1 = pickGoogleSpend(mtdMap);
-  if (g1.keys && Array.isArray(mtdRes.raw?.metrics)) {
-    // Second chance: currency metric on the google-ads service titled like spend.
-    const cand = mtdRes.raw.metrics.find(m => (m.services || []).includes('google-ads') && m.type === 'currency'
-      && /^google ads$|spend/i.test(m.title || '') && !/roas|cpa|conv|cpc|cpm|ctr|peer/i.test(m.title || ''));
-    const k = cand && (cand.metricId ?? cand.id);
-    if (k != null && mtdMap[k] != null) g1 = { key: k, value: mtdMap[k] };
-  }
-  if (g1.keys) {
-    // Keep the raw response so the parser can be adapted to TW's real shape.
-    await putSetting(env, `twRaw:${acct.act_id}`, JSON.stringify(mtdRes.raw).slice(0, 8000)).catch(() => {});
-    return { name: acct.name, error: `no Google-spend metric found; TW returned: ${g1.keys.slice(0, 40).join(', ') || '(no metrics — raw response captured for debugging)'}` };
-  }
-  const lmSameV = pickGoogleSpend((await twSummary(env, acct.tw_shop, `${pm}-01`, lmSame)).map).value ?? 0;
-  const lmTotalV = pickGoogleSpend((await twSummary(env, acct.tw_shop, `${pm}-01`, `${pm}-${String(dim).padStart(2, '0')}`)).map).value ?? 0;
-  // Attribution snapshot, last 7 full days: blended truth + pixel-attributed, for the Averages "Attribution check".
-  const l7Map = (await twSummary(env, acct.tw_shop, addDays(today, -7), addDays(today, -1))).map;
-  const attr7 = {
-    blended_roas: l7Map.totalRoas ?? null, blended_cpa: l7Map.totalCpa ?? null,
-    blended_spend: l7Map.blendedAds ?? null, blended_sales: l7Map.blendedSales ?? null,
-    pixel_attr_roas: l7Map.blendedAttributedRoas ?? null,
-  };
-  const data = { ym, metric: g1.key, mtd: g1.value ?? 0, lm_same_day: lmSameV, lm_total: lmTotalV, attr7, updated: new Date().toISOString() };
-  await env.DB.prepare(`UPDATE accounts SET google_spend_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(data)).run();
-  return { name: acct.name, ok: true, metric: g1.key, mtd: data.mtd };
 }
 
 /* ------------------------------------------------------------------ */
@@ -711,7 +662,7 @@ async function briefData(env, acct, upTo) {
   // so the plan doesn't shift under the client's feet mid-month.
   const dow = d => new Date(d + 'T12:00:00Z').getUTCDay();
   const wSum = Array(7).fill(0), wN = Array(7).fill(0);
-  let newRevSum = 0, salesSum = 0;
+  let newRevSum = 0, salesSum = 0, marginNum = 0, marginDen = 0;
   for (let i = 1; i <= 28; i++) {
     const d = addDays(monthStart, -i);
     const s = twDay(piv, d, TW_SALES) ?? meta[d]?.revenue ?? null;
@@ -719,10 +670,13 @@ async function briefData(env, acct, upTo) {
     wSum[dow(d)] += s; wN[dow(d)]++;
     salesSum += s;
     newRevSum += piv.newCustomerSales?.[d] ?? 0;
+    const gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
+    if (gp != null && s > 0) { marginNum += gp; marginDen += s; }
   }
   const haveW = wN.filter(Boolean).length === 7 && wN.reduce((a, b) => a + b, 0) >= 14;
   const wAvg = wSum.map((s, i) => wN[i] ? s / wN[i] : 1);
   const newShare = salesSum > 0 && newRevSum > 0 ? newRevSum / salesSum : null;
+  const margin28 = marginDen > 0 ? marginNum / marginDen : null;   // trailing pre-ad-spend margin
 
   let wTotal = 0;
   const dayW = {};
@@ -733,13 +687,14 @@ async function briefData(env, acct, upTo) {
   }
 
   const cmPct = goals?.cm_pct ?? null;
+  const fcMargin = cmPct ?? margin28;            // forecast-side margin: explicit % beats trailing actuals
   const days = [];
   for (let d = 1; d <= dim; d++) {
     const date = `${ym}-${String(d).padStart(2, '0')}`;
     const f = {};
     if (goals?.sales != null) f.sales = goals.sales * dayW[date] / wTotal;
     if (goals?.spend != null) f.spend = goals.spend / dim;
-    if (f.sales != null && f.spend != null && cmPct != null) f.cm = f.sales * cmPct - f.spend;
+    if (f.sales != null && f.spend != null && fcMargin != null) f.cm = f.sales * fcMargin - f.spend;
     f.amer = goals?.amer ?? (newShare != null && f.sales != null && f.spend ? newShare * f.sales / f.spend : null);
     if (date > upTo) { days.push({ date, f, a: null }); continue; }
     const sales = twDay(piv, date, TW_SALES);
@@ -756,12 +711,15 @@ async function briefData(env, acct, upTo) {
       meta_roas: mrow && mrow.spend ? mrow.revenue / mrow.spend : null,
       meta_purchases: mrow?.purchases ?? null,
       gross_profit: piv.grossProfit?.[date] ?? null,
+      cogs: piv.totalProductCosts?.[date] ?? null,
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };
     a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
+    // CM basis, most explicit first: margin% override → TW gross profit → TW COGS.
     a.cm = cmPct != null && sales != null && a.spend != null ? sales * cmPct - a.spend
-      : a.gross_profit != null && a.spend != null ? a.gross_profit - (a.fees ?? 0) - a.spend : null;
-    a.cm_basis = cmPct != null ? 'margin' : a.gross_profit != null ? 'tw' : null;
+      : a.gross_profit != null && a.spend != null ? a.gross_profit - (a.fees ?? 0) - a.spend
+      : a.cogs != null && sales != null && a.spend != null ? sales - a.cogs - (a.fees ?? 0) - a.spend : null;
+    a.cm_basis = cmPct != null ? 'margin' : a.gross_profit != null ? 'tw' : a.cogs != null ? 'cogs' : null;
     days.push({ date, f, a });
   }
 
@@ -775,7 +733,7 @@ async function briefData(env, acct, upTo) {
   const lastSync = (await env.DB.prepare(`SELECT MAX(synced_at) AS t FROM tw_daily WHERE act_id = ?1`).bind(acct.act_id).first())?.t ?? null;
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz },
-    month: ym, up_to: upTo, goals, cm_pct: cmPct,
+    month: ym, up_to: upTo, goals, cm_pct: cmPct, margin_28d: margin28,
     weights: haveW ? 'day-of-week (trailing 28d)' : 'uniform (not enough history yet)',
     new_share_28d: newShare, days, mtd, tw_last_sync: lastSync,
     brief_enabled: !!acct.brief_enabled,
@@ -819,7 +777,7 @@ So What?
 2–4 sentences: the single interpretation that best explains the day — tie performance moves to the changes we made when the change log supports it, and say whether this reads as a demand problem, a platform problem, or our own levers.
 What's Next?
 • 1–3 bullets: concrete actions or watch-items with a trigger ("if X doesn't improve today, we do Y").
-Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. aMER = new-customer revenue ÷ total ad spend. No greeting, no sign-off, no preamble.`;
+Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. aMER = new-customer revenue ÷ total ad spend. Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
 async function writeBriefNarrative(env, acct, data, date) {
   const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
@@ -832,10 +790,10 @@ async function writeBriefNarrative(env, acct, data, date) {
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
   return claude(env, {
     system: BRIEF_SYSTEM,
-    maxTokens: 1200,
+    maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom for the text
     user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${date}.\n` +
       `Goals this month: ${JSON.stringify(data.goals)}. Meta ROAS floor: ${acct.target_roas ?? 'none'}. Forecast weighting: ${data.weights}.\n` +
-      `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale gross profit − payment fees − ad spend'}.\n\n` +
+      `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data (gross profit, or net sales − COGS − payment fees) − ad spend'}.\n\n` +
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}`,
   });
@@ -1053,23 +1011,16 @@ async function accountOverview(env, a) {
   const elapsed = (dom - 1 + localHourFrac(a.tz) / 24) / dim;    // fraction of month elapsed
   const budget = a.budgets?.[ym] ?? a.monthly_budget ?? null;
   const expected = budget != null ? budget * elapsed : null;
-  // Google spend (Triple Whale cache) folds into the money math — performance stays Meta-only.
-  const gRaw = safeJson(a.google_spend_json, null);
-  const g = gRaw && gRaw.ym === ym ? gRaw : null;
-  const combined = mtd + (g?.mtd || 0);
-  const lmSameAll = lastMonthSameDay + (g?.lm_same_day || 0);
-  const lmTotalAll = lastMonthTotal + (g?.lm_total || 0);
   return {
     act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, today,
     target_cpa: a.target_cpa ?? null, target_roas: a.target_roas ?? null, slack_channel: a.slack_channel ?? null,
     last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
     today_spend: byDate[today]?.spend ?? null,
-    tw7: g?.attr7 ?? null,
-    mtd: { spend: mtd, google: g ? g.mtd : null, combined, google_updated: g?.updated ?? null,
-      budget, expected, pace_pct: expected ? combined / expected - 1 : null,
-      projected: elapsed > 0.02 ? combined / elapsed : null, elapsed, days_in_month: dim, day_of_month: dom,
-      last_month_same_day: lmSameAll, last_month_total: lmTotalAll,
-      vs_last_month_pct: lmSameAll ? combined / lmSameAll - 1 : null },
+    // Meta only, everywhere on these pages: spend here must always match Ads Manager.
+    mtd: { spend: mtd, budget, expected, pace_pct: expected ? mtd / expected - 1 : null,
+      projected: elapsed > 0.02 ? mtd / elapsed : null, elapsed, days_in_month: dim, day_of_month: dom,
+      last_month_same_day: lastMonthSameDay, last_month_total: lastMonthTotal,
+      vs_last_month_pct: lastMonthSameDay ? mtd / lastMonthSameDay - 1 : null },
     l7: agg(range(7)), l30: agg(range(30)), prev7: agg(range(7, 8)), prev30: agg(range(30, 31)),
     days_of_data: rows.length,
     changes_24h: (await env.DB.prepare(
@@ -1247,13 +1198,11 @@ async function nightly(env) {
   const accounts = await listAccounts(env, true);
   const results = [];
   for (const a of accounts) results.push(await syncAccount(env, a));
-  const google = [];
-  for (const a of accounts) google.push(await refreshGoogleSpend(env, a).catch(e => ({ name: a.name, error: e.message })));
   const tw = [];
   for (const a of accounts) tw.push(await syncTwDaily(env, a, 10).catch(e => ({ name: a.name, error: e.message })));
   const pace = await paceAlerts(env).catch(e => ({ error: e.message }));
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('lastRun', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-    .bind(JSON.stringify({ at: new Date().toISOString(), results, google, tw, pace })).run();
+    .bind(JSON.stringify({ at: new Date().toISOString(), results, tw, pace })).run();
   return results;
 }
 
@@ -1364,20 +1313,7 @@ export default {
       }
 
       /* ---- data ---- */
-      if (path === '/api/overview') {
-        const data = await overview(env);
-        // Self-freshening Google spend: if a brand's TW cache is >6h old, refresh it in the
-        // background — the next page view shows current numbers, no clicks ever needed.
-        if (env.TW_API_KEY) {
-          const stale = (await listAccounts(env, true)).filter(a => {
-            if (!a.tw_shop) return false;
-            const g = safeJson(a.google_spend_json, null);
-            return !g?.updated || Date.now() - new Date(g.updated).getTime() > 6 * 3600e3;
-          });
-          if (stale.length) ctx.waitUntil((async () => { for (const a of stale) await refreshGoogleSpend(env, a).catch(() => {}); })());
-        }
-        return json({ accounts: data });
-      }
+      if (path === '/api/overview') return json({ accounts: await overview(env) });
 
       if (path === '/api/series') {
         const act = url.searchParams.get('act');
@@ -1444,12 +1380,6 @@ export default {
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
         });
-      }
-      if (path === '/api/google-refresh' && request.method === 'POST') {
-        const accounts = await listAccounts(env, true);
-        const results = [];
-        for (const a of accounts) results.push(await refreshGoogleSpend(env, a).catch(e => ({ name: a.name, error: e.message })));
-        return json({ ok: true, results });
       }
       if (path === '/api/settings' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));

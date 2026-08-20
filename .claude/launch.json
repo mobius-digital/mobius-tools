@@ -12,6 +12,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8791"],
       "port": 8791
+    },
+    {
+      "name": "static-tools-3",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8817"],
+      "port": 8817
     }
   ]
 }

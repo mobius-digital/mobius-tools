@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   ads_backfill_done   INTEGER NOT NULL DEFAULT 0,-- 90d ad-level backfill finished (walks back 14d per sync until set)
   tw_shop             TEXT,                      -- Triple Whale shop domain (pulls Google Ads spend into the money math)
   google_spend_json   TEXT,                      -- cached {ym, metric, mtd, lm_same_day, lm_total, updated}
+  goals_json          TEXT NOT NULL DEFAULT '{}',-- Daily Brief goals: {"2026-08":{sales,spend,amer,cm_pct},"default":{...}}
+  brief_enabled       INTEGER NOT NULL DEFAULT 0,-- auto-post the Daily Brief to Slack each morning
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,
@@ -101,4 +103,26 @@ CREATE TABLE IF NOT EXISTS ad_daily (
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT
+);
+
+-- Daily Brief (Chat 5): per-day Triple Whale metrics (long format — one row per metric per day)
+CREATE TABLE IF NOT EXISTS tw_daily (
+  act_id    TEXT NOT NULL,
+  date      TEXT NOT NULL,                       -- YYYY-MM-DD, shop timezone
+  metric    TEXT NOT NULL,                       -- TW metricId (netSales, newCustomerSales, ...)
+  value     REAL NOT NULL DEFAULT 0,
+  synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, date, metric)
+);
+
+-- Daily Brief (Chat 5): every brief we generated/sent, one per account per covered day
+CREATE TABLE IF NOT EXISTS briefs (
+  act_id    TEXT NOT NULL,
+  date      TEXT NOT NULL,                       -- the day the brief covers (usually yesterday)
+  posted_at TEXT,
+  channel   TEXT,
+  status    TEXT NOT NULL DEFAULT 'draft',       -- draft | sent | skipped | error
+  text      TEXT,
+  data_json TEXT,                                -- the forecast/actual numbers behind the text
+  PRIMARY KEY (act_id, date)
 );

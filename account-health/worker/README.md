@@ -72,17 +72,32 @@ Pacing counts total ad spend (Meta + Google). Google spend comes from Triple Wha
    click **↻ Refresh Google spend now** to verify (it reports which TW metric it
    matched per client). Refreshes automatically every night after that.
 
+## 2e. Daily Brief (you do this — per client, ~1 minute)
+
+No new secrets — it reuses TW_API_KEY, ANTHROPIC_API_KEY and SLACK_BOT_TOKEN.
+For each client you want briefed: dashboard → **Daily Brief** (pick the client) →
+set the month's goals (**net sales** + **ad spend** minimum; aMER and margin %
+optional — margin falls back to the client's real COGS in Triple Whale) → flip
+**auto-post**. It posts every morning (~7am PT / 10am ET) to the brand's alerts
+channel, covering yesterday: forecast vs actual on Contribution Margin, Net
+Sales, Total Spend and aMER, plus a Claude-written Notes / So What? / What's
+Next? built from the numbers and the Change Log. Preview or post manually from
+the same page — nothing reaches the client until goals + the toggle (or a
+manual Post) say so.
+
 ## 3. Dashboard
 
 `account-health/index.html` → https://tools.go-mobius-digital.com/account-health/ (GitHub Pages,
 same as the other tools). It talks to `https://mobius-account-health.mobius-digital.workers.dev`.
 Sign in with the ADMIN_TOKEN the first time, then set a friendlier password in Settings.
 
-## Nightly job
+## Scheduled jobs
 
-03:30 UTC: for every active account, re-pull the last 3 days of daily insights (Meta
-conversions keep arriving for ~72h) and any new activity-log events. `/health` shows
-the last run.
+- **03:30 UTC** — for every active account, re-pull the last 3 days of daily insights
+  (Meta conversions keep arriving for ~72h), new activity-log events, Google spend and
+  10 days of Triple Whale daily metrics; then pace/KPI Slack alerts. `/health` shows
+  the last run.
+- **14:00 UTC** — Daily Briefs for every brand with auto-post on (see 2e).
 
 ## Routes
 

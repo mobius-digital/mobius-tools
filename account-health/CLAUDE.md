@@ -37,18 +37,33 @@ account-health/
   `npx.cmd wrangler d1 execute mobius-account-health --remote --file=schema.sql`.
 - Dashboard deploys by committing `index.html` (GitHub Pages).
 
-## Build status: EVERYTHING IS SHIPPED (phases 0–4 + extras, 2026-08-20)
+## Build status: EVERYTHING IS SHIPPED (phases 0–5 + extras, 2026-08-20)
 
 All four pages, Overview, Settings, Summarise (Claude), share links, per-brand
 Slack alerts, KPI guardrails, Google spend via Triple Whale, intraday pacing,
-auto-suggested reasons, in-app help guides. Secrets set: META_TOKEN,
-ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TW_API_KEY, ADMIN_TOKEN, SESSION_SECRET.
+auto-suggested reasons, in-app help guides, **Daily Brief** (Chat 5 —
+CTC-style forecast-vs-actual with Claude narrative, auto-posts 14:00 UTC per
+enabled brand). Secrets set: META_TOKEN, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN,
+TW_API_KEY, ADMIN_TOKEN, SESSION_SECRET.
 
-Next planned feature: **attribution-model comparison row** (Meta-reported vs TW
-Pixel models vs blended) — design it from the TW metric catalog stashed in
-`settings.twMetrics:<act_id>` by `refreshGoogleSpend()`.
+Cole's remaining step for the Daily Brief: per client, set monthly goals on
+the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
 
 ## Hard-won rules (do not relearn these)
+
+- **Triple Whale summary-page** (`twSummary`): metrics live in `metrics[]` with
+  `values.current` + per-day `charts.current` where `x` = ZERO-based
+  day-of-year in the shop tz — one monthly call yields daily series
+  (`twDailySeries` → `tw_daily`). Known ids: `netSales`, `totalSales`,
+  `newCustomerSales`, `rcRevenue`, `blendedAds` (all-platform spend),
+  `ga_adCost` (Google spend), `grossProfit`, `totalProductCosts` (COGS),
+  `totalPaymentGatewayCosts`. new + returning sums to `totalSales`.
+- **Daily Brief math**: aMER = new-customer revenue ÷ blended spend; CM basis
+  chain = cm_pct override → grossProfit − fees − spend → netSales − COGS −
+  fees − spend; forecast weights = trailing-28d day-of-week shares frozen at
+  month start.
+- **claude-opus-5 spends thinking tokens INSIDE max_tokens** — a "1200-token"
+  call returns truncated text mid-sentence. Give narrative calls ≥6000.
 
 - **Scope rule: performance = Meta only, money = all platforms.** Google spend
   (from Triple Whale, per-brand `tw_shop`) appears ONLY in Pacing bars, Overview

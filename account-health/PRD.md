@@ -32,6 +32,7 @@ budgets, password).
 | 2 | Averages page (7v30 cards, 3/7/14/30 table, change-log strip) + MTD Pacing (vs budget, vs last month) + Slack off-pace alert + per-client share link | ✅ built 2026-08-20 — Slack alerts need `SLACK_BOT_TOKEN` secret + channel in Settings |
 | 3 | Creative Rotation: ad-level pulls with first-spend date, freshness %, spend-weighted age, fresh vs stale CPA, weekly age-bucket bars | ✅ built 2026-08-20 — first visit auto-kicks the 90d ad-level backfill |
 | 4 | Intraday Pacing (hourly curves), all-clients pacing row, alert polish, handoff docs | ✅ built 2026-08-20 — GET /api/pacing pulls live from Meta on page open |
+| 5 | **Daily Brief** (CTC/Statlas-style): per-client monthly goals → daily forecast vs actual (CM, Net Sales, Spend, aMER), Claude-written Notes / So What? / What's Next? fed by the Change Log, auto-posted to each brand's Slack at 14:00 UTC | ✅ built 2026-08-20 — flip auto-post per brand after setting goals |
 
 Chats 3 and 4 are optional; the tool is already useful after Chat 2.
 
@@ -62,6 +63,28 @@ Chats 3 and 4 are optional; the tool is already useful after Chat 2.
 - **Currency** is per account (Meta reports it); the Overview shows each
   client in its own currency and never sums across currencies.
 
+## Decisions (Chat 5 — Daily Brief)
+
+- **Money = Triple Whale, performance = Meta** (unchanged): Net Sales uses TW
+  `netSales` (fallback `totalSales`), Total Spend uses TW `blendedAds`
+  (fallback Meta spend + `ga_adCost`), new/returning from `newCustomerSales` /
+  `rcRevenue`. Meta ROAS stays Meta-attributed and is labelled as such.
+- **aMER = new-customer revenue ÷ total ad spend** (reverse-engineered from
+  CTC's real numbers; checks out exactly). **CM basis**, most explicit first:
+  goals `cm_pct` override → TW `grossProfit` − fees − spend → netSales −
+  `totalProductCosts` − fees − spend. Forecast CM uses `cm_pct` or the
+  trailing-28-day margin.
+- **Forecast**: monthly goals (`accounts.goals_json`, month key over
+  `default`) spread across the month by day-of-week weights from the 28 days
+  *before* the month started (frozen all month, so the plan can't drift);
+  spend forecast is flat. Falls back to uniform with <14 days of history.
+- **One TW call = a month of daily data**: summary-page metrics carry
+  `charts.current` with `x` = zero-based day-of-year (shop tz) — no per-day
+  API calls needed. Kept long-format in `tw_daily` (act_id, date, metric).
+- **Auto-post is opt-in per brand** (`brief_enabled`) and requires goals + a
+  Slack channel; runs at the 14:00 UTC cron (7am PT / 10am ET), covering
+  yesterday. Manual preview/post any time from the Daily Brief page.
+
 ---
 
 ## Data model (D1)
@@ -81,6 +104,14 @@ settings          key PK, value
 `activities.category` is the auto-classified type (new_creative, new_adset,
 new_campaign, ad_paused, ad_relaunched, campaign_paused, budget, targeting,
 bid_strategy, optimisation, other). `reason` is the human tag (Chat 1).
+
+Chat 5 additions:
+
+```
+accounts          + goals_json ('{"2026-08":{sales,spend,amer,cm_pct},"default":{...}}'), brief_enabled
+tw_daily          act_id, date, metric (TW metricId), value            — PK(act_id, date, metric)
+briefs            act_id, date, posted_at, channel, status (draft|sent|skipped|error), text, data_json — PK(act_id, date)
+```
 
 ## Worker API (Bearer auth on everything except /health)
 
@@ -104,16 +135,29 @@ POST /api/share                            {act_id} → stable read-only link (?
 GET  /api/share/:token                     NO auth — read-only bundle for the client view
 GET  /api/creative?act=&fresh=&window=     freshness cards + weekly age buckets + freshness-vs-CPA (auto-kicks backfill when empty)
 GET  /api/slack-channels                   channel list for the Settings dropdown
+POST /api/tw-sync?act=&days=               pull per-day TW metrics into tw_daily (default 70d, max 120)
+GET  /api/brief?act=&date=                 forecast-vs-actual for the whole month + history (no Claude call)
+POST /api/brief-preview                    {act, date} → full brief text incl. Claude narrative (nothing posted)
+POST /api/brief-send                       {act, date} → post to the brand's Slack channel + log in briefs
+GET  /api/briefs?act=                      sent-brief history
 GET/PUT /api/settings                      {slackChannel, paceAlertPct}; nightly() posts Slack pace + KPI alerts
 POST /api/slack-test                       posts a test message to the configured channel
 PUT  /api/password                         {password}
 ```
 
-## Nightly cron (03:30 UTC)
+## Crons
 
-For each active account: pull daily insights for the last 3 days (upsert),
-pull activities since `last_sync_activities` (insert-ignore by id), classify,
-store. First sync of a new account backfills 90 days.
+**03:30 UTC (nightly):** for each active account: pull daily insights for the
+last 3 days (upsert), pull activities since `last_sync_activities`
+(insert-ignore by id), classify, store; refresh Google spend + last 10 days of
+TW daily metrics; pace/KPI Slack alerts. First sync of a new account
+backfills 90 days.
+
+**14:00 UTC (Daily Briefs, 7am PT / 10am ET):** for each brand with
+`brief_enabled`: refresh 45 days of TW daily metrics, build yesterday's
+forecast-vs-actual, have Claude write the narrative, post to the brand's
+Slack channel, log to `briefs` (skips with a logged reason when goals, TW
+data or a channel is missing).
 
 ---
 
