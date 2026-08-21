@@ -64,8 +64,10 @@ profit/
   internal KPI alerts to them. Keep them separate and label which is which.
 - **In-app modals only — never `alert()`/`confirm()`/`prompt()`.** Use `noteModal()`
   and `confirmModal()`. This is a standing Cole rule across every Mobius tool.
-- **`.unit-in input` must NOT be scoped to `.settings`** — Account Health scopes it
-  that way, and copying the stylesheet without the `.settings` wrapper leaves the
-  input at its default width, overflowing the pill and colliding with buttons.
+- **`.unit-in input` needs `[type=text]` in the selector to win.** `.settings
+  input[type=text]` (border + 180px width) has higher specificity than a bare
+  `.unit-in input`, so inside a `.settings` table the input re-grows its own border
+  and overflows the pill — a box-inside-a-box. Selector must be
+  `.unit-in input,.unit-in input[type=text],.unit-in input[type=number]`.
 - Windows: `npx.cmd wrangler deploy` from `profit/worker/`. PowerShell 5.1 uses
   `;` not `&&`. Cloudflare throws transient 7403 — retry.
