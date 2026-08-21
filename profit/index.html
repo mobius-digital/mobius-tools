@@ -632,11 +632,12 @@ async function renderCosts() {
   catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
   const cur = d.account.currency, h = d.health;
   const u = h.underlying || h;
+  const r = u.retail || null;   // margin measured only on days cost and revenue agree
 
   $('#main').innerHTML = `<h2>Costs — ${esc(d.account.name)}</h2>
     <p class="sub">Can we trust this client's product costs? Everything profit-related — here and in the Daily Brief — depends on the answer.</p>
     <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
-    ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}. This almost always means some products have COGS set in Triple Whale and others don't — on days when the costed ones sell, margin collapses. Fix it in <b>Triple Whale → Settings → Costs</b>, or set a flat margin override below.</div></div>`
+    ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> — the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost — not of a broken product catalogue.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
       : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
       : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) — the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} — clear the override below to use it.`}</div></div>`
       : h.verdict === 'none' ? `<div class="notice warn">ℹ️ <div><b>No cost data at all.</b> Triple Whale has no COGS for this client, so no profit figure can be calculated. Add costs in Triple Whale, or set a flat margin below.</div></div>`
@@ -644,14 +645,14 @@ async function renderCosts() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
       ${statCard('Trailing margin', u.blended!=null?fmtPct(u.blended):'—', `real cost data, 60 days${d.margin_pct!=null?' (not the override)':''}`, 'Gross profit as a share of net sales across the whole window, before ad spend. Stable, believable numbers usually land between 30% and 85% depending on the product.')}
       ${statCard('Daily range', u.p10!=null?`${Math.round(u.p10*100)}% – ${Math.round(u.p90*100)}%`:'—', '10th to 90th percentile', 'How much daily margin moves. Real cost data barely moves. A wide range means the product mix is being costed inconsistently — some SKUs have COGS, others don’t.')}
-      ${statCard('Days costs beat revenue', String(u.negatives ?? 0), u.negatives ? 'impossible — data is wrong' : 'none, as it should be', 'Days where recorded product costs exceeded all revenue. This is impossible for a real business, so any count above zero proves the cost data is incomplete.')}
+      ${statCard('Days cost exceeded revenue', String(u.negatives ?? 0), u.negatives ? 'revenue booked elsewhere' : 'none, as it should be', 'Days where recorded product cost exceeded everything the store took in. A store cannot sell at a loss this consistently, so these days almost always mean the product left the building but the money arrived somewhere Shopify cannot see — a wholesale order paid by invoice, or an inventory delivery booked as one day of cost.')}
       ${statCard('Days checked', String(u.days ?? 0), 'with both sales and cost data', 'How many days in the 60-day window had enough data to judge.')}
     </div>
     <div class="card"><h3 style="margin-bottom:2px">Daily margin, last 60 days</h3>
-      <p class="hint" style="margin-bottom:6px">Real cost data draws a nearly flat line. Spikes and dips mean the product mix is being costed inconsistently; anything below the red zero line is impossible.</p>
+      <p class="hint" style="margin-bottom:6px">Retail-only cost data draws a nearly flat line. Every spike below the red zero line is a day where product cost exceeded store revenue — the fingerprint of a wholesale order or an inventory delivery, not of a bad product catalogue.</p>
       ${marginSVG(d.rows)}</div>
     ${d.worst?.length ? `<div class="card"><h3 style="margin-bottom:8px">Worst days</h3>
-      <p class="hint" style="margin-bottom:10px">The days with the lowest margin. If these look wrong, they are — cross-check a couple against the actual orders in Shopify to find which products are missing costs.</p>
+      <p class="hint" style="margin-bottom:10px">The days with the lowest margin. Check a couple against Shopify: if the orders that day don't account for the cost, the difference went out as wholesale or stock, and the revenue for it lives outside this dashboard.</p>
       <div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Net sales</th><th class="num">Recorded COGS</th><th class="num">Fees</th><th class="num">Margin</th></tr></thead>
       <tbody>${d.worst.map(x => `<tr><td>${x.date}</td><td class="num">${fmtMoney(x.sales, cur)}</td><td class="num">${fmtMoney(x.cogs, cur)}</td><td class="num">${fmtMoney(x.fees, cur)}</td><td class="num"><b style="color:${x.margin<0?'var(--bad)':x.margin<0.2?'var(--warn)':'inherit'}">${fmtPct(x.margin)}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
     <div class="card"><h3 style="margin-bottom:6px">Flat margin override</h3>
@@ -662,7 +663,13 @@ async function renderCosts() {
         <button class="btn" id="mClear">Clear override</button>
         <span class="tiny" id="mMsg"></span>
       </div>
-      ${u.blended!=null && u.verdict!=='broken' ? `<p class="tiny" style="margin-top:8px">For reference, this client's measured trailing margin is <b>${fmtPct(u.blended)}</b>.</p>` : ''}</div>`;
+      ${r ? `<div class="notice" style="margin:12px 0 0">✨ <div><b>Suggested: ${fmtPct(r.margin)}</b> — measured from the ${r.clean_days} of ${r.total_days} days where recorded cost and store revenue agree, so wholesale and inventory-receipt days can't drag it. <button class="btn primary" id="mSuggest" style="margin-left:8px">Use ${fmtPct(r.margin)}</button></div></div>` : ''}
+      ${u.blended!=null && u.verdict!=='broken' ? `<p class="tiny" style="margin-top:8px">For reference, this client's measured trailing margin across every day is <b>${fmtPct(u.blended)}</b>.</p>` : ''}</div>
+    ${r && r.flagged_days ? `<div class="card"><h3 style="margin-bottom:8px">Days carrying cost the store can't explain</h3>
+      <p class="hint" style="margin-bottom:10px">Product cost well above what this day's orders could account for. Each is most likely a <b>wholesale order paid outside Shopify</b> or an <b>inventory delivery</b> recorded as one day's cost. They are excluded from the suggested margin above. ${r.flagged_days} such days total <b>${fmtMoney(r.unexplained_cost, cur)}</b> of unexplained cost.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Store revenue</th><th class="num">Recorded cost</th><th class="num">Cost as % of revenue</th></tr></thead>
+      <tbody>${r.top_flagged.map(x => `<tr><td>${x.date}</td><td class="num">${fmtMoney(x.sales, cur)}</td><td class="num">${fmtMoney(x.cogs, cur)}</td><td class="num"><b style="color:var(--bad)">${Math.round(x.ratio*100)}%</b></td></tr>`).join('')}</tbody></table></div>
+      <p class="tiny" style="margin-top:8px">If these are real wholesale sales, the money came in somewhere this dashboard can't see — worth knowing, because it means the store view understates the whole business.</p></div>` : ''}`;
 
   const save = async pct => {
     $('#mMsg').textContent = 'Saving…';
@@ -673,6 +680,8 @@ async function renderCosts() {
       show('costs');
     } catch (e) { $('#mMsg').textContent = e.message; }
   };
+  const sb = $('#mSuggest');
+  if (sb && r) sb.onclick = () => save(Math.round(r.margin * 100) / 100);
   $('#mSave').onclick = () => {
     const raw = $('#mPct').value.replace(/[^0-9.]/g, '');
     if (raw === '') return save(null);

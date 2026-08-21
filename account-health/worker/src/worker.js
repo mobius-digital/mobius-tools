@@ -724,6 +724,8 @@ async function briefData(env, acct, upTo) {
   ).bind(acct.act_id, histFrom, upTo).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const goals = goalsFor(acct, ym);
+  const shipTotal = m => Object.values(piv[m] || {}).reduce((x, y) => x + (y || 0), 0);
+  const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 ? 'exclude' : 'include';
 
   // Day-of-week weights from the 28 days before the month started — fixed all month,
   // so the plan doesn't shift under the client's feet mid-month.
@@ -768,7 +770,14 @@ async function briefData(env, acct, upTo) {
     f.amer = goals?.amer ?? (newShare != null && f.sales != null && f.spend ? newShare * f.sales / f.spend : null);
     f.mer = f.sales != null && f.spend ? f.sales / f.spend : null;   // implied by the sales + spend goals
     if (date > upTo) { days.push({ date, f, a: null }); continue; }
-    const sales = twDay(piv, date, TW_SALES);
+    const netSalesDay = twDay(piv, date, TW_SALES);
+    // Match Mobius Profit (and CTC's own report): revenue is "Net Sales + Shipping",
+    // and contribution margin subtracts EVERY variable cost. Shipping is dropped from
+    // both sides for clients who bill it but record no fulfilment cost.
+    const shipRev = shipMode === 'include' ? (piv.totalShippingPrice?.[date] ?? 0) : 0;
+    const shipCost = shipMode === 'include' ? (piv.totalShippingCosts?.[date] ?? 0) : 0;
+    const handling = shipMode === 'include' ? (piv.totalHandlingFees?.[date] ?? 0) : 0;
+    const sales = netSalesDay == null ? null : netSalesDay + shipRev;
     const mrow = meta[date];
     const gSpend = piv.ga_adCost?.[date] ?? null;
     const blended = piv.blendedAds?.[date] ?? null;
@@ -792,16 +801,18 @@ async function briefData(env, acct, upTo) {
       google_roas: piv.ga_ROAS?.[date] ?? null,
       blended_roas: piv.totalRoas?.[date] ?? null,
       gross_profit: piv.grossProfit?.[date] ?? null,
+      net_sales: netSalesDay, ship_rev: shipRev, ship_cost: shipCost, handling,
       cogs: piv.totalProductCosts?.[date] ?? null,
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };
     a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
     a.mer = sales != null && a.spend ? sales / a.spend : null;
-    // CM basis, most explicit first: margin% override → TW gross profit → TW COGS.
+    // CM = revenue - every variable cost (product, fulfilment, handling, fees, ads).
+    // Fixed costs are excluded by definition. Margin override wins when set.
+    const variable = a.cogs != null ? a.cogs + shipCost + handling + (a.fees ?? 0) : null;
     a.cm = cmPct != null && sales != null && a.spend != null ? sales * cmPct - a.spend
-      : a.gross_profit != null && a.spend != null ? a.gross_profit - (a.fees ?? 0) - a.spend
-      : a.cogs != null && sales != null && a.spend != null ? sales - a.cogs - (a.fees ?? 0) - a.spend : null;
-    a.cm_basis = cmPct != null ? 'margin' : a.gross_profit != null ? 'tw' : a.cogs != null ? 'cogs' : null;
+      : variable != null && sales != null && a.spend != null ? sales - variable - a.spend : null;
+    a.cm_basis = cmPct != null ? 'margin' : variable != null ? 'cogs' : null;
     days.push({ date, f, a });
   }
 
@@ -836,7 +847,7 @@ function buildBriefText(data, date, narrative) {
   // when Triple Whale's cost data is unreliable we leave CM out entirely.
   const cmOk = data.cogs_quality?.verdict !== 'broken' && data.cogs_quality?.verdict !== 'none';
   if (cmOk) L.push(`Forecasted Contribution Margin: ${fm(f.cm)} · Actual: ${fm(a.cm)}${pct(a.cm, f.cm)}`);
-  L.push(`Forecasted Net Sales: ${fm(f.sales)} · Actual: ${fm(a.sales)}${pct(a.sales, f.sales)}`);
+  L.push(`Forecasted Net Sales${a.ship_rev ? ' + Shipping' : ''}: ${fm(f.sales)} · Actual: ${fm(a.sales)}${pct(a.sales, f.sales)}`);
   L.push(`Forecasted Total Spend: ${fm(f.spend)} · Actual: ${fm(a.spend)}${pct(a.spend, f.spend)}`);
   L.push(`Forecasted MER: ${fx(f.mer)} · Actual: ${fx(a.mer)}`);
   L.push(`Forecasted aMER: ${fx(f.amer)} · Actual: ${fx(a.amer)}`);
@@ -919,7 +930,7 @@ async function writeBriefNarrative(env, acct, data, date) {
     maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom for the text
     user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${date}.\n` +
       `Goals this month: ${JSON.stringify(data.goals)}. Meta ROAS floor: ${acct.target_roas ?? 'none'}. Forecast weighting: ${data.weights}.\n` +
-      `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data (gross profit, or net sales − COGS − payment fees) − ad spend'}.\n\n` +
+      `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data: revenue minus product costs, fulfilment, handling, payment fees and ad spend (every variable cost; fixed costs are excluded by definition)'}.\n\n` +
       (data.cogs_quality && (data.cogs_quality.verdict === 'broken' || data.cogs_quality.verdict === 'none')
         ? `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality.reason}). Contribution margin has been REMOVED from the numbers block - do NOT mention contribution margin, CM, profit or margin anywhere in your narrative. Build the story from net sales, spend, aMER and the channel reads instead.
 

@@ -32,6 +32,12 @@ profit/
 - **The new/returning split must be rebased onto net sales.** TW reports it
   against `totalSales` (incl. tax) while the headline is `netSales` (ex-tax),
   so the raw figures do not add up. Keep the measured *share*, apply to sales.
+- **Days where cost > revenue are usually WHOLESALE, not broken COGS.** Product
+  left the building; the money arrived somewhere Shopify cannot see. `retailMargin()`
+  estimates the true retail margin from clean days only — use a LOW percentile as the
+  base (contamination only adds cost, so the median collapses once contamination
+  passes ~50% of days, as it does for Grunk). Frame this in the UI as wholesale /
+  inventory receipts, never as "your data is wrong".
 - **Cost data is gated.** `judgeCosts()` grades the trailing per-day margin;
   `broken` suppresses every profit figure. The Costs page must always diagnose
   the **real** TW data (`seriesRaw`, override ignored) — grading the override

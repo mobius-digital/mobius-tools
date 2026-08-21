@@ -287,18 +287,50 @@ function judgeCosts(rows) {
   const blended = sales > 0 && gp != null ? gp / sales : null;
   const spread = p90 - p10;
   const out = { verdict: 'good', days: n, blended, p10, p90, spread, negatives };
+  const retail = retailMargin(rows);
+  out.retail = retail;
   if (negatives > 0 || (blended != null && blended <= 0.15) || spread > 0.6) {
     out.verdict = 'broken';
     out.reason = negatives > 0
-      ? `${negatives} of ${n} days record costs above revenue — products are missing or mis-set COGS`
+      ? `${negatives} of ${n} days record more product cost than the store took in — typically wholesale orders paid outside Shopify, or an inventory delivery booked as one day's cost`
       : blended != null && blended <= 0.15
-      ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin — COGS looks wrong`
-      : `daily margin swings ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}% — only some products have COGS set`;
+      ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin for this kind of product`
+      : `daily margin swings ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}%, which no real product mix does`;
   } else if (spread > 0.4) {
     out.verdict = 'noisy';
     out.reason = `daily margin ranges ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}% — likely a few products missing COGS`;
   }
   return out;
+}
+
+/** Estimate the true RETAIL margin when some days carry cost with no matching
+ *  store revenue — wholesale orders paid offline, or an inventory receipt booked
+ *  as one day's cost. Contamination only ever ADDS cost, never removes it, so the
+ *  low end of the daily cost-ratio distribution is the uncontaminated signal.
+ *  We take the tight low cluster, not the median, which halves under contamination. */
+function retailMargin(rows) {
+  const days = rows.filter(r => r.sales > 0 && r.cogs != null)
+    .map(r => ({ date: r.date, sales: r.sales, cogs: r.cogs, ratio: r.cogs / r.sales }));
+  if (days.length < 10) return null;
+  const ratios = days.map(d => d.ratio).sort((a, b) => a - b);
+  const q = p => ratios[Math.floor((ratios.length - 1) * p)];
+  const base = q(0.25);                       // representative clean-day cost ratio
+  // A day is "clean" while its cost ratio stays near that base; everything above
+  // is carrying cost the store's revenue can't explain.
+  const cutoff = Math.max(base * 1.5, base + 0.1);
+  const clean = days.filter(d => d.ratio <= cutoff);
+  const flagged = days.filter(d => d.ratio > cutoff).sort((a, b) => b.cogs - a.cogs);
+  if (!clean.length) return null;
+  const cleanSales = clean.reduce((a, d) => a + d.sales, 0);
+  const cleanCogs = clean.reduce((a, d) => a + d.cogs, 0);
+  const margin = cleanSales > 0 ? 1 - cleanCogs / cleanSales : null;
+  const excessCost = flagged.reduce((a, d) => a + (d.cogs - d.sales * base), 0);
+  return {
+    margin, clean_days: clean.length, flagged_days: flagged.length, total_days: days.length,
+    cutoff, base,
+    unexplained_cost: excessCost,
+    top_flagged: flagged.slice(0, 5).map(d => ({ date: d.date, sales: d.sales, cogs: d.cogs, ratio: d.ratio })),
+  };
 }
 
 /** Worst offending days, so the Costs page can name names. */
@@ -464,7 +496,18 @@ export default {
         }
         await env.DB.prepare(`UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1`)
           .bind(acct.act_id, JSON.stringify(goals)).run();
-        return json({ ok: true, margin_pct: pct });
+        // Re-grade immediately: the stored snapshot decides whether the Overview
+        // shows this client's profit, so a stale "broken" would keep suppressing it.
+        const fresh = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(acct.act_id).first();
+        const { health } = await costHealth(env, { ...fresh, goals: safeJson(fresh.goals_json, {}) });
+        await env.DB.prepare(
+          `INSERT INTO p_cost_health (act_id, verdict, reason, blended, p10, p90, negatives, days, checked_at)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,datetime('now'))
+           ON CONFLICT(act_id) DO UPDATE SET verdict=excluded.verdict, reason=excluded.reason, blended=excluded.blended,
+             p10=excluded.p10, p90=excluded.p90, negatives=excluded.negatives, days=excluded.days, checked_at=excluded.checked_at`,
+        ).bind(acct.act_id, health.verdict, health.reason ?? null, health.blended ?? null,
+          health.p10 ?? null, health.p90 ?? null, health.negatives ?? 0, health.days ?? 0).run();
+        return json({ ok: true, margin_pct: pct, verdict: health.verdict });
       }
 
       if (path === '/api/cost-health-refresh' && request.method === 'POST') {

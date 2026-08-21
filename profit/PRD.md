@@ -72,6 +72,17 @@ Change Log stays available.
   BOTH sides rather than crediting free revenue (The Golf Sock, which would
   otherwise have been overstated by ~$3.4k/month). Where cost equals revenue
   exactly, TW is treating it as a pass-through and the page says so.
+- **Cost days that exceed revenue usually mean wholesale, not bad data** (Cole,
+  2026-08-21). `retailMargin()` estimates the true retail margin from only the days
+  where cost and store revenue agree — contamination only ever ADDS cost, so the low
+  end of the daily cost-ratio distribution is the clean signal (the median halves
+  under contamination and must not be used). Grunk Dolfer: 26 of 60 clean days give
+  **83%**, right alongside its peers, with **$47k** of unexplained cost on the other
+  34 days. Applied as its flat margin override. The Costs page offers this as a
+  one-click suggestion and lists the flagged days.
+- **Saving a margin override re-grades the stored `p_cost_health` immediately** —
+  the Overview reads that snapshot to decide whether to show profit at all, so a
+  stale `broken` would keep suppressing a client that has just been fixed.
 - **Every metric carries its plan** (`planFor`): the month's goals pro-rated to
   the days elapsed, so month-to-date actuals have something to beat. This is
   CTC's defining move — a number without a goal beside it is trivia.
