@@ -58,6 +58,13 @@ profit/
   a MER you had just typed silently revert when you changed spend. Cole spotted it.
   `PL.derive` names the calculated field; the other two are inputs, and switching
   which is derived freezes the current values so nothing jumps.
+- **State the window on every derived number.** The Plan page mixes them on purpose:
+  revenue basis and product margin come from the last COMPLETE month, while aMER and
+  returning-per-day come from the trailing 28 days (they move). `ctx.sources` carries
+  `basis_month`, `margin_month` and `trailing_from`/`to`/`days`, and `basisNote()`
+  spells all of it out under the plan. Cole asked "is this last month or trailing six
+  months?" and nothing on screen answered him. Any future derived input must say
+  where it came from.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

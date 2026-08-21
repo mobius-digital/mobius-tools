@@ -485,7 +485,8 @@ async function forecastFor(env, acct, ym) {
   return {
     month: ym, days_in_month: dim, days_elapsed: mtdRows.length, days_remaining: remaining.length,
     basis: {
-      days: trailing.length, amer, spend_per_day: spendPerDay, returning_per_day: retAll,
+      days: trailing.length, from: tFrom, to: lastActual,
+      amer, spend_per_day: spendPerDay, returning_per_day: retAll,
       email_share: tSales > 0 ? tEmail / tSales : null, email_connected: tEmail > 0,
     },
     mtd,
@@ -762,14 +763,23 @@ export default {
           : null;
 
         const fc = await forecastFor(env, acct, monthOf(today));
+        // Deliberately mixed windows, so both are stated rather than assumed:
+        // efficiency and returning behaviour come from the most RECENT 28 days
+        // (they move), while the revenue basis and margin come from the last
+        // COMPLETE month (a part-month would lowball the goal).
+        const marginSrc = lastComplete || current;
         const ctx = {
           days_in_month: daysInMonth(ym),
           returning_per_day: fc?.basis?.returning_per_day ?? null,
           amer: fc?.basis?.amer ?? null,
-          margin: (() => {
-            const src = lastComplete || current;
-            return src?.margin ?? null;
-          })(),
+          margin: marginSrc?.margin ?? null,
+          sources: {
+            trailing_days: fc?.basis?.days ?? null,
+            trailing_from: fc?.basis?.from ?? null,
+            trailing_to: fc?.basis?.to ?? null,
+            margin_month: marginSrc?.month ?? null,
+            basis_month: basis?.month ?? null,
+          },
         };
         const options = basis ? [0, 0.1, 0.2, 0.3].map(g => planMath('growth', g, ctx, basis.sales)) : [];
 

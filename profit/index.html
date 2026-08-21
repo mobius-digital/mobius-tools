@@ -489,6 +489,11 @@ const PAGE_HELP = {
     · <i>"We want $100k and we'll spend $40k"</i> — type revenue and spend, read the MER it needs.<br>
     · <i>"We have $40k and need 2.5x"</i> — type spend and MER, read the revenue it buys.<br>
     · <i>"We want $100k at 2.5x"</i> — type revenue and MER, read the spend required.</p>
+    <p><b>Which numbers come from where</b> — it is deliberately a mix, and the page states it under the plan:<br>
+    · The <b>revenue basis</b> ("+10% on July") is that month's <b>actual</b> — a whole finished month, never a part-month, which would lowball the goal.<br>
+    · The <b>acquisition efficiency</b> and the <b>returning revenue</b> estimate come from the <b>last 28 days</b>, with the exact dates shown. Recent, not a six-month average, because efficiency moves and you care what the account is doing now.<br>
+    · The <b>product margin</b> is the last complete month's.<br>
+    The six-month table above is context for your judgement — the maths does not average it.</p>
     <p><b>The verdict line is the honest bit.</b> Any plan implies a rate at which you buy new customers. The page compares that with what this client has actually been getting over the last 28 days and tells you plainly whether the plan is <b>achievable</b>, <b>a stretch</b>, or <b>unrealistic</b>. A goal that needs 40% better efficiency than the account has ever delivered is a wish, not a plan.</p>
     <p><b>How to run it:</b> open the client before your monthly call. The six-month table shows what actually happened. Pick a growth level and the page tells you what that goal <i>costs</i> — because returning customers arrive largely on their own, but everything above that has to be bought, at this client's own acquisition efficiency.</p>
     <p><b>Watch the contribution margin.</b> If pushing growth harder makes expected CM go <i>down</i>, you're buying revenue that doesn't pay for itself. The page says so outright.</p>
@@ -1169,6 +1174,19 @@ async function renderPlan(first) {
       : `⚠️ That leaves <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than ${esc(monthLabel(lastFull.month))} — the extra spend outweighs the extra revenue.`;
   };
 
+  // Every derived number states its own window. The mix is deliberate: efficiency
+  // and returning behaviour move, so they come from the most recent 28 days, while
+  // the revenue basis and margin come from a whole finished month.
+  const src = (p.ctx && p.ctx.sources) || {};
+  const basisNote = () => {
+    const bits = [];
+    if (src.basis_month) bits.push(`the <b>${esc(monthLabel(src.basis_month))}</b> revenue figure is that month's actual`);
+    if (src.trailing_from && src.trailing_to) bits.push(`<b>${fmtX(p.ctx.amer)}</b> acquisition efficiency and the <b>${fmtMoney(expRet, cur)}</b> of returning revenue come from the last <b>${src.trailing_days || 28} days</b> (${esc(src.trailing_from)} to ${esc(src.trailing_to)})`);
+    if (src.margin_month && p.ctx.margin != null) bits.push(`the <b>${fmtPct(p.ctx.margin)}</b> product margin is <b>${esc(monthLabel(src.margin_month))}</b>'s`);
+    if (!bits.length) return '';
+    return `<b>Where these come from:</b> ${bits.join('; ')}. Recent efficiency is used rather than a six-month average, because it is what the account is actually doing now.`;
+  };
+
   const picker = [-1, 0, 1, 2, 3, 4].map(n => shiftMonth(nowYm, n));
   const statusPill = p.status === 'past'
     ? '<span class="pill unk">finished — read only</span>'
@@ -1226,7 +1244,7 @@ async function renderPlan(first) {
       </tbody></table></div></div>` : ''}
 
     <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
-      <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish.</p>
+      <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> — the plan below is not an average of it.</p>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">Margin</th></tr></thead>
         <tbody>${hist.slice(-6).map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
@@ -1237,7 +1255,8 @@ async function renderPlan(first) {
       ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> — ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>
 
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
-      <p class="hint" style="margin-bottom:12px">Type into any <b>two</b> of these; the greyed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
+      <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the greyed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
+      <p class="tiny" style="margin-bottom:14px;color:var(--muted)">${basisNote()}</p>
       <div class="row" style="gap:8px;margin-bottom:12px">
         ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
         <span class="tiny">quick-fill the revenue goal from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
