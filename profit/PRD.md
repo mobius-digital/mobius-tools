@@ -6,7 +6,9 @@ This answers *"is this brand making money, and will it hit its number?"*
 Our own take on what CTC's **Statlas** does — scoped to a six-client agency, not an
 enterprise platform. Statlas ships 30+ reports; we need about five pages.
 
-**Status: proposed.** Nothing here is built. Cole reviews and approves before Phase 0.
+**Status: Phase 0 SHIPPED 2026-08-21.** Overview, Profit and Costs pages are live at
+`https://tools.go-mobius-digital.com/profit/` on worker `mobius-profit`.
+Phases 1-4 below are still to come.
 
 ---
 
@@ -79,7 +81,8 @@ Change Log stays available.
 
 | Phase | Scope |
 |---|---|
-| **0** | Worker + shared D1 binding, dashboard shell (reuses the HQ Google sign-in and the Account Health client picker), **Costs page**: Shopify variant-cost sync, per-SKU overrides, flat-margin fallback, data-quality report per client |
+| **0** | ✅ **SHIPPED 2026-08-21** — worker on the shared D1, dashboard shell w/ SSO, **Overview** (all clients: net sales, spend, MER, aMER, new %, CM), **Profit** (waterfall + daily revenue-vs-spend chart + new/returning), **Costs** (verdict, daily-margin chart, worst days, flat-margin override). Shopify variant-cost sync and per-SKU entry deferred to 0b — needs Shopify Admin API creds. |
+| **0b** | Shopify per-variant `unitCost` sync into `p_sku_costs` + manual SKU entry UI (needs Shopify Admin API access per store) |
 | **1** | **Profit page**: daily/weekly/monthly waterfall revenue → COGS → shipping → fees → ad spend → CM, with trend charts and the cost-basis label |
 | **2** | **Forecast page**: goals, day-by-day forecast, Marketing Calendar multipliers, month/quarter projection, spend-scenario slider |
 | **3** | **Cohorts page**: new vs returning revenue, repeat-purchase rate, payback period; feeds the forecast |
@@ -92,9 +95,9 @@ Phase 0 is the only one with a hard dependency — everything else can be reorde
 ## What Cole needs to supply
 
 - **Shopify Admin API access** per client store (read products + orders) to pull real
-  per-variant costs. This is the one genuinely new credential; everything else
-  (Meta, Triple Whale, Slack, Anthropic) is already wired.
-- Confirmation on the tool name — `Mobius Profit` is the working title.
+  per-variant costs — needed for Phase 0b only. Phase 0 shipped without it.
+- Nothing else: no new secret was required. The dashboard password lives in the
+  shared `settings` table and Google SSO delegates to the account-health worker.
 
 ---
 

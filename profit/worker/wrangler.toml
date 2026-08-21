@@ -1,0 +1,25 @@
+# Mobius Profit — Cloudflare Worker config
+# Deploy:  npx wrangler deploy   (from this folder)
+name = "mobius-profit"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# No cron: the Cloudflare account is at its 5-trigger free-plan limit, and this
+# tool needs no scheduled work of its own — it reads tables the account-health
+# worker already syncs nightly. The cost-health snapshot self-freshens on page
+# load when it is more than 12h old (see refreshIfStale in src/worker.js).
+
+# SHARED database with Account Health. Deliberate: Profit reads the Meta insights,
+# Triple Whale daily metrics and the Change Log that tool already syncs, and writes
+# its own `p_`-prefixed tables alongside. No duplication, no cross-worker syncing.
+[[d1_databases]]
+binding = "DB"
+database_name = "mobius-account-health"
+database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
+
+[vars]
+GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"
+
+# Secrets (set once):
+#   npx wrangler secret put ADMIN_TOKEN      master key
+#   npx wrangler secret put SESSION_SECRET   MUST match the other tool workers (shared SSO)

@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobius Profit</title>
+<meta name="description" content="Store-level profitability for every Mobius Digital client: contribution margin, MER, aMER and cost-data health across all channels.">
+<link rel="icon" href="../favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F8FA; --surface:#FFFFFF;
+    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
+    --line:#DFE7EC; --line-strong:#C4D2DB;
+    --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
+    --hd:#0C161D; --hd-line:#1D2C38;
+    --good:#1C7A46; --good-bg:#E4F2E9;
+    --warn:#8F6412; --warn-bg:#F8EED6;
+    --bad:#9C3A2E;  --bad-bg:#F7E7E4;
+    --unk:#647684;  --unk-bg:#EDF1F4;
+    --radius:12px;
+    --sans:'Instrument Sans',system-ui,sans-serif;
+    --serif:'Instrument Serif',Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;font-feature-settings:"tnum" 1}
+  button{font:inherit;cursor:pointer;color:inherit;background:none;border:none}
+  input,select{font:inherit;color:var(--ink)}
+  ::placeholder{color:#8195A2}
+  a{color:var(--brand-ink)}
+
+  header{position:sticky;top:0;z-index:20;background:var(--hd);color:#DFEAF2}
+  .hd{display:flex;align-items:center;gap:16px;padding:12px 26px;flex-wrap:wrap;max-width:1240px;margin:0 auto}
+  .mark{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
+  .mark img{height:32px;width:32px;border-radius:8px;display:block}
+  .mark b{font-weight:700;letter-spacing:.06em;font-size:13px}
+  .mark b span{color:var(--brand)}
+  .hd-sep{width:1px;height:28px;background:var(--hd-line)}
+  .hd-title{font-family:var(--serif);font-size:21px;color:#fff;white-space:nowrap}
+  .hd-title em{font-style:italic;color:var(--brand)}
+  .hd-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .hd-chip{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--hd-line);border-radius:99px;padding:6px 12px;color:#9FB4C2;white-space:nowrap}
+  .hd-chip[data-s="live"]{color:#7BE0A3;border-color:rgba(123,224,163,.35)}
+  .hd-chip[data-s="down"]{color:#F2938A;border-color:rgba(242,147,138,.4)}
+  .hd-btn{border:1px solid var(--hd-line);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:#BFD3E0;white-space:nowrap}
+  .hd-btn:hover{border-color:var(--brand);color:#fff}
+  .hd select{background:#15232D;color:#DFEAF2;border:1px solid var(--hd-line);border-radius:8px;padding:7px 32px 7px 12px;font-size:13px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239FB4C2' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+
+  nav.tabs{background:var(--hd);border-top:1px solid var(--hd-line)}
+  nav.tabs .in{max-width:1240px;margin:0 auto;padding:0 26px;display:flex;gap:4px;overflow-x:auto}
+  nav.tabs button{padding:11px 14px;font-size:13px;font-weight:600;color:#9FB4C2;border-bottom:2px solid transparent;white-space:nowrap}
+  nav.tabs button.on{color:#fff;border-bottom-color:var(--brand)}
+  nav.tabs button .soon{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#64788A;margin-left:6px}
+
+  main{max-width:1240px;margin:0 auto;padding:26px 26px 90px}
+  h2{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px;max-width:820px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .btn{border:1px solid var(--line-strong);border-radius:8px;padding:8px 13px;font-size:13px;font-weight:600;background:var(--surface)}
+  .btn:hover{border-color:var(--brand-ink)}
+  .btn.primary{background:var(--hd);color:#fff;border-color:var(--hd)}
+  .btn[disabled]{opacity:.5;cursor:default}
+
+  .gate{max-width:460px;margin:60px auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:34px}
+  .gate h1{font-family:var(--serif);font-weight:400;font-size:28px;margin-bottom:6px}
+  .gate p{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+  .gate label{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 5px}
+  .gate input{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px 12px}
+  .gate .cta{width:100%;margin-top:20px;background:var(--brand);color:var(--hd);border-radius:9px;padding:12px;font-weight:700;font-size:14.5px}
+  .gate .err{color:var(--bad);font-size:13px;margin-top:12px}
+
+  .notice{display:flex;gap:12px;align-items:flex-start;border-radius:var(--radius);padding:13px 18px;font-size:13.5px;margin-bottom:14px;border:1px solid var(--line)}
+  .notice.warn{background:var(--warn-bg);border-color:#EAD9AE;color:var(--warn)}
+  .notice.bad{background:var(--bad-bg);border-color:#EBC8C2;color:var(--bad)}
+  .notice.good{background:var(--good-bg);border-color:#BFDFC9;color:var(--good)}
+  .notice code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:4px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+  .card h3{font-size:15px;font-weight:700;margin-bottom:4px}
+  .card .hint{color:var(--muted);font-size:13px}
+  .soon-card{border-style:dashed;background:transparent}
+  .soon-card .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--brand-soft);color:var(--brand-ink);border-radius:99px;padding:3px 9px;margin-bottom:8px}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right}
+  td b{font-weight:700}
+  .tiny{font-size:11.5px;color:var(--muted)}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;white-space:nowrap}
+  .pill.good{background:var(--good-bg);color:var(--good)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .pill.bad{background:var(--bad-bg);color:var(--bad)}
+  .pill.unk{background:var(--unk-bg);color:var(--unk)}
+  .delta{font-size:12px;font-weight:600;margin-left:6px}
+  .delta.good{color:var(--good)} .delta.bad{color:var(--bad)} .delta.unk{color:var(--muted)}
+  .tbl-wrap{overflow-x:auto}
+
+  .settings input[type=number],.settings input[type=text]{border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;width:120px}
+  .settings input[type=text]{width:180px}
+  .flash-saved{border-color:var(--good) !important;box-shadow:0 0 0 2px var(--good-bg);transition:box-shadow .2s}
+  .unit-in{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);padding:0 7px}
+  .unit-in span{color:var(--muted);font-size:12.5px;flex:none}
+  .settings .unit-in input{border:none;border-radius:0;padding:6px 3px;width:100%;min-width:0;background:transparent;outline:none}
+  .toggle{width:38px;height:22px;border-radius:99px;background:#C9D5DD;position:relative;transition:.15s;flex:none}
+  .toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+  .toggle.on{background:var(--good)} .toggle.on::after{left:19px}
+
+  .feed{font-size:13px}
+  .feed .it{display:grid;grid-template-columns:130px 110px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .feed .it:last-child{border-bottom:none}
+  .feed .cat{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:2px 7px;justify-self:start}
+
+  /* Change Log (Chat 1) */
+  .chip{border:1px solid var(--line-strong);border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:600;background:var(--surface)}
+  .chip.on{background:var(--hd);color:#fff;border-color:var(--hd)}
+  .catpill{border:1px solid var(--line);border-radius:99px;padding:4px 11px;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft)}
+  .catpill.off{background:transparent;color:var(--muted);border-style:dashed;opacity:.75}
+  .catpill i{font-style:normal;font-weight:600;opacity:.65;margin-left:4px}
+  main input[type=date],main .search,main select{border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--surface)}
+  main select{appearance:none;-webkit-appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
+  main .search{min-width:190px}
+  .cl-it{display:grid;grid-template-columns:104px minmax(0,1fr) auto;gap:10px 18px;padding:16px 0;border-bottom:1px solid var(--line);align-items:center;font-size:13.5px}
+  .cl-it:first-child{padding-top:4px}
+  .cl-it:last-child{border-bottom:none}
+  .cl-it .who{color:var(--muted);font-size:12px;line-height:1.5}
+  .cl-it .who b{color:var(--ink);font-weight:600;font-size:12.5px}
+  .cl-it .what .cat{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:2px 7px;margin-right:7px;white-space:nowrap}
+  .cl-it .what .client{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);background:var(--unk-bg);border-radius:6px;padding:2px 7px;margin-right:7px;white-space:nowrap}
+  .cl-it .what .txt{overflow-wrap:anywhere}
+  .cl-it .note{color:var(--muted);font-size:12px;margin-top:5px;font-style:italic;cursor:pointer}
+  .cl-it .note:hover{color:var(--ink)}
+  .note-btn{font-size:11.5px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:7px;padding:5px 9px;white-space:nowrap}
+  .note-btn:hover{color:var(--ink);border-color:var(--brand-ink);border-style:solid}
+  .modal-wrap{position:fixed;inset:0;background:rgba(12,22,29,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 0}
+  .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;width:100%;max-width:460px;box-shadow:0 18px 50px rgba(12,22,29,.25)}
+  .modal h3{font-size:15.5px;font-weight:700;margin-bottom:4px}
+  .modal .hint{color:var(--muted);font-size:12.5px;margin-bottom:12px;line-height:1.5}
+  .modal input,.modal textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;background:var(--surface)}
+  .modal textarea{min-height:76px;resize:vertical}
+
+  /* Averages (Chat 2) */
+  .av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:12px;margin-bottom:14px}
+  .av-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px 10px;border-top:3px solid var(--line-strong)}
+  .av-card.good{border-top-color:var(--good)} .av-card.bad{border-top-color:var(--bad)}
+  .av-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+  .av-label{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  .av-val{font-size:19px;font-weight:700;white-space:nowrap}
+  .av-card svg{display:block;width:100%;height:46px}
+  .av-trend{font-size:11.5px;font-weight:600;margin-top:5px;color:var(--muted)}
+  .av-trend.good{color:var(--good)} .av-trend.bad{color:var(--bad)}
+  .av-card.clickable{cursor:pointer;transition:border-color .12s, box-shadow .12s}
+  .av-card.clickable:hover{border-color:var(--brand-ink);box-shadow:0 3px 14px rgba(12,22,29,.08)}
+  .info-i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid var(--line-strong);border-radius:50%;font-size:9.5px;font-weight:700;color:var(--muted);cursor:pointer;vertical-align:1px;text-transform:none}
+  .info-i:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
+  .help-body{font-size:13.5px;line-height:1.6;max-height:60vh;overflow-y:auto}
+  .help-body p{margin-bottom:9px}
+  .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
+  .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
+  .strip{position:relative;height:30px}
+  .strip .dot{position:absolute;top:9px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);cursor:default;border:1.5px solid #fff;box-shadow:0 0 0 1px var(--line-strong)}
+  .av-client{font-family:var(--serif);font-size:19px;margin:20px 0 10px}
+  .av-client:first-of-type{margin-top:4px}
+
+  /* Pacing (Chat 2: month-to-date) */
+  .pace-bar{position:relative;height:14px;background:var(--unk-bg);border-radius:99px;margin:12px 0 6px}
+  .pace-bar .fill{position:absolute;top:0;bottom:0;left:0;background:var(--brand);border-radius:99px;min-width:3px}
+  .pace-bar .fill.over{background:var(--bad)}
+  .pace-bar .mark{position:absolute;top:-4px;bottom:-4px;width:2.5px;background:var(--hd);border-radius:2px}
+  .pc-stats{display:flex;gap:30px;flex-wrap:wrap;margin-top:10px}
+  .pc-stats .st b{display:block;font-size:16.5px;font-weight:700}
+  .pc-stats .st span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+
+  /* Creative Rotation (Chat 3) */
+  .ad-name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  .vd{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:5px;padding:2px 6px}
+  .vd.scale{background:var(--good-bg);color:var(--good)} .vd.cut{background:var(--bad-bg);color:var(--bad)}
+  .vd.fresh{background:var(--brand-soft);color:var(--brand-ink)}
+  .cr-quote{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--good);border-radius:var(--radius);padding:12px 17px;font-size:13.5px;margin-bottom:14px}
+  .cl-it .what{line-height:1.55}
+  .cl-it .acts{display:flex;gap:7px;align-items:center;white-space:nowrap}
+  .cl-it .acts select{padding:4px 26px 4px 7px;font-size:12px;color:var(--muted);max-width:160px;background-position:right 9px center}
+  .cl-it .acts select.set{color:var(--ink);border-color:var(--line-strong)}
+  .cl-it .acts select.sugg{color:var(--warn);border-color:#EAD9AE;background-color:var(--warn-bg)}
+  .icon-btn{border:1px solid var(--line-strong);border-radius:7px;width:28px;height:28px;font-size:13px;line-height:1;color:var(--muted);flex:none}
+  .icon-btn:hover{border-color:var(--brand-ink);color:var(--ink)}
+  .icon-btn.ok.on{background:var(--good-bg);border-color:#BFDFC9;color:var(--good)}
+  .icon-btn.no.on{background:var(--bad-bg);border-color:#EBC8C2;color:var(--bad)}
+  .cl-it.dim{opacity:.45}
+  .sum-out{white-space:pre-wrap;font-family:var(--sans);font-size:13.5px;line-height:1.6;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin-top:12px;overflow-wrap:anywhere}
+  @media (max-width:720px){ .cl-it{grid-template-columns:1fr} .cl-it .acts{justify-content:flex-start} }
+
+  footer{max-width:1240px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
+  @media (max-width:720px){ .hd{padding:10px 14px} main{padding:16px 14px 60px} .feed .it{grid-template-columns:1fr} }
+</style><body>
+<header>
+  <div class="in">
+    <a class="mark" href="../"><img src="../favicon.png" alt=""><b>MOBIUS <span>TOOLS</span></b></a>
+    <div class="hd-sep"></div>
+    <div class="hd-title">Mobius <em>Profit</em></div>
+    <div class="hd-right">
+      <select id="clientPick" style="display:none"></select>
+      <select id="rangePick" style="display:none">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="60">Last 60 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <span class="hd-chip" id="connChip">…</span>
+      <button class="hd-btn" id="btnOut" style="display:none">Sign out</button>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs" style="display:none"><div class="in">
+    <button data-t="overview">Overview</button>
+    <button data-t="profit">Profit</button>
+    <button data-t="costs">Costs</button>
+  </div></nav>
+</header>
+
+<main id="main"></main>
+<footer>Mobius Profit · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms). For Meta-only numbers that match Ads Manager, use <a href="../account-health/">Account Health</a>. Plan in <code>profit/PRD.md</code>.</footer>
+
+<script>
+'use strict';
+const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
+const LS = { url:'pf_worker', tok:'pf_token', act:'pf_act', tab:'pf_tab', days:'pf_days' };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* Shared Mobius session (set by /hq Google sign-in; same origin, all tools). */
+function sharedSession() {
+  const t = localStorage.getItem('mobius_session');
+  const exp = +localStorage.getItem('mobius_session_exp') || 0;
+  return t && (exp === 0 || exp > Date.now() + 60e3) ? t : null;
+}
+
+const S = {
+  url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
+  tok: localStorage.getItem(LS.tok) || sharedSession() || '',
+  act: localStorage.getItem(LS.act) || 'all',
+  tab: localStorage.getItem(LS.tab) || 'overview',
+  days: +localStorage.getItem(LS.days) || 30,
+  accounts: [],
+};
+
+async function api(path, opts = {}) {
+  const res = await fetch(S.url.replace(/\/+$/,'') + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + S.tok,
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers||{}) },
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  return j;
+}
+
+/* ---------- formatting ---------- */
+const sym = cur => { try { return new Intl.NumberFormat('en-US',{style:'currency',currency:cur||'USD'}).formatToParts(1).find(p=>p.type==='currency').value; } catch { return '$'; } };
+const fmtMoney = (n, cur) => n == null ? '—' : new Intl.NumberFormat('en-US', { style:'currency', currency: cur||'USD', maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }).format(n);
+const fmtK = (n, cur) => n == null ? '—' : Math.abs(n) >= 1000 ? (sym(cur) + (n/1000).toFixed(1) + 'K') : fmtMoney(n, cur);
+const fmtX = n => n == null ? '—' : n.toFixed(2) + 'x';
+const fmtPct = (n, d=0) => n == null ? '—' : (n*100).toFixed(d) + '%';
+const fmtSigned = (n, d=0) => n == null ? '—' : (n>0?'+':'') + (n*100).toFixed(d) + '%';
+const ymdLocal = d => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+
+/* ---------- boot ---------- */
+async function boot() {
+  if (!S.tok) return renderGate();
+  setChip('…','off');
+  try {
+    const r = await api('/api/overview?days=' + S.days);
+    S.accounts = r.accounts;
+    setChip('Live','live');
+    $('#btnOut').style.display=''; $('#tabs').style.display=''; $('#rangePick').style.display='';
+    renderPicker();
+    show(S.tab);
+  } catch (e) {
+    if (/unauthorized/i.test(e.message)) {
+      const wasShared = S.tok && S.tok === sharedSession();
+      S.tok=''; localStorage.removeItem(LS.tok);
+      if (wasShared) { ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); return renderGate('Your session expired — sign in again.'); }
+      return renderGate('Wrong password — try again.');
+    }
+    setChip('Worker down','down');
+    $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p><button class="cta" onclick="boot()">Retry</button></div>`;
+  }
+}
+function setChip(t,s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
+
+function renderGate(err) {
+  setChip('Signed out','off');
+  $('#tabs').style.display='none'; $('#clientPick').style.display='none';
+  $('#rangePick').style.display='none'; $('#btnOut').style.display='none';
+  $('#main').innerHTML = `
+  <div class="gate">
+    <h1>Mobius Profit</h1>
+    <p>Is each brand actually making money? Contribution margin, MER and aMER across every channel — not just the ads. Sign in once at Mobius HQ and every internal tool opens.</p>
+    <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
+    ${err ? `<div class="err">${esc(err)}</div>` : ''}
+    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
+      <label>Password</label><input id="gTok" type="password" placeholder="password">
+      <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
+      <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
+    </details>
+  </div>`;
+  const go = () => {
+    S.url = ($('#gUrl').value||'').trim() || DEFAULT_WORKER_URL;
+    S.tok = $('#gTok').value.trim();
+    localStorage.setItem(LS.url,S.url); localStorage.setItem(LS.tok,S.tok);
+    boot();
+  };
+  $('#gGo').onclick = go;
+  $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
+}
+$('#btnOut').onclick = () => { S.tok=''; localStorage.removeItem(LS.tok); ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); renderGate(); };
+
+function renderPicker() {
+  const p = $('#clientPick');
+  p.style.display = '';
+  p.innerHTML = `<option value="all">All clients</option>` + S.accounts.map(a => `<option value="${a.act_id}">${esc(a.name)}</option>`).join('');
+  if (!S.accounts.find(a => a.act_id === S.act)) S.act = 'all';
+  p.value = S.act;
+  p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
+  const rp = $('#rangePick');
+  rp.value = String(S.days);
+  rp.onchange = () => { S.days = +rp.value; localStorage.setItem(LS.days, S.days); boot(); };
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
+
+/* ⓘ icons open their explanation on click/tap. */
+document.addEventListener('click', e => {
+  const ii = e.target.closest('.info-i');
+  if (!ii) return;
+  const holder = ii.title ? ii : ii.closest('[title]');
+  if (!holder?.title) return;
+  e.stopPropagation(); e.preventDefault();
+  const label = ii.closest('.av-label')?.textContent.replace(/\s*i\s*$/, '').trim() || 'What this means';
+  helpModal(label, `<p>${esc(holder.title)}</p>`);
+}, true);
+document.addEventListener('click', e => {
+  const hb = e.target.closest('.help-btn[data-help]');
+  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+});
+
+function helpModal(title, html) {
+  const w = document.createElement('div');
+  w.className = 'modal-wrap';
+  w.innerHTML = `<div class="modal" style="max-width:580px"><h3>${esc(title)}</h3><div class="help-body">${html}</div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-m="ok">Got it</button></div></div>`;
+  document.body.appendChild(w);
+  const done = () => { w.remove(); document.removeEventListener('keydown', k); };
+  const k = e => { if (e.key==='Escape') done(); };
+  document.addEventListener('keydown', k);
+  w.addEventListener('mousedown', e => { if (e.target===w) done(); });
+  w.querySelector('[data-m="ok"]').onclick = done;
+}
+
+const PAGE_HELP = {
+  overview: `
+    <p><b>What this page is:</b> every client's real economics side by side. Not ad metrics — <i>business</i> metrics. This is the page that tells you which clients are actually profitable.</p>
+    <p><b>The columns:</b><br>
+    • <b>Net Sales</b> — everything the store sold, from every source (paid, organic, email, direct), after discounts and refunds.<br>
+    • <b>Ad Spend</b> — every platform combined.<br>
+    • <b>MER</b> — Net Sales ÷ Ad Spend. Blended on both sides. The honest "are the ads paying for themselves" number.<br>
+    • <b>aMER</b> — new-customer revenue ÷ that same spend. Strips out repeat buyers and email so ads can't take credit for them.<br>
+    • <b>Contribution Margin</b> — what's left after product costs, fees and ad spend. The number that decides whether the client is a business or a hobby.</p>
+    <p><b>Why these never match Ads Manager:</b> because they shouldn't. Meta and Google each claim credit for sales using their own attribution, and they double-count each other. These figures come from Shopify — real money, counted once. For platform-attributed numbers, use <b>Account Health</b>.</p>
+    <p><b>If a row says "cost data ⚠":</b> that client's COGS in Triple Whale is unreliable, so no profit number is shown for it. Open the <b>Costs</b> tab for that client to see exactly what's wrong and fix it.</p>`,
+  profit: `
+    <p><b>What this page is:</b> where one client's money actually goes, from revenue down to what's left.</p>
+    <p><b>The waterfall:</b> Net Sales → minus product costs (COGS) → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
+    <p><b>Contribution margin is not net profit.</b> It ignores fixed costs — rent, salaries, software, your retainer. It answers a narrower and more useful question: did the marketing we ran make money on the margin?</p>
+    <p><b>The chart:</b> daily net sales against daily ad spend, so you can see whether spending more actually moved revenue, or just moved cost. Hover or tap anywhere for exact values.</p>
+    <p><b>New vs returning:</b> a healthy acquisition business runs high on new. A high returning share with weak new revenue means the ads have stopped working and the list is carrying the store — MER looks fine while aMER quietly collapses. That's the failure mode this page exists to catch.</p>`,
+  costs: `
+    <p><b>What this page is:</b> the foundation everything else stands on. Contribution margin is only as good as the product costs behind it, and cost data is the thing most stores get wrong.</p>
+    <p><b>The problem it catches:</b> Triple Whale reports costs even when only <i>some</i> of a store's products have COGS entered. The result looks like data but isn't — daily margin swings wildly, and on a day when the costed products happen to sell, margin can go <i>negative</i>. Averaged over a month it produces a confident, completely wrong profit number.</p>
+    <p><b>The verdicts:</b><br>
+    • <b>Good</b> — margin is stable day to day. Trust the profit numbers.<br>
+    • <b>Noisy</b> — margin moves more than it should. Directionally fine, don't quote it to the decimal.<br>
+    • <b>Broken</b> — costs exceed revenue on some days, or margin is wildly unstable. <b>All profit figures for this client are suppressed everywhere</b>, including the Daily Brief, until it's fixed.</p>
+    <p><b>Two ways to fix it:</b> enter the missing product costs in Triple Whale (Settings → Costs) — the right long-term answer — or set a <b>flat margin override</b> here, which uses one blended percentage instead of per-product costs. The override is honest and stable; it just can't tell you which products are the profitable ones.</p>
+    <p><b>The override is shared:</b> setting it here also fixes the Daily Brief in Account Health, because both read the same field.</p>`,
+};
+
+function show(tab) {
+  S.tab = tab; localStorage.setItem(LS.tab, tab);
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  ({ overview: renderOverview, profit: renderProfit, costs: renderCosts })[tab]();
+}
+
+/* ---------- shared bits ---------- */
+const healthPill = h => {
+  if (!h) return '<span class="pill unk">not checked</span>';
+  const v = h.verdict;
+  return v === 'good' ? '<span class="pill good">cost data ok</span>'
+    : v === 'override' ? '<span class="pill good">flat margin</span>'
+    : v === 'noisy' ? '<span class="pill warn">cost data noisy</span>'
+    : v === 'broken' ? '<span class="pill bad">cost data ⚠</span>'
+    : '<span class="pill unk">no cost data</span>';
+};
+const cmTrusted = h => !h || (h.verdict !== 'broken' && h.verdict !== 'none');
+
+function statCard(label, value, sub, info) {
+  return `<div class="card" style="margin:0">
+    <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
+    <div style="font-size:26px;font-weight:700;margin:4px 0 2px">${value}</div>
+    <div class="tiny">${sub}</div>
+  </div>`;
+}
+
+/* ---------- Overview ---------- */
+async function renderOverview() {
+  const rows = S.act === 'all' ? S.accounts : S.accounts.filter(a => a.act_id === S.act);
+  $('#main').innerHTML = `<h2>Overview</h2>
+    <p class="sub">Every client's real economics over the last ${S.days} days — all channels, not just ads. <b>MER</b> and <b>aMER</b> are blended on both sides: real Shopify revenue over real total ad spend, so nothing is double-counted.</p>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="overview">? How to use</button></div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>Client</th><th class="num">Net Sales</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
+      <tbody>${rows.map(a => {
+        const w = a.window, h = a.cost_health;
+        const trusted = cmTrusted(h);
+        return `<tr data-id="${a.act_id}" style="cursor:pointer">
+          <td><b>${esc(a.name)}</b><br><span class="tiny">${healthPill(h)}</span></td>
+          <td class="num"><b>${fmtK(w.sales, a.currency)}</b><br><span class="tiny">MTD ${fmtK(a.mtd.sales, a.currency)}</span></td>
+          <td class="num">${fmtK(w.spend, a.currency)}<br><span class="tiny">${w.meta_spend!=null?`M ${fmtK(w.meta_spend,a.currency)}`:''}${w.google_spend!=null?` · G ${fmtK(w.google_spend,a.currency)}`:''}</span></td>
+          <td class="num"><b>${fmtX(w.mer)}</b></td>
+          <td class="num"><b>${fmtX(w.amer)}</b></td>
+          <td class="num">${fmtPct(w.new_share)}</td>
+          <td class="num">${trusted
+            ? `<b style="color:${w.cm==null?'inherit':w.cm>=0?'var(--good)':'var(--bad)'}">${fmtK(w.cm, a.currency)}</b><br><span class="tiny">margin ${fmtPct(w.margin)}</span>`
+            : `<span class="tiny" title="${esc(h?.reason||'')}">suppressed — see Costs</span>`}</td>
+        </tr>`; }).join('') || '<tr><td colspan="7" class="tiny">No clients yet.</td></tr>'}
+      </tbody></table></div>
+      <p class="tiny" style="margin-top:10px">Net Sales = Shopify money from every source, after discounts and refunds. MER = Net Sales ÷ all ad spend. aMER = new-customer revenue ÷ that same spend. Contribution Margin = gross profit − all ad spend. These will never match Ads Manager — that's the point. Click a client for its detail.</p></div>`;
+  $('#main tbody').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+    S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
+    $('#clientPick').value = S.act; show('profit');
+  });
+}
+
+/* ---------- Profit ---------- */
+function salesSpendSVG(rows, cur) {
+  const w = 940, h = 240, pl = 58, pr = 14, pt = 12, pb = 26;
+  const n = rows.length;
+  if (!n) return { svg: '<p class="hint">No data in this window.</p>' };
+  const maxV = Math.max(...rows.map(r => Math.max(r.sales ?? 0, r.spend ?? 0))) * 1.08 || 1;
+  const x = i => pl + i / Math.max(1, n - 1) * (w - pl - pr);
+  const y = v => pt + (1 - v / maxV) * (h - pt - pb);
+  const line = get => rows.map((r, i) => { const v = get(r); return v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`; }).filter(Boolean).join(' ');
+  const ticks = Array.from({length:6},(_,k)=>Math.round(k*(n-1)/5)).map(i =>
+    `<text x="${x(i).toFixed(1)}" y="${h-8}" font-size="10" text-anchor="middle" fill="#647684">${rows[i].date.slice(5)}</text>`).join('');
+  return { svg: `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;touch-action:none" id="pfSvg">
+    ${ticks}
+    <line class="fx-guide" x1="0" x2="0" y1="${pt}" y2="${h-pb+4}" stroke="#14608C" stroke-width="1" opacity="0" pointer-events="none"/>
+    <polyline points="${line(r=>r.sales)}" fill="none" stroke="#14608C" stroke-width="2.2"/>
+    <polyline points="${line(r=>r.spend)}" fill="none" stroke="#C08A2E" stroke-width="1.8"/>
+    <text x="2" y="${pt+9}" font-size="10" fill="#647684">${fmtK(maxV, cur)}</text>
+    <text x="2" y="${h-pb}" font-size="10" fill="#647684">${fmtK(0, cur)}</text>
+  </svg>` };
+}
+
+async function renderProfit() {
+  if (S.act === 'all') {
+    $('#main').innerHTML = `<h2>Profit</h2><p class="sub">Pick a client from the dropdown top-right to see where its money goes.</p>`;
+    return renderOverview();
+  }
+  $('#main').innerHTML = `<h2>Profit</h2><div class="card"><span class="hint">Loading…</span></div>`;
+  let d;
+  try { d = await api(`/api/client?act=${S.act}&days=${S.days}`); }
+  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  const cur = d.account.currency, t = d.totals;
+  const acct = S.accounts.find(a => a.act_id === S.act);
+  const h = acct?.cost_health;
+  const trusted = cmTrusted(h) || d.margin_pct != null;
+  const chart = salesSpendSVG(d.rows, cur);
+  const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
+
+  $('#main').innerHTML = `<h2>Profit — ${esc(d.account.name)}</h2>
+    <p class="sub">Where the money went over the last ${S.days} days. Store-level and blended: every sale from every source, minus every cost including all ad platforms.</p>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
+    ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
+      ${statCard('Net Sales', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Everything the store sold from every source — paid, organic, email, direct — after discounts and refunds, excluding tax. This is real Shopify money, not any platform’s attributed revenue.')}
+      ${statCard('Ad Spend', fmtMoney(t.spend, cur), `${t.meta_spend!=null?`Meta ${fmtK(t.meta_spend,cur)}`:''}${t.google_spend!=null?` · Google ${fmtK(t.google_spend,cur)}`:''}`, 'Every ad platform combined, from Triple Whale. Falls back to Meta + Google spend if the blended figure is unavailable.')}
+      ${statCard('MER', fmtX(t.mer), `${fmtMoney(t.sales, cur)} ÷ ${fmtMoney(t.spend, cur)}`, 'Marketing Efficiency Ratio = all store revenue ÷ all ad spend. Blended on both sides, so no platform can double-count. The single "are the ads paying for themselves" number.')}
+      ${statCard('aMER', fmtX(t.amer), `${fmtPct(t.new_share)} of revenue was new customers`, 'Acquisition MER = new-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it, so it isolates whether the ads are actually buying customers.')}
+      ${trusted ? statCard('Contribution Margin', fmtMoney(t.cm, cur), `margin ${fmtPct(t.margin)} before ad spend`, 'What’s left after product costs, payment fees and all ad spend. NOT net profit — it ignores fixed costs like rent, salaries and software. It answers: did the marketing make money on the margin?') : ''}
+    </div>
+    ${trusted ? `<div class="card"><h3 style="margin-bottom:8px">Where the money went</h3>
+      <div class="tbl-wrap"><table><tbody>
+        ${step('Net Sales', t.sales, 'all channels, after discounts and refunds')}
+        ${step('Product costs (COGS)', t.cogs, d.margin_pct != null ? `implied by your ${Math.round(d.margin_pct*100)}% flat margin` : 'from Triple Whale', true)}
+        ${step('Payment fees', t.fees, 'gateway and processing', true)}
+        <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(t.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(t.margin)} of net sales</td></tr>
+        ${step('Ad spend', t.spend, 'every platform', true)}
+        <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${t.cm>=0?'var(--good)':'var(--bad)'}">${fmtMoney(t.cm, cur)}</b></td><td class="tiny">${t.sales?fmtPct(t.cm/t.sales):'—'} of net sales</td></tr>
+      </tbody></table></div>
+      <p class="tiny" style="margin-top:8px">Contribution margin excludes fixed costs (rent, salaries, software, agency fees). It is the marginal profitability of the marketing, not the profit of the business.</p></div>` : ''}
+    <div class="card"><h3 style="margin-bottom:2px">Revenue vs ad spend, day by day</h3>
+      <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> = net sales, <span style="color:#C08A2E;font-weight:700">amber</span> = ad spend. The gap between them is what pays for everything else. Hover or tap for exact values.</p>
+      <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
+      ${chart.svg}</div>
+    <div class="card"><h3 style="margin-bottom:8px">New vs returning</h3>
+      <p class="hint" style="margin-bottom:8px">${fmtMoney(t.new_rev, cur)} from new customers (<b>${fmtPct(t.new_share)}</b>) · ${fmtMoney(t.ret_rev, cur)} returning. A high returning share with weak new revenue means the list is carrying the store and the ads have stopped acquiring — MER holds up while aMER quietly falls.</p></div>`;
+
+  const svg = $('#pfSvg');
+  if (svg) {
+    const guide = svg.querySelector('.fx-guide'), ro = $('#pfReadout');
+    const rows = d.rows, n = rows.length, W = 940, pl = 58, pr = 14;
+    const inspect = clientX => {
+      const rect = svg.getBoundingClientRect();
+      const vx = (clientX - rect.left) / rect.width * W;
+      const i = Math.max(0, Math.min(n-1, Math.round((vx - pl) / (W - pl - pr) * (n-1))));
+      const gx = pl + i / Math.max(1, n-1) * (W - pl - pr);
+      guide.setAttribute('x1', gx); guide.setAttribute('x2', gx); guide.setAttribute('opacity', '.55');
+      const r = rows[i];
+      ro.innerHTML = `<b>${r.date}</b> &nbsp; <span style="color:#14608C;font-weight:700">net sales:</span> <b>${fmtMoney(r.sales, cur)}</b>
+        &nbsp; <span style="color:#C08A2E;font-weight:700">ad spend:</span> <b>${fmtMoney(r.spend, cur)}</b>
+        &nbsp; MER <b>${fmtX(r.mer)}</b> &nbsp; aMER <b>${fmtX(r.amer)}</b>${r.cm!=null&&trusted?` &nbsp; CM <b>${fmtMoney(r.cm, cur)}</b>`:''}`;
+    };
+    svg.addEventListener('pointermove', e => inspect(e.clientX));
+    svg.addEventListener('pointerdown', e => inspect(e.clientX));
+  }
+}
+
+/* ---------- Costs ---------- */
+function marginSVG(rows) {
+  const w = 940, h = 200, pl = 46, pr = 14, pt = 12, pb = 26;
+  const pts = rows.filter(r => r.margin != null);
+  const n = pts.length;
+  if (!n) return '<p class="hint">No cost data to chart.</p>';
+  const vals = pts.map(r => r.margin);
+  const lo = Math.min(0, Math.min(...vals)), hi = Math.max(1, Math.max(...vals));
+  const x = i => pl + i / Math.max(1, n-1) * (w - pl - pr);
+  const y = v => pt + (1 - (v - lo) / (hi - lo)) * (h - pt - pb);
+  const line = pts.map((r,i) => `${x(i).toFixed(1)},${y(r.margin).toFixed(1)}`).join(' ');
+  const zero = y(0);
+  const ticks = Array.from({length:6},(_,k)=>Math.round(k*(n-1)/5)).map(i =>
+    `<text x="${x(i).toFixed(1)}" y="${h-8}" font-size="10" text-anchor="middle" fill="#647684">${pts[i].date.slice(5)}</text>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">
+    ${ticks}
+    <line x1="${pl}" y1="${zero}" x2="${w-pr}" y2="${zero}" stroke="#9C3A2E" stroke-width="1" stroke-dasharray="4 3"/>
+    <text x="2" y="${zero+3}" font-size="9" fill="#9C3A2E">0%</text>
+    <polyline points="${line}" fill="none" stroke="#14608C" stroke-width="2"/>
+    <text x="2" y="${pt+9}" font-size="10" fill="#647684">${Math.round(hi*100)}%</text>
+    <text x="2" y="${h-pb}" font-size="10" fill="#647684">${Math.round(lo*100)}%</text>
+  </svg>`;
+}
+
+async function renderCosts() {
+  if (S.act === 'all') {
+    $('#main').innerHTML = `<h2>Costs</h2>
+      <p class="sub">Contribution margin is only as good as the product costs behind it. This is where you check that per client.</p>
+      <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Client</th><th>Cost data</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th></th></tr></thead>
+        <tbody>${S.accounts.map(a => { const h = a.cost_health; return `<tr data-id="${a.act_id}" style="cursor:pointer">
+          <td><b>${esc(a.name)}</b></td>
+          <td>${healthPill(h)}<br><span class="tiny">${esc(h?.reason || (h?.verdict==='good'?'stable day to day':''))}</span></td>
+          <td class="num">${h?.blended!=null?fmtPct(h.blended):'—'}</td>
+          <td class="num tiny">${h?.p10!=null?`${Math.round(h.p10*100)}% – ${Math.round(h.p90*100)}%`:'—'}</td>
+          <td class="num">${h?.negatives ? `<span class="pill bad">${h.negatives}</span>` : h ? '0' : '—'}</td>
+          <td><button class="btn" data-act="open">Open</button></td></tr>`; }).join('')}
+        </tbody></table></div>
+        <p class="tiny" style="margin-top:10px">"Bad days" = days where recorded product costs exceeded revenue — a sure sign only some products have COGS set. Any client marked <b>cost data ⚠</b> has all profit figures suppressed, here and in the Daily Brief.</p></div>`;
+    $('#main tbody').addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+      S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
+      $('#clientPick').value = S.act; show('costs');
+    });
+    return;
+  }
+
+  $('#main').innerHTML = `<h2>Costs</h2><div class="card"><span class="hint">Checking the last 60 days…</span></div>`;
+  let d;
+  try { d = await api(`/api/costs?act=${S.act}&days=60`); }
+  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  const cur = d.account.currency, h = d.health;
+  const u = h.underlying || h;
+
+  $('#main').innerHTML = `<h2>Costs — ${esc(d.account.name)}</h2>
+    <p class="sub">Can we trust this client's product costs? Everything profit-related — here and in the Daily Brief — depends on the answer.</p>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
+    ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}. This almost always means some products have COGS set in Triple Whale and others don't — on days when the costed ones sell, margin collapses. Fix it in <b>Triple Whale → Settings → Costs</b>, or set a flat margin override below.</div></div>`
+      : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
+      : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) — the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} — clear the override below to use it.`}</div></div>`
+      : h.verdict === 'none' ? `<div class="notice warn">ℹ️ <div><b>No cost data at all.</b> Triple Whale has no COGS for this client, so no profit figure can be calculated. Add costs in Triple Whale, or set a flat margin below.</div></div>`
+      : `<div class="notice">✓ <div><b>Cost data looks solid</b> — margin is stable day to day across ${h.days} days. Profit figures for this client are trustworthy.</div></div>`}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
+      ${statCard('Trailing margin', u.blended!=null?fmtPct(u.blended):'—', `real cost data, 60 days${d.margin_pct!=null?' (not the override)':''}`, 'Gross profit as a share of net sales across the whole window, before ad spend. Stable, believable numbers usually land between 30% and 85% depending on the product.')}
+      ${statCard('Daily range', u.p10!=null?`${Math.round(u.p10*100)}% – ${Math.round(u.p90*100)}%`:'—', '10th to 90th percentile', 'How much daily margin moves. Real cost data barely moves. A wide range means the product mix is being costed inconsistently — some SKUs have COGS, others don’t.')}
+      ${statCard('Days costs beat revenue', String(u.negatives ?? 0), u.negatives ? 'impossible — data is wrong' : 'none, as it should be', 'Days where recorded product costs exceeded all revenue. This is impossible for a real business, so any count above zero proves the cost data is incomplete.')}
+      ${statCard('Days checked', String(u.days ?? 0), 'with both sales and cost data', 'How many days in the 60-day window had enough data to judge.')}
+    </div>
+    <div class="card"><h3 style="margin-bottom:2px">Daily margin, last 60 days</h3>
+      <p class="hint" style="margin-bottom:6px">Real cost data draws a nearly flat line. Spikes and dips mean the product mix is being costed inconsistently; anything below the red zero line is impossible.</p>
+      ${marginSVG(d.rows)}</div>
+    ${d.worst?.length ? `<div class="card"><h3 style="margin-bottom:8px">Worst days</h3>
+      <p class="hint" style="margin-bottom:10px">The days with the lowest margin. If these look wrong, they are — cross-check a couple against the actual orders in Shopify to find which products are missing costs.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Net sales</th><th class="num">Recorded COGS</th><th class="num">Fees</th><th class="num">Margin</th></tr></thead>
+      <tbody>${d.worst.map(x => `<tr><td>${x.date}</td><td class="num">${fmtMoney(x.sales, cur)}</td><td class="num">${fmtMoney(x.cogs, cur)}</td><td class="num">${fmtMoney(x.fees, cur)}</td><td class="num"><b style="color:${x.margin<0?'var(--bad)':x.margin<0.2?'var(--warn)':'inherit'}">${fmtPct(x.margin)}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    <div class="card"><h3 style="margin-bottom:6px">Flat margin override</h3>
+      <p class="hint" style="margin-bottom:10px">Uses one blended margin percentage for this client instead of per-product costs. Honest and stable — it just can't tell you <i>which</i> products make money. <b>This also fixes the Daily Brief in Account Health</b>, because both read the same setting. Leave blank to use real per-product costs.</p>
+      <div class="row">
+        <div class="unit-in" style="width:96px"><input id="mPct" type="text" inputmode="decimal" value="${d.margin_pct!=null?Math.round(d.margin_pct*100):''}" placeholder="—"><span>%</span></div>
+        <button class="btn primary" id="mSave">Save</button>
+        <button class="btn" id="mClear">Clear override</button>
+        <span class="tiny" id="mMsg"></span>
+      </div>
+      ${u.blended!=null && u.verdict!=='broken' ? `<p class="tiny" style="margin-top:8px">For reference, this client's measured trailing margin is <b>${fmtPct(u.blended)}</b>.</p>` : ''}</div>`;
+
+  const save = async pct => {
+    $('#mMsg').textContent = 'Saving…';
+    try {
+      await api('/api/margin', { method:'PUT', body: JSON.stringify({ act: S.act, margin_pct: pct }) });
+      $('#mMsg').textContent = 'Saved ✓';
+      await boot();
+      show('costs');
+    } catch (e) { $('#mMsg').textContent = e.message; }
+  };
+  $('#mSave').onclick = () => {
+    const raw = $('#mPct').value.replace(/[^0-9.]/g, '');
+    if (raw === '') return save(null);
+    const v = +raw;
+    if (!(v > 0 && v < 100)) { $('#mMsg').textContent = 'Enter a margin between 1 and 99.'; return; }
+    save(v / 100);
+  };
+  $('#mClear').onclick = () => { $('#mPct').value = ''; save(null); };
+}
+
+boot();
+</script>
+</body>
+</html>
