@@ -1060,7 +1060,7 @@ async function renderBrief(first) {
     b.disabled = false;
   };
   const toPlan = $('#gToPlan');
-  if (toPlan) toPlan.onclick = () => { PL.month = d.month; PL.value = null; show('plan'); };
+  if (toPlan) toPlan.onclick = () => { PL.month = d.month; PL.sales = null; PL.spend = null; PL.mer = null; show('plan'); };
   $('#bfAuto').onclick = async e => {
     const on = !e.target.classList.contains('on');
     if (on && !d.goals) { $('#gMsg').textContent = 'Set goals first — auto-post needs a plan to compare against.'; return; }
@@ -1097,7 +1097,10 @@ const addDaysStr = (ymd, n) => { const dt = new Date(ymd + 'T12:00:00Z'); dt.set
    months did, choose how much growth you are signing up for, see what that costs
    in spend, then agree it with the client. Everything downstream measures against
    whatever gets saved here. */
-const PL = { month: null, derive: 'mer', sales: null, spend: null, mer: null };
+// `act` records WHICH client the working values belong to. PL is a single global,
+// so without it, switching client in the top-right picker kept the previous
+// brand's numbers on screen — and saving wrote them onto the new brand.
+const PL = { act: null, month: null, derive: 'mer', sales: null, spend: null, mer: null };
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const monthLabel = ym => `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
 const shiftMonth = (ym, n) => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
@@ -1128,7 +1131,9 @@ async function renderPlan(first) {
   // Revenue = MER x spend. Two of the three are yours to choose; the third is
   // arithmetic. Seed from the saved plan, else last month's revenue at the
   // efficiency this client has actually been running.
-  if (PL.sales == null) {
+  // Re-seed whenever the values on screen belong to a DIFFERENT client. Keying only
+  // on `PL.sales == null` meant the picker carried one brand's plan into the next.
+  if (PL.sales == null || PL.act !== S.act) {
     const base = (p.goals && p.goals.sales) || (p.basis ? p.basis.sales * 1.1 : null);
     const seedSpend = (p.goals && p.goals.spend)
       || (base != null && p.ctx.amer ? Math.max(0, base - expRet) / p.ctx.amer : null);
@@ -1136,6 +1141,7 @@ async function renderPlan(first) {
     PL.spend = seedSpend;
     PL.mer = base != null && seedSpend ? base / seedSpend : null;
     PL.derive = 'mer';
+    PL.act = S.act;
   }
 
   const calc = () => {
@@ -1368,7 +1374,7 @@ async function renderPlan(first) {
 
   $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
     if (b.dataset.m === PL.month) return;
-    PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null;
+    PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null;
     inPlace(() => renderPlan(false));
   });
 
@@ -1440,7 +1446,7 @@ async function renderPlanAll() {
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
-    PL.month = next; PL.sales = null; PL.spend = null; PL.mer = null;
+    PL.month = next; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null;
     $('#clientPick').value = S.act; show('plan');
   });
   for (const a of S.accounts) {

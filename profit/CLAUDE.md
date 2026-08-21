@@ -80,6 +80,14 @@ profit/
   Saving with changed numbers passes `reagree:true`, which CLEARS `agreed_at` — do not
   let a plan drift after sign-off. `GET /api/plan/:token` is unauthenticated and must
   only ever expose that one client's plan: no other account, no cost diagnostics.
+- **`PL` is a global, so it MUST record which client it belongs to.** The Plan page
+  seeds its working values only when they are empty, which meant switching brand in
+  the top-right picker kept the previous brand's revenue/spend/MER on screen — and
+  saving wrote them onto the new brand. Cole hit this saving Bonk then Dartee. The
+  month chips and the all-clients row-click already cleared the values; the picker
+  had no such hook and never can, so the guard is `PL.sales == null || PL.act !==
+  S.act` and every reset also clears `PL.act`. Any future page-level scratch state
+  keyed to a client needs the same owner field.
 - **Re-render the numbers, not the page.** Growth buttons, save and the agreed
   toggle all update in place. Calling `renderPlan()` / `show()` from a handler throws
   the user back to the top of the page, which makes comparing options miserable.
