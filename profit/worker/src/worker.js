@@ -689,15 +689,20 @@ export default {
         const out = [];
         for (const a of accounts) {
           const today = localDate(a.tz);
-          const { rows, margin_pct, shipping } = await seriesFor(env, a, addDays(today, -days), addDays(today, -1));
           const ym = monthOf(today);
+          // Fetch back to the 1st even when the picker window is shorter, so "MTD"
+          // is always genuinely month-to-date - a 7-day window used to silently
+          // truncate it to the last 7 days and still label it MTD.
+          const from = addDays(today, -days), to = addDays(today, -1), monthStart = `${ym}-01`;
+          const { rows: allRows, margin_pct, shipping } = await seriesFor(env, a, from < monthStart ? from : monthStart, to);
+          const rows = allRows.filter(r => r.date >= from);
           const g = goalsFor(a, ym);
           // First load (or a new client) has no snapshot yet — judge inline so the
           // page is never blank, and let refreshIfStale persist it in the background.
           const health = byAct[a.act_id] || (margin_pct != null
             ? { verdict: 'override', reason: `using a flat ${Math.round(margin_pct * 100)}% margin override`, blended: margin_pct }
             : judgeCosts(rows));
-          const mtdRows = rows.filter(r => r.date.startsWith(ym));
+          const mtdRows = allRows.filter(r => r.date >= monthStart);
           out.push({
             ...pubAccount(a),
             window: totals(rows),
@@ -719,12 +724,17 @@ export default {
         const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz);
-        const { rows, margin_pct, shipping } = await seriesFor(env, acct, addDays(today, -days), addDays(today, -1));
         const ym = monthOf(today);
+        const from = addDays(today, -days), to = addDays(today, -1), monthStart = `${ym}-01`;
+        const { rows: allRows, margin_pct, shipping } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
+        const rows = allRows.filter(r => r.date >= from);
+        // planFor spreads the month goal over the days ELAPSED, so it must see the
+        // month-to-date rows - the whole window here once pro-rated a plan past 100%.
+        const mtdRows = allRows.filter(r => r.date >= monthStart);
         return json({
           account: pubAccount(acct), days, margin_pct, rows, shipping,
-          totals: totals(rows), mtd: totals(rows.filter(r => r.date.startsWith(ym))),
-          goals: goalsFor(acct, ym), plan: planFor(acct, ym, rows),
+          totals: totals(rows), mtd: totals(mtdRows),
+          goals: goalsFor(acct, ym), plan: planFor(acct, ym, mtdRows),
         });
       }
 
@@ -902,7 +912,10 @@ export default {
         if (pct != null && (!isFinite(pct) || pct <= 0 || pct >= 1)) {
           return json({ error: 'margin must be between 0 and 100%' }, 400);
         }
-        for (const key of [ym, 'default']) {
+        // The override is CLIENT-level. Month entries each carry a copy (PUT /api/plan
+        // preserves it per month), so touch every key - clearing only [ym, default]
+        // used to leave a stale cm_pct on any already-saved future month.
+        for (const key of new Set([ym, 'default', ...Object.keys(goals)])) {
           goals[key] = goals[key] || {};
           if (pct == null) delete goals[key].cm_pct; else goals[key].cm_pct = pct;
         }

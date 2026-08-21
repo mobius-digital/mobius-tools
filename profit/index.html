@@ -515,7 +515,13 @@ async function inPlace(fn) {
   requestAnimationFrame(() => window.scrollTo(0, y));
 }
 
+/* Render sequence. A slow fetch must never let an OLD renderer paint over the tab
+   you switched to while it was in flight - each async renderer takes a ticket at
+   entry and drops its DOM writes if a newer render (any tab, any refetch) started. */
+let RUN = 0;
+
 function show(tab) {
+  ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const m = $('#main');
@@ -617,7 +623,7 @@ function renderProfitAll() {
     <p class="sub">What each brand actually kept over the last ${S.days} days, best first. Pick a client above — or click a card — for its full waterfall.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
     ${totalTrusted.length < S.accounts.length ? `<div class="notice warn">ℹ️ <div><b>${S.accounts.length - totalTrusted.length} client${S.accounts.length - totalTrusted.length > 1 ? 's are' : ' is'} missing from the profit ranking</b> because their cost data can't be trusted. Revenue and efficiency still work for them — see the <b>Costs</b> tab.</div></div>` : ''}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+    <div id="pfAllGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
       ${ranked.map(a => {
         const w = a.window, trusted = cmTrusted(a.cost_health);
         const bar = trusted && w.sales ? Math.max(0, Math.min(100, (w.cm / w.sales) * 100)) : 0;
@@ -631,7 +637,9 @@ function renderProfitAll() {
       }).join('')}
     </div>
     <p class="tiny" style="margin-top:12px">Contribution margin = net sales − product costs − payment fees − all ad spend. It excludes fixed costs, so it is the profitability of the marketing, not of the business. Money is each client's own currency and is never summed across them.</p>`;
-  $('#main').addEventListener('click', e => {
+  // On the grid, not #main - #main survives re-renders, so a listener there
+  // stacked up one copy per visit.
+  $('#pfAllGrid').addEventListener('click', e => {
     const c = e.target.closest('.card[data-id]'); if (!c) return;
     S.act = c.dataset.id; localStorage.setItem(LS.act, S.act);
     $('#clientPick').value = S.act; show('profit');
@@ -684,11 +692,13 @@ function forecastCard(fc, cur) {
 
 async function renderProfit(first) {
   if (S.act === 'all') return renderProfitAll();
+  const run = ++RUN;
   if (first) $('#main').innerHTML = `<h2>Profit</h2><div class="card"><span class="hint">Loading…</span></div>`;
   let d, fc = null;
   try { d = await api(`/api/client?act=${S.act}&days=${S.days}`); }
-  catch (e) {    $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
+  catch (e) { if (run === RUN) $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
   try { fc = await api(`/api/forecast?act=${S.act}`); } catch { /* forecast is a bonus, never a blocker */ }
+  if (run !== RUN) return;
   const cur = d.account.currency, t = d.totals;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const h = acct?.cost_health;
@@ -721,7 +731,7 @@ async function renderProfit(first) {
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${t.cm>=0?'var(--good)':'var(--bad)'}">${fmtMoney(t.cm, cur)}</b></td><td class="tiny">${t.sales?fmtPct(t.cm/t.sales):'—'} of revenue</td></tr>
       </tbody></table></div>
       <p class="tiny" style="margin-top:8px">This is CTC's definition: revenue minus <b>every variable cost</b> — product, fulfilment, handling, payment fees and ad spend. Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?"${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</p></div>` : ''}
-    ${fc ? forecastCard(fc, cur) : ''}
+    ${fc && fc.mtd ? forecastCard(fc, cur) : ''}
     <div class="card"><h3 style="margin-bottom:2px">Revenue vs ad spend, day by day</h3>
       <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> = net sales, <span style="color:#C08A2E;font-weight:700">amber</span> = ad spend. The gap between them is what pays for everything else. Hover or tap for exact values.</p>
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
@@ -797,10 +807,12 @@ async function renderCosts(first) {
     return;
   }
 
+  const run = ++RUN;
   if (first) $('#main').innerHTML = `<h2>Costs</h2><div class="card"><span class="hint">Checking the last 60 days…</span></div>`;
   let d;
   try { d = await api(`/api/costs?act=${S.act}&days=60`); }
-  catch (e) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
+  catch (e) { if (run === RUN) $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
+  if (run !== RUN) return;
   const cur = d.account.currency, h = d.health;
   const u = h.underlying || h;
   const r = u.retail || null;   // margin measured only on days cost and revenue agree
@@ -874,11 +886,13 @@ async function renderBriefAll(first) {
     <p class="sub">Every client's yesterday against its plan — Contribution Margin, Net Sales, Spend and aMER, forecast vs actual. Pick a client (dropdown top-right) to set goals, read the full brief, and post it to Slack.</p>
     <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>This is the only page that isn't Meta-reported: sales, margin and total spend come from <b>Triple Whale</b> (the whole business, every platform), because net sales and contribution margin don't exist inside Meta. Every other tab — Overview, Pacing, Averages, Change Log, Creative Rotation — is Meta-only and matches Ads Manager. Expect these numbers to differ from Meta's; that's the point.</div></div>
     ${body}`;
+  const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading every client…</span></div>');
   // /api/overview only ever returns active accounts and its payload carries no
   // `active` flag, so filtering on one emptied this table on every render.
   const active = S.accounts;
   const data = await Promise.all(active.map(a => api('/api/brief?act=' + a.act_id).catch(() => null)));
+  if (run !== RUN) return;
   const cell = (a2, f2, cur, fx2) => {
     const fmt = fx2 ? (n => n == null ? '—' : n.toFixed(2) + 'x') : (n => fmtK(n, cur));
     if (a2 == null) return `<td class="num"><span class="tiny">no data</span></td>`;
@@ -945,10 +959,12 @@ async function renderBrief(first) {
   const shell = body => `<h2>Daily Brief</h2>
     <p class="sub">Did ${esc(acct?.name || 'this client')} beat the plan yesterday? Forecast vs actual on the money that matters, the story behind it, and one click (or zero — flip auto-post) to put it in the client's Slack.</p>
     ${body}`;
+  const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
   try { d = await api('/api/brief?act=' + S.act + (BF.date ? '&date=' + BF.date : '')); }
-  catch (e) {    $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
+  catch (e) { if (run === RUN) $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
+  if (run !== RUN) return;
   BF.cur = d;
   const cur = d.account.currency;
   const day = d.days.find(x => x.date === d.date);
@@ -984,16 +1000,16 @@ async function renderBrief(first) {
       <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet — hit refresh'}</span>
       <span style="flex:1"></span><button class="help-btn" data-help="brief">? How to use</button>
     </div>
-    ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set the monthly goals below — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
+    ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
     ${noTw && d.goals ? `<div class="notice warn">⚠️ <div>No Triple Whale sales data for ${d.date} yet — hit “Refresh Triple Whale data”, and check the shop domain in Settings if it persists.</div></div>` : ''}
-    ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely — every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or type a <b>margin %</b> in the goals below to use a flat margin instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> — ${esc(cq.reason)}. CM still shows, but treat it as directional. A <b>margin %</b> in the goals below overrides it with a flat rate.</div></div>` : ''}
+    ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely — every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or set a flat <b>margin %</b> on the <b>Costs</b> tab instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> — ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab overrides it with a stable rate.</div></div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px">
       ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
       <div class="card" style="margin:0;opacity:.65">
-        <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">Contribution Margin <span class="info-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or enter a margin % in the goals below.">i</span></div>
+        <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">Contribution Margin <span class="info-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or set a flat margin % on the Costs tab.">i</span></div>
         <div style="font-size:20px;font-weight:600;margin:4px 0 2px">not reported</div>
         <div class="tiny">cost data unreliable — see the note above</div>
-      </div>` : statCard('Contribution Margin', a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a margin % in the goals below.'))}
+      </div>` : statCard('Contribution Margin', a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a flat margin % set on the Costs tab.'))}
       ${statCard('Net Sales', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify money via Triple Whale: after discounts and refunds, including shipping. Not ad-platform-attributed revenue — this is what actually hit the store.')}
       ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
       ${statCard('MER', a.mer, f.mer, fx, 'Marketing Efficiency Ratio = ALL store revenue ÷ ALL ad spend. Both sides blended: every sale the store made (paid, organic, email, direct — not ad-attributed) over every dollar spent across Meta, Google and any other platform. The single "are the ads paying for themselves" number. Plan = your net-sales goal ÷ your spend goal.')}
@@ -1018,7 +1034,7 @@ async function renderBrief(first) {
       </div>
       <div class="row" style="margin-top:12px">
         <div class="toggle ${d.brief_enabled ? 'on' : ''}" id="bfAuto"></div>
-        <span style="font-size:13.5px">Auto-post to Slack every morning (~7am PT / 10am ET), covering yesterday — goes to this brand's Daily Brief channel${acct?.slack_channel ? '' : ' (<b>none set</b> — pick one in Settings first)'}.</span>
+        <span style="font-size:13.5px">Auto-post to Slack every morning (~7am PT / 10am ET), covering yesterday — goes to this brand's Daily Brief channel${(acct?.brief_channel || acct?.slack_channel) ? '' : ' (<b>none set</b> — pick one in Settings first)'}.</span>
       </div></div>
     <div class="card"><h3 style="margin-bottom:6px">The brief itself</h3>
       <p class="hint" style="margin-bottom:8px">The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What's Next? from the numbers and the Change Log (takes ~20s). Nothing posts to the client until you hit Post — or flip auto-post above.</p>
@@ -1080,9 +1096,11 @@ async function renderBrief(first) {
     b.disabled = false;
   };
   $('#bfPost').onclick = async () => {
-    const ch = acct?.brief_channel || acct?.slack_channel;
-    const ok = await confirmModal('Post this brief to the client’s Slack?',
-      `This sends the brief for ${d.date} to ${ch ? 'this brand’s alerts channel' : 'the fallback channel'} — the client will see it.`, 'Post it');
+    const dest = acct?.brief_channel ? 'this brand’s Daily Brief channel'
+      : acct?.slack_channel ? 'this brand’s internal alerts channel (no Daily Brief channel is set)'
+      : 'the workspace fallback channel';
+    const ok = await confirmModal('Post this brief to Slack?',
+      `This sends the brief for ${d.date} to ${dest} — everyone in that channel will see it.`, 'Post it');
     if (!ok) return;
     $('#bfMsg').textContent = 'Posting…';
     try { const r = await api('/api/brief-send', { method: 'POST', body: JSON.stringify({ act: S.act, date: d.date }) }); $('#bfMsg').textContent = `Posted ✓ to ${r.channel}`; }
@@ -1111,16 +1129,19 @@ async function renderPlan(first) {
 
   // Switching month refetches, but blanking to a spinner loses your place and reads
   // as a page reload. Keep what is on screen, dim the month chips, swap when ready.
+  const run = ++RUN;
   if (first) $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span class="hint">Loading…</span></div>`;
   else $('#main').querySelectorAll('[data-m]').forEach(b => { b.style.opacity = '.45'; b.disabled = true; });
   let p;
   try { p = await api(`/api/plan?act=${S.act}&month=${PL.month}`); }
   catch (e) {
-    $('#main').querySelectorAll('[data-m]').forEach(b => { b.style.opacity = ''; b.disabled = false; });
-    const card = $('#main .card');
-    if (card) card.innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`;
+    if (run !== RUN) return;
+    // Replace ALL of #main: on a tab switch `#main .card` still belongs to the
+    // outgoing tab, and writing the error into it left the old heading up.
+    $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span style="color:var(--bad)">${esc(e.message)}</span> <button class="btn" onclick="show('plan')">Retry</button></div>`;
     return;
   }
+  if (run !== RUN) return;
   const cur = p.account.currency;
   const hist = p.history.filter(h => !h.empty);
   const saved = p.plan;
@@ -1459,8 +1480,10 @@ async function renderPlanAll() {
     PL.month = next; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null;
     $('#clientPick').value = S.act; show('plan');
   });
+  const run = ++RUN;
   for (const a of S.accounts) {
     api(`/api/plan?act=${a.act_id}&month=${next}`).then(p => {
+      if (run !== RUN) return;
       const gc = $(`[data-goal="${a.act_id}"]`), ag = $(`[data-agreed="${a.act_id}"]`);
       if (gc) gc.innerHTML = p.planned && p.goals && p.goals.sales != null ? `<b>${fmtK(p.goals.sales, a.currency)}</b>` : '<span class="tiny">not set</span>';
       if (ag) ag.innerHTML = p.plan && p.plan.agreed_at
@@ -1472,6 +1495,7 @@ async function renderPlanAll() {
 
 /* ---------- Settings ---------- */
 async function renderSettings() {
+  const run = ++RUN;
   $('#main').innerHTML = `<h2>Settings</h2>
     <p class="sub">Where each brand's reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
@@ -1510,7 +1534,7 @@ async function renderSettings() {
       return noteModal('This brand has nowhere to post', `<p>Pick a <b>Daily Brief channel</b> for ${esc(a.name)} first — the brief needs somewhere to go.</p>`);
     }
     if (on && !a.goals) {
-      return noteModal('This brand has no plan yet', `<p>Set ${esc(a.name)}’s monthly goals on <b>Account Health → Daily Brief</b> first. The brief compares every number to a plan, so it needs one before it can say anything useful.</p>`);
+      return noteModal('This brand has no plan yet', `<p>Set ${esc(a.name)}’s monthly goals on the <b>Plan</b> tab first. The brief compares every number to a plan, so it needs one before it can say anything useful.</p>`);
     }
     if (on && !a.brief_channel) {
       const ok = await confirmModal('Post the client brief to an internal channel?',
@@ -1544,8 +1568,8 @@ async function renderSettings() {
     } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
   });
 
-  api('/api/slack-channels').then(r => { chList = r.channels; draw(); })
-    .catch(err => { chList = 'error'; draw();
+  api('/api/slack-channels').then(r => { if (run !== RUN) return; chList = r.channels; draw(); })
+    .catch(err => { if (run !== RUN) return; chList = 'error'; draw();
       $('#main .tiny').insertAdjacentHTML('beforeend', ` <span style="color:var(--bad)">Couldn't list Slack channels (${esc(err.message)}) — paste channel IDs instead.</span>`); });
 }
 

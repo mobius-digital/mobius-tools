@@ -154,6 +154,15 @@ profit/
   the tab left the heading reading "Overview" with the brief's table grafted into the
   Overview's first card, and the tab appeared not to open at all. Build the page as
   `shell(body)` and assign it; the placeholder and the result then share one shape.
+- **Async renderers hold a RUN ticket.** `show()` bumps a global `RUN`; every
+  renderer that awaits takes `const run = ++RUN` at entry and drops its DOM writes
+  when `run !== RUN`. Without it a slow fetch let an OLD tab paint over the one you
+  had switched to (click Brief, flee to Overview, Brief's response lands 1.5s later
+  and replaces the page). The bump in `show()` matters: sync renderers like Overview
+  never take a ticket, so they must invalidate in-flight ones from the outside.
+- **Listeners go on nodes the render replaces, never on `#main` itself.** `#main`
+  survives every render, so a listener attached to it stacks one copy per visit —
+  the Profit ranking grid accumulated one `show('profit')` call per prior visit.
 - **A refetch must not blank the screen.** `renderPlan(true)` keeps the current DOM
   and just dims the month chips while loading; only a first render shows a spinner.
   A spinner mid-decision reads as a page reload.
