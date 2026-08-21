@@ -61,6 +61,10 @@ profit/
 - **`.info-i` must reset `letter-spacing`, `font-style` and `text-transform`** — stat
   labels are uppercase and letter-spaced, and without the reset the glyph inside the
   circle is squashed and reads as broken.
+- **TW dates: verify, never assume.** `charts.current` x is ONE-BASED day-of-year.
+  After any change to the mapping or a backfill, join `tw_daily.fb_ads_spend`
+  against `daily_insights.spend` on the same date — Meta's dates are authoritative
+  and they must match to the cent. A silent one-day shift shipped once.
 - **Triple Whale backfills are capped at 430 days and must run ONE CLIENT AT A TIME.**
   A 400-day pull is ~25-50k rows; every D1 batch is a subrequest, and all six clients
   in one invocation blows the Worker limit. Batch size is 150.

@@ -67,8 +67,12 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
 ## Hard-won rules (do not relearn these)
 
 - **Triple Whale summary-page** (`twSummary`): metrics live in `metrics[]` with
-  `values.current` + per-day `charts.current` where `x` = ZERO-based
-  day-of-year in the shop tz — one monthly call yields daily series
+  `values.current` + per-day `charts.current` where **`x` is a ONE-BASED day of
+  year** (Jan 1 = 1). Treating it as zero-based shifted every value one day into
+  the future and silently reported yesterday's numbers as today's — Cole caught it
+  because a client's MER did not match Triple Whale. ALWAYS verify a TW backfill by
+  joining `tw_daily.fb_ads_spend` against `daily_insights.spend` for the same date;
+  Meta's dates are authoritative and the two must match to the cent — one monthly call yields daily series
   (`twDailySeries` → `tw_daily`). Known ids: `netSales`, `totalSales`,
   `newCustomerSales`, `rcRevenue`, `blendedAds` (all-platform spend),
   `ga_adCost` (Google spend), `grossProfit`, `totalProductCosts` (COGS),

@@ -594,9 +594,14 @@ function twDailySeries(raw, start, end) {
   const out = {};
   if (!Array.isArray(raw?.metrics)) return out;
   const startY = +start.slice(0, 4), endY = +end.slice(0, 4);
+  // TW's chart x is a ONE-BASED day of year: Jan 1 is 1, not 0. Treating it as
+  // zero-based shifts every value a day into the future, which silently reported
+  // yesterday's numbers as today's. Verified against Meta's own dated spend:
+  // Meta booked $678.05 for Bonk on 2026-08-19 and TW returns it at x=231, which
+  // is 1-based for Aug 19.
   const doyToDate = x => {
     for (const y of startY === endY ? [startY] : [startY, endY]) {
-      const d = new Date(Date.UTC(y, 0, 1) + x * 86400e3).toISOString().slice(0, 10);
+      const d = new Date(Date.UTC(y, 0, 1) + (x - 1) * 86400e3).toISOString().slice(0, 10);
       if (d >= start && d <= end) return d;
     }
     return null;

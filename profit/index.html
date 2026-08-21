@@ -148,7 +148,8 @@
   .av-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px 10px;border-top:3px solid var(--line-strong)}
   .av-card.good{border-top-color:var(--good)} .av-card.bad{border-top-color:var(--bad)}
   .av-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
-  .av-label{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  /* nowrap pushed long labels straight out of their card on narrow columns */
+  .av-label{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:normal;overflow-wrap:anywhere;line-height:1.35}
   .av-val{font-size:19px;font-weight:700;white-space:nowrap}
   .av-card svg{display:block;width:100%;height:46px}
   .av-trend{font-size:11.5px;font-weight:600;margin-top:5px;color:var(--muted)}
@@ -520,7 +521,7 @@ function vsPlan(actual, planned) {
 function statCard(label, value, sub, info) {
   return `<div class="card" style="margin:0">
     <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
-    <div style="font-size:26px;font-weight:700;margin:4px 0 2px">${value}</div>
+    <div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:4px 0 2px;overflow-wrap:anywhere">${value}</div>
     <div class="tiny">${sub}</div>
   </div>`;
 }
@@ -957,7 +958,7 @@ async function renderBrief() {
         <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">Contribution Margin <span class="info-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or enter a margin % in the goals below.">i</span></div>
         <div style="font-size:20px;font-weight:600;margin:4px 0 2px">not reported</div>
         <div class="tiny">cost data unreliable — see the note above</div>
-      </div>` : statCard('Contribution Margin — ' + yd, a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a margin % in the goals below.'))}
+      </div>` : statCard('Contribution Margin', a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a margin % in the goals below.'))}
       ${statCard('Net Sales', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify money via Triple Whale: after discounts and refunds, including shipping. Not ad-platform-attributed revenue — this is what actually hit the store.')}
       ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
       ${statCard('MER', a.mer, f.mer, fx, 'Marketing Efficiency Ratio = ALL store revenue ÷ ALL ad spend. Both sides blended: every sale the store made (paid, organic, email, direct — not ad-attributed) over every dollar spent across Meta, Google and any other platform. The single "are the ads paying for themselves" number. Plan = your net-sales goal ÷ your spend goal.')}
