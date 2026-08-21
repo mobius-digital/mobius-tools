@@ -62,6 +62,19 @@ Change Log stays available.
   per-SKU override in the Costs page for anything missing; (3) a flat margin %
   per client as the last resort. Every profit number is labelled with which basis
   it used, and the existing `judgeCogs()` quality check gates it.
+- **Contribution margin follows CTC's published definition** (verified against
+  their own writing, 2026-08-21): net revenue minus ALL VARIABLE costs — product,
+  fulfilment/shipping, handling, payment fees, ad spend. Fixed costs are excluded
+  by definition: rent, salaries, software and our own retainer. Revenue is
+  "Net Sales + Shipping", matching the line CTC put in their daily report.
+- **Shipping is gated like COGS.** `shippingMode()` inspects the window: if a
+  client bills shipping but records no fulfilment cost, shipping is dropped from
+  BOTH sides rather than crediting free revenue (The Golf Sock, which would
+  otherwise have been overstated by ~$3.4k/month). Where cost equals revenue
+  exactly, TW is treating it as a pass-through and the page says so.
+- **Every metric carries its plan** (`planFor`): the month's goals pro-rated to
+  the days elapsed, so month-to-date actuals have something to beat. This is
+  CTC's defining move — a number without a goal beside it is trivia.
 - **Forecast is calendar-aware.** Reads the Marketing Calendar Worker so promo and
   launch days get lifted targets instead of reading as fake "misses". This is the
   piece Statlas explicitly does and generic dashboards don't — and we already own

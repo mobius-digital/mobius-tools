@@ -379,8 +379,9 @@ const PAGE_HELP = {
     <p><b>If a row says "cost data ⚠":</b> that client's COGS in Triple Whale is unreliable, so no profit number is shown for it. Open the <b>Costs</b> tab for that client to see exactly what's wrong and fix it.</p>`,
   profit: `
     <p><b>What this page is:</b> where one client's money actually goes, from revenue down to what's left.</p>
-    <p><b>The waterfall:</b> Net Sales → minus product costs (COGS) → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
-    <p><b>Contribution margin is not net profit.</b> It ignores fixed costs — rent, salaries, software, your retainer. It answers a narrower and more useful question: did the marketing we ran make money on the margin?</p>
+    <p><b>The waterfall:</b> Net Sales + shipping charged to customers → minus product costs (COGS) → minus fulfilment and handling → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
+    <p><b>This is CTC's exact definition:</b> revenue minus <i>all variable costs</i>. <b>Contribution margin is not net profit</b> — it deliberately ignores fixed costs: rent, salaries, software, and our own retainer. Those don't change when you spend another dollar on ads, so they'd only blur the question it exists to answer: did the marketing make money on the margin?</p>
+    <p><b>If a client bills shipping but records no fulfilment cost</b>, shipping is left out of both sides rather than counting the revenue for free — the page says so when that happens.</p>
     <p><b>The chart:</b> daily net sales against daily ad spend, so you can see whether spending more actually moved revenue, or just moved cost. Hover or tap anywhere for exact values.</p>
     <p><b>New vs returning:</b> a healthy acquisition business runs high on new. A high returning share with weak new revenue means the ads have stopped working and the list is carrying the store — MER looks fine while aMER quietly collapses. That's the failure mode this page exists to catch.</p>`,
   costs: `
@@ -411,6 +412,13 @@ const healthPill = h => {
     : '<span class="pill unk">no cost data</span>';
 };
 const cmTrusted = h => !h || (h.verdict !== 'broken' && h.verdict !== 'none');
+/** CTC put every number against its plan; this is that comparison in one pill. */
+function vsPlan(actual, planned) {
+  if (actual == null || !planned) return '';
+  const off = actual / planned - 1;
+  const cls = off >= 0 ? 'good' : off >= -0.1 ? 'warn' : 'bad';
+  return ` <span class="pill ${cls}" style="padding:1px 6px;font-size:10px">${fmtSigned(off)} vs plan</span>`;
+}
 
 function statCard(label, value, sub, info) {
   return `<div class="card" style="margin:0">
@@ -427,23 +435,23 @@ async function renderOverview() {
     <p class="sub">Every client's real economics over the last ${S.days} days — all channels, not just ads. <b>MER</b> and <b>aMER</b> are blended on both sides: real Shopify revenue over real total ad spend, so nothing is double-counted.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="overview">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th class="num">Net Sales</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
+      <thead><tr><th>Client</th><th class="num" title="Net sales from every channel, plus shipping charged to customers - CTC report this same line as 'Net Sales + Shipping'">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
       <tbody>${rows.map(a => {
         const w = a.window, h = a.cost_health;
         const trusted = cmTrusted(h);
         return `<tr data-id="${a.act_id}" style="cursor:pointer">
           <td><b>${esc(a.name)}</b><br><span class="tiny">${healthPill(h)}</span></td>
-          <td class="num"><b>${fmtK(w.sales, a.currency)}</b><br><span class="tiny">MTD ${fmtK(a.mtd.sales, a.currency)}</span></td>
+          <td class="num"><b>${fmtK(w.sales, a.currency)}</b><br><span class="tiny">MTD ${fmtK(a.mtd.sales, a.currency)}${vsPlan(a.mtd.sales, a.plan?.sales)}</span></td>
           <td class="num">${fmtK(w.spend, a.currency)}<br><span class="tiny">${w.meta_spend!=null?`M ${fmtK(w.meta_spend,a.currency)}`:''}${w.google_spend!=null?` · G ${fmtK(w.google_spend,a.currency)}`:''}</span></td>
-          <td class="num"><b>${fmtX(w.mer)}</b></td>
-          <td class="num"><b>${fmtX(w.amer)}</b></td>
+          <td class="num"><b>${fmtX(w.mer)}</b>${a.plan?.mer?`<br><span class="tiny">plan ${fmtX(a.plan.mer)}</span>`:''}</td>
+          <td class="num"><b>${fmtX(w.amer)}</b>${a.plan?.amer?`<br><span class="tiny">goal ${fmtX(a.plan.amer)}</span>`:''}</td>
           <td class="num">${fmtPct(w.new_share)}</td>
           <td class="num">${trusted
             ? `<b style="color:${w.cm==null?'inherit':w.cm>=0?'var(--good)':'var(--bad)'}">${fmtK(w.cm, a.currency)}</b><br><span class="tiny">margin ${fmtPct(w.margin)}</span>`
             : `<span class="tiny" title="${esc(h?.reason||'')}">suppressed — see Costs</span>`}</td>
         </tr>`; }).join('') || '<tr><td colspan="7" class="tiny">No clients yet.</td></tr>'}
       </tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Net Sales = Shopify money from every source, after discounts and refunds. MER = Net Sales ÷ all ad spend. aMER = new-customer revenue ÷ that same spend. Contribution Margin = gross profit − all ad spend. These will never match Ads Manager — that's the point. Click a client for its detail.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Revenue = Shopify money from every source, after discounts and refunds, plus shipping charged to customers. MER = revenue ÷ all ad spend. aMER = new-customer revenue ÷ that same spend. Contribution Margin = revenue − <b>every variable cost</b> (product, fulfilment, handling, payment fees, ad spend), which is CTC's definition; fixed costs including our retainer are excluded. "vs plan" compares month-to-date against the month's goal pro-rated to the days elapsed. These will never match Ads Manager — that's the point. Click a client for its detail.</p></div>`;
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -523,7 +531,7 @@ async function renderProfit() {
     <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
-      ${statCard('Net Sales', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Everything the store sold from every source — paid, organic, email, direct — after discounts and refunds, excluding tax. This is real Shopify money, not any platform’s attributed revenue.')}
+      ${statCard(d.shipping?.mode === 'include' && t.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Everything the store sold from every source — paid, organic, email, direct — after discounts and refunds, excluding tax, plus what customers paid for shipping. This is real Shopify money, not any platform’s attributed revenue. CTC report this same line as "Net Sales + Shipping".')}
       ${statCard('Ad Spend', fmtMoney(t.spend, cur), `${t.meta_spend!=null?`Meta ${fmtK(t.meta_spend,cur)}`:''}${t.google_spend!=null?` · Google ${fmtK(t.google_spend,cur)}`:''}`, 'Every ad platform combined, from Triple Whale. Falls back to Meta + Google spend if the blended figure is unavailable.')}
       ${statCard('MER', fmtX(t.mer), `${fmtMoney(t.sales, cur)} ÷ ${fmtMoney(t.spend, cur)}`, 'Marketing Efficiency Ratio = all store revenue ÷ all ad spend. Blended on both sides, so no platform can double-count. The single "are the ads paying for themselves" number.')}
       ${statCard('aMER', fmtX(t.amer), `${fmtPct(t.new_share)} of revenue was new customers`, 'Acquisition MER = new-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it, so it isolates whether the ads are actually buying customers.')}
@@ -531,14 +539,18 @@ async function renderProfit() {
     </div>
     ${trusted ? `<div class="card"><h3 style="margin-bottom:8px">Where the money went</h3>
       <div class="tbl-wrap"><table><tbody>
-        ${step('Net Sales', t.sales, 'all channels, after discounts and refunds')}
+        ${step('Net Sales', t.net_sales, 'all channels, after discounts and refunds')}
+        ${d.shipping?.mode === 'include' && t.ship_rev ? step('Shipping charged to customers', t.ship_rev, 'what customers paid for delivery') : ''}
+        <tr style="border-top:1px solid var(--line)"><td><b>Net Sales + Shipping</b></td><td class="num"><b>${fmtMoney(t.sales, cur)}</b></td><td class="tiny">total money in</td></tr>
         ${step('Product costs (COGS)', t.cogs, d.margin_pct != null ? `implied by your ${Math.round(d.margin_pct*100)}% flat margin` : 'from Triple Whale', true)}
+        ${d.shipping?.mode === 'include' && t.ship_cost ? step('Fulfilment / shipping cost', t.ship_cost, 'what delivery actually cost', true) : ''}
+        ${t.handling ? step('Handling fees', t.handling, 'pick, pack and handling', true) : ''}
         ${step('Payment fees', t.fees, 'gateway and processing', true)}
-        <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(t.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(t.margin)} of net sales</td></tr>
+        <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(t.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(t.margin)} of revenue — before any marketing</td></tr>
         ${step('Ad spend', t.spend, 'every platform', true)}
-        <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${t.cm>=0?'var(--good)':'var(--bad)'}">${fmtMoney(t.cm, cur)}</b></td><td class="tiny">${t.sales?fmtPct(t.cm/t.sales):'—'} of net sales</td></tr>
+        <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${t.cm>=0?'var(--good)':'var(--bad)'}">${fmtMoney(t.cm, cur)}</b></td><td class="tiny">${t.sales?fmtPct(t.cm/t.sales):'—'} of revenue</td></tr>
       </tbody></table></div>
-      <p class="tiny" style="margin-top:8px">Contribution margin excludes fixed costs (rent, salaries, software, agency fees). It is the marginal profitability of the marketing, not the profit of the business.</p></div>` : ''}
+      <p class="tiny" style="margin-top:8px">This is CTC's definition: revenue minus <b>every variable cost</b> — product, fulfilment, handling, payment fees and ad spend. Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?"${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</p></div>` : ''}
     <div class="card"><h3 style="margin-bottom:2px">Revenue vs ad spend, day by day</h3>
       <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> = net sales, <span style="color:#C08A2E;font-weight:700">amber</span> = ad spend. The gap between them is what pays for everything else. Hover or tap for exact values.</p>
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>

@@ -132,10 +132,20 @@ async function pivot(env, actId, from, to) {
 }
 const pick = (piv, date, ids) => { for (const id of ids) { const v = piv[id]?.[date]; if (v != null) return v; } return null; };
 
-/** One day of store-level economics. */
-function dayEconomics(piv, meta, date, marginPct) {
-  const sales = pick(piv, date, SALES_IDS);
-  if (sales == null) return null;
+/** One day of store-level economics.
+ *  Follows CTC's definition: contribution margin = net revenue minus ALL VARIABLE
+ *  costs (product, fulfilment, handling, payment fees, ad spend). Fixed costs —
+ *  rent, salaries, software, our own retainer — are excluded by definition.
+ *  `shipMode` is decided per window: 'include' when the client has real fulfilment
+ *  cost data, 'exclude' when they bill shipping but record no cost for it (crediting
+ *  that revenue with no cost against it would overstate profit). */
+function dayEconomics(piv, meta, date, marginPct, shipMode = 'include') {
+  const netSales = pick(piv, date, SALES_IDS);
+  if (netSales == null) return null;
+  const shipRev = shipMode === 'include' ? (piv.totalShippingPrice?.[date] ?? 0) : 0;
+  const shipCost = shipMode === 'include' ? (piv.totalShippingCosts?.[date] ?? 0) : 0;
+  const handling = shipMode === 'include' ? (piv.totalHandlingFees?.[date] ?? 0) : 0;
+  const sales = netSales + shipRev;          // CTC's "Net Sales + Shipping"
   const mrow = meta[date];
   const gSpend = piv.ga_adCost?.[date] ?? null;
   const spend = piv.blendedAds?.[date] ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null);
@@ -148,17 +158,17 @@ function dayEconomics(piv, meta, date, marginPct) {
   const newRev = newShare != null ? sales * newShare : rawNew;
   const cogs = piv.totalProductCosts?.[date] ?? null;
   const fees = piv.totalPaymentGatewayCosts?.[date] ?? null;
-  const gpRaw = piv.grossProfit?.[date] ?? null;
-  // Margin basis, most explicit first: flat override -> TW gross profit -> net sales - COGS.
+  // Everything variable except ad spend. Ad spend is subtracted separately so the
+  // page can show gross profit (the pre-marketing line) as its own step.
+  const variableCosts = cogs != null ? cogs + shipCost + handling + (fees ?? 0) : null;
   const grossProfit = marginPct != null ? sales * marginPct
-    : gpRaw != null ? gpRaw - (fees ?? 0)
-    : cogs != null ? sales - cogs - (fees ?? 0) : null;
+    : variableCosts != null ? sales - variableCosts : null;
   return {
-    date, sales, spend,
+    date, sales, net_sales: netSales, ship_rev: shipRev, spend,
     new_rev: newRev,
     ret_rev: newShare != null ? sales * (1 - newShare) : rawRet,
     new_share: newShare,
-    cogs, fees, gross_profit: grossProfit,
+    cogs, ship_cost: shipCost, handling, fees, gross_profit: grossProfit,
     meta_spend: mrow?.spend ?? null, google_spend: gSpend,
     mer: spend ? sales / spend : null,
     amer: newRev != null && spend ? newRev / spend : null,
@@ -174,12 +184,29 @@ async function seriesFor(env, acct, from, to) {
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const marginPct = marginOverride(acct, monthOf(to));
+  const ship = shippingMode(piv);
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, marginPct);
+    const row = dayEconomics(piv, meta, d, marginPct, ship.mode);
     if (row) rows.push(row);
   }
-  return { rows, margin_pct: marginPct };
+  return { rows, margin_pct: marginPct, shipping: ship };
+}
+
+/** Does this client actually record what fulfilment costs them? If they bill
+ *  customers for shipping but book no cost against it, counting that revenue
+ *  would overstate profit — so we leave shipping out of both sides and say so. */
+function shippingMode(piv) {
+  const total = m => Object.values(piv[m] || {}).reduce((a, b) => a + (b || 0), 0);
+  const rev = total('totalShippingPrice'), cost = total('totalShippingCosts');
+  if (rev <= 0 && cost <= 0) return { mode: 'include', rev, cost, note: 'no shipping billed or costed' };
+  if (rev > 0 && cost <= 0) {
+    return { mode: 'exclude', rev, cost, note: 'shipping is billed to customers but no fulfilment cost is recorded in Triple Whale — shipping is left out of both revenue and costs so profit is not overstated' };
+  }
+  if (Math.abs(rev - cost) < 0.01 && rev > 0) {
+    return { mode: 'include', rev, cost, note: 'shipping cost exactly equals shipping revenue — Triple Whale is treating it as a pass-through, so it nets to zero' };
+  }
+  return { mode: 'include', rev, cost, note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
 }
 
 /** The same daily series with the flat-margin override deliberately ignored,
@@ -190,9 +217,10 @@ async function seriesRaw(env, acct, from, to) {
     `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`,
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
+  const ship = shippingMode(piv);
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, null);
+    const row = dayEconomics(piv, meta, d, null, ship.mode);
     if (row) rows.push(row);
   }
   return rows;
@@ -209,13 +237,37 @@ function totals(rows) {
   const newRev = sum(rows, r => r.new_rev), gp = sum(rows, r => r.gross_profit);
   return {
     days: rows.length, sales, spend, new_rev: newRev, ret_rev: sum(rows, r => r.ret_rev),
-    cogs: sum(rows, r => r.cogs), fees: sum(rows, r => r.fees), gross_profit: gp,
+    net_sales: sum(rows, r => r.net_sales), ship_rev: sum(rows, r => r.ship_rev),
+    cogs: sum(rows, r => r.cogs), ship_cost: sum(rows, r => r.ship_cost),
+    handling: sum(rows, r => r.handling), fees: sum(rows, r => r.fees), gross_profit: gp,
     meta_spend: sum(rows, r => r.meta_spend), google_spend: sum(rows, r => r.google_spend),
     mer: spend ? sales / spend : null,
     amer: newRev != null && spend ? newRev / spend : null,
     cm: gp != null && spend != null ? gp - spend : null,
     margin: sales > 0 && gp != null ? gp / sales : null,
     new_share: sales > 0 && newRev != null ? newRev / sales : null,
+  };
+}
+
+/** CTC's whole frame is every number against a plan. Spread the month's goals
+ *  across the days elapsed so month-to-date actuals have something to beat. */
+function planFor(acct, ym, mtdRows) {
+  const g = goalsFor(acct, ym);
+  if (g.sales == null && g.spend == null) return null;
+  const dim = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+  const elapsed = mtdRows.length;
+  if (!elapsed) return null;
+  const share = elapsed / dim;
+  const sales = g.sales != null ? g.sales * share : null;
+  const spend = g.spend != null ? g.spend * share : null;
+  const margin = g.cm_pct ?? null;
+  return {
+    days: elapsed, days_in_month: dim, share,
+    sales, spend,
+    mer: sales != null && spend ? sales / spend : null,
+    amer: g.amer ?? null,
+    cm: sales != null && spend != null && margin != null ? sales * margin - spend : null,
+    month: { sales: g.sales ?? null, spend: g.spend ?? null, amer: g.amer ?? null },
   };
 }
 
@@ -346,7 +398,7 @@ export default {
         const out = [];
         for (const a of accounts) {
           const today = localDate(a.tz);
-          const { rows, margin_pct } = await seriesFor(env, a, addDays(today, -days), addDays(today, -1));
+          const { rows, margin_pct, shipping } = await seriesFor(env, a, addDays(today, -days), addDays(today, -1));
           const ym = monthOf(today);
           const g = goalsFor(a, ym);
           // First load (or a new client) has no snapshot yet — judge inline so the
@@ -354,12 +406,14 @@ export default {
           const health = byAct[a.act_id] || (margin_pct != null
             ? { verdict: 'override', reason: `using a flat ${Math.round(margin_pct * 100)}% margin override`, blended: margin_pct }
             : judgeCosts(rows));
+          const mtdRows = rows.filter(r => r.date.startsWith(ym));
           out.push({
             ...pubAccount(a),
             window: totals(rows),
-            mtd: totals(rows.filter(r => r.date.startsWith(ym))),
+            mtd: totals(mtdRows),
             goals: g.sales != null || g.spend != null ? g : null,
-            margin_pct, cost_health: health,
+            plan: planFor(a, ym, mtdRows),
+            margin_pct, cost_health: health, shipping,
           });
         }
         await refreshIfStale(env, ctx);
@@ -372,12 +426,12 @@ export default {
         const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz);
-        const { rows, margin_pct } = await seriesFor(env, acct, addDays(today, -days), addDays(today, -1));
+        const { rows, margin_pct, shipping } = await seriesFor(env, acct, addDays(today, -days), addDays(today, -1));
         const ym = monthOf(today);
         return json({
-          account: pubAccount(acct), days, margin_pct, rows,
+          account: pubAccount(acct), days, margin_pct, rows, shipping,
           totals: totals(rows), mtd: totals(rows.filter(r => r.date.startsWith(ym))),
-          goals: goalsFor(acct, ym),
+          goals: goalsFor(acct, ym), plan: planFor(acct, ym, rows),
         });
       }
 
