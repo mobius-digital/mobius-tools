@@ -1179,12 +1179,21 @@ async function renderPlan(first) {
   // the revenue basis and margin come from a whole finished month.
   const src = (p.ctx && p.ctx.sources) || {};
   const basisNote = () => {
-    const bits = [];
-    if (src.basis_month) bits.push(`the <b>${esc(monthLabel(src.basis_month))}</b> revenue figure is that month's actual`);
-    if (src.trailing_from && src.trailing_to) bits.push(`<b>${fmtX(p.ctx.amer)}</b> acquisition efficiency and the <b>${fmtMoney(expRet, cur)}</b> of returning revenue come from the last <b>${src.trailing_days || 28} days</b> (${esc(src.trailing_from)} to ${esc(src.trailing_to)})`);
-    if (src.margin_month && p.ctx.margin != null) bits.push(`the <b>${fmtPct(p.ctx.margin)}</b> product margin is <b>${esc(monthLabel(src.margin_month))}</b>'s`);
-    if (!bits.length) return '';
-    return `<b>Where these come from:</b> ${bits.join('; ')}. Recent efficiency is used rather than a six-month average, because it is what the account is actually doing now.`;
+    const rows = [];
+    if (src.basis_month) rows.push(['Revenue basis', `${esc(monthLabel(src.basis_month))} actual`]);
+    if (src.trailing_from && src.trailing_to) {
+      const short = d => `${MONTHS[+d.slice(5, 7) - 1].slice(0, 3)} ${+d.slice(8, 10)}`;
+      rows.push([`Efficiency &amp; returning`, `last ${src.trailing_days || 28} days &middot; ${short(src.trailing_from)} – ${short(src.trailing_to)}`]);
+    }
+    if (src.margin_month && p.ctx.margin != null) rows.push(['Product margin', `${esc(monthLabel(src.margin_month))} actual`]);
+    if (!rows.length) return '';
+    return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg)">
+      <div class="tiny" style="font-weight:600;margin-bottom:6px">Based on</div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;align-items:baseline">
+        ${rows.map(r => `<span class="tiny" style="color:var(--muted)">${r[0]}</span><span class="tiny" style="font-weight:600">${r[1]}</span>`).join('')}
+      </div>
+      <div class="tiny" style="margin-top:7px;color:var(--muted)">Recent efficiency, not a six-month average — it is what the account is doing now. The table above is context, not an input.</div>
+    </div>`;
   };
 
   const picker = [-1, 0, 1, 2, 3, 4].map(n => shiftMonth(nowYm, n));
@@ -1256,7 +1265,7 @@ async function renderPlan(first) {
 
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
       <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the greyed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
-      <p class="tiny" style="margin-bottom:14px;color:var(--muted)">${basisNote()}</p>
+      <div style="margin-bottom:14px">${basisNote()}</div>
       <div class="row" style="gap:8px;margin-bottom:12px">
         ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
         <span class="tiny">quick-fill the revenue goal from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
