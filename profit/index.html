@@ -866,11 +866,18 @@ async function renderCosts(first) {
 const BF = { date: null };
 
 async function renderBriefAll(first) {
-  if (first) $('#main').innerHTML = `<h2>Daily Brief</h2>
+  // The shell is re-emitted in FULL on every paint, placeholder and result alike.
+  // On a tab switch #main still holds the OUTGOING tab's DOM, so writing into
+  // `#main .card` would inject this table into the previous page — or throw, when
+  // that tab has no card, leaving the Brief tab unable to open at all.
+  const shell = body => `<h2>Daily Brief</h2>
     <p class="sub">Every client's yesterday against its plan — Contribution Margin, Net Sales, Spend and aMER, forecast vs actual. Pick a client (dropdown top-right) to set goals, read the full brief, and post it to Slack.</p>
     <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>This is the only page that isn't Meta-reported: sales, margin and total spend come from <b>Triple Whale</b> (the whole business, every platform), because net sales and contribution margin don't exist inside Meta. Every other tab — Overview, Pacing, Averages, Change Log, Creative Rotation — is Meta-only and matches Ads Manager. Expect these numbers to differ from Meta's; that's the point.</div></div>
-    <div class="card"><span class="hint">Loading every client…</span></div>`;
-  const active = S.accounts.filter(a => a.active);
+    ${body}`;
+  if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading every client…</span></div>');
+  // /api/overview only ever returns active accounts and its payload carries no
+  // `active` flag, so filtering on one emptied this table on every render.
+  const active = S.accounts;
   const data = await Promise.all(active.map(a => api('/api/brief?act=' + a.act_id).catch(() => null)));
   const cell = (a2, f2, cur, fx2) => {
     const fmt = fx2 ? (n => n == null ? '—' : n.toFixed(2) + 'x') : (n => fmtK(n, cur));
@@ -890,10 +897,10 @@ async function renderBriefAll(first) {
         : `<td colspan="4"><span class="tiny">${d ? 'no Triple Whale data for yesterday — open the client and hit “Refresh Triple Whale data”' : 'couldn’t load'}</span></td>`}
     </tr>`;
   }).join('');
-  $('#main .card').innerHTML = `<div class="tbl-wrap"><table>
+  $('#main').innerHTML = shell(`<div class="card"><div class="tbl-wrap"><table>
     <thead><tr><th>Client</th><th class="num">CM yesterday</th><th class="num">Net Sales</th><th class="num">Total Spend</th><th class="num">aMER</th></tr></thead>
     <tbody>${rows || '<tr><td class="tiny">No active clients.</td></tr>'}</tbody></table></div>
-    <p class="tiny" style="margin-top:10px">Net Sales, spend and aMER come from Triple Whale (all platforms); aMER = new-customer revenue ÷ total ad spend. Click a client to open its brief.</p>`;
+    <p class="tiny" style="margin-top:10px">Net Sales, spend and aMER come from Triple Whale (all platforms); aMER = new-customer revenue ÷ total ad spend. Click a client to open its brief.</p></div>`);
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -933,9 +940,12 @@ function briefChartSVG(d) {
 async function renderBrief(first) {
   if (S.act === 'all') return renderBriefAll(first);
   const acct = S.accounts.find(a => a.act_id === S.act);
-  if (first) $('#main').innerHTML = `<h2>Daily Brief</h2>
+  // Same rule as renderBriefAll: every paint re-emits the whole page. Appending to
+  // whatever `#main` happens to hold would graft this brief onto the outgoing tab.
+  const shell = body => `<h2>Daily Brief</h2>
     <p class="sub">Did ${esc(acct?.name || 'this client')} beat the plan yesterday? Forecast vs actual on the money that matters, the story behind it, and one click (or zero — flip auto-post) to put it in the client's Slack.</p>
-    <div class="card"><span class="hint">Loading…</span></div>`;
+    ${body}`;
+  if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
   try { d = await api('/api/brief?act=' + S.act + (BF.date ? '&date=' + BF.date : '')); }
   catch (e) {    $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
@@ -967,8 +977,7 @@ async function renderBrief(first) {
     <details style="margin:6px 0"><summary style="cursor:pointer;font-size:13px"><b>${esc(hh.date)}</b> · <span class="pill ${hh.status === 'sent' ? 'good' : hh.status === 'skipped' ? 'warn' : hh.status === 'error' ? 'bad' : 'unk'}">${esc(hh.status)}</span>${hh.posted_at ? ` <span class="tiny">${fmtAgo(hh.posted_at)}</span>` : ''}</summary>
     <pre style="white-space:pre-wrap;font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:6px">${esc(hh.text || '')}</pre></details>`).join('');
 
-  $('#main .card').remove();
-  $('#main').insertAdjacentHTML('beforeend', `
+  $('#main').innerHTML = shell(`
     <div class="row" style="margin-bottom:12px">
       <label class="tiny">day</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
       <button class="btn" id="bfTwSync">↻ Refresh Triple Whale data</button>

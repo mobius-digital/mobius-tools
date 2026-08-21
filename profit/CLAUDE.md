@@ -130,8 +130,15 @@ profit/
 - **Tab switches must never blank `#main`.** `show()` passes a `first` flag: only a
   truly empty page paints a spinner. Otherwise the previous tab stays visible under
   `#main.busy` (dimmed, non-interactive) until the new one is ready. Every renderer
-  takes `first` and gates its placeholder on it; error paths must replace ALL of
-  `#main`, never `#main .card`, which by then belongs to the previous tab.
+  takes `first` and gates its placeholder on it.
+- **Once a renderer gates its placeholder on `first`, EVERY paint must write all of
+  `#main` — success, error and refetch alike.** Never `#main .card`, and never
+  `insertAdjacentHTML` onto whatever is already there: on a tab switch that DOM
+  belongs to the outgoing tab. Introducing `first` broke both Daily Brief renderers
+  exactly this way — they kept writing their result into `#main .card`, so clicking
+  the tab left the heading reading "Overview" with the brief's table grafted into the
+  Overview's first card, and the tab appeared not to open at all. Build the page as
+  `shell(body)` and assign it; the placeholder and the result then share one shape.
 - **A refetch must not blank the screen.** `renderPlan(true)` keeps the current DOM
   and just dims the month chips while loading; only a first render shows a spinner.
   A spinner mid-decision reads as a page reload.
