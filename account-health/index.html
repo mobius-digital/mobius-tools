@@ -1354,6 +1354,7 @@ function confirmModal(title, hint, cta = 'Yes, do it') {
 async function renderBriefAll() {
   $('#main').innerHTML = `<h2>Daily Brief</h2>
     <p class="sub">Every client's yesterday against its plan — Contribution Margin, Net Sales, Spend and aMER, forecast vs actual. Pick a client (dropdown top-right) to set goals, read the full brief, and post it to Slack.</p>
+    <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>This is the only page that isn't Meta-reported: sales, margin and total spend come from <b>Triple Whale</b> (the whole business, every platform), because net sales and contribution margin don't exist inside Meta. Every other tab — Overview, Pacing, Averages, Change Log, Creative Rotation — is Meta-only and matches Ads Manager. Expect these numbers to differ from Meta's; that's the point.</div></div>
     ${setupBanner()}<div class="card"><span class="hint">Loading every client…</span></div>`;
   const active = S.accounts.filter(a => a.active);
   const data = await Promise.all(active.map(a => api('/api/brief?act=' + a.act_id).catch(() => null)));
@@ -1371,7 +1372,7 @@ async function renderBriefAll() {
     const last = d?.history?.[0];
     return `<tr data-id="${a.act_id}" style="cursor:pointer">
       <td><b>${esc(a.name)}</b><br><span class="tiny">${d?.goals ? 'goals set' : 'no goals yet'} · auto-post ${enabled ? 'on' : 'off'}${last ? ` · last: ${esc(last.status)} ${esc(last.date)}` : ''}</span></td>
-      ${d && day?.a ? cell(day.a.cm, day.f.cm, a.currency) + cell(day.a.sales, day.f.sales, a.currency) + cell(day.a.spend, day.f.spend, a.currency) + cell(day.a.amer, day.f.amer, a.currency, true)
+      ${d && day?.a ? ((d.cogs_quality?.verdict === 'broken' || d.cogs_quality?.verdict === 'none') ? `<td class="num"><span class="tiny" title="${esc(d.cogs_quality?.reason || 'no cost data')}">cost data ⚠</span></td>` : cell(day.a.cm, day.f.cm, a.currency)) + cell(day.a.sales, day.f.sales, a.currency) + cell(day.a.spend, day.f.spend, a.currency) + cell(day.a.amer, day.f.amer, a.currency, true)
         : `<td colspan="4"><span class="tiny">${d ? 'no Triple Whale data for yesterday — open the client and hit “Refresh Triple Whale data”' : 'couldn’t load'}</span></td>`}
     </tr>`;
   }).join('');
@@ -1445,6 +1446,7 @@ async function renderBrief() {
     </div>`;
   const yd = new Date(d.date + 'T12:00:00Z').toUTCString().slice(0, 11);
   const noTw = !a || a.sales == null;
+  const cq = d.cogs_quality || { verdict: 'none', reason: 'no cost data found' };
   const chart = briefChartSVG(d);
   const marginPct = d.cm_pct != null ? Math.round(d.cm_pct * 100) : d.margin_28d != null ? Math.round(d.margin_28d * 100) : null;
   const hist = (d.history || []).map(hh => `
@@ -1461,8 +1463,14 @@ async function renderBrief() {
     </div>
     ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set the monthly goals below — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
     ${noTw && d.goals ? `<div class="notice warn">⚠️ <div>No Triple Whale sales data for ${d.date} yet — hit “Refresh Triple Whale data”, and check the shop domain in Settings if it persists.</div></div>` : ''}
+    ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely — every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or type a <b>margin %</b> in the goals below to use a flat margin instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> — ${esc(cq.reason)}. CM still shows, but treat it as directional. A <b>margin %</b> in the goals below overrides it with a flat rate.</div></div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px">
-      ${statCard('Contribution Margin — ' + yd, a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a margin % in the goals below.'))}
+      ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
+      <div class="card" style="margin:0;opacity:.65">
+        <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">Contribution Margin <span class="info-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or enter a margin % in the goals below.">i</span></div>
+        <div style="font-size:20px;font-weight:600;margin:4px 0 2px">not reported</div>
+        <div class="tiny">cost data unreliable — see the note above</div>
+      </div>` : statCard('Contribution Margin — ' + yd, a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a margin % in the goals below.'))}
       ${statCard('Net Sales', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify money via Triple Whale: after discounts and refunds, including shipping. Not ad-platform-attributed revenue — this is what actually hit the store.')}
       ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
       ${statCard('aMER', a.amer, f.amer, fx, 'Acquisition Marketing Efficiency Ratio = new-customer revenue ÷ total ad spend. Ignores every platform’s attribution and asks: how much NEW money showed up per ad dollar?')}
