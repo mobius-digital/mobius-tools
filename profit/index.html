@@ -1080,14 +1080,22 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const monthLabel = ym => `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
 const shiftMonth = (ym, n) => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
 
-async function renderPlan() {
+async function renderPlan(keep) {
   if (S.act === 'all') return renderPlanAll();
   if (!PL.month) PL.month = shiftMonth(ymdLocal(new Date()).slice(0, 7), 1);
 
-  $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span class="hint">Loading…</span></div>`;
+  // Switching month refetches, but blanking to a spinner loses your place and reads
+  // as a page reload. Keep what is on screen, dim the month chips, swap when ready.
+  if (keep) $('#main').querySelectorAll('[data-m]').forEach(b => { b.style.opacity = '.45'; b.disabled = true; });
+  else $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span class="hint">Loading…</span></div>`;
   let p;
   try { p = await api(`/api/plan?act=${S.act}&month=${PL.month}`); }
-  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  catch (e) {
+    $('#main').querySelectorAll('[data-m]').forEach(b => { b.style.opacity = ''; b.disabled = false; });
+    const card = $('#main .card');
+    if (card) card.innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`;
+    return;
+  }
   const cur = p.account.currency;
   const hist = p.history.filter(h => !h.empty);
   const saved = p.plan;
@@ -1223,8 +1231,8 @@ async function renderPlan() {
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
       <p class="hint" style="margin-bottom:12px">Type into any <b>two</b> of these; the greyed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
       <div class="row" style="gap:8px;margin-bottom:12px">
-        ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
-        <span class="tiny">quick-fill revenue from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
+        ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
+        <span class="tiny">quick-fill the revenue goal from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
       </div>
       <div id="plFields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">${fieldsHtml()}
       </div>
@@ -1261,6 +1269,8 @@ async function renderPlan() {
     setTxt('#pfs_spend', `${fmtMoney(c.spend / p.ctx.days_in_month, cur)} a day`);
     setTxt('#plCm', c.cm != null ? fmtMoney(c.cm, cur) : '—');
     setTxt('#plCmSub', c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : '');
+    $('#main').querySelectorAll('[data-g]').forEach(b =>
+      b.classList.toggle('on', c.growth != null && Math.abs(c.growth - +b.dataset.g) < 0.005));
     const v = $('#plVerdict'); if (v) v.innerHTML = verdictHtml(c);
     const n = $('#plCmNote'); if (n) n.innerHTML = cmHtml(c);
   };
@@ -1270,14 +1280,23 @@ async function renderPlan() {
     ['sales', 'spend', 'mer'].forEach(k => {
       const el = $(`#pfi_${k}`);
       if (!el) return;
+      const fmtOwn = () => {
+        // repaint() deliberately skips the focused field so it cannot fight your
+        // typing - so on Enter we format this one explicitly.
+        const x = calc();
+        if (!x) return;
+        el.value = k === 'mer' ? (Math.round(x.mer * 100) / 100).toFixed(2) : Math.round(x[k]).toLocaleString('en-US');
+      };
       const commit = () => {
         const raw = +el.value.replace(/[^0-9.]/g, '');
         if (!isFinite(raw) || el.value.trim() === '') return;
         PL[k] = raw;
         repaint();
+        fmtOwn();
       };
       el.onchange = commit;
       el.onblur = commit;
+      el.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); commit(); el.blur(); } };
     });
     // Rebuild only the three field cards. Re-rendering the page would scroll you back
     // to the top mid-decision, which is exactly what makes a tool feel broken.
@@ -1303,8 +1322,9 @@ async function renderPlan() {
   bind();
 
   $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+    if (b.dataset.m === PL.month) return;
     PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null;
-    inPlace(renderPlan);
+    inPlace(() => renderPlan(true));
   });
 
   const sv = $('#plSave');

@@ -120,6 +120,15 @@ profit/
 - **Never write HTML entities into tooltip/info text.** `esc()` escapes `&`, and
   `helpModal` escapes again, so `&#39;` renders literally as "&#39;". Use real
   characters (apostrophe, the word "divided by"), never entities.
+- **A refetch must not blank the screen.** `renderPlan(true)` keeps the current DOM
+  and just dims the month chips while loading; only a first render shows a spinner.
+  A spinner mid-decision reads as a page reload.
+- **`repaint()` skips the focused input on purpose** (so it cannot fight your typing),
+  which means Enter would leave the value unformatted. The commit handler formats
+  that one field itself. Any new numeric input needs the same pair.
+- **A control with no visible state reads as broken.** The quick-fill chips changed
+  the value silently, so Cole reported they "don't fill in" when they were working.
+  Highlight the active one and keep it in sync in `repaint()`.
 - **Nothing may scroll the page on an update.** Growth chips, switching the derived
   field, month changes and every save update in place; `inPlace(fn)` preserves
   scrollY across a refetch. Calling a renderX() from a handler throws the reader to
