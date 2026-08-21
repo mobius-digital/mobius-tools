@@ -83,6 +83,16 @@ Change Log stays available.
 - **Saving a margin override re-grades the stored `p_cost_health` immediately** —
   the Overview reads that snapshot to decide whether to show profit at all, so a
   stale `broken` would keep suppressing a client that has just been fixed.
+- **The Slack message is modelled on CTC's own voice, not on a metrics dump.**
+  Opens "Hey Team :wave: Here's the Daily Update covering August 20 →", then one
+  block per day with Forecasted/Actual on separate lines and money rounded to whole
+  units. The revenue split, per-channel reads and month-to-date were deliberately
+  REMOVED from the structured block — Claude writes them as sentences in Notes,
+  which is what stops it reading like a cron job. The prompt says so explicitly, so
+  do not "helpfully" re-add those lines.
+- **A missed send is picked up automatically.** `coverageDates()` walks from the last
+  successfully sent brief, so a skipped day produces "covering 8/18, 8/19 and 8/20"
+  with a block each — exactly what CTC did. Capped at 4 days, never crosses a month.
 - **The Marketing Calendar has no brand column** — it is a single board (Lucky
   Golf's), so `settings.calendarConfig.act_id` maps the whole board to one client.
   Multi-client calendar forecasting needs either a brand column on

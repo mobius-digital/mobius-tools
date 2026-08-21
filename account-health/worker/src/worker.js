@@ -915,46 +915,56 @@ async function briefData(env, acct, upTo) {
 }
 
 /** The deterministic numbers block of the Slack brief (CTC's Forecasted/Actual shape). */
-function buildBriefText(data, date, narrative) {
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+/** "August 20" — CTC head each day with a real date, not an ISO stamp. */
+function prettyDate(ymd) {
+  return `${MONTH_NAMES[+ymd.slice(5, 7) - 1]} ${+ymd.slice(8, 10)}`;
+}
+const shortDate = ymd => `${+ymd.slice(5, 7)}/${+ymd.slice(8, 10)}`;
+
+/** The Slack message. Modelled on CTC's own daily update: a friendly opener, one
+ *  block per day covered, then the narrative. Deliberately NOT a metrics dump —
+ *  the revenue split, channel reads and month-to-date all live in the Notes, where
+ *  Claude writes them as sentences, because that is what makes it read like a
+ *  person rather than a cron job. */
+function buildBriefText(data, dates, narrative) {
   const cur = data.account.currency;
-  const day = data.days.find(x => x.date === date);
-  const f = day?.f || {}, a = day?.a || {};
-  const fm = n => n == null ? '—' : money(n, cur);
+  const list = Array.isArray(dates) ? dates : [dates];
+  // Whole currency units: CTC quote £464, not £464.23.
+  const fm = n => n == null ? '—' : new Intl.NumberFormat('en-US',
+    { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
   const fx = n => n == null ? '—' : `${n.toFixed(2)}x`;
-  const pct = (aV, fV) => aV != null && fV ? ` (${aV >= fV ? '+' : ''}${Math.round((aV / fV - 1) * 100)}% vs plan)` : '';
-  const L = [`*Daily Brief — ${data.account.name} — ${date}*`];
-  // A wrong contribution-margin number in front of a client is worse than no number:
-  // when Triple Whale's cost data is unreliable we leave CM out entirely.
   const cmOk = data.cogs_quality?.verdict !== 'broken' && data.cogs_quality?.verdict !== 'none';
-  if (cmOk) L.push(`Forecasted Contribution Margin: ${fm(f.cm)} · Actual: ${fm(a.cm)}${pct(a.cm, f.cm)}`);
-  L.push(`Forecasted Net Sales${a.ship_rev ? ' + Shipping' : ''}: ${fm(f.sales)} · Actual: ${fm(a.sales)}${pct(a.sales, f.sales)}`);
-  L.push(`Forecasted Total Spend: ${fm(f.spend)} · Actual: ${fm(a.spend)}${pct(a.spend, f.spend)}`);
-  L.push(`Forecasted MER: ${fx(f.mer)} · Actual: ${fx(a.mer)}`);
-  L.push(`Forecasted aMER: ${fx(f.amer)} · Actual: ${fx(a.amer)}`);
-  const bits = [];
-  if (a.new_rev != null) bits.push(`new ${fm(a.new_rev)}${a.new_share != null ? ` (${Math.round(a.new_share * 100)}%)` : ''}`);
-  if (a.ret_rev != null) bits.push(`returning ${fm(a.ret_rev)}`);
-  if (bits.length) L.push(`Revenue split: ${bits.join(' · ')}`);
-  const ch = [];
-  if (a.meta_spend != null) ch.push(`Meta ${fm(a.meta_spend)}${a.meta_roas != null ? ` at ${fx(a.meta_roas)} (Meta-attributed)` : ''}`);
-  if (a.google_spend != null) ch.push(`Google ${fm(a.google_spend)}${a.google_roas != null ? ` at ${fx(a.google_roas)}` : ''}`);
-  if (ch.length) L.push(`Channels: ${ch.join(' · ')}`);
-  const m = data.mtd;
-  if (m.sales != null && m.sales_f) {
-    L.push(`MTD: Net Sales ${fm(m.sales)} vs ${fm(m.sales_f)} plan (${m.sales >= m.sales_f ? '+' : ''}${Math.round((m.sales / m.sales_f - 1) * 100)}%)` +
-      (m.spend != null && m.spend_f ? ` · Spend ${fm(m.spend)} vs ${fm(m.spend_f)}` : ''));
+
+  const span = list.length === 1 ? prettyDate(list[0])
+    : list.map(shortDate).slice(0, -1).join(', ') + ' and ' + shortDate(list[list.length - 1]);
+  const L = [`Hey Team :wave: Here's the Daily Update covering ${span} →`];
+
+  for (const d of list) {
+    const day = data.days.find(x => x.date === d);
+    if (!day?.a) continue;
+    const f = day.f || {}, a = day.a;
+    L.push('', `*${prettyDate(d)}*${day.f?.cal_events?.length ? `  _${day.f.cal_events.join(', ')}_` : ''}`);
+    if (cmOk) {
+      L.push(`Forecasted Contribution Margin: ${fm(f.cm)}`);
+      L.push(`Actual Contribution Margin: ${fm(a.cm)}`);
+    }
+    const shipLbl = a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales';
+    L.push(`Forecasted ${shipLbl}: ${fm(f.sales)}`);
+    L.push(`Actual ${shipLbl}: ${fm(a.sales)}`);
+    L.push(`Forecasted Total Spend: ${fm(f.spend)}`);
+    L.push(`Actual Total Spend: ${fm(a.spend)}`);
+    L.push(`Forecasted MER: ${fx(f.mer)}`);
+    L.push(`Actual MER: ${fx(a.mer)}`);
+    L.push(`Forecasted aMER: ${fx(f.amer)}`);
+    L.push(`Actual aMER: ${fx(a.amer)}`);
   }
-  if (m.sales != null && data.goals?.sales) {
-    // Plan-share projection: how the month lands if we keep hitting the same % of plan.
-    const daysDone = data.days.filter(x => x.date <= date && x.a?.sales != null).length;
-    const proj = m.sales_f ? m.sales / m.sales_f * data.goals.sales : daysDone ? m.sales / daysDone * data.days.length : null;
-    if (proj != null) L.push(`Projected month: Net Sales ${fm(proj)} vs ${fm(data.goals.sales)} goal (${proj >= data.goals.sales ? '+' : ''}${Math.round((proj / data.goals.sales - 1) * 100)}%)`);
-  }
+
   const wk = data.week;
   if (wk) {
-    L.push('', `*Week in review — ${wk.from} → ${wk.to}*`);
-    L.push(`Net Sales ${fm(wk.a.sales)} vs ${fm(wk.f.sales)} plan${pct(wk.a.sales, wk.f.sales)} · Spend ${fm(wk.a.spend)} vs ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)} vs ${fm(wk.f.cm)}` : ''} · MER ${fx(wk.a.mer)} · aMER ${fx(wk.a.amer)}`);
-    if (wk.best) L.push(`Best day ${wk.best.date} (${fm(wk.best.sales)}) · slowest ${wk.worst.date} (${fm(wk.worst.sales)})`);
+    L.push('', `*Week in review — ${prettyDate(wk.from)} to ${prettyDate(wk.to)}*`);
+    L.push(`Net Sales ${fm(wk.a.sales)} against ${fm(wk.f.sales)} planned · Spend ${fm(wk.a.spend)} of ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)}` : ''} · aMER ${fx(wk.a.amer)}`);
+    if (wk.best) L.push(`Best day ${prettyDate(wk.best.date)} at ${fm(wk.best.sales)}, slowest ${prettyDate(wk.worst.date)} at ${fm(wk.worst.sales)}`);
   }
   return L.join('\n') + (narrative ? `\n\n${narrative}` : '');
 }
@@ -989,7 +999,7 @@ async function weeklyBlock(env, acct, data, date) {
 const BRIEF_SYSTEM = `You are a senior media buyer at Mobius Digital writing the narrative section of a client's daily performance brief. A numbers block (forecast vs actual for yesterday) is prepended by the system — do NOT repeat it as a list.
 Write exactly three sections, in this order, Slack-style plain text:
 Notes →
-• 3–5 bullets: the facts that matter — beats/misses vs plan with the %, streaks across recent days, new vs returning revenue, per-channel reads. Conclusion first in every bullet.
+• 3–5 bullets: the facts that matter — beats/misses vs plan with the %, streaks across recent days, new vs returning revenue, per-channel reads. Conclusion first in every bullet. The numbers block above shows ONLY forecast vs actual for CM, revenue, spend, MER and aMER — so the new-vs-returning split, the per-channel reads and month-to-date reach the reader ONLY if you write them here.
 So What?
 2–4 sentences: the single interpretation that best explains the day — tie performance moves to the changes we made when the change log supports it, and say whether this reads as a demand problem, a platform problem, or our own levers.
 What's Next?
@@ -1008,7 +1018,7 @@ async function writeBriefNarrative(env, acct, data, date) {
   return claude(env, {
     system: BRIEF_SYSTEM,
     maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom for the text
-    user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${date}.\n` +
+    user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${(data.covering || [date]).join(' and ')}.\n` +
       `Goals this month: ${JSON.stringify(data.goals)}. Meta ROAS floor: ${acct.target_roas ?? 'none'}. Forecast weighting: ${data.weights}.\n` +
       `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data: revenue minus product costs, fulfilment, handling, payment fees and ad spend (every variable cost; fixed costs are excluded by definition)'}.\n\n` +
       (data.cogs_quality && (data.cogs_quality.verdict === 'broken' || data.cogs_quality.verdict === 'none')
@@ -1033,17 +1043,37 @@ async function writeBriefNarrative(env, acct, data, date) {
 
 /** Build the full brief for one account+day. Returns {data, text} or {data, error}.
  *  When `date` is a Sunday the Monday-morning send adds a week-in-review block. */
+/** Which days should this brief cover? Normally just yesterday — but if a send was
+ *  missed, pick up the days since the last one, the way CTC's own update covered
+ *  "8/18 and 8/19". Capped at 4 days and never crosses out of the month. */
+async function coverageDates(env, acct, date, data) {
+  const last = await env.DB.prepare(
+    `SELECT MAX(date) AS d FROM briefs WHERE act_id = ?1 AND status = 'sent' AND date < ?2`,
+  ).bind(acct.act_id, date).first().catch(() => null);
+  const monthStart = `${monthOf(date)}-01`;
+  let from = last?.d ? addDays(last.d, 1) : date;
+  if (from < monthStart) from = monthStart;
+  if (from < addDays(date, -3)) from = addDays(date, -3);
+  const out = [];
+  for (let d = from; d <= date; d = addDays(d, 1)) {
+    if (data.days.find(x => x.date === d)?.a?.sales != null) out.push(d);
+  }
+  return out.length ? out : [date];
+}
+
 async function makeBrief(env, acct, date) {
   const data = await briefData(env, acct, date);
   const day = data.days.find(x => x.date === date);
   if (!data.goals) return { data, error: 'no goals set for this month — set them on the Daily Brief page' };
   if (!day?.a || day.a.sales == null) return { data, error: `no Triple Whale sales data for ${date} yet — try “Refresh Triple Whale data”` };
+  const dates = await coverageDates(env, acct, date, data);
   if (new Date(date + 'T12:00:00Z').getUTCDay() === 0) {
     data.week = await weeklyBlock(env, acct, data, date).catch(() => null);
   }
+  data.covering = dates;
   let narrative = null, narrative_error = null;
   try { narrative = await writeBriefNarrative(env, acct, data, date); } catch (e) { narrative_error = e.message; }
-  return { data, text: buildBriefText(data, date, narrative), narrative_error };
+  return { data, dates, text: buildBriefText(data, dates, narrative), narrative_error };
 }
 
 /** Generate + post one brief to the brand's Slack channel; log it in `briefs`. */
