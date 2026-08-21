@@ -654,7 +654,9 @@ async function suggestGoals(env, acct) {
   const metaBy = Object.fromEntries(metaRows.map(r => [r.date, r.spend]));
   let sales = 0, spend = 0, newRev = 0, marginNum = 0, marginDen = 0;
   for (const d of dates) {
-    const s = piv.netSales?.[d] ?? piv.totalSales?.[d] ?? 0;
+    // Same revenue basis as everywhere else: net sales PLUS shipping charged to
+    // customers, or a goal set here would be measured against a bigger number later.
+    const s = (piv.netSales?.[d] ?? piv.totalSales?.[d] ?? 0) + (piv.totalShippingPrice?.[d] ?? 0);
     sales += s;
     spend += piv.blendedAds?.[d] ?? ((metaBy[d] ?? 0) + (piv.ga_adCost?.[d] ?? 0));
     newRev += piv.newCustomerSales?.[d] ?? 0;
@@ -697,71 +699,6 @@ function judgeCogs(dayMargins, blended) {
     out.reason = `daily margin ranges ${Math.round(lo * 100)}%–${Math.round(hi * 100)}% — likely a few products missing COGS`;
   }
   return out;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Marketing-calendar-aware forecasting                               */
-/*  A flat plan makes a launch day look like a miss and a quiet Sunday */
-/*  look like a win. The calendar REDISTRIBUTES the month's goal toward*/
-/*  event days — it never inflates it, so the month still totals the   */
-/*  number you committed to.                                           */
-/* ------------------------------------------------------------------ */
-
-const CAL_DEFAULTS = {
-  act_id: null,                 // which client this calendar board describes
-  multipliers: { product_launch: 2.2, promo: 1.8, default: 1.4 },
-  teaser: 1.15,                 // lift on the run-up days before a launch
-  decay: 0.75,                  // each day after a launch keeps this share of the lift
-  decay_days: 4,
-};
-
-async function calendarConfig(env) {
-  return { ...CAL_DEFAULTS, ...safeJson(await getSetting(env, 'calendarConfig'), {}) };
-}
-
-/** Events that overlap [from, to]. Cancelled ones are ignored — a cancelled promo
- *  should not raise anybody's target. */
-async function calendarEvents(env, from, to) {
-  if (!env.CAL) return [];
-  try {
-    const { results } = await env.CAL.prepare(
-      `SELECT id, name, type, status, launch_date, promo_end_date, teaser_start
-       FROM events
-       WHERE status NOT IN ('cancelled')
-         AND COALESCE(teaser_start, launch_date) <= ?2
-         AND COALESCE(promo_end_date, launch_date) >= ?1
-       ORDER BY launch_date`,
-    ).bind(from, to).all();
-    return results || [];
-  } catch { return []; }        // calendar unreachable must never break the brief
-}
-
-/** Per-day multiplier for a month, plus the events that produced it. */
-function calendarWeights(events, ym, dim, cfg) {
-  const mult = {}, hits = {};
-  const bump = (date, m, ev) => {
-    if (!date.startsWith(ym)) return;
-    mult[date] = Math.max(mult[date] ?? 1, m);       // overlapping events don't compound
-    (hits[date] ??= []).push(ev.name);
-  };
-  for (const ev of events) {
-    const peak = cfg.multipliers[ev.type] ?? cfg.multipliers.default;
-    const start = ev.launch_date, end = ev.promo_end_date || ev.launch_date;
-    // run-up
-    if (ev.teaser_start) {
-      for (let d = ev.teaser_start; d < start; d = addDays(d, 1)) bump(d, cfg.teaser, ev);
-    }
-    // the window itself
-    for (let d = start; d <= end; d = addDays(d, 1)) bump(d, peak, ev);
-    // afterglow: a launch keeps selling for a few days, tapering off
-    let m = peak;
-    for (let i = 1; i <= cfg.decay_days; i++) {
-      m *= cfg.decay;
-      if (m <= 1.02) break;
-      bump(addDays(end, i), m, ev);
-    }
-  }
-  return { mult, hits };
 }
 
 /** Month goals for an account: month override merged over "default". Null if none set. */
@@ -815,22 +752,11 @@ async function briefData(env, acct, upTo) {
   const margin28 = marginDen > 0 ? marginNum / marginDen : null;   // trailing pre-ad-spend margin
   const cogsQuality = judgeCogs(dayMargins, margin28);
 
-  // Marketing calendar: only applies to the client this board describes.
-  const calCfg = await calendarConfig(env);
-  const calOn = calCfg.act_id === acct.act_id;
-  const calEvents = calOn ? await calendarEvents(env, monthStart, `${ym}-${String(dim).padStart(2, '0')}`) : [];
-  const { mult: calMult, hits: calHits } = calOn
-    ? calendarWeights(calEvents, ym, dim, calCfg)
-    : { mult: {}, hits: {} };
-
   let wTotal = 0;
   const dayW = {};
   for (let d = 1; d <= dim; d++) {
     const date = `${ym}-${String(d).padStart(2, '0')}`;
-    // Day-of-week shape x whatever the calendar says is happening. Normalising by
-    // wTotal below is what keeps the month's total equal to the goal — the calendar
-    // moves the target between days, it does not raise the month.
-    const w = (haveW ? wAvg[dow(date)] : 1) * (calMult[date] ?? 1);
+    const w = haveW ? wAvg[dow(date)] : 1;
     dayW[date] = w; wTotal += w;
   }
 
@@ -845,7 +771,6 @@ async function briefData(env, acct, upTo) {
     if (f.sales != null && f.spend != null && fcMargin != null) f.cm = f.sales * fcMargin - f.spend;
     f.amer = goals?.amer ?? (newShare != null && f.sales != null && f.spend ? newShare * f.sales / f.spend : null);
     f.mer = f.sales != null && f.spend ? f.sales / f.spend : null;   // implied by the sales + spend goals
-    if (calMult[date]) { f.cal_mult = calMult[date]; f.cal_events = calHits[date]; }
     if (date > upTo) { days.push({ date, f, a: null }); continue; }
     const netSalesDay = twDay(piv, date, TW_SALES);
     // Match Mobius Profit (and CTC's own report): revenue is "Net Sales + Shipping",
@@ -905,10 +830,7 @@ async function briefData(env, acct, upTo) {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz },
     month: ym, up_to: upTo, goals, cm_pct: cmPct, margin_28d: margin28,
     cogs_quality: cmPct != null ? { verdict: 'override', reason: `using your ${Math.round(cmPct * 100)}% margin override` } : cogsQuality,
-    weights: (haveW ? 'day-of-week (trailing 28d)' : 'uniform (not enough history yet)')
-      + (calOn && calEvents.length ? ` + marketing calendar (${calEvents.length} event${calEvents.length > 1 ? 's' : ''})` : ''),
-    calendar: { enabled: calOn, events: calEvents, days_lifted: Object.keys(calMult).length,
-      configured_for: calCfg.act_id, multipliers: calCfg.multipliers },
+    weights: haveW ? 'day-of-week (trailing 28d)' : 'uniform (not enough history yet)',
     new_share_28d: newShare, days, mtd, tw_last_sync: lastSync,
     brief_enabled: !!acct.brief_enabled,
   };
@@ -944,7 +866,7 @@ function buildBriefText(data, dates, narrative) {
     const day = data.days.find(x => x.date === d);
     if (!day?.a) continue;
     const f = day.f || {}, a = day.a;
-    L.push('', `*${prettyDate(d)}*${day.f?.cal_events?.length ? `  _${day.f.cal_events.join(', ')}_` : ''}`);
+    L.push('', `*${prettyDate(d)}*`);
     if (cmOk) {
       L.push(`Forecasted Contribution Margin: ${fm(f.cm)}`);
       L.push(`Actual Contribution Margin: ${fm(a.cm)}`);
@@ -1031,11 +953,6 @@ async function writeBriefNarrative(env, acct, data, date) {
 `
         : '') +
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
-      (data.calendar?.enabled && data.calendar.events.length
-        ? `Marketing calendar for this client: ${JSON.stringify(data.calendar.events.map(e => ({ name: e.name, type: e.type, status: e.status, from: e.launch_date, to: e.promo_end_date })))}. Forecast targets are RAISED on those days, so beating plan on a launch day is a genuine beat, and a miss there matters more. Mention the event by name when the day falls inside one.
-
-`
-        : '') +
       (data.week ? `This brief also carries a week-in-review block (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)} — weigh the weekly picture in So What?/What's Next?, not just the single day.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}`,
   });
@@ -1814,25 +1731,6 @@ export default {
         for (const a of accounts) results.push(await syncTwDaily(env, a, days).catch(e => ({ name: a.name, error: e.message })));
         return json({ ok: true, results });
       }
-      /* Which client does the Marketing Calendar board describe, and how hard do
-         its events move the plan? */
-      if (path === '/api/calendar-config') {
-        if (request.method === 'PUT') {
-          const b = await request.json().catch(() => ({}));
-          const cur = await calendarConfig(env);
-          const next = { ...cur };
-          if ('act_id' in b) next.act_id = b.act_id || null;
-          if (b.multipliers) next.multipliers = { ...cur.multipliers, ...b.multipliers };
-          for (const k of ['teaser', 'decay', 'decay_days']) if (b[k] != null) next[k] = +b[k];
-          await putSetting(env, 'calendarConfig', JSON.stringify(next));
-          return json({ ok: true, config: next });
-        }
-        const cfg = await calendarConfig(env);
-        const today = localDate('America/Los_Angeles');
-        const upcoming = await calendarEvents(env, addDays(today, -30), addDays(today, 90));
-        return json({ config: cfg, has_binding: !!env.CAL, events: upcoming });
-      }
-
       if (path === '/api/goal-suggest' && request.method === 'GET') {
         const act = url.searchParams.get('act');
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();

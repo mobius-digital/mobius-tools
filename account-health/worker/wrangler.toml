@@ -19,14 +19,6 @@ binding = "DB"
 database_name = "mobius-account-health"
 database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 
-# Read-only binding to the Marketing Calendar's database, so the Daily Brief's
-# forecast can lift targets on launch and promo days instead of treating a big
-# launch as a miss against a flat plan.
-[[d1_databases]]
-binding = "CAL"
-database_name = "launch-calendar"
-database_id = "633ebfdd-85b5-420c-9d6b-352b47de42b2"
-
 # Public config (Google OAuth client id is public by design; used to verify sign-ins).
 [vars]
 GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"

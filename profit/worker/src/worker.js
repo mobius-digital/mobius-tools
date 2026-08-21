@@ -22,7 +22,7 @@ const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
 const PROXY_PATHS = new Set([
   '/api/slack-channels', '/api/brief', '/api/brief-preview', '/api/brief-send',
-  '/api/briefs', '/api/goal-suggest', '/api/tw-sync', '/api/calendar-config',
+  '/api/briefs', '/api/goal-suggest', '/api/tw-sync',
 ]);
 
 /* ---------------- dates ---------------- */
@@ -276,6 +276,103 @@ function planFor(acct, ym, mtdRows) {
   };
 }
 
+/* ---------------- the forecast ("revenue cake") ----------------
+ * CTC forecast bottom-up, most predictable layer first: returning customers are
+ * the reliable base, paid acquisition is the volatile top, and they are explicit
+ * that paid cannot be forecast precisely. We do the same with two ADDITIVE layers,
+ * because those are the two our data actually decomposes into:
+ *     newCustomerSales + rcRevenue = totalSales   (exactly, verified)
+ * Email is NOT a third additive layer — Klaviyo-attributed revenue cuts across both
+ * (for The Golf Sock it exceeds returning revenue on its own), so it is reported as
+ * an overlay for context and never added in.
+ */
+function dowOf(d) { return new Date(d + 'T12:00:00Z').getUTCDay(); }
+
+async function forecastFor(env, acct, ym) {
+  const today = localDate(acct.tz);
+  const dim = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+  const monthStart = `${ym}-01`;
+  const monthEnd = `${ym}-${String(dim).padStart(2, '0')}`;
+  const lastActual = today > monthEnd ? monthEnd : addDays(today, -1);
+  const tFrom = addDays(lastActual, -27);          // trailing 28 full days
+
+  // Reuse the same day model the rest of the tool uses, so revenue means exactly
+  // what it means everywhere else (net sales + shipping, gated) and the forecast
+  // can never drift onto a different basis from the numbers it is compared against.
+  const { rows } = await seriesFor(env, acct, tFrom, monthEnd);
+  const byDate = Object.fromEntries(rows.map(r => [r.date, r]));
+  const trailing = rows.filter(r => r.date >= tFrom && r.date <= lastActual);
+  if (!trailing.length) return null;
+
+  // Returning is the predictable base, so give it a day-of-week shape.
+  const retByDow = Array.from({ length: 7 }, () => []);
+  let tNew = 0, tSpend = 0, tEmail = 0, tSales = 0;
+  const piv = await pivot(env, acct.act_id, tFrom, lastActual);
+  for (const r of trailing) {
+    if (r.ret_rev != null) retByDow[dowOf(r.date)].push(r.ret_rev);
+    tNew += r.new_rev ?? 0;
+    tSpend += r.spend ?? 0;
+    tSales += r.sales ?? 0;
+    tEmail += piv.klaviyoPlacedOrderSales?.[r.date] ?? 0;
+  }
+  const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const retAll = mean(retByDow.flat()) ?? 0;
+  const retFor = d => mean(retByDow[dowOf(d)]) ?? retAll;
+  const amer = tSpend > 0 ? tNew / tSpend : null;       // trailing acquisition efficiency
+  const spendPerDay = tSpend / trailing.length;
+
+  // Month to date, actual.
+  const mtdRows = rows.filter(r => r.date >= monthStart && r.date <= lastActual);
+  const mtd = {
+    sales: mtdRows.reduce((a, r) => a + (r.sales ?? 0), 0),
+    new_rev: mtdRows.reduce((a, r) => a + (r.new_rev ?? 0), 0),
+    returning: mtdRows.reduce((a, r) => a + (r.ret_rev ?? 0), 0),
+    spend: mtdRows.reduce((a, r) => a + (r.spend ?? 0), 0),
+  };
+
+  // Forward: returning from its own pattern, new from the spend we intend to run.
+  const goals = goalsFor(acct, ym);
+  const remaining = [];
+  for (let d = addDays(lastActual, 1); d <= monthEnd; d = addDays(d, 1)) remaining.push(d);
+  const spendLeft = goals.spend != null ? Math.max(0, goals.spend - mtd.spend) : null;
+  const plannedPerDay = spendLeft != null && remaining.length ? spendLeft / remaining.length : spendPerDay;
+  let expRet = 0, expNew = 0;
+  for (const d of remaining) {
+    expRet += retFor(d);
+    expNew += amer != null ? plannedPerDay * amer : 0;
+  }
+  const expSpend = plannedPerDay * remaining.length;
+
+  // Two scenarios, because they can differ a lot and the difference is the point:
+  // spending the rest of the budget, versus carrying on at the current pace.
+  let paceRet = 0, paceNew = 0;
+  for (const d of remaining) {
+    paceRet += retFor(d);
+    paceNew += amer != null ? spendPerDay * amer : 0;
+  }
+  const projected = mtd.sales + expRet + expNew;
+  const projectedAtPace = mtd.sales + paceRet + paceNew;
+  const goal = goals.sales ?? null;
+  return {
+    month: ym, days_in_month: dim, days_elapsed: mtdRows.length, days_remaining: remaining.length,
+    basis: {
+      days: trailing.length, amer, spend_per_day: spendPerDay, returning_per_day: retAll,
+      email_share: tSales > 0 ? tEmail / tSales : null, email_connected: tEmail > 0,
+    },
+    mtd,
+    expected: { returning: expRet, new_rev: expNew, spend: expSpend, sales: expRet + expNew },
+    projected, goal,
+    gap: goal != null ? projected - goal : null,
+    at_current_pace: {
+      sales: projectedAtPace,
+      spend: mtd.spend + spendPerDay * remaining.length,
+      gap: goal != null ? projectedAtPace - goal : null,
+    },
+    planned_spend_per_day: plannedPerDay,
+    spend_ramp: spendPerDay > 0 ? plannedPerDay / spendPerDay : null,
+  };
+}
+
 /* ---------------- cost-data trust ----------------
  * Real cost data is stable day to day. Incomplete COGS (some SKUs costed, some
  * not) makes daily margin swing wildly or go negative — and a wrong profit
@@ -475,6 +572,18 @@ export default {
       }
 
       /* Costs page: is this client's cost data trustworthy, and if not, why? */
+      /* The bottom-up forecast: where the month actually lands, and which layer
+         explains the gap to the goal. */
+      if (path === '/api/forecast') {
+        const act = url.searchParams.get('act');
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const ym = url.searchParams.get('month') || monthOf(localDate(acct.tz));
+        const f = await forecastFor(env, acct, ym);
+        if (!f) return json({ error: 'not enough Triple Whale history to forecast yet' }, 400);
+        return json({ account: pubAccount(acct), ...f });
+      }
+
       if (path === '/api/costs') {
         const act = url.searchParams.get('act');
         const acct = (await listAccounts(env, false)).find(a => a.act_id === act);

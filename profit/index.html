@@ -555,12 +555,35 @@ function renderProfitAll() {
   });
 }
 
+/** Where the month lands, built bottom-up: returning customers are the predictable
+ *  base, paid acquisition is the volatile top. Two scenarios, because "spend the
+ *  budget" and "carry on as you are" often disagree, and that gap is the decision. */
+function forecastCard(fc, cur) {
+  const g = fc.goal, p = fc.projected, pace = fc.at_current_pace?.sales;
+  const pill = v => v == null ? '' : `<span class="pill ${v >= 0 ? 'good' : Math.abs(v) / (g || 1) < 0.1 ? 'warn' : 'bad'}">${v >= 0 ? '+' : ''}${fmtK(v, cur)}</span>`;
+  const ramp = fc.spend_ramp;
+  return `<div class="card"><h3 style="margin-bottom:2px">Where the month lands</h3>
+    <p class="hint" style="margin-bottom:10px">Built bottom-up from this client's own trailing 28 days, the way CTC forecast: <b>returning customers</b> are the predictable base, <b>new customers</b> follow whatever you spend. ${fc.days_elapsed} days actual, ${fc.days_remaining} to go.</p>
+    <div class="tbl-wrap"><table><tbody>
+      <tr><td>Banked so far</td><td class="num"><b>${fmtMoney(fc.mtd.sales, cur)}</b></td><td class="tiny">${fmtMoney(fc.mtd.returning, cur)} returning · ${fmtMoney(fc.mtd.new_rev, cur)} new · spent ${fmtK(fc.mtd.spend, cur)}</td></tr>
+      <tr><td>Still to come — returning</td><td class="num">${fmtMoney(fc.expected.returning, cur)}</td><td class="tiny">${fmtMoney(fc.basis.returning_per_day, cur)}/day, shaped by weekday</td></tr>
+      <tr><td>Still to come — new</td><td class="num">${fmtMoney(fc.expected.new_rev, cur)}</td><td class="tiny">${fmtK(fc.planned_spend_per_day, cur)}/day of spend at ${fmtX(fc.basis.amer)} aMER</td></tr>
+      <tr style="border-top:2px solid var(--line-strong)"><td><b>Projected month</b> <span class="tiny">(spending the budget)</span></td><td class="num"><b>${fmtMoney(p, cur)}</b></td><td class="tiny">${g != null ? `vs ${fmtMoney(g, cur)} goal ${pill(fc.gap)}` : 'no goal set'}</td></tr>
+      ${pace != null && Math.abs(pace - p) > (g || 1) * 0.01 ? `<tr><td>If spend stays at today's pace</td><td class="num">${fmtMoney(pace, cur)}</td><td class="tiny">${g != null ? `vs goal ${pill(fc.at_current_pace.gap)} · ` : ''}${fmtK(fc.basis.spend_per_day, cur)}/day${ramp && ramp > 1.15 ? ` — hitting the plan needs <b>${ramp.toFixed(1)}×</b> that` : ''}</td></tr>` : ''}
+    </tbody></table></div>
+    <p class="tiny" style="margin-top:8px">${fc.basis.email_connected
+      ? `Email is <b>${fmtPct(fc.basis.email_share)}</b> of revenue for this client. It cuts across new and returning rather than being separate, so it is context here, not a third line to add up.`
+      : `Klaviyo is not reporting into Triple Whale for this client, so email's contribution can't be separated out. It is still inside these numbers — just not visible on its own.`}
+      CTC are explicit that paid acquisition can't be forecast precisely; the returning base is the part you can lean on.</p></div>`;
+}
+
 async function renderProfit() {
   if (S.act === 'all') return renderProfitAll();
   $('#main').innerHTML = `<h2>Profit</h2><div class="card"><span class="hint">Loading…</span></div>`;
-  let d;
+  let d, fc = null;
   try { d = await api(`/api/client?act=${S.act}&days=${S.days}`); }
   catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  try { fc = await api(`/api/forecast?act=${S.act}`); } catch { /* forecast is a bonus, never a blocker */ }
   const cur = d.account.currency, t = d.totals;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const h = acct?.cost_health;
@@ -593,6 +616,7 @@ async function renderProfit() {
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${t.cm>=0?'var(--good)':'var(--bad)'}">${fmtMoney(t.cm, cur)}</b></td><td class="tiny">${t.sales?fmtPct(t.cm/t.sales):'—'} of revenue</td></tr>
       </tbody></table></div>
       <p class="tiny" style="margin-top:8px">This is CTC's definition: revenue minus <b>every variable cost</b> — product, fulfilment, handling, payment fees and ad spend. Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?"${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</p></div>` : ''}
+    ${fc ? forecastCard(fc, cur) : ''}
     <div class="card"><h3 style="margin-bottom:2px">Revenue vs ad spend, day by day</h3>
       <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> = net sales, <span style="color:#C08A2E;font-weight:700">amber</span> = ad spend. The gap between them is what pays for everything else. Hover or tap for exact values.</p>
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
@@ -983,15 +1007,7 @@ async function renderSettings() {
     <div class="card settings"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. This is the channel <b>your client reads</b>. Internal pace and KPI alerts are a separate setting that lives in <a href="../account-health/">Account Health → Settings</a>, because those are for your media buyer, not the client. A brand needs this channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>
-  <div class="card"><h3 style="margin-bottom:6px">Marketing calendar</h3>
-      <p class="hint" style="margin-bottom:10px">A flat plan makes a launch day look like a miss and a quiet Sunday look like a win. Point the <a href="https://launch-calendar.mobius-digital.workers.dev" target="_blank" rel="noopener">Marketing Calendar</a> at a client and its launches and promos <b>raise that day's target</b> instead. The month's goal never changes — the target simply moves toward the days something is actually happening.</p>
-      <div class="row">
-        <label class="tiny">this calendar describes</label>
-        <select id="calAct" style="min-width:190px"><option value="">— no client —</option></select>
-        <span class="tiny" id="calMsg"></span>
-      </div>
-      <div id="calEvents" class="tiny" style="margin-top:10px"></div></div>`;
+      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. This is the channel <b>your client reads</b>. Internal pace and KPI alerts are a separate setting that lives in <a href="../account-health/">Account Health → Settings</a>, because those are for your media buyer, not the client. A brand needs this channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
@@ -1057,26 +1073,6 @@ async function renderSettings() {
       show('settings');
     } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
   });
-
-  api('/api/calendar-config').then(c => {
-    const sel = $('#calAct');
-    sel.innerHTML = '<option value="">— no client —</option>' + S.accounts.map(a =>
-      `<option value="${a.act_id}" ${c.config.act_id === a.act_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
-    const live = (c.events || []).filter(e => e.status !== 'cancelled');
-    $('#calEvents').innerHTML = !c.has_binding
-      ? '<span style="color:var(--bad)">The calendar database is not connected to this worker.</span>'
-      : !c.config.act_id
-      ? 'Not pointed at a client yet, so no forecast is being adjusted.'
-      : live.length
-      ? `<b>${live.length} upcoming event${live.length > 1 ? 's' : ''} lifting the plan:</b><br>` + live.map(e =>
-          `· ${esc(e.launch_date)}${e.promo_end_date ? ` → ${esc(e.promo_end_date)}` : ''} — <b>${esc(e.name)}</b> <span class="pill unk">${esc(String(e.type).replace(/_/g, ' '))}</span> ×${(c.config.multipliers[e.type] ?? c.config.multipliers.default)}`).join('<br>')
-      : 'Connected, but every event on the board is cancelled — nothing is lifting the plan. Add or confirm an event in the Marketing Calendar and targets move automatically.';
-    sel.onchange = async () => {
-      $('#calMsg').textContent = 'Saving…';
-      try { await api('/api/calendar-config', { method: 'PUT', body: JSON.stringify({ act_id: sel.value || null }) }); $('#calMsg').textContent = 'Saved ✓'; show('settings'); }
-      catch (e) { $('#calMsg').textContent = e.message; }
-    };
-  }).catch(e => { $('#calEvents').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; });
 
   api('/api/slack-channels').then(r => { chList = r.channels; draw(); })
     .catch(err => { chList = 'error'; draw();

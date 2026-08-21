@@ -49,6 +49,17 @@ profit/
   /api/tw-sync and /api/slack-channels over the `AUTH` binding. Monthly goals are
   written locally (`PUT /api/goals`) so the month/default merge sits beside the
   margin override in the same JSON blob — and it must preserve `cm_pct`.
+- **Never depend on the Marketing Calendar.** It is a Lucky Golf internal app, not
+  a Mobius one. It was integrated and then deliberately removed; do not re-add it.
+- **The forecast is CTC's revenue cake with TWO additive layers.** returning (the
+  predictable base, day-of-week shaped) + new (planned spend x trailing aMER).
+  `newCustomerSales + rcRevenue = totalSales` exactly, so those are the only two
+  that add up. Email is an overlay, NEVER a third addend — Klaviyo revenue cuts
+  across both, and only The Golf Sock has it connected at all.
+- **`forecastFor()` must reuse `seriesFor()`**, so revenue means the same thing
+  (net sales + shipping, gated) as everywhere else. The first version used a bare
+  netSales lookup and silently forecast on a ~7% smaller basis than it compared
+  against. `suggestGoals()` in account-health was fixed for the same reason.
 - **No cron.** The Cloudflare account is at the free-plan limit of 5 triggers.
   `refreshIfStale()` warms `p_cost_health` on page load instead.
 - **Auth needs no new secret.** The dashboard password lives in the shared

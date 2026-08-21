@@ -93,21 +93,24 @@ Change Log stays available.
 - **A missed send is picked up automatically.** `coverageDates()` walks from the last
   successfully sent brief, so a skipped day produces "covering 8/18, 8/19 and 8/20"
   with a block each — exactly what CTC did. Capped at 4 days, never crosses a month.
-- **The Marketing Calendar has no brand column** — it is a single board (Lucky
-  Golf's), so `settings.calendarConfig.act_id` maps the whole board to one client.
-  Multi-client calendar forecasting needs either a brand column on
-  `launch-calendar.events` or a board per client. Cancelled events are ignored.
-- **Calendar multipliers redistribute, never inflate.** Day weight = day-of-week
-  share x event multiplier, then normalised by the total, so the month's target is
-  unchanged and only its shape moves. Defaults: product_launch 2.2x, promo 1.8x,
-  other 1.4x, teaser run-up 1.15x, afterglow decays 0.75x/day for 4 days.
 - **Every metric carries its plan** (`planFor`): the month's goals pro-rated to
   the days elapsed, so month-to-date actuals have something to beat. This is
   CTC's defining move — a number without a goal beside it is trivia.
-- **Forecast is calendar-aware.** Reads the Marketing Calendar Worker so promo and
-  launch days get lifted targets instead of reading as fake "misses". This is the
-  piece Statlas explicitly does and generic dashboards don't — and we already own
-  the calendar data.
+- **No calendar dependency** (Cole, 2026-08-21). The Marketing Calendar is a Lucky
+  Golf internal app, not a Mobius one, so a multi-client Mobius tool must not depend
+  on it. It was wired in and then removed. Researching CTC's actual method showed
+  the calendar was never the engine anyway.
+- **Forecast follows CTC's "revenue cake"**, bottom-up, most predictable layer first:
+  returning customers are the reliable base, paid acquisition the volatile top (CTC
+  are explicit that paid "definitive answers don't exist"). We use TWO ADDITIVE
+  layers because that is what the data actually decomposes into
+  (`newCustomerSales + rcRevenue = totalSales`, exactly). **Email is NOT a third
+  additive layer** — Klaviyo-attributed revenue cuts across both (for The Golf Sock
+  it exceeds returning revenue alone), so it is an overlay for context only. Only
+  The Golf Sock has Klaviyo connected; the other five report zero.
+- **Two scenarios, always.** "Spending the budget" and "at today's pace" can differ
+  hugely (Lucky Golf: $95.2k vs $79.3k), and that gap is the actual decision. The
+  card names the ramp required.
 - **Forecast method:** trailing-28-day day-of-week baseline (already proven in the
   Daily Brief), × calendar multipliers for promo days, × a growth factor from the
   monthly goal. Frozen at month start so the plan can't drift to flatter us.
