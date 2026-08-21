@@ -198,7 +198,7 @@
   @media (max-width:720px){ .hd{padding:10px 14px} main{padding:16px 14px 60px} .feed .it{grid-template-columns:1fr} }
 </style><body>
 <header>
-  <div class="in">
+  <div class="hd">
     <a class="mark" href="../"><img src="../favicon.png" alt=""><b>MOBIUS <span>TOOLS</span></b></a>
     <div class="hd-sep"></div>
     <div class="hd-title">Mobius <em>Profit</em></div>
@@ -472,11 +472,41 @@ function salesSpendSVG(rows, cur) {
   </svg>` };
 }
 
+/** Profit with no client selected: rank every brand by what it actually kept. */
+function renderProfitAll() {
+  const ranked = S.accounts.slice().sort((a, b) => {
+    const av = cmTrusted(a.cost_health) ? (a.window.cm ?? -Infinity) : -Infinity;
+    const bv = cmTrusted(b.cost_health) ? (b.window.cm ?? -Infinity) : -Infinity;
+    return bv - av;
+  });
+  const totalTrusted = ranked.filter(a => cmTrusted(a.cost_health) && a.window.cm != null);
+  $('#main').innerHTML = `<h2>Profit</h2>
+    <p class="sub">What each brand actually kept over the last ${S.days} days, best first. Pick a client above — or click a card — for its full waterfall.</p>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
+    ${totalTrusted.length < S.accounts.length ? `<div class="notice warn">ℹ️ <div><b>${S.accounts.length - totalTrusted.length} client${S.accounts.length - totalTrusted.length > 1 ? 's are' : ' is'} missing from the profit ranking</b> because their cost data can't be trusted. Revenue and efficiency still work for them — see the <b>Costs</b> tab.</div></div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+      ${ranked.map(a => {
+        const w = a.window, trusted = cmTrusted(a.cost_health);
+        const bar = trusted && w.sales ? Math.max(0, Math.min(100, (w.cm / w.sales) * 100)) : 0;
+        return `<div class="card" data-id="${a.act_id}" style="margin:0;cursor:pointer">
+          <div class="row" style="margin-bottom:6px"><b style="font-size:15px">${esc(a.name)}</b><span style="flex:1"></span>${healthPill(a.cost_health)}</div>
+          <div style="font-size:24px;font-weight:700;color:${!trusted ? 'var(--muted)' : w.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${trusted ? fmtMoney(w.cm, a.currency) : 'not reported'}</div>
+          <div class="tiny" style="margin-bottom:8px">${trusted ? `kept ${fmtPct(w.sales ? w.cm / w.sales : null)} of ${fmtK(w.sales, a.currency)} net sales` : `cost data unreliable — ${fmtK(w.sales, a.currency)} net sales`}</div>
+          ${trusted ? `<div style="height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:${bar.toFixed(1)}%;background:${w.cm>=0?'var(--good)':'var(--bad)'}"></div></div>` : ''}
+          <div class="tiny">MER <b>${fmtX(w.mer)}</b> · aMER <b>${fmtX(w.amer)}</b> · ${fmtPct(w.new_share)} new · spend ${fmtK(w.spend, a.currency)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <p class="tiny" style="margin-top:12px">Contribution margin = net sales − product costs − payment fees − all ad spend. It excludes fixed costs, so it is the profitability of the marketing, not of the business. Money is each client's own currency and is never summed across them.</p>`;
+  $('#main').addEventListener('click', e => {
+    const c = e.target.closest('.card[data-id]'); if (!c) return;
+    S.act = c.dataset.id; localStorage.setItem(LS.act, S.act);
+    $('#clientPick').value = S.act; show('profit');
+  });
+}
+
 async function renderProfit() {
-  if (S.act === 'all') {
-    $('#main').innerHTML = `<h2>Profit</h2><p class="sub">Pick a client from the dropdown top-right to see where its money goes.</p>`;
-    return renderOverview();
-  }
+  if (S.act === 'all') return renderProfitAll();
   $('#main').innerHTML = `<h2>Profit</h2><div class="card"><span class="hint">Loading…</span></div>`;
   let d;
   try { d = await api(`/api/client?act=${S.act}&days=${S.days}`); }
