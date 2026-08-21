@@ -73,6 +73,11 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
   chain = cm_pct override → grossProfit − fees − spend → netSales − COGS −
   fees − spend; forecast weights = trailing-28d day-of-week shares frozen at
   month start.
+- **Never state Contribution Margin from unvalidated COGS.** Triple Whale returns
+  cost data even when the client has only costed *some* SKUs, which produces wild
+  daily margin swings and negative days. `judgeCogs()` gates it; broken clients get
+  CM stripped from the brief, the UI and the narrative prompt. Grunk Dolfer is the
+  live example. A `cm_pct` goal override is the escape hatch.
 - **claude-opus-5 spends thinking tokens INSIDE max_tokens** — a "1200-token"
   call returns truncated text mid-sentence. Give narrative calls ≥6000.
 

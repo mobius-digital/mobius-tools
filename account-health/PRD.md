@@ -92,6 +92,15 @@ cross-platform reporting is wanted, it gets its own dashboard.
 - **Auto-post is opt-in per brand** (`brief_enabled`) and requires goals + a
   Slack channel; runs at the 14:00 UTC cron (7am PT / 10am ET), covering
   yesterday. Manual preview/post any time from the Daily Brief page.
+- **Cost data is gated before it reaches a client.** `judgeCogs()` scores the
+  trailing-28-day per-day margin spread: any day with costs above revenue, a
+  blended margin <=15%, or a p10-p90 spread >60pts marks the client `broken`
+  (>40pts = `noisy`). When broken, Contribution Margin is **removed entirely**
+  from the brief, the card and the all-clients table, and the narrative prompt
+  forbids Claude from mentioning margin at all - a wrong profit number in front
+  of a client is worse than no number. A `cm_pct` override in the goals bypasses
+  it. Verified 2026-08-20: 5 of 6 brands `good` (72-89% margin); Grunk Dolfer
+  `broken` (9 of 28 days with costs above revenue, trailing margin -3%).
 - **Goal suggestions** (GET /api/goal-suggest): trailing-28-day run-rate →
   monthly sales/spend (spend prefers the Settings monthly target) + trailing
   aMER — a "beat your own average" starter plan. Initial goals were auto-set

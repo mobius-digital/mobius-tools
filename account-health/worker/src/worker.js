@@ -674,6 +674,31 @@ async function suggestGoals(env, acct) {
   };
 }
 
+/** Is the client's COGS data in Triple Whale trustworthy enough to state Contribution
+ *  Margin to their face? Real cost data is stable day to day; incomplete COGS (some SKUs
+ *  costed, some not) makes daily margin swing wildly or go negative. */
+function judgeCogs(dayMargins, blended) {
+  const n = dayMargins.length;
+  if (!n || blended == null) return { verdict: 'none', reason: 'no cost data in Triple Whale' };
+  const sorted = dayMargins.slice().sort((a, b) => a - b);
+  const lo = sorted[Math.floor(n * 0.1)], hi = sorted[Math.floor(n * 0.9)];
+  const negatives = dayMargins.filter(m => m < 0).length;
+  const spread = hi - lo;
+  const out = { verdict: 'good', days: n, blended, spread, negatives, p10: lo, p90: hi };
+  if (negatives > 0 || blended <= 0.15 || spread > 0.6) {
+    out.verdict = 'broken';
+    out.reason = negatives > 0
+      ? `${negatives} of the last ${n} days show costs above revenue — some products are missing or mis-set COGS in Triple Whale`
+      : blended <= 0.15
+      ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin — COGS in Triple Whale looks wrong`
+      : `daily margin swings ${Math.round(lo * 100)}%–${Math.round(hi * 100)}%, which means only some products have COGS set`;
+  } else if (spread > 0.4) {
+    out.verdict = 'noisy';
+    out.reason = `daily margin ranges ${Math.round(lo * 100)}%–${Math.round(hi * 100)}% — likely a few products missing COGS`;
+  }
+  return out;
+}
+
 /** Month goals for an account: month override merged over "default". Null if none set. */
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
@@ -705,6 +730,7 @@ async function briefData(env, acct, upTo) {
   const dow = d => new Date(d + 'T12:00:00Z').getUTCDay();
   const wSum = Array(7).fill(0), wN = Array(7).fill(0);
   let newRevSum = 0, salesSum = 0, marginNum = 0, marginDen = 0;
+  const dayMargins = [];                     // per-day pre-ad-spend margin, for the COGS sanity check
   for (let i = 1; i <= 28; i++) {
     const d = addDays(monthStart, -i);
     const s = twDay(piv, d, TW_SALES) ?? meta[d]?.revenue ?? null;
@@ -713,12 +739,13 @@ async function briefData(env, acct, upTo) {
     salesSum += s;
     newRevSum += piv.newCustomerSales?.[d] ?? 0;
     const gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
-    if (gp != null && s > 0) { marginNum += gp; marginDen += s; }
+    if (gp != null && s > 0) { marginNum += gp; marginDen += s; dayMargins.push(gp / s); }
   }
   const haveW = wN.filter(Boolean).length === 7 && wN.reduce((a, b) => a + b, 0) >= 14;
   const wAvg = wSum.map((s, i) => wN[i] ? s / wN[i] : 1);
   const newShare = salesSum > 0 && newRevSum > 0 ? newRevSum / salesSum : null;
   const margin28 = marginDen > 0 ? marginNum / marginDen : null;   // trailing pre-ad-spend margin
+  const cogsQuality = judgeCogs(dayMargins, margin28);
 
   let wTotal = 0;
   const dayW = {};
@@ -778,6 +805,7 @@ async function briefData(env, acct, upTo) {
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz },
     month: ym, up_to: upTo, goals, cm_pct: cmPct, margin_28d: margin28,
+    cogs_quality: cmPct != null ? { verdict: 'override', reason: `using your ${Math.round(cmPct * 100)}% margin override` } : cogsQuality,
     weights: haveW ? 'day-of-week (trailing 28d)' : 'uniform (not enough history yet)',
     new_share_28d: newShare, days, mtd, tw_last_sync: lastSync,
     brief_enabled: !!acct.brief_enabled,
@@ -793,7 +821,10 @@ function buildBriefText(data, date, narrative) {
   const fx = n => n == null ? '—' : `${n.toFixed(2)}x`;
   const pct = (aV, fV) => aV != null && fV ? ` (${aV >= fV ? '+' : ''}${Math.round((aV / fV - 1) * 100)}% vs plan)` : '';
   const L = [`*Daily Brief — ${data.account.name} — ${date}*`];
-  L.push(`Forecasted Contribution Margin: ${fm(f.cm)} · Actual: ${fm(a.cm)}${pct(a.cm, f.cm)}`);
+  // A wrong contribution-margin number in front of a client is worse than no number:
+  // when Triple Whale's cost data is unreliable we leave CM out entirely.
+  const cmOk = data.cogs_quality?.verdict !== 'broken' && data.cogs_quality?.verdict !== 'none';
+  if (cmOk) L.push(`Forecasted Contribution Margin: ${fm(f.cm)} · Actual: ${fm(a.cm)}${pct(a.cm, f.cm)}`);
   L.push(`Forecasted Net Sales: ${fm(f.sales)} · Actual: ${fm(a.sales)}${pct(a.sales, f.sales)}`);
   L.push(`Forecasted Total Spend: ${fm(f.spend)} · Actual: ${fm(a.spend)}${pct(a.spend, f.spend)}`);
   L.push(`Forecasted aMER: ${fx(f.amer)} · Actual: ${fx(a.amer)}`);
@@ -819,7 +850,7 @@ function buildBriefText(data, date, narrative) {
   const wk = data.week;
   if (wk) {
     L.push('', `*Week in review — ${wk.from} → ${wk.to}*`);
-    L.push(`Net Sales ${fm(wk.a.sales)} vs ${fm(wk.f.sales)} plan${pct(wk.a.sales, wk.f.sales)} · Spend ${fm(wk.a.spend)} vs ${fm(wk.f.spend)} · CM ${fm(wk.a.cm)} vs ${fm(wk.f.cm)} · aMER ${fx(wk.a.amer)}`);
+    L.push(`Net Sales ${fm(wk.a.sales)} vs ${fm(wk.f.sales)} plan${pct(wk.a.sales, wk.f.sales)} · Spend ${fm(wk.a.spend)} vs ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)} vs ${fm(wk.f.cm)}` : ''} · aMER ${fx(wk.a.amer)}`);
     if (wk.best) L.push(`Best day ${wk.best.date} (${fm(wk.best.sales)}) · slowest ${wk.worst.date} (${fm(wk.worst.sales)})`);
   }
   return L.join('\n') + (narrative ? `\n\n${narrative}` : '');
@@ -876,6 +907,15 @@ async function writeBriefNarrative(env, acct, data, date) {
     user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${date}.\n` +
       `Goals this month: ${JSON.stringify(data.goals)}. Meta ROAS floor: ${acct.target_roas ?? 'none'}. Forecast weighting: ${data.weights}.\n` +
       `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data (gross profit, or net sales − COGS − payment fees) − ad spend'}.\n\n` +
+      (data.cogs_quality && (data.cogs_quality.verdict === 'broken' || data.cogs_quality.verdict === 'none')
+        ? `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality.reason}). Contribution margin has been REMOVED from the numbers block - do NOT mention contribution margin, CM, profit or margin anywhere in your narrative. Build the story from net sales, spend, aMER and the channel reads instead.
+
+`
+        : data.cogs_quality?.verdict === 'noisy'
+        ? `Note: this client's cost data is somewhat noisy (${data.cogs_quality.reason}) - treat contribution margin as directional, not exact.
+
+`
+        : '') +
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
       (data.week ? `This brief also carries a week-in-review block (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)} — weigh the weekly picture in So What?/What's Next?, not just the single day.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}`,
