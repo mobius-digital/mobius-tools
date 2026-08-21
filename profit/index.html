@@ -431,8 +431,8 @@ const PAGE_HELP = {
     <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning (~7am PT / 10am ET), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
   settings: `
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
-    <p><b>Everything here is shared with Account Health.</b> There is one database behind both tools, so a channel you pick here is the same channel Account Health uses — there is no second copy to keep in sync, and no way for the two to disagree.</p>
-    <p><b>Alerts channel:</b> where this brand's reporting posts. Invite the Slack bot to the channel first or it can't post there — channels the bot hasn't joined are marked.</p>
+    <p><b>This page is only about what your client sees.</b> Internal pace and KPI alerts for your media buyer are configured in <b>Account Health → Settings</b> — different audience, different tool.</p>
+    <p><b>Daily Brief channel:</b> where the client's morning update posts. Invite the Slack bot to the channel first or it can't post there — channels the bot hasn't joined are marked.</p>
     <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning from Account Health. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
     <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>`,
 };
@@ -981,9 +981,9 @@ async function renderSettings() {
     <p class="sub">Where each brand's reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
     <div class="card settings"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th title="INTERNAL: pace and KPI alerts for the media buyer. Nobody outside Mobius should be in this channel.">Alerts channel <span class="tiny">(internal)</span></th><th title="CLIENT-FACING: where the Daily Brief posts. Falls back to the alerts channel if left blank, so set it deliberately before switching the brief on.">Daily Brief channel <span class="tiny">(client)</span></th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th></tr></thead>
+      <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. <b>The two channels are deliberately separate:</b> the alerts channel carries internal pace and KPI warnings for the media buyer, while the Daily Brief is written for the client. Leaving the brief channel blank makes it fall back to the internal one, which is safe but means the client never sees it. The brief needs a channel and monthly goals (set on Account Health → Daily Brief) before it will switch on, and it never turns itself on.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. This is the channel <b>your client reads</b>. Internal pace and KPI alerts are a separate setting that lives in <a href="../account-health/">Account Health → Settings</a>, because those are for your media buyer, not the client. A brand needs this channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
@@ -997,8 +997,7 @@ async function renderSettings() {
   const draw = () => {
     tb.innerHTML = S.accounts.map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
-      <td>${chCell(a, 'slack_channel', '— none —')}</td>
-      <td>${chCell(a, 'brief_channel', a.slack_channel ? '— same as alerts —' : '— none —')}${a.brief_enabled && !a.brief_channel ? '<br><span class="tiny" style="color:var(--warn)">⚠ posting to the internal channel</span>' : ''}</td>
+      <td>${chCell(a, 'brief_channel', '— not set —')}${a.brief_enabled && !a.brief_channel ? '<br><span class="tiny" style="color:var(--warn)">⚠ falling back to the internal alerts channel</span>' : ''}</td>
       <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Posting each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
       <td>${healthPill(a.cost_health)}</td>
