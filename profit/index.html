@@ -1180,8 +1180,22 @@ async function renderPlan(first) {
     return `<span class="pill bad">unrealistic</span> This plan needs new customers at <b>${fmtX(x.impliedAmer)}</b>, <b>${pctOver}% better</b> than the <b>${fmtX(x.trailing)}</b> the client has actually been getting. Either raise the spend, lower the revenue goal, or accept a lower MER.`;
   };
 
+  // Every derived number states its own window. The mix is deliberate: efficiency
+  // and returning behaviour move, so they come from the most recent 28 days, while
+  // the revenue basis and margin come from a whole finished month. Declared above
+  // cmHtml because that reads it too — the CM comparison and the "Based on" box
+  // must always name the same month.
+  const src = (p.ctx && p.ctx.sources) || {};
+
   const cmHtml = x => {
-    const lastFull = hist.filter(h => !h.partial && h.month < p.month).slice(-1)[0] || null;
+    // Compare against the SAME month the "Based on" box names, and only when that
+    // month is genuinely complete. Picking "most recent finished month" separately
+    // let the two disagree: a month with a Triple Whale sync gap is skipped as a
+    // revenue basis but was still used here, so the plan got measured against a
+    // month missing days - understating its CM and flattering the comparison.
+    const lastFull = src.basis_month
+      ? hist.find(h => h.month === src.basis_month && !h.partial && h.days >= h.days_in_month - 2) || null
+      : null;
     if (!x || x.cm == null || !lastFull || lastFull.cm == null) return '';
     const d = x.cm - lastFull.cm;
     return d >= 0
@@ -1189,10 +1203,6 @@ async function renderPlan(first) {
       : `⚠️ That leaves <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than ${esc(monthLabel(lastFull.month))} — the extra spend outweighs the extra revenue.`;
   };
 
-  // Every derived number states its own window. The mix is deliberate: efficiency
-  // and returning behaviour move, so they come from the most recent 28 days, while
-  // the revenue basis and margin come from a whole finished month.
-  const src = (p.ctx && p.ctx.sources) || {};
   const basisNote = () => {
     const rows = [];
     if (src.basis_month) rows.push(['Revenue basis', `${esc(monthLabel(src.basis_month))} actual`]);

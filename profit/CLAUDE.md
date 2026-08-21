@@ -65,6 +65,13 @@ profit/
   spells all of it out under the plan. Cole asked "is this last month or trailing six
   months?" and nothing on screen answered him. Any future derived input must say
   where it came from.
+- **Anything that names a month must read it from `ctx.sources`, never re-derive it.**
+  `cmHtml` picked "most recent finished month" with its own filter while the "Based
+  on" box used the server's `basis_month`, which additionally requires the month to
+  be near-complete (`days >= days_in_month - 2`). A month with a Triple Whale sync
+  gap was therefore skipped as a revenue basis but still used for the CM comparison,
+  so the plan was measured against a month missing days - understating that month's
+  CM and flattering the plan. One basis, read from one place.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),
