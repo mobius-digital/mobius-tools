@@ -49,6 +49,19 @@ profit/
   /api/tw-sync and /api/slack-channels over the `AUTH` binding. Monthly goals are
   written locally (`PUT /api/goals`) so the month/default merge sits beside the
   margin override in the same JSON blob — and it must preserve `cm_pct`.
+- **Plan is the ONLY place goals are set.** Every other page reports against them.
+  The Daily Brief tab shows the plan read-only with a link across; do not re-add an
+  editor there. Plan defaults to NEXT month (nobody plans a month that is already
+  three-quarters gone) and offers a month picker from last month to +4.
+- **Three ways into the same plan.** returning revenue arrives on its own and the
+  rest is bought at trailing aMER, so: growth% -> spend, spend -> revenue, or
+  MER -> both, via `spend = returning / (MER - aMER)`. A MER target at or below aMER
+  is unreachable and must say so rather than rendering nonsense.
+- **`goals_json.default` is inheritance, NOT a plan.** `goalsFor()` merges it under
+  every month, which made unplanned future months look planned. The API returns
+  `planned` (an explicit `goals_json[ym]` entry) and the UI must key status off that.
+- **Past months are read only** and must not show inherited defaults as if they were
+  that month's plan — say "no plan was set".
 - **The plan is agreed with the client, never auto-applied.** `PUT /api/plan` writes
   `accounts.goals_json` (the one field every tool reads) AND a `p_plan` row for the
   story: basis, growth chosen, required spend, expected CM, share token, agreement.

@@ -317,25 +317,51 @@ async function monthHistory(env, acct, upToYm, n = 6) {
   });
 }
 
-/** What a growth choice actually costs. Returning revenue arrives largely on its
- *  own; everything above that has to be bought, so the spend a goal implies falls
- *  out of the client's own trailing aMER. Growth is never free. */
-function planMath(basisSales, growthPct, ctx) {
-  const goalSales = basisSales * (1 + growthPct);
+/** The three ways of saying the same plan.
+ *  Returning revenue is expected to arrive on its own; everything above it has to
+ *  be bought at the client's trailing aMER. That single relationship lets you enter
+ *  the plan from whichever end you actually think in:
+ *    growth  — "up 10% on last month"      -> derives the spend it takes
+ *    spend   — "we have $40k to spend"      -> derives the revenue that buys
+ *    mer     — "we need to hit 2.5x"        -> derives both
+ *  MER = (returning + spend x aMER) / spend, so spend = returning / (MER - aMER).
+ *  A target MER at or below aMER is unreachable: returning revenue alone would have
+ *  to be zero or negative. */
+function planMath(mode, value, ctx, basisSales) {
   const dim = ctx.days_in_month;
   const expectedReturning = (ctx.returning_per_day ?? 0) * dim;
-  const newNeeded = Math.max(0, goalSales - expectedReturning);
-  const requiredSpend = ctx.amer ? newNeeded / ctx.amer : null;
+  const amer = ctx.amer ?? null;
+  let goalSales = null, requiredSpend = null, unreachable = null;
+
+  if (mode === 'spend') {
+    requiredSpend = Math.max(0, value);
+    goalSales = expectedReturning + (amer ? requiredSpend * amer : 0);
+  } else if (mode === 'mer') {
+    if (amer == null || value <= amer) {
+      unreachable = amer != null
+        ? `A ${value.toFixed(2)}x MER is not reachable while acquisition runs at ${amer.toFixed(2)}x — blended MER can only exceed aMER by whatever returning customers add on top.`
+        : 'No acquisition efficiency measured yet, so a MER target cannot be costed.';
+      requiredSpend = null; goalSales = null;
+    } else {
+      requiredSpend = expectedReturning / (value - amer);
+      goalSales = value * requiredSpend;
+    }
+  } else {
+    goalSales = basisSales * (1 + value);
+    const newNeeded = Math.max(0, goalSales - expectedReturning);
+    requiredSpend = amer ? newNeeded / amer : null;
+  }
+
+  const newNeeded = goalSales != null ? Math.max(0, goalSales - expectedReturning) : null;
   const margin = ctx.margin ?? null;
-  const expectedCm = margin != null && requiredSpend != null ? goalSales * margin - requiredSpend : null;
+  const expectedCm = margin != null && requiredSpend != null && goalSales != null
+    ? goalSales * margin - requiredSpend : null;
   return {
-    growth_pct: growthPct,
-    sales: goalSales,
-    expected_returning: expectedReturning,
-    new_needed: newNeeded,
+    mode, input: value, unreachable,
+    sales: goalSales, expected_returning: expectedReturning, new_needed: newNeeded,
     required_spend: requiredSpend,
-    implied_amer: requiredSpend ? newNeeded / requiredSpend : null,
-    implied_mer: requiredSpend ? goalSales / requiredSpend : null,
+    growth_pct: goalSales != null && basisSales ? goalSales / basisSales - 1 : null,
+    implied_mer: requiredSpend && goalSales != null ? goalSales / requiredSpend : null,
     expected_cm: expectedCm,
     expected_cm_margin: expectedCm != null && goalSales ? expectedCm / goalSales : null,
   };
@@ -722,13 +748,13 @@ export default {
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz);
         const ym = url.searchParams.get('month') || monthOf(today);
-        const history = await monthHistory(env, acct, monthOf(today), 6);
+        const history = await monthHistory(env, acct, monthOf(today) > ym ? monthOf(today) : ym, 8);
 
         // Basis: the last COMPLETE month if we have one, else the current month's
         // run-rate. Agreeing next month against a half-finished month would lowball it.
-        const complete = history.filter(h => !h.empty && !h.partial && h.days >= h.days_in_month - 2);
+        const complete = history.filter(h => !h.empty && !h.partial && h.days >= h.days_in_month - 2 && h.month < ym);
         const lastComplete = complete[complete.length - 1] || null;
-        const current = history.find(h => h.month === monthOf(today) && !h.empty) || null;
+        const current = history.find(h => h.month === monthOf(today) && !h.empty && h.month < ym) || null;
         const basis = lastComplete
           ? { sales: lastComplete.sales, label: `${lastComplete.month} actual`, month: lastComplete.month }
           : current
@@ -745,13 +771,27 @@ export default {
             return src?.margin ?? null;
           })(),
         };
-        const options = basis
-          ? [0, 0.1, 0.2, 0.3].map(g => planMath(basis.sales, g, ctx))
-          : [];
+        const options = basis ? [0, 0.1, 0.2, 0.3].map(g => planMath('growth', g, ctx, basis.sales)) : [];
+
+        // A month that has already run is a record, not a decision: show what was
+        // planned against what actually happened, and lock the controls.
+        const today2 = monthOf(today);
+        const status = ym < today2 ? 'past' : ym === today2 ? 'current' : 'future';
+        let actual = null;
+        if (status !== 'future') {
+          const h = history.find(x => x.month === ym && !x.empty);
+          if (h) actual = { sales: h.sales, spend: h.spend, cm: h.cm, mer: h.mer, amer: h.amer,
+            days: h.days, days_in_month: h.days_in_month, partial: !!h.partial };
+        }
         const saved = await env.DB.prepare(`SELECT * FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(act, ym).first();
         return json({
-          account: pubAccount(acct), month: ym, history, basis, ctx, options,
+          account: pubAccount(acct), month: ym, status, actual, history, basis, ctx, options,
           goals: goalsFor(acct, ym), plan: saved || null,
+          // A month only counts as planned if somebody planned THAT month. The
+          // `default` block is an inheritance convenience and would otherwise make
+          // every future month look like it already had a plan.
+          planned: !!safeJson(acct.goals_json, {})[ym],
+          current_month: today2,
           at_current_pace: fc ? { projected: fc.at_current_pace?.sales ?? null, month: fc.month } : null,
         });
       }
