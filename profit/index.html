@@ -217,6 +217,7 @@
   <nav class="tabs" id="tabs" style="display:none"><div class="in">
     <button data-t="overview">Overview</button>
     <button data-t="profit">Profit</button>
+    <button data-t="plan">Plan</button>
     <button data-t="brief">Daily Brief</button>
     <button data-t="costs">Costs</button>
     <button data-t="settings">Settings</button>
@@ -273,6 +274,8 @@ const fmtAgo = iso => { if (!iso) return 'never'; const m = (Date.now() - parseT
 
 /* ---------- boot ---------- */
 async function boot() {
+  const planTok = new URLSearchParams(location.search).get('plan');
+  if (planTok) return renderPlanShare(planTok);
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
@@ -297,6 +300,50 @@ async function boot() {
     $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p><button class="cta" onclick="boot()">Retry</button></div>`;
   }
 }
+/** The page you send the client. Read-only, no sign-in, and it carries this one
+ *  plan and nothing else — no other client, no internal cost diagnostics. */
+async function renderPlanShare(token) {
+  document.querySelector('.hd-right').style.display = 'none';
+  $('#tabs').style.display = 'none';
+  $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  let d;
+  try {
+    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/plan/' + token);
+    d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'This plan link is no longer valid.');
+  } catch (e) {
+    $('#main').innerHTML = `<div class="gate"><h1>Plan unavailable</h1><p>${esc(e.message)}</p></div>`;
+    return;
+  }
+  const cur = d.account.currency;
+  const [y, m] = d.month.split('-');
+  const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][+m - 1];
+  $('.hd-title').innerHTML = `${esc(d.account.name)} <em>${monthName}</em>`;
+  const hist = (d.history || []).filter(h => !h.partial);
+  $('#main').innerHTML = `<h2>${monthName} ${y} plan</h2>
+    <p class="sub">The revenue target for the month and what it takes to get there.${d.agreed_at ? ` Agreed ${esc(String(d.agreed_at).slice(0, 10))}.` : ''}</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:14px">
+      <div class="card" style="margin:0"><div class="av-label" style="font-size:12px;color:var(--muted)">REVENUE TARGET</div>
+        <div style="font-size:30px;font-weight:700;margin:4px 0 2px">${fmtMoney(d.goals.sales, cur)}</div>
+        <div class="tiny">${d.growth_pct != null && d.basis_label ? `${d.growth_pct >= 0 ? '+' : ''}${Math.round(d.growth_pct * 100)}% on ${esc(d.basis_label)}` : ''}</div></div>
+      <div class="card" style="margin:0"><div class="av-label" style="font-size:12px;color:var(--muted)">AD SPEND</div>
+        <div style="font-size:30px;font-weight:700;margin:4px 0 2px">${fmtMoney(d.goals.spend ?? d.required_spend, cur)}</div>
+        <div class="tiny">what the target takes</div></div>
+      ${d.expected_cm != null ? `<div class="card" style="margin:0"><div class="av-label" style="font-size:12px;color:var(--muted)">EXPECTED CONTRIBUTION MARGIN</div>
+        <div style="font-size:30px;font-weight:700;margin:4px 0 2px">${fmtMoney(d.expected_cm, cur)}</div>
+        <div class="tiny">after product costs, fees and ad spend</div></div>` : ''}
+    </div>
+    ${hist.length ? `<div class="card"><h3 style="margin-bottom:8px">How we got here</h3>
+      <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th></tr></thead>
+      <tbody>${hist.map(h => `<tr><td>${esc(h.month)}</td><td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    ${d.note ? `<div class="card"><h3 style="margin-bottom:6px">Notes</h3><p style="font-size:14px">${esc(d.note)}</p></div>` : ''}
+    <p class="tiny">Contribution margin is revenue minus product costs, fulfilment, payment fees and ad spend. It excludes fixed costs such as rent, salaries and software.</p>`;
+  setChip(d.agreed_at ? 'Agreed' : 'Proposed', d.agreed_at ? 'live' : 'off');
+  $('#connChip').style.display = '';
+  document.querySelector('.hd-right').style.display = '';
+  ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+}
+
 function setChip(t,s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
 
 function renderGate(err, offerRetry) {
@@ -354,7 +401,7 @@ document.addEventListener('click', e => {
 }, true);
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
-  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', brief:'How the Daily Brief works', settings:'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', brief:'How the Daily Brief works', plan:'How planning the month works', settings:'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
 });
 
 function helpModal(title, html) {
@@ -429,6 +476,12 @@ const PAGE_HELP = {
     <p><b>The narrative:</b> Claude writes Notes → So What? → What's Next? from the numbers <i>plus the Change Log</i> — so the more whys you tag there, the sharper the story ("CPA recovered after Tuesday's budget trim"), exactly like an analyst who was watching all day.</p>
     <p><b>The one distinction that matters:</b> <b>ROAS is attributed</b> — Meta and Google each claim credit for sales using their own rules, and they double-count each other. <b>MER and aMER are blended</b> — real Shopify revenue over real total spend, so nothing can be claimed twice. That's why this page leads with MER/aMER and shows platform ROAS only as a supporting detail in the channel line. It's also why this page's numbers will never match Ads Manager, and shouldn't — the Meta-only pages are where you go for that.</p>
     <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning (~7am PT / 10am ET), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
+  plan: `
+    <p><b>What this page is:</b> the monthly conversation with your client, turned into the number everything else is measured against. A forecast nobody agreed to is just a guess.</p>
+    <p><b>How to run it:</b> open the client before your monthly call. The six-month table shows what actually happened. Pick a growth level and the page tells you what that goal <i>costs</i> — because returning customers arrive largely on their own, but everything above that has to be bought, at this client's own acquisition efficiency.</p>
+    <p><b>Watch the contribution margin.</b> If pushing growth harder makes expected CM go <i>down</i>, you're buying revenue that doesn't pay for itself. The page says so outright.</p>
+    <p><b>Then agree it.</b> "↗ Client link" gives you a read-only page with just this plan on it — no other client, no internal notes — to share on the call. Flip <b>agreed with client</b> once they say yes.</p>
+    <p><b>Once saved, it drives everything:</b> the month's goal is split across the days by that brand's own weekday rhythm, and every morning's Daily Brief compares yesterday against its slice. Change the numbers later and the agreement resets — you can't agree to a plan and then quietly move it.</p>`,
   settings: `
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
     <p><b>This page is only about what your client sees.</b> Internal pace and KPI alerts for your media buyer are configured in <b>Account Health → Settings</b> — different audience, different tool.</p>
@@ -440,7 +493,7 @@ const PAGE_HELP = {
 function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
-  ({ overview: renderOverview, profit: renderProfit, costs: renderCosts, brief: renderBrief, settings: renderSettings })[tab]();
+  ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, settings: renderSettings })[tab]();
 }
 
 /* ---------- shared bits ---------- */
@@ -555,6 +608,24 @@ function renderProfitAll() {
   });
 }
 
+/** Weeks, not days. A bad Tuesday is noise; a bad week is a signal. */
+function weeksTable(fc, cur) {
+  const w = (fc.weeks || []).filter(x => x.days_done > 0);
+  if (!w.length || w[0].target == null) return '';
+  return `<div class="tbl-wrap" style="margin-top:14px"><table>
+    <thead><tr><th>Week</th><th class="num">Target</th><th class="num">Actual</th><th class="num">vs target</th><th class="num">Spend</th></tr></thead>
+    <tbody>${w.map(x => {
+      const t = x.complete ? x.target : x.target_to_date;
+      const off = t ? x.sales / t - 1 : null;
+      const cls = off == null ? 'unk' : off >= 0 ? 'good' : off >= -0.1 ? 'warn' : 'bad';
+      return `<tr><td>${x.from.slice(5)} – ${x.to.slice(5)}${x.complete ? '' : ` <span class="tiny">(${x.days_done} of ${x.days} days)</span>`}</td>
+        <td class="num">${fmtK(t, cur)}</td><td class="num"><b>${fmtK(x.sales, cur)}</b></td>
+        <td class="num">${off != null ? `<span class="pill ${cls}">${fmtSigned(off)}</span>` : '—'}</td>
+        <td class="num tiny">${fmtK(x.spend, cur)}</td></tr>`;
+    }).join('')}</tbody></table></div>
+    <p class="tiny" style="margin-top:6px">A week still running is compared only against the days that have actually elapsed, so it never looks like a miss just for being unfinished.</p>`;
+}
+
 /** Where the month lands, built bottom-up: returning customers are the predictable
  *  base, paid acquisition is the volatile top. Two scenarios, because "spend the
  *  budget" and "carry on as you are" often disagree, and that gap is the decision. */
@@ -571,6 +642,10 @@ function forecastCard(fc, cur) {
       <tr style="border-top:2px solid var(--line-strong)"><td><b>Projected month</b> <span class="tiny">(spending the budget)</span></td><td class="num"><b>${fmtMoney(p, cur)}</b></td><td class="tiny">${g != null ? `vs ${fmtMoney(g, cur)} goal ${pill(fc.gap)}` : 'no goal set'}</td></tr>
       ${pace != null && Math.abs(pace - p) > (g || 1) * 0.01 ? `<tr><td>If spend stays at today's pace</td><td class="num">${fmtMoney(pace, cur)}</td><td class="tiny">${g != null ? `vs goal ${pill(fc.at_current_pace.gap)} · ` : ''}${fmtK(fc.basis.spend_per_day, cur)}/day${ramp && ramp > 1.15 ? ` — hitting the plan needs <b>${ramp.toFixed(1)}×</b> that` : ''}</td></tr>` : ''}
     </tbody></table></div>
+    ${fc.to_hit && !fc.to_hit.already_there ? `<div class="notice ${fc.to_hit.covered_by_returning ? '' : fc.to_hit.spend_ramp > 1.5 ? 'warn' : ''}" style="margin:12px 0 0">${fc.to_hit.covered_by_returning ? '✓' : '→'} <div><b>To hit the goal from here:</b> ${fmtMoney(fc.to_hit.revenue_per_day, cur)}/day for the remaining ${fc.days_remaining} days. ${fc.to_hit.covered_by_returning
+      ? `Returning customers alone are expected to cover that — no extra spend required.`
+      : `Returning covers ${fmtMoney(fc.basis.returning_per_day, cur)} of it, so ${fmtMoney(fc.to_hit.new_per_day, cur)}/day has to come from new customers — <b>${fmtMoney(fc.to_hit.spend_per_day, cur)}/day of spend</b> at ${fmtX(fc.basis.amer)} aMER${fc.to_hit.spend_ramp ? `, which is <b>${fc.to_hit.spend_ramp.toFixed(1)}×</b> the ${fmtK(fc.basis.spend_per_day, cur)}/day running now` : ''}.`}</div></div>` : fc.to_hit?.already_there ? `<div class="notice" style="margin:12px 0 0">✓ <div><b>The goal is already banked</b> with ${fc.days_remaining} days still to run.</div></div>` : ''}
+    ${weeksTable(fc, cur)}
     <p class="tiny" style="margin-top:8px">${fc.basis.email_connected
       ? `Email is <b>${fmtPct(fc.basis.email_share)}</b> of revenue for this client. It cuts across new and returning rather than being separate, so it is context here, not a third line to add up.`
       : `Klaviyo is not reporting into Triple Whale for this client, so email's contribution can't be separated out. It is still inside these numbers — just not visible on its own.`}
@@ -998,6 +1073,151 @@ async function renderBrief() {
   $('#bfCopy').onclick = () => { navigator.clipboard.writeText($('#bfText').textContent).then(() => $('#bfMsg').textContent = 'Copied ✓'); };
 }
 const addDaysStr = (ymd, n) => { const dt = new Date(ymd + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() + n); return dt.toISOString().slice(0, 10); };
+
+/* ---------- Plan ----------
+   The monthly conversation, not an automatic number. Look at what the last six
+   months did, choose how much growth you are signing up for, see what that costs
+   in spend, then agree it with the client. Everything downstream measures against
+   whatever gets saved here. */
+const PL = { growth: null, custom: null };
+
+async function renderPlan() {
+  if (S.act === 'all') {
+    $('#main').innerHTML = `<h2>Plan the month</h2>
+      <p class="sub">A forecast nobody agreed to is just a guess. Pick a client above to build next month's number with them.</p>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Client</th><th class="num">This month's goal</th><th class="num">Projected</th><th>Agreed with client</th><th></th></tr></thead>
+        <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer">
+          <td><b>${esc(a.name)}</b></td>
+          <td class="num">${a.goals?.sales != null ? fmtK(a.goals.sales, a.currency) : '<span class="tiny">not set</span>'}</td>
+          <td class="num tiny" data-proj="${a.act_id}">…</td>
+          <td class="tiny" data-agreed="${a.act_id}">…</td>
+          <td><button class="btn">Open</button></td></tr>`).join('')}
+        </tbody></table></div></div>`;
+    $('#main tbody').addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+      S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
+      $('#clientPick').value = S.act; show('plan');
+    });
+    for (const a of S.accounts) {
+      api(`/api/plan?act=${a.act_id}`).then(p => {
+        const pc = $(`[data-proj="${a.act_id}"]`), ag = $(`[data-agreed="${a.act_id}"]`);
+        if (pc) pc.textContent = p.at_current_pace?.projected != null ? fmtK(p.at_current_pace.projected, a.currency) : '—';
+        if (ag) ag.innerHTML = p.plan?.agreed_at
+          ? `<span class="pill good">agreed ${esc(String(p.plan.agreed_at).slice(0, 10))}</span>`
+          : p.goals?.sales != null ? '<span class="pill warn">not agreed</span>' : '<span class="pill unk">no plan</span>';
+      }).catch(() => {});
+    }
+    return;
+  }
+
+  $('#main').innerHTML = `<h2>Plan the month</h2><div class="card"><span class="hint">Loading six months of history…</span></div>`;
+  let p;
+  try { p = await api(`/api/plan?act=${S.act}`); }
+  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  const cur = p.account.currency;
+  const hist = p.history.filter(h => !h.empty);
+  const saved = p.plan;
+  if (PL.growth == null) PL.growth = saved?.growth_pct ?? 0.1;
+
+  const opt = g => {
+    const b = p.basis?.sales; if (b == null) return null;
+    const dim = p.ctx.days_in_month;
+    const goalSales = b * (1 + g);
+    const expRet = (p.ctx.returning_per_day ?? 0) * dim;
+    const newNeeded = Math.max(0, goalSales - expRet);
+    const spend = p.ctx.amer ? newNeeded / p.ctx.amer : null;
+    const cm = p.ctx.margin != null && spend != null ? goalSales * p.ctx.margin - spend : null;
+    return { g, sales: goalSales, spend, cm, mer: spend ? goalSales / spend : null,
+      cmPct: cm != null && goalSales ? cm / goalSales : null };
+  };
+  const chosen = opt(PL.growth);
+
+  $('#main').innerHTML = `<h2>Plan the month — ${esc(p.account.name)}</h2>
+    <p class="sub">This is the number you and the client agree on, and the one every daily update is then measured against. Growth is never free — pick a target and the spend it takes comes with it.</p>
+    <div class="row" style="margin-bottom:12px">
+      ${saved?.agreed_at ? `<span class="pill good">agreed with client ${esc(String(saved.agreed_at).slice(0, 10))}</span>` : p.goals?.sales != null ? '<span class="pill warn">saved, not yet agreed</span>' : '<span class="pill unk">no plan yet</span>'}
+      <span style="flex:1"></span><button class="help-btn" data-help="plan">? How to use</button>
+    </div>
+
+    <div class="card"><h3 style="margin-bottom:6px">The last six months</h3>
+      <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Margin</th></tr></thead>
+        <tbody>${hist.map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
+          <td><b>${esc(h.month)}</b>${h.partial ? ` <span class="tiny">(${h.days} of ${h.days_in_month} days)</span>` : ''}</td>
+          <td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td>
+          <td class="num">${fmtX(h.mer)}</td><td class="num">${fmtX(h.amer)}</td>
+          <td class="num">${fmtPct(h.new_share)}</td><td class="num">${fmtPct(h.margin)}</td></tr>`).join('')}
+        </tbody></table></div>
+      ${p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(p.basis.label)}</b> — ${fmtMoney(p.basis.sales, cur)}. ${p.at_current_pace?.projected != null ? `At today's pace this month lands around <b>${fmtK(p.at_current_pace.projected, cur)}</b>.` : ''}</p>` : '<p class="tiny" style="margin-top:8px">Not enough history to propose a number yet.</p>'}</div>
+
+    ${p.basis ? `<div class="card"><h3 style="margin-bottom:6px">How much growth are we signing up for?</h3>
+      <p class="hint" style="margin-bottom:12px">Returning customers show up largely on their own. Everything above that has to be bought, so the spend below is what this goal actually costs at this client's own <b>${fmtX(p.ctx.amer)}</b> acquisition efficiency.</p>
+      <div class="row" style="gap:8px;margin-bottom:14px">
+        ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${Math.abs(PL.growth - g) < 0.001 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
+        <div class="unit-in" style="width:92px"><input id="plCustom" type="text" inputmode="decimal" placeholder="custom" value="${![0,0.1,0.2,0.3].some(g => Math.abs(PL.growth - g) < 0.001) ? Math.round(PL.growth * 100) : ''}"><span>%</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+        ${statCard('Revenue goal', fmtMoney(chosen.sales, cur), `${PL.growth >= 0 ? '+' : ''}${Math.round(PL.growth * 100)}% on ${esc(p.basis.label)}`, 'The number the whole month gets measured against, once you save it. Every daily update compares that day against its slice of this.')}
+        ${statCard('Ad spend needed', fmtMoney(chosen.spend, cur), `at ${fmtX(p.ctx.amer)} aMER`, 'What this goal costs. Returning revenue is expected to arrive anyway; the rest has to be acquired, and at this client’s trailing acquisition efficiency that takes this much spend.')}
+        ${statCard('Expected contribution margin', fmtMoney(chosen.cm, cur), chosen.cmPct != null ? `${fmtPct(chosen.cmPct)} of revenue` : '', 'Revenue at the client’s trailing margin, minus the ad spend above. If this goes down as you push growth harder, you are buying revenue that does not pay for itself.')}
+        ${statCard('Implied MER', fmtX(chosen.mer), 'revenue ÷ spend', 'The blended efficiency this plan assumes. If it is far above what the client has actually achieved recently, the plan is optimistic.')}
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn primary" id="plSave">Save as ${esc(p.month)} plan</button>
+        <button class="btn" id="plShare">↗ Client link</button>
+        <div class="toggle ${saved?.agreed_at ? 'on' : ''}" id="plAgreed" title="Mark as agreed with the client"></div>
+        <span class="tiny">agreed with client</span>
+        <span class="tiny" id="plMsg"></span>
+      </div>
+      ${chosen.cm != null && hist.length ? (() => {
+        const lastCm = hist.filter(h => !h.partial).slice(-1)[0]?.cm;
+        if (lastCm == null) return '';
+        const d = chosen.cm - lastCm;
+        return `<p class="tiny" style="margin-top:10px">${d >= 0
+          ? `That is <b>${fmtK(d, cur)} more</b> contribution margin than the last complete month.`
+          : `⚠️ That is <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than the last complete month — this level of growth costs more than it brings in at the current acquisition efficiency.`}</p>`;
+      })() : ''}</div>` : ''}`;
+
+  $('#main').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { PL.growth = +b.dataset.g; renderPlan(); });
+  const ci = $('#plCustom');
+  if (ci) ci.onchange = () => {
+    const v = +ci.value.replace(/[^0-9.\-]/g, '');
+    if (!isFinite(v)) return;
+    PL.growth = v / 100; renderPlan();
+  };
+  const sv = $('#plSave');
+  if (sv) sv.onclick = async () => {
+    $('#plMsg').textContent = 'Saving…';
+    try {
+      const changed = p.goals?.sales != null && Math.abs(p.goals.sales - chosen.sales) > 1;
+      await api('/api/plan', { method: 'PUT', body: JSON.stringify({
+        act: S.act, month: p.month, sales: Math.round(chosen.sales),
+        spend: chosen.spend != null ? Math.round(chosen.spend) : null,
+        growth_pct: PL.growth, basis_sales: p.basis.sales, basis_label: p.basis.label,
+        expected_cm: chosen.cm, reagree: changed }) });
+      $('#plMsg').textContent = changed ? 'Saved ✓ — the numbers moved, so it needs agreeing again.' : 'Saved ✓';
+      await boot(); show('plan');
+    } catch (e) { $('#plMsg').textContent = e.message; }
+  };
+  const ag = $('#plAgreed');
+  if (ag) ag.onclick = async () => {
+    if (p.goals?.sales == null) return noteModal('Save the plan first', '<p>There is no saved plan for this month yet, so there is nothing to agree to.</p>');
+    const on = !ag.classList.contains('on');
+    ag.classList.toggle('on', on);
+    try { await api('/api/plan-agree', { method: 'POST', body: JSON.stringify({ act: S.act, month: p.month, agreed: on }) }); show('plan'); }
+    catch (e) { ag.classList.toggle('on', !on); $('#plMsg').textContent = e.message; }
+  };
+  const sh = $('#plShare');
+  if (sh) sh.onclick = async () => {
+    try {
+      const r = await api('/api/plan-share', { method: 'POST', body: JSON.stringify({ act: S.act, month: p.month }) });
+      navigator.clipboard?.writeText(r.url);
+      noteModal('Client link ready', `<p>A read-only page showing just this plan — no other client, no internal notes.</p><p><code style="word-break:break-all">${esc(r.url)}</code></p><p class="tiny">Copied to your clipboard.</p>`);
+    } catch (e) { $('#plMsg').textContent = e.message; }
+  };
+}
 
 /* ---------- Settings ---------- */
 async function renderSettings() {

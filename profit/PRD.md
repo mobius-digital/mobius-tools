@@ -96,6 +96,22 @@ Change Log stays available.
 - **Every metric carries its plan** (`planFor`): the month's goals pro-rated to
   the days elapsed, so month-to-date actuals have something to beat. This is
   CTC's defining move — a number without a goal beside it is trivia.
+- **The month plan is AGREED, not automatic** (Cole, 2026-08-21). A forecast nobody
+  signed off on is a guess. The Plan page shows six months of real economics, a
+  growth selector, and what each choice COSTS in spend at that client's own trailing
+  aMER — then a read-only client link and an "agreed" stamp. Changing the numbers
+  after sign-off clears the agreement; you cannot agree a plan and then move it.
+  Goals still live in `accounts.goals_json` (one field everything reads); `p_plan`
+  carries only the story around them.
+- **Growth is never free, and the tool says so.** `planMath()` subtracts expected
+  returning revenue, then prices the remainder at trailing aMER. When a growth level
+  would LOWER contribution margin versus the last complete month, the page warns
+  outright — for Lucky Golf both flat and +10% currently reduce CM, because aMER fell
+  from 2.32 (July) to ~2.07, so even standing still costs more spend than July used.
+- **Off pace tells you what to do**, not just that you are behind: revenue/day needed,
+  how much returning covers, and the resulting spend/day and ramp multiple.
+- **Weeks, not days.** `weekBuckets()` cuts the month into calendar weeks; a week in
+  progress is compared only against elapsed days so it never looks like a false miss.
 - **No calendar dependency** (Cole, 2026-08-21). The Marketing Calendar is a Lucky
   Golf internal app, not a Mobius one, so a multi-client Mobius tool must not depend
   on it. It was wired in and then removed. Researching CTC's actual method showed

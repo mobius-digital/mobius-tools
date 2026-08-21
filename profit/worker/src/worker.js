@@ -288,6 +288,89 @@ function planFor(acct, ym, mtdRows) {
  */
 function dowOf(d) { return new Date(d + 'T12:00:00Z').getUTCDay(); }
 
+const prevMonth = ym => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7);
+};
+const daysInMonth = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+
+/** Last N complete-ish months of real economics — the table you look at before
+ *  agreeing next month's number. */
+async function monthHistory(env, acct, upToYm, n = 6) {
+  const months = [];
+  let m = upToYm;
+  for (let i = 0; i < n; i++) { months.unshift(m); m = prevMonth(m); }
+  const from = `${months[0]}-01`;
+  const to = `${upToYm}-${String(daysInMonth(upToYm)).padStart(2, '0')}`;
+  const { rows } = await seriesFor(env, acct, from, to);
+  const today = localDate(acct.tz);
+  return months.map(ym => {
+    const mr = rows.filter(r => r.date.startsWith(ym));
+    if (!mr.length) return { month: ym, empty: true };
+    const t = totals(mr);
+    return {
+      month: ym, days: mr.length, days_in_month: daysInMonth(ym),
+      partial: ym === monthOf(today),
+      sales: t.sales, spend: t.spend, new_rev: t.new_rev, returning: t.ret_rev,
+      cm: t.cm, margin: t.margin, mer: t.mer, amer: t.amer, new_share: t.new_share,
+    };
+  });
+}
+
+/** What a growth choice actually costs. Returning revenue arrives largely on its
+ *  own; everything above that has to be bought, so the spend a goal implies falls
+ *  out of the client's own trailing aMER. Growth is never free. */
+function planMath(basisSales, growthPct, ctx) {
+  const goalSales = basisSales * (1 + growthPct);
+  const dim = ctx.days_in_month;
+  const expectedReturning = (ctx.returning_per_day ?? 0) * dim;
+  const newNeeded = Math.max(0, goalSales - expectedReturning);
+  const requiredSpend = ctx.amer ? newNeeded / ctx.amer : null;
+  const margin = ctx.margin ?? null;
+  const expectedCm = margin != null && requiredSpend != null ? goalSales * margin - requiredSpend : null;
+  return {
+    growth_pct: growthPct,
+    sales: goalSales,
+    expected_returning: expectedReturning,
+    new_needed: newNeeded,
+    required_spend: requiredSpend,
+    implied_amer: requiredSpend ? newNeeded / requiredSpend : null,
+    implied_mer: requiredSpend ? goalSales / requiredSpend : null,
+    expected_cm: expectedCm,
+    expected_cm_margin: expectedCm != null && goalSales ? expectedCm / goalSales : null,
+  };
+}
+
+/** The month cut into weeks. A bad Tuesday should not cause a panic; a bad week
+ *  should. Weeks are calendar-aligned to the month, not to Sundays, so the first
+ *  and last are usually short — the target is scaled to the days they contain. */
+function weekBuckets(rows, ym, dim, goals, retPerDay, amer) {
+  const byDate = Object.fromEntries(rows.map(r => [r.date, r]));
+  const dayTarget = goals.sales != null ? goals.sales / dim : null;
+  const out = [];
+  for (let start = 1; start <= dim; start += 7) {
+    const end = Math.min(start + 6, dim);
+    const days = [];
+    for (let d = start; d <= end; d++) days.push(`${ym}-${String(d).padStart(2, '0')}`);
+    const actualDays = days.filter(d => byDate[d]?.sales != null);
+    const sales = actualDays.reduce((a, d) => a + byDate[d].sales, 0);
+    const spend = actualDays.reduce((a, d) => a + (byDate[d].spend ?? 0), 0);
+    const target = dayTarget != null ? dayTarget * days.length : null;
+    out.push({
+      from: days[0], to: days[days.length - 1], days: days.length,
+      days_done: actualDays.length,
+      complete: actualDays.length === days.length,
+      target,
+      // Part-week comparison has to be against the days actually elapsed, or a week
+      // in progress always looks like a miss.
+      target_to_date: dayTarget != null ? dayTarget * actualDays.length : null,
+      sales: actualDays.length ? sales : null,
+      spend: actualDays.length ? spend : null,
+    });
+  }
+  return out;
+}
+
 async function forecastFor(env, acct, ym) {
   const today = localDate(acct.tz);
   const dim = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
@@ -353,6 +436,26 @@ async function forecastFor(env, acct, ym) {
   const projected = mtd.sales + expRet + expNew;
   const projectedAtPace = mtd.sales + paceRet + paceNew;
   const goal = goals.sales ?? null;
+
+  // Showing that you are off pace is only half the job. This is the other half:
+  // what it would actually take from here. Returning revenue arrives on its own,
+  // so the shortfall has to be bought with new customers, which costs spend.
+  let toHit = null;
+  if (goal != null && remaining.length) {
+    const shortfall = goal - mtd.sales;
+    const perDay = shortfall / remaining.length;
+    const newPerDay = perDay - (retAll || 0);
+    const spendNeeded = amer && newPerDay > 0 ? newPerDay / amer : null;
+    toHit = {
+      revenue_per_day: perDay,
+      new_per_day: newPerDay,
+      spend_per_day: spendNeeded,
+      spend_ramp: spendNeeded != null && spendPerDay > 0 ? spendNeeded / spendPerDay : null,
+      already_there: shortfall <= 0,
+      // If returning alone covers it, no extra spend is needed at all.
+      covered_by_returning: newPerDay <= 0,
+    };
+  }
   return {
     month: ym, days_in_month: dim, days_elapsed: mtdRows.length, days_remaining: remaining.length,
     basis: {
@@ -370,6 +473,8 @@ async function forecastFor(env, acct, ym) {
     },
     planned_spend_per_day: plannedPerDay,
     spend_ramp: spendPerDay > 0 ? plannedPerDay / spendPerDay : null,
+    to_hit: toHit,
+    weeks: weekBuckets(rows, ym, dim, goals, retAll, amer),
   };
 }
 
@@ -519,6 +624,31 @@ export default {
       return json(out);
     }
     if (path === '/') return Response.redirect(DASHBOARD_URL, 302);
+    /* Read-only plan for the client. The token in the URL is the auth — this is
+       the page you share on the monthly call, so it carries the plan and nothing
+       else: no other client, no internal notes, no cost diagnostics. */
+    let pm;
+    if ((pm = path.match(/^\/api\/plan\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
+      try {
+        const row = await env.DB.prepare(`SELECT * FROM p_plan WHERE share_token = ?1`).bind(pm[1]).first();
+        if (!row) return json({ error: 'This plan link is no longer valid.' }, 404);
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(row.act_id).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const goals = goalsFor({ ...acct, goals: safeJson(acct.goals_json, {}) }, row.month);
+        const history = await monthHistory(env, acct, row.month, 6);
+        return json({
+          plan: true,
+          account: { name: acct.name, currency: acct.currency },
+          month: row.month,
+          goals: { sales: goals.sales ?? null, spend: goals.spend ?? null, amer: goals.amer ?? null },
+          growth_pct: row.growth_pct, basis_sales: row.basis_sales, basis_label: row.basis_label,
+          required_spend: row.required_spend, expected_cm: row.expected_cm,
+          agreed_at: row.agreed_at, note: row.note,
+          history: history.filter(h => !h.empty).map(h => ({ month: h.month, sales: h.sales, spend: h.spend, partial: h.partial })),
+        });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
 
     try {
@@ -582,6 +712,106 @@ export default {
         const f = await forecastFor(env, acct, ym);
         if (!f) return json({ error: 'not enough Triple Whale history to forecast yet' }, 400);
         return json({ account: pubAccount(acct), ...f });
+      }
+
+      /* The month plan: what the last six months did, what next month looks like
+         at each growth choice, and whether the client has agreed to it. */
+      if (path === '/api/plan' && request.method === 'GET') {
+        const act = url.searchParams.get('act');
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const today = localDate(acct.tz);
+        const ym = url.searchParams.get('month') || monthOf(today);
+        const history = await monthHistory(env, acct, monthOf(today), 6);
+
+        // Basis: the last COMPLETE month if we have one, else the current month's
+        // run-rate. Agreeing next month against a half-finished month would lowball it.
+        const complete = history.filter(h => !h.empty && !h.partial && h.days >= h.days_in_month - 2);
+        const lastComplete = complete[complete.length - 1] || null;
+        const current = history.find(h => h.month === monthOf(today) && !h.empty) || null;
+        const basis = lastComplete
+          ? { sales: lastComplete.sales, label: `${lastComplete.month} actual`, month: lastComplete.month }
+          : current
+          ? { sales: current.sales / current.days * current.days_in_month, label: `${current.month} run-rate`, month: current.month }
+          : null;
+
+        const fc = await forecastFor(env, acct, monthOf(today));
+        const ctx = {
+          days_in_month: daysInMonth(ym),
+          returning_per_day: fc?.basis?.returning_per_day ?? null,
+          amer: fc?.basis?.amer ?? null,
+          margin: (() => {
+            const src = lastComplete || current;
+            return src?.margin ?? null;
+          })(),
+        };
+        const options = basis
+          ? [0, 0.1, 0.2, 0.3].map(g => planMath(basis.sales, g, ctx))
+          : [];
+        const saved = await env.DB.prepare(`SELECT * FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(act, ym).first();
+        return json({
+          account: pubAccount(acct), month: ym, history, basis, ctx, options,
+          goals: goalsFor(acct, ym), plan: saved || null,
+          at_current_pace: fc ? { projected: fc.at_current_pace?.sales ?? null, month: fc.month } : null,
+        });
+      }
+
+      /* Save the agreed plan. Writes the goals everything else reads, and records
+         the story around them separately. */
+      if (path === '/api/plan' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const ym = b.month || monthOf(localDate(acct.tz));
+        if (b.sales == null || !(+b.sales > 0)) return json({ error: 'a sales goal is required' }, 400);
+
+        const goals = safeJson(acct.goals_json, {});
+        const keep = goals[ym]?.cm_pct ?? goals.default?.cm_pct ?? null;
+        const m = { sales: +b.sales };
+        if (b.spend != null && b.spend !== '') m.spend = +b.spend;
+        if (b.amer != null && b.amer !== '') m.amer = +b.amer;
+        if (keep != null) m.cm_pct = keep;
+        goals[ym] = m;
+        goals.default = { ...m };
+        await env.DB.prepare(`UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1`)
+          .bind(acct.act_id, JSON.stringify(goals)).run();
+
+        const prev = await env.DB.prepare(`SELECT share_token, agreed_at, agreed_by FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(acct.act_id, ym).first();
+        // Changing the numbers invalidates any previous sign-off — you cannot agree
+        // to a plan and then quietly move it.
+        const numbersChanged = b.reagree === true;
+        await env.DB.prepare(
+          `INSERT INTO p_plan (act_id, month, growth_pct, basis_sales, basis_label, required_spend, expected_cm, agreed_at, agreed_by, share_token, note, updated_at)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,datetime('now'))
+           ON CONFLICT(act_id, month) DO UPDATE SET growth_pct=excluded.growth_pct, basis_sales=excluded.basis_sales,
+             basis_label=excluded.basis_label, required_spend=excluded.required_spend, expected_cm=excluded.expected_cm,
+             agreed_at=excluded.agreed_at, agreed_by=excluded.agreed_by, note=excluded.note, updated_at=datetime('now')`,
+        ).bind(acct.act_id, ym, b.growth_pct ?? null, b.basis_sales ?? null, b.basis_label ?? null,
+          b.spend ?? null, b.expected_cm ?? null,
+          numbersChanged ? null : (prev?.agreed_at ?? null),
+          numbersChanged ? null : (prev?.agreed_by ?? null),
+          prev?.share_token ?? null, b.note ?? null).run();
+        return json({ ok: true, goals: m });
+      }
+
+      /* Client sign-off, and the read-only link you take to the call. */
+      if (path === '/api/plan-agree' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        await env.DB.prepare(
+          `UPDATE p_plan SET agreed_at = ?3, agreed_by = ?4, updated_at = datetime('now') WHERE act_id = ?1 AND month = ?2`,
+        ).bind(b.act, b.month, b.agreed ? new Date().toISOString() : null, b.agreed ? (b.by || 'Mobius') : null).run();
+        return json({ ok: true });
+      }
+      if (path === '/api/plan-share' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const row = await env.DB.prepare(`SELECT share_token FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(b.act, b.month).first();
+        if (!row) return json({ error: 'save the plan first' }, 400);
+        let token = row.share_token;
+        if (!token) {
+          token = crypto.randomUUID().replace(/-/g, '');
+          await env.DB.prepare(`UPDATE p_plan SET share_token = ?3 WHERE act_id = ?1 AND month = ?2`).bind(b.act, b.month, token).run();
+        }
+        return json({ ok: true, url: `${DASHBOARD_URL}?plan=${token}` });
       }
 
       if (path === '/api/costs') {

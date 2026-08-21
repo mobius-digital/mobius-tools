@@ -27,3 +27,24 @@ CREATE TABLE IF NOT EXISTS p_cost_health (
   days        INTEGER,
   checked_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- The agreed month plan. The GOALS themselves still live in accounts.goals_json,
+-- because that is the one field every tool reads; this table carries the story
+-- around them: what the plan was built from, the growth we chose, and whether the
+-- client has actually signed off on it.
+CREATE TABLE IF NOT EXISTS p_plan (
+  act_id         TEXT NOT NULL,
+  month          TEXT NOT NULL,                  -- YYYY-MM
+  growth_pct     REAL,                           -- 0.10 = +10% on the basis
+  basis_sales    REAL,                           -- what last month / the run-rate was
+  basis_label    TEXT,                           -- how the basis was derived
+  required_spend REAL,                           -- spend the goal implies at trailing aMER
+  expected_cm    REAL,
+  agreed_at      TEXT,                           -- set when the client signs off
+  agreed_by      TEXT,
+  share_token    TEXT,                           -- read-only client link
+  note           TEXT,
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, month)
+);
+CREATE INDEX IF NOT EXISTS p_plan_token_idx ON p_plan (share_token);

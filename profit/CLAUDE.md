@@ -49,6 +49,12 @@ profit/
   /api/tw-sync and /api/slack-channels over the `AUTH` binding. Monthly goals are
   written locally (`PUT /api/goals`) so the month/default merge sits beside the
   margin override in the same JSON blob — and it must preserve `cm_pct`.
+- **The plan is agreed with the client, never auto-applied.** `PUT /api/plan` writes
+  `accounts.goals_json` (the one field every tool reads) AND a `p_plan` row for the
+  story: basis, growth chosen, required spend, expected CM, share token, agreement.
+  Saving with changed numbers passes `reagree:true`, which CLEARS `agreed_at` — do not
+  let a plan drift after sign-off. `GET /api/plan/:token` is unauthenticated and must
+  only ever expose that one client's plan: no other account, no cost diagnostics.
 - **Never depend on the Marketing Calendar.** It is a Lucky Golf internal app, not
   a Mobius one. It was integrated and then deliberately removed; do not re-add it.
 - **The forecast is CTC's revenue cake with TWO additive layers.** returning (the
