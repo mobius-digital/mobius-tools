@@ -92,6 +92,16 @@ cross-platform reporting is wanted, it gets its own dashboard.
 - **Auto-post is opt-in per brand** (`brief_enabled`) and requires goals + a
   Slack channel; runs at the 14:00 UTC cron (7am PT / 10am ET), covering
   yesterday. Manual preview/post any time from the Daily Brief page.
+- **Goal suggestions** (GET /api/goal-suggest): trailing-28-day run-rate →
+  monthly sales/spend (spend prefers the Settings monthly target) + trailing
+  aMER — a "beat your own average" starter plan. Initial goals were auto-set
+  for all 6 brands 2026-08-20 (goals carry `source: "auto-28d"`); Cole adjusts
+  to real targets on the page (✨ Suggest from history refills any time).
+- **Week in review**: when the covered day is a Sunday (i.e. every Monday
+  send), the brief appends the 7-day totals vs plan + best/slowest day, and
+  the narrative weighs the weekly picture. Channel line carries per-day
+  Google ROAS (`ga_ROAS`) next to Google spend; brief also projects the
+  month (plan-share method) vs the sales goal.
 
 ---
 
@@ -144,6 +154,7 @@ GET  /api/share/:token                     NO auth — read-only bundle for the 
 GET  /api/creative?act=&fresh=&window=     freshness cards + weekly age buckets + freshness-vs-CPA (auto-kicks backfill when empty)
 GET  /api/slack-channels                   channel list for the Settings dropdown
 POST /api/tw-sync?act=&days=               pull per-day TW metrics into tw_daily (default 70d, max 120)
+GET  /api/goal-suggest?act=                trailing-28d run-rate goal suggestions (sales, spend, aMER, margin)
 GET  /api/brief?act=&date=                 forecast-vs-actual for the whole month + history (no Claude call)
 POST /api/brief-preview                    {act, date} → full brief text incl. Claude narrative (nothing posted)
 POST /api/brief-send                       {act, date} → post to the brand's Slack channel + log in briefs

@@ -76,9 +76,11 @@ The four Meta pages never touch Triple Whale; the Daily Brief's store-level mone
 
 No new secrets — it reuses TW_API_KEY, ANTHROPIC_API_KEY and SLACK_BOT_TOKEN.
 For each client you want briefed: dashboard → **Daily Brief** (pick the client) →
-set the month's goals (**net sales** + **ad spend** minimum; aMER and margin %
-optional — margin falls back to the client's real COGS in Triple Whale) → flip
-**auto-post**. It posts every morning (~7am PT / 10am ET) to the brand's alerts
+review the month's goals (**all 6 brands were pre-filled from their trailing
+28-day run-rate** — a "beat your own average" plan; ✨ Suggest from history
+refills any time, then adjust to the real target and Save; margin % optional —
+it falls back to the client's real COGS in Triple Whale) → flip **auto-post**.
+Monday's brief automatically adds a week-in-review block. It posts every morning (~7am PT / 10am ET) to the brand's alerts
 channel, covering yesterday: forecast vs actual on Contribution Margin, Net
 Sales, Total Spend and aMER, plus a Claude-written Notes / So What? / What's
 Next? built from the numbers and the Change Log. Preview or post manually from
