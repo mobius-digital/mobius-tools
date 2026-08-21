@@ -17,6 +17,14 @@ binding = "DB"
 database_name = "mobius-account-health"
 database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 
+# Direct worker-to-worker binding to the Mobius auth server (the account-health
+# worker mints the Google sessions). Used to verify `mds.*` session tokens without
+# duplicating SESSION_SECRET onto this worker. A service binding is the supported
+# mechanism — fetching the other worker's public URL is unreliable from inside a Worker.
+[[services]]
+binding = "AUTH"
+service = "mobius-account-health"
+
 [vars]
 GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"
 

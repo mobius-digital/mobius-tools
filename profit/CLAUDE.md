@@ -42,5 +42,14 @@ profit/
   `settings` table, and Google SSO is delegated to the account-health worker's
   `/api/me` (`delegateSession`). Setting `SESSION_SECRET` to the same value as
   the other workers makes it verify locally instead — faster, optional.
+- **Delegation MUST go through the `AUTH` service binding.** A plain `fetch()` to
+  the other worker's public workers.dev URL fails silently from inside a Worker —
+  that shipped once and produced a sign-in loop. `[[services]] binding = "AUTH"`
+  in wrangler.toml; `env.AUTH.fetch(req)`. Verify with `GET /api/auth-check`,
+  which reports `auth_binding_reachable` and `delegated_verify`.
+- **Never let the gate clear `mobius_session` on a 401.** If this tool rejects a
+  token HQ considers valid, the fault is this worker's; wiping the session just
+  sends the user back to mint another one that fails identically. Show the error
+  and offer Retry instead.
 - Windows: `npx.cmd wrangler deploy` from `profit/worker/`. PowerShell 5.1 uses
   `;` not `&&`. Cloudflare throws transient 7403 — retry.

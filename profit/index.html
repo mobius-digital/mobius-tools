@@ -282,8 +282,12 @@ async function boot() {
     if (/unauthorized/i.test(e.message)) {
       const wasShared = S.tok && S.tok === sharedSession();
       S.tok=''; localStorage.removeItem(LS.tok);
-      if (wasShared) { ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); return renderGate('Your session expired — sign in again.'); }
-      return renderGate('Wrong password — try again.');
+      // Deliberately do NOT clear the shared HQ session here. If this tool rejects a
+      // token HQ considers valid, the fault is this worker's, and wiping the session
+      // just sends you back to HQ to mint another one that fails the same way.
+      return renderGate(wasShared
+        ? 'Mobius Profit could not verify your Mobius sign-in. Your HQ session is still valid — press Retry, or use a password below.'
+        : 'Wrong password — try again.', wasShared);
     }
     setChip('Worker down','down');
     $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p><button class="cta" onclick="boot()">Retry</button></div>`;
@@ -291,7 +295,7 @@ async function boot() {
 }
 function setChip(t,s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
 
-function renderGate(err) {
+function renderGate(err, offerRetry) {
   setChip('Signed out','off');
   $('#tabs').style.display='none'; $('#clientPick').style.display='none';
   $('#rangePick').style.display='none'; $('#btnOut').style.display='none';
@@ -301,6 +305,7 @@ function renderGate(err) {
     <p>Is each brand actually making money? Contribution margin, MER and aMER across every channel — not just the ads. Sign in once at Mobius HQ and every internal tool opens.</p>
     <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
+    ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
     <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
       <label>Password</label><input id="gTok" type="password" placeholder="password">
       <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
@@ -313,6 +318,8 @@ function renderGate(err) {
     localStorage.setItem(LS.url,S.url); localStorage.setItem(LS.tok,S.tok);
     boot();
   };
+  const rb = $('#gRetry');
+  if (rb) rb.onclick = () => { S.tok = sharedSession() || ''; if (!S.tok) return renderGate('No Mobius session found — sign in at HQ first.'); boot(); };
   $('#gGo').onclick = go;
   $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
 }

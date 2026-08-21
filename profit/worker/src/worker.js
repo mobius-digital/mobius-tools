@@ -74,9 +74,11 @@ async function emailAllowed(env, email) {
  *  Lets SSO work without duplicating SESSION_SECRET onto this worker; if the
  *  secret IS set here, local verification wins and this never runs. */
 async function delegateSession(env, tok) {
-  if (!/^mds\./.test(tok)) return false;
+  if (!tok || tok.length < 8) return false;
+  const req = new Request(`${AUTH_WORKER}/api/me`, { headers: { Authorization: `Bearer ${tok}` } });
   try {
-    const res = await fetch(`${AUTH_WORKER}/api/me`, { headers: { Authorization: `Bearer ${tok}` } });
+    // Service binding first (direct worker-to-worker, no public round-trip).
+    const res = env.AUTH ? await env.AUTH.fetch(req) : await fetch(req);
     if (!res.ok) return false;
     const j = await res.json().catch(() => ({}));
     return !!(j.email || j.master);
@@ -306,6 +308,30 @@ export default {
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
     if (path === '/health') return json({ ok: true, tool: 'mobius-profit' });
+
+    /* Why can't I sign in? Reports only capability booleans and the result for the
+       token you supplied — no secrets, no other user's state. */
+    if (path === '/api/auth-check') {
+      const tok = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+      const out = {
+        has_auth_binding: !!env.AUTH,
+        has_session_secret: !!env.SESSION_SECRET,
+        has_admin_token: !!env.ADMIN_TOKEN,
+        shared_password_set: !!(await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first())?.value,
+        token_seen: tok ? `${tok.slice(0, 4)}…(${tok.length})` : null,
+      };
+      // Prove the worker-to-worker binding is actually reachable.
+      try {
+        const probe = env.AUTH ? await env.AUTH.fetch(new Request(`${AUTH_WORKER}/health`)) : null;
+        out.auth_binding_reachable = probe ? probe.ok : null;
+      } catch (e) { out.auth_binding_reachable = false; out.auth_binding_error = e.message; }
+      if (tok) {
+        out.local_session_verify = !!(await verifySession(env, tok));
+        out.delegated_verify = await delegateSession(env, tok);
+        out.authorized = await isAdmin(request, env);
+      }
+      return json(out);
+    }
     if (path === '/') return Response.redirect(DASHBOARD_URL, 302);
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
 
