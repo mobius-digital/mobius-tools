@@ -72,20 +72,15 @@ The four Meta pages never touch Triple Whale; the Daily Brief's store-level mone
 3. Dashboard → Settings: each client's **Triple Whale shop** domain is prefilled.
    Verify from the Daily Brief page → **↻ Refresh Triple Whale data**.
 
-## 2e. Daily Brief (you do this — per client, ~1 minute)
+## 2e. Daily Brief (now lives in Mobius Profit)
 
-No new secrets — it reuses TW_API_KEY, ANTHROPIC_API_KEY and SLACK_BOT_TOKEN.
-For each client you want briefed: dashboard → **Daily Brief** (pick the client) →
-review the month's goals (**all 6 brands were pre-filled from their trailing
-28-day run-rate** — a "beat your own average" plan; ✨ Suggest from history
-refills any time, then adjust to the real target and Save; margin % optional —
-it falls back to the client's real COGS in Triple Whale) → flip **auto-post**.
-Monday's brief automatically adds a week-in-review block. It posts every morning (~7am PT / 10am ET) to the brand's alerts
-channel, covering yesterday: forecast vs actual on Contribution Margin, Net
-Sales, Total Spend and aMER, plus a Claude-written Notes / So What? / What's
-Next? built from the numbers and the Change Log. Preview or post manually from
-the same page — nothing reaches the client until goals + the toggle (or a
-manual Post) say so.
+The Daily Brief moved to **https://tools.go-mobius-digital.com/profit/ → Daily Brief**
+on 2026-08-21, because every number in it is store-level rather than Meta-only.
+This worker still runs it: the brief endpoints, the 14:00 UTC cron and the
+TW/Anthropic/Slack secrets stay here, and the Profit worker calls them over a
+Cloudflare service binding. Nothing to configure — set each brand's goals and
+channel in Profit.
+
 
 ## 3. Dashboard
 

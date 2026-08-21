@@ -110,7 +110,7 @@ Change Log stays available.
 | **1** | **Profit page**: daily/weekly/monthly waterfall revenue → COGS → shipping → fees → ad spend → CM, with trend charts and the cost-basis label |
 | **2** | **Forecast page**: goals, day-by-day forecast, Marketing Calendar multipliers, month/quarter projection, spend-scenario slider |
 | **3** | **Cohorts page**: new vs returning revenue, repeat-purchase rate, payback period; feeds the forecast |
-| **4** | **Move the Daily Brief here** from Account Health; Account Health goes back to being purely Meta |
+| **4** | ✅ **DONE 2026-08-21** — Daily Brief moved here; Account Health is purely Meta again. Its interface is a tab in this tool; the account-health worker still owns the engine (endpoints + 14:00 UTC cron + the TW/Anthropic/Slack secrets) and Profit proxies to it over the `AUTH` service binding, so no secret is duplicated. |
 
 Phase 0 is the only one with a hard dependency — everything else can be reordered.
 

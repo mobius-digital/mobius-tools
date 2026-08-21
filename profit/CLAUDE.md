@@ -42,6 +42,13 @@ profit/
   `broken` suppresses every profit figure. The Costs page must always diagnose
   the **real** TW data (`seriesRaw`, override ignored) — grading the override
   produces a meaningless flat line and hides whether it has been fixed.
+- **The Daily Brief lives HERE but runs THERE.** Its tab is in this tool (all its
+  numbers are store-level), while the account-health worker keeps the endpoints, the
+  14:00 UTC cron and the TW/Anthropic/Slack secrets. `PROXY_PATHS` forwards
+  /api/brief, /api/brief-preview, /api/brief-send, /api/briefs, /api/goal-suggest,
+  /api/tw-sync and /api/slack-channels over the `AUTH` binding. Monthly goals are
+  written locally (`PUT /api/goals`) so the month/default merge sits beside the
+  margin override in the same JSON blob — and it must preserve `cm_pct`.
 - **No cron.** The Cloudflare account is at the free-plan limit of 5 triggers.
   `refreshIfStale()` warms `p_cost_health` on page load instead.
 - **Auth needs no new secret.** The dashboard password lives in the shared

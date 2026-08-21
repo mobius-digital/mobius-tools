@@ -19,6 +19,11 @@
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
+/* Served by the account-health worker and forwarded verbatim (see the proxy block). */
+const PROXY_PATHS = new Set([
+  '/api/slack-channels', '/api/brief', '/api/brief-preview', '/api/brief-send',
+  '/api/briefs', '/api/goal-suggest', '/api/tw-sync',
+]);
 
 /* ---------------- dates ---------------- */
 const localDate = (tz, d = new Date()) =>
@@ -512,14 +517,41 @@ export default {
         return json({ ok: true, margin_pct: pct, verdict: health.verdict });
       }
 
-      /* Slack channels come from the account-health worker (it holds SLACK_BOT_TOKEN).
-         Forward the caller's own token through the service binding. */
-      if (path === '/api/slack-channels') {
+      /* Endpoints served by the account-health worker, which owns the Meta sync and
+         holds the Triple Whale / Anthropic / Slack secrets. The Daily Brief lives in
+         THIS tool's interface — all its numbers are store-level, which is this tool's
+         job — but the engine behind it stays where the credentials already are.
+         One hop over the service binding; no secret is duplicated. */
+      if (PROXY_PATHS.has(path)) {
         const auth = request.headers.get('Authorization') || '';
-        const req = new Request(`${AUTH_WORKER}/api/slack-channels`, { headers: { Authorization: auth } });
-        const res = env.AUTH ? await env.AUTH.fetch(req) : await fetch(req);
+        const target = `${AUTH_WORKER}${path}${url.search}`;
+        const init = { method: request.method, headers: { Authorization: auth } };
+        if (request.method !== 'GET' && request.method !== 'HEAD') {
+          init.body = await request.text();
+          init.headers['Content-Type'] = 'application/json';
+        }
+        const res = env.AUTH ? await env.AUTH.fetch(new Request(target, init)) : await fetch(target, init);
         const body = await res.text();
         return new Response(body, { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
+      }
+
+      /* Monthly goals. Written here rather than proxied so the month/default merge
+         lives next to the margin override that shares the same JSON blob. */
+      if (path === '/api/goals' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const goals = safeJson(acct.goals_json, {});
+        const ym = b.month || monthOf(localDate(acct.tz));
+        const keep = goals[ym]?.cm_pct ?? goals.default?.cm_pct ?? null;   // never clobber the margin
+        const m = {};
+        for (const k of ['sales', 'spend', 'amer']) if (b[k] != null && b[k] !== '') m[k] = +b[k];
+        if (keep != null) m.cm_pct = keep;
+        goals[ym] = m;
+        goals.default = { ...m };
+        await env.DB.prepare(`UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1`)
+          .bind(acct.act_id, JSON.stringify(goals)).run();
+        return json({ ok: true, goals: m });
       }
 
       /* Per-client delivery settings. These live on the SHARED accounts table, so

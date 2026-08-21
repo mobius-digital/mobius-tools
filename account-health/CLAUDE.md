@@ -1,7 +1,9 @@
 # Account Health — instructions for Claude Code
 
 Multi-client Meta ads health dashboard for Mobius Digital: Pacing, Change Log,
-Averages, Creative Rotation + an all-clients Overview. **Read `PRD.md` first** —
+Averages, Creative Rotation + an all-clients Overview. **META-ONLY, internal.**
+Store-level money and all client-facing reporting live in `../profit/` (Mobius
+Profit) — including the Daily Brief, which moved there 2026-08-21. **Read `PRD.md` first** —
 it holds the four questions, the build plan (one chat per page), the decisions
 already made, the D1 schema and the worker API. Don't re-litigate decisions
 listed there; extend them.
@@ -41,9 +43,11 @@ account-health/
 
 All four pages, Overview, Settings, Summarise (Claude), share links, per-brand
 Slack alerts, KPI guardrails, intraday pacing,
-auto-suggested reasons, in-app help guides, **Daily Brief** (Chat 5 —
-CTC-style forecast-vs-actual with Claude narrative, auto-posts 14:00 UTC per
-enabled brand). Secrets set: META_TOKEN, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN,
+auto-suggested reasons, in-app help guides. The **Daily Brief** shipped here in Chat 5 and **its interface
+moved to Mobius Profit on 2026-08-21** — this worker still owns the engine (the
+brief endpoints, the 14:00 UTC cron and the TW/Anthropic/Slack secrets), and Profit
+calls them over a service binding. Do not re-add a Daily Brief tab here.
+Secrets set: META_TOKEN, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN,
 TW_API_KEY, ADMIN_TOKEN, SESSION_SECRET.
 
 Cole's remaining step for the Daily Brief: per client, set monthly goals on

@@ -32,7 +32,7 @@ budgets, password).
 | 2 | Averages page (7v30 cards, 3/7/14/30 table, change-log strip) + MTD Pacing (vs budget, vs last month) + Slack off-pace alert + per-client share link | ✅ built 2026-08-20 — Slack alerts need `SLACK_BOT_TOKEN` secret + channel in Settings |
 | 3 | Creative Rotation: ad-level pulls with first-spend date, freshness %, spend-weighted age, fresh vs stale CPA, weekly age-bucket bars | ✅ built 2026-08-20 — first visit auto-kicks the 90d ad-level backfill |
 | 4 | Intraday Pacing (hourly curves), all-clients pacing row, alert polish, handoff docs | ✅ built 2026-08-20 — GET /api/pacing pulls live from Meta on page open |
-| 5 | **Daily Brief** (CTC/Statlas-style): per-client monthly goals → daily forecast vs actual (CM, Net Sales, Spend, aMER), Claude-written Notes / So What? / What's Next? fed by the Change Log, auto-posted to each brand's Slack at 14:00 UTC | ✅ built 2026-08-20 — flip auto-post per brand after setting goals |
+| 5 | **Daily Brief** (interface moved to Mobius Profit 2026-08-21; this worker keeps the engine + cron) (CTC/Statlas-style): per-client monthly goals → daily forecast vs actual (CM, Net Sales, Spend, aMER), Claude-written Notes / So What? / What's Next? fed by the Change Log, auto-posted to each brand's Slack at 14:00 UTC | ✅ built 2026-08-20 — flip auto-post per brand after setting goals |
 
 Chats 3 and 4 are optional; the tool is already useful after Chat 2.
 
