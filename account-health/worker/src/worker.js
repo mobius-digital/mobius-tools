@@ -618,7 +618,9 @@ async function syncTwDaily(env, acct, days = 10) {
   if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY secret not set' };
   if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop set' };
   const today = localDate(acct.tz);
-  const start = addDays(today, -Math.min(days, 120));
+  // Up to ~14 months, so the Plan page can show a real six-month history and a
+  // year-ago comparison. One TW call covers the whole window.
+  const start = addDays(today, -Math.min(days, 430));
   const res = await twSummary(env, acct.tw_shop, start, today);
   const daily = twDailySeries(res.raw, start, today);
   const stmts = [];
@@ -628,7 +630,9 @@ async function syncTwDaily(env, acct, days = 10) {
         `INSERT INTO tw_daily (act_id, date, metric, value, synced_at) VALUES (?1,?2,?3,?4,datetime('now'))
          ON CONFLICT(act_id, date, metric) DO UPDATE SET value = excluded.value, synced_at = excluded.synced_at`,
       ).bind(acct.act_id, date, id, v));
-  for (let i = 0; i < stmts.length; i += 40) await env.DB.batch(stmts.slice(i, i + 40));
+  // Bigger batches: a 400-day backfill is ~25k rows, and every batch is a
+  // subrequest against the Worker's per-invocation limit.
+  for (let i = 0; i < stmts.length; i += 150) await env.DB.batch(stmts.slice(i, i + 150));
   if (Array.isArray(res.raw?.metrics)) {
     await putSetting(env, `twCatalog:${acct.act_id}`,
       JSON.stringify(res.raw.metrics.map(m => ({ id: m.metricId ?? m.id, title: m.title })).slice(0, 400))).catch(() => {});
@@ -1725,7 +1729,7 @@ export default {
       /* ---- Daily Brief (Chat 5) ---- */
       if (path === '/api/tw-sync' && request.method === 'POST') {
         const act = url.searchParams.get('act');
-        const days = Math.min(+url.searchParams.get('days') || 70, 120);
+        const days = Math.min(+url.searchParams.get('days') || 70, 430);
         const accounts = (await listAccounts(env, true)).filter(a => !act || act === 'all' || a.act_id === act);
         const results = [];
         for (const a of accounts) results.push(await syncTwDaily(env, a, days).catch(e => ({ name: a.name, error: e.message })));

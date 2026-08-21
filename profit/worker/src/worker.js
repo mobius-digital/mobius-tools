@@ -797,19 +797,35 @@ export default {
       /* Client sign-off, and the read-only link you take to the call. */
       if (path === '/api/plan-agree' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const g = goalsFor({ ...acct, goals: safeJson(acct.goals_json, {}) }, b.month);
+        if (g.sales == null) return json({ error: 'there is no plan for this month to agree to yet' }, 400);
+        // Upsert: a plan can exist as goals without a p_plan row (goals set from the
+        // Daily Brief page, say), and you should still be able to record sign-off.
+        const at = b.agreed ? new Date().toISOString() : null;
         await env.DB.prepare(
-          `UPDATE p_plan SET agreed_at = ?3, agreed_by = ?4, updated_at = datetime('now') WHERE act_id = ?1 AND month = ?2`,
-        ).bind(b.act, b.month, b.agreed ? new Date().toISOString() : null, b.agreed ? (b.by || 'Mobius') : null).run();
-        return json({ ok: true });
+          `INSERT INTO p_plan (act_id, month, agreed_at, agreed_by, updated_at)
+           VALUES (?1,?2,?3,?4,datetime('now'))
+           ON CONFLICT(act_id, month) DO UPDATE SET agreed_at = excluded.agreed_at,
+             agreed_by = excluded.agreed_by, updated_at = datetime('now')`,
+        ).bind(b.act, b.month, at, b.agreed ? (b.by || 'Mobius') : null).run();
+        return json({ ok: true, agreed_at: at });
       }
       if (path === '/api/plan-share' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
+        const acct2 = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct2) return json({ error: 'unknown account' }, 404);
+        const g2 = goalsFor({ ...acct2, goals: safeJson(acct2.goals_json, {}) }, b.month);
+        if (g2.sales == null) return json({ error: 'set a revenue goal for this month first' }, 400);
         const row = await env.DB.prepare(`SELECT share_token FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(b.act, b.month).first();
-        if (!row) return json({ error: 'save the plan first' }, 400);
-        let token = row.share_token;
+        let token = row?.share_token;
         if (!token) {
           token = crypto.randomUUID().replace(/-/g, '');
-          await env.DB.prepare(`UPDATE p_plan SET share_token = ?3 WHERE act_id = ?1 AND month = ?2`).bind(b.act, b.month, token).run();
+          await env.DB.prepare(
+            `INSERT INTO p_plan (act_id, month, share_token, updated_at) VALUES (?1,?2,?3,datetime('now'))
+             ON CONFLICT(act_id, month) DO UPDATE SET share_token = excluded.share_token, updated_at = datetime('now')`,
+          ).bind(b.act, b.month, token).run();
         }
         return json({ ok: true, url: `${DASHBOARD_URL}?plan=${token}` });
       }

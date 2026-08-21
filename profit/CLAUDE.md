@@ -55,6 +55,15 @@ profit/
   Saving with changed numbers passes `reagree:true`, which CLEARS `agreed_at` — do not
   let a plan drift after sign-off. `GET /api/plan/:token` is unauthenticated and must
   only ever expose that one client's plan: no other account, no cost diagnostics.
+- **Re-render the numbers, not the page.** Growth buttons, save and the agreed
+  toggle all update in place. Calling `renderPlan()` / `show()` from a handler throws
+  the user back to the top of the page, which makes comparing options miserable.
+- **`.info-i` must reset `letter-spacing`, `font-style` and `text-transform`** — stat
+  labels are uppercase and letter-spaced, and without the reset the glyph inside the
+  circle is squashed and reads as broken.
+- **Triple Whale backfills are capped at 430 days and must run ONE CLIENT AT A TIME.**
+  A 400-day pull is ~25-50k rows; every D1 batch is a subrequest, and all six clients
+  in one invocation blows the Worker limit. Batch size is 150.
 - **Never depend on the Marketing Calendar.** It is a Lucky Golf internal app, not
   a Mobius one. It was integrated and then deliberately removed; do not re-add it.
 - **The forecast is CTC's revenue cake with TWO additive layers.** returning (the

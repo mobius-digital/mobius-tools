@@ -155,7 +155,9 @@
   .av-trend.good{color:var(--good)} .av-trend.bad{color:var(--bad)}
   .av-card.clickable{cursor:pointer;transition:border-color .12s, box-shadow .12s}
   .av-card.clickable:hover{border-color:var(--brand-ink);box-shadow:0 3px 14px rgba(12,22,29,.08)}
-  .info-i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid var(--line-strong);border-radius:50%;font-size:9.5px;font-weight:700;color:var(--muted);cursor:pointer;vertical-align:1px;text-transform:none}
+  /* The stat labels are uppercase and letter-spaced; without resetting those the
+     glyph inside the circle gets squashed and looks broken. */
+  .info-i{display:inline-flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;min-width:16px;border:1px solid var(--line-strong);border-radius:50%;font-size:11px;line-height:1;font-weight:700;font-style:normal;letter-spacing:0;text-transform:none;color:var(--muted);cursor:pointer;vertical-align:middle}
   .info-i:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .help-body{font-size:13.5px;line-height:1.6;max-height:60vh;overflow-y:auto}
   .help-body p{margin-bottom:9px}
@@ -1133,10 +1135,25 @@ async function renderPlan() {
   };
   const chosen = opt(PL.growth);
 
+  // The most confusing number on the page is "holding flat lowers profit". It is
+  // real, and it happens when acquisition efficiency has slipped since the month
+  // you are building from — so say exactly that, with both aMERs side by side.
+  const lastFull = hist.filter(h => !h.partial).slice(-1)[0] || null;
+  const warnHtml = c => {
+    if (c?.cm == null || !lastFull || lastFull.cm == null) return '';
+    const d = c.cm - lastFull.cm;
+    if (d >= 0) return `That is <b>${fmtK(d, cur)} more</b> contribution margin than ${esc(lastFull.month)}.`;
+    const effDrop = lastFull.amer != null && p.ctx.amer != null && p.ctx.amer < lastFull.amer;
+    return `⚠️ That is <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than ${esc(lastFull.month)}. `
+      + (effDrop
+        ? `Not because revenue is lower — because acquisition got more expensive. ${esc(lastFull.month)} bought new customers at <b>${fmtX(lastFull.amer)}</b>; the last 28 days are running at <b>${fmtX(p.ctx.amer)}</b>. At today’s efficiency the same revenue needs <b>${fmtMoney(c.spend, cur)}</b> of spend against ${esc(lastFull.month)}’s ${fmtMoney(lastFull.spend, cur)}, and that difference comes straight out of profit.`
+        : `The spend this goal requires outweighs the extra revenue it brings in.`);
+  };
+
   $('#main').innerHTML = `<h2>Plan the month — ${esc(p.account.name)}</h2>
     <p class="sub">This is the number you and the client agree on, and the one every daily update is then measured against. Growth is never free — pick a target and the spend it takes comes with it.</p>
     <div class="row" style="margin-bottom:12px">
-      ${saved?.agreed_at ? `<span class="pill good">agreed with client ${esc(String(saved.agreed_at).slice(0, 10))}</span>` : p.goals?.sales != null ? '<span class="pill warn">saved, not yet agreed</span>' : '<span class="pill unk">no plan yet</span>'}
+      <span id="plChip">${saved?.agreed_at ? `<span class="pill good">agreed with client ${esc(String(saved.agreed_at).slice(0, 10))}</span>` : p.goals?.sales != null ? '<span class="pill warn">saved, not yet agreed</span>' : '<span class="pill unk">no plan yet</span>'}</span>
       <span style="flex:1"></span><button class="help-btn" data-help="plan">? How to use</button>
     </div>
 
@@ -1159,55 +1176,89 @@ async function renderPlan() {
         <div class="unit-in" style="width:92px"><input id="plCustom" type="text" inputmode="decimal" placeholder="custom" value="${![0,0.1,0.2,0.3].some(g => Math.abs(PL.growth - g) < 0.001) ? Math.round(PL.growth * 100) : ''}"><span>%</span></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
-        ${statCard('Revenue goal', fmtMoney(chosen.sales, cur), `${PL.growth >= 0 ? '+' : ''}${Math.round(PL.growth * 100)}% on ${esc(p.basis.label)}`, 'The number the whole month gets measured against, once you save it. Every daily update compares that day against its slice of this.')}
-        ${statCard('Ad spend needed', fmtMoney(chosen.spend, cur), `at ${fmtX(p.ctx.amer)} aMER`, 'What this goal costs. Returning revenue is expected to arrive anyway; the rest has to be acquired, and at this client’s trailing acquisition efficiency that takes this much spend.')}
-        ${statCard('Expected contribution margin', fmtMoney(chosen.cm, cur), chosen.cmPct != null ? `${fmtPct(chosen.cmPct)} of revenue` : '', 'Revenue at the client’s trailing margin, minus the ad spend above. If this goes down as you push growth harder, you are buying revenue that does not pay for itself.')}
-        ${statCard('Implied MER', fmtX(chosen.mer), 'revenue ÷ spend', 'The blended efficiency this plan assumes. If it is far above what the client has actually achieved recently, the plan is optimistic.')}
+        ${statCard('Revenue goal', `<span id="plSales">${fmtMoney(chosen.sales, cur)}</span>`, `<span id="plSalesSub">${PL.growth >= 0 ? '+' : ''}${Math.round(PL.growth * 100)}% on ${esc(p.basis.label)}</span>`, 'The number the whole month gets measured against once you save it. It is split across the days by this brand’s own weekday rhythm, and every morning’s Daily Brief compares yesterday against its slice.')}
+        ${statCard('Ad spend needed', `<span id="plSpend">${fmtMoney(chosen.spend, cur)}</span>`, `at ${fmtX(p.ctx.amer)} aMER`, `What this goal costs. Returning customers are expected to bring in about ${fmtMoney((p.ctx.returning_per_day || 0) * p.ctx.days_in_month, cur)} on their own this month; everything above that has to be acquired, and at this client’s trailing ${fmtX(p.ctx.amer)} aMER that takes this much spend.`)}
+        ${statCard('Expected contribution margin', `<span id="plCm">${fmtMoney(chosen.cm, cur)}</span>`, `<span id="plCmSub">${chosen.cmPct != null ? `${fmtPct(chosen.cmPct)} of the ${fmtK(chosen.sales, cur)} revenue goal` : ''}</span>`, `The profit left after variable costs. Worked out as: revenue goal × this client’s trailing ${fmtPct(p.ctx.margin)} product margin, minus the ad spend above. Nothing is assumed — the margin comes from their real cost data over the last complete month. If this FALLS as you push growth harder, the extra revenue is costing more than it brings in.`)}
+        ${statCard('Implied MER', `<span id="plMer">${fmtX(chosen.mer)}</span>`, 'revenue ÷ spend', 'The blended efficiency this plan assumes. Compare it to the MER column above — if the plan needs a number this client has not hit recently, it is optimistic.')}
       </div>
-      <div class="row" style="margin-top:16px">
+      <div class="row" style="margin-top:16px;align-items:flex-start">
         <button class="btn primary" id="plSave">Save as ${esc(p.month)} plan</button>
-        <button class="btn" id="plShare">↗ Client link</button>
-        <div class="toggle ${saved?.agreed_at ? 'on' : ''}" id="plAgreed" title="Mark as agreed with the client"></div>
-        <span class="tiny">agreed with client</span>
+        <button class="btn" id="plShare" title="Creates a read-only web page showing only this plan — no other client, no internal notes — to screen-share or send before the monthly call.">↗ Client link</button>
+        <div class="row" style="margin:0;gap:8px">
+          <div class="toggle ${saved?.agreed_at ? 'on' : ''}" id="plAgreed" title="Record that the client has signed off on this number."></div>
+          <span class="tiny" id="plAgreedLbl">${saved?.agreed_at ? `agreed ${esc(String(saved.agreed_at).slice(0, 10))}` : 'not yet agreed'}</span>
+        </div>
         <span class="tiny" id="plMsg"></span>
       </div>
-      ${chosen.cm != null && hist.length ? (() => {
-        const lastCm = hist.filter(h => !h.partial).slice(-1)[0]?.cm;
-        if (lastCm == null) return '';
-        const d = chosen.cm - lastCm;
-        return `<p class="tiny" style="margin-top:10px">${d >= 0
-          ? `That is <b>${fmtK(d, cur)} more</b> contribution margin than the last complete month.`
-          : `⚠️ That is <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than the last complete month — this level of growth costs more than it brings in at the current acquisition efficiency.`}</p>`;
-      })() : ''}</div>` : ''}`;
+      <div class="tiny" style="margin-top:10px;color:var(--muted);line-height:1.6">
+        <b>Save</b> makes this the month's target — from that moment every daily update measures against it.<br>
+        <b>Client link</b> gives you a read-only page with just this plan on it, to send or screen-share on your monthly call.<br>
+        <b>Agreed</b> is a record that they said yes, and the date. It changes no numbers; it exists so a daily update can honestly say "against the plan we agreed", and so you can see at a glance which clients are still waiting on sign-off. Change the numbers afterwards and it clears itself.
+      </div>
+      <p class="tiny" id="plWarn" style="margin-top:10px">${warnHtml(chosen)}</p></div>` : ''}`;
 
-  $('#main').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { PL.growth = +b.dataset.g; renderPlan(); });
+  // Re-render only the numbers, never the page: a full re-render throws you back
+  // to the top, which makes comparing growth levels miserable.
+  const repaint = () => {
+    const c = opt(PL.growth);
+    $('#main').querySelectorAll('[data-g]').forEach(b =>
+      b.classList.toggle('on', Math.abs(PL.growth - +b.dataset.g) < 0.001));
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    set('#plSales', fmtMoney(c.sales, cur));
+    set('#plSalesSub', `${PL.growth >= 0 ? '+' : ''}${Math.round(PL.growth * 100)}% on ${p.basis.label}`);
+    set('#plSpend', fmtMoney(c.spend, cur));
+    set('#plCm', fmtMoney(c.cm, cur));
+    set('#plCmSub', c.cmPct != null ? `${fmtPct(c.cmPct)} of the ${fmtK(c.sales, cur)} revenue goal` : '');
+    set('#plMer', fmtX(c.mer));
+    const w = $('#plWarn');
+    if (w) w.innerHTML = warnHtml(c);
+    const sb = $('#plSave');
+    if (sb) sb.textContent = `Save as ${p.month} plan`;
+  };
+  $('#main').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { PL.growth = +b.dataset.g; repaint(); });
   const ci = $('#plCustom');
   if (ci) ci.onchange = () => {
     const v = +ci.value.replace(/[^0-9.\-]/g, '');
     if (!isFinite(v)) return;
-    PL.growth = v / 100; renderPlan();
+    PL.growth = v / 100; repaint();
   };
   const sv = $('#plSave');
   if (sv) sv.onclick = async () => {
+    const c = opt(PL.growth);
     $('#plMsg').textContent = 'Saving…';
     try {
-      const changed = p.goals?.sales != null && Math.abs(p.goals.sales - chosen.sales) > 1;
+      const changed = p.goals?.sales != null && Math.abs(p.goals.sales - c.sales) > 1;
       await api('/api/plan', { method: 'PUT', body: JSON.stringify({
-        act: S.act, month: p.month, sales: Math.round(chosen.sales),
-        spend: chosen.spend != null ? Math.round(chosen.spend) : null,
+        act: S.act, month: p.month, sales: Math.round(c.sales),
+        spend: c.spend != null ? Math.round(c.spend) : null,
         growth_pct: PL.growth, basis_sales: p.basis.sales, basis_label: p.basis.label,
-        expected_cm: chosen.cm, reagree: changed }) });
+        expected_cm: c.cm, reagree: changed }) });
+      p.goals = { ...(p.goals || {}), sales: Math.round(c.sales) };
+      if (changed) {
+        $('#plAgreed')?.classList.remove('on');
+        $('#plAgreedLbl').textContent = 'not yet agreed';
+        const chip = $('#plChip');
+        if (chip) chip.innerHTML = '<span class="pill warn">saved, not yet agreed</span>';
+      }
       $('#plMsg').textContent = changed ? 'Saved ✓ — the numbers moved, so it needs agreeing again.' : 'Saved ✓';
-      await boot(); show('plan');
     } catch (e) { $('#plMsg').textContent = e.message; }
   };
   const ag = $('#plAgreed');
   if (ag) ag.onclick = async () => {
-    if (p.goals?.sales == null) return noteModal('Save the plan first', '<p>There is no saved plan for this month yet, so there is nothing to agree to.</p>');
     const on = !ag.classList.contains('on');
     ag.classList.toggle('on', on);
-    try { await api('/api/plan-agree', { method: 'POST', body: JSON.stringify({ act: S.act, month: p.month, agreed: on }) }); show('plan'); }
-    catch (e) { ag.classList.toggle('on', !on); $('#plMsg').textContent = e.message; }
+    $('#plMsg').textContent = '';
+    try {
+      const r = await api('/api/plan-agree', { method: 'POST', body: JSON.stringify({ act: S.act, month: p.month, agreed: on }) });
+      $('#plAgreedLbl').textContent = on && r.agreed_at ? `agreed ${String(r.agreed_at).slice(0, 10)}` : 'not yet agreed';
+      const chip = $('#plChip');
+      if (chip) chip.innerHTML = on && r.agreed_at
+        ? `<span class="pill good">agreed with client ${esc(String(r.agreed_at).slice(0, 10))}</span>`
+        : '<span class="pill warn">saved, not yet agreed</span>';
+    } catch (e) {
+      ag.classList.toggle('on', !on);
+      noteModal('Nothing to agree to yet', `<p>${esc(e.message)}</p><p class="tiny">Save the plan first — agreeing records sign-off on a number that exists.</p>`);
+    }
   };
   const sh = $('#plShare');
   if (sh) sh.onclick = async () => {
