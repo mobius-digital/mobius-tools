@@ -481,6 +481,12 @@ const PAGE_HELP = {
     <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning (~7am PT / 10am ET), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
   plan: `
     <p><b>What this page is:</b> the monthly conversation with your client, turned into the number everything else is measured against. A forecast nobody agreed to is just a guess.</p>
+    <p><b>Why there are three boxes:</b> revenue, ad spend and MER are one equation — <b>revenue = MER × spend</b>. Fix any two and the third is decided for you. So you type into two of them, and the greyed-out one does the arithmetic. Press <b>calculate this instead</b> on a box to move which one is derived.</p>
+    <p><b>The three ways people actually plan:</b><br>
+    · <i>"We want $100k and we'll spend $40k"</i> — type revenue and spend, read the MER it needs.<br>
+    · <i>"We have $40k and need 2.5x"</i> — type spend and MER, read the revenue it buys.<br>
+    · <i>"We want $100k at 2.5x"</i> — type revenue and MER, read the spend required.</p>
+    <p><b>The verdict line is the honest bit.</b> Any plan implies a rate at which you buy new customers. The page compares that with what this client has actually been getting over the last 28 days and tells you plainly whether the plan is <b>achievable</b>, <b>a stretch</b>, or <b>unrealistic</b>. A goal that needs 40% better efficiency than the account has ever delivered is a wish, not a plan.</p>
     <p><b>How to run it:</b> open the client before your monthly call. The six-month table shows what actually happened. Pick a growth level and the page tells you what that goal <i>costs</i> — because returning customers arrive largely on their own, but everything above that has to be bought, at this client's own acquisition efficiency.</p>
     <p><b>Watch the contribution margin.</b> If pushing growth harder makes expected CM go <i>down</i>, you're buying revenue that doesn't pay for itself. The page says so outright.</p>
     <p><b>Then agree it.</b> "↗ Client link" gives you a read-only page with just this plan on it — no other client, no internal notes — to share on the call. Flip <b>agreed with client</b> once they say yes.</p>
@@ -1062,14 +1068,13 @@ const addDaysStr = (ymd, n) => { const dt = new Date(ymd + 'T12:00:00Z'); dt.set
    months did, choose how much growth you are signing up for, see what that costs
    in spend, then agree it with the client. Everything downstream measures against
    whatever gets saved here. */
-const PL = { month: null, mode: 'growth', value: null };
+const PL = { month: null, derive: 'mer', sales: null, spend: null, mer: null };
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const monthLabel = ym => `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
 const shiftMonth = (ym, n) => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
 
 async function renderPlan() {
   if (S.act === 'all') return renderPlanAll();
-  // Default to the month you would actually be planning: the next one.
   if (!PL.month) PL.month = shiftMonth(ymdLocal(new Date()).slice(0, 7), 1);
 
   $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span class="hint">Loading…</span></div>`;
@@ -1081,77 +1086,91 @@ async function renderPlan() {
   const saved = p.plan;
   const editable = p.status !== 'past';
   const nowYm = p.current_month;
+  const expRet = (p.ctx.returning_per_day || 0) * p.ctx.days_in_month;
 
-  // One relationship, three ways in: returning revenue arrives on its own, and
-  // everything above it is bought at the client's trailing aMER.
+  // Revenue = MER x spend. Two of the three are yours to choose; the third is
+  // arithmetic. Seed from the saved plan, else last month's revenue at the
+  // efficiency this client has actually been running.
+  if (PL.sales == null) {
+    const base = (p.goals && p.goals.sales) || (p.basis ? p.basis.sales * 1.1 : null);
+    const seedSpend = (p.goals && p.goals.spend)
+      || (base != null && p.ctx.amer ? Math.max(0, base - expRet) / p.ctx.amer : null);
+    PL.sales = base;
+    PL.spend = seedSpend;
+    PL.mer = base != null && seedSpend ? base / seedSpend : null;
+    PL.derive = 'mer';
+  }
+
   const calc = () => {
-    if (!p.basis) return null;
-    if (PL.value == null) PL.value = saved?.growth_pct ?? 0.1;
-    const ctx = p.ctx;
-    const expRet = (ctx.returning_per_day ?? 0) * ctx.days_in_month;
-    const amer = ctx.amer;
-    let sales = null, spend = null, unreachable = null;
-    if (PL.mode === 'spend') {
-      spend = Math.max(0, PL.value);
-      sales = expRet + (amer ? spend * amer : 0);
-    } else if (PL.mode === 'mer') {
-      if (amer == null || PL.value <= amer) {
-        unreachable = amer != null
-          ? `A ${(+PL.value).toFixed(2)}x MER is not reachable while acquisition runs at ${fmtX(amer)} — blended MER can only sit above aMER by whatever returning customers add on top.`
-          : 'No acquisition efficiency measured for this client yet.';
-      } else {
-        spend = expRet / (PL.value - amer);
-        sales = PL.value * spend;
-      }
-    } else {
-      sales = p.basis.sales * (1 + PL.value);
-      spend = amer ? Math.max(0, sales - expRet) / amer : null;
+    let sales = PL.sales, spend = PL.spend, mer = PL.mer;
+    if (PL.derive === 'mer') mer = sales != null && spend ? sales / spend : null;
+    else if (PL.derive === 'spend') spend = sales != null && mer ? sales / mer : null;
+    else sales = spend != null && mer ? spend * mer : null;
+    if (sales == null || spend == null) return null;
+    // What the plan quietly assumes about acquisition: returning revenue turns up
+    // on its own, so every dollar above it has to be bought with this spend.
+    const newNeeded = Math.max(0, sales - expRet);
+    const impliedAmer = spend > 0 ? newNeeded / spend : null;
+    const trailing = p.ctx.amer;
+    let verdict = null;
+    if (impliedAmer != null && trailing) {
+      const ratio = impliedAmer / trailing;
+      verdict = ratio <= 1.05 ? 'ok' : ratio <= 1.25 ? 'stretch' : 'unrealistic';
     }
-    const cm = ctx.margin != null && spend != null && sales != null ? sales * ctx.margin - spend : null;
-    return { sales, spend, cm, unreachable,
-      growth: sales != null && p.basis.sales ? sales / p.basis.sales - 1 : null,
-      mer: spend && sales != null ? sales / spend : null,
+    const cm = p.ctx.margin != null ? sales * p.ctx.margin - spend : null;
+    return { sales, spend, mer: mer != null ? mer : (spend ? sales / spend : null),
+      newNeeded, impliedAmer, trailing, verdict, cm,
+      growth: p.basis && p.basis.sales ? sales / p.basis.sales - 1 : null,
       cmPct: cm != null && sales ? cm / sales : null };
   };
   let c = calc();
 
-  const lastFull = hist.filter(h => !h.partial && h.month < p.month).slice(-1)[0] || null;
-  const warnHtml = x => {
-    if (x && x.unreachable) return `⚠️ ${esc(x.unreachable)}`;
-    if (!x || x.cm == null || !lastFull || lastFull.cm == null) return '';
-    const d = x.cm - lastFull.cm;
-    if (d >= 0) return `That is <b>${fmtK(d, cur)} more</b> contribution margin than ${esc(monthLabel(lastFull.month))}.`;
-    const effDrop = lastFull.amer != null && p.ctx.amer != null && p.ctx.amer < lastFull.amer;
-    return `⚠️ That is <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than ${esc(monthLabel(lastFull.month))}. `
-      + (effDrop
-        ? `Not because revenue is lower — acquisition got more expensive. ${esc(monthLabel(lastFull.month))} bought customers at <b>${fmtX(lastFull.amer)}</b>; the last 28 days run at <b>${fmtX(p.ctx.amer)}</b>, so the same revenue now needs <b>${fmtMoney(x.spend, cur)}</b> of spend against ${fmtMoney(lastFull.spend, cur)}.`
-        : `The spend this needs outweighs the revenue it brings in.`);
+  const verdictHtml = x => {
+    if (!x || x.impliedAmer == null || !x.trailing) return '';
+    const pctOver = Math.round((x.impliedAmer / x.trailing - 1) * 100);
+    if (x.verdict === 'ok') {
+      return `<span class="pill good">achievable</span> This plan needs new customers at <b>${fmtX(x.impliedAmer)}</b>. The last 28 days ran at <b>${fmtX(x.trailing)}</b>, so it asks for no more efficiency than the client is already getting.`;
+    }
+    if (x.verdict === 'stretch') {
+      return `<span class="pill warn">a stretch</span> This plan needs new customers at <b>${fmtX(x.impliedAmer)}</b>, about <b>${pctOver}% better</b> than the <b>${fmtX(x.trailing)}</b> of the last 28 days. Reachable, but it assumes the ads improve — not just that they keep going.`;
+    }
+    return `<span class="pill bad">unrealistic</span> This plan needs new customers at <b>${fmtX(x.impliedAmer)}</b>, <b>${pctOver}% better</b> than the <b>${fmtX(x.trailing)}</b> the client has actually been getting. Either raise the spend, lower the revenue goal, or accept a lower MER.`;
   };
 
-  const modeInputs = () => {
-    if (PL.mode === 'spend') {
-      return `<label class="tiny">budget</label><div class="unit-in" style="width:130px"><span>${sym(cur)}</span><input id="plVal" type="text" inputmode="decimal" value="${PL.value != null ? Math.round(PL.value).toLocaleString('en-US') : ''}" placeholder="40,000"></div><span class="tiny">for the whole month</span>`;
-    }
-    if (PL.mode === 'mer') {
-      return `<label class="tiny">target</label><div class="unit-in" style="width:88px"><input id="plVal" type="text" inputmode="decimal" value="${PL.value != null ? PL.value : ''}" placeholder="2.50"><span>x</span></div><span class="tiny">blended MER</span>`;
-    }
-    const preset = [0, 0.1, 0.2, 0.3];
-    const custom = !preset.some(g => Math.abs((PL.value ?? 0) - g) < 0.001);
-    return preset.map(g => `<button class="chip ${!custom && Math.abs((PL.value ?? 0) - g) < 0.001 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')
-      + `<div class="unit-in" style="width:96px"><input id="plVal" type="text" inputmode="decimal" value="${custom ? Math.round((PL.value ?? 0) * 100) : ''}" placeholder="custom"><span>%</span></div>`;
+  const cmHtml = x => {
+    const lastFull = hist.filter(h => !h.partial && h.month < p.month).slice(-1)[0] || null;
+    if (!x || x.cm == null || !lastFull || lastFull.cm == null) return '';
+    const d = x.cm - lastFull.cm;
+    return d >= 0
+      ? `That leaves <b>${fmtK(d, cur)} more</b> contribution margin than ${esc(monthLabel(lastFull.month))}.`
+      : `⚠️ That leaves <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than ${esc(monthLabel(lastFull.month))} — the extra spend outweighs the extra revenue.`;
   };
 
   const picker = [-1, 0, 1, 2, 3, 4].map(n => shiftMonth(nowYm, n));
   const statusPill = p.status === 'past'
     ? '<span class="pill unk">finished — read only</span>'
     : saved && saved.agreed_at ? `<span class="pill good">agreed ${esc(String(saved.agreed_at).slice(0, 10))}</span>`
-    : p.planned && p.goals && p.goals.sales != null ? '<span class="pill warn">saved, not agreed</span>'
+    : p.planned ? '<span class="pill warn">saved, not agreed</span>'
     : '<span class="pill unk">not planned yet</span>';
+
+  const fieldCard = (key, label, value, sub, info) => {
+    const derived = PL.derive === key;
+    return `<div class="card" style="margin:0;${derived ? 'background:var(--bg)' : ''}">
+      <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
+      ${derived
+        ? `<div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:6px 0 2px" id="pf_${key}">${value}</div>
+           <div class="tiny" id="pfs_${key}">${sub}</div>
+           <div class="tiny" style="margin-top:6px;color:var(--muted)">calculated from the other two</div>`
+        : `<div class="unit-in" style="width:100%;margin:6px 0 2px">${key === 'mer' ? '' : `<span>${sym(cur)}</span>`}<input id="pfi_${key}" type="text" inputmode="decimal" value="${value}">${key === 'mer' ? '<span>x</span>' : ''}</div>
+           <div class="tiny" id="pfs_${key}">${sub}</div>
+           <button class="btn" data-derive="${key}" style="margin-top:6px;font-size:11.5px;padding:4px 8px">calculate this instead</button>`}
+    </div>`;
+  };
 
   $('#main').innerHTML = `<h2>Plan — ${esc(p.account.name)}</h2>
     <p class="sub">${p.status === 'past'
       ? 'A month that has already finished. What was planned, and what actually happened.'
-      : 'Set the number you and the client agree on. Everything else in this tool measures against it — you only come back here once a month.'}</p>
+      : 'Revenue = MER × spend, so you choose <b>two</b> and the third follows. Everything else in this tool then measures against what you save here.'}</p>
     <div class="row" style="margin-bottom:14px;flex-wrap:wrap">
       ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
       <span id="plChip">${statusPill}</span>
@@ -1180,18 +1199,27 @@ async function renderPlan() {
         </tbody></table></div>
       ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> — ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>
 
-    ${editable && p.basis && c ? `<div class="card"><h3 style="margin-bottom:6px">What are we signing up for?</h3>
-      <p class="hint" style="margin-bottom:12px">Returning customers arrive largely on their own — about <b>${fmtMoney((p.ctx.returning_per_day || 0) * p.ctx.days_in_month, cur)}</b> this month. Everything above that has to be bought at this client's <b>${fmtX(p.ctx.amer)}</b> acquisition efficiency. Set it from whichever end you think in; the other two follow.</p>
-      <div class="row" style="gap:8px;margin-bottom:8px">
-        ${[['growth', 'Grow by %'], ['spend', 'Spend a budget'], ['mer', 'Hit a MER']].map(m =>
-          `<button class="chip ${PL.mode === m[0] ? 'on' : ''}" data-mode="${m[0]}">${m[1]}</button>`).join('')}
+    ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
+      <p class="hint" style="margin-bottom:12px">Type into any <b>two</b> of these; the greyed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
+      <div class="row" style="gap:8px;margin-bottom:12px">
+        ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
+        <span class="tiny">quick-fill revenue from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
       </div>
-      <div class="row" id="plInputs" style="gap:8px;margin-bottom:14px">${modeInputs()}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
-        ${statCard('Revenue goal', `<span id="plSales">${fmtMoney(c.sales, cur)}</span>`, `<span id="plSalesSub">${c.growth != null ? `${c.growth >= 0 ? '+' : ''}${Math.round(c.growth * 100)}% on ${esc(monthLabel(p.basis.month))}` : ''}</span>`, 'The number this month is measured against once you save it. It gets split across the days by this brand&#39;s own weekday rhythm, and each morning&#39;s Daily Brief compares yesterday against its slice.')}
-        ${statCard('Ad spend', `<span id="plSpend">${fmtMoney(c.spend, cur)}</span>`, `at ${fmtX(p.ctx.amer)} aMER`, 'What the goal costs. Returning revenue is expected anyway; everything above it has to be acquired, and at this client&#39;s trailing acquisition efficiency that takes this much spend.')}
-        ${statCard('Contribution margin', `<span id="plCm">${fmtMoney(c.cm, cur)}</span>`, `<span id="plCmSub">${c.cmPct != null ? `${fmtPct(c.cmPct)} of the revenue goal` : ''}</span>`, `Revenue goal times this client&#39;s trailing ${fmtPct(p.ctx.margin)} product margin, minus the ad spend. The margin comes from their real cost data. If this FALLS as you push harder, the extra revenue is costing more than it brings in.`)}
-        ${statCard('Implied MER', `<span id="plMer">${fmtX(c.mer)}</span>`, 'revenue &#247; spend', 'The blended efficiency this plan assumes. Compare it with the MER column above — if the plan needs a number this client has not hit recently, it is optimistic.')}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">
+        ${fieldCard('sales', 'Revenue goal', PL.derive === 'sales' ? fmtMoney(c.sales, cur) : Math.round(c.sales).toLocaleString('en-US'),
+          c.growth != null ? `${c.growth >= 0 ? '+' : ''}${Math.round(c.growth * 100)}% on ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}` : '',
+          'What the store takes in over the month, all channels. Once saved this is split across the days by the brand&#39;s own weekday rhythm, and each morning&#39;s Daily Brief compares yesterday against its slice.')}
+        ${fieldCard('spend', 'Ad spend', PL.derive === 'spend' ? fmtMoney(c.spend, cur) : Math.round(c.spend).toLocaleString('en-US'),
+          `${fmtMoney(c.spend / p.ctx.days_in_month, cur)} a day`,
+          'Total across every ad platform for the month. This is the lever you actually control — revenue and MER follow from it.')}
+        ${fieldCard('mer', 'MER', PL.derive === 'mer' ? fmtX(c.mer) : (Math.round(c.mer * 100) / 100).toFixed(2),
+          'revenue &#247; ad spend',
+          'Blended marketing efficiency: every dollar the store takes in, over every dollar spent on ads. Not attributed — real revenue over real spend.')}
+      </div>
+      <div class="tiny" style="margin-top:14px;line-height:1.7" id="plVerdict">${verdictHtml(c)}</div>
+      <div class="row" style="margin-top:14px;gap:22px;flex-wrap:wrap;align-items:flex-start">
+        <div><div class="tiny">Contribution margin</div><div style="font-size:19px;font-weight:700" id="plCm">${fmtMoney(c.cm, cur)}</div><div class="tiny" id="plCmSub">${c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : ''}</div></div>
+        <div style="flex:1;min-width:200px" class="tiny" id="plCmNote">${cmHtml(c)}</div>
       </div>
       <div class="row" style="margin-top:16px;align-items:flex-start">
         <button class="btn primary" id="plSave">Save ${esc(monthLabel(p.month))} plan</button>
@@ -1202,7 +1230,6 @@ async function renderPlan() {
         </div>
         <span class="tiny" id="plMsg"></span>
       </div>
-      <p class="tiny" id="plWarn" style="margin-top:10px">${warnHtml(c)}</p>
       <div class="tiny" style="margin-top:10px;color:var(--muted);line-height:1.6">
         <b>Save</b> makes this the month's target — from then on every daily update measures against it.<br>
         <b>Client link</b> is a read-only page with just this plan on it, to send or screen-share.<br>
@@ -1211,65 +1238,76 @@ async function renderPlan() {
 
   const repaint = () => {
     c = calc();
-    const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
-    set('#plSales', c && c.sales != null ? fmtMoney(c.sales, cur) : '—');
-    set('#plSalesSub', c && c.growth != null ? `${c.growth >= 0 ? '+' : ''}${Math.round(c.growth * 100)}% on ${monthLabel(p.basis.month)}` : '');
-    set('#plSpend', c && c.spend != null ? fmtMoney(c.spend, cur) : '—');
-    set('#plCm', c && c.cm != null ? fmtMoney(c.cm, cur) : '—');
-    set('#plCmSub', c && c.cmPct != null ? `${fmtPct(c.cmPct)} of the revenue goal` : '');
-    set('#plMer', c && c.mer != null ? fmtX(c.mer) : '—');
-    const w = $('#plWarn'); if (w) w.innerHTML = warnHtml(c);
-    $('#main').querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', Math.abs((PL.value ?? 0) - +b.dataset.g) < 0.001));
+    if (!c) return;
+    const setTxt = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    const setVal = (id, v) => { const el = $(id); if (el && document.activeElement !== el) el.value = v; };
+    // Only the derived field is rewritten; the two you typed are left alone.
+    if (PL.derive === 'sales') setTxt('#pf_sales', fmtMoney(c.sales, cur)); else setVal('#pfi_sales', Math.round(c.sales).toLocaleString('en-US'));
+    if (PL.derive === 'spend') setTxt('#pf_spend', fmtMoney(c.spend, cur)); else setVal('#pfi_spend', Math.round(c.spend).toLocaleString('en-US'));
+    if (PL.derive === 'mer') setTxt('#pf_mer', fmtX(c.mer)); else setVal('#pfi_mer', (Math.round(c.mer * 100) / 100).toFixed(2));
+    setTxt('#pfs_sales', c.growth != null ? `${c.growth >= 0 ? '+' : ''}${Math.round(c.growth * 100)}% on ${p.basis ? monthLabel(p.basis.month) : 'last month'}` : '');
+    setTxt('#pfs_spend', `${fmtMoney(c.spend / p.ctx.days_in_month, cur)} a day`);
+    setTxt('#plCm', c.cm != null ? fmtMoney(c.cm, cur) : '—');
+    setTxt('#plCmSub', c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : '');
+    const v = $('#plVerdict'); if (v) v.innerHTML = verdictHtml(c);
+    const n = $('#plCmNote'); if (n) n.innerHTML = cmHtml(c);
   };
 
-  const bindInputs = () => {
-    $('#main').querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
-      PL.value = +b.dataset.g;
-      const i = $('#plVal'); if (i) i.value = '';
-      repaint();
+  // Typing into a field makes it an input; whichever field is derived stays derived.
+  const bind = () => {
+    ['sales', 'spend', 'mer'].forEach(k => {
+      const el = $(`#pfi_${k}`);
+      if (!el) return;
+      const commit = () => {
+        const raw = +el.value.replace(/[^0-9.]/g, '');
+        if (!isFinite(raw) || el.value.trim() === '') return;
+        PL[k] = raw;
+        repaint();
+      };
+      el.onchange = commit;
+      el.onblur = commit;
     });
-    const iv = $('#plVal');
-    if (iv) iv.onchange = () => {
-      const raw = +iv.value.replace(/[^0-9.]/g, '');
-      if (!isFinite(raw) || iv.value.trim() === '') return;
-      PL.value = PL.mode === 'growth' ? raw / 100 : raw;
-      repaint();
-    };
+    $('#main').querySelectorAll('[data-derive]').forEach(b => b.onclick = () => {
+      // Freeze the current values so switching which one is derived changes nothing.
+      const cc = calc();
+      if (cc) { PL.sales = cc.sales; PL.spend = cc.spend; PL.mer = cc.mer; }
+      PL.derive = b.dataset.derive;
+      renderPlan();
+    });
+    $('#main').querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
+      if (!p.basis) return;
+      PL.sales = p.basis.sales * (1 + +b.dataset.g);
+      if (PL.derive === 'sales') PL.derive = 'mer';       // cannot quick-fill a derived field
+      renderPlan();
+    });
   };
-  bindInputs();
+  bind();
 
-  $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { PL.month = b.dataset.m; PL.value = null; renderPlan(); });
-  $('#main').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
-    // Carry the current plan across, so switching lens keeps the same intent.
-    PL.mode = b.dataset.mode;
-    PL.value = PL.mode === 'spend' ? Math.round((c && c.spend) || 0)
-      : PL.mode === 'mer' ? +(((c && c.mer) || 2.5)).toFixed(2)
-      : +(((c && c.growth) != null ? c.growth : 0.1)).toFixed(3);
-    $('#main').querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x.dataset.mode === PL.mode));
-    $('#plInputs').innerHTML = modeInputs();
-    bindInputs(); repaint();
+  $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+    PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null;
+    renderPlan();
   });
 
   const sv = $('#plSave');
   if (sv) sv.onclick = async () => {
-    if (!c || c.sales == null) return;
+    const cc = calc();
+    if (!cc || cc.sales == null) return;
     $('#plMsg').textContent = 'Saving…';
     try {
-      const changed = p.goals && p.goals.sales != null && Math.abs(p.goals.sales - c.sales) > 1;
+      const changed = p.goals && p.goals.sales != null && Math.abs(p.goals.sales - cc.sales) > 1;
       await api('/api/plan', { method: 'PUT', body: JSON.stringify({
-        act: S.act, month: p.month, sales: Math.round(c.sales),
-        spend: c.spend != null ? Math.round(c.spend) : null,
-        growth_pct: c.growth, basis_sales: p.basis.sales, basis_label: monthLabel(p.basis.month),
-        expected_cm: c.cm, reagree: changed }) });
-      p.goals = Object.assign({}, p.goals || {}, { sales: Math.round(c.sales) });
+        act: S.act, month: p.month, sales: Math.round(cc.sales),
+        spend: cc.spend != null ? Math.round(cc.spend) : null,
+        growth_pct: cc.growth, basis_sales: p.basis ? p.basis.sales : null,
+        basis_label: p.basis ? monthLabel(p.basis.month) : null,
+        expected_cm: cc.cm, reagree: changed }) });
+      p.goals = Object.assign({}, p.goals || {}, { sales: Math.round(cc.sales) });
       p.planned = true;
       if (changed) {
         const t = $('#plAgreed'); if (t) t.classList.remove('on');
         $('#plAgreedLbl').textContent = 'not yet agreed';
-        $('#plChip').innerHTML = '<span class="pill warn">saved, not agreed</span>';
-      } else if (!(saved && saved.agreed_at)) {
-        $('#plChip').innerHTML = '<span class="pill warn">saved, not agreed</span>';
       }
+      if (!(saved && saved.agreed_at) || changed) $('#plChip').innerHTML = '<span class="pill warn">saved, not agreed</span>';
       $('#plMsg').textContent = changed ? 'Saved ✓ — numbers moved, so it needs agreeing again.' : 'Saved ✓';
     } catch (e) { $('#plMsg').textContent = e.message; }
   };
@@ -1318,7 +1356,7 @@ async function renderPlanAll() {
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
-    PL.month = next; PL.value = null;
+    PL.month = next; PL.sales = null; PL.spend = null; PL.mer = null;
     $('#clientPick').value = S.act; show('plan');
   });
   for (const a of S.accounts) {

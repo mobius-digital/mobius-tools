@@ -53,10 +53,15 @@ profit/
   The Daily Brief tab shows the plan read-only with a link across; do not re-add an
   editor there. Plan defaults to NEXT month (nobody plans a month that is already
   three-quarters gone) and offers a month picker from last month to +4.
-- **Three ways into the same plan.** returning revenue arrives on its own and the
-  rest is bought at trailing aMER, so: growth% -> spend, spend -> revenue, or
-  MER -> both, via `spend = returning / (MER - aMER)`. A MER target at or below aMER
-  is unreachable and must say so rather than rendering nonsense.
+- **Revenue = MER x spend: the user sets TWO, the third is arithmetic.** An earlier
+  version let you set only ONE and derived the rest from trailing aMER, which made
+  a MER you had just typed silently revert when you changed spend. Cole spotted it.
+  `PL.derive` names the calculated field; the other two are inputs, and switching
+  which is derived freezes the current values so nothing jumps.
+- **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
+  new customers: `(revenue - expected returning) / spend`. Compare that with the
+  trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),
+  a stretch (<=1.25x) or unrealistic. Never silently force a plan to match history.
 - **`goals_json.default` is inheritance, NOT a plan.** `goalsFor()` merges it under
   every month, which made unplanned future months look planned. The API returns
   `planned` (an explicit `goals_json[ym]` entry) and the UI must key status off that.
