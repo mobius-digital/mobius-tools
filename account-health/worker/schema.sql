@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   budgets_json        TEXT NOT NULL DEFAULT '{}',-- {"2026-08": 15000, ...} month overrides
   target_cpa          REAL,                      -- KPI guardrail: 7d CPA above this = breach
   target_roas         REAL,                      -- KPI guardrail: 7d ROAS below this = breach
-  slack_channel       TEXT,                      -- per-brand alerts channel (falls back to settings.slackChannel)
+  slack_channel       TEXT,                      -- per-brand INTERNAL alerts channel (falls back to settings.slackChannel)
+  brief_channel       TEXT,                      -- per-brand CLIENT-FACING Daily Brief channel (falls back to slack_channel)
   ads_backfill_done   INTEGER NOT NULL DEFAULT 0,-- 90d ad-level backfill finished (walks back 14d per sync until set)
   tw_shop             TEXT,                      -- Triple Whale shop domain (pulls Google Ads spend into the money math)
   google_spend_json   TEXT,                      -- cached {ym, metric, mtd, lm_same_day, lm_total, updated}

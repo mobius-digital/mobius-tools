@@ -105,7 +105,7 @@
   .flash-saved{border-color:var(--good) !important;box-shadow:0 0 0 2px var(--good-bg);transition:box-shadow .2s}
   .unit-in{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);padding:0 7px}
   .unit-in span{color:var(--muted);font-size:12.5px;flex:none}
-  .settings .unit-in input{border:none;border-radius:0;padding:6px 3px;width:100%;min-width:0;background:transparent;outline:none}
+  .unit-in input{border:none;border-radius:0;padding:6px 3px;width:100%;min-width:0;background:transparent;outline:none}
   .toggle{width:38px;height:22px;border-radius:99px;background:#C9D5DD;position:relative;transition:.15s;flex:none}
   .toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
   .toggle.on{background:var(--good)} .toggle.on::after{left:19px}
@@ -218,6 +218,7 @@
     <button data-t="overview">Overview</button>
     <button data-t="profit">Profit</button>
     <button data-t="costs">Costs</button>
+    <button data-t="settings">Settings</button>
   </div></nav>
 </header>
 
@@ -350,7 +351,7 @@ document.addEventListener('click', e => {
 }, true);
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
-  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', settings:'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
 });
 
 function helpModal(title, html) {
@@ -364,6 +365,26 @@ function helpModal(title, html) {
   document.addEventListener('keydown', k);
   w.addEventListener('mousedown', e => { if (e.target===w) done(); });
   w.querySelector('[data-m="ok"]').onclick = done;
+}
+
+/** Cole's rule: in-app modals only, never browser alert()/prompt(). */
+const noteModal = (title, html) => helpModal(title, html);
+
+function confirmModal(title, hint, cta) {
+  return new Promise(resolve => {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal"><h3>${esc(title)}</h3><p class="hint">${esc(hint)}</p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0">
+        <button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">${esc(cta || 'Continue')}</button></div></div>`;
+    document.body.appendChild(w);
+    const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
+    const k = e => { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', k);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(false); });
+    w.querySelector('[data-m="no"]').onclick = () => done(false);
+    w.querySelector('[data-m="yes"]').onclick = () => done(true);
+  });
 }
 
 const PAGE_HELP = {
@@ -393,12 +414,18 @@ const PAGE_HELP = {
     • <b>Broken</b> — costs exceed revenue on some days, or margin is wildly unstable. <b>All profit figures for this client are suppressed everywhere</b>, including the Daily Brief, until it's fixed.</p>
     <p><b>Two ways to fix it:</b> enter the missing product costs in Triple Whale (Settings → Costs) — the right long-term answer — or set a <b>flat margin override</b> here, which uses one blended percentage instead of per-product costs. The override is honest and stable; it just can't tell you which products are the profitable ones.</p>
     <p><b>The override is shared:</b> setting it here also fixes the Daily Brief in Account Health, because both read the same field.</p>`,
+  settings: `
+    <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
+    <p><b>Everything here is shared with Account Health.</b> There is one database behind both tools, so a channel you pick here is the same channel Account Health uses — there is no second copy to keep in sync, and no way for the two to disagree.</p>
+    <p><b>Alerts channel:</b> where this brand's reporting posts. Invite the Slack bot to the channel first or it can't post there — channels the bot hasn't joined are marked.</p>
+    <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning from Account Health. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
+    <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>`,
 };
 
 function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
-  ({ overview: renderOverview, profit: renderProfit, costs: renderCosts })[tab]();
+  ({ overview: renderOverview, profit: renderProfit, costs: renderCosts, settings: renderSettings })[tab]();
 }
 
 /* ---------- shared bits ---------- */
@@ -690,6 +717,87 @@ async function renderCosts() {
     save(v / 100);
   };
   $('#mClear').onclick = () => { $('#mPct').value = ''; save(null); };
+}
+
+/* ---------- Settings ---------- */
+async function renderSettings() {
+  $('#main').innerHTML = `<h2>Settings</h2>
+    <p class="sub">Where each brand's reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.</p>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
+    <div class="card settings"><div class="tbl-wrap"><table>
+      <thead><tr><th>Client</th><th title="INTERNAL: pace and KPI alerts for the media buyer. Nobody outside Mobius should be in this channel.">Alerts channel <span class="tiny">(internal)</span></th><th title="CLIENT-FACING: where the Daily Brief posts. Falls back to the alerts channel if left blank, so set it deliberately before switching the brief on.">Daily Brief channel <span class="tiny">(client)</span></th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th></tr></thead>
+      <tbody id="setRows"></tbody></table></div>
+      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. <b>The two channels are deliberately separate:</b> the alerts channel carries internal pace and KPI warnings for the media buyer, while the Daily Brief is written for the client. Leaving the brief channel blank makes it fall back to the internal one, which is safe but means the client never sees it. The brief needs a channel and monthly goals (set on Account Health → Daily Brief) before it will switch on, and it never turns itself on.</p></div>`;
+
+  const tb = $('#setRows');
+  let chList = null;                       // null = loading, 'error' = list unavailable
+  const chCell = (a, key, blank) => Array.isArray(chList)
+    ? `<select data-k="${key}" style="max-width:200px"><option value="">${esc(blank)}</option>${chList.map(c =>
+        `<option value="${esc(c.id)}" ${a[key] === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')}</select>`
+    : chList === 'error'
+    ? `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID" style="width:140px">`
+    : `<span class="tiny">loading channels…</span>`;
+
+  const draw = () => {
+    tb.innerHTML = S.accounts.map(a => `<tr data-id="${a.act_id}">
+      <td><b>${esc(a.name)}</b></td>
+      <td>${chCell(a, 'slack_channel', '— none —')}</td>
+      <td>${chCell(a, 'brief_channel', a.slack_channel ? '— same as alerts —' : '— none —')}${a.brief_enabled && !a.brief_channel ? '<br><span class="tiny" style="color:var(--warn)">⚠ posting to the internal channel</span>' : ''}</td>
+      <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Posting each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
+      <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
+      <td>${healthPill(a.cost_health)}</td>
+    </tr>`).join('');
+  };
+  draw();
+
+  const flash = el => { const t = el.closest('.unit-in') || el; t.classList.add('flash-saved'); setTimeout(() => t.classList.remove('flash-saved'), 1300); };
+
+  tb.addEventListener('click', async e => {
+    const tg = e.target.closest('.toggle'); if (!tg) return;
+    const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
+    const on = !tg.classList.contains('on');
+    if (on && !(a.brief_channel || a.slack_channel)) {
+      return noteModal('This brand has nowhere to post', `<p>Pick a <b>Daily Brief channel</b> for ${esc(a.name)} first — the brief needs somewhere to go.</p>`);
+    }
+    if (on && !a.goals) {
+      return noteModal('This brand has no plan yet', `<p>Set ${esc(a.name)}’s monthly goals on <b>Account Health → Daily Brief</b> first. The brief compares every number to a plan, so it needs one before it can say anything useful.</p>`);
+    }
+    if (on && !a.brief_channel) {
+      const ok = await confirmModal('Post the client brief to an internal channel?',
+        `No Daily Brief channel is set for ${a.name}, so it will fall back to the internal alerts channel. The brief is written for the client, so they would never see it. Set a client channel instead?`,
+        'Post internally anyway');
+      if (!ok) return;
+    }
+    tg.classList.toggle('on', on);
+    try { await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, brief_enabled: on }) }); a.brief_enabled = on; draw(); }
+    catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); tg.classList.toggle('on', !on); }
+  });
+
+  tb.addEventListener('change', async e => {
+    const k = e.target.dataset.k; if (!k) return;
+    const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
+    try {
+      if (k === 'margin') {
+        const raw = e.target.value.replace(/[^0-9.]/g, '');
+        const pct = raw === '' ? null : +raw / 100;
+        if (pct != null && !(pct > 0 && pct < 1)) {
+          return noteModal('That margin looks wrong', '<p>Enter a margin between <b>1</b> and <b>99</b> percent, or leave it blank to use the real per-product costs from Triple Whale.</p>');
+        }
+        await api('/api/margin', { method:'PUT', body: JSON.stringify({ act: a.act_id, margin_pct: pct }) });
+        a.margin_pct = pct;
+      } else {
+        await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, [k]: e.target.value }) });
+        a[k] = e.target.value || null;
+      }
+      flash(e.target);
+      await boot();
+      show('settings');
+    } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+  });
+
+  api('/api/slack-channels').then(r => { chList = r.channels; draw(); })
+    .catch(err => { chList = 'error'; draw();
+      $('#main .tiny').insertAdjacentHTML('beforeend', ` <span style="color:var(--bad)">Couldn't list Slack channels (${esc(err.message)}) — paste channel IDs instead.</span>`); });
 }
 
 boot();

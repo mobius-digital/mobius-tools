@@ -446,6 +446,8 @@ export default {
             goals: g.sales != null || g.spend != null ? g : null,
             plan: planFor(a, ym, mtdRows),
             margin_pct, cost_health: health, shipping,
+            slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null,
+            brief_enabled: !!a.brief_enabled,
           });
         }
         await refreshIfStale(env, ctx);
@@ -508,6 +510,32 @@ export default {
         ).bind(acct.act_id, health.verdict, health.reason ?? null, health.blended ?? null,
           health.p10 ?? null, health.p90 ?? null, health.negatives ?? 0, health.days ?? 0).run();
         return json({ ok: true, margin_pct: pct, verdict: health.verdict });
+      }
+
+      /* Slack channels come from the account-health worker (it holds SLACK_BOT_TOKEN).
+         Forward the caller's own token through the service binding. */
+      if (path === '/api/slack-channels') {
+        const auth = request.headers.get('Authorization') || '';
+        const req = new Request(`${AUTH_WORKER}/api/slack-channels`, { headers: { Authorization: auth } });
+        const res = env.AUTH ? await env.AUTH.fetch(req) : await fetch(req);
+        const body = await res.text();
+        return new Response(body, { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
+      }
+
+      /* Per-client delivery settings. These live on the SHARED accounts table, so
+         editing them here edits them in Account Health too — one setting, two doors. */
+      if (path === '/api/client-settings' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        const cur = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!cur) return json({ error: 'unknown account' }, 404);
+        await env.DB.prepare(
+          `UPDATE accounts SET slack_channel = ?2, brief_channel = ?3, brief_enabled = ?4 WHERE act_id = ?1`,
+        ).bind(b.act,
+          'slack_channel' in b ? (b.slack_channel || null) : cur.slack_channel,
+          'brief_channel' in b ? (b.brief_channel || null) : cur.brief_channel,
+          'brief_enabled' in b ? (b.brief_enabled ? 1 : 0) : cur.brief_enabled,
+        ).run();
+        return json({ ok: true });
       }
 
       if (path === '/api/cost-health-refresh' && request.method === 'POST') {

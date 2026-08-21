@@ -971,7 +971,9 @@ async function sendBrief(env, acct, date) {
   ).bind(acct.act_id, date, new Date().toISOString(), channel ?? null, status, text ?? null,
     JSON.stringify({ mtd: r.data?.mtd ?? null, day: r.data?.days?.find(x => x.date === date) ?? null })).run();
   if (r.error) { await upsert('skipped', null, r.error); return { name: acct.name, skipped: r.error }; }
-  const channel = acct.slack_channel || await getSetting(env, 'slackChannel');
+  // The brief is CLIENT-FACING, so it has its own channel. slack_channel is the
+  // internal alerts channel and is only a fallback — never assume they're the same.
+  const channel = acct.brief_channel || acct.slack_channel || await getSetting(env, 'slackChannel');
   if (!channel) { await upsert('skipped', null, 'no Slack channel configured for this brand'); return { name: acct.name, skipped: 'no Slack channel' }; }
   try {
     await slackPost(env, channel, r.text);
@@ -1486,7 +1488,8 @@ export default {
         const numOrKeep = (v, keep) => v === '' ? null : (v ?? keep);
         await env.DB.prepare(
           `UPDATE accounts SET active = ?2, name = ?3, monthly_budget = ?4, budgets_json = ?5, tz = ?6,
-             target_cpa = ?7, target_roas = ?8, slack_channel = ?9, tw_shop = ?10, goals_json = ?11, brief_enabled = ?12 WHERE act_id = ?1`,
+             target_cpa = ?7, target_roas = ?8, slack_channel = ?9, tw_shop = ?10, goals_json = ?11, brief_enabled = ?12,
+             brief_channel = ?13 WHERE act_id = ?1`,
         ).bind(m[1],
           body.active != null ? (body.active ? 1 : 0) : cur.active,
           body.name ?? cur.name,
@@ -1499,6 +1502,7 @@ export default {
           numOrKeep(body.tw_shop, cur.tw_shop),
           body.goals ? JSON.stringify(body.goals) : cur.goals_json,
           body.brief_enabled != null ? (body.brief_enabled ? 1 : 0) : cur.brief_enabled,
+          numOrKeep(body.brief_channel, cur.brief_channel),
         ).run();
         // First activation → kick off a backfill in the background.
         if (body.active && !cur.active && !cur.last_sync_insights) {

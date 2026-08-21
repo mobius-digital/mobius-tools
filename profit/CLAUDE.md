@@ -57,5 +57,15 @@ profit/
   token HQ considers valid, the fault is this worker's; wiping the session just
   sends the user back to mint another one that fails identically. Show the error
   and offer Retry instead.
+- **Two Slack channels per brand, never one.** `slack_channel` is the INTERNAL
+  pace/KPI alerts channel; `brief_channel` is the CLIENT-FACING Daily Brief channel
+  (falls back to slack_channel). Every brand was originally pointed at an `-internal`
+  channel, so collapsing them would either hide the brief from the client or leak
+  internal KPI alerts to them. Keep them separate and label which is which.
+- **In-app modals only — never `alert()`/`confirm()`/`prompt()`.** Use `noteModal()`
+  and `confirmModal()`. This is a standing Cole rule across every Mobius tool.
+- **`.unit-in input` must NOT be scoped to `.settings`** — Account Health scopes it
+  that way, and copying the stylesheet without the `.settings` wrapper leaves the
+  input at its default width, overflowing the pill and colliding with buttons.
 - Windows: `npx.cmd wrangler deploy` from `profit/worker/`. PowerShell 5.1 uses
   `;` not `&&`. Cloudflare throws transient 7403 — retry.
