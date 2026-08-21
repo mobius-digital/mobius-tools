@@ -117,6 +117,13 @@ profit/
   (falls back to slack_channel). Every brand was originally pointed at an `-internal`
   channel, so collapsing them would either hide the brief from the client or leak
   internal KPI alerts to them. Keep them separate and label which is which.
+- **Never write HTML entities into tooltip/info text.** `esc()` escapes `&`, and
+  `helpModal` escapes again, so `&#39;` renders literally as "&#39;". Use real
+  characters (apostrophe, the word "divided by"), never entities.
+- **Nothing may scroll the page on an update.** Growth chips, switching the derived
+  field, month changes and every save update in place; `inPlace(fn)` preserves
+  scrollY across a refetch. Calling a renderX() from a handler throws the reader to
+  the top mid-decision and is the single fastest way to make the tool feel broken.
 - **In-app modals only — never `alert()`/`confirm()`/`prompt()`.** Use `noteModal()`
   and `confirmModal()`. This is a standing Cole rule across every Mobius tool.
 - **`.unit-in input` needs `[type=text]` in the selector to win.** `.settings

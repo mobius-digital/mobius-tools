@@ -499,6 +499,14 @@ const PAGE_HELP = {
     <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>`,
 };
 
+/** Re-run a renderer without throwing the reader back to the top. Any handler that
+ *  refetches (month change, toggle that alters data) should go through this. */
+async function inPlace(fn) {
+  const y = window.scrollY;
+  await fn();
+  requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
 function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
@@ -826,8 +834,7 @@ async function renderCosts() {
     try {
       await api('/api/margin', { method:'PUT', body: JSON.stringify({ act: S.act, margin_pct: pct }) });
       $('#mMsg').textContent = 'Saved ✓';
-      await boot();
-      show('costs');
+      await inPlace(async () => { await boot(); show('costs'); });
     } catch (e) { $('#mMsg').textContent = e.message; }
   };
   const sb = $('#mSuggest');
@@ -1153,6 +1160,20 @@ async function renderPlan() {
     : p.planned ? '<span class="pill warn">saved, not agreed</span>'
     : '<span class="pill unk">not planned yet</span>';
 
+  const fieldsHtml = () => {
+    const x = calc();
+    if (!x) return '';
+    return fieldCard('sales', 'Revenue goal', PL.derive === 'sales' ? fmtMoney(x.sales, cur) : Math.round(x.sales).toLocaleString('en-US'),
+        x.growth != null ? `${x.growth >= 0 ? '+' : ''}${Math.round(x.growth * 100)}% on ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}` : '',
+        'The total you want the store to sell this month, from every source — ads, email, organic, direct. Save it and the Daily Brief measures each day against it.')
+      + fieldCard('spend', 'Ad spend', PL.derive === 'spend' ? fmtMoney(x.spend, cur) : Math.round(x.spend).toLocaleString('en-US'),
+        `${fmtMoney(x.spend / p.ctx.days_in_month, cur)} a day`,
+        'The total ad budget for the month, across every platform. This is the number you actually control.')
+      + fieldCard('mer', 'MER', PL.derive === 'mer' ? fmtX(x.mer) : (Math.round(x.mer * 100) / 100).toFixed(2),
+        'revenue divided by ad spend',
+        'How many dollars the store takes in for every dollar spent on ads. 2.5x means $2.50 back for every $1 spent.');
+  };
+
   const fieldCard = (key, label, value, sub, info) => {
     const derived = PL.derive === key;
     return `<div class="card" style="margin:0;${derived ? 'background:var(--bg)' : ''}">
@@ -1205,16 +1226,7 @@ async function renderPlan() {
         ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
         <span class="tiny">quick-fill revenue from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">
-        ${fieldCard('sales', 'Revenue goal', PL.derive === 'sales' ? fmtMoney(c.sales, cur) : Math.round(c.sales).toLocaleString('en-US'),
-          c.growth != null ? `${c.growth >= 0 ? '+' : ''}${Math.round(c.growth * 100)}% on ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}` : '',
-          'What the store takes in over the month, all channels. Once saved this is split across the days by the brand&#39;s own weekday rhythm, and each morning&#39;s Daily Brief compares yesterday against its slice.')}
-        ${fieldCard('spend', 'Ad spend', PL.derive === 'spend' ? fmtMoney(c.spend, cur) : Math.round(c.spend).toLocaleString('en-US'),
-          `${fmtMoney(c.spend / p.ctx.days_in_month, cur)} a day`,
-          'Total across every ad platform for the month. This is the lever you actually control — revenue and MER follow from it.')}
-        ${fieldCard('mer', 'MER', PL.derive === 'mer' ? fmtX(c.mer) : (Math.round(c.mer * 100) / 100).toFixed(2),
-          'revenue &#247; ad spend',
-          'Blended marketing efficiency: every dollar the store takes in, over every dollar spent on ads. Not attributed — real revenue over real spend.')}
+      <div id="plFields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">${fieldsHtml()}
       </div>
       <div class="tiny" style="margin-top:14px;line-height:1.7" id="plVerdict">${verdictHtml(c)}</div>
       <div class="row" style="margin-top:14px;gap:22px;flex-wrap:wrap;align-items:flex-start">
@@ -1267,25 +1279,32 @@ async function renderPlan() {
       el.onchange = commit;
       el.onblur = commit;
     });
+    // Rebuild only the three field cards. Re-rendering the page would scroll you back
+    // to the top mid-decision, which is exactly what makes a tool feel broken.
+    const rebuildFields = () => { $('#plFields').innerHTML = fieldsHtml(); bind(); repaint(); };
     $('#main').querySelectorAll('[data-derive]').forEach(b => b.onclick = () => {
-      // Freeze the current values so switching which one is derived changes nothing.
+      // Freeze current values so switching which one is derived changes nothing.
       const cc = calc();
       if (cc) { PL.sales = cc.sales; PL.spend = cc.spend; PL.mer = cc.mer; }
       PL.derive = b.dataset.derive;
-      renderPlan();
+      rebuildFields();
     });
     $('#main').querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
       if (!p.basis) return;
       PL.sales = p.basis.sales * (1 + +b.dataset.g);
-      if (PL.derive === 'sales') PL.derive = 'mer';       // cannot quick-fill a derived field
-      renderPlan();
+      if (PL.derive === 'sales') {                        // cannot quick-fill a derived field
+        const cc = calc();
+        if (cc) { PL.spend = cc.spend; PL.mer = cc.mer; }
+        PL.derive = 'mer';
+      }
+      rebuildFields();
     });
   };
   bind();
 
   $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
     PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null;
-    renderPlan();
+    inPlace(renderPlan);
   });
 
   const sv = $('#plSave');
@@ -1440,8 +1459,7 @@ async function renderSettings() {
         a[k] = e.target.value || null;
       }
       flash(e.target);
-      await boot();
-      show('settings');
+      await inPlace(async () => { await boot(); show('settings'); });
     } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
   });
 
