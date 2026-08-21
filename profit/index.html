@@ -983,7 +983,15 @@ async function renderSettings() {
     <div class="card settings"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. This is the channel <b>your client reads</b>. Internal pace and KPI alerts are a separate setting that lives in <a href="../account-health/">Account Health → Settings</a>, because those are for your media buyer, not the client. A brand needs this channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. This is the channel <b>your client reads</b>. Internal pace and KPI alerts are a separate setting that lives in <a href="../account-health/">Account Health → Settings</a>, because those are for your media buyer, not the client. A brand needs this channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>
+  <div class="card"><h3 style="margin-bottom:6px">Marketing calendar</h3>
+      <p class="hint" style="margin-bottom:10px">A flat plan makes a launch day look like a miss and a quiet Sunday look like a win. Point the <a href="https://launch-calendar.mobius-digital.workers.dev" target="_blank" rel="noopener">Marketing Calendar</a> at a client and its launches and promos <b>raise that day's target</b> instead. The month's goal never changes — the target simply moves toward the days something is actually happening.</p>
+      <div class="row">
+        <label class="tiny">this calendar describes</label>
+        <select id="calAct" style="min-width:190px"><option value="">— no client —</option></select>
+        <span class="tiny" id="calMsg"></span>
+      </div>
+      <div id="calEvents" class="tiny" style="margin-top:10px"></div></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
@@ -1049,6 +1057,26 @@ async function renderSettings() {
       show('settings');
     } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
   });
+
+  api('/api/calendar-config').then(c => {
+    const sel = $('#calAct');
+    sel.innerHTML = '<option value="">— no client —</option>' + S.accounts.map(a =>
+      `<option value="${a.act_id}" ${c.config.act_id === a.act_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+    const live = (c.events || []).filter(e => e.status !== 'cancelled');
+    $('#calEvents').innerHTML = !c.has_binding
+      ? '<span style="color:var(--bad)">The calendar database is not connected to this worker.</span>'
+      : !c.config.act_id
+      ? 'Not pointed at a client yet, so no forecast is being adjusted.'
+      : live.length
+      ? `<b>${live.length} upcoming event${live.length > 1 ? 's' : ''} lifting the plan:</b><br>` + live.map(e =>
+          `· ${esc(e.launch_date)}${e.promo_end_date ? ` → ${esc(e.promo_end_date)}` : ''} — <b>${esc(e.name)}</b> <span class="pill unk">${esc(String(e.type).replace(/_/g, ' '))}</span> ×${(c.config.multipliers[e.type] ?? c.config.multipliers.default)}`).join('<br>')
+      : 'Connected, but every event on the board is cancelled — nothing is lifting the plan. Add or confirm an event in the Marketing Calendar and targets move automatically.';
+    sel.onchange = async () => {
+      $('#calMsg').textContent = 'Saving…';
+      try { await api('/api/calendar-config', { method: 'PUT', body: JSON.stringify({ act_id: sel.value || null }) }); $('#calMsg').textContent = 'Saved ✓'; show('settings'); }
+      catch (e) { $('#calMsg').textContent = e.message; }
+    };
+  }).catch(e => { $('#calEvents').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; });
 
   api('/api/slack-channels').then(r => { chList = r.channels; draw(); })
     .catch(err => { chList = 'error'; draw();

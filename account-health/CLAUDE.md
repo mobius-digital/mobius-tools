@@ -82,6 +82,12 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
   daily margin swings and negative days. `judgeCogs()` gates it; broken clients get
   CM stripped from the brief, the UI and the narrative prompt. Grunk Dolfer is the
   live example. A `cm_pct` goal override is the escape hatch.
+- **The brief engine also binds the launch-calendar D1 (`CAL`, read-only).**
+  `calendarEvents`/`calendarWeights` lift forecast targets on launch and promo days.
+  Weights are normalised, so the month still totals the goal — never let a change
+  make the calendar inflate the plan. Mapping + multipliers live in
+  `settings.calendarConfig`; the calendar board has no brand column, so it maps to
+  exactly one act_id. A calendar failure must degrade silently, never break a brief.
 - **claude-opus-5 spends thinking tokens INSIDE max_tokens** — a "1200-token"
   call returns truncated text mid-sentence. Give narrative calls ≥6000.
 

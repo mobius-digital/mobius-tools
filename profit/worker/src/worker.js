@@ -22,7 +22,7 @@ const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
 const PROXY_PATHS = new Set([
   '/api/slack-channels', '/api/brief', '/api/brief-preview', '/api/brief-send',
-  '/api/briefs', '/api/goal-suggest', '/api/tw-sync',
+  '/api/briefs', '/api/goal-suggest', '/api/tw-sync', '/api/calendar-config',
 ]);
 
 /* ---------------- dates ---------------- */

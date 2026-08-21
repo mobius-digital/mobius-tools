@@ -83,6 +83,14 @@ Change Log stays available.
 - **Saving a margin override re-grades the stored `p_cost_health` immediately** —
   the Overview reads that snapshot to decide whether to show profit at all, so a
   stale `broken` would keep suppressing a client that has just been fixed.
+- **The Marketing Calendar has no brand column** — it is a single board (Lucky
+  Golf's), so `settings.calendarConfig.act_id` maps the whole board to one client.
+  Multi-client calendar forecasting needs either a brand column on
+  `launch-calendar.events` or a board per client. Cancelled events are ignored.
+- **Calendar multipliers redistribute, never inflate.** Day weight = day-of-week
+  share x event multiplier, then normalised by the total, so the month's target is
+  unchanged and only its shape moves. Defaults: product_launch 2.2x, promo 1.8x,
+  other 1.4x, teaser run-up 1.15x, afterglow decays 0.75x/day for 4 days.
 - **Every metric carries its plan** (`planFor`): the month's goals pro-rated to
   the days elapsed, so month-to-date actuals have something to beat. This is
   CTC's defining move — a number without a goal beside it is trivia.
@@ -108,7 +116,7 @@ Change Log stays available.
 | **0** | ✅ **SHIPPED 2026-08-21** — worker on the shared D1, dashboard shell w/ SSO, **Overview** (all clients: net sales, spend, MER, aMER, new %, CM), **Profit** (waterfall + daily revenue-vs-spend chart + new/returning), **Costs** (verdict, daily-margin chart, worst days, flat-margin override). Shopify variant-cost sync and per-SKU entry deferred to 0b — needs Shopify Admin API creds. |
 | **0b** | Shopify per-variant `unitCost` sync into `p_sku_costs` + manual SKU entry UI (needs Shopify Admin API access per store) |
 | **1** | **Profit page**: daily/weekly/monthly waterfall revenue → COGS → shipping → fees → ad spend → CM, with trend charts and the cost-basis label |
-| **2** | **Forecast page**: goals, day-by-day forecast, Marketing Calendar multipliers, month/quarter projection, spend-scenario slider |
+| **2** | ✅ **Calendar-aware forecasting DONE 2026-08-21** — the brief engine binds the launch-calendar D1 read-only, and non-cancelled events lift their days' targets (`calendarWeights`). Crucially it REDISTRIBUTES: weights are normalised so the month still totals the goal exactly (verified to the cent). Configured in Profit → Settings. Remaining for this phase: a dedicated Forecast page and a spend-scenario slider. |
 | **3** | **Cohorts page**: new vs returning revenue, repeat-purchase rate, payback period; feeds the forecast |
 | **4** | ✅ **DONE 2026-08-21** — Daily Brief moved here; Account Health is purely Meta again. Its interface is a tab in this tool; the account-health worker still owns the engine (endpoints + 14:00 UTC cron + the TW/Anthropic/Slack secrets) and Profit proxies to it over the `AUTH` service binding, so no secret is duplicated. |
 
