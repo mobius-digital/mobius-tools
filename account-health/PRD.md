@@ -101,6 +101,18 @@ cross-platform reporting is wanted, it gets its own dashboard.
   of a client is worse than no number. A `cm_pct` override in the goals bypasses
   it. Verified 2026-08-20: 5 of 6 brands `good` (72-89% margin); Grunk Dolfer
   `broken` (9 of 28 days with costs above revenue, trailing margin -3%).
+- **MER and aMER are blended on BOTH sides** (Cole, 2026-08-21). MER = all store
+  revenue / all ad spend. aMER = new-customer revenue / that same total spend.
+  Verified against TW's own `mer` metric, which is really spend-as-%-of-revenue
+  (blendedAds / totalSales x 100) - confirming `blendedAds` is genuine total
+  blended spend and `newCustomerSales` is Shopify store-level, NOT ad-attributed.
+  ROAS stays attributed and is labelled as such in the channel line.
+- **Revenue split is rebased onto Net Sales.** TW reports newCustomerSales +
+  rcRevenue = `totalSales` (Order Revenue, incl. tax), but the headline uses
+  `netSales` (ex-tax). The raw split therefore didn't add up to the headline
+  (8/19: split $4,442.12 vs headline $4,234.22). We now keep the measured
+  new-customer SHARE and apply it to Net Sales, so the split always reconciles
+  and aMER shares the headline's basis.
 - **Goal suggestions** (GET /api/goal-suggest): trailing-28-day run-rate →
   monthly sales/spend (spend prefers the Settings monthly target) + trailing
   aMER — a "beat your own average" starter plan. Initial goals were auto-set

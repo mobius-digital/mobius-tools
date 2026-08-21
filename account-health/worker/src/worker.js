@@ -729,7 +729,7 @@ async function briefData(env, acct, upTo) {
   // so the plan doesn't shift under the client's feet mid-month.
   const dow = d => new Date(d + 'T12:00:00Z').getUTCDay();
   const wSum = Array(7).fill(0), wN = Array(7).fill(0);
-  let newRevSum = 0, salesSum = 0, marginNum = 0, marginDen = 0;
+  let newRevSum = 0, retRevSum = 0, salesSum = 0, marginNum = 0, marginDen = 0;
   const dayMargins = [];                     // per-day pre-ad-spend margin, for the COGS sanity check
   for (let i = 1; i <= 28; i++) {
     const d = addDays(monthStart, -i);
@@ -738,12 +738,13 @@ async function briefData(env, acct, upTo) {
     wSum[dow(d)] += s; wN[dow(d)]++;
     salesSum += s;
     newRevSum += piv.newCustomerSales?.[d] ?? 0;
+    retRevSum += piv.rcRevenue?.[d] ?? 0;
     const gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
     if (gp != null && s > 0) { marginNum += gp; marginDen += s; dayMargins.push(gp / s); }
   }
   const haveW = wN.filter(Boolean).length === 7 && wN.reduce((a, b) => a + b, 0) >= 14;
   const wAvg = wSum.map((s, i) => wN[i] ? s / wN[i] : 1);
-  const newShare = salesSum > 0 && newRevSum > 0 ? newRevSum / salesSum : null;
+  const newShare = newRevSum + retRevSum > 0 ? newRevSum / (newRevSum + retRevSum) : null;
   const margin28 = marginDen > 0 ? marginNum / marginDen : null;   // trailing pre-ad-spend margin
   const cogsQuality = judgeCogs(dayMargins, margin28);
 
@@ -765,15 +766,24 @@ async function briefData(env, acct, upTo) {
     if (goals?.spend != null) f.spend = goals.spend / dim;
     if (f.sales != null && f.spend != null && fcMargin != null) f.cm = f.sales * fcMargin - f.spend;
     f.amer = goals?.amer ?? (newShare != null && f.sales != null && f.spend ? newShare * f.sales / f.spend : null);
+    f.mer = f.sales != null && f.spend ? f.sales / f.spend : null;   // implied by the sales + spend goals
     if (date > upTo) { days.push({ date, f, a: null }); continue; }
     const sales = twDay(piv, date, TW_SALES);
     const mrow = meta[date];
     const gSpend = piv.ga_adCost?.[date] ?? null;
     const blended = piv.blendedAds?.[date] ?? null;
+    // TW reports new/returning on the Order-Revenue basis (incl. tax) while our headline
+    // Net Sales excludes it, so the raw split doesn't add up to the headline. Keep the
+    // measured NEW-CUSTOMER SHARE and rebase it onto Net Sales so the report reconciles.
+    const rawNew = piv.newCustomerSales?.[date] ?? null;
+    const rawRet = piv.rcRevenue?.[date] ?? null;
+    const rawSplit = (rawNew ?? 0) + (rawRet ?? 0);
+    const newShareDay = rawSplit > 0 && rawNew != null ? rawNew / rawSplit : null;
     const a = {
       sales,
-      new_rev: piv.newCustomerSales?.[date] ?? null,
-      ret_rev: piv.rcRevenue?.[date] ?? (sales != null && piv.newCustomerSales?.[date] != null ? sales - piv.newCustomerSales[date] : null),
+      new_share: newShareDay,
+      new_rev: newShareDay != null && sales != null ? sales * newShareDay : rawNew,
+      ret_rev: newShareDay != null && sales != null ? sales * (1 - newShareDay) : rawRet,
       spend: blended ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null),
       meta_spend: mrow?.spend ?? null,
       google_spend: gSpend,
@@ -786,6 +796,7 @@ async function briefData(env, acct, upTo) {
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };
     a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
+    a.mer = sales != null && a.spend ? sales / a.spend : null;
     // CM basis, most explicit first: margin% override → TW gross profit → TW COGS.
     a.cm = cmPct != null && sales != null && a.spend != null ? sales * cmPct - a.spend
       : a.gross_profit != null && a.spend != null ? a.gross_profit - (a.fees ?? 0) - a.spend
@@ -827,9 +838,10 @@ function buildBriefText(data, date, narrative) {
   if (cmOk) L.push(`Forecasted Contribution Margin: ${fm(f.cm)} · Actual: ${fm(a.cm)}${pct(a.cm, f.cm)}`);
   L.push(`Forecasted Net Sales: ${fm(f.sales)} · Actual: ${fm(a.sales)}${pct(a.sales, f.sales)}`);
   L.push(`Forecasted Total Spend: ${fm(f.spend)} · Actual: ${fm(a.spend)}${pct(a.spend, f.spend)}`);
+  L.push(`Forecasted MER: ${fx(f.mer)} · Actual: ${fx(a.mer)}`);
   L.push(`Forecasted aMER: ${fx(f.amer)} · Actual: ${fx(a.amer)}`);
   const bits = [];
-  if (a.new_rev != null) bits.push(`new ${fm(a.new_rev)}`);
+  if (a.new_rev != null) bits.push(`new ${fm(a.new_rev)}${a.new_share != null ? ` (${Math.round(a.new_share * 100)}%)` : ''}`);
   if (a.ret_rev != null) bits.push(`returning ${fm(a.ret_rev)}`);
   if (bits.length) L.push(`Revenue split: ${bits.join(' · ')}`);
   const ch = [];
@@ -850,7 +862,7 @@ function buildBriefText(data, date, narrative) {
   const wk = data.week;
   if (wk) {
     L.push('', `*Week in review — ${wk.from} → ${wk.to}*`);
-    L.push(`Net Sales ${fm(wk.a.sales)} vs ${fm(wk.f.sales)} plan${pct(wk.a.sales, wk.f.sales)} · Spend ${fm(wk.a.spend)} vs ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)} vs ${fm(wk.f.cm)}` : ''} · aMER ${fx(wk.a.amer)}`);
+    L.push(`Net Sales ${fm(wk.a.sales)} vs ${fm(wk.f.sales)} plan${pct(wk.a.sales, wk.f.sales)} · Spend ${fm(wk.a.spend)} vs ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)} vs ${fm(wk.f.cm)}` : ''} · MER ${fx(wk.a.mer)} · aMER ${fx(wk.a.amer)}`);
     if (wk.best) L.push(`Best day ${wk.best.date} (${fm(wk.best.sales)}) · slowest ${wk.worst.date} (${fm(wk.worst.sales)})`);
   }
   return L.join('\n') + (narrative ? `\n\n${narrative}` : '');
@@ -870,6 +882,7 @@ async function weeklyBlock(env, acct, data, date) {
   const sum = get => { let s = 0, any = false; for (const r of rows) { const v = get(r); if (v != null) { s += v; any = true; } } return any ? s : null; };
   const a = { sales: sum(r => r.a?.sales), spend: sum(r => r.a?.spend), cm: sum(r => r.a?.cm), new_rev: sum(r => r.a?.new_rev) };
   a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
+  a.mer = a.sales != null && a.spend ? a.sales / a.spend : null;
   const withSales = rows.filter(r => r.a?.sales != null);
   const best = withSales.slice().sort((x, y) => y.a.sales - x.a.sales)[0];
   const worst = withSales.slice().sort((x, y) => x.a.sales - y.a.sales)[0];
@@ -890,12 +903,12 @@ So What?
 2–4 sentences: the single interpretation that best explains the day — tie performance moves to the changes we made when the change log supports it, and say whether this reads as a demand problem, a platform problem, or our own levers.
 What's Next?
 • 1–3 bullets: concrete actions or watch-items with a trigger ("if X doesn't improve today, we do Y").
-Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. aMER = new-customer revenue ÷ total ad spend. Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
+Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
 async function writeBriefNarrative(env, acct, data, date) {
   const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
-    `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)} GoogleROAS ${f2(x.a?.google_roas)}`);
+    `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)} GoogleROAS ${f2(x.a?.google_roas)}`);
   const { results: evs } = await env.DB.prepare(
     `SELECT event_time, category, summary, reason, note FROM activities
      WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
