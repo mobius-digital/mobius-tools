@@ -120,6 +120,11 @@ profit/
 - **Never write HTML entities into tooltip/info text.** `esc()` escapes `&`, and
   `helpModal` escapes again, so `&#39;` renders literally as "&#39;". Use real
   characters (apostrophe, the word "divided by"), never entities.
+- **Tab switches must never blank `#main`.** `show()` passes a `first` flag: only a
+  truly empty page paints a spinner. Otherwise the previous tab stays visible under
+  `#main.busy` (dimmed, non-interactive) until the new one is ready. Every renderer
+  takes `first` and gates its placeholder on it; error paths must replace ALL of
+  `#main`, never `#main .card`, which by then belongs to the previous tab.
 - **A refetch must not blank the screen.** `renderPlan(true)` keeps the current DOM
   and just dims the month chips while loading; only a first render shows a spinner.
   A spinner mid-decision reads as a page reload.

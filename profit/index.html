@@ -158,6 +158,9 @@
   .av-card.clickable:hover{border-color:var(--brand-ink);box-shadow:0 3px 14px rgba(12,22,29,.08)}
   /* The stat labels are uppercase and letter-spaced; without resetting those the
      glyph inside the circle gets squashed and looks broken. */
+  /* Tab switches keep the previous page visible and dimmed. Emptying #main to a
+     spinner reads as a full page load, which is what made switching feel slow. */
+  #main.busy{opacity:.45;transition:opacity .1s;pointer-events:none}
   .info-i{display:inline-flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;min-width:16px;border:1px solid var(--line-strong);border-radius:50%;font-size:11px;line-height:1;font-weight:700;font-style:normal;letter-spacing:0;text-transform:none;color:var(--muted);cursor:pointer;vertical-align:middle}
   .info-i:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .help-body{font-size:13.5px;line-height:1.6;max-height:60vh;overflow-y:auto}
@@ -510,7 +513,12 @@ async function inPlace(fn) {
 function show(tab) {
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
-  ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, settings: renderSettings })[tab]();
+  const m = $('#main');
+  const first = !m.firstElementChild;
+  if (!first) m.classList.add('busy');
+  const done = () => m.classList.remove('busy');
+  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, settings: renderSettings })[tab](first);
+  if (r && typeof r.then === 'function') r.then(done, done); else done();
 }
 
 /* ---------- shared bits ---------- */
@@ -669,12 +677,12 @@ function forecastCard(fc, cur) {
       CTC are explicit that paid acquisition can't be forecast precisely; the returning base is the part you can lean on.</p></div>`;
 }
 
-async function renderProfit() {
+async function renderProfit(first) {
   if (S.act === 'all') return renderProfitAll();
-  $('#main').innerHTML = `<h2>Profit</h2><div class="card"><span class="hint">Loading…</span></div>`;
+  if (first) $('#main').innerHTML = `<h2>Profit</h2><div class="card"><span class="hint">Loading…</span></div>`;
   let d, fc = null;
   try { d = await api(`/api/client?act=${S.act}&days=${S.days}`); }
-  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  catch (e) {    $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
   try { fc = await api(`/api/forecast?act=${S.act}`); } catch { /* forecast is a bonus, never a blocker */ }
   const cur = d.account.currency, t = d.totals;
   const acct = S.accounts.find(a => a.act_id === S.act);
@@ -760,7 +768,7 @@ function marginSVG(rows) {
   </svg>`;
 }
 
-async function renderCosts() {
+async function renderCosts(first) {
   if (S.act === 'all') {
     $('#main').innerHTML = `<h2>Costs</h2>
       <p class="sub">Contribution margin is only as good as the product costs behind it. This is where you check that per client.</p>
@@ -784,10 +792,10 @@ async function renderCosts() {
     return;
   }
 
-  $('#main').innerHTML = `<h2>Costs</h2><div class="card"><span class="hint">Checking the last 60 days…</span></div>`;
+  if (first) $('#main').innerHTML = `<h2>Costs</h2><div class="card"><span class="hint">Checking the last 60 days…</span></div>`;
   let d;
   try { d = await api(`/api/costs?act=${S.act}&days=60`); }
-  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  catch (e) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
   const cur = d.account.currency, h = d.health;
   const u = h.underlying || h;
   const r = u.retail || null;   // margin measured only on days cost and revenue agree
@@ -852,8 +860,8 @@ async function renderCosts() {
 /* ---------- Daily Brief (Chat 5) — forecast vs actual, CTC-style ---------- */
 const BF = { date: null };
 
-async function renderBriefAll() {
-  $('#main').innerHTML = `<h2>Daily Brief</h2>
+async function renderBriefAll(first) {
+  if (first) $('#main').innerHTML = `<h2>Daily Brief</h2>
     <p class="sub">Every client's yesterday against its plan — Contribution Margin, Net Sales, Spend and aMER, forecast vs actual. Pick a client (dropdown top-right) to set goals, read the full brief, and post it to Slack.</p>
     <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>This is the only page that isn't Meta-reported: sales, margin and total spend come from <b>Triple Whale</b> (the whole business, every platform), because net sales and contribution margin don't exist inside Meta. Every other tab — Overview, Pacing, Averages, Change Log, Creative Rotation — is Meta-only and matches Ads Manager. Expect these numbers to differ from Meta's; that's the point.</div></div>
     <div class="card"><span class="hint">Loading every client…</span></div>`;
@@ -917,15 +925,15 @@ function briefChartSVG(d) {
   return { svg, plan, act };
 }
 
-async function renderBrief() {
-  if (S.act === 'all') return renderBriefAll();
+async function renderBrief(first) {
+  if (S.act === 'all') return renderBriefAll(first);
   const acct = S.accounts.find(a => a.act_id === S.act);
-  $('#main').innerHTML = `<h2>Daily Brief</h2>
+  if (first) $('#main').innerHTML = `<h2>Daily Brief</h2>
     <p class="sub">Did ${esc(acct?.name || 'this client')} beat the plan yesterday? Forecast vs actual on the money that matters, the story behind it, and one click (or zero — flip auto-post) to put it in the client's Slack.</p>
     <div class="card"><span class="hint">Loading…</span></div>`;
   let d;
   try { d = await api('/api/brief?act=' + S.act + (BF.date ? '&date=' + BF.date : '')); }
-  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+  catch (e) {    $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
   BF.cur = d;
   const cur = d.account.currency;
   const day = d.days.find(x => x.date === d.date);
@@ -1080,14 +1088,14 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const monthLabel = ym => `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
 const shiftMonth = (ym, n) => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
 
-async function renderPlan(keep) {
+async function renderPlan(first) {
   if (S.act === 'all') return renderPlanAll();
   if (!PL.month) PL.month = shiftMonth(ymdLocal(new Date()).slice(0, 7), 1);
 
   // Switching month refetches, but blanking to a spinner loses your place and reads
   // as a page reload. Keep what is on screen, dim the month chips, swap when ready.
-  if (keep) $('#main').querySelectorAll('[data-m]').forEach(b => { b.style.opacity = '.45'; b.disabled = true; });
-  else $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span class="hint">Loading…</span></div>`;
+  if (first) $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span class="hint">Loading…</span></div>`;
+  else $('#main').querySelectorAll('[data-m]').forEach(b => { b.style.opacity = '.45'; b.disabled = true; });
   let p;
   try { p = await api(`/api/plan?act=${S.act}&month=${PL.month}`); }
   catch (e) {
@@ -1324,7 +1332,7 @@ async function renderPlan(keep) {
   $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
     if (b.dataset.m === PL.month) return;
     PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null;
-    inPlace(() => renderPlan(true));
+    inPlace(() => renderPlan(false));
   });
 
   const sv = $('#plSave');
