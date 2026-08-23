@@ -891,19 +891,14 @@ function buildBriefText(data, dates, narrative) {
     if (!day?.a) continue;
     const f = day.f || {}, a = day.a;
     L.push('', `*${prettyDate(d)}*`);
-    if (cmOk) {
-      L.push(`Forecasted Contribution Margin: ${fm(f.cm)}`);
-      L.push(`Actual Contribution Margin: ${fm(a.cm)}`);
-    }
-    const shipLbl = a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales';
-    L.push(`Forecasted ${shipLbl}: ${fm(f.sales)}`);
-    L.push(`Actual ${shipLbl}: ${fm(a.sales)}`);
-    L.push(`Forecasted Total Spend: ${fm(f.spend)}`);
-    L.push(`Actual Total Spend: ${fm(a.spend)}`);
-    L.push(`Forecasted MER: ${fx(f.mer)}`);
-    L.push(`Actual MER: ${fx(a.mer)}`);
-    L.push(`Forecasted aMER: ${fx(f.amer)}`);
-    L.push(`Actual aMER: ${fx(a.amer)}`);
+    // CTC bold the ACTUAL line of each pair, so the eye lands on what happened and
+    // the forecast sits underneath it as context. Slack bold is *single asterisks*.
+    const pair = (label, fc, actual) => { L.push(`Forecasted ${label}: ${fc}`); L.push(`*Actual ${label}: ${actual}*`); };
+    if (cmOk) pair('Contribution Margin', fm(f.cm), fm(a.cm));
+    pair(a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', fm(f.sales), fm(a.sales));
+    pair('Total Spend', fm(f.spend), fm(a.spend));
+    pair('MER', fx(f.mer), fx(a.mer));
+    pair('aMER', fx(f.amer), fx(a.amer));
   }
 
   const wk = data.week;
