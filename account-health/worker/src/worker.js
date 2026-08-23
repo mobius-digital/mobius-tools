@@ -659,7 +659,7 @@ async function suggestGoals(env, acct) {
   const from = addDays(today, -28);
   const { results } = await env.DB.prepare(
     `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3
-     AND metric IN ('netSales','totalSales','newCustomerSales','blendedAds','ga_adCost','grossProfit','totalProductCosts','totalPaymentGatewayCosts')`,
+     AND metric IN ('netSales','totalSales','newCustomerSales','blendedAds','ga_adCost','grossProfit','totalProductCosts','totalPaymentGatewayCosts','totalNetTaxes')`,
   ).bind(acct.act_id, from, today).all();
   const piv = {};
   for (const r of results) (piv[r.metric] ??= {})[r.date] = r.value;
@@ -671,9 +671,10 @@ async function suggestGoals(env, acct) {
   const metaBy = Object.fromEntries(metaRows.map(r => [r.date, r.spend]));
   let sales = 0, spend = 0, newRev = 0, marginNum = 0, marginDen = 0;
   for (const d of dates) {
-    // Same revenue basis as everywhere else: net sales PLUS shipping charged to
-    // customers, or a goal set here would be measured against a bigger number later.
-    const s = (piv.netSales?.[d] ?? piv.totalSales?.[d] ?? 0) + (piv.totalShippingPrice?.[d] ?? 0);
+    // Same revenue basis as everywhere else: Shopify TOTAL SALES minus sales tax.
+    // Shipping is already inside netSales and must never be added. Get this wrong and
+    // a goal set here is measured against a different number for the rest of the month.
+    const s = (piv.netSales?.[d] ?? piv.totalSales?.[d] ?? 0) - (piv.totalNetTaxes?.[d] ?? 0);
     sales += s;
     spend += piv.blendedAds?.[d] ?? ((metaBy[d] ?? 0) + (piv.ga_adCost?.[d] ?? 0));
     newRev += piv.newCustomerSales?.[d] ?? 0;
@@ -824,7 +825,8 @@ async function briefData(env, acct, upTo) {
       google_roas: piv.ga_ROAS?.[date] ?? null,
       blended_roas: piv.totalRoas?.[date] ?? null,
       gross_profit: piv.grossProfit?.[date] ?? null,
-      total_sales: netSalesDay, tax, net_sales: netSalesDay, ship_rev: shipRev, ship_cost: shipCost, handling,
+      total_sales: netSalesDay, tax, net_sales: sales == null ? null : sales - shipRev,
+      ship_rev: shipRev, ship_cost: shipCost, handling,
       cogs: piv.totalProductCosts?.[date] ?? null,
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };

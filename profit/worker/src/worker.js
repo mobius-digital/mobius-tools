@@ -120,7 +120,7 @@ const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency,
 
 /* ---------------- the money model ----------------
  * Every figure here is BLENDED and store-level:
- *   revenue = Triple Whale netSales (Shopify, after discounts/refunds, ex-tax)
+ *   revenue = Shopify TOTAL SALES minus sales tax (shipping is already inside it)
  *   spend   = Triple Whale blendedAds (every ad platform), Meta+Google fallback
  *   MER     = revenue / spend        aMER = new-customer revenue / spend
  * Platform ROAS is deliberately absent — that is Account Health's job.

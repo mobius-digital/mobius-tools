@@ -527,7 +527,7 @@ const PAGE_HELP = {
   overview: `
     <p><b>What this page is:</b> every client's real economics side by side. Not ad metrics — <i>business</i> metrics. This is the page that tells you which clients are actually profitable.</p>
     <p><b>The columns:</b><br>
-    • <b>Net Sales</b> — everything the store sold, from every source (paid, organic, email, direct), after discounts and refunds.<br>
+    • <b>Net Sales + Shipping</b> — Shopify Total Sales less sales tax: everything the store sold from every source (paid, organic, email, direct), after discounts and returns, including shipping charged to customers.<br>
     • <b>Ad Spend</b> — every platform combined.<br>
     • <b>MER</b> — Net Sales ÷ Ad Spend. Blended on both sides. The honest "are the ads paying for themselves" number.<br>
     • <b>aMER</b> — new-customer revenue ÷ that same spend. Strips out repeat buyers and email so ads can't take credit for them.<br>
@@ -556,7 +556,7 @@ const PAGE_HELP = {
   brief: `
     <p><b>What this page is:</b> the client-facing daily update, the way top agencies run it — every day compared against a <i>plan</i>, so "£3,215" stops being trivia and becomes "we missed by 9%". Set monthly goals once; the tool forecasts each day, measures the actual, writes the story, and posts it to the brand's Slack channel every morning.</p>
     <p><b>The metrics:</b><br>
-    • <b>Net Sales</b> — Shopify money via Triple Whale (after discounts and refunds, incl. shipping) — not ad-platform-attributed revenue.<br>
+    • <b>Net Sales + Shipping</b> — Shopify Total Sales less sales tax, via Triple Whale — not ad-platform-attributed revenue.<br>
     • <b>Total Spend</b> — all platforms blended (Meta + Google), from Triple Whale.<br>
     • <b>MER</b> — <i>all</i> store revenue ÷ <i>all</i> ad spend. <b>Blended on both sides</b>: every sale the store made from any source (paid, organic, email, direct) over every dollar spent on every platform. Not attributed revenue — no platform's claims are involved.<br>
     • <b>aMER</b> — the acquisition version: <b>new-customer</b> revenue ÷ that same total ad spend. Same blended basis, but repeat buyers and email can't flatter it. This is what CTC leads with, because ads are mostly bought to acquire.<br>
@@ -1203,7 +1203,7 @@ async function renderBrief(first) {
         <div style="font-size:20px;font-weight:600;margin:4px 0 2px">not reported</div>
         <div class="tiny">cost data unreliable — see the note above</div>
       </div>` : statCard('Contribution Margin', a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a flat margin % set on the Costs tab.'))}
-      ${statCard('Net Sales', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify money via Triple Whale: after discounts and refunds, including shipping. Not ad-platform-attributed revenue — this is what actually hit the store.')}
+      ${statCard('Net Sales + Shipping', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify Total Sales minus sales tax: every channel — paid, organic, email, direct — after discounts and returns, plus shipping charged to customers, less tax. Not ad-platform-attributed revenue — this is what actually hit the store, and it is the same line every tab uses.')}
       ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
       ${statCard('MER', a.mer, f.mer, fx, 'Marketing Efficiency Ratio = ALL store revenue ÷ ALL ad spend. Both sides blended: every sale the store made (paid, organic, email, direct — not ad-attributed) over every dollar spent across Meta, Google and any other platform. The single "are the ads paying for themselves" number. Plan = your net-sales goal ÷ your spend goal.')}
       ${statCard('aMER', a.amer, f.amer, fx, 'Acquisition MER = NEW-customer revenue ÷ that same total ad spend. Same blended basis as MER, but only counts first-time buyers — so email and repeat customers can’t flatter the ads. This is the number CTC leads their reports with.')}
