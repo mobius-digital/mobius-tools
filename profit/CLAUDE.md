@@ -175,6 +175,20 @@ profit/
   visible on all seven tabs while only Overview, Profit and Customers read `S.days`.
   `RANGE_TABS` gates its visibility in `show()`. If a new tab starts honouring the
   range, add it there; if it does not, the picker must not appear.
+- **Real cohorts come from SHOPIFY, and only for connected stores.** `p_cohorts` holds
+  customers grouped by the month of their FIRST order with their all-time spend and
+  orders - Triple Whale has no per-customer history and never will, which is why the
+  rest of the Customers tab is monthly averages. The cohort card degrades to a plain
+  "not connected yet" note; nothing else on the page depends on it. CAC is still
+  Triple Whale (spend / new-customer orders), so a cohort row pairs a Shopify LTV with
+  a TW CAC - neither source can produce both halves.
+- **Measure repeat uplift INSIDE a cohort, never across cohorts.** Comparing a matured
+  cohort's LTV with a fresh one conflates age with quality: Lucky's July 2026 cohort
+  simply arrived with bigger first orders, which made the uplift read as -0% and the
+  page declare that repeat buying adds nothing. `orders_per_customer - 1` on matured
+  cohorts is not confounded that way - 1.22 orders means 22% of purchases came after
+  the first, which is the honest read. Anything under 9 months old is excluded from
+  every average, because a young cohort has not had time to come back.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

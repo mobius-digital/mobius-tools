@@ -590,7 +590,8 @@ const PAGE_HELP = {
     <p><b>First-order margin</b> is what that first order leaves after product costs — the customer's order value times the product margin. Compare it with CAC and you get the number that matters: <b>payback</b>.</p>
     <p><b>Orders from repeat buyers</b> is the share of orders you did not have to pay for. Everything else has to be bought again with ad spend, so a low number means growth is expensive and the month resets to zero when spend stops. A high number means a base is carrying the brand. It pairs with payback: if the first order does not cover the customer, repeat is what has to make up the difference — so a business with weak payback AND a low repeat share has no margin for error anywhere.</p>
     <p><b>Payback above 1.0x means the client is profitable on the first order</b> and can afford to bid harder for customers. Below 1.0x means the business depends on people coming back, and the repeat share becomes the number that has to hold up. Neither is wrong — but they are completely different businesses to run, and the plan should reflect which one you have.</p>
-    <p><b>This is not cohort analysis.</b> Triple Whale gives us no cohort table and no per-customer history, so we cannot follow January's customers through the year or state a true lifetime value. Everything here is a monthly average. Where a real LTV would change the decision, say so rather than inferring one.</p>
+    <p><b>Most of this page is not cohort analysis</b> — Triple Whale has no per-customer history, so CAC, payback and repeat share are monthly averages. <b>Lifetime value by cohort is the exception:</b> it comes from Shopify, groups customers by the month they first bought, and follows them forward. It only appears for clients whose Shopify is connected.</p>
+    <p><b>Why the cohort card matters most:</b> "we can pay more for customers because they come back" is the usual argument for raising CAC, and it is only true if the curve says so. If a cohort is worth barely more at ten months than at one, the first order <i>is</i> the lifetime value and every acquisition has to pay for itself immediately.</p>
     <p><b>The current month is shown but excluded from the headline</b> — its new customers have not had time to come back yet, so including it would understate repeat behaviour.</p>`,
   settings: `
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
@@ -1833,6 +1834,63 @@ async function renderPlanAll() {
    Unit economics, NOT cohorts: Triple Whale exposes no cohort table, so this is
    monthly averages and says so. The one question it exists to answer is whether the
    first order pays back what the customer cost to acquire. */
+/** Real cohorts - customers grouped by the month of their FIRST order and followed
+ *  forward. Only exists for stores that have connected Shopify, because Triple Whale
+ *  has no per-customer history. The headline question is whether a customer becomes
+ *  worth more over time: "they come back, so we can pay more for them" is the usual
+ *  case for a higher CAC, and this is the only thing here that can test it. */
+function cohortCard(co, cur) {
+  if (!co) return '';
+  if (!co.connected) {
+    return `<div class="card"><h3 style="margin-bottom:6px">Lifetime value by cohort</h3>
+      <p class="hint" style="margin-bottom:0">Not available for this client yet — it needs Shopify connected, because Triple Whale has no per-customer history. Everything above still works; this adds true lifetime value, the retention curve, and LTV against CAC.</p></div>`;
+  }
+  const sm = co.summary;
+  // Share of a matured cohort's purchases that came AFTER the first order. Measured
+  // inside the cohort, so a month that happened to attract bigger first orders cannot
+  // skew it the way a cross-cohort LTV comparison does.
+  const uplift = sm.repeat_uplift;
+  const pct0 = v => { const r = Math.round((v ?? 0) * 100); return (r > 0 ? '+' : '') + r + '%'; };
+  const rows = co.rows.slice().reverse().map(r => `<tr${r.mature ? '' : ' style="opacity:.62"'}>
+    <td><b>${esc(monthLabel(r.month))}</b>${r.mature ? '' : ` <span class="tiny">${r.age_months}mo old</span>`}</td>
+    <td class="num">${r.customers}</td>
+    <td class="num">${fmtPct(r.repeat_rate, 1)}</td>
+    <td class="num"><b>${fmtMoney(r.ltv, cur)}</b></td>
+    <td class="num">${fmtMoney(r.cac, cur)}</td>
+    <td class="num">${r.ltv_cac != null ? `<span class="pill ${r.ltv_cac >= 3 ? 'good' : r.ltv_cac >= 2 ? 'warn' : 'bad'}">${r.ltv_cac.toFixed(2)}x</span>` : '—'}</td>
+  </tr>`).join('');
+
+  // The finding that matters: if repeat adds almost nothing, the first order IS the
+  // lifetime value, and no amount of "they'll come back" justifies a higher CAC.
+  const verdict = uplift == null ? ''
+    : uplift < 0.15
+    ? `<div class="notice warn">⚠️ <div><b>Coming back adds very little here.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so only <b>${pct0(uplift)}</b> of purchases come after the first. The opening order essentially <i>is</i> the lifetime value, which means <b>"we can pay more because they come back" does not hold for this client</b> — every acquisition has to justify itself on order one.</div></div>`
+    : uplift < 0.4
+    ? `<div class="notice">ℹ️ <div><b>Repeat buying adds a modest amount.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so <b>${pct0(uplift)}</b> of purchases come after the first — real, but not enough to carry a CAC the opening order could not cover on its own. Treat it as a cushion, not a licence to bid up.</div></div>`
+    : `<div class="notice">✓ <div><b>Customers get materially more valuable over time.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so <b>${pct0(uplift)}</b> of purchases come after the first. That is genuine headroom: you can afford a CAC the opening order alone would not justify, as long as the repeat rate holds.</div></div>`;
+
+  const card = (label, value, sub, info) => `<div class="card" style="margin:0">
+    <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
+    <div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:4px 0 2px">${value}</div>
+    <div class="tiny">${sub}</div></div>`;
+
+  return `<div class="card"><h3 style="margin-bottom:2px">Lifetime value by cohort <span class="info-i" title="Customers grouped by the month they FIRST bought, then followed forward. This is true cohort analysis and it comes from Shopify, not Triple Whale. A cohort's lifetime value only means something once it has had time to mature, so anything under nine months old is faded and left out of the averages.">i</span></h3>
+    <p class="hint" style="margin-bottom:10px">Each row is everyone who first bought in that month, and what they have been worth since. Recent cohorts are faded — they have not had time to come back yet, and reading them as if they had is the classic way to misjudge a retention curve.</p>
+    ${verdict}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:14px 0">
+      ${card('Lifetime value', fmtMoney(sm.mature_ltv, cur), 'matured cohorts, 9 months or older', 'What a customer has actually been worth, averaged across cohorts old enough to have finished maturing. Real spend from Shopify, not a projection.')}
+      ${card('First-month value', fmtMoney(sm.fresh_ltv, cur), 'cohorts under two months old', 'What a brand-new cohort is worth before anyone has had much chance to return. Useful context, but do not read the gap against lifetime value as the repeat uplift - these are different cohorts and one may simply have arrived with bigger first orders. The purchases-after-the-first figure measures that properly.')}
+      ${card('Purchases after the first', uplift != null ? pct0(uplift) : '—', `${(sm.orders_per_customer || 1).toFixed(2)} orders per customer`, 'Share of a matured cohort’s purchases that came after the opening order. Measured inside the cohort rather than by comparing a mature cohort with a fresh one, because a month that happened to attract bigger first orders would distort that comparison. Small means the first order is the whole relationship; large means repeat buying supports a higher CAC.')}
+      ${sm.ltv_cac != null ? card('LTV to CAC', sm.ltv_cac.toFixed(2) + 'x', `against ${fmtMoney(sm.cac, cur)} to acquire`, 'Lifetime value divided by what it cost to acquire that customer. Above 3x is generally considered healthy; near 1x means you are buying revenue rather than profit. CAC is blended from every ad platform, so it will not match a platform\u2019s own figure.') : ''}
+      ${card('Become repeat buyers', fmtPct(sm.mature_repeat, 1), `${fmtPct(sm.fresh_repeat, 1)} in the first month`, 'Share of a matured cohort who ever placed a second order. The gap against the first-month figure shows how long people take to come back.')}
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>First bought</th><th class="num">Customers</th><th class="num">Came back</th><th class="num">Worth since</th><th class="num">Cost to acquire</th><th class="num">LTV:CAC</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <p class="tiny" style="margin-top:8px">Lifetime value and repeat rates come from Shopify; cost to acquire is that month's blended ad spend from Triple Whale over its new customers. Neither source can produce both halves, which is why this needs the Shopify connection.</p>
+  </div>`;
+}
+
 async function renderCustomersAll() {
   $('#main').innerHTML = `<h2>Customers</h2>
     <p class="sub">What a new customer costs, what their first order is worth, and whether it pays that cost back, over the <b>last ${S.days} days</b>. <b>Payback over 1.0x</b> means the brand is profitable on the first order and can afford to bid harder.</p>
@@ -1875,6 +1933,8 @@ async function renderCustomers(first) {
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
+  let co = null;
+  try { co = await api(`/api/cohorts?act=${S.act}`); } catch { /* cohorts are a bonus */ }
   try { d = await api(`/api/customers?act=${S.act}&days=${S.days}`); }
   catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
   if (run !== RUN) return;
@@ -1930,6 +1990,8 @@ async function renderCustomers(first) {
         <div style="width:${((h.new_rev_share || 0) * 100).toFixed(1)}%;background:var(--brand-ink)"></div>
         <div style="flex:1;background:var(--line-strong)"></div></div>
       <p class="tiny" style="margin-top:8px">A high returning share with weak new revenue means the list is carrying the store — MER looks fine while aMER quietly collapses.</p></div>` : ''}
+
+    ${cohortCard(co, cur)}
 
     <div class="card"><h3 style="margin-bottom:8px">Month by month</h3>
       <div class="tbl-wrap"><table>

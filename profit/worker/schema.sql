@@ -81,3 +81,17 @@ CREATE TABLE IF NOT EXISTS p_oauth_state (
   shop       TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Real cohorts: customers grouped by the month of their FIRST order, followed
+-- forward. Sourced from Shopify (Triple Whale has no per-customer history), so rows
+-- exist only for stores that have connected. lifetime_* are all-time to `as_of`.
+CREATE TABLE IF NOT EXISTS p_cohorts (
+  act_id           TEXT NOT NULL,
+  cohort_month     TEXT NOT NULL,            -- YYYY-MM of first order
+  customers        INTEGER,
+  repeat_customers INTEGER,                  -- of those, how many ever ordered again
+  lifetime_spend   REAL,
+  lifetime_orders  INTEGER,
+  as_of            TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, cohort_month)
+);

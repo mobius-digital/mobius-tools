@@ -573,6 +573,85 @@ async function forecastFor(env, acct, ym) {
   };
 }
 
+/* ---------------- real cohorts ----------------
+ * Unlike the Customers tab, this IS cohort analysis: customers grouped by the month
+ * of their FIRST order and followed forward. It needs per-customer history, which
+ * Triple Whale does not have, so it comes from Shopify and only exists for stores
+ * that have connected. Everything else on that tab keeps working without it.
+ *
+ * The question it answers that nothing else can: does a customer become worth more
+ * over time? "We can pay more for customers because they come back" is the most
+ * common justification for a higher CAC, and it is only true if the curve says so.
+ */
+async function cohorts(env, acct) {
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM p_cohorts WHERE act_id = ?1 ORDER BY cohort_month`,
+  ).bind(acct.act_id).all().catch(() => ({ results: [] }));
+  if (!results.length) return { account: pubAccount(acct), connected: false, rows: [] };
+
+  const today = localDate(acct.tz);
+  const thisYm = monthOf(today);
+  const ageOf = ym => {
+    const [ay, am] = ym.split('-').map(Number), [ty, tm] = thisYm.split('-').map(Number);
+    return (ty - ay) * 12 + (tm - am);
+  };
+
+  // CAC for the month each cohort was acquired, from the ad spend and new-customer
+  // orders we already sync. Pairing a Shopify LTV with a Triple Whale CAC is the
+  // whole point - neither source can produce both.
+  const from = `${results[0].cohort_month}-01`;
+  const piv = await pivot(env, acct.act_id, from, today);
+  const monthly = {};
+  for (const metric of ['blendedAds', 'newCustomersOrders']) {
+    for (const [d, v] of Object.entries(piv[metric] || {})) {
+      const m = monthOf(d);
+      (monthly[m] ??= { spend: 0, newOrders: 0 })[metric === 'blendedAds' ? 'spend' : 'newOrders'] += v || 0;
+    }
+  }
+
+  const rows = results.map(r => {
+    const age = ageOf(r.cohort_month);
+    const mm = monthly[r.cohort_month];
+    const cac = mm && mm.newOrders > 0 ? mm.spend / mm.newOrders : null;
+    const ltv = r.customers > 0 ? r.lifetime_spend / r.customers : null;
+    return {
+      month: r.cohort_month, age_months: age,
+      customers: r.customers, repeat_customers: r.repeat_customers,
+      repeat_rate: r.customers > 0 ? r.repeat_customers / r.customers : null,
+      ltv, orders_per_customer: r.customers > 0 ? r.lifetime_orders / r.customers : null,
+      cac, ltv_cac: ltv != null && cac ? ltv / cac : null,
+      // A cohort acquired last month has had no chance to come back. Comparing it
+      // with a year-old cohort is the classic way to misread a retention curve.
+      mature: age >= 9,
+    };
+  });
+
+  const mature = rows.filter(r => r.mature && r.ltv != null);
+  const fresh = rows.filter(r => r.age_months <= 1 && r.ltv != null);
+  const avg = (a, k) => (a.length ? a.reduce((x, r) => x + r[k], 0) / a.length : null);
+  const matureLtv = avg(mature, 'ltv'), freshLtv = avg(fresh, 'ltv');
+  const matureCac = avg(mature.filter(r => r.cac != null), 'cac');
+
+  return {
+    account: pubAccount(acct), connected: true,
+    as_of: results[0].as_of, rows,
+    summary: {
+      mature_ltv: matureLtv, fresh_ltv: freshLtv,
+      mature_repeat: avg(mature, 'repeat_rate'), fresh_repeat: avg(fresh, 'repeat_rate'),
+      // How much a customer gains in value by coming back. If this is small, the
+      // first order IS the lifetime value and CAC has to stand on its own.
+      // Kept for display, but NOT the headline - it compares different cohorts.
+      ltv_vs_fresh: matureLtv != null && freshLtv ? matureLtv / freshLtv - 1 : null,
+      // The robust one: share of a matured cohort's purchases that came after the
+      // first order. Measured within the cohort, so cohort quality cannot skew it.
+      orders_per_customer: avg(mature, 'orders_per_customer'),
+      repeat_uplift: (() => { const o = avg(mature, 'orders_per_customer'); return o != null ? o - 1 : null; })(),
+      cac: matureCac, ltv_cac: matureLtv != null && matureCac ? matureLtv / matureCac : null,
+      mature_months: mature.length,
+    },
+  };
+}
+
 /* ---------------- customer unit economics ----------------
  * Triple Whale exposes no cohort table and no CAC, so this is NOT cohort analysis
  * and must never be labelled as such - we cannot follow a January cohort through
@@ -1323,6 +1402,14 @@ export default {
           ).bind(b.act, token).run();
         }
         return json({ ok: true, url: `${DASHBOARD_URL}?perf=${token}`, regenerated: !!b.regenerate });
+      }
+
+      /* Real cohorts, for stores that have connected Shopify. */
+      if (path === '/api/cohorts') {
+        const act = url.searchParams.get('act');
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        return json(await cohorts(env, acct));
       }
 
       /* Quarter to date: the three monthly plans rolled up. */
