@@ -577,9 +577,11 @@ async function weekdayRhythm(env, acct, months = 3) {
 
   // share of the week, and efficiency, pooled across the whole window
   const sales = Array(7).fill(0), spend = Array(7).fill(0), newRev = Array(7).fill(0), days = Array(7).fill(0);
+  const cm = Array(7).fill(0), cmDays = Array(7).fill(0);
   for (const ym of used) for (const r of byMonth[ym]) {
     const d = dowOf(r.date);
     sales[d] += r.sales; spend[d] += r.spend ?? 0; newRev[d] += r.new_rev ?? 0; days[d]++;
+    if (r.cm != null) { cm[d] += r.cm; cmDays[d]++; }
   }
   const totalSales = sales.reduce((a, b) => a + b, 0);
 
@@ -601,6 +603,8 @@ async function weekdayRhythm(env, acct, months = 3) {
       sales: sales[d], spend: spend[d], days: days[d],
       mer: spend[d] > 0 ? sales[d] / spend[d] : null,
       mer_verdict: merVerdict, mer_lo: mLo, mer_hi: mHi,
+      // The money, not the ratio. A day can be less efficient and still be worth more.
+      cm_per_day: cmDays[d] > 0 ? cm[d] / cmDays[d] : null,
       amer: spend[d] > 0 ? newRev[d] / spend[d] : null,
     };
   });
@@ -621,6 +625,10 @@ async function weekdayRhythm(env, acct, months = 3) {
     mer_consistent: out.filter(x => x.mer_verdict === 'strong' || x.mer_verdict === 'soft').length,
     mer_best: out.filter(x => x.mer_verdict === 'strong').sort((a, b) => (b.mer ?? 0) - (a.mer ?? 0))[0] || null,
     mer_worst: out.filter(x => x.mer_verdict === 'soft').sort((a, b) => (a.mer ?? 9) - (b.mer ?? 9))[0] || null,
+    // The day that actually contributes the most money, which is NOT always the most
+    // efficient one - the UI must say so when they differ.
+    cm_best: out.filter(x => x.cm_per_day != null).sort((a, b) => b.cm_per_day - a.cm_per_day)[0] || null,
+    has_cm: out.some(x => x.cm_per_day != null),
   };
 }
 

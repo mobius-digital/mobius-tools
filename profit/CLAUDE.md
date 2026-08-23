@@ -124,8 +124,17 @@ profit/
   Sunday, whose revenue only "varies", returns 3.11x. Pacing budget from the revenue
   column alone would push money INTO the least efficient day. Spend varies 35-99% as
   much as revenue depending on the client, so the two columns genuinely diverge. Each
-  weekday's MER is indexed against its own month's MER and only tagged best/worst when
-  every month agreed, matching the revenue column's rigor.
+  weekday's MER is indexed against its own month's MER and only tagged when every
+  month agreed, matching the revenue column's rigor.
+- **A RATIO IS NOT A VERDICT ON THE DAY. Never let MER stand alone.** Cole: "just
+  because a day is not as efficient as another doesn't mean it's a bad day - if the
+  CM is the best then it's the best". He is right and the data agrees: for Lucky the
+  most efficient day is Thursday (2.98x) while TUESDAY contributes more money ($687/day
+  vs $657); for Bonk, Saturday's ratio is second-worst at 2.51x yet it produces $983 a
+  day, its third-best. So the weekday card carries CM PER DAY beside MER, the tags say
+  "most/least efficient" rather than best/worst, and the verdict says outright that a
+  bigger day can contribute more at a weaker ratio. Any future surface comparing days
+  must show the money, not just the ratio.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),
