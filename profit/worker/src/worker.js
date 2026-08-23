@@ -121,6 +121,42 @@ async function isAdmin(request, env) {
 // with profit/shopify.app.toml - Shopify compares the two at install.
 const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports';
 const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+// Keep in step with `api_version` in profit/shopify.app.toml.
+const SHOPIFY_API_VERSION = '2026-07';
+
+/** Subscribe THIS shop to app/uninstalled.
+ *
+ *  It cannot be declared in shopify.app.toml: app-specific subscriptions are
+ *  rejected when use_legacy_install_flow is true, and that flag has to stay true
+ *  because the worker does the standalone authorization-code grant rather than
+ *  token exchange. Shop-specific registration at install is the alternative
+ *  Shopify itself names. The three compliance webhooks are unaffected - those are
+ *  declared with `compliance_topics` and stay in the TOML.
+ *
+ *  Best effort on purpose: a merchant who is otherwise connected must not see the
+ *  install fail because a webhook did not take. Worst case we learn about an
+ *  uninstall on the next sync's 401 instead of instantly.
+ */
+async function registerUninstallWebhook(env, shop, token, origin) {
+  const q = `mutation($sub: WebhookSubscriptionInput!) {
+    webhookSubscriptionCreate(topic: APP_UNINSTALLED, webhookSubscription: $sub) {
+      userErrors { field message }
+    }
+  }`;
+  try {
+    const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+      body: JSON.stringify({
+        query: q,
+        variables: { sub: { callbackUrl: `${origin}/shopify/webhooks/app/uninstalled`, format: 'JSON' } },
+      }),
+    });
+    const b = await res.json().catch(() => ({}));
+    const errs = b?.data?.webhookSubscriptionCreate?.userErrors;
+    if (!res.ok || errs?.length) console.log('uninstall webhook not registered', shop, res.status, JSON.stringify(errs || b));
+  } catch (e) { console.log('uninstall webhook failed', shop, e.message); }
+}
 
 /** Constant-time-ish compare so a mismatched HMAC cannot be probed byte by byte. */
 function safeEq(a, b) {
@@ -1165,6 +1201,8 @@ export default {
          ON CONFLICT(shop) DO UPDATE SET act_id = excluded.act_id, access_token = excluded.access_token,
            scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL`,
       ).bind(shop, actId, tok.access_token, tok.scope ?? SHOPIFY_SCOPES).run();
+
+      await registerUninstallWebhook(env, shop, tok.access_token, url.origin);
 
       return new Response(`<!doctype html><meta charset="utf-8"><title>Connected</title>
         <div style="font:16px/1.6 system-ui;max-width:520px;margin:12vh auto;padding:0 24px">

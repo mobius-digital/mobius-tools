@@ -22,6 +22,11 @@ application_url = "https://mobius-profit.mobius-digital.workers.dev/shopify/inst
 # which fails in a way that does not point back here.
 embedded = false
 
+# Only the three MANDATORY compliance webhooks live here. app/uninstalled cannot:
+# app-specific subscriptions (anything with `topics =`) are rejected outright when
+# use_legacy_install_flow is true, which it must be. The worker registers
+# app/uninstalled per shop in the OAuth callback instead - a shop-specific webhook,
+# which is exactly what Shopify's own error message points you at.
 [webhooks]
 api_version = "2026-07"
 
@@ -36,10 +41,6 @@ api_version = "2026-07"
   [[webhooks.subscriptions]]
   uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/shop/redact"
   compliance_topics = [ "shop/redact" ]
-
-  [[webhooks.subscriptions]]
-  uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/app/uninstalled"
-  topics = [ "app/uninstalled" ]
 
 [access_scopes]
 # Must match SHOPIFY_SCOPES in worker/src/worker.js exactly — Shopify compares the

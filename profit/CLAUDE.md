@@ -235,6 +235,15 @@ profit/
   Only run `config link` on a fresh clone, and diff the file afterwards every time.
   `use_legacy_install_flow` must be TRUE: false enables Shopify managed installation,
   which is for embedded apps doing token exchange, not our authorization-code grant.
+- **`app/uninstalled` CANNOT live in the TOML, only the three compliance webhooks
+  can.** `deploy` refuses outright: "App-specific webhook subscriptions are not
+  supported when use_legacy_install_flow is enabled". Anything declared with
+  `topics =` is app-specific; the mandatory privacy hooks use `compliance_topics =`
+  and are fine. Since the legacy flow is not optional here, the worker registers
+  app/uninstalled per shop in the OAuth callback via `webhookSubscriptionCreate`
+  (`registerUninstallWebhook`), which is the shop-specific alternative Shopify's own
+  error names. It is best-effort and never fails the install - a merchant must not
+  be told the connection failed because a webhook did not take.
 - **Never pipe a secret to `wrangler secret put` from PowerShell.** It prepends a
   UTF-8 BOM, so the stored value begins with an invisible `﻿`. The Shopify client
   id went up as `%EF%BB%BF a204...` in the OAuth redirect, and the same corruption in
