@@ -59,3 +59,25 @@ CREATE TABLE IF NOT EXISTS p_profit_share (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS p_profit_share_token_idx ON p_profit_share (token);
+
+-- Shopify OAuth. One unlisted public app installs on every client store, so tokens
+-- are per-shop and arrive through the authorization code grant. `act_id` is filled in
+-- once we match the shop domain to an account (accounts.tw_shop already holds it).
+CREATE TABLE IF NOT EXISTS p_shopify (
+  shop           TEXT PRIMARY KEY,          -- foo.myshopify.com
+  act_id         TEXT,                      -- matched to accounts.tw_shop, null until then
+  access_token   TEXT NOT NULL,
+  scopes         TEXT,
+  installed_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  uninstalled_at TEXT,                      -- set by the app/uninstalled webhook
+  last_sync_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS p_shopify_act_idx ON p_shopify (act_id);
+
+-- Short-lived OAuth nonces. The callback must reject any `state` it did not issue,
+-- or the install can be forged.
+CREATE TABLE IF NOT EXISTS p_oauth_state (
+  state      TEXT PRIMARY KEY,
+  shop       TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

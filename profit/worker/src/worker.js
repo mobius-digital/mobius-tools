@@ -104,6 +104,56 @@ async function isAdmin(request, env) {
   return delegateSession(env, tok);
 }
 
+/* ---------------- Shopify OAuth ----------------
+ * ONE unlisted public app installs on every client store. Public distribution is the
+ * only kind that installs across separate merchant organisations - custom distribution
+ * is limited to a single store or one Plus org, and admin-created custom apps can no
+ * longer be made at all. Unlisted means it never appears in App Store search, but it
+ * still goes through Shopify's review, which is why the compliance webhooks below are
+ * not optional: an app that fails them is rejected.
+ *
+ * Non-embedded, so this is the authorization code grant:
+ *   /shopify/install?shop=x.myshopify.com  -> issue a nonce, redirect to Shopify
+ *   /shopify/callback                      -> verify HMAC + state, swap code for token
+ */
+const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products';
+const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+
+/** Constant-time-ish compare so a mismatched HMAC cannot be probed byte by byte. */
+function safeEq(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return out === 0;
+}
+async function hmacSha256(secret, message) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+}
+const toHex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const toB64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+
+/** Shopify signs the OAuth redirect: every query param except `hmac`, sorted, joined. */
+async function validOauthHmac(env, url) {
+  if (!env.SHOPIFY_API_SECRET) return false;      // unverifiable = rejected, never 500
+  const params = [...url.searchParams.entries()].filter(([k]) => k !== 'hmac' && k !== 'signature');
+  params.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const msg = params.map(([k, v]) => `${k}=${v}`).join('&');
+  return safeEq(toHex(await hmacSha256(env.SHOPIFY_API_SECRET, msg)), url.searchParams.get('hmac') || '');
+}
+/** Webhooks are signed over the RAW body, base64. Review explicitly tests a bad HMAC. */
+async function validWebhookHmac(env, rawBody, header) {
+  if (!header || !env.SHOPIFY_API_SECRET) return false;   // unverifiable = rejected
+  return safeEq(toB64(await hmacSha256(env.SHOPIFY_API_SECRET, rawBody)), header);
+}
+
+/** Tie a shop domain to one of our accounts. accounts.tw_shop already holds it. */
+async function matchAccount(env, shop) {
+  const row = await env.DB.prepare(`SELECT act_id FROM accounts WHERE lower(tw_shop) = lower(?1)`).bind(shop).first().catch(() => null);
+  return row?.act_id ?? null;
+}
+
 /* ---------------- accounts ---------------- */
 async function listAccounts(env, activeOnly = true) {
   const { results } = await env.DB.prepare(
@@ -963,6 +1013,85 @@ export default {
           history,
         });
       } catch (e) { return json({ error: e.message }, 500); }
+    }
+
+    /* ---- Shopify: install, callback, and the mandatory compliance webhooks ----
+       These are called by Shopify and by merchants, never by a signed-in Mobius user,
+       so they sit above the dashboard auth gate and authenticate themselves by HMAC. */
+    if (path === '/shopify/install') {
+      const shop = (url.searchParams.get('shop') || '').toLowerCase().trim();
+      if (!SHOP_RE.test(shop)) return new Response('Invalid shop domain.', { status: 400 });
+      if (!env.SHOPIFY_API_KEY) return new Response('Shopify app is not configured yet.', { status: 503 });
+      // A nonce Shopify must hand back, so a callback we did not start is rejected.
+      const state = crypto.randomUUID().replace(/-/g, '');
+      await env.DB.prepare(`INSERT INTO p_oauth_state (state, shop) VALUES (?1, ?2)`).bind(state, shop).run();
+      const redirectUri = `${url.origin}/shopify/callback`;
+      const auth = new URL(`https://${shop}/admin/oauth/authorize`);
+      auth.searchParams.set('client_id', env.SHOPIFY_API_KEY);
+      auth.searchParams.set('scope', SHOPIFY_SCOPES);
+      auth.searchParams.set('redirect_uri', redirectUri);
+      auth.searchParams.set('state', state);
+      return Response.redirect(auth.toString(), 302);
+    }
+
+    if (path === '/shopify/callback') {
+      const shop = (url.searchParams.get('shop') || '').toLowerCase().trim();
+      const code = url.searchParams.get('code');
+      const state = url.searchParams.get('state');
+      if (!SHOP_RE.test(shop) || !code || !state) return new Response('Invalid request.', { status: 400 });
+      if (!(await validOauthHmac(env, url))) return new Response('HMAC validation failed.', { status: 401 });
+      // The nonce must be one WE issued, for THIS shop, and it is single use.
+      const st = await env.DB.prepare(`SELECT shop FROM p_oauth_state WHERE state = ?1`).bind(state).first();
+      await env.DB.prepare(`DELETE FROM p_oauth_state WHERE state = ?1`).bind(state).run().catch(() => {});
+      if (!st || st.shop !== shop) return new Response('Invalid or expired state.', { status: 401 });
+
+      const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: env.SHOPIFY_API_KEY, client_secret: env.SHOPIFY_API_SECRET, code }),
+      });
+      if (!res.ok) return new Response('Could not complete the install.', { status: 502 });
+      const tok = await res.json().catch(() => ({}));
+      if (!tok.access_token) return new Response('No access token returned.', { status: 502 });
+
+      const actId = await matchAccount(env, shop);
+      await env.DB.prepare(
+        `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at)
+         VALUES (?1,?2,?3,?4,datetime('now'),NULL)
+         ON CONFLICT(shop) DO UPDATE SET act_id = excluded.act_id, access_token = excluded.access_token,
+           scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL`,
+      ).bind(shop, actId, tok.access_token, tok.scope ?? SHOPIFY_SCOPES).run();
+
+      return new Response(`<!doctype html><meta charset="utf-8"><title>Connected</title>
+        <div style="font:16px/1.6 system-ui;max-width:520px;margin:12vh auto;padding:0 24px">
+        <h1 style="font-size:22px">Connected \u2713</h1>
+        <p><b>${shop}</b> is now linked to Mobius Profit${actId ? '' : ' (we could not match it to a client automatically - Cole will map it)'}.</p>
+        <p style="color:#647684;font-size:14px">You can close this tab. Nothing is written back to your store; this only reads orders, customers and products so we can report on them.</p></div>`,
+        { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+
+    /* Mandatory compliance webhooks. Review rejects the app if these are missing, or
+       if an invalid HMAC returns anything other than 401. */
+    if (path.startsWith('/shopify/webhooks/')) {
+      if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+      const raw = await request.text();
+      if (!(await validWebhookHmac(env, raw, request.headers.get('X-Shopify-Hmac-Sha256')))) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      const topic = request.headers.get('X-Shopify-Topic') || path.split('/').pop();
+      const body = safeJson(raw, {});
+      const shop = (body.shop_domain || request.headers.get('X-Shopify-Shop-Domain') || '').toLowerCase();
+
+      if (topic === 'app/uninstalled') {
+        // The token is dead the moment the merchant uninstalls - stop using it.
+        await env.DB.prepare(`UPDATE p_shopify SET uninstalled_at = datetime('now'), access_token = '' WHERE shop = ?1`).bind(shop).run().catch(() => {});
+      } else if (topic === 'shop/redact') {
+        // 48h after uninstall. We hold no shop-level personal data beyond the token.
+        await env.DB.prepare(`DELETE FROM p_shopify WHERE shop = ?1`).bind(shop).run().catch(() => {});
+      }
+      // customers/data_request and customers/redact: we store no customer-level personal
+      // data - the sync keeps only aggregates and anonymous customer ids - so there is
+      // nothing to return or erase. Acknowledged so Shopify records compliance.
+      return json({ ok: true, topic });
     }
 
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
