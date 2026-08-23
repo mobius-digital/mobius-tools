@@ -62,6 +62,14 @@ Change Log stays available.
   per-SKU override in the Costs page for anything missing; (3) a flat margin %
   per client as the last resort. Every profit number is labelled with which basis
   it used, and the existing `judgeCogs()` quality check gates it.
+- **Revenue is Shopify Total Sales minus sales tax** (settled 2026-08-23 by
+  reconciling Triple Whale against Shopify for Lucky Golf, July 2026). Gross sales,
+  less discounts, less returns, plus shipping charged to customers, less tax — CTC's
+  "Net Sales + Shipping". Triple Whale's `netSales` field is titled "Total Sales" in
+  their catalog and already includes shipping and tax, so the original
+  `netSales + totalShippingPrice` counted shipping twice and overstated revenue, CM
+  and every goal by 4-13% per client. Fixed; goals set before that date were seeded
+  from the inflated basis and need re-agreeing.
 - **Contribution margin follows CTC's published definition** (verified against
   their own writing, 2026-08-21): net revenue minus ALL VARIABLE costs — product,
   fulfilment/shipping, handling, payment fees, ad spend. Fixed costs are excluded

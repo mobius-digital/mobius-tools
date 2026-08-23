@@ -585,8 +585,16 @@ async function twSummary(env, shopDomain, start, end) {
 /* ------------------------------------------------------------------ */
 
 /** Which TW metrics are worth keeping per-day (id or title match). */
-const TW_KEEP = /sales|revenue|spend|adcost|cost|profit|cogs|orders|\bmer\b|roas|refund|shipping|fees|ads/i;
-const TW_SALES = ['netSales', 'totalSales'];   // "Net Sales" line: Total Sales first, Order Revenue fallback
+const TW_KEEP = /sales|revenue|spend|adcost|cost|profit|cogs|orders|\bmer\b|roas|refund|shipping|fees|ads|tax/i;
+/* CAREFUL - Triple Whale's field names do not mean what they say:
+ *   netSales   is titled "Total Sales"  = Shopify TOTAL SALES, i.e. it ALREADY
+ *              includes shipping charged to customers AND sales tax, net of
+ *              discounts and returns.
+ *   totalSales is titled "Order Revenue" = the same thing BEFORE returns.
+ * Verified against Shopify for Lucky Golf, July 2026: TW netSales 77,990.42 vs
+ * Shopify total_sales 77,966.52 (0.03%), while Shopify net_sales was 72,055.46.
+ * So never add totalShippingPrice to this - that counts shipping twice. */
+const TW_SALES = ['netSales', 'totalSales'];
 
 /** Per-day series out of a summary-page response: {metricId: {date: value}}.
  *  charts.current x = zero-based day-of-year in the shop's timezone (verified 2026-08-20). */
@@ -746,7 +754,10 @@ async function briefData(env, acct, upTo) {
     inheritedFrom = months.filter(k => gjson[k] && gjson[k].sales === goals.sales).pop() || null;
   }
   const shipTotal = m => Object.values(piv[m] || {}).reduce((x, y) => x + (y || 0), 0);
-  const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 ? 'exclude' : 'include';
+  // Diagnostic only now. Shipping revenue is inside netSales and cannot be removed,
+  // so a client who bills shipping without recording a fulfilment cost simply has
+  // overstated profit - we flag it rather than pretending to net it off.
+  const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 ? 'uncosted' : 'costed';
 
   // Day-of-week weights from the 28 days before the month started — fixed all month,
   // so the plan doesn't shift under the client's feet mid-month.
@@ -792,13 +803,16 @@ async function briefData(env, acct, upTo) {
     f.mer = f.sales != null && f.spend ? f.sales / f.spend : null;   // implied by the sales + spend goals
     if (date > upTo) { days.push({ date, f, a: null }); continue; }
     const netSalesDay = twDay(piv, date, TW_SALES);
-    // Match Mobius Profit (and CTC's own report): revenue is "Net Sales + Shipping",
-    // and contribution margin subtracts EVERY variable cost. Shipping is dropped from
-    // both sides for clients who bill it but record no fulfilment cost.
-    const shipRev = shipMode === 'include' ? (piv.totalShippingPrice?.[date] ?? 0) : 0;
-    const shipCost = shipMode === 'include' ? (piv.totalShippingCosts?.[date] ?? 0) : 0;
-    const handling = shipMode === 'include' ? (piv.totalHandlingFees?.[date] ?? 0) : 0;
-    const sales = netSalesDay == null ? null : netSalesDay + shipRev;
+    // netSalesDay is Shopify TOTAL SALES (shipping and tax already inside it).
+    // CTC's reported line is "Net Sales + Shipping" = total sales minus tax, so we
+    // subtract tax rather than adding shipping. Tax defaults to 0 when the metric
+    // has not been backfilled yet, which degrades to total sales - never to the
+    // old double-counted figure.
+    const tax = piv.totalNetTaxes?.[date] ?? 0;
+    const shipRev = piv.totalShippingPrice?.[date] ?? 0;   // reported only; already in netSalesDay
+    const shipCost = piv.totalShippingCosts?.[date] ?? 0;
+    const handling = piv.totalHandlingFees?.[date] ?? 0;
+    const sales = netSalesDay == null ? null : netSalesDay - tax;
     const mrow = meta[date];
     const gSpend = piv.ga_adCost?.[date] ?? null;
     const blended = piv.blendedAds?.[date] ?? null;
@@ -822,7 +836,7 @@ async function briefData(env, acct, upTo) {
       google_roas: piv.ga_ROAS?.[date] ?? null,
       blended_roas: piv.totalRoas?.[date] ?? null,
       gross_profit: piv.grossProfit?.[date] ?? null,
-      net_sales: netSalesDay, ship_rev: shipRev, ship_cost: shipCost, handling,
+      total_sales: netSalesDay, tax, net_sales: netSalesDay, ship_rev: shipRev, ship_cost: shipCost, handling,
       cogs: piv.totalProductCosts?.[date] ?? null,
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };
@@ -851,7 +865,7 @@ async function briefData(env, acct, upTo) {
     cm_pct: cmPct, margin_28d: margin28,
     cogs_quality: cmPct != null ? { verdict: 'override', reason: `using your ${Math.round(cmPct * 100)}% margin override` } : cogsQuality,
     weights: haveW ? 'day-of-week (trailing 28d)' : 'uniform (not enough history yet)',
-    new_share_28d: newShare, days, mtd, tw_last_sync: lastSync,
+    new_share_28d: newShare, days, mtd, tw_last_sync: lastSync, shipping_mode: shipMode,
     brief_enabled: !!acct.brief_enabled,
   };
 }
@@ -1026,7 +1040,16 @@ async function makeBrief(env, acct, date) {
 }
 
 /** Generate + post one brief to the brand's Slack channel; log it in `briefs`. */
-async function sendBrief(env, acct, date) {
+async function sendBrief(env, acct, date, { skipIfSent = false } = {}) {
+  // The trigger now fires hourly, so a brand that has already been posted for this
+  // date must never be posted again. Only a genuine 'sent' blocks a retry - a
+  // skipped or errored day should still get another chance.
+  if (skipIfSent) {
+    const prior = await env.DB.prepare(
+      `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
+    ).bind(acct.act_id, date).first().catch(() => null);
+    if (prior?.status === 'sent') return { name: acct.name, already_sent: true, date };
+  }
   const r = await makeBrief(env, acct, date);
   const upsert = (status, channel, text) => env.DB.prepare(
     `INSERT INTO briefs (act_id, date, posted_at, channel, status, text, data_json) VALUES (?1,?2,?3,?4,?5,?6,?7)
@@ -1054,6 +1077,7 @@ async function sendBrief(env, acct, date) {
  *  and stays quiet when yesterday already reported the same fault so an ongoing
  *  problem is one message rather than a daily drip. */
 async function alertBriefFailure(env, acct, date, result) {
+  if (result?.already_sent) return;
   const problem = result?.error || result?.skipped;
   if (!problem) return;
   const channel = acct.slack_channel;          // internal, deliberately not brief_channel
@@ -1068,6 +1092,21 @@ async function alertBriefFailure(env, acct, date, result) {
     `:warning: *Daily Brief did not go out for ${acct.name}* (${date})\n${problem}\n_Internal alert - the client was not messaged. Fix it in Mobius Profit._`);
 }
 
+const BRIEF_TZ = 'America/Chicago';           // Cole's timezone; the send hour is set in it
+const DEFAULT_BRIEF_HOUR = 9;                 // 9am Central
+
+/** The hour (0-23, Central) the Daily Brief should go out. */
+async function briefHour(env) {
+  const raw = await getSetting(env, 'briefHour');
+  const h = raw == null || raw === '' ? NaN : +raw;
+  return Number.isInteger(h) && h >= 0 && h <= 23 ? h : DEFAULT_BRIEF_HOUR;
+}
+/** Current hour in Central, so the send lands at the same WALL-CLOCK time all year
+ *  rather than shifting by one at each daylight-saving boundary. */
+function centralHour(d = new Date()) {
+  return +new Intl.DateTimeFormat('en-US', { timeZone: BRIEF_TZ, hour: 'numeric', hour12: false }).format(d) % 24;
+}
+
 /** Morning cron: refresh TW data, then post yesterday's brief for every enabled brand. */
 async function dailyBriefs(env) {
   const accounts = (await listAccounts(env, true)).filter(a => a.brief_enabled);
@@ -1077,7 +1116,7 @@ async function dailyBriefs(env) {
     let r;
     try {
       await syncTwDaily(env, a, 45).catch(() => {});
-      r = await sendBrief(env, a, date);
+      r = await sendBrief(env, a, date, { skipIfSent: true });
     } catch (e) { r = { name: a.name, error: e.message }; }
     results.push(r);
     // Never let a broken alert stop the remaining brands from getting their brief.
@@ -1511,15 +1550,33 @@ async function nightly(env) {
 
 export default {
   async scheduled(event, env, ctx) {
-    // 03:30 UTC = nightly Meta/TW sync + pace alerts · 14:00 UTC (7am PT / 10am ET) = Daily Briefs
-    if (event.cron === '0 14 * * *') ctx.waitUntil(dailyBriefs(env));
-    else ctx.waitUntil(nightly(env));
+    // Cloudflare cron expressions are fixed at deploy time and always UTC, so the
+    // Daily Brief trigger runs EVERY hour and the worker decides whether this is
+    // the configured hour in Central. That keeps the send time editable from the
+    // dashboard and stable across daylight saving, without adding a trigger (the
+    // account is at the free-plan limit of 5).
+    if (event.cron === '0 * * * *') {
+      ctx.waitUntil((async () => {
+        if (centralHour() === await briefHour(env)) await dailyBriefs(env);
+      })());
+    } else ctx.waitUntil(nightly(env));
   },
 
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+    if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      if (request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        const h = +b.hour;
+        if (!Number.isInteger(h) || h < 0 || h > 23) return json({ error: 'hour must be a whole number from 0 to 23' }, 400);
+        await putSetting(env, 'briefHour', String(h));
+      }
+      return json({ hour: await briefHour(env), tz: BRIEF_TZ, now_hour: centralHour() });
+    }
 
     if (path === '/health') {
       const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastRun'`).first().catch(() => null);

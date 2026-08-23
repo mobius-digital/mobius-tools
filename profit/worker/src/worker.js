@@ -22,7 +22,7 @@ const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
 const PROXY_PATHS = new Set([
   '/api/slack-channels', '/api/brief', '/api/brief-preview', '/api/brief-send',
-  '/api/briefs', '/api/goal-suggest', '/api/tw-sync',
+  '/api/briefs', '/api/goal-suggest', '/api/tw-sync', '/api/brief-time',
 ]);
 
 /* ---------------- dates ---------------- */
@@ -125,6 +125,17 @@ const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency,
  *   MER     = revenue / spend        aMER = new-customer revenue / spend
  * Platform ROAS is deliberately absent — that is Account Health's job.
  */
+/* CAREFUL - Triple Whale's field names do not mean what they say. In TW's own
+ * metric catalog `netSales` is TITLED "Total Sales": it is Shopify's TOTAL SALES
+ * and ALREADY contains shipping charged to customers and sales tax, net of
+ * discounts and returns. `totalSales` is titled "Order Revenue" - the same figure
+ * before returns. Reconciled against Shopify for Lucky Golf, July 2026:
+ *     Shopify  gross 89,725.63  -disc 16,264.62  -returns 1,405.55
+ *              = net_sales 72,055.46  +ship 5,287.00  +tax 624.06
+ *              = total_sales 77,966.52
+ *     TW       netSales 77,990.42   (0.03% from Shopify total_sales)
+ * So NEVER add totalShippingPrice to this: that counts shipping twice, which is
+ * exactly the bug that inflated every revenue figure here by 4-13%. */
 const SALES_IDS = ['netSales', 'totalSales'];
 
 async function pivot(env, actId, from, to) {
@@ -141,16 +152,21 @@ const pick = (piv, date, ids) => { for (const id of ids) { const v = piv[id]?.[d
  *  Follows CTC's definition: contribution margin = net revenue minus ALL VARIABLE
  *  costs (product, fulfilment, handling, payment fees, ad spend). Fixed costs —
  *  rent, salaries, software, our own retainer — are excluded by definition.
- *  `shipMode` is decided per window: 'include' when the client has real fulfilment
- *  cost data, 'exclude' when they bill shipping but record no cost for it (crediting
- *  that revenue with no cost against it would overstate profit). */
-function dayEconomics(piv, meta, date, marginPct, shipMode = 'include') {
-  const netSales = pick(piv, date, SALES_IDS);
-  if (netSales == null) return null;
-  const shipRev = shipMode === 'include' ? (piv.totalShippingPrice?.[date] ?? 0) : 0;
-  const shipCost = shipMode === 'include' ? (piv.totalShippingCosts?.[date] ?? 0) : 0;
-  const handling = shipMode === 'include' ? (piv.totalHandlingFees?.[date] ?? 0) : 0;
-  const sales = netSales + shipRev;          // CTC's "Net Sales + Shipping"
+ *  Revenue is Shopify's TOTAL SALES minus sales tax - which is CTC's reported
+ *  "Net Sales + Shipping" line. Shipping charged to customers is already inside
+ *  Triple Whale's netSales and must never be added again. */
+function dayEconomics(piv, meta, date, marginPct) {
+  const totalSales = pick(piv, date, SALES_IDS);   // Shopify TOTAL SALES (incl. shipping + tax)
+  if (totalSales == null) return null;
+  // Tax is collected for the state, not earned, so it comes off the top. Defaults
+  // to 0 before the metric is backfilled, which degrades to total sales - never
+  // back to the old double-counted figure.
+  const tax = piv.totalNetTaxes?.[date] ?? 0;
+  const shipRev = piv.totalShippingPrice?.[date] ?? 0;
+  const shipCost = piv.totalShippingCosts?.[date] ?? 0;
+  const handling = piv.totalHandlingFees?.[date] ?? 0;
+  const sales = totalSales - tax;            // CTC's "Net Sales + Shipping"
+  const netSales = sales - shipRev;          // = Shopify net_sales, for the waterfall
   const mrow = meta[date];
   const gSpend = piv.ga_adCost?.[date] ?? null;
   const spend = piv.blendedAds?.[date] ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null);
@@ -169,7 +185,7 @@ function dayEconomics(piv, meta, date, marginPct, shipMode = 'include') {
   const grossProfit = marginPct != null ? sales * marginPct
     : variableCosts != null ? sales - variableCosts : null;
   return {
-    date, sales, net_sales: netSales, ship_rev: shipRev, spend,
+    date, sales, total_sales: totalSales, tax, net_sales: netSales, ship_rev: shipRev, spend,
     new_rev: newRev,
     ret_rev: newShare != null ? sales * (1 - newShare) : rawRet,
     new_share: newShare,
@@ -189,29 +205,31 @@ async function seriesFor(env, acct, from, to) {
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const marginPct = marginOverride(acct, monthOf(to));
-  const ship = shippingMode(piv);
+  const ship = shippingMode(piv);            // diagnostic only - see shippingMode()
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, marginPct, ship.mode);
+    const row = dayEconomics(piv, meta, d, marginPct);
     if (row) rows.push(row);
   }
   return { rows, margin_pct: marginPct, shipping: ship };
 }
 
-/** Does this client actually record what fulfilment costs them? If they bill
- *  customers for shipping but book no cost against it, counting that revenue
- *  would overstate profit — so we leave shipping out of both sides and say so. */
+/** Does this client actually record what fulfilment costs them?
+ *  DIAGNOSTIC ONLY. Shipping charged to customers is already inside Triple Whale's
+ *  netSales, so it cannot be netted back out - a client who bills for shipping and
+ *  records no cost against it genuinely has overstated profit, and the honest move
+ *  is to say so rather than to quietly adjust the revenue line. */
 function shippingMode(piv) {
   const total = m => Object.values(piv[m] || {}).reduce((a, b) => a + (b || 0), 0);
   const rev = total('totalShippingPrice'), cost = total('totalShippingCosts');
-  if (rev <= 0 && cost <= 0) return { mode: 'include', rev, cost, note: 'no shipping billed or costed' };
+  if (rev <= 0 && cost <= 0) return { mode: 'none', rev, cost, note: 'no shipping billed or costed' };
   if (rev > 0 && cost <= 0) {
-    return { mode: 'exclude', rev, cost, note: 'shipping is billed to customers but no fulfilment cost is recorded in Triple Whale — shipping is left out of both revenue and costs so profit is not overstated' };
+    return { mode: 'uncosted', rev, cost, note: `customers were charged ${Math.round(rev)} for shipping but Triple Whale records no fulfilment cost against it, so contribution margin is overstated by roughly that much — add shipping costs in Triple Whale to close the gap` };
   }
   if (Math.abs(rev - cost) < 0.01 && rev > 0) {
-    return { mode: 'include', rev, cost, note: 'shipping cost exactly equals shipping revenue — Triple Whale is treating it as a pass-through, so it nets to zero' };
+    return { mode: 'passthrough', rev, cost, note: 'shipping cost exactly equals shipping revenue — Triple Whale is treating it as a pass-through, so it nets to zero' };
   }
-  return { mode: 'include', rev, cost, note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
+  return { mode: 'costed', rev, cost, note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
 }
 
 /** The same daily series with the flat-margin override deliberately ignored,
@@ -222,10 +240,9 @@ async function seriesRaw(env, acct, from, to) {
     `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`,
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
-  const ship = shippingMode(piv);
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, null, ship.mode);
+    const row = dayEconomics(piv, meta, d, null);
     if (row) rows.push(row);
   }
   return rows;
@@ -242,6 +259,7 @@ function totals(rows) {
   const newRev = sum(rows, r => r.new_rev), gp = sum(rows, r => r.gross_profit);
   return {
     days: rows.length, sales, spend, new_rev: newRev, ret_rev: sum(rows, r => r.ret_rev),
+    total_sales: sum(rows, r => r.total_sales), tax: sum(rows, r => r.tax),
     net_sales: sum(rows, r => r.net_sales), ship_rev: sum(rows, r => r.ship_rev),
     cogs: sum(rows, r => r.cogs), ship_cost: sum(rows, r => r.ship_cost),
     handling: sum(rows, r => r.handling), fees: sum(rows, r => r.fees), gross_profit: gp,

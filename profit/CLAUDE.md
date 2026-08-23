@@ -24,14 +24,31 @@ profit/
   `activities`. Write only `p_*` tables — plus `accounts.goals_json.cm_pct`,
   which is the margin override the Daily Brief already reads. One source of
   truth; never introduce a second margin field.
-- **Every number here is blended and store-level.** Revenue = TW `netSales`,
-  spend = TW `blendedAds` (Meta+Google fallback). MER = revenue/spend,
-  aMER = new-customer revenue/spend. **Platform ROAS does not belong on this
-  tool** — that is Account Health's job, and mixing them is what confused
-  everyone the first time.
-- **The new/returning split must be rebased onto net sales.** TW reports it
-  against `totalSales` (incl. tax) while the headline is `netSales` (ex-tax),
-  so the raw figures do not add up. Keep the measured *share*, apply to sales.
+- **REVENUE HAS ONE DEFINITION: Shopify Total Sales MINUS sales tax.** That is
+  gross sales, less discounts, less returns, PLUS shipping charged to customers,
+  less tax — the line CTC report as "Net Sales + Shipping". Every tab, the brief
+  and the client link use it. Spend = TW `blendedAds` (Meta+Google fallback);
+  MER = revenue/spend; aMER = new-customer revenue/spend. **Platform ROAS does not
+  belong on this tool** — that is Account Health's job.
+- **Triple Whale's field names LIE, and this cost us a 4-13% overstatement.** In
+  TW's own catalog `netSales` is TITLED "Total Sales": it is Shopify's TOTAL SALES
+  and already contains shipping AND tax. `totalSales` is titled "Order Revenue" —
+  the same figure before returns. There is NO TW field equal to Shopify's
+  `net_sales`, so never assume one. Reconciled against Shopify for Lucky Golf,
+  July 2026: Shopify gross 89,725.63 − disc 16,264.62 − returns 1,405.55 =
+  net_sales 72,055.46; + ship 5,287.00 + tax 624.06 = total_sales 77,966.52; TW
+  `netSales` = 77,990.42 (0.03% off total_sales, 8% off net_sales). The original
+  code did `netSales + totalShippingPrice`, counting shipping twice and inflating
+  every revenue, CM, MER and goal. `dayEconomics` now does `totalSales - tax`, and
+  derives `net_sales = sales - shipRev` so the waterfall matches Shopify's own
+  structure line for line. **Never add `totalShippingPrice` to `netSales`.**
+- **`totalNetTaxes` must stay in `TW_KEEP`.** The sync filter is a regex over metric
+  id + title; without `tax` in it the metric is dropped on the way in and revenue
+  silently reverts to tax-inclusive. Tax defaults to 0 when absent, so a client that
+  has not been backfilled reads slightly high rather than double-counting.
+- **The new/returning split must be rebased onto the revenue line.** TW reports
+  `newCustomerSales`/`rcRevenue` on a different basis from the headline, so the raw
+  figures do not add up to it. Keep the measured *share* and apply it to `sales`.
 - **Days where cost > revenue are usually WHOLESALE, not broken COGS.** Product
   left the building; the money arrived somewhere Shopify cannot see. `retailMargin()`
   estimates the true retail margin from clean days only — use a LOW percentile as the
@@ -42,11 +59,18 @@ profit/
   `broken` suppresses every profit figure. The Costs page must always diagnose
   the **real** TW data (`seriesRaw`, override ignored) — grading the override
   produces a meaningless flat line and hides whether it has been fixed.
+- **Times are CENTRAL, never UTC — in the UI and when talking to Cole.** The brief
+  send hour is stored as `settings.briefHour` (0-23, Central, default 9). Cloudflare
+  crons are fixed at deploy time and always UTC, so the trigger runs HOURLY
+  (`0 * * * *`) and the worker sends only when `centralHour()` matches. That keeps
+  the time editable from Settings and pinned to the same wall-clock hour across
+  daylight saving — a UTC cron drifts by an hour twice a year. `sendBrief` takes
+  `skipIfSent` so an hourly trigger can never post a brand twice.
 - **The Daily Brief lives HERE but runs THERE.** Its tab is in this tool (all its
   numbers are store-level), while the account-health worker keeps the endpoints, the
-  14:00 UTC cron and the TW/Anthropic/Slack secrets. `PROXY_PATHS` forwards
+  hourly brief trigger and the TW/Anthropic/Slack secrets. `PROXY_PATHS` forwards
   /api/brief, /api/brief-preview, /api/brief-send, /api/briefs, /api/goal-suggest,
-  /api/tw-sync and /api/slack-channels over the `AUTH` binding. Monthly goals are
+  /api/tw-sync, /api/brief-time and /api/slack-channels over the `AUTH` binding. Monthly goals are
   written locally (`PUT /api/goals`) so the month/default merge sits beside the
   margin override in the same JSON blob — and it must preserve `cm_pct`.
 - **Plan is the ONLY place goals are set.** Every other page reports against them.
@@ -127,7 +151,7 @@ profit/
   that add up. Email is an overlay, NEVER a third addend — Klaviyo revenue cuts
   across both, and only The Golf Sock has it connected at all.
 - **`forecastFor()` must reuse `seriesFor()`**, so revenue means the same thing
-  (net sales + shipping, gated) as everywhere else. The first version used a bare
+  (Shopify total sales minus tax) as everywhere else. The first version used a bare
   netSales lookup and silently forecast on a ~7% smaller basis than it compared
   against. `suggestGoals()` in account-health was fixed for the same reason.
 - **No cron.** The Cloudflare account is at the free-plan limit of 5 triggers.

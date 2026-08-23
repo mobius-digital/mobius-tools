@@ -506,9 +506,10 @@ const PAGE_HELP = {
     <p><b>If a row says "cost data ⚠":</b> that client's COGS in Triple Whale is unreliable, so no profit number is shown for it. Open the <b>Costs</b> tab for that client to see exactly what's wrong and fix it.</p>`,
   profit: `
     <p><b>What this page is:</b> where one client's money actually goes, from revenue down to what's left.</p>
+    <p><b>What "Revenue" means, on every tab:</b> Shopify <b>Total Sales minus sales tax</b> — gross sales, less discounts, less returns, plus shipping charged to customers, less tax. That is the line CTC report as "Net Sales + Shipping", and it reconciles to Shopify's own sales report. It is <i>not</i> Shopify's "Net Sales" figure, which leaves shipping out. Triple Whale supplies it as <code>netSales</code>, a field their own catalog titles "Total Sales" — shipping and tax are already inside it, so it is never added a second time.</p>
     <p><b>The waterfall:</b> Net Sales + shipping charged to customers → minus product costs (COGS) → minus fulfilment and handling → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
     <p><b>This is CTC's exact definition:</b> revenue minus <i>all variable costs</i>. <b>Contribution margin is not net profit</b> — it deliberately ignores fixed costs: rent, salaries, software, and our own retainer. Those don't change when you spend another dollar on ads, so they'd only blur the question it exists to answer: did the marketing make money on the margin?</p>
-    <p><b>If a client bills shipping but records no fulfilment cost</b>, shipping is left out of both sides rather than counting the revenue for free — the page says so when that happens.</p>
+    <p><b>If a client bills shipping but records no fulfilment cost</b>, that shipping income is already inside revenue and cannot be netted back out — so contribution margin really is overstated by roughly that amount. The page warns you instead of quietly adjusting the number; the fix is to add shipping costs in Triple Whale.</p>
     <p><b>The chart:</b> daily net sales against daily ad spend, so you can see whether spending more actually moved revenue, or just moved cost. Hover or tap anywhere for exact values.</p>
     <p><b>New vs returning:</b> a healthy acquisition business runs high on new. A high returning share with weak new revenue means the ads have stopped working and the list is carrying the store — MER looks fine while aMER quietly collapses. That's the failure mode this page exists to catch.</p>`,
   costs: `
@@ -531,7 +532,7 @@ const PAGE_HELP = {
     <p><b>The forecast:</b> your monthly goal spread across the days of the month using the account's own trailing 28-day weekday pattern (weekends and weekdays get their real shares). Spend is forecast flat. The plan is frozen for the month — it doesn't drift to flatter us.</p>
     <p><b>The narrative:</b> Claude writes Notes → So What? → What's Next? from the numbers <i>plus the Change Log</i> — so the more whys you tag there, the sharper the story ("CPA recovered after Tuesday's budget trim"), exactly like an analyst who was watching all day.</p>
     <p><b>The one distinction that matters:</b> <b>ROAS is attributed</b> — Meta and Google each claim credit for sales using their own rules, and they double-count each other. <b>MER and aMER are blended</b> — real Shopify revenue over real total spend, so nothing can be claimed twice. That's why this page leads with MER/aMER and shows platform ROAS only as a supporting detail in the channel line. It's also why this page's numbers will never match Ads Manager, and shouldn't — the Meta-only pages are where you go for that.</p>
-    <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning (~7am PT / 10am ET), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
+    <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning at the time set on the Settings tab (default <b>9:00 AM Central</b>), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
   plan: `
     <p><b>What this page is:</b> the monthly conversation with your client, turned into the number everything else is measured against. A forecast nobody agreed to is just a guess.</p>
     <p><b>Why there are three boxes:</b> revenue, ad spend and MER are one equation — <b>revenue = MER × spend</b>. Fix any two and the third is decided for you. So you type into two of them, and the greyed-out one does the arithmetic. Press <b>calculate this instead</b> on a box to move which one is derived.</p>
@@ -555,7 +556,9 @@ const PAGE_HELP = {
     <p><b>This page is only about what your client sees.</b> Internal pace and KPI alerts for your media buyer are configured in <b>Account Health → Settings</b> — different audience, different tool.</p>
     <p><b>Daily Brief channel:</b> where the client's morning update posts. Invite the Slack bot to the channel first or it can't post there — channels the bot hasn't joined are marked.</p>
     <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning from Account Health. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
-    <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>`,
+    <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>
+    <p><b>Send time</b> applies to every brand at once and is set in <b>Central</b>. The trigger runs hourly and posts only in the hour you choose, so the time stays put when the clocks change.</p>
+    <p><b>Backfill 430d</b> re-pulls that client's full Triple Whale history. Run it <b>one client at a time</b> — a full pull is tens of thousands of rows. You need it once per client so sales tax is on record for every month; without it, months older than the last sync read very slightly high, because revenue is stated net of tax.</p>`,
 };
 
 /** Re-run a renderer without throwing the reader back to the top. Any handler that
@@ -581,6 +584,24 @@ function show(tab) {
   const done = () => m.classList.remove('busy');
   const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, settings: renderSettings })[tab](first);
   if (r && typeof r.then === 'function') r.then(done, done); else done();
+}
+
+/* ---------- Daily Brief send time ----------
+   Stored as an hour 0-23 in CENTRAL time and evaluated in Central on every hourly
+   tick, so the brief lands at the same wall-clock time all year instead of jumping
+   an hour at each daylight-saving change. */
+const BT = { hour: null };
+const hourLabel = h => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'AM' : 'PM'} Central`;
+async function loadBriefTime() {
+  if (BT.hour != null) return BT.hour;
+  try { BT.hour = (await api('/api/brief-time')).hour; } catch { BT.hour = null; }
+  return BT.hour;
+}
+/** Fill any #bfTimeLbl on the page once the setting is known. */
+async function briefTimeLabel() {
+  const h = await loadBriefTime();
+  const el = $('#bfTimeLbl');
+  if (el) el.textContent = h == null ? '' : ` at ${hourLabel(h)}`;
 }
 
 /* ---------- shared bits ---------- */
@@ -617,7 +638,7 @@ async function renderOverview() {
     <p class="sub">Every client's real economics over the last ${S.days} days — all channels, not just ads. <b>MER</b> and <b>aMER</b> are blended on both sides: real Shopify revenue over real total ad spend, so nothing is double-counted.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="overview">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th class="num" title="Net sales from every channel, plus shipping charged to customers - CTC report this same line as 'Net Sales + Shipping'">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
+      <thead><tr><th>Client</th><th class="num" title="Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as 'Net Sales + Shipping'. It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure 'Total Sales' and stores it as netSales; shipping is already inside it, so it is never added twice.">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
       <tbody>${rows.map(a => {
         const w = a.window, h = a.cost_health;
         const trusted = cmTrusted(h);
@@ -633,7 +654,7 @@ async function renderOverview() {
             : `<span class="tiny" title="${esc(h?.reason||'')}">suppressed — see Costs</span>`}</td>
         </tr>`; }).join('') || '<tr><td colspan="7" class="tiny">No clients yet.</td></tr>'}
       </tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Revenue = Shopify money from every source, after discounts and refunds, plus shipping charged to customers. MER = revenue ÷ all ad spend. aMER = new-customer revenue ÷ that same spend. Contribution Margin = revenue − <b>every variable cost</b> (product, fulfilment, handling, payment fees, ad spend), which is CTC's definition; fixed costs including our retainer are excluded. "vs plan" compares month-to-date against the month's goal pro-rated to the days elapsed. These will never match Ads Manager — that's the point. Click a client for its detail.</p></div>`;
+      <p class="tiny" style="margin-top:10px"><b>Revenue = Shopify Total Sales minus sales tax</b> — gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's "Net Sales + Shipping", and it reconciles to Shopify's own sales report. MER = revenue ÷ all ad spend. aMER = new-customer revenue ÷ that same spend. Contribution Margin = revenue − <b>every variable cost</b> (product, fulfilment, handling, payment fees, ad spend), which is CTC's definition; fixed costs including our retainer are excluded. "vs plan" compares month-to-date against the month's goal pro-rated to the days elapsed. These will never match Ads Manager — that's the point. Click a client for its detail.</p></div>`;
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -758,11 +779,12 @@ async function renderProfit(first) {
   const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
 
   $('#main').innerHTML = `<h2>Profit — ${esc(d.account.name)}</h2>
-    <p class="sub">Where the money went over the last ${S.days} days. Store-level and blended: every sale from every source, minus every cost including all ad platforms.</p>
+    <p class="sub">Where the money went over the last ${S.days} days. Store-level and blended: every sale from every source, minus every cost including all ad platforms. <b>Revenue</b> here is Shopify Total Sales minus sales tax — the same line on every tab.</p>
     <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-help="profit">? How to use</button></div>
+    ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}.</div></div>` : ''}
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
-      ${statCard(d.shipping?.mode === 'include' && t.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Everything the store sold from every source — paid, organic, email, direct — after discounts and refunds, excluding tax, plus what customers paid for shipping. This is real Shopify money, not any platform’s attributed revenue. CTC report this same line as "Net Sales + Shipping".')}
+      ${statCard('Net Sales + Shipping', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as "Net Sales + Shipping". It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure "Total Sales" and stores it as netSales; shipping is already inside it, so it is never added twice.')}
       ${statCard('Ad Spend', fmtMoney(t.spend, cur), `${t.meta_spend!=null?`Meta ${fmtK(t.meta_spend,cur)}`:''}${t.google_spend!=null?` · Google ${fmtK(t.google_spend,cur)}`:''}`, 'Every ad platform combined, from Triple Whale. Falls back to Meta + Google spend if the blended figure is unavailable.')}
       ${statCard('MER', fmtX(t.mer), `${fmtMoney(t.sales, cur)} ÷ ${fmtMoney(t.spend, cur)}`, 'Marketing Efficiency Ratio = all store revenue ÷ all ad spend. Blended on both sides, so no platform can double-count. The single "are the ads paying for themselves" number.')}
       ${statCard('aMER', fmtX(t.amer), `${fmtPct(t.new_share)} of revenue was new customers`, 'Acquisition MER = new-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it, so it isolates whether the ads are actually buying customers.')}
@@ -770,11 +792,12 @@ async function renderProfit(first) {
     </div>
     ${trusted ? `<div class="card"><h3 style="margin-bottom:8px">Where the money went</h3>
       <div class="tbl-wrap"><table><tbody>
-        ${step('Net Sales', t.net_sales, 'all channels, after discounts and refunds')}
-        ${d.shipping?.mode === 'include' && t.ship_rev ? step('Shipping charged to customers', t.ship_rev, 'what customers paid for delivery') : ''}
-        <tr style="border-top:1px solid var(--line)"><td><b>Net Sales + Shipping</b></td><td class="num"><b>${fmtMoney(t.sales, cur)}</b></td><td class="tiny">total money in</td></tr>
+        ${step('Net Sales', t.net_sales, 'products only, after discounts and returns — matches Shopify’s Net Sales')}
+        ${t.ship_rev ? step('Shipping charged to customers', t.ship_rev, 'what customers paid for delivery') : ''}
+        <tr style="border-top:1px solid var(--line)"><td><b>Net Sales + Shipping</b></td><td class="num"><b>${fmtMoney(t.sales, cur)}</b></td><td class="tiny">total money in — the revenue line every other number here uses</td></tr>
+        ${t.tax ? `<tr><td class="tiny" style="padding-left:12px;color:var(--muted)">Sales tax collected, excluded above</td><td class="num tiny" style="color:var(--muted)">${fmtMoney(t.tax, cur)}</td><td class="tiny">held for the state, never revenue${t.total_sales ? ` · Shopify Total Sales ${fmtMoney(t.total_sales, cur)}` : ''}</td></tr>` : ''}
         ${step('Product costs (COGS)', t.cogs, d.margin_pct != null ? `implied by your ${Math.round(d.margin_pct*100)}% flat margin` : 'from Triple Whale', true)}
-        ${d.shipping?.mode === 'include' && t.ship_cost ? step('Fulfilment / shipping cost', t.ship_cost, 'what delivery actually cost', true) : ''}
+        ${t.ship_cost ? step('Fulfilment / shipping cost', t.ship_cost, 'what delivery actually cost', true) : ''}
         ${t.handling ? step('Handling fees', t.handling, 'pick, pack and handling', true) : ''}
         ${step('Payment fees', t.fees, 'gateway and processing', true)}
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(t.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(t.margin)} of revenue — before any marketing</td></tr>
@@ -1098,7 +1121,7 @@ async function renderBrief(first) {
       </div>
       <div class="row" style="margin-top:12px">
         <div class="toggle ${d.brief_enabled ? 'on' : ''}" id="bfAuto"></div>
-        <span style="font-size:13.5px">Auto-post to Slack every morning (~7am PT / 10am ET), covering yesterday — goes to this brand's Daily Brief channel${(acct?.brief_channel || acct?.slack_channel) ? '' : ' (<b>none set</b> — pick one in Settings first)'}.</span>
+        <span style="font-size:13.5px">Auto-post to Slack every morning<span id="bfTimeLbl"></span>, covering yesterday — goes to this brand's Daily Brief channel${(acct?.brief_channel || acct?.slack_channel) ? '' : ' (<b>none set</b> — pick one in Settings first)'}. Change the time on <b>Settings</b>.</span>
       </div></div>
     <div class="card"><h3 style="margin-bottom:6px">The brief itself</h3>
       <p class="hint" style="margin-bottom:8px">The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What's Next? from the numbers and the Change Log (takes ~20s). Nothing posts to the client until you hit Post — or flip auto-post above.</p>
@@ -1139,6 +1162,8 @@ async function renderBrief(first) {
     catch (e) { $('#bfTwMsg').textContent = e.message; }
     b.disabled = false;
   };
+  briefTimeLabel();
+
   const toPlan = $('#gToPlan');
   const openPlan = () => { PL.month = d.month; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null; show('plan'); };
   if (toPlan) toPlan.onclick = openPlan;
@@ -1588,8 +1613,14 @@ async function renderSettings() {
   $('#main').innerHTML = `<h2>Settings</h2>
     <p class="sub">Where each brand's reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
+    <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
+      <p class="hint" style="margin-bottom:10px">When the brief posts each morning, for <b>every</b> brand with auto-post on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
+      <div class="row">
+        <select id="btHour" style="max-width:190px"></select>
+        <span class="tiny" id="btMsg"></span>
+      </div></div>
     <div class="card settings"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th></tr></thead>
+      <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
       <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. This is the channel <b>your client reads</b>. Internal pace and KPI alerts are a separate setting that lives in <a href="../account-health/">Account Health → Settings</a>, because those are for your media buyer, not the client. A brand needs this channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
 
@@ -1609,6 +1640,7 @@ async function renderSettings() {
       <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Posting each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
       <td>${healthPill(a.cost_health)}</td>
+      <td><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430d</button> <span class="tiny" data-bf="${a.act_id}"></span></td>
     </tr>`).join('');
   };
   draw();
@@ -1655,6 +1687,39 @@ async function renderSettings() {
       flash(e.target);
       await inPlace(async () => { await boot(); show('settings'); });
     } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+  });
+
+  // Send time
+  (async () => {
+    const sel = $('#btHour'); if (!sel) return;
+    const h = await loadBriefTime();
+    if (run !== RUN) return;
+    sel.innerHTML = Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === h ? 'selected' : ''}>${esc(hourLabel(i))}</option>`).join('');
+    if (h == null) { $('#btMsg').textContent = 'could not load the current time'; return; }
+    sel.onchange = async () => {
+      $('#btMsg').textContent = 'Saving…';
+      try {
+        const r = await api('/api/brief-time', { method: 'PUT', body: JSON.stringify({ hour: +sel.value }) });
+        BT.hour = r.hour;
+        $('#btMsg').textContent = `Saved ✓ — briefs post at ${hourLabel(r.hour)}`;
+      } catch (e) { $('#btMsg').textContent = e.message; }
+    };
+  })();
+
+  // Per-client Triple Whale backfill. ONE CLIENT AT A TIME on purpose: a 430-day
+  // pull is ~25-50k rows and every D1 batch is a subrequest, so running all six in
+  // one invocation blows the Worker limit.
+  tb.addEventListener('click', async e => {
+    const b = e.target.closest('[data-k="backfill"]'); if (!b) return;
+    const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
+    const msg = $(`[data-bf="${a.act_id}"]`);
+    b.disabled = true; msg.textContent = 'pulling 430 days…';
+    try {
+      const r = await api(`/api/tw-sync?act=${a.act_id}&days=430`, { method: 'POST' });
+      const x = (r.results && r.results[0]) || {};
+      msg.textContent = x.ok ? `✓ ${x.metrics} metrics, ${x.from} → ${x.to}` : (x.error || x.skipped || 'done');
+    } catch (err) { msg.textContent = err.message; }
+    b.disabled = false;
   });
 
   api('/api/slack-channels').then(r => { if (run !== RUN) return; chList = r.channels; draw(); })

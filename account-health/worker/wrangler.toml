@@ -6,9 +6,13 @@ compatibility_date = "2026-07-01"
 
 # 03:30 UTC nightly: re-pull the last 3 days of daily insights for every active
 # account (Meta conversions settle late) + activity-log events + TW daily metrics.
-# 14:00 UTC (7am PT / 10am ET): post the Daily Brief to each enabled brand's Slack.
+# Hourly: the Daily Brief trigger fires every hour and the worker sends only when
+# the CENTRAL hour matches the `briefHour` setting (default 9 = 9am Central, editable
+# in Profit -> Settings). Cron expressions are fixed at deploy time and always UTC, so
+# an hourly gate is the only way to make the time editable and keep it at the same
+# wall-clock hour across daylight saving. Still two triggers, not three.
 [triggers]
-crons = ["30 3 * * *", "0 14 * * *"]
+crons = ["30 3 * * *", "0 * * * *"]
 
 # D1 database. Create once with:
 #   npx wrangler d1 create mobius-account-health
