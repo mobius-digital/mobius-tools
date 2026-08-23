@@ -1,0 +1,70 @@
+# Mobius Profit — Shopify app configuration.
+#
+# WHY THIS FILE EXISTS: webhooks are not a form you fill in the dashboard any more.
+# Shopify configures them from this TOML, which is why there is nowhere obvious to
+# click. Two ways to apply it:
+#
+#   A) Shopify CLI (documented path)
+#        npm i -g @shopify/cli @shopify/app
+#        cd profit
+#        shopify app config link      # pick the app you created; this fills client_id
+#        shopify app deploy           # pushes scopes + webhooks below to Shopify
+#
+#   B) Dev Dashboard, if your app shows a Configuration / Webhooks section, enter the
+#      same URLs by hand. The CLI is more reliable because it sets every field at once.
+#
+# After `config link` Shopify will overwrite client_id and may rewrite other fields -
+# re-check the values below before running `deploy`.
+
+client_id = "REPLACE_WITH_YOUR_CLIENT_ID"
+name = "Mobius Profit"
+handle = "mobius-profit"
+
+# Where a merchant lands to start the install. This route issues the OAuth nonce.
+application_url = "https://mobius-profit.mobius-digital.workers.dev/shopify/install"
+
+# CRITICAL: must stay false. The worker implements the standalone authorization-code
+# grant. Marking the app embedded makes Shopify expect token exchange plus App Bridge,
+# and the install will fail in a way that does not point back here.
+embedded = false
+
+[access_scopes]
+# read_orders    - order totals, discounts, returns, shipping, tax (last 60 days)
+# read_customers - customer counts and first-order dates, for cohorts
+# read_products  - variant unit costs, for gross margin
+# read_reports   - REQUIRED for ShopifyQL (the shopifyqlQuery field). The cohort data
+#                  comes from `FROM customers`, so without this cohorts do not work.
+scopes = "read_orders,read_customers,read_products,read_reports"
+
+# read_all_orders is deliberately NOT here. It unlocks orders older than 60 days and
+# needs a separate approval request (Partner Dashboard > your app > API access >
+# Access requests). Add it only once approved, and only if we start reading raw
+# historical orders - today's cohorts come from ShopifyQL aggregates, which are not
+# subject to the 60-day window.
+
+[auth]
+redirect_urls = [ "https://mobius-profit.mobius-digital.workers.dev/shopify/callback" ]
+
+[webhooks]
+api_version = "2025-10"
+
+# The three mandatory compliance topics. Review rejects the app without them, and
+# rejects it again if an invalid HMAC returns anything other than 401 - the worker
+# returns 401 on a bad OR missing signature, verified live.
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/data_request" ]
+uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/customers/data_request"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/redact" ]
+uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "shop/redact" ]
+uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/shop/redact"
+
+# Not mandatory, but without it we never learn a store uninstalled and would keep
+# trying a token that is already dead. The handler blanks the stored token.
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/app/uninstalled"

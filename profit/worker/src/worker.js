@@ -268,18 +268,41 @@ async function seriesFor(env, acct, from, to) {
  *  DIAGNOSTIC ONLY. Shipping charged to customers is already inside Triple Whale's
  *  netSales, so it cannot be netted back out - a client who bills for shipping and
  *  records no cost against it genuinely has overstated profit, and the honest move
- *  is to say so rather than to quietly adjust the revenue line. */
+ *  is to say so rather than to quietly adjust the revenue line.
+ *
+ *  THE MODE THAT MATTERS IS `mirrored`. When no fulfilment rate is configured,
+ *  Triple Whale writes the shipping CHARGE into the cost field, so the two sides
+ *  cancel and shipping vanishes from contribution margin. Over a year that happens
+ *  on 351/351 days for Dartee, 356/356 for Lucky and 362/362 for Party Patch, to
+ *  the cent - while the two clients with real rates (Bonk, Grunk) match on 1 day
+ *  out of 365 and 0 out of 365. It is the absence of a measurement, not a
+ *  pass-through arrangement, and the old wording ("nets to zero") read as a
+ *  clean bill of health for the one state that hides an unknown cost. */
 function shippingMode(piv) {
   const total = m => Object.values(piv[m] || {}).reduce((a, b) => a + (b || 0), 0);
   const rev = total('totalShippingPrice'), cost = total('totalShippingCosts');
-  if (rev <= 0 && cost <= 0) return { mode: 'none', rev, cost, note: 'no shipping billed or costed' };
+  const orders = total('totalOrders');
+  // A day counts only when the customer was actually charged for delivery; days
+  // with no shipping revenue match trivially at zero and would fake a mirror.
+  let billed = 0, matched = 0;
+  for (const [d, r] of Object.entries(piv.totalShippingPrice || {})) {
+    if (!(r > 0)) continue;
+    billed++;
+    if (Math.abs((piv.totalShippingCosts?.[d] ?? 0) - r) < 0.005) matched++;
+  }
+  const per = n => orders > 0 ? n / orders : null;
+  const base = {
+    rev, cost, orders, billed_days: billed, matched_days: matched,
+    rev_per_order: per(rev), cost_per_order: per(cost),
+  };
+  if (rev <= 0 && cost <= 0) return { ...base, mode: 'none', note: 'no shipping billed or costed' };
   if (rev > 0 && cost <= 0) {
-    return { mode: 'uncosted', rev, cost, note: `customers were charged ${Math.round(rev)} for shipping but Triple Whale records no fulfilment cost against it, so contribution margin is overstated by roughly that much — add shipping costs in Triple Whale to close the gap` };
+    return { ...base, mode: 'uncosted', note: `customers were charged ${Math.round(rev)} for shipping and Triple Whale records no fulfilment cost against any of it, so contribution margin is overstated by whatever delivery actually costs - add shipping rates in Triple Whale to close the gap` };
   }
-  if (Math.abs(rev - cost) < 0.01 && rev > 0) {
-    return { mode: 'passthrough', rev, cost, note: 'shipping cost exactly equals shipping revenue — Triple Whale is treating it as a pass-through, so it nets to zero' };
+  if (billed >= 10 && matched >= billed * 0.95) {
+    return { ...base, mode: 'mirrored', note: `the recorded fulfilment cost equals what customers were charged on ${matched} of ${billed} days, to the cent - Triple Whale is echoing the charge because no delivery rate is configured, so shipping cancels itself out of contribution margin instead of being measured` };
   }
-  return { mode: 'costed', rev, cost, note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
+  return { ...base, mode: 'measured', note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
 }
 
 /** The same daily series with the flat-margin override deliberately ignored,
@@ -938,7 +961,7 @@ const worstDays = (rows, k = 8) =>
 async function costHealth(env, acct, days = 60) {
   const today = localDate(acct.tz);
   const from = addDays(today, -days), to = addDays(today, -1);
-  const { rows, margin_pct } = await seriesFor(env, acct, from, to);
+  const { rows, margin_pct, shipping } = await seriesFor(env, acct, from, to);
   // The diagnosis must always describe the REAL Triple Whale cost data, never the
   // override — otherwise the page grades its own override and reports a perfect
   // flat line, hiding whether the underlying data has actually been fixed yet.
@@ -947,7 +970,7 @@ async function costHealth(env, acct, days = 60) {
   const health = margin_pct != null
     ? { verdict: 'override', reason: `using a flat ${Math.round(margin_pct * 100)}% margin override`, days: rows.length, blended: margin_pct, underlying: raw }
     : raw;
-  return { account: pubAccount(acct), margin_pct, health, worst: worstDays(rawRows), rows: rawRows };
+  return { account: pubAccount(acct), margin_pct, health, shipping, worst: worstDays(rawRows), rows: rawRows };
 }
 
 async function refreshCostHealth(env) {

@@ -189,6 +189,21 @@ profit/
   cohorts is not confounded that way - 1.22 orders means 22% of purchases came after
   the first, which is the honest read. Anything under 9 months old is excluded from
   every average, because a young cohort has not had time to come back.
+- **`read_reports` is REQUIRED or cohorts silently do not work.** It is the scope that
+  grants `shopifyqlQuery`, and the cohort data comes from ShopifyQL `FROM customers` -
+  the only place Shopify exposes customers grouped by their first-order month. It is
+  easy to miss because the obvious three (orders, customers, products) look sufficient.
+- **`read_orders` only reaches back 60 DAYS.** Older orders need `read_all_orders`,
+  which is a separate approval request in the Partner Dashboard with a written
+  justification, not a checkbox. Today's cohorts avoid this because ShopifyQL
+  aggregates are not subject to the window - but anything that reads raw historical
+  orders (product-level profit, most likely) will need it, and the approval takes time.
+- **Shopify webhooks are configured in `profit/shopify.app.toml`, not in a dashboard
+  form.** Cole went looking for the form and there isn't one any more; `shopify app
+  deploy` pushes the scopes and webhook subscriptions from that file. `embedded` must
+  stay FALSE - the worker implements the standalone authorization-code grant, and
+  marking the app embedded makes Shopify expect token exchange plus App Bridge, which
+  fails in a way that does not point back here.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),
