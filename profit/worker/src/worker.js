@@ -563,6 +563,18 @@ async function weekdayRhythm(env, acct, months = 3) {
     return sum.map((v, i) => (cnt[i] && mean > 0 ? (v / cnt[i]) / mean : null));
   });
 
+  // Same consistency test applied to efficiency: one MER index per weekday per
+  // month, relative to that month's own MER.
+  const perMonthMer = used.map(ym => {
+    const list = byMonth[ym];
+    const tS = list.reduce((a, r) => a + r.sales, 0);
+    const tSp = list.reduce((a, r) => a + (r.spend ?? 0), 0);
+    const monthMer = tSp > 0 ? tS / tSp : null;
+    const s2 = Array(7).fill(0), sp2 = Array(7).fill(0);
+    for (const r of list) { const d = dowOf(r.date); s2[d] += r.sales; sp2[d] += r.spend ?? 0; }
+    return s2.map((v, i) => (sp2[i] > 0 && monthMer ? (v / sp2[i]) / monthMer : null));
+  });
+
   // share of the week, and efficiency, pooled across the whole window
   const sales = Array(7).fill(0), spend = Array(7).fill(0), newRev = Array(7).fill(0), days = Array(7).fill(0);
   for (const ym of used) for (const r of byMonth[ym]) {
@@ -578,12 +590,17 @@ async function weekdayRhythm(env, acct, months = 3) {
     const avg = idx.length ? idx.reduce((a, b) => a + b, 0) / idx.length : null;
     // Consistent only when EVERY month agreed on the direction.
     const verdict = lo == null ? 'none' : lo > 1.02 ? 'strong' : hi < 0.98 ? 'soft' : 'mixed';
+    const mIdx = perMonthMer.map(mm => mm[d]).filter(v => v != null);
+    const mLo = mIdx.length ? Math.min(...mIdx) : null;
+    const mHi = mIdx.length ? Math.max(...mIdx) : null;
+    const merVerdict = mLo == null ? 'none' : mLo > 1.02 ? 'strong' : mHi < 0.98 ? 'soft' : 'mixed';
     return {
       dow: d, name,
       share: totalSales > 0 ? sales[d] / totalSales : null,
       index: avg, index_lo: lo, index_hi: hi, verdict,
       sales: sales[d], spend: spend[d], days: days[d],
       mer: spend[d] > 0 ? sales[d] / spend[d] : null,
+      mer_verdict: merVerdict, mer_lo: mLo, mer_hi: mHi,
       amer: spend[d] > 0 ? newRev[d] / spend[d] : null,
     };
   });
@@ -600,6 +617,10 @@ async function weekdayRhythm(env, acct, months = 3) {
     spread: idxs.length ? Math.max(...idxs) - Math.min(...idxs) : null,
     strongest: out.slice().sort((a, b) => (b.index ?? 0) - (a.index ?? 0))[0],
     weakest: out.slice().sort((a, b) => (a.index ?? 9) - (b.index ?? 9))[0],
+    // Efficiency findings only count when every month agreed, same as revenue.
+    mer_consistent: out.filter(x => x.mer_verdict === 'strong' || x.mer_verdict === 'soft').length,
+    mer_best: out.filter(x => x.mer_verdict === 'strong').sort((a, b) => (b.mer ?? 0) - (a.mer ?? 0))[0] || null,
+    mer_worst: out.filter(x => x.mer_verdict === 'soft').sort((a, b) => (a.mer ?? 9) - (b.mer ?? 9))[0] || null,
   };
 }
 

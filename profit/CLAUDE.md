@@ -117,6 +117,15 @@ profit/
   Dartee (0) are told plainly they have no rhythm. The dollar projection is gated
   on `reliable` too - splitting a plan by a chance pattern is the exact failure this
   card exists to prevent, and it is meant to be shown to clients.
+- **MER by weekday is NOT the revenue share restated, and it faces the same test.**
+  Cole challenged whether it earned its place. It does: for Bonk, Saturday is the
+  2nd-biggest revenue day (16.0% of the week, "consistently strong") but among the
+  LEAST efficient at 2.53x, because Saturday spend runs 22% above average - while
+  Sunday, whose revenue only "varies", returns 3.11x. Pacing budget from the revenue
+  column alone would push money INTO the least efficient day. Spend varies 35-99% as
+  much as revenue depending on the client, so the two columns genuinely diverge. Each
+  weekday's MER is indexed against its own month's MER and only tagged best/worst when
+  every month agreed, matching the revenue column's rigor.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

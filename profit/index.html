@@ -783,9 +783,9 @@ function rhythmCard(rh, cur) {
   const rows = rh.days.map(x => `<tr${x.verdict === 'mixed' ? ' style="opacity:.62"' : ''}>
     <td><b>${esc(x.name)}</b></td>
     <td class="num"><b>${fmtPct(x.share, 1)}</b></td>
-    <td class="num tiny">${x.index_lo != null ? `${x.index_lo.toFixed(2)}–${x.index_hi.toFixed(2)}` : '—'}</td>
+    <td class="num tiny">${x.index_lo != null ? `${fmtSigned(x.index_lo - 1, 0)} to ${fmtSigned(x.index_hi - 1, 0)}` : '—'}</td>
     <td>${pill(x.verdict)}</td>
-    <td class="num">${fmtX(x.mer)}</td>
+    <td class="num">${fmtX(x.mer)}${x.mer_verdict === 'strong' ? ' <span class="pill good" style="padding:1px 5px;font-size:10px">best</span>' : x.mer_verdict === 'soft' ? ' <span class="pill warn" style="padding:1px 5px;font-size:10px">worst</span>' : ''}</td>
     ${wk != null ? `<td class="num tiny">${fmtMoney(wk * x.share, cur)}</td>` : ''}
   </tr>`).join('');
 
@@ -797,19 +797,19 @@ function rhythmCard(rh, cur) {
     ? `<div class="notice">✓ <div><b>This client has a real weekly rhythm.</b>
         ${strong.length ? `<b>${esc(list(strong))}</b> came in above an average day in <i>every</i> month looked at${soft.length ? ', while ' : '.'}` : ''}
         ${soft.length ? `<b>${esc(list(soft))}</b> came in below an average day every month.` : ''}
-        The other days moved around too much to call.</div></div>`
+        The other days moved around too much to call.${rh.mer_best || rh.mer_worst ? `<br><b>On efficiency:</b> ${rh.mer_best ? `<b>${esc(rh.mer_best.name)}</b> returned the most per ad dollar (${fmtX(rh.mer_best.mer)})` : ''}${rh.mer_best && rh.mer_worst ? ', while ' : ''}${rh.mer_worst ? `<b>${esc(rh.mer_worst.name)}</b> returned the least (${fmtX(rh.mer_worst.mer)})` : ''} in every month. Note this can disagree with the revenue column — a day can take the most money and still be inefficient if you spend more on it.` : ''}</div></div>`
     : `<div class="notice warn">ℹ️ <div><b>No reliable weekly rhythm.</b> This client's weekdays swing about as much from month to month as they do from each other, so the shares below are close to chance — a month only contains four of each weekday. Read this as "every day is much the same", and do not build a story around it for the client.</div></div>`;
 
   return `<div class="card"><h3 style="margin-bottom:2px">How a week actually runs <span class="info-i" title="Share of revenue by weekday across the last complete months. The index range is that weekday compared with an average day, one figure per month — a day is only called consistent when every month agreed. This is history for context, NOT the plan: the monthly plan is split evenly across the days on purpose, because a day-of-week curve was measured to predict worse than an even split.">i</span></h3>
-    <p class="hint" style="margin-bottom:10px">Based on ${esc(monthsLbl)} — complete months only. <b>This is what happened, not a target.</b> Your plan is still measured evenly across the month.</p>
+    <p class="hint" style="margin-bottom:10px">Based on ${esc(monthsLbl)} — the last ${rh.months.length} <b>complete</b> months, which roll forward on their own (in September this reads June–August). Three months rather than one because a single month holds only four of each weekday, which is far too few to tell a real pattern from chance — and with one month there is nothing to check it against. <b>This is what happened, not a target.</b> Your plan is still measured evenly across the month.</p>
     ${verdict}
     <div class="tbl-wrap" style="margin-top:12px"><table>
       <thead><tr><th>Day</th>
         <th class="num">Share of week <span class="info-i" title="This weekday's revenue as a share of the whole week. Seven equal days would be 14.3% each.">i</span></th>
-        <th class="num">vs average day <span class="info-i" title="The lowest and highest this weekday scored across the months looked at, where 1.00 is an average day. A tight range means a real pattern; a range straddling 1.00 means it is noise.">i</span></th>
+        <th class="num">Compared with a normal day <span class="info-i" title="How far above or below a normal day this weekday landed - shown as its WORST month and its BEST month, so you can see the spread rather than one flattering average. Monday reading -28% to -15% means that in the weakest month Mondays came in 28% under a normal day and in the strongest month still 15% under: always below, never above. A range that crosses zero (say -10% to +12%) means the day landed above average in one month and below in another, which is noise, not a pattern.">i</span></th>
         <th></th>
-        <th class="num">MER <span class="info-i" title="Revenue divided by ad spend on that weekday across the whole window. Where this differs a lot by day, there may be a case for pacing budget toward the efficient days.">i</span></th>
-        ${wk != null ? `<th class="num">Typical week <span class="info-i" title="This weekday's share applied to a week at the current plan. Illustrative only - it is what history suggests a week looks like, not the number you are measured against.">i</span></th>` : ''}
+        <th class="num">MER <span class="info-i" title="Revenue divided by ad spend on that weekday, pooled across the window. This is NOT the same as the revenue share: a day can take the most money and still be among the least efficient if you also spend more on it. Only tagged best or worst when every month agreed, using the same test as the revenue column.">i</span></th>
+        ${wk != null ? `<th class="num">Your plan, split this way <span class="info-i" title="NOT a historical average. This takes THIS MONTH'S plan, divides it to a week, then splits that week across the days using the shares on the left. It answers: if the month goes to plan and the week keeps its usual shape, what would each day look like? Illustrative only - the Daily Brief still measures every day against an even split.">i</span></th>` : ''}
       </tr></thead>
       <tbody>${rows}</tbody></table></div>
     ${wk != null && rh.reliable ? `<p class="tiny" style="margin-top:8px">The last column spreads a <b>${fmtMoney(wk, cur)}</b> week (your ${esc(monthLabel(rh.plan.month))} plan ÷ ${rh.plan.days_in_month} × 7) across the days by their measured share. Useful for setting expectations on a call — <b>not</b> what the Daily Brief compares against.</p>` : ''}
