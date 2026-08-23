@@ -226,6 +226,15 @@ profit/
   stay FALSE - the worker implements the standalone authorization-code grant, and
   marking the app embedded makes Shopify expect token exchange plus App Bridge, which
   fails in a way that does not point back here.
+- **`shopify app config link` OVERWRITES the local TOML with whatever is on the
+  remote app.** It is a pull, not a link. Run once against a freshly-created blank
+  app and it silently reset `name` to the org name, `application_url` to
+  `https://example.com`, `embedded` to true, `scopes` to `""`, `redirect_urls` to
+  empty and `use_legacy_install_flow` to false - keeping only the webhook block,
+  which is what makes it look like it worked. `deploy` then pushes that wreckage up.
+  Only run `config link` on a fresh clone, and diff the file afterwards every time.
+  `use_legacy_install_flow` must be TRUE: false enables Shopify managed installation,
+  which is for embedded apps doing token exchange, not our authorization-code grant.
 - **Never pipe a secret to `wrangler secret put` from PowerShell.** It prepends a
   UTF-8 BOM, so the stored value begins with an invisible `﻿`. The Shopify client
   id went up as `%EF%BB%BF a204...` in the OAuth redirect, and the same corruption in
