@@ -1063,7 +1063,7 @@ async function sendBrief(env, acct, date, { skipIfSent = false } = {}) {
   const channel = acct.brief_channel || acct.slack_channel || await getSetting(env, 'slackChannel');
   if (!channel) { await upsert('skipped', null, 'no Slack channel configured for this brand'); return { name: acct.name, skipped: 'no Slack channel' }; }
   try {
-    await slackPost(env, channel, r.text);
+    await slackPost(env, channel, r.text, null, { username: 'Daily Update', icon: ':wave:' });
     await upsert('sent', channel, r.text);
     return { name: acct.name, ok: true, channel, date };
   } catch (e) {
@@ -1372,16 +1372,18 @@ async function putSetting(env, key, value) {
     .bind(key, value).run();
 }
 
-async function slackPost(env, channel, text, blocks) {
-  // Post as "Mobius Account Health" (needs the chat:write.customize scope on the shared
-  // bot); if that scope is missing, fall back to posting under the bot's default name.
+async function slackPost(env, channel, text, blocks, opts = {}) {
+  // Sender identity is per-message: the Daily Brief goes to CLIENTS and posts as
+  // "Daily Update", while internal pace and failure alerts keep the Mobius name so
+  // you can tell at a glance which is which. Needs the chat:write.customize scope on
+  // the shared bot; without it Slack falls back to the bot's own default name.
   const send = payload => fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then(r => r.json().catch(() => ({})));
   const base = { channel, text, ...(blocks ? { blocks } : {}) };
-  let j = await send({ ...base, username: 'Mobius Account Health', icon_emoji: ':bar_chart:' });
+  let j = await send({ ...base, username: opts.username || 'Mobius Account Health', icon_emoji: opts.icon || ':bar_chart:' });
   if (!j.ok && /missing_scope|invalid_arg/i.test(j.error || '')) j = await send(base);
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
 }
