@@ -735,6 +735,16 @@ async function briefData(env, acct, upTo) {
   ).bind(acct.act_id, histFrom, upTo).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const goals = goalsFor(acct, ym);
+  // `default` is an inheritance convenience, not a plan. A month nobody planned still
+  // gets numbers, and reporting them as "the plan" is how a goal silently carries
+  // from one month to the next. Say which it is, and name where it came from.
+  const gjson = safeJson(acct.goals_json, {});
+  const planned = !!gjson[ym];
+  let inheritedFrom = null;
+  if (!planned && goals) {
+    const months = Object.keys(gjson).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
+    inheritedFrom = months.filter(k => gjson[k] && gjson[k].sales === goals.sales).pop() || null;
+  }
   const shipTotal = m => Object.values(piv[m] || {}).reduce((x, y) => x + (y || 0), 0);
   const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 ? 'exclude' : 'include';
 
@@ -837,7 +847,8 @@ async function briefData(env, acct, upTo) {
   const lastSync = (await env.DB.prepare(`SELECT MAX(synced_at) AS t FROM tw_daily WHERE act_id = ?1`).bind(acct.act_id).first())?.t ?? null;
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz },
-    month: ym, up_to: upTo, goals, cm_pct: cmPct, margin_28d: margin28,
+    month: ym, up_to: upTo, goals, goals_planned: planned, goals_inherited_from: inheritedFrom,
+    cm_pct: cmPct, margin_28d: margin28,
     cogs_quality: cmPct != null ? { verdict: 'override', reason: `using your ${Math.round(cmPct * 100)}% margin override` } : cogsQuality,
     weights: haveW ? 'day-of-week (trailing 28d)' : 'uniform (not enough history yet)',
     new_share_28d: newShare, days, mtd, tw_last_sync: lastSync,
@@ -858,6 +869,8 @@ const shortDate = ymd => `${+ymd.slice(5, 7)}/${+ymd.slice(8, 10)}`;
  *  the revenue split, channel reads and month-to-date all live in the Notes, where
  *  Claude writes them as sentences, because that is what makes it read like a
  *  person rather than a cron job. */
+const MONTH_OF = ym => `${MONTH_NAMES[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
+
 function buildBriefText(data, dates, narrative) {
   const cur = data.account.currency;
   const list = Array.isArray(dates) ? dates : [dates];
@@ -896,6 +909,13 @@ function buildBriefText(data, dates, narrative) {
     L.push('', `*Week in review — ${prettyDate(wk.from)} to ${prettyDate(wk.to)}*`);
     L.push(`Net Sales ${fm(wk.a.sales)} against ${fm(wk.f.sales)} planned · Spend ${fm(wk.a.spend)} of ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)}` : ''} · aMER ${fx(wk.a.amer)}`);
     if (wk.best) L.push(`Best day ${prettyDate(wk.best.date)} at ${fm(wk.best.sales)}, slowest ${prettyDate(wk.worst.date)} at ${fm(wk.worst.sales)}`);
+  }
+  // An inherited target is not a plan anyone agreed to. Say so rather than letting
+  // last month's number pass as this month's.
+  if (data.goals && data.goals_planned === false) {
+    L.push('', data.goals_inherited_from
+      ? `_Note: no target has been set for ${MONTH_OF(data.month)} yet, so these are measured against ${MONTH_OF(data.goals_inherited_from)}'s plan._`
+      : `_Note: no target has been set for ${MONTH_OF(data.month)} yet, so these are measured against the last plan on file._`);
   }
   return L.join('\n') + (narrative ? `\n\n${narrative}` : '');
 }
@@ -951,6 +971,9 @@ async function writeBriefNarrative(env, acct, data, date) {
     maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom for the text
     user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${(data.covering || [date]).join(' and ')}.\n` +
       `Goals this month: ${JSON.stringify(data.goals)}. Meta ROAS floor: ${acct.target_roas ?? 'none'}. Forecast weighting: ${data.weights}.\n` +
+      (data.goals && data.goals_planned === false
+        ? `IMPORTANT: no target was actually set for ${MONTH_OF(data.month)} - the figures above are carried over from ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from) : 'the last plan on file'}. Do NOT call them this month's goal or say the client is ahead of/behind "plan" as though it were agreed. Refer to them as last month's pace, and put setting this month's target in What's Next?.\n`
+        : '') +
       `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data: revenue minus product costs, fulfilment, handling, payment fees and ad spend (every variable cost; fixed costs are excluded by definition)'}.\n\n` +
       (data.cogs_quality && (data.cogs_quality.verdict === 'broken' || data.cogs_quality.verdict === 'none')
         ? `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality.reason}). Contribution margin has been REMOVED from the numbers block - do NOT mention contribution margin, CM, profit or margin anywhere in your narrative. Build the story from net sales, spend, aMER and the channel reads instead.
@@ -1026,15 +1049,39 @@ async function sendBrief(env, acct, date) {
   }
 }
 
+/** A brief that fails silently is worse than no brief - nobody notices for weeks.
+ *  Posts to the brand's INTERNAL alerts channel, never the client's brief channel,
+ *  and stays quiet when yesterday already reported the same fault so an ongoing
+ *  problem is one message rather than a daily drip. */
+async function alertBriefFailure(env, acct, date, result) {
+  const problem = result?.error || result?.skipped;
+  if (!problem) return;
+  const channel = acct.slack_channel;          // internal, deliberately not brief_channel
+  if (!channel) return;
+  const prev = await env.DB.prepare(
+    `SELECT status, text FROM briefs WHERE act_id = ?1 AND date = ?2`,
+  ).bind(acct.act_id, addDays(date, -1)).first().catch(() => null);
+  const same = prev && (prev.status === 'error' || prev.status === 'skipped') &&
+    String(prev.text || '').slice(0, 40) === String(problem).slice(0, 40);
+  if (same) return;
+  await slackPost(env, channel,
+    `:warning: *Daily Brief did not go out for ${acct.name}* (${date})\n${problem}\n_Internal alert - the client was not messaged. Fix it in Mobius Profit._`);
+}
+
 /** Morning cron: refresh TW data, then post yesterday's brief for every enabled brand. */
 async function dailyBriefs(env) {
   const accounts = (await listAccounts(env, true)).filter(a => a.brief_enabled);
   const results = [];
   for (const a of accounts) {
+    const date = addDays(localDate(a.tz), -1);
+    let r;
     try {
       await syncTwDaily(env, a, 45).catch(() => {});
-      results.push(await sendBrief(env, a, addDays(localDate(a.tz), -1)));
-    } catch (e) { results.push({ name: a.name, error: e.message }); }
+      r = await sendBrief(env, a, date);
+    } catch (e) { r = { name: a.name, error: e.message }; }
+    results.push(r);
+    // Never let a broken alert stop the remaining brands from getting their brief.
+    await alertBriefFailure(env, a, date, r).catch(() => {});
   }
   await putSetting(env, 'lastBriefRun', JSON.stringify({ at: new Date().toISOString(), results })).catch(() => {});
   return results;

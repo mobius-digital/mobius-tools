@@ -79,6 +79,17 @@ profit/
 - **`goals_json.default` is inheritance, NOT a plan.** `goalsFor()` merges it under
   every month, which made unplanned future months look planned. The API returns
   `planned` (an explicit `goals_json[ym]` entry) and the UI must key status off that.
+- **An inherited plan must announce itself.** `briefData` returns `goals_planned`
+  (an explicit `goals_json[ym]`) and `goals_inherited_from`. When false, the Slack
+  brief appends a note naming the month the numbers came from, the prompt tells
+  Claude not to call them this month's goal, and the Brief tab shows a warning with
+  a jump to Plan. Without this, the 1st of a month silently re-uses last month's
+  target and the brief reports "vs plan" against something nobody agreed.
+- **`GET /api/profit/:token` is client-facing: no diagnostics, ever.** It exposes one
+  account's month-to-date headline numbers and pro-rated plan. Contribution margin is
+  omitted entirely unless `p_cost_health` trusts the data or a margin override is set
+  - a client must never be the first person to see a number the Costs page calls
+  broken. No other account, no cost verdicts, no override details.
 - **Past months are read only** and must not show inherited defaults as if they were
   that month's plan — say "no plan was set".
 - **The plan is agreed with the client, never auto-applied.** `PUT /api/plan` writes

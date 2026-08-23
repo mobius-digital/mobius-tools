@@ -48,3 +48,14 @@ CREATE TABLE IF NOT EXISTS p_plan (
   PRIMARY KEY (act_id, month)
 );
 CREATE INDEX IF NOT EXISTS p_plan_token_idx ON p_plan (share_token);
+
+-- Read-only client link for the Profit snapshot (the Phase-0 PRD open question:
+-- "should clients get a read-only link to their own Profit page?"). One token per
+-- client, regenerable. Deliberately a separate table from p_plan: the plan link and
+-- the performance link have different lifetimes and you may want one without the other.
+CREATE TABLE IF NOT EXISTS p_profit_share (
+  act_id     TEXT PRIMARY KEY,
+  token      TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS p_profit_share_token_idx ON p_profit_share (token);

@@ -165,7 +165,9 @@ Phase 0 is the only one with a hard dependency — everything else can be reorde
 ## Open questions
 
 - Do we want quarterly targets as well as monthly? (Statlas thinks in 90-day windows.)
-- Should clients get a read-only share link to their own Profit page, like the
-  Account Health share links?
+- ~~Should clients get a read-only share link to their own Profit page?~~ **Done
+  2026-08-23.** `?perf=<token>` renders one client's month-to-date against its plan.
+  Contribution margin is dropped automatically when `p_cost_health` does not trust
+  the cost data, so the client never sees a figure we would suppress internally.
 - Shipping cost: Triple Whale carries it, but is it accurate per client, or does it
   need the same override treatment as COGS?

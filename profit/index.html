@@ -282,6 +282,8 @@ const fmtAgo = iso => { if (!iso) return 'never'; const m = (Date.now() - parseT
 async function boot() {
   const planTok = new URLSearchParams(location.search).get('plan');
   if (planTok) return renderPlanShare(planTok);
+  const perfTok = new URLSearchParams(location.search).get('perf');
+  if (perfTok) return renderPerfShare(perfTok);
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
@@ -345,6 +347,54 @@ async function renderPlanShare(token) {
     ${d.note ? `<div class="card"><h3 style="margin-bottom:6px">Notes</h3><p style="font-size:14px">${esc(d.note)}</p></div>` : ''}
     <p class="tiny">Contribution margin is revenue minus product costs, fulfilment, payment fees and ad spend. It excludes fixed costs such as rent, salaries and software.</p>`;
   setChip(d.agreed_at ? 'Agreed' : 'Proposed', d.agreed_at ? 'live' : 'off');
+  $('#connChip').style.display = '';
+  document.querySelector('.hd-right').style.display = '';
+  ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+}
+
+/** The client-facing performance page. Read-only, no sign-in, one client, and
+ *  deliberately no cost diagnostics - this URL gets forwarded around. */
+async function renderPerfShare(token) {
+  document.querySelector('.hd-right').style.display = 'none';
+  $('#tabs').style.display = 'none';
+  $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  let d;
+  try {
+    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/profit/' + token);
+    d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'This link is no longer valid.');
+  } catch (e) {
+    $('#main').innerHTML = `<div class="gate"><h1>Link unavailable</h1><p>${esc(e.message)}</p></div>`;
+    return;
+  }
+  const cur = d.account.currency, m = d.mtd, pl = d.plan;
+  $('.hd-title').innerHTML = `${esc(d.account.name)} <em>${esc(monthLabel(d.month))}</em>`;
+  const vs = (actual, planned, lowerIsBetter) => {
+    if (actual == null || !planned) return '';
+    const off = actual / planned - 1;
+    const good = lowerIsBetter ? off <= 0.05 : off >= 0;
+    const cls = good ? 'good' : Math.abs(off) <= 0.1 ? 'warn' : 'bad';
+    return `<span class="pill ${cls}">${fmtSigned(off)} vs plan</span>`;
+  };
+  const card = (label, value, sub) => `<div class="card" style="margin:0">
+    <div class="av-label" style="font-size:12px;color:var(--muted)">${label}</div>
+    <div style="font-size:clamp(20px,2.4vw,28px);font-weight:700;margin:4px 0 2px">${value}</div>
+    <div class="tiny">${sub}</div></div>`;
+  const hist = (d.history || []).filter(h => !h.partial);
+  $('#main').innerHTML = `<h2>${esc(monthLabel(d.month))} so far</h2>
+    <p class="sub">${d.days} of ${d.days_in_month} days. Every channel combined — ads, email, organic and direct — not any single platform's reported figures.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:14px">
+      ${card('REVENUE', fmtMoney(m.sales, cur), pl && pl.sales ? `${fmtMoney(pl.sales, cur)} planned by now ${vs(m.sales, pl.sales)}` : 'month to date')}
+      ${card('AD SPEND', fmtMoney(m.spend, cur), pl && pl.spend ? `${fmtMoney(pl.spend, cur)} planned by now ${vs(m.spend, pl.spend, true)}` : 'across every platform')}
+      ${card('MER', fmtX(m.mer), pl && pl.mer ? `${fmtX(pl.mer)} planned ${vs(m.mer, pl.mer)}` : 'revenue divided by ad spend')}
+      ${card('NEW CUSTOMER MER', fmtX(m.amer), `${fmtPct(m.new_share)} of revenue came from new customers`)}
+      ${m.cm != null ? card('CONTRIBUTION MARGIN', fmtMoney(m.cm, cur), pl && pl.cm ? `${fmtMoney(pl.cm, cur)} planned ${vs(m.cm, pl.cm)}` : 'after product, fulfilment, fees and ads') : ''}
+    </div>
+    ${hist.length ? `<div class="card"><h3 style="margin-bottom:8px">Recent months</h3>
+      <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th></tr></thead>
+      <tbody>${hist.map(h => `<tr><td>${esc(monthLabel(h.month))}</td><td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td><td class="num">${fmtX(h.mer)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    <p class="tiny">MER is all store revenue divided by all ad spend, blended across every platform — it is not any one platform's attributed return. ${m.cm != null ? 'Contribution margin is revenue minus product costs, fulfilment, payment fees and ad spend; it excludes fixed costs such as rent, salaries and software.' : ''}</p>`;
+  setChip('Live', 'live');
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
   ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
@@ -497,6 +547,7 @@ const PAGE_HELP = {
     <p><b>The verdict line is the honest bit.</b> Any plan implies a rate at which you buy new customers. The page compares that with what this client has actually been getting over the last 28 days and tells you plainly whether the plan is <b>achievable</b>, <b>a stretch</b>, or <b>unrealistic</b>. A goal that needs 40% better efficiency than the account has ever delivered is a wish, not a plan.</p>
     <p><b>How to run it:</b> open the client before your monthly call. The six-month table shows what actually happened. Pick a growth level and the page tells you what that goal <i>costs</i> — because returning customers arrive largely on their own, but everything above that has to be bought, at this client's own acquisition efficiency.</p>
     <p><b>Watch the contribution margin.</b> If pushing growth harder makes expected CM go <i>down</i>, you're buying revenue that doesn't pay for itself. The page says so outright.</p>
+    <p><b>Plans do not roll over cleanly.</b> A month nobody plans still shows numbers — it inherits the last plan on file — so the Daily Brief will compare against a target you never set. The banner on this tab counts down to the next month and names who is still unplanned.</p>
     <p><b>Then agree it.</b> "↗ Client link" gives you a read-only page with just this plan on it — no other client, no internal notes — to share on the call. Flip <b>agreed with client</b> once they say yes.</p>
     <p><b>Once saved, it drives everything:</b> the month's goal is split across the days by that brand's own weekday rhythm, and every morning's Daily Brief compares yesterday against its slice. Change the numbers later and the agreement resets — you can't agree to a plan and then quietly move it.</p>`,
   settings: `
@@ -708,7 +759,7 @@ async function renderProfit(first) {
 
   $('#main').innerHTML = `<h2>Profit — ${esc(d.account.name)}</h2>
     <p class="sub">Where the money went over the last ${S.days} days. Store-level and blended: every sale from every source, minus every cost including all ad platforms.</p>
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-help="profit">? How to use</button></div>
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
       ${statCard(d.shipping?.mode === 'include' && t.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Everything the store sold from every source — paid, organic, email, direct — after discounts and refunds, excluding tax, plus what customers paid for shipping. This is real Shopify money, not any platform’s attributed revenue. CTC report this same line as "Net Sales + Shipping".')}
@@ -738,6 +789,18 @@ async function renderProfit(first) {
       ${chart.svg}</div>
     <div class="card"><h3 style="margin-bottom:8px">New vs returning</h3>
       <p class="hint" style="margin-bottom:8px">${fmtMoney(t.new_rev, cur)} from new customers (<b>${fmtPct(t.new_share)}</b>) · ${fmtMoney(t.ret_rev, cur)} returning. A high returning share with weak new revenue means the list is carrying the store and the ads have stopped acquiring — MER holds up while aMER quietly falls.</p></div>`;
+
+  const shareBtn = $('#pfShare');
+  if (shareBtn) shareBtn.onclick = async () => {
+    try {
+      const r = await api('/api/profit-share', { method: 'POST', body: JSON.stringify({ act: S.act }) });
+      // A blocked clipboard must not surface as an unhandled rejection - the URL is on screen regardless.
+      if (navigator.clipboard) navigator.clipboard.writeText(r.url).catch(() => {});
+      noteModal('Client link ready', `<p>A read-only page with <b>${esc(d.account.name)}</b>'s month so far: revenue, ad spend, MER and contribution margin against the plan.</p>
+        <p class="tiny">It shows this client only — no other account, and none of the cost diagnostics from the Costs tab. Contribution margin is left out automatically if the cost data would not pass our own trust check.</p>
+        <p><code style="word-break:break-all">${esc(r.url)}</code></p><p class="tiny">Copied to your clipboard.</p>`);
+    } catch (e) { noteModal('Could not create the link', `<p>${esc(e.message)}</p>`); }
+  };
 
   const svg = $('#pfSvg');
   if (svg) {
@@ -1000,6 +1063,7 @@ async function renderBrief(first) {
       <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet — hit refresh'}</span>
       <span style="flex:1"></span><button class="help-btn" data-help="brief">? How to use</button>
     </div>
+    ${d.goals && d.goals_planned === false ? `<div class="notice warn">⚠️ <div><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure below is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so out loud. <button class="btn" id="bfToPlan2" style="margin-left:6px">Set ${esc(monthLabel(d.month))}'s plan</button></div></div>` : ''}
     ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
     ${noTw && d.goals ? `<div class="notice warn">⚠️ <div>No Triple Whale sales data for ${d.date} yet — hit “Refresh Triple Whale data”, and check the shop domain in Settings if it persists.</div></div>` : ''}
     ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely — every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or set a flat <b>margin %</b> on the <b>Costs</b> tab instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> — ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab overrides it with a stable rate.</div></div>` : ''}
@@ -1076,7 +1140,10 @@ async function renderBrief(first) {
     b.disabled = false;
   };
   const toPlan = $('#gToPlan');
-  if (toPlan) toPlan.onclick = () => { PL.month = d.month; PL.sales = null; PL.spend = null; PL.mer = null; show('plan'); };
+  const openPlan = () => { PL.month = d.month; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null; show('plan'); };
+  if (toPlan) toPlan.onclick = openPlan;
+  const toPlan2 = $('#bfToPlan2');
+  if (toPlan2) toPlan2.onclick = openPlan;
   $('#bfAuto').onclick = async e => {
     const on = !e.target.classList.contains('on');
     if (on && !d.goals) { $('#gMsg').textContent = 'Set goals first — auto-post needs a plan to compare against.'; return; }
@@ -1454,7 +1521,8 @@ async function renderPlan(first) {
   if (sh) sh.onclick = async () => {
     try {
       const r = await api('/api/plan-share', { method: 'POST', body: JSON.stringify({ act: S.act, month: p.month }) });
-      if (navigator.clipboard) navigator.clipboard.writeText(r.url);
+      // A blocked clipboard must not surface as an unhandled rejection - the URL is on screen regardless.
+      if (navigator.clipboard) navigator.clipboard.writeText(r.url).catch(() => {});
       noteModal('Client link ready', `<p>A read-only page showing just this plan — no other client, no internal notes.</p><p><code style="word-break:break-all">${esc(r.url)}</code></p><p class="tiny">Copied to your clipboard.</p>`);
     } catch (e) { $('#plMsg').textContent = e.message; }
   };
@@ -1473,7 +1541,8 @@ async function renderPlanAll() {
         <td data-agreed="${a.act_id}">…</td>
         <td><button class="btn">Plan it</button></td></tr>`).join('')}
       </tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Showing <b>${esc(monthLabel(next))}</b> — the month you would actually be planning right now. Open a client to plan a different one.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Showing <b>${esc(monthLabel(next))}</b> — the month you would actually be planning right now. Open a client to plan a different one.</p></div>
+    <div id="plWarn"></div>`;
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -1481,15 +1550,35 @@ async function renderPlanAll() {
     $('#clientPick').value = S.act; show('plan');
   });
   const run = ++RUN;
+  // How many days until `next` becomes the live month? Once it does, any client
+  // without an explicit plan silently inherits the previous month's numbers.
+  const startsOn = new Date(`${next}-01T12:00:00Z`);
+  const daysToGo = Math.max(0, Math.round((startsOn - new Date(ymdLocal(new Date()) + 'T12:00:00Z')) / 86400000));
+  const unplanned = [];
+  let answered = 0;
+  const drawWarn = () => {
+    const el = $('#plWarn'); if (!el || answered < S.accounts.length) return;
+    if (!unplanned.length) {
+      el.innerHTML = `<div class="notice">✓ <div>Every client has a plan for <b>${esc(monthLabel(next))}</b>.</div></div>`;
+      return;
+    }
+    const names = unplanned.map(x => esc(x)).join(', ');
+    el.innerHTML = `<div class="notice ${daysToGo <= 10 ? 'warn' : ''}">${daysToGo <= 10 ? '⚠️' : 'ℹ️'} <div>
+      <b>${esc(monthLabel(next))} starts in ${daysToGo} day${daysToGo === 1 ? '' : 's'} and ${unplanned.length} client${unplanned.length === 1 ? ' has' : 's have'} no plan for it:</b> ${names}.
+      <br>A month nobody plans doesn't go blank — it quietly reuses the last plan on file, and the Daily Brief will measure against that. Set them here and the brief has a real target to compare with.</div></div>`;
+  };
+
   for (const a of S.accounts) {
     api(`/api/plan?act=${a.act_id}&month=${next}`).then(p => {
       if (run !== RUN) return;
+      if (!p.planned) unplanned.push(a.name);
+      answered++; drawWarn();
       const gc = $(`[data-goal="${a.act_id}"]`), ag = $(`[data-agreed="${a.act_id}"]`);
       if (gc) gc.innerHTML = p.planned && p.goals && p.goals.sales != null ? `<b>${fmtK(p.goals.sales, a.currency)}</b>` : '<span class="tiny">not set</span>';
       if (ag) ag.innerHTML = p.plan && p.plan.agreed_at
         ? '<span class="pill good">agreed</span>'
         : p.planned ? '<span class="pill warn">needs agreeing</span>' : '<span class="pill unk">not planned</span>';
-    }).catch(() => {});
+    }).catch(() => { if (run === RUN) { answered++; drawWarn(); } });
   }
 }
 

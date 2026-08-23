@@ -676,6 +676,46 @@ export default {
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
+    /* Read-only PERFORMANCE snapshot for the client. Same contract as the plan link:
+       the token is the auth, and it exposes exactly one client's headline numbers.
+       Never cost diagnostics, never another account, never the margin override -
+       those are internal, and this URL is meant to be forwarded around. */
+    let sm;
+    if ((sm = path.match(/^\/api\/profit\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
+      try {
+        const row = await env.DB.prepare(`SELECT * FROM p_profit_share WHERE token = ?1`).bind(sm[1]).first();
+        if (!row) return json({ error: 'This link is no longer valid.' }, 404);
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === row.act_id);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const today = localDate(acct.tz);
+        const ym = monthOf(today);
+        const monthStart = `${ym}-01`;
+        const { rows, margin_pct } = await seriesFor(env, acct, monthStart, addDays(today, -1));
+        const t = totals(rows);
+        const g = goalsFor(acct, ym);
+        const planned = !!safeJson(acct.goals_json, {})[ym];
+        // Profit is shown only when we would trust it internally. A client should
+        // never be the first person to see a number the Costs page calls broken.
+        const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
+        const cmOk = margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none');
+        const history = (await monthHistory(env, acct, ym, 6))
+          .filter(h => !h.empty)
+          .map(h => ({ month: h.month, sales: h.sales, spend: h.spend, mer: h.mer, partial: !!h.partial }));
+        return json({
+          share: true,
+          account: { name: acct.name, currency: acct.currency },
+          month: ym, days: rows.length, days_in_month: daysInMonth(ym),
+          mtd: {
+            sales: t.sales, spend: t.spend, mer: t.mer, amer: t.amer,
+            new_share: t.new_share, cm: cmOk ? t.cm : null,
+          },
+          // Pro-rated to the days elapsed, exactly as the internal pages do it.
+          plan: planned && (g.sales != null || g.spend != null) ? planFor(acct, ym, rows) : null,
+          history,
+        });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
 
     try {
@@ -888,6 +928,23 @@ export default {
           ).bind(b.act, b.month, token).run();
         }
         return json({ ok: true, url: `${DASHBOARD_URL}?plan=${token}` });
+      }
+
+      /* Mint (or return) this client's read-only performance link. */
+      if (path === '/api/profit-share' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === b.act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const row = await env.DB.prepare(`SELECT token FROM p_profit_share WHERE act_id = ?1`).bind(b.act).first();
+        let token = row?.token;
+        if (!token || b.regenerate) {
+          token = crypto.randomUUID().replace(/-/g, '');
+          await env.DB.prepare(
+            `INSERT INTO p_profit_share (act_id, token, created_at) VALUES (?1,?2,datetime('now'))
+             ON CONFLICT(act_id) DO UPDATE SET token = excluded.token, created_at = datetime('now')`,
+          ).bind(b.act, token).run();
+        }
+        return json({ ok: true, url: `${DASHBOARD_URL}?perf=${token}`, regenerated: !!b.regenerate });
       }
 
       if (path === '/api/costs') {
