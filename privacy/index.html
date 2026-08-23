@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Mobius Profit</title>
+<meta name="description" content="How the Mobius Profit Shopify app handles store data.">
+<link rel="icon" href="../favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F8FA; --surface:#FFFFFF;
+    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
+    --line:#DFE7EC; --line-strong:#C4D2DB;
+    --brand-ink:#14608C; --brand-soft:#E7F3FA;
+    --radius:14px;
+    --sans:'Instrument Sans',system-ui,sans-serif;
+    --serif:'Instrument Serif',Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:16px;line-height:1.7}
+  .wrap{max-width:760px;margin:0 auto;padding:56px 24px 96px}
+  h1{font-family:var(--serif);font-size:clamp(30px,5vw,42px);font-weight:400;line-height:1.15;margin-bottom:8px}
+  h1 em{font-style:italic;color:var(--brand-ink)}
+  h2{font-size:19px;margin:34px 0 10px;line-height:1.3}
+  h3{font-size:16px;margin:22px 0 6px}
+  p,li{color:var(--ink-2)}
+  p{margin-bottom:12px}
+  ul{margin:0 0 12px 20px}
+  li{margin-bottom:6px}
+  a{color:var(--brand-ink)}
+  .meta{color:var(--muted);font-size:14px;margin-bottom:28px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin:22px 0}
+  .card h2{margin-top:0}
+  .key{background:var(--brand-soft);border:1px solid #CDE6F5}
+  code{background:#EEF3F6;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:14px}
+  .back{display:inline-block;margin-bottom:24px;font-size:14px;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../">&larr; Mobius Tools</a>
+  <h1>Privacy <em>Policy</em></h1>
+  <p class="meta">Mobius Profit — Shopify application &middot; Last updated 23 August 2026</p>
+
+  <p>Mobius Profit is a private reporting tool built and operated by Mobius Digital for the
+  ecommerce brands we work with. It reads data from a connected Shopify store so we can
+  report on that store's revenue, costs and customer economics. It is not listed on the
+  Shopify App Store and is not offered to the general public.</p>
+
+  <div class="card key">
+    <h2>The short version</h2>
+    <ul>
+      <li>We read orders, customers and products from your store. We never write to it.</li>
+      <li><b>We do not store individual customer records.</b> Customer data is aggregated
+        into monthly totals as it is processed; names, emails, addresses and phone numbers
+        are never written to our database.</li>
+      <li>We never sell, rent or share your data, and we do not use it to train models.</li>
+      <li>Uninstalling the app immediately stops all access. Your data is deleted within
+        30 days, or sooner on request.</li>
+    </ul>
+  </div>
+
+  <h2>Who we are</h2>
+  <p>Mobius Digital. Contact <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>
+  for any question about this policy, or to request access to or deletion of your data.
+  For the stores we work with, Mobius Digital acts as a data processor and the store owner
+  remains the data controller.</p>
+
+  <h2>What the app accesses</h2>
+  <p>When you install the app you grant three read-only permissions:</p>
+  <ul>
+    <li><code>read_orders</code> — order totals, dates, discounts, returns, shipping and tax,
+      so we can report revenue and contribution margin.</li>
+    <li><code>read_customers</code> — order counts and first-order dates, so we can report
+      how many customers are new versus returning and how customer value develops over time.</li>
+    <li><code>read_products</code> — product and variant costs, so we can report gross margin.</li>
+  </ul>
+  <p>The app requests no write permissions and cannot modify, create or delete anything in
+  your store.</p>
+
+  <h2>What we actually store</h2>
+  <p>This is the part most policies leave vague, so to be specific. We store:</p>
+  <ul>
+    <li>Your store's <code>myshopify.com</code> domain and the access token issued at install.</li>
+    <li><b>Aggregated figures only</b> — monthly totals such as revenue, ad spend, order
+      counts, and the number of customers who first purchased in a given month together
+      with their combined spend.</li>
+  </ul>
+  <p>We do <b>not</b> store customer names, email addresses, postal addresses, phone numbers,
+  payment details, or individual order or customer records. Customer-level data is read from
+  Shopify, aggregated in memory, and only the totals are written down.</p>
+
+  <h2>Where it is stored, and for how long</h2>
+  <p>Data is held in Cloudflare D1 (a managed SQL database) and processed by Cloudflare
+  Workers. Access is restricted to Mobius Digital staff who need it. Aggregated reporting
+  data is retained while the app is installed and for up to 30 days afterwards, then deleted.</p>
+
+  <h2>Who else sees it</h2>
+  <p>Your data is visible to Mobius Digital staff working on your account, and to you. We use
+  a small number of infrastructure providers to operate the service — Cloudflare for hosting
+  and storage, Slack for delivering reports to the channel you nominate, and Anthropic for
+  generating the written commentary in daily reports. These providers process data on our
+  instructions only.</p>
+  <p>We do not sell or rent your data, do not share it with advertisers, and do not use it to
+  train machine-learning models.</p>
+
+  <h2>Your rights</h2>
+  <p>Depending on where you are, you may have the right to access, correct, export or delete
+  your data, and to object to or restrict how it is processed. Email
+  <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a> and we will
+  respond within 30 days.</p>
+  <p>Shopify also relays privacy requests to us automatically. We receive and act on Shopify's
+  <code>customers/data_request</code>, <code>customers/redact</code> and <code>shop/redact</code>
+  webhooks. Because we hold no customer-level personal data, there is normally nothing to
+  return or erase in response to a customer request; shop data is deleted on a shop redaction.</p>
+
+  <h2>Uninstalling</h2>
+  <p>Uninstalling the app from your Shopify admin revokes the access token immediately and we
+  stop reading your store at once. Remaining aggregated data is deleted within 30 days, or
+  straight away if you email us.</p>
+
+  <h2>Security</h2>
+  <p>All traffic is encrypted in transit over HTTPS. Access tokens are held as server-side
+  secrets and are never exposed to a browser. Every webhook from Shopify is verified with an
+  HMAC signature and rejected if it does not match.</p>
+
+  <h2>Children</h2>
+  <p>The service is a business tool and is not directed at children. We do not knowingly
+  collect data from anyone under 16.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes materially we will update the date at the top and notify connected
+  stores by email.</p>
+
+  <p class="meta" style="margin-top:34px">This policy describes how the application handles data.
+  It is not legal advice; store owners should satisfy themselves that it meets their own
+  obligations.</p>
+</div>
+</body>
+</html>
