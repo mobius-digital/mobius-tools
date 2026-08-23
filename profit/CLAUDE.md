@@ -160,6 +160,11 @@ profit/
   client can afford to bid harder and below it the business depends on repeat. All six
   currently sit above 1.0x, Party Patch thinnest at ~1.1x. Payback needs a trustworthy
   margin, so it is gated on the same cost-health check as everything else.
+- **A quarter is only as planned as its months.** `/api/quarter` rolls up the three
+  monthly plans rather than introducing a quarterly goal with its own agreement flow -
+  one target, one sign-off, no second place for a number to drift. Months without an
+  EXPLICIT `goals_json[ym]` entry are named as unplanned and excluded from the total,
+  never filled from `default`. Do not add a standalone quarterly target.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

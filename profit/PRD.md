@@ -172,7 +172,7 @@ Phase 0 is the only one with a hard dependency — everything else can be reorde
 
 ## Open questions
 
-- Do we want quarterly targets as well as monthly? (Statlas thinks in 90-day windows.)
+- ~~Do we want quarterly targets as well as monthly?~~ **Answered 2026-08-23:** no separate quarterly target. The Plan tab rolls the three monthly plans into a quarter-to-date view, so there is one number to agree and one place it lives. Unplanned months are named, not guessed.
 - ~~Should clients get a read-only share link to their own Profit page?~~ **Done
   2026-08-23.** `?perf=<token>` renders one client's month-to-date against its plan.
   Contribution margin is dropped automatically when `p_cost_health` does not trust

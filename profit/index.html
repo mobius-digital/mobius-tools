@@ -580,6 +580,7 @@ const PAGE_HELP = {
     <p><b>The verdict line is the honest bit.</b> Any plan implies a rate at which you buy new customers. The page compares that with what this client has actually been getting over the last 28 days and tells you plainly whether the plan is <b>achievable</b>, <b>a stretch</b>, or <b>unrealistic</b>. A goal that needs 40% better efficiency than the account has ever delivered is a wish, not a plan.</p>
     <p><b>How to run it:</b> open the client before your monthly call. The six-month table shows what actually happened. Pick a growth level and the page tells you what that goal <i>costs</i> — because returning customers arrive largely on their own, but everything above that has to be bought, at this client's own acquisition efficiency.</p>
     <p><b>Watch the contribution margin.</b> If pushing growth harder makes expected CM go <i>down</i>, you're buying revenue that doesn't pay for itself. The page says so outright.</p>
+    <p><b>Quarter to date</b> adds up the three monthly plans in the current quarter against what actually happened. There is no separate quarterly target and no separate sign-off — a quarter is only as planned as its months, so any month you have not agreed is named rather than guessed at.</p>
     <p><b>Plans do not roll over cleanly.</b> A month nobody plans still shows numbers — it inherits the last plan on file — so the Daily Brief will compare against a target you never set. The banner on this tab counts down to the next month and names who is still unplanned.</p>
     <p><b>Then agree it.</b> "↗ Client link" gives you a read-only page with just this plan on it — no other client, no internal notes — to share on the call. Flip <b>agreed with client</b> once they say yes.</p>
     <p><b>Once saved, it drives everything:</b> the month's goal is split across the days by that brand's own weekday rhythm, and every morning's Daily Brief compares yesterday against its slice. Change the numbers later and the agreement resets — you can't agree to a plan and then quietly move it.</p>`,
@@ -1556,6 +1557,8 @@ async function renderPlan(first) {
 
     ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
 
+    <div id="plQuarter"></div>
+
     <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
       <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> — the plan below is not an average of it.</p>
       <div class="tbl-wrap"><table>
@@ -1671,6 +1674,30 @@ async function renderPlan(first) {
     PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null;
     inPlace(() => renderPlan(false));
   });
+
+  // Quarter to date - loaded after the plan so it can never delay it.
+  api(`/api/quarter?act=${S.act}`).then(q => {
+    if (run !== RUN) return;
+    const el = $('#plQuarter'); if (!el || !q || !q.months) return;
+    const pace = q.days_total ? q.days_done / q.days_total : 0;
+    const goalToDate = q.goal_sales != null ? q.goal_sales * pace : null;
+    const off = goalToDate ? q.sales / goalToDate - 1 : null;
+    const mrow = x => `<tr${x.status === 'future' ? ' style="opacity:.5"' : ''}>
+      <td><b>${esc(monthLabel(x.month))}</b>${x.status === 'current' ? ` <span class="tiny">(${x.days} of ${x.days_in_month} days)</span>` : ''}</td>
+      <td class="num">${x.planned ? fmtMoney(x.goal_sales, cur) : '<span class="tiny">not planned</span>'}</td>
+      <td class="num"><b>${x.sales != null ? fmtMoney(x.sales, cur) : '—'}</b></td>
+      <td class="num">${x.planned && x.sales != null && x.status !== 'future' ? `<span class="pill ${x.sales >= x.goal_sales ? 'good' : 'bad'}">${fmtSigned(x.sales / x.goal_sales - 1)}</span>` : '—'}</td></tr>`;
+    el.innerHTML = `<div class="card"><h3 style="margin-bottom:2px">${esc(q.quarter.replace('-', ' '))} so far <span class="info-i" title="The three monthly plans in this quarter added together, against what has actually happened. There is no separate quarterly target: a quarter is only as planned as its months, so any month without an agreed plan is named rather than guessed at.">i</span></h3>
+      <p class="hint" style="margin-bottom:10px">${q.days_done} of ${q.days_total} days elapsed.${q.unplanned.length ? ` <b>${q.unplanned.map(m => esc(monthLabel(m))).join(' and ')}</b> ${q.unplanned.length === 1 ? 'has' : 'have'} no agreed plan, so the quarter total below is only what has been committed so far.` : ' All three months are planned.'}</p>
+      <div class="row" style="gap:22px;flex-wrap:wrap;margin-bottom:12px">
+        <div><div class="tiny">Revenue so far</div><div style="font-size:19px;font-weight:700">${fmtMoney(q.sales, cur)}</div>${goalToDate ? `<div class="tiny">${fmtMoney(goalToDate, cur)} expected by now ${off != null ? `<span class="pill ${off >= 0 ? 'good' : off >= -0.1 ? 'warn' : 'bad'}">${fmtSigned(off)}</span>` : ''}</div>` : '<div class="tiny">no quarter target</div>'}</div>
+        <div><div class="tiny">Ad spend</div><div style="font-size:19px;font-weight:700">${fmtMoney(q.spend, cur)}</div><div class="tiny">${q.goal_spend != null ? `of ${fmtMoney(q.goal_spend, cur)} committed` : 'no budget set'}</div></div>
+        <div><div class="tiny">Contribution margin</div><div style="font-size:19px;font-weight:700">${fmtMoney(q.cm, cur)}</div><div class="tiny">${q.sales ? fmtPct(q.cm / q.sales) + ' of revenue' : ''}</div></div>
+        <div><div class="tiny">Quarter target</div><div style="font-size:19px;font-weight:700">${q.goal_sales != null ? fmtMoney(q.goal_sales, cur) : '—'}</div><div class="tiny">${q.unplanned.length ? `${3 - q.unplanned.length} of 3 months` : 'all three months'}</div></div>
+      </div>
+      <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Agreed</th><th class="num">Actual</th><th class="num">vs plan</th></tr></thead>
+        <tbody>${q.per.map(mrow).join('')}</tbody></table></div></div>`;
+  }).catch(() => {});
 
   const sv = $('#plSave');
   if (sv) sv.onclick = async () => {

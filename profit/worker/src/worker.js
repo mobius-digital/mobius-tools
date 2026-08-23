@@ -1183,6 +1183,47 @@ export default {
         return json({ ok: true, url: `${DASHBOARD_URL}?perf=${token}`, regenerated: !!b.regenerate });
       }
 
+      /* Quarter to date: the three monthly plans rolled up. */
+      if (path === '/api/quarter') {
+        const act = url.searchParams.get('act');
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const today = localDate(acct.tz);
+        const thisYm = monthOf(today);
+        const q = url.searchParams.get('q') || `${thisYm.slice(0, 4)}-Q${Math.floor(+thisYm.slice(5, 7) / 3.001) + 1}`;
+        const [qy, qn] = [+q.slice(0, 4), +q.slice(6)];
+        const months = [0, 1, 2].map(i => `${qy}-${String((qn - 1) * 3 + 1 + i).padStart(2, '0')}`);
+        const gjson = safeJson(acct.goals_json, {});
+        const from = `${months[0]}-01`;
+        const lastDay = `${months[2]}-${String(daysInMonth(months[2])).padStart(2, '0')}`;
+        const to = today < lastDay ? addDays(today, -1) : lastDay;
+        const { rows } = from <= to ? await seriesFor(env, acct, from, to) : { rows: [] };
+        const per = months.map(ym => {
+          const mr = rows.filter(r => r.date.startsWith(ym));
+          const t = mr.length ? totals(mr) : null;
+          // Only an EXPLICIT entry counts as planned - `default` is inheritance.
+          const g = gjson[ym] || null;
+          return {
+            month: ym, planned: !!g,
+            goal_sales: g?.sales ?? null, goal_spend: g?.spend ?? null,
+            sales: t?.sales ?? null, spend: t?.spend ?? null, cm: t?.cm ?? null,
+            days: mr.length, days_in_month: daysInMonth(ym),
+            status: ym < thisYm ? 'past' : ym === thisYm ? 'current' : 'future',
+          };
+        });
+        const sum = (get) => per.reduce((a, x) => a + (get(x) ?? 0), 0);
+        const anyPlanned = per.some(x => x.planned);
+        return json({
+          account: pubAccount(acct), quarter: q, months,
+          per, unplanned: per.filter(x => !x.planned).map(x => x.month),
+          goal_sales: anyPlanned ? sum(x => x.goal_sales) : null,
+          goal_spend: anyPlanned ? sum(x => x.goal_spend) : null,
+          sales: sum(x => x.sales), spend: sum(x => x.spend), cm: sum(x => x.cm),
+          days_done: sum(x => x.days),
+          days_total: months.reduce((a, m) => a + daysInMonth(m), 0),
+        });
+      }
+
       /* What a new customer costs, and whether the first order pays it back. */
       if (path === '/api/customers') {
         const act = url.searchParams.get('act');
