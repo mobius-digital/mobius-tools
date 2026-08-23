@@ -585,7 +585,7 @@ async function twSummary(env, shopDomain, start, end) {
 /* ------------------------------------------------------------------ */
 
 /** Which TW metrics are worth keeping per-day (id or title match). */
-const TW_KEEP = /sales|revenue|spend|adcost|cost|profit|cogs|orders|\bmer\b|roas|refund|shipping|fees|ads|tax/i;
+const TW_KEEP = /sales|revenue|spend|adcost|cost|profit|cogs|orders|\bmer\b|roas|refund|shipping|fees|ads|tax|ltv|cpa/i;
 /* CAREFUL - Triple Whale's field names do not mean what they say:
  *   netSales   is titled "Total Sales"  = Shopify TOTAL SALES, i.e. it ALREADY
  *              includes shipping charged to customers AND sales tax, net of

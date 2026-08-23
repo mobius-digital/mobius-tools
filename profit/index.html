@@ -226,7 +226,7 @@
     <button data-t="plan">Plan</button>
     <button data-t="brief">Daily Brief</button>
     <button data-t="costs">Costs</button>
-    <button data-t="settings">Settings</button>
+    <button data-t="customers">Customers</button><button data-t="settings">Settings</button>
   </div></nav>
 </header>
 
@@ -583,6 +583,13 @@ const PAGE_HELP = {
     <p><b>Plans do not roll over cleanly.</b> A month nobody plans still shows numbers — it inherits the last plan on file — so the Daily Brief will compare against a target you never set. The banner on this tab counts down to the next month and names who is still unplanned.</p>
     <p><b>Then agree it.</b> "↗ Client link" gives you a read-only page with just this plan on it — no other client, no internal notes — to share on the call. Flip <b>agreed with client</b> once they say yes.</p>
     <p><b>Once saved, it drives everything:</b> the month's goal is split across the days by that brand's own weekday rhythm, and every morning's Daily Brief compares yesterday against its slice. Change the numbers later and the agreement resets — you can't agree to a plan and then quietly move it.</p>`,
+  customers: `
+    <p><b>What this page is:</b> what a new customer costs to buy, what they spend, and whether their first order pays that cost back. It is the question underneath every plan — you cannot decide whether a higher spend is affordable without it.</p>
+    <p><b>CAC</b> is ad spend divided by new-customer orders. Blended, like everything here: total spend across every platform over every genuinely new customer, not a platform's reported cost per acquisition.</p>
+    <p><b>First-order margin</b> is what that first order leaves after product costs — the customer's order value times the product margin. Compare it with CAC and you get the number that matters: <b>payback</b>.</p>
+    <p><b>Payback above 1.0x means the client is profitable on the first order</b> and can afford to bid harder for customers. Below 1.0x means the business depends on people coming back, and the repeat share becomes the number that has to hold up. Neither is wrong — but they are completely different businesses to run, and the plan should reflect which one you have.</p>
+    <p><b>This is not cohort analysis.</b> Triple Whale gives us no cohort table and no per-customer history, so we cannot follow January's customers through the year or state a true lifetime value. Everything here is a monthly average. Where a real LTV would change the decision, say so rather than inferring one.</p>
+    <p><b>The current month is shown but excluded from the headline</b> — its new customers have not had time to come back yet, so including it would understate repeat behaviour.</p>`,
   settings: `
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
     <p><b>This page is only about what your client sees.</b> Internal pace and KPI alerts for your media buyer are configured in <b>Account Health → Settings</b> — different audience, different tool.</p>
@@ -614,7 +621,7 @@ function show(tab) {
   const first = !m.firstElementChild;
   if (!first) m.classList.add('busy');
   const done = () => m.classList.remove('busy');
-  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, settings: renderSettings })[tab](first);
+  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, customers: renderCustomers, settings: renderSettings })[tab](first);
   if (r && typeof r.then === 'function') r.then(done, done); else done();
 }
 
@@ -1321,6 +1328,68 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const monthLabel = ym => `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
 const shiftMonth = (ym, n) => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
 
+/** Month-end close: what was agreed, what happened, and WHY they differ.
+ *  The why is the part worth having. Revenue is spend x MER, so a revenue miss
+ *  decomposes exactly into the part caused by spending differently and the part
+ *  caused by the ads performing differently:
+ *      actual - planned  =  (spendGap x plannedMER)  +  (actualSpend x merGap)
+ *  Those two terms sum to the total gap to the cent, so the page can say "you missed
+ *  by X, of which Y was underspend and Z was efficiency" without hand-waving. */
+function retroCard(p, cur, saved) {
+  const a = p.actual, g = p.planned && p.goals ? p.goals : null;
+  const head = `<h3 style="margin-bottom:2px">${esc(monthLabel(p.month))}: how it went</h3>`;
+  if (!g || g.sales == null || g.spend == null) {
+    return `<div class="card">${head}
+      <p class="hint" style="margin-bottom:10px">No plan was set for this month, so there is nothing to measure against — this is just what happened.</p>
+      <div class="row" style="gap:22px;flex-wrap:wrap">
+        <div><div class="tiny">Revenue</div><div style="font-size:19px;font-weight:700">${fmtMoney(a.sales, cur)}</div></div>
+        <div><div class="tiny">Ad spend</div><div style="font-size:19px;font-weight:700">${fmtMoney(a.spend, cur)}</div></div>
+        <div><div class="tiny">MER</div><div style="font-size:19px;font-weight:700">${fmtX(a.mer)}</div></div>
+        <div><div class="tiny">Contribution margin</div><div style="font-size:19px;font-weight:700">${fmtMoney(a.cm, cur)}</div></div>
+      </div></div>`;
+  }
+  const plannedMer = g.spend ? g.sales / g.spend : null;
+  const gap = a.sales - g.sales;
+  const spendEffect = plannedMer != null ? (a.spend - g.spend) * plannedMer : null;
+  const merEffect = plannedMer != null && a.mer != null ? a.spend * (a.mer - plannedMer) : null;
+  const row = (label, planned, actual, fmt, lowerIsBetter) => {
+    const off = planned ? actual / planned - 1 : null;
+    const good = off == null ? null : lowerIsBetter ? off <= 0.02 : off >= 0;
+    return `<tr><td>${label}</td>
+      <td class="num">${planned != null ? fmt(planned) : '<span class="tiny">—</span>'}</td>
+      <td class="num"><b>${fmt(actual)}</b></td>
+      <td class="num">${off != null ? `<span class="pill ${good ? 'good' : Math.abs(off) <= 0.1 ? 'warn' : 'bad'}">${fmtSigned(off)}</span>` : '—'}</td></tr>`;
+  };
+  const money = v => fmtMoney(v, cur);
+  const bigger = spendEffect != null && merEffect != null
+    ? (Math.abs(spendEffect) >= Math.abs(merEffect) ? 'spend' : 'efficiency') : null;
+
+  return `<div class="card">${head}
+    <p class="hint" style="margin-bottom:10px">${saved && saved.agreed_at
+      ? `Agreed with the client on ${esc(String(saved.agreed_at).slice(0, 10))}.`
+      : 'This plan was saved but never marked agreed.'} ${a.days} of ${a.days_in_month} days have data.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th></th><th class="num">Agreed</th><th class="num">Actual</th><th class="num">Difference</th></tr></thead>
+      <tbody>
+        ${row('Revenue', g.sales, a.sales, money)}
+        ${row('Ad spend', g.spend, a.spend, money, true)}
+        ${row('MER', plannedMer, a.mer, fmtX)}
+        ${g.amer != null ? row('aMER', g.amer, a.amer, fmtX) : `<tr><td>aMER</td><td class="num tiny">—</td><td class="num"><b>${fmtX(a.amer)}</b></td><td class="num tiny">no target set</td></tr>`}
+        <tr><td>Contribution margin</td><td class="num tiny">—</td><td class="num"><b style="color:${a.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${money(a.cm)}</b></td><td class="num tiny">${a.sales ? fmtPct(a.cm / a.sales) : '—'} of revenue</td></tr>
+      </tbody></table></div>
+    ${spendEffect != null && merEffect != null ? `<div class="notice ${Math.abs(gap) / (g.sales || 1) < 0.05 ? '' : gap >= 0 ? '' : 'warn'}" style="margin-top:12px">${gap >= 0 ? '✓' : '→'} <div>
+      <b>${gap >= 0 ? 'Beat the plan' : 'Missed the plan'} by ${money(Math.abs(gap))}</b> (${fmtSigned(gap / g.sales)}). That splits into two parts, and they add up exactly:
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin-top:8px;align-items:baseline">
+        <span class="tiny" style="color:var(--muted)">Spending differently</span><span class="tiny"><b>${spendEffect >= 0 ? '+' : '−'}${money(Math.abs(spendEffect))}</b> — ${a.spend >= g.spend ? 'spent' : 'underspent by'} ${money(Math.abs(a.spend - g.spend))} ${a.spend >= g.spend ? 'more than agreed' : 'against the agreed budget'}, worth this much revenue at the planned ${fmtX(plannedMer)}</span>
+        <span class="tiny" style="color:var(--muted)">Ads performing differently</span><span class="tiny"><b>${merEffect >= 0 ? '+' : '−'}${money(Math.abs(merEffect))}</b> — MER came in at ${fmtX(a.mer)} against ${fmtX(plannedMer)} planned, on the spend actually deployed</span>
+      </div>
+      <p style="margin:10px 0 0;font-size:13.5px">${bigger === 'spend'
+        ? `<b>Mostly a budget story.</b> The ads held up roughly as planned; the month moved because the spend did. Worth asking why the budget ${a.spend >= g.spend ? 'ran over' : 'was not deployed'}.`
+        : `<b>Mostly an efficiency story.</b> The budget was close to plan, but each dollar ${a.mer >= plannedMer ? 'worked harder' : 'bought less'} than agreed. That is a creative, offer or auction question, not a pacing one.`}</p>
+    </div></div>` : ''}
+  </div>`;
+}
+
 async function renderPlan(first) {
   if (S.act === 'all') return renderPlanAll();
   if (!PL.month) PL.month = shiftMonth(ymdLocal(new Date()).slice(0, 7), 1);
@@ -1485,16 +1554,7 @@ async function renderPlan(first) {
       <span style="flex:1"></span><button class="help-btn" data-help="plan">? How to use</button>
     </div>
 
-    ${p.status === 'past' && p.actual ? `<div class="card"><h3 style="margin-bottom:8px">${esc(monthLabel(p.month))}: planned vs actual</h3>
-      <div class="tbl-wrap"><table><thead><tr><th></th><th class="num">Planned</th><th class="num">Actual</th><th class="num">Difference</th></tr></thead>
-      <tbody>
-        ${[['Revenue', p.planned && p.goals ? p.goals.sales : null, p.actual.sales], ['Ad spend', p.planned && p.goals ? p.goals.spend : null, p.actual.spend]].map(row => `<tr>
-          <td>${row[0]}</td>
-          <td class="num">${row[1] != null ? fmtMoney(row[1], cur) : '<span class="tiny">no plan was set</span>'}</td>
-          <td class="num"><b>${fmtMoney(row[2], cur)}</b></td>
-          <td class="num">${row[1] && row[2] != null ? `<span class="pill ${row[2] >= row[1] ? 'good' : 'bad'}">${fmtSigned(row[2] / row[1] - 1)}</span>` : '—'}</td></tr>`).join('')}
-        <tr><td>Contribution margin</td><td class="num tiny">—</td><td class="num"><b>${fmtMoney(p.actual.cm, cur)}</b></td><td class="num tiny">${fmtX(p.actual.mer)} MER</td></tr>
-      </tbody></table></div></div>` : ''}
+    ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
 
     <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
       <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> — the plan below is not an average of it.</p>
@@ -1716,6 +1776,96 @@ async function renderPlanAll() {
         : p.planned ? '<span class="pill warn">needs agreeing</span>' : '<span class="pill unk">not planned</span>';
     }).catch(() => { if (run === RUN) { answered++; drawWarn(); } });
   }
+}
+
+/* ---------- Customers ----------
+   Unit economics, NOT cohorts: Triple Whale exposes no cohort table, so this is
+   monthly averages and says so. The one question it exists to answer is whether the
+   first order pays back what the customer cost to acquire. */
+async function renderCustomersAll() {
+  $('#main').innerHTML = `<h2>Customers</h2>
+    <p class="sub">What a new customer costs, what their first order is worth, and whether it pays that cost back. <b>Payback over 1.0x</b> means the brand is profitable on the first order and can afford to bid harder.</p>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
+      <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer"><td><b>${esc(a.name)}</b></td>
+        <td class="num" data-c="cac-${a.act_id}">…</td><td class="num" data-c="aov-${a.act_id}"></td>
+        <td class="num" data-c="gp-${a.act_id}"></td><td class="num" data-c="pb-${a.act_id}"></td>
+        <td class="num" data-c="rp-${a.act_id}"></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="tiny" style="margin-top:10px">Whole months only, up to six. CAC is blended — all ad spend over all new customers, not a platform's reported figure. Payback is the first order's product margin divided by CAC. Click a client for the month-by-month trend.</p></div>`;
+  $('#main tbody').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+    S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
+    $('#clientPick').value = S.act; show('customers');
+  });
+  const run = ++RUN;
+  for (const a of S.accounts) {
+    api(`/api/customers?act=${a.act_id}`).then(r => {
+      if (run !== RUN) return;
+      const h = r.headline, set = (k, v) => { const el = $(`[data-c="${k}-${a.act_id}"]`); if (el) el.innerHTML = v; };
+      set('cac', `<b>${fmtMoney(h.cac, a.currency)}</b>`);
+      set('aov', fmtMoney(h.new_aov, a.currency));
+      set('gp', r.cm_ok ? fmtMoney(h.first_order_gp, a.currency) : '<span class="tiny">cost data ⚠</span>');
+      set('pb', r.cm_ok && h.payback != null
+        ? `<b><span class="pill ${h.payback >= 1 ? 'good' : h.payback >= 0.7 ? 'warn' : 'bad'}">${h.payback.toFixed(2)}x</span></b>` : '—');
+      set('rp', fmtPct(h.repeat_share));
+    }).catch(() => { if (run === RUN) { const el = $(`[data-c="cac-${a.act_id}"]`); if (el) el.innerHTML = '<span class="tiny">—</span>'; } });
+  }
+}
+
+async function renderCustomers(first) {
+  if (S.act === 'all') return renderCustomersAll();
+  const run = ++RUN;
+  const acct = S.accounts.find(a => a.act_id === S.act);
+  const shell = body => `<h2>Customers — ${esc(acct?.name || '')}</h2>
+    <p class="sub">What a new customer costs to buy, and whether their first order pays it back. Monthly averages — Triple Whale gives us no cohort history, so this is not a true lifetime value.</p>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
+    ${body}`;
+  if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
+  let d;
+  try { d = await api(`/api/customers?act=${S.act}`); }
+  catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+  if (run !== RUN) return;
+  const cur = d.account.currency, h = d.headline;
+  const pb = h.payback;
+  const verdict = !d.cm_ok
+    ? `<div class="notice warn">⚠️ <div><b>Payback can't be stated for this client.</b> It needs a trustworthy product margin and this client's cost data does not pass that check — see the <b>Costs</b> tab. CAC and order values below are still accurate.</div></div>`
+    : pb == null ? ''
+    : pb >= 1
+    ? `<div class="notice">✓ <div><b>Profitable on the first order.</b> A new customer costs <b>${fmtMoney(h.cac, cur)}</b> to acquire and their first order leaves <b>${fmtMoney(h.first_order_gp, cur)}</b> after product costs — a <b>${pb.toFixed(2)}x</b> payback, <b>${fmtMoney(h.first_order_cm, cur)}</b> ahead before they ever come back. This client can afford to bid harder for customers; the ceiling on growth is demand, not economics.</div></div>`
+    : `<div class="notice warn">⚠️ <div><b>The first order does not cover the customer.</b> Acquiring one costs <b>${fmtMoney(h.cac, cur)}</b> while their first order leaves <b>${fmtMoney(h.first_order_gp, cur)}</b> after product costs — a <b>${pb.toFixed(2)}x</b> payback, <b>${fmtMoney(Math.abs(h.first_order_cm), cur)}</b> short. That is not automatically bad, but it means the brand only works if people come back, so the <b>${fmtPct(h.repeat_share)}</b> repeat share is the number to defend. Pushing spend harder here buys losses faster unless repeat holds.</div></div>`;
+
+  const card = (label, value, sub, info) => `<div class="card" style="margin:0">
+    <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
+    <div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:4px 0 2px">${value}</div>
+    <div class="tiny">${sub}</div></div>`;
+
+  const rows = d.series.filter(x => !x.empty).map(x => `<tr${x.partial ? ' style="opacity:.6"' : ''}>
+    <td><b>${esc(monthLabel(x.month))}</b>${x.partial ? ' <span class="tiny">(so far)</span>' : ''}</td>
+    <td class="num">${x.new_orders}</td>
+    <td class="num"><b>${fmtMoney(x.cac, cur)}</b></td>
+    <td class="num">${fmtMoney(x.new_aov, cur)}</td>
+    <td class="num">${d.cm_ok ? fmtMoney(x.first_order_gp, cur) : '—'}</td>
+    <td class="num">${d.cm_ok && x.payback != null ? `<span class="pill ${x.payback >= 1 ? 'good' : x.payback >= 0.7 ? 'warn' : 'bad'}">${x.payback.toFixed(2)}x</span>` : '—'}</td>
+    <td class="num">${fmtPct(x.repeat_share)}</td></tr>`).join('');
+
+  $('#main').innerHTML = shell(`
+    ${verdict}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:14px 0">
+      ${card('Cost to acquire', fmtMoney(h.cac, cur), `${h.new_orders} new customers`, 'All ad spend across every platform divided by the number of genuinely new customers. Blended, so it is not any single platform\u2019s reported cost per acquisition and will not match Ads Manager.')}
+      ${card('First order value', fmtMoney(h.new_aov, cur), 'average, new customers', 'What a new customer spends on their first order, before any costs. Revenue from new customers divided by new-customer orders.')}
+      ${d.cm_ok ? card('Margin on that order', fmtMoney(h.first_order_gp, cur), `at ${fmtPct(h.margin)} product margin`, 'What the first order leaves after product costs, fulfilment and fees, before the cost of acquiring the customer. This is what has to cover CAC.') : ''}
+      ${d.cm_ok ? card('Payback', pb != null ? pb.toFixed(2) + 'x' : '—', pb != null && pb >= 1 ? 'covered on order one' : 'needs a second order', 'First-order margin divided by CAC. Above 1.0x the customer pays for themselves immediately. Below it, the brand relies on repeat purchases and the repeat share becomes critical.') : ''}
+      ${card('Repeat share', fmtPct(h.repeat_share), `${h.returning_orders} of ${h.new_orders + h.returning_orders} orders`, 'Share of all orders placed by customers who had bought before. The higher this is, the more the business can tolerate a first order that does not cover CAC.')}
+      ${card('Returning order value', fmtMoney(h.returning_aov, cur), 'average, repeat customers', 'What a returning customer spends per order. Compare with the first-order value: if repeat orders are bigger, the customer gets more valuable over time.')}
+    </div>
+    <div class="card"><h3 style="margin-bottom:8px">Month by month</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Month</th><th class="num">New customers</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="tiny" style="margin-top:8px">The current month is shown faded and excluded from the figures above — its new customers have not had time to come back, so counting it would understate the repeat share.</p></div>
+    <p class="tiny"><b>This is not cohort analysis.</b> Triple Whale provides no cohort table or per-customer history, so we cannot follow one month's customers through the year or state a true lifetime value. These are monthly averages. Where a real LTV would change a decision — a long payback business, a subscription — treat these as directional and go to the Shopify data.</p>`);
 }
 
 /* ---------- Settings ---------- */

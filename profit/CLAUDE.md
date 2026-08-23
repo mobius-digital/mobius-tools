@@ -143,6 +143,23 @@ profit/
   a threshold rather than a rank.
 - **Guard against "-0%".** `fmtSigned` on a value a hair under parity rounds to "-0%",
   which reads as a typo. Round first, then sign.
+- **The retrospective decomposes the miss; it does not just report it.** Revenue is
+  spend x MER, so `actual - planned` splits EXACTLY into
+  `(spendGap x plannedMER) + (actualSpend x merGap)` - verified to the cent. That is
+  what turns "missed by 23%" into "underspent by 35%, while the ads actually beat
+  plan by 19%", which is a different conversation. `retroCard()` names whichever term
+  dominates. A month with no plan shows the actuals and says so rather than inventing
+  a comparison.
+- **The Customers tab is unit economics, NOT cohorts, and must never claim otherwise.**
+  Triple Whale exposes no cohort table, no per-customer history and no CAC, so a true
+  LTV is not derivable and the page says so in its own footer. What IS derivable from
+  synced metrics: CAC = spend / newCustomersOrders, first-order AOV = newCustomerSales
+  / newCustomersOrders, and returning orders = totalOrders - newCustomersOrders
+  (Triple Whale does not send returningCustomerOrders for these shops). The number
+  that matters is PAYBACK - first-order margin over CAC - because above 1.0x the
+  client can afford to bid harder and below it the business depends on repeat. All six
+  currently sit above 1.0x, Party Patch thinnest at ~1.1x. Payback needs a trustworthy
+  margin, so it is gated on the same cost-health check as everything else.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

@@ -154,7 +154,7 @@ Change Log stays available.
 | **0b** | Shopify per-variant `unitCost` sync into `p_sku_costs` + manual SKU entry UI (needs Shopify Admin API access per store) |
 | **1** | **Profit page**: daily/weekly/monthly waterfall revenue → COGS → shipping → fees → ad spend → CM, with trend charts and the cost-basis label |
 | **2** | ✅ **Calendar-aware forecasting DONE 2026-08-21** — the brief engine binds the launch-calendar D1 read-only, and non-cancelled events lift their days' targets (`calendarWeights`). Crucially it REDISTRIBUTES: weights are normalised so the month still totals the goal exactly (verified to the cent). Configured in Profit → Settings. Remaining for this phase: a dedicated Forecast page and a spend-scenario slider. |
-| **3** | **Cohorts page**: new vs returning revenue, repeat-purchase rate, payback period; feeds the forecast |
+| **3** | ✅ **DONE 2026-08-23 as Customers** — CAC, first-order value, first-order margin, payback and repeat share, per client and month by month. Deliberately NOT called Cohorts: Triple Whale exposes no cohort table, no per-customer history and no CAC, so a true LTV is not derivable and the page says so. Payback is the headline because it decides whether a client can afford to bid harder. |
 | **4** | ✅ **DONE 2026-08-21** — Daily Brief moved here; Account Health is purely Meta again. Its interface is a tab in this tool; the account-health worker still owns the engine (endpoints + 14:00 UTC cron + the TW/Anthropic/Slack secrets) and Profit proxies to it over the `AUTH` service binding, so no secret is duplicated. |
 
 Phase 0 is the only one with a hard dependency — everything else can be reordered.

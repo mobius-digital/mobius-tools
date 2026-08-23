@@ -523,6 +523,100 @@ async function forecastFor(env, acct, ym) {
   };
 }
 
+/* ---------------- customer unit economics ----------------
+ * Triple Whale exposes no cohort table and no CAC, so this is NOT cohort analysis
+ * and must never be labelled as such - we cannot follow a January cohort through
+ * the year without order-level customer data. What we CAN do, from metrics already
+ * synced, is answer the question that actually drives a plan: what does a new
+ * customer cost, what do they spend, and does their first order pay that back?
+ *
+ *   CAC            = ad spend / new-customer orders
+ *   first-order AOV= new-customer revenue / new-customer orders
+ *   first-order CM = AOV x product margin - CAC
+ *
+ * When first-order CM is positive the client is profitable on day one and can afford
+ * to bid harder. When it is negative the business depends on people coming back, and
+ * the repeat share below is the number that has to hold up.
+ */
+async function customerEconomics(env, acct, months = 6) {
+  const today = localDate(acct.tz);
+  const thisYm = monthOf(today);
+  const list = [];
+  let m = thisYm;
+  for (let i = 0; i < months; i++) { list.unshift(m); m = prevMonth(m); }
+  const from = `${list[0]}-01`;
+  const to = addDays(today, -1);
+  const { rows, margin_pct } = await seriesFor(env, acct, from, to);
+  const piv = await pivot(env, acct.act_id, from, to);
+
+  const byMonth = {};
+  for (const r of rows) (byMonth[monthOf(r.date)] ??= []).push(r);
+
+  const month = ym => {
+    const rs = byMonth[ym] || [];
+    if (!rs.length) return { month: ym, empty: true };
+    const sum = get => rs.reduce((a, r) => a + (get(r) ?? 0), 0);
+    const dsum = metric => rs.reduce((a, r) => a + (piv[metric]?.[r.date] ?? 0), 0);
+    const spend = sum(r => r.spend);
+    const newOrders = dsum('newCustomersOrders');
+    const totalOrders = dsum('totalOrders');
+    // Triple Whale does not send returning-customer orders for these shops, so it is
+    // derived. Guarded against a negative when the two metrics disagree slightly.
+    const retOrders = Math.max(0, totalOrders - newOrders);
+    const newRev = sum(r => r.new_rev);
+    const retRev = sum(r => r.ret_rev);
+    const sales = sum(r => r.sales);
+    const gp = sum(r => r.gross_profit);
+    const margin = sales > 0 ? gp / sales : null;
+    const cac = newOrders > 0 ? spend / newOrders : null;
+    const newAov = newOrders > 0 ? newRev / newOrders : null;
+    const firstOrderGp = newAov != null && margin != null ? newAov * margin : null;
+    return {
+      month: ym, partial: ym === thisYm, days: rs.length,
+      spend, sales, margin,
+      new_orders: newOrders, returning_orders: retOrders, total_orders: totalOrders,
+      new_rev: newRev, returning_rev: retRev,
+      cac, new_aov: newAov,
+      returning_aov: retOrders > 0 ? retRev / retOrders : null,
+      // The whole point: does the first order cover what the customer cost to buy?
+      first_order_gp: firstOrderGp,
+      first_order_cm: firstOrderGp != null && cac != null ? firstOrderGp - cac : null,
+      payback: firstOrderGp != null && cac > 0 ? firstOrderGp / cac : null,
+      repeat_share: totalOrders > 0 ? retOrders / totalOrders : null,
+    };
+  };
+
+  const series = list.map(month);
+  const complete = series.filter(x => !x.empty && !x.partial);
+  // Headline uses whole months only - a part month understates repeat behaviour,
+  // because this month's new customers have not had time to come back yet.
+  const pool = complete.length ? complete : series.filter(x => !x.empty);
+  const agg = pool.reduce((a, x) => ({
+    spend: a.spend + x.spend, newOrders: a.newOrders + x.new_orders,
+    retOrders: a.retOrders + x.returning_orders, totalOrders: a.totalOrders + x.total_orders,
+    newRev: a.newRev + x.new_rev, retRev: a.retRev + x.returning_rev,
+    sales: a.sales + x.sales, gp: a.gp + (x.margin != null ? x.sales * x.margin : 0),
+  }), { spend: 0, newOrders: 0, retOrders: 0, totalOrders: 0, newRev: 0, retRev: 0, sales: 0, gp: 0 });
+
+  const margin = agg.sales > 0 ? agg.gp / agg.sales : null;
+  const cac = agg.newOrders > 0 ? agg.spend / agg.newOrders : null;
+  const newAov = agg.newOrders > 0 ? agg.newRev / agg.newOrders : null;
+  const firstGp = newAov != null && margin != null ? newAov * margin : null;
+  return {
+    account: pubAccount(acct), months: pool.map(x => x.month), margin_pct,
+    headline: {
+      cac, new_aov: newAov, margin,
+      first_order_gp: firstGp,
+      first_order_cm: firstGp != null && cac != null ? firstGp - cac : null,
+      payback: firstGp != null && cac > 0 ? firstGp / cac : null,
+      repeat_share: agg.totalOrders > 0 ? agg.retOrders / agg.totalOrders : null,
+      returning_aov: agg.retOrders > 0 ? agg.retRev / agg.retOrders : null,
+      new_orders: agg.newOrders, returning_orders: agg.retOrders,
+    },
+    series,
+  };
+}
+
 /* ---------------- weekday rhythm ----------------
  * DESCRIPTIVE ONLY. This is history, never a target. The monthly plan splits
  * evenly on purpose (a day-of-week curve backtested 7.6% WORSE than an even split
@@ -1087,6 +1181,17 @@ export default {
           ).bind(b.act, token).run();
         }
         return json({ ok: true, url: `${DASHBOARD_URL}?perf=${token}`, regenerated: !!b.regenerate });
+      }
+
+      /* What a new customer costs, and whether the first order pays it back. */
+      if (path === '/api/customers') {
+        const act = url.searchParams.get('act');
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(act).first().catch(() => null);
+        const r = await customerEconomics(env, acct, Math.min(+url.searchParams.get('months') || 6, 12));
+        // Margin drives first-order CM, so the same trust gate applies.
+        return json({ ...r, cm_ok: r.margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none') });
       }
 
       /* Weekday rhythm: what a week actually looks like for this client. */
