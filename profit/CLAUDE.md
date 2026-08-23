@@ -133,6 +133,23 @@ profit/
 - **Re-render the numbers, not the page.** Growth buttons, save and the agreed
   toggle all update in place. Calling `renderPlan()` / `show()` from a handler throws
   the user back to the top of the page, which makes comparing options miserable.
+- **Every tab honours the client picker.** "All clients" lists everyone; a selected
+  brand shows only that brand. Settings was the last holdout - it always listed all
+  six regardless. Global settings (the brief send time) stay visible but must say
+  "applies to all brands" when one client is on screen, or they read as that
+  client's.
+- **Do not assert wholesale for a small gap.** `retailMargin()` flags any day above
+  the clean-cost cutoff, but a day at 36% against a 20% baseline is a heavier product
+  mix, not product leaving the building. The Costs panel scales its claim: the
+  wholesale / inventory-delivery language needs `negatives > 0` or unexplained cost
+  >= 5% of window revenue; below that it says plainly that this is probably just mix.
+  Same reason the flat-margin suggestion now only appears when the verdict is
+  broken/noisy/none - the suggestion excludes flagged days, which biases it upward,
+  which is a fix when the data is broken and a trap when it is already good.
+- **`marginSVG` must not draw the axis minimum when it is zero.** `lo` is clamped
+  with `Math.min(0, ...)`, so an all-positive client puts the grey minimum label and
+  the red zero-line label within 3px of each other at x=2 and they render on top of
+  one another. Only draw the minimum when `lo < -0.005`.
 - **`.info-i` must reset `letter-spacing`, `font-style` and `text-transform`** — stat
   labels are uppercase and letter-spaced, and without the reset the glyph inside the
   circle is squashed and reads as broken.

@@ -865,7 +865,7 @@ function marginSVG(rows) {
     <text x="2" y="${zero+3}" font-size="9" fill="#9C3A2E">0%</text>
     <polyline points="${line}" fill="none" stroke="#14608C" stroke-width="2"/>
     <text x="2" y="${pt+9}" font-size="10" fill="#647684">${Math.round(hi*100)}%</text>
-    <text x="2" y="${h-pb}" font-size="10" fill="#647684">${Math.round(lo*100)}%</text>
+    ${lo < -0.005 ? `<text x="2" y="${h-pb}" font-size="10" fill="#647684">${Math.round(lo*100)}%</text>` : ''}
   </svg>`;
 }
 
@@ -917,7 +917,7 @@ async function renderCosts(first) {
       ${statCard('Days cost exceeded revenue', String(u.negatives ?? 0), u.negatives ? 'revenue booked elsewhere' : 'none, as it should be', 'Days where recorded product cost exceeded everything the store took in. A store cannot sell at a loss this consistently, so these days almost always mean the product left the building but the money arrived somewhere Shopify cannot see — a wholesale order paid by invoice, or an inventory delivery booked as one day of cost.')}
       ${statCard('Days checked', String(u.days ?? 0), 'with both sales and cost data', 'How many days in the 60-day window had enough data to judge.')}
     </div>
-    <div class="card"><h3 style="margin-bottom:2px">Daily margin, last 60 days</h3>
+    <div class="card"><h3 style="margin-bottom:2px">Daily margin, last 60 days <span class="info-i" title="Each day\’s gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of that day\’s revenue. Real cost data barely moves day to day.">i</span></h3>
       <p class="hint" style="margin-bottom:6px">Retail-only cost data draws a nearly flat line. Every spike below the red zero line is a day where product cost exceeded store revenue — the fingerprint of a wholesale order or an inventory delivery, not of a bad product catalogue.</p>
       ${marginSVG(d.rows)}</div>
     ${d.worst?.length ? `<div class="card"><h3 style="margin-bottom:8px">Worst days</h3>
@@ -932,13 +932,24 @@ async function renderCosts(first) {
         <button class="btn" id="mClear">Clear override</button>
         <span class="tiny" id="mMsg"></span>
       </div>
-      ${r ? `<div class="notice" style="margin:12px 0 0">✨ <div><b>Suggested: ${fmtPct(r.margin)}</b> — measured from the ${r.clean_days} of ${r.total_days} days where recorded cost and store revenue agree, so wholesale and inventory-receipt days can't drag it. <button class="btn primary" id="mSuggest" style="margin-left:8px">Use ${fmtPct(r.margin)}</button></div></div>` : ''}
+      ${r && (u.verdict === 'broken' || u.verdict === 'noisy' || u.verdict === 'none') ? `<div class="notice" style="margin:12px 0 0">✨ <div><b>Suggested: ${fmtPct(r.margin)}</b> — measured from the ${r.clean_days} of ${r.total_days} days where recorded cost and store revenue agree, so wholesale and inventory-receipt days can't drag it. <button class="btn primary" id="mSuggest" style="margin-left:8px">Use ${fmtPct(r.margin)}</button></div></div>`
+        : r ? `<p class="tiny" style="margin-top:10px">This client's cost data reads <b>${esc(u.verdict)}</b>, so there is nothing to override. For reference, the days where cost and revenue agree imply a <b>${fmtPct(r.margin)}</b> margin.</p>` : ''}
       ${u.blended!=null && u.verdict!=='broken' ? `<p class="tiny" style="margin-top:8px">For reference, this client's measured trailing margin across every day is <b>${fmtPct(u.blended)}</b>.</p>` : ''}</div>
-    ${r && r.flagged_days ? `<div class="card"><h3 style="margin-bottom:8px">Days carrying cost the store can't explain</h3>
-      <p class="hint" style="margin-bottom:10px">Product cost well above what this day's orders could account for. Each is most likely a <b>wholesale order paid outside Shopify</b> or an <b>inventory delivery</b> recorded as one day's cost. They are excluded from the suggested margin above. ${r.flagged_days} such days total <b>${fmtMoney(r.unexplained_cost, cur)}</b> of unexplained cost.</p>
+    ${r && r.flagged_days ? (() => {
+      // Only a genuinely large gap looks like product leaving the building. A day
+      // at 36% against a 20% baseline is a heavier mix, not a wholesale order, and
+      // saying otherwise sends you hunting for an invoice that does not exist.
+      const windowSales = (d.rows || []).reduce((a, x) => a + (x.sales || 0), 0);
+      const share = windowSales > 0 ? r.unexplained_cost / windowSales : 0;
+      const material = (u.negatives || 0) > 0 || share >= 0.05;
+      return `<div class="card"><h3 style="margin-bottom:8px">${material ? "Days carrying cost the store can't explain" : 'Days with a heavier cost mix than usual'}</h3>
+      <p class="hint" style="margin-bottom:10px">${material
+        ? `Product cost well above what this day's orders could account for. Each is most likely a <b>wholesale order paid outside Shopify</b> or an <b>inventory delivery</b> recorded as one day's cost. They are excluded from the suggested margin above. ${r.flagged_days} such days total <b>${fmtMoney(r.unexplained_cost, cur)}</b> of unexplained cost — <b>${fmtPct(share)}</b> of revenue over the window.`
+        : `These days ran a higher cost ratio than this client's usual ${fmtPct(r.base)}, so they are held out of the suggested margin above. The gap is small — <b>${fmtMoney(r.unexplained_cost, cur)}</b> across ${r.flagged_days} days, ${fmtPct(share)} of revenue — so this is most likely just a heavier product mix on those days, <b>not</b> wholesale or an inventory delivery. Worth a glance, not an investigation.`}</p>
       <div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Store revenue</th><th class="num">Recorded cost</th><th class="num">Cost as % of revenue</th></tr></thead>
       <tbody>${r.top_flagged.map(x => `<tr><td>${x.date}</td><td class="num">${fmtMoney(x.sales, cur)}</td><td class="num">${fmtMoney(x.cogs, cur)}</td><td class="num"><b style="color:var(--bad)">${Math.round(x.ratio*100)}%</b></td></tr>`).join('')}</tbody></table></div>
-      <p class="tiny" style="margin-top:8px">If these are real wholesale sales, the money came in somewhere this dashboard can't see — worth knowing, because it means the store view understates the whole business.</p></div>` : ''}`;
+      <p class="tiny" style="margin-top:8px">${material ? "If these are real wholesale sales, the money came in somewhere this dashboard can't see — worth knowing, because it means the store view understates the whole business." : 'If this list grows, or the total starts climbing, come back and look properly.'}</p></div>`;
+    })() : ''}`;
 
   const save = async pct => {
     $('#mMsg').textContent = 'Saving…';
@@ -1393,7 +1404,12 @@ async function renderPlan(first) {
     <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
       <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> — the plan below is not an average of it.</p>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">Margin</th></tr></thead>
+        <thead><tr><th>Month</th>
+          <th class="num">Revenue <span class="info-i" title="Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel - paid, organic, email, direct - not any platform\’s attributed revenue. The same line used on every tab.">i</span></th>
+          <th class="num">Ad spend <span class="info-i" title="Every ad platform combined for the month, from Triple Whale - Meta plus Google plus anything else running. Not Meta alone.">i</span></th>
+          <th class="num">MER <span class="info-i" title="Marketing Efficiency Ratio = all store revenue divided by all ad spend. Blended on both sides, so it is not ROAS and it is not platform-attributed. 3.00x means three dollars came into the store for every dollar spent on ads.">i</span></th>
+          <th class="num">aMER <span class="info-i" title="Acquisition MER = NEW-customer revenue divided by that same total ad spend. Repeat buyers and email cannot flatter it, so it isolates whether the ads are actually buying customers.">i</span></th>
+          <th class="num">Margin <span class="info-i" title="Gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of revenue. This is not contribution margin - ad spend has not been taken off yet.">i</span></th></tr></thead>
         <tbody>${hist.slice(-6).map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
           <td><b>${esc(monthLabel(h.month))}</b>${h.partial ? ` <span class="tiny">(${h.days} of ${h.days_in_month} days)</span>` : ''}</td>
           <td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td>
@@ -1610,11 +1626,15 @@ async function renderPlanAll() {
 /* ---------- Settings ---------- */
 async function renderSettings() {
   const run = ++RUN;
-  $('#main').innerHTML = `<h2>Settings</h2>
-    <p class="sub">Where each brand's reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.</p>
+  // Honour the client picker, exactly like every other tab: "All clients" lists
+  // everyone, a selected brand shows only that brand.
+  const one = S.act === 'all' ? null : S.accounts.find(a => a.act_id === S.act);
+  const shown = one ? [one] : S.accounts;
+  $('#main').innerHTML = `<h2>Settings${one ? ' — ' + esc(one.name) : ''}</h2>
+    <p class="sub">Where ${one ? `<b>${esc(one.name)}</b>'s` : "each brand's"} reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.${one ? ' Switch the picker to <b>All clients</b> to see every brand at once.' : ''}</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
     <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
-      <p class="hint" style="margin-bottom:10px">When the brief posts each morning, for <b>every</b> brand with auto-post on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
+      <p class="hint" style="margin-bottom:10px">${one ? '<b>Applies to all brands, not just ' + esc(one.name) + '.</b> ' : ''}When the brief posts each morning, for <b>every</b> brand with auto-post on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
       <div class="row">
         <select id="btHour" style="max-width:190px"></select>
         <span class="tiny" id="btMsg"></span>
@@ -1634,7 +1654,7 @@ async function renderSettings() {
     : `<span class="tiny">loading channels…</span>`;
 
   const draw = () => {
-    tb.innerHTML = S.accounts.map(a => `<tr data-id="${a.act_id}">
+    tb.innerHTML = shown.map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
       <td>${chCell(a, 'brief_channel', '— not set —')}${a.brief_enabled && !a.brief_channel ? '<br><span class="tiny" style="color:var(--warn)">⚠ falling back to the internal alerts channel</span>' : ''}</td>
       <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Posting each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
@@ -1712,6 +1732,7 @@ async function renderSettings() {
   tb.addEventListener('click', async e => {
     const b = e.target.closest('[data-k="backfill"]'); if (!b) return;
     const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
+    if (!a) return;
     const msg = $(`[data-bf="${a.act_id}"]`);
     b.disabled = true; msg.textContent = 'pulling 430 days…';
     try {
