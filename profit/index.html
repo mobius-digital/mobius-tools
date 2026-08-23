@@ -471,7 +471,7 @@ function renderPicker() {
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
   const rp = $('#rangePick');
   rp.value = String(S.days);
-  rp.onchange = () => { S.days = +rp.value; localStorage.setItem(LS.days, S.days); boot(); };
+  rp.onchange = () => { S.days = +rp.value; localStorage.setItem(LS.days, S.days); inPlace(async () => { await boot(); show(S.tab); }); };
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
 
@@ -622,9 +622,15 @@ async function inPlace(fn) {
    entry and drops its DOM writes if a newer render (any tab, any refetch) started. */
 let RUN = 0;
 
+/* Tabs whose data actually follows the range picker. Everywhere else it is hidden
+   rather than left visible and inert - a control that does nothing reads as broken. */
+const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
+
 function show(tab) {
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
+  const rp = $('#rangePick');
+  if (rp && S.tok) rp.style.display = RANGE_TABS.has(tab) ? '' : 'none';
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const m = $('#main');
   const first = !m.firstElementChild;
@@ -921,8 +927,8 @@ async function renderProfit(first) {
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
       ${chart.svg}</div>
     ${rhythmCard(rh, cur, trusted)}
-    <div class="card"><h3 style="margin-bottom:8px">New vs returning</h3>
-      <p class="hint" style="margin-bottom:8px">${fmtMoney(t.new_rev, cur)} from new customers (<b>${fmtPct(t.new_share)}</b>) · ${fmtMoney(t.ret_rev, cur)} returning. A high returning share with weak new revenue means the list is carrying the store and the ads have stopped acquiring — MER holds up while aMER quietly falls.</p></div>`;
+    <div class="card"><h3 style="margin-bottom:6px">New vs returning</h3>
+      <p class="hint" style="margin-bottom:0">${fmtMoney(t.new_rev, cur)} from new customers (<b>${fmtPct(t.new_share)}</b>) · ${fmtMoney(t.ret_rev, cur)} returning. What that customer <i>cost</i>, what their first order is worth and whether it pays back live on <b>Customers</b> — this page is about where the money went, that one is about who it came from.</p></div>`;
 
   const shareBtn = $('#pfShare');
   if (shareBtn) shareBtn.onclick = async () => {
@@ -1828,7 +1834,7 @@ async function renderPlanAll() {
    first order pays back what the customer cost to acquire. */
 async function renderCustomersAll() {
   $('#main').innerHTML = `<h2>Customers</h2>
-    <p class="sub">What a new customer costs, what their first order is worth, and whether it pays that cost back. <b>Payback over 1.0x</b> means the brand is profitable on the first order and can afford to bid harder.</p>
+    <p class="sub">What a new customer costs, what their first order is worth, and whether it pays that cost back, over the <b>last ${S.days} days</b>. <b>Payback over 1.0x</b> means the brand is profitable on the first order and can afford to bid harder.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
@@ -1845,7 +1851,7 @@ async function renderCustomersAll() {
   });
   const run = ++RUN;
   for (const a of S.accounts) {
-    api(`/api/customers?act=${a.act_id}`).then(r => {
+    api(`/api/customers?act=${a.act_id}&days=${S.days}`).then(r => {
       if (run !== RUN) return;
       const h = r.headline, set = (k, v) => { const el = $(`[data-c="${k}-${a.act_id}"]`); if (el) el.innerHTML = v; };
       set('cac', `<b>${fmtMoney(h.cac, a.currency)}</b>`);
@@ -1863,12 +1869,12 @@ async function renderCustomers(first) {
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const shell = body => `<h2>Customers — ${esc(acct?.name || '')}</h2>
-    <p class="sub">What a new customer costs to buy, and whether their first order pays it back. Monthly averages — Triple Whale gives us no cohort history, so this is not a true lifetime value.</p>
+    <p class="sub">What a new customer costs to buy, and whether their first order pays it back, over the <b>last ${S.days} days</b> — change it with the range picker. Not a true lifetime value: Triple Whale gives us no per-customer history.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
-  try { d = await api(`/api/customers?act=${S.act}`); }
+  try { d = await api(`/api/customers?act=${S.act}&days=${S.days}`); }
   catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
   if (run !== RUN) return;
   const cur = d.account.currency, h = d.headline;
@@ -1895,20 +1901,29 @@ async function renderCustomers(first) {
     <td class="num">${fmtPct(x.repeat_share)}</td></tr>`).join('');
 
   $('#main').innerHTML = shell(`
+    ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> CAC and payback swing hard on small numbers — widen the range picker, or read the month-by-month table below instead of the headline.</div></div>` : ''}
     ${verdict}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:14px 0">
       ${card('Cost to acquire', fmtMoney(h.cac, cur), `${h.new_orders} new customers`, 'All ad spend across every platform divided by the number of genuinely new customers. Blended, so it is not any single platform\u2019s reported cost per acquisition and will not match Ads Manager.')}
       ${card('First order value', fmtMoney(h.new_aov, cur), 'average, new customers', 'What a new customer spends on their first order, before any costs. Revenue from new customers divided by new-customer orders.')}
       ${d.cm_ok ? card('Margin on that order', fmtMoney(h.first_order_gp, cur), `at ${fmtPct(h.margin)} product margin`, 'What the first order leaves after product costs, fulfilment and fees, before the cost of acquiring the customer. This is what has to cover CAC.') : ''}
       ${d.cm_ok ? card('Payback', pb != null ? pb.toFixed(2) + 'x' : '—', pb != null && pb >= 1 ? 'covered on order one' : 'needs a second order', 'First-order margin divided by CAC. Above 1.0x the customer pays for themselves immediately. Below it, the brand relies on repeat purchases and the repeat share becomes critical.') : ''}
-      ${card('Repeat share', fmtPct(h.repeat_share), `${h.returning_orders} of ${h.new_orders + h.returning_orders} orders`, 'Share of all orders placed by customers who had bought before. The higher this is, the more the business can tolerate a first order that does not cover CAC.')}
+      ${card('Repeat share of orders', fmtPct(h.repeat_share), `${h.returning_orders} of ${h.new_orders + h.returning_orders} orders`, 'Share of ORDERS placed by customers who had bought before. Not the same as a returning-customer rate, which would be a share of PEOPLE - we cannot compute that, because Triple Whale gives us no per-customer history. One shopper ordering three times counts as three orders here. The higher this is, the more the business can tolerate a first order that does not cover CAC.')}
       ${card('Returning order value', fmtMoney(h.returning_aov, cur), 'average, repeat customers', 'What a returning customer spends per order. Compare with the first-order value: if repeat orders are bigger, the customer gets more valuable over time.')}
     </div>
+    ${h.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New vs returning, in revenue <span class="info-i" title="Repeat share above counts ORDERS; this counts MONEY. They differ when returning customers spend more or less per order than first-time buyers. A high returning share with weak new revenue means the ads have stopped acquiring and the list is carrying the store - MER holds up while aMER quietly falls.">i</span></h3>
+      <p style="font-size:14px;margin:4px 0"><b>${fmtMoney(h.new_rev, cur)}</b> from new customers (<b>${fmtPct(h.new_rev_share)}</b> of revenue) · <b>${fmtMoney(h.returning_rev, cur)}</b> returning.
+      ${h.new_rev_share != null && h.repeat_share != null ? `Returning customers placed <b>${fmtPct(h.repeat_share)}</b> of orders but produced <b>${fmtPct(1 - h.new_rev_share)}</b> of revenue — ${(1 - h.new_rev_share) > h.repeat_share + 0.02 ? 'they spend <b>more</b> per order than first-time buyers' : (1 - h.new_rev_share) < h.repeat_share - 0.02 ? 'they spend <b>less</b> per order than first-time buyers' : 'they spend about the same per order as first-time buyers'}.` : ''}</p>
+      <div style="height:10px;border-radius:99px;overflow:hidden;display:flex;margin-top:8px">
+        <div style="width:${((h.new_rev_share || 0) * 100).toFixed(1)}%;background:var(--brand-ink)"></div>
+        <div style="flex:1;background:var(--line-strong)"></div></div>
+      <p class="tiny" style="margin-top:8px">A high returning share with weak new revenue means the list is carrying the store — MER looks fine while aMER quietly collapses.</p></div>` : ''}
+
     <div class="card"><h3 style="margin-bottom:8px">Month by month</h3>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Month</th><th class="num">New customers</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      <p class="tiny" style="margin-top:8px">The current month is shown faded and excluded from the figures above — its new customers have not had time to come back, so counting it would understate the repeat share.</p></div>
+      <p class="tiny" style="margin-top:8px">Whole months, so this stays put when you change the range picker above — it is the trend, not the current reading. The month in progress is faded because it is incomplete.</p></div>
     <p class="tiny"><b>This is not cohort analysis.</b> Triple Whale provides no cohort table or per-customer history, so we cannot follow one month's customers through the year or state a true lifetime value. These are monthly averages. Where a real LTV would change a decision — a long payback business, a subscription — treat these as directional and go to the Shopify data.</p>`);
 }
 

@@ -165,6 +165,16 @@ profit/
   one target, one sign-off, no second place for a number to drift. Months without an
   EXPLICIT `goals_json[ym]` entry are named as unplanned and excluded from the total,
   never filled from `default`. Do not add a standalone quarterly target.
+- **"Repeat share" counts ORDERS, not people, and must never be called a returning-
+  customer rate.** It is `returning orders / total orders`; one shopper buying three
+  times counts three times. A true returning-CUSTOMER rate needs per-customer history,
+  which Triple Whale does not give us. The revenue split lives beside it on Customers
+  because it is the same question in money, and the two diverge when repeat buyers
+  spend differently per order - the card states both and says which way.
+- **A control that does nothing reads as broken: hide it.** The range picker sat
+  visible on all seven tabs while only Overview, Profit and Customers read `S.days`.
+  `RANGE_TABS` gates its visibility in `show()`. If a new tab starts honouring the
+  range, add it there; if it does not, the picker must not appear.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

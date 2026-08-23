@@ -538,14 +538,16 @@ async function forecastFor(env, acct, ym) {
  * to bid harder. When it is negative the business depends on people coming back, and
  * the repeat share below is the number that has to hold up.
  */
-async function customerEconomics(env, acct, months = 6) {
+async function customerEconomics(env, acct, months = 6, days = 30) {
   const today = localDate(acct.tz);
   const thisYm = monthOf(today);
   const list = [];
   let m = thisYm;
   for (let i = 0; i < months; i++) { list.unshift(m); m = prevMonth(m); }
-  const from = `${list[0]}-01`;
   const to = addDays(today, -1);
+  const winFrom = addDays(today, -days);
+  const monthsFrom = `${list[0]}-01`;
+  const from = winFrom < monthsFrom ? winFrom : monthsFrom;
   const { rows, margin_pct } = await seriesFor(env, acct, from, to);
   const piv = await pivot(env, acct.act_id, from, to);
 
@@ -587,23 +589,28 @@ async function customerEconomics(env, acct, months = 6) {
   };
 
   const series = list.map(month);
-  const complete = series.filter(x => !x.empty && !x.partial);
-  // Headline uses whole months only - a part month understates repeat behaviour,
-  // because this month's new customers have not had time to come back yet.
-  const pool = complete.length ? complete : series.filter(x => !x.empty);
-  const agg = pool.reduce((a, x) => ({
-    spend: a.spend + x.spend, newOrders: a.newOrders + x.new_orders,
-    retOrders: a.retOrders + x.returning_orders, totalOrders: a.totalOrders + x.total_orders,
-    newRev: a.newRev + x.new_rev, retRev: a.retRev + x.returning_rev,
-    sales: a.sales + x.sales, gp: a.gp + (x.margin != null ? x.sales * x.margin : 0),
-  }), { spend: 0, newOrders: 0, retOrders: 0, totalOrders: 0, newRev: 0, retRev: 0, sales: 0, gp: 0 });
+  // Headline follows the range picker. Repeat share counts ORDERS placed inside the
+  // window - it is not cohort-based, so a shorter window does not bias it, it just
+  // makes it noisier for a low-volume client. new_orders is surfaced so the UI can
+  // warn when the sample is too small to lean on.
+  const win = rows.filter(r => r.date >= winFrom);
+  const wsum = get => win.reduce((a, r) => a + (get(r) ?? 0), 0);
+  const wd = metric => win.reduce((a, r) => a + (piv[metric]?.[r.date] ?? 0), 0);
+  const wNewOrders = wd('newCustomersOrders'), wTotalOrders = wd('totalOrders');
+  const agg = {
+    spend: wsum(r => r.spend), newOrders: wNewOrders,
+    retOrders: Math.max(0, wTotalOrders - wNewOrders), totalOrders: wTotalOrders,
+    newRev: wsum(r => r.new_rev), retRev: wsum(r => r.ret_rev),
+    sales: wsum(r => r.sales), gp: wsum(r => r.gross_profit),
+  };
 
   const margin = agg.sales > 0 ? agg.gp / agg.sales : null;
   const cac = agg.newOrders > 0 ? agg.spend / agg.newOrders : null;
   const newAov = agg.newOrders > 0 ? agg.newRev / agg.newOrders : null;
   const firstGp = newAov != null && margin != null ? newAov * margin : null;
   return {
-    account: pubAccount(acct), months: pool.map(x => x.month), margin_pct,
+    account: pubAccount(acct), months: list, margin_pct,
+    window: { days, from: winFrom, to },
     headline: {
       cac, new_aov: newAov, margin,
       first_order_gp: firstGp,
@@ -612,6 +619,12 @@ async function customerEconomics(env, acct, months = 6) {
       repeat_share: agg.totalOrders > 0 ? agg.retOrders / agg.totalOrders : null,
       returning_aov: agg.retOrders > 0 ? agg.retRev / agg.retOrders : null,
       new_orders: agg.newOrders, returning_orders: agg.retOrders,
+      // The revenue split, which used to live on the Profit tab. It belongs here:
+      // it is the same question as repeat share, measured in money instead of orders.
+      new_rev: agg.newRev, returning_rev: agg.retRev,
+      new_rev_share: agg.newRev + agg.retRev > 0 ? agg.newRev / (agg.newRev + agg.retRev) : null,
+      // Fewer than ~50 new customers makes CAC and payback too noisy to act on.
+      thin: agg.newOrders < 50,
     },
     series,
   };
@@ -1230,7 +1243,8 @@ export default {
         const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(act).first().catch(() => null);
-        const r = await customerEconomics(env, acct, Math.min(+url.searchParams.get('months') || 6, 12));
+        const r = await customerEconomics(env, acct, Math.min(+url.searchParams.get('months') || 6, 12),
+          Math.min(+url.searchParams.get('days') || 30, 180));
         // Margin drives first-order CM, so the same trust gate applies.
         return json({ ...r, cm_ok: r.margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none') });
       }
