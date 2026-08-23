@@ -244,6 +244,26 @@ profit/
   (`registerUninstallWebhook`), which is the shop-specific alternative Shopify's own
   error names. It is best-effort and never fails the install - a merchant must not
   be told the connection failed because a webhook did not take.
+- **The post-install page IS the merchant-facing UI, and review requires one.**
+  "All apps in the Shopify App Store must have a user interface that merchants can
+  interact with" is a stated rejection reason, and a static "Connected ✓" note is
+  not one. The callback redirects to `DASHBOARD_URL?perf=<token>` — the client's own
+  profit page, which already existed behind share tokens. `profitShareToken()` is the
+  single mint path so a merchant and a shared link can never land on two different
+  live URLs for one client. A shop that matches no account gets an honest "not set up
+  yet" page rather than a dashboard that would be empty.
+- **Custom distribution cannot span unrelated merchants.** It covers one store, or
+  several inside ONE Plus organization. Six separate client businesses means six
+  separate apps with six credential pairs — which is why this is a public app despite
+  the review cost. The distribution method is permanent once chosen.
+- **Settings → Connections is where clients get added.** Before it, a store connected
+  only if its domain already equalled `accounts.tw_shop`, and nothing on screen said
+  whether it had — an unmatched install looked like success to the merchant while its
+  data went nowhere. `/api/connections` reports per-client status plus an `unmatched`
+  list, and `/api/connections/map` points a stranded shop at a client. Keep
+  `uninstalled` distinct from `not_connected`: only the former means data that used to
+  flow has silently stopped.
+
 - **Never pipe a secret to `wrangler secret put` from PowerShell.** It prepends a
   UTF-8 BOM, so the stored value begins with an invisible `﻿`. The Shopify client
   id went up as `%EF%BB%BF a204...` in the OAuth redirect, and the same corruption in
