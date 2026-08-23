@@ -96,6 +96,16 @@ profit/
   gap was therefore skipped as a revenue basis but still used for the CM comparison,
   so the plan was measured against a month missing days - understating that month's
   CM and flattering the plan. One basis, read from one place.
+- **The monthly plan splits EVENLY across the days. Do not weight it.** Revenue/days,
+  spend/days, and MER therefore holds flat at exactly the ratio that was agreed.
+  An earlier version shaped revenue by a trailing day-of-week curve while leaving
+  spend flat, which (a) made the forecast MER swing 1.87x-2.99x by weekday, so Bonk
+  doing 2.86x against a 2.50x plan was reported as a MISS, and (b) did not even
+  predict better: measured across 6 clients x 2 months with the monthly level held
+  equal, the weekday curve was 7.6% WORSE than an even split - it helped Bonk and
+  The Golf Sock and hurt the other four. Cole called this: you set revenue, spend
+  and MER, so the plan is those three divided by the days. If day-of-week shaping is
+  ever revisited it must weight BOTH sides or the ratio metrics become nonsense.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

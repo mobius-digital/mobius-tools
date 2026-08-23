@@ -759,36 +759,24 @@ async function briefData(env, acct, upTo) {
   // overstated profit - we flag it rather than pretending to net it off.
   const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 ? 'uncosted' : 'costed';
 
-  // Day-of-week weights from the 28 days before the month started — fixed all month,
-  // so the plan doesn't shift under the client's feet mid-month.
+  // The trailing 28 days still feed the new/returning share and the margin, but the
+  // day-of-week CURVE is deliberately not used to split the goal - see below.
   const dow = d => new Date(d + 'T12:00:00Z').getUTCDay();
-  const wSum = Array(7).fill(0), wN = Array(7).fill(0);
   let newRevSum = 0, retRevSum = 0, salesSum = 0, marginNum = 0, marginDen = 0;
   const dayMargins = [];                     // per-day pre-ad-spend margin, for the COGS sanity check
   for (let i = 1; i <= 28; i++) {
     const d = addDays(monthStart, -i);
     const s = twDay(piv, d, TW_SALES) ?? meta[d]?.revenue ?? null;
     if (s == null) continue;
-    wSum[dow(d)] += s; wN[dow(d)]++;
     salesSum += s;
     newRevSum += piv.newCustomerSales?.[d] ?? 0;
     retRevSum += piv.rcRevenue?.[d] ?? 0;
     const gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
     if (gp != null && s > 0) { marginNum += gp; marginDen += s; dayMargins.push(gp / s); }
   }
-  const haveW = wN.filter(Boolean).length === 7 && wN.reduce((a, b) => a + b, 0) >= 14;
-  const wAvg = wSum.map((s, i) => wN[i] ? s / wN[i] : 1);
   const newShare = newRevSum + retRevSum > 0 ? newRevSum / (newRevSum + retRevSum) : null;
   const margin28 = marginDen > 0 ? marginNum / marginDen : null;   // trailing pre-ad-spend margin
   const cogsQuality = judgeCogs(dayMargins, margin28);
-
-  let wTotal = 0;
-  const dayW = {};
-  for (let d = 1; d <= dim; d++) {
-    const date = `${ym}-${String(d).padStart(2, '0')}`;
-    const w = haveW ? wAvg[dow(date)] : 1;
-    dayW[date] = w; wTotal += w;
-  }
 
   const cmPct = goals?.cm_pct ?? null;
   const fcMargin = cmPct ?? margin28;            // forecast-side margin: explicit % beats trailing actuals
@@ -796,7 +784,7 @@ async function briefData(env, acct, upTo) {
   for (let d = 1; d <= dim; d++) {
     const date = `${ym}-${String(d).padStart(2, '0')}`;
     const f = {};
-    if (goals?.sales != null) f.sales = goals.sales * dayW[date] / wTotal;
+    if (goals?.sales != null) f.sales = goals.sales / dim;
     if (goals?.spend != null) f.spend = goals.spend / dim;
     if (f.sales != null && f.spend != null && fcMargin != null) f.cm = f.sales * fcMargin - f.spend;
     f.amer = goals?.amer ?? (newShare != null && f.sales != null && f.spend ? newShare * f.sales / f.spend : null);
@@ -864,7 +852,7 @@ async function briefData(env, acct, upTo) {
     month: ym, up_to: upTo, goals, goals_planned: planned, goals_inherited_from: inheritedFrom,
     cm_pct: cmPct, margin_28d: margin28,
     cogs_quality: cmPct != null ? { verdict: 'override', reason: `using your ${Math.round(cmPct * 100)}% margin override` } : cogsQuality,
-    weights: haveW ? 'day-of-week (trailing 28d)' : 'uniform (not enough history yet)',
+    weights: 'even across the month',
     new_share_28d: newShare, days, mtd, tw_last_sync: lastSync, shipping_mode: shipMode,
     brief_enabled: !!acct.brief_enabled,
   };
