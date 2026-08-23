@@ -588,6 +588,7 @@ const PAGE_HELP = {
     <p><b>What this page is:</b> what a new customer costs to buy, what they spend, and whether their first order pays that cost back. It is the question underneath every plan — you cannot decide whether a higher spend is affordable without it.</p>
     <p><b>CAC</b> is ad spend divided by new-customer orders. Blended, like everything here: total spend across every platform over every genuinely new customer, not a platform's reported cost per acquisition.</p>
     <p><b>First-order margin</b> is what that first order leaves after product costs — the customer's order value times the product margin. Compare it with CAC and you get the number that matters: <b>payback</b>.</p>
+    <p><b>Orders from repeat buyers</b> is the share of orders you did not have to pay for. Everything else has to be bought again with ad spend, so a low number means growth is expensive and the month resets to zero when spend stops. A high number means a base is carrying the brand. It pairs with payback: if the first order does not cover the customer, repeat is what has to make up the difference — so a business with weak payback AND a low repeat share has no margin for error anywhere.</p>
     <p><b>Payback above 1.0x means the client is profitable on the first order</b> and can afford to bid harder for customers. Below 1.0x means the business depends on people coming back, and the repeat share becomes the number that has to hold up. Neither is wrong — but they are completely different businesses to run, and the plan should reflect which one you have.</p>
     <p><b>This is not cohort analysis.</b> Triple Whale gives us no cohort table and no per-customer history, so we cannot follow January's customers through the year or state a true lifetime value. Everything here is a monthly average. Where a real LTV would change the decision, say so rather than inferring one.</p>
     <p><b>The current month is shown but excluded from the headline</b> — its new customers have not had time to come back yet, so including it would understate repeat behaviour.</p>`,
@@ -1901,6 +1902,12 @@ async function renderCustomers(first) {
     <td class="num">${fmtPct(x.repeat_share)}</td></tr>`).join('');
 
   $('#main').innerHTML = shell(`
+    ${h.repeat_share != null ? `<p class="hint" style="margin:-4px 0 12px">${
+      h.repeat_share < 0.2
+        ? `<b>Growth here is expensive.</b> Only ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so roughly ${fmtPct(1 - h.repeat_share)} of every month has to be bought again with ad spend. Nothing carries over — if spend stops, revenue stops with it.`
+        : h.repeat_share >= 0.35
+        ? `<b>A real base is carrying this brand.</b> ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so a good chunk of each month arrives without ad spend behind it. That is what lets a brand survive a soft acquisition month.`
+        : `<b>Part-bought, part-carried.</b> ${fmtPct(h.repeat_share)} of orders come from previous customers, so most of each month still has to be bought with ad spend, but the base is doing real work.`}</p>` : ''}
     ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> CAC and payback swing hard on small numbers — widen the range picker, or read the month-by-month table below instead of the headline.</div></div>` : ''}
     ${verdict}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:14px 0">
@@ -1908,7 +1915,12 @@ async function renderCustomers(first) {
       ${card('First order value', fmtMoney(h.new_aov, cur), 'average, new customers', 'What a new customer spends on their first order, before any costs. Revenue from new customers divided by new-customer orders.')}
       ${d.cm_ok ? card('Margin on that order', fmtMoney(h.first_order_gp, cur), `at ${fmtPct(h.margin)} product margin`, 'What the first order leaves after product costs, fulfilment and fees, before the cost of acquiring the customer. This is what has to cover CAC.') : ''}
       ${d.cm_ok ? card('Payback', pb != null ? pb.toFixed(2) + 'x' : '—', pb != null && pb >= 1 ? 'covered on order one' : 'needs a second order', 'First-order margin divided by CAC. Above 1.0x the customer pays for themselves immediately. Below it, the brand relies on repeat purchases and the repeat share becomes critical.') : ''}
-      ${card('Repeat share of orders', fmtPct(h.repeat_share), `${h.returning_orders} of ${h.new_orders + h.returning_orders} orders`, 'Share of ORDERS placed by customers who had bought before. Not the same as a returning-customer rate, which would be a share of PEOPLE - we cannot compute that, because Triple Whale gives us no per-customer history. One shopper ordering three times counts as three orders here. The higher this is, the more the business can tolerate a first order that does not cover CAC.')}
+      ${card('Orders from repeat buyers', fmtPct(h.repeat_share),
+        h.repeat_share == null ? `${h.returning_orders} of ${h.new_orders + h.returning_orders} orders`
+        : h.repeat_share < 0.2 ? `${fmtPct(1 - h.repeat_share)} of orders must be bought with ads`
+        : h.repeat_share < 0.35 ? `a useful base, but growth still comes from new customers`
+        : `a strong base arriving without ad spend`,
+        'The share of ORDERS placed by someone who had bought before — in other words, the orders you did not have to pay to acquire. It is not a returning-CUSTOMER rate: that would be a share of people, and Triple Whale gives us no per-customer history, so one shopper buying three times counts three times here. Why it matters: the rest of the orders have to be bought with ad spend, so a low number means growth is expensive and every extra order needs budget behind it. It is also the safety net under payback — if the first order does not cover the cost of acquiring the customer, this is the number that has to make up the difference.')}
       ${card('Returning order value', fmtMoney(h.returning_aov, cur), 'average, repeat customers', 'What a returning customer spends per order. Compare with the first-order value: if repeat orders are bigger, the customer gets more valuable over time.')}
     </div>
     ${h.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New vs returning, in revenue <span class="info-i" title="Repeat share above counts ORDERS; this counts MONEY. They differ when returning customers spend more or less per order than first-time buyers. A high returning share with weak new revenue means the ads have stopped acquiring and the list is carrying the store - MER holds up while aMER quietly falls.">i</span></h3>
