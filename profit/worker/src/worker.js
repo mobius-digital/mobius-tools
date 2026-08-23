@@ -828,14 +828,29 @@ export default {
         const history = (await monthHistory(env, acct, ym, 6))
           .filter(h => !h.empty)
           .map(h => ({ month: h.month, sales: h.sales, spend: h.spend, mer: h.mer, partial: !!h.partial }));
+        // Their weekly rhythm - the same analysis the internal Profit tab shows, and
+        // the one thing here that is genuinely presentable on a call.
+        const rhythm = await weekdayRhythm(env, acct, 3).catch(() => null);
         return json({
           share: true,
           account: { name: acct.name, currency: acct.currency },
           month: ym, days: rows.length, days_in_month: daysInMonth(ym),
           mtd: {
             sales: t.sales, spend: t.spend, mer: t.mer, amer: t.amer,
-            new_share: t.new_share, cm: cmOk ? t.cm : null,
+            new_share: t.new_share, new_rev: t.new_rev, ret_rev: t.ret_rev,
+            cm: cmOk ? t.cm : null, margin: cmOk ? t.margin : null,
           },
+          // Where the money went. Only when the cost data passes the same trust check
+          // the internal pages use - a client must never be first to see a shaky figure.
+          waterfall: cmOk ? {
+            net_sales: t.net_sales, ship_rev: t.ship_rev, tax: t.tax, total_sales: t.total_sales,
+            sales: t.sales, cogs: t.cogs, ship_cost: t.ship_cost, handling: t.handling,
+            fees: t.fees, gross_profit: t.gross_profit, spend: t.spend, cm: t.cm,
+          } : null,
+          // Daily shape, for the chart. Money only - no cost diagnostics per day.
+          rows: rows.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
+          rhythm: rhythm && rhythm.enough ? rhythm : null,
+          cm_ok: cmOk,
           // Pro-rated to the days elapsed, exactly as the internal pages do it.
           plan: planned && (g.sales != null || g.spend != null) ? planFor(acct, ym, rows) : null,
           history,

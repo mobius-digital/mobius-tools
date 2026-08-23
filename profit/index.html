@@ -381,6 +381,8 @@ async function renderPerfShare(token) {
     <div style="font-size:clamp(20px,2.4vw,28px);font-weight:700;margin:4px 0 2px">${value}</div>
     <div class="tiny">${sub}</div></div>`;
   const hist = (d.history || []).filter(h => !h.partial);
+  const w = d.waterfall;
+  const wRow = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg ? 'var(--bad)' : 'inherit'}">${neg ? '−' : ''}${fmtMoney(Math.abs(val ?? 0), cur)}</td><td class="tiny">${note}</td></tr>`;
   $('#main').innerHTML = `<h2>${esc(monthLabel(d.month))} so far</h2>
     <p class="sub">${d.days} of ${d.days_in_month} days. Every channel combined — ads, email, organic and direct — not any single platform's reported figures.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:14px">
@@ -390,10 +392,38 @@ async function renderPerfShare(token) {
       ${card('NEW CUSTOMER MER', fmtX(m.amer), `${fmtPct(m.new_share)} of revenue came from new customers`)}
       ${m.cm != null ? card('CONTRIBUTION MARGIN', fmtMoney(m.cm, cur), pl && pl.cm ? `${fmtMoney(pl.cm, cur)} planned ${vs(m.cm, pl.cm)}` : 'after product, fulfilment, fees and ads') : ''}
     </div>
+    ${w ? `<div class="card"><h3 style="margin-bottom:8px">Where the money went</h3>
+      <div class="tbl-wrap"><table><tbody>
+        ${wRow('Net Sales', w.net_sales, 'products, after discounts and returns')}
+        ${w.ship_rev ? wRow('Shipping charged to customers', w.ship_rev, 'what customers paid for delivery') : ''}
+        <tr style="border-top:1px solid var(--line)"><td><b>Revenue</b></td><td class="num"><b>${fmtMoney(w.sales, cur)}</b></td><td class="tiny">total money in${w.tax ? ` · excludes ${fmtMoney(w.tax, cur)} of sales tax` : ''}</td></tr>
+        ${wRow('Product costs', w.cogs, 'what the goods cost', true)}
+        ${w.ship_cost ? wRow('Fulfilment', w.ship_cost, 'what delivery cost', true) : ''}
+        ${w.handling ? wRow('Handling', w.handling, 'pick and pack', true) : ''}
+        ${wRow('Payment fees', w.fees, 'card and gateway', true)}
+        <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(w.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? w.gross_profit / w.sales : null)} of revenue, before any advertising</td></tr>
+        ${wRow('Advertising', w.spend, 'every platform combined', true)}
+        <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${w.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(w.cm, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? w.cm / w.sales : null)} of revenue</td></tr>
+      </tbody></table></div>
+      <p class="tiny" style="margin-top:8px">This is what the month has produced after every <b>variable</b> cost. It deliberately excludes fixed costs — rent, salaries, software — so it answers "is the marketing making money on the margin", not "what is the net profit of the business".</p></div>` : ''}
+
+    ${(d.rows || []).length ? `<div class="card"><h3 style="margin-bottom:2px">Revenue and ad spend, day by day</h3>
+      <p class="hint" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue, <span style="color:#C08A2E;font-weight:700">amber</span> is ad spend. The gap between them is what pays for the product and everything else.</p>
+      ${salesSpendSVG(d.rows, cur).svg}</div>` : ''}
+
+    ${m.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New customers vs returning</h3>
+      <p style="font-size:14px;margin:4px 0"><b>${fmtMoney(m.new_rev, cur)}</b> came from customers buying for the first time (<b>${fmtPct(m.new_share)}</b> of revenue) and <b>${fmtMoney(m.ret_rev, cur)}</b> from people coming back.</p>
+      <div style="height:10px;border-radius:99px;overflow:hidden;display:flex;margin-top:8px">
+        <div style="width:${((m.new_share || 0) * 100).toFixed(1)}%;background:var(--brand-ink)"></div>
+        <div style="flex:1;background:var(--line-strong)"></div></div>
+      <p class="tiny" style="margin-top:8px">A healthy month grows the first bar without the second one shrinking.</p></div>` : ''}
+
+    ${rhythmCard(d.rhythm, cur, !!d.cm_ok)}
+
     ${hist.length ? `<div class="card"><h3 style="margin-bottom:8px">Recent months</h3>
       <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th></tr></thead>
       <tbody>${hist.map(h => `<tr><td>${esc(monthLabel(h.month))}</td><td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td><td class="num">${fmtX(h.mer)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
-    <p class="tiny">MER is all store revenue divided by all ad spend, blended across every platform — it is not any one platform's attributed return. ${m.cm != null ? 'Contribution margin is revenue minus product costs, fulfilment, payment fees and ad spend; it excludes fixed costs such as rent, salaries and software.' : ''}</p>`;
+    <p class="tiny"><b>Revenue</b> is Shopify total sales less sales tax — every channel, after discounts and returns, including shipping charged to customers. <b>MER</b> is all of that revenue divided by all ad spend across every platform; it is not any single platform's reported return, which is why it will not match what Meta or Google show. ${m.cm != null ? '<b>Contribution margin</b> is revenue minus product costs, fulfilment, payment fees and ad spend; it excludes fixed costs such as rent, salaries and software.' : ''}</p>`;
   setChip('Live', 'live');
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';

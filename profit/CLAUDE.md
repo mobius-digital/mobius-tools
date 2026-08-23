@@ -148,11 +148,16 @@ profit/
   Claude not to call them this month's goal, and the Brief tab shows a warning with
   a jump to Plan. Without this, the 1st of a month silently re-uses last month's
   target and the brief reports "vs plan" against something nobody agreed.
-- **`GET /api/profit/:token` is client-facing: no diagnostics, ever.** It exposes one
-  account's month-to-date headline numbers and pro-rated plan. Contribution margin is
-  omitted entirely unless `p_cost_health` trusts the data or a margin override is set
-  - a client must never be the first person to see a number the Costs page calls
-  broken. No other account, no cost verdicts, no override details.
+- **`GET /api/profit/:token` is client-facing: everything about THEIR business, none
+  of our workings.** It carries the month-to-date headline numbers against the
+  pro-rated plan, the full revenue-to-CM waterfall, the daily revenue-vs-spend series,
+  the new/returning split, their weekday rhythm and recent months. What it must never
+  carry: another account, cost-health verdicts, the margin override, wholesale
+  diagnostics, or the plan's internal agreement state. Contribution margin and the
+  waterfall are gated on the same trust check the internal pages use (`cm_ok`) - a
+  client must never be the first person to see a number the Costs page calls broken.
+  It was originally five stat cards and a month list; Cole rightly called that too
+  thin for something meant to be read by the client.
 - **Past months are read only** and must not show inherited defaults as if they were
   that month's plan — say "no plan was set".
 - **The plan is agreed with the client, never auto-applied.** `PUT /api/plan` writes
