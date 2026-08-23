@@ -53,7 +53,8 @@
   <div class="card key">
     <h2>The short version</h2>
     <ul>
-      <li>We read orders, customers and products from your store. We never write to it.</li>
+      <li>We read orders, customers, products and aggregated analytics from your store.
+        We never write to it.</li>
       <li><b>We do not store individual customer records.</b> Customer data is aggregated
         into monthly totals as it is processed; names, emails, addresses and phone numbers
         are never written to our database.</li>
@@ -70,13 +71,16 @@
   remains the data controller.</p>
 
   <h2>What the app accesses</h2>
-  <p>When you install the app you grant three read-only permissions:</p>
+  <p>When you install the app you grant four read-only permissions:</p>
   <ul>
     <li><code>read_orders</code> — order totals, dates, discounts, returns, shipping and tax,
       so we can report revenue and contribution margin.</li>
     <li><code>read_customers</code> — order counts and first-order dates, so we can report
       how many customers are new versus returning and how customer value develops over time.</li>
     <li><code>read_products</code> — product and variant costs, so we can report gross margin.</li>
+    <li><code>read_reports</code> — access to Shopify's own analytics queries. We use it for one
+      thing: grouping customers by the month they first purchased, so we can report how customer
+      value develops over time. It returns aggregated totals, never individual records.</li>
   </ul>
   <p>The app requests no write permissions and cannot modify, create or delete anything in
   your store.</p>
