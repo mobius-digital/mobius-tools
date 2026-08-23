@@ -16,7 +16,9 @@
 # After `config link` Shopify will overwrite client_id and may rewrite other fields -
 # re-check the values below before running `deploy`.
 
-client_id = "REPLACE_WITH_YOUR_CLIENT_ID"
+# Public identifier, safe in the repo. The SECRET is a Cloudflare worker secret and
+# must never be committed.
+client_id = "a204d4974bccc5aacf66c3f723fb5652"
 name = "Mobius Profit"
 handle = "mobius-profit"
 

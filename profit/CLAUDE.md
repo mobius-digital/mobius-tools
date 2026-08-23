@@ -226,6 +226,15 @@ profit/
   stay FALSE - the worker implements the standalone authorization-code grant, and
   marking the app embedded makes Shopify expect token exchange plus App Bridge, which
   fails in a way that does not point back here.
+- **Never pipe a secret to `wrangler secret put` from PowerShell.** It prepends a
+  UTF-8 BOM, so the stored value begins with an invisible `﻿`. The Shopify client
+  id went up as `%EF%BB%BF a204...` in the OAuth redirect, and the same corruption in
+  the API secret would have failed every HMAC while looking correctly configured. Use
+  Bash `printf '%s' 'value' | npx.cmd wrangler secret put NAME`, then verify by reading
+  the value back through something that renders it - the install redirect, in this case.
+- **`SHOPIFY_SCOPES` in the worker must match `profit/shopify.app.toml`.** Shopify
+  compares the two at install and re-prompts on a mismatch. Updating one without the
+  other is easy to miss because nothing fails until a merchant installs.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),
