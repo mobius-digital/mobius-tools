@@ -106,6 +106,17 @@ profit/
   The Golf Sock and hurt the other four. Cole called this: you set revenue, spend
   and MER, so the plan is those three divided by the days. If day-of-week shaping is
   ever revisited it must weight BOTH sides or the ratio metrics become nonsense.
+- **The weekday rhythm card is DESCRIPTIVE and must never feed a forecast.** It
+  answers "what did a week look like", not "what should it be" - the plan still
+  splits evenly. Four Mondays a month is a tiny sample and EVERY brand shows some
+  pattern by chance, so `weekdayRhythm()` computes one index per weekday per
+  COMPLETE month and only calls a day consistent when every month agreed on the
+  direction (`lo > 1.02` strong, `hi < 0.98` soft, else mixed). Two consistent days
+  makes a brand "reliable". On the real data that means Bonk (soft Mondays, strong
+  Saturdays), The Golf Sock (3 days) and Lucky qualify, while Party Patch (1) and
+  Dartee (0) are told plainly they have no rhythm. The dollar projection is gated
+  on `reliable` too - splitting a plan by a chance pattern is the exact failure this
+  card exists to prevent, and it is meant to be shown to clients.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

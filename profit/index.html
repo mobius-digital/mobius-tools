@@ -509,6 +509,7 @@ const PAGE_HELP = {
     <p><b>What "Revenue" means, on every tab:</b> Shopify <b>Total Sales minus sales tax</b> — gross sales, less discounts, less returns, plus shipping charged to customers, less tax. That is the line CTC report as "Net Sales + Shipping", and it reconciles to Shopify's own sales report. It is <i>not</i> Shopify's "Net Sales" figure, which leaves shipping out. Triple Whale supplies it as <code>netSales</code>, a field their own catalog titles "Total Sales" — shipping and tax are already inside it, so it is never added a second time.</p>
     <p><b>The waterfall:</b> Net Sales + shipping charged to customers → minus product costs (COGS) → minus fulfilment and handling → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
     <p><b>This is CTC's exact definition:</b> revenue minus <i>all variable costs</i>. <b>Contribution margin is not net profit</b> — it deliberately ignores fixed costs: rent, salaries, software, and our own retainer. Those don't change when you spend another dollar on ads, so they'd only blur the question it exists to answer: did the marketing make money on the margin?</p>
+    <p><b>How a week actually runs</b> is history, not a plan. It shows each weekday's share of revenue over the last complete months, and the range that weekday scored against an average day. A weekday is only called consistent when every month agreed — four Mondays a month is a small sample, and most brands will show some pattern by chance. When a client has no reliable rhythm the card says so outright, because presenting noise as insight on a client call is worse than saying nothing. The monthly plan is still split evenly across the days: a day-of-week curve was measured against six clients and predicted <i>worse</i> than an even split.</p>
     <p><b>If a client bills shipping but records no fulfilment cost</b>, that shipping income is already inside revenue and cannot be netted back out — so contribution margin really is overstated by roughly that amount. The page warns you instead of quietly adjusting the number; the fix is to add shipping costs in Triple Whale.</p>
     <p><b>The chart:</b> daily net sales against daily ad spend, so you can see whether spending more actually moved revenue, or just moved cost. Hover or tap anywhere for exact values.</p>
     <p><b>New vs returning:</b> a healthy acquisition business runs high on new. A high returning share with weak new revenue means the ads have stopped working and the list is carrying the store — MER looks fine while aMER quietly collapses. That's the failure mode this page exists to catch.</p>`,
@@ -762,6 +763,59 @@ function forecastCard(fc, cur) {
       CTC are explicit that paid acquisition can't be forecast precisely; the returning base is the part you can lean on.</p></div>`;
 }
 
+/** How a week actually runs for this client.
+ *  DESCRIPTIVE ONLY. The plan is deliberately split evenly across the month - a
+ *  day-of-week curve backtested WORSE than an even split - so this card must never
+ *  read as a target. Its job is to stop a soft Monday reading as a problem, and to
+ *  say plainly when a brand has no rhythm at all rather than inventing one from
+ *  four Mondays of data. */
+function rhythmCard(rh, cur) {
+  if (!rh || !rh.enough) return '';
+  const monthsLbl = rh.months.map(m => monthLabel(m)).join(', ');
+  const pill = v => v === 'strong' ? '<span class="pill good">consistently strong</span>'
+    : v === 'soft' ? '<span class="pill warn">consistently soft</span>'
+    : '<span class="pill unk">varies</span>';
+  // Only project dollars by weekday when the rhythm is real. Splitting a plan by a
+  // pattern that is chance is the exact thing this card exists to avoid.
+  const wk = rh.reliable && rh.plan && rh.plan.sales != null && rh.plan.days_in_month
+    ? rh.plan.sales / rh.plan.days_in_month * 7 : null;
+
+  const rows = rh.days.map(x => `<tr${x.verdict === 'mixed' ? ' style="opacity:.62"' : ''}>
+    <td><b>${esc(x.name)}</b></td>
+    <td class="num"><b>${fmtPct(x.share, 1)}</b></td>
+    <td class="num tiny">${x.index_lo != null ? `${x.index_lo.toFixed(2)}–${x.index_hi.toFixed(2)}` : '—'}</td>
+    <td>${pill(x.verdict)}</td>
+    <td class="num">${fmtX(x.mer)}</td>
+    ${wk != null ? `<td class="num tiny">${fmtMoney(wk * x.share, cur)}</td>` : ''}
+  </tr>`).join('');
+
+  const strong = rh.days.filter(x => x.verdict === 'strong').map(x => x.name);
+  const soft = rh.days.filter(x => x.verdict === 'soft').map(x => x.name);
+  const list = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+
+  const verdict = rh.reliable
+    ? `<div class="notice">✓ <div><b>This client has a real weekly rhythm.</b>
+        ${strong.length ? `<b>${esc(list(strong))}</b> came in above an average day in <i>every</i> month looked at${soft.length ? ', while ' : '.'}` : ''}
+        ${soft.length ? `<b>${esc(list(soft))}</b> came in below an average day every month.` : ''}
+        The other days moved around too much to call.</div></div>`
+    : `<div class="notice warn">ℹ️ <div><b>No reliable weekly rhythm.</b> This client's weekdays swing about as much from month to month as they do from each other, so the shares below are close to chance — a month only contains four of each weekday. Read this as "every day is much the same", and do not build a story around it for the client.</div></div>`;
+
+  return `<div class="card"><h3 style="margin-bottom:2px">How a week actually runs <span class="info-i" title="Share of revenue by weekday across the last complete months. The index range is that weekday compared with an average day, one figure per month — a day is only called consistent when every month agreed. This is history for context, NOT the plan: the monthly plan is split evenly across the days on purpose, because a day-of-week curve was measured to predict worse than an even split.">i</span></h3>
+    <p class="hint" style="margin-bottom:10px">Based on ${esc(monthsLbl)} — complete months only. <b>This is what happened, not a target.</b> Your plan is still measured evenly across the month.</p>
+    ${verdict}
+    <div class="tbl-wrap" style="margin-top:12px"><table>
+      <thead><tr><th>Day</th>
+        <th class="num">Share of week <span class="info-i" title="This weekday's revenue as a share of the whole week. Seven equal days would be 14.3% each.">i</span></th>
+        <th class="num">vs average day <span class="info-i" title="The lowest and highest this weekday scored across the months looked at, where 1.00 is an average day. A tight range means a real pattern; a range straddling 1.00 means it is noise.">i</span></th>
+        <th></th>
+        <th class="num">MER <span class="info-i" title="Revenue divided by ad spend on that weekday across the whole window. Where this differs a lot by day, there may be a case for pacing budget toward the efficient days.">i</span></th>
+        ${wk != null ? `<th class="num">Typical week <span class="info-i" title="This weekday's share applied to a week at the current plan. Illustrative only - it is what history suggests a week looks like, not the number you are measured against.">i</span></th>` : ''}
+      </tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    ${wk != null && rh.reliable ? `<p class="tiny" style="margin-top:8px">The last column spreads a <b>${fmtMoney(wk, cur)}</b> week (your ${esc(monthLabel(rh.plan.month))} plan ÷ ${rh.plan.days_in_month} × 7) across the days by their measured share. Useful for setting expectations on a call — <b>not</b> what the Daily Brief compares against.</p>` : ''}
+  </div>`;
+}
+
 async function renderProfit(first) {
   if (S.act === 'all') return renderProfitAll();
   const run = ++RUN;
@@ -770,6 +824,8 @@ async function renderProfit(first) {
   try { d = await api(`/api/client?act=${S.act}&days=${S.days}`); }
   catch (e) { if (run === RUN) $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
   try { fc = await api(`/api/forecast?act=${S.act}`); } catch { /* forecast is a bonus, never a blocker */ }
+  let rh = null;
+  try { rh = await api(`/api/rhythm?act=${S.act}`); } catch { /* rhythm is context, never a blocker */ }
   if (run !== RUN) return;
   const cur = d.account.currency, t = d.totals;
   const acct = S.accounts.find(a => a.act_id === S.act);
@@ -810,6 +866,7 @@ async function renderProfit(first) {
       <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> = net sales, <span style="color:#C08A2E;font-weight:700">amber</span> = ad spend. The gap between them is what pays for everything else. Hover or tap for exact values.</p>
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
       ${chart.svg}</div>
+    ${rhythmCard(rh, cur)}
     <div class="card"><h3 style="margin-bottom:8px">New vs returning</h3>
       <p class="hint" style="margin-bottom:8px">${fmtMoney(t.new_rev, cur)} from new customers (<b>${fmtPct(t.new_share)}</b>) · ${fmtMoney(t.ret_rev, cur)} returning. A high returning share with weak new revenue means the list is carrying the store and the ads have stopped acquiring — MER holds up while aMER quietly falls.</p></div>`;
 

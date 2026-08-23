@@ -523,6 +523,86 @@ async function forecastFor(env, acct, ym) {
   };
 }
 
+/* ---------------- weekday rhythm ----------------
+ * DESCRIPTIVE ONLY. This is history, never a target. The monthly plan splits
+ * evenly on purpose (a day-of-week curve backtested 7.6% WORSE than an even split
+ * across six clients), so nothing here may feed a forecast.
+ *
+ * The honest question is not "what is Monday's average?" - four Mondays a month is
+ * a tiny sample and every brand will show SOME pattern by chance. It is "does the
+ * same weekday land on the same side of average every month?". So we compute one
+ * index per weekday per COMPLETE month and report the RANGE. A day whose whole
+ * range sits above 1.0 is genuinely strong; a day whose range straddles 1.0 is
+ * noise, and is labelled as such rather than dressed up.
+ */
+const DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+async function weekdayRhythm(env, acct, months = 3) {
+  const today = localDate(acct.tz);
+  const thisYm = monthOf(today);
+  // Whole months only - a part month would over-weight whichever weekdays it
+  // happens to contain.
+  const wanted = [];
+  let m = prevMonth(thisYm);
+  for (let i = 0; i < months; i++) { wanted.unshift(m); m = prevMonth(m); }
+  const from = `${wanted[0]}-01`;
+  const to = `${wanted[wanted.length - 1]}-${String(daysInMonth(wanted[wanted.length - 1])).padStart(2, '0')}`;
+  const { rows } = await seriesFor(env, acct, from, to);   // same revenue basis as everywhere else
+  const byMonth = {};
+  for (const r of rows) if (r.sales != null) (byMonth[monthOf(r.date)] ??= []).push(r);
+
+  const used = wanted.filter(ym => (byMonth[ym] || []).length >= daysInMonth(ym) - 2);
+  if (used.length < 2) return { account: pubAccount(acct), months: used, enough: false };
+
+  // index per weekday per month = that weekday's mean / the month's mean
+  const perMonth = used.map(ym => {
+    const list = byMonth[ym];
+    const mean = list.reduce((a, r) => a + r.sales, 0) / list.length;
+    const sum = Array(7).fill(0), cnt = Array(7).fill(0);
+    for (const r of list) { const d = dowOf(r.date); sum[d] += r.sales; cnt[d]++; }
+    return sum.map((v, i) => (cnt[i] && mean > 0 ? (v / cnt[i]) / mean : null));
+  });
+
+  // share of the week, and efficiency, pooled across the whole window
+  const sales = Array(7).fill(0), spend = Array(7).fill(0), newRev = Array(7).fill(0), days = Array(7).fill(0);
+  for (const ym of used) for (const r of byMonth[ym]) {
+    const d = dowOf(r.date);
+    sales[d] += r.sales; spend[d] += r.spend ?? 0; newRev[d] += r.new_rev ?? 0; days[d]++;
+  }
+  const totalSales = sales.reduce((a, b) => a + b, 0);
+
+  const out = DOW_NAMES.map((name, d) => {
+    const idx = perMonth.map(mm => mm[d]).filter(v => v != null);
+    const lo = idx.length ? Math.min(...idx) : null;
+    const hi = idx.length ? Math.max(...idx) : null;
+    const avg = idx.length ? idx.reduce((a, b) => a + b, 0) / idx.length : null;
+    // Consistent only when EVERY month agreed on the direction.
+    const verdict = lo == null ? 'none' : lo > 1.02 ? 'strong' : hi < 0.98 ? 'soft' : 'mixed';
+    return {
+      dow: d, name,
+      share: totalSales > 0 ? sales[d] / totalSales : null,
+      index: avg, index_lo: lo, index_hi: hi, verdict,
+      sales: sales[d], spend: spend[d], days: days[d],
+      mer: spend[d] > 0 ? sales[d] / spend[d] : null,
+      amer: spend[d] > 0 ? newRev[d] / spend[d] : null,
+    };
+  });
+
+  const consistent = out.filter(x => x.verdict === 'strong' || x.verdict === 'soft');
+  const idxs = out.map(x => x.index).filter(v => v != null);
+  return {
+    account: pubAccount(acct), months: used, enough: true,
+    days: out,
+    consistent_days: consistent.length,
+    // A pattern worth acting on needs at least two weekdays that behaved the same
+    // way in every month observed.
+    reliable: consistent.length >= 2,
+    spread: idxs.length ? Math.max(...idxs) - Math.min(...idxs) : null,
+    strongest: out.slice().sort((a, b) => (b.index ?? 0) - (a.index ?? 0))[0],
+    weakest: out.slice().sort((a, b) => (a.index ?? 9) - (b.index ?? 9))[0],
+  };
+}
+
 /* ---------------- cost-data trust ----------------
  * Real cost data is stable day to day. Incomplete COGS (some SKUs costed, some
  * not) makes daily margin swing wildly or go negative — and a wrong profit
@@ -963,6 +1043,19 @@ export default {
           ).bind(b.act, token).run();
         }
         return json({ ok: true, url: `${DASHBOARD_URL}?perf=${token}`, regenerated: !!b.regenerate });
+      }
+
+      /* Weekday rhythm: what a week actually looks like for this client. */
+      if (path === '/api/rhythm') {
+        const act = url.searchParams.get('act');
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const r = await weekdayRhythm(env, acct, Math.min(+url.searchParams.get('months') || 3, 6));
+        // The current month's plan, so a reliable rhythm can be shown as dollars.
+        const ym = url.searchParams.get('month') || monthOf(localDate(acct.tz));
+        const g = goalsFor(acct, ym);
+        return json({ ...r, plan: (g.sales != null || g.spend != null)
+          ? { month: ym, sales: g.sales ?? null, spend: g.spend ?? null, days_in_month: daysInMonth(ym) } : null });
       }
 
       if (path === '/api/costs') {
