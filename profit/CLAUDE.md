@@ -55,6 +55,28 @@ profit/
   base (contamination only adds cost, so the median collapses once contamination
   passes ~50% of days, as it does for Grunk). Frame this in the UI as wholesale /
   inventory receipts, never as "your data is wrong".
+- **Fulfilment is the SECOND variable cost and it fails silently. `mirrored` is the
+  state that matters.** Where no delivery rate is configured, Triple Whale writes the
+  shipping CHARGE into `totalShippingCosts`, so the two sides cancel and delivery
+  leaves contribution margin with nothing on screen to say so. Measured over 12
+  months: cost equals revenue to the cent on 351/351 days (Dartee), 356/356 (Lucky)
+  and 362/362 (Party Patch), against 1/365 for Bonk and 0/365 for Grunk, who both
+  have real rates. It is the absence of a measurement, not a pass-through deal — the
+  old wording ("nets to zero") gave the one broken state a clean bill of health.
+  `shippingMode()` returns measured / mirrored / uncosted / none plus per-order
+  figures, and the Costs page sizes the unknown by pricing this client's ORDERS at
+  what the `measured` clients pay per order. Per order, not per revenue: delivery is
+  priced per parcel. **State it as a bracket and never as a point estimate** — the
+  peers are whoever happens to have a rate configured, and weight and box size drive
+  the number. Nothing adjusts CM for it; a silent correction is indistinguishable
+  from a measurement. Live at 60 days: Golf Sock books nothing at all against $7,173
+  of shipping income (a 10.9-13.3k hole, 6.5-7.9% of revenue), while Lucky and Party
+  Patch charge ABOVE what the measured clients pay, so their mirrored figure is more
+  likely too big than too small — which is why the wording offers both readings.
+- **A flat margin override bypasses the whole cost chain, fulfilment included.**
+  `dayEconomics` takes `sales * marginPct` and never looks at product, delivery,
+  handling or fees, so any card describing a cost must say so when `margin_pct` is
+  set — "already inside contribution margin" is untrue for Grunk.
 - **Cost data is gated.** `judgeCosts()` grades the trailing per-day margin;
   `broken` suppresses every profit figure. The Costs page must always diagnose
   the **real** TW data (`seriesRaw`, override ignored) — grading the override

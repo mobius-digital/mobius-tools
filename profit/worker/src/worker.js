@@ -116,7 +116,10 @@ async function isAdmin(request, env) {
  *   /shopify/install?shop=x.myshopify.com  -> issue a nonce, redirect to Shopify
  *   /shopify/callback                      -> verify HMAC + state, swap code for token
  */
-const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products';
+// read_reports is what grants shopifyqlQuery, and the cohort data comes from
+// ShopifyQL `FROM customers`. Without it cohorts fail silently. Must stay in step
+// with profit/shopify.app.toml - Shopify compares the two at install.
+const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports';
 const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 
 /** Constant-time-ish compare so a mismatched HMAC cannot be probed byte by byte. */

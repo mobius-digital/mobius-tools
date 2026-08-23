@@ -177,5 +177,17 @@ Phase 0 is the only one with a hard dependency — everything else can be reorde
   2026-08-23.** `?perf=<token>` renders one client's month-to-date against its plan.
   Contribution margin is dropped automatically when `p_cost_health` does not trust
   the cost data, so the client never sees a figure we would suppress internally.
-- Shipping cost: Triple Whale carries it, but is it accurate per client, or does it
-  need the same override treatment as COGS?
+- ~~Shipping cost: Triple Whale carries it, but is it accurate per client, or does it
+  need the same override treatment as COGS?~~ **Answered 2026-08-23: it is accurate
+  for two clients out of six, and the other four fail in two different ways.** Where
+  no delivery rate is configured Triple Whale writes the shipping *charge* into the
+  cost field, so the two cancel and fulfilment leaves contribution margin silently —
+  cost equals revenue to the cent on 351/351 days for Dartee, 356/356 for Lucky and
+  362/362 for Party Patch, against 1/365 for Bonk and 0/365 for Grunk, who have real
+  rates. The Golf Sock is the other failure: $7,173 of shipping income over 60 days
+  with nothing booked against it at all. So no, it does **not** get an override —
+  a second flat percentage would be a third place for a number to drift. It gets a
+  **diagnosis**: `shippingMode()` returns measured / mirrored / uncosted / none, and
+  the Costs page sizes the unknown by pricing that client's orders at what the
+  measured clients actually pay per order, stated as a bracket. Nothing on the
+  dashboard adjusts for it — the fix is a real rate in Triple Whale.

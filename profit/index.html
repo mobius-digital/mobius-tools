@@ -552,7 +552,12 @@ const PAGE_HELP = {
     • <b>Noisy</b> — margin moves more than it should. Directionally fine, don't quote it to the decimal.<br>
     • <b>Broken</b> — costs exceed revenue on some days, or margin is wildly unstable. <b>All profit figures for this client are suppressed everywhere</b>, including the Daily Brief, until it's fixed.</p>
     <p><b>Two ways to fix it:</b> enter the missing product costs in Triple Whale (Settings → Costs) — the right long-term answer — or set a <b>flat margin override</b> here, which uses one blended percentage instead of per-product costs. The override is honest and stable; it just can't tell you which products are the profitable ones.</p>
-    <p><b>The override is shared:</b> setting it here also fixes the Daily Brief in Account Health, because both read the same field.</p>`,
+    <p><b>The override is shared:</b> setting it here also fixes the Daily Brief in Account Health, because both read the same field.</p>
+    <p><b>Fulfilment is the second variable cost, and it fails more quietly than COGS.</b> Product costs announce a problem — margin swings, days go negative. Delivery does not: where no shipping rate is configured, Triple Whale copies the charge the customer paid into the cost field, the two cancel to the cent, and contribution margin is left carrying no delivery cost at all while looking perfectly healthy. The Fulfilment card tells you which of three states a client is in:<br>
+    • <b>Measured</b> — a real rate is configured; what shipping costs is already inside contribution margin. Nothing to do.<br>
+    • <b>Not measured</b> — the recorded cost is the charge copied back, on nearly every day, to the cent. The cost is unknown, not zero.<br>
+    • <b>No fulfilment cost</b> — customers were charged for delivery and nothing at all was booked against it.</p>
+    <p><b>Sizing the unknown:</b> for the two states that need it, the card prices the client's orders at what your <i>measured</i> clients actually pay per order and shows the gap as a range. That is a bracket, not an answer — delivery cost follows weight and box size, and the peers are simply whoever has a rate configured. <b>Nothing on this dashboard adjusts for it.</b> The fix is at source: Triple Whale → Settings → Costs → shipping.</p>`,
   brief: `
     <p><b>What this page is:</b> the client-facing daily update, the way top agencies run it — every day compared against a <i>plan</i>, so "£3,215" stops being trivia and becomes "we missed by 9%". Set monthly goals once; the tool forecasts each day, measures the actual, writes the story, and posts it to the brand's Slack channel every morning.</p>
     <p><b>The metrics:</b><br>
@@ -710,42 +715,58 @@ function fulfilExposure(s, bench) {
 /** The fulfilment section of the Costs page. Diagnoses, sizes the unknown, and
  *  names the fix — it never adjusts a number, for the same reason the COGS side
  *  never does: a silent correction is indistinguishable from a measurement. */
-function fulfilSection(s, cur, actId, windowSales, days) {
+function fulfilSection(s, cur, actId, windowSales, days, marginPct) {
+  // A flat margin override replaces the WHOLE variable-cost chain — dayEconomics
+  // takes `sales * marginPct` and never looks at product, delivery, handling or
+  // fees. So for an override client none of this reaches contribution margin,
+  // and saying "already inside CM" would be flatly untrue.
+  const ovr = marginPct != null
+    ? ` <b>This client is on a flat ${Math.round(marginPct * 100)}% margin override</b>, so none of these figures feed contribution margin directly — the override replaces the whole cost chain with one percentage, delivery included. What follows describes the real Triple Whale data behind it.`
+    : '';
   if (!s || s.mode === 'none') {
     return `<div class="card"><h3 style="margin-bottom:6px">Fulfilment</h3>
-      <p class="hint">Nothing was charged or costed for delivery in the last ${days} days, so shipping does not touch this client's contribution margin either way.</p></div>`;
+      <p class="hint">Nothing was charged or costed for delivery in the last ${days} days, so shipping does not touch this client's contribution margin either way.${ovr}</p></div>`;
   }
   const perO = n => n == null ? '—' : fmtMoney(n, cur);
   const bench = fulfilBenchmark(actId);
   const exp = s.mode === 'measured' ? null : fulfilExposure(s, bench);
   const peerNames = bench ? bench.peers.map(p => `${esc(p.name)} ${perO(p.per)}`).join(' and ') : '';
   const share = windowSales > 0 && exp ? { lo: exp.lo / windowSales, hi: exp.hi / windowSales } : null;
+  const orderCount = Math.round(s.orders).toLocaleString();
 
-  // The bracket is two clients wide, so it is stated as a bracket. Weight and box
-  // size drive delivery cost more than anything else, and the peers are whoever
-  // happens to have a real rate configured — not a matched comparison.
-  const benchNote = bench ? `The only clients whose Triple Whale carries a real delivery rate are ${peerNames} an order. Delivery cost follows weight and box size more than anything else, so a lighter product than theirs sits below that bracket and a heavier one above — it sizes the unknown, it does not measure it.` : '';
+  // The bracket is a couple of clients wide, so it is stated as a bracket. Weight
+  // and box size drive delivery cost more than anything else and the peers are
+  // simply whoever has a rate configured — so the wording never converts the
+  // bracket into a point estimate, and never claims to know which side is right.
+  const benchNote = bench ? `The only clients whose Triple Whale carries a real delivery rate are ${peerNames} an order. Delivery cost follows weight and box size more than anything else, and these peers are just whoever happens to have a rate configured — so this sizes the unknown, it does not measure it.` : '';
   const expLine = !exp ? ''
-    : exp.lo > 0 ? `At that rate this client's <b>${Math.round(s.orders).toLocaleString()} orders</b> imply <b>${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}</b> of delivery cost against the <b>${fmtMoney(s.cost, cur)}</b> currently booked, so contribution margin here is <b>overstated by roughly ${fmtMoney(exp.lo, cur)} – ${fmtMoney(exp.hi, cur)}</b> over these ${days} days${share ? ` — ${fmtPct(share.lo, 1)} to ${fmtPct(share.hi, 1)} of revenue` : ''}.`
-    : exp.hi < 0 ? `At that rate this client's <b>${Math.round(s.orders).toLocaleString()} orders</b> imply only <b>${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}</b> of delivery cost against the <b>${fmtMoney(s.cost, cur)}</b> currently booked — this client charges well above what the others pay to ship, so the copied figure is <i>too big</i> and contribution margin is more likely <b>understated by ${fmtMoney(-exp.hi, cur)} – ${fmtMoney(-exp.lo, cur)}</b>.`
-    : `At that rate this client's <b>${Math.round(s.orders).toLocaleString()} orders</b> imply <b>${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}</b> of delivery cost, and the <b>${fmtMoney(s.cost, cur)}</b> copied across happens to sit inside that range. So the size is about right by luck — but it is still not a measurement, and it will drift the moment the shipping policy or the product mix changes.`;
+    : s.mode === 'uncosted' ? `Nothing at all is booked, so the direction is certain even if the size is not: delivery costs more than zero. To scale it — at what your measured clients pay, this client's <b>${orderCount} orders</b> would be <b>${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}</b> over these ${days} days${share ? `, ${fmtPct(share.lo, 1)} to ${fmtPct(share.hi, 1)} of revenue` : ''}.`
+    : exp.lo > 0 ? `At that rate this client's <b>${orderCount} orders</b> would cost <b>${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}</b> to deliver, above the <b>${fmtMoney(s.cost, cur)}</b> booked — so contribution margin is more likely overstated than not, by <b>up to ${fmtMoney(exp.hi, cur)}</b> over these ${days} days${share ? ` (${fmtPct(share.hi, 1)} of revenue)` : ''}.`
+    : exp.hi < 0 ? `At that rate this client's <b>${orderCount} orders</b> would cost <b>${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}</b> to deliver, well under the <b>${fmtMoney(s.cost, cur)}</b> booked. Either this client genuinely ships heavier or bulkier than they do, or contribution margin is being understated by <b>up to ${fmtMoney(-exp.lo, cur)}</b>. Nothing here can tell you which — only a real rate can.`
+    : `At that rate this client's <b>${orderCount} orders</b> would cost <b>${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}</b> to deliver, and the <b>${fmtMoney(s.cost, cur)}</b> copied across sits inside that range. So the size looks about right — by luck, not by measurement, and it will drift the moment the shipping policy or the product mix changes.`;
+
+  const worthLabel = !exp ? 'against the booked figure'
+    : s.mode === 'uncosted' ? 'none of it is booked'
+    : exp.lo > 0 ? `vs ${fmtMoney(s.cost, cur)} booked — margin likely overstated`
+    : exp.hi < 0 ? `vs ${fmtMoney(s.cost, cur)} booked — booked figure looks high`
+    : `vs ${fmtMoney(s.cost, cur)} booked — about the right size`;
 
   const stats = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 14px">
     ${statCard('Charged to customers', fmtMoney(s.rev, cur), `${perO(s.rev_per_order)} an order · ${days} days`, 'What customers paid for delivery over the window. This sits INSIDE revenue on every tab, because revenue is Shopify Total Sales less tax — so it can never be netted back out, only costed against.')}
     ${statCard(s.mode === 'measured' ? 'What delivery cost' : 'Recorded as cost', fmtMoney(s.cost, cur), s.mode === 'mirrored' ? 'copied from the charge, not measured' : s.mode === 'uncosted' ? 'nothing booked at all' : `${perO(s.cost_per_order)} an order`, 'What Triple Whale holds as the fulfilment cost. When no delivery rate is configured it writes the shipping CHARGE in here instead, which is not the same thing at all.')}
-    ${statCard('Orders', Math.round(s.orders).toLocaleString(), `over ${days} days`, 'Total orders in the window. Delivery is priced per parcel, so orders — not revenue — is what a shipping cost scales with.')}
-    ${statCard(s.mode === 'measured' ? 'Shipping nets' : 'What it is worth', s.mode === 'measured' ? fmtMoney(s.rev - s.cost, cur) : exp ? `${fmtMoney(exp.lo, cur)} – ${fmtMoney(exp.hi, cur)}` : '—', s.mode === 'measured' ? (s.rev >= s.cost ? 'delivery pays for itself' : 'delivery runs at a loss') : exp && exp.lo > 0 ? 'margin overstated by this' : exp && exp.hi < 0 ? 'margin understated by this' : 'against the booked figure', s.mode === 'measured' ? 'Shipping revenue minus fulfilment cost over the window. Negative means customers are not covering delivery, which is a pricing decision, not a data problem.' : 'The gap between what is booked and what the clients with a real delivery rate actually pay per order. An estimate of an unknown, never applied to any figure on this dashboard.')}
+    ${statCard('Orders', orderCount, `over ${days} days`, 'Total orders in the window. Delivery is priced per parcel, so orders — not revenue — is what a shipping cost scales with.')}
+    ${statCard(s.mode === 'measured' ? 'Shipping nets' : 'What it would cost', s.mode === 'measured' ? fmtMoney(s.rev - s.cost, cur) : exp ? `${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}` : '—', s.mode === 'measured' ? (s.rev >= s.cost ? 'delivery pays for itself' : 'delivery runs at a loss') : worthLabel, s.mode === 'measured' ? 'Shipping revenue minus fulfilment cost over the window. Negative means customers are not covering delivery, which is a pricing decision, not a data problem.' : 'This client’s orders priced at what the clients WITH a real delivery rate actually pay per order. A bracket for an unknown, never applied to any figure on this dashboard.')}
   </div>`;
 
   if (s.mode === 'measured') {
     return `<div class="card"><h3 style="margin-bottom:2px">Fulfilment ${shipPill(s)}</h3>
-      <p class="hint" style="margin-bottom:12px">Triple Whale holds a real delivery rate for this client, so what shipping costs is already inside contribution margin and nothing here needs fixing.</p>
+      <p class="hint" style="margin-bottom:12px">Triple Whale holds a real delivery rate for this client, so what shipping costs is measured rather than guessed${marginPct != null ? '' : ' and is already inside contribution margin'}.${ovr}</p>
       ${stats}
       <p class="tiny">Customers paid <b>${perO(s.rev_per_order)}</b> an order for delivery and it cost <b>${perO(s.cost_per_order)}</b> to ship, so shipping ${s.rev >= s.cost ? 'contributes' : 'costs'} <b>${fmtMoney(Math.abs(s.rev - s.cost), cur)}</b> over ${days} days${s.rev < s.cost ? ` — ${perO((s.cost - s.rev) / s.orders)} an order out of margin. That is a real number and a pricing question, not a data one.` : '.'}</p></div>`;
   }
 
   return `<div class="card"><h3 style="margin-bottom:2px">Fulfilment ${shipPill(s)}</h3>
-    <p class="hint" style="margin-bottom:12px">Product costs are not the only variable cost that can go missing, and delivery fails more quietly.</p>
+    <p class="hint" style="margin-bottom:12px">Product costs are not the only variable cost that can go missing, and delivery fails more quietly.${ovr}</p>
     <div class="notice ${s.mode === 'uncosted' ? 'bad' : 'warn'}" style="margin:0 0 14px">⚠️ <div>${s.mode === 'mirrored'
       ? `<b>Delivery is not being measured — Triple Whale is echoing the charge.</b> On <b>${s.matched_days} of ${s.billed_days} days</b> where a customer paid for shipping, the recorded cost equals that charge to the cent. That is not a pass-through arrangement and it is not a coincidence: with no delivery rate configured, Triple Whale books the charge as the cost, the two cancel, and <b>fulfilment leaves contribution margin entirely</b>.`
       : `<b>Customers were charged ${fmtMoney(s.rev, cur)} for delivery and no cost is recorded against any of it.</b> That income is already inside revenue and cannot be netted back out, so contribution margin is overstated by whatever delivery actually costs.`}</div></div>
@@ -1074,7 +1095,7 @@ function marginSVG(rows) {
 async function renderCosts(first) {
   if (S.act === 'all') {
     $('#main').innerHTML = `<h2>Costs</h2>
-      <p class="sub">Contribution margin is only as good as the product costs behind it. This is where you check that per client.</p>
+      <p class="sub">Contribution margin is only as good as the costs behind it — product <i>and</i> delivery. This is where you check both, per client.</p>
       <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfilment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfilment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
@@ -1124,7 +1145,7 @@ async function renderCosts(first) {
     <div class="card"><h3 style="margin-bottom:2px">Daily margin, last 60 days <span class="info-i" title="Each day\’s gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of that day\’s revenue. Real cost data barely moves day to day.">i</span></h3>
       <p class="hint" style="margin-bottom:6px">Retail-only cost data draws a nearly flat line. Every spike below the red zero line is a day where product cost exceeded store revenue — the fingerprint of a wholesale order or an inventory delivery, not of a bad product catalogue.</p>
       ${marginSVG(d.rows)}</div>
-    ${fulfilSection(d.shipping, cur, S.act, winSales, 60)}
+    ${fulfilSection(d.shipping, cur, S.act, winSales, 60, d.margin_pct)}
     ${d.worst?.length ? `<div class="card"><h3 style="margin-bottom:8px">Worst days</h3>
       <p class="hint" style="margin-bottom:10px">The days with the lowest margin. Check a couple against Shopify: if the orders that day don't account for the cost, the difference went out as wholesale or stock, and the revenue for it lives outside this dashboard.</p>
       <div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Net sales</th><th class="num">Recorded COGS</th><th class="num">Fees</th><th class="num">Margin</th></tr></thead>
