@@ -601,6 +601,14 @@ const PAGE_HELP = {
     <p><b>Backfill 430d</b> re-pulls that client's full Triple Whale history. Run it <b>one client at a time</b> — a full pull is tens of thousands of rows. You need it once per client so sales tax is on record for every month; without it, months older than the last sync read very slightly high, because revenue is stated net of tax.</p>`,
 };
 
+/** Update the shared account snapshot in place, without touching the DOM.
+ *  Anything that changes goals or the underlying data must call this, or other tabs
+ *  keep serving the copy of S.accounts they were handed at page load. */
+async function refreshAccounts() {
+  try { const r = await api('/api/overview?days=' + S.days); if (r && r.accounts) S.accounts = r.accounts; }
+  catch { /* a stale snapshot is better than a broken page */ }
+}
+
 /** Re-run a renderer without throwing the reader back to the top. Any handler that
  *  refetches (month change, toggle that alters data) should go through this. */
 async function inPlace(fn) {
@@ -1288,8 +1296,11 @@ async function renderBrief(first) {
     if (on && !d.goals) { $('#gMsg').textContent = 'Set goals first — auto-post needs a plan to compare against.'; return; }
     if (on && !(acct?.brief_channel || acct?.slack_channel)) { $('#gMsg').textContent = 'Pick this brand’s Daily Brief channel on the Settings tab first.'; return; }
     e.target.classList.toggle('on', on);
-    try { await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: S.act, brief_enabled: on }) }); }
-    catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); e.target.classList.toggle('on', !on); }
+    try {
+      await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: S.act, brief_enabled: on }) });
+      if (acct) acct.brief_enabled = on;
+      refreshAccounts();                    // keep the Settings tab in step
+    } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); e.target.classList.toggle('on', !on); }
   };
   $('#bfWrite').onclick = async () => {
     const b = $('#bfWrite'); b.disabled = true; $('#bfMsg').textContent = 'Claude is writing… (~20s)';
@@ -1675,8 +1686,9 @@ async function renderPlan(first) {
     inPlace(() => renderPlan(false));
   });
 
-  // Quarter to date - loaded after the plan so it can never delay it.
-  api(`/api/quarter?act=${S.act}`).then(q => {
+  // Quarter to date - loaded after the plan so it can never delay it, and reloadable
+  // because saving a plan changes the very numbers it rolls up.
+  const loadQuarter = () => api(`/api/quarter?act=${S.act}`).then(q => {
     if (run !== RUN) return;
     const el = $('#plQuarter'); if (!el || !q || !q.months) return;
     const pace = q.days_total ? q.days_done / q.days_total : 0;
@@ -1698,6 +1710,7 @@ async function renderPlan(first) {
       <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Agreed</th><th class="num">Actual</th><th class="num">vs plan</th></tr></thead>
         <tbody>${q.per.map(mrow).join('')}</tbody></table></div></div>`;
   }).catch(() => {});
+  loadQuarter();
 
   const sv = $('#plSave');
   if (sv) sv.onclick = async () => {
@@ -1720,6 +1733,10 @@ async function renderPlan(first) {
       }
       if (!(saved && saved.agreed_at) || changed) $('#plChip').innerHTML = '<span class="pill warn">saved, not agreed</span>';
       $('#plMsg').textContent = changed ? 'Saved ✓ — numbers moved, so it needs agreeing again.' : 'Saved ✓';
+      // The quarter card rolls up this very plan, and Overview + Daily Brief read the
+      // goals out of S.accounts. Both refresh in place - no re-render, no scroll jump.
+      loadQuarter();
+      refreshAccounts();
     } catch (e) { $('#plMsg').textContent = e.message; }
   };
 
@@ -2011,6 +2028,7 @@ async function renderSettings() {
       const r = await api(`/api/tw-sync?act=${a.act_id}&days=430`, { method: 'POST' });
       const x = (r.results && r.results[0]) || {};
       msg.textContent = x.ok ? `✓ ${x.metrics} metrics, ${x.from} → ${x.to}` : (x.error || x.skipped || 'done');
+      if (x.ok) await refreshAccounts();   // the numbers behind every other tab just changed
     } catch (err) { msg.textContent = err.message; }
     b.disabled = false;
   });

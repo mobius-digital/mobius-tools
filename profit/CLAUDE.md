@@ -298,6 +298,16 @@ profit/
 - **A control with no visible state reads as broken.** The quick-fill chips changed
   the value silently, so Cole reported they "don't fill in" when they were working.
   Highlight the active one and keep it in sync in `repaint()`.
+- **A save must refresh everything it invalidated, in place.** Cole: "everything needs
+  to auto update instantly." Saving a plan changed the quarter card sitting directly
+  below the button, and the goals that Overview and the Daily Brief read out of
+  `S.accounts` - none of which updated until something happened to call `boot()`.
+  `refreshAccounts()` re-fetches the shared snapshot WITHOUT re-rendering (a re-render
+  would scroll the reader to the top, which is its own rule), and `loadQuarter()` is
+  a named closure so the save handler can re-run just that card. Every mutation must
+  now ask what it invalidated: plan save -> quarter + accounts; Triple Whale backfill
+  -> accounts, since the underlying revenue changed; brief toggle -> accounts, so the
+  Settings tab agrees. Margin and client-settings already went through boot().
 - **Nothing may scroll the page on an update.** Growth chips, switching the derived
   field, month changes and every save update in place; `inPlace(fn)` preserves
   scrollY across a refetch. Calling a renderX() from a handler throws the reader to
