@@ -188,6 +188,21 @@ async function validWebhookHmac(env, rawBody, header) {
 }
 
 /** Tie a shop domain to one of our accounts. accounts.tw_shop already holds it. */
+/** The client's own dashboard token, created on first use.
+ *  Shared by /api/profit-share and the Shopify post-install redirect so a merchant
+ *  and a share link always land on the SAME page - two mint paths would give one
+ *  client two live URLs and no way to revoke both. */
+async function profitShareToken(env, actId) {
+  const row = await env.DB.prepare(`SELECT token FROM p_profit_share WHERE act_id = ?1`).bind(actId).first();
+  if (row?.token) return row.token;
+  const token = crypto.randomUUID().replace(/-/g, '');
+  await env.DB.prepare(
+    `INSERT INTO p_profit_share (act_id, token, created_at) VALUES (?1,?2,datetime('now'))
+     ON CONFLICT(act_id) DO UPDATE SET token = excluded.token, created_at = datetime('now')`,
+  ).bind(actId, token).run();
+  return token;
+}
+
 async function matchAccount(env, shop) {
   const row = await env.DB.prepare(`SELECT act_id FROM accounts WHERE lower(tw_shop) = lower(?1)`).bind(shop).first().catch(() => null);
   return row?.act_id ?? null;
@@ -1204,11 +1219,22 @@ export default {
 
       await registerUninstallWebhook(env, shop, tok.access_token, url.origin);
 
-      return new Response(`<!doctype html><meta charset="utf-8"><title>Connected</title>
-        <div style="font:16px/1.6 system-ui;max-width:520px;margin:12vh auto;padding:0 24px">
-        <h1 style="font-size:22px">Connected \u2713</h1>
-        <p><b>${shop}</b> is now linked to Mobius Profit${actId ? '' : ' (we could not match it to a client automatically - Cole will map it)'}.</p>
-        <p style="color:#647684;font-size:14px">You can close this tab. Nothing is written back to your store; this only reads orders, customers and products so we can report on them.</p></div>`,
+      // Land the merchant on their OWN dashboard, not a dead end. A static
+      // "connected" page fails App Store review outright - every app must have a UI
+      // merchants can interact with - and it is a worse experience regardless.
+      if (actId) {
+        const token = await profitShareToken(env, actId);
+        return Response.redirect(`${DASHBOARD_URL}?perf=${token}`, 302);
+      }
+
+      // No client record matches this domain yet. Say so honestly rather than
+      // pretending it worked; Settings -> Connections is where Cole maps it.
+      return new Response(`<!doctype html><meta charset="utf-8"><title>Store connected</title>
+        <div style="font:16px/1.6 system-ui;max-width:540px;margin:12vh auto;padding:0 24px">
+        <h1 style="font-size:22px">Store connected \u2713</h1>
+        <p><b>${shop}</b> is linked, but it is not matched to a reporting account yet, so there is no dashboard to show you.</p>
+        <p>We will finish setting it up and send you the link. Nothing further is needed from you.</p>
+        <p style="color:#647684;font-size:14px">Nothing is written back to your store - this only reads orders, customers and products so we can report on them. Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p></div>`,
         { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
@@ -1456,16 +1482,73 @@ export default {
         const b = await request.json().catch(() => ({}));
         const acct = (await listAccounts(env, false)).find(a => a.act_id === b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
-        const row = await env.DB.prepare(`SELECT token FROM p_profit_share WHERE act_id = ?1`).bind(b.act).first();
-        let token = row?.token;
-        if (!token || b.regenerate) {
+        let token;
+        if (b.regenerate) {
           token = crypto.randomUUID().replace(/-/g, '');
           await env.DB.prepare(
             `INSERT INTO p_profit_share (act_id, token, created_at) VALUES (?1,?2,datetime('now'))
              ON CONFLICT(act_id) DO UPDATE SET token = excluded.token, created_at = datetime('now')`,
           ).bind(b.act, token).run();
+        } else {
+          token = await profitShareToken(env, b.act);
         }
         return json({ ok: true, url: `${DASHBOARD_URL}?perf=${token}`, regenerated: !!b.regenerate });
+      }
+
+      /* Every client's Shopify connection state, plus the link that connects one.
+       * Cole asked where clients get added moving forward - this is that screen. */
+      if (path === '/api/connections') {
+        const accounts = await listAccounts(env, false);
+        const { results: shops } = await env.DB.prepare(`SELECT * FROM p_shopify`).all()
+          .catch(() => ({ results: [] }));
+        const { results: coRows } = await env.DB.prepare(
+          `SELECT act_id, COUNT(*) AS n, MAX(as_of) AS as_of FROM p_cohorts GROUP BY act_id`,
+        ).all().catch(() => ({ results: [] }));
+        const coBy = Object.fromEntries(coRows.map(r => [r.act_id, r]));
+
+        const byAct = {};
+        for (const sh of shops) if (sh.act_id) (byAct[sh.act_id] ??= []).push(sh);
+        // A store only gets an install link if we actually know its domain.
+        const installUrl = d => (SHOP_RE.test(d || '') ? `${url.origin}/shopify/install?shop=${encodeURIComponent(d)}` : null);
+
+        const clients = accounts.map(a => {
+          const rows = byAct[a.act_id] || [];
+          const live = rows.find(r => !r.uninstalled_at && r.access_token);
+          const past = rows[0];
+          const co = coBy[a.act_id];
+          return {
+            act_id: a.act_id, name: a.name, active: !!a.active,
+            shop: live?.shop ?? past?.shop ?? a.tw_shop ?? null,
+            // 'uninstalled' is deliberately distinct from 'not_connected': a merchant
+            // who removed the app looks identical otherwise, and that is the one case
+            // where the data silently stops updating.
+            status: live ? 'connected' : past ? 'uninstalled' : 'not_connected',
+            installed_at: live?.installed_at ?? null,
+            uninstalled_at: live ? null : (past?.uninstalled_at ?? null),
+            last_sync_at: live?.last_sync_at ?? null,
+            cohort_months: co?.n ?? 0, cohort_as_of: co?.as_of ?? null,
+            install_url: installUrl(a.tw_shop || live?.shop || past?.shop),
+          };
+        });
+
+        // Installed but matched no client. Without this list the store's data is
+        // stranded and nothing on screen ever says why.
+        const unmatched = shops.filter(sh => !sh.act_id && !sh.uninstalled_at)
+          .map(sh => ({ shop: sh.shop, installed_at: sh.installed_at }));
+
+        return json({ clients, unmatched, app_configured: !!env.SHOPIFY_API_KEY });
+      }
+
+      /* Point a connected store at a client, for a domain that did not auto-match. */
+      if (path === '/api/connections/map' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        if (!SHOP_RE.test(b.shop || '')) return json({ error: 'invalid shop domain' }, 400);
+        const acct = (await listAccounts(env, false)).find(a => a.act_id === b.act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const r = await env.DB.prepare(`UPDATE p_shopify SET act_id = ?2 WHERE shop = ?1`)
+          .bind(b.shop, b.act).run();
+        if (!r.meta?.changes) return json({ error: 'that store has not installed the app' }, 404);
+        return json({ ok: true, shop: b.shop, act: b.act });
       }
 
       /* Real cohorts, for stores that have connected Shopify. */

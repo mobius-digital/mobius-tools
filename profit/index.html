@@ -2108,6 +2108,68 @@ async function renderCustomers(first) {
 }
 
 /* ---------- Settings ---------- */
+/** Shopify connections: which client stores are connected, and the one link that
+ *  connects a new one. This is the answer to "where do I add clients" - before it
+ *  existed a store connected only if its domain happened to match `tw_shop`, with
+ *  nothing on screen to say whether it had, or to fix it when it had not. */
+async function connectionsCard(run) {
+  let d;
+  try { d = await api('/api/connections'); }
+  catch (e) { return `<div class="card"><h3 style="margin-bottom:6px">Shopify connections</h3>
+    <p class="hint" style="margin-bottom:0">Could not load (${esc(e.message)}).</p></div>`; }
+  if (run !== RUN) return null;
+
+  const one = S.act === 'all' ? null : S.act;
+  const shown = one ? d.clients.filter(c => c.act_id === one) : d.clients;
+
+  const pill = c => c.status === 'connected'
+    ? '<span class="pill good">Connected</span>'
+    : c.status === 'uninstalled'
+    ? '<span class="pill bad">Removed by client</span>'
+    : '<span class="pill">Not connected</span>';
+
+  // What the connection actually BUYS them, per client - otherwise "connected" is a
+  // green dot with no meaning. Cohorts are the only thing that needs Shopify.
+  const gives = c => c.status !== 'connected'
+    ? '<span class="tiny">no lifetime-value cohorts</span>'
+    : c.cohort_months
+    ? `<span class="tiny">${c.cohort_months} cohort months${c.cohort_as_of ? ' &middot; as of ' + esc(String(c.cohort_as_of).slice(0, 10)) : ''}</span>`
+    : '<span class="tiny">connected, no cohort data pulled yet</span>';
+
+  const rows = shown.map(c => `<tr data-act="${esc(c.act_id)}">
+    <td><b>${esc(c.name)}</b>${c.active ? '' : ' <span class="tiny">(inactive)</span>'}<br>
+      <span class="tiny">${c.shop ? esc(c.shop) : 'no store domain on file'}</span></td>
+    <td>${pill(c)}${c.uninstalled_at ? `<br><span class="tiny">removed ${esc(String(c.uninstalled_at).slice(0, 10))}</span>` : ''}</td>
+    <td>${gives(c)}</td>
+    <td>${c.install_url
+      ? `<button class="btn" data-copy="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>`
+      : '<span class="tiny">add the store domain in Account Health first</span>'}
+      <span class="tiny" data-msg="${esc(c.act_id)}"></span></td>
+  </tr>`).join('');
+
+  // A store that installed but matched nothing is the one failure that is otherwise
+  // invisible: the merchant sees success, and the data goes nowhere.
+  const unmatched = d.unmatched.length ? `<div class="notice warn" style="margin-top:12px">&#9888;&#65039;
+    <div><b>${d.unmatched.length} connected ${d.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a client.</b>
+    ${d.unmatched.length === 1 ? 'Its data is being held but nothing reports on it until you point it' : 'Their data is being held but nothing reports on it until you point each one'} at a client.
+    <div style="margin-top:8px">${d.unmatched.map(u => `<div class="row" style="margin:4px 0;gap:8px">
+      <code style="font-size:12px">${esc(u.shop)}</code>
+      <select data-map="${esc(u.shop)}" style="max-width:200px"><option value="">&mdash; pick a client &mdash;</option>${
+        d.clients.map(c => `<option value="${esc(c.act_id)}">${esc(c.name)}</option>`).join('')}</select>
+      <span class="tiny" data-mapmsg="${esc(u.shop)}"></span></div>`).join('')}</div></div></div>` : '';
+
+  return `<div class="card"><h3 style="margin-bottom:2px">Shopify connections
+      <span class="info-i" title="Connecting a store lets us read its orders, customers and products directly. Triple Whale has no per-customer history, so this is the only way to get true lifetime value by cohort. Everything else on every tab works without it.">i</span></h3>
+    <p class="hint" style="margin-bottom:10px">Adding a client: create them in Account Health, then <b>copy their install link below and send it to them</b>. They approve it once and it stays connected. ${one ? 'Switch the picker to <b>All clients</b> to see every brand.' : ''}</p>
+    ${d.app_configured ? '' : '<div class="notice warn">&#9888;&#65039; <div>The Shopify app is not configured on the server yet, so these links will not work.</div></div>'}
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Client</th><th>Status</th><th>What it adds</th><th>Install link</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4"><span class="hint">No clients.</span></td></tr>'}</tbody></table></div>
+    ${unmatched}
+    <p class="tiny" style="margin-top:10px">The link opens Shopify\u2019s own permission screen on the client\u2019s store. We request read-only access to orders, customers, products and analytics, and never write anything back. If a client removes the app, this page says so \u2014 their cohort data stops updating but nothing else breaks.</p>
+  </div>`;
+}
+
 async function renderSettings() {
   const run = ++RUN;
   // Honour the client picker, exactly like every other tab: "All clients" lists
@@ -2123,6 +2185,7 @@ async function renderSettings() {
         <select id="btHour" style="max-width:190px"></select>
         <span class="tiny" id="btMsg"></span>
       </div></div>
+    <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
     <div class="card settings"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
@@ -2227,6 +2290,34 @@ async function renderSettings() {
     } catch (err) { msg.textContent = err.message; }
     b.disabled = false;
   });
+
+  // Connections. Listeners go on the card, never on #main - #main survives every
+  // render, so a listener there stacks one copy per visit.
+  (async () => {
+    const html = await connectionsCard(run);
+    if (html == null || run !== RUN) return;
+    const host = $('#connCard'); if (!host) return;
+    host.innerHTML = html;
+
+    host.addEventListener('click', async e => {
+      const b = e.target.closest('[data-copy]'); if (!b) return;
+      const msg = $(`[data-msg="${b.closest('tr').dataset.act}"]`);
+      try { await navigator.clipboard.writeText(b.dataset.copy); if (msg) msg.textContent = 'copied \u2713'; }
+      catch { noteModal('Copy the install link', `<p>Send this to the client:</p><p><code style="font-size:12px;word-break:break-all">${esc(b.dataset.copy)}</code></p>`); }
+      setTimeout(() => { if (msg) msg.textContent = ''; }, 2500);
+    });
+
+    host.addEventListener('change', async e => {
+      const sel = e.target.closest('[data-map]'); if (!sel || !sel.value) return;
+      const shop = sel.dataset.map, msg = $(`[data-mapmsg="${shop}"]`);
+      if (msg) msg.textContent = 'saving\u2026';
+      try {
+        await api('/api/connections/map', { method: 'POST', body: JSON.stringify({ shop, act: sel.value }) });
+        if (msg) msg.textContent = 'mapped \u2713';
+        await inPlace(async () => { await boot(); show('settings'); });
+      } catch (err) { if (msg) msg.textContent = err.message; }
+    });
+  })();
 
   api('/api/slack-channels').then(r => { if (run !== RUN) return; chList = r.channels; draw(); })
     .catch(err => { if (run !== RUN) return; chList = 'error'; draw();
