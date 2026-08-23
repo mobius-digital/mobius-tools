@@ -135,6 +135,14 @@ profit/
   "most/least efficient" rather than best/worst, and the verdict says outright that a
   bigger day can contribute more at a weaker ratio. Any future surface comparing days
   must show the money, not just the ratio.
+- **Never label a SET with a superlative.** The MER tag fires for every weekday that
+  beat this client's own average in all months looked at, and Bonk has two - so
+  "most efficient" appeared twice on one table, which Cole caught. Set labels read
+  "consistently above" / "consistently below"; only the verdict sentence, which sorts
+  and takes one, may say "the most". Same trap applies to any future badge driven by
+  a threshold rather than a rank.
+- **Guard against "-0%".** `fmtSigned` on a value a hair under parity rounds to "-0%",
+  which reads as a typo. Round first, then sign.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

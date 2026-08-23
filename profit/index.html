@@ -803,6 +803,8 @@ function forecastCard(fc, cur) {
 function rhythmCard(rh, cur, showCm) {
   if (!rh || !rh.enough) return '';
   const cmOk = showCm && rh.has_cm;
+  // Rounding a hair under parity produced "-0%", which reads as a typo.
+  const pctOff = idx => { const v = Math.round((idx - 1) * 100); return (v > 0 ? '+' : '') + v + '%'; };
   const monthsLbl = rh.months.map(m => monthLabel(m)).join(', ');
   const pill = v => v === 'strong' ? '<span class="pill good">consistently strong</span>'
     : v === 'soft' ? '<span class="pill warn">consistently soft</span>'
@@ -815,9 +817,9 @@ function rhythmCard(rh, cur, showCm) {
   const rows = rh.days.map(x => `<tr${x.verdict === 'mixed' ? ' style="opacity:.62"' : ''}>
     <td><b>${esc(x.name)}</b></td>
     <td class="num"><b>${fmtPct(x.share, 1)}</b></td>
-    <td class="num tiny">${x.index_lo != null ? `${fmtSigned(x.index_lo - 1, 0)} to ${fmtSigned(x.index_hi - 1, 0)}` : '—'}</td>
+    <td class="num tiny">${x.index_lo != null ? `${pctOff(x.index_lo)} to ${pctOff(x.index_hi)}` : '—'}</td>
     <td>${pill(x.verdict)}</td>
-    <td class="num">${fmtX(x.mer)}${x.mer_verdict === 'strong' ? ' <span class="pill good" style="padding:1px 5px;font-size:10px">most efficient</span>' : x.mer_verdict === 'soft' ? ' <span class="pill unk" style="padding:1px 5px;font-size:10px">least efficient</span>' : ''}</td>
+    <td class="num">${fmtX(x.mer)}${x.mer_verdict === 'strong' ? ' <span class="pill good" style="padding:1px 5px;font-size:10px">consistently above</span>' : x.mer_verdict === 'soft' ? ' <span class="pill unk" style="padding:1px 5px;font-size:10px">consistently below</span>' : ''}</td>
     ${cmOk ? `<td class="num"><b>${x.cm_per_day != null ? fmtMoney(x.cm_per_day, cur) : '—'}</b></td>` : ''}
     ${wk != null ? `<td class="num tiny">${fmtMoney(wk * x.share, cur)}</td>` : ''}
   </tr>`).join('');
@@ -843,7 +845,7 @@ function rhythmCard(rh, cur, showCm) {
         <th class="num">Share of week <span class="info-i" title="This weekday's revenue as a share of the whole week. Seven equal days would be 14.3% each.">i</span></th>
         <th class="num">Compared with a normal day <span class="info-i" title="How far above or below a normal day this weekday landed - shown as its WORST month and its BEST month, so you can see the spread rather than one flattering average. Monday reading -28% to -15% means that in the weakest month Mondays came in 28% under a normal day and in the strongest month still 15% under: always below, never above. A range that crosses zero (say -10% to +12%) means the day landed above average in one month and below in another, which is noise, not a pattern.">i</span></th>
         <th></th>
-        <th class="num">MER <span class="info-i" title="How hard each ad dollar worked on that weekday - revenue divided by ad spend, pooled across the window. This is a RATIO, not a verdict on the day: a less efficient day that does more volume can still contribute more money, which is why the contribution margin column sits next to it. Only tagged when every month agreed.">i</span></th>
+        <th class="num">MER <span class="info-i" title="How hard each ad dollar worked on that weekday - revenue divided by ad spend, pooled across the window. This is a RATIO, not a verdict on the day: a less efficient day that does more volume can still contribute more money, which is why the contribution margin column sits next to it. A day is tagged consistently above or below only when it beat, or trailed, this client's own average in every month looked at - more than one day can qualify, so these are not superlatives.">i</span></th>
         ${cmOk ? `<th class="num">CM per day <span class="info-i" title="Contribution margin the average day of this weekday actually produced - revenue minus product costs, fulfilment, fees and ad spend. THIS is what the day is worth. A day can be less efficient than another and still make more money, because it does more volume; when the two disagree, follow the money.">i</span></th>` : ''}
         ${wk != null ? `<th class="num">Your plan, split this way <span class="info-i" title="NOT a historical average. This takes THIS MONTH'S plan, divides it to a week, then splits that week across the days using the shares on the left. It answers: if the month goes to plan and the week keeps its usual shape, what would each day look like? Illustrative only - the Daily Brief still measures every day against an even split.">i</span></th>` : ''}
       </tr></thead>
