@@ -347,28 +347,25 @@ even trustworthy enough to report profit from. It says so plainly when it isn't.
 **6:00 - Data handling.** "We store no customer names, emails, addresses or phone
 numbers. Customer data is aggregated as it's read and only monthly totals are written."
 
-# Screenshots — how to take them
+# Screenshots — done
 
-Three are required, five are allowed, all **1600 x 900**. Shopify's own upload form
-requires that any account information shown is fictional, and the demo account is what
-makes that true. **Never screenshot a real client.**
+Six 1600x900 PNGs in `assets/screenshots/`, captured from the demo account. Upload
+five, in this order, with this alt text:
 
-1. Sign in at `tools.go-mobius-digital.com/profit/` with the demo password.
-2. Set the browser window so the page area is 1600 x 900. In Chrome: F12, then the
-   device-toolbar icon, choose Responsive, and type 1600 x 900.
-3. Pick **Harborline Supply** in the top-right client picker.
-4. Capture these five, in this order:
-
-| # | Tab | Alt text (64 max) |
+| File | Tab | Alt text (64 max) |
 |---|---|---|
-| 1 | Profit | Profit dashboard showing revenue and contribution margin |
-| 2 | Customers | Customer cohorts with repeat rate and lifetime value |
-| 3 | Plan | Monthly plan with month to date pacing against target |
-| 4 | Overview (client picker on All clients) | Overview of store revenue, ad spend and margin |
-| 5 | Costs | Product and delivery costs behind the margin |
+| `1-profit.png` | Profit | Profit dashboard showing revenue and contribution margin |
+| `2-customers.png` | Customers | Customer cohorts with repeat rate and lifetime value |
+| `6-chart.png` | Profit, scrolled | Daily revenue against ad spend and weekday pattern |
+| `3-plan.png` | Plan | Monthly plan with month to date pacing against target |
+| `5-costs.png` | Costs | Product and delivery costs behind the margin |
 
-Crop out the browser chrome and the desktop — Shopify rejects screenshots containing
-either. The **feature media** image can be the Profit shot at the same size.
+`4-overview.png` exists but the Overview lists one brand in the demo, so it is mostly
+empty space — keep it in reserve rather than uploading it.
+
+**Feature media:** use `1-profit.png`. Same file, same dimensions.
+
+Regenerate with `python assets/make-screenshots.py <dir-of-captures>`.
 
 # What is still blocked, and why
 
