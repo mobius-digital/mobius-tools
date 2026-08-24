@@ -95,3 +95,10 @@ CREATE TABLE IF NOT EXISTS p_cohorts (
   as_of            TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (act_id, cohort_month)
 );
+
+-- The App Store reviewer needs a login, Shopify rejects Google SSO test accounts, and
+-- the real password would expose six live brands. `demo = 1` marks the one fabricated
+-- account a demo session is pinned to; it is also written with active = 0 so Account
+-- Health's lists and the Slack brief, which both require active = 1, can never see it.
+-- Additive on the SHARED accounts table, so it must tolerate already existing.
+ALTER TABLE accounts ADD COLUMN demo INTEGER NOT NULL DEFAULT 0;

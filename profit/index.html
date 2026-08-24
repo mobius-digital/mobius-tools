@@ -278,6 +278,21 @@ const ymdLocal = d => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-d
 const parseTs = iso => new Date(iso.replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(iso) ? '' : 'Z'));
 const fmtAgo = iso => { if (!iso) return 'never'; const m = (Date.now() - parseTs(iso).getTime())/60000; return m<60 ? `${Math.round(m)}m ago` : m<1440 ? `${Math.round(m/60)}h ago` : `${Math.round(m/1440)}d ago`; };
 
+/** A demo session is the App Store reviewer's login: one fabricated brand,
+ *  read-only. Daily Brief and Settings both go through PROXIED endpoints on the
+ *  account-health worker, which has no idea about the demo password and returns 401,
+ *  so those two tabs are removed rather than left to error on camera. Everything a
+ *  merchant would actually use - Overview, Profit, Plan, Costs, Customers - stays. */
+function applyKind() {
+  if (S.kind !== 'demo') return;
+  document.querySelectorAll('#tabs [data-t="brief"], #tabs [data-t="settings"]').forEach(el => el.remove());
+  if (S.tab === 'brief' || S.tab === 'settings') S.tab = 'overview';
+  if (!$('#demoNote')) {
+    document.querySelector('.hd-right')?.insertAdjacentHTML('afterbegin',
+      '<span id="demoNote" class="pill" title="Sample data for demonstration. No real merchant or customer data, and nothing here can be changed.">Demo · sample data</span>');
+  }
+}
+
 /* ---------- boot ---------- */
 async function boot() {
   const planTok = new URLSearchParams(location.search).get('plan');
@@ -289,6 +304,8 @@ async function boot() {
   try {
     const r = await api('/api/overview?days=' + S.days);
     S.accounts = r.accounts;
+    S.kind = r.kind || 'admin';
+    applyKind();
     setChip('Live','live');
     $('#btnOut').style.display=''; $('#tabs').style.display=''; $('#rangePick').style.display='';
     renderPicker();

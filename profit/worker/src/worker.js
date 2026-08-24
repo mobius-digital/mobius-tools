@@ -90,19 +90,33 @@ async function delegateSession(env, tok) {
   } catch { return false; }
 }
 
-async function isAdmin(request, env) {
+/** Who is asking: 'admin', 'demo', or null.
+ *
+ *  The demo kind exists for the Shopify App Store reviewer. Shopify requires a test
+ *  login and explicitly REJECTS accounts behind Google SSO, so it cannot be the
+ *  normal sign-in - and handing a reviewer the real password would show them six
+ *  live brands' revenue and margins. A demo session is pinned to the fabricated
+ *  account and is read-only.
+ */
+async function authKind(request, env) {
   const auth = request.headers.get('Authorization') || '';
-  if (!auth.startsWith('Bearer ')) return false;
+  if (!auth.startsWith('Bearer ')) return null;
   const tok = auth.slice(7);
-  if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
+  if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return 'admin';
   const sess = await verifySession(env, tok);
-  if (sess && (await emailAllowed(env, sess.email))) return true;
+  if (sess && (await emailAllowed(env, sess.email))) return 'admin';
   // Dashboard password lives in the SHARED settings table, so one password
   // opens both tools with nothing to configure here.
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
-  if (row?.value && (await sha256hex(tok)) === row.value) return true;
-  return delegateSession(env, tok);
+  if (row?.value && (await sha256hex(tok)) === row.value) return 'admin';
+  // Checked BEFORE delegating: the demo password is local to this tool and must not
+  // be forwarded to HQ, which would reject it and cost a round trip.
+  const demo = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'demoPasswordHash'`).first();
+  if (demo?.value && (await sha256hex(tok)) === demo.value) return 'demo';
+  return (await delegateSession(env, tok)) ? 'admin' : null;
 }
+
+const isAdmin = async (request, env) => (await authKind(request, env)) === 'admin';
 
 /* ---------------- Shopify OAuth ----------------
  * ONE unlisted public app installs on every client store. Public distribution is the
@@ -209,9 +223,21 @@ async function matchAccount(env, shop) {
 }
 
 /* ---------------- accounts ---------------- */
-async function listAccounts(env, activeOnly = true) {
+/** @param demoMode false = real accounts only, true = the demo account only,
+ *                   null = both (used by maintenance passes that should cover it).
+ *
+ *  The demo row is deliberately `active = 0` so Account Health's account list and the
+ *  Slack brief - both of which require active = 1 - can never pick it up. That means
+ *  the activeOnly filter has to be skipped for a demo session, or it would see
+ *  nothing at all.
+ */
+async function listAccounts(env, activeOnly = true, demoMode = false) {
+  const where = [];
+  if (demoMode === true) where.push('demo = 1');
+  else if (demoMode === false) where.push('(demo IS NULL OR demo = 0)');
+  if (activeOnly && demoMode !== true) where.push('active = 1');
   const { results } = await env.DB.prepare(
-    `SELECT * FROM accounts ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY name`,
+    `SELECT * FROM accounts ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY name`,
   ).all();
   return results.map(a => ({ ...a, goals: safeJson(a.goals_json, {}) }));
 }
@@ -1028,7 +1054,7 @@ async function costHealth(env, acct, days = 60) {
 }
 
 async function refreshCostHealth(env) {
-  const accounts = await listAccounts(env);
+  const accounts = await listAccounts(env, true, null);
   const out = [];
   for (const a of accounts) {
     try {
@@ -1087,6 +1113,7 @@ export default {
         out.local_session_verify = !!(await verifySession(env, tok));
         out.delegated_verify = await delegateSession(env, tok);
         out.authorized = await isAdmin(request, env);
+        out.kind = await authKind(request, env);
       }
       return json(out);
     }
@@ -1125,7 +1152,10 @@ export default {
       try {
         const row = await env.DB.prepare(`SELECT * FROM p_profit_share WHERE token = ?1`).bind(sm[1]).first();
         if (!row) return json({ error: 'This link is no longer valid.' }, 404);
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === row.act_id);
+        // null: resolve real OR demo. The share token is the authorisation here, so
+        // letting the demo brand render its own client page is safe and gives the
+        // App Store listing a screenshot that exposes no real merchant.
+        const acct = (await listAccounts(env, false, null)).find(a => a.act_id === row.act_id);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz);
         const ym = monthOf(today);
@@ -1263,14 +1293,24 @@ export default {
       return json({ ok: true, topic });
     }
 
-    if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+    const kind = await authKind(request, env);
+    if (!kind) return json({ error: 'unauthorized' }, 401);
+    const isDemo = kind === 'demo';
+    // A demo session is READ-ONLY. The reviewer must be able to see every screen and
+    // change nothing - no goals, no margin overrides, no Triple Whale backfills.
+    if (isDemo && request.method !== 'GET') {
+      return json({ error: 'This is a read-only demo account.' }, 403);
+    }
+    // Every account lookup below goes through this, so a demo session can only ever
+    // resolve the demo brand and a real session can never see it.
+    const accountsFor = (activeOnly = true) => listAccounts(env, activeOnly, isDemo);
 
     try {
       const days = Math.min(+url.searchParams.get('days') || 30, 180);
 
       /* All clients, store-level. The blended view Account Health deliberately lacks. */
       if (path === '/api/overview') {
-        const accounts = await listAccounts(env);
+        const accounts = await accountsFor();
         const { results: healthRows } = await env.DB.prepare(`SELECT * FROM p_cost_health`).all();
         const byAct = Object.fromEntries(healthRows.map(r => [r.act_id, r]));
         const out = [];
@@ -1302,13 +1342,17 @@ export default {
           });
         }
         await refreshIfStale(env, ctx);
-        return json({ days, accounts: out });
+        // `kind` lets the frontend hide what a demo session cannot reach. The Daily
+        // Brief and Settings both call PROXIED endpoints on the account-health
+        // worker, which does not know the demo password and answers 401 - showing a
+        // reviewer two tabs that only ever error is worse than not showing them.
+        return json({ days, accounts: out, kind });
       }
 
       /* One client: the daily series and totals behind it. */
       if (path === '/api/client') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz);
         const ym = monthOf(today);
@@ -1330,7 +1374,7 @@ export default {
          explains the gap to the goal. */
       if (path === '/api/forecast') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const ym = url.searchParams.get('month') || monthOf(localDate(acct.tz));
         const f = await forecastFor(env, acct, ym);
@@ -1342,7 +1386,7 @@ export default {
          at each growth choice, and whether the client has agreed to it. */
       if (path === '/api/plan' && request.method === 'GET') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz);
         const ym = url.searchParams.get('month') || monthOf(today);
@@ -1480,7 +1524,7 @@ export default {
       /* Mint (or return) this client's read-only performance link. */
       if (path === '/api/profit-share' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === b.act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         let token;
         if (b.regenerate) {
@@ -1498,7 +1542,7 @@ export default {
       /* Every client's Shopify connection state, plus the link that connects one.
        * Cole asked where clients get added moving forward - this is that screen. */
       if (path === '/api/connections') {
-        const accounts = await listAccounts(env, false);
+        const accounts = await accountsFor(false);
         const { results: shops } = await env.DB.prepare(`SELECT * FROM p_shopify`).all()
           .catch(() => ({ results: [] }));
         const { results: coRows } = await env.DB.prepare(
@@ -1543,7 +1587,7 @@ export default {
       if (path === '/api/connections/map' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
         if (!SHOP_RE.test(b.shop || '')) return json({ error: 'invalid shop domain' }, 400);
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === b.act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const r = await env.DB.prepare(`UPDATE p_shopify SET act_id = ?2 WHERE shop = ?1`)
           .bind(b.shop, b.act).run();
@@ -1554,7 +1598,7 @@ export default {
       /* Real cohorts, for stores that have connected Shopify. */
       if (path === '/api/cohorts') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         return json(await cohorts(env, acct));
       }
@@ -1562,7 +1606,7 @@ export default {
       /* Quarter to date: the three monthly plans rolled up. */
       if (path === '/api/quarter') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz);
         const thisYm = monthOf(today);
@@ -1603,7 +1647,7 @@ export default {
       /* What a new customer costs, and whether the first order pays it back. */
       if (path === '/api/customers') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(act).first().catch(() => null);
         const r = await customerEconomics(env, acct, Math.min(+url.searchParams.get('months') || 6, 12),
@@ -1615,7 +1659,7 @@ export default {
       /* Weekday rhythm: what a week actually looks like for this client. */
       if (path === '/api/rhythm') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const r = await weekdayRhythm(env, acct, Math.min(+url.searchParams.get('months') || 3, 6));
         // The current month's plan, so a reliable rhythm can be shown as dollars.
@@ -1627,7 +1671,7 @@ export default {
 
       if (path === '/api/costs') {
         const act = url.searchParams.get('act');
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const r = await costHealth(env, acct, Math.min(+url.searchParams.get('days') || 60, 180));
         const { results: skus } = await env.DB.prepare(
@@ -1639,7 +1683,7 @@ export default {
       /* The margin override — deliberately the SAME field the Daily Brief reads. */
       if (path === '/api/margin' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
-        const acct = (await listAccounts(env, false)).find(a => a.act_id === b.act);
+        const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const goals = safeJson(acct.goals_json, {});
         const ym = b.month || monthOf(localDate(acct.tz));
