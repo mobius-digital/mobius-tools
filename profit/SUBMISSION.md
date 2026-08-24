@@ -251,6 +251,86 @@ All optional. Skip Google Analytics, remarketing and the Facebook Pixel.
 
 ---
 
+# App testing information
+
+## Test account
+
+Shopify rejects test accounts behind Google single sign-on, so the reviewer uses the
+password path. That password opens a **demo session**: pinned to one fabricated brand,
+every write blocked with a 403, and the two internal tabs removed.
+
+- **Username:** not required — leave blank
+- **Password:** `harborline-demo-2026`
+
+Verified live: a demo session lists exactly one account (Harborline Supply), a `PUT`
+returns 403, and a wrong password returns 401.
+
+**Account description** (201/255)
+
+    Read-only demo account. It opens on a single sample brand with fictional figures and no real merchant or customer data. Every tab is reachable from the top navigation; nothing needs to be set up first.
+
+## Testing instructions (2374/2800)
+
+Paste verbatim:
+
+```
+Mobius Digital reports store profitability for merchants. It is read-only: it reads orders, products and customers through the Admin API and writes nothing back to the store.
+
+WHERE THE APP LIVES
+The app is not embedded in the Shopify admin. After a merchant approves the permission screen, the OAuth callback redirects them to their own reporting dashboard at tools.go-mobius-digital.com/profit/
+
+TEST ACCOUNT
+1. Open https://tools.go-mobius-digital.com/profit/
+2. Click "Use a password instead" at the bottom of the sign-in box.
+3. Enter the password below. Leave the Worker URL field as it is.
+4. The account opens on a demonstration brand, Harborline Supply, with sample figures. It is read-only, so nothing can be changed or saved.
+
+WHAT TO LOOK AT
+- Overview: revenue, ad spend and contribution margin for the month to date, measured against the monthly plan.
+- Profit: pick Harborline Supply in the top-right picker. Shows the full revenue-to-profit waterfall, revenue against ad spend day by day, and how a typical week runs.
+- Customers: what a new customer costs to acquire, what their first order is worth, whether it pays that cost back, and lifetime value by cohort. Cohorts group customers by the month they first ordered.
+- Plan: the month's revenue and ad spend target, and how the month is pacing against it.
+- Costs: the product and delivery costs behind the margin, including a check on whether the cost data is trustworthy enough to report profit from.
+
+INSTALLING ON YOUR OWN TEST STORE
+Install URL: https://mobius-profit.mobius-digital.workers.dev/shopify/install?shop=YOUR-STORE.myshopify.com
+
+Please note what you will see. This app is operated for a small number of agency retainer clients, and a reporting account is created for a brand before its store is connected. Installing on a store we have not set up reporting for therefore lands on a page saying the store is connected but is not matched to a reporting account yet. That is the intended behaviour for an unknown store, not an error. The demo account above is the way to see the working product.
+
+CUSTOMER DATA
+No customer names, email addresses, postal addresses or phone numbers are read or stored. Customer data is aggregated as it is read and only monthly totals are written to our database. Cohort figures come from ShopifyQL aggregate queries, which is why read_reports is requested.
+```
+
+## Screencast
+
+3–8 minutes, unlisted on YouTube, comments off. Record against the demo account, never
+the live one. Suggested run: sign in with the password, Overview, then pick Harborline
+Supply and walk Profit, Customers, Plan, Costs. Say out loud that the figures are
+sample data.
+
+# Screenshots — how to take them
+
+Three are required, five are allowed, all **1600 x 900**. Shopify's own upload form
+requires that any account information shown is fictional, and the demo account is what
+makes that true. **Never screenshot a real client.**
+
+1. Sign in at `tools.go-mobius-digital.com/profit/` with the demo password.
+2. Set the browser window so the page area is 1600 x 900. In Chrome: F12, then the
+   device-toolbar icon, choose Responsive, and type 1600 x 900.
+3. Pick **Harborline Supply** in the top-right client picker.
+4. Capture these five, in this order:
+
+| # | Tab | Alt text (64 max) |
+|---|---|---|
+| 1 | Profit | Profit dashboard showing revenue and contribution margin |
+| 2 | Customers | Customer cohorts with repeat rate and lifetime value |
+| 3 | Plan | Monthly plan with month to date pacing against target |
+| 4 | Overview (client picker on All clients) | Overview of store revenue, ad spend and margin |
+| 5 | Costs | Product and delivery costs behind the margin |
+
+Crop out the browser chrome and the desktop — Shopify rejects screenshots containing
+either. The **feature media** image can be the Profit shot at the same size.
+
 # What is still blocked, and why
 
 Five fields cannot be filled from a text draft. They all need the same thing first:
