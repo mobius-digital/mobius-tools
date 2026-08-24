@@ -55,36 +55,27 @@ profit/
   base (contamination only adds cost, so the median collapses once contamination
   passes ~50% of days, as it does for Grunk). Frame this in the UI as wholesale /
   inventory receipts, never as "your data is wrong".
-- **Fulfilment is the SECOND variable cost and it fails silently. `mirrored` is the
-  state that matters.** Where no delivery rate is configured, Triple Whale writes the
-  shipping CHARGE into `totalShippingCosts`, so the two sides cancel and delivery
-  leaves contribution margin with nothing on screen to say so. Measured over 12
-  months: cost equals revenue to the cent on 351/351 days (Dartee), 356/356 (Lucky)
-  and 362/362 (Party Patch), against 1/365 for Bonk and 0/365 for Grunk, who both
-  have real rates. It is the absence of a measurement, not a pass-through deal — the
-  old wording ("nets to zero") gave the one broken state a clean bill of health.
-  `shippingMode()` returns measured / mirrored / uncosted / none plus per-order
-  figures, and the Costs page sizes the unknown by pricing this client's ORDERS at
-  what the `measured` clients pay per order. Per order, not per revenue: delivery is
-  priced per parcel. **State it as a bracket and never as a point estimate** — the
-  peers are whoever happens to have a rate configured, and weight and box size drive
-  the number. Nothing adjusts CM for it; a silent correction is indistinguishable
-  from a measurement. Live at 60 days: Golf Sock books nothing at all against $7,173
-  of shipping income (a 10.9-13.3k hole, 6.5-7.9% of revenue), while Lucky and Party
-  Patch charge ABOVE what the measured clients pay, so their mirrored figure is more
-  likely too big than too small — which is why the wording offers both readings.
-- **Say what was OBSERVED about mirrored shipping, not why it happened.** The copy
-  used to assert "no delivery rate is configured", which is a cause we cannot see from
-  the data. Cole challenged it correctly: a brand could in principle have configured a
-  cost that equals the charge, which would make the match legitimate rather than a bug.
-  The answer is evidence, not assertion - the delivery CHARGE swings with destination
-  and basket (Lucky ranges $2.00 to $34.67 per order, a 17x spread), while a rate is a
-  rule (flat per order, per kilo, per item) and cannot follow those swings to the cent
-  for sixty days. `shippingMode()` therefore carries `charge_lo`/`charge_hi` and the
-  card cites the swing. The conclusion holds either way and the wording now says so:
-  whether the rate was never set or was set to mirror, the number is not a measurement
-  of what delivery cost. **Never state an unobservable cause as fact when the
-  observation alone carries the argument.**
+- **Fulfilment: flag what is MISSING, never what is merely surprising. Cole's call,
+  2026-08-24 - do NOT re-add the `mirrored` warning.** The only state this tool treats
+  as a problem is `uncosted`: delivery charged to customers with NOTHING booked against
+  it. That is an absence, and an absence is unambiguous - the charge is already inside
+  revenue (revenue is Shopify Total Sales less tax) so it cannot be netted back out,
+  which means contribution margin really is overstated by whatever delivery cost. Live,
+  that is The Golf Sock alone: $7,021 charged across 2,198 orders, $0 recorded.
+  There used to be a `mirrored` verdict for a cost that exactly equals the charge, on
+  the reasoning that it cannot be a real rate - the delivery charge swings with
+  destination and basket (Lucky ranges $2.00 to $34.67 per order, a 17x spread) while a
+  rate is a rule that would not follow it to the cent for sixty days. **That evidence
+  still stands, and it is still not our call to make.** The brand configures its own
+  fulfilment costs in Triple Whale; when a figure comes through it is the brand's figure
+  and this tool reports it rather than second-guessing the client's own setup. Dartee,
+  Lucky and Party Patch therefore read `measured` like everyone else. `shippingMode()`
+  still computes `charge_lo`/`charge_hi` if the question ever returns, but nothing
+  renders them, and the Costs page no longer prices an "unknown" for these clients.
+- **Never state an unobservable CAUSE as fact.** The fulfilment copy used to assert
+  "no delivery rate is configured" - something the data cannot show. It could only show
+  that cost equalled charge. Cole caught it. Where an observation carries the argument,
+  report the observation; where it does not, do not report a verdict at all.
 - **A flat margin override bypasses the whole cost chain, fulfilment included.**
   `dayEconomics` takes `sales * marginPct` and never looks at product, delivery,
   handling or fees, so any card describing a cost must say so when `margin_pct` is
