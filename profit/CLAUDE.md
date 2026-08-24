@@ -73,6 +73,18 @@ profit/
   of shipping income (a 10.9-13.3k hole, 6.5-7.9% of revenue), while Lucky and Party
   Patch charge ABOVE what the measured clients pay, so their mirrored figure is more
   likely too big than too small — which is why the wording offers both readings.
+- **Say what was OBSERVED about mirrored shipping, not why it happened.** The copy
+  used to assert "no delivery rate is configured", which is a cause we cannot see from
+  the data. Cole challenged it correctly: a brand could in principle have configured a
+  cost that equals the charge, which would make the match legitimate rather than a bug.
+  The answer is evidence, not assertion - the delivery CHARGE swings with destination
+  and basket (Lucky ranges $2.00 to $34.67 per order, a 17x spread), while a rate is a
+  rule (flat per order, per kilo, per item) and cannot follow those swings to the cent
+  for sixty days. `shippingMode()` therefore carries `charge_lo`/`charge_hi` and the
+  card cites the swing. The conclusion holds either way and the wording now says so:
+  whether the rate was never set or was set to mirror, the number is not a measurement
+  of what delivery cost. **Never state an unobservable cause as fact when the
+  observation alone carries the argument.**
 - **A flat margin override bypasses the whole cost chain, fulfilment included.**
   `dayEconomics` takes `sales * marginPct` and never looks at product, delivery,
   handling or fees, so any card describing a cost must say so when `margin_pct` is

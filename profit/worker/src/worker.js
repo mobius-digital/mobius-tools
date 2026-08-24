@@ -370,17 +370,34 @@ function shippingMode(piv) {
     billed++;
     if (Math.abs((piv.totalShippingCosts?.[d] ?? 0) - r) < 0.005) matched++;
   }
+  // How much the delivery CHARGE moves per order, day to day. This is the evidence
+  // that separates a mirror from a genuine rate: Cole pushed back that a brand could
+  // simply have configured its cost to equal the charge, which would make the match
+  // legitimate. It cannot. What a customer pays varies with destination and basket -
+  // Lucky ranges $2.00 to $34.67 per order - while a RATE is a rule (flat per order,
+  // per kilo, per item) and cannot track those swings in lockstep. State the range and
+  // let it make the argument, rather than asserting a cause we cannot observe.
+  const perDay = [];
+  for (const [d, r] of Object.entries(piv.totalShippingPrice || {})) {
+    const o = piv.totalOrders?.[d];
+    if (r > 0 && o > 0) perDay.push(r / o);
+  }
+  perDay.sort((a, b) => a - b);
   const per = n => orders > 0 ? n / orders : null;
   const base = {
     rev, cost, orders, billed_days: billed, matched_days: matched,
     rev_per_order: per(rev), cost_per_order: per(cost),
+    charge_lo: perDay.length ? perDay[0] : null,
+    charge_hi: perDay.length ? perDay[perDay.length - 1] : null,
   };
   if (rev <= 0 && cost <= 0) return { ...base, mode: 'none', note: 'no shipping billed or costed' };
   if (rev > 0 && cost <= 0) {
     return { ...base, mode: 'uncosted', note: `customers were charged ${Math.round(rev)} for shipping and Triple Whale records no fulfilment cost against any of it, so contribution margin is overstated by whatever delivery actually costs - add shipping rates in Triple Whale to close the gap` };
   }
   if (billed >= 10 && matched >= billed * 0.95) {
-    return { ...base, mode: 'mirrored', note: `the recorded fulfilment cost equals what customers were charged on ${matched} of ${billed} days, to the cent - Triple Whale is echoing the charge because no delivery rate is configured, so shipping cancels itself out of contribution margin instead of being measured` };
+    const swing = base.charge_lo > 0 ? base.charge_hi / base.charge_lo : null;
+    return { ...base, mode: 'mirrored', note: `the recorded fulfilment cost equals what customers were charged on ${matched} of ${billed} days, to the cent, so shipping cancels itself out of contribution margin instead of being measured`
+      + (swing && swing > 2 ? ` - and it cannot be a real rate, because the charge itself swings ${swing.toFixed(1)}x per order across those days and a rate is a rule that would not follow it` : '') };
   }
   return { ...base, mode: 'measured', note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
 }
