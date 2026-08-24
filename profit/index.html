@@ -2219,6 +2219,7 @@ async function connectionsCard(run) {
     <td>${c.install_url
       ? `<button class="btn" data-copy="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>`
       : '<span class="tiny">add the store domain in Account Health first</span>'}
+      ${c.status === 'connected' ? `<button class="btn" data-sync="${esc(c.act_id)}" style="font-size:11.5px;padding:4px 8px;margin-left:4px">Sync cohorts</button>` : ''}
       <span class="tiny" data-msg="${esc(c.act_id)}"></span></td>
   </tr>`).join('');
 
@@ -2375,6 +2376,19 @@ async function renderSettings() {
     host.innerHTML = html;
 
     host.addEventListener('click', async e => {
+      const sync = e.target.closest('[data-sync]');
+      if (sync) {
+        const act = sync.dataset.sync, msg = $(`[data-msg="${act}"]`);
+        sync.disabled = true; if (msg) msg.textContent = 'pulling from Shopify…';
+        try {
+          const r = await api(`/api/cohort-sync?act=${encodeURIComponent(act)}`, { method: 'POST' });
+          const x = (r.results && r.results[0]) || {};
+          if (msg) msg.textContent = x.error ? x.error : x.skipped ? x.skipped : `✓ ${x.months} cohort months`;
+          if (!x.error) await inPlace(async () => { await boot(); show('settings'); });
+        } catch (err) { if (msg) msg.textContent = err.message; }
+        sync.disabled = false;
+        return;
+      }
       const b = e.target.closest('[data-copy]'); if (!b) return;
       const msg = $(`[data-msg="${b.closest('tr').dataset.act}"]`);
       try { await navigator.clipboard.writeText(b.dataset.copy); if (msg) msg.textContent = 'copied \u2713'; }

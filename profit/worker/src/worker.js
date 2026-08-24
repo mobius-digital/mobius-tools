@@ -676,6 +676,100 @@ async function forecastFor(env, acct, ym) {
   };
 }
 
+/** Run a ShopifyQL query against one shop and return its rows as objects.
+ *
+ *  `shopifyqlQuery` is granted by read_reports, and it answers with
+ *  `{ tableData: { columns, rows }, parseErrors }` - a bad query returns
+ *  parseErrors and a NULL tableData rather than an HTTP error, so both have to be
+ *  checked or a typo reads as "no data" and silently wipes a cohort table.
+ */
+async function shopifyql(shop, token, query) {
+  const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+    body: JSON.stringify({
+      query: `query($q: String!) { shopifyqlQuery(query: $q) {
+        tableData { columns { name dataType } rows } parseErrors } }`,
+      variables: { q: query },
+    }),
+  });
+  if (!res.ok) throw new Error(`Shopify returned ${res.status}`);
+  const b = await res.json().catch(() => ({}));
+  if (b.errors?.length) throw new Error(b.errors.map(e => e.message).join('; '));
+  const r = b?.data?.shopifyqlQuery;
+  if (r?.parseErrors?.length) throw new Error(r.parseErrors.join('; '));
+  const td = r?.tableData;
+  if (!td) throw new Error('no data returned');
+  // rows come back as objects keyed by column name, values as strings.
+  return { columns: td.columns.map(c => c.name), rows: td.rows || [] };
+}
+
+/** Pull cohorts for one connected shop and write them to `p_cohorts`.
+ *
+ *  Two queries, both VERIFIED against a live store (Lucky Golf, 2026-08-24) rather
+ *  than inferred from the schema docs:
+ *
+ *   1. `FROM customers ... GROUP BY month` - in this dataset a row IS a customer and
+ *      `month` is the month of their FIRST order, which is exactly a cohort. SINCE /
+ *      UNTIL filters WHICH customers by that first-order date; it does NOT window the
+ *      measures. Checked by running the same query at -400d and -30d: the 2026-08
+ *      cohort returned 318 customers / $49,335.9097 / 340 orders in both, so
+ *      `total_amount_spent` and `total_number_of_orders` are the customers' ALL-TIME
+ *      figures. That is what `p_cohorts.lifetime_*` means, so no adjustment is needed.
+ *   2. The same query filtered to `customer_number_of_orders > 1` gives how many of
+ *      each cohort ever came back. There is no single metric for this.
+ *
+ *  Sanity of the result on real data: Lucky's July 2025 cohort repeats at 16.1% while
+ *  the fresh 2026-08 one sits at 6.0% - older cohorts have had longer to return, which
+ *  is the whole point of the card and a useful smell test if these ever look flat.
+ */
+async function syncCohorts(env, row) {
+  const { shop, act_id, access_token } = row;
+  if (!access_token) throw new Error('no access token');
+
+  const WINDOW = 'SINCE -1095d UNTIL today';        // three years back
+  const base = await shopifyql(shop, access_token,
+    `FROM customers SHOW new_customer_records, total_amount_spent, total_number_of_orders `
+    + `GROUP BY month ${WINDOW} ORDER BY month ASC`);
+  const repeat = await shopifyql(shop, access_token,
+    `FROM customers SHOW new_customer_records GROUP BY month `
+    + `WHERE customer_number_of_orders > 1 ${WINDOW} ORDER BY month ASC`);
+
+  const ym = v => String(v ?? '').slice(0, 7);      // "2026-08-01" -> "2026-08"
+  const repeatBy = {};
+  for (const r of repeat.rows) repeatBy[ym(r.month)] = +r.new_customer_records || 0;
+
+  const out = [];
+  for (const r of base.rows) {
+    const m = ym(r.month);
+    if (!/^\d{4}-\d{2}$/.test(m)) continue;
+    const customers = +r.new_customer_records || 0;
+    if (!customers) continue;
+    out.push({
+      month: m, customers,
+      repeat_customers: repeatBy[m] ?? 0,
+      lifetime_spend: +r.total_amount_spent || 0,
+      lifetime_orders: +r.total_number_of_orders || 0,
+    });
+  }
+  // Never let an empty or partial answer delete a good table. A shop with genuinely
+  // no customers has nothing worth writing either way.
+  if (!out.length) return { shop, act_id, months: 0, skipped: 'no cohort rows returned' };
+
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  await env.DB.batch(out.map(c => env.DB.prepare(
+    `INSERT INTO p_cohorts (act_id, cohort_month, customers, repeat_customers,
+       lifetime_spend, lifetime_orders, as_of) VALUES (?1,?2,?3,?4,?5,?6,?7)
+     ON CONFLICT(act_id, cohort_month) DO UPDATE SET customers = excluded.customers,
+       repeat_customers = excluded.repeat_customers, lifetime_spend = excluded.lifetime_spend,
+       lifetime_orders = excluded.lifetime_orders, as_of = excluded.as_of`,
+  ).bind(act_id, c.month, c.customers, c.repeat_customers, c.lifetime_spend, c.lifetime_orders, now)));
+
+  await env.DB.prepare(`UPDATE p_shopify SET last_sync_at = ?2 WHERE shop = ?1`)
+    .bind(shop, now).run().catch(() => {});
+  return { shop, act_id, months: out.length, as_of: now };
+}
+
 /* ---------------- real cohorts ----------------
  * Unlike the Customers tab, this IS cohort analysis: customers grouped by the month
  * of their FIRST order and followed forward. It needs per-customer history, which
@@ -1578,6 +1672,26 @@ export default {
           .map(sh => ({ shop: sh.shop, installed_at: sh.installed_at }));
 
         return json({ clients, unmatched, app_configured: !!env.SHOPIFY_API_KEY });
+      }
+
+      /* Pull cohorts from Shopify for one connected store, or for all of them.
+       * Manual rather than cron: this account is at the free-plan trigger limit, and
+       * cohorts move slowly enough that on-demand plus the nightly account-health
+       * pass is sufficient. One shop at a time - each is two ShopifyQL round trips
+       * plus a D1 batch, and six in one invocation would risk the subrequest cap. */
+      if (path === '/api/cohort-sync' && request.method === 'POST') {
+        const act = url.searchParams.get('act');
+        const { results: shops } = await env.DB.prepare(
+          `SELECT * FROM p_shopify WHERE uninstalled_at IS NULL AND access_token <> ''
+             AND act_id IS NOT NULL ${act && act !== 'all' ? 'AND act_id = ?1' : ''}`,
+        ).bind(...(act && act !== 'all' ? [act] : [])).all().catch(() => ({ results: [] }));
+        if (!shops.length) return json({ error: 'no connected store for that client' }, 404);
+        const out = [];
+        for (const row of shops) {
+          try { out.push(await syncCohorts(env, row)); }
+          catch (e) { out.push({ shop: row.shop, act_id: row.act_id, error: e.message }); }
+        }
+        return json({ ok: out.some(r => r.months), results: out });
       }
 
       /* Point a connected store at a client, for a domain that did not auto-match. */

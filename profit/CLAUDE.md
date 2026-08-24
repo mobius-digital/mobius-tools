@@ -230,6 +230,27 @@ profit/
   cohorts is not confounded that way - 1.22 orders means 22% of purchases came after
   the first, which is the honest read. Anything under 9 months old is excluded from
   every average, because a young cohort has not had time to come back.
+- **The cohort queries are VERIFIED against a live store, not inferred. Do not
+  "improve" them without re-verifying.** `FROM customers` is the only dataset where a
+  row IS a customer and `month` is their FIRST order month - that is a cohort for free.
+  The trap is `SINCE / UNTIL`: it filters WHICH customers by first-order date and does
+  NOT window the measures. Proved by running the same query at -400d and -30d against
+  Lucky Golf on 2026-08-24 - the 2026-08 cohort returned 318 customers / $49,335.9097 /
+  340 orders in both - so `total_amount_spent` and `total_number_of_orders` are ALL-TIME
+  per customer, which is exactly what `p_cohorts.lifetime_*` means. `repeat_customers`
+  has no metric of its own; it is the same query filtered to
+  `customer_number_of_orders > 1`. Smell test on real data: Lucky's July 2025 cohort
+  repeats at 16.1% against 6.0% for the fresh 2026-08 one. If cohorts ever come back
+  flat across ages, the SINCE semantics are the first thing to re-check.
+- **`shopifyqlQuery` fails SOFT.** A bad query returns HTTP 200 with `parseErrors` set
+  and `tableData: null`. Check both, or a typo reads as "no rows" - and `syncCohorts`
+  additionally refuses to write when the result is empty, so a silent failure can never
+  wipe a good cohort table.
+- **Cohort sync is a BUTTON, not a cron.** The account is at the free-plan trigger
+  limit, and each shop is two ShopifyQL round trips plus a D1 batch, so six in one
+  invocation would risk the subrequest cap. Settings -> Connections has a per-client
+  "Sync cohorts" button; `/api/cohort-sync?act=all` does every connected store one at a
+  time.
 - **`read_reports` is REQUIRED or cohorts silently do not work.** It is the scope that
   grants `shopifyqlQuery`, and the cohort data comes from ShopifyQL `FROM customers` -
   the only place Shopify exposes customers grouped by their first-order month. It is
