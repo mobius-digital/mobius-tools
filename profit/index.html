@@ -1825,11 +1825,24 @@ async function renderPlan(first) {
     const pace = q.days_total ? q.days_done / q.days_total : 0;
     const goalToDate = q.goal_sales != null ? q.goal_sales * pace : null;
     const off = goalToDate ? q.sales / goalToDate - 1 : null;
-    const mrow = x => `<tr${x.status === 'future' ? ' style="opacity:.5"' : ''}>
+    // The month in progress must be measured against a PRO-RATED goal, exactly like
+    // the headline above it. Comparing 23 days of revenue with a 31-day target made
+    // the row read -19% while the quarter summary directly above read +9% for the
+    // same month - two contradictory verdicts on one card, and the pessimistic one
+    // was simply wrong. Finished months compare against the whole goal as before.
+    const mrow = x => {
+      const part = x.status === 'current' && x.days_in_month ? x.days / x.days_in_month : 1;
+      const goalToDate = x.goal_sales != null ? x.goal_sales * part : null;
+      const off = goalToDate ? x.sales / goalToDate - 1 : null;
+      const cls = off == null ? '' : off >= 0 ? 'good' : off >= -0.1 ? 'warn' : 'bad';
+      return `<tr${x.status === 'future' ? ' style="opacity:.5"' : ''}>
       <td><b>${esc(monthLabel(x.month))}</b>${x.status === 'current' ? ` <span class="tiny">(${x.days} of ${x.days_in_month} days)</span>` : ''}</td>
-      <td class="num">${x.planned ? fmtMoney(x.goal_sales, cur) : '<span class="tiny">not planned</span>'}</td>
+      <td class="num">${x.planned ? fmtMoney(x.goal_sales, cur) : '<span class="tiny">not planned</span>'}${
+        x.status === 'current' && goalToDate != null ? `<br><span class="tiny">${fmtMoney(goalToDate, cur)} by now</span>` : ''}</td>
       <td class="num"><b>${x.sales != null ? fmtMoney(x.sales, cur) : '—'}</b></td>
-      <td class="num">${x.planned && x.sales != null && x.status !== 'future' ? `<span class="pill ${x.sales >= x.goal_sales ? 'good' : 'bad'}">${fmtSigned(x.sales / x.goal_sales - 1)}</span>` : '—'}</td></tr>`;
+      <td class="num">${x.planned && x.sales != null && x.status !== 'future' && off != null
+        ? `<span class="pill ${cls}">${fmtSigned(off)}</span>` : '—'}</td></tr>`;
+    };
     el.innerHTML = `<div class="card"><h3 style="margin-bottom:2px">${esc(q.quarter.replace('-', ' '))} so far <span class="info-i" title="The three monthly plans in this quarter added together, against what has actually happened. There is no separate quarterly target: a quarter is only as planned as its months, so any month without an agreed plan is named rather than guessed at.">i</span></h3>
       <p class="hint" style="margin-bottom:10px">${q.days_done} of ${q.days_total} days elapsed.${q.unplanned.length ? ` <b>${q.unplanned.map(m => esc(monthLabel(m))).join(' and ')}</b> ${q.unplanned.length === 1 ? 'has' : 'have'} no agreed plan, so the quarter total below is only what has been committed so far.` : ' All three months are planned.'}</p>
       <div class="row" style="gap:22px;flex-wrap:wrap;margin-bottom:12px">

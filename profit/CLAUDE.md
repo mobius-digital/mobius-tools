@@ -157,6 +157,16 @@ profit/
   "most/least efficient" rather than best/worst, and the verdict says outright that a
   bigger day can contribute more at a weaker ratio. Any future surface comparing days
   must show the money, not just the ratio.
+- **A month IN PROGRESS must be compared against a PRO-RATED goal, everywhere.**
+  The quarter card's headline pro-rated by days elapsed but its per-month rows divided
+  month-to-date by the WHOLE month's target, so August read `-19%` in the table while
+  the summary directly above it read `+9%` for the same month. Two contradictory
+  verdicts on one card, and the visible one was the wrong one - 23 days of revenue was
+  never going to reach a 31-day number. `mrow` now scales the goal by
+  `days / days_in_month` for `status === 'current'`, shows the pro-rated figure under
+  the target so the percentage is checkable, and grades it good / warn / bad like the
+  headline instead of a binary pass-fail. Any future surface comparing an unfinished
+  period to a target needs the same treatment.
 - **Never label a SET with a superlative.** The MER tag fires for every weekday that
   beat this client's own average in all months looked at, and Bonk has two - so
   "most efficient" appeared twice on one table, which Cole caught. Set labels read
