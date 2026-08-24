@@ -308,6 +308,45 @@ the live one. Suggested run: sign in with the password, Overview, then pick Harb
 Supply and walk Profit, Customers, Plan, Costs. Say out loud that the figures are
 sample data.
 
+# Screencast script
+
+3-8 minutes, unlisted on YouTube, comments off. Record against the DEMO account, never
+a live client. Windows: Win+G opens Game Bar, or use Loom.
+
+Read this while clicking. Timings are a guide, not a target.
+
+**0:00 - What it is.** "This is Mobius Digital. It reports what a Shopify store keeps
+after the costs that move with sales. Everything you'll see is sample data on a
+demonstration brand called Harborline Supply - no real merchant, no real customers."
+
+**0:20 - How a merchant gets here.** "The app isn't embedded in the Shopify admin.
+A merchant approves the permission screen - read-only access to orders, products,
+customers and analytics - and Shopify sends them straight to their own dashboard.
+That's what I'm signed into now."
+
+**0:45 - Overview.** "Revenue for the month against the plan, ad spend, and the
+contribution margin left after every variable cost. Revenue here is Shopify Total
+Sales minus sales tax, and it says so on the page - the same definition on every tab."
+
+**1:30 - Profit.** Pick Harborline Supply. "This is the whole waterfall: net sales,
+plus shipping charged to customers, minus product cost, delivery, handling, payment
+fees and ad spend. What's left is contribution margin. Below that, revenue against ad
+spend day by day, and how a typical week actually runs."
+
+**3:00 - Customers.** "What a new customer costs to acquire, what their first order is
+worth, and whether that first order pays the acquisition back. Below, lifetime value by
+cohort - customers grouped by the month they first ordered, followed forward. That's
+the one thing that answers whether people come back."
+
+**4:30 - Plan.** "The month's revenue and ad spend target, and whether the month is
+pacing to hit it."
+
+**5:15 - Costs.** "The costs behind the margin, and a check on whether the cost data is
+even trustworthy enough to report profit from. It says so plainly when it isn't."
+
+**6:00 - Data handling.** "We store no customer names, emails, addresses or phone
+numbers. Customer data is aggregated as it's read and only monthly totals are written."
+
 # Screenshots — how to take them
 
 Three are required, five are allowed, all **1600 x 900**. Shopify's own upload form
