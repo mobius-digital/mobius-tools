@@ -1,54 +1,52 @@
 # -*- coding: utf-8 -*-
-"""Every text field on the App Store listing form, checked against its limit."""
+"""Listing copy revised to match the MERCHANT-FACING report, card for card.
+
+The first draft listed cohorts and a daily Slack summary. Both exist, but in the
+internal agency tool - a merchant's report has neither. Shopify checks that listing
+content matches what the app actually does, so every line below now corresponds to a
+card that is visibly present at the report link.
+"""
 
 APP_DETAILS = (
-    'Mobius Digital reports what a store earns after the costs that move with sales. '
-    'It reads your orders, products and customers, subtracts product cost, shipping, '
-    'payment fees and ad spend, and shows the contribution margin left over.'
+    'Mobius Digital reports what a store keeps after the costs that move with sales. '
+    'It reads your orders, products and analytics, subtracts product cost, fulfilment, '
+    'handling, payment fees and advertising, and shows the contribution margin left.'
     '\n\n'
-    'It also groups customers by the month they first bought, so you can see whether '
-    'people come back and what a customer is worth over time.'
+    'Your report opens on the month so far, measured against the revenue and ad spend '
+    'plan for that month, pro-rated to the days elapsed.'
     '\n\n'
-    'Figures are shown against a monthly revenue and spend plan you set, so you can '
-    'tell early whether the store is on track.'
+    'It also shows revenue against ad spend day by day, how much came from first-time '
+    'buyers against people coming back, which weekdays run above and below an average '
+    'day, and the last six months for context.'
 )
 
 F = [
     ('App name', 30, 'Mobius Digital'),
 
     ('Introduction', 100,
-     'See what your store keeps after every variable cost. Revenue, margin and '
-     'customer value in one view.'),
+     'See what your store keeps after every variable cost, measured against the '
+     'plan for the month.'),
 
     ('App details', 500, APP_DETAILS),
 
-    ('Feature 1', 80, 'Contribution margin after product, shipping, payment fee and ad costs'),
-    ('Feature 2', 80, 'Customer cohorts showing repeat rate and lifetime value by first order'),
-    ('Feature 3', 80, 'Monthly revenue and spend plan, with month to date pacing against it'),
-    ('Feature 4', 80, 'New versus returning revenue split and cost to acquire a customer'),
-    ('Feature 5', 80, 'Daily summary of yesterday revenue, spend and margin versus plan'),
+    # Each one is a card that is actually on the report.
+    ('Feature 1', 80, 'Contribution margin after product, fulfilment, fees and ad costs'),
+    ('Feature 2', 80, 'Month to date pacing against a revenue and ad spend plan'),
+    ('Feature 3', 80, 'Revenue against ad spend, day by day, across every channel'),
+    ('Feature 4', 80, 'Revenue split between first time buyers and returning customers'),
+    ('Feature 5', 80, 'Which weekdays run above and below an average day'),
 
     ('App card subtitle', 62, 'Know what your store keeps after product, shipping and ads'),
 
-    ('Search term 1', 20, 'profit margin'),
-    ('Search term 2', 20, 'profitability'),
-    ('Search term 3', 20, 'contribution margin'),
-    ('Search term 4', 20, 'lifetime value'),
-    ('Search term 5', 20, 'cohort analysis'),
-
-    ('Title tag', 60, 'Mobius Digital: store profit and customer value reporting'),
+    ('Title tag', 60, 'Mobius Digital: store profit and contribution margin'),
     ('Meta description', 160,
-     'Report what your store keeps after product, shipping, payment and ad costs. '
-     'Track contribution margin, customer cohorts and monthly plan pacing.'),
+     'Report what your store keeps after product, fulfilment, payment and ad costs. '
+     'Track contribution margin and month to date pacing against plan.'),
 
-    ('Screenshot 1 alt', 64, 'Profit dashboard showing revenue and contribution margin'),
-    ('Screenshot 2 alt', 64, 'Customer cohorts with repeat rate and lifetime value'),
-    ('Screenshot 3 alt', 64, 'Monthly plan with month to date pacing against target'),
-
-    ('Account description', 255,
-     'Read-only demo account. It opens on a single sample brand with fictional figures '
-     'and no real merchant or customer data. Every tab is reachable from the top '
-     'navigation; nothing needs to be set up first.'),
+    ('Screenshot 1 alt', 64, 'Monthly profit report from revenue down to margin'),
+    ('Screenshot 2 alt', 64, 'Daily revenue against ad spend, and new versus returning'),
+    ('Screenshot 3 alt', 64, 'Which weekdays run above and below an average day'),
+    ('Feature media alt', 64, 'Store profit report showing revenue, costs and margin'),
 ]
 
 print('%-22s %-7s %s' % ('FIELD', 'CHARS', 'STATUS'))
@@ -56,9 +54,7 @@ print('-' * 46)
 bad = 0
 for name, limit, text in F:
     n = len(text)
-    ok = n <= limit
-    if not ok:
+    if n > limit:
         bad += 1
-    print('%-22s %3d/%-3d %s' % (name, n, limit, 'ok' if ok else '>>> OVER <<<'))
-print()
-print('%d field(s) over limit' % bad)
+    print('%-22s %3d/%-3d %s' % (name, n, limit, 'ok' if n <= limit else '>>> OVER <<<'))
+print('\n%d over limit' % bad)
