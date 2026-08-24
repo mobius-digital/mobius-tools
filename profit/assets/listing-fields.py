@@ -8,12 +8,12 @@ card that is visibly present at the report link.
 """
 
 APP_DETAILS = (
-    'Mobius Digital reports what a store keeps after the costs that move with sales. '
-    'It subtracts product cost, fulfilment, handling, payment fees and advertising, '
-    'and shows the contribution margin left.'
+    'Mobius Digital reports what a store keeps after the costs that move with sales: '
+    'product cost, fulfilment, handling, payment fees and advertising all come out, '
+    'and what is left is your contribution margin.'
     '\n\n'
-    'Your report opens on the month so far, measured against the revenue and ad spend '
-    'plan for that month, pro-rated to the days elapsed.'
+    'Your report opens on the month so far, measured against that month\'s revenue and '
+    'ad spend plan, pro-rated to the days elapsed.'
     '\n\n'
     'It also shows revenue against ad spend day by day, how much came from first-time '
     'buyers against returning ones, which weekdays run above and below an average day, '
