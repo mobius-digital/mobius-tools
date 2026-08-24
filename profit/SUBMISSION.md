@@ -253,119 +253,71 @@ All optional. Skip Google Analytics, remarketing and the Facebook Pixel.
 
 # App testing information
 
-## Test account
+## There is NO merchant sign-in — and that changes the answers
 
-Shopify rejects test accounts behind Google single sign-on, so the reviewer uses the
-password path. That password opens a **demo session**: pinned to one fabricated brand,
-every write blocked with a 403, and the two internal tabs removed.
+Cole caught this and he is right. The dashboard with tabs and a client picker is the
+INTERNAL agency tool; a merchant never sees it. What a merchant gets after installing
+is a single-page report at `?perf=<token>`, opened straight from the OAuth callback,
+with no account and no password.
 
-- **Username:** not required — leave blank
-- **Password:** `harborline-demo-2026`
+So:
 
-Verified live: a demo session lists exactly one account (Harborline Supply), a `PUT`
-returns 403, and a wrong password returns 401.
+- **Tick "My app doesn't require an account to use it."** For a merchant that is true.
+- The reviewer gets the demo REPORT LINK, not a login.
+- Screenshots must be of that report, not of the agency tool. An App Store listing
+  showing a multi-tab dashboard merchants never reach is exactly the listing/behaviour
+  mismatch review looks for.
 
-**Account description** (201/255)
+**Demo report link** (no sign-in, read-only, fictional brand):
 
-    Read-only demo account. It opens on a single sample brand with fictional figures and no real merchant or customer data. Every tab is reachable from the top navigation; nothing needs to be set up first.
+    https://tools.go-mobius-digital.com/profit/?perf=d3e0a11b0c5f4a29b7d6e8c1a04f9b52
 
-## Testing instructions (2374/2800)
-
-Paste verbatim:
+## Testing instructions (paste verbatim)
 
 ```
 Mobius Digital reports store profitability for merchants. It is read-only: it reads orders, products and customers through the Admin API and writes nothing back to the store.
 
-WHERE THE APP LIVES
-The app is not embedded in the Shopify admin. After a merchant approves the permission screen, the OAuth callback redirects them to their own reporting dashboard at tools.go-mobius-digital.com/profit/
+NO ACCOUNT IS NEEDED
+The app is not embedded in the Shopify admin and there is no sign-in. When a merchant approves the permission screen, the OAuth callback sends them straight to their own report at a private link. That link is the whole merchant-facing product.
 
-TEST ACCOUNT
-1. Open https://tools.go-mobius-digital.com/profit/
-2. Click "Use a password instead" at the bottom of the sign-in box.
-3. Enter the password below. Leave the Worker URL field as it is.
-4. The account opens on a demonstration brand, Harborline Supply, with sample figures. It is read-only, so nothing can be changed or saved.
+SEE THE WORKING PRODUCT
+Open this demonstration report — no login, nothing to set up:
 
-WHAT TO LOOK AT
-- Overview: revenue, ad spend and contribution margin for the month to date, measured against the monthly plan.
-- Profit: pick Harborline Supply in the top-right picker. Shows the full revenue-to-profit waterfall, revenue against ad spend day by day, and how a typical week runs.
-- Customers: what a new customer costs to acquire, what their first order is worth, whether it pays that cost back, and lifetime value by cohort. Cohorts group customers by the month they first ordered.
-- Plan: the month's revenue and ad spend target, and how the month is pacing against it.
-- Costs: the product and delivery costs behind the margin, including a check on whether the cost data is trustworthy enough to report profit from.
+https://tools.go-mobius-digital.com/profit/?perf=d3e0a11b0c5f4a29b7d6e8c1a04f9b52
+
+It shows a fictional brand, Harborline Supply, with sample figures. No real merchant and no real customer data appears anywhere in it.
+
+WHAT IT SHOWS
+- Month to date revenue, ad spend, MER and contribution margin, each against the month's plan pro-rated to the days elapsed.
+- "Where the money went": the full waterfall from net sales down to contribution margin, subtracting product cost, fulfilment, handling, payment fees and advertising.
+- Revenue against ad spend day by day.
+- New customers versus returning, in revenue.
+- Which weekdays actually run above and below an average day, measured across three complete months.
+- The last six months of revenue, ad spend and MER.
 
 INSTALLING ON YOUR OWN TEST STORE
 Install URL: https://mobius-profit.mobius-digital.workers.dev/shopify/install?shop=YOUR-STORE.myshopify.com
 
-Please note what you will see. This app is operated for a small number of agency retainer clients, and a reporting account is created for a brand before its store is connected. Installing on a store we have not set up reporting for therefore lands on a page saying the store is connected but is not matched to a reporting account yet. That is the intended behaviour for an unknown store, not an error. The demo account above is the way to see the working product.
+Please note what you will see. This app is operated for a small number of agency retainer clients, and a reporting account is created for a brand before its store is connected. Installing on a store we have not set up reporting for lands on a page saying the store is connected but is not matched to a reporting account yet. That is the intended behaviour for an unknown store, not an error. The demonstration link above is the way to see the working product.
 
 CUSTOMER DATA
 No customer names, email addresses, postal addresses or phone numbers are read or stored. Customer data is aggregated as it is read and only monthly totals are written to our database. Cohort figures come from ShopifyQL aggregate queries, which is why read_reports is requested.
 ```
 
-## Screencast
-
-3–8 minutes, unlisted on YouTube, comments off. Record against the demo account, never
-the live one. Suggested run: sign in with the password, Overview, then pick Harborline
-Supply and walk Profit, Customers, Plan, Costs. Say out loud that the figures are
-sample data.
-
-# Screencast script
-
-3-8 minutes, unlisted on YouTube, comments off. Record against the DEMO account, never
-a live client. Windows: Win+G opens Game Bar, or use Loom.
-
-Read this while clicking. Timings are a guide, not a target.
-
-**0:00 - What it is.** "This is Mobius Digital. It reports what a Shopify store keeps
-after the costs that move with sales. Everything you'll see is sample data on a
-demonstration brand called Harborline Supply - no real merchant, no real customers."
-
-**0:20 - How a merchant gets here.** "The app isn't embedded in the Shopify admin.
-A merchant approves the permission screen - read-only access to orders, products,
-customers and analytics - and Shopify sends them straight to their own dashboard.
-That's what I'm signed into now."
-
-**0:45 - Overview.** "Revenue for the month against the plan, ad spend, and the
-contribution margin left after every variable cost. Revenue here is Shopify Total
-Sales minus sales tax, and it says so on the page - the same definition on every tab."
-
-**1:30 - Profit.** Pick Harborline Supply. "This is the whole waterfall: net sales,
-plus shipping charged to customers, minus product cost, delivery, handling, payment
-fees and ad spend. What's left is contribution margin. Below that, revenue against ad
-spend day by day, and how a typical week actually runs."
-
-**3:00 - Customers.** "What a new customer costs to acquire, what their first order is
-worth, and whether that first order pays the acquisition back. Below, lifetime value by
-cohort - customers grouped by the month they first ordered, followed forward. That's
-the one thing that answers whether people come back."
-
-**4:30 - Plan.** "The month's revenue and ad spend target, and whether the month is
-pacing to hit it."
-
-**5:15 - Costs.** "The costs behind the margin, and a check on whether the cost data is
-even trustworthy enough to report profit from. It says so plainly when it isn't."
-
-**6:00 - Data handling.** "We store no customer names, emails, addresses or phone
-numbers. Customer data is aggregated as it's read and only monthly totals are written."
-
 # Screenshots — done
 
-Six 1600x900 PNGs in `assets/screenshots/`, captured from the demo account. Upload
-five, in this order, with this alt text:
+Three 1600x900 PNGs in `assets/screenshots/`, all of the MERCHANT-FACING report.
 
-| File | Tab | Alt text (64 max) |
-|---|---|---|
-| `1-profit.png` | Profit | Profit dashboard showing revenue and contribution margin |
-| `2-customers.png` | Customers | Customer cohorts with repeat rate and lifetime value |
-| `6-chart.png` | Profit, scrolled | Daily revenue against ad spend and weekday pattern |
-| `3-plan.png` | Plan | Monthly plan with month to date pacing against target |
-| `5-costs.png` | Costs | Product and delivery costs behind the margin |
+| File | Alt text (64 max) |
+|---|---|
+| `1-report.png` | Monthly profit report from revenue down to margin |
+| `2-daily.png` | Daily revenue against ad spend, and new versus returning |
+| `3-week.png` | Which weekdays run above and below an average day |
 
-`4-overview.png` exists but the Overview lists one brand in the demo, so it is mostly
-empty space — keep it in reserve rather than uploading it.
+**Feature media:** `1-report.png`, alt text `Store profit report showing revenue, costs and margin`.
 
-**Feature media:** use `1-profit.png`. Same file, same dimensions.
-
-Regenerate with `python assets/make-screenshots.py <dir-of-captures>`.
+The earlier set showed the internal dashboard and was discarded: merchants never see
+those screens. Regenerate with `python assets/make-screenshots.py <dir-of-captures>`.
 
 # What is still blocked, and why
 
