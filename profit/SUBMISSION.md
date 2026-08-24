@@ -41,19 +41,35 @@ Customer service, Store management and Personalization would mean acting on a
 shopper's behalf; Marketing or advertising would mean messaging shoppers, which this
 app never does; App functionality means billing or auth.
 
-Shopify's example beside Analytics says "measure app performance", which undersells
-it, so use the 100-character box to say what is actually measured:
-
-> Profitability reporting for the merchant: revenue, margin, new vs returning customers.
-
-(86 characters.) If that box only accepts input when **Other** is ticked, tick Other
-as well — Analytics stays ticked either way.
+The "Describe your reason in detail" box (0/100) belongs to the **Other** checkbox,
+not to the section as a whole — with Analytics ticked there is nothing to fill in.
+Leave it alone.
 
 ### Screen 2 — "Protected customer fields (optional)"
 
 **Leave Name, Email, Phone and Address all unselected.** This is the whole difference
 between Level 1 and Level 2. The app reads none of them: the cohort data comes from
 ShopifyQL aggregates grouped by first-order month, never from customer records.
+
+### Screen 3 — "Data protection details", all seven questions
+
+| # | Question | Answer | Why |
+|---|---|---|---|
+| 1 | Process the minimum personal data required? | **Yes** | Customer and order data is aggregated as it is read; only monthly totals are written |
+| 2 | Tell merchants what you process and why? | **Yes** | Privacy policy at `tools.go-mobius-digital.com/privacy/`, which lists all four scopes |
+| 3 | Limit your use to that purpose? | **Yes** | Used only for that merchant's own reporting; never pooled across clients, never sold |
+| 4 | Privacy and data protection agreements with your merchants? | **Cole must answer — see below** | |
+| 5 | Respect and apply customers' consent decisions? | **Not applicable** | The app never contacts shoppers and never uses their data for marketing or tracking, so there is no consent decision to apply |
+| 6 | Automated decision-making with legal or significant effects — can customers opt out? | **Not applicable** | The app makes no decisions about individuals at all; it reports aggregates to the merchant |
+| 7 | Retention periods? | **Yes** | Deleted within 30 days of uninstall, or sooner on request; stated in the policy |
+| 8 | Encrypt at rest and in transit? | **Yes** | HTTPS throughout; Cloudflare D1 encrypts at rest |
+
+**Question 4 is the one that is not ours to answer.** It asks whether there is a
+written privacy / data protection agreement with each merchant. The privacy policy
+says Mobius acts as the processor and the store owner as the controller, but that is
+our statement, not a signed agreement. Answer Yes only if the client contracts
+actually contain a data protection or confidentiality clause. If they do not, the fix
+is a one-page DPA appended to the agency agreement, not a No on this form.
 
 ### Reason for accessing customer data — paste this
 
