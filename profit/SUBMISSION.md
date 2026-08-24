@@ -196,6 +196,17 @@ any edit rather than counting by hand.
 | 4 | New versus returning revenue split and cost to acquire a customer | 65/80 |
 | 5 | Daily summary of yesterday revenue, spend and margin versus plan | 64/80 |
 
+## Integrations
+
+Maximum six, and Shopify itself must not be listed. Two apply:
+
+    Triple Whale
+    Slack
+
+Triple Whale is where the daily revenue, spend and cost figures are synced from;
+Slack is where the daily summary is posted. Nothing else the tool touches is a
+merchant-facing service.
+
 ## Discovery
 
 **App card subtitle** (58/62)
