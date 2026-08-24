@@ -157,6 +157,15 @@ profit/
   "most/least efficient" rather than best/worst, and the verdict says outright that a
   bigger day can contribute more at a weaker ratio. Any future surface comparing days
   must show the money, not just the ratio.
+- **A saved plan stores the basis it was built on; say so when that basis MOVES.**
+  `p_plan.basis_sales` is a snapshot. When the revenue definition was corrected on
+  2026-08-23 every plan saved before then was suddenly built on a basis 1-13% too high
+  - Party Patch's by 13.3% - and nothing on screen said so, so months kept being
+  reported "vs plan" against numbers nobody would still agree to. `staleBasis()` on the
+  Plan page compares the stored basis with what the same basis is worth today and warns
+  above the growth chips when they differ by more than 2%. Past months are excluded:
+  their basis was legitimately a different month. Any stored snapshot of a derived
+  figure needs this treatment - the alternative is silent staleness.
 - **A month IN PROGRESS must be compared against a PRO-RATED goal, everywhere.**
   The quarter card's headline pro-rated by days elapsed but its per-month rows divided
   month-to-date by the WHOLE month's target, so August read `-19%` in the table while

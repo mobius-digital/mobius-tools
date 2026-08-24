@@ -1658,6 +1658,26 @@ async function renderPlan(first) {
       : `⚠️ That leaves <b>${fmtK(Math.abs(d), cur)} less</b> contribution margin than ${esc(monthLabel(lastFull.month))} — the extra spend outweighs the extra revenue.`;
   };
 
+  /** A saved plan stores the basis it was built on. If that figure has since moved,
+   *  the agreed target is stale and nothing on screen said so - which is exactly what
+   *  happened when the revenue definition was corrected on 23 August 2026: every plan
+   *  saved before then was built on a basis 1-13% too high, and the goals kept being
+   *  reported against as though they were current. Compare the stored basis with what
+   *  the same basis is worth today and say so. Past months are excluded: their basis
+   *  was legitimately a different month, so a difference there means nothing. */
+  const staleBasis = () => {
+    if (p.status === 'past' || !p.plan || p.plan.basis_sales == null || !p.basis || !p.basis.sales) return '';
+    const was = p.plan.basis_sales, now = p.basis.sales;
+    const off = now / was - 1;
+    if (Math.abs(off) < 0.02) return '';
+    const saved = p.plan.updated_at ? String(p.plan.updated_at).slice(0, 10) : null;
+    return `<div class="notice warn">&#9888;&#65039; <div><b>This plan was built on a number that has since changed.</b>
+      It was saved${saved ? ' on ' + esc(saved) : ''} against a basis of <b>${fmtMoney(was, cur)}</b>, but
+      ${p.basis.month ? esc(monthLabel(p.basis.month)) : 'that month'} is now measured at <b>${fmtMoney(now, cur)}</b> —
+      <b>${fmtSigned(off)}</b>. The saved target still reflects the old figure, so everything reporting
+      &ldquo;vs plan&rdquo; is measuring against a stale number. Pick a growth chip below and <b>Save</b> to bring it in line.</div></div>`;
+  };
+
   const basisNote = () => {
     const rows = [];
     if (src.basis_month) rows.push(['Revenue basis', `${esc(monthLabel(src.basis_month))} actual`]);
@@ -1743,6 +1763,7 @@ async function renderPlan(first) {
 
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
       <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the greyed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
+      ${staleBasis()}
       <div style="margin-bottom:14px">${basisNote()}</div>
       <div class="row" style="gap:8px;margin-bottom:12px">
         ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
