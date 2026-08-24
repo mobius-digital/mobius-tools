@@ -9,8 +9,8 @@ card that is visibly present at the report link.
 
 APP_DETAILS = (
     'Mobius Digital reports what a store keeps after the costs that move with sales. '
-    'It reads your orders, products and analytics, subtracts product cost, fulfilment, '
-    'handling, payment fees and advertising, and shows the contribution margin left.'
+    'It subtracts product cost, fulfilment, handling, payment fees and advertising, '
+    'and shows the contribution margin left.'
     '\n\n'
     'Your report opens on the month so far, measured against the revenue and ad spend '
     'plan for that month, pro-rated to the days elapsed.'
