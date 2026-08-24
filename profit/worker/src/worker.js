@@ -350,14 +350,18 @@ async function seriesFor(env, acct, from, to) {
  *  records no cost against it genuinely has overstated profit, and the honest move
  *  is to say so rather than to quietly adjust the revenue line.
  *
- *  THE MODE THAT MATTERS IS `mirrored`. When no fulfilment rate is configured,
- *  Triple Whale writes the shipping CHARGE into the cost field, so the two sides
- *  cancel and shipping vanishes from contribution margin. Over a year that happens
- *  on 351/351 days for Dartee, 356/356 for Lucky and 362/362 for Party Patch, to
- *  the cent - while the two clients with real rates (Bonk, Grunk) match on 1 day
- *  out of 365 and 0 out of 365. It is the absence of a measurement, not a
- *  pass-through arrangement, and the old wording ("nets to zero") read as a
- *  clean bill of health for the one state that hides an unknown cost. */
+ *  ONLY `uncosted` IS A PROBLEM: money charged for delivery with NOTHING booked
+ *  against it. That is an absence, and an absence is unambiguous.
+ *
+ *  A cost that EQUALS the charge is NOT flagged, on Cole's explicit instruction
+ *  (2026-08-24), and do not re-add it. There used to be a `mirrored` verdict warning
+ *  that an exactly-matching cost could not be a real rate - the delivery charge swings
+ *  with destination and basket (Lucky ranges $2.00 to $34.67 per order) while a rate is
+ *  a rule that would not follow it. The evidence still says that. It is not our call.
+ *  The brand configures its own fulfilment costs in Triple Whale; if a figure comes
+ *  through, it is the brand's figure and this tool reports it rather than second-
+ *  guessing it. Flag what is MISSING, never what is merely surprising.
+ */
 function shippingMode(piv) {
   const total = m => Object.values(piv[m] || {}).reduce((a, b) => a + (b || 0), 0);
   const rev = total('totalShippingPrice'), cost = total('totalShippingCosts');
@@ -395,9 +399,7 @@ function shippingMode(piv) {
     return { ...base, mode: 'uncosted', note: `customers were charged ${Math.round(rev)} for shipping and Triple Whale records no fulfilment cost against any of it, so contribution margin is overstated by whatever delivery actually costs - add shipping rates in Triple Whale to close the gap` };
   }
   if (billed >= 10 && matched >= billed * 0.95) {
-    const swing = base.charge_lo > 0 ? base.charge_hi / base.charge_lo : null;
-    return { ...base, mode: 'mirrored', note: `the recorded fulfilment cost equals what customers were charged on ${matched} of ${billed} days, to the cent, so shipping cancels itself out of contribution margin instead of being measured`
-      + (swing && swing > 2 ? ` - and it cannot be a real rate, because the charge itself swings ${swing.toFixed(1)}x per order across those days and a rate is a rule that would not follow it` : '') };
+    // Deliberately falls through to `measured`. See the note above shippingMode().
   }
   return { ...base, mode: 'measured', note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
 }
