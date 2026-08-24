@@ -1257,15 +1257,12 @@ export default {
         return Response.redirect(`${DASHBOARD_URL}?perf=${token}`, 302);
       }
 
-      // No client record matches this domain yet. Say so honestly rather than
-      // pretending it worked; Settings -> Connections is where Cole maps it.
-      return new Response(`<!doctype html><meta charset="utf-8"><title>Store connected</title>
-        <div style="font:16px/1.6 system-ui;max-width:540px;margin:12vh auto;padding:0 24px">
-        <h1 style="font-size:22px">Store connected \u2713</h1>
-        <p><b>${shop}</b> is linked to Mobius Digital, but it is not matched to a reporting account yet, so there is no dashboard to show you.</p>
-        <p>We will finish setting it up and send you the link. Nothing further is needed from you.</p>
-        <p style="color:#647684;font-size:14px">Nothing is written back to your store - this only reads orders, customers and products so we can report on them. Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p></div>`,
-        { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      // No client record matches this domain yet - but STILL redirect into the app.
+      // "Immediately redirects to app UI after authentication" is one of Shopify's
+      // automated checks, and a reviewer installs on their own test store, which by
+      // definition matches no client. Returning HTML straight from the worker looked
+      // like the flow ended here. The app page explains the state instead.
+      return Response.redirect(`${DASHBOARD_URL}?connected=${encodeURIComponent(shop)}`, 302);
     }
 
     /* Mandatory compliance webhooks. Review rejects the app if these are missing, or

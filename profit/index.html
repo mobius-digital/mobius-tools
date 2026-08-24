@@ -299,6 +299,8 @@ async function boot() {
   if (planTok) return renderPlanShare(planTok);
   const perfTok = new URLSearchParams(location.search).get('perf');
   if (perfTok) return renderPerfShare(perfTok);
+  const connected = new URLSearchParams(location.search).get('connected');
+  if (connected) return renderConnected(connected);
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
@@ -367,6 +369,28 @@ async function renderPlanShare(token) {
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
   ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+}
+
+/** Where a store lands when it installs but matches no reporting account yet.
+ *  It has to be a real page in the app, not HTML returned by the worker: Shopify's
+ *  automated checks require the install to redirect to the app UI, and a reviewer's
+ *  test store is exactly the case that matches nothing. It also has to be honest -
+ *  showing an empty dashboard would be worse than saying plainly what happens next. */
+function renderConnected(shop) {
+  document.querySelector('.hd-right').style.display = 'none';
+  $('#tabs').style.display = 'none';
+  $('.hd-title').innerHTML = 'Store <em>connected</em>';
+  $('#main').innerHTML = `<div class="gate" style="max-width:560px">
+    <h1 style="font-size:22px;margin-bottom:10px">Connected ✓</h1>
+    <p><b>${esc(shop)}</b> is linked to Mobius Digital.</p>
+    <p>Reporting for this store is not set up yet, so there is nothing to show you here
+       today. We will finish the setup and send you a private link to your report —
+       nothing further is needed from you.</p>
+    <p class="tiny" style="margin-top:16px">Nothing is written back to your store. The app
+       only reads orders, products, customers and analytics so it can report on them, and
+       it stores no customer names, email addresses, postal addresses or phone numbers.
+       Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p>
+  </div>`;
 }
 
 /** The client-facing performance page. Read-only, no sign-in, one client, and
