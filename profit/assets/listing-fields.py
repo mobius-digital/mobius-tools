@@ -15,9 +15,9 @@ APP_DETAILS = (
     'Your report opens on the month so far, measured against that month\'s revenue and '
     'ad spend plan, pro-rated to the days elapsed.'
     '\n\n'
-    'It also shows revenue against ad spend day by day, how much came from first-time '
-    'buyers against returning ones, which weekdays run above and below an average day, '
-    'and the last six months.'
+    'It also shows revenue against ad spend day by day, first-time buyers against '
+    'returning ones, which weekdays run above and below average, and six months of '
+    'history.'
 )
 
 F = [
