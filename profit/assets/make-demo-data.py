@@ -79,7 +79,11 @@ for i in range(DAYS):
     fees = (net_sales + ship_rev) * 0.029 + orders * 0.30
 
     sales = total_sales - tax                      # the one revenue definition
-    mer = 2.62 * rnd.uniform(0.94, 1.06) * (1.18 if peak > 1 else 1.0)
+    # 3.25x, not 2.6x. At 2.6 the fabricated brand landed on a 0.96x first-order
+    # payback, so the Customers tab opened with an amber "the first order does not
+    # cover the customer" warning - honest analysis, but a poor thing to lead an App
+    # Store listing with. A healthier fictional brand shows the same features working.
+    mer = 3.25 * rnd.uniform(0.94, 1.06) * (1.18 if peak > 1 else 1.0)
     ads = sales / mer
 
     new_share = 0.615 * rnd.uniform(0.95, 1.05)
@@ -122,7 +126,9 @@ out.append('')
 goals = {}
 for ym, target in [('2026-06', 176000), ('2026-07', 188000), ('2026-08', 198000),
                    ('2026-09', 212000)]:
-    goals[ym] = {'sales': target, 'spend': round(target / 2.65)}
+    # Spend must imply the same MER the actuals run at, or the Plan tab reports the
+    # brand beating its own plan by 20% every month for no reason.
+    goals[ym] = {'sales': target, 'spend': round(target / 3.25)}
 goals_json = json.dumps(goals)
 
 # active = 0 and brief_enabled = 0 are the isolation: Account Health lists and the
