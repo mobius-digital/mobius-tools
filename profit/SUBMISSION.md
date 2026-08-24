@@ -153,3 +153,116 @@ have no Triple Whale account behind it, so it will hit the unmatched-shop path a
 the "not set up yet" page rather than a dashboard. That is honest but it is not a
 merchant UI, and it is the most likely reason this submission gets bounced. Decide
 before submitting whether to build a Shopify-only view that works for any store.
+
+---
+
+# The App Store listing
+
+Every character count below is verified by `assets/listing-fields.py` — run it after
+any edit rather than counting by hand.
+
+## Basic information
+
+**App name** (14/30)
+
+    Mobius Digital
+
+**Primary category:** Store management → **Operations**. The documented tag for
+"apps that analyze and generate insights or recommendations for a store" is Analytics.
+
+**Languages:** English.
+
+## Listing content
+
+**Introduction** (100/100 — exactly at the limit, do not add a character)
+
+    See what your store keeps after every variable cost. Revenue, margin and customer value in one view.
+
+**App details** (500/500). No links and no formatting — the form rejects both.
+
+    Mobius Digital reports what a store earns after the costs that move with sales. It reads your orders, products and customers, subtracts product cost, shipping, payment fees and ad spend, and shows the contribution margin left over.
+
+    It also groups customers by the month they first bought, so you can see whether people come back and what a customer is worth over time.
+
+    Figures are shown against a monthly revenue and spend plan you set, so you can tell early whether the store is on track.
+
+**Features** — three are required, five are allowed. Use all five.
+
+| # | Text | Chars |
+|---|---|---|
+| 1 | Contribution margin after product, shipping, payment fee and ad costs | 69/80 |
+| 2 | Customer cohorts showing repeat rate and lifetime value by first order | 70/80 |
+| 3 | Monthly revenue and spend plan, with month to date pacing against it | 68/80 |
+| 4 | New versus returning revenue split and cost to acquire a customer | 65/80 |
+| 5 | Daily summary of yesterday revenue, spend and margin versus plan | 64/80 |
+
+## Discovery
+
+**App card subtitle** (58/62)
+
+    Know what your store keeps after product, shipping and ads
+
+**Search terms** — one idea each, no "Shopify", no competitors:
+`profit margin` · `profitability` · `contribution margin` · `lifetime value` · `cohort analysis`
+
+**Title tag** (57/60)
+
+    Mobius Digital: store profit and customer value reporting
+
+**Meta description** (144/160)
+
+    Report what your store keeps after product, shipping, payment and ad costs. Track contribution margin, customer cohorts and monthly plan pacing.
+
+## Support and resources
+
+- Preferred support channel: **Support email address** — `cole@go-mobius-digital.com`
+- Privacy policy URL: `https://tools.go-mobius-digital.com/privacy/`
+- Merchant review email and app submission email: `cole@go-mobius-digital.com`
+
+## Install requirements
+
+**"My app doesn't require the Shopify Online Store or Shopify POS."** The app has no
+theme extension and never touches theme assets — it only reads the Admin API.
+
+Leave the geographic requirements unticked. Nothing in the money model is
+currency-specific; each account carries its own currency and timezone.
+
+## Pricing
+
+At least one public plan is required. Add a single **Free** plan — the app is operated
+for Mobius Digital's own retainer clients and never charges through Shopify. Leave "I
+have approval to charge merchants outside of the Shopify Billing API" unticked, because
+the app does not charge merchants at all.
+
+## Tracking
+
+All optional. Skip Google Analytics, remarketing and the Facebook Pixel.
+
+---
+
+# What is still blocked, and why
+
+Five fields cannot be filled from a text draft. They all need the same thing first:
+**a demo account with fictional data.**
+
+Shopify's own wording on the upload form is the constraint: "any account information
+displayed is fictional and not data from a real person." Screenshots of the live tool
+would put six real brands' revenue, margin and customer economics in a public App Store
+listing. That is not acceptable regardless of what review requires.
+
+| Field | Needs |
+|---|---|
+| Screenshots (3 × 1600×900) | demo account |
+| Feature media (1600×900) | demo account |
+| Screencast URL (3–8 min) | demo account, then Cole records it |
+| Test account login | demo account |
+| Testing instructions | written once the above exists |
+
+**The test account must not use Google SSO** — Shopify rejects those outright. The
+dashboard already has a password path behind "Use a password instead" on the sign-in
+screen, so this is workable, but the password must open a demo-only view rather than
+the real client list.
+
+**Proposed shape.** A `demo` flag on a session that pins the tool to one fabricated
+brand and hides every other account. Same code paths, same screens, invented numbers.
+It solves all five fields at once and keeps client data out of the submission.
