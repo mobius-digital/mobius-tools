@@ -1,7 +1,8 @@
-# Shopify App Store submission — Mobius Profit
+# Shopify App Store submission — Mobius Digital
 
 Everything Cole needs to paste, in the order the Partner Dashboard asks for it.
-App: `Mobius Profit` · client id `a204d4974bccc5aacf66c3f723fb5652`
+App: `Mobius Digital` (renamed from Mobius Profit — one Shopify app is meant to
+carry whatever Mobius builds, and Profit is only the first tool on it) · client id `a204d4974bccc5aacf66c3f723fb5652`
 
 ---
 
@@ -32,6 +33,27 @@ Level 1 is "customer data excluding name/address/phone/email" and needs a standa
 review. Ticking any of those four fields makes it Level 2, which triggers an
 additional data-protection review — for fields this app never reads. Verified against
 the source: the only email handling in the worker is Mobius staff Google sign-in.
+
+### Screen 1 — "Select your data use and reasons"
+
+Tick **Analytics**, and nothing else. The other six are all wrong for this app:
+Customer service, Store management and Personalization would mean acting on a
+shopper's behalf; Marketing or advertising would mean messaging shoppers, which this
+app never does; App functionality means billing or auth.
+
+Shopify's example beside Analytics says "measure app performance", which undersells
+it, so use the 100-character box to say what is actually measured:
+
+> Profitability reporting for the merchant: revenue, margin, new vs returning customers.
+
+(86 characters.) If that box only accepts input when **Other** is ticked, tick Other
+as well — Analytics stays ticked either way.
+
+### Screen 2 — "Protected customer fields (optional)"
+
+**Leave Name, Email, Phone and Address all unselected.** This is the whole difference
+between Level 1 and Level 2. The app reads none of them: the cohort data comes from
+ShopifyQL aggregates grouped by first-order month, never from customer records.
 
 ### Reason for accessing customer data — paste this
 
@@ -99,7 +121,7 @@ Available once the listing language is set.
 | Item | Spec | Status |
 |---|---|---|
 | App icon | 1200×1200 | **done** — `assets/app-icon-1200.png` |
-| App name | ≤30 chars | `Mobius Profit` (13) |
+| App name | ≤30 chars | `Mobius Digital` (14) |
 | App introduction | ≤100 chars | draft below |
 | Feature media | 2–3 min video, or a static image | not started |
 | Screenshots | 1600×900, 3–6 desktop | not started |

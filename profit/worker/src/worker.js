@@ -1232,7 +1232,7 @@ export default {
       return new Response(`<!doctype html><meta charset="utf-8"><title>Store connected</title>
         <div style="font:16px/1.6 system-ui;max-width:540px;margin:12vh auto;padding:0 24px">
         <h1 style="font-size:22px">Store connected \u2713</h1>
-        <p><b>${shop}</b> is linked, but it is not matched to a reporting account yet, so there is no dashboard to show you.</p>
+        <p><b>${shop}</b> is linked to Mobius Digital, but it is not matched to a reporting account yet, so there is no dashboard to show you.</p>
         <p>We will finish setting it up and send you the link. Nothing further is needed from you.</p>
         <p style="color:#647684;font-size:14px">Nothing is written back to your store - this only reads orders, customers and products so we can report on them. Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p></div>`,
         { headers: { 'Content-Type': 'text/html; charset=utf-8' } });

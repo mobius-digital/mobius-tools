@@ -10,7 +10,10 @@
 # Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "a204d4974bccc5aacf66c3f723fb5652"
-name = "Mobius Profit"
+# The app is registered as "Mobius Digital", not "Mobius Profit": one Shopify app
+# is meant to cover whatever Mobius builds, and Profit is only the first tool on
+# it. `deploy` PUSHES this value, so changing it here renames the real app.
+name = "Mobius Digital"
 handle = "mobius-profit"
 
 # Where a merchant lands when they open the app. Our install route reads ?shop=
