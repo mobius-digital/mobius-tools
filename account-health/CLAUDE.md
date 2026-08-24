@@ -126,3 +126,14 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
 - Activity log `extra_data` is a JSON string; budgets are in **cents**.
   Classification lives in `CATEGORIES` + `summarise()` — extend there.
 - Insights for the last ~72h keep changing; always upsert, never insert-ignore.
+- **The hourly brief trigger fires AT OR AFTER the send hour, never exactly on it.**
+  An exact `centralHour() === briefHour` match cannot recover from a single miss, and
+  the misses are real: on 2026-08-24 the send time was changed from 9 to 7 somewhere
+  between 7am and 8am Central, so 7 had already passed and 9 never came round again -
+  every brand silently got no brief that day, and nothing anywhere said so. A dropped
+  cron tick does the same. The gate is now `centralHour() >= briefHour`, and
+  `dailyBriefs` checks `briefs.status = 'sent'` for the date BEFORE doing any work, so
+  a brand already posted costs one SELECT rather than a 45-day Triple Whale sync. It
+  cannot double post - `sendBrief`'s `skipIfSent` is still there - and `lastBriefRun`
+  is only written when a run actually sent something, so it stays a record of the last
+  real send instead of being overwritten hourly by no-ops.

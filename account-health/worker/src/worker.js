@@ -1096,8 +1096,18 @@ function centralHour(d = new Date()) {
 async function dailyBriefs(env) {
   const accounts = (await listAccounts(env, true)).filter(a => a.brief_enabled);
   const results = [];
+  let didWork = false;
   for (const a of accounts) {
     const date = addDays(localDate(a.tz), -1);
+    // Cheap check FIRST. Now that this runs every hour after the send time rather
+    // than once, a brand already posted must cost a single SELECT - not a 45-day
+    // Triple Whale sync. sendBrief checks again; this only avoids the work.
+    const prior = await env.DB.prepare(
+      `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
+    ).bind(a.act_id, date).first().catch(() => null);
+    if (prior?.status === 'sent') { results.push({ name: a.name, already_sent: true, date }); continue; }
+
+    didWork = true;
     let r;
     try {
       await syncTwDaily(env, a, 45).catch(() => {});
@@ -1107,7 +1117,11 @@ async function dailyBriefs(env) {
     // Never let a broken alert stop the remaining brands from getting their brief.
     await alertBriefFailure(env, a, date, r).catch(() => {});
   }
-  await putSetting(env, 'lastBriefRun', JSON.stringify({ at: new Date().toISOString(), results })).catch(() => {});
+  // Only record a run that actually did something, so `lastBriefRun` stays a useful
+  // record of the last real send rather than being overwritten hourly by no-ops.
+  if (didWork) {
+    await putSetting(env, 'lastBriefRun', JSON.stringify({ at: new Date().toISOString(), results })).catch(() => {});
+  }
   return results;
 }
 
@@ -1544,7 +1558,14 @@ export default {
     // account is at the free-plan limit of 5).
     if (event.cron === '0 * * * *') {
       ctx.waitUntil((async () => {
-        if (centralHour() === await briefHour(env)) await dailyBriefs(env);
+        // AT OR AFTER the configured hour, never an exact match. An exact match has
+        // no way to recover from a single miss, and the misses are real: changing the
+        // send time from 9 to 7 between 7am and 8am lost a whole day silently,
+        // because 7 had already passed and 9 never came round again. A dropped cron
+        // tick or a transient failure did the same. Every later tick now retries, and
+        // dailyBriefs skips brands already posted for the date, so this cannot double
+        // post and costs one cheap SELECT per brand per hour once the hour is past.
+        if (centralHour() >= await briefHour(env)) await dailyBriefs(env);
       })());
     } else ctx.waitUntil(nightly(env));
   },
