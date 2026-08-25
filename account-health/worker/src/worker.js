@@ -1097,8 +1097,20 @@ async function dailyBriefs(env) {
   const accounts = (await listAccounts(env, true)).filter(a => a.brief_enabled);
   const results = [];
   let didWork = false;
+  // ONE clock governs the brief: Central, the same timezone the send hour is set in.
+  //
+  // This used to be `localDate(a.tz)` - each brand's own yesterday - which was harmless
+  // while the trigger fired exactly once a day, because by 7am Central every US zone
+  // agrees on what yesterday was. Once the trigger became hourly (so a missed send can
+  // recover) that stopped being true: at midnight EASTERN the three Eastern brands
+  // rolled into a new day, found no brief for it, and posted - 11pm Central, to client
+  // channels. The Pacific brands rolled over later and posted at 7am.
+  //
+  // Deriving the date from Central instead means the run at 23:00 Central still asks
+  // for the 23rd (already sent, skipped) and only the 07:00 run asks for the 24th.
+  const briefDate = addDays(localDate(BRIEF_TZ), -1);
   for (const a of accounts) {
-    const date = addDays(localDate(a.tz), -1);
+    const date = briefDate;
     // Cheap check FIRST. Now that this runs every hour after the send time rather
     // than once, a brand already posted must cost a single SELECT - not a 45-day
     // Triple Whale sync. sendBrief checks again; this only avoids the work.

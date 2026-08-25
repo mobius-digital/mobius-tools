@@ -126,6 +126,17 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
 - Activity log `extra_data` is a JSON string; budgets are in **cents**.
   Classification lives in `CATEGORIES` + `summarise()` — extend there.
 - Insights for the last ~72h keep changing; always upsert, never insert-ignore.
+- **The brief date comes from CENTRAL, never from the account's own timezone.** The
+  clients are split across America/New_York and America/Los_Angeles. `dailyBriefs` used
+  `localDate(a.tz)` - each brand's own yesterday - which was harmless while the trigger
+  fired exactly once a day, because by 7am Central every US zone agrees on what
+  yesterday was. The moment the trigger became hourly (so a missed send can recover)
+  that broke: at MIDNIGHT EASTERN the three Eastern brands rolled into a new day, found
+  no brief for it, and posted to client channels at 11pm Central. Cole got the Slacks.
+  One clock governs the brief - the same one the send hour is set in - so the 23:00
+  Central run asks for a date that is already sent and skips, and only the 07:00 run
+  sends. **Any per-account time basis inside a globally-scheduled job will diverge the
+  moment that job runs more than once a day.**
 - **The hourly brief trigger fires AT OR AFTER the send hour, never exactly on it.**
   An exact `centralHour() === briefHour` match cannot recover from a single miss, and
   the misses are real: on 2026-08-24 the send time was changed from 9 to 7 somewhere
