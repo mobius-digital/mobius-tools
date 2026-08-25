@@ -31,11 +31,15 @@ export function Nav() {
 
       <div className="nav__links">
         {LINKS.map((link) => {
-          const href = path(link.href === "/" ? "" : link.href) || path("/");
+          const href = path(link.href);
+          // Next serves the board itself as /b/<brand> while path() builds
+          // /b/<brand>/ — compare without the trailing slash or Pipeline never
+          // reads as the page you are on.
+          const trim = (value: string) => value.replace(/\/+$/, "");
           const active =
             link.href === "/"
-              ? pathname === path("/") || pathname === path("")
-              : pathname.startsWith(path(link.href));
+              ? trim(pathname) === trim(path("/"))
+              : trim(pathname).startsWith(trim(path(link.href)));
 
           return (
             <Link

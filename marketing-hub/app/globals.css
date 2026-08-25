@@ -83,6 +83,15 @@ button {
   outline-offset: 2px;
 }
 
+/* Text fields sit flush in stacked forms, so an offset ring would overlap the
+   label above. Theirs is drawn inside the field instead. */
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline-offset: -2px;
+  border-color: var(--color-primary);
+}
+
 /* --------------------------------------------------------------------------
  * App shell
  * ----------------------------------------------------------------------- */
@@ -3689,4 +3698,283 @@ a.switcher__item:hover {
 .switcher__item--admin {
   border-top: 1px solid var(--border-subtle);
   color: var(--color-accent-ink);
+}
+
+/* --------------------------------------------------------------------------
+ * Clients screen, take two: roomier cards, real controls
+ * ----------------------------------------------------------------------- */
+
+.admin__sub {
+  color: var(--color-text-muted);
+  margin: var(--space-2) 0 0;
+  font-size: 0.95rem;
+  max-width: 40ch;
+}
+
+.admin__grid {
+  gap: var(--space-5);
+}
+
+.client-card__body {
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  gap: var(--space-5);
+}
+
+.client-card__head {
+  align-items: flex-start;
+}
+
+.client-card__name {
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.client-card__url {
+  margin-top: var(--space-1);
+}
+
+.client-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.client-card__label {
+  margin-bottom: 0;
+}
+
+.member-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.member-chip {
+  align-self: auto;
+  background: var(--surface-sunken);
+}
+
+.client-card__foot {
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.button--danger {
+  color: var(--color-danger);
+}
+
+.button--destructive {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+  font-weight: var(--font-weight-heading);
+}
+
+.button--destructive:disabled {
+  opacity: 0.45;
+}
+
+/* A tall form in a dialog needs its own scroll, or the actions fall off. */
+.sheet-form {
+  max-height: min(88vh, 54rem);
+  overflow-y: auto;
+}
+
+.field-group {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field-group legend {
+  padding: 0;
+  margin-bottom: var(--space-1);
+}
+
+/* --------------------------------------------------------------------------
+ * Colour picking
+ * ----------------------------------------------------------------------- */
+
+.colorfield__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-4);
+}
+
+.colorfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.colorfield__label {
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.colorfield__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.colorfield__swatch {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--color-surface);
+}
+
+/* The OS colour dialog is opened by the swatch; the input itself never shows. */
+.colorfield__native {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.colorfield__hex {
+  min-height: 44px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  text-transform: lowercase;
+  min-width: 0;
+}
+
+.colorfield__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.colorfield__preset {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  padding: 0;
+}
+
+.colorfield__preset--on {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
+}
+
+.colorfield__hint {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+ * Brand preview + file picker
+ * ----------------------------------------------------------------------- */
+
+.brand-preview {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.brand-preview__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.brand-preview__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 1.05rem;
+}
+
+.brand-preview__mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.brand-preview__row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.brand-preview__chip {
+  font-size: 0.78rem;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 4px var(--space-3);
+}
+
+.brand-preview__chip--solid {
+  border-color: transparent;
+  font-weight: var(--font-weight-heading);
+}
+
+.filepick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.filepick__name {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The real input is driven by the button beside it. */
+.filepick__input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+ * The brand switcher should look like a control, not a title
+ * ----------------------------------------------------------------------- */
+
+.switcher__trigger {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+}
+
+.switcher__trigger:hover {
+  background: var(--surface-raised);
+  border-color: var(--border-strong);
+}
+
+.switcher__caret {
+  font-size: 0.65rem;
+  margin-left: var(--space-2);
 }

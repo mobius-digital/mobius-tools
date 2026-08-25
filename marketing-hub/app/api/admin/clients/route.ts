@@ -38,18 +38,24 @@ function generatePassword(): string {
 
 async function overview() {
   const db = getDb();
-  const [{ results: brands }, { results: members }, { results: hashes }] = await Promise.all([
-    db.prepare(`SELECT * FROM brands ORDER BY created_at ASC`).all<BrandRow>(),
-    db
-      .prepare(`SELECT brand_id, email FROM memberships WHERE brand_id != ? ORDER BY email ASC`)
-      .bind(PLATFORM)
-      .all<{ brand_id: string; email: string }>(),
-    db
-      .prepare(`SELECT brand_id FROM settings WHERE key = 'password_hash'`)
-      .all<{ brand_id: string }>(),
-  ]);
+  const [{ results: brands }, { results: members }, { results: hashes }, { results: counts }] =
+    await Promise.all([
+      db.prepare(`SELECT * FROM brands ORDER BY created_at ASC`).all<BrandRow>(),
+      db
+        .prepare(`SELECT brand_id, email FROM memberships WHERE brand_id != ? ORDER BY email ASC`)
+        .bind(PLATFORM)
+        .all<{ brand_id: string; email: string }>(),
+      db
+        .prepare(`SELECT brand_id FROM settings WHERE key = 'password_hash'`)
+        .all<{ brand_id: string }>(),
+      // What a delete would take with it, so the confirmation can say so.
+      db
+        .prepare(`SELECT brand_id, COUNT(*) AS n FROM events GROUP BY brand_id`)
+        .all<{ brand_id: string; n: number }>(),
+    ]);
 
   const withPassword = new Set((hashes ?? []).map((row) => row.brand_id));
+  const eventCounts = new Map((counts ?? []).map((row) => [row.brand_id, Number(row.n)]));
 
   return (brands ?? []).map((row) => {
     let accent = "#2563EB";
@@ -64,6 +70,7 @@ async function overview() {
         .filter((member) => member.brand_id === row.id)
         .map((member) => member.email),
       passwordSet: withPassword.has(row.id),
+      events: eventCounts.get(row.id) ?? 0,
     };
   });
 }
@@ -83,6 +90,7 @@ export async function POST(request: Request) {
     logoSvg?: unknown;
     icons?: unknown;
     email?: unknown;
+    confirm?: unknown;
   };
 
   try {
@@ -116,6 +124,28 @@ export async function POST(request: Request) {
           .bind(slug, email)
           .run();
       }
+      return NextResponse.json({ clients: await overview() });
+    }
+
+    // ---- delete a client, and everything of theirs ----------------------
+    if (body.action === "delete-client") {
+      const slug = typeof body.slug === "string" ? body.slug : "";
+      if (!isValidSlug(slug)) return NextResponse.json({ error: "Bad brand." }, { status: 422 });
+
+      // Deliberately irreversible and deliberately explicit: the confirmation
+      // is typing the client's name, handled in the browser. Everything the
+      // brand owns goes, in one batch, so a half-deleted client cannot exist.
+      await db.batch([
+        db.prepare(`DELETE FROM events WHERE brand_id = ?`).bind(slug),
+        db.prepare(`DELETE FROM changelog WHERE brand_id = ?`).bind(slug),
+        db.prepare(`DELETE FROM settings WHERE brand_id = ?`).bind(slug),
+        db.prepare(`DELETE FROM memberships WHERE brand_id = ?`).bind(slug),
+        db.prepare(`DELETE FROM slack_channel_map WHERE brand_id = ?`).bind(slug),
+        db.prepare(`DELETE FROM slack_outbox WHERE brand_id = ?`).bind(slug),
+        db.prepare(`DELETE FROM slack_reminders_sent WHERE brand_id = ?`).bind(slug),
+        db.prepare(`DELETE FROM brands WHERE id = ?`).bind(slug),
+      ]);
+
       return NextResponse.json({ clients: await overview() });
     }
 
