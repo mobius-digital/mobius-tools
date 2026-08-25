@@ -1095,7 +1095,13 @@ function judgeCosts(rows) {
   if (!n) return { verdict: 'none', reason: 'no cost data in Triple Whale', days: 0 };
   const sorted = margins.slice().sort((a, b) => a - b);
   const p10 = sorted[Math.floor(n * 0.1)], p90 = sorted[Math.floor(n * 0.9)];
-  const negatives = margins.filter(m => m < 0).length;
+  // MATERIALITY FLOOR. `m < 0` counted a day that missed by three dollars on $936 of
+  // revenue - Lucky, 2026-08-11, gross profit -0.3% - and that one day suppressed the
+  // client's entire profit reporting. Real contamination is not marginal: a wholesale
+  // order or an inventory receipt books cost that is a MULTIPLE of the day's revenue,
+  // not a rounding error against it. Anything shallower than -5% is ordinary variation
+  // in product mix and is not evidence of anything.
+  const negatives = margins.filter(m => m < -0.05).length;
   // A negative day means total VARIABLE cost beat revenue - product, delivery,
   // handling and fees together. Only say "product cost" when product cost alone did
   // it; the old wording asserted COGS every time and was often simply wrong.

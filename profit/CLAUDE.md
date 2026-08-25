@@ -80,6 +80,15 @@ profit/
   `dayEconomics` takes `sales * marginPct` and never looks at product, delivery,
   handling or fees, so any card describing a cost must say so when `margin_pct` is
   set — "already inside contribution margin" is untrue for Grunk.
+- **A negative day needs a MATERIALITY FLOOR, or the test fires on rounding.** The
+  check was `margin < 0`, and Lucky's 2026-08-11 came in at gross profit of MINUS THREE
+  DOLLARS on $936 of revenue - a 0.3% miss. That one day suppressed the client's entire
+  profit reporting, and the card then explained at length that it was probably wholesale
+  orders paid outside Shopify. It was not. It was a day where product mix ran heavy.
+  Real contamination is never marginal: a wholesale order or an inventory receipt books
+  cost that is a MULTIPLE of the day's revenue. The test is now `margin < -0.05`, and
+  all six clients read `good` or `override`. **Any threshold on a money figure needs a
+  floor - a rule that fires at minus three dollars is not measuring anything.**
 - **ONE bad day is not broken data. Scale the verdict to how many days are affected.**
   `negatives > 0` used to flip a client straight to `broken`, which suppresses every
   profit figure - so a single wholesale order or inventory receipt in sixty days hid
