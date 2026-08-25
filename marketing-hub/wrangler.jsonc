@@ -1,0 +1,40 @@
+/**
+ * Marketing Hub — one deployment, every brand.
+ *
+ * Deploy:  npm run deploy      (from this folder)
+ * Logs:    npx wrangler tail marketing-hub
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "marketing-hub",
+  // Not .open-next/worker.js directly: worker-entry.js wraps it to add the
+  // cron handler, which the generated file cannot carry across a rebuild.
+  "main": "worker-entry.js",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  // One tick serves every brand: Slack batch windows and daily reminders.
+  // COMMENTED OUT while the old launch-calendar worker still holds the
+  // account's last free cron slot; the cutover deploy (which replaces that
+  // worker) restores it. The scheduled handler is ready either way.
+  // "triggers": {
+  //   "crons": ["*/5 * * * *"]
+  // },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "marketing-hub",
+      "database_id": "e8bd83a8-100e-44ed-a639-2c3415f90e41"
+    }
+  ]
+}
