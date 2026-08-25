@@ -1,0 +1,28 @@
+/**
+ * Mobius Console — the agency's front door to every client board.
+ *
+ * Deploy:  npx wrangler deploy      (from this folder)
+ * Secrets (set once):
+ *   npx wrangler secret put CONSOLE_PASSWORD   — signs the agency in
+ *   npx wrangler secret put GH_TOKEN           — lets Add-client start the pipeline
+ *   npx wrangler secret put PROVISION_SECRET   — authenticates the pipeline back
+ */
+{
+  "$schema": "../launch-calendar/node_modules/wrangler/config-schema.json",
+  "name": "mobius-console",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-07-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "GH_REPO": "mobius-digital/mobius-tools",
+    "GH_WORKFLOW": "provision-client.yml",
+    "AGENCY_EMAILS": "cole@go-mobius-digital.com"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mobius-console",
+      "database_id": "c9c5b834-1e1c-4b51-8924-7188cf85b74c"
+    }
+  ]
+}

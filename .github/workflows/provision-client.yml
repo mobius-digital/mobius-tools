@@ -1,0 +1,86 @@
+# Builds a complete Marketing Calendar board for a new client.
+#
+# Started by the Mobius Console's "Add client" button (workflow_dispatch with
+# the client's id). Fetches the full spec back from the console, runs
+# launch-calendar/scripts/provision-client.mjs — database, brand, icons,
+# deploy, password, switcher links — and reports the finished board (or the
+# failure) back to the console, which the UI is polling.
+#
+# Secrets:  CLOUDFLARE_API_TOKEN  (Workers Scripts:Edit + D1:Edit)
+#           CLOUDFLARE_ACCOUNT_ID
+#           PROVISION_SECRET      (same value the console holds)
+# Vars:     CONSOLE_URL           (https://mobius-console.….workers.dev)
+
+name: Provision client board
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_id:
+        description: Console client id
+        required: true
+
+concurrency: provision-${{ github.event.inputs.client_id }}
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: launch-calendar
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: launch-calendar/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch the client spec from the console
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${{ secrets.PROVISION_SECRET }}" \
+            "${{ vars.CONSOLE_URL }}/api/spec/${{ github.event.inputs.client_id }}" \
+            -o /tmp/spec.json
+
+      - name: Provision the board
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CHROME: /usr/bin/google-chrome
+        run: |
+          node scripts/provision-client.mjs --spec /tmp/spec.json | tee /tmp/provision.log
+
+      - name: Report the finished board to the console
+        run: |
+          RESULT=$(grep -o 'PROVISION_RESULT=.*' /tmp/provision.log | cut -d= -f2-)
+          curl --fail --silent --show-error -X POST \
+            -H "Authorization: Bearer ${{ secrets.PROVISION_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "$RESULT" \
+            "${{ vars.CONSOLE_URL }}/api/complete/${{ github.event.inputs.client_id }}"
+
+      - name: Report a failure to the console
+        if: failure()
+        run: |
+          TAIL=$(tail -c 1500 /tmp/provision.log 2>/dev/null || echo "The pipeline failed before the build started.")
+          node -e '
+            const detail = process.argv[1];
+            fetch(`${process.env.CONSOLE_URL}/api/complete/${process.env.CLIENT_ID}`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${process.env.SECRET}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ error: detail }),
+            }).then((r) => console.log("reported", r.status));
+          ' "$TAIL"
+        env:
+          CONSOLE_URL: ${{ vars.CONSOLE_URL }}
+          CLIENT_ID: ${{ github.event.inputs.client_id }}
+          SECRET: ${{ secrets.PROVISION_SECRET }}
