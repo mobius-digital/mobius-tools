@@ -80,6 +80,20 @@ profit/
   `dayEconomics` takes `sales * marginPct` and never looks at product, delivery,
   handling or fees, so any card describing a cost must say so when `margin_pct` is
   set — "already inside contribution margin" is untrue for Grunk.
+- **ONE bad day is not broken data. Scale the verdict to how many days are affected.**
+  `negatives > 0` used to flip a client straight to `broken`, which suppresses every
+  profit figure - so a single wholesale order or inventory receipt in sixty days hid
+  Lucky's entire margin, while the card underneath cheerfully reported that the other
+  56 days ran a clean 79%. Suppressing a good number because of one known, explained,
+  isolated day is worse than reporting it. `broken` now needs a PATTERN
+  (`negatives > max(1, n * 0.1)`), and a handful of contaminated days lands on `noisy`,
+  which names the days and leaves the figures standing.
+- **A negative day is VARIABLE cost beating revenue, not necessarily product cost.**
+  `margin` is `gross_profit / sales`, and gross profit subtracts cogs, delivery,
+  handling AND fees. The reason text asserted "more product cost than the store took
+  in" every time, which for Lucky was simply false - its cogs never once exceeded
+  sales. `judgeCosts` now counts `cogs_over` separately and only says "product cost"
+  when product cost alone actually did it, otherwise "variable cost".
 - **Cost data is gated.** `judgeCosts()` grades the trailing per-day margin;
   `broken` suppresses every profit figure. The Costs page must always diagnose
   the **real** TW data (`seriesRaw`, override ignored) — grading the override

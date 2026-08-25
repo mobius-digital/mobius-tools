@@ -1096,19 +1096,35 @@ function judgeCosts(rows) {
   const sorted = margins.slice().sort((a, b) => a - b);
   const p10 = sorted[Math.floor(n * 0.1)], p90 = sorted[Math.floor(n * 0.9)];
   const negatives = margins.filter(m => m < 0).length;
+  // A negative day means total VARIABLE cost beat revenue - product, delivery,
+  // handling and fees together. Only say "product cost" when product cost alone did
+  // it; the old wording asserted COGS every time and was often simply wrong.
+  const cogsOver = rows.filter(r => r.sales > 0 && r.cogs != null && r.cogs > r.sales).length;
+  const costWord = cogsOver >= Math.max(1, negatives * 0.5) ? 'product cost' : 'variable cost';
   const gp = sum(rows, r => r.gross_profit), sales = sum(rows, r => r.sales);
   const blended = sales > 0 && gp != null ? gp / sales : null;
   const spread = p90 - p10;
-  const out = { verdict: 'good', days: n, blended, p10, p90, spread, negatives };
+  const out = { verdict: 'good', days: n, blended, p10, p90, spread, negatives, cogs_over: cogsOver };
   const retail = retailMargin(rows);
   out.retail = retail;
-  if (negatives > 0 || (blended != null && blended <= 0.15) || spread > 0.6) {
+  // A HANDFUL of contaminated days is not broken data. A single wholesale order or
+  // inventory receipt in sixty days used to flip the whole client to "cannot be
+  // trusted" and suppress every profit figure - while the card underneath said the
+  // other 56 days ran a clean 79% margin. Suppressing a good number because of one
+  // known, explained, isolated day is worse than reporting it. Only a PATTERN of
+  // them (more than a tenth of the window) means the cost data itself is untrustworthy.
+  const heavilyContaminated = negatives > Math.max(1, n * 0.1);
+  if (heavilyContaminated || (blended != null && blended <= 0.15) || spread > 0.6) {
     out.verdict = 'broken';
-    out.reason = negatives > 0
-      ? `${negatives} of ${n} days record more product cost than the store took in — typically wholesale orders paid outside Shopify, or an inventory delivery booked as one day's cost`
+    out.reason = heavilyContaminated
+      ? `${negatives} of ${n} days record more ${costWord} than the store took in — typically wholesale orders paid outside Shopify, or an inventory delivery booked as one day's cost`
       : blended != null && blended <= 0.15
       ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin for this kind of product`
       : `daily margin swings ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}%, which no real product mix does`;
+  } else if (negatives > 0) {
+    // Reported, not suppressed: the figures stand and the odd day is named.
+    out.verdict = 'noisy';
+    out.reason = `${negatives} of ${n} days record more ${costWord} than the store took in — almost always a wholesale order paid outside Shopify or an inventory delivery booked to one day. The other ${n - negatives} days are consistent, so the profit figures still stand`;
   } else if (spread > 0.4) {
     out.verdict = 'noisy';
     out.reason = `daily margin ranges ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}% — likely a few products missing COGS`;
