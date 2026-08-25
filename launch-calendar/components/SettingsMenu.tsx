@@ -8,6 +8,7 @@ import { EventTypeSettings } from "./EventTypeSettings";
 import { SlackSettings } from "./SlackSettings";
 import { ChannelSettings } from "./ChannelSettings";
 import { InstallGuide } from "./InstallGuide";
+import { BoardSettings } from "./BoardSettings";
 import { useTour } from "./Tour";
 
 /**
@@ -27,6 +28,7 @@ export function SettingsMenu() {
   const [editingSlack, setEditingSlack] = useState(false);
   const [editingChannels, setEditingChannels] = useState(false);
   const [showingInstall, setShowingInstall] = useState(false);
+  const [editingBoards, setEditingBoards] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -167,6 +169,21 @@ export function SettingsMenu() {
             className="settings__item"
             onClick={() => {
               setOpen(false);
+              setEditingBoards(true);
+            }}
+          >
+            <span className="settings__label">Other boards</span>
+            <span className="settings__hint">
+              Link your other brands&apos; boards — the name up top becomes a switcher
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            className="settings__item"
+            onClick={() => {
+              setOpen(false);
               setEditingSignIn(true);
             }}
           >
@@ -208,6 +225,8 @@ export function SettingsMenu() {
       {editingChannels && <ChannelSettings onClose={() => setEditingChannels(false)} />}
 
       {showingInstall && <InstallGuide onClose={() => setShowingInstall(false)} />}
+
+      {editingBoards && <BoardSettings onClose={() => setEditingBoards(false)} />}
     </div>
   );
 }

@@ -226,6 +226,10 @@ Then open the address in the browser for them and say:
 - Adding a channel needs no migration: channels live as JSON on each event and
   every read fills in the board's current list.
 - Dates are `YYYY-MM-DD` strings throughout; never introduce `Date` round-trips.
+- Several brands = several deployments of this folder, linked by **Settings →
+  Other boards** (the nav brand name becomes a switcher; entries can be
+  limited to listed Google-verified emails). Nothing is shared between boards
+  — the menu holds addresses, that is all.
 - The board installs to a phone or tablet home screen (Settings → Add to your
   phone). `app/manifest.ts` builds the manifest from `brand.config.ts`;
   `public/icons/*.png` come from `npm run icons`; `public/sw.js` is a small

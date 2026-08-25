@@ -105,6 +105,15 @@ Things worth knowing before you pick a palette:
 - `font.family` is fetched from Google Fonts at runtime, so any family available
   there works without touching code.
 
+## More than one brand
+
+Each brand runs as its own deployment of this folder — own worker, own
+database, own colours. **Settings → Other boards** links them: paste the other
+boards' addresses and the brand name in the nav becomes a switcher. Entries
+can be limited to listed emails (checked against Google sign-in), so an agency
+sees every brand while each client team sees only their own. `lib/boards.ts` /
+`lib/boardLinks.ts`, stored in `settings` like channels and event types.
+
 ## How it works
 
 **Pipeline** is the default view and the one built for the Monday call. It shows

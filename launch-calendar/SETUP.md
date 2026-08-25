@@ -411,6 +411,7 @@ place.
 | Change the team password | **Settings → Change the team password**, inside the app |
 | Invite or remove people | **Settings → Who can sign in**, inside the app |
 | Put it on a phone or tablet | Open the address on the device; **Settings → Add to your phone** shows the two taps. It gets its own icon and opens full-screen — no App Store |
+| Run boards for several brands | Give each brand its own copy of this folder (own worker, own database), then link them under **Settings → Other boards** — the brand name up top becomes a switcher for whoever you list |
 | Rename or add event types | **Settings → Event types**, inside the app |
 | Add or rename a marketing channel | **Settings → Channels**, inside the app |
 | Change what Slack hears about | **Settings → Slack notifications**, inside the app |
