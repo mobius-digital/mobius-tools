@@ -48,6 +48,9 @@ export type MessageOptions = {
   boardUrl: string;
   typeLabel: (key: string) => string;
   channelLabel?: (key: string) => string;
+  /** The brand's own colours for the attachment bar; defaults keep the hub palette. */
+  accent?: string;
+  danger?: string;
 };
 
 export type SlackMessage = {
@@ -94,10 +97,10 @@ function context(text: string) {
 }
 
 /** An event in trouble should not arrive wearing the same colour as good news. */
-function barColour(event: LaunchEvent): string {
+function barColour(event: LaunchEvent, options: MessageOptions): string {
   return event.status === "at_risk" || event.status === "cancelled"
-    ? brand.colors.danger
-    : brand.colors.primary;
+    ? (options.danger ?? brand.colors.danger)
+    : (options.accent ?? brand.colors.primary);
 }
 
 /**
@@ -369,7 +372,7 @@ export function buildEventMessage(item: NotifyItem, options: MessageOptions): Sl
     text: previewText(item, channelKey, typeLabel, channelLabel),
     attachments: [
       {
-        color: barColour(item.event),
+        color: barColour(item.event, options),
         blocks: eventBlocks(item, channelKey, boardUrl, typeLabel, channelLabel),
       },
     ],
@@ -409,7 +412,7 @@ export function buildReminderMessage(
       kind === "week"
         ? `One week out: ${event.name} goes live ${formatWithWeekday(event.launch_date)}`
         : `Live tomorrow: ${event.name}`,
-    attachments: [{ color: barColour(event), blocks }],
+    attachments: [{ color: barColour(event, options), blocks }],
   };
 }
 

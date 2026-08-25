@@ -19,7 +19,7 @@
  */
 
 import { getDb, rowToEvent } from "./db";
-import { currentBrandId } from "./brandContext";
+import { currentBrand, currentBrandId } from "./brandContext";
 import { channelLabeller } from "./channelOptions";
 import { listEventTypes } from "./eventTypes";
 import { addDays, todayIso } from "./dates";
@@ -273,6 +273,7 @@ export async function flushOutbox(
     typeLabeller(),
     channelLabeller(),
   ]);
+  const { colors } = await currentBrand();
 
   // One read per distinct event, rendered from the current row rather than a
   // snapshot: a message that goes out at 09:15 should describe the event as it
@@ -341,6 +342,8 @@ export async function flushOutbox(
         boardUrl: settings.boardUrl,
         typeLabel,
         channelLabel,
+        accent: colors.primary,
+        danger: colors.danger,
       });
 
       const result = await postMessage(token, bundle.slackId, message);
@@ -462,6 +465,7 @@ export async function runReminders(now: Date = new Date()): Promise<{ posted: nu
     typeLabeller(),
     channelLabeller(),
   ]);
+  const { colors } = await currentBrand();
 
   const db = getDb();
   let posted = 0;
@@ -499,6 +503,8 @@ export async function runReminders(now: Date = new Date()): Promise<{ posted: nu
           boardUrl: settings.boardUrl,
           typeLabel,
           channelLabel,
+          accent: colors.primary,
+          danger: colors.danger,
         });
         const result = await postMessage(token, slackId, message);
         if (result.ok) posted += 1;

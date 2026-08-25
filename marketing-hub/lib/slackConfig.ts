@@ -253,8 +253,11 @@ export async function rememberBoardUrl(request: Request): Promise<void> {
   try {
     const origin = new URL(request.url).origin;
     if (!origin.startsWith("http") || origin.includes("cron.internal")) return;
-    if ((await readSetting(BOARD_URL_KEY)) === origin) return;
-    await writeSetting(BOARD_URL_KEY, origin);
+    // The brand's own home, not the hub's front door — a Slack link has to
+    // land on the board it is about.
+    const base = `${origin}/b/${await currentBrandId()}`;
+    if ((await readSetting(BOARD_URL_KEY)) === base) return;
+    await writeSetting(BOARD_URL_KEY, base);
   } catch {
     // A missing link is a worse message, not a failed request.
   }

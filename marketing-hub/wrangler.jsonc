@@ -6,7 +6,7 @@
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "marketing-hub",
+  "name": "marketing-calendar",
   // Not .open-next/worker.js directly: worker-entry.js wraps it to add the
   // cron handler, which the generated file cannot carry across a rebuild.
   "main": "worker-entry.js",

@@ -4,7 +4,7 @@ One deployment, every brand. The multi-tenant successor to the per-brand
 `launch-calendar/` deploys: brands are database rows, people are memberships,
 and a client's board lives at `/b/<brand>/` behind one URL.
 
-**Live (test):** https://marketing-hub.mobius-digital.workers.dev
+**Live (test):** https://marketing-calendar.mobius-digital.workers.dev
 **Cutover plan:** deploy this code as the worker named `launch-calendar` to
 take over the original URL (which keeps Google sign-in's registered origin,
 the team's bookmarks, and the account's cron slot).
