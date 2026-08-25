@@ -214,7 +214,11 @@ try {
     .toString()
     .replace(/"name":\s*"[^"]+"/, `"name": "${workerName}"`)
     .replace(/"database_name":\s*"[^"]+"/, `"database_name": "${workerName}"`)
-    .replace(/"database_id":\s*"[^"]+"/, `"database_id": "${dbId}"`);
+    .replace(/"database_id":\s*"[^"]+"/, `"database_id": "${dbId}"`)
+    // Client boards carry no scheduled trigger of their own — the free plan
+    // caps them per account. The board that has one fans out to its siblings
+    // (worker-entry.js), so Slack batching still runs everywhere.
+    .replace(/"triggers":\s*\{[^}]*\},?/s, "");
   writeFileSync(join(root, "wrangler.jsonc"), wranglerConfig);
 
   console.log("Rendering home-screen icons…");
@@ -231,6 +235,14 @@ try {
     input: password,
     stdio: ["pipe", "pipe", "pipe"],
   });
+
+  if (spec.cronSecret) {
+    console.log("Setting the shared cron key…");
+    run(npx, ["wrangler", "secret", "put", "CRON_SECRET", "--name", workerName], {
+      input: spec.cronSecret,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  }
 } finally {
   restoreAll();
   // The icons belong to the repo's own brand — put those back too.

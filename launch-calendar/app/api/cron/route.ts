@@ -21,12 +21,31 @@ export const dynamic = "force-dynamic";
  */
 
 const HEADER = "x-lc-cron";
+const KEY_HEADER = "x-cron-key";
+
+/**
+ * A sibling board's tick is the second accepted caller: Cloudflare's free plan
+ * caps scheduled triggers per account, so a fleet of boards shares one — the
+ * board that has it fans out to the others (see worker-entry.js), presenting
+ * the shared `CRON_SECRET`. A board with no secret set accepts only its own
+ * wrapper's nonce, exactly as before.
+ */
+function keyAccepted(presented: string | null): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || !presented || presented.length !== secret.length) return false;
+  let diff = 0;
+  for (let i = 0; i < secret.length; i++) {
+    diff |= secret.charCodeAt(i) ^ presented.charCodeAt(i);
+  }
+  return diff === 0;
+}
 
 export async function POST(request: Request) {
   const expected = (globalThis as { __lcCronNonce?: string }).__lcCronNonce;
   const presented = request.headers.get(HEADER);
+  const nonceOk = Boolean(expected && presented && presented === expected);
 
-  if (!expected || !presented || presented !== expected) {
+  if (!nonceOk && !keyAccepted(request.headers.get(KEY_HEADER))) {
     return NextResponse.json({ error: "Not found." }, { status: 403 });
   }
 

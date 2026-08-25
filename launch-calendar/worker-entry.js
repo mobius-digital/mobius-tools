@@ -53,5 +53,37 @@ export default {
       // even one nobody outside this isolate has ever seen.
       delete globalThis.__lcCronNonce;
     }
+
+    // Cloudflare's free plan caps scheduled triggers per account, so sibling
+    // boards run without one and this board waters them: every entry in its
+    // own switcher list gets its /api/cron called, authenticated by the shared
+    // CRON_SECRET. Boards fan out only from here — an HTTP-triggered tick
+    // never fans out — so two boards with triggers cannot chain or loop.
+    if (env.CRON_SECRET) {
+      try {
+        const row = await env.DB.prepare(
+          `SELECT value FROM settings WHERE key = 'boards'`,
+        ).first();
+        const boards = row?.value ? JSON.parse(row.value) : [];
+        if (Array.isArray(boards)) {
+          await Promise.allSettled(
+            boards
+              .filter((board) => board && typeof board.url === "string")
+              .map((board) =>
+                fetch(new URL("/api/cron", board.url), {
+                  method: "POST",
+                  headers: { "x-cron-key": env.CRON_SECRET },
+                }).then((res) => {
+                  if (!res.ok && res.status !== 403) {
+                    console.error(`Sibling tick ${board.url} returned ${res.status}`);
+                  }
+                }),
+              ),
+          );
+        }
+      } catch (error) {
+        console.error("Sibling fan-out failed:", error);
+      }
+    }
   },
 };

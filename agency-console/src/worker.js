@@ -203,6 +203,17 @@ async function handleApi(request, env, url) {
       return json({ ok: true });
     }
 
+    // A success report has to actually contain the board. Anything else is
+    // recorded as a failure rather than a live card pointing nowhere.
+    if (typeof body.url !== "string" || !body.url.startsWith("https://")) {
+      await env.DB.prepare(
+        `UPDATE clients SET status = 'failed', error = ?, updated_at = ? WHERE id = ?`,
+      )
+        .bind("The pipeline reported success without a board address.", now, completeMatch[1])
+        .run();
+      return json({ ok: true });
+    }
+
     await env.DB.prepare(
       `UPDATE clients SET status = 'live', url = ?, db_name = ?, password = ?, error = NULL,
        updated_at = ? WHERE id = ?`,
@@ -286,6 +297,9 @@ async function handleApi(request, env, url) {
       logoSvg,
       logoTint: body.logoTint !== false,
       agencyEmails: agencyEmails(env),
+      // The shared key that lets the board with the scheduled trigger run its
+      // siblings' Slack batching (free plan caps triggers per account).
+      cronSecret: env.CRON_SECRET || undefined,
       boards: live.map((row) => ({ label: row.name, url: row.url, db: row.db_name })),
     };
 
