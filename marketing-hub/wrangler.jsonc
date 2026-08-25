@@ -1,12 +1,18 @@
 /**
- * Marketing Hub — one deployment, every brand.
+ * Marketing Calendar — one deployment, every brand.
+ *
+ * The worker keeps the name `launch-calendar` on purpose: that name owns the
+ * original workers.dev address, which is the one registered with Google
+ * sign-in, bookmarked by the team, and installed on their phones. Renaming
+ * the worker would abandon all three. The product calls itself Marketing
+ * Calendar everywhere a person can see.
  *
  * Deploy:  npm run deploy      (from this folder)
- * Logs:    npx wrangler tail marketing-hub
+ * Logs:    npx wrangler tail launch-calendar
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "marketing-calendar",
+  "name": "launch-calendar",
   // Not .open-next/worker.js directly: worker-entry.js wraps it to add the
   // cron handler, which the generated file cannot carry across a rebuild.
   "main": "worker-entry.js",
@@ -23,12 +29,9 @@
   },
 
   // One tick serves every brand: Slack batch windows and daily reminders.
-  // COMMENTED OUT while the old launch-calendar worker still holds the
-  // account's last free cron slot; the cutover deploy (which replaces that
-  // worker) restores it. The scheduled handler is ready either way.
-  // "triggers": {
-  //   "crons": ["*/5 * * * *"]
-  // },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
 
   "d1_databases": [
     {

@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { brandsFor, isAdmin } from "@/lib/brandContext";
 import { googleClientId } from "@/lib/signin";
+import { safeEqual, sessionTokenForBrand } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import { GoogleSignIn } from "@/components/GoogleSignIn";
 
@@ -16,9 +18,8 @@ export const dynamic = "force-dynamic";
  * team uses a shared password, whose way in is their brand's own link.
  */
 export default async function FrontDoor() {
-  const identity = await readIdentityToken(
-    (await cookies()).get(IDENTITY_COOKIE)?.value,
-  );
+  const jar = await cookies();
+  const identity = await readIdentityToken(jar.get(IDENTITY_COOKIE)?.value);
 
   if (identity) {
     const [brands, admin] = await Promise.all([
@@ -51,6 +52,21 @@ export default async function FrontDoor() {
       </div>
     );
   }
+
+  // Nobody signed in with Google. Two ways to still land somewhere useful
+  // rather than on a picker: a team-password session already open for a
+  // brand, or a hub that only has one brand to go to.
+  for (const cookie of jar.getAll()) {
+    if (!cookie.name.startsWith("lc_s_")) continue;
+    const slug = cookie.name.slice("lc_s_".length);
+    const expected = await sessionTokenForBrand(slug);
+    if (expected && safeEqual(cookie.value, expected)) redirect(`/b/${slug}/`);
+  }
+
+  const { results: all } = await getDb()
+    .prepare(`SELECT id FROM brands ORDER BY created_at ASC LIMIT 2`)
+    .all<{ id: string }>();
+  if ((all ?? []).length === 1) redirect(`/b/${all![0].id}/`);
 
   const clientId = await googleClientId();
 
