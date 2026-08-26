@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBrand } from "@/components/BrandProvider";
+import { hub } from "@/hub.config";
 import { DisplayNameBadge } from "@/components/DisplayName";
 import { BoardSwitcher } from "@/components/BoardSwitcher";
-import { SettingsMenu } from "@/components/SettingsMenu";
+import { SettingsButton } from "@/components/SettingsButton";
 
 /** Extended as views land; every entry must point at a route that exists. */
 const LINKS: { href: string; label: string }[] = [
@@ -26,7 +27,7 @@ export function Nav() {
     <nav className="nav">
       <BoardSwitcher />
       <span className="nav__product" aria-hidden>
-        {brand.productName}
+        {hub.name}
       </span>
 
       <div className="nav__links">
@@ -53,7 +54,7 @@ export function Nav() {
           );
         })}
         <DisplayNameBadge />
-        <SettingsMenu />
+        <SettingsButton />
       </div>
     </nav>
   );

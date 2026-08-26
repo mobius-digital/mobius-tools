@@ -1,4 +1,4 @@
-import { brand } from "@/brand.config";
+import { hub } from "@/hub.config";
 import { RetryButton } from "@/components/RetryButton";
 
 /**
@@ -11,7 +11,7 @@ export default function OfflinePage() {
     <section className="offline">
       <h1 className="offline__title">You&apos;re offline</h1>
       <p className="offline__body">
-        The {brand.productName} needs a connection to show the board — it is
+        {hub.name} needs a connection to show the board — it is
         live for everyone, so nothing is kept on this device that could be out
         of date. Reconnect and try again.
       </p>

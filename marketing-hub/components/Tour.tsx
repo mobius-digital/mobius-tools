@@ -1,6 +1,7 @@
 "use client";
 
 import { useBrand } from "./BrandProvider";
+import { hub } from "@/hub.config";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
@@ -69,7 +70,7 @@ const STEPS: Step[] = [
   {
     id: "welcome",
     goto: "/",
-    title: "Welcome to the {productName}",
+    title: "Welcome to {productName}",
     body: "This is where your team sees what is launching, when, and which channels need to care. A few minutes and you will know your way around — including how to add your first launch.",
   },
   {
@@ -240,7 +241,7 @@ const STEPS: Step[] = [
     goto: "/",
     target: ".nav .settings",
     title: "Settings — everything a team can change",
-    body: "Change your name, which is what gets stamped on your edits. Replay this walkthrough. Add to your phone — the two taps that put the board on a phone or tablet home screen as its own full-screen app, no App Store. Event types — rename the options in that Type dropdown, or add your own. Channels — add a marketing channel the board does not have yet; it gets its own filter chip, its own row on every event and its own Slack channel to notify. Other boards — running more than one brand? Link their boards and the name up top becomes a switcher. Slack notifications — point each channel at a Slack channel and the board posts when a launch is added, moved, changes status or gets its assets, plus a reminder a week out; several edits to one event within 15 minutes arrive as one message. Who can sign in — a shared password, or invite people by email to sign in with Google. And change the team password, which signs everybody else out.",
+    body: "One window, with the sections listed down the left. Your account — the name stamped on your edits, and this walkthrough. Add to your phone — the two taps that put the board on a phone or tablet home screen as its own full-screen app, no App Store. Event types — rename the options in that Type dropdown, or add your own. Channels — add a marketing channel the board does not have yet; it gets its own filter chip, its own row on every event and its own Slack channel to notify. Slack notifications — point each channel at a Slack channel and the board posts when a launch is added, moved, changes status or gets its assets, plus a reminder a week out; several edits to one event within 15 minutes arrive as one message. Users — invite people by email to sign in with Google, and change the shared team password, which signs everybody else out.",
   },
   {
     id: "done",
@@ -546,7 +547,7 @@ function Walkthrough({
         </div>
 
         <h2 className="tour__title" id="tour-title">
-          {step.title.replace("{productName}", brand.productName)}
+          {step.title.replace("{productName}", hub.name)}
         </h2>
         <p className="tour__body">{step.body}</p>
 

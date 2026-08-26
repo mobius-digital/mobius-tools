@@ -798,6 +798,80 @@ button {
   margin-top: var(--space-2);
 }
 
+/* The ✕ in a dialog's corner. Every dialog has one now: a backdrop click is
+   not a close button, and on a phone there is often no backdrop to click. */
+.dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.dialog__head .dialog__title {
+  margin-bottom: 0;
+}
+
+.dialog__close {
+  background: none;
+  border: 0;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  font-size: 1rem;
+  flex: 0 0 auto;
+  /* A comfortable target on a phone. */
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.dialog__close:hover {
+  color: var(--color-text);
+  background: var(--surface-raised);
+}
+
+/*
+ * A tall form: fixed head, scrolling middle, actions pinned to the bottom.
+ * The alternative — scrolling the whole dialog — put Save below the fold,
+ * which reads as "there is no way to save this".
+ */
+.dialog--framed {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 54rem);
+}
+
+.dialog--framed .dialog__head {
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+.dialog__scroll {
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dialog__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--color-surface);
+  flex: 0 0 auto;
+}
+
+/* The unsaved-changes prompt sits above the dialog it is protecting. */
+.scrim--confirm {
+  z-index: 120;
+}
+
 /* --------------------------------------------------------------------------
  * Identity badge
  * ----------------------------------------------------------------------- */
@@ -2757,7 +2831,7 @@ button {
 }
 
 /* --------------------------------------------------------------------------
- * Settings menu
+ * Settings — the nav button, and the window it opens
  * ----------------------------------------------------------------------- */
 
 .settings {
@@ -2782,61 +2856,205 @@ button {
   color: var(--color-text);
 }
 
-.settings__caret {
-  font-size: 0.65rem;
-  opacity: 0.7;
-}
-
-.settings__list {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 60;
-  min-width: 16rem;
-  background: var(--color-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-1);
+/*
+ * One window, a rail of sections down the left, one pane beside it. The
+ * dialog itself stops scrolling — the head is pinned, and the rail and the
+ * pane scroll independently, so the list of sections never leaves the screen
+ * while you read a long one.
+ */
+.dialog--settings {
+  max-width: 54rem;
+  width: 100%;
+  height: min(85vh, 42rem);
+  padding: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  box-shadow: 0 6px 18px var(--scrim);
 }
 
-.settings__item {
+.settings-window__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  flex: 0 0 auto;
+}
+
+.settings-window__head .dialog__title {
+  margin: 0;
+}
+
+.settings-window__body {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.settings-rail {
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+  padding: var(--space-3) var(--space-2);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-rail__heading {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-3);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.settings-rail__item {
   display: flex;
   flex-direction: column;
   gap: 2px;
   text-align: left;
   background: none;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   color: var(--color-text);
-  min-height: 40px;
+  min-height: 44px;
 }
 
-.settings__item:hover {
+.settings-rail__item:hover {
   background: var(--surface-raised);
 }
 
-.settings__label {
+/* The selected section, marked in the brand colour rather than by weight
+   alone, so which one is open survives a glance. */
+.settings-rail__item--active,
+.settings-rail__item--active:hover {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}
+
+.settings-rail__label {
   font-size: 0.9rem;
   font-weight: var(--font-weight-heading);
 }
 
-.settings__hint {
+.settings-rail__hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+
+.settings-rail__item--active .settings-rail__label {
+  color: var(--color-accent-ink);
+}
+
+.settings-pane {
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.settings-pane__title {
+  font-size: 1.05rem;
+  margin: 0 0 var(--space-4);
+}
+
+/* The pane's own first rule would double the gap under that title. */
+.settings-pane > .dialog__rule:first-of-type {
+  margin-top: var(--space-4);
+}
+
+/* A stated fact with the control that changes it, on one line. */
+.settings-fact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  margin: 0 0 var(--space-4);
+}
+
+.settings-fact__label {
   font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--color-text-muted);
 }
 
-/* A settings row that states a fact rather than offering an action. */
-.settings__item--static {
-  cursor: default;
+.settings-fact__value {
+  font-weight: var(--font-weight-heading);
+  margin-right: auto;
 }
 
-.settings__item--static:hover {
-  background: none;
+/*
+ * On a phone there is no room for a rail beside a pane, so the sections
+ * become a scrolling strip of chips across the top and the pane takes the
+ * whole width beneath — the list still stays visible, which is the point.
+ */
+@media (max-width: 640px) {
+  .dialog--settings {
+    /* Nearly the whole screen: the scrim keeps one gutter of padding. */
+    height: calc(100dvh - 2 * var(--space-4));
+    border-radius: var(--radius-md);
+  }
+
+  .settings-window__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-direction: row;
+    gap: var(--space-2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: var(--space-2);
+  }
+
+  .settings-rail__group {
+    flex-direction: row;
+    gap: var(--space-2);
+  }
+
+  /* The group names are a desktop luxury; the labels carry it on a phone. */
+  .settings-rail__heading {
+    display: none;
+  }
+
+  .settings-rail__item {
+    white-space: nowrap;
+    min-height: 38px;
+    justify-content: center;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .settings-rail__item--active,
+  .settings-rail__item--active:hover {
+    box-shadow: none;
+    border-color: var(--color-primary);
+  }
+
+  .settings-rail__hint {
+    display: none;
+  }
+
+  .settings-pane {
+    padding: var(--space-4);
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -2855,9 +3073,14 @@ button {
   margin: var(--space-5) 0;
 }
 
+/* A heading and the status beside it sit on one line, and wrap together on a
+   phone rather than the status dropping out of reach. */
 .dialog__section {
   font-size: 0.95rem;
   margin: 0 0 var(--space-2);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .dialog__body--muted {
@@ -2918,11 +3141,16 @@ button {
   gap: var(--space-2);
 }
 
+/*
+ * A row is one thing and the actions on it. `space-between` used to spread
+ * three children across the full width, which left Rename stranded in the
+ * middle of the row looking like a caption rather than a control — so the
+ * label takes the slack and the buttons stay paired at the right edge.
+ */
 .emails__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   background: var(--color-background);
   border-radius: var(--radius-md);
@@ -2931,6 +3159,15 @@ button {
 .emails__address {
   font-size: 0.9rem;
   word-break: break-all;
+  margin-right: auto;
+  min-width: 0;
+}
+
+/* The rename box, when a row is being edited, should fill the row rather than
+   sit at its natural input width with the buttons far off to the right. */
+.emails__row .input {
+  flex: 1;
+  min-width: 0;
 }
 
 .emails__add {
@@ -3026,11 +3263,24 @@ button {
   gap: var(--space-3);
 }
 
+/*
+ * The status beside a section heading — "connected", or which token is in
+ * place. It is a separate thought from the heading, so it needs its own space:
+ * without this it rendered as "Slackxoxb-…nJ0B", which reads as a glitch
+ * rather than as a connected account.
+ */
 .disclose__state {
   font-weight: 400;
   font-size: 0.8rem;
   color: var(--color-text-muted);
+  margin-left: var(--space-3);
+  padding: 0.1rem var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  white-space: nowrap;
 }
+
 
 .disclose[open] .disclose__summary {
   margin-bottom: var(--space-3);
@@ -3826,12 +4076,6 @@ a.switcher__item:hover {
 
 .button--destructive:disabled {
   opacity: 0.45;
-}
-
-/* A tall form in a dialog needs its own scroll, or the actions fall off. */
-.sheet-form {
-  max-height: min(88vh, 54rem);
-  overflow-y: auto;
 }
 
 .field-group {

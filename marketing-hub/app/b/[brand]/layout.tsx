@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!brand) return {};
 
   return {
-    title: `${brand.productName} · ${brand.name}`,
+    title: `${hub.name} · ${brand.name}`,
     description: `What's launching, when, and which channels need to care — ${brand.name}.`,
     // The wrapper is the product, the contents are the client's: the tab icon
     // and the installed app wear Lineup so nobody has to supply a logo per
@@ -78,8 +78,6 @@ export default async function BrandLayout({
         brand={{
           slug: brand.slug,
           name: brand.name,
-          productName: brand.productName,
-          shortName: brand.shortName,
           logoUrl: brand.logoUrl,
           logoTint: brand.logoTint,
         }}

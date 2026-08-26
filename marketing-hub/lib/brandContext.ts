@@ -41,8 +41,6 @@ export async function currentBrandId(): Promise<string> {
 export type BrandRow = {
   id: string;
   name: string;
-  product_name: string;
-  short_name: string;
   colors: string;
   font: string;
   logo_svg: string | null;
@@ -69,8 +67,6 @@ export function brandFromRow(row: BrandRow): LoadedBrand {
   return {
     slug: row.id,
     name: row.name,
-    productName: row.product_name || defaultBrand.productName,
-    shortName: row.short_name || defaultBrand.shortName,
     logoUrl: `/b/${row.id}/logo.svg`,
     logoTint: row.logo_tint !== 0,
     logoSvg: row.logo_svg,

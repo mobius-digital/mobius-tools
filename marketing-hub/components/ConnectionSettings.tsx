@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CloseButton, useCloseGuard } from "./UnsavedGuard";
 
 /**
  * The two accounts every board borrows: the Google app people sign in
@@ -29,6 +30,10 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // A client ID edited but not saved, or a token pasted but not connected.
+  const dirty = Boolean(token.trim()) || (state !== null && clientId !== state.googleClientId);
+  const { requestClose, prompt } = useCloseGuard(dirty, onClose);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -79,7 +84,7 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
       className="scrim"
       role="presentation"
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) requestClose();
       }}
     >
       <div
@@ -88,12 +93,15 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-labelledby="connections-title"
         onKeyDown={(event) => {
-          if (event.key === "Escape") onClose();
+          if (event.key === "Escape") requestClose();
         }}
       >
-        <h2 className="dialog__title" id="connections-title">
-          Connections
-        </h2>
+        <header className="dialog__head">
+          <h2 className="dialog__title" id="connections-title">
+            Connections
+          </h2>
+          <CloseButton onClose={requestClose} />
+        </header>
         <p className="dialog__body">
           Mobius&apos;s own Google and Slack apps, shared by every client board.
           Set once, here — no client ever sees these.
@@ -163,7 +171,9 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
             <h3 className="dialog__section">
               Slack
               <span className="disclose__state">
-                {state.slackConnected ? state.slackTokenHint : "not connected"}
+                {state.slackConnected
+                  ? `connected · ${state.slackTokenHint}`
+                  : "not connected"}
               </span>
             </h3>
             <p className="dialog__body">
@@ -218,10 +228,12 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
         )}
 
         <div className="dialog__actions">
-          <button type="button" className="button button--primary" onClick={onClose}>
+          <button type="button" className="button button--primary" onClick={requestClose}>
             Done
           </button>
         </div>
+
+        {prompt}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { currentBrand, currentBrandId } from "@/lib/brandContext";
+import { hub } from "@/hub.config";
 import { isPasswordConfigured } from "@/lib/auth";
 import { signInConfig } from "@/lib/signin";
 import { PasswordForm } from "@/components/PasswordForm";
@@ -47,7 +48,7 @@ export default async function PasswordPage({
 
   return (
     <div className="gate">
-      <GateScene channels={channels} eventTypes={eventTypes} productName={brand.productName} />
+      <GateScene channels={channels} eventTypes={eventTypes} productName={hub.name} />
 
       <section className="gate__panel">
         <div className="gate__card">
@@ -55,7 +56,7 @@ export default async function PasswordPage({
             <BrandLogo className="gate__logo" />
             <span className="gate__brandname">{brand.name}</span>
           </div>
-          <h1 className="gate__title">{brand.productName}</h1>
+          <h1 className="gate__title">{hub.name}</h1>
 
         {googleMode ? (
           <>

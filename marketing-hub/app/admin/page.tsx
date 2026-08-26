@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ColorField } from "@/components/ColorField";
 import { BrandMark } from "@/components/BrandMark";
 import { ConnectionSettings } from "@/components/ConnectionSettings";
+import { CloseButton, useCloseGuard } from "@/components/UnsavedGuard";
 
 /**
  * The Clients screen — agency admins only (the gate enforces it).
@@ -23,9 +24,12 @@ type Client = {
   events: number;
   archived: number;
   logoSvg: string | null;
-  shortName: string;
   seeds: { accent: string; background: string; text: string };
 };
+
+/** One logo size rule, for SVG and raster alike. D1 holds ~2 MB per row and
+ *  a 1 MB image is ~1.4 MB once base64-encoded, so this is the safe ceiling. */
+const MAX_LOGO_BYTES = 1_000_000;
 
 const ACCENTS = ["#2563eb", "#7c3aed", "#c9a227", "#059669", "#dc2626", "#ea580c", "#0891b2", "#111827"];
 const BACKGROUNDS = ["#f7f7f8", "#ffffff", "#f4f4f0", "#f8f7fc", "#f1f5f9", "#141414"];
@@ -64,10 +68,10 @@ export default function AdminPage() {
   const [accent, setAccent] = useState("#2563eb");
   const [background, setBackground] = useState("#f7f7f8");
   const [text, setText] = useState("#18181b");
-  const [shortName, setShortName] = useState("");
-  const [shortTouched, setShortTouched] = useState(false);
   const [logoSvg, setLogoSvg] = useState("");
   const [logoName, setLogoName] = useState("");
+  /** Kept apart from the page error, which renders behind this dialog. */
+  const [logoError, setLogoError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -109,8 +113,6 @@ export default function AdminPage() {
     setAccent(client.seeds.accent);
     setBackground(client.seeds.background);
     setText(client.seeds.text);
-    setShortName(client.shortName);
-    setShortTouched(true);
     setLogoSvg("");
     setLogoName("");
     setError(null);
@@ -122,8 +124,7 @@ export default function AdminPage() {
     setName("");
     setLogoSvg("");
     setLogoName("");
-    setShortName("");
-    setShortTouched(false);
+    setLogoError(null);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -140,30 +141,33 @@ export default function AdminPage() {
       /\.(png|jpe?g)$/i.test(file.name) || /^image\/(png|jpeg)$/.test(file.type);
 
     if (!isSvg && !isRaster) {
-      setError("The logo needs to be an SVG, PNG or JPEG.");
+      setLogoError("The logo needs to be an SVG, PNG or JPEG.");
+      return;
+    }
+
+    // One size rule for both shapes, and a generous one. There used to be two
+    // — 50 KB for an SVG, 250 KB for a raster — which meant an ordinary export
+    // was refused twice over for reasons that read like a lecture. Size is the
+    // database's business, not a judgement about how the file was drawn.
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoError("That file is over 1 MB. Export the mark a little smaller and try again.");
       return;
     }
 
     if (isSvg) {
-      if (file.size > 50_000) {
-        setError("That SVG is over 50 KB. It is probably a traced image rather than a simple mark.");
-        return;
-      }
       const content = await file.text();
+      // Not a size rule: a .svg that is not SVG inside cannot be painted in
+      // the brand colour, so it would land on the board as a blank square.
       if (!/^\s*<svg[\s>]/i.test(content)) {
-        setError("That file does not look like an SVG inside.");
+        setLogoError("That file is named .svg but is not an SVG inside.");
         return;
       }
-      setError(null);
+      setLogoError(null);
       setLogoSvg(content.trim());
       setLogoName(file.name);
       return;
     }
 
-    if (file.size > 250_000) {
-      setError("That image is over 250 KB. A logo mark should be far smaller — try exporting it at about 512px.");
-      return;
-    }
     const dataUri = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
@@ -172,22 +176,46 @@ export default function AdminPage() {
     }).catch(() => null);
 
     if (!dataUri) {
-      setError("Could not read that file.");
+      setLogoError("Could not read that file.");
       return;
     }
-    setError(null);
+    setLogoError(null);
     setLogoSvg(dataUri);
     setLogoName(file.name);
   }
 
+  function closeForm() {
+    setAdding(false);
+    setEditing(null);
+    resetForm();
+  }
+
+  /**
+   * What "unsaved" means here. On a new client it is anything typed at all; on
+   * an edit it is anything that differs from the row as it stands, so opening
+   * Edit and closing it again never argues with you. The three colours seed
+   * from the stored palette, so they compare cleanly.
+   */
+  const formDirty = adding
+    ? editing
+      ? name !== editing.name ||
+        accent !== editing.seeds.accent ||
+        background !== editing.seeds.background ||
+        text !== editing.seeds.text ||
+        Boolean(logoSvg)
+      : Boolean(name.trim() || logoSvg)
+    : false;
+
+  const form = useCloseGuard(formDirty, closeForm);
+
   async function save(event: FormEvent) {
     event.preventDefault();
+    setLogoError(null);
 
     const result = await call({
       action: editing ? "update-client" : undefined,
       slug: editing?.slug,
       name,
-      shortName: shortName || name.split(/\s+/)[0],
       colors: { accent, background, text },
       logoSvg: logoSvg.trim() || undefined,
     });
@@ -264,7 +292,9 @@ export default function AdminPage() {
         </div>
       </header>
 
-      {error && (
+      {/* Only when nothing is covering it — an alert behind a modal is an
+          alert nobody reads. While the form is open it renders in there. */}
+      {error && !adding && !deleting && (
         <p className="field__error field__error--banner" role="alert">
           {error}
         </p>
@@ -404,28 +434,35 @@ export default function AdminPage() {
           className="scrim"
           role="presentation"
           onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setAdding(false);
-              setEditing(null);
-            }
+            if (event.target === event.currentTarget) form.requestClose();
           }}
         >
+          {/* Framed rather than one long scroll: the form is tall enough that
+              Save used to sit below the fold, which is why it read as though
+              there was no way to save at all. */}
           <form
-            className="dialog dialog--wide sheet-form"
+            className="dialog dialog--wide dialog--framed"
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-client-title"
             onSubmit={save}
             onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setAdding(false);
-                setEditing(null);
-              }
+              if (event.key === "Escape") form.requestClose();
             }}
           >
-            <h2 className="dialog__title" id="add-client-title">
-              {editing ? `Edit ${editing.name}` : "Add a client"}
-            </h2>
+            <header className="dialog__head">
+              <h2 className="dialog__title" id="add-client-title">
+                {editing ? `Edit ${editing.name}` : "Add a client"}
+              </h2>
+              <CloseButton onClose={form.requestClose} />
+            </header>
+
+            <div className="dialog__scroll">
+            {(error || logoError) && (
+              <p className="field__error field__error--banner" role="alert">
+                {logoError ?? error}
+              </p>
+            )}
             <p className="dialog__body">
               {editing
                 ? "Changes show on their board straight away. Their address, events and who can sign in are untouched."
@@ -438,12 +475,7 @@ export default function AdminPage() {
                 className="input"
                 value={name}
                 maxLength={40}
-                onChange={(event) => {
-                  setName(event.target.value);
-                  if (!shortTouched) {
-                    setShortName(event.target.value.trim().split(/\s+/)[0].slice(0, 14));
-                  }
-                }}
+                onChange={(event) => setName(event.target.value)}
                 placeholder="Dartee Golf"
               />
             </label>
@@ -487,24 +519,6 @@ export default function AdminPage() {
                 </span>
               </div>
             </div>
-
-            <label className="field">
-              <span className="field__label">Short name for phone home screens</span>
-              <input
-                className="input"
-                value={shortName}
-                maxLength={14}
-                onChange={(event) => {
-                  setShortName(event.target.value);
-                  setShortTouched(true);
-                }}
-                placeholder="Dartee"
-              />
-              <span className="field__hint">
-                When somebody adds this board to their phone, this is the label
-                under the icon. About 11 characters fit before it is trimmed.
-              </span>
-            </label>
 
             <div className="field">
               <span className="field__label">Logo (optional)</span>
@@ -550,20 +564,14 @@ export default function AdminPage() {
                 board. <strong>SVG</strong> is best: it stays sharp and gets
                 painted in their accent colour. <strong>PNG or JPEG</strong>
                 works too and is shown exactly as it is, so use one with a
-                transparent or matching background. Leave it empty for the
-                calendar mark.
+                transparent or matching background. Up to 1 MB. Leave it
+                empty for the calendar mark.
               </span>
             </div>
+            </div>
 
-            <div className="dialog__actions">
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  setAdding(false);
-                  setEditing(null);
-                }}
-              >
+            <footer className="dialog__foot">
+              <button type="button" className="button" onClick={form.requestClose}>
                 Cancel
               </button>
               <button
@@ -573,7 +581,9 @@ export default function AdminPage() {
               >
                 {editing ? "Save changes" : "Create the board"}
               </button>
-            </div>
+            </footer>
+
+            {form.prompt}
           </form>
         </div>
       )}

@@ -15,7 +15,7 @@
  * at a token from anywhere.
  */
 
-import { brand } from "@/brand.config";
+import { hub } from "@/hub.config";
 
 export type SlackChannel = {
   id: string;
@@ -160,7 +160,7 @@ export async function listChannels(
 }
 
 /** How the app would like to appear, when the token is allowed to say so. */
-const IDENTITY = { username: brand.productName, icon_emoji: ":rocket:" };
+const IDENTITY = { username: hub.name, icon_emoji: ":rocket:" };
 
 /**
  * Posts one message.

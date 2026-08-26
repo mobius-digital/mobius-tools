@@ -3,6 +3,7 @@
 import { useBrand } from "./BrandProvider";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useDisplayName } from "./DisplayName";
+import { CloseButton, useCloseGuard } from "./UnsavedGuard";
 import { useWorkspace } from "./Workspace";
 import {
   emptyChannels,
@@ -142,6 +143,17 @@ export function EventEditor({
 
   const isNew = event === null;
 
+  /**
+   * The form as it was when the sheet opened. Captured on the first render —
+   * `form` is still the initial state at that moment — so "changed" means
+   * changed by the person, not merely different from the event row.
+   */
+  const openedAsRef = useRef<string | null>(null);
+  if (openedAsRef.current === null) openedAsRef.current = JSON.stringify(form);
+  const dirty = JSON.stringify(form) !== openedAsRef.current;
+
+  const { requestClose, prompt } = useCloseGuard(dirty, onClose);
+
   useEffect(() => {
     returnFocusRef.current = document.activeElement as HTMLElement | null;
     firstFieldRef.current?.focus();
@@ -166,7 +178,7 @@ export function EventEditor({
   function handleKeyDown(keyEvent: React.KeyboardEvent) {
     if (keyEvent.key === "Escape") {
       keyEvent.stopPropagation();
-      onClose();
+      requestClose();
       return;
     }
 
@@ -289,7 +301,7 @@ export function EventEditor({
       className="scrim scrim--right"
       role="presentation"
       onClick={(clickEvent) => {
-        if (clickEvent.target === clickEvent.currentTarget) onClose();
+        if (clickEvent.target === clickEvent.currentTarget) requestClose();
       }}
     >
       <div
@@ -304,14 +316,7 @@ export function EventEditor({
           <h2 className="sheet__title" id="editor-title">
             {isNew ? "New event" : "Edit event"}
           </h2>
-          <button
-            type="button"
-            className="button button--quiet"
-            onClick={onClose}
-            aria-label="Close editor"
-          >
-            Close
-          </button>
+          <CloseButton onClose={requestClose} label="Close editor" />
         </header>
 
         <form className="sheet__body" onSubmit={handleSubmit} id="event-form">
@@ -666,7 +671,7 @@ export function EventEditor({
         </form>
 
         <footer className="sheet__footer">
-          <button type="button" className="button button--quiet" onClick={onClose}>
+          <button type="button" className="button button--quiet" onClick={requestClose}>
             Discard
           </button>
           <button
@@ -678,6 +683,8 @@ export function EventEditor({
             {busy ? "Saving…" : isNew ? "Create event" : "Save changes"}
           </button>
         </footer>
+
+        {prompt}
       </div>
     </div>
   );

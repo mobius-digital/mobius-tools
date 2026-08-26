@@ -2,11 +2,14 @@
  * What the product calls *itself* — as opposed to what any one client's board
  * is called.
  *
- * Clients never see this. Their board wears their own brand: their colours,
- * their logo, and their own short name under the phone icon. This name is for
- * the people who work across several brands — the agency — and it is what
- * appears on the switcher app they install, the front door, and the browser
- * tab before a brand is chosen.
+ * There is exactly one product name, and this is it. A client's board wears
+ * their brand in the way that matters — their colours, their logo, their name
+ * beside it — but the thing itself is called Lineup on their tab, their
+ * sign-in card, their Slack posts and their home-screen icon, the same as on
+ * the front door. Two names for one product only ever confused people.
+ *
+ * A board's own name comes from its row in `brands`; nothing here is per
+ * client.
  *
  * CHANGING THE NAME IS THIS FILE AND NOTHING ELSE. Edit, `npm run deploy`,
  * and anyone with the app installed sees the new name after they re-add it to

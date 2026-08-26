@@ -23,6 +23,7 @@
  */
 
 import { brand } from "../brand.config.ts";
+import { hub } from "../hub.config.ts";
 import { formatShort, formatWithWeekday } from "./dates.ts";
 import {
   EVENT_STATUS_LABELS,
@@ -188,7 +189,7 @@ function boardLink(boardUrl: string, event: LaunchEvent, channelKey: ChannelKey)
   // The lens travels with the link, so somebody opening this from #paid lands
   // on the board already filtered to their own work.
   const url = `${boardUrl}/?channel=${channelKey}&event=${encodeURIComponent(event.id)}`;
-  return `<${url}|Open in ${escape(brand.productName)} →>`;
+  return `<${url}|Open in ${escape(hub.name)} →>`;
 }
 
 /**
@@ -419,12 +420,12 @@ export function buildReminderMessage(
 /** Proof the wiring works, sent from the settings screen. */
 export function buildTestMessage(boardUrl: string): SlackMessage {
   return {
-    text: `${brand.productName} is connected to this channel.`,
+    text: `${hub.name} is connected to this channel.`,
     attachments: [
       {
         color: brand.colors.primary,
         blocks: [
-          section(`✅ *${escape(brand.productName)} is connected to this channel.*`),
+          section(`✅ *${escape(hub.name)} is connected to this channel.*`),
           context(
             "New events, date moves, status changes and assets landing for the marketing channels mapped here will arrive here — one short message per event, at most once every 15 minutes.",
           ),

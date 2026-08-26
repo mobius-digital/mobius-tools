@@ -5,6 +5,14 @@ import { HEX, derivePalette } from "@/lib/palette";
 import { setPassword } from "@/lib/auth";
 import { normaliseEmail } from "@/lib/identity";
 
+/**
+ * One logo size rule, matching the Add/Edit form: 1 MB of file. A raster
+ * arrives base64-encoded, which is ~4/3 the size, so its ceiling is the
+ * encoded one. D1 holds about 2 MB per row.
+ */
+const MAX_LOGO_BYTES = 1_000_000;
+const MAX_ENCODED_LOGO = Math.ceil((MAX_LOGO_BYTES * 4) / 3) + 100;
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -97,7 +105,6 @@ async function overview() {
       events: eventCounts.get(row.id)?.live ?? 0,
       archived: eventCounts.get(row.id)?.archived ?? 0,
       logoSvg: row.logo_svg,
-      shortName: row.short_name,
       font,
       seeds: {
         accent: palette.primary ?? "#2563eb",
@@ -117,7 +124,6 @@ export async function POST(request: Request) {
     action?: unknown;
     name?: unknown;
     slug?: unknown;
-    shortName?: unknown;
     font?: unknown;
     colors?: { accent?: unknown; background?: unknown; text?: unknown };
     logoSvg?: unknown;
@@ -227,7 +233,6 @@ export async function POST(request: Request) {
     });
 
     const font = FONTS.includes(String(body.font)) ? String(body.font) : "Inter";
-    const shortName = String(body.shortName ?? "Calendar").trim().slice(0, 14) || "Calendar";
 
     // Two shapes are allowed. SVG markup is painted in the accent colour via a
     // CSS mask, so one file suits any background. A PNG or JPEG arrives as a
@@ -238,20 +243,25 @@ export async function POST(request: Request) {
       const trimmed = body.logoSvg.trim();
 
       if (/^data:image\/(png|jpeg);base64,/i.test(trimmed)) {
-        // ~340 KB of base64 is ~250 KB of image, comfortably inside D1's
-        // per-value room and far more than a mark ever needs.
-        if (trimmed.length > 350_000) {
+        // Base64 costs about a third on top, so a 1 MB file arrives as ~1.4 MB
+        // of text — inside D1's ~2 MB per row with the palette alongside it.
+        if (trimmed.length > MAX_ENCODED_LOGO) {
           return NextResponse.json(
-            { error: "That image is too large. Keep a logo under about 250 KB." },
+            { error: "That image is too large. Keep a logo under 1 MB." },
             { status: 422 },
           );
         }
         logoSvg = trimmed;
         logoTint = 0;
       } else if (/^<svg[\s>]/i.test(trimmed)) {
-        if (trimmed.length > 50_000) {
-          return NextResponse.json({ error: "That SVG is over 50 KB." }, { status: 422 });
+        if (trimmed.length > MAX_LOGO_BYTES) {
+          return NextResponse.json(
+            { error: "That SVG is too large. Keep a logo under 1 MB." },
+            { status: 422 },
+          );
         }
+        // Not about size: an SVG carrying script would run on every board it
+        // is shown on, so this one is refused however small it is.
         if (/<script|onload|onerror|javascript:/i.test(trimmed)) {
           return NextResponse.json({ error: "That SVG contains scripting." }, { status: 422 });
         }
@@ -285,13 +295,13 @@ export async function POST(request: Request) {
       // somebody editing only the name should not lose their mark.
       await db
         .prepare(
-          `UPDATE brands SET name = ?, short_name = ?, colors = ?, font = ?,
+          `UPDATE brands SET name = ?, colors = ?, font = ?,
              logo_svg = COALESCE(?, logo_svg),
              logo_tint = CASE WHEN ? IS NULL THEN logo_tint ELSE ? END,
              icons = COALESCE(?, icons), updated_at = ?
            WHERE id = ?`,
         )
-        .bind(name, shortName, JSON.stringify(palette), fontJson,
+        .bind(name, JSON.stringify(palette), fontJson,
           logoSvg, logoSvg, logoTint, icons, now, slug)
         .run();
 
@@ -300,10 +310,10 @@ export async function POST(request: Request) {
 
     await db
       .prepare(
-        `INSERT INTO brands (id, name, product_name, short_name, colors, font, logo_svg, logo_tint, icons, created_at, updated_at)
-         VALUES (?, ?, 'Marketing Calendar', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO brands (id, name, colors, font, logo_svg, logo_tint, icons, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(slug, name, shortName, JSON.stringify(palette), fontJson, logoSvg, logoTint,
+      .bind(slug, name, JSON.stringify(palette), fontJson, logoSvg, logoTint,
         icons, now, now)
       .run();
 

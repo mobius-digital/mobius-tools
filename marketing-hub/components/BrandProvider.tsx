@@ -14,8 +14,6 @@ import { createContext, useContext, type ReactNode } from "react";
 export type ClientBrand = {
   slug: string;
   name: string;
-  productName: string;
-  shortName: string;
   logoUrl: string;
   logoTint: boolean;
 };

@@ -20,7 +20,7 @@ export async function GET() {
   return Response.json({
     name: `${hub.name} · ${brand.name}`,
     short_name: hub.shortName,
-    description: "What's going live, when — and which channels need to care.",
+    description: hub.tagline,
     start_url: `/b/${slug}/`,
     scope: `/b/${slug}/`,
     display: "standalone",

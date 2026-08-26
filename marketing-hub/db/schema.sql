@@ -7,8 +7,6 @@
 CREATE TABLE IF NOT EXISTS brands (
   id           TEXT PRIMARY KEY,      -- slug: 'lucky-golf'
   name         TEXT NOT NULL,         -- 'Lucky Golf'
-  product_name TEXT NOT NULL DEFAULT 'Marketing Calendar',
-  short_name   TEXT NOT NULL DEFAULT 'Calendar',
   colors       TEXT NOT NULL,         -- JSON: the palette brand.config.ts used to hold
   font         TEXT NOT NULL,         -- JSON: { family, headingWeight, bodyWeight }
   logo_svg     TEXT,                  -- single-colour mark; NULL = default calendar mark

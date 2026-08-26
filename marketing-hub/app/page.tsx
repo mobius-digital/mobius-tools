@@ -90,9 +90,9 @@ export default async function FrontDoor() {
             <span className="gate__logo gate__logo--hub" aria-hidden />
             <span className="gate__brandname">{hub.name}</span>
           </div>
-          {/* The artwork already carries the tagline; the card says what the
-              thing is, exactly as a brand's own card does under its name. */}
-          <h1 className="gate__title">Marketing Calendar</h1>
+          {/* A brand's card reads "<their name> / Lineup". Here the name
+              above is already Lineup, so this says what Lineup is. */}
+          <h1 className="gate__title">Marketing calendars</h1>
 
           {clientId ? (
             <>

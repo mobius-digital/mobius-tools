@@ -8,6 +8,7 @@ import {
   type NotifyItem,
 } from "../lib/slackMessage.ts";
 import { brand } from "../brand.config.ts";
+import { hub } from "../hub.config.ts";
 import type { Channels, LaunchEvent } from "../lib/types.ts";
 
 function channels(spec: Partial<Record<keyof Channels, string>>): Channels {
@@ -197,7 +198,7 @@ test("the day-before reminder reads as tomorrow, not as a week", () => {
 test("the test message names the channel it landed in", () => {
   const message = buildTestMessage(OPTIONS.boardUrl);
 
-  assert.equal(message.text, `${brand.productName} is connected to this channel.`);
+  assert.equal(message.text, `${hub.name} is connected to this channel.`);
   assert.ok(textOf(message).includes("connected to this channel"));
 });
 
@@ -352,9 +353,9 @@ test("when several things changed, the title is the one that matters most", () =
   assert.equal(titleOf(risk), "⚠️ *At risk — Fall Apparel Drop*");
 });
 
-test("the product name on the link follows brand.config", () => {
+test("the product name on the link follows hub.config", () => {
   const body = textOf(buildEventMessage(item(), OPTIONS));
-  assert.ok(body.includes(`Open in ${brand.productName} →`));
+  assert.ok(body.includes(`Open in ${hub.name} →`));
 });
 
 /* ---------------------------------------------------------------- */
