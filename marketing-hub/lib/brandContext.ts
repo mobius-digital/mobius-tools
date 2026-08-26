@@ -17,6 +17,7 @@
 import { headers } from "next/headers";
 import { brand as defaultBrand, type Brand } from "@/brand.config";
 import { getDb } from "./db";
+import { todayIso } from "./dates";
 
 export const BRAND_HEADER = "x-brand-id";
 
@@ -105,7 +106,14 @@ export async function currentBrand(): Promise<LoadedBrand> {
  * Membership
  * ----------------------------------------------------------------------- */
 
-export type BrandSummary = { slug: string; name: string; accent: string };
+export type BrandSummary = {
+  slug: string;
+  name: string;
+  accent: string;
+  logoSvg: string | null;
+  /** The next thing going live, so the picker answers a question rather than just listing doors. */
+  next: { name: string; date: string } | null;
+};
 
 /** True when this email is an agency admin (member of the platform brand). */
 export async function isAdmin(email: string): Promise<boolean> {
@@ -132,22 +140,44 @@ export async function brandsFor(email: string): Promise<BrandSummary[]> {
   const normalised = email.trim().toLowerCase();
   const admin = await isAdmin(normalised);
 
+  type Row = { id: string; name: string; colors: string; logo_svg: string | null };
+
   const { results } = admin
     ? await getDb()
-        .prepare(`SELECT id, name, colors FROM brands ORDER BY created_at ASC`)
-        .all<{ id: string; name: string; colors: string }>()
+        .prepare(`SELECT id, name, colors, logo_svg FROM brands ORDER BY created_at ASC`)
+        .all<Row>()
     : await getDb()
         .prepare(
-          `SELECT b.id, b.name, b.colors FROM brands b
+          `SELECT b.id, b.name, b.colors, b.logo_svg FROM brands b
            JOIN memberships m ON m.brand_id = b.id
            WHERE m.email = ? ORDER BY b.created_at ASC`,
         )
         .bind(normalised)
-        .all<{ id: string; name: string; colors: string }>();
+        .all<Row>();
 
-  return (results ?? []).map((row) => ({
+  const brands = results ?? [];
+  if (brands.length === 0) return [];
+
+  // One query for everybody's next launch, rather than one per brand.
+  const { results: upcoming } = await getDb()
+    .prepare(
+      `SELECT brand_id, name, launch_date FROM events
+       WHERE launch_date >= ? AND status NOT IN ('completed','cancelled')
+       ORDER BY launch_date ASC`,
+    )
+    .bind(todayIso())
+    .all<{ brand_id: string; name: string; launch_date: string }>();
+
+  const next = new Map<string, { name: string; date: string }>();
+  for (const row of upcoming ?? []) {
+    if (!next.has(row.brand_id)) next.set(row.brand_id, { name: row.name, date: row.launch_date });
+  }
+
+  return brands.map((row) => ({
     slug: row.id,
     name: row.name,
     accent: parseJson<{ primary?: string }>(row.colors, {}).primary ?? "#2563EB",
+    logoSvg: row.logo_svg,
+    next: next.get(row.id) ?? null,
   }));
 }

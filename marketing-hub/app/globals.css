@@ -3431,375 +3431,6 @@ a.switcher__item:hover {
 }
 
 /* --------------------------------------------------------------------------
- * The hub's own screens: front door and Clients (admin)
- * These render outside any brand, in the default palette.
- * ----------------------------------------------------------------------- */
-
-.door {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-5);
-}
-
-.door__panel {
-  width: min(24rem, 100%);
-  background: var(--color-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-7) var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.door__panel--wide {
-  width: min(40rem, 100%);
-}
-
-.door__title {
-  font-size: 1.4rem;
-}
-
-.door__sub {
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.door__note {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  margin: 0;
-}
-
-.door__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: var(--space-3);
-}
-
-.door__card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  text-decoration: none;
-  color: var(--color-text);
-  background: var(--surface-raised);
-}
-
-.door__card:hover {
-  border-color: var(--border-strong);
-}
-
-.door__swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  flex-shrink: 0;
-}
-
-.door__swatch--admin {
-  background:
-    linear-gradient(135deg, var(--color-primary) 50%, var(--color-text-muted) 50%);
-}
-
-.door__name {
-  font-weight: var(--font-weight-heading);
-  font-size: 0.95rem;
-}
-
-.admin {
-  max-width: var(--shell-max);
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-5) var(--space-8);
-}
-
-.admin__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
-  flex-wrap: wrap;
-}
-
-.admin__title {
-  font-size: 1.5rem;
-}
-
-.admin__top-actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.admin__empty {
-  color: var(--color-text-muted);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: var(--space-7);
-  text-align: center;
-}
-
-.admin__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
-  gap: var(--space-4);
-}
-
-.client-card {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  overflow: hidden;
-}
-
-.client-card__bar {
-  height: 6px;
-}
-
-.client-card__body {
-  padding: var(--space-4) var(--space-5) var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.client-card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.client-card__name {
-  font-size: 1.05rem;
-}
-
-.client-card__url {
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  margin: 0;
-}
-
-.client-card__pw {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
-  background: var(--surface-sunken);
-}
-
-.client-card__pw code {
-  color: var(--color-accent-ink);
-  font-weight: var(--font-weight-heading);
-}
-
-.client-card__label {
-  display: block;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-1);
-}
-
-.client-card__none {
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
-}
-
-.client-card__members {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.member-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  padding: 2px var(--space-2) 2px var(--space-3);
-  font-size: 0.8rem;
-  align-self: flex-start;
-}
-
-.member-chip button {
-  border: 0;
-  background: none;
-  color: var(--color-text-muted);
-  font-size: 0.95rem;
-  cursor: pointer;
-  padding: 0 2px;
-}
-
-.member-add {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.member-add .input {
-  flex: 1;
-}
-
-.client-card__foot {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.palette-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.palette-pick {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.palette-pick input {
-  width: 100%;
-  height: 38px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-  padding: 2px;
-}
-
-.palette-preview {
-  border: 1px solid;
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.palette-preview__chip {
-  font-size: 0.75rem;
-  border-radius: 999px;
-  padding: 3px var(--space-3);
-}
-
-.switcher__item--admin {
-  border-top: 1px solid var(--border-subtle);
-  color: var(--color-accent-ink);
-}
-
-/* --------------------------------------------------------------------------
- * Clients screen, take two: roomier cards, real controls
- * ----------------------------------------------------------------------- */
-
-.admin__sub {
-  color: var(--color-text-muted);
-  margin: var(--space-2) 0 0;
-  font-size: 0.95rem;
-  max-width: 40ch;
-}
-
-.admin__grid {
-  gap: var(--space-5);
-}
-
-.client-card__body {
-  padding: var(--space-5) var(--space-5) var(--space-4);
-  gap: var(--space-5);
-}
-
-.client-card__head {
-  align-items: flex-start;
-}
-
-.client-card__name {
-  font-size: 1.15rem;
-  letter-spacing: -0.01em;
-}
-
-.client-card__url {
-  margin-top: var(--space-1);
-}
-
-.client-card__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.client-card__label {
-  margin-bottom: 0;
-}
-
-.member-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.member-chip {
-  align-self: auto;
-  background: var(--surface-sunken);
-}
-
-.client-card__foot {
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.button--danger {
-  color: var(--color-danger);
-}
-
-.button--destructive {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: #fff;
-  font-weight: var(--font-weight-heading);
-}
-
-.button--destructive:disabled {
-  opacity: 0.45;
-}
-
-/* A tall form in a dialog needs its own scroll, or the actions fall off. */
-.sheet-form {
-  max-height: min(88vh, 54rem);
-  overflow-y: auto;
-}
-
-.field-group {
-  border: 0;
-  padding: 0;
-  margin: 0 0 var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.field-group legend {
-  padding: 0;
-  margin-bottom: var(--space-1);
-}
-
-/* --------------------------------------------------------------------------
  * Colour picking
  * ----------------------------------------------------------------------- */
 
@@ -3978,4 +3609,427 @@ a.switcher__item:hover {
 .switcher__caret {
   font-size: 0.65rem;
   margin-left: var(--space-2);
+}
+
+/* ==========================================================================
+ * The hub's own two screens: the brand picker and the client roster.
+ *
+ * These sit outside any brand, so they wear the default palette. Both are
+ * built as lists rather than card grids — a roster you scan down beats
+ * identical boxes you scan across, and the brand's own colour is what makes
+ * a row findable before you have read a word of it.
+ * ======================================================================= */
+
+.picker {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7) var(--space-5);
+}
+
+.picker__inner {
+  width: min(34rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.picker__inner--narrow {
+  width: min(23rem, 100%);
+  gap: var(--space-5);
+}
+
+.picker__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.picker__title {
+  font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.1rem);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.picker__sub {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.picker__note {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+  max-width: 34ch;
+}
+
+.picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.picker__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  text-decoration: none;
+  color: var(--color-text);
+  transition:
+    border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.picker__brand:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.picker__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.picker__name {
+  font-weight: var(--font-weight-heading);
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+}
+
+.picker__next {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker__when {
+  color: var(--color-accent-ink);
+}
+
+.picker__go {
+  color: var(--color-text-muted);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.picker__brand:hover .picker__go {
+  transform: translateX(3px);
+  color: var(--color-text);
+}
+
+.picker__admin {
+  align-self: flex-start;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.picker__admin:hover {
+  color: var(--color-accent-ink);
+}
+
+/* The list arrives in order, quickly — a hint of sequence, not a performance. */
+.picker__list li,
+.roster__row {
+  animation: rise 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker__list li,
+  .roster__row {
+    animation: none;
+  }
+
+  .picker__brand,
+  .picker__go {
+    transition: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * The brand mark: a colour tile with the mark knocked out
+ * ----------------------------------------------------------------------- */
+
+.brandmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.brandmark svg {
+  width: 62%;
+  height: 62%;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+ * Clients
+ * ----------------------------------------------------------------------- */
+
+.admin {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-5) var(--space-8);
+}
+
+.admin__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-5);
+}
+
+.admin__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.admin__title {
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 1.9rem);
+  letter-spacing: -0.02em;
+}
+
+.admin__sub {
+  color: var(--color-text-muted);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.admin__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.admin__blank {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7) var(--space-6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.admin__blank-line {
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 46ch;
+}
+
+.roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.roster__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "identity tools"
+    "access   access";
+  gap: var(--space-4) var(--space-5);
+  padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.roster__row:first-child {
+  padding-top: var(--space-2);
+}
+
+.roster__identity {
+  grid-area: identity;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.roster__naming {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.roster__name {
+  font-size: 1.05rem;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.roster__name:hover {
+  color: var(--color-accent-ink);
+}
+
+.roster__facts {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.roster__facts code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.roster__tools {
+  grid-area: tools;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.roster__access {
+  grid-area: access;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: calc(44px + var(--space-4));
+}
+
+.roster__pw {
+  grid-area: access;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.roster__pw code {
+  color: var(--color-accent-ink);
+  font-weight: var(--font-weight-heading);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  padding: 3px var(--space-2) 3px var(--space-3);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.member-chip button {
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.member-chip button:hover {
+  color: var(--color-danger);
+}
+
+.member-add {
+  display: flex;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 15rem;
+}
+
+.member-add .input {
+  min-height: 38px;
+  font-size: 0.88rem;
+}
+
+.member-add .button {
+  min-height: 38px;
+}
+
+@media (max-width: 640px) {
+  .roster__row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "identity"
+      "access"
+      "tools";
+  }
+
+  .roster__access {
+    padding-left: 0;
+  }
+}
+
+.button--danger {
+  color: var(--color-danger);
+}
+
+.button--destructive {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+  font-weight: var(--font-weight-heading);
+}
+
+.button--destructive:disabled {
+  opacity: 0.45;
+}
+
+/* A tall form in a dialog needs its own scroll, or the actions fall off. */
+.sheet-form {
+  max-height: min(88vh, 54rem);
+  overflow-y: auto;
+}
+
+.field-group {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field-group legend {
+  padding: 0;
+  margin-bottom: var(--space-1);
 }
