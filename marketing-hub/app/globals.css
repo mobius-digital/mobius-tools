@@ -956,19 +956,31 @@ button {
   gap: var(--space-3);
 }
 
+/* A heading inside the box, not a label straddling its border — see the
+   group markup in EventEditor. */
 .fieldset__legend {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   font-weight: var(--font-weight-heading);
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  padding: 0 var(--space-2);
 }
 
 .date-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: var(--space-4);
+}
+
+/* iOS gives date inputs a wide intrinsic size that ignores the column it is
+   in, so both the cell and the field have to be told they may shrink. */
+.date-grid > .field {
+  min-width: 0;
+}
+
+.input--date {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .channel-rows {

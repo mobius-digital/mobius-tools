@@ -380,10 +380,10 @@ export function EventEditor({
               ))}
             </div>
 
-          <fieldset className="fieldset">
-            <legend className="fieldset__legend">
+          <div className="fieldset" role="group" aria-labelledby="channels-legend">
+            <span className="fieldset__legend" id="channels-legend">
               Channels <span className="field__required">*</span>
-            </legend>
+            </span>
             <p className="field__hint">
               Primary = this channel builds something. Supporting = helps but is not
               the lead. FYI = just needs to know.
@@ -438,7 +438,7 @@ export function EventEditor({
                 );
               })}
             </div>
-          </fieldset>
+          </div>
 
           <div className="field">
             <label className="field__label" htmlFor="event-owner">
@@ -506,8 +506,10 @@ export function EventEditor({
             </div>
           </div>
 
-          <fieldset className="fieldset">
-            <legend className="fieldset__legend">Run-up dates (optional)</legend>
+          <div className="fieldset" role="group" aria-labelledby="runup-legend">
+            <span className="fieldset__legend" id="runup-legend">
+              Run-up dates (optional)
+            </span>
             <p className="field__hint">
               These drive the milestones channels work back from.
             </p>
@@ -538,7 +540,7 @@ export function EventEditor({
                 </div>
               ))}
             </div>
-          </fieldset>
+          </div>
 
           {/* One link, not many: a folder holds the rest. Filling it in is what
               tells Slack the assets have landed, which is why it is a field and
