@@ -21,6 +21,9 @@ type Client = {
   passwordSet: boolean;
   events: number;
   logoSvg: string | null;
+  shortName: string;
+  font: string;
+  seeds: { accent: string; background: string; text: string };
 };
 
 const DEFAULT_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="24" height="21" rx="3"/><path d="M4 14h24"/><path d="M11 4v5M21 4v5"/><circle cx="16" cy="21" r="2.5" fill="currentColor" stroke="none"/></svg>`;
@@ -76,6 +79,8 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  /** Null while adding; the client being changed while editing. */
+  const [editing, setEditing] = useState<Client | null>(null);
   const [deleting, setDeleting] = useState<Client | null>(null);
   const [deleteDraft, setDeleteDraft] = useState("");
   const [passwords, setPasswords] = useState<Record<string, string>>({});
@@ -126,6 +131,21 @@ export default function AdminPage() {
     }
   }
 
+  function openEdit(client: Client) {
+    setName(client.name);
+    setAccent(client.seeds.accent);
+    setBackground(client.seeds.background);
+    setText(client.seeds.text);
+    setFont(client.font);
+    setShortName(client.shortName);
+    setShortTouched(true);
+    setLogoSvg("");
+    setLogoName("");
+    setError(null);
+    setEditing(client);
+    setAdding(true);
+  }
+
   function resetForm() {
     setName("");
     setLogoSvg("");
@@ -155,16 +175,26 @@ export default function AdminPage() {
     setLogoName(file.name);
   }
 
-  async function create(event: FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
+
+    // Icons are redrawn whenever there is a new mark, or the accent moved and
+    // the stored ones would still be the old colour. Editing only the name
+    // leaves them alone.
+    const accentMoved = editing ? editing.seeds.accent !== accent : true;
+    const mark = logoSvg.trim() || editing?.logoSvg || DEFAULT_MARK;
     let icons: Record<string, string> | undefined;
-    try {
-      icons = await renderIcons(logoSvg.trim() || DEFAULT_MARK, accent, "#FFFFFF");
-    } catch {
-      icons = undefined; // The board still works; the icon route falls back.
+    if (!editing || logoSvg.trim() || accentMoved) {
+      try {
+        icons = await renderIcons(mark, accent, "#FFFFFF");
+      } catch {
+        icons = undefined; // The board still works; the icon route falls back.
+      }
     }
 
     const result = await call({
+      action: editing ? "update-client" : undefined,
+      slug: editing?.slug,
       name,
       shortName: shortName || name.split(/\s+/)[0],
       font,
@@ -178,7 +208,11 @@ export default function AdminPage() {
         ...current,
         [String(result.created)]: String(result.password ?? ""),
       }));
+    }
+
+    if (result?.created || result?.updated) {
       setAdding(false);
+      setEditing(null);
       resetForm();
     }
   }
@@ -215,7 +249,19 @@ export default function AdminPage() {
           <a className="button" href="/">
             ← Back to calendars
           </a>
-          <button type="button" className="button button--primary" onClick={() => setAdding(true)}>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => {
+              setEditing(null);
+              resetForm();
+              setAccent("#2563eb");
+              setBackground("#f7f7f8");
+              setText("#18181b");
+              setFont("Inter");
+              setAdding(true);
+            }}
+          >
             ＋ Add client
           </button>
         </div>
@@ -327,6 +373,14 @@ export default function AdminPage() {
                     type="button"
                     className="button button--quiet"
                     disabled={busy}
+                    onClick={() => openEdit(client)}
+                  >
+                    Edit brand
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--quiet"
+                    disabled={busy}
                     onClick={() => void resetPassword(client.slug)}
                   >
                     {client.passwordSet ? "Reset team password" : "Set a team password"}
@@ -354,7 +408,10 @@ export default function AdminPage() {
           className="scrim"
           role="presentation"
           onClick={(event) => {
-            if (event.target === event.currentTarget) setAdding(false);
+            if (event.target === event.currentTarget) {
+              setAdding(false);
+              setEditing(null);
+            }
           }}
         >
           <form
@@ -362,17 +419,21 @@ export default function AdminPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-client-title"
-            onSubmit={create}
+            onSubmit={save}
             onKeyDown={(event) => {
-              if (event.key === "Escape") setAdding(false);
+              if (event.key === "Escape") {
+                setAdding(false);
+                setEditing(null);
+              }
             }}
           >
             <h2 className="dialog__title" id="add-client-title">
-              Add a client
+              {editing ? `Edit ${editing.name}` : "Add a client"}
             </h2>
             <p className="dialog__body">
-              Their board exists the moment you save — its own look, its own
-              address and its own team password, ready to send.
+              {editing
+                ? "Changes show on their board straight away. Their address, events and who can sign in are untouched."
+                : "Their board exists the moment you save — its own look, its own address and its own team password, ready to send."}
             </p>
 
             <label className="field">
@@ -474,7 +535,10 @@ export default function AdminPage() {
                   Choose an SVG file
                 </button>
                 <span className="filepick__name">
-                  {logoName || "No file chosen — the calendar mark is used"}
+                  {logoName ||
+                    (editing?.logoSvg
+                      ? "Keeping the current logo"
+                      : "No file chosen — the calendar mark is used")}
                 </span>
                 {logoSvg && (
                   <button
@@ -505,7 +569,14 @@ export default function AdminPage() {
             </div>
 
             <div className="dialog__actions">
-              <button type="button" className="button" onClick={() => setAdding(false)}>
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setAdding(false);
+                  setEditing(null);
+                }}
+              >
                 Cancel
               </button>
               <button
@@ -513,7 +584,7 @@ export default function AdminPage() {
                 className="button button--primary"
                 disabled={busy || !name.trim()}
               >
-                Create the board
+                {editing ? "Save changes" : "Create the board"}
               </button>
             </div>
           </form>

@@ -62,6 +62,18 @@ async function overview() {
     try {
       accent = (JSON.parse(row.colors) as { primary?: string }).primary ?? accent;
     } catch { /* default */ }
+    // The three colours the palette was derived from are recoverable from the
+    // palette itself, so an edit form can prefill without storing them twice.
+    let palette: Record<string, string> = {};
+    try {
+      palette = JSON.parse(row.colors) as Record<string, string>;
+    } catch { /* defaults below */ }
+
+    let font = "Inter";
+    try {
+      font = (JSON.parse(row.font) as { family?: string }).family ?? font;
+    } catch { /* default */ }
+
     return {
       slug: row.id,
       name: row.name,
@@ -72,6 +84,13 @@ async function overview() {
       passwordSet: withPassword.has(row.id),
       events: eventCounts.get(row.id) ?? 0,
       logoSvg: row.logo_svg,
+      shortName: row.short_name,
+      font,
+      seeds: {
+        accent: palette.primary ?? "#2563eb",
+        background: palette.background ?? "#f7f7f8",
+        text: palette.text ?? "#18181b",
+      },
     };
   });
 }
@@ -159,7 +178,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ clients: await overview(), password, slug });
     }
 
-    // ---- create ---------------------------------------------------------
+    // ---- create, or update an existing client ---------------------------
+    const updating = body.action === "update-client";
     const name = String(body.name ?? "").trim().replace(/\s+/g, " ");
     if (name.length < 2 || name.length > 40) {
       return NextResponse.json({ error: "Name the client in 2 to 40 characters." }, { status: 422 });
@@ -171,7 +191,15 @@ export async function POST(request: Request) {
     }
 
     const exists = await db.prepare(`SELECT 1 AS ok FROM brands WHERE id = ?`).bind(slug).first();
-    if (exists) return NextResponse.json({ error: `"${slug}" is already a client.` }, { status: 422 });
+
+    // The slug is the address, the installed app and every Slack link, so a
+    // rename changes the display name only — never where the board lives.
+    if (updating && !exists) {
+      return NextResponse.json({ error: "That client no longer exists." }, { status: 404 });
+    }
+    if (!updating && exists) {
+      return NextResponse.json({ error: `"${slug}" is already a client.` }, { status: 422 });
+    }
 
     const colors = body.colors ?? {};
     for (const key of ["accent", "background", "text"] as const) {
@@ -213,14 +241,29 @@ export async function POST(request: Request) {
       if (entries.length > 0) icons = JSON.stringify(Object.fromEntries(entries));
     }
 
+    const fontJson = JSON.stringify({ family: font, headingWeight: 700, bodyWeight: 400 });
+
+    if (updating) {
+      // A logo or icons left out of the request mean "leave what is there" —
+      // somebody editing only the name should not lose their mark.
+      await db
+        .prepare(
+          `UPDATE brands SET name = ?, short_name = ?, colors = ?, font = ?,
+             logo_svg = COALESCE(?, logo_svg), icons = COALESCE(?, icons), updated_at = ?
+           WHERE id = ?`,
+        )
+        .bind(name, shortName, JSON.stringify(palette), fontJson, logoSvg, icons, now, slug)
+        .run();
+
+      return NextResponse.json({ clients: await overview(), updated: slug });
+    }
+
     await db
       .prepare(
         `INSERT INTO brands (id, name, product_name, short_name, colors, font, logo_svg, logo_tint, icons, created_at, updated_at)
          VALUES (?, ?, 'Marketing Calendar', ?, ?, ?, ?, 1, ?, ?, ?)`,
       )
-      .bind(slug, name, shortName, JSON.stringify(palette),
-        JSON.stringify({ family: font, headingWeight: 700, bodyWeight: 400 }),
-        logoSvg, icons, now, now)
+      .bind(slug, name, shortName, JSON.stringify(palette), fontJson, logoSvg, icons, now, now)
       .run();
 
     const password = generatePassword();

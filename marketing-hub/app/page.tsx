@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { brandsFor, isAdmin } from "@/lib/brandContext";
 import { googleClientId } from "@/lib/signin";
 import { safeEqual, sessionTokenForBrand } from "@/lib/auth";
-import { getDb } from "@/lib/db";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import { GoogleSignIn } from "@/components/GoogleSignIn";
 import { BrandMark } from "@/components/BrandMark";
@@ -55,20 +54,20 @@ export default async function FrontDoor() {
     );
   }
 
-  // Nobody signed in with Google. Two ways to still land somewhere useful
-  // rather than on a picker: a team-password session already open for a
-  // brand, or a hub that only has one brand to go to.
+  // Nobody signed in with Google. One redirect is still right: somebody with
+  // a brand's team-password session already open is plainly working on that
+  // brand, so send them back to it.
+  //
+  // Deliberately NOT redirecting when the hub happens to hold a single brand.
+  // This address is the product's, not any client's — a stranger opening it
+  // should meet the sign-in screen, and the behaviour must not change under
+  // everybody the day a second client is added.
   for (const cookie of jar.getAll()) {
     if (!cookie.name.startsWith("lc_s_")) continue;
     const slug = cookie.name.slice("lc_s_".length);
     const expected = await sessionTokenForBrand(slug);
     if (expected && safeEqual(cookie.value, expected)) redirect(`/b/${slug}/`);
   }
-
-  const { results: all } = await getDb()
-    .prepare(`SELECT id FROM brands ORDER BY created_at ASC LIMIT 2`)
-    .all<{ id: string }>();
-  if ((all ?? []).length === 1) redirect(`/b/${all![0].id}/`);
 
   const clientId = await googleClientId();
 
