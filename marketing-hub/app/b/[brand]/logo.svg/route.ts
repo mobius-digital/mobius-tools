@@ -12,8 +12,23 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const brand = await currentBrand();
+  const stored = brand.logoSvg;
 
-  return new Response(brand.logoSvg ?? DEFAULT_MARK_SVG, {
+  // A raster logo is stored as a data: URI; serve the bytes under their own
+  // type so the address works anywhere an image is expected, whatever the
+  // route is called.
+  const raster = stored?.match(/^data:(image\/(?:png|jpeg));base64,(.+)$/i);
+  if (raster) {
+    const bytes = Uint8Array.from(atob(raster[2]), (c) => c.charCodeAt(0));
+    return new Response(bytes, {
+      headers: {
+        "Content-Type": raster[1],
+        "Cache-Control": "public, max-age=300",
+      },
+    });
+  }
+
+  return new Response(stored ?? DEFAULT_MARK_SVG, {
     headers: {
       "Content-Type": "image/svg+xml",
       "Cache-Control": "public, max-age=300",

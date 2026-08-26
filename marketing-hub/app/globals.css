@@ -4048,6 +4048,13 @@ a.switcher__item:hover {
   display: block;
 }
 
+.brandmark--raster img {
+  width: 74%;
+  height: 74%;
+  object-fit: contain;
+  display: block;
+}
+
 /* --------------------------------------------------------------------------
  * Front door: the same cards, given some air and a reason to look at them.
  * The faint grid is the sign-in screen's, so the two read as one product.

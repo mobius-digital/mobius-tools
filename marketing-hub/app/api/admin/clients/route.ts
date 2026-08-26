@@ -229,16 +229,40 @@ export async function POST(request: Request) {
     const font = FONTS.includes(String(body.font)) ? String(body.font) : "Inter";
     const shortName = String(body.shortName ?? "Calendar").trim().slice(0, 14) || "Calendar";
 
+    // Two shapes are allowed. SVG markup is painted in the accent colour via a
+    // CSS mask, so one file suits any background. A PNG or JPEG arrives as a
+    // data: URI and is shown exactly as drawn, since a raster cannot be tinted.
     let logoSvg: string | null = null;
+    let logoTint: 0 | 1 = 1;
     if (typeof body.logoSvg === "string" && body.logoSvg.trim()) {
       const trimmed = body.logoSvg.trim();
-      if (!/^<svg[\s>]/i.test(trimmed) || trimmed.length > 50_000) {
-        return NextResponse.json({ error: "The logo must be an SVG under 50 KB." }, { status: 422 });
+
+      if (/^data:image\/(png|jpeg);base64,/i.test(trimmed)) {
+        // ~340 KB of base64 is ~250 KB of image, comfortably inside D1's
+        // per-value room and far more than a mark ever needs.
+        if (trimmed.length > 350_000) {
+          return NextResponse.json(
+            { error: "That image is too large. Keep a logo under about 250 KB." },
+            { status: 422 },
+          );
+        }
+        logoSvg = trimmed;
+        logoTint = 0;
+      } else if (/^<svg[\s>]/i.test(trimmed)) {
+        if (trimmed.length > 50_000) {
+          return NextResponse.json({ error: "That SVG is over 50 KB." }, { status: 422 });
+        }
+        if (/<script|onload|onerror|javascript:/i.test(trimmed)) {
+          return NextResponse.json({ error: "That SVG contains scripting." }, { status: 422 });
+        }
+        logoSvg = trimmed;
+        logoTint = 1;
+      } else {
+        return NextResponse.json(
+          { error: "The logo must be an SVG, PNG or JPEG." },
+          { status: 422 },
+        );
       }
-      if (/<script|onload|onerror|javascript:/i.test(trimmed)) {
-        return NextResponse.json({ error: "That SVG contains scripting." }, { status: 422 });
-      }
-      logoSvg = trimmed;
     }
 
     // Kept for rows created before home-screen icons became Lineup's; the
@@ -262,10 +286,13 @@ export async function POST(request: Request) {
       await db
         .prepare(
           `UPDATE brands SET name = ?, short_name = ?, colors = ?, font = ?,
-             logo_svg = COALESCE(?, logo_svg), icons = COALESCE(?, icons), updated_at = ?
+             logo_svg = COALESCE(?, logo_svg),
+             logo_tint = CASE WHEN ? IS NULL THEN logo_tint ELSE ? END,
+             icons = COALESCE(?, icons), updated_at = ?
            WHERE id = ?`,
         )
-        .bind(name, shortName, JSON.stringify(palette), fontJson, logoSvg, icons, now, slug)
+        .bind(name, shortName, JSON.stringify(palette), fontJson,
+          logoSvg, logoSvg, logoTint, icons, now, slug)
         .run();
 
       return NextResponse.json({ clients: await overview(), updated: slug });
@@ -274,9 +301,10 @@ export async function POST(request: Request) {
     await db
       .prepare(
         `INSERT INTO brands (id, name, product_name, short_name, colors, font, logo_svg, logo_tint, icons, created_at, updated_at)
-         VALUES (?, ?, 'Marketing Calendar', ?, ?, ?, ?, 1, ?, ?, ?)`,
+         VALUES (?, ?, 'Marketing Calendar', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(slug, name, shortName, JSON.stringify(palette), fontJson, logoSvg, icons, now, now)
+      .bind(slug, name, shortName, JSON.stringify(palette), fontJson, logoSvg, logoTint,
+        icons, now, now)
       .run();
 
     const password = generatePassword();

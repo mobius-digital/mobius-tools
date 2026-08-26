@@ -23,11 +23,8 @@ type Client = {
   archived: number;
   logoSvg: string | null;
   shortName: string;
-  font: string;
   seeds: { accent: string; background: string; text: string };
 };
-
-const FONTS = ["Inter", "DM Sans", "Manrope", "Space Grotesk", "Barlow", "Sora", "Outfit", "Work Sans"];
 
 const ACCENTS = ["#2563eb", "#7c3aed", "#c9a227", "#059669", "#dc2626", "#ea580c", "#0891b2", "#111827"];
 const BACKGROUNDS = ["#f7f7f8", "#ffffff", "#f4f4f0", "#f8f7fc", "#f1f5f9", "#141414"];
@@ -65,7 +62,6 @@ export default function AdminPage() {
   const [accent, setAccent] = useState("#2563eb");
   const [background, setBackground] = useState("#f7f7f8");
   const [text, setText] = useState("#18181b");
-  const [font, setFont] = useState("Inter");
   const [shortName, setShortName] = useState("");
   const [shortTouched, setShortTouched] = useState(false);
   const [logoSvg, setLogoSvg] = useState("");
@@ -111,7 +107,6 @@ export default function AdminPage() {
     setAccent(client.seeds.accent);
     setBackground(client.seeds.background);
     setText(client.seeds.text);
-    setFont(client.font);
     setShortName(client.shortName);
     setShortTouched(true);
     setLogoSvg("");
@@ -130,23 +125,56 @@ export default function AdminPage() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  /**
+   * SVG, PNG or JPEG. An SVG is kept as markup so it can be painted in the
+   * brand's accent and suit any background; a raster is read to a data URI
+   * and shown exactly as drawn, since it cannot be tinted.
+   */
   async function readLogoFile(file: File | undefined) {
     if (!file) return;
-    if (!/\.svg$/i.test(file.name) && file.type !== "image/svg+xml") {
-      setError("The logo needs to be an .svg file — that is the only kind that stays sharp at every size.");
+
+    const isSvg = /\.svg$/i.test(file.name) || file.type === "image/svg+xml";
+    const isRaster =
+      /\.(png|jpe?g)$/i.test(file.name) || /^image\/(png|jpeg)$/.test(file.type);
+
+    if (!isSvg && !isRaster) {
+      setError("The logo needs to be an SVG, PNG or JPEG.");
       return;
     }
-    if (file.size > 50_000) {
-      setError("That SVG is over 50 KB. It is probably a traced image rather than a simple mark.");
+
+    if (isSvg) {
+      if (file.size > 50_000) {
+        setError("That SVG is over 50 KB. It is probably a traced image rather than a simple mark.");
+        return;
+      }
+      const content = await file.text();
+      if (!/^\s*<svg[\s>]/i.test(content)) {
+        setError("That file does not look like an SVG inside.");
+        return;
+      }
+      setError(null);
+      setLogoSvg(content.trim());
+      setLogoName(file.name);
       return;
     }
-    const content = await file.text();
-    if (!/^\s*<svg[\s>]/i.test(content)) {
-      setError("That file does not look like an SVG inside.");
+
+    if (file.size > 250_000) {
+      setError("That image is over 250 KB. A logo mark should be far smaller — try exporting it at about 512px.");
+      return;
+    }
+    const dataUri = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Could not read that file."));
+      reader.readAsDataURL(file);
+    }).catch(() => null);
+
+    if (!dataUri) {
+      setError("Could not read that file.");
       return;
     }
     setError(null);
-    setLogoSvg(content.trim());
+    setLogoSvg(dataUri);
     setLogoName(file.name);
   }
 
@@ -158,7 +186,6 @@ export default function AdminPage() {
       slug: editing?.slug,
       name,
       shortName: shortName || name.split(/\s+/)[0],
-      font,
       colors: { accent, background, text },
       logoSvg: logoSvg.trim() || undefined,
     });
@@ -218,7 +245,6 @@ export default function AdminPage() {
               setAccent("#2563eb");
               setBackground("#f7f7f8");
               setText("#18181b");
-              setFont("Inter");
               setAdding(true);
             }}
           >
@@ -452,19 +478,6 @@ export default function AdminPage() {
             </div>
 
             <label className="field">
-              <span className="field__label">Font</span>
-              <select
-                className="select"
-                value={font}
-                onChange={(event) => setFont(event.target.value)}
-              >
-                {FONTS.map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
               <span className="field__label">Short name for phone home screens</span>
               <input
                 className="input"
@@ -491,7 +504,7 @@ export default function AdminPage() {
                   onClick={() => fileRef.current?.click()}
                   disabled={busy}
                 >
-                  Choose an SVG file
+                  Choose a file
                 </button>
                 <span className="filepick__name">
                   {logoName ||
@@ -516,16 +529,18 @@ export default function AdminPage() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".svg,image/svg+xml"
+                accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg"
                 className="filepick__input"
                 onChange={(event) => void readLogoFile(event.target.files?.[0])}
               />
               <span className="field__hint">
-                A single-colour <strong>.svg</strong> mark — the small square
-                icon, not a wide wordmark. It leads their sign-in screen and
-                sits beside the name on their board. Leave it empty and the
-                calendar mark is used. Home-screen and tab icons are always
-                Lineup&apos;s, so this is the only logo to think about.
+                Their square mark — the icon-shaped one, not a wide wordmark.
+                It leads their sign-in screen and sits beside the name on their
+                board. <strong>SVG</strong> is best: it stays sharp and gets
+                painted in their accent colour. <strong>PNG or JPEG</strong>
+                works too and is shown exactly as it is, so use one with a
+                transparent or matching background. Leave it empty for the
+                calendar mark.
               </span>
             </div>
 

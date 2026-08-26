@@ -17,6 +17,20 @@ export function BrandMark({
   logoSvg?: string | null;
   size?: number;
 }) {
+  // A raster logo cannot be knocked out of the tile, so it sits on it instead.
+  if (logoSvg?.startsWith("data:image/")) {
+    return (
+      <span
+        className="brandmark brandmark--raster"
+        style={{ background: accent, width: size, height: size }}
+        aria-hidden
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={logoSvg} alt="" />
+      </span>
+    );
+  }
+
   const svg = (logoSvg ?? DEFAULT_MARK_SVG).replace(/currentColor/g, "#fff");
 
   return (
