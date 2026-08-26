@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ColorField } from "@/components/ColorField";
+import { BrandMark } from "@/components/BrandMark";
 
 /**
  * The Clients screen — agency admins only (the gate enforces it).
@@ -19,6 +20,7 @@ type Client = {
   members: string[];
   passwordSet: boolean;
   events: number;
+  logoSvg: string | null;
 };
 
 const DEFAULT_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="24" height="21" rx="3"/><path d="M4 14h24"/><path d="M11 4v5M21 4v5"/><circle cx="16" cy="21" r="2.5" fill="currentColor" stroke="none"/></svg>`;
@@ -239,12 +241,15 @@ export default function AdminPage() {
               <div className="client-card__bar" style={{ background: client.accent }} />
               <div className="client-card__body">
                 <div className="client-card__head">
-                  <div>
+                  <div className="client-card__id">
+                    <BrandMark accent={client.accent} logoSvg={client.logoSvg} size={38} />
+                    <div>
                     <h2 className="client-card__name">{client.name}</h2>
                     <p className="client-card__url">
                       /b/{client.slug}/ · {client.events}{" "}
                       {client.events === 1 ? "event" : "events"}
                     </p>
+                    </div>
                   </div>
                   <a className="button button--outline" href={`/b/${client.slug}/`}>
                     Open board ↗

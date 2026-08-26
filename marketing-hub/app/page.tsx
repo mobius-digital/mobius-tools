@@ -6,6 +6,8 @@ import { safeEqual, sessionTokenForBrand } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import { GoogleSignIn } from "@/components/GoogleSignIn";
+import { BrandMark } from "@/components/BrandMark";
+import { hub } from "@/hub.config";
 
 export const dynamic = "force-dynamic";
 
@@ -37,13 +39,13 @@ export default async function FrontDoor() {
           <div className="door__grid">
             {brands.map((brand) => (
               <a key={brand.slug} className="door__card" href={`/b/${brand.slug}/`}>
-                <span className="door__swatch" style={{ background: brand.accent }} />
+                <BrandMark accent={brand.accent} logoSvg={brand.logoSvg} size={36} />
                 <span className="door__name">{brand.name}</span>
               </a>
             ))}
             {admin && (
               <a className="door__card door__card--admin" href="/admin">
-                <span className="door__swatch door__swatch--admin" />
+                <span className="door__swatch door__swatch--admin" aria-hidden />
                 <span className="door__name">All clients</span>
               </a>
             )}
@@ -73,10 +75,8 @@ export default async function FrontDoor() {
   return (
     <div className="door">
       <main className="door__panel">
-        <h1 className="door__title">Marketing Calendar</h1>
-        <p className="door__sub">
-          What&apos;s going live, when — and which channels need to care.
-        </p>
+        <h1 className="door__title">{hub.name}</h1>
+        <p className="door__sub">{hub.tagline}</p>
         {clientId ? (
           <GoogleSignIn clientId={clientId} from="/" />
         ) : (

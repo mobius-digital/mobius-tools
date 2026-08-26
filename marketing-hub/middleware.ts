@@ -105,6 +105,6 @@ export const config = {
      *   api/cron        — guards itself with the per-tick nonce
      *   _next/*, static files, sw.js, offline
      */
-    "/((?!api/auth/google|api/cron|_next/static|_next/image|favicon.ico|logo.svg|icons/|sw.js|offline).*)",
+    "/((?!api/auth/google|api/cron|_next/static|_next/image|favicon.ico|logo.svg|icons/|manifest.webmanifest|sw.js|offline).*)",
   ],
 };

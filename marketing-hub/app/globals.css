@@ -3979,3 +3979,125 @@ a.switcher__item:hover {
   font-size: 0.65rem;
   margin-left: var(--space-2);
 }
+
+/* --------------------------------------------------------------------------
+ * A brand's mark on its own colour — used on the front door and Clients, so
+ * a client is found by colour before the name is read.
+ * ----------------------------------------------------------------------- */
+
+.brandmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.brandmark svg {
+  width: 60%;
+  height: 60%;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+ * Front door: the same cards, given some air and a reason to look at them.
+ * The faint grid is the sign-in screen's, so the two read as one product.
+ * ----------------------------------------------------------------------- */
+
+.door {
+  position: relative;
+  overflow: hidden;
+}
+
+.door::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
+  background-size: 96px 64px;
+  mask-image: radial-gradient(70% 60% at 50% 45%, black 20%, transparent 100%);
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 45%, black 20%, transparent 100%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.door__panel {
+  position: relative;
+}
+
+.door__title {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.door__grid {
+  gap: var(--space-3);
+}
+
+.door__card {
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  transition:
+    border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.door__card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px -12px var(--color-scrim);
+}
+
+.door__card--admin {
+  background: var(--surface-sunken);
+}
+
+.door__swatch--admin {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, var(--color-primary) 50%, var(--color-text-muted) 50%);
+}
+
+/* --------------------------------------------------------------------------
+ * Clients: cards as they were, with the client's own colour leading the card
+ * instead of a plain bar.
+ * ----------------------------------------------------------------------- */
+
+.client-card {
+  transition:
+    border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.client-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 6px 20px -14px var(--color-scrim);
+}
+
+.client-card__head {
+  gap: var(--space-3);
+}
+
+.client-card__id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .door__card,
+  .client-card {
+    transition: none;
+  }
+
+  .door__card:hover {
+    transform: none;
+  }
+}

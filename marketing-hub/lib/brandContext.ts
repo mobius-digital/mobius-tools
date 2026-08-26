@@ -105,7 +105,12 @@ export async function currentBrand(): Promise<LoadedBrand> {
  * Membership
  * ----------------------------------------------------------------------- */
 
-export type BrandSummary = { slug: string; name: string; accent: string };
+export type BrandSummary = {
+  slug: string;
+  name: string;
+  accent: string;
+  logoSvg: string | null;
+};
 
 /** True when this email is an agency admin (member of the platform brand). */
 export async function isAdmin(email: string): Promise<boolean> {
@@ -132,22 +137,25 @@ export async function brandsFor(email: string): Promise<BrandSummary[]> {
   const normalised = email.trim().toLowerCase();
   const admin = await isAdmin(normalised);
 
+  type Row = { id: string; name: string; colors: string; logo_svg: string | null };
+
   const { results } = admin
     ? await getDb()
-        .prepare(`SELECT id, name, colors FROM brands ORDER BY created_at ASC`)
-        .all<{ id: string; name: string; colors: string }>()
+        .prepare(`SELECT id, name, colors, logo_svg FROM brands ORDER BY created_at ASC`)
+        .all<Row>()
     : await getDb()
         .prepare(
-          `SELECT b.id, b.name, b.colors FROM brands b
+          `SELECT b.id, b.name, b.colors, b.logo_svg FROM brands b
            JOIN memberships m ON m.brand_id = b.id
            WHERE m.email = ? ORDER BY b.created_at ASC`,
         )
         .bind(normalised)
-        .all<{ id: string; name: string; colors: string }>();
+        .all<Row>();
 
   return (results ?? []).map((row) => ({
     slug: row.id,
     name: row.name,
     accent: parseJson<{ primary?: string }>(row.colors, {}).primary ?? "#2563EB",
+    logoSvg: row.logo_svg,
   }));
 }
