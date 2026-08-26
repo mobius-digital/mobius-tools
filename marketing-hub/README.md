@@ -1,13 +1,15 @@
-# Marketing Hub
+# Lineup
 
-One deployment, every brand. The multi-tenant successor to the per-brand
-`launch-calendar/` deploys: brands are database rows, people are memberships,
-and a client's board lives at `/b/<brand>/` behind one URL.
+One deployment, every brand. Brands are database rows, people are memberships,
+and a client's board lives at `/b/<brand>/` behind one URL. It replaced the
+per-brand `launch-calendar/` app, which was removed once this had outgrown it.
 
-**Live (test):** https://marketing-calendar.mobius-digital.workers.dev
-**Cutover plan:** deploy this code as the worker named `launch-calendar` to
-take over the original URL (which keeps Google sign-in's registered origin,
-the team's bookmarks, and the account's cron slot).
+**Live:** https://launch-calendar.mobius-digital.workers.dev
+
+The worker is still *named* `launch-calendar` on purpose: that name owns the
+URL Google sign-in is registered for, the team's bookmarks, and the account's
+cron slot. Renaming it would abandon all three. Everywhere a person can see,
+the product is called Lineup — and that name lives in `hub.config.ts` alone.
 
 ## How it works
 

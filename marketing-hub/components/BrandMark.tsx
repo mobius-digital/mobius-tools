@@ -17,12 +17,18 @@ export function BrandMark({
   logoSvg?: string | null;
   size?: number;
 }) {
-  // A raster logo cannot be knocked out of the tile, so it sits on it instead.
+  /*
+   * A raster cannot be knocked out of the tile, so it sits on one — but not on
+   * the accent. Most logo files are drawn for a white page and carry a white
+   * background with them, and a white rectangle floating inside a gold square
+   * looks like a mistake. A plain surface tile with a hairline lets those files
+   * sit flush, and the accent still leads the card everywhere else.
+   */
   if (logoSvg?.startsWith("data:image/")) {
     return (
       <span
         className="brandmark brandmark--raster"
-        style={{ background: accent, width: size, height: size }}
+        style={{ width: size, height: size }}
         aria-hidden
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}

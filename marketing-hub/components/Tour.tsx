@@ -31,7 +31,16 @@ import {
  * ask for an action advance on their own once it happens.
  */
 
-const DONE_KEY = "lc_tour_done";
+/**
+ * Per board, not per browser.
+ *
+ * One flag for the whole device meant a person who works across brands saw the
+ * walkthrough once ever — so the next team to be given a board got no
+ * introduction to it, because somebody else had already dismissed the tour
+ * somewhere else entirely. The board is what the tour is about, so the board is
+ * what it is remembered against.
+ */
+const doneKey = (slug: string) => `lc_tour_done:${slug}`;
 const OPEN_KEY = "lc_tour_open";
 const INDEX_KEY = "lc_tour_index";
 
@@ -264,6 +273,8 @@ export function useTour(): TourApi {
 
 export function TourProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { slug } = useBrand();
+  const DONE_KEY = doneKey(slug);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [ready, setReady] = useState(false);
@@ -288,7 +299,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       setOpen(true);
     }
     setReady(true);
-  }, [signedOut]);
+  }, [signedOut, DONE_KEY]);
 
   useEffect(() => {
     if (!ready) return;
@@ -300,13 +311,13 @@ export function TourProvider({ children }: { children: ReactNode }) {
     window.localStorage.removeItem(DONE_KEY);
     setIndex(0);
     setOpen(true);
-  }, []);
+  }, [DONE_KEY]);
 
   const finish = useCallback(() => {
     window.localStorage.setItem(DONE_KEY, "true");
     window.sessionStorage.setItem(OPEN_KEY, "false");
     setOpen(false);
-  }, []);
+  }, [DONE_KEY]);
 
   return (
     <TourControls.Provider value={{ replay }}>

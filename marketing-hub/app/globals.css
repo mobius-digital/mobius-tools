@@ -3921,9 +3921,30 @@ a.switcher__item:hover {
   flex: 1;
 }
 
+/* Real buttons, spaced, with the irreversible one pushed to the far end. */
 .client-card__foot {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.client-card__delete {
+  margin-left: auto;
+}
+
+/* The name to retype, shown exactly as it is stored — an instruction to copy
+   must not be uppercased by the stylesheet the way .field__label would. */
+.confirm-name {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.confirm-name strong {
+  color: var(--color-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .palette-row {
@@ -4227,11 +4248,25 @@ a.switcher__item:hover {
   font-weight: var(--font-weight-heading);
 }
 
+/* The preview, the picker and the undo, on one line. */
 .filepick {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.filepick__main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-right: auto;
 }
 
 .filepick__name {
@@ -4292,9 +4327,17 @@ a.switcher__item:hover {
   display: block;
 }
 
+/* No accent behind a raster: see BrandMark. A white-backed PNG has to be able
+   to sit flush rather than as a pale rectangle inside a coloured square. */
+.brandmark--raster {
+  background: var(--color-surface);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
 .brandmark--raster img {
-  width: 74%;
-  height: 74%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   display: block;
 }

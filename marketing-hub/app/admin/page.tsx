@@ -72,6 +72,8 @@ export default function AdminPage() {
   const [logoName, setLogoName] = useState("");
   /** Kept apart from the page error, which renders behind this dialog. */
   const [logoError, setLogoError] = useState<string | null>(null);
+  /** The logo already on the row, for the preview. Never sent back. */
+  const [existingLogo, setExistingLogo] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -115,6 +117,8 @@ export default function AdminPage() {
     setText(client.seeds.text);
     setLogoSvg("");
     setLogoName("");
+    setExistingLogo(client.logoSvg);
+    setLogoError(null);
     setError(null);
     setEditing(client);
     setAdding(true);
@@ -125,6 +129,7 @@ export default function AdminPage() {
     setLogoSvg("");
     setLogoName("");
     setLogoError(null);
+    setExistingLogo(null);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -397,7 +402,7 @@ export default function AdminPage() {
                 <div className="client-card__foot">
                   <button
                     type="button"
-                    className="button button--quiet"
+                    className="button"
                     disabled={busy}
                     onClick={() => openEdit(client)}
                   >
@@ -405,15 +410,18 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    className="button button--quiet"
+                    className="button"
                     disabled={busy}
                     onClick={() => void resetPassword(client.slug)}
                   >
                     {client.passwordSet ? "Reset team password" : "Set a team password"}
                   </button>
+                  {/* Pushed away from the other two: the one irreversible
+                      action on this card should not sit a thumb's width from
+                      the one you press to change a colour. */}
                   <button
                     type="button"
-                    className="button button--quiet button--danger"
+                    className="button button--danger client-card__delete"
                     disabled={busy}
                     onClick={() => {
                       setDeleting(client);
@@ -522,21 +530,32 @@ export default function AdminPage() {
 
             <div className="field">
               <span className="field__label">Logo (optional)</span>
+              {/* Shown, not just named. A file's own background comes with it
+                  — a logo drawn for a white page arrives with the white — and
+                  the only way to know that before it is on every client's
+                  sign-in screen is to look at it. */}
               <div className="filepick">
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={busy}
-                >
-                  Choose a file
-                </button>
-                <span className="filepick__name">
-                  {logoName ||
-                    (editing?.logoSvg
-                      ? "Keeping the current logo"
-                      : "No file chosen — the calendar mark is used")}
-                </span>
+                <BrandMark
+                  accent={accent}
+                  logoSvg={logoSvg || existingLogo}
+                  size={56}
+                />
+                <div className="filepick__main">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={busy}
+                  >
+                    Choose a file
+                  </button>
+                  <span className="filepick__name">
+                    {logoName ||
+                      (existingLogo
+                        ? "Keeping the current logo"
+                        : "No file chosen — the calendar mark is used")}
+                  </span>
+                </div>
                 {logoSvg && (
                   <button
                     type="button"
@@ -547,7 +566,7 @@ export default function AdminPage() {
                       if (fileRef.current) fileRef.current.value = "";
                     }}
                   >
-                    Remove
+                    Undo
                   </button>
                 )}
               </div>
@@ -564,8 +583,8 @@ export default function AdminPage() {
                 board. <strong>SVG</strong> is best: it stays sharp and gets
                 painted in their accent colour. <strong>PNG or JPEG</strong>
                 works too and is shown exactly as it is, so use one with a
-                transparent or matching background. Up to 1 MB. Leave it
-                empty for the calendar mark.
+                transparent background — a white one shows as a white square.
+                Up to 1 MB. Leave it empty for the calendar mark.
               </span>
             </div>
             </div>
@@ -618,17 +637,22 @@ export default function AdminPage() {
               settings.{" "}
               <strong>It cannot be undone.</strong>
             </p>
-            <label className="field">
-              <span className="field__label">
+            {/* Not inside a .field__label: that is uppercased by the
+                stylesheet, so the name it asked for came out as TEST while the
+                row was Test — an instruction you could follow exactly and still
+                be refused. The comparison ignores case for the same reason. */}
+            <div className="field">
+              <label className="confirm-name" htmlFor="delete-confirm">
                 Type <strong>{deleting.name}</strong> to confirm
-              </span>
+              </label>
               <input
+                id="delete-confirm"
                 className="input"
                 value={deleteDraft}
                 onChange={(event) => setDeleteDraft(event.target.value)}
                 autoFocus
               />
-            </label>
+            </div>
             <div className="dialog__actions">
               <button type="button" className="button" onClick={() => setDeleting(null)}>
                 Keep it
@@ -636,7 +660,10 @@ export default function AdminPage() {
               <button
                 type="button"
                 className="button button--destructive"
-                disabled={busy || deleteDraft.trim() !== deleting.name}
+                disabled={
+                  busy ||
+                  deleteDraft.trim().toLowerCase() !== deleting.name.toLowerCase()
+                }
                 onClick={() => void confirmDelete()}
               >
                 Delete for good
