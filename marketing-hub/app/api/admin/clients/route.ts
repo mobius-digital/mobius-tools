@@ -228,8 +228,8 @@ export async function POST(request: Request) {
       logoSvg = trimmed;
     }
 
-    // Icons come pre-rendered from the browser (a canvas can rasterise the
-    // mark; the Worker cannot). Sanity-cap the payload.
+    // Kept for rows created before home-screen icons became Lineup's; the
+    // Add/Edit form no longer sends any.
     let icons: string | null = null;
     if (body.icons && typeof body.icons === "object") {
       const entries = Object.entries(body.icons as Record<string, unknown>).filter(

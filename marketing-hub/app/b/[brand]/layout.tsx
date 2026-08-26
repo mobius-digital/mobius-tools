@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { brandCssVariables, googleFontUrl } from "@/lib/brand";
 import { loadBrand } from "@/lib/brandContext";
+import { hub } from "@/hub.config";
 import { Nav } from "@/components/Nav";
 import { BrandProvider } from "@/components/BrandProvider";
 import { DisplayNameProvider } from "@/components/DisplayName";
@@ -27,11 +28,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return {
     title: `${brand.productName} · ${brand.name}`,
     description: `What's launching, when, and which channels need to care — ${brand.name}.`,
-    icons: { icon: brand.logoUrl, apple: `/b/${slug}/icons/icon-180.png` },
+    // The wrapper is the product, the contents are the client's: the tab icon
+    // and the installed app wear Lineup so nobody has to supply a logo per
+    // client, and anyone working across brands keeps one recognisable icon.
+    // The brand's own mark still leads the sign-in card and the nav inside.
+    icons: { icon: "/lineup.svg", apple: "/icons/hub-180.png" },
     manifest: `/b/${slug}/manifest.webmanifest`,
     appleWebApp: {
       capable: true,
-      title: brand.shortName,
+      title: hub.shortName,
       statusBarStyle: "default",
     },
   };

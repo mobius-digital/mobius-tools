@@ -26,53 +26,11 @@ type Client = {
   seeds: { accent: string; background: string; text: string };
 };
 
-const DEFAULT_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="24" height="21" rx="3"/><path d="M4 14h24"/><path d="M11 4v5M21 4v5"/><circle cx="16" cy="21" r="2.5" fill="currentColor" stroke="none"/></svg>`;
-
 const FONTS = ["Inter", "DM Sans", "Manrope", "Space Grotesk", "Barlow", "Sora", "Outfit", "Work Sans"];
 
 const ACCENTS = ["#2563eb", "#7c3aed", "#c9a227", "#059669", "#dc2626", "#ea580c", "#0891b2", "#111827"];
 const BACKGROUNDS = ["#f7f7f8", "#ffffff", "#f4f4f0", "#f8f7fc", "#f1f5f9", "#141414"];
 const TEXTS = ["#18181b", "#1a1a18", "#0f172a", "#1b1726", "#f5f5f5"];
-
-/** Rasterises the mark on an accent tile at the sizes phones want. */
-async function renderIcons(
-  logoSvg: string,
-  accent: string,
-  ink: string,
-): Promise<Record<string, string>> {
-  const svg = logoSvg.replace(/currentColor/g, ink);
-  const image = new Image();
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-  try {
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("That SVG could not be drawn."));
-      image.src = url;
-    });
-
-    const out: Record<string, string> = {};
-    for (const [key, size, inset] of [
-      ["180", 180, 0.18],
-      ["192", 192, 0.18],
-      ["512", 512, 0.18],
-      ["maskable", 512, 0.24],
-    ] as const) {
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("No canvas.");
-      ctx.fillStyle = accent;
-      ctx.fillRect(0, 0, size, size);
-      const mark = size * (1 - inset * 2);
-      ctx.drawImage(image, (size - mark) / 2, (size - mark) / 2, mark, mark);
-      out[key] = canvas.toDataURL("image/png").split(",")[1];
-    }
-    return out;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 export default function AdminPage() {
   const [clients, setClients] = useState<Client[] | null>(null);
@@ -178,20 +136,6 @@ export default function AdminPage() {
   async function save(event: FormEvent) {
     event.preventDefault();
 
-    // Icons are redrawn whenever there is a new mark, or the accent moved and
-    // the stored ones would still be the old colour. Editing only the name
-    // leaves them alone.
-    const accentMoved = editing ? editing.seeds.accent !== accent : true;
-    const mark = logoSvg.trim() || editing?.logoSvg || DEFAULT_MARK;
-    let icons: Record<string, string> | undefined;
-    if (!editing || logoSvg.trim() || accentMoved) {
-      try {
-        icons = await renderIcons(mark, accent, "#FFFFFF");
-      } catch {
-        icons = undefined; // The board still works; the icon route falls back.
-      }
-    }
-
     const result = await call({
       action: editing ? "update-client" : undefined,
       slug: editing?.slug,
@@ -200,7 +144,6 @@ export default function AdminPage() {
       font,
       colors: { accent, background, text },
       logoSvg: logoSvg.trim() || undefined,
-      icons,
     });
 
     if (result?.created) {
@@ -563,8 +506,10 @@ export default function AdminPage() {
               />
               <span className="field__hint">
                 A single-colour <strong>.svg</strong> mark — the small square
-                icon, not a wide wordmark. It is painted in the accent colour,
-                so one file works on any background.
+                icon, not a wide wordmark. It leads their sign-in screen and
+                sits beside the name on their board. Leave it empty and the
+                calendar mark is used. Home-screen and tab icons are always
+                Lineup&apos;s, so this is the only logo to think about.
               </span>
             </div>
 
