@@ -4,34 +4,19 @@ import { brandsFor, isAdmin } from "@/lib/brandContext";
 import { googleClientId } from "@/lib/signin";
 import { safeEqual, sessionTokenForBrand } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { formatLong, todayIso } from "@/lib/dates";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import { GoogleSignIn } from "@/components/GoogleSignIn";
-import { BrandMark } from "@/components/BrandMark";
 
 export const dynamic = "force-dynamic";
 
 /**
  * The hub's front door — one link for everybody.
  *
- * Signed in with access to exactly one brand: straight through, no stopping.
- * With several: this picker. It deliberately shows each brand's *next* launch
- * rather than a bare list of doors, so somebody who runs four brands can see
- * where the pressure is before choosing one. Not signed in: the Google button.
+ * Signed in with Google and on one brand: straight to that board, no
+ * stopping. On several: a picker. An agency admin also gets the Clients
+ * screen. Not signed in: the Google button — and a note for people whose
+ * team uses a shared password, whose way in is their brand's own link.
  */
-
-/** "Thu Aug 27", or "today"/"tomorrow" where that reads better. */
-function whenLabel(date: string): string {
-  const today = todayIso();
-  if (date === today) return "today";
-
-  const [y, m, d] = today.split("-").map(Number);
-  const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
-  if (date === tomorrow) return "tomorrow";
-
-  return formatLong(date);
-}
-
 export default async function FrontDoor() {
   const jar = await cookies();
   const identity = await readIdentityToken(jar.get(IDENTITY_COOKIE)?.value);
@@ -44,51 +29,25 @@ export default async function FrontDoor() {
 
     if (brands.length === 1 && !admin) redirect(`/b/${brands[0].slug}/`);
 
-    const firstName = identity.name.trim().split(/\s+/)[0];
-
     return (
-      <div className="picker">
-        <main className="picker__inner">
-          <header className="picker__head">
-            <h1 className="picker__title">Which brand, {firstName}?</h1>
-            <p className="picker__sub">
-              {brands.length} {brands.length === 1 ? "calendar" : "calendars"} you can
-              open.
-            </p>
-          </header>
-
-          <ul className="picker__list">
-            {brands.map((brand, index) => (
-              <li key={brand.slug} style={{ ["--i" as string]: index }}>
-                <a className="picker__brand" href={`/b/${brand.slug}/`}>
-                  <BrandMark accent={brand.accent} logoSvg={brand.logoSvg} size={44} />
-                  <span className="picker__text">
-                    <span className="picker__name">{brand.name}</span>
-                    <span className="picker__next">
-                      {brand.next ? (
-                        <>
-                          Next: {brand.next.name}{" "}
-                          <span className="picker__when">{whenLabel(brand.next.date)}</span>
-                        </>
-                      ) : (
-                        "Nothing scheduled"
-                      )}
-                    </span>
-                  </span>
-                  <span className="picker__go" aria-hidden>
-                    →
-                  </span>
-                </a>
-              </li>
+      <div className="door">
+        <main className="door__panel door__panel--wide">
+          <h1 className="door__title">Where to?</h1>
+          <p className="door__sub">Signed in as {identity.name}</p>
+          <div className="door__grid">
+            {brands.map((brand) => (
+              <a key={brand.slug} className="door__card" href={`/b/${brand.slug}/`}>
+                <span className="door__swatch" style={{ background: brand.accent }} />
+                <span className="door__name">{brand.name}</span>
+              </a>
             ))}
-          </ul>
-
-          {admin && (
-            <a className="picker__admin" href="/admin">
-              Manage clients
-              <span aria-hidden> →</span>
-            </a>
-          )}
+            {admin && (
+              <a className="door__card door__card--admin" href="/admin">
+                <span className="door__swatch door__swatch--admin" />
+                <span className="door__name">All clients</span>
+              </a>
+            )}
+          </div>
         </main>
       </div>
     );
@@ -112,24 +71,20 @@ export default async function FrontDoor() {
   const clientId = await googleClientId();
 
   return (
-    <div className="picker">
-      <main className="picker__inner picker__inner--narrow">
-        <header className="picker__head">
-          <h1 className="picker__title">Marketing Calendar</h1>
-          <p className="picker__sub">
-            What&apos;s going live, when — and which channels need to care.
-          </p>
-        </header>
-
+    <div className="door">
+      <main className="door__panel">
+        <h1 className="door__title">Marketing Calendar</h1>
+        <p className="door__sub">
+          What&apos;s going live, when — and which channels need to care.
+        </p>
         {clientId ? (
           <GoogleSignIn clientId={clientId} from="/" />
         ) : (
-          <p className="picker__note">Sign-in is not configured yet.</p>
+          <p className="door__note">Sign-in is not configured yet.</p>
         )}
-
-        <p className="picker__note">
-          If your team signs in with a shared password, open your own board&apos;s
-          link — the one you were sent.
+        <p className="door__note">
+          Does your team use a shared password? Open your board&apos;s own link
+          — the one you were sent — and sign in there.
         </p>
       </main>
     </div>

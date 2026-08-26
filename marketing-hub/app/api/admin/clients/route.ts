@@ -71,7 +71,6 @@ async function overview() {
         .map((member) => member.email),
       passwordSet: withPassword.has(row.id),
       events: eventCounts.get(row.id) ?? 0,
-      logoSvg: row.logo_svg,
     };
   });
 }

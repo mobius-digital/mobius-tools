@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ColorField } from "@/components/ColorField";
-import { BrandMark } from "@/components/BrandMark";
 
 /**
  * The Clients screen — agency admins only (the gate enforces it).
@@ -20,7 +19,6 @@ type Client = {
   members: string[];
   passwordSet: boolean;
   events: number;
-  logoSvg: string | null;
 };
 
 const DEFAULT_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="24" height="21" rx="3"/><path d="M4 14h24"/><path d="M11 4v5M21 4v5"/><circle cx="16" cy="21" r="2.5" fill="currentColor" stroke="none"/></svg>`;
@@ -203,23 +201,20 @@ export default function AdminPage() {
 
   return (
     <div className="admin">
-      <header className="admin__head">
-        <div className="admin__heading">
+      <header className="admin__top">
+        <div>
           <h1 className="admin__title">Clients</h1>
           <p className="admin__sub">
-            {clients === null
-              ? "Loading…"
-              : clients.length === 0
-                ? "No clients yet."
-                : `${clients.length} ${clients.length === 1 ? "brand" : "brands"}, each with their own calendar.`}
+            Every brand you run a calendar for. Adding one creates their board
+            straight away.
           </p>
         </div>
-        <div className="admin__actions">
+        <div className="admin__top-actions">
           <a className="button" href="/">
-            Calendars
+            ← Back to calendars
           </a>
           <button type="button" className="button button--primary" onClick={() => setAdding(true)}>
-            Add client
+            ＋ Add client
           </button>
         </div>
       </header>
@@ -230,121 +225,123 @@ export default function AdminPage() {
         </p>
       )}
 
-      {clients !== null && clients.length === 0 && (
-        <div className="admin__blank">
-          <p className="admin__blank-line">
-            Add your first client and their calendar exists straight away — its
-            own look, its own sign-in, its own address to send them.
-          </p>
-          <button type="button" className="button button--primary" onClick={() => setAdding(true)}>
-            Add a client
-          </button>
-        </div>
-      )}
-
-      {clients !== null && clients.length > 0 && (
-        <ul className="roster">
-          {clients.map((client, index) => (
-            <li key={client.slug} className="roster__row" style={{ ["--i" as string]: index }}>
-              <div className="roster__identity">
-                <BrandMark accent={client.accent} logoSvg={client.logoSvg} size={44} />
-                <div className="roster__naming">
-                  <a className="roster__name" href={`/b/${client.slug}/`}>
-                    {client.name}
+      {clients === null ? (
+        <p className="admin__empty">Loading…</p>
+      ) : clients.length === 0 ? (
+        <p className="admin__empty">
+          No clients yet. Add one and their board exists immediately — its own
+          look, its own sign-in, its own corner of this site.
+        </p>
+      ) : (
+        <div className="admin__grid">
+          {clients.map((client) => (
+            <section key={client.slug} className="client-card">
+              <div className="client-card__bar" style={{ background: client.accent }} />
+              <div className="client-card__body">
+                <div className="client-card__head">
+                  <div>
+                    <h2 className="client-card__name">{client.name}</h2>
+                    <p className="client-card__url">
+                      /b/{client.slug}/ · {client.events}{" "}
+                      {client.events === 1 ? "event" : "events"}
+                    </p>
+                  </div>
+                  <a className="button button--outline" href={`/b/${client.slug}/`}>
+                    Open board ↗
                   </a>
-                  <p className="roster__facts">
-                    <code>/b/{client.slug}/</code>
-                    <span aria-hidden>·</span>
-                    {client.events} {client.events === 1 ? "event" : "events"}
-                    <span aria-hidden>·</span>
-                    {client.members.length === 0
-                      ? "password only"
-                      : `${client.members.length} ${client.members.length === 1 ? "person" : "people"}`}
-                  </p>
                 </div>
-              </div>
 
-              <div className="roster__access">
-                {client.members.map((email) => (
-                  <span key={email} className="member-chip">
-                    {email}
+                {passwords[client.slug] && (
+                  <div className="client-card__pw">
+                    <span>Team password — copy it now, it is not shown again:</span>
+                    <code>{passwords[client.slug]}</code>
                     <button
                       type="button"
-                      aria-label={`Remove ${email}`}
-                      disabled={busy}
-                      onClick={() => void call({ action: "remove-member", slug: client.slug, email })}
+                      className="button button--quiet"
+                      onClick={() => navigator.clipboard.writeText(passwords[client.slug])}
                     >
-                      ×
+                      Copy
                     </button>
-                  </span>
-                ))}
-                <form
-                  className="member-add"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const email = memberDrafts[client.slug]?.trim();
-                    if (!email) return;
-                    void call({ action: "add-member", slug: client.slug, email }).then((ok) => {
-                      if (ok) setMemberDrafts((d) => ({ ...d, [client.slug]: "" }));
-                    });
-                  }}
-                >
-                  <input
-                    className="input"
-                    placeholder="Invite by email"
-                    inputMode="email"
-                    value={memberDrafts[client.slug] ?? ""}
-                    onChange={(event) =>
-                      setMemberDrafts((d) => ({ ...d, [client.slug]: event.target.value }))
-                    }
-                    disabled={busy}
-                  />
-                  <button className="button" disabled={busy || !(memberDrafts[client.slug] ?? "").trim()}>
-                    Invite
-                  </button>
-                </form>
-              </div>
+                  </div>
+                )}
 
-              {passwords[client.slug] && (
-                <p className="roster__pw">
-                  Team password, shown once: <code>{passwords[client.slug]}</code>
+                <div className="client-card__section">
+                  <span className="client-card__label">Who can sign in with Google</span>
+                  {client.members.length === 0 ? (
+                    <p className="client-card__none">
+                      Nobody yet — this board opens with its team password only.
+                    </p>
+                  ) : (
+                    <div className="member-list">
+                      {client.members.map((email) => (
+                        <span key={email} className="member-chip">
+                          {email}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${email}`}
+                            disabled={busy}
+                            onClick={() =>
+                              void call({ action: "remove-member", slug: client.slug, email })
+                            }
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <form
+                    className="member-add"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const email = memberDrafts[client.slug]?.trim();
+                      if (!email) return;
+                      void call({ action: "add-member", slug: client.slug, email }).then((ok) => {
+                        if (ok) setMemberDrafts((d) => ({ ...d, [client.slug]: "" }));
+                      });
+                    }}
+                  >
+                    <input
+                      className="input"
+                      placeholder="name@company.com"
+                      inputMode="email"
+                      value={memberDrafts[client.slug] ?? ""}
+                      onChange={(event) =>
+                        setMemberDrafts((d) => ({ ...d, [client.slug]: event.target.value }))
+                      }
+                      disabled={busy}
+                    />
+                    <button className="button" disabled={busy}>
+                      Invite
+                    </button>
+                  </form>
+                </div>
+
+                <div className="client-card__foot">
                   <button
                     type="button"
                     className="button button--quiet"
-                    onClick={() => navigator.clipboard.writeText(passwords[client.slug])}
+                    disabled={busy}
+                    onClick={() => void resetPassword(client.slug)}
                   >
-                    Copy
+                    {client.passwordSet ? "Reset team password" : "Set a team password"}
                   </button>
-                </p>
-              )}
-
-              <div className="roster__tools">
-                <a className="button" href={`/b/${client.slug}/`}>
-                  Open
-                </a>
-                <button
-                  type="button"
-                  className="button button--quiet"
-                  disabled={busy}
-                  onClick={() => void resetPassword(client.slug)}
-                >
-                  {client.passwordSet ? "Reset password" : "Set password"}
-                </button>
-                <button
-                  type="button"
-                  className="button button--quiet button--danger"
-                  disabled={busy}
-                  onClick={() => {
-                    setDeleting(client);
-                    setDeleteDraft("");
-                  }}
-                >
-                  Delete
-                </button>
+                  <button
+                    type="button"
+                    className="button button--quiet button--danger"
+                    disabled={busy}
+                    onClick={() => {
+                      setDeleting(client);
+                      setDeleteDraft("");
+                    }}
+                  >
+                    Delete client
+                  </button>
+                </div>
               </div>
-            </li>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
 
       {adding && (
