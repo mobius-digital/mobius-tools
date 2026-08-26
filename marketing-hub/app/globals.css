@@ -3725,6 +3725,36 @@ a.switcher__item:hover {
   align-items: flex-start;
 }
 
+/* A card this narrow cannot hold a name and a button on one line without
+   something losing — the button breaking in half, or the event count being
+   trimmed away. So the row is allowed to wrap: the button drops underneath
+   when there is no room, and nothing is hidden. */
+.client-card__head {
+  flex-wrap: wrap;
+}
+
+.client-card__head .button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.client-card__id {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.client-card__id > div {
+  min-width: 0;
+}
+
+.client-card__url {
+  font-size: 0.78rem;
+}
+
+.client-card__name {
+  overflow-wrap: anywhere;
+}
+
 .client-card__name {
   font-size: 1.15rem;
   letter-spacing: -0.01em;

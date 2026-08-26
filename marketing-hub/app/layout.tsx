@@ -16,7 +16,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: hub.name,
   description: hub.tagline,
-  icons: { icon: "/logo.svg", apple: "/icons/hub-180.png" },
+  icons: { icon: "/lineup.svg", apple: "/icons/hub-180.png" },
   manifest: "/manifest.webmanifest",
   // Installed from the front door, this is the agency's switcher app; a brand
   // installed from its own board is a separate icon with the brand's name.
