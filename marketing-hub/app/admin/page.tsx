@@ -20,6 +20,7 @@ type Client = {
   members: string[];
   passwordSet: boolean;
   events: number;
+  archived: number;
   logoSvg: string | null;
   shortName: string;
   font: string;
@@ -31,6 +32,22 @@ const FONTS = ["Inter", "DM Sans", "Manrope", "Space Grotesk", "Barlow", "Sora",
 const ACCENTS = ["#2563eb", "#7c3aed", "#c9a227", "#059669", "#dc2626", "#ea580c", "#0891b2", "#111827"];
 const BACKGROUNDS = ["#f7f7f8", "#ffffff", "#f4f4f0", "#f8f7fc", "#f1f5f9", "#141414"];
 const TEXTS = ["#18181b", "#1a1a18", "#0f172a", "#1b1726", "#f5f5f5"];
+
+/**
+ * What to say about a board's contents. The board hides completed and
+ * cancelled work, so a bare row count would claim seven events for a board
+ * that reads empty — which is exactly the confusion this avoids.
+ */
+function describeEvents(client: Client): string {
+  const live = `${client.events} ${client.events === 1 ? "event" : "events"}`;
+  if (client.events > 0) {
+    return client.archived > 0 ? `${live} · ${client.archived} archived` : live;
+  }
+  if (client.archived > 0) {
+    return `nothing live · ${client.archived} archived`;
+  }
+  return "no events yet";
+}
 
 export default function AdminPage() {
   const [clients, setClients] = useState<Client[] | null>(null);
@@ -235,8 +252,7 @@ export default function AdminPage() {
                     <div>
                     <h2 className="client-card__name">{client.name}</h2>
                     <p className="client-card__url">
-                      /b/{client.slug}/ · {client.events}{" "}
-                      {client.events === 1 ? "event" : "events"}
+                      /b/{client.slug}/ · {describeEvents(client)}
                     </p>
                     </div>
                   </div>
@@ -557,9 +573,11 @@ export default function AdminPage() {
               Delete {deleting.name}?
             </h2>
             <p className="dialog__body">
-              This removes their board, all {deleting.events}{" "}
-              {deleting.events === 1 ? "event" : "events"}, the full change
-              history, everyone&apos;s access and their Slack settings.{" "}
+              This removes their board, all{" "}
+              {deleting.events + deleting.archived}{" "}
+              {deleting.events + deleting.archived === 1 ? "event" : "events"},
+              the full change history, everyone&apos;s access and their Slack
+              settings.{" "}
               <strong>It cannot be undone.</strong>
             </p>
             <label className="field">

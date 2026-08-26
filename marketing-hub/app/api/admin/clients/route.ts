@@ -48,14 +48,26 @@ async function overview() {
       db
         .prepare(`SELECT brand_id FROM settings WHERE key = 'password_hash'`)
         .all<{ brand_id: string }>(),
-      // What a delete would take with it, so the confirmation can say so.
+      // Split, because the board hides completed and cancelled work by
+      // default: the live number is what somebody opening the board sees,
+      // and the archived number is the rest a delete would also take.
       db
-        .prepare(`SELECT brand_id, COUNT(*) AS n FROM events GROUP BY brand_id`)
-        .all<{ brand_id: string; n: number }>(),
+        .prepare(
+          `SELECT brand_id,
+                  SUM(CASE WHEN status IN ('completed','cancelled') THEN 0 ELSE 1 END) AS live,
+                  SUM(CASE WHEN status IN ('completed','cancelled') THEN 1 ELSE 0 END) AS archived
+           FROM events GROUP BY brand_id`,
+        )
+        .all<{ brand_id: string; live: number; archived: number }>(),
     ]);
 
   const withPassword = new Set((hashes ?? []).map((row) => row.brand_id));
-  const eventCounts = new Map((counts ?? []).map((row) => [row.brand_id, Number(row.n)]));
+  const eventCounts = new Map(
+    (counts ?? []).map((row) => [
+      row.brand_id,
+      { live: Number(row.live ?? 0), archived: Number(row.archived ?? 0) },
+    ]),
+  );
 
   return (brands ?? []).map((row) => {
     let accent = "#2563EB";
@@ -82,7 +94,8 @@ async function overview() {
         .filter((member) => member.brand_id === row.id)
         .map((member) => member.email),
       passwordSet: withPassword.has(row.id),
-      events: eventCounts.get(row.id) ?? 0,
+      events: eventCounts.get(row.id)?.live ?? 0,
+      archived: eventCounts.get(row.id)?.archived ?? 0,
       logoSvg: row.logo_svg,
       shortName: row.short_name,
       font,
