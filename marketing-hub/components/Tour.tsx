@@ -267,9 +267,18 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const [index, setIndex] = useState(0);
   const [ready, setReady] = useState(false);
 
+  // The sign-in screen is not the board: a walkthrough of a board somebody
+  // has not been let into yet is nonsense, and it covers the very button
+  // they came to press.
+  const signedOut = pathname.endsWith("/password");
+
   // Restore where the reader had got to. Without this a route change — which
   // the tour now does on purpose — would drop them back at step one.
   useEffect(() => {
+    if (signedOut) {
+      setReady(true);
+      return;
+    }
     const resumed = window.sessionStorage.getItem(OPEN_KEY) === "true";
     if (resumed) {
       setIndex(Number(window.sessionStorage.getItem(INDEX_KEY) ?? 0) || 0);
@@ -278,7 +287,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       setOpen(true);
     }
     setReady(true);
-  }, []);
+  }, [signedOut]);
 
   useEffect(() => {
     if (!ready) return;
@@ -304,7 +313,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       {/* Never over the sign-in screen. The provider wraps every route, and a
           first-time visitor arrives there before anywhere else — the tour would
           sit on top of the password box and block the way in. */}
-      {ready && open && pathname !== "/password" && (
+      {ready && open && !signedOut && (
         <Walkthrough index={index} setIndex={setIndex} finish={finish} />
       )}
     </TourControls.Provider>
