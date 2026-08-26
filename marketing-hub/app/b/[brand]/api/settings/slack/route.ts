@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { authTest, listChannels as listSlackChannels, postMessage } from "@/lib/slack";
+import { listChannels as listSlackChannels, postMessage } from "@/lib/slack";
 import {
   mapChannel,
   rememberBoardUrl,
   setDayBefore,
   setEnabled,
   setReminderTiming,
-  setToken,
   slackSettings,
   slackToken,
 } from "@/lib/slackConfig";
@@ -79,26 +78,9 @@ export async function POST(request: Request) {
     validateEditorName(body.editor);
 
     switch (body.action) {
-      case "set-token": {
-        const result = await setToken(body.token);
-        if (!result.ok) return NextResponse.json({ error: result.error }, { status: 422 });
-
-        // Confirm the token works now rather than letting the first real
-        // notification be the thing that discovers it does not.
-        const token = await slackToken();
-        if (token) {
-          const check = await authTest(token);
-          if (!check.ok) {
-            await setToken("");
-            return NextResponse.json({ error: check.error }, { status: 422 });
-          }
-          return NextResponse.json({
-            ...(await payload(true)),
-            connected: `Connected to ${check.team} as ${check.bot}.`,
-          });
-        }
-        break;
-      }
+      // The bot token is the agency's, shared by every board, and is set in
+      // the Clients area. A board decides where its own notices land, not
+      // which Slack account sends them.
 
       case "set-enabled": {
         const result = await setEnabled(body.enabled === true);

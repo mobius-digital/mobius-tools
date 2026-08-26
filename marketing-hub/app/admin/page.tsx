@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ColorField } from "@/components/ColorField";
 import { BrandMark } from "@/components/BrandMark";
+import { ConnectionSettings } from "@/components/ConnectionSettings";
 
 /**
  * The Clients screen — agency admins only (the gate enforces it).
@@ -55,6 +56,7 @@ export default function AdminPage() {
   const [editing, setEditing] = useState<Client | null>(null);
   const [deleting, setDeleting] = useState<Client | null>(null);
   const [deleteDraft, setDeleteDraft] = useState("");
+  const [showConnections, setShowConnections] = useState(false);
   const [passwords, setPasswords] = useState<Record<string, string>>({});
   const [memberDrafts, setMemberDrafts] = useState<Record<string, string>>({});
 
@@ -236,6 +238,15 @@ export default function AdminPage() {
           <a className="button" href="/">
             ← Back to calendars
           </a>
+          {/* Mobius's own Google and Slack apps, shared by every board — kept
+              here rather than in any client's own settings. */}
+          <button
+            type="button"
+            className="button"
+            onClick={() => setShowConnections(true)}
+          >
+            Connections
+          </button>
           <button
             type="button"
             className="button button--primary"
@@ -566,6 +577,8 @@ export default function AdminPage() {
           </form>
         </div>
       )}
+
+      {showConnections && <ConnectionSettings onClose={() => setShowConnections(false)} />}
 
       {deleting && (
         <div

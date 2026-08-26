@@ -14,7 +14,7 @@
  */
 
 import { getDb } from "./db";
-import { currentBrandId } from "./brandContext";
+import { currentBrandId, PLATFORM } from "./brandContext";
 
 import { channelKeys } from "./channelOptions";
 import type { ChannelKey } from "./types";
@@ -46,10 +46,19 @@ export type SlackSettings = {
   boardUrl: string;
 };
 
+/**
+ * Most Slack settings belong to a board. The bot token does not: it is the
+ * agency's Slack app, shared by every brand, so it lives on the platform row
+ * where no client team can reach it.
+ */
+async function scopeFor(key: string): Promise<string> {
+  return key === TOKEN_KEY ? PLATFORM : currentBrandId();
+}
+
 async function readSetting(key: string): Promise<string | null> {
   const row = await getDb()
     .prepare(`SELECT value FROM settings WHERE brand_id = ? AND key = ?`)
-    .bind(await currentBrandId(), key)
+    .bind(await scopeFor(key), key)
     .first<{ value: string }>();
   return row?.value ?? null;
 }
@@ -60,7 +69,26 @@ async function writeSetting(key: string, value: string): Promise<void> {
       `INSERT INTO settings (brand_id, key, value, updated_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(brand_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     )
-    .bind(await currentBrandId(), key, value, new Date().toISOString())
+    .bind(await scopeFor(key), key, value, new Date().toISOString())
+    .run();
+}
+
+/** Reading and writing the shared token from the admin area, outside any brand. */
+export async function platformSlackToken(): Promise<string> {
+  const row = await getDb()
+    .prepare(`SELECT value FROM settings WHERE brand_id = ? AND key = ?`)
+    .bind(PLATFORM, TOKEN_KEY)
+    .first<{ value: string }>();
+  return row?.value ?? "";
+}
+
+export async function setPlatformSlackToken(value: string): Promise<void> {
+  await getDb()
+    .prepare(
+      `INSERT INTO settings (brand_id, key, value, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(brand_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    )
+    .bind(PLATFORM, TOKEN_KEY, value, new Date().toISOString())
     .run();
 }
 
@@ -157,6 +185,10 @@ export function isValidTime(time: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
 }
 
+/**
+ * Validates and stores the shared token. Reachable only from the admin area —
+ * the brand-facing Slack screen has no token field at all.
+ */
 export async function setToken(raw: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = typeof raw === "string" ? raw.trim() : "";
 

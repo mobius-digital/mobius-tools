@@ -5,22 +5,21 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useDisplayName } from "./DisplayName";
 
 /**
- * Who can get in, chosen from inside the app.
+ * Who can open this board, chosen from inside the app.
  *
- * Either a shared password on a link, or an invite list of Google accounts.
- * Everything here takes effect immediately — there is no redeploy step, which
- * is the whole point of keeping this in the app rather than in a dashboard.
+ * Two doors are always open: the people invited here, each with their own
+ * Google account, and the board's shared team password for anyone who has the
+ * link. This screen manages the first — adding or removing takes effect on the
+ * next page load, with no redeploy, which is the whole point of it living in
+ * the app rather than in a dashboard.
  *
- * The Google option is deliberately disabled until it would actually work, and
- * says what is missing. It used to be selectable and then fail server-side, with
- * the explanation rendered far enough down the dialog to be off-screen — which
- * read as the button simply not responding.
+ * The Google app behind the button is Mobius's, connected once in the Clients
+ * area, so there is nothing to configure here beyond the list itself.
  */
 
 type Config = {
-  mode: "password" | "google";
   googleClientId: string;
-  passwordFallback: boolean;
+  passwordEnabled: boolean;
   emails: string[];
 };
 
@@ -28,7 +27,6 @@ export function SignInSettings({ onClose }: { onClose: () => void }) {
   const { path } = useBrand();
   const { ensureName } = useDisplayName();
   const [config, setConfig] = useState<Config | null>(null);
-  const [clientId, setClientId] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,10 +34,7 @@ export function SignInSettings({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     fetch(path("/api/settings/signin"))
       .then((r) => r.json() as Promise<Config>)
-      .then((body) => {
-        setConfig(body);
-        setClientId(body.googleClientId);
-      })
+      .then(setConfig)
       .catch(() => setError("Could not load the current settings."));
   }, []);
 
@@ -50,26 +45,6 @@ export function SignInSettings({ onClose }: { onClose: () => void }) {
 
       setBusy(true);
       setError(null);
-
-      // Move the control now and correct it from the response. Waiting on a
-      // round trip before the radio visibly changes reads as an unresponsive
-      // button, especially when the request then fails.
-      const optimistic =
-        typeof payload.mode === "string" || typeof payload.passwordFallback === "boolean";
-      if (optimistic) {
-        setConfig((current) =>
-          current
-            ? {
-                ...current,
-                mode: (payload.mode as Config["mode"]) ?? current.mode,
-                passwordFallback:
-                  typeof payload.passwordFallback === "boolean"
-                    ? payload.passwordFallback
-                    : current.passwordFallback,
-              }
-            : current,
-        );
-      }
 
       try {
         const response = await fetch(path("/api/settings/signin"), {
@@ -84,18 +59,10 @@ export function SignInSettings({ onClose }: { onClose: () => void }) {
 
         if (!response.ok) {
           setError(body.error ?? "Could not save that.");
-          // Put the control back where the server says it actually is.
-          if (optimistic) {
-            const truth = (await fetch(path("/api/settings/signin"))
-              .then((r) => r.json())
-              .catch(() => null)) as Config | null;
-            if (truth) setConfig(truth);
-          }
           return false;
         }
 
         setConfig(body);
-        setClientId(body.googleClientId);
         return true;
       } catch {
         setError("Network error — check your connection and try again.");
@@ -112,14 +79,6 @@ export function SignInSettings({ onClose }: { onClose: () => void }) {
     if (!newEmail.trim()) return;
     if (await send({ action: "add-email", email: newEmail })) setNewEmail("");
   }
-
-  // What still stands between this board and working Google sign-in.
-  const missing: string[] = [];
-  if (config) {
-    if (!config.googleClientId) missing.push("a Google client ID");
-    if (config.emails.length === 0) missing.push("at least one invited email");
-  }
-  const googleReady = Boolean(config) && missing.length === 0;
 
   return (
     <div
@@ -153,51 +112,6 @@ export function SignInSettings({ onClose }: { onClose: () => void }) {
           <p className="dialog__body">Loading…</p>
         ) : (
           <>
-            <div className="choice">
-              <label className="choice__option">
-                <input
-                  type="radio"
-                  name="auth-mode"
-                  checked={config.mode === "password"}
-                  onChange={() => void send({ mode: "password" })}
-                  disabled={busy}
-                />
-                <span>
-                  <span className="choice__label">Shared password</span>
-                  <span className="choice__hint">
-                    One link, one password, everybody uses the same one.
-                  </span>
-                </span>
-              </label>
-
-              <label
-                className={`choice__option${googleReady ? "" : " choice__option--blocked"}`}
-              >
-                <input
-                  type="radio"
-                  name="auth-mode"
-                  checked={config.mode === "google"}
-                  onChange={() => void send({ mode: "google", googleClientId: clientId })}
-                  disabled={busy || !googleReady}
-                />
-                <span>
-                  <span className="choice__label">Google sign-in, by invitation</span>
-                  <span className="choice__hint">
-                    Only the people listed below can get in, each with their own
-                    Google account.
-                  </span>
-                  {!googleReady && (
-                    <span className="choice__blocker">
-                      Add {missing.join(" and ")} below first — otherwise nobody,
-                      including you, could get back in.
-                    </span>
-                  )}
-                </span>
-              </label>
-            </div>
-
-            <hr className="dialog__rule" />
-
             <h3 className="dialog__section">Invited people</h3>
             <p className="dialog__body">
               These addresses can sign in with Google. Adding or removing takes
@@ -241,67 +155,21 @@ export function SignInSettings({ onClose }: { onClose: () => void }) {
 
             <hr className="dialog__rule" />
 
-            {/* Folded away: needed once, then never again. */}
-            <details className="disclose" open={!config.googleClientId}>
-              <summary className="disclose__summary">
-                Google client ID
-                <span className="disclose__state">
-                  {config.googleClientId ? "set" : "not set yet"}
-                </span>
-              </summary>
+            {/* Said plainly, because it is the part people forget: the link and
+                password are a second way in, alongside every invitation above. */}
+            <h3 className="dialog__section">The team password</h3>
+            <p className="dialog__body dialog__body--muted">
+              {config.passwordEnabled
+                ? "This board also opens with its shared password, for anyone who has the link. Change it from Settings → Change the team password."
+                : "This board has no shared password — the invited people above are the only way in."}
+            </p>
 
-              <p className="dialog__body">
-                Needed once, so Google knows which app is asking. Create one under{" "}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Google Cloud → Credentials
-                </a>{" "}
-                as an OAuth client ID for a web application, listing this site as
-                an authorised JavaScript origin.
-              </p>
+            {!config.googleClientId && (
               <p className="dialog__body dialog__body--muted">
-                This is not a secret — every site with a Google button publishes
-                its own in the page. The client <em>secret</em> is the sensitive
-                one, and this app never asks for it.
+                Google sign-in is not connected yet. Ask Mobius to connect it;
+                until then the team password is the way in.
               </p>
-
-              <div className="emails__add">
-                <input
-                  className="input"
-                  value={clientId}
-                  onChange={(event) => setClientId(event.target.value)}
-                  placeholder="…apps.googleusercontent.com"
-                  aria-label="Google client ID"
-                />
-                <button
-                  type="button"
-                  className="button"
-                  disabled={busy || clientId === config.googleClientId}
-                  onClick={() => void send({ googleClientId: clientId })}
-                >
-                  Save
-                </button>
-              </div>
-            </details>
-
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={config.passwordFallback}
-                disabled={busy}
-                onChange={(event) => void send({ passwordFallback: event.target.checked })}
-              />
-              <span>
-                <span className="choice__label">Also accept the team password</span>
-                <span className="choice__hint">
-                  Leave this on until Google sign-in is confirmed working. It is
-                  the way back in if the client ID is wrong.
-                </span>
-              </span>
-            </label>
+            )}
           </>
         )}
 

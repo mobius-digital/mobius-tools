@@ -8,13 +8,12 @@ import type { ChannelKey, ChannelOption } from "@/lib/types";
 /**
  * Slack notifications, configured from inside the app.
  *
- * Ordered as the job actually goes: connect a bot, say which Slack channel
- * hears about which marketing channel, then switch it on. The switch is last
- * and stays off until the first two steps are done, so nobody turns on
- * notifications that have nowhere to go.
- *
- * The token is write-only from here. What comes back is a masked hint —
- * enough to recognise which token is in place, never enough to use.
+ * The Slack app itself is Mobius's, connected once in the Clients area and
+ * shared by every board — so this screen has no token field. What a board
+ * decides is its own: which Slack channel hears about which marketing
+ * channel, when the reminders go out, and whether any of it is switched on.
+ * The switch stays off until at least one channel is mapped, so nobody turns
+ * on notifications that have nowhere to go.
  */
 
 type SlackChannel = {
@@ -49,7 +48,6 @@ export function SlackSettings({ onClose }: { onClose: () => void }) {
   const { path } = useBrand();
   const { ensureName } = useDisplayName();
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [token, setToken] = useState("");
   const [time, setTime] = useState("");
   const [zone, setZone] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -118,10 +116,6 @@ export function SlackSettings({ onClose }: { onClose: () => void }) {
     [absorb, ensureName, settings?.slackChannels],
   );
 
-  async function saveToken() {
-    if (await send({ action: "set-token", token })) setToken("");
-  }
-
   async function test(channelKey: ChannelKey, slackId: string) {
     setTesting(channelKey);
     await send({ action: "test", slackId });
@@ -175,50 +169,14 @@ export function SlackSettings({ onClose }: { onClose: () => void }) {
               one message, not five.
             </p>
 
-            {/* Needed once. Folded away afterwards, like the Google client ID. */}
-            <details className="disclose" open={!settings.hasToken}>
-              <summary className="disclose__summary">
-                Slack bot token
-                <span className="disclose__state">
-                  {settings.hasToken ? settings.tokenHint : "not set yet"}
-                </span>
-              </summary>
-
-              <p className="dialog__body">
-                From your Slack app's <strong>OAuth &amp; Permissions</strong> page —
-                the <em>Bot User OAuth Token</em>, starting <code>xoxb-</code>. It
-                needs the <code>chat:write</code>, <code>channels:read</code> and{" "}
-                <code>groups:read</code> scopes, and the bot has to be invited to
-                each channel you want it to post in (<code>/invite @your-bot</code>).
-              </p>
-
-              <div className="emails__add">
-                <input
-                  className="input"
-                  type="password"
-                  value={token}
-                  onChange={(event) => setToken(event.target.value)}
-                  placeholder="xoxb-…"
-                  aria-label="Slack bot token"
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  className="button"
-                  disabled={busy || !token.trim()}
-                  onClick={() => void saveToken()}
-                >
-                  Save
-                </button>
-              </div>
-
-              {settings.hasToken && (
-                <p className="dialog__body dialog__body--muted">
-                  A token is set. Saving a new one replaces it; saving an empty one
-                  removes it and switches notifications off.
-                </p>
-              )}
-            </details>
+            {/* Read-only on purpose: the Slack app belongs to Mobius and is
+                shared by every board, so a client's team can see that it is
+                connected without being able to change or clear it. */}
+            <p className="dialog__body dialog__body--muted">
+              {settings.hasToken
+                ? "Slack is connected by Mobius — this board only chooses where its messages land."
+                : "Slack is not connected yet. Ask Mobius to connect the workspace and this will light up."}
+            </p>
 
             <hr className="dialog__rule" />
 
@@ -230,7 +188,7 @@ export function SlackSettings({ onClose }: { onClose: () => void }) {
 
             {!settings.hasToken ? (
               <p className="dialog__body dialog__body--muted">
-                Add a bot token above and the channel list will appear here.
+                The channel list appears here once Mobius has connected Slack.
               </p>
             ) : (
               <ul className="slack-map">
@@ -357,7 +315,7 @@ export function SlackSettings({ onClose }: { onClose: () => void }) {
             {!canEnable && !settings.enabled && (
               <p className="dialog__body dialog__body--muted">
                 {!settings.hasToken
-                  ? "Add a bot token first."
+                  ? "Slack is not connected yet — ask Mobius to connect it."
                   : "Map at least one channel above first."}
               </p>
             )}
