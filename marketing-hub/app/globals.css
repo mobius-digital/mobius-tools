@@ -673,6 +673,13 @@ button {
   color: var(--color-accent-ink);
 }
 
+/* The hub has no brand logo to mask, so its own mark is drawn here. */
+.gate__logo--hub {
+  background: currentColor;
+  -webkit-mask: url("/lineup.svg") center / contain no-repeat;
+  mask: url("/lineup.svg") center / contain no-repeat;
+}
+
 .gate__logo {
   width: 28px;
   height: 28px;

@@ -6,6 +6,8 @@ import { safeEqual, sessionTokenForBrand } from "@/lib/auth";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import { GoogleSignIn } from "@/components/GoogleSignIn";
 import { BrandMark } from "@/components/BrandMark";
+import { GateScene } from "@/components/GateScene";
+import { DEFAULT_CHANNELS, DEFAULT_EVENT_TYPES } from "@/lib/types";
 import { hub } from "@/hub.config";
 
 export const dynamic = "force-dynamic";
@@ -71,21 +73,44 @@ export default async function FrontDoor() {
 
   const clientId = await googleClientId();
 
+  // The same split as a brand's own sign-in screen — the product in miniature
+  // on the left, the door on the right. This one wears the hub's name and the
+  // built-in channels and types, because no brand has been chosen yet.
   return (
-    <div className="door">
-      <main className="door__panel">
-        <h1 className="door__title">{hub.name}</h1>
-        <p className="door__sub">{hub.tagline}</p>
-        {clientId ? (
-          <GoogleSignIn clientId={clientId} from="/" />
-        ) : (
-          <p className="door__note">Sign-in is not configured yet.</p>
-        )}
-        <p className="door__note">
-          Does your team use a shared password? Open your board&apos;s own link
-          — the one you were sent — and sign in there.
+    <div className="gate">
+      <GateScene
+        channels={DEFAULT_CHANNELS}
+        eventTypes={DEFAULT_EVENT_TYPES}
+        productName={hub.name}
+      />
+
+      <section className="gate__panel">
+        <div className="gate__card">
+          <div className="gate__brand">
+            <span className="gate__logo gate__logo--hub" aria-hidden />
+            <span className="gate__brandname">{hub.name}</span>
+          </div>
+          {/* The artwork already carries the tagline; the card says what the
+              thing is, exactly as a brand's own card does under its name. */}
+          <h1 className="gate__title">Marketing Calendar</h1>
+
+          {clientId ? (
+            <>
+              <p className="gate__subtitle">
+                Sign in with the Google account you were invited with.
+              </p>
+              <GoogleSignIn clientId={clientId} from="/" />
+            </>
+          ) : (
+            <p className="gate__subtitle">Sign-in is not configured yet.</p>
+          )}
+        </div>
+
+        <p className="gate__fine">
+          Signs you in to every brand you work on. If your team uses a shared
+          password, open your own board&apos;s link instead.
         </p>
-      </main>
+      </section>
     </div>
   );
 }
