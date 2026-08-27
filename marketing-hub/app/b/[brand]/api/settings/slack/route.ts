@@ -42,9 +42,14 @@ async function payload(withChannels: boolean) {
     pendingCount(),
     viewerIsAdmin(),
   ]);
+  // The masked token hint is the agency's, and no board screen shows it — a
+  // board only needs to know that Slack is connected, which `hasToken` says.
+  // Four characters of a bot token is not much, but it is not theirs and it
+  // was travelling to every client for no reason.
+  const { tokenHint: _hint, ...boardSettings } = settings;
   // `canChooseChannels` drives the screen; the guard is the `admin` check
   // below and on every write, not the flag.
-  const base = { ...settings, marketingChannels, ...queue, canChooseChannels: admin };
+  const base = { ...boardSettings, marketingChannels, ...queue, canChooseChannels: admin };
   if (!withChannels || !settings.hasToken || !admin) {
     return { ...base, slackChannels: null };
   }

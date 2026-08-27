@@ -106,7 +106,7 @@ And a **Settings** window, which is theirs to run:
 | Add to your phone | The two taps that install the board as an app |
 | Event types | Renaming the options in the Type dropdown, or adding their own |
 | Channels | Their marketing channels — each gets a filter, a row on every event, and a Slack channel |
-| Slack notifications | Which Slack channel hears about which marketing channel, and reminder timing |
+| Slack notifications | Reminder timing and the on/off switch — the channel mapping is read-only unless you are an agency admin |
 | Users | Who can open the board, and the shared team password |
 
 A **two-minute walkthrough** opens by itself the first time anyone opens a
@@ -132,6 +132,14 @@ turns on notifications with nowhere to go.
 If a channel is listed as *"— invite the bot first"*, that is exactly what it
 means: `/invite @your-bot` in that channel.
 
+**Only agency admins see the channel picker.** The list of channels is every
+channel in Mobius's workspace, and a board is open to the client's own team, so
+it is not shown to them — they see where their own notices land, as plain text,
+and nothing about anybody else's. Reminder timing and the on/off switch stay
+theirs. If somebody at Mobius needs to set mappings, they need to be an agency
+admin (a `memberships` row with `brand_id = '*'`), not just a member of the
+board.
+
 ---
 
 ## When something looks wrong
@@ -147,9 +155,9 @@ backgrounds were removed automatically — re-upload it and it will be handled. 
 colored one is left in place on purpose; re-upload and tick *Drop the flat
 background* to take it off.
 
-**A card says "7 events" but the board looks empty.** Cancelled and completed
-events are hidden on the planning views by default. The card says
-`nothing live · 7 archived` when that is the case.
+**A card says nothing live but the board has history.** Cancelled and completed
+events are hidden on the planning views by default, and the card counts live
+work only, so a board whose work is all finished reads `nothing live`.
 
 **Slack says nothing.** In order: is a token connected (Connections), is a
 channel mapped for the marketing channel on that event, is the switch on, and

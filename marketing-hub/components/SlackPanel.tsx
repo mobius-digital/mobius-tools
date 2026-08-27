@@ -26,7 +26,6 @@ type SlackChannel = {
 
 type Settings = {
   enabled: boolean;
-  tokenHint: string;
   hasToken: boolean;
   channels: Record<ChannelKey, { id: string; name: string }>;
   /** The board's own channels — the rows of the mapping. */
