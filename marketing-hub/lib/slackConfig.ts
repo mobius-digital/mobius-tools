@@ -29,7 +29,7 @@ const BOARD_URL_KEY = "board_url";
 
 /** Matches Pulse, which reports in the same timezone. */
 export const DEFAULT_TIMEZONE = "America/Chicago";
-export const DEFAULT_REMINDER_TIME = "09:00";
+export const DEFAULT_REMINDER_TIME = "08:00";
 
 export type SlackChannelMap = Record<ChannelKey, { id: string; name: string }>;
 
