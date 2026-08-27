@@ -13,6 +13,7 @@ import { buildTestMessage } from "@/lib/slackMessage";
 import { flushOutbox, pendingCount } from "@/lib/slackNotify";
 import { listChannels } from "@/lib/channelOptions";
 import { ValidationError, validateEditorName } from "@/lib/validation";
+import { viewerIsAdmin } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -24,17 +25,29 @@ export const dynamic = "force-dynamic";
  *
  * The response never contains the bot token — only the masked hint from
  * `slackSettings()`. There is no endpoint anywhere that returns the real one.
+ *
+ * Nor does it contain the workspace's channel list unless an agency admin is
+ * asking. That list is the names of every channel Mobius has, and a board is
+ * open to the client's own team — so browsing it was a way to read the
+ * agency's org chart from inside a calendar. A board still shows where its own
+ * notices land, because that is its own business; choosing from the full list
+ * is Mobius's.
  */
 
 /** Listing channels costs a Slack round trip, so it is asked for explicitly. */
 async function payload(withChannels: boolean) {
-  const [settings, marketingChannels, queue] = await Promise.all([
+  const [settings, marketingChannels, queue, admin] = await Promise.all([
     slackSettings(),
     listChannels(),
     pendingCount(),
+    viewerIsAdmin(),
   ]);
-  const base = { ...settings, marketingChannels, ...queue };
-  if (!withChannels || !settings.hasToken) return { ...base, slackChannels: null };
+  // `canChooseChannels` drives the screen; the guard is the `admin` check
+  // below and on every write, not the flag.
+  const base = { ...settings, marketingChannels, ...queue, canChooseChannels: admin };
+  if (!withChannels || !settings.hasToken || !admin) {
+    return { ...base, slackChannels: null };
+  }
 
   const result = await listSlackChannels(await slackToken());
   return {
@@ -93,6 +106,12 @@ export async function POST(request: Request) {
         break;
 
       case "map": {
+        if (!(await viewerIsAdmin())) {
+          return NextResponse.json(
+            { error: "Only Mobius can change where a board posts." },
+            { status: 403 },
+          );
+        }
         const result = await mapChannel(body.channelKey, body.slackId, body.slackName);
         if (!result.ok) return NextResponse.json({ error: result.error }, { status: 422 });
         break;
@@ -111,6 +130,14 @@ export async function POST(request: Request) {
       }
 
       case "test": {
+        // Posting to an arbitrary channel id is a way to find out which ones
+        // exist, so it is gated with the picker rather than beside it.
+        if (!(await viewerIsAdmin())) {
+          return NextResponse.json(
+            { error: "Only Mobius can send a test message." },
+            { status: 403 },
+          );
+        }
         const token = await slackToken();
         if (!token) {
           return NextResponse.json({ error: "Add a bot token first." }, { status: 422 });

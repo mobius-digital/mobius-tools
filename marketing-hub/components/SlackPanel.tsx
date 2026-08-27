@@ -35,6 +35,8 @@ type Settings = {
   reminderTime: string;
   timezone: string;
   boardUrl: string;
+  /** False for a client's own team: the workspace list is not theirs to read. */
+  canChooseChannels: boolean;
   slackChannels: SlackChannel[] | null;
   channelError?: string;
   connected?: string;
@@ -180,6 +182,31 @@ export function SlackPanel() {
             <p className="dialog__body dialog__body--muted">
               The channel list appears here once Mobius has connected Slack.
             </p>
+          ) : !settings.canChooseChannels ? (
+            /* Where this board's notices go, and nothing about anyone else's.
+               The names below are this board's own mapping, already stored
+               against it — the workspace list never reaches this screen. */
+            <>
+              <ul className="slack-map">
+                {settings.marketingChannels.map(({ key, label }) => {
+                  const current = settings.channels[key];
+                  return (
+                    <li key={key} className="slack-map__row">
+                      <span className="slack-map__label">{label}</span>
+                      {current ? (
+                        <span className="slack-map__fixed">#{current.name}</span>
+                      ) : (
+                        <span className="slack-map__unmapped">notifies nowhere</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="dialog__body dialog__body--muted">
+                Mobius sets which Slack channel hears about which of yours. Ask
+                them to change it and it takes effect straight away.
+              </p>
+            </>
           ) : (
             <ul className="slack-map">
               {settings.marketingChannels.map(({ key, label }) => {
