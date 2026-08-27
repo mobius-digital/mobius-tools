@@ -202,9 +202,11 @@ export function DisplayNameProvider({
               What should we call you?
             </h2>
             <p className="dialog__body">
-              This is the name on your edits, so the rest of the team can see
-              who moved a date. We have started with the name on your Google
-              account — change it to whatever you go by.
+              This is the name on your edits, and the name others pick from
+              when they say who owns a launch. <strong>First and last</strong>
+              — two people called Nick are one name in a list, and nobody can
+              tell whose launch is whose. We have started with the name on
+              your Google account.
             </p>
 
             <form className="dialog__form" onSubmit={handleSubmit}>
@@ -213,7 +215,7 @@ export function DisplayNameProvider({
                 className={`input${error ? " input--invalid" : ""}`}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="e.g. Cole Wetzler"
+                placeholder="First and last name"
                 maxLength={40}
                 autoFocus
                 aria-invalid={Boolean(error)}
@@ -263,8 +265,9 @@ export function DisplayNameProvider({
               Who&apos;s editing?
             </h2>
             <p className="dialog__body">
-              Your name is stamped on every change you make, so the team can see
-              who moved a date. Stored on this device only.
+              Your name is stamped on every change you make, and is what others
+              pick from when they say who owns a launch. First and last, so two
+              people who share a first name do not become one entry.
             </p>
 
             <form className="dialog__form" onSubmit={handleSubmit}>
@@ -273,7 +276,7 @@ export function DisplayNameProvider({
                 className={`input${error ? " input--invalid" : ""}`}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="e.g. Cole"
+                placeholder="First and last name"
                 maxLength={40}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "display-name-error" : undefined}

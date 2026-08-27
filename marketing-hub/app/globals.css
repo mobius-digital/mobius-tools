@@ -3355,10 +3355,12 @@ button {
   overflow-y: auto;
 }
 
-/* Getting back to the list after choosing to type a name instead. */
+/* Getting back to the list after choosing to type a name instead. The arrow
+   keeps the button's own padding — zeroing the left edge pinned it against
+   the border and read as a mistake. */
 .owner__back {
   align-self: flex-start;
-  padding-left: 0;
+  margin-top: var(--space-1);
 }
 
 /* How many events use a type, beside its name in Settings. */
