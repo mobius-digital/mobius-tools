@@ -225,6 +225,7 @@
     <button data-t="profit">Profit</button>
     <button data-t="plan">Plan</button>
     <button data-t="brief">Daily Brief</button>
+    <button data-t="reports">Reports</button>
     <button data-t="costs">Costs</button>
     <button data-t="customers">Customers</button><button data-t="settings">Settings</button>
   </div></nav>
@@ -273,6 +274,7 @@ const fmtMoney = (n, cur) => n == null ? '—' : new Intl.NumberFormat('en-US', 
 const fmtK = (n, cur) => n == null ? '—' : Math.abs(n) >= 1000 ? (sym(cur) + (n/1000).toFixed(1) + 'K') : fmtMoney(n, cur);
 const fmtX = n => n == null ? '—' : n.toFixed(2) + 'x';
 const fmtPct = (n, d=0) => n == null ? '—' : (n*100).toFixed(d) + '%';
+const fmtInt = n => n == null ? '—' : Math.round(n).toLocaleString('en-US');
 const fmtSigned = (n, d=0) => n == null ? '—' : (n>0?'+':'') + (n*100).toFixed(d) + '%';
 const ymdLocal = d => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 const parseTs = iso => new Date(iso.replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(iso) ? '' : 'Z'));
@@ -285,8 +287,8 @@ const fmtAgo = iso => { if (!iso) return 'never'; const m = (Date.now() - parseT
  *  merchant would actually use - Overview, Profit, Plan, Costs, Customers - stays. */
 function applyKind() {
   if (S.kind !== 'demo') return;
-  document.querySelectorAll('#tabs [data-t="brief"], #tabs [data-t="settings"]').forEach(el => el.remove());
-  if (S.tab === 'brief' || S.tab === 'settings') S.tab = 'overview';
+  document.querySelectorAll('#tabs [data-t="brief"], #tabs [data-t="reports"], #tabs [data-t="settings"]').forEach(el => el.remove());
+  if (S.tab === 'brief' || S.tab === 'reports' || S.tab === 'settings') S.tab = 'overview';
   if (!$('#demoNote')) {
     document.querySelector('.hd-right')?.insertAdjacentHTML('afterbegin',
       '<span id="demoNote" class="pill" title="Sample data for demonstration. No real merchant or customer data, and nothing here can be changed.">Demo · sample data</span>');
@@ -295,6 +297,17 @@ function applyKind() {
 
 /* ---------- boot ---------- */
 async function boot() {
+  const qs = new URLSearchParams(location.search);
+  // The client's report archive link (?reports=token). Read-only, no sign-in.
+  const repTok = qs.get('reports');
+  if (repTok) return renderReportsShare(repTok);
+  // Internal deep link from the Slack draft message (?open=reports&act=...).
+  const open = qs.get('open');
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings'].includes(open)) {
+    if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
+    S.tab = open; localStorage.setItem(LS.tab, open);
+    history.replaceState(null, '', location.pathname);
+  }
   const planTok = new URLSearchParams(location.search).get('plan');
   if (planTok) return renderPlanShare(planTok);
   const perfTok = new URLSearchParams(location.search).get('perf');
@@ -528,7 +541,7 @@ document.addEventListener('click', e => {
 }, true);
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
-  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', brief:'How the Daily Brief works', plan:'How planning the month works', settings:'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', brief:'How the Daily Brief works', reports:'How Reports work', plan:'How planning the month works', settings:'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
 });
 
 function helpModal(title, html) {
@@ -611,6 +624,15 @@ const PAGE_HELP = {
     <p><b>The narrative:</b> Claude writes Notes → So What? → What's Next? from the numbers <i>plus the Change Log</i> — so the more whys you tag there, the sharper the story ("CPA recovered after Tuesday's budget trim"), exactly like an analyst who was watching all day.</p>
     <p><b>The one distinction that matters:</b> <b>ROAS is attributed</b> — Meta and Google each claim credit for sales using their own rules, and they double-count each other. <b>MER and aMER are blended</b> — real Shopify revenue over real total spend, so nothing can be claimed twice. That's why this page leads with MER/aMER and shows platform ROAS only as a supporting detail in the channel line. It's also why this page's numbers will never match Ads Manager, and shouldn't — the Meta-only pages are where you go for that.</p>
     <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning at the time set on the Settings tab (default <b>9:00 AM Central</b>), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
+  reports: `
+    <p><b>What this page is:</b> the weekly and monthly client reports — the ones you walk through on calls and send into the client's Slack. Where the Daily Brief is a quick morning pulse, these are the sit-down review of a whole week or month.</p>
+    <p><b>The flow:</b> every <b>Monday</b> morning a draft of last week (Mon–Sun) is generated per brand, and on the <b>1st</b> a draft of last month. Each draft posts to that brand's <b>Report drafts channel</b> (internal — set it in Settings) with a link back here. You review it, edit the summary if you want, then hit <b>Send to client</b> — that posts the headline numbers and the client's link into their Slack channel. <b>Nothing ever reaches a client automatically.</b></p>
+    <p><b>Reports are frozen.</b> A report is a snapshot of the numbers at generation time, so what you reviewed on Monday is exactly what the client opens on Thursday — it never drifts as data resyncs. Once sent, a report can't be regenerated or edited at all.</p>
+    <p><b>Every number carries two comparisons:</b> <b>vs plan</b> (the month's goal from the Plan tab, pro-rated to the period's days — the accountability read) and <b>vs the prior period</b> (the trend read). Clients ask both questions on calls; showing both means no toggling mid-conversation.</p>
+    <p><b>The client link:</b> one stable link per brand opens their <b>archive</b> — every sent report, newest first, drafts never visible. Send it once; it stays good forever. Copy it with the button on any report.</p>
+    <p><b>"Where the Meta budget went"</b> is deliberately not "the best ad". A single crown is unjudgeable — best CPA, best ROAS and biggest spender are usually three different ads. Instead it shows the ads that carried real spend (behind a materiality floor, so a $40 fluke can't headline) and what each delivered, plus the most efficient of them.</p>
+    <p><b>Platform sections</b> appear automatically for any platform with data — Meta, Google, TikTok, Amazon, Pinterest, Klaviyo email — and you can untick any of them per brand. Platform revenue/ROAS in those sections is the platform's <i>own attribution</i>, labeled as directional; the blended scorecard at the top is the honest headline.</p>
+    <p><b>The summary</b> is written by Claude from the numbers plus the Change Log, in three parts: the period in brief, what mattered, what's next. Edit it freely before sending — it's your voice on the report.</p>`,
   plan: `
     <p><b>What this page is:</b> the monthly conversation with your client, turned into the number everything else is measured against. A forecast nobody agreed to is just a guess.</p>
     <p><b>Why there are three boxes:</b> revenue, ad spend and MER are one equation — <b>revenue = MER × spend</b>. Fix any two and the third is decided for you. So you type into two of them, and the grayed-out one does the arithmetic. Press <b>calculate this instead</b> on a box to move which one is derived.</p>
@@ -684,7 +706,7 @@ function show(tab) {
   const first = !m.firstElementChild;
   if (!first) m.classList.add('busy');
   const done = () => m.classList.remove('busy');
-  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, customers: renderCustomers, settings: renderSettings })[tab](first);
+  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, customers: renderCustomers, settings: renderSettings })[tab](first);
   if (r && typeof r.then === 'function') r.then(done, done); else done();
 }
 
@@ -1478,6 +1500,385 @@ async function renderBrief(first) {
 }
 const addDaysStr = (ymd, n) => { const dt = new Date(ymd + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() + n); return dt.toISOString().slice(0, 10); };
 
+/* ---------- Weekly / Monthly Reports ----------
+   Frozen snapshots, drafted by the cron (Monday = last Mon–Sun, the 1st = last
+   month), reviewed here, sent to the client's Slack with a button. The client
+   reads the same page through ?reports=<token> — sent reports only. The engine
+   lives on the account-health worker; these endpoints are proxied. */
+// `act` records which client the selection belongs to (same trap as PL).
+const RP = { act: null, period: null, start: null };
+const shortD = ymd => `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+ymd.slice(5, 7) - 1]} ${+ymd.slice(8, 10)}`;
+const repRangeLabel = r => r.period === 'monthly' ? monthLabel(r.start.slice(0, 7)) : `${shortD(r.start)} – ${shortD(r.end)}, ${r.end.slice(0, 4)}`;
+
+/** The report page itself. Shared verbatim between the internal tab and the
+ *  client link, so what you review is exactly what they open — the only
+ *  differences are the edit button and the internal-only change log. */
+function reportBodyHTML(d, summary, opts = {}) {
+  const cur = d.account?.currency || opts.currency || 'USD';
+  const t = d.totals || {}, p = d.previous || {}, f = d.forecast || {};
+  const prevTag = d.period === 'weekly' ? 'week' : 'month';
+
+  const vsPill = (a, b, lower) => {
+    if (a == null || b == null || !b) return '';
+    const off = a / b - 1;
+    if (!isFinite(off)) return '';
+    const good = lower ? off <= 0.05 : off >= -0.02;
+    const cls = good ? 'good' : Math.abs(off) <= 0.12 ? 'warn' : 'bad';
+    return `<span class="pill ${cls}">${fmtSigned(off)}</span>`;
+  };
+  const kpi = (label, aV, fmt, fV, pV, lower, info) => `<div class="card" style="margin:0">
+    <div class="av-label" style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px">${label}${info ? ` <span class="info-i" title="${esc(info)}">i</span>` : ''}</div>
+    <div style="font-size:clamp(19px,2.1vw,26px);font-weight:700;margin:4px 0 5px">${fmt(aV)}</div>
+    <div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center">${fV != null ? `plan ${fmt(fV)} ${vsPill(aV, fV, lower)}` : '<span>no plan set</span>'}</div>
+    <div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:2px">${pV != null ? `prior ${prevTag} ${fmt(pV)} ${vsPill(aV, pV, lower)}` : ''}</div>
+  </div>`;
+  const money = n => fmtMoney(n, cur);
+
+  const sumFmt = s => esc(s).split('\n').map(l =>
+    ['The period in brief', 'What mattered', "What's next"].includes(l.trim()) ? `<b>${l}</b>` : l).join('\n');
+  const sumHtml = summary ? `<div class="card" style="border-left:3px solid var(--brand)">
+      <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Summary</h3><span style="flex:1"></span>${opts.editable ? '<button class="btn" id="rpEditSum" style="font-size:12px;padding:5px 9px">✎ Edit</button>' : ''}</div>
+      <div id="rpSumBox" style="white-space:pre-wrap;font-size:14px;line-height:1.65">${sumFmt(summary)}</div></div>`
+    : opts.editable ? `<div class="card" style="border-left:3px solid var(--warn)"><h3 style="margin-bottom:4px">Summary</h3>
+      <p class="hint">No narrative was written (the Claude call failed at generation time). Hit ↻ Regenerate to retry.</p></div>` : '';
+
+  const kpis = [
+    kpi('Revenue', t.sales, money, f.sales, p.sales, false, 'Shopify Total Sales minus sales tax — every channel (paid, organic, email, direct), after discounts and returns, including shipping charged to customers. Not any ad platform’s attributed number.'),
+    kpi('Ad spend', t.spend, money, f.spend, p.spend, true, 'Every platform combined — Meta, Google and anything else Triple Whale tracks.'),
+    kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'All store revenue ÷ all ad spend, blended on both sides. The honest “are the ads paying for themselves” number — the same thing as blended ROAS.'),
+    kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it — this is what the ads actually bought.'),
+    t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost — product, fulfilment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
+    kpi('New-customer CPA', t.ncpa, money, null, p.ncpa, true, 'Total ad spend ÷ new customers acquired. Blended — not any platform’s self-reported CPA.'),
+    kpi('Orders', t.orders, fmtInt, null, p.orders, false, 'Total store orders in the period.'),
+    kpi('Average order value', t.aov, money, null, p.aov, false, 'Revenue ÷ orders.'),
+  ].join('');
+
+  const pc = d.pacing;
+  const pacingHtml = pc && pc.goal_sales ? (() => {
+    const done = Math.min(1.2, (pc.mtd_sales ?? 0) / pc.goal_sales);
+    const expected = Math.min(1, (pc.plan_to_date ?? 0) / pc.goal_sales);
+    const off = pc.plan_to_date ? (pc.mtd_sales / pc.plan_to_date - 1) : null;
+    return `<div class="card"><h3 style="margin-bottom:2px">Where ${esc(monthLabel(pc.month))} stands</h3>
+      <p class="hint" style="margin-bottom:6px">${pc.days_elapsed} of ${pc.days_in_month} days in. The dark marker is where the plan says the month should be by now.</p>
+      <div class="pace-bar"><div class="fill${done > 1 ? '' : ''}" style="width:${(Math.min(1, done) * 100).toFixed(1)}%"></div><div class="mark" style="left:${(expected * 100).toFixed(1)}%"></div></div>
+      <div class="pc-stats">
+        <div class="st"><b>${money(pc.mtd_sales)}</b><span>Month so far</span></div>
+        <div class="st"><b>${money(pc.plan_to_date)}</b><span>Planned by now</span></div>
+        <div class="st"><b>${money(pc.goal_sales)}</b><span>Month goal</span></div>
+        <div class="st"><b>${money(pc.projected)}</b><span>On pace for</span></div>
+      </div>
+      ${off != null ? `<p style="font-size:13.5px;margin-top:10px">${off >= -0.02 ? `<b>On or ahead of plan</b> (${fmtSigned(off)} so far)` : `<b>Behind plan</b> by ${fmtSigned(off)} so far`}${pc.projected != null ? ` — at this pace the month lands around <b>${money(pc.projected)}</b> against the ${money(pc.goal_sales)} goal.` : '.'}</p>` : ''}
+    </div>`;
+  })() : '';
+
+  const chartHtml = (d.chart || []).length > 1 ? `<div class="card"><h3 style="margin-bottom:2px">Day by day</h3>
+    <p class="hint" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue, <span style="color:#C08A2E;font-weight:700">amber</span> is ad spend. The gap between them pays for the product and everything else.</p>
+    ${salesSpendSVG(d.chart, cur).svg}</div>` : '';
+
+  const splitHtml = t.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New customers vs returning</h3>
+    <p style="font-size:14px;margin:4px 0"><b>${money(t.new_rev)}</b> came from first-time buyers (<b>${fmtPct(t.new_share)}</b> of revenue) and <b>${money(t.ret_rev)}</b> from customers coming back${p.new_share != null ? ` — the ${prevTag} before, new customers were ${fmtPct(p.new_share)}` : ''}.</p>
+    <div style="height:10px;border-radius:99px;overflow:hidden;display:flex;margin-top:8px">
+      <div style="width:${((t.new_share || 0) * 100).toFixed(1)}%;background:var(--brand-ink)"></div>
+      <div style="flex:1;background:var(--line-strong)"></div></div></div>` : '';
+
+  const chRow = (label, a, pv, fmt, lower) => (a == null && pv == null) ? '' :
+    `<tr><td>${label}</td><td class="num"><b>${fmt(a)}</b></td><td class="num">${fmt(pv)}</td><td class="num">${a != null && pv ? vsPill(a, pv, lower) : '<span class="tiny">—</span>'}</td></tr>`;
+  const chCard = c => {
+    const A = c.cur || {}, P = c.prev || {};
+    let rows = '', note = '';
+    if (['meta', 'google', 'tiktok', 'pinterest'].includes(c.id)) {
+      rows = chRow('Spend', A.spend, P.spend, money, true)
+        + chRow('Attributed revenue', A.revenue, P.revenue, money)
+        + chRow('ROAS', A.roas, P.roas, fmtX)
+        + chRow('Purchases', A.purchases, P.purchases, fmtInt)
+        + chRow('CPA', A.cpa, P.cpa, money, true)
+        + chRow('CPM', A.cpm, P.cpm, money, true)
+        + chRow('CTR', A.ctr, P.ctr, n => fmtPct(n, 2));
+      note = `Revenue, ROAS and CPA here are ${esc(c.label)}'s own attribution — directional, and deliberately not comparable to the blended scorecard above.`;
+    } else if (c.id === 'amazon') {
+      rows = chRow('Sales', A.sales, P.sales, money)
+        + chRow('Orders', A.orders, P.orders, fmtInt)
+        + chRow('Refunds', A.refunds, P.refunds, money, true);
+      note = 'Amazon storefront sales — a separate channel, not included in the store revenue above.'
+        + (A.data_through && A.data_through < d.end ? ` Amazon reports with a delay: data runs through ${shortD(A.data_through)}.` : '');
+    } else if (c.id === 'email') {
+      rows = chRow('Email-attributed revenue', A.revenue, P.revenue, money)
+        + chRow('From campaigns', A.campaigns, P.campaigns, money)
+        + chRow('From flows', A.flows, P.flows, money);
+      note = (t.sales && A.revenue != null ? `Klaviyo-attributed — ${fmtPct(A.revenue / t.sales)} of the period's revenue. ` : 'Klaviyo-attributed. ')
+        + 'Email revenue overlaps both new and returning customers, so it is shown for context and never added to anything.';
+    }
+    if (!rows) return '';
+    return `<div class="card"><h3 style="margin-bottom:8px">${esc(c.label)}</h3>
+      <div class="tbl-wrap"><table><thead><tr><th></th><th class="num">This ${prevTag}</th><th class="num">Prior ${prevTag}</th><th class="num">Change</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <p class="tiny" style="margin-top:8px">${note}</p></div>`;
+  };
+
+  const adsHtml = d.ads?.top?.length ? `<div class="card"><h3 style="margin-bottom:2px">Where the Meta budget went</h3>
+    <p class="hint" style="margin-bottom:8px">The ads that carried real spend this ${prevTag}, and what each one delivered. Ads under ${money(d.ads.floor)} of spend are left out — too little to judge fairly.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
+    <tbody>${d.ads.top.map(a => `<tr><td><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span></td>
+      <td class="num"><b>${money(a.spend)}</b></td><td class="num">${fmtPct(a.share)}</td>
+      <td class="num">${fmtInt(a.purchases)}</td><td class="num">${a.cpa != null ? money(a.cpa) : '—'}</td>
+      <td class="num">${a.roas != null ? fmtX(a.roas) : '—'}</td></tr>`).join('')}</tbody></table></div>
+    ${d.ads.standout ? `<p style="font-size:13.5px;margin-top:10px">Most efficient of the ads with real spend: <b>${esc(d.ads.standout.name)}</b> at a <b>${money(d.ads.standout.cpa)}</b> CPA.</p>` : ''}
+    <p class="tiny" style="margin-top:6px">Meta-attributed figures — conversions keep settling for ~72 hours after the period closes, so very recent numbers read slightly low.</p></div>` : '';
+
+  const weeksHtml = d.weeks?.length ? `<div class="card"><h3 style="margin-bottom:8px">How the month ran, week by week</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Week</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th></tr></thead>
+    <tbody>${d.weeks.map(w => `<tr><td>${shortD(w.from)} – ${shortD(w.to)}</td><td class="num"><b>${money(w.sales)}</b></td><td class="num">${money(w.spend)}</td><td class="num">${fmtX(w.mer)}</td></tr>`).join('')}</tbody></table></div></div>` : '';
+
+  const changesHtml = opts.internal && d.changes?.length ? `<div class="card"><h3 style="margin-bottom:2px">What we changed during the period</h3>
+    <p class="hint" style="margin-bottom:8px">From the Change Log. Internal view only — the client's page does not carry this list, though the summary above may reference the moves.${d.changes_total > d.changes.length ? ` Showing ${d.changes.length} of ${d.changes_total}.` : ''}</p>
+    <div class="feed">${d.changes.map(e => `<div class="it"><span class="tiny">${esc(e.t)}</span><span class="cat">${esc(e.category)}</span><span>${esc(e.summary || '')}${e.reason ? ` <span class="tiny">· ${esc(e.reason)}</span>` : ''}</span></div>`).join('')}</div></div>` : '';
+
+  return `${sumHtml}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px">${kpis}</div>
+    ${pacingHtml}${chartHtml}${splitHtml}
+    ${(d.channels || []).map(chCard).join('')}
+    ${adsHtml}${weeksHtml}${changesHtml}
+    <p class="tiny"><b>Revenue, MER, aMER${t.cm != null ? ', Contribution Margin' : ''} and New-customer CPA are blended</b> — real store revenue and real total ad spend, with no platform's attribution involved — which is why they will not match what Meta or Google report on their own dashboards. The platform sections show each platform's own attributed numbers, and those are directional.</p>`;
+}
+
+/** All-clients view: the latest weekly and monthly report per brand at a glance. */
+async function renderReportsAll(first) {
+  const shell = body => `<h2>Reports</h2>
+    <p class="sub">Weekly and monthly client reports — drafted automatically (Monday covers last Mon–Sun, the 1st covers last month), reviewed here, then sent to the client's Slack with a button. Nothing reaches a client on its own.</p>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="reports">? How to use</button></div>
+    ${body}`;
+  const run = ++RUN;
+  if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
+  let r;
+  try { r = await api('/api/reports?act=all'); }
+  catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+  if (run !== RUN) return;
+  const by = {};
+  for (const row of r.rows) { by[row.act_id] ??= {}; by[row.act_id][row.period] ??= row; }   // rows arrive newest-first
+  const cell = row => row
+    ? `${repRangeLabel({ period: row.period, start: row.period_start, end: row.period_end })} <span class="pill ${row.status === 'sent' ? 'good' : 'warn'}">${row.status}</span>`
+    : '<span class="tiny">none yet</span>';
+  $('#main').innerHTML = shell(`<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Client</th><th>Latest weekly</th><th>Latest monthly</th></tr></thead>
+    <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer">
+      <td><b>${esc(a.name)}</b>${a.report_channel ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ no internal drafts channel — set one in Settings</span>'}</td>
+      <td>${cell(by[a.act_id]?.weekly)}</td><td>${cell(by[a.act_id]?.monthly)}</td></tr>`).join('')}</tbody></table></div>
+    <p class="tiny" style="margin-top:10px">A <b>draft</b> is internal — the client has not seen it. <b>Sent</b> reports are frozen and live on the client's archive link. Click a client to open their reports.</p></div>`);
+  $('#main tbody').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+    S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
+    $('#clientPick').value = S.act;
+    RP.act = null; RP.period = null; RP.start = null;
+    show('reports');
+  });
+}
+
+async function renderReports(first) {
+  if (S.act === 'all') return renderReportsAll(first);
+  const acct = S.accounts.find(a => a.act_id === S.act);
+  if (RP.act !== S.act) { RP.act = S.act; RP.period = null; RP.start = null; }
+  const shell = body => `<h2>Reports — ${esc(acct?.name || '')}</h2>
+    <p class="sub">The weekly and monthly reports you take to calls and send to the client. Each one is frozen when it is generated — the numbers you review here are exactly the numbers the client sees.</p>
+    ${body}`;
+  const run = ++RUN;
+  if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
+  let list;
+  try { list = await api('/api/reports?act=' + S.act); }
+  catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+  if (run !== RUN) return;
+  const rows = list.rows || [];
+  if (!RP.start && rows.length) { RP.period = rows[0].period; RP.start = rows[0].period_start; }
+  let rep = null, repErr = null;
+  if (RP.start) {
+    try { rep = await api(`/api/report?act=${S.act}&period=${RP.period}&start=${RP.start}`); }
+    catch (e) { repErr = e.message; }
+  }
+  if (run !== RUN) return;
+
+  const chips = rows.slice(0, 12).map(x =>
+    `<button class="chip ${x.period === RP.period && x.period_start === RP.start ? 'on' : ''}" data-rp="${x.period}|${x.period_start}">${x.period === 'weekly' ? 'Week' : 'Month'} · ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}${x.status === 'sent' ? ' ✓' : ''}</button>`).join('');
+
+  const cfg = acct?.report_config || {};
+  const hide = Array.isArray(cfg.hide) ? cfg.hide : [];
+  const CHS = [['meta', 'Meta'], ['google', 'Google'], ['tiktok', 'TikTok'], ['amazon', 'Amazon'], ['pinterest', 'Pinterest'], ['email', 'Email (Klaviyo)']];
+  const configCard = `<div class="card"><h3 style="margin-bottom:4px">What goes in ${esc(acct?.name || 'this brand')}'s reports</h3>
+    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data — untick one to leave it out of every future report for this brand (already-generated reports don't change). Drafts post to the <b>Report drafts channel</b> set in Settings${acct?.report_channel ? '' : ' — <b>none is set yet</b>, so drafts only appear here'}.</p>
+    <div class="row" style="gap:14px;margin-bottom:8px">
+      ${CHS.map(([id, lb]) => `<label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" data-ch="${id}" ${hide.includes(id) ? '' : 'checked'}> ${lb}</label>`).join('')}
+    </div>
+    <div class="row" style="gap:18px;margin-bottom:0">
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><div class="toggle ${cfg.weekly === false ? '' : 'on'}" data-cfg="weekly"></div> Draft a weekly report every Monday</label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><div class="toggle ${cfg.monthly === false ? '' : 'on'}" data-cfg="monthly"></div> Draft a monthly report on the 1st</label>
+      <span class="tiny" id="rpCfgMsg"></span>
+    </div></div>`;
+
+  const d = rep?.data;
+  let warn = '';
+  if (d) {
+    if (d.missing_days > 0) warn += `<div class="notice warn">⚠️ <div>Triple Whale data was missing for <b>${d.missing_days}</b> day(s) of this period when it was generated, so the totals understate it. Refresh the data (Daily Brief tab → Refresh Triple Whale data) and hit ↻ Regenerate.</div></div>`;
+    if (!d.cm_ok) warn += `<div class="notice warn">ℹ️ <div><b>Contribution margin is left out of this report</b> — ${esc(d.cogs_quality?.reason || 'no trustworthy cost data')}. Every other number still works. Fix COGS in Triple Whale or set a flat margin on the Costs tab, then Regenerate.</div></div>`;
+    const unplanned = Object.entries(d.forecast?.months || {}).filter(([, m]) => !m.planned && m.has_goals).map(([ym]) => monthLabel(ym));
+    if (unplanned.length && rep.status !== 'sent') warn += `<div class="notice warn">⚠️ <div><b>No plan was actually set for ${esc(unplanned.join(', '))}</b> — every "vs plan" figure is inherited from an earlier month. Set the real plan on the Plan tab and Regenerate before sending, or the client is being measured against a number nobody agreed.</div></div>`;
+  }
+
+  const sent = rep?.status === 'sent';
+  const banner = rep ? (sent
+    ? `<div class="notice good">✓ <div><b>Sent to the client</b>${rep.sent_at ? ` ${fmtAgo(rep.sent_at)}` : ''}. This report is frozen — it can't be regenerated or edited, so the numbers on the client's link never shift under them. <button class="btn" id="rpLink" style="margin-left:8px">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`
+    : `<div class="notice">📝 <div><b>Internal draft — the client has not seen this.</b> Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button> <button class="btn" id="rpRegen">↻ Regenerate</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
+
+  const body = rep
+    ? `${banner}${warn}<h2 style="margin-top:6px">${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'} — ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
+       <p class="sub">Generated ${rep.generated_at ? fmtAgo(rep.generated_at) : ''}.</p>
+       ${reportBodyHTML(d || {}, rep.summary, { internal: true, editable: !sent })}`
+    : `<div class="card"><h3 style="margin-bottom:4px">No reports yet</h3>
+       <p class="hint">${repErr ? esc(repErr) + ' — ' : ''}Hit <b>Generate last week</b> to build the first one. From next Monday they draft themselves.</p></div>`;
+
+  $('#main').innerHTML = shell(`
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn" id="rpGenW">Generate last week</button>
+      <button class="btn" id="rpGenM">Generate last month</button>
+      <span class="tiny" id="rpGenMsg"></span>
+      <span style="flex:1"></span><button class="help-btn" data-help="reports">? How to use</button>
+    </div>
+    ${chips ? `<div class="row" style="margin-bottom:12px">${chips}</div>` : ''}
+    ${configCard}
+    ${body}`);
+
+  /* chip → open that report */
+  document.querySelectorAll('#main [data-rp]').forEach(b => b.onclick = () => {
+    const [pp, ss] = b.dataset.rp.split('|');
+    RP.period = pp; RP.start = ss;
+    inPlace(() => renderReports());
+  });
+
+  /* generate — with a confirm-and-force path when days are missing */
+  const gen = async (period, btn, start, force) => {
+    btn.disabled = true;
+    $('#rpGenMsg').textContent = 'Generating — pulling Triple Whale and writing the summary (~30s)…';
+    try {
+      const r = await api('/api/report-generate', { method: 'POST', body: JSON.stringify({ act: S.act, period, ...(start ? { start } : {}), ...(force ? { force: true } : {}) }) });
+      RP.period = period; RP.start = r.start;
+      await inPlace(() => renderReports());
+    } catch (e) {
+      if (/missing/i.test(e.message) && !force) {
+        const ok = await confirmModal('Some days have no data', e.message.replace(/ \(or generate anyway\)$/, '') + '. Generate anyway with the days that exist?', 'Generate anyway');
+        if (ok) return gen(period, btn, start, true);
+      } else {
+        noteModal('Could not generate', `<p>${esc(e.message)}</p>`);
+      }
+      $('#rpGenMsg').textContent = '';
+      btn.disabled = false;
+    }
+  };
+  $('#rpGenW').onclick = e => gen('weekly', e.target);
+  $('#rpGenM').onclick = e => gen('monthly', e.target);
+  const rg = $('#rpRegen');
+  if (rg) rg.onclick = e => gen(rep.period, e.target, rep.period_start);
+
+  const sendBtn = $('#rpSend');
+  if (sendBtn) sendBtn.onclick = async () => {
+    const dest = acct?.brief_channel || acct?.slack_channel;
+    if (!dest) return noteModal('No client channel set', `<p>Pick ${esc(acct?.name || 'this brand')}'s client channel (the Daily Brief channel) on the <b>Settings</b> tab first.</p>`);
+    const ok = await confirmModal('Send this report to the client?',
+      `This posts the ${rep.period} report (${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}) with its link into ${acct?.name || 'the client'}'s Slack channel — everyone there sees it, and the report freezes permanently.`, 'Send it');
+    if (!ok) return;
+    $('#rpMsg').textContent = 'Sending…';
+    try {
+      const r = await api('/api/report-send', { method: 'POST', body: JSON.stringify({ act: S.act, period: rep.period, start: rep.period_start }) });
+      $('#rpMsg').textContent = `Posted ✓ to ${r.channel}`;
+      await inPlace(() => renderReports());
+    } catch (e) { $('#rpMsg').textContent = e.message; }
+  };
+
+  const linkBtn = $('#rpLink');
+  if (linkBtn) linkBtn.onclick = async () => {
+    try {
+      const r = await api('/api/report-link', { method: 'POST', body: JSON.stringify({ act: S.act }) });
+      try { await navigator.clipboard.writeText(r.url); $('#rpMsg').textContent = 'Link copied ✓ — opens their archive of sent reports'; }
+      catch { noteModal('The client link', `<p>One stable link per brand — it opens their archive of <b>sent</b> reports (drafts are never visible on it):</p><p><code style="font-size:12px;word-break:break-all">${esc(r.url)}</code></p>`); }
+    } catch (e) { $('#rpMsg').textContent = e.message; }
+  };
+
+  const editBtn = $('#rpEditSum');
+  if (editBtn) editBtn.onclick = () => {
+    const box = $('#rpSumBox');
+    const orig = rep.summary || '';
+    box.innerHTML = `<textarea id="rpSumTa" style="width:100%;min-height:220px;border:1px solid var(--line-strong);border-radius:8px;padding:10px;font:inherit;font-size:13.5px;line-height:1.6"></textarea>
+      <div class="row" style="margin:10px 0 0"><button class="btn primary" id="rpSumSave">Save</button><button class="btn" id="rpSumCancel">Cancel</button><span class="tiny" id="rpSumMsg"></span></div>`;
+    $('#rpSumTa').value = orig;
+    editBtn.style.display = 'none';
+    $('#rpSumCancel').onclick = () => inPlace(() => renderReports());
+    $('#rpSumSave').onclick = async () => {
+      $('#rpSumMsg').textContent = 'Saving…';
+      try {
+        await api('/api/report-summary', { method: 'PUT', body: JSON.stringify({ act: S.act, period: rep.period, start: rep.period_start, summary: $('#rpSumTa').value }) });
+        await inPlace(() => renderReports());
+      } catch (e) { $('#rpSumMsg').textContent = e.message; }
+    };
+  };
+
+  /* config: platform sections + weekly/monthly toggles, saved the moment they change */
+  const saveCfg = async patch => {
+    const next = { ...cfg, ...patch };
+    await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: S.act, report_config: next }) });
+    if (acct) acct.report_config = next;
+    $('#rpCfgMsg').textContent = 'Saved ✓ — applies to reports generated from now on';
+    setTimeout(() => { const el = $('#rpCfgMsg'); if (el) el.textContent = ''; }, 3000);
+  };
+  document.querySelectorAll('#main [data-ch]').forEach(cb => cb.onchange = async () => {
+    const nextHide = [...document.querySelectorAll('#main [data-ch]')].filter(x => !x.checked).map(x => x.dataset.ch);
+    try { await saveCfg({ hide: nextHide }); }
+    catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); cb.checked = !cb.checked; }
+  });
+  document.querySelectorAll('#main [data-cfg]').forEach(tg => tg.onclick = async () => {
+    const on = !tg.classList.contains('on');
+    tg.classList.toggle('on', on);
+    try { await saveCfg({ [tg.dataset.cfg]: on }); }
+    catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); tg.classList.toggle('on', !on); }
+  });
+}
+
+/** The client's archive link (?reports=token). Read-only, no sign-in, one
+ *  client, SENT reports only — the worker enforces all of that; this only
+ *  renders what it is given. */
+async function renderReportsShare(token, sel) {
+  document.querySelector('.hd-right').style.display = 'none';
+  $('#tabs').style.display = 'none';
+  $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  let d;
+  try {
+    const q = sel ? `?period=${encodeURIComponent(sel.period)}&start=${encodeURIComponent(sel.start)}` : '';
+    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/report-view/' + token + q);
+    d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'This link is no longer valid.');
+  } catch (e) {
+    $('#main').innerHTML = `<div class="gate"><h1>Report unavailable</h1><p>${esc(e.message)}</p></div>`;
+    return;
+  }
+  const cur = d.account.currency;
+  $('.hd-title').innerHTML = `${esc(d.account.name)} <em>Reports</em>`;
+  const finish = () => {
+    setChip('Report', 'live');
+    $('#connChip').style.display = '';
+    document.querySelector('.hd-right').style.display = '';
+    ['#clientPick', '#rangePick', '#btnOut'].forEach(s2 => { const el = $(s2); if (el) el.style.display = 'none'; });
+  };
+  if (!d.report) {
+    $('#main').innerHTML = `<div class="gate"><h1>No reports yet</h1><p>Your first report will appear here as soon as it is published — this link stays the same, so keep it handy.</p></div>`;
+    return finish();
+  }
+  const r = d.report;
+  const picker = (d.reports || []).length > 1 ? `<div class="row" style="margin-bottom:12px"><label class="tiny">Earlier reports</label>
+    <select id="rsPick">${d.reports.map(x => `<option value="${x.period}|${x.period_start}" ${x.period === r.period && x.period_start === r.start ? 'selected' : ''}>${x.period === 'weekly' ? 'Weekly' : 'Monthly'} — ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}</option>`).join('')}</select></div>` : '';
+  $('#main').innerHTML = `<h2>${r.period === 'weekly' ? 'Weekly report' : 'Monthly report'} — ${repRangeLabel({ period: r.period, start: r.start, end: r.end })}</h2>
+    <p class="sub">Prepared by Mobius Digital${r.sent_at ? ` · published ${String(r.sent_at).slice(0, 10)}` : ''}. Every headline number is blended: real store revenue against real total ad spend, from every channel at once.</p>
+    ${picker}
+    ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, {})}`;
+  const pk = $('#rsPick');
+  if (pk) pk.onchange = () => { const [pp, ss] = pk.value.split('|'); renderReportsShare(token, { period: pp, start: ss }); };
+  finish();
+}
+
 /* ---------- Plan ----------
    The monthly conversation, not an automatic number. Look at what the last six
    months did, choose how much growth you are signing up for, see what that costs
@@ -2259,9 +2660,9 @@ async function renderSettings() {
       </div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
     <div class="card settings"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
+      <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="INTERNAL channel where weekly/monthly report drafts land for team review. Deliberately no fallback — if this is empty, drafts appear only on the Reports tab and never post anywhere.">Report drafts channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. This is the channel <b>your client reads</b>. Internal pace and KPI alerts are a separate setting that lives in <a href="../account-health/">Account Health → Settings</a>, because those are for your media buyer, not the client. A brand needs this channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. <b>Daily Brief channel</b> is the channel <b>your client reads</b> — the Daily Brief and the weekly/monthly reports both post there. <b>Report drafts channel</b> is <b>internal</b>: weekly and monthly report drafts land there for your team to review before anyone sends them; leave it empty and drafts only appear on the Reports tab. Internal pace and KPI alerts are a separate setting in <a href="../account-health/">Account Health → Settings</a>. A brand needs a client channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
@@ -2276,6 +2677,7 @@ async function renderSettings() {
     tb.innerHTML = shown.map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
       <td>${chCell(a, 'brief_channel', '— not set —')}${a.brief_enabled && !a.brief_channel ? '<br><span class="tiny" style="color:var(--warn)">⚠ falling back to the internal alerts channel</span>' : ''}</td>
+      <td>${chCell(a, 'report_channel', '— drafts stay in-app —')}</td>
       <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Posting each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
       <td>${healthPill(a.cost_health)}</td>

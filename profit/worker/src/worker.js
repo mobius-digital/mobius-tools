@@ -23,6 +23,10 @@ const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 const PROXY_PATHS = new Set([
   '/api/slack-channels', '/api/brief', '/api/brief-preview', '/api/brief-send',
   '/api/briefs', '/api/goal-suggest', '/api/tw-sync', '/api/brief-time',
+  // Weekly/Monthly reports: same arrangement as the brief — the engine lives on
+  // the account-health worker (TW/Anthropic/Slack secrets + the crons).
+  '/api/reports', '/api/report', '/api/report-generate', '/api/report-summary',
+  '/api/report-send', '/api/report-link',
 ]);
 
 /* ---------------- dates ---------------- */
@@ -1336,6 +1340,47 @@ export default {
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
+    /* Read-only report ARCHIVE for the client. Same contract as the other client
+       links: the token in the URL is the auth, it exposes exactly one client, and
+       only reports that were deliberately SENT — a draft the team is still
+       reviewing must never be visible here. Internal workings (cost diagnostics,
+       the margin override, the change log) are stripped before the payload
+       leaves: this URL gets forwarded around. */
+    let rvm;
+    if ((rvm = path.match(/^\/api\/report-view\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
+      try {
+        const tokens = safeJson((await env.DB.prepare(
+          `SELECT value FROM settings WHERE key = 'reportTokens'`).first())?.value, {});
+        const t = tokens[rvm[1]];
+        if (!t) return json({ error: 'This report link is no longer valid.' }, 404);
+        const acct = await env.DB.prepare(`SELECT name, currency FROM accounts WHERE act_id = ?1`).bind(t.act_id).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const { results } = await env.DB.prepare(
+          `SELECT period, period_start, period_end, sent_at FROM reports
+           WHERE act_id = ?1 AND status = 'sent' ORDER BY period_start DESC, period LIMIT 60`,
+        ).bind(t.act_id).all();
+        const wantP = url.searchParams.get('period'), wantS = url.searchParams.get('start');
+        const pick = wantP && wantS
+          ? results.find(r => r.period === wantP && r.period_start === wantS)
+          : results[0];
+        let report = null;
+        if (pick) {
+          const row = await env.DB.prepare(
+            `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'sent'`,
+          ).bind(t.act_id, pick.period, pick.period_start).first();
+          if (row) {
+            const data = safeJson(row.data_json, null);
+            // `account` carries the Meta act_id — internal. The top-level account
+            // object (name + currency) is all the page needs.
+            if (data) for (const k of ['cogs_quality', 'margin_28d', 'cm_pct', 'changes', 'changes_total', 'account']) delete data[k];
+            report = { period: row.period, start: row.period_start, end: row.period_end,
+              sent_at: row.sent_at, summary: row.summary, data };
+          }
+        }
+        return json({ share: true, account: { name: acct.name, currency: acct.currency }, reports: results, report });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
     /* ---- Shopify: install, callback, and the mandatory compliance webhooks ----
        These are called by Shopify and by merchants, never by a signed-in Mobius user,
        so they sit above the dashboard auth gate and authenticate themselves by HMAC. */
@@ -1471,6 +1516,8 @@ export default {
             margin_pct, cost_health: health, shipping,
             slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null,
             brief_enabled: !!a.brief_enabled,
+            report_channel: a.report_channel || null,
+            report_config: safeJson(a.report_config_json, {}),
           });
         }
         await refreshIfStale(env, ctx);
@@ -1910,11 +1957,14 @@ export default {
         const cur = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!cur) return json({ error: 'unknown account' }, 404);
         await env.DB.prepare(
-          `UPDATE accounts SET slack_channel = ?2, brief_channel = ?3, brief_enabled = ?4 WHERE act_id = ?1`,
+          `UPDATE accounts SET slack_channel = ?2, brief_channel = ?3, brief_enabled = ?4,
+             report_channel = ?5, report_config_json = ?6 WHERE act_id = ?1`,
         ).bind(b.act,
           'slack_channel' in b ? (b.slack_channel || null) : cur.slack_channel,
           'brief_channel' in b ? (b.brief_channel || null) : cur.brief_channel,
           'brief_enabled' in b ? (b.brief_enabled ? 1 : 0) : cur.brief_enabled,
+          'report_channel' in b ? (b.report_channel || null) : cur.report_channel,
+          'report_config' in b ? JSON.stringify(b.report_config || {}) : cur.report_config_json,
         ).run();
         return json({ ok: true });
       }

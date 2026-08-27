@@ -53,6 +53,46 @@ TW_API_KEY, ADMIN_TOKEN, SESSION_SECRET.
 Cole's remaining step for the Daily Brief: per client, set monthly goals on
 the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
 
+## Weekly / Monthly reports (2026-08-27)
+
+The client-facing weekly/monthly report ENGINE lives in this worker (same
+placement logic as the Daily Brief: the TW/Anthropic/Slack secrets and the
+crons are here; the account is at the 5-trigger limit). The INTERFACE is
+Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
+`/api/report-generate`, `/api/report-summary`, `/api/report-send`,
+`/api/report-link` are proxied from the profit worker. Rules that matter:
+
+- **Reports are FROZEN snapshots** in the `reports` table (`data_json`).
+  Drafted by the hourly cron inside the same Central-hour gate as the brief:
+  Monday = last Mon–Sun, the 1st = last month. A failed brand retries every
+  later tick that day (no row yet = retry). `makeReport` refuses to touch a
+  report with `status='sent'` — the client has those numbers.
+- **Nothing reaches a client automatically.** Drafts post ONLY to
+  `accounts.report_channel` (or the global `reportChannel` setting) with NO
+  fallback to slack_channel/brief_channel — as of 2026-08-27 every brand's
+  alerts channel IS its client channel, so a fallback would put a draft in
+  front of the client. The Send button (`sendReport`) posts to
+  `brief_channel` and freezes the report.
+- **`econDay` is the same CTC math as `briefData` and Profit's
+  `dayEconomics`** (Total Sales − tax; CM = every variable cost; split
+  rebased by share). Keep the three in step. Verified against raw tw_daily
+  sums to the cent (Lucky, 2026-08-17→23).
+- **`googleAllCpa` is Google's real $/conversion; `googleCpa` is NOT**
+  (~0.17–0.19, some other ratio) — dividing spend by it fabricated
+  thousands of conversions. Verified 2026-08-27.
+- **`judgeCogs` now matches Profit's `judgeCosts` semantics** (−5%
+  materiality floor; broken needs a PATTERN, negatives > max(1, n×0.1);
+  isolated negatives = noisy, figures stand). The old any-negative=broken
+  rule was silently stripping CM from Lucky's brief over marginal days.
+  Do not let the two drift again.
+- **Client archive links** live in `settings.reportTokens` (one stable
+  token per brand → `profit/?reports=<tok>`); the profit worker serves
+  `GET /api/report-view/:token` — SENT reports only, with cogs_quality /
+  margin_28d / cm_pct / changes / account stripped from the payload.
+- Channel sections auto-detect from data (a dormant channel with zeros is
+  suppressed); per-brand exclusions in `accounts.report_config_json.hide`,
+  weekly/monthly opt-outs in `.weekly`/`.monthly` (default on).
+
 ## Later additions (2026-08-20 night)
 
 - **Per-ad table** on Creative Rotation: `adBreakdown()` rolls up `ad_daily`

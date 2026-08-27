@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   google_spend_json   TEXT,                      -- cached {ym, metric, mtd, lm_same_day, lm_total, updated}
   goals_json          TEXT NOT NULL DEFAULT '{}',-- Daily Brief goals: {"2026-08":{sales,spend,amer,cm_pct},"default":{...}}
   brief_enabled       INTEGER NOT NULL DEFAULT 0,-- auto-post the Daily Brief to Slack each morning
+  report_channel      TEXT,                      -- INTERNAL weekly/monthly report drafts channel. NO fallback to
+                                                 -- slack_channel/brief_channel on purpose: as of 2026-08-27 every
+                                                 -- brand's alerts channel IS its client channel, so a fallback
+                                                 -- would put a draft in front of the client.
+  report_config_json  TEXT,                      -- {"weekly":true,"monthly":true,"hide":["amazon"]} — defaults on, hide = excluded sections
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,
@@ -114,6 +119,25 @@ CREATE TABLE IF NOT EXISTS tw_daily (
   value     REAL NOT NULL DEFAULT 0,
   synced_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (act_id, date, metric)
+);
+
+-- Weekly / Monthly client reports: FROZEN snapshots. Generated as drafts (Monday
+-- for last Mon–Sun, the 1st for last month), reviewed internally, sent to the
+-- client's Slack with a button. The interface is Mobius Profit's Reports tab;
+-- the client reads a tokenized archive link (settings.reportTokens) served by
+-- the profit worker. A sent report never changes — that is the whole point.
+CREATE TABLE IF NOT EXISTS reports (
+  act_id       TEXT NOT NULL,
+  period       TEXT NOT NULL,                    -- weekly | monthly
+  period_start TEXT NOT NULL,                    -- YYYY-MM-DD (a Monday / the 1st)
+  period_end   TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'draft',    -- draft | sent
+  generated_at TEXT,
+  sent_at      TEXT,
+  sent_channel TEXT,
+  summary      TEXT,                             -- Claude narrative; editable while draft
+  data_json    TEXT,                             -- the frozen numbers behind the page
+  PRIMARY KEY (act_id, period, period_start)
 );
 
 -- Daily Brief (Chat 5): every brief we generated/sent, one per account per covered day

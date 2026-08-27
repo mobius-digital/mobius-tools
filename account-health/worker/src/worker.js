@@ -702,16 +702,27 @@ function judgeCogs(dayMargins, blended) {
   if (!n || blended == null) return { verdict: 'none', reason: 'no cost data in Triple Whale' };
   const sorted = dayMargins.slice().sort((a, b) => a - b);
   const lo = sorted[Math.floor(n * 0.1)], hi = sorted[Math.floor(n * 0.9)];
-  const negatives = dayMargins.filter(m => m < 0).length;
+  // Same semantics as Profit's judgeCosts — the two tools must not drift apart:
+  //  - MATERIALITY FLOOR: a day at -0.3% is product mix, not contamination. Real
+  //    contamination (wholesale paid outside Shopify, an inventory receipt booked
+  //    to one day) is a MULTIPLE of the day's revenue. Anything above -5% ignores.
+  //  - PATTERN, not incident: one bad day in 28 used to flip the whole client to
+  //    "broken" and strip CM from the client-facing brief while 27 days ran clean.
+  //    Only more than a tenth of the window means the data itself is untrustworthy.
+  const negatives = dayMargins.filter(m => m < -0.05).length;
   const spread = hi - lo;
   const out = { verdict: 'good', days: n, blended, spread, negatives, p10: lo, p90: hi };
-  if (negatives > 0 || blended <= 0.15 || spread > 0.6) {
+  const heavilyContaminated = negatives > Math.max(1, n * 0.1);
+  if (heavilyContaminated || blended <= 0.15 || spread > 0.6) {
     out.verdict = 'broken';
-    out.reason = negatives > 0
-      ? `${negatives} of the last ${n} days show costs above revenue — some products are missing or mis-set COGS in Triple Whale`
+    out.reason = heavilyContaminated
+      ? `${negatives} of the last ${n} days record more variable cost than the store took in — typically wholesale orders paid outside Shopify or an inventory delivery booked as one day's cost`
       : blended <= 0.15
       ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin — COGS in Triple Whale looks wrong`
       : `daily margin swings ${Math.round(lo * 100)}%–${Math.round(hi * 100)}%, which means only some products have COGS set`;
+  } else if (negatives > 0) {
+    out.verdict = 'noisy';
+    out.reason = `${negatives} of the last ${n} days record more variable cost than the store took in — almost always a wholesale order or inventory delivery; the other ${n - negatives} days are consistent, so the profit figures still stand`;
   } else if (spread > 0.4) {
     out.verdict = 'noisy';
     out.reason = `daily margin ranges ${Math.round(lo * 100)}%–${Math.round(hi * 100)}% — likely a few products missing COGS`;
@@ -1143,6 +1154,500 @@ async function dailyBriefs(env) {
 
 /** Pull today + last 7 days of hourly spend live from Meta, cache in hourly_insights,
  *  and build today's cumulative curve vs the average last-7-days curve. */
+/* ------------------------------------------------------------------ */
+/*  Weekly / Monthly client reports.                                   */
+/*  Frozen snapshots: drafted by the cron (Monday = last Mon–Sun, the  */
+/*  1st = last month), reviewed internally, sent to the client with a  */
+/*  button. The interface is Mobius Profit's Reports tab (these routes */
+/*  are proxied there); the client reads a tokenized archive link      */
+/*  served by the profit worker. Engine lives HERE for the same reason */
+/*  the Daily Brief's does: this worker holds the TW/Anthropic/Slack   */
+/*  secrets and the crons (the account is at the 5-trigger limit).     */
+/* ------------------------------------------------------------------ */
+
+const PROFIT_URL = 'https://tools.go-mobius-digital.com/profit/';
+
+/** One day of store-level economics — the same CTC math as briefData and
+ *  Profit's dayEconomics: revenue = Shopify TOTAL SALES minus sales tax
+ *  (shipping already inside it, never added); CM subtracts every variable
+ *  cost; the new/returning split keeps TW's measured SHARE rebased onto the
+ *  headline revenue. Keep the three implementations in step. */
+function econDay(piv, metaBy, date, cmPct) {
+  const totalSales = twDay(piv, date, TW_SALES);
+  if (totalSales == null) return null;
+  const tax = piv.totalNetTaxes?.[date] ?? 0;
+  const sales = totalSales - tax;
+  const shipCost = piv.totalShippingCosts?.[date] ?? 0;
+  const handling = piv.totalHandlingFees?.[date] ?? 0;
+  const cogs = piv.totalProductCosts?.[date] ?? null;
+  const fees = piv.totalPaymentGatewayCosts?.[date] ?? null;
+  const mrow = metaBy[date];
+  const gSpend = piv.ga_adCost?.[date] ?? null;
+  const spend = piv.blendedAds?.[date] ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null);
+  const rawNew = piv.newCustomerSales?.[date] ?? null;
+  const rawRet = piv.rcRevenue?.[date] ?? null;
+  const split = (rawNew ?? 0) + (rawRet ?? 0);
+  const newShare = split > 0 && rawNew != null ? rawNew / split : null;
+  const newRev = newShare != null ? sales * newShare : rawNew;
+  const variable = cogs != null ? cogs + shipCost + handling + (fees ?? 0) : null;
+  const gp = cmPct != null ? sales * cmPct : variable != null ? sales - variable : null;
+  return {
+    date, sales, spend,
+    orders: piv.totalOrders?.[date] ?? null,
+    new_rev: newRev,
+    ret_rev: newShare != null ? sales * (1 - newShare) : rawRet,
+    new_orders: piv.newCustomersOrders?.[date] ?? null,
+    meta_spend: mrow?.spend ?? null, google_spend: gSpend,
+    gp, margin: sales > 0 && gp != null ? gp / sales : null,
+    cm: gp != null && spend != null ? gp - spend : null,
+  };
+}
+
+/** Aggregate a run of econDay rows. Ratios are ratio-of-sums, never averages. */
+function periodTotals(rows) {
+  const sum = get => { let s = 0, any = false; for (const r of rows) { const v = get(r); if (v != null) { s += v; any = true; } } return any ? s : null; };
+  const sales = sum(r => r.sales), spend = sum(r => r.spend);
+  const orders = sum(r => r.orders), newRev = sum(r => r.new_rev), newOrders = sum(r => r.new_orders);
+  const gp = sum(r => r.gp);
+  return {
+    days: rows.length, sales, spend, orders,
+    new_rev: newRev, ret_rev: sum(r => r.ret_rev), new_orders: newOrders,
+    meta_spend: sum(r => r.meta_spend), google_spend: sum(r => r.google_spend),
+    mer: spend ? sales / spend : null,
+    amer: newRev != null && spend ? newRev / spend : null,
+    aov: orders ? sales / orders : null,
+    ncpa: spend != null && newOrders ? spend / newOrders : null,
+    new_share: sales > 0 && newRev != null ? newRev / sales : null,
+    gp, cm: gp != null && spend != null ? gp - spend : null,
+    margin: sales > 0 && gp != null ? gp / sales : null,
+  };
+}
+
+/** Per-platform sections, this period vs the prior one. A channel only appears
+ *  when it has data in either window (and is not on the client's hide list) —
+ *  a section full of zeros is worse than no section. Meta reads daily_insights
+ *  (the Meta API is authoritative and carries delivery metrics TW does not
+ *  sync); everything else reads tw_daily. Platform revenue here is ATTRIBUTED
+ *  (the platform's own claim) and the UI labels it that way — the blended
+ *  scorecard is the honest headline. */
+function channelSections(piv, metaBy, ranges, hide) {
+  const S = (id, ds) => { let s = 0, any = false; for (const d of ds) { const v = piv[id]?.[d]; if (v != null) { s += v; any = true; } } return any ? s : null; };
+  const compute = {
+    meta: ds => {
+      let spend = 0, imp = 0, clicks = 0, pur = 0, rev = 0, any = false;
+      for (const d of ds) {
+        const r = metaBy[d]; if (!r) continue;
+        any = true; spend += r.spend || 0; imp += r.impressions || 0;
+        clicks += r.link_clicks || 0; pur += r.purchases || 0; rev += r.revenue || 0;
+      }
+      if (!any || !(spend > 0)) return null;
+      return { spend, revenue: rev, roas: spend ? rev / spend : null, purchases: pur || null,
+        cpa: pur ? spend / pur : null, cpm: imp ? spend / imp * 1000 : null,
+        ctr: imp ? clicks / imp : null, clicks: clicks || null, impressions: imp || null };
+    },
+    google: ds => {
+      let spend = 0, rev = 0, conv = 0, imp = 0, clicks = 0, any = false;
+      for (const d of ds) {
+        const sp = piv.ga_adCost?.[d];
+        if (sp == null) continue;
+        any = true; spend += sp;
+        const roas = piv.ga_ROAS?.[d]; if (roas != null) rev += roas * sp;
+        // googleAllCpa is the real dollars-per-conversion (verified against live
+        // data 2026-08-27: 35–102). `googleCpa` is ~0.17–0.19 — some other ratio —
+        // and dividing spend by it fabricated thousands of conversions. Never use it.
+        const cpa = piv.googleAllCpa?.[d]; if (cpa > 0) conv += sp / cpa;   // per-day ratio → conversions, so the period CPA is spend/conv
+        imp += piv.totalGoogleAdsImpressions?.[d] ?? 0;
+        clicks += piv.totalGoogleAdsClicks?.[d] ?? 0;
+      }
+      if (!any || !(spend > 0)) return null;
+      return { spend, revenue: rev || null, roas: rev && spend ? rev / spend : null,
+        purchases: conv ? Math.round(conv) : null, cpa: conv ? spend / conv : null,
+        cpm: imp ? spend / imp * 1000 : null, ctr: imp ? clicks / imp : null,
+        clicks: clicks || null, impressions: imp || null };
+    },
+    // TikTok / Pinterest: the TW ids we expect if those channels ever connect.
+    // No data in the window = no section, so a wrong guess costs nothing.
+    tiktok: ds => adPlatform(ds, ['tiktokAdsSpend', 'tiktokSpend', 'tk_adCost'], ['tiktokAdsRoas', 'tiktokRoas', 'tk_ROAS']),
+    pinterest: ds => adPlatform(ds, ['pinterestAdsSpend', 'pinterestSpend', 'pi_adCost'], ['pinterestAdsRoas', 'pinterestRoas', 'pi_ROAS']),
+    amazon: ds => {
+      const sales = S('totalAmazonSales', ds);
+      const orders = S('totalAmazonOrders', ds);
+      // A connected-but-dormant Amazon account returns rows of zeros — a section
+      // of zeros in a client report is noise, so it needs actual activity to show.
+      if (!(sales > 0) && !(orders > 0)) return null;
+      let through = null;
+      for (const d of ds) if (piv.totalAmazonSales?.[d] != null) through = d;
+      return { sales, net_sales: S('amazonNetSales', ds), orders,
+        refunds: S('totalAmazonRefunds', ds), data_through: through };
+    },
+    email: ds => {
+      const rev = S('klaviyoPlacedOrderSales', ds);
+      if (rev == null || rev <= 0) return null;
+      return { revenue: rev,
+        campaigns: S('totalKlaviyoPlacedOrderTotalPriceCampaigns', ds),
+        flows: S('totalKlaviyoPlacedOrderTotalPriceFlows', ds) };
+    },
+  };
+  function adPlatform(ds, spendIds, roasIds) {
+    let spend = 0, rev = 0, any = false;
+    for (const d of ds) {
+      let sp = null;
+      for (const id of spendIds) { const v = piv[id]?.[d]; if (v != null) { sp = v; break; } }
+      if (sp == null) continue;
+      any = true; spend += sp;
+      for (const id of roasIds) { const v = piv[id]?.[d]; if (v != null) { rev += v * sp; break; } }
+    }
+    return any && spend > 0 ? { spend, revenue: rev || null, roas: rev ? rev / spend : null } : null;
+  }
+  const LABELS = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', amazon: 'Amazon', pinterest: 'Pinterest', email: 'Email (Klaviyo)' };
+  const out = [];
+  for (const id of Object.keys(LABELS)) {
+    if (hide.includes(id)) continue;
+    const cur = compute[id](ranges.cur), prev = compute[id](ranges.prev);
+    if (cur || prev) out.push({ id, label: LABELS[id], cur, prev });
+  }
+  return out;
+}
+
+/** Everything a weekly/monthly report shows, frozen. `start`..`end` inclusive. */
+async function reportData(env, acct, period, start, end) {
+  const prevStart = period === 'weekly' ? addDays(start, -7) : `${prevMonth(monthOf(start))}-01`;
+  const prevEnd = addDays(start, -1);
+  const ymEnd = monthOf(end);
+  const monthStart = `${ymEnd}-01`;
+  const histFrom = addDays(prevStart < monthStart ? prevStart : monthStart, -29);   // covers the trailing-28d margin window AND month-to-date
+  const { results: twRows } = await env.DB.prepare(
+    `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`,
+  ).bind(acct.act_id, histFrom, end).all();
+  const piv = {};
+  for (const r of twRows) (piv[r.metric] ??= {})[r.date] = r.value;
+  const { results: metaRows } = await env.DB.prepare(
+    `SELECT date, spend, impressions, clicks, link_clicks, purchases, revenue FROM daily_insights
+     WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`,
+  ).bind(acct.act_id, histFrom, end).all();
+  const metaBy = Object.fromEntries(metaRows.map(r => [r.date, r]));
+
+  const gjson = safeJson(acct.goals_json, {});
+  const cmPct = goalsFor(acct, ymEnd)?.cm_pct ?? null;
+
+  // The same COGS trust gate as the Daily Brief: a client whose cost data is
+  // broken must never see a Contribution Margin in a report with their name on it.
+  const dayMargins = []; let mNum = 0, mDen = 0;
+  for (let i = 1; i <= 28; i++) {
+    const d = addDays(start, -i);
+    const r = econDay(piv, metaBy, d, null);
+    if (r && r.gp != null && r.sales > 0) { dayMargins.push(r.gp / r.sales); mNum += r.gp; mDen += r.sales; }
+  }
+  const margin28 = mDen > 0 ? mNum / mDen : null;
+  const cogsQuality = cmPct != null
+    ? { verdict: 'override', reason: `using the ${Math.round(cmPct * 100)}% margin override` }
+    : judgeCogs(dayMargins, margin28);
+  const cmOk = cmPct != null || (cogsQuality.verdict !== 'broken' && cogsQuality.verdict !== 'none');
+
+  const curDates = [], prevDates = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) curDates.push(d);
+  for (let d = prevStart; d <= prevEnd; d = addDays(d, 1)) prevDates.push(d);
+  const days = curDates.map(d => econDay(piv, metaBy, d, cmPct)).filter(Boolean);
+  const prevDays = prevDates.map(d => econDay(piv, metaBy, d, cmPct)).filter(Boolean);
+  const cur = periodTotals(days);
+  const prev = periodTotals(prevDays);
+  if (!cmOk) {
+    for (const t of [cur, prev]) { t.cm = null; t.gp = null; t.margin = null; }
+    for (const r of days) { r.cm = null; r.gp = null; r.margin = null; }
+  }
+
+  // The plan for these exact days. Each day inherits ITS OWN month's goals,
+  // spread evenly — the agreed convention — so a week straddling a month
+  // boundary is measured against both months' plans, pro-rated.
+  const fcMargin = cmPct ?? margin28;
+  let fSales = null, fSpend = null;
+  const monthsSeen = {};
+  for (const d of curDates) {
+    const ym = monthOf(d);
+    const g = goalsFor(acct, ym);
+    monthsSeen[ym] ??= { planned: !!gjson[ym], has_goals: !!g };
+    if (!g) continue;
+    const dim = daysInMonth(d);
+    if (g.sales != null) fSales = (fSales ?? 0) + g.sales / dim;
+    if (g.spend != null) fSpend = (fSpend ?? 0) + g.spend / dim;
+  }
+  const forecast = {
+    sales: fSales, spend: fSpend,
+    mer: fSales != null && fSpend ? fSales / fSpend : null,
+    amer: goalsFor(acct, ymEnd)?.amer ?? null,
+    cm: cmOk && fSales != null && fSpend != null && fcMargin != null ? fSales * fcMargin - fSpend : null,
+    months: monthsSeen,
+  };
+
+  // Weekly reports carry a forward look: where the month stands after this week.
+  let pacing = null;
+  if (period === 'weekly') {
+    const mtdRows = [];
+    for (let d = monthStart; d <= end; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct); if (r) mtdRows.push(r); }
+    const mtd = periodTotals(mtdRows);
+    const gEnd = goalsFor(acct, ymEnd);
+    if (gEnd && (gEnd.sales != null || gEnd.spend != null)) {
+      const dim = daysInMonth(end);
+      const elapsed = Math.min(+end.slice(8, 10), dim);
+      const share = elapsed / dim;
+      const planToDate = gEnd.sales != null ? gEnd.sales * share : null;
+      pacing = {
+        month: ymEnd, days_elapsed: elapsed, days_in_month: dim,
+        goal_sales: gEnd.sales ?? null, goal_spend: gEnd.spend ?? null,
+        plan_to_date: planToDate, spend_plan_to_date: gEnd.spend != null ? gEnd.spend * share : null,
+        mtd_sales: mtd.sales, mtd_spend: mtd.spend,
+        // Plan-share projection when a plan exists (how the Daily Brief projects),
+        // plain run-rate otherwise.
+        projected: mtd.sales != null && planToDate > 0 ? mtd.sales / planToDate * gEnd.sales
+          : mtd.sales != null && elapsed > 0 ? mtd.sales / elapsed * dim : null,
+        planned: !!gjson[ymEnd],
+      };
+    }
+  }
+
+  // Monthly reports get the month cut into weeks instead — how it actually ran.
+  let weeks = null;
+  if (period === 'monthly') {
+    weeks = [];
+    for (let ws = start; ws <= end; ws = addDays(ws, 7)) {
+      const we = addDays(ws, 6) <= end ? addDays(ws, 6) : end;
+      const rows = days.filter(r => r.date >= ws && r.date <= we);
+      if (rows.length) {
+        const t = periodTotals(rows);
+        weeks.push({ from: ws, to: we, sales: t.sales, spend: t.spend, mer: t.mer });
+      }
+    }
+  }
+
+  const cfg = safeJson(acct.report_config_json, {});
+  const channels = channelSections(piv, metaBy, { cur: curDates, prev: prevDates }, Array.isArray(cfg.hide) ? cfg.hide : []);
+
+  // Where the Meta money went: top ads by spend behind a materiality floor, so
+  // a $40 fluke can never headline. Deliberately framed as "where the budget
+  // went and what it did", not "the best ad" — a single crown is unjudgeable.
+  let ads = null;
+  const metaSpend = cur.meta_spend ?? 0;
+  if (metaSpend > 0) {
+    const { results: adRows } = await env.DB.prepare(
+      `SELECT d.ad_id, SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue,
+              COALESCE(a.name, d.ad_id) AS name
+       FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
+       WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
+       GROUP BY d.ad_id ORDER BY spend DESC LIMIT 40`,
+    ).bind(acct.act_id, start, end).all();
+    const floor = Math.max(50, metaSpend * 0.03);
+    const qualified = adRows.filter(r => r.spend >= floor);
+    const top = qualified.slice(0, 8).map(r => ({
+      name: r.name, spend: r.spend, purchases: r.purchases || null, revenue: r.revenue || null,
+      cpa: r.purchases ? r.spend / r.purchases : null,
+      roas: r.spend && r.revenue ? r.revenue / r.spend : null,
+      share: metaSpend ? r.spend / metaSpend : null,
+    }));
+    const standout = qualified.filter(r => r.purchases >= 3)
+      .sort((a, b) => (a.spend / a.purchases) - (b.spend / b.purchases))[0] || null;
+    if (top.length) ads = { floor, top,
+      standout: standout ? { name: standout.name, cpa: standout.spend / standout.purchases, spend: standout.spend } : null };
+  }
+
+  // What we changed during the period — feeds the narrative and the internal
+  // view. NOT sent to the client's payload (the profit worker strips it).
+  const { results: evs } = await env.DB.prepare(
+    `SELECT event_time, category, summary, reason FROM activities
+     WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1
+     ORDER BY event_time ASC LIMIT 60`,
+  ).bind(acct.act_id, start, end + 'T23:59:59').all();
+
+  return {
+    account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
+    period, start, end, prev_start: prevStart, prev_end: prevEnd,
+    totals: cur, previous: prev, forecast, pacing, weeks, channels, ads,
+    changes: evs.slice(0, 14).map(e => ({ t: String(e.event_time).slice(0, 10), category: e.category, summary: e.summary, reason: e.reason })),
+    changes_total: evs.length,
+    chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
+    cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,
+    generated_at: new Date().toISOString(),
+  };
+}
+
+const REPORT_SYSTEM = `You are a senior media buyer at Mobius Digital writing the executive summary of a client's WEEKLY or MONTHLY performance report. The report page already shows every number in cards and tables — do NOT restate them as a list.
+Write exactly three sections, plain text, section titles on their own line exactly as written:
+The period in brief
+2–4 sentences: what happened and the single interpretation that best explains it. Lead with the conclusion. Name only the one or two numbers that matter most (with their % vs plan or vs the prior period).
+What mattered
+• 3–5 bullets: beats/misses vs plan with the %, the trend vs the prior period, the new-vs-returning read, per-channel reads, and — when the change log supports it — which of our changes drove what. Conclusion first in every bullet.
+What's next
+• 2–4 bullets: concrete actions or watch-items for the coming period, each with a trigger or a date where possible.
+Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency, whole units. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend on every platform; aMER = new-customer revenue ÷ that same spend. Both are blended on BOTH sides — never call them attributed, and never confuse them with ROAS (which IS platform-attributed, double-counts across platforms, and should be treated as directional). Write for the client: confident, plain language, no hedging filler. Under 230 words total. No greeting, no sign-off, no markdown headers, no asterisks for bold.`;
+
+async function writeReportNarrative(env, acct, data) {
+  const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
+  const label = data.period === 'weekly' ? 'week' : 'month';
+  const slim = t => t ? { sales: f2(t.sales), spend: f2(t.spend), orders: t.orders, mer: f2(t.mer), amer: f2(t.amer), aov: f2(t.aov), new_customer_cpa: f2(t.ncpa), new_share: f2(t.new_share), cm: f2(t.cm) } : null;
+  const chLines = (data.channels || []).map(c => `- ${c.label}: ${JSON.stringify(c.cur)} | prior ${label}: ${JSON.stringify(c.prev)}`);
+  const adLines = (data.ads?.top || []).slice(0, 5).map(a => `- ${a.name}: spend ${f2(a.spend)} (${Math.round((a.share || 0) * 100)}% of Meta), CPA ${f2(a.cpa)}, ROAS ${f2(a.roas)}`);
+  const evLines = (data.changes || []).map(e => `- ${e.t} [${e.category}] ${e.summary}${e.reason ? ` {${e.reason}}` : ''}`);
+  const unplanned = Object.entries(data.forecast?.months || {}).filter(([, m]) => !m.planned && m.has_goals);
+  return claude(env, {
+    system: REPORT_SYSTEM,
+    maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom
+    user: `Client: ${acct.name} (currency ${acct.currency}). ${data.period === 'weekly' ? 'Weekly' : 'Monthly'} report covering ${data.start} → ${data.end}.\n` +
+      `This ${label}: ${JSON.stringify(slim(data.totals))}\n` +
+      `Prior ${label} (${data.prev_start} → ${data.prev_end}): ${JSON.stringify(slim(data.previous))}\n` +
+      `Plan for the period: ${JSON.stringify({ sales: f2(data.forecast?.sales), spend: f2(data.forecast?.spend), mer: f2(data.forecast?.mer), cm: f2(data.forecast?.cm) })}\n` +
+      (unplanned.length ? `IMPORTANT: no plan was actually set for ${unplanned.map(([ym]) => ym).join(', ')} — the "plan" figures are carried over from an earlier month. Do not present them as an agreed target; refer to them as the prior pace.\n` : '') +
+      (data.cm_ok ? '' : `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality?.reason}). Contribution margin has been removed from the report — do NOT mention margin, CM or profit anywhere.\n`) +
+      (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
+      `Channels (platform revenue/ROAS is the platform's own attribution — directional):\n${chLines.join('\n') || '- (none)'}\n` +
+      `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
+      `Changes we made during the period (${data.changes_total} logged):\n${evLines.join('\n') || '- (none logged)'}`,
+  });
+}
+
+const repMoney = (n, cur) => n == null ? '—' : new Intl.NumberFormat('en-US',
+  { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
+const repPctVs = (a, b) => a != null && b ? `${a >= b ? '+' : ''}${Math.round((a / b - 1) * 100)}%` : null;
+
+/** The one-line summary used in both Slack messages. */
+function reportHeadline(data) {
+  const cur = data.account.currency, t = data.totals;
+  const tag = data.period === 'weekly' ? 'week' : 'month';
+  const vsPlan = repPctVs(t.sales, data.forecast?.sales);
+  const vsPrev = repPctVs(t.sales, data.previous?.sales);
+  const rev = `Revenue ${repMoney(t.sales, cur)}${vsPlan || vsPrev
+    ? ` (${[vsPlan && `${vsPlan} vs plan`, vsPrev && `${vsPrev} vs prior ${tag}`].filter(Boolean).join(', ')})` : ''}`;
+  const bits = [rev, `Spend ${repMoney(t.spend, cur)}`, `MER ${t.mer != null ? t.mer.toFixed(2) + 'x' : '—'}`];
+  if (t.cm != null) bits.push(`CM ${repMoney(t.cm, cur)}`);
+  return bits.join(' · ');
+}
+
+/** Build (or rebuild) one report as a DRAFT. A sent report is frozen — the
+ *  client already has its numbers, so regeneration refuses. */
+async function makeReport(env, acct, period, start, { force = false } = {}) {
+  if (period !== 'weekly' && period !== 'monthly') throw new Error('period must be weekly or monthly');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '')) throw new Error('start must be YYYY-MM-DD');
+  if (period === 'monthly' && start.slice(8) !== '01') throw new Error('a monthly report starts on the 1st');
+  const end = period === 'weekly' ? addDays(start, 6)
+    : `${monthOf(start)}-${String(daysInMonth(start)).padStart(2, '0')}`;
+  const prior = await env.DB.prepare(
+    `SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+  ).bind(acct.act_id, period, start).first();
+  if (prior?.status === 'sent') throw new Error('this report was already sent to the client — sent reports are frozen');
+  const data = await reportData(env, acct, period, start, end);
+  const expected = Math.round((new Date(end + 'T12:00:00Z') - new Date(start + 'T12:00:00Z')) / 86400e3) + 1;
+  const missing = expected - (data.totals.days ?? 0);
+  if (data.totals.sales == null) throw new Error('no Triple Whale data for this period — refresh Triple Whale data first');
+  if (missing > 0 && !force) throw new Error(`Triple Whale data is missing for ${missing} of the ${expected} days — refresh Triple Whale data and regenerate (or generate anyway)`);
+  data.missing_days = missing;
+  let summary = null, narrative_error = null;
+  try { summary = await writeReportNarrative(env, acct, data); } catch (e) { narrative_error = e.message; }
+  await env.DB.prepare(
+    `INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json)
+     VALUES (?1,?2,?3,?4,'draft',?5,?6,?7)
+     ON CONFLICT(act_id, period, period_start) DO UPDATE SET period_end = excluded.period_end,
+       status = 'draft', generated_at = excluded.generated_at, summary = excluded.summary,
+       data_json = excluded.data_json, sent_at = NULL, sent_channel = NULL`,
+  ).bind(acct.act_id, period, start, end, new Date().toISOString(), summary, JSON.stringify(data)).run();
+  return { period, start, end, summary, data, narrative_error };
+}
+
+/** One stable client link per brand — opens their report archive (sent reports
+ *  only, rendered by the profit dashboard). Same pattern as shareTokens. */
+async function reportToken(env, actId) {
+  const tokens = safeJson(await getSetting(env, 'reportTokens'), {});
+  let tok = Object.keys(tokens).find(k => tokens[k].act_id === actId);
+  if (!tok) {
+    tok = crypto.randomUUID().replace(/-/g, '');
+    tokens[tok] = { act_id: actId, created: new Date().toISOString() };
+    await putSetting(env, 'reportTokens', JSON.stringify(tokens));
+  }
+  return tok;
+}
+
+/** Internal review post. Deliberately NEVER falls back to slack_channel or
+ *  brief_channel — as of 2026-08-27 every brand's alerts channel IS its client
+ *  channel, so a "fallback" would put a draft in front of the client. No
+ *  report_channel and no global reportChannel setting = no post; the draft
+ *  still exists in the Reports tab. */
+async function postReportDraft(env, acct, r) {
+  const channel = acct.report_channel || await getSetting(env, 'reportChannel');
+  if (!channel) return { skipped: 'no internal reports channel configured for this brand' };
+  const label = r.period === 'weekly' ? 'Weekly' : 'Monthly';
+  const link = `${PROFIT_URL}?open=reports&act=${encodeURIComponent(acct.act_id)}`;
+  await slackPost(env, channel,
+    `:clipboard: *${label} report drafted — ${acct.name}* (${prettyDate(r.start)} → ${prettyDate(r.end)})\n` +
+    `${reportHeadline(r.data)}\n` +
+    `_Internal draft — nothing has been sent to the client._ <${link}|Review and send it from Mobius Profit>`,
+    null, { username: 'Mobius Reports', icon: ':clipboard:' });
+  return { ok: true, channel };
+}
+
+/** The Send-to-client button. Posts the headline + the client's archive link to
+ *  their channel and freezes the report. Nothing else ever posts to a client. */
+async function sendReport(env, acct, period, start) {
+  const row = await env.DB.prepare(
+    `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+  ).bind(acct.act_id, period, start).first();
+  if (!row) throw new Error('no report generated for that period yet');
+  const data = safeJson(row.data_json, null);
+  if (!data) throw new Error('this report has no data — regenerate it first');
+  const channel = acct.brief_channel || acct.slack_channel;
+  if (!channel) throw new Error('no client channel set for this brand — pick one in Settings');
+  const url = `${PROFIT_URL}?reports=${await reportToken(env, acct.act_id)}`;
+  const label = period === 'weekly' ? 'Weekly' : 'Monthly';
+  const opener = period === 'weekly'
+    ? `Hey Team :wave: Here's your Weekly Report covering ${prettyDate(start)} → ${prettyDate(row.period_end)} →`
+    : `Hey Team :wave: Here's your ${MONTH_OF(monthOf(start))} report →`;
+  await slackPost(env, channel, `${opener}\n${reportHeadline(data)}\n\n<${url}|Open the full report>`,
+    null, { username: `${label} Report`, icon: ':bar_chart:' });
+  await env.DB.prepare(
+    `UPDATE reports SET status = 'sent', sent_at = ?4, sent_channel = ?5
+     WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+  ).bind(acct.act_id, period, start, new Date().toISOString(), channel).run();
+  return { ok: true, channel, url };
+}
+
+/** Cron pass, inside the same hourly Central-time gate as the Daily Brief.
+ *  Monday drafts last Mon–Sun for every brand; the 1st drafts last month.
+ *  DRAFTS ONLY — nothing reaches a client without the Send button. A brand
+ *  that failed (no row written) is retried on every later tick that day. */
+async function reportsPass(env) {
+  const today = localDate(BRIEF_TZ);
+  const jobs = [];
+  if (new Date(today + 'T12:00:00Z').getUTCDay() === 1) jobs.push({ period: 'weekly', start: addDays(today, -7) });
+  if (today.slice(8) === '01') jobs.push({ period: 'monthly', start: `${prevMonth(monthOf(today))}-01` });
+  if (!jobs.length) return { skipped: 'not a report day' };
+  const accounts = await listAccounts(env, true);
+  const results = [];
+  let did = false;
+  for (const a of accounts) {
+    const cfg = safeJson(a.report_config_json, {});
+    for (const j of jobs) {
+      if (cfg[j.period] === false) continue;
+      const prior = await env.DB.prepare(
+        `SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+      ).bind(a.act_id, j.period, j.start).first().catch(() => null);
+      if (prior) { results.push({ name: a.name, period: j.period, already: prior.status }); continue; }
+      did = true;
+      try {
+        // tw_daily is cumulative and dailyBriefs has usually just synced this brand
+        // in the same invocation — only sync here if the period's last day is absent,
+        // to stay well inside the Worker subrequest budget.
+        const have = await env.DB.prepare(
+          `SELECT 1 AS x FROM tw_daily WHERE act_id = ?1 AND date = ?2 LIMIT 1`,
+        ).bind(a.act_id, addDays(today, -1) < j.start ? j.start : addDays(today, -1)).first().catch(() => null);
+        if (!have) await syncTwDaily(env, a, j.period === 'monthly' ? 100 : 70).catch(() => {});
+        const r = await makeReport(env, a, j.period, j.start);
+        const posted = await postReportDraft(env, a, r).catch(e => ({ error: e.message }));
+        results.push({ name: a.name, period: j.period, ok: true, posted, narrative_error: r.narrative_error ?? null });
+      } catch (e) {
+        results.push({ name: a.name, period: j.period, error: e.message });
+      }
+    }
+  }
+  if (did) await putSetting(env, 'lastReportRun', JSON.stringify({ at: new Date().toISOString(), results })).catch(() => {});
+  return results;
+}
+
 async function hourlyPacing(env, acct) {
   const today = localDate(acct.tz);
   const since = addDays(today, -7);
@@ -1577,7 +2082,13 @@ export default {
         // tick or a transient failure did the same. Every later tick now retries, and
         // dailyBriefs skips brands already posted for the date, so this cannot double
         // post and costs one cheap SELECT per brand per hour once the hour is past.
-        if (centralHour() >= await briefHour(env)) await dailyBriefs(env);
+        if (centralHour() >= await briefHour(env)) {
+          await dailyBriefs(env);
+          // Weekly/monthly report drafts ride the same gate: Monday drafts last
+          // Mon–Sun, the 1st drafts last month. Internal drafts only — the
+          // Send-to-client button is the only path to a client channel.
+          await reportsPass(env).catch(() => {});
+        }
       })());
     } else ctx.waitUntil(nightly(env));
   },
@@ -1905,6 +2416,69 @@ export default {
            ${act && act !== 'all' ? 'WHERE b.act_id = ?1' : ''} ORDER BY b.date DESC LIMIT 60`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all();
         return json({ rows: results });
+      }
+
+      /* ---- Weekly / Monthly reports (interface = Mobius Profit's Reports tab) ---- */
+      if (path === '/api/reports' && request.method === 'GET') {
+        const act = url.searchParams.get('act');
+        const { results } = await env.DB.prepare(
+          `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
+                  acc.name AS account_name, acc.currency
+           FROM reports r JOIN accounts acc ON acc.act_id = r.act_id
+           ${act && act !== 'all' ? 'WHERE r.act_id = ?1' : ''}
+           ORDER BY r.period_start DESC, r.period LIMIT 80`,
+        ).bind(...(act && act !== 'all' ? [act] : [])).all();
+        return json({ rows: results, lastRun: safeJson(await getSetting(env, 'lastReportRun'), null) });
+      }
+      if (path === '/api/report' && request.method === 'GET') {
+        const row = await env.DB.prepare(
+          `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+        ).bind(url.searchParams.get('act'), url.searchParams.get('period'), url.searchParams.get('start')).first();
+        if (!row) return json({ error: 'no report for that period' }, 404);
+        const { data_json, ...rest } = row;
+        return json({ ...rest, data: safeJson(data_json, null) });
+      }
+      if (path === '/api/report-generate' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const period = b.period || 'weekly';
+        let start = b.start;
+        if (!start) {          // default: the last COMPLETE period, in Central time
+          const today = localDate(BRIEF_TZ);
+          if (period === 'weekly') {
+            const dow = new Date(today + 'T12:00:00Z').getUTCDay();          // 0 = Sunday
+            const mondayThisWeek = addDays(today, -((dow + 6) % 7));
+            start = addDays(mondayThisWeek, -7);
+          } else start = `${prevMonth(monthOf(today))}-01`;
+        }
+        await syncTwDaily(env, acct, period === 'monthly' ? 100 : 70).catch(() => {});
+        try {
+          const r = await makeReport(env, acct, period, start, { force: !!b.force });
+          return json({ ok: true, period, start: r.start, end: r.end,
+            narrative_error: r.narrative_error ?? null, missing_days: r.data.missing_days ?? 0 });
+        } catch (e) { return json({ error: e.message }, 400); }
+      }
+      if (path === '/api/report-summary' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        const r = await env.DB.prepare(
+          `UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'draft'`,
+        ).bind(b.act, b.period, b.start, b.summary ?? '').run();
+        if (!r.meta?.changes) return json({ error: 'no draft report for that period (a sent report is frozen)' }, 404);
+        return json({ ok: true });
+      }
+      if (path === '/api/report-send' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        try { return json(await sendReport(env, acct, b.period, b.start)); }
+        catch (e) { return json({ error: e.message }, 400); }
+      }
+      if (path === '/api/report-link' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        return json({ ok: true, url: `${PROFIT_URL}?reports=${await reportToken(env, b.act)}` });
       }
 
       if (path === '/api/summarise' && request.method === 'POST') {

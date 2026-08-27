@@ -114,6 +114,19 @@ profit/
   the time editable from Settings and pinned to the same wall-clock hour across
   daylight saving — a UTC cron drifts by an hour twice a year. `sendBrief` takes
   `skipIfSent` so an hourly trigger can never post a brand twice.
+- **Weekly/Monthly Reports follow the Daily Brief's split exactly**: the tab and
+  the client archive view are here, the engine is the account-health worker
+  (see its CLAUDE.md), and the report routes are in `PROXY_PATHS`. Reports are
+  FROZEN snapshots — drafted automatically (Monday = last Mon–Sun, 1st = last
+  month), posted to the per-brand `report_channel` (INTERNAL, no fallback on
+  purpose), sent to the client's `brief_channel` only by the Send button, and
+  never editable after sending. `GET /api/report-view/:token` is the client's
+  archive (sent reports only; internal fields stripped, including `account`
+  with its act_id). `reportBodyHTML` in index.html renders BOTH the internal
+  and client pages so what you review is exactly what the client opens — keep
+  it that way. Per-brand config lives in `accounts.report_config_json`
+  ({weekly, monthly, hide:[channel ids]}), edited from the Reports tab;
+  `report_channel` is edited in Settings via `/api/client-settings`.
 - **The Daily Brief lives HERE but runs THERE.** Its tab is in this tool (all its
   numbers are store-level), while the account-health worker keeps the endpoints, the
   hourly brief trigger and the TW/Anthropic/Slack secrets. `PROXY_PATHS` forwards
