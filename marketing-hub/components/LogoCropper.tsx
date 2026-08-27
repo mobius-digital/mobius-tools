@@ -40,6 +40,8 @@ export function LogoCropper({
   const [dropBackground, setDropBackground] = useState(false);
   /** True when the border is one flat colour, so there is a background to drop. */
   const [hasFlatBackground, setHasFlatBackground] = useState(false);
+  /** Whether the drop was applied without being asked for. */
+  const [autoDropped, setAutoDropped] = useState(false);
   const strippedRef = useRef<HTMLCanvasElement | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number } | null>(null);
@@ -52,7 +54,13 @@ export function LogoCropper({
     image.onload = () => {
       imageRef.current = image;
       strippedRef.current = null;
-      setHasFlatBackground(borderIsFlat(image));
+      const border = borderIsFlat(image);
+      setHasFlatBackground(border.flat);
+      // Done for you when the file is simply padded with white, which is how
+      // most logos are exported. Still a checkbox, still visible in the
+      // preview, so it can be put back with one click if it was wrong.
+      setDropBackground(border.paddedWithWhite);
+      setAutoDropped(border.paddedWithWhite);
       setReady(true);
     };
     image.onerror = () => setError("That image could not be opened.");
@@ -222,12 +230,11 @@ export function LogoCropper({
                   onChange={(event) => setDropBackground(event.target.checked)}
                 />
                 <span>
-                  Drop the flat background — optional
+                  {autoDropped ? "Background removed" : "Drop the flat background"}
                   <span className="cropper__option-hint">
-                    Only worth it if the board&apos;s own colours would show a
-                    square behind the mark. Clears the flat colour from the
-                    edges inwards and leaves anything enclosed by the mark
-                    alone; the chequerboard is what transparent looks like.
+                    {autoDropped
+                      ? "This file came on a white background, so it has been taken off for you — the chequerboard is what transparent looks like. Untick to keep it."
+                      : "Clears the flat colour from the edges inwards, leaving anything enclosed by the mark alone. Worth it if the board's own colours would show a square behind the mark."}
                   </span>
                 </span>
               </label>
@@ -282,14 +289,22 @@ function pixels(image: HTMLImageElement): {
 }
 
 /**
- * Does this image sit on a flat background worth offering to remove?
+ * Does this image sit on a flat background, and is it the kind worth removing
+ * without being asked?
  *
  * Judged from the border rather than the whole picture: a logo may be mostly
  * one colour without that colour being a background.
+ *
+ * `paddedWithWhite` is the difference between padding and design. Almost no
+ * mark is *drawn* as a white square — a white square on a white page is
+ * nothing — so white around the edges is virtually always the page the logo
+ * was exported on. A coloured square usually is the design (think of any app
+ * icon), so that is offered rather than assumed.
  */
-function borderIsFlat(image: HTMLImageElement): boolean {
+function borderIsFlat(image: HTMLImageElement): { flat: boolean; paddedWithWhite: boolean } {
+  const nothing = { flat: false, paddedWithWhite: false };
   const read = pixels(image);
-  if (!read) return false;
+  if (!read) return nothing;
 
   // Straight off the ImageData: its data/width/height are prototype getters, so
   // spreading the object would have handed back undefined for all three.
@@ -298,7 +313,7 @@ function borderIsFlat(image: HTMLImageElement): boolean {
   const first = [data[0], data[1], data[2]];
 
   // Fully transparent already — nothing to drop.
-  if (data[3] === 0) return false;
+  if (data[3] === 0) return nothing;
 
   let sampled = 0;
   let alike = 0;
@@ -316,7 +331,9 @@ function borderIsFlat(image: HTMLImageElement): boolean {
     }
   }
 
-  return sampled > 0 && alike / sampled > 0.9;
+  const flat = sampled > 0 && alike / sampled > 0.9;
+  const nearlyWhite = first.every((channel) => channel >= 232);
+  return { flat, paddedWithWhite: flat && nearlyWhite };
 }
 
 /**

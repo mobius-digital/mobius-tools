@@ -41,11 +41,11 @@ already:
    upgrade worth having: it stays sharp at any size and gets painted in their
    accent colour. Up to 1 MB.
 
-   Most logo files sit on a white background, and that is normally fine —
-   boards have white or near-white surfaces, so it does not show. If you give a
-   board colours dark enough that a square appears behind the mark, tick **Drop
-   the flat background** in the cropper: it clears the flat colour from the
-   edges inwards and leaves anything enclosed by the mark alone.
+   Most logo files are exported on a white background. That is **taken off
+   automatically** — nothing to prepare, nothing to tick. You will see it go in
+   the preview, and there is a checkbox to put it back if the white was part of
+   the design. A logo on a *coloured* square is left alone, since that is
+   usually the design rather than padding; the same checkbox removes it if not.
 
    The preview beside the picker shows exactly what will appear. If it looks
    wrong there, it will look wrong on their board.
@@ -142,10 +142,10 @@ been uploaded for them. Clients → Edit brand.
 **A logo looks stretched or crushed.** It was saved before the square-up step
 existed. Re-upload it through Clients → Edit brand and position it.
 
-**A logo has a white box behind it.** The file is on an opaque white
-background and this board's surfaces are dark enough to show it. Either
-re-upload it and tick *Drop the flat background*, or lighten the board's
-surface colour — whichever suits the brand.
+**A logo has a box behind it.** A white one means the file was saved before
+backgrounds were removed automatically — re-upload it and it will be handled. A
+coloured one is left in place on purpose; re-upload and tick *Drop the flat
+background* to take it off.
 
 **A card says "7 events" but the board looks empty.** Cancelled and completed
 events are hidden on the planning views by default. The card says

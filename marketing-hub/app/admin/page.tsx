@@ -582,11 +582,11 @@ export default function AdminPage() {
               />
               <span className="field__hint">
                 Their mark — it leads their sign-in screen and sits beside the
-                name on their board. Whatever you have will do: drop the file in
-                as it comes and you get to position it in a square.{" "}
-                <strong>SVG</strong> is the one upgrade worth having, because it
-                stays sharp at any size and gets painted in their accent colour.
-                Up to 1 MB. Leave it empty for the calendar mark.
+                name on their board. Drop the file in as it comes: you get to
+                position it in a square, and a white background is taken off for
+                you. <strong>SVG</strong> is the one upgrade worth having,
+                because it stays sharp at any size and gets painted in their
+                accent colour. Up to 1 MB. Leave it empty for the calendar mark.
               </span>
             </div>
             </div>
