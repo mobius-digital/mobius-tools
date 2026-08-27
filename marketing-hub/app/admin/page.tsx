@@ -399,10 +399,14 @@ export default function AdminPage() {
                   </form>
                 </div>
 
+                {/* Small: at the width a card actually gets in the grid,
+                    full-size buttons wrapped and left Delete stranded alone on
+                    a second row. These fit on one line and keep the 40px
+                    target height from .button. */}
                 <div className="client-card__foot">
                   <button
                     type="button"
-                    className="button"
+                    className="button button--small"
                     disabled={busy}
                     onClick={() => openEdit(client)}
                   >
@@ -410,7 +414,7 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    className="button"
+                    className="button button--small"
                     disabled={busy}
                     onClick={() => void resetPassword(client.slug)}
                   >
@@ -421,7 +425,7 @@ export default function AdminPage() {
                       the one you press to change a colour. */}
                   <button
                     type="button"
-                    className="button button--danger client-card__delete"
+                    className="button button--small button--danger client-card__delete"
                     disabled={busy}
                     onClick={() => {
                       setDeleting(client);
@@ -449,7 +453,7 @@ export default function AdminPage() {
               Save used to sit below the fold, which is why it read as though
               there was no way to save at all. */}
           <form
-            className="dialog dialog--wide dialog--framed"
+            className="dialog dialog--framed"
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-client-title"

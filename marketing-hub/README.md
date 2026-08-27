@@ -6,6 +6,10 @@ per-brand `launch-calendar/` app, which was removed once this had outgrown it.
 
 **Live:** https://launch-calendar.mobius-digital.workers.dev
 
+**Running it day to day:** see [GUIDE.md](GUIDE.md) — what Lineup is, how to
+put a client on it, what Connections is for, and what to check when something
+looks wrong. This file is for whoever is changing the code.
+
 The worker is still *named* `launch-calendar` on purpose: that name owns the
 URL Google sign-in is registered for, the team's bookmarks, and the account's
 cron slot. Renaming it would abandon all three. Everywhere a person can see,

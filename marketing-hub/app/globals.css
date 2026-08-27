@@ -836,6 +836,10 @@ button {
  * which reads as "there is no way to save this".
  */
 .dialog--framed {
+  /* Its own width rather than composing with .dialog--wide: that rule is
+     declared later in this file and would win on max-height and overflow,
+     scrolling the whole dialog and taking the pinned actions with it. */
+  max-width: 34rem;
   padding: 0;
   overflow: hidden;
   display: flex;
