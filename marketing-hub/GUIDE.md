@@ -34,12 +34,15 @@ already:
 2. **Three colours** — accent, page background, text. Everything else in the
    calendar is worked out from those, so you are not picking a palette, you are
    picking three anchors. The preview shows the result as you go.
-3. **A logo, optionally.** Square, icon-shaped, not a wide wordmark. SVG is
-   best: it stays sharp and gets painted in their accent. PNG and JPEG work and
-   are shown exactly as drawn — so use one with a **transparent background**,
-   because a white one shows as a white square. Up to 1 MB. The preview beside
-   the picker shows exactly what will appear; if it looks wrong there, it will
-   look wrong on their board.
+3. **A logo, optionally.** SVG is best: it stays sharp and gets painted in
+   their accent colour. PNG and JPEG work too — pick one and you are asked to
+   **position it in a square**, because every place a mark appears is a square.
+   It opens fitted, with the whole file visible and nothing cut; drag to move
+   it and zoom in to crop. Prefer a file with a **transparent background**, as
+   a white one shows as a white square. Up to 1 MB.
+
+   The preview beside the picker shows exactly what will appear. If it looks
+   wrong there, it will look wrong on their board.
 
 Press **Create the board** and it exists — no deploy, no waiting. You are shown
 a generated **team password** once. Copy it then; it is not shown again. You can
@@ -92,7 +95,8 @@ And a **Settings** window, which is theirs to run:
 
 | Section | What it is for |
 | --- | --- |
-| Your account | The name stamped on their edits, and replaying the walkthrough |
+| Your account | The name stamped on their edits |
+| Walkthrough | Replaying the two-minute tour |
 | Add to your phone | The two taps that install the board as an app |
 | Event types | Renaming the options in the Type dropdown, or adding their own |
 | Channels | Their marketing channels — each gets a filter, a row on every event, and a Slack channel |
@@ -102,7 +106,7 @@ And a **Settings** window, which is theirs to run:
 A **two-minute walkthrough** opens by itself the first time anyone opens a
 board, and is remembered per board — so a new team handed their own board still
 gets it, even if you have seen the tour elsewhere. Anyone can replay it from
-Settings → Your account.
+Settings → Walkthrough.
 
 ---
 
@@ -128,6 +132,9 @@ means: `/invite @your-bot` in that channel.
 
 **A board shows the generic calendar mark instead of their logo.** No logo has
 been uploaded for them. Clients → Edit brand.
+
+**A logo looks stretched or crushed.** It was saved before the square-up step
+existed. Re-upload it through Clients → Edit brand and position it.
 
 **A card says "7 events" but the board looks empty.** Cancelled and completed
 events are hidden on the planning views by default. The card says

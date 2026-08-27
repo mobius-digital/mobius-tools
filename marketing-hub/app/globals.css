@@ -3345,6 +3345,52 @@ button {
   background-color: currentColor;
 }
 
+/* A full-colour logo in a fixed square slot. Without object-fit the browser
+   stretches it to the box and the mark comes out crushed. */
+.logo--raster {
+  object-fit: contain;
+}
+
+/* --------------------------------------------------------------------------
+ * Squaring a logo up on upload
+ * ----------------------------------------------------------------------- */
+
+.cropper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+/* The chequerboard is the usual way of saying "this part is transparent", and
+   it is the difference between a mark with no background and one with a white
+   box behind it — which is the mistake this dialog exists to catch. */
+.cropper__canvas {
+  width: 260px;
+  height: 260px;
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  cursor: grab;
+  touch-action: none;
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(45deg, var(--surface-raised) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--surface-raised) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--surface-raised) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--surface-raised) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.cropper__canvas:active {
+  cursor: grabbing;
+}
+
+.cropper__zoom {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
 /* --------------------------------------------------------------------------
  * Slack settings: the channel map, reminder timing, confirmation note
  * ----------------------------------------------------------------------- */

@@ -19,8 +19,19 @@ export function BrandLogo({ className }: { className: string }) {
   const tint = brand.logoTint !== false;
 
   if (!tint) {
+    // `logo--raster` carries object-fit: contain. Every slot a mark goes in is
+    // a fixed square, and without it a wide file is stretched to fill one —
+    // which is how a logo ends up looking crushed in the nav. New uploads are
+    // squared by the cropper; this covers the ones saved before it existed.
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={brand.logoUrl} alt="" className={className} aria-hidden />;
+    return (
+      <img
+        src={brand.logoUrl}
+        alt=""
+        className={`${className} logo--raster`}
+        aria-hidden
+      />
+    );
   }
 
   const mask = `url("${brand.logoUrl}") center / contain no-repeat`;

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ColorField } from "@/components/ColorField";
 import { BrandMark } from "@/components/BrandMark";
+import { LogoCropper } from "@/components/LogoCropper";
 import { ConnectionSettings } from "@/components/ConnectionSettings";
 import { CloseButton, useCloseGuard } from "@/components/UnsavedGuard";
 
@@ -74,6 +75,8 @@ export default function AdminPage() {
   const [logoError, setLogoError] = useState<string | null>(null);
   /** The logo already on the row, for the preview. Never sent back. */
   const [existingLogo, setExistingLogo] = useState<string | null>(null);
+  /** A raster waiting to be squared up before it is accepted. */
+  const [cropping, setCropping] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -125,6 +128,7 @@ export default function AdminPage() {
   }
 
   function resetForm() {
+    setCropping(null);
     setName("");
     setLogoSvg("");
     setLogoName("");
@@ -173,20 +177,15 @@ export default function AdminPage() {
       return;
     }
 
-    const dataUri = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error("Could not read that file."));
-      reader.readAsDataURL(file);
-    }).catch(() => null);
-
-    if (!dataUri) {
-      setLogoError("Could not read that file.");
-      return;
-    }
+    /*
+     * Straight into the cropper rather than into the form. Every place a mark
+     * is shown is a square, so a wide file had to be squeezed into one and came
+     * out crushed; this makes it square first, with the person who can see it
+     * deciding how. The cropper hands back a 512px PNG, which settles the file
+     * size too.
+     */
     setLogoError(null);
-    setLogoSvg(dataUri);
-    setLogoName(file.name);
+    setCropping(file);
   }
 
   function closeForm() {
@@ -582,13 +581,13 @@ export default function AdminPage() {
                 onChange={(event) => void readLogoFile(event.target.files?.[0])}
               />
               <span className="field__hint">
-                Their square mark — the icon-shaped one, not a wide wordmark.
-                It leads their sign-in screen and sits beside the name on their
-                board. <strong>SVG</strong> is best: it stays sharp and gets
-                painted in their accent colour. <strong>PNG or JPEG</strong>
-                works too and is shown exactly as it is, so use one with a
-                transparent background — a white one shows as a white square.
-                Up to 1 MB. Leave it empty for the calendar mark.
+                Their mark — it leads their sign-in screen and sits beside the
+                name on their board. <strong>SVG</strong> is best: it stays
+                sharp and gets painted in their accent colour.{" "}
+                <strong>PNG or JPEG</strong> works too and you will be asked to
+                position it in a square; a file with a transparent background
+                sits best, since a white one shows as a white square. Up to
+                1 MB. Leave it empty for the calendar mark.
               </span>
             </div>
             </div>
@@ -607,6 +606,21 @@ export default function AdminPage() {
             </footer>
 
             {form.prompt}
+
+            {cropping && (
+              <LogoCropper
+                file={cropping}
+                onCancel={() => {
+                  setCropping(null);
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
+                onDone={(dataUri) => {
+                  setLogoSvg(dataUri);
+                  setLogoName(cropping.name);
+                  setCropping(null);
+                }}
+              />
+            )}
           </form>
         </div>
       )}

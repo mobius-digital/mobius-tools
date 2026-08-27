@@ -250,13 +250,13 @@ const STEPS: Step[] = [
     goto: "/",
     target: ".nav .settings",
     title: "Settings — everything a team can change",
-    body: "One window, with the sections listed down the left. Your account — the name stamped on your edits, and this walkthrough. Add to your phone — the two taps that put the board on a phone or tablet home screen as its own full-screen app, no App Store. Event types — rename the options in that Type dropdown, or add your own. Channels — add a marketing channel the board does not have yet; it gets its own filter chip, its own row on every event and its own Slack channel to notify. Slack notifications — point each channel at a Slack channel and the board posts when a launch is added, moved, changes status or gets its assets, plus a reminder a week out; several edits to one event within 15 minutes arrive as one message. Users — invite people by email to sign in with Google, and change the shared team password, which signs everybody else out.",
+    body: "One window, with the sections listed down the left. Your account — the name stamped on your edits. Walkthrough — replay this, any time. Add to your phone — the two taps that put the board on a phone or tablet home screen as its own full-screen app, no App Store. Event types — rename the options in that Type dropdown, or add your own. Channels — add a marketing channel the board does not have yet; it gets its own filter chip, its own row on every event and its own Slack channel to notify. Slack notifications — point each channel at a Slack channel and the board posts when a launch is added, moved, changes status or gets its assets, plus a reminder a week out; several edits to one event within 15 minutes arrive as one message. Users — invite people by email to sign in with Google, and change the shared team password, which signs everybody else out.",
   },
   {
     id: "done",
     goto: "/",
     title: "That's the whole thing",
-    body: "You can replay this any time from Settings. Now go and put your next launch on the board.",
+    body: "You can replay this any time from Settings → Walkthrough. Now go and put your next launch on the board.",
   },
 ];
 

@@ -25,7 +25,7 @@ import { CloseButton, DirtyProvider, useCloseGuard, useDirtyTracker } from "./Un
  * until that section is opened.
  */
 
-type SectionId = "you" | "install" | "types" | "channels" | "slack" | "users";
+type SectionId = "you" | "tour" | "install" | "types" | "channels" | "slack" | "users";
 
 type Section = {
   id: SectionId;
@@ -40,7 +40,19 @@ const SECTIONS: Section[] = [
   {
     id: "you",
     label: "Your account",
-    hint: "Your name, and the walkthrough",
+    hint: "The name stamped on your edits",
+    group: "You",
+  },
+  /*
+   * Its own row rather than a button inside Your account. In the old dropdown
+   * "Replay the walkthrough" was visible at a glance; buried one click in,
+   * under a heading that does not say "tour", it may as well not exist — the
+   * first person to look for it could not find it.
+   */
+  {
+    id: "tour",
+    label: "Walkthrough",
+    hint: "Replay the two-minute tour",
     group: "You",
   },
   {
@@ -192,7 +204,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <h3 className="settings-pane__title">{current.label}</h3>
 
             <DirtyProvider report={report}>
-              {active === "you" && <AccountPanel onClose={onClose} />}
+              {active === "you" && <AccountPanel />}
+              {active === "tour" && <WalkthroughPanel onClose={onClose} />}
               {active === "install" && <InstallPanel />}
               {active === "types" && <EventTypesPanel />}
               {active === "channels" && <ChannelsPanel />}
@@ -208,13 +221,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/**
- * The two things that belong to the person rather than the board: the name
- * stamped on their edits, and the walkthrough.
- */
-function AccountPanel({ onClose }: { onClose: () => void }) {
+/** The name a person's edits are stamped with. */
+function AccountPanel() {
   const { name, promptForName, verified } = useDisplayName();
-  const { replay } = useTour();
 
   return (
     <>
@@ -246,18 +255,31 @@ function AccountPanel({ onClose }: { onClose: () => void }) {
         </>
       )}
 
-      <hr className="dialog__rule" />
+    </>
+  );
+}
 
-      <h3 className="dialog__section">The walkthrough</h3>
+/** Replaying the tour, and saying plainly what it will do. */
+function WalkthroughPanel({ onClose }: { onClose: () => void }) {
+  const { replay } = useTour();
+
+  return (
+    <>
       <p className="dialog__body">
-        A two-minute tour of the board — the pipeline, the calendar, clash
-        warnings and the changelog. Worth replaying when somebody new joins.
+        A two-minute tour of the board — the pipeline, the calendar, what makes
+        a date confirmed rather than tentative, the clash warnings, and the
+        changelog. It runs by itself the first time somebody opens this board,
+        and it is remembered per board, so a team given their own still gets it.
       </p>
-      {/* The tour points at the board behind this window, so the window
-          has to get out of its way first. */}
+      <p className="dialog__body">
+        Replaying it is safe: it only points at things and never changes
+        anything on the board.
+      </p>
+      {/* The tour points at the board behind this window, so the window has to
+          get out of its way first. */}
       <button
         type="button"
-        className="button"
+        className="button button--primary"
         onClick={() => {
           onClose();
           replay();
