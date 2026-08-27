@@ -1524,7 +1524,9 @@ function reportBodyHTML(d, summary, opts = {}) {
     if (!isFinite(off)) return '';
     const good = lower ? off <= 0.05 : off >= -0.02;
     const cls = good ? 'good' : Math.abs(off) <= 0.12 ? 'warn' : 'bad';
-    return `<span class="pill ${cls}">${fmtSigned(off)}</span>`;
+    // Round FIRST, then sign — fmtSigned on a hair-under-parity value renders "-0%".
+    const r = Math.round(off * 100);
+    return `<span class="pill ${cls}">${r > 0 ? '+' : ''}${r}%</span>`;
   };
   const kpi = (label, aV, fmt, fV, pV, lower, info) => `<div class="card" style="margin:0">
     <div class="av-label" style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px">${label}${info ? ` <span class="info-i" title="${esc(info)}">i</span>` : ''}</div>
