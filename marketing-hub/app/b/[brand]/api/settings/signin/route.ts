@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   addAllowedEmail,
   listAllowedEmails,
-  normaliseEmail,
+  normalizeEmail,
   removeAllowedEmail,
   signInConfig,
 } from "@/lib/signin";
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   try {
     validateEditorName(body.editor);
 
-    const email = normaliseEmail(body.email);
+    const email = normalizeEmail(body.email);
     if (!email) {
       return NextResponse.json(
         { error: "That does not look like an email address." },

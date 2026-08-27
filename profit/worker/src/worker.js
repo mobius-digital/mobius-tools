@@ -120,7 +120,7 @@ const isAdmin = async (request, env) => (await authKind(request, env)) === 'admi
 
 /* ---------------- Shopify OAuth ----------------
  * ONE unlisted public app installs on every client store. Public distribution is the
- * only kind that installs across separate merchant organisations - custom distribution
+ * only kind that installs across separate merchant organizations - custom distribution
  * is limited to a single store or one Plus org, and admin-created custom apps can no
  * longer be made at all. Unlisted means it never appears in App Store search, but it
  * still goes through Shopify's review, which is why the compliance webhooks below are
@@ -870,7 +870,7 @@ async function cohorts(env, acct) {
 
 /* ---------------- customer unit economics ----------------
  * Triple Whale exposes no cohort table and no CAC, so this is NOT cohort analysis
- * and must never be labelled as such - we cannot follow a January cohort through
+ * and must never be labeled as such - we cannot follow a January cohort through
  * the year without order-level customer data. What we CAN do, from metrics already
  * synced, is answer the question that actually drives a plan: what does a new
  * customer cost, what do they spend, and does their first order pay that back?
@@ -985,7 +985,7 @@ async function customerEconomics(env, acct, months = 6, days = 30) {
  * same weekday land on the same side of average every month?". So we compute one
  * index per weekday per COMPLETE month and report the RANGE. A day whose whole
  * range sits above 1.0 is genuinely strong; a day whose range straddles 1.0 is
- * noise, and is labelled as such rather than dressed up.
+ * noise, and is labeled as such rather than dressed up.
  */
 const DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -1287,7 +1287,7 @@ export default {
       try {
         const row = await env.DB.prepare(`SELECT * FROM p_profit_share WHERE token = ?1`).bind(sm[1]).first();
         if (!row) return json({ error: 'This link is no longer valid.' }, 404);
-        // null: resolve real OR demo. The share token is the authorisation here, so
+        // null: resolve real OR demo. The share token is the authorization here, so
         // letting the demo brand render its own client page is safe and gives the
         // App Store listing a screenshot that exposes no real merchant.
         const acct = (await listAccounts(env, false, null)).find(a => a.act_id === row.act_id);
@@ -1537,7 +1537,7 @@ export default {
 
         const fc = await forecastFor(env, acct, monthOf(today));
         // Deliberately mixed windows, so both are stated rather than assumed:
-        // efficiency and returning behaviour come from the most RECENT 28 days
+        // efficiency and returning behavior come from the most RECENT 28 days
         // (they move), while the revenue basis and margin come from the last
         // COMPLETE month (a part-month would lowball the goal).
         const marginSrc = lastComplete || current;

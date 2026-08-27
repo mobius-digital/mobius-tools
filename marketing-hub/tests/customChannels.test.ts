@@ -6,7 +6,7 @@ import { hasPrimaryChannel } from "../lib/calendar.ts";
 import { diffEvents } from "../lib/changelog.ts";
 import { involvedChannels, planForChange, planForCreation } from "../lib/slackPlan.ts";
 import { buildEventMessage } from "../lib/slackMessage.ts";
-import { normaliseChannels, validateEventInput } from "../lib/validation.ts";
+import { normalizeChannels, validateEventInput } from "../lib/validation.ts";
 import {
   emptyChannels,
   hydrateChannels,
@@ -71,8 +71,8 @@ test("emptyChannels builds one uninvolved entry per key, in order", () => {
   assert.deepEqual(empty.affiliate, { involved: false, priority: null });
 });
 
-test("normaliseChannels keeps configured keys, drops unknown ones, in configured order", () => {
-  const result = normaliseChannels(
+test("normalizeChannels keeps configured keys, drops unknown ones, in configured order", () => {
+  const result = normalizeChannels(
     { retail: { involved: true, priority: "primary" }, ghost: { involved: true, priority: "primary" }, paid: {} },
     KEYS,
   );
@@ -206,7 +206,7 @@ test("Slack messages use the configured label for a custom channel", () => {
   assert.ok(JSON.stringify(message.attachments).includes("Also: Paid (primary)"));
 });
 
-test("Slack messages fall back to the key when no labeller is given", () => {
+test("Slack messages fall back to the key when no labeler is given", () => {
   const message = buildEventMessage(
     { kind: "added", event: makeEvent(), lines: [], actor: "Cole" },
     { channelKey: "affiliate", boardUrl: "", typeLabel: (k: string) => k },

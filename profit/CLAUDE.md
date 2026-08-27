@@ -395,7 +395,7 @@ profit/
   broken/noisy/none - the suggestion excludes flagged days, which biases it upward,
   which is a fix when the data is broken and a trap when it is already good.
 - **`marginSVG` must not draw the axis minimum when it is zero.** `lo` is clamped
-  with `Math.min(0, ...)`, so an all-positive client puts the grey minimum label and
+  with `Math.min(0, ...)`, so an all-positive client puts the gray minimum label and
   the red zero-line label within 3px of each other at x=2 and they render on top of
   one another. Only draw the minimum when `lo < -0.005`.
 - **`.info-i` must reset `letter-spacing`, `font-style` and `text-transform`** — stat

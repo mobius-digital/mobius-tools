@@ -1,8 +1,8 @@
 /*
- * Every colour and font in this file resolves to a CSS variable produced by
+ * Every color and font in this file resolves to a CSS variable produced by
  * brand.config.ts (see lib/brand.ts). Derived shades use color-mix against
  * those variables so that a brand swap carries through them too. There are no
- * literal colour values in this stylesheet — that is a hard rule, not a habit.
+ * literal color values in this stylesheet — that is a hard rule, not a habit.
  */
 
 :root {
@@ -16,9 +16,9 @@
 
   /*
    * The brand gold as *text*. Mid-tone gold on white is roughly 2.3:1, which
-   * fails badly, so it is pulled towards the text colour: darker on a light theme,
+   * fails badly, so it is pulled towards the text color: darker on a light theme,
    * lighter on a dark one, readable on both. Fills and borders keep the true
-   * brand colour — only lettering uses this.
+   * brand color — only lettering uses this.
    */
   --color-accent-ink: color-mix(in srgb, var(--color-primary) 52%, var(--color-text));
 
@@ -291,7 +291,7 @@ button {
 
 /* The browser's own chevron sits flush against the border and ignores padding,
    so it is replaced with one drawn from two gradient squares in currentColor —
-   no image, no hex, and it inherits the field's text colour. */
+   no image, no hex, and it inherits the field's text color. */
 .select {
   appearance: none;
   -webkit-appearance: none;
@@ -558,7 +558,7 @@ button {
 }
 
 /* A span: teaser start to promo end. Confirmed is solid, tentative lighter,
-   at-risk in the danger colour. Primary is the full bar; supporting is
+   at-risk in the danger color. Primary is the full bar; supporting is
    thinner. Grows in from the left, staggered by row. */
 .scene__span {
   grid-column: var(--start) / var(--end);
@@ -1934,7 +1934,7 @@ button {
   gap: 2px;
 }
 
-/* Small day-level markers. Colour carries the kind, not the text. */
+/* Small day-level markers. Color carries the kind, not the text. */
 .pip {
   font-size: 0.65rem;
   letter-spacing: 0.02em;
@@ -2943,7 +2943,7 @@ button {
   background: var(--surface-raised);
 }
 
-/* The selected section, marked in the brand colour rather than by weight
+/* The selected section, marked in the brand color rather than by weight
    alone, so which one is open survives a glance. */
 .settings-rail__item--active,
 .settings-rail__item--active:hover {
@@ -3342,14 +3342,14 @@ button {
   border-color: var(--border-subtle);
 }
 
-/* A single-colour logo painted through a CSS mask, so the file supplies the
-   shape and the page supplies the colour. */
+/* A single-color logo painted through a CSS mask, so the file supplies the
+   shape and the page supplies the color. */
 .logo--tinted {
   display: inline-block;
   background-color: currentColor;
 }
 
-/* A full-colour logo in a fixed square slot. Without object-fit the browser
+/* A full-color logo in a fixed square slot. Without object-fit the browser
    stretches it to the box and the mark comes out crushed. */
 .logo--raster {
   object-fit: contain;
@@ -3546,7 +3546,7 @@ button {
  * Phone calendar
  * ----------------------------------------------------------------------- */
 
-/* A span narrower than its own text is noise: keep the colour and the dot
+/* A span narrower than its own text is noise: keep the color and the dot
    (status still reads), drop the letters. Tapping still opens the event. */
 .span {
   container-type: inline-size;
@@ -4188,7 +4188,7 @@ a.switcher__item:hover {
 }
 
 /* --------------------------------------------------------------------------
- * Colour picking
+ * Color picking
  * ----------------------------------------------------------------------- */
 
 .colorfield__grid {
@@ -4228,7 +4228,7 @@ a.switcher__item:hover {
   box-shadow: inset 0 0 0 2px var(--color-surface);
 }
 
-/* The OS colour dialog is opened by the swatch; the input itself never shows. */
+/* The OS color dialog is opened by the swatch; the input itself never shows. */
 .colorfield__native {
   position: absolute;
   width: 0;
@@ -4383,8 +4383,8 @@ a.switcher__item:hover {
 }
 
 /* --------------------------------------------------------------------------
- * A brand's mark on its own colour — used on the front door and Clients, so
- * a client is found by colour before the name is read.
+ * A brand's mark on its own color — used on the front door and Clients, so
+ * a client is found by color before the name is read.
  * ----------------------------------------------------------------------- */
 
 .brandmark {
@@ -4402,7 +4402,7 @@ a.switcher__item:hover {
 }
 
 /* No accent behind a raster: see BrandMark. A white-backed PNG has to be able
-   to sit flush rather than as a pale rectangle inside a coloured square. */
+   to sit flush rather than as a pale rectangle inside a colored square. */
 .brandmark--raster {
   background: var(--color-surface);
   border: 1px solid var(--border-subtle);
@@ -4482,7 +4482,7 @@ a.switcher__item:hover {
 }
 
 /* --------------------------------------------------------------------------
- * Clients: cards as they were, with the client's own colour leading the card
+ * Clients: cards as they were, with the client's own color leading the card
  * instead of a plain bar.
  * ----------------------------------------------------------------------- */
 

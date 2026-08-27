@@ -3,7 +3,7 @@
 -- The original events table pinned `type` to six built-in values with a CHECK
 -- constraint. SQLite cannot drop a constraint in place, so the table is rebuilt
 -- without it and the rows copied across. Status keeps its constraint: the app
--- branches on status, so an unrecognised one would have no defined behaviour.
+-- branches on status, so an unrecognized one would have no defined behavior.
 --
 -- Safe to run more than once? No — run it once, on a database created before
 -- editable types. A fresh database from schema.sql already has no constraint.

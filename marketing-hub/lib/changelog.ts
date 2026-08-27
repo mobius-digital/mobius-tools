@@ -49,12 +49,12 @@ function describeDate(
 }
 
 /** How a channel key reads in history. Configured labels win; built-ins fall back. */
-export type ChannelLabeller = (key: string) => string;
+export type ChannelLabeler = (key: string) => string;
 
 function describeChannels(
   before: LaunchEvent["channels"],
   after: LaunchEvent["channels"],
-  channelLabel: ChannelLabeller,
+  channelLabel: ChannelLabeler,
 ): string[] {
   const lines: string[] = [];
 
@@ -87,7 +87,7 @@ function describeChannels(
 export function diffEvents(
   before: LaunchEvent,
   after: EventInput | LaunchEvent,
-  channelLabel: ChannelLabeller = fallbackChannelLabel,
+  channelLabel: ChannelLabeler = fallbackChannelLabel,
 ): string[] {
   const lines: string[] = [];
 

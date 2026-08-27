@@ -13,7 +13,7 @@ import { CloseButton, useCloseGuard } from "./UnsavedGuard";
  * its own — which Slack channel hears about which marketing channel.
  *
  * The token is write-only from here: what comes back is a masked hint, enough
- * to recognise which one is in place and never enough to use.
+ * to recognize which one is in place and never enough to use.
  */
 
 type State = {
@@ -140,7 +140,7 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
                 Google Cloud → Credentials
               </a>{" "}
               as an OAuth client ID for a web application, listing this site as
-              an authorised JavaScript origin.
+              an authorized JavaScript origin.
             </p>
             <p className="dialog__body dialog__body--muted">
               This one is not a secret — every site with a Google button

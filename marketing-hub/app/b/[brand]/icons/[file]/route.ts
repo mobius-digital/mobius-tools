@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 /**
  * Home-screen icons, per brand, from the brands row.
  *
- * They are PNGs painted in the brand's colours when the brand was created
+ * They are PNGs painted in the brand's colors when the brand was created
  * (the Clients screen renders them in the browser). A brand with none —
  * possible only for rows made outside that screen — falls back to the
  * bundled default icons so an install never gets a broken image.

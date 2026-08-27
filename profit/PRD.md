@@ -60,7 +60,7 @@ Change Log stays available.
 - **Three ways to get costs, in order of accuracy:** (1) Shopify's per-variant
   `unitCost` pulled via the Admin API — most brands already have it; (2) manual
   per-SKU override in the Costs page for anything missing; (3) a flat margin %
-  per client as the last resort. Every profit number is labelled with which basis
+  per client as the last resort. Every profit number is labeled with which basis
   it used, and the existing `judgeCogs()` quality check gates it.
 - **Revenue is Shopify Total Sales minus sales tax** (settled 2026-08-23 by
   reconciling Triple Whale against Shopify for Lucky Golf, July 2026). Gross sales,
@@ -153,7 +153,7 @@ Change Log stays available.
 | **0** | ✅ **SHIPPED 2026-08-21** — worker on the shared D1, dashboard shell w/ SSO, **Overview** (all clients: net sales, spend, MER, aMER, new %, CM), **Profit** (waterfall + daily revenue-vs-spend chart + new/returning), **Costs** (verdict, daily-margin chart, worst days, flat-margin override). Shopify variant-cost sync and per-SKU entry deferred to 0b — needs Shopify Admin API creds. |
 | **0b** | Shopify per-variant `unitCost` sync into `p_sku_costs` + manual SKU entry UI (needs Shopify Admin API access per store) |
 | **1** | **Profit page**: daily/weekly/monthly waterfall revenue → COGS → shipping → fees → ad spend → CM, with trend charts and the cost-basis label |
-| **2** | ✅ **Calendar-aware forecasting DONE 2026-08-21** — the brief engine binds the launch-calendar D1 read-only, and non-cancelled events lift their days' targets (`calendarWeights`). Crucially it REDISTRIBUTES: weights are normalised so the month still totals the goal exactly (verified to the cent). Configured in Profit → Settings. Remaining for this phase: a dedicated Forecast page and a spend-scenario slider. |
+| **2** | ✅ **Calendar-aware forecasting DONE 2026-08-21** — the brief engine binds the launch-calendar D1 read-only, and non-cancelled events lift their days' targets (`calendarWeights`). Crucially it REDISTRIBUTES: weights are normalized so the month still totals the goal exactly (verified to the cent). Configured in Profit → Settings. Remaining for this phase: a dedicated Forecast page and a spend-scenario slider. |
 | **3** | ✅ **DONE 2026-08-23 as Customers** — CAC, first-order value, first-order margin, payback and repeat share, per client and month by month. Deliberately NOT called Cohorts: Triple Whale exposes no cohort table, no per-customer history and no CAC, so a true LTV is not derivable and the page says so. Payback is the headline because it decides whether a client can afford to bid harder. |
 | **4** | ✅ **DONE 2026-08-21** — Daily Brief moved here; Account Health is purely Meta again. Its interface is a tab in this tool; the account-health worker still owns the engine (endpoints + 14:00 UTC cron + the TW/Anthropic/Slack secrets) and Profit proxies to it over the `AUTH` service binding, so no secret is duplicated. |
 

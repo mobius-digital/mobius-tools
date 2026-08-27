@@ -265,7 +265,7 @@ const fmtPct = (n, d=1) => n == null ? '—' : (n>0?'+':'') + (n*100).toFixed(d)
 const fmtX = n => n == null ? '—' : n.toFixed(2) + 'x';
 const parseTs = iso => new Date(iso.replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(iso) ? '' : 'Z'));
 const fmtAgo = iso => { if (!iso) return 'never'; const m = (Date.now() - parseTs(iso).getTime())/60000; return m<60 ? `${Math.round(m)}m ago` : m<1440 ? `${Math.round(m/60)}h ago` : `${Math.round(m/1440)}d ago`; };
-/** delta pill: lowerIsBetter flips colouring (CPA, CPM). */
+/** delta pill: lowerIsBetter flips coloring (CPA, CPM). */
 function delta(cur, prev, lowerIsBetter=false) {
   if (cur == null || prev == null || !prev) return '<span class="delta unk">—</span>';
   const d = cur/prev - 1;
@@ -464,7 +464,7 @@ const PAGE_HELP = {
     <p><b>KPI clients</b> (no monthly target): the chips are the whole story. Green chips = KPIs holding, keep scaling. Red chip = the guardrail broke — pull back or fix creative before pushing more spend.</p>
     <p><b>The "Today, live" card</b> (one client selected): today's cumulative spend vs the average shape of the last 7 days. "vs L7 pace" over +10% = running hot, under −10% = delivery running cold — worth a look at Ads Manager either way. ↻ Refresh re-pulls from Meta.</p>
     <p><b>Projected month</b> = straight-line estimate if the current daily pace continues; <b>Projected today</b> = same idea using today's hourly pace.</p>
-    <p><b>Everything here is Meta only</b> — spend, the curve, the bars. Set a client's monthly target as their <i>Meta</i> budget. (Blended all-platform money lives on the Daily Brief page, clearly labelled as such.)</p>
+    <p><b>Everything here is Meta only</b> — spend, the curve, the bars. Set a client's monthly target as their <i>Meta</i> budget. (Blended all-platform money lives on the Daily Brief page, clearly labeled as such.)</p>
     <p><b>You don't have to check this page</b> — Slack pings the right channel automatically when someone drifts off pace or breaches a KPI.</p>`,
   changelog: `
     <p><b>What this page is:</b> the permanent record of what we changed, when, who, and why — pulled from Meta automatically every night. Nobody has to write anything down.</p>

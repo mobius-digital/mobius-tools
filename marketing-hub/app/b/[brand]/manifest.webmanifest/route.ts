@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * Lineup's on purpose: an icon per client would mean chasing an SVG for
  * every brand forever, and anyone who works across brands installs once and
  * switches inside. The brand's identity lives on the sign-in card, in the
- * nav, and in every colour on the board.
+ * nav, and in every color on the board.
  */
 export async function GET() {
   const [brand, slug] = await Promise.all([currentBrand(), currentBrandId()]);

@@ -49,7 +49,7 @@ function asOptionalDate(value: unknown): string | null {
  * key present, in configured order, nothing that is not configured, and no
  * priority left on a channel that is not involved.
  */
-export function normaliseChannels(
+export function normalizeChannels(
   raw: unknown,
   keys: readonly string[] = CHANNEL_KEYS,
 ): Channels {
@@ -74,7 +74,7 @@ export function normaliseChannels(
 }
 
 /**
- * Validates and normalises editor input, returning a row-shaped value ready to
+ * Validates and normalizes editor input, returning a row-shaped value ready to
  * write, or throwing `ValidationError` with per-field messages.
  */
 export function validateEventInput(
@@ -123,7 +123,7 @@ export function validateEventInput(
   }
 
   const channelKeys = channelOptions.map((option) => option.key);
-  const channels = normaliseChannels(input.channels, channelKeys);
+  const channels = normalizeChannels(input.channels, channelKeys);
   const involved = channelKeys.filter((key) => channels[key].involved);
 
   if (involved.length === 0) {
@@ -160,7 +160,7 @@ export function validateEventInput(
     errors.teaser_start = "Teasers have to start on or before launch day.";
   }
 
-  const assets_link = normaliseLink(input.assets_link);
+  const assets_link = normalizeLink(input.assets_link);
   if (assets_link === false) {
     errors.assets_link = "That does not look like a link — it should start with https://";
   }
@@ -196,7 +196,7 @@ export function validateEventInput(
  * `https://` assumed, since that is what people paste from an address bar most
  * of the time anyway.
  */
-export function normaliseLink(raw: unknown): string | null | false {
+export function normalizeLink(raw: unknown): string | null | false {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;

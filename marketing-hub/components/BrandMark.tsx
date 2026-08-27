@@ -5,8 +5,8 @@ import { DEFAULT_MARK_SVG } from "@/lib/defaultMark";
  *
  * The board paints its logo through a CSS mask so one file works on any
  * theme; here we are showing several brands side by side, so each gets its
- * colour as a solid tile with the mark knocked out. That is what makes a set
- * of clients scannable — you find one by colour before you read the name.
+ * color as a solid tile with the mark knocked out. That is what makes a set
+ * of clients scannable — you find one by color before you read the name.
  */
 export function BrandMark({
   accent,

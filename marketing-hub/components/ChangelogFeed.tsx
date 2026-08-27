@@ -9,7 +9,7 @@ import type { ChangelogEntry } from "@/lib/types";
  * Reverse-chronological history (PRD §4.4), grouped by day so that "what
  * happened on Tuesday" is answerable without reading timestamps.
  *
- * Entries survive their events: `event_name` is denormalised and the foreign
+ * Entries survive their events: `event_name` is denormalized and the foreign
  * key is nulled on delete, so a hard-deleted event still has readable history.
  */
 export function ChangelogFeed({ entries }: { entries: ChangelogEntry[] }) {

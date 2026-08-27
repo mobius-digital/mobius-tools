@@ -230,7 +230,7 @@ function AccountPanel() {
       {verified ? (
         <p className="dialog__body">
           Signed in as <strong>{name}</strong>, verified by your
-          organisation&apos;s login. Every edit you make is stamped with this
+          organization&apos;s login. Every edit you make is stamped with this
           name, and nothing here can change it.
         </p>
       ) : (

@@ -11,7 +11,7 @@ import "./globals.css";
  * Deliberately thin: the default palette painted here is what the front door,
  * the Clients screen and the offline page wear. Each brand's own layout under
  * /b/[brand] overrides the variables with that brand's palette, so a client
- * only ever sees their colours.
+ * only ever sees their colors.
  */
 export const metadata: Metadata = {
   title: hub.name,

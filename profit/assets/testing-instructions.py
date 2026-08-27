@@ -22,7 +22,7 @@ WHAT TO LOOK AT
 INSTALLING ON YOUR OWN TEST STORE
 Install URL: https://mobius-profit.mobius-digital.workers.dev/shopify/install?shop=YOUR-STORE.myshopify.com
 
-Please note what you will see. This app is operated for a small number of agency retainer clients, and a reporting account is created for a brand before its store is connected. Installing on a store we have not set up reporting for therefore lands on a page saying the store is connected but is not matched to a reporting account yet. That is the intended behaviour for an unknown store, not an error. The demo account above is the way to see the working product.
+Please note what you will see. This app is operated for a small number of agency retainer clients, and a reporting account is created for a brand before its store is connected. Installing on a store we have not set up reporting for therefore lands on a page saying the store is connected but is not matched to a reporting account yet. That is the intended behavior for an unknown store, not an error. The demo account above is the way to see the working product.
 
 CUSTOMER DATA
 No customer names, email addresses, postal addresses or phone numbers are read or stored. Customer data is aggregated as it is read and only monthly totals are written to our database. Cohort figures come from ShopifyQL aggregate queries, which is why read_reports is requested."""

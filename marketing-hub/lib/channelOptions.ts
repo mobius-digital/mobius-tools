@@ -61,7 +61,7 @@ export async function channelKeys(): Promise<string[]> {
 }
 
 /** A resolver from key to label, for anything rendering channels server-side. */
-export async function channelLabeller(): Promise<(key: string) => string> {
+export async function channelLabeler(): Promise<(key: string) => string> {
   const options = await listChannels();
   return (key: string) => options.find((option) => option.key === key)?.label ?? key;
 }

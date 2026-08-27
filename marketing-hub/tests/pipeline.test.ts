@@ -115,7 +115,7 @@ test("lead-up dates surface even when the launch is beyond the window", () => {
   assert.deepEqual(pipeline.beyond.map((e) => e.name), ["Holiday Campaign"]);
 });
 
-test("all three lead-up kinds are recognised, and only those", () => {
+test("all three lead-up kinds are recognized, and only those", () => {
   const pipeline = buildPipeline(
     [
       makeEvent({

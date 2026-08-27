@@ -13,7 +13,7 @@ export const EVENT_TYPES = [
  * Boards can define their own — a golf brand wants "Tour Drop", not
  * "Content Moment" — so this cannot be a closed union. Nothing branches on the
  * value; it exists to be read. Status and channel stay closed unions precisely
- * because they do drive behaviour.
+ * because they do drive behavior.
  */
 export type EventType = string;
 

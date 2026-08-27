@@ -2,7 +2,7 @@ import { getDb, rowToEvent } from "./db";
 import { currentBrandId } from "./brandContext";
 import { NotFoundError, validateEventInput } from "./validation";
 import { listEventTypes } from "./eventTypes";
-import { channelKeys, channelLabeller, hydrateChannels, listChannels } from "./channelOptions";
+import { channelKeys, channelLabeler, hydrateChannels, listChannels } from "./channelOptions";
 import { describeCreation, describeDeletion, diffEvents } from "./changelog";
 import { queueChanged, queueCreated } from "./slackNotify";
 import { EVENT_STATUSES, type ChangelogEntry, type EventStatus, type LaunchEvent } from "./types";
@@ -218,7 +218,7 @@ export async function updateEvent(
   const updated = (await getEvent(id)) as LaunchEvent;
   // Diffed against the pre-edit row, named with the post-edit name so a rename
   // reads under the name people will look for.
-  const changes = diffEvents(existing, updated, await channelLabeller());
+  const changes = diffEvents(existing, updated, await channelLabeler());
   await recordChanges(updated, changes, editor);
   // Slack is told with the same words the history uses, from the same diff.
   await queueChanged(existing, updated, changes, editor);
@@ -246,7 +246,7 @@ export async function setEventStatus(
     .run();
 
   const updated = (await getEvent(id)) as LaunchEvent;
-  const changes = diffEvents(existing, updated, await channelLabeller());
+  const changes = diffEvents(existing, updated, await channelLabeler());
   await recordChanges(updated, changes, editor);
   await queueChanged(existing, updated, changes, editor);
   return updated;
@@ -263,7 +263,7 @@ export async function deleteEvent(id: string, editor: string): Promise<void> {
   if (!existing) throw new NotFoundError();
 
   // Recorded before the row goes, so the entry exists even though the foreign
-  // key is about to be nulled. event_name is denormalised, so the history stays
+  // key is about to be nulled. event_name is denormalized, so the history stays
   // readable after the event itself is gone.
   await recordChanges(existing, [describeDeletion(existing)], editor);
 

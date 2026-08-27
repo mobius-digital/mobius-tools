@@ -10,7 +10,7 @@ import {
  * The channel lens (PRD §4.3).
  *
  * "All" is the shared view; picking a channel answers the question the PRD
- * puts at the centre of the product — what does *my* channel need to do about
+ * puts at the center of the product — what does *my* channel need to do about
  * this — by dropping everything that channel is not involved in.
  */
 

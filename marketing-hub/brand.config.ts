@@ -1,7 +1,7 @@
 /**
  * The single source of truth for every brand-specific value in this app.
  *
- * THIS IS THE FILE YOU REPLACE. Nothing else in the codebase contains a colour,
+ * THIS IS THE FILE YOU REPLACE. Nothing else in the codebase contains a color,
  * a font, a brand name, or a logo path — they all read from here through CSS
  * variables. Change these values, drop in your own `public/logo.svg`, redeploy,
  * and the whole product is yours.
@@ -15,7 +15,7 @@
  *   - `scrim` is the wash behind modals. It has to darken the page in both
  *     light and dark themes, so it is not derived from the rest of the palette.
  *   - Lettering uses a derived shade of `primary` pulled towards `text`, so a
- *     bright accent stays readable as body copy. Fills keep the pure colour.
+ *     bright accent stays readable as body copy. Fills keep the pure color.
  *   - `font.family` is requested from Google Fonts at runtime, so any family
  *     available there works with no code change.
  */
@@ -23,9 +23,9 @@ export const brand = {
   name: "Your Brand",
   logoUrl: "/logo.svg",
   /**
-   * true  — a single-colour SVG mark, painted in your accent colour (works on
+   * true  — a single-color SVG mark, painted in your accent color (works on
    *         light and dark themes from one file). This is the default.
-   * false — a full-colour logo or PNG, shown exactly as drawn.
+   * false — a full-color logo or PNG, shown exactly as drawn.
    */
   logoTint: true,
   colors: {

@@ -8,7 +8,7 @@
  * `diffEvents` and passed straight through, so Slack and the history panel can
  * never drift into describing the same edit two different ways.
  *
- * Presentation follows Pulse's alert style — a coloured bar down the left, a
+ * Presentation follows Pulse's alert style — a colored bar down the left, a
  * bold title, muted detail underneath — so the two tools look related in a
  * channel.
  *
@@ -49,7 +49,7 @@ export type MessageOptions = {
   boardUrl: string;
   typeLabel: (key: string) => string;
   channelLabel?: (key: string) => string;
-  /** The brand's own colours for the attachment bar; defaults keep the hub palette. */
+  /** The brand's own colors for the attachment bar; defaults keep the hub palette. */
   accent?: string;
   danger?: string;
 };
@@ -58,7 +58,7 @@ export type SlackMessage = {
   /** The notification preview, and the fallback where blocks cannot render. */
   text: string;
   /**
-   * An attachment rather than top-level blocks, because the coloured bar down
+   * An attachment rather than top-level blocks, because the colored bar down
    * the left only exists on attachments — and that bar is what makes an at-risk
    * launch readable at a glance in a busy channel.
    */
@@ -97,8 +97,8 @@ function context(text: string) {
   return { type: "context", elements: [{ type: "mrkdwn", text }] };
 }
 
-/** An event in trouble should not arrive wearing the same colour as good news. */
-function barColour(event: LaunchEvent, options: MessageOptions): string {
+/** An event in trouble should not arrive wearing the same color as good news. */
+function barColor(event: LaunchEvent, options: MessageOptions): string {
   return event.status === "at_risk" || event.status === "cancelled"
     ? (options.danger ?? brand.colors.danger)
     : (options.accent ?? brand.colors.primary);
@@ -303,7 +303,7 @@ function eventBlocks(
  * essentials, the run-up dates and the brief, each on its own line but all in
  * one context block so the card stays under Slack's fold.
  */
-/** The changelog's own words for a note change, so the card can recognise them. */
+/** The changelog's own words for a note change, so the card can recognize them. */
 const NOTE_LINES = new Set(["Note added", "Note updated", "Note removed"]);
 
 /** Change lines the title already states, by the kind of post they appear on. */
@@ -362,7 +362,7 @@ function previewText(
  * One event's news for one Slack channel, as one message.
  *
  * Several edits to the same event inside a window have already been folded
- * into this one item by the flush, so this still honours the "five edits, one
+ * into this one item by the flush, so this still honors the "five edits, one
  * post" promise — per event. Different events get different messages, always.
  */
 export function buildEventMessage(item: NotifyItem, options: MessageOptions): SlackMessage {
@@ -373,7 +373,7 @@ export function buildEventMessage(item: NotifyItem, options: MessageOptions): Sl
     text: previewText(item, channelKey, typeLabel, channelLabel),
     attachments: [
       {
-        color: barColour(item.event, options),
+        color: barColor(item.event, options),
         blocks: eventBlocks(item, channelKey, boardUrl, typeLabel, channelLabel),
       },
     ],
@@ -413,7 +413,7 @@ export function buildReminderMessage(
       kind === "week"
         ? `One week out: ${event.name} goes live ${formatWithWeekday(event.launch_date)}`
         : `Live tomorrow: ${event.name}`,
-    attachments: [{ color: barColour(event, options), blocks }],
+    attachments: [{ color: barColor(event, options), blocks }],
   };
 }
 

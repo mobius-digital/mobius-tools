@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS brands (
   name         TEXT NOT NULL,         -- 'Lucky Golf'
   colors       TEXT NOT NULL,         -- JSON: the palette brand.config.ts used to hold
   font         TEXT NOT NULL,         -- JSON: { family, headingWeight, bodyWeight }
-  logo_svg     TEXT,                  -- single-colour mark; NULL = default calendar mark
+  logo_svg     TEXT,                  -- single-color mark; NULL = default calendar mark
   logo_tint    INTEGER NOT NULL DEFAULT 1,
   icons        TEXT,                  -- JSON: { "180": base64png, "192": …, "512": …, "maskable": … }
   created_at   TEXT NOT NULL,

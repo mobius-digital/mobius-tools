@@ -5,7 +5,7 @@
  */
 
 /** Rejects anything that is obviously not an address before it reaches the list. */
-export function normaliseEmail(raw: unknown): string | null {
+export function normalizeEmail(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const email = raw.trim().toLowerCase();
   if (email.length < 3 || email.length > 200) return null;

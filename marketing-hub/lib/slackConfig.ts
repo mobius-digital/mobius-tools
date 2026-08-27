@@ -93,7 +93,7 @@ export async function setPlatformSlackToken(value: string): Promise<void> {
 }
 
 /**
- * Enough of the token to recognise, not enough to use.
+ * Enough of the token to recognize, not enough to use.
  *
  * Slack tokens carry their kind in the prefix, so showing it lets somebody
  * confirm at a glance that they pasted a bot token and not a user one.

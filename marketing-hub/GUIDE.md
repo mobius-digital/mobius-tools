@@ -13,14 +13,14 @@ One marketing calendar, serving every client from one address.
 A **board** shows what is going live over the next few weeks, whether each date
 is locked or still soft, and which marketing channels need to do something
 about it. Every client gets their own board, at their own address, in their own
-colours. They cannot see each other.
+colors. They cannot see each other.
 
 Everyone at Mobius who works across brands sees a **switcher** at the top left
 and moves between boards without signing in again.
 
 The product is called **Lineup** everywhere a person can see it — a client's
 browser tab, their sign-in card, their Slack posts, their home-screen icon.
-Their own name and logo sit beside it, and their colours are on everything.
+Their own name and logo sit beside it, and their colors are on everything.
 That name lives in one file, `hub.config.ts`, and nowhere else.
 
 ---
@@ -31,7 +31,7 @@ That name lives in one file, `hub.config.ts`, and nowhere else.
 already:
 
 1. **Their name** — as it should read on their board.
-2. **Three colours** — accent, page background, text. Everything else in the
+2. **Three colors** — accent, page background, text. Everything else in the
    calendar is worked out from those, so you are not picking a palette, you are
    picking three anchors. The preview shows the result as you go.
 3. **A logo, optionally.** Use the file as it comes. PNG and JPEG are fine —
@@ -39,12 +39,12 @@ already:
    place a mark appears is a square. It opens fitted, with the whole file
    visible and nothing cut; drag to move it and zoom in to crop. SVG is the one
    upgrade worth having: it stays sharp at any size and gets painted in their
-   accent colour. Up to 1 MB.
+   accent color. Up to 1 MB.
 
    Most logo files are exported on a white background. That is **taken off
    automatically** — nothing to prepare, nothing to tick. You will see it go in
    the preview, and there is a checkbox to put it back if the white was part of
-   the design. A logo on a *coloured* square is left alone, since that is
+   the design. A logo on a *colored* square is left alone, since that is
    usually the design rather than padding; the same checkbox removes it if not.
 
    The preview beside the picker shows exactly what will appear. If it looks
@@ -80,7 +80,7 @@ by every board. Clients never see this screen.
   (`/invite @your-bot`).
 
 Both fields are **write-only**. What comes back is a masked hint — enough to
-recognise which token is in place, never enough to use. A connected Slack reads
+recognize which token is in place, never enough to use. A connected Slack reads
 `connected · xoxb-…nJ0B`. That is what "it is set" looks like; there is no
 version of this screen that shows you the token back.
 
@@ -144,7 +144,7 @@ existed. Re-upload it through Clients → Edit brand and position it.
 
 **A logo has a box behind it.** A white one means the file was saved before
 backgrounds were removed automatically — re-upload it and it will be handled. A
-coloured one is left in place on purpose; re-upload and tick *Drop the flat
+colored one is left in place on purpose; re-upload and tick *Drop the flat
 background* to take it off.
 
 **A card says "7 events" but the board looks empty.** Cancelled and completed

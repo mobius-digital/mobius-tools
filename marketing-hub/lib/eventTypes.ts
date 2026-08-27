@@ -5,7 +5,7 @@
  * app branches on it. That is exactly why it is safe to let a team define their
  * own, where status and channel are not: those drive clash detection, the red
  * flag, what "Show completed" hides and what the channel filter means, so a
- * custom value would have no defined behaviour.
+ * custom value would have no defined behavior.
  *
  * Stored as JSON in `settings` so the list travels with the board and changing
  * it needs no redeploy.
@@ -135,7 +135,7 @@ export async function removeEventType(
     return { ok: false, error: "That type no longer exists." };
   }
 
-  // Removing a type that events still use would leave them labelled with a key
+  // Removing a type that events still use would leave them labeled with a key
   // nothing can resolve, so it is refused rather than silently reassigned.
   const usage = await typeUsage();
   const inUse = usage[key as string] ?? 0;

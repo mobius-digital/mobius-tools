@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Picking a brand colour without making somebody hunt in a system dialog.
+ * Picking a brand color without making somebody hunt in a system dialog.
  *
  * A row of sensible presets covers most brands in one click; the swatch opens
  * the full picker for anything else; and the hex box is there for the person
@@ -27,7 +27,7 @@ export function ColorField({
   const [draft, setDraft] = useState(value);
 
   // The hex box is free-typed, so it follows the value while somebody is
-  // clicking swatches and only pushes upward once it reads as a colour.
+  // clicking swatches and only pushes upward once it reads as a color.
   useEffect(() => setDraft(value), [value]);
 
   function commit(text: string) {
@@ -46,7 +46,7 @@ export function ColorField({
           className="colorfield__swatch"
           style={{ background: value }}
           onClick={() => nativeRef.current?.click()}
-          aria-label={`${label}: open the colour picker`}
+          aria-label={`${label}: open the color picker`}
         />
         <input
           ref={nativeRef}

@@ -54,7 +54,7 @@ type TourContext = {
 
 type Step = {
   id: string;
-  /** CSS selector to spotlight. Omit for a centred, page-level step. */
+  /** CSS selector to spotlight. Omit for a centerd, page-level step. */
   target?: string;
   title: string;
   body: string;
@@ -112,7 +112,7 @@ const STEPS: Step[] = [
     target: "#event-brief",
     keepIfMissing: true,
     title: "Brief — the offer in one sentence",
-    body: "What a media buyer needs to know before writing an ad. Good: “25% off all wedges, sitewide, no code needed.” Or: “Three new putter colourways, limited to 200 units each.” One sentence is plenty.",
+    body: "What a media buyer needs to know before writing an ad. Good: “25% off all wedges, sitewide, no code needed.” Or: “Three new putter colorways, limited to 200 units each.” One sentence is plenty.",
   },
   {
     id: "f-launch",

@@ -11,7 +11,7 @@ import { CloseButton, useCloseGuard } from "@/components/UnsavedGuard";
  * The Clients screen — agency admins only (the gate enforces it).
  *
  * Add a client and their board exists immediately at /b/<slug>/: the brand is
- * database rows, not a deployment. The home-screen icons are rasterised here
+ * database rows, not a deployment. The home-screen icons are rasterized here
  * in the browser (a canvas can draw the SVG mark; the Worker cannot) and
  * stored with the brand.
  */
@@ -157,7 +157,7 @@ export default function AdminPage() {
     // One size rule for both shapes, and a generous one. There used to be two
     // — 50 KB for an SVG, 250 KB for a raster — which meant an ordinary export
     // was refused twice over for reasons that read like a lecture. Size is the
-    // database's business, not a judgement about how the file was drawn.
+    // database's business, not a judgment about how the file was drawn.
     if (file.size > MAX_LOGO_BYTES) {
       setLogoError("That file is over 1 MB. Export the mark a little smaller and try again.");
       return;
@@ -166,7 +166,7 @@ export default function AdminPage() {
     if (isSvg) {
       const content = await file.text();
       // Not a size rule: a .svg that is not SVG inside cannot be painted in
-      // the brand colour, so it would land on the board as a blank square.
+      // the brand color, so it would land on the board as a blank square.
       if (!/^\s*<svg[\s>]/i.test(content)) {
         setLogoError("That file is named .svg but is not an SVG inside.");
         return;
@@ -197,7 +197,7 @@ export default function AdminPage() {
   /**
    * What "unsaved" means here. On a new client it is anything typed at all; on
    * an edit it is anything that differs from the row as it stands, so opening
-   * Edit and closing it again never argues with you. The three colours seed
+   * Edit and closing it again never argues with you. The three colors seed
    * from the stored palette, so they compare cleanly.
    */
   const formDirty = adding
@@ -254,7 +254,7 @@ export default function AdminPage() {
     }
   }
 
-  const previewName = name.trim() || "Client name";
+  const previewName = name.trim() || "Brand name";
 
   return (
     <div className="admin">
@@ -421,7 +421,7 @@ export default function AdminPage() {
                   </button>
                   {/* Pushed away from the other two: the one irreversible
                       action on this card should not sit a thumb's width from
-                      the one you press to change a colour. */}
+                      the one you press to change a color. */}
                   <button
                     type="button"
                     className="button button--small button--danger client-card__delete"
@@ -487,12 +487,12 @@ export default function AdminPage() {
                 value={name}
                 maxLength={40}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Dartee Golf"
+                placeholder="Brand name"
               />
             </label>
 
             <fieldset className="field-group">
-              <legend className="field__label">Brand colours</legend>
+              <legend className="field__label">Brand colors</legend>
               <div className="colorfield__grid">
                 <ColorField label="Accent" value={accent} onChange={setAccent} presets={ACCENTS} />
                 <ColorField
@@ -586,7 +586,7 @@ export default function AdminPage() {
                 position it in a square, and a white background is taken off for
                 you. <strong>SVG</strong> is the one upgrade worth having,
                 because it stays sharp at any size and gets painted in their
-                accent colour. Up to 1 MB. Leave it empty for the calendar mark.
+                accent color. Up to 1 MB. Leave it empty for the calendar mark.
               </span>
             </div>
             </div>

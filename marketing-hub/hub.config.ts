@@ -3,7 +3,7 @@
  * is called.
  *
  * There is exactly one product name, and this is it. A client's board wears
- * their brand in the way that matters — their colours, their logo, their name
+ * their brand in the way that matters — their colors, their logo, their name
  * beside it — but the thing itself is called Lineup on their tab, their
  * sign-in card, their Slack posts and their home-screen icon, the same as on
  * the front door. Two names for one product only ever confused people.

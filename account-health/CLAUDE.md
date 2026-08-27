@@ -88,7 +88,7 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
   live example. A `cm_pct` goal override is the escape hatch.
 - **The brief engine also binds the launch-calendar D1 (`CAL`, read-only).**
   `calendarEvents`/`calendarWeights` lift forecast targets on launch and promo days.
-  Weights are normalised, so the month still totals the goal — never let a change
+  Weights are normalized, so the month still totals the goal — never let a change
   make the calendar inflate the plan. Mapping + multipliers live in
   `settings.calendarConfig`; the calendar board has no brand column, so it maps to
   exactly one act_id. A calendar failure must degrade silently, never break a brief.
@@ -99,7 +99,7 @@ the Daily Brief page (net sales + spend at minimum) and flip auto-post on.
   pages + Overview are 100% META-ONLY.** Every number there matches Ads Manager.
   Google spend was folded into Pacing/Overview money and then REMOVED — mixing
   sources made it impossible to tell what was Meta at a glance. Triple Whale is
-  used ONLY by the Daily Brief page (store-level money, clearly labelled) and by
+  used ONLY by the Daily Brief page (store-level money, clearly labeled) and by
   `syncTwDaily`. Do not reintroduce blended/Google numbers into the Meta pages;
   a separate Google dashboard is the agreed path if that's ever wanted.
 - **Cole's UX rules** (see memory `ui-preferences`): media-buyer vocabulary

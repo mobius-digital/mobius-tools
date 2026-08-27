@@ -61,7 +61,7 @@ def capsule_mask(perp, along, clip_x=None):
     """A 45-degree bar with round caps.
 
     u is the axis perpendicular to the bar, v runs along it. The measured `along`
-    range includes the caps, so the centreline is inset by the radius at each end.
+    range includes the caps, so the centerline is inset by the radius at each end.
     """
     u = (X + Y) / R2
     v = (X - Y) / R2
@@ -70,7 +70,7 @@ def capsule_mask(perp, along, clip_x=None):
     uc = (u0 + u1) / 2.0
     v0 = along[0] / R2 + rad
     v1 = along[1] / R2 - rad
-    vc = np.clip(v, v0, v1)                       # nearest point on the centreline
+    vc = np.clip(v, v0, v1)                       # nearest point on the centerline
     d = np.sqrt((u - uc) ** 2 + (v - vc) ** 2) - rad
     a = np.clip(0.5 - d * k, 0, 1)
     if clip_x is not None:

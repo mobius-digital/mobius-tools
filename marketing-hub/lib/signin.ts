@@ -13,9 +13,9 @@
 import { getDb } from "./db";
 import { currentBrandId, PLATFORM } from "./brandContext";
 import { currentPasswordHash } from "./auth";
-import { normaliseEmail } from "./identity";
+import { normalizeEmail } from "./identity";
 
-export { normaliseEmail };
+export { normalizeEmail };
 
 export type SignInConfig = {
   googleClientId: string;
@@ -58,14 +58,14 @@ export async function listAllowedEmails(brandId?: string): Promise<string[]> {
 }
 
 export async function addAllowedEmail(email: string, brandId?: string): Promise<void> {
-  const normalised = normaliseEmail(email);
-  if (!normalised) throw new Error("Not an email address.");
+  const normalized = normalizeEmail(email);
+  if (!normalized) throw new Error("Not an email address.");
   await getDb()
     .prepare(
       `INSERT INTO memberships (brand_id, email, created_at) VALUES (?, ?, ?)
        ON CONFLICT(brand_id, email) DO NOTHING`,
     )
-    .bind(brandId ?? (await currentBrandId()), normalised, new Date().toISOString())
+    .bind(brandId ?? (await currentBrandId()), normalized, new Date().toISOString())
     .run();
 }
 
@@ -79,7 +79,7 @@ export async function removeAllowedEmail(
   const brandId = await currentBrandId();
   const [members, hash] = await Promise.all([listAllowedEmails(brandId), currentPasswordHash()]);
 
-  const target = normaliseEmail(email);
+  const target = normalizeEmail(email);
   if (!target) return { ok: false, error: "That is not an email address." };
 
   if (!hash && members.length <= 1 && members.includes(target)) {

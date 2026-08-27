@@ -10,7 +10,7 @@
 --
 -- Every place that read them now reads hub.config.ts, so a board's tab, its
 -- sign-in card, its Slack posts and its home-screen icon all say Lineup, over
--- the client's own colours and logo. Dropping the columns rather than leaving
+-- the client's own colors and logo. Dropping the columns rather than leaving
 -- them is the point: a column nobody reads is the next person's trap.
 --
 -- Apply with:

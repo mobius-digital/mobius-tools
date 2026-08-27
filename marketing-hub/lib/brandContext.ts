@@ -130,8 +130,8 @@ export async function emailMayOpen(email: string, slug: string): Promise<boolean
 
 /** Every brand this email can open — admins get all of them. */
 export async function brandsFor(email: string): Promise<BrandSummary[]> {
-  const normalised = email.trim().toLowerCase();
-  const admin = await isAdmin(normalised);
+  const normalized = email.trim().toLowerCase();
+  const admin = await isAdmin(normalized);
 
   type Row = { id: string; name: string; colors: string; logo_svg: string | null };
 
@@ -145,7 +145,7 @@ export async function brandsFor(email: string): Promise<BrandSummary[]> {
            JOIN memberships m ON m.brand_id = b.id
            WHERE m.email = ? ORDER BY b.created_at ASC`,
         )
-        .bind(normalised)
+        .bind(normalized)
         .all<Row>();
 
   return (results ?? []).map((row) => ({

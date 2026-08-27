@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS slack_channel_map (
 -- Pending notifications, waiting out the batch window.
 --
 -- No foreign key to events on purpose: a row must survive its event being
--- deleted mid-window (the flush skips it), and event_name is denormalised so
+-- deleted mid-window (the flush skips it), and event_name is denormalized so
 -- nothing has to be joined back to render a message.
 CREATE TABLE IF NOT EXISTS slack_outbox (
   id           TEXT PRIMARY KEY,

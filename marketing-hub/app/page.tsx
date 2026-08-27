@@ -62,7 +62,7 @@ export default async function FrontDoor() {
   //
   // Deliberately NOT redirecting when the hub happens to hold a single brand.
   // This address is the product's, not any client's — a stranger opening it
-  // should meet the sign-in screen, and the behaviour must not change under
+  // should meet the sign-in screen, and the behavior must not change under
   // everybody the day a second client is added.
   for (const cookie of jar.getAll()) {
     if (!cookie.name.startsWith("lc_s_")) continue;

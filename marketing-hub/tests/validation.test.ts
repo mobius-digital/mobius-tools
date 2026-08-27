@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   ValidationError,
-  normaliseChannels,
-  normaliseLink,
+  normalizeChannels,
+  normalizeLink,
   validateEditorName,
   validateEventInput,
 } from "../lib/validation.ts";
@@ -154,8 +154,8 @@ test("several problems are reported together, not one at a time", () => {
   ]);
 });
 
-test("normaliseChannels fills gaps and strips contradictory priorities", () => {
-  const result = normaliseChannels({
+test("normalizeChannels fills gaps and strips contradictory priorities", () => {
+  const result = normalizeChannels({
     paid: { involved: true, priority: "primary" },
     email: { involved: false, priority: "supporting" },
     organic: { involved: true, priority: "nonsense" },
@@ -170,7 +170,7 @@ test("normaliseChannels fills gaps and strips contradictory priorities", () => {
   assert.deepEqual(
     result.organic,
     { involved: true, priority: null },
-    "an unrecognised priority is dropped so validation can catch it",
+    "an unrecognized priority is dropped so validation can catch it",
   );
   assert.deepEqual(
     result.sms,
@@ -179,9 +179,9 @@ test("normaliseChannels fills gaps and strips contradictory priorities", () => {
   );
 });
 
-test("normaliseChannels copes with junk input", () => {
+test("normalizeChannels copes with junk input", () => {
   for (const junk of [null, undefined, 42, "paid", []]) {
-    const result = normaliseChannels(junk);
+    const result = normalizeChannels(junk);
     assert.deepEqual(Object.keys(result).sort(), ["email", "organic", "paid", "sms"]);
   }
 });
@@ -199,30 +199,30 @@ test("editor name is required and bounded", () => {
 /*  Assets link                                                      */
 /* ---------------------------------------------------------------- */
 
-test("normaliseLink accepts a normal https folder link as-is", () => {
+test("normalizeLink accepts a normal https folder link as-is", () => {
   assert.equal(
-    normaliseLink("https://drive.google.com/drive/folders/abc?usp=sharing"),
+    normalizeLink("https://drive.google.com/drive/folders/abc?usp=sharing"),
     "https://drive.google.com/drive/folders/abc?usp=sharing",
   );
 });
 
-test("normaliseLink forgives a missing scheme", () => {
-  assert.equal(normaliseLink("drive.google.com/x"), "https://drive.google.com/x");
-  assert.equal(normaliseLink("  www.dropbox.com/sh/abc  "), "https://www.dropbox.com/sh/abc");
+test("normalizeLink forgives a missing scheme", () => {
+  assert.equal(normalizeLink("drive.google.com/x"), "https://drive.google.com/x");
+  assert.equal(normalizeLink("  www.dropbox.com/sh/abc  "), "https://www.dropbox.com/sh/abc");
 });
 
-test("normaliseLink treats blank as no link", () => {
-  assert.equal(normaliseLink(""), null);
-  assert.equal(normaliseLink("   "), null);
-  assert.equal(normaliseLink(undefined), null);
-  assert.equal(normaliseLink(null), null);
+test("normalizeLink treats blank as no link", () => {
+  assert.equal(normalizeLink(""), null);
+  assert.equal(normalizeLink("   "), null);
+  assert.equal(normalizeLink(undefined), null);
+  assert.equal(normalizeLink(null), null);
 });
 
-test("normaliseLink refuses things that are not web links", () => {
-  assert.equal(normaliseLink("javascript:alert(1)"), false);
-  assert.equal(normaliseLink("ftp://files.example.com"), false);
-  assert.equal(normaliseLink("just some words"), false);
-  assert.equal(normaliseLink("localhost"), false);
+test("normalizeLink refuses things that are not web links", () => {
+  assert.equal(normalizeLink("javascript:alert(1)"), false);
+  assert.equal(normalizeLink("ftp://files.example.com"), false);
+  assert.equal(normalizeLink("just some words"), false);
+  assert.equal(normalizeLink("localhost"), false);
 });
 
 test("validateEventInput reports a bad assets link on its own field", () => {

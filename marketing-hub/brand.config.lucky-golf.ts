@@ -13,9 +13,9 @@ export const brand = {
   name: "Lucky Golf",
   logoUrl: "/logo.svg",
   /**
-   * true  — a single-colour SVG mark, painted in your accent colour (works on
+   * true  — a single-color SVG mark, painted in your accent color (works on
    *         light and dark themes from one file). This is the default.
-   * false — a full-colour logo or PNG, shown exactly as drawn.
+   * false — a full-color logo or PNG, shown exactly as drawn.
    */
   logoTint: true,
   colors: {

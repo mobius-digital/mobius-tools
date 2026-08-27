@@ -5,7 +5,7 @@ import { brand as defaultBrand, type Brand } from "@/brand.config";
  *
  * This is the only place brand values cross from TypeScript into CSS. Every
  * stylesheet rule references these variables via `var(--…)`; none of them may
- * restate a literal colour or font.
+ * restate a literal color or font.
  */
 export function brandCssVariables(brand: Brand = defaultBrand): string {
   const { colors, font } = brand;

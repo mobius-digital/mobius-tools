@@ -1,9 +1,9 @@
 /**
- * Three colours in, the calendar's full palette out.
+ * Three colors in, the calendar's full palette out.
  *
  * The Clients screen asks for accent, background and text — the three choices
  * a brand actually has an opinion about — and the rest is derived to match:
- * surfaces, muted text, the colour that sits on the accent. Same maths the
+ * surfaces, muted text, the color that sits on the accent. Same math the
  * standalone console used, kept here so brands created in-app and any future
  * importer agree.
  */
@@ -40,7 +40,7 @@ export function derivePalette({ accent, background, text }: PaletteSeed) {
     background,
     surface: lightPage ? "#FFFFFF" : mix(background, "#FFFFFF", 0.07),
     primary: accent,
-    // White on a dark accent, the text colour on a light one.
+    // White on a dark accent, the text color on a light one.
     primaryText: luminance(accent) > 0.45 ? text : "#FFFFFF",
     text,
     textMuted: mix(text, background, 0.42),

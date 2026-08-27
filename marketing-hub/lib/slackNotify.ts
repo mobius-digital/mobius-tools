@@ -20,7 +20,7 @@
 
 import { getDb, rowToEvent } from "./db";
 import { currentBrand, currentBrandId } from "./brandContext";
-import { channelLabeller } from "./channelOptions";
+import { channelLabeler } from "./channelOptions";
 import { listEventTypes } from "./eventTypes";
 import { addDays, todayIso } from "./dates";
 import { postMessage } from "./slack";
@@ -217,7 +217,7 @@ const POST_GAP_MS = 350;
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-async function typeLabeller(): Promise<(key: string) => string> {
+async function typeLabeler(): Promise<(key: string) => string> {
   const types = await listEventTypes();
   return (key: string) => types.find((option) => option.key === key)?.label ?? key;
 }
@@ -270,8 +270,8 @@ export async function flushOutbox(
   const [token, map, typeLabel, channelLabel] = await Promise.all([
     slackToken(),
     channelMap(),
-    typeLabeller(),
-    channelLabeller(),
+    typeLabeler(),
+    channelLabeler(),
   ]);
   const { colors } = await currentBrand();
 
@@ -462,8 +462,8 @@ export async function runReminders(now: Date = new Date()): Promise<{ posted: nu
   const [token, map, typeLabel, channelLabel] = await Promise.all([
     slackToken(),
     channelMap(),
-    typeLabeller(),
-    channelLabeller(),
+    typeLabeler(),
+    channelLabeler(),
   ]);
   const { colors } = await currentBrand();
 

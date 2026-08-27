@@ -38,7 +38,7 @@ export function LogoCropper({
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [dropBackground, setDropBackground] = useState(false);
-  /** True when the border is one flat colour, so there is a background to drop. */
+  /** True when the border is one flat color, so there is a background to drop. */
   const [hasFlatBackground, setHasFlatBackground] = useState(false);
   /** Whether the drop was applied without being asked for. */
   const [autoDropped, setAutoDropped] = useState(false);
@@ -139,7 +139,7 @@ export function LogoCropper({
 
   function changeZoom(next: number) {
     setZoom(next);
-    // Zooming back out can leave the image parked off-centre with a gap.
+    // Zooming back out can leave the image parked off-center with a gap.
     setOffset((current) => {
       const image = imageRef.current;
       if (!image) return current;
@@ -221,7 +221,7 @@ export function LogoCropper({
             {/* Offered, not urged. A logo exported for a white page carries
                 the white with it, and on a board with pale surfaces — which is
                 most of them — that is invisible and nothing needs doing. It is
-                here for the board whose colours would show it up. */}
+                here for the board whose colors would show it up. */}
             {hasFlatBackground && (
               <label className="cropper__option">
                 <input
@@ -234,7 +234,7 @@ export function LogoCropper({
                   <span className="cropper__option-hint">
                     {autoDropped
                       ? "This file came on a white background, so it has been taken off for you — the chequerboard is what transparent looks like. Untick to keep it."
-                      : "Clears the flat colour from the edges inwards, leaving anything enclosed by the mark alone. Worth it if the board's own colours would show a square behind the mark."}
+                      : "Clears the flat color from the edges inwards, leaving anything enclosed by the mark alone. Worth it if the board's own colors would show a square behind the mark."}
                   </span>
                 </span>
               </label>
@@ -293,12 +293,12 @@ function pixels(image: HTMLImageElement): {
  * without being asked?
  *
  * Judged from the border rather than the whole picture: a logo may be mostly
- * one colour without that colour being a background.
+ * one color without that color being a background.
  *
  * `paddedWithWhite` is the difference between padding and design. Almost no
  * mark is *drawn* as a white square — a white square on a white page is
  * nothing — so white around the edges is virtually always the page the logo
- * was exported on. A coloured square usually is the design (think of any app
+ * was exported on. A colored square usually is the design (think of any app
  * icon), so that is offered rather than assumed.
  */
 function borderIsFlat(image: HTMLImageElement): { flat: boolean; paddedWithWhite: boolean } {
@@ -337,11 +337,11 @@ function borderIsFlat(image: HTMLImageElement): { flat: boolean; paddedWithWhite
 }
 
 /**
- * Clears the background colour, flooding inwards from the edges.
+ * Clears the background color, flooding inwards from the edges.
  *
  * A flood rather than "delete every white pixel", because a mark often has
  * white *inside* it — the gap in a letter, a highlight — and deleting that
- * would punch holes through the logo. Only colour reachable from the border
+ * would punch holes through the logo. Only color reachable from the border
  * without crossing the mark is background.
  */
 function withBackgroundDropped(image: HTMLImageElement): HTMLCanvasElement | null {

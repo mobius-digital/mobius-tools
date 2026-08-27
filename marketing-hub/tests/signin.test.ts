@@ -1,20 +1,20 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { nameFromEmail, normaliseEmail } from "../lib/identity.ts";
+import { nameFromEmail, normalizeEmail } from "../lib/identity.ts";
 import { cleanLabel, keyFromLabel } from "../lib/validation.ts";
 
-test("normaliseEmail accepts a real address and lowercases it", () => {
-  assert.equal(normaliseEmail("  Dana@Example.COM "), "dana@example.com");
+test("normalizeEmail accepts a real address and lowercases it", () => {
+  assert.equal(normalizeEmail("  Dana@Example.COM "), "dana@example.com");
 });
 
-test("normaliseEmail rejects things that are not addresses", () => {
+test("normalizeEmail rejects things that are not addresses", () => {
   for (const junk of ["", "cole", "cole@", "@company.com", "cole@company", "a b@c.com", null, 42]) {
-    assert.equal(normaliseEmail(junk), null, `should reject ${JSON.stringify(junk)}`);
+    assert.equal(normalizeEmail(junk), null, `should reject ${JSON.stringify(junk)}`);
   }
 });
 
-test("normaliseEmail rejects an absurdly long address", () => {
-  assert.equal(normaliseEmail(`${"a".repeat(300)}@company.com`), null);
+test("normalizeEmail rejects an absurdly long address", () => {
+  assert.equal(normalizeEmail(`${"a".repeat(300)}@company.com`), null);
 });
 
 test("nameFromEmail builds a readable name from the local part", () => {

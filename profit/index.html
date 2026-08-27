@@ -613,7 +613,7 @@ const PAGE_HELP = {
     <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning at the time set on the Settings tab (default <b>9:00 AM Central</b>), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
   plan: `
     <p><b>What this page is:</b> the monthly conversation with your client, turned into the number everything else is measured against. A forecast nobody agreed to is just a guess.</p>
-    <p><b>Why there are three boxes:</b> revenue, ad spend and MER are one equation — <b>revenue = MER × spend</b>. Fix any two and the third is decided for you. So you type into two of them, and the greyed-out one does the arithmetic. Press <b>calculate this instead</b> on a box to move which one is derived.</p>
+    <p><b>Why there are three boxes:</b> revenue, ad spend and MER are one equation — <b>revenue = MER × spend</b>. Fix any two and the third is decided for you. So you type into two of them, and the grayed-out one does the arithmetic. Press <b>calculate this instead</b> on a box to move which one is derived.</p>
     <p><b>The three ways people actually plan:</b><br>
     · <i>"We want $100k and we'll spend $40k"</i> — type revenue and spend, read the MER it needs.<br>
     · <i>"We have $40k and need 2.5x"</i> — type spend and MER, read the revenue it buys.<br>
@@ -622,7 +622,7 @@ const PAGE_HELP = {
     · The <b>revenue basis</b> ("+10% on July") is that month's <b>actual</b> — a whole finished month, never a part-month, which would lowball the goal.<br>
     · The <b>acquisition efficiency</b> and the <b>returning revenue</b> estimate come from the <b>last 28 days</b>, with the exact dates shown. Recent, not a six-month average, because efficiency moves and you care what the account is doing now.<br>
     · The <b>product margin</b> is the last complete month's.<br>
-    The six-month table above is context for your judgement — the maths does not average it.</p>
+    The six-month table above is context for your judgment — the math does not average it.</p>
     <p><b>The verdict line is the honest bit.</b> Any plan implies a rate at which you buy new customers. The page compares that with what this client has actually been getting over the last 28 days and tells you plainly whether the plan is <b>achievable</b>, <b>a stretch</b>, or <b>unrealistic</b>. A goal that needs 40% better efficiency than the account has ever delivered is a wish, not a plan.</p>
     <p><b>How to run it:</b> open the client before your monthly call. The six-month table shows what actually happened. Pick a growth level and the page tells you what that goal <i>costs</i> — because returning customers arrive largely on their own, but everything above that has to be bought, at this client's own acquisition efficiency.</p>
     <p><b>Watch the contribution margin.</b> If pushing growth harder makes expected CM go <i>down</i>, you're buying revenue that doesn't pay for itself. The page says so outright.</p>
@@ -638,7 +638,7 @@ const PAGE_HELP = {
     <p><b>Payback above 1.0x means the client is profitable on the first order</b> and can afford to bid harder for customers. Below 1.0x means the business depends on people coming back, and the repeat share becomes the number that has to hold up. Neither is wrong — but they are completely different businesses to run, and the plan should reflect which one you have.</p>
     <p><b>Most of this page is not cohort analysis</b> — Triple Whale has no per-customer history, so CAC, payback and repeat share are monthly averages. <b>Lifetime value by cohort is the exception:</b> it comes from Shopify, groups customers by the month they first bought, and follows them forward. It only appears for clients whose Shopify is connected.</p>
     <p><b>Why the cohort card matters most:</b> "we can pay more for customers because they come back" is the usual argument for raising CAC, and it is only true if the curve says so. If a cohort is worth barely more at ten months than at one, the first order <i>is</i> the lifetime value and every acquisition has to pay for itself immediately.</p>
-    <p><b>The current month is shown but excluded from the headline</b> — its new customers have not had time to come back yet, so including it would understate repeat behaviour.</p>`,
+    <p><b>The current month is shown but excluded from the headline</b> — its new customers have not had time to come back yet, so including it would understate repeat behavior.</p>`,
   settings: `
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
     <p><b>This page is only about what your client sees.</b> Internal pace and KPI alerts for your media buyer are configured in <b>Account Health → Settings</b> — different audience, different tool.</p>
@@ -1168,7 +1168,7 @@ async function renderCosts(first) {
   $('#main').innerHTML = `<h2>Costs — ${esc(d.account.name)}</h2>
     <p class="sub">Can we trust this client's product costs? Everything profit-related — here and in the Daily Brief — depends on the answer.</p>
     <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
-    ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> — the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost — not of a broken product catalogue.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
+    ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> — the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost — not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
       : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
       : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) — the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} — clear the override below to use it.`}</div></div>`
       : h.verdict === 'none' ? `<div class="notice warn">ℹ️ <div><b>No cost data at all.</b> Triple Whale has no COGS for this client, so no profit figure can be calculated. Add costs in Triple Whale, or set a flat margin below.</div></div>`
@@ -1180,7 +1180,7 @@ async function renderCosts(first) {
       ${statCard('Days checked', String(u.days ?? 0), 'with both sales and cost data', 'How many days in the 60-day window had enough data to judge.')}
     </div>
     <div class="card"><h3 style="margin-bottom:2px">Daily margin, last 60 days <span class="info-i" title="Each day\’s gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of that day\’s revenue. Real cost data barely moves day to day.">i</span></h3>
-      <p class="hint" style="margin-bottom:6px">Retail-only cost data draws a nearly flat line. Every spike below the red zero line is a day where product cost exceeded store revenue — the fingerprint of a wholesale order or an inventory delivery, not of a bad product catalogue.</p>
+      <p class="hint" style="margin-bottom:6px">Retail-only cost data draws a nearly flat line. Every spike below the red zero line is a day where product cost exceeded store revenue — the fingerprint of a wholesale order or an inventory delivery, not of a bad product catalog.</p>
       ${marginSVG(d.rows)}</div>
     ${fulfilSection(d.shipping, cur, S.act, winSales, 60, d.margin_pct)}
     ${d.worst?.length ? `<div class="card"><h3 style="margin-bottom:8px">Worst days</h3>
@@ -1632,7 +1632,7 @@ async function renderPlan(first) {
   };
 
   // Every derived number states its own window. The mix is deliberate: efficiency
-  // and returning behaviour move, so they come from the most recent 28 days, while
+  // and returning behavior move, so they come from the most recent 28 days, while
   // the revenue basis and margin come from a whole finished month. Declared above
   // cmHtml because that reads it too — the CM comparison and the "Based on" box
   // must always name the same month.
@@ -1758,7 +1758,7 @@ async function renderPlan(first) {
       ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> — ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>
 
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
-      <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the greyed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
+      <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the grayed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
       ${staleBasis()}
       <div style="margin-bottom:14px">${basisNote()}</div>
       <div class="row" style="gap:8px;margin-bottom:12px">
@@ -2043,7 +2043,7 @@ function cohortCard(co, cur) {
     : uplift < 0.15
     ? `<div class="notice warn">⚠️ <div><b>Coming back adds very little here.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so only <b>${pct0(uplift)}</b> of purchases come after the first. The opening order essentially <i>is</i> the lifetime value, which means <b>"we can pay more because they come back" does not hold for this client</b> — every acquisition has to justify itself on order one.</div></div>`
     : uplift < 0.4
-    ? `<div class="notice">ℹ️ <div><b>Repeat buying adds a modest amount.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so <b>${pct0(uplift)}</b> of purchases come after the first — real, but not enough to carry a CAC the opening order could not cover on its own. Treat it as a cushion, not a licence to bid up.</div></div>`
+    ? `<div class="notice">ℹ️ <div><b>Repeat buying adds a modest amount.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so <b>${pct0(uplift)}</b> of purchases come after the first — real, but not enough to carry a CAC the opening order could not cover on its own. Treat it as a cushion, not a license to bid up.</div></div>`
     : `<div class="notice">✓ <div><b>Customers get materially more valuable over time.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so <b>${pct0(uplift)}</b> of purchases come after the first. That is genuine headroom: you can afford a CAC the opening order alone would not justify, as long as the repeat rate holds.</div></div>`;
 
   const card = (label, value, sub, info) => `<div class="card" style="margin:0">

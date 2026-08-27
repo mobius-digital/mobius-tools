@@ -3,7 +3,7 @@ import { visibleEvents, type PipelineOptions } from "./pipeline.ts";
 import type { IsoDate, LaunchEvent } from "./types.ts";
 
 /**
- * Calendar-view maths (PRD §4.2): how far an event stretches, which events
+ * Calendar-view math (PRD §4.2): how far an event stretches, which events
  * collide, and how spans stack inside a week row.
  */
 
@@ -107,10 +107,10 @@ export function collisionClusters(events: LaunchEvent[]): LaunchEvent[][] {
     while (queue.length > 0) {
       const current = queue.shift()!;
       cluster.push(byId.get(current)!);
-      for (const neighbour of adjacency.get(current) ?? []) {
-        if (!seen.has(neighbour)) {
-          seen.add(neighbour);
-          queue.push(neighbour);
+      for (const neighbor of adjacency.get(current) ?? []) {
+        if (!seen.has(neighbor)) {
+          seen.add(neighbor);
+          queue.push(neighbor);
         }
       }
     }

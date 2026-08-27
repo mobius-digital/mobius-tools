@@ -1,12 +1,12 @@
 /**
  * Renders the home-screen icons in public/icons/ from public/logo.svg and the
- * colours in brand.config.ts.
+ * colors in brand.config.ts.
  *
  *   npm run icons
  *
  * Phones want PNG icons, and iOS cannot tint one the way the in-app logo is
- * tinted, so the accent colour is baked in here. Each icon is the logo on a
- * solid tile of the brand's primary colour (logoTint: true) — or the logo as
+ * tinted, so the accent color is baked in here. Each icon is the logo on a
+ * solid tile of the brand's primary color (logoTint: true) — or the logo as
  * drawn on the page background (logoTint: false). The maskable variant keeps
  * the mark inside the safe zone Android crops to.
  *
@@ -54,8 +54,8 @@ const logoPath = join(root, "public", brand.logoUrl.replace(/^\//, ""));
 const logo = await readFile(logoPath, "utf8");
 const tinted = brand.logoTint !== false;
 
-// An untinted (full-colour) logo sits on the page background; a tinted mark
-// sits on the accent and is painted in the colour that contrasts with it.
+// An untinted (full-color) logo sits on the page background; a tinted mark
+// sits on the accent and is painted in the color that contrasts with it.
 const tile = tinted ? brand.colors.primary : brand.colors.background;
 const ink = tinted ? brand.colors.primaryText : "inherit";
 

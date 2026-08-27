@@ -22,7 +22,7 @@ export type PlannedNotice = {
 
 /**
  * The channels an event involves, in the order they were saved — which is the
- * board's configured order at the time, since `normaliseChannels` writes them
+ * board's configured order at the time, since `normalizeChannels` writes them
  * that way.
  */
 export function involvedChannels(event: LaunchEvent): ChannelKey[] {

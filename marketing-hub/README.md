@@ -22,14 +22,14 @@ the product is called Lineup — and that name lives in `hub.config.ts` alone.
   stamps `x-brand-id` — which `lib/brandContext.ts` then treats as the single
   source of brand truth for every query.
 - `brands` table = what `brand.config.ts` used to bake in per deploy
-  (colours, font, names, logo, icons). `app/b/[brand]/layout.tsx` turns it
+  (colors, font, names, logo, icons). `app/b/[brand]/layout.tsx` turns it
   into CSS variables per request.
 - `memberships` = who can open what. Brand `*` marks an agency admin: every
   board, plus `/admin` (the Clients screen) where adding a client is an
   insert — the board exists in under a second.
 - One cron tick loops every brand (see `worker-entry.js`). The trigger is
   commented out in `wrangler.jsonc` until cutover frees the account's slot.
-- Icons are rasterised in the browser when a client is created; per-brand
+- Icons are rasterized in the browser when a client is created; per-brand
   manifest/icons/logo are served under `/b/<brand>/…` so each brand installs
   to a phone as its own app.
 

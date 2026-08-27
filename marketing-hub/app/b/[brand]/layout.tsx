@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description: `What's launching, when, and which channels need to care — ${brand.name}.`,
     // The wrapper is the product, the contents are the client's: the tab icon
     // and the installed app wear Lineup so nobody has to supply a logo per
-    // client, and anyone working across brands keeps one recognisable icon.
+    // client, and anyone working across brands keeps one recognizable icon.
     // The brand's own mark still leads the sign-in card and the nav inside.
     icons: { icon: "/lineup.svg", apple: "/icons/hub-180.png" },
     manifest: `/b/${slug}/manifest.webmanifest`,

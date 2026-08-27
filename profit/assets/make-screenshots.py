@@ -4,9 +4,9 @@
 The browser gives 1568x772 (the viewport left beside the side panel), which is 2.03:1
 against Shopify's 16:9. Padding it out to 16:9 leaves letterbox bands that read as a
 badly made screenshot, so instead each shot is scaled to fill 900px of height and
-centre-cropped to 1600 wide - full bleed, no bands.
+center-cropped to 1600 wide - full bleed, no bands.
 
-The crop takes 114px off each side. That is safe because the dashboard centres its
+The crop takes 114px off each side. That is safe because the dashboard centers its
 content: at a 1568px layout the leftmost element sits around x=175 and the rightmost
 around x=1360, both comfortably inside what survives. `check_bounds` re-verifies that
 on every run rather than trusting the arithmetic.

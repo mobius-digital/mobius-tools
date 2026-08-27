@@ -2,7 +2,7 @@
  * The icons a phone or tablet uses once the board is on its home screen.
  *
  * These are PNGs in `public/icons/`, generated from `public/logo.svg` and the
- * brand colours by `npm run icons` (see scripts/make-icons.mjs). They have to be
+ * brand colors by `npm run icons` (see scripts/make-icons.mjs). They have to be
  * PNG: iOS will not take an SVG for a home-screen icon, and it cannot tint one
  * the way the in-app logo is tinted, so the accent is baked in at build time.
  *

@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { PLATFORM, isValidSlug, type BrandRow } from "@/lib/brandContext";
 import { HEX, derivePalette } from "@/lib/palette";
 import { setPassword } from "@/lib/auth";
-import { normaliseEmail } from "@/lib/identity";
+import { normalizeEmail } from "@/lib/identity";
 
 /**
  * One logo size rule, matching the Add/Edit form: 1 MB of file. A raster
@@ -82,7 +82,7 @@ async function overview() {
     try {
       accent = (JSON.parse(row.colors) as { primary?: string }).primary ?? accent;
     } catch { /* default */ }
-    // The three colours the palette was derived from are recoverable from the
+    // The three colors the palette was derived from are recoverable from the
     // palette itself, so an edit form can prefill without storing them twice.
     let palette: Record<string, string> = {};
     try {
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
     // ---- member management ---------------------------------------------
     if (body.action === "add-member" || body.action === "remove-member") {
       const slug = typeof body.slug === "string" ? body.slug : "";
-      const email = normaliseEmail(body.email);
+      const email = normalizeEmail(body.email);
       if (!isValidSlug(slug) || !email) {
         return NextResponse.json({ error: "Bad brand or email." }, { status: 422 });
       }
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
     const colors = body.colors ?? {};
     for (const key of ["accent", "background", "text"] as const) {
       if (!HEX.test(String(colors[key] ?? ""))) {
-        return NextResponse.json({ error: "Pick all three colours." }, { status: 422 });
+        return NextResponse.json({ error: "Pick all three colors." }, { status: 422 });
       }
     }
     const palette = derivePalette({
@@ -234,7 +234,7 @@ export async function POST(request: Request) {
 
     const font = FONTS.includes(String(body.font)) ? String(body.font) : "Inter";
 
-    // Two shapes are allowed. SVG markup is painted in the accent colour via a
+    // Two shapes are allowed. SVG markup is painted in the accent color via a
     // CSS mask, so one file suits any background. A PNG or JPEG arrives as a
     // data: URI and is shown exactly as drawn, since a raster cannot be tinted.
     let logoSvg: string | null = null;

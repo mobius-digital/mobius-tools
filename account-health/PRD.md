@@ -68,7 +68,7 @@ Chats 3 and 4 are optional; the tool is already useful after Chat 2.
 Google spend (via Triple Whale) was added to Pacing/Overview money, then **removed
 at Cole's call**: mixing platforms made it impossible to tell at a glance which
 numbers were Meta. **The four Meta pages + Overview are Meta-only, always.** Triple
-Whale stays for the Daily Brief (store-level money, labelled as such). If
+Whale stays for the Daily Brief (store-level money, labeled as such). If
 cross-platform reporting is wanted, it gets its own dashboard.
 
 ## Decisions (Chat 5 — Daily Brief)
@@ -76,7 +76,7 @@ cross-platform reporting is wanted, it gets its own dashboard.
 - **Money = Triple Whale, performance = Meta** (unchanged): Net Sales uses TW
   `netSales` (fallback `totalSales`), Total Spend uses TW `blendedAds`
   (fallback Meta spend + `ga_adCost`), new/returning from `newCustomerSales` /
-  `rcRevenue`. Meta ROAS stays Meta-attributed and is labelled as such.
+  `rcRevenue`. Meta ROAS stays Meta-attributed and is labeled as such.
 - **aMER = new-customer revenue ÷ total ad spend** (reverse-engineered from
   CTC's real numbers; checks out exactly). **CM basis**, most explicit first:
   goals `cm_pct` override → TW `grossProfit` − fees − spend → netSales −
@@ -106,7 +106,7 @@ cross-platform reporting is wanted, it gets its own dashboard.
   Verified against TW's own `mer` metric, which is really spend-as-%-of-revenue
   (blendedAds / totalSales x 100) - confirming `blendedAds` is genuine total
   blended spend and `newCustomerSales` is Shopify store-level, NOT ad-attributed.
-  ROAS stays attributed and is labelled as such in the channel line.
+  ROAS stays attributed and is labeled as such in the channel line.
 - **Revenue split is rebased onto Net Sales.** TW reports newCustomerSales +
   rcRevenue = `totalSales` (Order Revenue, incl. tax), but the headline uses
   `netSales` (ex-tax). The raw split therefore didn't add up to the headline

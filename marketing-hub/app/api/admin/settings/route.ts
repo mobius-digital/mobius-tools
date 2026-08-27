@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * lets admins this far.
  *
  * Neither secret is ever returned. The Slack token comes back masked, enough
- * to recognise which one is in place and never enough to use.
+ * to recognize which one is in place and never enough to use.
  */
 async function state() {
   const [clientId, token] = await Promise.all([googleClientId(), platformSlackToken()]);

@@ -223,7 +223,7 @@ const money = (n, cur) => {
 
 /** Budget extra_data comes in two shapes: flat {old_value, new_value} in cents, or
  *  "composite_data" where each side is {type:'payment_amount', currency, old_value|new_value,
- *  additional_value:'Per day'|...}. Normalise both to {oldCents, newCents, cur, perStr}. */
+ *  additional_value:'Per day'|...}. Normalize both to {oldCents, newCents, cur, perStr}. */
 function budgetValues(x, ev) {
   let oldV = x.old_value, newV = x.new_value;
   let cur = x.currency, perStr = `${x.type || ''} ${ev.event_type || ''}`;
@@ -552,7 +552,7 @@ async function twSummary(env, shopDomain, start, end) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Triple Whale: ${body.message || body.error || `HTTP ${res.status}`}`);
-  // Normalise to {name: value} — TW's response shape has varied across versions.
+  // Normalize to {name: value} — TW's response shape has varied across versions.
   const map = {};
   const num = v => typeof v === 'number' && isFinite(v) ? v
     : typeof v === 'string' && v.trim() !== '' && isFinite(+v) ? +v
@@ -1188,7 +1188,7 @@ async function hourlyPacing(env, acct) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Creative rotation maths (Chat 3)                                   */
+/*  Creative rotation math (Chat 3)                                   */
 /* ------------------------------------------------------------------ */
 
 /** Per-ad rollup for the selected window: who's carrying spend, who's earning it.
@@ -1295,7 +1295,7 @@ async function creative(env, acct, freshDays, windowDays) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Overview maths (all clients in one table)                          */
+/*  Overview math (all clients in one table)                          */
 /* ------------------------------------------------------------------ */
 
 function agg(rows) {

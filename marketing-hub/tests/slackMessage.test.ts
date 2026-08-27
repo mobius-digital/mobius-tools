@@ -155,7 +155,7 @@ test("names with Slack's reserved characters survive intact", () => {
   assert.ok(message.text.includes("Buy 1 & Get 1 <Members Only>"));
 });
 
-test("an at-risk launch is coloured differently from good news", () => {
+test("an at-risk launch is colored differently from good news", () => {
   const healthy = buildEventMessage(item({ kind: "created" }), OPTIONS);
   const risky = buildEventMessage(item({ event: makeEvent({ status: "at_risk" }), lines: ["Status: …"] }), OPTIONS,
   );

@@ -7,7 +7,7 @@ import type { IsoDate } from "./types";
  * built from `new Date("2026-08-12")` is midnight UTC, which is 8pm the
  * previous day in New York — enough to shift a launch into the wrong week for
  * every user west of Greenwich. Nothing in this module ever constructs a local
- * `Date` from an ISO string, and nothing outside it does date maths at all.
+ * `Date` from an ISO string, and nothing outside it does date math at all.
  *
  * The one deliberate exception is `todayIso`, which must read the viewer's
  * local calendar day to answer "what is this week for me".
@@ -196,7 +196,7 @@ export function horizonEnd(today: IsoDate): IsoDate {
 
 /**
  * The Monday-aligned grid for a month view: whole weeks covering the month,
- * including the leading and trailing days that belong to neighbouring months.
+ * including the leading and trailing days that belong to neighboring months.
  */
 export function monthGrid(monthAnchor: IsoDate): IsoDate[][] {
   const first = startOfMonth(monthAnchor);

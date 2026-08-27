@@ -209,7 +209,7 @@ export function SlackPanel() {
                     >
                       <option value="">Don't notify</option>
                       {/* A channel the bot is not in cannot be posted to, so
-                          it is offered but labelled rather than hidden — the
+                          it is offered but labeled rather than hidden — the
                           fix is one /invite away and worth naming. */}
                       {settings.slackChannels?.map((channel) => (
                         <option key={channel.id} value={channel.id}>
