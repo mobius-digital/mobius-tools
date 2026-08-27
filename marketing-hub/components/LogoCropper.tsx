@@ -210,9 +210,10 @@ export function LogoCropper({
               </span>
             </label>
 
-            {/* Only offered when there is something to drop. A mark exported
-                for a white page carries the white with it, which is invisible
-                on this app's pale surfaces and a white box everywhere else. */}
+            {/* Offered, not urged. A logo exported for a white page carries
+                the white with it, and on a board with pale surfaces — which is
+                most of them — that is invisible and nothing needs doing. It is
+                here for the board whose colours would show it up. */}
             {hasFlatBackground && (
               <label className="cropper__option">
                 <input
@@ -221,11 +222,12 @@ export function LogoCropper({
                   onChange={(event) => setDropBackground(event.target.checked)}
                 />
                 <span>
-                  Drop the flat background
+                  Drop the flat background — optional
                   <span className="cropper__option-hint">
-                    Clears the solid colour around the mark, working inwards
-                    from the edges — anything enclosed by the mark is left
-                    alone. The chequerboard is what transparent looks like.
+                    Only worth it if the board&apos;s own colours would show a
+                    square behind the mark. Clears the flat colour from the
+                    edges inwards and leaves anything enclosed by the mark
+                    alone; the chequerboard is what transparent looks like.
                   </span>
                 </span>
               </label>

@@ -34,14 +34,18 @@ already:
 2. **Three colours** — accent, page background, text. Everything else in the
    calendar is worked out from those, so you are not picking a palette, you are
    picking three anchors. The preview shows the result as you go.
-3. **A logo, optionally.** SVG is best: it stays sharp and gets painted in
-   their accent colour. PNG and JPEG work too — pick one and you are asked to
-   **position it in a square**, because every place a mark appears is a square.
-   It opens fitted, with the whole file visible and nothing cut; drag to move
-   it and zoom in to crop. If the file sits on a flat colour — most logo
-   exports sit on white — tick **Drop the flat background** and it is cleared
-   from the edges inwards, leaving anything enclosed by the mark alone. Up to
-   1 MB.
+3. **A logo, optionally.** Use the file as it comes. PNG and JPEG are fine —
+   pick one and you are asked to **position it in a square**, because every
+   place a mark appears is a square. It opens fitted, with the whole file
+   visible and nothing cut; drag to move it and zoom in to crop. SVG is the one
+   upgrade worth having: it stays sharp at any size and gets painted in their
+   accent colour. Up to 1 MB.
+
+   Most logo files sit on a white background, and that is normally fine —
+   boards have white or near-white surfaces, so it does not show. If you give a
+   board colours dark enough that a square appears behind the mark, tick **Drop
+   the flat background** in the cropper: it clears the flat colour from the
+   edges inwards and leaves anything enclosed by the mark alone.
 
    The preview beside the picker shows exactly what will appear. If it looks
    wrong there, it will look wrong on their board.
@@ -139,8 +143,9 @@ been uploaded for them. Clients → Edit brand.
 existed. Re-upload it through Clients → Edit brand and position it.
 
 **A logo has a white box behind it.** The file is on an opaque white
-background. It is invisible on this app's pale surfaces and obvious anywhere
-else. Re-upload it and tick *Drop the flat background*.
+background and this board's surfaces are dark enough to show it. Either
+re-upload it and tick *Drop the flat background*, or lighten the board's
+surface colour — whichever suits the brand.
 
 **A card says "7 events" but the board looks empty.** Cancelled and completed
 events are hidden on the planning views by default. The card says
