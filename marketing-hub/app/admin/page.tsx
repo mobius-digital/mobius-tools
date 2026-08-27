@@ -37,19 +37,22 @@ const BACKGROUNDS = ["#f7f7f8", "#ffffff", "#f4f4f0", "#f8f7fc", "#f1f5f9", "#14
 const TEXTS = ["#18181b", "#1a1a18", "#0f172a", "#1b1726", "#f5f5f5"];
 
 /**
- * What to say about a board's contents. The board hides completed and
- * cancelled work, so a bare row count would claim seven events for a board
- * that reads empty — which is exactly the confusion this avoids.
+ * What to say about a board's contents.
+ *
+ * Live work only. This line answers one question — is anyone using this
+ * board — and a count of finished and cancelled work does not help answer it,
+ * it just makes an empty board look busy. The archive is still named, without
+ * a number, because "nothing live" on a board with history means something
+ * different from "nothing live" on a board nobody has opened yet.
+ *
+ * The board hides completed and cancelled work, so counting it here would also
+ * claim seven events for a board that reads empty.
  */
 function describeEvents(client: Client): string {
-  const live = `${client.events} ${client.events === 1 ? "event" : "events"}`;
   if (client.events > 0) {
-    return client.archived > 0 ? `${live} · ${client.archived} archived` : live;
+    return `${client.events} ${client.events === 1 ? "event" : "events"}`;
   }
-  if (client.archived > 0) {
-    return `nothing live · ${client.archived} archived`;
-  }
-  return "no events yet";
+  return client.archived > 0 ? "nothing live" : "no events yet";
 }
 
 export default function AdminPage() {
