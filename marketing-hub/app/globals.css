@@ -360,6 +360,27 @@ button {
   justify-content: space-between;
 }
 
+/*
+ * In the event sheet the banner names the fields that need fixing, and the
+ * form then scrolls to the first of them — so the banner has to come along,
+ * or the summary is gone by the time you arrive. Opaque, because it is
+ * sitting over the form's own content as it passes underneath.
+ */
+.sheet__body > .error-banner {
+  position: sticky;
+  top: calc(-1 * var(--space-5));
+  z-index: 2;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+}
+
+.error-banner__fields {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

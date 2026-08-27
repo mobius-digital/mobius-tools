@@ -110,6 +110,58 @@ function openNativePicker(input: HTMLInputElement) {
   }
 }
 
+/**
+ * What to call each field when something is wrong with it. The server answers
+ * with keys; a person needs the words that are actually on the form.
+ */
+const FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  launch_date: "Launch date",
+  teaser_start: "Teaser start",
+  asset_deadline: "Assets due",
+  inventory_date: "Inventory lands",
+  promo_end_date: "Promo ends",
+  owner: "Owner",
+  channels: "Channels",
+  type: "Type",
+  status: "Status",
+  assets_link: "Assets link",
+};
+
+/**
+ * The order these appear on the form, so a summary reads top to bottom like
+ * the page does. Keep in step with the JSX below; the `data-field` markers on
+ * each container are what the scroll actually follows.
+ */
+const FIELD_ORDER = [
+  "name",
+  "launch_date",
+  "channels",
+  "owner",
+  "type",
+  "status",
+  "teaser_start",
+  "asset_deadline",
+  "inventory_date",
+  "promo_end_date",
+  "assets_link",
+] as const;
+
+/** Why a save did not happen, in the words of the thing that stopped it. */
+function reasonFor(status: number, serverMessage: string | undefined, fallback: string): string {
+  if (serverMessage) return serverMessage;
+  if (status === 401 || status === 403) {
+    return "You are not signed in any more. Reload the page and sign in again — nothing here is lost.";
+  }
+  if (status === 404) {
+    return "This board could not be reached. Reload the page; if it keeps happening, tell Mobius.";
+  }
+  if (status >= 500) {
+    return "The server could not save this. Nothing was changed — try again in a moment.";
+  }
+  return fallback;
+}
+
 export function EventEditor({
   event,
   defaultLaunchDate = null,
@@ -143,6 +195,8 @@ export function EventEditor({
 
   const isNew = event === null;
 
+  const missingFields = FIELD_ORDER.filter((key) => fieldErrors[key]);
+
   /**
    * The form as it was when the sheet opened. Captured on the first render —
    * `form` is still the initial state at that moment — so "changed" means
@@ -162,6 +216,44 @@ export function EventEditor({
       returnFocusRef.current?.focus?.();
     };
   }, []);
+
+  /*
+   * A refused save used to say only that it was refused. The form is taller
+   * than the sheet, so whatever was wrong could be well below the fold with
+   * nothing to say where. Now the first bad field is brought into view and
+   * focused, and the banner above stays put while you fix it.
+   */
+  useEffect(() => {
+    if (Object.keys(fieldErrors).length === 0) return;
+    /*
+     * Found by the `data-field` marker on each container rather than by
+     * hunting for an error message: Channels is a group, not a labelled
+     * input, so looking inside a `.field` located nothing to focus and left
+     * the reader where they were.
+     */
+    // Worked out here rather than taken from `missingFields`: that array is
+    // rebuilt every render, so depending on it re-ran this on renders where
+    // nothing had failed — re-scrolling and stealing focus as you typed.
+    const firstKey = FIELD_ORDER.find((key) => fieldErrors[key]);
+    const first = panelRef.current?.querySelector<HTMLElement>(
+      `[data-field="${firstKey}"]`,
+    );
+    if (!firstKey || !first) return;
+
+    /*
+     * Deliberately not `behavior: "smooth"`. It is a no-op in some engines and
+     * is ignored outright for anyone who has asked for reduced motion, and a
+     * scroll that silently does not happen is exactly the bug being fixed
+     * here — the reader is told a field is wrong and left nowhere near it.
+     * Landing there immediately is also the kinder behaviour: nobody wants to
+     * watch a long form slide past on the way to their mistake.
+     */
+    first.scrollIntoView({ block: "center" });
+    // The scroll above has already put it on screen; focus must not re-do it.
+    first.querySelector<HTMLElement>("input, select, textarea")?.focus({
+      preventScroll: true,
+    });
+  }, [fieldErrors]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -225,14 +317,23 @@ export function EventEditor({
       };
 
       if (!response.ok) {
-        if (body.fieldErrors) setFieldErrors(body.fieldErrors);
-        setFormError(body.error ?? fallbackMessage);
+        const fields = body.fieldErrors ?? {};
+        setFieldErrors(fields);
+        // With field errors the banner lists them instead; a server message
+        // here would only repeat what each field already says.
+        setFormError(
+          Object.keys(fields).length > 0
+            ? null
+            : reasonFor(response.status, body.error, fallbackMessage),
+        );
         return { ok: false };
       }
 
       return { event: body.event, ok: true };
     } catch {
-      setFormError("Network error — your change was not saved.");
+      setFormError(
+        "No connection — your change was not saved. It is still on this form, so try again once you are back online.",
+      );
       return { ok: false };
     } finally {
       setBusy(false);
@@ -254,7 +355,11 @@ export function EventEditor({
 
     const result = await withEditor(
       (editor) =>
-        fetch(isNew ? "/api/events" : `/api/events/${event.id}`, {
+        // path(): without it these go to /api/events, which is nobody's board
+        // and does not exist — so creating, and saving an edit, 404'd on every
+        // brand. Every other call in this file was already scoped; these two
+        // were missed in the move to one deployment per many boards.
+        fetch(path(isNew ? "/api/events" : `/api/events/${event.id}`), {
           method: isNew ? "POST" : "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ event: payload, editor }),
@@ -287,7 +392,7 @@ export function EventEditor({
     const result = await withEditor(
       (editor) =>
         fetch(
-          `/api/events/${event.id}?editor=${encodeURIComponent(editor)}`,
+          path(`/api/events/${event.id}?editor=${encodeURIComponent(editor)}`),
           { method: "DELETE" },
         ),
       "Could not delete this event.",
@@ -320,13 +425,26 @@ export function EventEditor({
         </header>
 
         <form className="sheet__body" onSubmit={handleSubmit} id="event-form">
-          {formError && (
-            <p className="error-banner" role="alert">
-              {formError}
-            </p>
+          {(formError || missingFields.length > 0) && (
+            <div className="error-banner" role="alert">
+              {missingFields.length > 0 ? (
+                <>
+                  <strong>
+                    {missingFields.length === 1
+                      ? "One field needs your attention"
+                      : `${missingFields.length} fields need your attention`}
+                  </strong>
+                  <span className="error-banner__fields">
+                    {missingFields.map((key) => FIELD_LABELS[key] ?? key).join(" · ")}
+                  </span>
+                </>
+              ) : (
+                formError
+              )}
+            </div>
           )}
 
-          <div className="field">
+          <div className="field" data-field="name">
             <label className="field__label" htmlFor="event-name">
               Name <span className="field__required">*</span>
             </label>
@@ -359,7 +477,7 @@ export function EventEditor({
 
           <div className="date-grid date-grid--single">
               {DATE_FIELDS.filter((field) => field.key === "launch_date").map((field) => (
-                <div className="field" key={field.key}>
+                <div className="field" data-field={field.key} key={field.key}>
                   <label className="field__label" htmlFor={`event-${field.key}`}>
                     {field.label}
                     {field.required && <span className="field__required"> *</span>}
@@ -385,7 +503,7 @@ export function EventEditor({
               ))}
             </div>
 
-          <div className="fieldset" role="group" aria-labelledby="channels-legend">
+          <div className="fieldset" data-field="channels" role="group" aria-labelledby="channels-legend">
             <span className="fieldset__legend" id="channels-legend">
               Channels <span className="field__required">*</span>
             </span>
@@ -445,7 +563,7 @@ export function EventEditor({
             </div>
           </div>
 
-          <div className="field">
+          <div className="field" data-field="owner">
             <label className="field__label" htmlFor="event-owner">
               Owner <span className="field__required">*</span>
             </label>
@@ -461,7 +579,7 @@ export function EventEditor({
           </div>
 
           <div className="field-row">
-            <div className="field">
+            <div className="field" data-field="type">
               <label className="field__label" htmlFor="event-type">
                 Type <span className="field__required">*</span>
               </label>
@@ -487,7 +605,7 @@ export function EventEditor({
               {fieldErrors.type && <p className="field__error">{fieldErrors.type}</p>}
             </div>
 
-            <div className="field">
+            <div className="field" data-field="status">
               <label className="field__label" htmlFor="event-status">
                 Status <span className="field__required">*</span>
               </label>
@@ -550,7 +668,7 @@ export function EventEditor({
           {/* One link, not many: a folder holds the rest. Filling it in is what
               tells Slack the assets have landed, which is why it is a field and
               not a line in the notes — a note edit cannot be told from a typo. */}
-          <div className="field">
+          <div className="field" data-field="assets_link">
             <label className="field__label" htmlFor="event-assets-link">
               Assets link
             </label>
