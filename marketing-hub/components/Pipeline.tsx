@@ -255,6 +255,7 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
   const [showCompleted, setShowCompleted] = useState(false);
   const [beyondOpen, setBeyondOpen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
+  const [cancelledOpen, setCancelledOpen] = useState(false);
 
 
 
@@ -275,6 +276,21 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
   // Collisions are computed against every event, not the filtered set: a clash
   // does not stop being a clash because you are looking through the email lens.
   const colliding = useMemo(() => collidingEventIds(events), [events]);
+
+  /*
+   * Cancelled work, kept out of the planning views entirely — that rule does
+   * not change here. But "out of the planning views" had come to mean "gone",
+   * with no way back to it at all: an event cancelled by mistake could not be
+   * reopened, restored or deleted, because nothing in the app could reach it.
+   * So they are listed here, behind a fold, below everything that is live.
+   */
+  const cancelled = useMemo(
+    () =>
+      filteredEvents
+        .filter((event) => event.status === "cancelled")
+        .sort((a, b) => b.launch_date.localeCompare(a.launch_date)),
+    [filteredEvents],
+  );
 
   const [thisWeek, weekTwo, ...laterWeeks] = pipeline.weeks;
 
@@ -506,6 +522,52 @@ export function Pipeline({ serverToday }: { serverToday: string }) {
             </ul>
           ))}
       </section>
+
+      {cancelled.length > 0 && (
+        <section className="tier tier--condensed">
+          <button
+            type="button"
+            className="beyond__toggle"
+            onClick={() => setCancelledOpen((open) => !open)}
+            aria-expanded={cancelledOpen}
+          >
+            <span aria-hidden>{cancelledOpen ? "▾" : "▸"}</span>
+            Cancelled ({cancelled.length})
+          </button>
+
+          {cancelledOpen && (
+            <>
+              <p className="cancelled__note">
+                Off the board and out of clash warnings, with their history
+                kept. Open one to put it back on the board, or to delete it for
+                good if it should never have been added.
+              </p>
+              <ul className="beyond__list">
+                {cancelled.map((event) => (
+                  <li key={event.id}>
+                    <button
+                      type="button"
+                      className="beyond__row"
+                      onClick={() => openEditor(event)}
+                    >
+                      <span className="beyond__date">
+                        {formatShort(event.launch_date)}
+                      </span>
+                      <span className="beyond__name">{event.name}</span>
+                      <span className="beyond__type">{typeLabel(event.type)}</span>
+                      <span
+                        className="status-dot status-dot--cancelled"
+                        title="cancelled"
+                        aria-label="cancelled"
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
 
       <RecentChanges />
 

@@ -167,6 +167,12 @@ has the bot been invited to that Slack channel.
 *and* they do not have the team password, or the password has been changed since
 they last used it. Changing the team password signs everybody out, on purpose.
 
+**Something was cancelled by mistake.** Cancelled work leaves the Pipeline and
+Calendar and stops counting toward clash warnings, but it is not gone: open
+**Cancelled** at the foot of the Pipeline, click it, and either set its status
+back to put it on the board or delete it for good under Admin. Deleting is the
+only thing here that cannot be undone.
+
 **A client's board is gone / wrong.** There is no undo on Delete client — it
 takes the board, every event, the full history, everyone's access and the Slack
 settings. That is why it makes you type the name.
