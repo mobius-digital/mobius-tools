@@ -37,6 +37,10 @@ export function LogoCropper({
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [dropBackground, setDropBackground] = useState(false);
+  /** True when the border is one flat colour, so there is a background to drop. */
+  const [hasFlatBackground, setHasFlatBackground] = useState(false);
+  const strippedRef = useRef<HTMLCanvasElement | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -47,6 +51,8 @@ export function LogoCropper({
     const image = new Image();
     image.onload = () => {
       imageRef.current = image;
+      strippedRef.current = null;
+      setHasFlatBackground(borderIsFlat(image));
       setReady(true);
     };
     image.onerror = () => setError("That image could not be opened.");
@@ -58,6 +64,12 @@ export function LogoCropper({
     const canvas = canvasRef.current;
     const image = imageRef.current;
     if (!canvas || !image) return;
+
+    // Built once, the first time it is asked for, and kept.
+    if (dropBackground && !strippedRef.current) {
+      strippedRef.current = withBackgroundDropped(image);
+    }
+    const source = dropBackground ? (strippedRef.current ?? image) : image;
 
     const context = canvas.getContext("2d");
     if (!context) return;
@@ -72,8 +84,8 @@ export function LogoCropper({
     const h = image.naturalHeight * scale;
 
     context.imageSmoothingQuality = "high";
-    context.drawImage(image, (OUT - w) / 2 + offset.x, (OUT - h) / 2 + offset.y, w, h);
-  }, [zoom, offset]);
+    context.drawImage(source, (OUT - w) / 2 + offset.x, (OUT - h) / 2 + offset.y, w, h);
+  }, [zoom, offset, dropBackground]);
 
   useEffect(() => {
     if (ready) draw();
@@ -197,6 +209,27 @@ export function LogoCropper({
                 past that crops the edges.
               </span>
             </label>
+
+            {/* Only offered when there is something to drop. A mark exported
+                for a white page carries the white with it, which is invisible
+                on this app's pale surfaces and a white box everywhere else. */}
+            {hasFlatBackground && (
+              <label className="cropper__option">
+                <input
+                  type="checkbox"
+                  checked={dropBackground}
+                  onChange={(event) => setDropBackground(event.target.checked)}
+                />
+                <span>
+                  Drop the flat background
+                  <span className="cropper__option-hint">
+                    Clears the solid colour around the mark, working inwards
+                    from the edges — anything enclosed by the mark is left
+                    alone. The chequerboard is what transparent looks like.
+                  </span>
+                </span>
+              </label>
+            )}
           </>
         )}
 
@@ -216,4 +249,122 @@ export function LogoCropper({
       </div>
     </div>
   );
+}
+
+
+/** Euclidean distance between two RGB pixels. */
+function apart(data: Uint8ClampedArray, a: number, b: number[]): number {
+  return Math.sqrt(
+    (data[a] - b[0]) ** 2 + (data[a + 1] - b[1]) ** 2 + (data[a + 2] - b[2]) ** 2,
+  );
+}
+
+function pixels(image: HTMLImageElement): {
+  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
+  data: ImageData;
+} | null {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  context.drawImage(image, 0, 0);
+  try {
+    return { canvas, context, data: context.getImageData(0, 0, canvas.width, canvas.height) };
+  } catch {
+    // A cross-origin image would taint the canvas. Ours never is, but a read
+    // that throws must not take the dialog down with it.
+    return null;
+  }
+}
+
+/**
+ * Does this image sit on a flat background worth offering to remove?
+ *
+ * Judged from the border rather than the whole picture: a logo may be mostly
+ * one colour without that colour being a background.
+ */
+function borderIsFlat(image: HTMLImageElement): boolean {
+  const read = pixels(image);
+  if (!read) return false;
+
+  // Straight off the ImageData: its data/width/height are prototype getters, so
+  // spreading the object would have handed back undefined for all three.
+  const { data, width, height } = read.data;
+  const at = (x: number, y: number) => (y * width + x) * 4;
+  const first = [data[0], data[1], data[2]];
+
+  // Fully transparent already — nothing to drop.
+  if (data[3] === 0) return false;
+
+  let sampled = 0;
+  let alike = 0;
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 64));
+  for (let x = 0; x < width; x += step) {
+    for (const y of [0, height - 1]) {
+      sampled += 1;
+      if (apart(data, at(x, y), first) < 40) alike += 1;
+    }
+  }
+  for (let y = 0; y < height; y += step) {
+    for (const x of [0, width - 1]) {
+      sampled += 1;
+      if (apart(data, at(x, y), first) < 40) alike += 1;
+    }
+  }
+
+  return sampled > 0 && alike / sampled > 0.9;
+}
+
+/**
+ * Clears the background colour, flooding inwards from the edges.
+ *
+ * A flood rather than "delete every white pixel", because a mark often has
+ * white *inside* it — the gap in a letter, a highlight — and deleting that
+ * would punch holes through the logo. Only colour reachable from the border
+ * without crossing the mark is background.
+ */
+function withBackgroundDropped(image: HTMLImageElement): HTMLCanvasElement | null {
+  const read = pixels(image);
+  if (!read) return null;
+
+  const { canvas, context, data: imageData } = read;
+  const { data } = imageData;
+  const { width, height } = canvas;
+  const target = [data[0], data[1], data[2]];
+  const TOLERANCE = 48;
+
+  const seen = new Uint8Array(width * height);
+  const queue: number[] = [];
+
+  const consider = (index: number) => {
+    if (seen[index]) return;
+    seen[index] = 1;
+    if (apart(data, index * 4, target) <= TOLERANCE) queue.push(index);
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    consider(x);
+    consider((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    consider(y * width);
+    consider(y * width + width - 1);
+  }
+
+  while (queue.length) {
+    const index = queue.pop()!;
+    data[index * 4 + 3] = 0;
+
+    const x = index % width;
+    const y = (index - x) / width;
+    if (x > 0) consider(index - 1);
+    if (x < width - 1) consider(index + 1);
+    if (y > 0) consider(index - width);
+    if (y < height - 1) consider(index + width);
+  }
+
+  context.putImageData(imageData, 0, 0);
+  return canvas;
 }

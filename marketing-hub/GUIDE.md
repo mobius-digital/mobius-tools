@@ -38,8 +38,10 @@ already:
    their accent colour. PNG and JPEG work too — pick one and you are asked to
    **position it in a square**, because every place a mark appears is a square.
    It opens fitted, with the whole file visible and nothing cut; drag to move
-   it and zoom in to crop. Prefer a file with a **transparent background**, as
-   a white one shows as a white square. Up to 1 MB.
+   it and zoom in to crop. If the file sits on a flat colour — most logo
+   exports sit on white — tick **Drop the flat background** and it is cleared
+   from the edges inwards, leaving anything enclosed by the mark alone. Up to
+   1 MB.
 
    The preview beside the picker shows exactly what will appear. If it looks
    wrong there, it will look wrong on their board.
@@ -135,6 +137,10 @@ been uploaded for them. Clients → Edit brand.
 
 **A logo looks stretched or crushed.** It was saved before the square-up step
 existed. Re-upload it through Clients → Edit brand and position it.
+
+**A logo has a white box behind it.** The file is on an opaque white
+background. It is invisible on this app's pale surfaces and obvious anywhere
+else. Re-upload it and tick *Drop the flat background*.
 
 **A card says "7 events" but the board looks empty.** Cancelled and completed
 events are hidden on the planning views by default. The card says

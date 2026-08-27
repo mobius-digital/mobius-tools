@@ -124,9 +124,11 @@ button {
   color: var(--color-text);
 }
 
+/* The client's mark is the one thing in the nav that is theirs, and 28px made
+   it read as an afterthought beside 18px type. */
 .nav__logo {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   color: var(--color-accent-ink);
   flex-shrink: 0;
 }
@@ -680,9 +682,11 @@ button {
   mask: url("/lineup.svg") center / contain no-repeat;
 }
 
+/* Larger again on the sign-in card: it is the whole point of that panel, and
+   it has a card to itself rather than a nav bar to share. */
 .gate__logo {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   color: var(--color-accent-ink);
 }
 
@@ -3389,6 +3393,26 @@ button {
 .cropper__zoom {
   width: 100%;
   accent-color: var(--color-primary);
+}
+
+.cropper__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-4);
+  font-size: 0.9rem;
+}
+
+.cropper__option input {
+  margin-top: 0.2rem;
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.cropper__option-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 /* --------------------------------------------------------------------------
