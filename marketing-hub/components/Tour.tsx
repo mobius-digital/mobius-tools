@@ -134,7 +134,7 @@ const STEPS: Step[] = [
     target: "#event-owner",
     keepIfMissing: true,
     title: "Owner — one name, not a team",
-    body: "The person to ask when a date looks wrong. “Cole”, not “Marketing”. One name means nobody has to guess who to chase.",
+    body: "The person to ask when a date looks wrong. One name, not a team — “Cole”, not “Marketing” — so nobody has to guess who to chase. It starts on you, because whoever adds an event usually owns it, and the list holds everyone on this board. Owner is somebody who never signs in here? Pick “Someone else” and type them.",
   },
   {
     id: "f-type",

@@ -188,4 +188,12 @@ export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
 };
 
 /** Statuses hidden from both planning views by default (PRD §5). */
-export const HIDDEN_BY_DEFAULT: EventStatus[] = ["completed", "cancelled"];
+/**
+ * Completed work is hidden from the planning views until asked for.
+ *
+ * Cancelled is NOT in here, and that is the rule rather than an oversight:
+ * a cancelled event never returns to Pipeline or Calendar, with or without
+ * the toggle (see `visibleEvents`). This listed both for a while, which read
+ * as though the toggle governed each of them.
+ */
+export const HIDDEN_UNTIL_ASKED_FOR: EventStatus[] = ["completed"];
