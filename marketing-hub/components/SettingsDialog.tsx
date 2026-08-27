@@ -227,34 +227,28 @@ function AccountPanel() {
 
   return (
     <>
-      {verified ? (
-        <p className="dialog__body">
-          Signed in as <strong>{name}</strong>, verified by your
-          organization&apos;s login. Every edit you make is stamped with this
-          name, and nothing here can change it.
-        </p>
-      ) : (
-        <>
-          <p className="dialog__body">
-            Your edits are stamped with this name, so the changelog can say who
-            moved a launch. It is remembered on this device only.
-          </p>
-          <div className="settings-fact">
-            <span className="settings-fact__label">Editing as</span>
-            <span className="settings-fact__value">
-              {name || "Not set on this device yet"}
-            </span>
-            <button
-              type="button"
-              className="button"
-              onClick={() => void promptForName()}
-            >
-              {name ? "Change" : "Set your name"}
-            </button>
-          </div>
-        </>
-      )}
-
+      <p className="dialog__body">
+        Your edits are stamped with this name, so the changelog can say who
+        moved a launch.{" "}
+        {verified
+          ? "It is saved against your account, so it is the same on every device and every board you can open."
+          : "This board was opened with the shared password, so there is no account to keep it on — it is remembered on this device only."}
+      </p>
+      <div className="settings-fact">
+        <span className="settings-fact__label">
+          {verified ? "Signed in as" : "Editing as"}
+        </span>
+        <span className="settings-fact__value">
+          {name || "Not set on this device yet"}
+        </span>
+        <button
+          type="button"
+          className="button"
+          onClick={() => void promptForName()}
+        >
+          {name ? "Change" : "Set your name"}
+        </button>
+      </div>
     </>
   );
 }

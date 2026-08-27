@@ -3347,6 +3347,12 @@ button {
   overflow-y: auto;
 }
 
+/* Getting back to the list after choosing to type a name instead. */
+.owner__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
 /* How many events use a type, beside its name in Settings. */
 .types__usage {
   display: block;

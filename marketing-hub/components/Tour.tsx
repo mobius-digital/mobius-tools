@@ -1,6 +1,7 @@
 "use client";
 
 import { useBrand } from "./BrandProvider";
+import { useDisplayName } from "./DisplayName";
 import { hub } from "@/hub.config";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -274,6 +275,10 @@ export function useTour(): TourApi {
 export function TourProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { slug } = useBrand();
+  // On a first visit the name question comes first: two dialogs stacked on
+  // each other is nobody's welcome, and the tour points at a board that is
+  // behind both of them.
+  const { settlingName } = useDisplayName();
   const DONE_KEY = doneKey(slug);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
@@ -325,7 +330,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       {/* Never over the sign-in screen. The provider wraps every route, and a
           first-time visitor arrives there before anywhere else — the tour would
           sit on top of the password box and block the way in. */}
-      {ready && open && !signedOut && (
+      {ready && open && !signedOut && !settlingName && (
         <Walkthrough index={index} setIndex={setIndex} finish={finish} />
       )}
     </TourControls.Provider>

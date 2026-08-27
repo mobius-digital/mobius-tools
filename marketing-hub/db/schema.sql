@@ -106,3 +106,14 @@ CREATE TABLE IF NOT EXISTS slack_reminders_sent (
   sent_at     TEXT NOT NULL,
   PRIMARY KEY (brand_id, event_id, kind, launch_date)
 );
+
+-- What a person is called. Keyed by email, not by brand: somebody on two
+-- boards is one person with one name. Seeded from Google at sign-in;
+-- confirmed_at stays null until they have been asked, which is what the
+-- first-run prompt keys off.
+CREATE TABLE IF NOT EXISTS people (
+  email        TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  confirmed_at TEXT,
+  updated_at   TEXT NOT NULL
+);

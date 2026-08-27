@@ -3,6 +3,7 @@ import { verifyGoogleToken } from "@/lib/google";
 import { googleClientId } from "@/lib/signin";
 import { brandsFor, isAdmin } from "@/lib/brandContext";
 import { IDENTITY_COOKIE, IDENTITY_MAX_AGE, issueIdentityToken } from "@/lib/session";
+import { getPerson, rememberPerson } from "@/lib/people";
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +53,14 @@ export async function POST(request: Request) {
     );
   }
 
+  // Seeds the row the first time and leaves a chosen name alone after that,
+  // so signing in again never reverts a correction.
+  await rememberPerson(identity.email, identity.name);
+  const person = await getPerson(identity.email);
+
   const response = NextResponse.json({
     ok: true,
-    name: identity.name,
+    name: person?.name ?? identity.name,
     brands,
     admin,
   });

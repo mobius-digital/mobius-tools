@@ -8,6 +8,7 @@ import { BrandProvider } from "@/components/BrandProvider";
 import { DisplayNameProvider } from "@/components/DisplayName";
 import { TourProvider } from "@/components/Tour";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
+import { getPerson } from "@/lib/people";
 
 /**
  * One brand's world.
@@ -70,6 +71,12 @@ export default async function BrandLayout({
     (await cookies()).get(IDENTITY_COOKIE)?.value,
   );
 
+  // The cookie carries the name Google gave at sign-in; the stored one is the
+  // name this person actually chose, and it wins. Read per request rather
+  // than baked into the cookie, so a change takes effect on the next page
+  // load instead of at the next sign-in.
+  const person = identity ? await getPerson(identity.email) : null;
+
   return (
     <>
       <link rel="stylesheet" href={googleFontUrl(brand)} />
@@ -82,7 +89,11 @@ export default async function BrandLayout({
           logoTint: brand.logoTint,
         }}
       >
-        <DisplayNameProvider identity={identity?.name ?? null}>
+        <DisplayNameProvider
+          identity={identity ? (person?.name ?? identity.name) : null}
+          /* Signed in, but never asked what they want to be called. */
+          needsName={Boolean(identity) && person?.confirmed !== true}
+        >
           {/* Mounted here, not in a page, so the tour survives moving between
               Pipeline, Calendar and Changelog. */}
           <TourProvider>
