@@ -347,6 +347,11 @@ async function boot() {
   const open = qs.get('open');
   if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
+    // A Slack draft notice names one specific day. Without carrying the date
+    // across, the link opened whatever "yesterday" meant at the moment of
+    // clicking - so reading the message the next day showed a different brief
+    // than the one it was announcing.
+    if (open === 'brief' && /^\d{4}-\d{2}-\d{2}$/.test(qs.get('date') || '')) BF.date = qs.get('date');
     S.tab = open; localStorage.setItem(LS.tab, open);
     history.replaceState(null, '', location.pathname);
   }

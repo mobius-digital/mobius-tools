@@ -1087,7 +1087,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
   if (ch) {
     await slackPost(env, ch,
       `:memo: *Daily Brief drafted — ${acct.name}* (${prettyDate(date)})\n` +
-      `_Nothing has been sent to the client._ <${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}|Read it, edit the wording, and send it from Locus>`,
+      `_Nothing has been sent to the client._ <${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}&date=${date}|Read it, edit the wording, and send it from Locus>`,
       null, { username: 'Mobius Reports', icon: ':memo:' }).catch(() => {});
   }
   if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
