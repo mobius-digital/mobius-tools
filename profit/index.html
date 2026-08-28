@@ -2912,7 +2912,8 @@ async function renderSettings() {
   // Honour the client picker, exactly like every other tab: "All clients" lists
   // everyone, a selected brand shows only that brand.
   const one = S.act === 'all' ? null : S.accounts.find(a => a.act_id === S.act);
-  const shown = one ? [one] : S.accounts;
+  const oneId = one ? one.act_id : null;
+  const shownRows = () => oneId ? S.accounts.filter(a => a.act_id === oneId) : S.accounts;
   $('#main').innerHTML = `<h2>Settings${one ? ' — ' + esc(one.name) : ''}</h2>
     <p class="sub">Where ${one ? `<b>${esc(one.name)}</b>'s` : "each brand's"} reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.${one ? ' Switch the picker to <b>All clients</b> to see every brand at once.' : ''}</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
@@ -2941,7 +2942,7 @@ async function renderSettings() {
      about. Reserved space keeps every row identical. */
   const chCell = (a, key, blank, note) => {
     const control = Array.isArray(chList)
-      ? `<select data-k="${key}" style="max-width:200px"><option value="">${esc(blank)}</option>${chList.map(c =>
+      ? `<select data-k="${key}" style="max-width:168px"><option value="">${esc(blank)}</option>${chList.map(c =>
           `<option value="${esc(c.id)}" ${a[key] === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')}</select>`
       : chList === 'error'
       ? `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID" style="width:140px">`
@@ -2950,13 +2951,13 @@ async function renderSettings() {
   };
 
   const draw = () => {
-    tb.innerHTML = shown.map(a => `<tr data-id="${a.act_id}">
+    tb.innerHTML = shownRows().map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
       <td>${chCell(a, 'brief_channel', '— not set —', a.brief_enabled && !a.brief_channel ? 'falling back to the internal alerts channel' : '')}</td>
       <td>${chCell(a, 'report_channel', '— drafts stay in-app —', a.report_channel && a.report_channel === (a.report_client_channel || a.brief_channel) ? 'same channel as the sent report' : '')}</td>
       <td>${chCell(a, 'report_client_channel', '— use Daily Brief channel —', '')}</td>
-      <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Running each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div>
-        <div class="row" style="margin:6px 0 0;gap:8px"><div class="toggle ${a.brief_review?'on':''}" data-k="brief_review" title="Draft it internally and wait for you, instead of posting straight to the client"></div><span class="tiny">${a.brief_review?'review first':'sends itself'}</span></div></td>
+      <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Running each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div>
+        <div class="row tgl" style="margin:6px 0 0;gap:8px"><div class="toggle ${a.brief_review?'on':''}" data-k="brief_review" title="Draft it internally and wait for you, instead of posting straight to the client"></div><span class="tiny">${a.brief_review?'review first':'sends itself'}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
       <td>${healthPill(a.cost_health)}</td>
       <td><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430d</button> <span class="tiny" data-bf="${a.act_id}"></span></td>
@@ -2967,8 +2968,13 @@ async function renderSettings() {
   const flash = el => { const t = el.closest('.unit-in') || el; t.classList.add('flash-saved'); setTimeout(() => t.classList.remove('flash-saved'), 1300); };
 
   tb.addEventListener('click', async e => {
-    const tg = e.target.closest('.toggle'); if (!tg) return;
+    // The label counts as part of the switch - a 38x22 pill is a small target
+    // in a table this wide, and clicking the words next to it did nothing.
+    const grp = e.target.closest('.tgl');
+    const tg = e.target.closest('.toggle') || (grp ? grp.querySelector('.toggle') : null);
+    if (!tg) return;
     const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
+    if (!a) return;
     const on = !tg.classList.contains('on');
     if (tg.dataset.k === 'brief_review') {
       tg.classList.toggle('on', on);
