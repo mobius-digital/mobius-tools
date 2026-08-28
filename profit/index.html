@@ -375,7 +375,7 @@ async function boot() {
       // token HQ considers valid, the fault is this worker's, and wiping the session
       // just sends you back to HQ to mint another one that fails the same way.
       return renderGate(wasShared
-        ? 'Mobius Profit could not verify your Mobius sign-in. Your HQ session is still valid — press Retry, or use a password below.'
+        ? 'Locus could not verify your Mobius sign-in. Your HQ session is still valid — press Retry, or use a password below.'
         : 'Wrong password — try again.', wasShared);
     }
     setChip('Worker down','down');
@@ -720,7 +720,7 @@ const PAGE_HELP = {
     <p><b>The current month is shown but excluded from the headline</b> — its new customers have not had time to come back yet, so including it would understate repeat behavior.</p>`,
   settings: `
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
-    <p><b>This page is only about what your client sees.</b> Internal pace and KPI alerts for your media buyer are configured in <b>Account Health → Settings</b> — different audience, different tool.</p>
+    <p><b>Adding a client starts here</b>, in the <b>Meta ad accounts</b> card: find the account on Meta, switch it on, then set its Triple Whale shop — nothing blended works without that. Channels are below, and the monthly number is agreed on <b>Plan</b>.</p>
     <p><b>Daily Brief channel:</b> where the client's morning update posts. Invite the Slack bot to the channel first or it can't post there — channels the bot hasn't joined are marked.</p>
     <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning from Account Health. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
     <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>
@@ -2873,7 +2873,11 @@ async function renderSettings() {
     <div class="card settings"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th title="Where the Daily Brief posts each morning.">Daily Brief channel</th><th title="INTERNAL channel where weekly/monthly report drafts land for team review. Deliberately no fallback — if this is empty, drafts appear only on the Reports tab and never post anywhere.">Reports · drafts (internal)</th><th title="Where the Send to client button posts a finished report. Separate from the Daily Brief channel so a report can reach a client without moving the brief too. Falls back to the Daily Brief channel when empty.">Reports · to client</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. <b>Daily Brief channel</b> is the channel <b>your client reads</b> — the Daily Brief and the weekly/monthly reports both post there. <b>Report drafts channel</b> is <b>internal</b>: weekly and monthly report drafts land there for your team to review before anyone sends them; leave it empty and drafts only appear on the Reports tab. Internal pace and KPI alerts are a separate setting in <a href="../account-health/">Account Health → Settings</a>. A brand needs a client channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. Three destinations, on purpose:
+      <b>Daily Brief channel</b> — where the morning brief posts.
+      <b>Reports · drafts (internal)</b> — where Monday's weekly and the 1st's monthly land for your team to review; leave it empty and drafts only appear on the Reports tab, never in Slack.
+      <b>Reports · to client</b> — where <b>Send to client</b> posts a finished report; blank falls back to the Daily Brief channel, so set it deliberately if those two audiences differ.
+      A brand needs a channel and a monthly plan before the brief will switch on, and it never turns itself on.</p></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable

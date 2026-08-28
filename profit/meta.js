@@ -896,7 +896,7 @@ async function renderToday() {
           <td class="num"><b>${fmtK(p.spent, a.currency)}</b></td>
           <td class="num">${fmtK(p.l7_by_now, a.currency)}</td>
           <td class="num"><span class="delta ${cls}">${p.vs_pace == null ? '—' : fmtPct(p.vs_pace, 0)}</span></td>
-          <td class="num">${fmtK(p.projected_today, a.currency)}</td>`;
+          <td class="num">${fmtK(p.projected, a.currency)}</td>`;
       } catch { /* one client failing must not blank the whole table */ }
     }
     return;
