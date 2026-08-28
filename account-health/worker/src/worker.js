@@ -1428,25 +1428,48 @@ async function reportData(env, acct, period, start, end) {
   let ads = null;
   const metaSpend = cur.meta_spend ?? 0;
   if (metaSpend > 0) {
+    // No LIMIT: the long tail has to be counted, not dropped. A week can carry
+    // 150+ ads, of which a handful hold most of the spend - showing only those
+    // and saying nothing about the rest implies the table is the whole account.
     const { results: adRows } = await env.DB.prepare(
       `SELECT d.ad_id, SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue,
               COALESCE(a.name, d.ad_id) AS name
        FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
        WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
-       GROUP BY d.ad_id ORDER BY spend DESC LIMIT 40`,
+       GROUP BY d.ad_id HAVING SUM(d.spend) > 0 ORDER BY spend DESC LIMIT 500`,
     ).bind(acct.act_id, start, end).all();
     const floor = Math.max(50, metaSpend * 0.03);
+    const TOP_N = 10;
     const qualified = adRows.filter(r => r.spend >= floor);
-    const top = qualified.slice(0, 8).map(r => ({
+    const shown = qualified.slice(0, TOP_N);
+    const row = r => ({
       name: r.name, spend: r.spend, purchases: r.purchases || null, revenue: r.revenue || null,
       cpa: r.purchases ? r.spend / r.purchases : null,
       roas: r.spend && r.revenue ? r.revenue / r.spend : null,
       share: metaSpend ? r.spend / metaSpend : null,
-    }));
+    });
+    // Everything not listed, as one line, so the table accounts for 100% of
+    // ad-level spend and the tail can be compared with the headline ads.
+    const shownSet = new Set(shown.map(r => r.ad_id));
+    const rest = adRows.filter(r => !shownSet.has(r.ad_id));
+    const restSpend = rest.reduce((a, r) => a + (r.spend || 0), 0);
+    const restPur = rest.reduce((a, r) => a + (r.purchases || 0), 0);
+    const restRev = rest.reduce((a, r) => a + (r.revenue || 0), 0);
     const standout = qualified.filter(r => r.purchases >= 3)
       .sort((a, b) => (a.spend / a.purchases) - (b.spend / b.purchases))[0] || null;
-    if (top.length) ads = { floor, top,
-      standout: standout ? { name: standout.name, cpa: standout.spend / standout.purchases, spend: standout.spend } : null };
+    if (shown.length) ads = {
+      floor, top: shown.map(row),
+      qualified_total: qualified.length,
+      others: rest.length ? {
+        count: rest.length, spend: restSpend, purchases: restPur || null, revenue: restRev || null,
+        cpa: restPur ? restSpend / restPur : null,
+        roas: restSpend && restRev ? restRev / restSpend : null,
+        share: metaSpend ? restSpend / metaSpend : null,
+        biggest: rest[0]?.spend ?? null,
+      } : null,
+      total_ads: adRows.length, total_spend: adRows.reduce((a, r) => a + (r.spend || 0), 0),
+      standout: standout ? { name: standout.name, cpa: standout.spend / standout.purchases, spend: standout.spend } : null,
+    };
   }
 
   // What we changed during the period — feeds the narrative and the internal

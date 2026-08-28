@@ -1661,6 +1661,28 @@ function reportBodyHTML(d, summary, opts = {}) {
       <div style="width:${((t.new_share || 0) * 100).toFixed(1)}%;background:var(--brand-ink)"></div>
       <div style="flex:1;background:var(--line-strong)"></div></div></div>` : '';
 
+  // Creative sits INSIDE its platform's section, so everything about one channel
+  // reads as one story. Meta is the only channel with ad-level data today; the
+  // block is written to drop under any channel that gains it.
+  const adsBlock = () => {
+    const A = d.ads;
+    if (!A?.top?.length) return '';
+    const o = A.others;
+    return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went</h4>
+      <p class="hint" style="margin-bottom:8px">The ads that carried real spend this ${prevTag}, and what each one delivered. Ads under ${money(A.floor)} are grouped on the last row — individually too small to judge fairly.${A.qualified_total > A.top.length ? ` Showing the ${A.top.length} biggest of ${A.qualified_total} that cleared that bar.` : ''}</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
+      <tbody>${A.top.map(a => `<tr><td><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span></td>
+        <td class="num"><b>${money(a.spend)}</b></td><td class="num">${fmtPct(a.share)}</td>
+        <td class="num">${fmtInt(a.purchases)}</td><td class="num">${a.cpa != null ? money(a.cpa) : '—'}</td>
+        <td class="num">${a.roas != null ? fmtX(a.roas) : '—'}</td></tr>`).join('')}
+        ${o ? `<tr style="border-top:2px solid var(--line-strong)"><td><span class="tiny">${fmtInt(o.count)} smaller ads combined${o.biggest != null ? ` · biggest ${money(o.biggest)}` : ''}</span></td>
+        <td class="num"><b>${money(o.spend)}</b></td><td class="num">${fmtPct(o.share)}</td>
+        <td class="num">${fmtInt(o.purchases)}</td><td class="num">${o.cpa != null ? money(o.cpa) : '—'}</td>
+        <td class="num">${o.roas != null ? fmtX(o.roas) : '—'}</td></tr>` : ''}</tbody></table></div>
+      ${A.standout ? `<p style="font-size:13.5px;margin-top:10px">Most efficient of the ads with real spend: <b>${esc(A.standout.name)}</b> at a <b>${money(A.standout.cpa)}</b> CPA.</p>` : ''}
+      <p class="tiny" style="margin-top:6px">Every ad that spent is accounted for here${A.total_ads ? ` (${fmtInt(A.total_ads)} in total)` : ''}. There is deliberately no single "best ad": the biggest spender, the best CPA and the best ROAS are usually three different ads, so this shows where the money actually went and what each part of it returned.</p>`;
+  };
+
   const chRow = (label, a, pv, fmt, lower) => (a == null && pv == null) ? '' :
     `<tr><td>${label}</td><td class="num"><b>${fmt(a)}</b></td><td class="num">${fmt(pv)}</td><td class="num">${a != null && pv ? vsPill(a, pv, lower) : '<span class="tiny">—</span>'}</td></tr>`;
   const chCard = c => {
@@ -1692,18 +1714,9 @@ function reportBodyHTML(d, summary, opts = {}) {
     return `<div class="card"><h3 style="margin-bottom:8px">${esc(c.label)}</h3>
       <div class="tbl-wrap"><table><thead><tr><th></th><th class="num">This ${prevTag}</th><th class="num">Prior ${prevTag}</th><th class="num">Change</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-      <p class="tiny" style="margin-top:8px">${note}</p></div>`;
+      <p class="tiny" style="margin-top:8px">${note}</p>
+      ${c.id === 'meta' ? adsBlock() : ''}</div>`;
   };
-
-  const adsHtml = d.ads?.top?.length ? `<div class="card"><h3 style="margin-bottom:2px">Where the Meta budget went</h3>
-    <p class="hint" style="margin-bottom:8px">The ads that carried real spend this ${prevTag}, and what each one delivered. Ads under ${money(d.ads.floor)} of spend are left out — too little to judge fairly.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
-    <tbody>${d.ads.top.map(a => `<tr><td><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span></td>
-      <td class="num"><b>${money(a.spend)}</b></td><td class="num">${fmtPct(a.share)}</td>
-      <td class="num">${fmtInt(a.purchases)}</td><td class="num">${a.cpa != null ? money(a.cpa) : '—'}</td>
-      <td class="num">${a.roas != null ? fmtX(a.roas) : '—'}</td></tr>`).join('')}</tbody></table></div>
-    ${d.ads.standout ? `<p style="font-size:13.5px;margin-top:10px">Most efficient of the ads with real spend: <b>${esc(d.ads.standout.name)}</b> at a <b>${money(d.ads.standout.cpa)}</b> CPA.</p>` : ''}
-    <p class="tiny" style="margin-top:6px">Meta-attributed figures — conversions keep settling for ~72 hours after the period closes, so very recent numbers read slightly low.</p></div>` : '';
 
   const weeksHtml = d.weeks?.length ? `<div class="card"><h3 style="margin-bottom:8px">How the month ran, week by week</h3>
     <div class="tbl-wrap"><table><thead><tr><th>Week</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th></tr></thead>
@@ -1728,7 +1741,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     <div class="rp-kpis">${kpis}</div>
     ${pacingHtml}${chartHtml}${splitHtml}
     ${(d.channels || []).map(chCard).join('')}
-    ${adsHtml}${weeksHtml}${changesHtml}
+    ${weeksHtml}${changesHtml}
     <p class="tiny"><b>Revenue, MER, aMER${t.cm != null ? ', Contribution Margin' : ''} and New-customer CPA are blended</b> — real store revenue and real total ad spend, with no platform's attribution involved — which is why they will not match what Meta or Google report on their own dashboards. The platform sections show each platform's own attributed numbers, and those are directional.</p>`;
 }
 
