@@ -2152,69 +2152,117 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
 }
 
-/** Did an account stop delivering? Compares yesterday's spend to its own L7 median.
- *  Catches paused campaigns, billing failures and policy blocks the morning after. */
-async function deliveryAlerts(env) {
-  const out = [];
-  for (const a of await listAccounts(env, true)) {
-    const today = localDate(a.tz), y = addDays(today, -1);
-    const { results } = await env.DB.prepare(
-      `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date < ?3 ORDER BY date`,
-    ).bind(a.act_id, addDays(today, -8), today).all();
-    const yRow = results.find(r => r.date === y);
-    const prior = results.filter(r => r.date !== y).map(r => r.spend).sort((x, z) => x - z);
-    if (prior.length < 4) continue;                       // not enough history to judge
-    const med = prior[Math.floor(prior.length / 2)];
-    if (med < 50) continue;                               // tiny spender: skip, too noisy
-    const spend = yRow?.spend ?? 0;
-    if (spend <= med * 0.4) {
-      out.push({ act: a, line: spend === 0
-        ? `🚨 *${a.name}* spent *nothing* yesterday (normal day ≈ ${money(med, a.currency)}). Check billing, campaign status and policy.`
-        : `⚠️ *${a.name}* spent ${money(spend, a.currency)} yesterday — ${Math.round((1 - spend / med) * 100)}% below its normal ${money(med, a.currency)}. Delivery may be throttled or something got paused.` });
-    }
-  }
-  return out;
+/* ------------------------------------------------------------------ */
+/*  Delivery alerts — the only scheduled Slack alert left.               */
+/*                                                                      */
+/*  An ad account can stop spending silently: a declined card, a         */
+/*  campaign paused by mistake, ads rejected on policy. Nothing else in  */
+/*  Locus notices, and every hour it goes unseen is spend that never     */
+/*  happened.                                                            */
+/*                                                                      */
+/*  Two checks per account per day, both against the account's OWN       */
+/*  recent normal — never an absolute number:                            */
+/*    · mid-afternoon, on today so far (catches it while it can be fixed)*/
+/*    · next morning, on the completed day (catches what broke overnight)*/
+/*                                                                      */
+/*  This replaced a 03:30 UTC nightly pass, which ran at 10:30pm Central */
+/*  and — because the local day was not over at that hour — reported on  */
+/*  the day BEFORE yesterday. A break on Monday surfaced late on Tuesday.*/
+/* ------------------------------------------------------------------ */
+
+const DELIVERY_FLOOR = 0.4;          // at or below 40% of normal = something is wrong
+const DELIVERY_MIN_SPEND = 50;       // ignore accounts too small to judge
+const DELIVERY_MORNING_HOUR = 8;     // local, reports on yesterday
+const DELIVERY_INTRADAY_HOUR = 14;   // local, reports on today so far
+
+/** Per-account alert bookkeeping, so one problem is one message.
+ *  { act_id: { day: 'YYYY-MM-DD', intra: 'YYYY-MM-DD', alerted: 'YYYY-MM-DD' } }
+ *  `day`/`intra` record that a check RAN (so a missed cron tick still recovers
+ *  later the same day); `alerted` records the DATE a problem was reported about,
+ *  so the morning pass stays quiet about a day the afternoon already flagged. */
+async function deliveryState(env) {
+  return safeJson(await getSetting(env, 'deliveryState'), {});
 }
 
-/** Nightly Slack alert: DELIVERY DROPS ONLY.
- *
- *  This used to also send monthly spend-pace drift and CPA/ROAS guardrail
- *  breaches. Both were removed on 2026-08-27:
- *
- *  - Spend pace duplicated Plan, which forecasts the month against blended
- *    revenue and total spend across every platform. Two answers to one question,
- *    and the Meta-only one disagreed with the agreed plan.
- *  - The ROAS floor was set to 2.5 on every brand — the same number as the
- *    BLENDED MER goal. Meta-attributed ROAS is structurally below blended MER
- *    (measured 30d: Meta 1.57–1.99 against blended 2.05–2.52 across all six),
- *    so the floor was unreachable by construction and fired for every brand
- *    every night. An alert that always fires is an alert nobody reads, and it
- *    was training the team to ignore this channel.
- *
- *  What survives is the one thing nothing else catches: an account that stopped
- *  delivering. Plan sees that a week later; this sees it the next morning. */
-async function paceAlerts(env) {
+/** Yesterday against this account's own 7-day median. Pure D1, no Meta call. */
+async function checkCompletedDay(env, a, day) {
+  const { results } = await env.DB.prepare(
+    `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 ORDER BY date`,
+  ).bind(a.act_id, addDays(day, -7), day).all();
+  const dayRow = results.find(r => r.date === day);
+  const prior = results.filter(r => r.date !== day).map(r => r.spend).sort((x, z) => x - z);
+  if (prior.length < 4) return null;                       // not enough history to judge
+  const med = prior[Math.floor(prior.length / 2)];
+  if (med < DELIVERY_MIN_SPEND) return null;               // tiny spender: too noisy
+  const spend = dayRow?.spend ?? 0;
+  if (spend > med * DELIVERY_FLOOR) return null;
+  return spend === 0
+    ? `🚨 *${a.name}* spent *nothing* yesterday (a normal day is about ${money(med, a.currency)}). Check billing, campaign status and policy.`
+    : `⚠️ *${a.name}* spent ${money(spend, a.currency)} yesterday — ${Math.round((1 - spend / med) * 100)}% below its normal ${money(med, a.currency)}. Something may be paused or throttled.`;
+}
+
+/** Today so far against the shape of a normal day by this hour. One Meta call. */
+async function checkToday(env, a) {
+  let p;
+  try { p = await hourlyPacing(env, a); } catch { return null; }
+  if (!p || !(p.l7_by_now >= DELIVERY_MIN_SPEND / 2)) return null;   // too early / too small to judge
+  if (p.spent > p.l7_by_now * DELIVERY_FLOOR) return null;
+  return p.spent === 0
+    ? `🚨 *${a.name}* has spent *nothing* so far today (normally about ${money(p.l7_by_now, a.currency)} by this hour). Check billing, campaign status and policy.`
+    : `⚠️ *${a.name}* has spent ${money(p.spent, a.currency)} so far today against ${money(p.l7_by_now, a.currency)} on a normal day by now — ${Math.round((1 - p.spent / p.l7_by_now) * 100)}% down. Worth a look in Ads Manager while the day is still live.`;
+}
+
+/** Runs on every hourly tick; each account gates itself on its OWN local clock,
+ *  because the brands are spread across three US timezones and "2pm" has to mean
+ *  2pm where the account is. */
+async function deliveryPass(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
   const def = await getSetting(env, 'slackChannel');
-  const drops = await deliveryAlerts(env).catch(() => []);
+  const state = await deliveryState(env);
   const byChannel = new Map();
-  for (const d of drops) {
-    const ch = d.act.slack_channel || def;
-    if (!ch) continue;
-    if (!byChannel.has(ch)) byChannel.set(ch, []);
-    byChannel.get(ch).push(d.line);
+  let touched = false;
+
+  for (const a of await listAccounts(env, true)) {
+    const today = localDate(a.tz);
+    const hour = Math.floor(localHourFrac(a.tz));
+    const yesterday = addDays(today, -1);
+    const st = state[a.act_id] || (state[a.act_id] = {});
+    const queue = line => {
+      const ch = a.slack_channel || def;
+      if (!ch || !line) return;
+      if (!byChannel.has(ch)) byChannel.set(ch, []);
+      byChannel.get(ch).push(line);
+    };
+
+    // Same day, mid-afternoon — the one that can still save the day's spend.
+    if (hour >= DELIVERY_INTRADAY_HOUR && st.intra !== today) {
+      st.intra = today; touched = true;
+      const line = await checkToday(env, a).catch(() => null);
+      if (line && st.alerted !== today) { st.alerted = today; queue(line); }
+    }
+    // Next morning, on the completed day. Skipped when the afternoon pass
+    // already reported that same day - one problem, one message.
+    if (hour >= DELIVERY_MORNING_HOUR && st.day !== today) {
+      st.day = today; touched = true;
+      if (st.alerted !== yesterday) {
+        const line = await checkCompletedDay(env, a, yesterday).catch(() => null);
+        if (line) { st.alerted = yesterday; queue(line); }
+      }
+    }
   }
+
+  if (touched) await putSetting(env, 'deliveryState', JSON.stringify(state)).catch(() => {});
   if (!byChannel.size) return { ok: true, alerts: 0 };
   let alerts = 0;
   const results = [];
-  for (const [ch, blocks] of byChannel) {
-    alerts += blocks.length;
+  for (const [ch, lines] of byChannel) {
+    alerts += lines.length;
     try {
-      await slackPost(env, ch, `Delivery check: ${blocks.length} account${blocks.length > 1 ? 's' : ''} stopped spending normally`, [
-        { type: 'section', text: { type: 'mrkdwn', text: blocks.join('\n\n') } },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}?open=meta|Open Locus → Meta> · compares yesterday's spend with this account's own 7-day median · checked nightly` }] },
+      await slackPost(env, ch, `Delivery check: ${lines.length} account${lines.length > 1 ? 's' : ''} spending well below normal`, [
+        { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n\n') } },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}?open=meta|Open Locus → Meta> · compared with this account's own last 7 days, never a fixed target` }] },
       ]);
-      results.push({ channel: ch, sent: blocks.length });
+      results.push({ channel: ch, sent: lines.length });
     } catch (e) { results.push({ channel: ch, error: e.message }); }
   }
   return { ok: true, alerts, channels: results };
@@ -2307,7 +2355,10 @@ async function nightly(env) {
   for (const a of accounts) results.push(await syncAccount(env, a));
   const tw = [];
   for (const a of accounts) tw.push(await syncTwDaily(env, a, 10).catch(e => ({ name: a.name, error: e.message })));
-  const pace = await paceAlerts(env).catch(e => ({ error: e.message }));
+  // Alerts moved to deliveryPass() on the hourly trigger: this job runs at
+  // 03:30 UTC, which is late evening locally, and could only ever report on
+  // a day that had already been over for the best part of a day.
+  const pace = { skipped: 'delivery alerts run on the hourly pass' };
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('lastRun', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
     .bind(JSON.stringify({ at: new Date().toISOString(), results, tw, pace })).run();
   return results;
@@ -2329,6 +2380,7 @@ export default {
         // tick or a transient failure did the same. Every later tick now retries, and
         // dailyBriefs skips brands already posted for the date, so this cannot double
         // post and costs one cheap SELECT per brand per hour once the hour is past.
+        await deliveryPass(env).catch(() => {});
         if (centralHour() >= await briefHour(env)) {
           await dailyBriefs(env);
           // Weekly/monthly report drafts ride the same gate: Monday drafts last
