@@ -213,6 +213,10 @@
   .rp-change:last-child{border-bottom:none}
   .rp-change .cat{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft);border-radius:6px;padding:2px 7px;white-space:nowrap;justify-self:start}
   .rp-change .s{overflow-wrap:anywhere;min-width:0}
+  /* Settings channel cells: the note slot is always present so a warning can
+     never change a row's height and knock the dropdowns out of line. */
+  .ch-note{display:block;min-height:15px;margin-top:3px;font-size:11.5px;line-height:1.25;color:var(--warn)}
+
   /* Report KPI cards: keep the number readable when the grid drops to one column. */
   .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px}
 
@@ -2813,19 +2817,26 @@ async function renderSettings() {
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
-  const chCell = (a, key, blank) => Array.isArray(chList)
-    ? `<select data-k="${key}" style="max-width:200px"><option value="">${esc(blank)}</option>${chList.map(c =>
-        `<option value="${esc(c.id)}" ${a[key] === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')}</select>`
-    : chList === 'error'
-    ? `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID" style="width:140px">`
-    : `<span class="tiny">loading channels…</span>`;
+  /* The note line is ALWAYS rendered, empty or not. Appending a warning only
+     when it applies made that row taller than its neighbours and shunted the
+     dropdowns out of alignment — the warning was moving the thing it warned
+     about. Reserved space keeps every row identical. */
+  const chCell = (a, key, blank, note) => {
+    const control = Array.isArray(chList)
+      ? `<select data-k="${key}" style="max-width:200px"><option value="">${esc(blank)}</option>${chList.map(c =>
+          `<option value="${esc(c.id)}" ${a[key] === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')}</select>`
+      : chList === 'error'
+      ? `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID" style="width:140px">`
+      : `<span class="tiny">loading channels…</span>`;
+    return `${control}<span class="ch-note">${note ? `⚠ ${esc(note)}` : ''}</span>`;
+  };
 
   const draw = () => {
     tb.innerHTML = shown.map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
-      <td>${chCell(a, 'brief_channel', '— not set —')}${a.brief_enabled && !a.brief_channel ? '<br><span class="tiny" style="color:var(--warn)">⚠ falling back to the internal alerts channel</span>' : ''}</td>
-      <td>${chCell(a, 'report_channel', '— drafts stay in-app —')}${a.report_channel && a.report_channel === (a.report_client_channel || a.brief_channel) ? '<br><span class="tiny" style="color:var(--warn)">⚠ same channel as the sent report</span>' : ''}</td>
-      <td>${chCell(a, 'report_client_channel', '— use Daily Brief channel —')}</td>
+      <td>${chCell(a, 'brief_channel', '— not set —', a.brief_enabled && !a.brief_channel ? 'falling back to the internal alerts channel' : '')}</td>
+      <td>${chCell(a, 'report_channel', '— drafts stay in-app —', a.report_channel && a.report_channel === (a.report_client_channel || a.brief_channel) ? 'same channel as the sent report' : '')}</td>
+      <td>${chCell(a, 'report_client_channel', '— use Daily Brief channel —', '')}</td>
       <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Posting each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
       <td>${healthPill(a.cost_health)}</td>
@@ -2867,14 +2878,24 @@ async function renderSettings() {
         if (pct != null && !(pct > 0 && pct < 1)) {
           return noteModal('That margin looks wrong', '<p>Enter a margin between <b>1</b> and <b>99</b> percent, or leave it blank to use the real per-product costs from Triple Whale.</p>');
         }
-        await api('/api/margin', { method:'PUT', body: JSON.stringify({ act: a.act_id, margin_pct: pct }) });
+        const mr = await api('/api/margin', { method:'PUT', body: JSON.stringify({ act: a.act_id, margin_pct: pct }) });
         a.margin_pct = pct;
+        // The route re-grades cost health and returns the new verdict, so the
+        // pill can update without another round trip.
+        if (mr?.verdict) a.cost_health = { ...(a.cost_health || {}), verdict: mr.verdict };
       } else {
         await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, [k]: e.target.value }) });
         a[k] = e.target.value || null;
       }
       flash(e.target);
-      await inPlace(async () => { await boot(); show('settings'); });
+      // Saving used to re-run boot() and repaint the whole tab, which reads as
+      // the page hanging on every dropdown. The value is already persisted and
+      // S.accounts is already updated, so redraw the table locally - instant,
+      // no spinner - and refresh the shared snapshot in the background for the
+      // other tabs. Nothing is ever left unsaved, so there is no state to warn
+      // about on leaving.
+      draw();
+      refreshAccounts();
     } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
   });
 

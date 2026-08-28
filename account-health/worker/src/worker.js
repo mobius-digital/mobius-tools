@@ -980,7 +980,17 @@ async function writeBriefNarrative(env, acct, data, date) {
     system: BRIEF_SYSTEM,
     maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom for the text
     user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${(data.covering || [date]).join(' and ')}.\n` +
-      `Goals this month: ${JSON.stringify(data.goals)}. Meta ROAS floor: ${acct.target_roas ?? 'none'}. Forecast weighting: ${data.weights}.\n` +
+      // `target_roas` is DELIBERATELY not passed. It is a Meta-attributed ROAS
+      // guardrail for the media buyer, living in Account Health, and it is set
+      // to 2.5 on every brand - the same figure as the BLENDED MER goal. Meta
+      // ROAS is structurally below blended MER (measured 2026-08-27 over 30d:
+      // Meta 1.57-1.99 against blended 2.05-2.52 across all six brands), so
+      // feeding it here made Claude report Meta as permanently failing a target
+      // that was never Meta's, in a document the client reads. Party Patch was
+      // the clearest case: blended 2.52 - goal met - while its Meta ROAS of
+      // 1.64 was written up as a miss.
+      `Goals this month: ${JSON.stringify(data.goals)}. Forecast weighting: ${data.weights}.\n` +
+      `Meta and Google ROAS below are each platform's OWN attributed figure. There is no ROAS target: the only agreed goals are the blended ones above (net sales, spend, MER, aMER). Never judge a platform's ROAS against the MER goal - blended MER counts every channel's revenue against total spend and is always the higher number, so doing that reports a healthy account as failing. Use platform ROAS only to say which channel moved, never to declare a target missed.\n` +
       (data.goals && data.goals_planned === false
         ? `IMPORTANT: no target was actually set for ${MONTH_OF(data.month)} - the figures above are carried over from ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from) : 'the last plan on file'}. Do NOT call them this month's goal or say the client is ahead of/behind "plan" as though it were agreed. Refer to them as last month's pace, and put setting this month's target in What's Next?.\n`
         : '') +
@@ -1670,7 +1680,7 @@ async function writeReportNarrative(env, acct, data) {
       (unplanned.length ? `IMPORTANT: no plan was actually set for ${unplanned.map(([ym]) => ym).join(', ')} — the "plan" figures are carried over from an earlier month. Do not present them as an agreed target; refer to them as the prior pace.\n` : '') +
       (data.cm_ok ? '' : `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality?.reason}). Contribution margin has been removed from the report — do NOT mention margin, CM or profit anywhere.\n`) +
       (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
-      `Channels (platform revenue/ROAS is the platform's own attribution — directional):\n${chLines.join('\n') || '- (none)'}\n` +
+      `Channels — each platform's OWN attributed revenue/ROAS. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
       `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
       `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
       (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : ''),
