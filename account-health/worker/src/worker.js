@@ -24,7 +24,10 @@ const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
 const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle late)
 const ACTIVITY_BACKFILL_DAYS = 90;
-const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/account-health/';
+// One platform: the Meta screens are now a tab inside Mobius (was the separate
+// Account Health dashboard, which is kept only as a redirect). This worker is
+// unchanged - it still owns the Meta sync, both crons and every secret.
+const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -1179,8 +1182,6 @@ async function dailyBriefs(env) {
 /*  secrets and the crons (the account is at the 5-trigger limit).     */
 /* ------------------------------------------------------------------ */
 
-const PROFIT_URL = 'https://tools.go-mobius-digital.com/profit/';
-
 /** One day of store-level economics — the same CTC math as briefData and
  *  Profit's dayEconomics: revenue = Shopify TOTAL SALES minus sales tax
  *  (shipping already inside it, never added); CM subtracts every variable
@@ -1756,7 +1757,7 @@ async function postReportDraft(env, acct, r) {
   const channel = acct.report_channel || await getSetting(env, 'reportChannel');
   if (!channel) return { skipped: 'no internal reports channel configured for this brand' };
   const label = r.period === 'weekly' ? 'Weekly' : 'Monthly';
-  const link = `${PROFIT_URL}?open=reports&act=${encodeURIComponent(acct.act_id)}`;
+  const link = `${DASHBOARD_URL}?open=reports&act=${encodeURIComponent(acct.act_id)}`;
   await slackPost(env, channel,
     `:clipboard: *${label} report drafted — ${acct.name}* (${prettyDate(r.start)} → ${prettyDate(r.end)})\n` +
     `${reportHeadline(r.data)}\n` +
@@ -1781,7 +1782,7 @@ async function sendReport(env, acct, period, start) {
   // the team. Explicit field first, brief_channel only as a convenience.
   const channel = acct.report_client_channel || acct.brief_channel || acct.slack_channel;
   if (!channel) throw new Error('no client channel set for this brand — pick one in Settings');
-  const url = `${PROFIT_URL}?reports=${await reportToken(env, acct.act_id)}`;
+  const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const label = period === 'weekly' ? 'Weekly' : 'Monthly';
   const opener = period === 'weekly'
     ? `Hey Team :wave: Here's your Weekly Report covering ${prettyDate(start)} → ${prettyDate(row.period_end)} →`
@@ -2118,34 +2119,33 @@ async function deliveryAlerts(env) {
   return out;
 }
 
-/** Nightly Slack alerts: pace drift + KPI breaches + delivery drops. Each brand posts to its own
- *  channel when one is set; brands without one share the default channel. */
+/** Nightly Slack alert: DELIVERY DROPS ONLY.
+ *
+ *  This used to also send monthly spend-pace drift and CPA/ROAS guardrail
+ *  breaches. Both were removed on 2026-08-27:
+ *
+ *  - Spend pace duplicated Plan, which forecasts the month against blended
+ *    revenue and total spend across every platform. Two answers to one question,
+ *    and the Meta-only one disagreed with the agreed plan.
+ *  - The ROAS floor was set to 2.5 on every brand — the same number as the
+ *    BLENDED MER goal. Meta-attributed ROAS is structurally below blended MER
+ *    (measured 30d: Meta 1.57–1.99 against blended 2.05–2.52 across all six),
+ *    so the floor was unreachable by construction and fired for every brand
+ *    every night. An alert that always fires is an alert nobody reads, and it
+ *    was training the team to ignore this channel.
+ *
+ *  What survives is the one thing nothing else catches: an account that stopped
+ *  delivering. Plan sees that a week later; this sees it the next morning. */
 async function paceAlerts(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
   const def = await getSetting(env, 'slackChannel');
-  const thr = +(await getSetting(env, 'paceAlertPct')) || 0.15;
-  const data = await overview(env);
   const drops = await deliveryAlerts(env).catch(() => []);
   const byChannel = new Map();
-  for (const a of data) {
-    const parts = [];
-    if (a.mtd.pace_pct != null && Math.abs(a.mtd.pace_pct) >= thr) {
-      const m = a.mtd, dir = m.pace_pct > 0 ? 'over' : 'under';
-      parts.push(`⏱ ${money(m.spend, a.currency)} MTD vs ${money(m.expected, a.currency)} expected (*${Math.round(Math.abs(m.pace_pct) * 100)}% ${dir}*) · projected ${money(m.projected, a.currency)} of ${money(m.budget, a.currency)} target`);
-    }
-    if (a.target_cpa && a.l7.cpa != null && a.l7.cpa > a.target_cpa * 1.05) {
-      parts.push(`🎯 7d CPA ${money(a.l7.cpa, a.currency)} vs ${money(a.target_cpa, a.currency)} cap (*${Math.round((a.l7.cpa / a.target_cpa - 1) * 100)}% over*)`);
-    }
-    if (a.target_roas && a.l7.roas != null && a.l7.roas < a.target_roas * 0.95) {
-      parts.push(`🎯 7d ROAS ${a.l7.roas.toFixed(2)}x vs ${a.target_roas}x floor`);
-    }
-    const drop = drops.find(d => d.act.act_id === a.act_id);
-    if (drop) parts.unshift(drop.line);
-    if (!parts.length) continue;
-    const ch = a.slack_channel || def;
+  for (const d of drops) {
+    const ch = d.act.slack_channel || def;
     if (!ch) continue;
     if (!byChannel.has(ch)) byChannel.set(ch, []);
-    byChannel.get(ch).push(`*${a.name}*\n${parts.map(p => `  ${p}`).join('\n')}`);
+    byChannel.get(ch).push(d.line);
   }
   if (!byChannel.size) return { ok: true, alerts: 0 };
   let alerts = 0;
@@ -2153,9 +2153,9 @@ async function paceAlerts(env) {
   for (const [ch, blocks] of byChannel) {
     alerts += blocks.length;
     try {
-      await slackPost(env, ch, `Account Health: ${blocks.length} account${blocks.length > 1 ? 's' : ''} need attention`, [
+      await slackPost(env, ch, `Delivery check: ${blocks.length} account${blocks.length > 1 ? 's' : ''} stopped spending normally`, [
         { type: 'section', text: { type: 'mrkdwn', text: blocks.join('\n\n') } },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}|Account Health> · ⏱ pace = MTD spend vs monthly target × month elapsed · 🎯 KPI = 7-day CPA/ROAS vs guardrails · checked nightly` }] },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}?open=meta|Open Mobius → Meta> · compares yesterday's spend with this account's own 7-day median · checked nightly` }] },
       ]);
       results.push({ channel: ch, sent: blocks.length });
     } catch (e) { results.push({ channel: ch, error: e.message }); }
@@ -2435,27 +2435,11 @@ export default {
         return json(r);
       }
 
-      if (path === '/api/share' && request.method === 'POST') {
-        const { act_id } = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(act_id).first();
-        if (!acct) return json({ error: 'unknown account' }, 404);
-        const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
-        let token = Object.keys(tokens).find(k => tokens[k].act_id === act_id);   // one stable link per client
-        if (!token) {
-          token = crypto.randomUUID().replace(/-/g, '');
-          tokens[token] = { act_id, created: new Date().toISOString() };
-          await putSetting(env, 'shareTokens', JSON.stringify(tokens));
-        }
-        return json({ ok: true, url: `${DASHBOARD_URL}?share=${token}` });
-      }
-      if (path === '/api/share' && request.method === 'DELETE') {
-        const { act_id } = await request.json().catch(() => ({}));
-        const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
-        for (const k of Object.keys(tokens)) if (tokens[k].act_id === act_id) delete tokens[k];
-        await putSetting(env, 'shareTokens', JSON.stringify(tokens));
-        return json({ ok: true });
-      }
-
+      /* The Meta-only client share link was retired 2026-08-27. Clients get
+         blended reporting - the profit worker's ?perf, ?plan and ?reports links -
+         and a Meta-attributed view was the one surface that contradicted it.
+         GET /api/share/:token above still answers for any link already handed
+         out, but nothing mints new ones and no page renders them. */
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),
@@ -2668,7 +2652,7 @@ export default {
         const b = await request.json().catch(() => ({}));
         const acct = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
-        return json({ ok: true, url: `${PROFIT_URL}?reports=${await reportToken(env, b.act)}` });
+        return json({ ok: true, url: `${DASHBOARD_URL}?reports=${await reportToken(env, b.act)}` });
       }
 
       if (path === '/api/summarise' && request.method === 'POST') {

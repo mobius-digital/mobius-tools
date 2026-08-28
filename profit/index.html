@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mobius Profit</title>
+<title>Mobius</title>
 <meta name="description" content="Store-level profitability for every Mobius Digital client: contribution margin, MER, aMER and cost-data health across all channels.">
 <link rel="icon" href="../favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -54,6 +54,12 @@
   nav.tabs button{padding:11px 14px;font-size:13px;font-weight:600;color:#9FB4C2;border-bottom:2px solid transparent;white-space:nowrap}
   nav.tabs button.on{color:#fff;border-bottom-color:var(--brand)}
   nav.tabs button .soon{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#64788A;margin-left:6px}
+  /* Meta sub-tabs: one step quieter than the main tabs so the hierarchy reads. */
+  nav.subtabs{background:#111E27;border-top:1px solid var(--hd-line)}
+  nav.subtabs .in{max-width:1240px;margin:0 auto;padding:0 26px;display:flex;gap:2px;overflow-x:auto}
+  nav.subtabs button{padding:8px 12px;font-size:12.5px;font-weight:600;color:#8CA2B2;border-bottom:2px solid transparent;white-space:nowrap}
+  nav.subtabs button.on{color:#fff;border-bottom-color:var(--brand)}
+  @media (max-width:720px){ nav.subtabs .in{padding:0 14px} }
 
   main{max-width:1240px;margin:0 auto;padding:26px 26px 90px}
   h2{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:4px}
@@ -237,7 +243,7 @@
   <div class="hd">
     <a class="mark" href="../"><img src="../favicon.png" alt=""><b>MOBIUS <span>TOOLS</span></b></a>
     <div class="hd-sep"></div>
-    <div class="hd-title">Mobius <em>Profit</em></div>
+    <div class="hd-title">Mobius</div>
     <div class="hd-right">
       <select id="clientPick" style="display:none"></select>
       <select id="rangePick" style="display:none">
@@ -256,14 +262,20 @@
     <button data-t="plan">Plan</button>
     <button data-t="brief">Daily Brief</button>
     <button data-t="reports">Reports</button>
-    <button data-t="costs">Costs</button>
-    <button data-t="customers">Customers</button><button data-t="settings">Settings</button>
+    <button data-t="meta">Meta</button>
+    <button data-t="customers">Customers</button>
+    <button data-t="costs">Costs</button><button data-t="settings">Settings</button>
   </div></nav>
+  <!-- Sub-tabs for the Meta section. Kept OUTSIDE #main because meta.js owns
+       that element entirely; a nav rendered inside it would be wiped on every
+       sub-tab switch. -->
+  <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
 </header>
 
 <main id="main"></main>
-<footer>Mobius Profit · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms). For Meta-only numbers that match Ads Manager, use <a href="../account-health/">Account Health</a>. Plan in <code>profit/PRD.md</code>.</footer>
+<footer>Mobius · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms), plus the <b>Meta</b> tab for platform-reported numbers that match Ads Manager. Plan in <code>profit/PRD.md</code>.</footer>
 
+<script src="meta.js"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -317,8 +329,8 @@ const fmtAgo = iso => { if (!iso) return 'never'; const m = (Date.now() - parseT
  *  merchant would actually use - Overview, Profit, Plan, Costs, Customers - stays. */
 function applyKind() {
   if (S.kind !== 'demo') return;
-  document.querySelectorAll('#tabs [data-t="brief"], #tabs [data-t="reports"], #tabs [data-t="settings"]').forEach(el => el.remove());
-  if (S.tab === 'brief' || S.tab === 'reports' || S.tab === 'settings') S.tab = 'overview';
+  document.querySelectorAll('#tabs [data-t="brief"], #tabs [data-t="reports"], #tabs [data-t="meta"], #tabs [data-t="settings"]').forEach(el => el.remove());
+  if (['brief', 'reports', 'meta', 'settings'].includes(S.tab)) S.tab = 'overview';
   if (!$('#demoNote')) {
     document.querySelector('.hd-right')?.insertAdjacentHTML('afterbegin',
       '<span id="demoNote" class="pill" title="Sample data for demonstration. No real merchant or customer data, and nothing here can be changed.">Demo · sample data</span>');
@@ -375,6 +387,7 @@ async function boot() {
 async function renderPlanShare(token) {
   document.querySelector('.hd-right').style.display = 'none';
   $('#tabs').style.display = 'none';
+  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   let d;
   try {
@@ -422,6 +435,7 @@ async function renderPlanShare(token) {
 function renderConnected(shop) {
   document.querySelector('.hd-right').style.display = 'none';
   $('#tabs').style.display = 'none';
+  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('.hd-title').innerHTML = 'Store <em>connected</em>';
   $('#main').innerHTML = `<div class="gate" style="max-width:560px">
     <h1 style="font-size:22px;margin-bottom:10px">Connected ✓</h1>
@@ -441,6 +455,7 @@ function renderConnected(shop) {
 async function renderPerfShare(token) {
   document.querySelector('.hd-right').style.display = 'none';
   $('#tabs').style.display = 'none';
+  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   let d;
   try {
@@ -520,10 +535,11 @@ function renderGate(err, offerRetry) {
   setChip('Signed out','off');
   $('#tabs').style.display='none'; $('#clientPick').style.display='none';
   $('#rangePick').style.display='none'; $('#btnOut').style.display='none';
+  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('#main').innerHTML = `
   <div class="gate">
-    <h1>Mobius Profit</h1>
-    <p>Is each brand actually making money? Contribution margin, MER and aMER across every channel — not just the ads. Sign in once at Mobius HQ and every internal tool opens.</p>
+    <h1>Mobius</h1>
+    <p>Every client, every channel: contribution margin, MER and aMER on blended store data, the Meta ad accounts behind them, and the weekly and monthly reports you send. Sign in once at Mobius HQ.</p>
     <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
@@ -732,12 +748,42 @@ function show(tab) {
   const rp = $('#rangePick');
   if (rp && S.tok) rp.style.display = RANGE_TABS.has(tab) ? '' : 'none';
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  const sn = $('#subtabs');
+  if (sn) sn.style.display = tab === 'meta' ? '' : 'none';
   const m = $('#main');
   const first = !m.firstElementChild;
   if (!first) m.classList.add('busy');
   const done = () => m.classList.remove('busy');
-  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, customers: renderCustomers, settings: renderSettings })[tab](first);
+  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings })[tab](first);
   if (r && typeof r.then === 'function') r.then(done, done); else done();
+}
+
+/* ---------- Meta ----------
+   The Meta-only screens live in meta.js (their own closure — see the header of
+   that file for why). This is just the sub-tab bar and the handoff: the host
+   owns sign-in, the client picker and the chrome; meta.js owns #main. */
+const MSUB = { key: 'pf_msub' };
+async function renderMeta(first) {
+  const run = ++RUN;
+  const host = $('#subtabs .in');
+  if (!window.MetaTab) {
+    $('#main').innerHTML = `<h2>Meta</h2><div class="card"><span style="color:var(--bad)">The Meta section didn't load. Hard-refresh the page (Ctrl+Shift+R); if it persists, <code>meta.js</code> failed to fetch.</span></div>`;
+    if (host) host.innerHTML = '';
+    return;
+  }
+  const subs = window.MetaTab.subs;
+  let sub = localStorage.getItem(MSUB.key) || 'overview';
+  if (!subs.some(s => s.id === sub)) sub = subs[0].id;
+  if (host) {
+    host.innerHTML = subs.map(s => `<button data-s="${s.id}" class="${s.id === sub ? 'on' : ''}">${esc(s.label)}</button>`).join('');
+    host.querySelectorAll('button').forEach(b => b.onclick = () => {
+      localStorage.setItem(MSUB.key, b.dataset.s);
+      show('meta');
+    });
+  }
+  if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  await window.MetaTab.render({ tok: S.tok, act: S.act, sub });
+  if (run !== RUN) return;   // a newer render started while Meta was loading
 }
 
 /* ---------- Daily Brief send time ----------
@@ -1994,6 +2040,7 @@ async function renderReports(first) {
 async function renderReportsShare(token, sel) {
   document.querySelector('.hd-right').style.display = 'none';
   $('#tabs').style.display = 'none';
+  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   let d;
   try {
@@ -2809,6 +2856,7 @@ async function renderSettings() {
         <select id="btHour" style="max-width:190px"></select>
         <span class="tiny" id="btMsg"></span>
       </div></div>
+    <div id="metaCard"><div class="card"><span class="hint">Loading Meta ad accounts\u2026</span></div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
     <div class="card settings"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th title="Where the Daily Brief posts each morning.">Daily Brief channel</th><th title="INTERNAL channel where weekly/monthly report drafts land for team review. Deliberately no fallback — if this is empty, drafts appear only on the Reports tab and never post anywhere.">Reports · drafts (internal)</th><th title="Where the Send to client button posts a finished report. Separate from the Daily Brief channel so a report can reach a client without moving the brief too. Falls back to the Daily Brief channel when empty.">Reports · to client</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
@@ -2933,6 +2981,65 @@ async function renderSettings() {
     } catch (err) { msg.textContent = err.message; }
     b.disabled = false;
   });
+
+  /* Meta ad accounts — this is where a NEW CLIENT starts.
+     It used to live in the separate Account Health dashboard, which is why
+     "how do I add a client" had no answer in one place. Discovering the account
+     and switching it on is step one; everything else on this page then applies
+     to it. Uses MetaTab's own client (the account-health worker), because that
+     worker owns the Meta sync and the account list includes clients not yet
+     switched on - which is exactly the list you need here. */
+  (async () => {
+    const holder = $('#metaCard');
+    if (!holder || !window.MetaTab) { if (holder) holder.innerHTML = ''; return; }
+    const mApi = window.MetaTab.api;
+    const paint = accounts => {
+      const list = one ? accounts.filter(a => a.act_id === one.act_id) : accounts;
+      holder.innerHTML = `<div class="card settings"><div class="row" style="margin-bottom:6px">
+        <h3 style="margin:0">Meta ad accounts</h3><span style="flex:1"></span>
+        <button class="btn" id="mtDiscover">Find ad accounts on Meta</button><span class="tiny" id="mtMsg"></span></div>
+        <p class="hint" style="margin-bottom:10px"><b>Adding a client starts here.</b> Press <b>Find ad accounts on Meta</b>, switch the new account on, then set its Triple Whale shop so the blended numbers work. After that, set its channels below and agree a monthly plan on the <b>Plan</b> tab.</p>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Ad account</th><th title="Whether this account syncs and appears anywhere in Mobius">Tracked</th><th title="The client's Triple Whale shop domain. Every blended number - revenue, MER, contribution margin, the reports - depends on this.">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead>
+          <tbody id="mtRows">${list.map(a => `<tr data-id="${a.act_id}">
+            <td><b>${esc(a.name)}</b><br><span class="tiny">${esc(a.act_id)}${a.last_error ? ` · <span style="color:var(--bad)">${esc(String(a.last_error).slice(0, 50))}</span>` : ''}</span></td>
+            <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.active ? 'on' : ''}" data-mk="active"></div><span class="tiny">${a.active ? 'on' : 'off'}</span></div></td>
+            <td><input type="text" data-mk="tw_shop" value="${esc(a.tw_shop || '')}" placeholder="name.myshopify.com" style="width:190px">${a.active && !a.tw_shop ? '<br><span class="tiny" style="color:var(--warn)">⚠ no blended data without this</span>' : ''}</td>
+            <td><span class="tiny">${a.last_sync_insights ? fmtAgo(a.last_sync_insights) : 'never'}</span></td>
+            <td><button class="btn" data-mk="sync" style="font-size:11.5px;padding:4px 8px">Sync now</button> <span class="tiny" data-ms="${a.act_id}"></span></td>
+          </tr>`).join('') || '<tr><td colspan="5" class="tiny">Nothing found yet — press “Find ad accounts on Meta”.</td></tr>'}</tbody>
+        </table></div>
+        <p class="tiny" style="margin-top:10px">Switching an account on backfills 90 days on its first sync. These settings are shared with the Meta tab — one database behind the whole platform.</p></div>`;
+
+      $('#mtDiscover').onclick = async () => {
+        const b = $('#mtDiscover'); b.disabled = true; $('#mtMsg').textContent = 'Asking Meta…';
+        try { const r = await mApi('/api/discover', { method: 'POST' }); $('#mtMsg').textContent = `Found ${r.found}`; paint(r.accounts || []); }
+        catch (e) { $('#mtMsg').textContent = e.message; }
+        b.disabled = false;
+      };
+      const rowAcct = el => accounts.find(x => x.act_id === el.closest('tr').dataset.id);
+      holder.querySelectorAll('[data-mk="active"]').forEach(tg => tg.onclick = async () => {
+        const a = rowAcct(tg); const on = !tg.classList.contains('on');
+        tg.classList.toggle('on', on);
+        try { await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ active: on }) }); a.active = on; paint(accounts); }
+        catch (e) { tg.classList.toggle('on', !on); noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
+      });
+      holder.querySelectorAll('[data-mk="tw_shop"]').forEach(inp => inp.onchange = async () => {
+        const a = rowAcct(inp);
+        try { await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ tw_shop: inp.value.trim() }) }); a.tw_shop = inp.value.trim(); flash(inp); }
+        catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
+      });
+      holder.querySelectorAll('[data-mk="sync"]').forEach(b => b.onclick = async () => {
+        const a = rowAcct(b); const msg = $(`[data-ms="${a.act_id}"]`);
+        b.disabled = true; if (msg) msg.textContent = 'syncing…';
+        try { const r = await mApi(`/api/sync?act=${a.act_id}`, { method: 'POST' }); if (msg) msg.textContent = r.result?.error ? r.result.error : 'done ✓'; }
+        catch (e) { if (msg) msg.textContent = e.message; }
+        b.disabled = false;
+      });
+    };
+    try { await window.MetaTab.ensureAccounts(true); if (run === RUN) paint(window.MetaTab.accounts()); }
+    catch (e) { holder.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load Meta accounts: ${esc(e.message)}</span></div>`; }
+  })();
 
   // Connections. Listeners go on the card, never on #main - #main survives every
   // render, so a listener there stacks one copy per visit.
