@@ -1764,7 +1764,12 @@ async function sendReport(env, acct, period, start) {
   if (!row) throw new Error('no report generated for that period yet');
   const data = safeJson(row.data_json, null);
   if (!data) throw new Error('this report has no data — regenerate it first');
-  const channel = acct.brief_channel || acct.slack_channel;
+  // Reports get their own client destination. Falling back to brief_channel
+  // alone would have meant you could not send a report to a client without
+  // ALSO moving the Daily Brief there - and every brand's brief_channel is
+  // currently an internal channel, so "Send to client" would have posted to
+  // the team. Explicit field first, brief_channel only as a convenience.
+  const channel = acct.report_client_channel || acct.brief_channel || acct.slack_channel;
   if (!channel) throw new Error('no client channel set for this brand — pick one in Settings');
   const url = `${PROFIT_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const label = period === 'weekly' ? 'Weekly' : 'Monthly';

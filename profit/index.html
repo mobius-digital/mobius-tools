@@ -1753,6 +1753,19 @@ function reportBodyHTML(d, summary, opts = {}) {
     <p class="tiny"><b>Revenue, MER, aMER${t.cm != null ? ', Contribution Margin' : ''} and New-customer CPA are blended</b> — real store revenue and real total ad spend, with no platform's attribution involved — which is why they will not match what Meta or Google report on their own dashboards. The platform sections show each platform's own attributed numbers, and those are directional.</p>`;
 }
 
+/** Resolve a Slack channel id to "#name", cached for the session. Used by the
+ *  send dialog: a confirmation that names the real channel is the last chance to
+ *  catch a report pointed at the wrong audience. Degrades to the raw id. */
+let CHAN_CACHE = null;
+async function channelName(id) {
+  if (!id) return 'the configured channel';
+  if (!CHAN_CACHE) {
+    try { CHAN_CACHE = Object.fromEntries((await api('/api/slack-channels')).channels.map(c => [c.id, c.name])); }
+    catch { CHAN_CACHE = {}; }
+  }
+  return CHAN_CACHE[id] ? `#${CHAN_CACHE[id]}` : id;
+}
+
 /** Attach the day-by-day crosshair. Called by BOTH report renderers after paint,
  *  so the client's page is as inspectable as ours. Shows the two lines and the
  *  gap between them, which is the thing the chart is actually about. */
@@ -1829,7 +1842,7 @@ async function renderReports(first) {
   const hide = Array.isArray(cfg.hide) ? cfg.hide : [];
   const CHS = [['meta', 'Meta'], ['google', 'Google'], ['tiktok', 'TikTok'], ['amazon', 'Amazon'], ['pinterest', 'Pinterest'], ['email', 'Email (Klaviyo)']];
   const configCard = `<div class="card"><h3 style="margin-bottom:4px">What goes in ${esc(acct?.name || 'this brand')}'s reports</h3>
-    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data — untick one to leave it out of every future report for this brand (already-generated reports don't change). Drafts post to the <b>Report drafts channel</b> set in Settings${acct?.report_channel ? '' : ' — <b>none is set yet</b>, so drafts only appear here'}.</p>
+    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data — untick one to leave it out of every future report for this brand (already-generated reports don't change). Drafts post to this brand's <b>Reports · drafts</b> channel${acct?.report_channel ? '' : ' — <b>none is set yet</b>, so drafts only appear here'}, and <b>Send to client</b> posts to its <b>Reports · to client</b> channel${acct?.report_client_channel ? '' : (acct?.brief_channel ? ' — <b>not set</b>, so it would fall back to the Daily Brief channel' : '')}. Both are set in Settings.</p>
     <div class="row" style="gap:14px;margin-bottom:8px">
       ${CHS.map(([id, lb]) => `<label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" data-ch="${id}" ${hide.includes(id) ? '' : 'checked'}> ${lb}</label>`).join('')}
     </div>
@@ -1906,10 +1919,14 @@ async function renderReports(first) {
 
   const sendBtn = $('#rpSend');
   if (sendBtn) sendBtn.onclick = async () => {
-    const dest = acct?.brief_channel || acct?.slack_channel;
-    if (!dest) return noteModal('No client channel set', `<p>Pick ${esc(acct?.name || 'this brand')}'s client channel (the Daily Brief channel) on the <b>Settings</b> tab first.</p>`);
+    const dest = acct?.report_client_channel || acct?.brief_channel || acct?.slack_channel;
+    if (!dest) return noteModal('No client channel set', `<p>Set <b>Reports · to client</b> for ${esc(acct?.name || 'this brand')} on the <b>Settings</b> tab first.</p>`);
+    // NAME the channel rather than describing it. Every brand's brief_channel
+    // turned out to be an internal channel, and a dialog saying "the client's
+    // channel" would have confirmed that mistake instead of exposing it.
+    const name = await channelName(dest);
     const ok = await confirmModal('Send this report to the client?',
-      `This posts the ${rep.period} report (${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}) with its link into ${acct?.name || 'the client'}'s Slack channel — everyone there sees it, and the report freezes permanently.`, 'Send it');
+      `This posts the ${rep.period} report (${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}) and its link to ${name} — everyone in that channel sees it, and the report freezes permanently. Check that is the channel your client reads.`, `Post to ${name}`);
     if (!ok) return;
     $('#rpMsg').textContent = 'Sending…';
     try {
@@ -2790,7 +2807,7 @@ async function renderSettings() {
       </div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
     <div class="card settings"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th title="Where the Daily Brief posts. This is the channel your CLIENT reads.">Daily Brief channel</th><th title="INTERNAL channel where weekly/monthly report drafts land for team review. Deliberately no fallback — if this is empty, drafts appear only on the Reports tab and never post anywhere.">Report drafts channel</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
+      <thead><tr><th>Client</th><th title="Where the Daily Brief posts each morning.">Daily Brief channel</th><th title="INTERNAL channel where weekly/monthly report drafts land for team review. Deliberately no fallback — if this is empty, drafts appear only on the Reports tab and never post anywhere.">Reports · drafts (internal)</th><th title="Where the Send to client button posts a finished report. Separate from the Daily Brief channel so a report can reach a client without moving the brief too. Falls back to the Daily Brief channel when empty.">Reports · to client</th><th title="The client-facing daily forecast-vs-actual update, sent each morning">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
       <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. <b>Daily Brief channel</b> is the channel <b>your client reads</b> — the Daily Brief and the weekly/monthly reports both post there. <b>Report drafts channel</b> is <b>internal</b>: weekly and monthly report drafts land there for your team to review before anyone sends them; leave it empty and drafts only appear on the Reports tab. Internal pace and KPI alerts are a separate setting in <a href="../account-health/">Account Health → Settings</a>. A brand needs a client channel and monthly goals before the brief will switch on, and it never turns itself on.</p></div>`;
 
@@ -2807,7 +2824,8 @@ async function renderSettings() {
     tb.innerHTML = shown.map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
       <td>${chCell(a, 'brief_channel', '— not set —')}${a.brief_enabled && !a.brief_channel ? '<br><span class="tiny" style="color:var(--warn)">⚠ falling back to the internal alerts channel</span>' : ''}</td>
-      <td>${chCell(a, 'report_channel', '— drafts stay in-app —')}</td>
+      <td>${chCell(a, 'report_channel', '— drafts stay in-app —')}${a.report_channel && a.report_channel === (a.report_client_channel || a.brief_channel) ? '<br><span class="tiny" style="color:var(--warn)">⚠ same channel as the sent report</span>' : ''}</td>
+      <td>${chCell(a, 'report_client_channel', '— use Daily Brief channel —')}</td>
       <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Posting each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
       <td>${healthPill(a.cost_health)}</td>

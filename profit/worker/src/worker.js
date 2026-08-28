@@ -1517,6 +1517,7 @@ export default {
             slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null,
             brief_enabled: !!a.brief_enabled,
             report_channel: a.report_channel || null,
+            report_client_channel: a.report_client_channel || null,
             report_config: safeJson(a.report_config_json, {}),
           });
         }
@@ -1958,13 +1959,14 @@ export default {
         if (!cur) return json({ error: 'unknown account' }, 404);
         await env.DB.prepare(
           `UPDATE accounts SET slack_channel = ?2, brief_channel = ?3, brief_enabled = ?4,
-             report_channel = ?5, report_config_json = ?6 WHERE act_id = ?1`,
+             report_channel = ?5, report_config_json = ?6, report_client_channel = ?7 WHERE act_id = ?1`,
         ).bind(b.act,
           'slack_channel' in b ? (b.slack_channel || null) : cur.slack_channel,
           'brief_channel' in b ? (b.brief_channel || null) : cur.brief_channel,
           'brief_enabled' in b ? (b.brief_enabled ? 1 : 0) : cur.brief_enabled,
           'report_channel' in b ? (b.report_channel || null) : cur.report_channel,
           'report_config' in b ? JSON.stringify(b.report_config || {}) : cur.report_config_json,
+          'report_client_channel' in b ? (b.report_client_channel || null) : cur.report_client_channel,
         ).run();
         return json({ ok: true });
       }

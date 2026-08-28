@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS accounts (
                                                  -- brand's alerts channel IS its client channel, so a fallback
                                                  -- would put a draft in front of the client.
   report_config_json  TEXT,                      -- {"weekly":true,"monthly":true,"hide":["amazon"]} — defaults on, hide = excluded sections
+  report_client_channel TEXT,                    -- where "Send to client" posts a finished report. Separate from
+                                                 -- brief_channel so reports can reach a client without also moving
+                                                 -- the Daily Brief there; falls back to brief_channel when unset.
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,
