@@ -1,5 +1,15 @@
 # Account Health — instructions for Claude Code
 
+> **2026-08-27: THIS IS NOW A BACKEND-ONLY SERVICE.** The dashboard was merged
+> into Mobius (`../profit/`) and its Meta screens live in `../profit/meta.js` as
+> the **Meta tab**; `index.html` here is just a redirect. The WORKER is
+> unchanged and central — it owns the Meta sync, both cron triggers, the
+> weekly/monthly report engine, the Daily Brief engine, and every secret
+> (META_TOKEN, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TW_API_KEY, SESSION_SECRET),
+> and it is the auth server every Mobius tool delegates to. Edit the worker
+> here; edit the screens in `../profit/`.
+
+
 Multi-client Meta ads health dashboard for Mobius Digital: Pacing, Change Log,
 Averages, Creative Rotation + an all-clients Overview. **META-ONLY, internal.**
 Store-level money and all client-facing reporting live in `../profit/` (Mobius

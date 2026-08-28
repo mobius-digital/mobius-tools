@@ -19,6 +19,29 @@ profit/
 
 ## Hard rules
 
+- **THIS IS THE WHOLE PLATFORM (merged 2026-08-27).** Account Health's Meta
+  screens are now the **Meta tab** here, in `profit/meta.js` — its own file and
+  its own IIFE, because a merged single file would be ~4,400 lines and nearly
+  every helper name collides (`esc`, `fmtMoney`, `S`, `api`; `fmtPct` differs
+  between the two — this file's is SIGNED). meta.js calls the **account-health
+  worker directly** (not through `PROXY_PATHS`) with the same session token;
+  that worker still owns the Meta sync, both crons and every secret, so nothing
+  moved but the screens. Sub-tabs render into `#subtabs`, which lives OUTSIDE
+  `#main` because meta.js owns `#main` completely. `account-health/index.html`
+  is now only a redirect — do not rebuild a dashboard there.
+- **Removed in the merge; do not reinstate without new evidence:** monthly Meta
+  *pacing* (page and alert) — Plan forecasts the month on blended revenue and
+  total spend, and the Meta-only copy disagreed with the agreed plan; the
+  **ROAS-floor alert and the 2.5 floor itself** (cleared on all six brands) —
+  it was the blended MER goal applied to Meta-attributed ROAS, unreachable by
+  construction, firing nightly for every brand; and the **Meta-only client
+  share link** — clients get blended reporting. The intraday curve SURVIVES as
+  the Meta → Today sub-tab: it is the one question Plan cannot answer.
+- **Adding a client starts in Settings → Meta ad accounts**: find on Meta,
+  switch on, set the Triple Whale shop (nothing blended works without it), then
+  channels here and a plan on Plan. That flow used to live in the other app,
+  which is why "how do I add a client" had no single answer.
+
 - **Shared database, never a second copy.** `DB` binds the *existing*
   `mobius-account-health` D1. Read `accounts`, `tw_daily`, `daily_insights`,
   `activities`. Write only `p_*` tables — plus `accounts.goals_json.cm_pct`,
