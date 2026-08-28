@@ -1451,18 +1451,42 @@ async function reportData(env, acct, period, start, end) {
 
   // What we changed during the period — feeds the narrative and the internal
   // view. NOT sent to the client's payload (the profit worker strips it).
+  //
+  // Ranked by MATERIALITY, never by time. Taking the first N chronologically fed
+  // the narrative fourteen rows of Meta's own review-state churn ("Pending
+  // Process -> Pending Review") purely because those fire first on a launch day,
+  // while the week's actual budget moves never made the list. `other` and `name`
+  // are dropped outright: image-library edits and renames are not decisions.
+  // Routine creative/tuning work is COUNTED rather than listed - a week with 58
+  // new ads produces a report nobody reads if each one gets a line.
   const { results: evs } = await env.DB.prepare(
     `SELECT event_time, category, summary, reason FROM activities
      WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1
-     ORDER BY event_time ASC LIMIT 60`,
+       AND category NOT IN ('other','name')
+     ORDER BY event_time ASC LIMIT 400`,
   ).bind(acct.act_id, start, end + 'T23:59:59').all();
+  // `billing` is deliberately NOT notable: "Account billed" is Meta charging the
+  // card, not a decision we made, and it was crowding out real moves. `review`
+  // stays — a policy rejection genuinely changes what can deliver.
+  const notableCats = new Set(['budget', 'bid_strategy', 'new_campaign', 'new_adset',
+    'campaign_paused', 'campaign_relaunched', 'review']);
+  const notableAll = evs.filter(e => notableCats.has(e.category));
+  const rollup = {};
+  for (const e of evs) if (!notableCats.has(e.category)) rollup[e.category] = (rollup[e.category] ?? 0) + 1;
+  const changes = {
+    notable: notableAll.slice(0, 14).map(e => ({
+      t: String(e.event_time).slice(0, 10), category: e.category, summary: e.summary, reason: e.reason,
+    })),
+    notable_total: notableAll.length,
+    rollup,
+    total: evs.length,
+  };
 
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
     period, start, end, prev_start: prevStart, prev_end: prevEnd,
     totals: cur, previous: prev, forecast, pacing, weeks, channels, ads,
-    changes: evs.slice(0, 14).map(e => ({ t: String(e.event_time).slice(0, 10), category: e.category, summary: e.summary, reason: e.reason })),
-    changes_total: evs.length,
+    changes, changes_total: evs.length,
     chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
     cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,
     generated_at: new Date().toISOString(),
@@ -1485,7 +1509,14 @@ async function writeReportNarrative(env, acct, data) {
   const slim = t => t ? { sales: f2(t.sales), spend: f2(t.spend), orders: t.orders, mer: f2(t.mer), amer: f2(t.amer), aov: f2(t.aov), new_customer_cpa: f2(t.ncpa), new_share: f2(t.new_share), cm: f2(t.cm) } : null;
   const chLines = (data.channels || []).map(c => `- ${c.label}: ${JSON.stringify(c.cur)} | prior ${label}: ${JSON.stringify(c.prev)}`);
   const adLines = (data.ads?.top || []).slice(0, 5).map(a => `- ${a.name}: spend ${f2(a.spend)} (${Math.round((a.share || 0) * 100)}% of Meta), CPA ${f2(a.cpa)}, ROAS ${f2(a.roas)}`);
-  const evLines = (data.changes || []).map(e => `- ${e.t} [${e.category}] ${e.summary}${e.reason ? ` {${e.reason}}` : ''}`);
+  // Notable changes individually; routine churn as counts. Feeding the model 14
+  // rows of "new ad" made it write about ad names instead of about the money.
+  const ch = data.changes || {};
+  const evLines = (Array.isArray(ch) ? ch : ch.notable || [])
+    .map(e => `- ${e.t} [${e.category}] ${e.summary}${e.reason ? ` {${e.reason}}` : ''}`);
+  const rollLine = !Array.isArray(ch) && ch.rollup && Object.keys(ch.rollup).length
+    ? Object.entries(ch.rollup).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`).join(', ')
+    : null;
   const unplanned = Object.entries(data.forecast?.months || {}).filter(([, m]) => !m.planned && m.has_goals);
   return claude(env, {
     system: REPORT_SYSTEM,
@@ -1499,7 +1530,8 @@ async function writeReportNarrative(env, acct, data) {
       (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
       `Channels (platform revenue/ROAS is the platform's own attribution — directional):\n${chLines.join('\n') || '- (none)'}\n` +
       `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
-      `Changes we made during the period (${data.changes_total} logged):\n${evLines.join('\n') || '- (none logged)'}`,
+      `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
+      (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : ''),
   });
 }
 
