@@ -1510,6 +1510,26 @@ async function renderBrief(first) {
     ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
     ${noTw && d.goals ? `<div class="notice warn">⚠️ <div>No Triple Whale sales data for ${d.date} yet — hit “Refresh Triple Whale data”, and check the shop domain in Settings if it persists.</div></div>` : ''}
     ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely — every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or set a flat <b>margin %</b> on the <b>Costs</b> tab instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> — ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab overrides it with a stable rate.</div></div>` : ''}
+    <!-- The draft is the job; the numbers underneath are context. This card
+         used to sit below the stat cards, the chart and the plan, so reviewing
+         a brief meant scrolling past everything else first. -->
+    <div class="card"><h3 style="margin-bottom:6px">The brief itself</h3>
+      <p class="hint" style="margin-bottom:8px">${bfDraft
+        ? 'This is the draft for ' + esc(d.date) + '. <b>Edit it however you like</b> — it sends exactly as written, so nothing you change gets regenerated away.'
+        : bfSent
+        ? 'Sent to the client. This is a record of exactly what they received, so it cannot be edited.'
+        : 'The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What&rsquo;s Next? from the numbers and the Change Log (~20s). Nothing reaches the client until you send it.'}</p>
+      <div class="row" style="margin-bottom:8px">
+        ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite">${bfDraft ? '↻ Rewrite from scratch' : '✦ Write the brief for ' + esc(d.date)}</button>`}
+        ${bfDraft ? '<button class="btn" id="bfSave">Save changes</button>' : ''}
+        <button class="btn primary" id="bfPost" style="display:${bfDraft ? '' : 'none'}">Send to client</button>
+        <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
+        <span class="tiny" id="bfMsg"></span>
+      </div>
+      ${bfSent
+        ? `<pre id="bfText" style="white-space:pre-wrap;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px">${esc(bfSent.text || '')}</pre>`
+        : `<textarea id="bfEdit" style="display:${bfDraft ? '' : 'none'};width:100%;min-height:340px;border:1px solid var(--line-strong);border-radius:8px;padding:12px;font:inherit;font-size:13px;line-height:1.6;background:var(--bg)">${esc(bfDraft ? bfDraft.text || '' : '')}</textarea>
+           <pre id="bfText" style="display:none;white-space:pre-wrap;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px"></pre>`}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px">
       ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
       <div class="card" style="margin:0;opacity:.65">
@@ -1554,23 +1574,6 @@ async function renderBrief(first) {
           <span class="tiny" style="display:block;margin-top:3px">This replaces copy-pasting: same review, but Slack formatting survives and what you sent is recorded.</span>
         </span>
       </div></div>
-    <div class="card"><h3 style="margin-bottom:6px">The brief itself</h3>
-      <p class="hint" style="margin-bottom:8px">${bfDraft
-        ? 'This is the draft for ' + esc(d.date) + '. <b>Edit it however you like</b> — it sends exactly as written, so nothing you change gets regenerated away.'
-        : bfSent
-        ? 'Sent to the client. This is a record of exactly what they received, so it cannot be edited.'
-        : 'The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What&rsquo;s Next? from the numbers and the Change Log (~20s). Nothing reaches the client until you send it.'}</p>
-      <div class="row" style="margin-bottom:8px">
-        ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite">${bfDraft ? '↻ Rewrite from scratch' : '✦ Write the brief for ' + esc(d.date)}</button>`}
-        ${bfDraft ? '<button class="btn" id="bfSave">Save changes</button>' : ''}
-        <button class="btn primary" id="bfPost" style="display:${bfDraft ? '' : 'none'}">Send to client</button>
-        <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
-        <span class="tiny" id="bfMsg"></span>
-      </div>
-      ${bfSent
-        ? `<pre id="bfText" style="white-space:pre-wrap;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px">${esc(bfSent.text || '')}</pre>`
-        : `<textarea id="bfEdit" style="display:${bfDraft ? '' : 'none'};width:100%;min-height:340px;border:1px solid var(--line-strong);border-radius:8px;padding:12px;font:inherit;font-size:13px;line-height:1.6;background:var(--bg)">${esc(bfDraft ? bfDraft.text || '' : '')}</textarea>
-           <pre id="bfText" style="display:none;white-space:pre-wrap;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px"></pre>`}</div>
     ${hist ? `<div class="card"><h3 style="margin-bottom:4px">Sent briefs</h3>${hist}</div>` : ''}
   `);
 

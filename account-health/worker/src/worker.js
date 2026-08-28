@@ -1085,9 +1085,15 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
   // Internal only, and deliberately never brief_channel — that is the client's.
   const ch = acct.slack_channel;
   if (ch) {
+    // The whole brief goes IN the message. Review happens in Slack, where the
+    // reading already happens - a notice that only links out makes you open a
+    // browser to find out whether anything needs changing. The link is for
+    // acting on it (edit, send), not for reading it.
+    const body = r.text.length > 3600 ? r.text.slice(0, 3600) + '\n…(truncated — open it in Locus for the rest)' : r.text;
     await slackPost(env, ch,
-      `:memo: *Daily Brief drafted — ${acct.name}* (${prettyDate(date)})\n` +
-      `_Nothing has been sent to the client._ <${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}&date=${date}|Read it, edit the wording, and send it from Locus>`,
+      `:memo: *Draft — ${acct.name}, ${prettyDate(date)}* · _not sent to the client yet_\n` +
+      `${body}\n\n` +
+      `<${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}&date=${date}|Send it, or change the wording first →>`,
       null, { username: 'Mobius Reports', icon: ':memo:' }).catch(() => {});
   }
   if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
