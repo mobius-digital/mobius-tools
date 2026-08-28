@@ -1049,38 +1049,85 @@ async function makeBrief(env, acct, date) {
 }
 
 /** Generate + post one brief to the brand's Slack channel; log it in `briefs`. */
-async function sendBrief(env, acct, date, { skipIfSent = false } = {}) {
-  // The trigger now fires hourly, so a brand that has already been posted for this
-  // date must never be posted again. Only a genuine 'sent' blocks a retry - a
-  // skipped or errored day should still get another chance.
-  if (skipIfSent) {
+/** Write a briefs row. `data` is optional so an edit or a send of stored text
+ *  cannot wipe the numbers captured when the brief was first built. */
+async function upsertBrief(env, actId, date, status, channel, text, data) {
+  const dataJson = data === undefined ? null
+    : JSON.stringify({ mtd: data?.mtd ?? null, day: data?.days?.find(x => x.date === date) ?? null });
+  await env.DB.prepare(
+    `INSERT INTO briefs (act_id, date, posted_at, channel, status, text, data_json) VALUES (?1,?2,?3,?4,?5,?6,?7)
+     ON CONFLICT(act_id, date) DO UPDATE SET posted_at = excluded.posted_at, channel = excluded.channel,
+       status = excluded.status, text = excluded.text,
+       data_json = COALESCE(excluded.data_json, briefs.data_json)`,
+  ).bind(actId, date, new Date().toISOString(), channel ?? null, status, text ?? null, dataJson).run();
+}
+
+/** Build the brief and park it as a DRAFT for review, notifying the internal
+ *  channel — the client is not messaged.
+ *
+ *  Cole was already doing this by hand: letting the brief post to an internal
+ *  channel, then copy-pasting it to the client so he could reword the narrative
+ *  first. Copy-paste loses Slack's formatting, and nothing recorded what was
+ *  actually sent. Same shape as the weekly/monthly reports: draft internally,
+ *  edit the wording, then one button sends the real thing. */
+async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
+  if (skipIfExists) {
     const prior = await env.DB.prepare(
       `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
     ).bind(acct.act_id, date).first().catch(() => null);
-    if (prior?.status === 'sent') return { name: acct.name, already_sent: true, date };
+    if (prior && (prior.status === 'draft' || prior.status === 'sent')) {
+      return { name: acct.name, already: prior.status, date };
+    }
   }
   const r = await makeBrief(env, acct, date);
-  const upsert = (status, channel, text) => env.DB.prepare(
-    `INSERT INTO briefs (act_id, date, posted_at, channel, status, text, data_json) VALUES (?1,?2,?3,?4,?5,?6,?7)
-     ON CONFLICT(act_id, date) DO UPDATE SET posted_at = excluded.posted_at, channel = excluded.channel,
-       status = excluded.status, text = excluded.text, data_json = excluded.data_json`,
-  ).bind(acct.act_id, date, new Date().toISOString(), channel ?? null, status, text ?? null,
-    JSON.stringify({ mtd: r.data?.mtd ?? null, day: r.data?.days?.find(x => x.date === date) ?? null })).run();
-  if (r.error) { await upsert('skipped', null, r.error); return { name: acct.name, skipped: r.error }; }
+  if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
+  await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data);
+  // Internal only, and deliberately never brief_channel — that is the client's.
+  const ch = acct.report_channel || acct.slack_channel;
+  if (ch) {
+    await slackPost(env, ch,
+      `:memo: *Daily Brief drafted — ${acct.name}* (${prettyDate(date)})\n` +
+      `_Nothing has been sent to the client._ <${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}|Read it, edit the wording, and send it from Locus>`,
+      null, { username: 'Mobius Reports', icon: ':memo:' }).catch(() => {});
+  }
+  if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
+  return { name: acct.name, ok: true, drafted: true, date, channel: ch ?? null, narrative_error: r.narrative_error ?? null };
+}
+
+/** Post the brief to the CLIENT's channel.
+ *  `useStored` sends the reviewed text exactly as it stands, edits included —
+ *  regenerating at send time would silently discard the wording that was
+ *  approved, which is the whole point of the review step. */
+async function sendBrief(env, acct, date, { skipIfSent = false, useStored = false } = {}) {
+  // The trigger fires hourly, so a brand already posted for this date must never
+  // be posted again. Only a genuine 'sent' blocks a retry - a skipped or errored
+  // day should still get another chance.
+  const prior = await env.DB.prepare(
+    `SELECT status, text FROM briefs WHERE act_id = ?1 AND date = ?2`,
+  ).bind(acct.act_id, date).first().catch(() => null);
+  if (skipIfSent && prior?.status === 'sent') return { name: acct.name, already_sent: true, date };
+
+  let text = null, r = null;
+  if (useStored && prior?.text && prior.status !== 'skipped' && prior.status !== 'error') text = prior.text;
+  if (!text) {
+    r = await makeBrief(env, acct, date);
+    if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
+    text = r.text;
+  }
   // The brief is CLIENT-FACING, so it has its own channel. slack_channel is the
   // internal alerts channel and is only a fallback — never assume they're the same.
   const channel = acct.brief_channel || acct.slack_channel || await getSetting(env, 'slackChannel');
-  if (!channel) { await upsert('skipped', null, 'no Slack channel configured for this brand'); return { name: acct.name, skipped: 'no Slack channel' }; }
+  if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no Slack channel configured for this brand', r?.data); return { name: acct.name, skipped: 'no Slack channel' }; }
   try {
-    await slackPost(env, channel, r.text, null, { username: 'Daily Update', icon: ':wave:' });
-    await upsert('sent', channel, r.text);
+    await slackPost(env, channel, text, null, { username: 'Daily Update', icon: ':wave:' });
+    await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
     // The brief still went out with its numbers, which is right - but a missing
     // narrative is invisible to everyone unless it is said out loud. Usually
     // means the Anthropic key is out of credit.
-    if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
-    return { name: acct.name, ok: true, channel, date, narrative_error: r.narrative_error ?? null };
+    if (r?.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
+    return { name: acct.name, ok: true, channel, date, narrative_error: r?.narrative_error ?? null };
   } catch (e) {
-    await upsert('error', channel, `${e.message}\n\n${r.text}`);
+    await upsertBrief(env, acct.act_id, date, 'error', channel, `${e.message}\n\n${text}`, r?.data);
     return { name: acct.name, error: e.message };
   }
 }
@@ -1146,12 +1193,22 @@ async function dailyBriefs(env) {
       `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
     ).bind(a.act_id, date).first().catch(() => null);
     if (prior?.status === 'sent') { results.push({ name: a.name, already_sent: true, date }); continue; }
+    // A brand awaiting review already has its draft. Without this the hourly
+    // trigger would re-sync 45 days of Triple Whale and rebuild the same draft
+    // every hour until someone pressed send.
+    if (a.brief_review && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
 
     didWork = true;
     let r;
     try {
       await syncTwDaily(env, a, 45).catch(() => {});
-      r = await sendBrief(env, a, date, { skipIfSent: true });
+      // Two modes per brand. Review-first parks a draft internally and waits for
+      // a human; auto sends straight to the client. A daily deliverable can be
+      // either, and forcing every brand through a morning approval is exactly
+      // the button-pushing this tool exists to avoid.
+      r = a.brief_review
+        ? await draftBrief(env, a, date, { skipIfExists: true })
+        : await sendBrief(env, a, date, { skipIfSent: true });
     } catch (e) { r = { name: a.name, error: e.message }; }
     results.push(r);
     // Never let a broken alert stop the remaining brands from getting their brief.
@@ -2580,7 +2637,29 @@ export default {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
-        const r = await sendBrief(env, acct, date);
+        // Send what was reviewed. Regenerating here would discard any wording
+        // edit made on the draft, which is the entire point of the review step.
+        const r = await sendBrief(env, acct, date, { useStored: b.regenerate !== true });
+        return r.ok ? json(r) : json({ error: r.error || r.skipped }, 400);
+      }
+      /* Save an edited draft. Only a draft is editable — once it is sent, the
+         client has that text and it must stay a record of what they received. */
+      if (path === '/api/brief-text' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        if (typeof b.text !== 'string' || !b.text.trim()) return json({ error: 'text is required' }, 400);
+        const r = await env.DB.prepare(
+          `UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status = 'draft'`,
+        ).bind(b.act, b.date, b.text).run();
+        if (!r.meta?.changes) return json({ error: 'no draft for that day (a sent brief cannot be edited)' }, 404);
+        return json({ ok: true });
+      }
+      /* Build (or rebuild) today's draft by hand, for a brand set to review. */
+      if (path === '/api/brief-draft' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const date = b.date || addDays(localDate(acct.tz), -1);
+        const r = await draftBrief(env, acct, date);
         return r.ok ? json(r) : json({ error: r.error || r.skipped }, 400);
       }
       if (path === '/api/briefs' && request.method === 'GET') {

@@ -18,7 +18,9 @@ CREATE TABLE IF NOT EXISTS accounts (
   tw_shop             TEXT,                      -- Triple Whale shop domain (pulls Google Ads spend into the money math)
   google_spend_json   TEXT,                      -- cached {ym, metric, mtd, lm_same_day, lm_total, updated}
   goals_json          TEXT NOT NULL DEFAULT '{}',-- Daily Brief goals: {"2026-08":{sales,spend,amer,cm_pct},"default":{...}}
-  brief_enabled       INTEGER NOT NULL DEFAULT 0,-- auto-post the Daily Brief to Slack each morning
+  brief_enabled       INTEGER NOT NULL DEFAULT 0,-- the Daily Brief runs each morning for this brand
+  brief_review        INTEGER NOT NULL DEFAULT 0,-- 1 = park it as a draft in the internal channel and wait for a
+                                                 -- human to edit + send; 0 = post straight to the client
   report_channel      TEXT,                      -- INTERNAL weekly/monthly report drafts channel. NO fallback to
                                                  -- slack_channel/brief_channel on purpose: as of 2026-08-27 every
                                                  -- brand's alerts channel IS its client channel, so a fallback
