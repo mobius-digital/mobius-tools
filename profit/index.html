@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mobius</title>
-<meta name="description" content="Store-level profitability for every Mobius Digital client: contribution margin, MER, aMER and cost-data health across all channels.">
+<title>Locus</title>
+<meta name="description" content="Locus by Mobius Digital — the agency system: blended contribution margin, MER and aMER for every client, the agreed monthly plan, weekly and monthly client reports, and the Meta ad accounts behind them.">
 <link rel="icon" href="../favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -243,7 +243,7 @@
   <div class="hd">
     <a class="mark" href="../"><img src="../favicon.png" alt=""><b>MOBIUS <span>TOOLS</span></b></a>
     <div class="hd-sep"></div>
-    <div class="hd-title">Mobius</div>
+    <div class="hd-title">Locus</div>
     <div class="hd-right">
       <select id="clientPick" style="display:none"></select>
       <select id="rangePick" style="display:none">
@@ -273,7 +273,7 @@
 </header>
 
 <main id="main"></main>
-<footer>Mobius · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms), plus the <b>Meta</b> tab for platform-reported numbers that match Ads Manager. Plan in <code>profit/PRD.md</code>.</footer>
+<footer id="foot"><b>Locus</b> by Mobius Digital · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms), plus the <b>Meta</b> tab for platform-reported numbers that match Ads Manager. Plan in <code>profit/PRD.md</code>.</footer>
 
 <script src="meta.js"></script>
 <script>
@@ -425,6 +425,7 @@ async function renderPlanShare(token) {
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
   ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+  clientFooter('This page shows one client and updates as the month runs.');
 }
 
 /** Where a store lands when it installs but matches no reporting account yet.
@@ -437,6 +438,7 @@ function renderConnected(shop) {
   $('#tabs').style.display = 'none';
   { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('.hd-title').innerHTML = 'Store <em>connected</em>';
+  clientFooter();
   $('#main').innerHTML = `<div class="gate" style="max-width:560px">
     <h1 style="font-size:22px;margin-bottom:10px">Connected ✓</h1>
     <p><b>${esc(shop)}</b> is linked to Mobius Digital.</p>
@@ -527,9 +529,18 @@ async function renderPerfShare(token) {
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
   ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+  clientFooter('This page shows one client and updates as the month runs.');
 }
 
 function setChip(t,s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
+
+/** Client-facing pages share this page's chrome, including its footer — which
+ *  described our own tabs and pointed at a file in the repo. Anything a client
+ *  can open swaps it for something written for them. */
+function clientFooter(note) {
+  const f = $('#foot');
+  if (f) f.innerHTML = `Prepared by <b>Mobius Digital</b>${note ? ' · ' + note : ''}`;
+}
 
 function renderGate(err, offerRetry) {
   setChip('Signed out','off');
@@ -538,8 +549,8 @@ function renderGate(err, offerRetry) {
   { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('#main').innerHTML = `
   <div class="gate">
-    <h1>Mobius</h1>
-    <p>Every client, every channel: contribution margin, MER and aMER on blended store data, the Meta ad accounts behind them, and the weekly and monthly reports you send. Sign in once at Mobius HQ.</p>
+    <h1>Locus</h1>
+    <p><b>Locus</b> is the Mobius Digital system: every client and every channel in one place — blended contribution margin, MER and aMER, the agreed monthly plan, the reports you send, and the Meta accounts behind them. Sign in once at Mobius HQ.</p>
     <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
@@ -2059,6 +2070,7 @@ async function renderReportsShare(token, sel) {
     $('#connChip').style.display = '';
     document.querySelector('.hd-right').style.display = '';
     ['#clientPick', '#rangePick', '#btnOut'].forEach(s2 => { const el = $(s2); if (el) el.style.display = 'none'; });
+    clientFooter('Each report is a fixed snapshot of the period it covers.');
   };
   if (!d.report) {
     $('#main').innerHTML = `<div class="gate"><h1>No reports yet</h1><p>Your first report will appear here as soon as it is published — this link stays the same, so keep it handy.</p></div>`;

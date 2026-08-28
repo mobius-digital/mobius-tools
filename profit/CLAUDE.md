@@ -1,4 +1,8 @@
-# Mobius — instructions for Claude Code
+# Locus — instructions for Claude Code
+
+**The platform is named Locus** (by Mobius Digital), chosen 2026-08-27. The
+directory and URL stay `profit/` — every client report link, the Shopify app
+config and its OAuth redirects point there.
 
 **The whole internal platform.** Directory is still `profit/` and the URL is
 still `/profit/` (share links, the Shopify app config and OAuth redirects all

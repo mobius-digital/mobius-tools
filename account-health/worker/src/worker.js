@@ -1102,7 +1102,7 @@ async function alertBriefFailure(env, acct, date, result) {
     String(prev.text || '').slice(0, 40) === String(problem).slice(0, 40);
   if (same) return;
   await slackPost(env, channel,
-    `:warning: *Daily Brief did not go out for ${acct.name}* (${date})\n${problem}\n_Internal alert - the client was not messaged. Fix it in Mobius Profit._`);
+    `:warning: *Daily Brief did not go out for ${acct.name}* (${date})\n${problem}\n_Internal alert - the client was not messaged. Fix it in Locus._`);
 }
 
 const BRIEF_TZ = 'America/Chicago';           // Cole's timezone; the send hour is set in it
@@ -1761,7 +1761,7 @@ async function postReportDraft(env, acct, r) {
   await slackPost(env, channel,
     `:clipboard: *${label} report drafted — ${acct.name}* (${prettyDate(r.start)} → ${prettyDate(r.end)})\n` +
     `${reportHeadline(r.data)}\n` +
-    `_Internal draft — nothing has been sent to the client._ <${link}|Review and send it from Mobius Profit>`,
+    `_Internal draft — nothing has been sent to the client._ <${link}|Review and send it from Locus>`,
     null, { username: 'Mobius Reports', icon: ':clipboard:' });
   return { ok: true, channel };
 }
@@ -2155,7 +2155,7 @@ async function paceAlerts(env) {
     try {
       await slackPost(env, ch, `Delivery check: ${blocks.length} account${blocks.length > 1 ? 's' : ''} stopped spending normally`, [
         { type: 'section', text: { type: 'mrkdwn', text: blocks.join('\n\n') } },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}?open=meta|Open Mobius → Meta> · compares yesterday's spend with this account's own 7-day median · checked nightly` }] },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}?open=meta|Open Locus → Meta> · compares yesterday's spend with this account's own 7-day median · checked nightly` }] },
       ]);
       results.push({ channel: ch, sent: blocks.length });
     } catch (e) { results.push({ channel: ch, error: e.message }); }
