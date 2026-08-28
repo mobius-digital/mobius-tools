@@ -10,10 +10,11 @@
 > here; edit the screens in `../profit/`.
 
 
-Multi-client Meta ads health dashboard for Mobius Digital: Pacing, Change Log,
-Averages, Creative Rotation + an all-clients Overview. **META-ONLY, internal.**
-Store-level money and all client-facing reporting live in `../profit/` (Mobius
-Profit) — including the Daily Brief, which moved there 2026-08-21. **Read `PRD.md` first** —
+The Meta ads backend for Mobius: sync, change log, averages, creative rotation,
+intraday pacing + the Daily Brief and weekly/monthly report engines.
+**META-ONLY where it concerns ad data, internal.** Every screen it once served
+now lives in `../profit/` — the Meta tab (`../profit/meta.js`), the Daily Brief
+(moved 2026-08-21) and Reports (2026-08-27). **Read `PRD.md` first** —
 it holds the four questions, the build plan (one chat per page), the decisions
 already made, the D1 schema and the worker API. Don't re-litigate decisions
 listed there; extend them.

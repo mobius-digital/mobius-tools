@@ -1,8 +1,14 @@
-# Mobius Profit — instructions for Claude Code
+# Mobius — instructions for Claude Code
 
-Store-level business tool. **Read `PRD.md` first.** Account Health answers "are the
-Meta ads working?" (Meta-only, matches Ads Manager). This answers "is the brand
-making money?" (blended, all channels). Do not merge them.
+**The whole internal platform.** Directory is still `profit/` and the URL is
+still `/profit/` (share links, the Shopify app config and OAuth redirects all
+point at it — do not rename either). **Read `PRD.md` first.**
+
+Two questions, two kinds of number, one app: **blended store-level money** —
+"is the brand making money?" — on every tab except one, and **Meta-reported
+ads** — "are the Meta ads working?", matching Ads Manager — on the **Meta** tab.
+They must never be mixed inside a single surface; that rule is why the Meta
+screens keep their own file, their own worker and their own labels.
 
 ## Layout
 
