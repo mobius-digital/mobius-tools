@@ -1083,7 +1083,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
   if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
   await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data);
   // Internal only, and deliberately never brief_channel — that is the client's.
-  const ch = acct.report_channel || acct.slack_channel;
+  const ch = acct.slack_channel;
   if (ch) {
     await slackPost(env, ch,
       `:memo: *Daily Brief drafted — ${acct.name}* (${prettyDate(date)})\n` +
@@ -1114,10 +1114,9 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
     text = r.text;
   }
-  // The brief is CLIENT-FACING, so it has its own channel. slack_channel is the
-  // internal alerts channel and is only a fallback — never assume they're the same.
-  const channel = acct.brief_channel || acct.slack_channel || await getSetting(env, 'slackChannel');
-  if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no Slack channel configured for this brand', r?.data); return { name: acct.name, skipped: 'no Slack channel' }; }
+  // The client channel, with no fallback to the internal one — see sendReport.
+  const channel = acct.brief_channel;
+  if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no client channel set for this brand — pick one in Settings', r?.data); return { name: acct.name, skipped: 'no client channel set' }; }
   try {
     await slackPost(env, channel, text, null, { username: 'Daily Update', icon: ':wave:' });
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
@@ -1196,7 +1195,7 @@ async function dailyBriefs(env) {
     // A brand awaiting review already has its draft. Without this the hourly
     // trigger would re-sync 45 days of Triple Whale and rebuild the same draft
     // every hour until someone pressed send.
-    if (a.brief_review && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
+    if (a.review_first && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
 
     didWork = true;
     let r;
@@ -1206,7 +1205,7 @@ async function dailyBriefs(env) {
       // a human; auto sends straight to the client. A daily deliverable can be
       // either, and forcing every brand through a morning approval is exactly
       // the button-pushing this tool exists to avoid.
-      r = a.brief_review
+      r = a.review_first
         ? await draftBrief(env, a, date, { skipIfExists: true })
         : await sendBrief(env, a, date, { skipIfSent: true });
     } catch (e) { r = { name: a.name, error: e.message }; }
@@ -1808,10 +1807,10 @@ async function reportToken(env, actId) {
 /** Internal review post. Deliberately NEVER falls back to slack_channel or
  *  brief_channel — as of 2026-08-27 every brand's alerts channel IS its client
  *  channel, so a "fallback" would put a draft in front of the client. No
- *  report_channel and no global reportChannel setting = no post; the draft
+ *  internal channel and no global reportChannel setting = no post; the draft
  *  still exists in the Reports tab. */
 async function postReportDraft(env, acct, r) {
-  const channel = acct.report_channel || await getSetting(env, 'reportChannel');
+  const channel = acct.slack_channel || await getSetting(env, 'reportChannel');
   if (!channel) return { skipped: 'no internal reports channel configured for this brand' };
   const label = r.period === 'weekly' ? 'Weekly' : 'Monthly';
   const link = `${DASHBOARD_URL}?open=reports&act=${encodeURIComponent(acct.act_id)}`;
@@ -1832,12 +1831,11 @@ async function sendReport(env, acct, period, start) {
   if (!row) throw new Error('no report generated for that period yet');
   const data = safeJson(row.data_json, null);
   if (!data) throw new Error('this report has no data — regenerate it first');
-  // Reports get their own client destination. Falling back to brief_channel
-  // alone would have meant you could not send a report to a client without
-  // ALSO moving the Daily Brief there - and every brand's brief_channel is
-  // currently an internal channel, so "Send to client" would have posted to
-  // the team. Explicit field first, brief_channel only as a convenience.
-  const channel = acct.report_client_channel || acct.brief_channel || acct.slack_channel;
+  // ONE client destination per brand, shared by the brief and both reports.
+  // Deliberately no fallback to the internal channel: "Send to client" quietly
+  // posting to the team is the failure this whole flow exists to prevent, so an
+  // unset client channel is an error you can see, not a silent redirect.
+  const channel = acct.brief_channel;
   if (!channel) throw new Error('no client channel set for this brand — pick one in Settings');
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const label = period === 'weekly' ? 'Weekly' : 'Monthly';
@@ -1884,9 +1882,16 @@ async function reportsPass(env) {
         ).bind(a.act_id, addDays(today, -1) < j.start ? j.start : addDays(today, -1)).first().catch(() => null);
         if (!have) await syncTwDaily(env, a, j.period === 'monthly' ? 100 : 70).catch(() => {});
         const r = await makeReport(env, a, j.period, j.start);
-        const posted = await postReportDraft(env, a, r).catch(e => ({ error: e.message }));
         if (r.narrative_error) await alertClaudeFailure(env, `${j.period} report summary for ${a.name}`, r.narrative_error);
-        results.push({ name: a.name, period: j.period, ok: true, posted, narrative_error: r.narrative_error ?? null });
+        // Same switch as the daily brief: review means it waits for a human,
+        // off means it goes straight to the client. One rule for all three.
+        if (a.review_first) {
+          const posted = await postReportDraft(env, a, r).catch(e => ({ error: e.message }));
+          results.push({ name: a.name, period: j.period, ok: true, posted, narrative_error: r.narrative_error ?? null });
+        } else {
+          const sent = await sendReport(env, a, j.period, j.start).catch(e => ({ error: e.message }));
+          results.push({ name: a.name, period: j.period, ok: true, sent, narrative_error: r.narrative_error ?? null });
+        }
       } catch (e) {
         results.push({ name: a.name, period: j.period, error: e.message });
       }

@@ -1539,12 +1539,13 @@ async function renderBrief(first) {
         <span style="font-size:13.5px">Run the brief every morning<span id="bfTimeLbl"></span>, covering yesterday. Change the time on <b>Settings</b>.</span>
       </div>
       <div class="row" style="margin-top:8px;align-items:flex-start">
-        <div class="toggle ${acct?.brief_review ? 'on' : ''}" id="bfReview"></div>
+        <div class="toggle ${acct?.review_first ? 'on' : ''}" id="bfReview"></div>
         <span style="font-size:13.5px;max-width:660px">
           <b>Review before it goes to the client.</b> On: each morning the brief is drafted and posted to this brand's
-          <b>Reports · drafts</b> channel${acct?.report_channel ? '' : ' (<b>none set</b> — pick one in Settings)'} — you read it, reword anything, then press
+          <b>internal channel</b>${acct?.slack_channel ? '' : ' (<b>none set</b> — pick one in Settings)'} — you read it, reword anything, then press
           <b>Send to client</b> below. Off: it posts straight to
-          ${acct?.brief_channel ? 'the Daily Brief channel' : '<b>no client channel — set one in Settings</b>'} with no stop.
+          ${acct?.brief_channel ? 'the client channel' : '<b>no client channel — set one in Settings</b>'} with no stop.
+          <span class="tiny" style="display:block;margin-top:3px">This switch is per client and covers the weekly and monthly reports too.</span>
           <span class="tiny" style="display:block;margin-top:3px">This replaces copy-pasting: same review, but Slack formatting survives and what you sent is recorded.</span>
         </span>
       </div></div>
@@ -1637,8 +1638,8 @@ async function renderBrief(first) {
     } catch (e) { $('#bfMsg').textContent = e.message; }
   };
   $('#bfPost').onclick = async () => {
-    const dest = acct?.brief_channel || acct?.slack_channel;
-    if (!dest) return noteModal('No client channel set', `<p>Pick ${esc(acct?.name || 'this brand')}&rsquo;s <b>Daily Brief channel</b> on the Settings tab first.</p>`);
+    const dest = acct?.brief_channel;
+    if (!dest) return noteModal('No client channel set', `<p>Pick ${esc(acct?.name || 'this brand')}&rsquo;s <b>client channel</b> on the Settings tab first. A send never falls back to your internal channel.</p>`);
     const name = await channelName(dest);
     // Save any unsaved edit first, so what you are looking at is what goes out.
     if ($('#bfEdit')) {
@@ -1660,8 +1661,8 @@ async function renderBrief(first) {
     const on = !bfRev.classList.contains('on');
     bfRev.classList.toggle('on', on);
     try {
-      await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: S.act, brief_review: on }) });
-      if (acct) acct.brief_review = on;
+      await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: S.act, review_first: on }) });
+      if (acct) acct.review_first = on;
       refreshAccounts();
       $('#gMsg').textContent = on ? 'Drafts will wait for you each morning.' : 'Briefs will post straight to the client.';
     } catch (e) { bfRev.classList.toggle('on', !on); noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
@@ -1916,7 +1917,7 @@ async function renderReportsAll(first) {
   $('#main').innerHTML = shell(`<div class="card"><div class="tbl-wrap"><table>
     <thead><tr><th>Client</th><th>Latest weekly</th><th>Latest monthly</th></tr></thead>
     <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer">
-      <td><b>${esc(a.name)}</b>${a.report_channel ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ no internal drafts channel — set one in Settings</span>'}</td>
+      <td><b>${esc(a.name)}</b>${a.slack_channel ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ no internal channel — set one in Settings</span>'}</td>
       <td>${cell(by[a.act_id]?.weekly)}</td><td>${cell(by[a.act_id]?.monthly)}</td></tr>`).join('')}</tbody></table></div>
     <p class="tiny" style="margin-top:10px">A <b>draft</b> is internal — the client has not seen it. <b>Sent</b> reports are frozen and live on the client's archive link. Click a client to open their reports.</p></div>`);
   $('#main tbody').addEventListener('click', e => {
@@ -1957,7 +1958,7 @@ async function renderReports(first) {
   const hide = Array.isArray(cfg.hide) ? cfg.hide : [];
   const CHS = [['meta', 'Meta'], ['google', 'Google'], ['tiktok', 'TikTok'], ['amazon', 'Amazon'], ['pinterest', 'Pinterest'], ['email', 'Email (Klaviyo)']];
   const configCard = `<div class="card"><h3 style="margin-bottom:4px">What goes in ${esc(acct?.name || 'this brand')}'s reports</h3>
-    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data — untick one to leave it out of every future report for this brand (already-generated reports don't change). Drafts post to this brand's <b>Reports · drafts</b> channel${acct?.report_channel ? '' : ' — <b>none is set yet</b>, so drafts only appear here'}, and <b>Send to client</b> posts to its <b>Reports · to client</b> channel${acct?.report_client_channel ? '' : (acct?.brief_channel ? ' — <b>not set</b>, so it would fall back to the Daily Brief channel' : '')}. Both are set in Settings.</p>
+    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data — untick one to leave it out of every future report for this brand (already-generated reports don't change). Drafts post to this brand's <b>internal channel</b>${acct?.slack_channel ? '' : ' — <b>none is set yet</b>, so drafts only appear here'}, and <b>Send to client</b> posts to its <b>client channel</b>${acct?.brief_channel ? '' : ' — <b>not set yet</b>, so a send would stop and tell you'}. Both are set in Settings.</p>
     <div class="row" style="gap:14px;margin-bottom:8px">
       ${CHS.map(([id, lb]) => `<label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" data-ch="${id}" ${hide.includes(id) ? '' : 'checked'}> ${lb}</label>`).join('')}
     </div>
@@ -2034,8 +2035,8 @@ async function renderReports(first) {
 
   const sendBtn = $('#rpSend');
   if (sendBtn) sendBtn.onclick = async () => {
-    const dest = acct?.report_client_channel || acct?.brief_channel || acct?.slack_channel;
-    if (!dest) return noteModal('No client channel set', `<p>Set <b>Reports · to client</b> for ${esc(acct?.name || 'this brand')} on the <b>Settings</b> tab first.</p>`);
+    const dest = acct?.brief_channel;
+    if (!dest) return noteModal('No client channel set', `<p>Set the <b>client channel</b> for ${esc(acct?.name || 'this brand')} on the <b>Settings</b> tab first. A send never falls back to your internal channel.</p>`);
     // NAME the channel rather than describing it. Every brand's brief_channel
     // turned out to be an internal channel, and a dialog saying "the client's
     // channel" would have confirmed that mistake instead of exposing it.
@@ -2926,13 +2927,12 @@ async function renderSettings() {
     <div id="metaCard"><div class="card"><span class="hint">Loading Meta ad accounts\u2026</span></div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
     <div class="card settings"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th title="Where the Daily Brief posts each morning.">Daily Brief channel</th><th title="INTERNAL channel where weekly/monthly report drafts land for team review. Deliberately no fallback — if this is empty, drafts appear only on the Reports tab and never post anywhere.">Reports · drafts (internal)</th><th title="Where the Send to client button posts a finished report. Separate from the Daily Brief channel so a report can reach a client without moving the brief too. Falls back to the Daily Brief channel when empty.">Reports · to client</th><th title="Top toggle: run the daily forecast-vs-actual brief for this brand. Bottom toggle: draft it internally for review instead of posting straight to the client.">Brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
+      <thead><tr><th>Client</th><th title="Your team's channel. Drafts waiting for review land here, along with delivery alerts. Nothing here is seen by the client.">Internal channel</th><th title="The client's channel. Approved briefs and reports are sent here, and nothing else ever posts here.">Client channel</th><th title="On: the daily brief and both reports draft to your internal channel and wait for you to edit and send. Off: each one posts straight to the client on its own.">Review first</th><th title="Run the daily forecast-vs-actual brief for this brand each morning.">Daily brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved. Three destinations, on purpose:
-      <b>Daily Brief channel</b> — where the morning brief posts.
-      <b>Reports · drafts (internal)</b> — where Monday's weekly and the 1st's monthly land for your team to review; leave it empty and drafts only appear on the Reports tab, never in Slack.
-      <b>Reports · to client</b> — where <b>Send to client</b> posts a finished report; blank falls back to the Daily Brief channel, so set it deliberately if those two audiences differ.
-      A brand needs a channel and a monthly plan before the brief will switch on, and it never turns itself on.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved.
+      <b>Two channels per client, and one rule.</b> The <b>internal channel</b> is your team's: drafts waiting for review land there, along with delivery alerts. The <b>client channel</b> is theirs: an approved brief or report is sent there, and nothing else ever posts there.
+      With <b>review first</b> on, everything — daily brief, weekly report, monthly report — drafts to the internal channel and waits for you to read it, change the wording, and press send. Off, each one posts straight to the client on its own.
+      A client send never falls back to the internal channel: if the client channel is empty it stops and says so, rather than quietly posting to your team.</p></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
@@ -2953,11 +2953,13 @@ async function renderSettings() {
   const draw = () => {
     tb.innerHTML = shownRows().map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
-      <td>${chCell(a, 'brief_channel', '— not set —', a.brief_enabled && !a.brief_channel ? 'falling back to the internal alerts channel' : '')}</td>
-      <td>${chCell(a, 'report_channel', '— drafts stay in-app —', a.report_channel && a.report_channel === (a.report_client_channel || a.brief_channel) ? 'same channel as the sent report' : '')}</td>
-      <td>${chCell(a, 'report_client_channel', '— use Daily Brief channel —', '')}</td>
-      <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Running each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div>
-        <div class="row tgl" style="margin:6px 0 0;gap:8px"><div class="toggle ${a.brief_review?'on':''}" data-k="brief_review" title="Draft it internally and wait for you, instead of posting straight to the client"></div><span class="tiny">${a.brief_review?'review first':'sends itself'}</span></div></td>
+      <td>${chCell(a, 'slack_channel', '— not set —', a.slack_channel ? '' : 'drafts and alerts have nowhere to go')}</td>
+      <td>${chCell(a, 'brief_channel', '— not set —',
+        !a.brief_channel ? 'nothing can be sent to this client'
+        : a.brief_channel === a.slack_channel ? 'same as internal — a client send would post to your team'
+        : '')}</td>
+      <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.review_first?'on':''}" data-k="review_first" title="On: everything drafts internally and waits for you. Off: everything sends itself to the client."></div><span class="tiny">${a.review_first?'review first':'sends itself'}</span></div></td>
+      <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Running each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
       <td>${healthPill(a.cost_health)}</td>
       <td><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430d</button> <span class="tiny" data-bf="${a.act_id}"></span></td>
@@ -2976,9 +2978,12 @@ async function renderSettings() {
     const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
     if (!a) return;
     const on = !tg.classList.contains('on');
-    if (tg.dataset.k === 'brief_review') {
+    if (tg.dataset.k === 'review_first') {
+      if (!on && !(await confirmModal('Let this brand send itself?',
+        `Every daily brief and every weekly and monthly report for ${a.name} will post straight to the client with nobody reading it first.`,
+        'Send without review'))) return;
       tg.classList.toggle('on', on);
-      try { await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, brief_review: on }) }); a.brief_review = on; draw(); refreshAccounts(); }
+      try { await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, review_first: on }) }); a.review_first = on; draw(); refreshAccounts(); }
       catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); tg.classList.toggle('on', !on); }
       return;
     }
