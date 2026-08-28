@@ -1647,7 +1647,7 @@ async function renderBrief(first) {
   };
   $('#bfPost').onclick = async () => {
     const dest = acct?.brief_channel;
-    if (!dest) return noteModal('No client channel set', `<p>Pick ${esc(acct?.name || 'this brand')}&rsquo;s <b>client channel</b> on the Settings tab first. A send never falls back to your internal channel.</p>`);
+    if (!dest) return noteModal('Nothing to send to', `<p>${esc(acct?.name || 'This brand')} has no external client channel, so nothing was sent.</p><p class="tiny">If it should have one, set the <b>client channel</b> in Settings. A send never falls back to your internal channel.</p>`);
     const name = await channelName(dest);
     // Save any unsaved edit first, so what you are looking at is what goes out.
     if ($('#bfEdit')) {
@@ -2044,7 +2044,7 @@ async function renderReports(first) {
   const sendBtn = $('#rpSend');
   if (sendBtn) sendBtn.onclick = async () => {
     const dest = acct?.brief_channel;
-    if (!dest) return noteModal('No client channel set', `<p>Set the <b>client channel</b> for ${esc(acct?.name || 'this brand')} on the <b>Settings</b> tab first. A send never falls back to your internal channel.</p>`);
+    if (!dest) return noteModal('Nothing to send to', `<p>${esc(acct?.name || 'This brand')} has no external client channel, so nothing was sent.</p><p class="tiny">If it should have one, set the <b>client channel</b> in Settings. A send never falls back to your internal channel.</p>`);
     // NAME the channel rather than describing it. Every brand's brief_channel
     // turned out to be an internal channel, and a dialog saying "the client's
     // channel" would have confirmed that mistake instead of exposing it.
