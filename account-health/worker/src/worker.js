@@ -1309,6 +1309,71 @@ function channelSections(piv, metaBy, ranges, hide) {
   return out;
 }
 
+/** Public, login-free preview links for the ads a report lists.
+ *
+ *  `preview_shareable_link` is Meta's own field for exactly this: a URL that
+ *  someone WITHOUT access to the ad account can open to see the creative. That
+ *  matters because these links go into a client-facing report - an Ads Manager
+ *  deep link would just bounce the client to a permission error.
+ *
+ *  Fetched only for the ~10 ads actually listed, in one batched call, and stored
+ *  INSIDE the frozen report so an archived report keeps the links it shipped
+ *  with. Best effort throughout: a deleted ad, an expired token or a partial
+ *  failure must never stop a report from generating, so this degrades to plain
+ *  unlinked names rather than throwing.
+ */
+/* DO NOT use `preview_shareable_link` here. Meta documents it as shareable with
+ * people who lack ad-account access, but tested 2026-08-27 it 302s to
+ * business.facebook.com/business/loginpage - useless in a client report, and it
+ * fails in a way that looks fine until a client clicks it.
+ *
+ * The `/previews` edge returns an <iframe src="...preview_iframe.php?d=..&t=..">
+ * whose URL renders the creative with NO login, which is what an embeddable
+ * preview has to do by definition. We extract that src and link to it directly. */
+const PREVIEW_FORMATS = ['MOBILE_FEED_STANDARD', 'DESKTOP_FEED_STANDARD', 'INSTAGRAM_STANDARD'];
+
+function previewSrcFrom(node) {
+  const body = node?.previews?.data?.[0]?.body ?? node?.data?.[0]?.body;
+  if (typeof body !== 'string') return null;
+  const m = body.match(/src="([^"]+)"/);
+  if (!m) return null;
+  // The body is HTML, so the query string arrives entity-encoded.
+  const url = m[1].replace(/&amp;/g, '&');
+  if (!/^https:\/\//.test(url)) return null;
+  // Meta hands these back on business.facebook.com. Both hosts serve the preview
+  // without a login (verified 2026-08-27), but the business subdomain is the one
+  // that runs business-login flows for anyone carrying Business Manager cookies,
+  // and this link goes to clients. www is the neutral host.
+  return url.replace('://business.facebook.com/', '://www.facebook.com/');
+}
+
+async function adPreviewLinks(env, adIds) {
+  if (!env.META_TOKEN || !adIds.length) return {};
+  const out = {};
+  const ids = adIds.slice(0, 12);
+  for (const fmt of PREVIEW_FORMATS) {
+    const missing = ids.filter(id => !out[id]);
+    if (!missing.length) break;
+    try {
+      const body = await meta(env, '', { ids: missing.join(','), fields: `previews.ad_format(${fmt}){body}` });
+      for (const [id, v] of Object.entries(body || {})) {
+        const src = previewSrcFrom(v);
+        if (src) out[id] = src;
+      }
+    } catch {
+      // A single deleted ad fails the whole batch, so ask one at a time.
+      for (const id of missing) {
+        try {
+          const r = await meta(env, `${id}/previews`, { ad_format: fmt });
+          const src = previewSrcFrom(r);
+          if (src) out[id] = src;
+        } catch { /* not previewable in this format - the next one may work */ }
+      }
+    }
+  }
+  return out;
+}
+
 /** Everything a weekly/monthly report shows, frozen. `start`..`end` inclusive. */
 async function reportData(env, acct, period, start, end) {
   const prevStart = period === 'weekly' ? addDays(start, -7) : `${prevMonth(monthOf(start))}-01`;
@@ -1442,11 +1507,13 @@ async function reportData(env, acct, period, start, end) {
     const TOP_N = 10;
     const qualified = adRows.filter(r => r.spend >= floor);
     const shown = qualified.slice(0, TOP_N);
+    const previews = await adPreviewLinks(env, shown.map(r => r.ad_id)).catch(() => ({}));
     const row = r => ({
       name: r.name, spend: r.spend, purchases: r.purchases || null, revenue: r.revenue || null,
       cpa: r.purchases ? r.spend / r.purchases : null,
       roas: r.spend && r.revenue ? r.revenue / r.spend : null,
       share: metaSpend ? r.spend / metaSpend : null,
+      preview: previews[r.ad_id] || null,
     });
     // Everything not listed, as one line, so the table accounts for 100% of
     // ad-level spend and the tail can be compared with the headline ads.

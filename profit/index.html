@@ -183,6 +183,12 @@
 
   /* Creative Rotation (Chat 3) */
   .ad-name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  /* Ad names link to Meta's public preview. Underline on hover only, so a table
+     of ten does not read as a wall of links. */
+  a.ad-link{color:var(--ink);text-decoration:none;max-width:320px}
+  a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
+  a.ad-link .ext{color:var(--muted);font-size:10.5px;margin-left:5px;vertical-align:1px}
+  a.ad-link:hover .ext{color:var(--brand-ink)}
   .vd{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:5px;padding:2px 6px}
   .vd.scale{background:var(--good-bg);color:var(--good)} .vd.cut{background:var(--bad-bg);color:var(--bad)}
   .vd.fresh{background:var(--brand-soft);color:var(--brand-ink)}
@@ -1671,7 +1677,9 @@ function reportBodyHTML(d, summary, opts = {}) {
     return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went</h4>
       <p class="hint" style="margin-bottom:8px">The ads that carried real spend this ${prevTag}, and what each one delivered. Ads under ${money(A.floor)} are grouped on the last row — individually too small to judge fairly.${A.qualified_total > A.top.length ? ` Showing the ${A.top.length} biggest of ${A.qualified_total} that cleared that bar.` : ''}</p>
       <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
-      <tbody>${A.top.map(a => `<tr><td><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span></td>
+      <tbody>${A.top.map(a => `<tr><td>${a.preview
+          ? `<a class="ad-name ad-link" href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" title="Open the ad preview — ${esc(a.name)}">${esc(a.name)}<span class="ext">↗</span></a>`
+          : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}</td>
         <td class="num"><b>${money(a.spend)}</b></td><td class="num">${fmtPct(a.share)}</td>
         <td class="num">${fmtInt(a.purchases)}</td><td class="num">${a.cpa != null ? money(a.cpa) : '—'}</td>
         <td class="num">${a.roas != null ? fmtX(a.roas) : '—'}</td></tr>`).join('')}
@@ -1680,7 +1688,7 @@ function reportBodyHTML(d, summary, opts = {}) {
         <td class="num">${fmtInt(o.purchases)}</td><td class="num">${o.cpa != null ? money(o.cpa) : '—'}</td>
         <td class="num">${o.roas != null ? fmtX(o.roas) : '—'}</td></tr>` : ''}</tbody></table></div>
       ${A.standout ? `<p style="font-size:13.5px;margin-top:10px">Most efficient of the ads with real spend: <b>${esc(A.standout.name)}</b> at a <b>${money(A.standout.cpa)}</b> CPA.</p>` : ''}
-      <p class="tiny" style="margin-top:6px">Every ad that spent is accounted for here${A.total_ads ? ` (${fmtInt(A.total_ads)} in total)` : ''}. There is deliberately no single "best ad": the biggest spender, the best CPA and the best ROAS are usually three different ads, so this shows where the money actually went and what each part of it returned.</p>`;
+      <p class="tiny" style="margin-top:6px">${A.top.some(a => a.preview) ? 'Ad names link to the creative — the preview opens without a Facebook login. ' : ''}Every ad that spent is accounted for here${A.total_ads ? ` (${fmtInt(A.total_ads)} in total)` : ''}. There is deliberately no single "best ad": the biggest spender, the best CPA and the best ROAS are usually three different ads, so this shows where the money actually went and what each part of it returned.</p>`;
   };
 
   const chRow = (label, a, pv, fmt, lower) => (a == null && pv == null) ? '' :
