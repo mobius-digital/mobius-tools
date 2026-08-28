@@ -1061,7 +1061,11 @@ async function sendBrief(env, acct, date, { skipIfSent = false } = {}) {
   try {
     await slackPost(env, channel, r.text, null, { username: 'Daily Update', icon: ':wave:' });
     await upsert('sent', channel, r.text);
-    return { name: acct.name, ok: true, channel, date };
+    // The brief still went out with its numbers, which is right - but a missing
+    // narrative is invisible to everyone unless it is said out loud. Usually
+    // means the Anthropic key is out of credit.
+    if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
+    return { name: acct.name, ok: true, channel, date, narrative_error: r.narrative_error ?? null };
   } catch (e) {
     await upsert('error', channel, `${e.message}\n\n${r.text}`);
     return { name: acct.name, error: e.message };
@@ -1309,6 +1313,38 @@ function channelSections(piv, metaBy, ranges, hide) {
   return out;
 }
 
+/** Tell someone when Claude stops answering.
+ *
+ *  Anthropic exposes SPEND, not remaining balance - no API can watch a credit
+ *  balance drain - so the practical warning is the failure itself. Every
+ *  narrative call already degrades gracefully (the brief and the report still
+ *  ship their numbers), which is correct behaviour and also exactly why it would
+ *  otherwise go unnoticed for weeks: a client would just quietly receive a
+ *  thinner brief.
+ *
+ *  Deduped GLOBALLY on a 12h window, not per brand: an exhausted key fails all
+ *  six brands within the same minute, and six identical Slack messages is how an
+ *  alert gets muted. Posts INTERNAL-only, never to a client channel.
+ */
+async function alertClaudeFailure(env, context, message) {
+  const channel = await getSetting(env, 'reportChannel') || await getSetting(env, 'slackChannel');
+  if (!channel) return;
+  const last = safeJson(await getSetting(env, 'lastClaudeAlert'), null);
+  if (last?.at && Date.now() - last.at < 12 * 3600e3) return;
+  // Marked before posting so a failing post cannot turn into a message storm.
+  await putSetting(env, 'lastClaudeAlert', JSON.stringify({ at: Date.now(), context, message })).catch(() => {});
+  const msg = String(message || '');
+  const likelyCredit = /credit|balance|quota|insufficient|billing|payment|402/i.test(msg);
+  await slackPost(env, channel,
+    `:warning: *Claude could not write the ${context}* — the numbers went out, the written summary did not.\n` +
+    '```' + msg.slice(0, 300) + '```\n' +
+    (likelyCredit
+      ? '*This looks like an API credit problem.* Top up at <https://platform.claude.com/settings/billing|Console → Billing>, and turn on auto-reload so it cannot happen again.'
+      : 'Check <https://platform.claude.com/settings/billing|Console → Billing> for credit, and the API key on the account-health worker.') +
+    '\n_One alert per 12 hours, however many brands are affected._',
+    null, { username: 'Mobius Reports', icon: ':warning:' }).catch(() => {});
+}
+
 /** Public, login-free preview links for the ads a report lists.
  *
  *  `preview_shareable_link` is Meta's own field for exactly this: a URL that
@@ -1491,6 +1527,11 @@ async function reportData(env, acct, period, start, end) {
   // a $40 fluke can never headline. Deliberately framed as "where the budget
   // went and what it did", not "the best ad" — a single crown is unjudgeable.
   let ads = null;
+  // Ads that carried real money this period. Used twice: to build the creative
+  // table, and to decide which on/off changes are worth naming in the change
+  // log. ONE definition of "big", so the two sections can never disagree.
+  const bigAdIds = new Set();
+  const adSpendById = {};
   const metaSpend = cur.meta_spend ?? 0;
   if (metaSpend > 0) {
     // No LIMIT: the long tail has to be counted, not dropped. A week can carry
@@ -1506,6 +1547,8 @@ async function reportData(env, acct, period, start, end) {
     const floor = Math.max(50, metaSpend * 0.03);
     const TOP_N = 10;
     const qualified = adRows.filter(r => r.spend >= floor);
+    for (const r of adRows) adSpendById[r.ad_id] = r.spend;
+    for (const r of qualified) bigAdIds.add(r.ad_id);
     const shown = qualified.slice(0, TOP_N);
     const previews = await adPreviewLinks(env, shown.map(r => r.ad_id)).catch(() => ({}));
     const row = r => ({
@@ -1550,7 +1593,7 @@ async function reportData(env, acct, period, start, end) {
   // Routine creative/tuning work is COUNTED rather than listed - a week with 58
   // new ads produces a report nobody reads if each one gets a line.
   const { results: evs } = await env.DB.prepare(
-    `SELECT event_time, category, summary, reason FROM activities
+    `SELECT event_time, category, summary, reason, object_id FROM activities
      WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1
        AND category NOT IN ('other','name')
      ORDER BY event_time ASC LIMIT 400`,
@@ -1560,16 +1603,25 @@ async function reportData(env, acct, period, start, end) {
   // stays — a policy rejection genuinely changes what can deliver.
   const notableCats = new Set(['budget', 'bid_strategy', 'new_campaign', 'new_adset',
     'campaign_paused', 'campaign_relaunched', 'review']);
-  const notableAll = evs.filter(e => notableCats.has(e.category));
+  // Switching ONE ad on or off among 150 is routine and belongs in the count.
+  // Doing it to an ad that was carrying real budget is a decision, and burying
+  // that inside "64 ads relaunched" hides the most interesting thing we did.
+  // Threshold is the SAME floor the creative table uses, so "big" means one
+  // thing in this report rather than two.
+  const AD_CATS = new Set(['ad_paused', 'ad_relaunched', 'new_creative']);
+  const isBigAdMove = e => AD_CATS.has(e.category) && e.object_id && bigAdIds.has(e.object_id);
+  const notableAll = evs.filter(e => notableCats.has(e.category) || isBigAdMove(e));
   const rollup = {};
-  for (const e of evs) if (!notableCats.has(e.category)) rollup[e.category] = (rollup[e.category] ?? 0) + 1;
+  for (const e of evs) if (!notableCats.has(e.category) && !isBigAdMove(e)) rollup[e.category] = (rollup[e.category] ?? 0) + 1;
   const changes = {
     notable: notableAll.slice(0, 14).map(e => ({
       t: String(e.event_time).slice(0, 10), category: e.category, summary: e.summary, reason: e.reason,
+      spend: isBigAdMove(e) ? (adSpendById[e.object_id] ?? null) : null,
     })),
     notable_total: notableAll.length,
     rollup,
     total: evs.length,
+    ad_floor: bigAdIds.size ? Math.max(50, metaSpend * 0.03) : null,
   };
 
   return {
@@ -1760,6 +1812,7 @@ async function reportsPass(env) {
         if (!have) await syncTwDaily(env, a, j.period === 'monthly' ? 100 : 70).catch(() => {});
         const r = await makeReport(env, a, j.period, j.start);
         const posted = await postReportDraft(env, a, r).catch(e => ({ error: e.message }));
+        if (r.narrative_error) await alertClaudeFailure(env, `${j.period} report summary for ${a.name}`, r.narrative_error);
         results.push({ name: a.name, period: j.period, ok: true, posted, narrative_error: r.narrative_error ?? null });
       } catch (e) {
         results.push({ name: a.name, period: j.period, error: e.message });
