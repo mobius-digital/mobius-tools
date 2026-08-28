@@ -1566,11 +1566,12 @@ async function renderBrief(first) {
       <div class="row" style="margin-top:8px;align-items:flex-start">
         <div class="toggle ${acct?.review_first ? 'on' : ''}" id="bfReview"></div>
         <span style="font-size:13.5px;max-width:660px">
-          <b>Review before it goes to the client.</b> On: each morning the brief is drafted and posted to this brand's
+          ${acct && !acct.brief_channel
+            ? `<b>This brand is internal-only.</b> It has no client channel, so the brief posts straight to your own channel each morning — there is no client to review it for. Give it a client channel in Settings to turn the review step on.`
+            : `<b>Review before it goes to the client.</b> On: each morning the brief is drafted and posted to this brand's
           <b>internal channel</b>${acct?.slack_channel ? '' : ' (<b>none set</b> — pick one in Settings)'} — you read it, reword anything, then press
-          <b>Send to client</b> below. Off: it posts straight to
-          ${acct?.brief_channel ? 'the client channel' : '<b>no client channel — set one in Settings</b>'} with no stop.
-          <span class="tiny" style="display:block;margin-top:3px">This switch is per client and covers the weekly and monthly reports too.</span>
+          <b>Send to client</b> below. Off: it posts straight to the client channel with no stop.
+          <span class="tiny" style="display:block;margin-top:3px">This switch is per client and covers the weekly and monthly reports too.</span>`}
           <span class="tiny" style="display:block;margin-top:3px">This replaces copy-pasting: same review, but Slack formatting survives and what you sent is recorded.</span>
         </span>
       </div></div>
@@ -2940,7 +2941,7 @@ async function renderSettings() {
       <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved.
       <b>Two channels per client, and one rule.</b> The <b>internal channel</b> is your team's: drafts waiting for review land there, along with delivery alerts. The <b>client channel</b> is theirs: an approved brief or report is sent there, and nothing else ever posts there.
       With <b>review first</b> on, everything — daily brief, weekly report, monthly report — drafts to the internal channel and waits for you to read it, change the wording, and press send. Off, each one posts straight to the client on its own.
-      A client send never falls back to the internal channel: if the client channel is empty it stops and says so, rather than quietly posting to your team.</p></div>`;
+      <b>Leave the client channel empty for a brand with no external chat</b> — it is then internal-only, and its brief posts to your own channel each morning with no review step, because there is no client to protect. A brand that HAS a client channel never falls back to the internal one.</p></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
@@ -2962,10 +2963,9 @@ async function renderSettings() {
     tb.innerHTML = shownRows().map(a => `<tr data-id="${a.act_id}">
       <td><b>${esc(a.name)}</b></td>
       <td>${chCell(a, 'slack_channel', '— not set —', a.slack_channel ? '' : 'drafts and alerts have nowhere to go')}</td>
-      <td>${chCell(a, 'brief_channel', '— not set —',
-        !a.brief_channel ? 'nothing can be sent to this client'
-        : a.brief_channel === a.slack_channel ? 'same as internal — a client send would post to your team'
-        : '')}</td>
+      <td>${chCell(a, 'brief_channel', '— internal only —',
+        a.brief_channel && a.brief_channel === a.slack_channel ? 'same as internal — a client send would post to your team' : '')}
+        ${!a.brief_channel ? '<span class="tiny" style="color:var(--muted)">no client chat — posts to your internal channel</span>' : ''}</td>
       <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.review_first?'on':''}" data-k="review_first" title="On: everything drafts internally and waits for you. Off: everything sends itself to the client."></div><span class="tiny">${a.review_first?'review first':'sends itself'}</span></div></td>
       <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Running each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
       <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>

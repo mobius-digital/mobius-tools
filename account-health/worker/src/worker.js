@@ -1049,6 +1049,20 @@ async function makeBrief(env, acct, date) {
 }
 
 /** Generate + post one brief to the brand's Slack channel; log it in `briefs`. */
+/** Who a finished brief or report is for.
+ *
+ *  A brand with no client channel is INTERNAL-ONLY - Lucky Golf and The Golf
+ *  Sock have no external chat, so the team is the audience. There is nothing to
+ *  gate, so those skip the review dance and post straight to the internal
+ *  channel; review exists to stop something reaching a CLIENT unread, and with
+ *  no client it would just mean a brief nobody could ever deliver.
+ */
+function audienceFor(acct) {
+  if (acct.brief_channel) return { channel: acct.brief_channel, client: true };
+  if (acct.slack_channel) return { channel: acct.slack_channel, client: false };
+  return null;
+}
+
 /** Write a briefs row. `data` is optional so an edit or a send of stored text
  *  cannot wipe the numbers captured when the brief was first built. */
 async function upsertBrief(env, actId, date, status, channel, text, data) {
@@ -1119,9 +1133,9 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
     text = r.text;
   }
-  // The client channel, with no fallback to the internal one — see sendReport.
-  const channel = acct.brief_channel;
-  if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no client channel set for this brand — pick one in Settings', r?.data); return { name: acct.name, skipped: 'no client channel set' }; }
+  const aud = audienceFor(acct);
+  if (!aud) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no Slack channel set for this brand — pick one in Settings', r?.data); return { name: acct.name, skipped: 'no channel set' }; }
+  const channel = aud.channel;
   try {
     await slackPost(env, channel, text, null, { username: 'Daily Update', icon: ':wave:' });
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
@@ -1200,7 +1214,7 @@ async function dailyBriefs(env) {
     // A brand awaiting review already has its draft. Without this the hourly
     // trigger would re-sync 45 days of Triple Whale and rebuild the same draft
     // every hour until someone pressed send.
-    if (a.review_first && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
+    if (a.review_first && a.brief_channel && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
 
     didWork = true;
     let r;
@@ -1210,7 +1224,10 @@ async function dailyBriefs(env) {
       // a human; auto sends straight to the client. A daily deliverable can be
       // either, and forcing every brand through a morning approval is exactly
       // the button-pushing this tool exists to avoid.
-      r = a.review_first
+      // Internal-only brands have nobody to protect, so they deliver straight
+      // away regardless of the review switch.
+      const aud = audienceFor(a);
+      r = (a.review_first && aud && aud.client)
         ? await draftBrief(env, a, date, { skipIfExists: true })
         : await sendBrief(env, a, date, { skipIfSent: true });
     } catch (e) { r = { name: a.name, error: e.message }; }
@@ -1836,12 +1853,14 @@ async function sendReport(env, acct, period, start) {
   if (!row) throw new Error('no report generated for that period yet');
   const data = safeJson(row.data_json, null);
   if (!data) throw new Error('this report has no data — regenerate it first');
-  // ONE client destination per brand, shared by the brief and both reports.
-  // Deliberately no fallback to the internal channel: "Send to client" quietly
-  // posting to the team is the failure this whole flow exists to prevent, so an
-  // unset client channel is an error you can see, not a silent redirect.
-  const channel = acct.brief_channel;
-  if (!channel) throw new Error('no client channel set for this brand — pick one in Settings');
+  // One destination per brand, shared by the brief and both reports. There is no
+  // FALLBACK from a client channel to the internal one - "Send to client" quietly
+  // posting to the team is the failure this flow exists to prevent - but a brand
+  // with no client channel at all is internal-only by definition, and its own
+  // team is the audience.
+  const aud = audienceFor(acct);
+  if (!aud) throw new Error('no Slack channel set for this brand — pick one in Settings');
+  const channel = aud.channel;
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const label = period === 'weekly' ? 'Weekly' : 'Monthly';
   const opener = period === 'weekly'
@@ -1890,7 +1909,8 @@ async function reportsPass(env) {
         if (r.narrative_error) await alertClaudeFailure(env, `${j.period} report summary for ${a.name}`, r.narrative_error);
         // Same switch as the daily brief: review means it waits for a human,
         // off means it goes straight to the client. One rule for all three.
-        if (a.review_first) {
+        const aud = audienceFor(a);
+        if (a.review_first && aud && aud.client) {
           const posted = await postReportDraft(env, a, r).catch(e => ({ error: e.message }));
           results.push({ name: a.name, period: j.period, ok: true, posted, narrative_error: r.narrative_error ?? null });
         } else {
