@@ -588,7 +588,18 @@ async function twSummary(env, shopDomain, start, end) {
 /* ------------------------------------------------------------------ */
 
 /** Which TW metrics are worth keeping per-day (id or title match). */
-const TW_KEEP = /sales|revenue|spend|adcost|cost|profit|cogs|orders|\bmer\b|roas|refund|shipping|fees|ads|tax|ltv|cpa/i;
+/* Which Triple Whale metrics are worth storing per day.
+ *
+ * ctr|cpm|impression|click|purchases|benchmark were added 2026-08-28. Without
+ * them the filter silently dropped Facebook CTR, CPM, Impressions and Clicks -
+ * Triple Whale has always offered those, and their absence was mistaken for TW
+ * not having the data, which nearly sent the Meta section of the report to
+ * Meta own API for numbers Triple Whale could answer. benchmark picks up TW PEER
+ * figures (Peer Facebook CPM/CTR/ROAS), a paid feature elsewhere, being binned.
+ *
+ * Widening this only affects what is STORED from now on; existing rows need a
+ * backfill to gain the new metrics. */
+const TW_KEEP = /sales|revenue|spend|adcost|cost|profit|cogs|orders|\bmer\b|roas|refund|shipping|fees|ads|tax|ltv|cpa|ctr|cpm|impression|click|purchases|benchmark/i;
 /* CAREFUL - Triple Whale's field names do not mean what they say:
  *   netSales   is titled "Total Sales"  = Shopify TOTAL SALES, i.e. it ALREADY
  *              includes shipping charged to customers AND sales tax, net of
@@ -651,7 +662,7 @@ async function syncTwDaily(env, acct, days = 10) {
   for (let i = 0; i < stmts.length; i += 150) await env.DB.batch(stmts.slice(i, i + 150));
   if (Array.isArray(res.raw?.metrics)) {
     await putSetting(env, `twCatalog:${acct.act_id}`,
-      JSON.stringify(res.raw.metrics.map(m => ({ id: m.metricId ?? m.id, title: m.title })).slice(0, 400))).catch(() => {});
+      JSON.stringify(res.raw.metrics.map(m => ({ id: m.metricId ?? m.id, title: m.title })))).catch(() => {});
   }
   return { name: acct.name, ok: true, metrics: Object.keys(daily).length, from: start, to: today, rows: stmts.length };
 }
@@ -1314,40 +1325,87 @@ function periodTotals(rows) {
  *  sync); everything else reads tw_daily. Platform revenue here is ATTRIBUTED
  *  (the platform's own claim) and the UI labels it that way — the blended
  *  scorecard is the honest headline. */
-function channelSections(piv, metaBy, ranges, hide) {
+/* Channel figures come from a PERIOD Triple Whale call (`tw` / `twPrev`), not
+ * from summing the daily rows. Two reasons, both learned the hard way:
+ *   - TW exposes Impressions, Clicks and its PEER BENCHMARKS only as period
+ *     totals; they have no daily series at all, so no amount of summing
+ *     tw_daily produces them.
+ *   - CPM and CTR are RATIOS. Summing seven daily CPMs is meaningless and
+ *     averaging them weights a $10 day like a $1,000 one. Asking TW for the
+ *     window it actually is gets the arithmetic right at the source.
+ * The daily rows remain the fallback when the period call fails or a shop has
+ * no Triple Whale connection. */
+/** Triple Whale reports 0 for peer benchmarks on a shop that has not opted into
+ *  its benchmark network - not null, zero. Rendering that gives a client a
+ *  "peer CPM $0.00", which is worse than showing nothing, so 0 means absent. */
+const peerVal = v => (typeof v === 'number' && v > 0) ? v : null;
+
+function channelSections(piv, metaBy, ranges, hide, tw, twPrev) {
+  // Benchmark metrics are RATES, so they average across the window; the sum of
+  // seven daily CPMs is not a CPM.
+  const avg = (id, ds) => {
+    let n = 0, t = 0;
+    for (const d of ds) { const v = piv[id]?.[d]; if (v != null) { t += v; n++; } }
+    return n ? t / n : null;
+  };
   const S = (id, ds) => { let s = 0, any = false; for (const d of ds) { const v = piv[id]?.[d]; if (v != null) { s += v; any = true; } } return any ? s : null; };
   const compute = {
-    meta: ds => {
-      let spend = 0, imp = 0, clicks = 0, pur = 0, rev = 0, any = false;
-      for (const d of ds) {
-        const r = metaBy[d]; if (!r) continue;
-        any = true; spend += r.spend || 0; imp += r.impressions || 0;
-        clicks += r.link_clicks || 0; pur += r.purchases || 0; rev += r.revenue || 0;
+    // TRIPLE WHALE, not the Meta API. Every result and attribution figure in the
+    // report comes from one source, so nothing can disagree with the blended
+    // headline; Meta is used only where TW structurally cannot help, which is
+    // ad-level creative. TW carries Facebook CTR, CPM, Impressions and Clicks
+    // too - the metric filter was simply dropping them, which is what made this
+    // look like a gap in TW. Meta API spend stays as a fallback for a day TW has
+    // not synced yet, so a new account still shows something.
+    // Triple Whale, so every result in this report has one source. Meta is used
+    // only where TW structurally cannot help, which is ad-level creative.
+    meta: (ds, m) => {
+      const spend = m ? m.fb_ads_spend : null;
+      if (!(spend > 0)) {
+        // No TW figure for this window - fall back to Meta-reported spend so a
+        // brand mid-backfill still shows something, clearly flagged.
+        const daily = S('fb_ads_spend', ds);
+        if (daily > 0) return { spend: daily, awaiting_tw: true };
+        let ms = 0, any = false;
+        for (const d of ds) { const r = metaBy[d]; if (!r) continue; any = true; ms += r.spend || 0; }
+        return any && ms > 0 ? { spend: ms, awaiting_tw: true } : null;
       }
-      if (!any || !(spend > 0)) return null;
-      return { spend, revenue: rev, roas: spend ? rev / spend : null, purchases: pur || null,
-        cpa: pur ? spend / pur : null, cpm: imp ? spend / imp * 1000 : null,
-        ctr: imp ? clicks / imp : null, clicks: clicks || null, impressions: imp || null };
+      const roas = m.fb_ads_purchase_roas ?? null;
+      const pur = m.facebookPurchases ?? m.facebookMetaPurchases ?? null;
+      const imp = m.facebookImpressions ?? null;
+      const clicks = m.facebookClicks ?? m.facebookOutboundClicks ?? null;
+      return {
+        spend, roas,
+        revenue: roas != null ? spend * roas : null,
+        purchases: pur, cpa: m.facebookCpa ?? (pur ? spend / pur : null),
+        cpm: m.averageFacebookCpm ?? (imp ? spend / imp * 1000 : null),
+        ctr: m.facebookCtr != null ? m.facebookCtr / 100 : (imp && clicks != null ? clicks / imp : null),
+        impressions: imp, clicks,
+        peer_cpm: peerVal(m.totalBenchmarksCPM),
+        peer_ctr: peerVal(m.totalBenchmarksCTR) != null ? m.totalBenchmarksCTR / 100 : null,
+        peer_roas: peerVal(m.benchmarksFacebookRoas),
+      };
     },
-    google: ds => {
-      let spend = 0, rev = 0, conv = 0, imp = 0, clicks = 0, any = false;
-      for (const d of ds) {
-        const sp = piv.ga_adCost?.[d];
-        if (sp == null) continue;
-        any = true; spend += sp;
-        const roas = piv.ga_ROAS?.[d]; if (roas != null) rev += roas * sp;
-        // googleAllCpa is the real dollars-per-conversion (verified against live
-        // data 2026-08-27: 35–102). `googleCpa` is ~0.17–0.19 — some other ratio —
-        // and dividing spend by it fabricated thousands of conversions. Never use it.
-        const cpa = piv.googleAllCpa?.[d]; if (cpa > 0) conv += sp / cpa;   // per-day ratio → conversions, so the period CPA is spend/conv
-        imp += piv.totalGoogleAdsImpressions?.[d] ?? 0;
-        clicks += piv.totalGoogleAdsClicks?.[d] ?? 0;
-      }
-      if (!any || !(spend > 0)) return null;
-      return { spend, revenue: rev || null, roas: rev && spend ? rev / spend : null,
-        purchases: conv ? Math.round(conv) : null, cpa: conv ? spend / conv : null,
-        cpm: imp ? spend / imp * 1000 : null, ctr: imp ? clicks / imp : null,
-        clicks: clicks || null, impressions: imp || null };
+    google: (ds, m) => {
+      const spend = m ? m.ga_adCost : S('ga_adCost', ds);
+      if (!(spend > 0)) return null;
+      const roas = m ? m.ga_ROAS : null;
+      const imp = m ? m.totalGoogleAdsImpressions : S('totalGoogleAdsImpressions', ds);
+      const clicks = m ? m.totalGoogleAdsClicks : S('totalGoogleAdsClicks', ds);
+      // googleAllCpa is real dollars-per-conversion; googleCpa is NOT (~0.18,
+      // some other ratio) and dividing spend by it fabricated conversions.
+      const cpa = m ? m.googleAllCpa : null;
+      return {
+        spend, roas: roas ?? null,
+        revenue: roas != null ? spend * roas : null,
+        purchases: cpa ? Math.round(spend / cpa) : null,
+        cpa: cpa ?? null,
+        cpm: (m && m.totalGoogleAdsCpm != null) ? m.totalGoogleAdsCpm : (imp ? spend / imp * 1000 : null),
+        ctr: (m && m.totalGoogleAdsCtr != null) ? m.totalGoogleAdsCtr / 100 : (imp && clicks ? clicks / imp : null),
+        impressions: imp ?? null, clicks: clicks ?? null,
+        peer_cpm: m ? peerVal(m.totalBenchmarksCPMGoogle) : null,
+        peer_ctr: m && peerVal(m.totalBenchmarksCTRGoogle) != null ? m.totalBenchmarksCTRGoogle / 100 : null,
+      };
     },
     // TikTok / Pinterest: the TW ids we expect if those channels ever connect.
     // No data in the window = no section, so a wrong guess costs nothing.
@@ -1387,7 +1445,7 @@ function channelSections(piv, metaBy, ranges, hide) {
   const out = [];
   for (const id of Object.keys(LABELS)) {
     if (hide.includes(id)) continue;
-    const cur = compute[id](ranges.cur), prev = compute[id](ranges.prev);
+    const cur = compute[id](ranges.cur, tw), prev = compute[id](ranges.prev, twPrev);
     if (cur || prev) out.push({ id, label: LABELS[id], cur, prev });
   }
   return out;
@@ -1651,7 +1709,15 @@ async function reportData(env, acct, period, start, end) {
   }
 
   const cfg = safeJson(acct.report_config_json, {});
-  const channels = channelSections(piv, metaBy, { cur: curDates, prev: prevDates }, Array.isArray(cfg.hide) ? cfg.hide : []);
+  // One Triple Whale call per window. TW computes the period ratios itself, so
+  // CPM, CTR and its peer benchmarks arrive correct rather than being
+  // reconstructed from daily rows that do not carry them.
+  let twCur = null, twPrev = null;
+  if (acct.tw_shop && env.TW_API_KEY) {
+    twCur = (await twSummary(env, acct.tw_shop, start, end).catch(() => null))?.map ?? null;
+    twPrev = (await twSummary(env, acct.tw_shop, prevStart, prevEnd).catch(() => null))?.map ?? null;
+  }
+  const channels = channelSections(piv, metaBy, { cur: curDates, prev: prevDates }, Array.isArray(cfg.hide) ? cfg.hide : [], twCur, twPrev);
 
   // Where the Meta money went: top ads by spend behind a materiality floor, so
   // a $40 fluke can never headline. Deliberately framed as "where the budget

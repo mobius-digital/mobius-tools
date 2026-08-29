@@ -1905,20 +1905,25 @@ function reportBodyHTML(d, summary, opts = {}) {
       <p class="tiny" style="margin-top:6px">${A.top.some(a => a.preview) ? 'Ad names link to the creative — the preview opens without a Facebook login. ' : ''}Every ad that spent is accounted for here${A.total_ads ? ` (${fmtInt(A.total_ads)} in total)` : ''}. There is deliberately no single "best ad": the biggest spender, the best CPA and the best ROAS are usually three different ads, so this shows where the money actually went and what each part of it returned.</p>`;
   };
 
-  const chRow = (label, a, pv, fmt, lower) => (a == null && pv == null) ? '' :
-    `<tr><td>${label}</td><td class="num"><b>${fmt(a)}</b></td><td class="num">${fmt(pv)}</td><td class="num">${a != null && pv ? vsPill(a, pv, lower) : '<span class="tiny">—</span>'}</td></tr>`;
+  // `peer` is Triple Whale's benchmark against comparable stores. It only
+  // appears on the metrics TW actually benchmarks, and is deliberately a plain
+  // number rather than a verdict - it is context, not a target.
+  const chRow = (label, a, pv, fmt, lower, peer) => (a == null && pv == null) ? '' :
+    `<tr><td>${label}</td><td class="num"><b>${fmt(a)}</b></td><td class="num">${fmt(pv)}</td><td class="num">${a != null && pv ? vsPill(a, pv, lower) : '<span class="tiny">—</span>'}</td><td class="num">${peer != null ? `<span class="tiny">${fmt(peer)}</span>` : ''}</td></tr>`;
   const chCard = c => {
     const A = c.cur || {}, P = c.prev || {};
     let rows = '', note = '';
     if (['meta', 'google', 'tiktok', 'pinterest'].includes(c.id)) {
       rows = chRow('Spend', A.spend, P.spend, money, true)
         + chRow('Attributed revenue', A.revenue, P.revenue, money)
-        + chRow('ROAS', A.roas, P.roas, fmtX)
+        + chRow('ROAS', A.roas, P.roas, fmtX, false, A.peer_roas)
         + chRow('Purchases', A.purchases, P.purchases, fmtInt)
         + chRow('CPA', A.cpa, P.cpa, money, true)
-        + chRow('CPM', A.cpm, P.cpm, money, true)
-        + chRow('CTR', A.ctr, P.ctr, n => fmtPct(n, 2));
-      note = `Revenue, ROAS and CPA here are ${esc(c.label)}'s own attribution — directional, and deliberately not comparable to the blended scorecard above.`;
+        + chRow('CPM', A.cpm, P.cpm, money, true, A.peer_cpm)
+        + chRow('CTR', A.ctr, P.ctr, n => fmtPct(n, 2), false, A.peer_ctr);
+      note = `Revenue, ROAS and CPA here are ${esc(c.label)}'s own attributed figures, as Triple Whale reports them — directional, and deliberately not comparable to the blended scorecard above, which counts every sale once. They will differ slightly from ${esc(c.label)}'s own dashboard, which uses different attribution windows.`
+        + (A.peer_cpm != null || A.peer_ctr != null ? ` <b>Peers</b> is Triple Whale's benchmark across comparable stores.` : '')
+        + (A.awaiting_tw ? ` <b>Spend only:</b> Triple Whale has not synced this period yet, so this is Meta-reported spend with no attribution behind it.` : '');
     } else if (c.id === 'amazon') {
       rows = chRow('Sales', A.sales, P.sales, money)
         + chRow('Orders', A.orders, P.orders, fmtInt)
@@ -1934,7 +1939,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     }
     if (!rows) return '';
     return `<div class="card"><h3 style="margin-bottom:8px">${esc(c.label)}</h3>
-      <div class="tbl-wrap"><table><thead><tr><th></th><th class="num">This ${prevTag}</th><th class="num">Prior ${prevTag}</th><th class="num">Change</th></tr></thead>
+      <div class="tbl-wrap"><table><thead><tr><th></th><th class="num">This ${prevTag}</th><th class="num">Prior ${prevTag}</th><th class="num">Change</th><th class="num" title="Triple Whale's benchmark across comparable stores. Context, not a target.">Peers</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
       <p class="tiny" style="margin-top:8px">${note}</p>
       ${c.id === 'meta' ? adsBlock() : ''}</div>`;
