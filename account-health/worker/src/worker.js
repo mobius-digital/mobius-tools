@@ -1085,14 +1085,22 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
   // Internal only, and deliberately never brief_channel — that is the client's.
   const ch = acct.slack_channel;
   if (ch) {
-    // A SHORT nudge, not the brief itself (Cole's call, 2026-08-27). The point of
-    // review is to open it, read it properly and adjust it, so pasting the whole
-    // thing here just means reading it twice. The `&date=` matters: this notice
-    // names one day, and without it the tab opens whatever "yesterday" happens to
-    // be when the link is finally clicked.
+    // The whole brief goes IN the message (Cole, 2026-08-28). It was a link for a
+    // while, on the reasoning that review means opening it properly - but that was
+    // decided while four bots were posting into these channels and length was the
+    // enemy. He has since removed the others, so this is now one message per brand
+    // per day, and the brief IS the thing the team needs to read. Making them open
+    // a tab for it meant only whoever clicked ever saw it.
+    // The link stays underneath, for ACTING on it rather than reading it. `&date=`
+    // matters: this notice names one day, and without it the tab opens whatever
+    // "yesterday" happens to be when the link is finally clicked.
+    const body = r.text.length > 3600
+      ? r.text.slice(0, 3600) + '\n…(too long for Slack — open it in Locus for the rest)'
+      : r.text;
     await slackPost(env, ch,
-      `:memo: *Daily Brief ready for review — ${acct.name}* (${prettyDate(date)})\n` +
-      `_Nothing has been sent to the client._ <${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}&date=${date}|Read it, edit it, send it →>`,
+      `:memo: *Draft — ${acct.name}, ${prettyDate(date)}* · _not sent to the client yet_\n\n` +
+      `${body}\n\n` +
+      `<${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}&date=${date}|Send it, or edit the wording first →>`,
       null, { username: 'Mobius Reports', icon: ':memo:' }).catch(() => {});
   }
   if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
