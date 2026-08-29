@@ -1490,6 +1490,56 @@ async function adPreviewLinks(env, adIds) {
   return out;
 }
 
+/** Creative thumbnails for the ads a report lists, BAKED INTO the report.
+ *
+ *  Meta's image URLs are signed and expire, so linking to them would leave a
+ *  three-month-old report full of broken images - and a frozen report that
+ *  rots is not frozen. Each thumbnail is fetched once at generation time and
+ *  stored as a data URI inside the report itself, which is then self-contained
+ *  forever with no external dependency.
+ *
+ *  Video ads work the same way: Meta keeps a cover frame for every video
+ *  creative, so the grid is uniform and only the play badge differs. The name
+ *  still links to the full preview, which actually plays the video.
+ *
+ *  Best effort throughout - an ad with no usable thumbnail simply shows its
+ *  name and numbers rather than a broken image.
+ */
+async function adThumbnails(env, adIds) {
+  const out = {};
+  if (!env.META_TOKEN || !adIds.length) return out;
+  let budget = 420_000;                       // total base64 to inline, keeps the row sane
+  for (const id of adIds.slice(0, 10)) {
+    try {
+      const r = await meta(env, `${id}/adcreatives`, {
+        fields: 'thumbnail_url,object_type,video_id,object_story_spec,asset_feed_spec',
+        thumbnail_width: 320, thumbnail_height: 320, limit: 1,
+      });
+      const c = r?.data?.[0];
+      // Video hides in several places depending on how the ad was built: a
+      // top-level video_id, inside object_story_spec.video_data for a page-post
+      // ad, or in asset_feed_spec.videos for a dynamic/Advantage+ creative.
+      // Checking only the first two reported every UGC video ad as an image.
+      const isVideo = !!(c?.video_id || c?.object_type === 'VIDEO'
+        || c?.object_story_spec?.video_data
+        || (Array.isArray(c?.asset_feed_spec?.videos) && c.asset_feed_spec.videos.length));
+      if (!c?.thumbnail_url) { out[id] = { thumb: null, video: isVideo }; continue; }
+      const img = await fetch(c.thumbnail_url);
+      if (!img.ok) { out[id] = { thumb: null, video: isVideo }; continue; }
+      const buf = await img.arrayBuffer();
+      if (buf.byteLength > 60_000 || buf.byteLength * 1.34 > budget) { out[id] = { thumb: null, video: isVideo }; continue; }
+      // Chunked: spreading a 60k array into String.fromCharCode blows the stack.
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      const b64 = btoa(bin);
+      budget -= b64.length;
+      out[id] = { thumb: `data:${img.headers.get('content-type') || 'image/jpeg'};base64,${b64}`, video: isVideo };
+    } catch { /* no thumbnail for this ad; the row still renders */ }
+  }
+  return out;
+}
+
 /** Everything a weekly/monthly report shows, frozen. `start`..`end` inclusive. */
 async function reportData(env, acct, period, start, end) {
   const prevStart = period === 'weekly' ? addDays(start, -7) : `${prevMonth(monthOf(start))}-01`;
@@ -1631,12 +1681,15 @@ async function reportData(env, acct, period, start, end) {
     for (const r of qualified) bigAdIds.add(r.ad_id);
     const shown = qualified.slice(0, TOP_N);
     const previews = await adPreviewLinks(env, shown.map(r => r.ad_id)).catch(() => ({}));
+    const thumbs = await adThumbnails(env, shown.map(r => r.ad_id)).catch(() => ({}));
     const row = r => ({
       name: r.name, spend: r.spend, purchases: r.purchases || null, revenue: r.revenue || null,
       cpa: r.purchases ? r.spend / r.purchases : null,
       roas: r.spend && r.revenue ? r.revenue / r.spend : null,
       share: metaSpend ? r.spend / metaSpend : null,
       preview: previews[r.ad_id] || null,
+      thumb: thumbs[r.ad_id]?.thumb || null,
+      video: !!thumbs[r.ad_id]?.video,
     });
     // Everything not listed, as one line, so the table accounts for 100% of
     // ad-level spend and the tail can be compared with the headline ads.

@@ -191,6 +191,16 @@
   .ad-name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
   /* Ad names link to Meta's public preview. Underline on hover only, so a table
      of ten does not read as a wall of links. */
+  /* Ad rows carry the creative itself — a name like "406 A | UGC" tells a client
+     nothing. Thumbnails are baked into the report as data URIs so an archived
+     report never decays into broken images. */
+  .ad-cell{display:flex;align-items:center;gap:10px;min-width:0}
+  .ad-thumb{position:relative;width:44px;height:44px;flex:none;border-radius:7px;overflow:hidden;
+    border:1px solid var(--line);background:var(--bg)}
+  .ad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .ad-thumb.none{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+  .ad-thumb .pl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:13px;text-shadow:0 1px 4px rgba(0,0,0,.6);background:rgba(0,0,0,.18)}
   a.ad-link{color:var(--ink);text-decoration:none;max-width:320px}
   a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
   a.ad-link .ext{color:var(--muted);font-size:10.5px;margin-left:5px;vertical-align:1px}
@@ -1879,13 +1889,15 @@ function reportBodyHTML(d, summary, opts = {}) {
     return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went</h4>
       <p class="hint" style="margin-bottom:8px">The ads that carried real spend this ${prevTag}, and what each one delivered. Ads under ${money(A.floor)} are grouped on the last row — individually too small to judge fairly.${A.qualified_total > A.top.length ? ` Showing the ${A.top.length} biggest of ${A.qualified_total} that cleared that bar.` : ''}</p>
       <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
-      <tbody>${A.top.map(a => `<tr><td>${a.preview
+      <tbody>${A.top.map(a => `<tr><td><div class="ad-cell">${a.thumb
+          ? `<span class="ad-thumb"><img src="${a.thumb}" alt="" loading="lazy">${a.video ? '<span class="pl">&#9654;</span>' : ''}</span>`
+          : `<span class="ad-thumb none">${a.video ? '&#9654;' : '&#9633;'}</span>`}${a.preview
           ? `<a class="ad-name ad-link" href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" title="Open the ad preview — ${esc(a.name)}">${esc(a.name)}<span class="ext">↗</span></a>`
-          : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}</td>
+          : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}</div></td>
         <td class="num"><b>${money(a.spend)}</b></td><td class="num">${fmtPct(a.share)}</td>
         <td class="num">${fmtInt(a.purchases)}</td><td class="num">${a.cpa != null ? money(a.cpa) : '—'}</td>
         <td class="num">${a.roas != null ? fmtX(a.roas) : '—'}</td></tr>`).join('')}
-        ${o ? `<tr style="border-top:2px solid var(--line-strong)"><td><span class="tiny">${fmtInt(o.count)} smaller ads combined${o.biggest != null ? ` · biggest ${money(o.biggest)}` : ''}</span></td>
+        ${o ? `<tr style="border-top:2px solid var(--line-strong)"><td><div class="ad-cell"><span class="ad-thumb none">&#8943;</span><span class="tiny">${fmtInt(o.count)} smaller ads combined${o.biggest != null ? ` · biggest ${money(o.biggest)}` : ''}</span></div></td>
         <td class="num"><b>${money(o.spend)}</b></td><td class="num">${fmtPct(o.share)}</td>
         <td class="num">${fmtInt(o.purchases)}</td><td class="num">${o.cpa != null ? money(o.cpa) : '—'}</td>
         <td class="num">${o.roas != null ? fmtX(o.roas) : '—'}</td></tr>` : ''}</tbody></table></div>
