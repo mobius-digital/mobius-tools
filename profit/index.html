@@ -1890,7 +1890,7 @@ function reportBodyHTML(d, summary, opts = {}) {
       <p class="hint" style="margin-bottom:8px">The ads that carried real spend this ${prevTag}, and what each one delivered. Ads under ${money(A.floor)} are grouped on the last row — individually too small to judge fairly.${A.qualified_total > A.top.length ? ` Showing the ${A.top.length} biggest of ${A.qualified_total} that cleared that bar.` : ''}</p>
       <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
       <tbody>${A.top.map(a => `<tr><td><div class="ad-cell">${a.thumb
-          ? `<span class="ad-thumb"><img src="${a.thumb}" alt="" loading="lazy">${a.video ? '<span class="pl">&#9654;</span>' : ''}</span>`
+          ? `<span class="ad-thumb"><img src="${a.thumb}" alt="">${a.video ? '<span class="pl">&#9654;</span>' : ''}</span>`
           : `<span class="ad-thumb none">${a.video ? '&#9654;' : '&#9633;'}</span>`}${a.preview
           ? `<a class="ad-name ad-link" href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" title="Open the ad preview — ${esc(a.name)}">${esc(a.name)}<span class="ext">↗</span></a>`
           : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}</div></td>
