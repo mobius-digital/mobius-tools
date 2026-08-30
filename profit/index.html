@@ -197,7 +197,10 @@
      never decays into broken images. */
   .ad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px;margin-bottom:12px}
   .ad-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
-    overflow:hidden;display:flex;flex-direction:column;min-width:0}
+    overflow:hidden;display:flex;flex-direction:column;min-width:0;cursor:pointer;
+    transition:border-color .12s,box-shadow .12s}
+  .ad-card:hover{border-color:var(--brand-ink);box-shadow:0 2px 12px rgba(0,0,0,.07)}
+  .ad-card:hover .ad-open{color:var(--brand-ink)}
   .ad-media{position:relative;aspect-ratio:1/1;background:var(--bg);border-bottom:1px solid var(--line);overflow:hidden}
   .ad-media.playing{aspect-ratio:auto}
   .ad-media>img{width:100%;height:100%;object-fit:cover;display:block}
@@ -229,9 +232,10 @@
   .ad-row .dlt.dn{background:var(--bad-bg);color:var(--bad)}
   .ad-row .meter{flex:none;width:52px;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
   .ad-row .meter i{display:block;height:100%}
-  .ad-more{margin-top:9px;width:100%;border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;
-    padding:6px 0;font:inherit;font-size:12px;font-weight:600;color:var(--ink);cursor:pointer}
-  .ad-more:hover{border-color:var(--brand-ink);color:var(--brand-ink)}
+  /* The whole card opens the detail view, so this is an affordance rather than
+     the only way in — it says what a click does without competing for it. */
+  .ad-open{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;
+    font-weight:600;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px}
   /* Detail view: the creative big on the left, everything we know on the right. */
   .adm{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:20px}
   .adm-media{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);position:relative}
@@ -1975,7 +1979,7 @@ function reportBodyHTML(d, summary, opts = {}) {
             ${a.hook != null ? row('Hook rate', hook.pct, '', meter(a.hook, 0.20, 0.30)) : ''}
             ${a.hold != null ? row('Hold rate', hold.pct, '', meter(a.hold, 0.40, 0.60)) : ''}
           </div>
-          <button class="ad-more" type="button" data-more="${i}">Copy &amp; full stats</button>
+          <div class="ad-open"><span>Details</span><span aria-hidden="true">→</span></div>
         </div></article>`;
     };
     const metricInfo = 'Spend, purchases, CPA and ROAS are Meta-reported for this ad. '
@@ -2188,14 +2192,27 @@ function adDetailModal(a, cur, prevTag) {
 
 function wireAdCards(ads, cur, prevTag) {
   const rows = ads?.top || [];
-  document.querySelectorAll('#main [data-more]').forEach(b => b.onclick = () => {
-    const a = rows[+b.dataset.more];
-    if (a) adDetailModal(a, cur, prevTag);
+  // ONE rule: the whole card opens the detail view. The single exception is the
+  // media on a video, which plays it in place — clicking a video should play the
+  // video. A static's media opens the detail view like the rest of the card,
+  // where the creative is shown large anyway, so there is no dead zone and no
+  // area where an identical-looking click does two different things.
+  document.querySelectorAll('#main .ad-card').forEach(card => {
+    const a = rows[+card.dataset.ad];
+    if (!a) return;
+    card.onclick = e => {
+      if (e.target.closest('a')) return;                       // the name links out
+      if (e.target.closest('.ad-media[data-src]')) return;     // video media plays instead
+      if (e.target.closest('.ad-frame')) return;               // clicks inside a playing ad
+      adDetailModal(a, cur, prevTag);
+    };
   });
   document.querySelectorAll('#main .ad-media[data-src]').forEach(m => {
     const btn = m.querySelector('.ad-play');
     if (!btn) return;
-    btn.onclick = () => {
+    m.onclick = e => { if (!e.target.closest('.ad-frame') && !m.querySelector('.ad-frame')) btn.click(); };
+    btn.onclick = e => {
+      e.stopPropagation();
       if (m.querySelector('.ad-frame')) return;
       const s = Math.min(1, (m.clientWidth || PREVIEW_W) / PREVIEW_W);
       m.classList.add('playing');
@@ -2204,7 +2221,8 @@ function wireAdCards(ads, cur, prevTag) {
         <iframe src="${esc(m.dataset.src)}" title="Ad preview" referrerpolicy="no-referrer" scrolling="no"
           style="width:${PREVIEW_W}px;height:${PREVIEW_H}px;transform:scale(${s});transform-origin:top left"></iframe>
         <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
-      m.querySelector('.ad-close').onclick = () => {
+      m.querySelector('.ad-close').onclick = ev => {
+        ev.stopPropagation();                    // closing must not open the detail view
         m.querySelector('.ad-frame').remove();
         m.classList.remove('playing');
         m.style.height = '';

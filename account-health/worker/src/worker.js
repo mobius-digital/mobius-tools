@@ -1634,19 +1634,24 @@ async function adThumbnails(env, adIds) {
         || (Array.isArray(c?.asset_feed_spec?.videos) && c.asset_feed_spec.videos.length));
       out[id].video = isVideo;
       /* WHY VIDEO ADS SHOW A POOR COVER IMAGE (measured 2026-08-30, Lucky Golf).
-       * These ads are built from EXISTING PAGE POSTS, so the video object belongs
-       * to the Facebook Page, not the ad account. Our token is the "Mobius Tools"
-       * user with ads_read + business_management + public_profile ONLY, and
-       * `me/accounts` is empty — so `/{video_id}?fields=source,picture` returns
-       * "does not exist, cannot be loaded due to missing permissions", and the
-       * creative reports object_type PRIVACY_CHECK_FAIL with no image_url. Meta
-       * then hands back the PAGE AVATAR as thumbnail_url, which is why three of
-       * Lucky's four video ads showed the same clover logo.
-       * The ad account DOES own 669 videos and those DO expose a real `source`
-       * mp4 — so the fix is page access (a page-scoped token via
-       * pages_read_engagement), not a different field. Until then: no cover
-       * frame and no inline playback for page-post videos. Statics are
-       * unaffected — image_url works today. */
+       * NOT because they are page posts — the STATICS are page posts too, from
+       * the SAME page (2043316342580398), and they return a perfectly good
+       * image_url. The difference is that a VIDEO object requires page-level
+       * permission while an image URL is served straight off the CDN.
+       * Our token is the "Mobius Tools" user carrying ads_read +
+       * business_management + public_profile; `me/accounts` is empty and BOTH
+       * pages seen here read back as "does not exist, cannot be loaded due to
+       * missing permission". So the video creative comes back as object_type
+       * PRIVACY_CHECK_FAIL with no image_url, `/{video_id}` is unreadable, and
+       * Meta substitutes the PAGE AVATAR as thumbnail_url — which is why three
+       * of Lucky's four video ads shared one identical clover logo.
+       * Two different pages appear across these ads (2043316342580398 and
+       * 100526684753365), so some creatives may be partner/creator-sourced;
+       * a page we are never granted stays unreadable.
+       * Proof the mechanism is permission and not the field: the ad account's
+       * OWN 669 videos DO return a real `source` mp4. The fix is a token with
+       * page access (pages_read_engagement + the page assigned to the system
+       * user), not a different field. Statics are unaffected. */
       // `image_url` is the ORIGINAL static creative — real resolution, real aspect
       // ratio, no square crop — so it is tried first and `thumbnail_url` is the
       // fallback. Video ads have no image_url at all (see the note below).
