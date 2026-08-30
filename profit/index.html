@@ -198,6 +198,26 @@
   .ab-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .ab-two .tiny{display:block;margin-bottom:3px}
   @media (max-width:520px){ .ab-two{grid-template-columns:1fr} }
+  /* Searchable picker. A native <select> can be styled shut but NEVER open -
+     the option list is drawn by the OS, which is why the dropdown still read as
+     boxy after the control itself was on brand. This is a real listbox: styled
+     in both states, filterable (an ad account list runs to a dozen-plus), and
+     able to show the account id as a second line, which an <option> cannot. */
+  .pk{position:relative}
+  .pk-in{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:8px;
+    padding:7px 10px;background:var(--surface);cursor:pointer;font-size:13px}
+  .pk-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .pk-in input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13px;padding:0}
+  .pk-in .pk-cv{width:10px;height:6px;flex:none;opacity:.6}
+  .pk-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;max-height:230px;overflow-y:auto;
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;
+    box-shadow:0 12px 28px rgba(12,22,29,.16);padding:4px;display:none}
+  .pk.open .pk-list{display:block}
+  .pk-opt{padding:7px 9px;border-radius:6px;cursor:pointer;font-size:13.5px;line-height:1.35}
+  .pk-opt small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+  .pk-opt:hover,.pk-opt.hl{background:var(--brand-soft)}
+  .pk-opt[aria-selected=true]{font-weight:700}
+  .pk-none{padding:9px;color:var(--muted);font-size:12.5px}
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
   .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .strip{position:relative;height:30px}
@@ -800,6 +820,68 @@ function confirmModal(title, hint, cta) {
   });
 }
 
+/* ---------- Searchable picker ----------
+   `items` = [{value, label, sub}]. Renders into `host`, returns { value() }.
+   Type to filter, ↑/↓/Enter/Escape, click outside to close. `onPick` fires with
+   the chosen value. A native select was styled shut but the OPEN list belongs to
+   the OS and cannot be touched by CSS - which is the whole reason this exists. */
+function picker(host, items, { placeholder = 'Search…', empty = 'No matches', onPick } = {}) {
+  let value = '', hl = -1, open = false;
+  host.className = 'pk';
+  host.innerHTML = `<div class="pk-in"><input type="text" placeholder="${esc(placeholder)}" autocomplete="off" role="combobox" aria-expanded="false">
+    <svg class="pk-cv" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div>
+    <div class="pk-list" role="listbox"></div>`;
+  const inp = host.querySelector('input'), list = host.querySelector('.pk-list');
+  const labelOf = v => items.find(i => i.value === v)?.label || '';
+  let shown = items;
+
+  const draw = () => {
+    const q = (open ? inp.value : '').trim().toLowerCase();
+    shown = q ? items.filter(i => (i.label + ' ' + (i.sub || '')).toLowerCase().includes(q)) : items;
+    if (hl >= shown.length) hl = shown.length - 1;
+    list.innerHTML = shown.length
+      ? shown.map((i, n) => `<div class="pk-opt${n === hl ? ' hl' : ''}" role="option" data-v="${esc(i.value)}"
+          aria-selected="${i.value === value}">${esc(i.label)}${i.sub ? `<small>${esc(i.sub)}</small>` : ''}</div>`).join('')
+      : `<div class="pk-none">${esc(empty)}</div>`;
+  };
+  const setOpen = v => {
+    open = v; host.classList.toggle('open', v); inp.setAttribute('aria-expanded', String(v));
+    if (v) { inp.value = ''; hl = shown.findIndex(i => i.value === value); }
+    else { inp.value = labelOf(value); }
+    draw();
+  };
+  const choose = v => { value = v; setOpen(false); onPick?.(v); };
+
+  inp.value = '';
+  draw();
+  // The whole control is the target, not just the text node. Clicking the
+  // padding or the chevron did nothing, which on a control that LOOKS like a
+  // dropdown reads as broken - the same class of fault as the dead-looking
+  // button. Clicking while open closes it, so it toggles like a select.
+  host.querySelector('.pk-in').onmousedown = e => {
+    if (e.target === inp && open) return;
+    e.preventDefault();
+    if (open) setOpen(false); else { inp.focus(); setOpen(true); }
+  };
+  inp.onfocus = () => { if (!open) setOpen(true); };
+  inp.oninput = () => { hl = 0; draw(); };
+  inp.onkeydown = e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); if (!open) return setOpen(true);
+      hl = Math.max(0, Math.min(shown.length - 1, hl + (e.key === 'ArrowDown' ? 1 : -1)));
+      draw(); list.querySelector('.hl')?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') { e.preventDefault(); if (open && shown[hl]) choose(shown[hl].value); }
+    else if (e.key === 'Escape') { if (open) { e.stopPropagation(); setOpen(false); } }
+  };
+  list.onmousedown = e => { const o = e.target.closest('.pk-opt'); if (o) { e.preventDefault(); choose(o.dataset.v); } };
+  // A click anywhere else closes it. Bound on the modal, not document, so it dies
+  // with the modal rather than leaking a listener per open.
+  (host.closest('.modal-wrap') || document).addEventListener('mousedown', e => {
+    if (open && !host.contains(e.target)) setOpen(false);
+  });
+  return { value: () => value };
+}
+
 /* ---------- Add a brand ----------
    Cole, 2026-08-30: "it's not really a track for new accounts, I just want to add
    a new brand and it asks me questions - what's the brand name, what ad account,
@@ -817,10 +899,6 @@ function addBrandModal(untracked, chList, onDiscover) {
   return new Promise(resolve => {
     const w = document.createElement('div');
     w.className = 'modal-wrap';
-    const chOpts = (sel) => Array.isArray(chList)
-      ? `<option value="">— none for now —</option>` + chList.map(c =>
-          `<option value="${esc(c.id)}"${c.id === sel ? ' selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')
-      : '';
     const field = (label, help, control) => `<div class="ab-f">
       <label>${label}</label><p class="hint">${help}</p>${control}</div>`;
 
@@ -832,9 +910,8 @@ function addBrandModal(untracked, chList, onDiscover) {
             ? 'Every brand is tied to one Meta ad account. Only accounts you are not already tracking are listed.'
             : 'Every ad account your Meta login can reach is already being tracked.',
           untracked.length
-            ? `<select id="abAct"><option value="">— choose an ad account —</option>${untracked.map(a =>
-                `<option value="${esc(a.act_id)}" data-name="${esc(a.name)}">${esc(a.name)} · ${esc(a.act_id)}</option>`).join('')}</select>
-               <p class="tiny" style="margin:7px 0 0">Not seeing the account you want? <a href="#" id="abDiscover">Check Meta again</a>. Meta only returns accounts the <b>Mobius Tools</b> system user can reach — if it is still missing, assign it to that system user in Business Manager.</p>`
+            ? `<div id="abAct"></div>
+               <p class="tiny" style="margin:7px 0 0">Not seeing the account you want? <a href="#" id="abDiscover">Check Meta again</a>. Locus also does this by itself every night. If it is still missing, that account has to be assigned to the <b>Mobius Tools</b> system user in Business Manager.</p>`
             : `<button class="btn" id="abDiscover">↻ Check Meta for new accounts</button>
                <span class="tiny" id="abDiscMsg" style="margin-left:8px"></span>`)}
         ${field('Brand name', 'What you want to call them everywhere in Locus. Meta account names are often messy — this is the one clients and reports see.',
@@ -844,8 +921,8 @@ function addBrandModal(untracked, chList, onDiscover) {
         ${Array.isArray(chList) ? field('Slack channels <span class="tiny" style="font-weight:400">— optional</span>',
           'Where reporting goes. <b>Internal</b> is your team’s: drafts and alerts. <b>Client</b> is theirs: only approved briefs and reports. You can leave both and set them later.',
           `<div class="ab-two">
-             <div><span class="tiny">Internal</span><select id="abInt">${chOpts()}</select></div>
-             <div><span class="tiny">Client</span><select id="abCli">${chOpts()}</select></div>
+             <div><span class="tiny">Internal</span><div id="abInt"></div></div>
+             <div><span class="tiny">Client</span><div id="abCli"></div></div>
            </div>`) : ''}
       </div>
       <p class="tiny" id="abErr" style="color:var(--bad);min-height:16px;margin:10px 0 0"></p>
@@ -863,13 +940,24 @@ function addBrandModal(untracked, chList, onDiscover) {
 
     // Picking the account fills the name, because the Meta name is right often
     // enough to save typing and wrong often enough to stay editable.
-    const actSel = $$('#abAct');
-    if (actSel) actSel.onchange = () => {
-      const n = actSel.selectedOptions[0]?.dataset.name || '';
-      const nameIn = $$('#abName');
-      if (n && !nameIn.dataset.touched) nameIn.value = n;
-    };
-    $$('#abName').oninput = e => { e.target.dataset.touched = '1'; };
+    const nameIn = $$('#abName');
+    const actHost = $$('#abAct');
+    const actPick = actHost && picker(actHost,
+      untracked.map(a => ({ value: a.act_id, label: a.name || a.act_id, sub: a.act_id })),
+      { placeholder: 'Search your ad accounts…', empty: 'No ad account matches that',
+        onPick: v => {
+          const n = untracked.find(a => a.act_id === v)?.name || '';
+          if (n && !nameIn.dataset.touched) nameIn.value = n;
+        } });
+    nameIn.oninput = e => { e.target.dataset.touched = '1'; };
+
+    const chItems = Array.isArray(chList)
+      ? [{ value: '', label: '— none for now —' }].concat(chList.map(c =>
+          ({ value: c.id, label: '#' + c.name, sub: c.member ? '' : 'the bot is not in this channel yet' })))
+      : [];
+    const intHost = $$('#abInt'), cliHost = $$('#abCli');
+    const intPick = intHost && picker(intHost, chItems, { placeholder: 'Search channels…', empty: 'No channel matches' });
+    const cliPick = cliHost && picker(cliHost, chItems, { placeholder: 'Search channels…', empty: 'No channel matches' });
 
     const disc = $$('#abDiscover');
     if (disc) disc.onclick = async (e) => {
@@ -884,8 +972,8 @@ function addBrandModal(untracked, chList, onDiscover) {
 
     $$('[data-m="yes"]').onclick = async () => {
       const err = $$('#abErr');
-      const act = actSel ? actSel.value : '';
-      const name = $$('#abName').value.trim();
+      const act = actPick ? actPick.value() : '';
+      const name = nameIn.value.trim();
       const shop = $$('#abShop').value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
       if (!act) return err.textContent = untracked.length ? 'Choose which Meta ad account this brand runs on.' : 'There is no untracked ad account to add. Check Meta for new ones first.';
       if (!name) return err.textContent = 'Give the brand a name.';
@@ -894,7 +982,7 @@ function addBrandModal(untracked, chList, onDiscover) {
       }
       const btn = $$('[data-m="yes"]'); btn.disabled = true; btn.textContent = 'Adding…';
       err.textContent = '';
-      done({ act, name, shop, internal: $$('#abInt')?.value || '', client: $$('#abCli')?.value || '' });
+      done({ act, name, shop, internal: intPick?.value() || '', client: cliPick?.value() || '' });
     };
   });
 }
@@ -3764,14 +3852,16 @@ async function renderSettings() {
     const paint = accounts => {
       const list = one ? accounts.filter(a => a.act_id === one.act_id) : accounts;
       const off = list.filter(a => !a.active).length;
+      const ld = window.MetaTab.lastDiscover?.();
       holder.innerHTML = `<h3 class="set-sec">Clients</h3>
         <div class="card settings"><div class="row" style="margin-bottom:6px">
         <h3 style="margin:0">Your brands</h3><span style="flex:1"></span>
         <button class="btn primary" id="mtAdd">+ Add a brand</button><span class="tiny" id="mtMsg"></span></div>
         <p class="hint" style="margin-bottom:10px">Every brand Locus reports on. <b>Press “+ Add a brand”</b> and it asks you the four things it needs: which Meta ad account, what to call them, their Triple Whale shop, and where their Slack reporting goes. Then agree a monthly number on the <b>Plan</b> tab.
         ${one ? `<br><b>Only ${esc(one.name)} is shown.</b> Switch the picker top-right to <b>All brands</b>.`
-        : off ? `<br>${off} ad account${off === 1 ? '' : 's'} your Meta login can see ${off === 1 ? 'is' : 'are'} not set up as a brand. <a href="#" id="mtDiscover">Check Meta for new accounts</a>.`
-        : '<br>Every ad account your Meta login can see is already set up. <a href="#" id="mtDiscover">Check Meta for new accounts</a>.'}</p>
+        : off ? `<br>${off} ad account${off === 1 ? '' : 's'} your business owns ${off === 1 ? 'is' : 'are'} not set up as a brand yet.`
+        : '<br>Every ad account your business owns is already set up as a brand.'}
+        <br><span class="tiny">Locus checks Meta for new ad accounts <b>every night</b> — including ones you buy or get access to later — so this list keeps itself current. ${ld ? `Last checked ${esc(fmtAgo(ld.at))}${ld.viaBusiness ? `: ${ld.direct} assigned directly, ${ld.viaBusiness} via your Business Manager` : ''}.` : ''} <a href="#" id="mtDiscover">Check now</a></span></p>
         <div class="tbl-wrap"><table>
           <thead><tr><th>Ad account</th><th title="Whether this account syncs and appears anywhere in Mobius">Tracked</th><th title="The client's Triple Whale shop domain. Every blended number - revenue, MER, contribution margin, the reports - depends on this.">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead>
           <tbody id="mtRows">${list.map(a => `<tr data-id="${a.act_id}">

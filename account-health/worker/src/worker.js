@@ -166,6 +166,12 @@ async function discoverAdAccounts(env) {
 
 async function discoverAccounts(env) {
   const { rows, direct, viaBusiness } = await discoverAdAccounts(env);
+  // Which of these we have never seen before. Cheap (one indexed column) and it
+  // is the only way the UI can say "2 new since last night" rather than making
+  // Cole diff a list of twelve by eye.
+  const { results: existing } = await env.DB.prepare(`SELECT act_id FROM accounts`).all();
+  const known = new Set(existing.map(r => r.act_id));
+  const fresh = rows.filter(a => !known.has(a.id));
   const stmts = rows.map(a => env.DB.prepare(
     `INSERT INTO accounts (act_id, name, currency, tz, account_status)
      VALUES (?1, ?2, ?3, ?4, ?5)
@@ -173,7 +179,15 @@ async function discoverAccounts(env) {
        account_status = excluded.account_status`,
   ).bind(a.id, a.name || a.id, a.currency || 'USD', a.timezone_name || 'America/Chicago', a.account_status ?? null));
   if (stmts.length) await env.DB.batch(stmts);
-  return { found: rows.length, direct, viaBusiness };
+  const stamp = {
+    at: new Date().toISOString(), found: rows.length, direct, viaBusiness,
+    // Names, not ids - this is read straight into a sentence on screen.
+    fresh: fresh.map(a => ({ act_id: a.id, name: a.name || a.id })),
+  };
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value) VALUES ('lastDiscover', ?1)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(stamp)).run();
+  return { found: rows.length, direct, viaBusiness, fresh: stamp.fresh };
 }
 
 async function listAccounts(env, activeOnly = false) {
@@ -2961,6 +2975,14 @@ async function isAdmin(request, env) {
 }
 
 async function nightly(env) {
+  /* Cole, 2026-08-30: "I want it to include ALL things I own and future things
+     too" - i.e. never press a Discover button again. Runs FIRST and cannot fail
+     the pass: a Meta outage must not cost the night's syncs. New accounts land
+     with active = 0, so this only ever grows the pool you can pick a brand
+     from; nothing starts syncing, reporting or posting to Slack on its own.
+     That distinction is deliberate - auto-TRACKING every ad account the business
+     owns would put non-clients into every tab and every API budget. */
+  const disc = await discoverAccounts(env).catch(e => ({ error: e.message }));
   const accounts = await listAccounts(env, true);
   const results = [];
   for (const a of accounts) results.push(await syncAccount(env, a));
@@ -2971,7 +2993,7 @@ async function nightly(env) {
   // a day that had already been over for the best part of a day.
   const pace = { skipped: 'delivery alerts run on the hourly pass' };
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('lastRun', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-    .bind(JSON.stringify({ at: new Date().toISOString(), results, tw, pace })).run();
+    .bind(JSON.stringify({ at: new Date().toISOString(), discover: disc, results, tw, pace })).run();
   return results;
 }
 
@@ -3096,7 +3118,10 @@ export default {
     try {
       /* ---- accounts ---- */
       if (path === '/api/accounts' && request.method === 'GET') {
-        return json({ accounts: await listAccounts(env) });
+        // lastDiscover rides along so the Clients card can say the scan is
+        // automatic and when it last ran, rather than implying a manual step.
+        const ld = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastDiscover'`).first().catch(() => null);
+        return json({ accounts: await listAccounts(env), lastDiscover: safeJson(ld?.value, null) });
       }
       let m;
       if ((m = path.match(/^\/api\/accounts\/(act_\d+)$/)) && request.method === 'PUT') {

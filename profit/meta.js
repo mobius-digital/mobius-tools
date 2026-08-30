@@ -960,6 +960,7 @@ async function ensureAccounts(force) {
     fetch(S.url + '/health').then(r => r.json()).catch(() => null),
   ]);
   S.accounts = acc.accounts || [];
+  S.lastDiscover = acc.lastDiscover || null;
   S.health = health;
 }
 
@@ -987,6 +988,6 @@ window.MetaTab = {
     await entry[2]();
   },
   /* Used by the merged Settings tab, which lives in the host page. */
-  api, ensureAccounts, accounts: () => S.accounts,
+  api, ensureAccounts, accounts: () => S.accounts, lastDiscover: () => S.lastDiscover,
 };
 })();
