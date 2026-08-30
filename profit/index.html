@@ -1564,7 +1564,7 @@ async function renderAdShare(token) {
         ${stat('Purchases', a.purchases ? Math.round(a.purchases) : '—')}
         ${a.is_video ? stat('Hook', pct(a.hook)) : ''}
         ${a.is_video ? stat('Hold', pct(a.hold)) : ''}
-        ${stat('CTR', pct(a.ctr))}
+        ${stat('Link CTR', pct(a.ctr))}
       </div>
       <div class="cb-foot"><span style="flex:1"></span><span class="ad-open tiny">Details →</span></div>
       </div></article>`;
@@ -1647,7 +1647,7 @@ const CB_ATTR = [
 const RATIO_SORTS = new Set(['roas', 'cpa', 'ctr', 'cpm', 'hook', 'hold', 'completion', 'frequency']);
 const CB_SORTS = [
   ['spend', 'Spend'], ['roas', 'ROAS'], ['cpa', 'CPA'], ['purchases', 'Purchases'],
-  ['hook', 'Hook rate'], ['hold', 'Hold rate'], ['ctr', 'CTR'], ['cpm', 'CPM'], ['newest', 'Newest'],
+  ['hook', 'Hook rate'], ['hold', 'Hold rate'], ['ctr', 'Link CTR'], ['cpm', 'CPM'], ['newest', 'Newest'],
 ];
 
 async function renderCreativeBrowser(host, act, range) {
@@ -1686,11 +1686,11 @@ async function renderCreativeBrowser(host, act, range) {
         <div class="cb-stats">
           ${stat('Spend', money(a.spend))}
           ${stat('ROAS', a.roas != null ? fmtX(a.roas) : '—')}
-          ${stat('CPA', money(a.cpa))}
-          ${stat('Purchases', a.purchases ? Math.round(a.purchases) : '—')}
+          ${stat('CPA', a.cpa != null ? money(a.cpa) : (a.spend > 0 ? 'no sales' : '—'), a.cpa == null && a.spend > 0 ? 'bad' : '')}
+          ${stat('Purchases', a.purchases ? (Math.round(a.purchases * 10) / 10) : '0')}
           ${a.is_video ? stat('Hook', pct(a.hook), band(a.hook, 0.20, 0.30)) : ''}
           ${a.is_video ? stat('Hold', pct(a.hold), band(a.hold, 0.40, 0.60)) : ''}
-          ${stat('CTR', pct(a.ctr))}
+          ${stat('Link CTR', pct(a.ctr))}
           ${stat('CPM', money(a.cpm))}
         </div>
         <div class="cb-foot">${a.format ? `<span class="catpill">${esc(a.format)}</span>` : ''}
@@ -1750,6 +1750,9 @@ async function renderCreativeBrowser(host, act, range) {
         ? `<b>Minimum spend to be ranked: ${fmtMoney(d.floor, cur)}</b> — the larger of $50 or 3% of the ${fmtK(d.total_spend, cur)} spent in this window. Without a floor, one lucky conversion on a $12 ad tops every list.`
         : `Every ad that spent is ranked. <span title="The larger of $50 or 3% of window spend">Sorting by a ratio (ROAS, CPA, hook…) applies a ${fmtMoney(d.floor, cur)} minimum spend</span>, so a tiny ad cannot win on one lucky conversion.`}
       ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
+      <br><b>Link CTR</b> is link clicks ÷ impressions — Meta's link click-through rate. It runs <b>well under 1% on most accounts</b> and is <b>not</b> the "CTR (all)" Ads Manager shows by default, which counts every click including reactions and profile taps and reads roughly twice as high.
+      <b>“no sales”</b> means the ad spent and produced no purchases in this window — a result, not missing data, which is why it is not a dash.
+      <b>Age is how long the AD has existed, not the creative</b>: relaunching the same creative as a new ad restarts it at zero days, so a batch of same-day ads is normal.
       <br>Hook and hold are judged against <b>Motion's published benchmarks</b> (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history.
       <br>${d.attr === 'meta'
         ? '<b>Revenue, purchases, ROAS and CPA are Meta’s own attributed figures</b> and match Ads Manager.'
