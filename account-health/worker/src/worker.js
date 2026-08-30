@@ -724,6 +724,9 @@ async function writeUpdate(env, { act, from, to, template }) {
    is a harmless no-op for a single-touchpoint click model. */
 const TW_ATTR_MODELS = ['firstClick', 'lastClick', 'fullFirstClick', 'fullLastClick',
   'lastPlatformClick', 'linear', 'linearAll'];
+/** The two that genuinely DIVIDE an order across its touchpoints. Everything
+ *  else names a winner per platform and credits it the whole order. */
+const LINEAR_MODELS = new Set(['linear', 'linearAll']);
 
 async function twJourneys(env, shopDomain, start, end, page) {
   const res = await fetch('https://api.triplewhale.com/api/v2/attribution/get-orders-with-journeys-v2', {
@@ -776,7 +779,20 @@ async function syncTwAttribution(env, acct, days = 7, range = null) {
       for (const model of TW_ATTR_MODELS) {
         const tps = (o.attribution?.[model] || []).filter(t => t && t.adId);
         if (!tps.length) continue;             // organic, direct, or a non-paid touch
-        const w = 1 / tps.length;
+        /* WEIGHTING FOLLOWS THE MODEL, and this was wrong at first.
+           I split every order 1/n across its touchpoints, including the CLICK
+           models - but a click model's array is not a split, it is one entry
+           PER PLATFORM. Live example: one Lucky order carried google-ads,
+           organic and facebook-ads under `lastPlatformClick`. Splitting it gave
+           Facebook 50% of an order Triple Whale's own interface credits to it
+           in full, so every click-model ROAS read low against the number Cole
+           sees in Triple Whale.
+           Linear models DO mean a split - that is their definition - so they
+           keep 1/n. Click models credit each touchpoint the whole order, which
+           matches Triple Whale and is why per-platform revenue can exceed the
+           order total: the platforms double-count each other, exactly as their
+           UI shows and as the blended MER on the other tabs exists to avoid. */
+        const w = LINEAR_MODELS.has(model) ? 1 / tps.length : 1;
         for (const t of tps) {
           const k = `${date}|${t.adId}|${model}`;
           const cur = agg.get(k) || { rev: 0, ord: 0 };

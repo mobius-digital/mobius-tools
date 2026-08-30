@@ -1531,9 +1531,17 @@ export default {
          that exist to keep US honest about what a ranking omits; a client
          reading "8 of 61 ads" learns only that something is being withheld. */
       delete d.floor; delete d.matched; delete d.acct_cpa; delete d.total_spend; delete d.shown_spend;
+      /* `account` CARRIES THE META act_id and the stored payload is the whole
+         /api/ads response, so spreading it after a sanitised account object
+         silently put our ad account id on a page we send to clients - the same
+         leak the reports route already guards against. Deleted here, and the
+         spread now comes BEFORE the clean account so ordering can never undo
+         it again. `timing`, `sort` and the attribution bookkeeping are internal
+         noise on a client page and go with it. */
+      delete d.account; delete d.timing; delete d.sort; delete d.attr_requested; delete d.attr_missing;
       for (const a of d.ads || []) { delete a.share; delete a.material; delete a.status; }
-      return json({ share: true, account: { name: acct?.name || '', currency: acct?.currency || 'USD' },
-        created_at: row.created_at, label: row.label, ...d });
+      return json({ ...d, share: true, created_at: row.created_at, label: row.label,
+        account: { name: acct?.name || '', currency: acct?.currency || 'USD' } });
     }
 
     /* PLAYBACK ON A CLIENT LINK, and this was broken for reports too.
@@ -1811,9 +1819,16 @@ export default {
         const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const token = crypto.randomUUID().replace(/-/g, '');
+        // Strip at MINT as well as at read. The read path is the guarantee, but
+        // storing an act_id we never intend to serve is how a future change to
+        // that path turns into a leak.
+        const clean = { ...b.data };
+        delete clean.account; delete clean.floor; delete clean.matched; delete clean.acct_cpa;
+        delete clean.total_spend; delete clean.shown_spend; delete clean.timing;
+        clean.ads = (clean.ads || []).map(a => { const c = { ...a }; delete c.share; delete c.material; delete c.status; return c; });
         await env.DB.prepare(
           `INSERT INTO p_ad_share (token, act_id, label, data_json) VALUES (?1,?2,?3,?4)`,
-        ).bind(token, b.act, String(b.label || '').slice(0, 120), JSON.stringify(b.data)).run();
+        ).bind(token, b.act, String(b.label || '').slice(0, 120), JSON.stringify(clean)).run();
         return json({ ok: true, token, url: `${DASHBOARD_URL}?ads=${token}` });
       }
 

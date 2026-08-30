@@ -375,3 +375,18 @@ click on a dropdown. Creatives do not change, so `adThumbnails` now reads
 `ad_creative` first and only calls Meta for what is missing, writing back rows
 under 90KB with a 14-day TTL. A cache miss or a write failure is swallowed —
 the cards must never depend on it.
+
+### Attribution weighting follows the MODEL (corrected 2026-08-30)
+First version split every order `1/n` across its touchpoints for ALL models.
+Wrong for the click models: their array is not a split, it is **one entry per
+platform**. A live Lucky order carried `google-ads`, `organic_and_social` and
+`facebook-ads` under `lastPlatformClick`; splitting gave Facebook 50% of an
+order Triple Whale's own UI credits to it in full, so every click-model ROAS
+read low against the number Cole sees in Triple Whale.
+- `linear` and `linearAll` (`LINEAR_MODELS`) keep `1/n` — that IS their meaning.
+- Every other model credits each touchpoint the **whole order**.
+- **Per-platform revenue can therefore exceed the order total.** That is not a
+  bug: the platforms double-count each other, exactly as TW's interface shows,
+  and it is precisely why blended MER exists on the other tabs.
+The wrongly-weighted click-model rows were deleted and the cursors reset so the
+nightly walk refills them; `linear`/`linearAll` were correct and were kept.
