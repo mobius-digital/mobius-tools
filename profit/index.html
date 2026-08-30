@@ -191,16 +191,39 @@
   .ad-name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
   /* Ad names link to Meta's public preview. Underline on hover only, so a table
      of ten does not read as a wall of links. */
-  /* Ad rows carry the creative itself — a name like "406 A | UGC" tells a client
-     nothing. Thumbnails are baked into the report as data URIs so an archived
-     report never decays into broken images. */
-  .ad-cell{display:flex;align-items:center;gap:10px;min-width:0}
-  .ad-thumb{position:relative;width:44px;height:44px;flex:none;border-radius:7px;overflow:hidden;
-    border:1px solid var(--line);background:var(--bg)}
-  .ad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-  .ad-thumb.none{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
-  .ad-thumb .pl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    color:#fff;font-size:13px;text-shadow:0 1px 4px rgba(0,0,0,.6);background:rgba(0,0,0,.18)}
+  /* Creative cards — the creative IS the row. A name like "406 A | UGC" tells a
+     client nothing, so the ad leads with its image and the numbers sit under it.
+     Thumbnails are baked into the report as data URIs, so an archived report
+     never decays into broken images. */
+  .ad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px;margin-bottom:12px}
+  .ad-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+    overflow:hidden;display:flex;flex-direction:column;min-width:0}
+  .ad-media{position:relative;aspect-ratio:1/1;background:var(--bg);border-bottom:1px solid var(--line);overflow:hidden}
+  .ad-media.playing{aspect-ratio:auto}
+  .ad-media>img{width:100%;height:100%;object-fit:cover;display:block}
+  .ad-media.none{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:22px}
+  .ad-rank{position:absolute;top:8px;left:8px;min-width:20px;height:20px;padding:0 5px;border-radius:6px;
+    background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .ad-play{position:absolute;inset:0;width:100%;border:0;background:rgba(0,0,0,.12);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:background .12s}
+  .ad-play:hover{background:rgba(0,0,0,.28)}
+  .ad-play i{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;
+    background:rgba(255,255,255,.94);color:#111;font-size:15px;font-style:normal;padding-left:3px;
+    box-shadow:0 2px 10px rgba(0,0,0,.3)}
+  .ad-frame{position:absolute;inset:0;background:#fff;overflow:hidden}
+  .ad-frame iframe{border:0;display:block}
+  .ad-close{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;cursor:pointer;
+    background:rgba(0,0,0,.62);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
+  .ad-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:7px;min-width:0}
+  .ad-body .ad-name{font-size:13px;font-weight:600;max-width:100%}
+  .ad-bar{height:4px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:4px}
+  .ad-bar i{display:block;height:100%;background:var(--brand-ink)}
+  .ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px}
+  .ad-stats>div{min-width:0}
+  .ad-stats span{display:block;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .ad-stats b{font-size:13.5px;font-weight:700}
+  .ad-stats em{font-style:normal;font-size:10px;color:var(--muted);font-weight:600}
+  @media(max-width:420px){.ad-grid{grid-template-columns:1fr}}
   a.ad-link{color:var(--ink);text-decoration:none;max-width:320px}
   a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
   a.ad-link .ext{color:var(--muted);font-size:10.5px;margin-left:5px;vertical-align:1px}
@@ -717,7 +740,10 @@ const PAGE_HELP = {
     <p><b>Reports are frozen.</b> A report is a snapshot of the numbers at generation time, so what you reviewed on Monday is exactly what the client opens on Thursday — it never drifts as data resyncs. Once sent, a report can't be regenerated or edited at all.</p>
     <p><b>Every number carries two comparisons:</b> <b>vs plan</b> (the month's goal from the Plan tab, pro-rated to the period's days — the accountability read) and <b>vs the prior period</b> (the trend read). Clients ask both questions on calls; showing both means no toggling mid-conversation.</p>
     <p><b>The client link:</b> one stable link per brand opens their <b>archive</b> — every sent report, newest first, drafts never visible. Send it once; it stays good forever. Copy it with the button on any report.</p>
-    <p><b>"Where the Meta budget went"</b> is deliberately not "the best ad". A single crown is unjudgeable — best CPA, best ROAS and biggest spender are usually three different ads. Instead it shows the ads that carried real spend (behind a materiality floor, so a $40 fluke can't headline) and what each delivered, plus the most efficient of them.</p>
+    <p><b>"Where the budget went"</b> sits inside the Meta section and is deliberately not "the best ad". A single crown is unjudgeable — best CPA, best ROAS and biggest spender are usually three different ads. Instead you get a card per ad that carried real spend (behind a materiality floor, so a $40 fluke can't headline), biggest first, showing the creative itself with its numbers underneath. <b>Press ▶ on any card to play the real ad in place</b> — it needs no Facebook login, so the client can play it too. Meta's preview links expire after a few months; on an older report the image always stays but play may not.</p>
+    <p><b>Hook and hold rate</b> tell you whether a video worked as creative, separately from whether it sold. <b>Hook</b> is 3-second views ÷ impressions — did it stop the scroll. <b>Hold</b> is ThruPlay ÷ 3-second views — of the people it stopped, how many stayed. The strong / average / low words are Motion's published benchmarks across many accounts (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history. Image ads show neither, because there is nothing to watch. A high hook with a low ROAS is a scroll-stopper that doesn't sell; a low hook is a creative problem before it is a targeting one.</p>
+    <p><b>The table under the cards adds up to 100%</b> of ad-level spend — the ads shown, everything smaller combined, and the total. The tail routinely performs differently from the headline ads, so it is shown rather than dropped.</p>
+    <p><b>"Which kinds of creative the money went to"</b> splits spend by the format tag in each ad's own name — the part after the last <code>|</code>, like <i>UGC</i> or <i>Still</i>. It needs no tagging work from anyone, and it only appears when the naming actually covers the spend (at least two formats and 70%+ of ad spend tagged), so a brand with loose naming gets no misleading split.</p>
     <p><b>Platform sections</b> appear automatically for any platform with data — Meta, Google, TikTok, Amazon, Pinterest, Klaviyo email — and you can untick any of them per brand. Platform revenue/ROAS in those sections is the platform's <i>own attribution</i>, labeled as directional; the blended scorecard at the top is the honest headline.</p>
     <p><b>The summary</b> is written by Claude from the numbers plus the Change Log, in three parts: the period in brief, what mattered, what's next. Edit it freely before sending — it's your voice on the report.</p>`,
   plan: `
@@ -1886,23 +1912,84 @@ function reportBodyHTML(d, summary, opts = {}) {
     const A = d.ads;
     if (!A?.top?.length) return '';
     const o = A.others;
-    return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went</h4>
-      <p class="hint" style="margin-bottom:8px">The ads that carried real spend this ${prevTag}, and what each one delivered. Ads under ${money(A.floor)} are grouped on the last row — individually too small to judge fairly.${A.qualified_total > A.top.length ? ` Showing the ${A.top.length} biggest of ${A.qualified_total} that cleared that bar.` : ''}</p>
-      <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
-      <tbody>${A.top.map(a => `<tr><td><div class="ad-cell">${a.thumb
-          ? `<span class="ad-thumb"><img src="${a.thumb}" alt="">${a.video ? '<span class="pl">&#9654;</span>' : ''}</span>`
-          : `<span class="ad-thumb none">${a.video ? '&#9654;' : '&#9633;'}</span>`}${a.preview
-          ? `<a class="ad-name ad-link" href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" title="Open the ad preview — ${esc(a.name)}">${esc(a.name)}<span class="ext">↗</span></a>`
-          : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}</div></td>
-        <td class="num"><b>${money(a.spend)}</b></td><td class="num">${fmtPct(a.share)}</td>
-        <td class="num">${fmtInt(a.purchases)}</td><td class="num">${a.cpa != null ? money(a.cpa) : '—'}</td>
-        <td class="num">${a.roas != null ? fmtX(a.roas) : '—'}</td></tr>`).join('')}
-        ${o ? `<tr style="border-top:2px solid var(--line-strong)"><td><div class="ad-cell"><span class="ad-thumb none">&#8943;</span><span class="tiny">${fmtInt(o.count)} smaller ads combined${o.biggest != null ? ` · biggest ${money(o.biggest)}` : ''}</span></div></td>
-        <td class="num"><b>${money(o.spend)}</b></td><td class="num">${fmtPct(o.share)}</td>
-        <td class="num">${fmtInt(o.purchases)}</td><td class="num">${o.cpa != null ? money(o.cpa) : '—'}</td>
-        <td class="num">${o.roas != null ? fmtX(o.roas) : '—'}</td></tr>` : ''}</tbody></table></div>
+    const anyHook = A.top.some(a => a.hook != null);
+    // Motion's published benchmarks, not our own measurement — the ⓘ says so.
+    // A word beside the number, never colour alone.
+    const rate = (v, ok, strong) => v == null ? null
+      : { pct: fmtPct(v), tag: v >= strong ? 'strong' : v >= ok ? 'average' : 'low' };
+    const stat = (label, val, sub) => `<div><span>${label}</span><b>${val}</b>${sub ? `<em>${sub}</em>` : ''}</div>`;
+    const card = (a, i) => {
+      const hook = rate(a.hook, 0.20, 0.30), hold = rate(a.hold, 0.40, 0.60);
+      const media = a.thumb
+        ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
+        : `<span aria-hidden="true">${a.video ? '&#9654;' : '&#9633;'}</span>`;
+      return `<article class="ad-card">
+        <div class="ad-media${a.thumb ? '' : ' none'}"${a.preview ? ` data-src="${esc(a.preview)}"` : ''}>
+          ${media}<span class="ad-rank">${i + 1}</span>
+          ${a.preview ? `<button class="ad-play" type="button" title="Play the ad here"><i>&#9654;</i></button>` : ''}
+        </div>
+        <div class="ad-body">
+          ${a.preview
+            ? `<a class="ad-name ad-link" href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" title="${esc(a.name)}">${esc(a.name)}<span class="ext">↗</span></a>`
+            : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}
+          <div><b style="font-size:15px">${money(a.spend)}</b> <span class="tiny">${fmtPct(a.share)} of Meta spend</span>
+            <div class="ad-bar"><i style="width:${Math.max(2, Math.min(100, (a.share || 0) * 100)).toFixed(1)}%"></i></div></div>
+          <div class="ad-stats">
+            ${stat('Purchases', fmtInt(a.purchases))}
+            ${stat('CPA', a.cpa != null ? money(a.cpa) : '—')}
+            ${stat('ROAS', a.roas != null ? fmtX(a.roas) : '—')}
+            ${anyHook ? stat('Hook', hook ? hook.pct : '—', hook ? hook.tag : '') : ''}
+            ${anyHook ? stat('Hold', hold ? hold.pct : '—', hold ? hold.tag : '') : ''}
+            ${anyHook ? stat('CTR', a.ctr != null ? fmtPct(a.ctr, 2) : '—') : ''}
+          </div>
+        </div></article>`;
+    };
+    const metricInfo = 'Spend, purchases, CPA and ROAS are Meta-reported for this ad. '
+      + 'Hook rate is 3-second video views divided by impressions — did the ad stop the scroll. '
+      + 'Hold rate is ThruPlay views divided by 3-second views — of the people it stopped, how many stayed. '
+      + 'CTR is link clicks divided by impressions. The words strong, average and low come from Motion’s published benchmarks across many accounts '
+      + '(hook 30% and up is strong, under 20% is low; hold 60% and up is strong, under 40% is low), not from this account’s own history. '
+      + 'Image ads have no hook or hold rate because there is nothing to watch.';
+    // The grid shows the biggest ads; this reconciles them back to every ad that
+    // spent, so the section can never read as if it were the whole account.
+    const recRow = (label, x, bold) => `<tr${bold ? ' style="border-top:2px solid var(--line-strong)"' : ''}><td>${bold ? `<b>${label}</b>` : label}</td>
+      <td class="num"><b>${money(x.spend)}</b></td><td class="num">${fmtPct(x.share)}</td>
+      <td class="num">${fmtInt(x.purchases)}</td><td class="num">${x.cpa != null ? money(x.cpa) : '—'}</td>
+      <td class="num">${x.roas != null ? fmtX(x.roas) : '—'}</td></tr>`;
+    const shownTot = A.top.reduce((s, a) => ({
+      spend: s.spend + (a.spend || 0), purchases: s.purchases + (a.purchases || 0), revenue: s.revenue + (a.revenue || 0),
+    }), { spend: 0, purchases: 0, revenue: 0 });
+    const tot = {
+      spend: shownTot.spend + (o?.spend || 0), purchases: shownTot.purchases + (o?.purchases || 0),
+      revenue: shownTot.revenue + (o?.revenue || 0),
+    };
+    const fin = x => ({ ...x, share: A.total_spend ? x.spend / A.total_spend : null,
+      cpa: x.purchases ? x.spend / x.purchases : null, roas: x.spend && x.revenue ? x.revenue / x.spend : null });
+
+    const formats = A.formats?.length ? (() => {
+      const real = A.formats.filter(f => f.label !== 'Untagged' && f.purchases > 0);
+      const best = real.slice().sort((a, b) => (b.roas || 0) - (a.roas || 0));
+      const verdict = best.length >= 2 && best[0].roas && best[best.length - 1].roas
+        ? `<p style="font-size:13.5px;margin-top:10px"><b>${esc(best[0].label)}</b> returned ${fmtX(best[0].roas)} on ${money(best[0].spend)}, against <b>${fmtX(best[best.length - 1].roas)}</b> from ${esc(best[best.length - 1].label)} on ${money(best[best.length - 1].spend)}.</p>` : '';
+      return `<h4 style="font-size:13.5px;font-weight:700;margin:20px 0 2px">Which kinds of creative the money went to</h4>
+        <p class="hint" style="margin-bottom:8px">Split by the format tag in each ad's own name — the part after the last <code>|</code>. Every ad that spent this ${prevTag} is counted, not just the ones shown above.${A.formats_tagged_share != null ? ` <b>${fmtPct(A.formats_tagged_share)}</b> of ad spend carries a tag; the rest is grouped as Untagged, so the rows still add up to every ad that spent.` : ''}</p>
+        <div class="tbl-wrap"><table><thead><tr><th>Format</th><th class="num">Ads</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
+        <tbody>${A.formats.map(f => `<tr><td><b>${esc(f.label)}</b></td><td class="num">${fmtInt(f.count)}</td>
+          <td class="num"><b>${money(f.spend)}</b></td><td class="num">${fmtPct(f.share)}</td>
+          <td class="num">${fmtInt(f.purchases)}</td><td class="num">${f.cpa != null ? money(f.cpa) : '—'}</td>
+          <td class="num">${f.roas != null ? fmtX(f.roas) : '—'}</td></tr>`).join('')}</tbody></table></div>${verdict}`;
+    })() : '';
+
+    return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went <span class="info-i" title="${esc(metricInfo)}">i</span></h4>
+      <p class="hint" style="margin-bottom:10px">The ads that carried real spend this ${prevTag}, biggest first.${A.qualified_total > A.top.length ? ` Showing the ${A.top.length} biggest of ${A.qualified_total} that cleared ${money(A.floor)}.` : ''} ${A.top.some(a => a.preview) ? 'Press ▶ to play the ad right here — no Facebook login needed. Meta’s preview links expire after a few months, so on an older report the image always stays but play may not.' : ''}</p>
+      <div class="ad-grid">${A.top.map(card).join('')}</div>
+      <div class="tbl-wrap"><table><thead><tr><th>Adding up to every ad that spent</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
+        <tbody>${recRow(`The ${A.top.length} ad${A.top.length === 1 ? '' : 's'} above`, fin(shownTot))}
+        ${o ? recRow(`${fmtInt(o.count)} smaller ads combined${o.biggest != null ? ` · biggest ${money(o.biggest)}` : ''}`, fin({ spend: o.spend, purchases: o.purchases || 0, revenue: o.revenue || 0 })) : ''}
+        ${o ? recRow(`All ${fmtInt(A.total_ads)} ads that spent`, fin(tot), true) : ''}</tbody></table></div>
       ${A.standout ? `<p style="font-size:13.5px;margin-top:10px">Most efficient of the ads with real spend: <b>${esc(A.standout.name)}</b> at a <b>${money(A.standout.cpa)}</b> CPA.</p>` : ''}
-      <p class="tiny" style="margin-top:6px">${A.top.some(a => a.preview) ? 'Ad names link to the creative — the preview opens without a Facebook login. ' : ''}Every ad that spent is accounted for here${A.total_ads ? ` (${fmtInt(A.total_ads)} in total)` : ''}. There is deliberately no single "best ad": the biggest spender, the best CPA and the best ROAS are usually three different ads, so this shows where the money actually went and what each part of it returned.</p>`;
+      <p class="tiny" style="margin-top:6px">Every ad that spent is accounted for above. There is deliberately no single "best ad": the biggest spender, the best CPA and the best ROAS are usually three different ads, so this shows where the money actually went and what each part of it returned.</p>
+      ${formats}`;
   };
 
   // `peer` is Triple Whale's benchmark against comparable stores. It only
@@ -1997,6 +2084,39 @@ function wireReportChart(d, cur, internal) {
       + ` &nbsp; <span style="color:#C08A2E;font-weight:700">ad spend</span> <b>${fmtMoney(r.spend, cur)}</b>`
       + (gap != null ? ` &nbsp; left after ads <b>${fmtMoney(gap, cur)}</b>` : '')
       + (mer != null ? ` &nbsp; MER <b>${fmtX(mer)}</b>` : '');
+  });
+}
+
+/* Meta's MOBILE_FEED_STANDARD preview renders at a fixed size, so it is scaled
+   to whatever width the card actually has rather than being clipped. */
+const PREVIEW_W = 340, PREVIEW_H = 620;
+
+/** Play the real ad inside its card. `preview_iframe.php` is built to be framed
+ *  and needs no Facebook login, which is why the report can carry it to a
+ *  client. Called by BOTH report renderers after paint. Listeners go on the
+ *  media nodes the render replaces, never on #main, which survives every render.
+ *
+ *  The thumbnail stays in the DOM underneath, so closing the player is just
+ *  removing the frame — and if a token has expired, the image is still there. */
+function wireAdCards() {
+  document.querySelectorAll('#main .ad-media[data-src]').forEach(m => {
+    const btn = m.querySelector('.ad-play');
+    if (!btn) return;
+    btn.onclick = () => {
+      if (m.querySelector('.ad-frame')) return;
+      const s = Math.min(1, (m.clientWidth || PREVIEW_W) / PREVIEW_W);
+      m.classList.add('playing');
+      m.style.height = Math.round(PREVIEW_H * s) + 'px';
+      m.insertAdjacentHTML('beforeend', `<div class="ad-frame">
+        <iframe src="${esc(m.dataset.src)}" title="Ad preview" referrerpolicy="no-referrer" scrolling="no"
+          style="width:${PREVIEW_W}px;height:${PREVIEW_H}px;transform:scale(${s});transform-origin:top left"></iframe>
+        <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
+      m.querySelector('.ad-close').onclick = () => {
+        m.querySelector('.ad-frame').remove();
+        m.classList.remove('playing');
+        m.style.height = '';
+      };
+    };
   });
 }
 
@@ -2103,7 +2223,7 @@ async function renderReports(first) {
     ${configCard}
     ${body}`);
 
-  if (d) wireReportChart(d, acct?.currency, true);
+  if (d) { wireReportChart(d, acct?.currency, true); wireAdCards(); }
 
   /* chip → open that report */
   document.querySelectorAll('#main [data-rp]').forEach(b => b.onclick = () => {
@@ -2242,6 +2362,7 @@ async function renderReportsShare(token, sel) {
     ${picker}
     ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, {})}`;
   wireReportChart(r.data || {}, cur, false);
+  wireAdCards();
   const pk = $('#rsPick');
   if (pk) pk.onchange = () => { const [pp, ss] = pk.value.split('|'); renderReportsShare(token, { period: pp, start: ss }); };
   finish();

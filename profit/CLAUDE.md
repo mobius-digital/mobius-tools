@@ -160,6 +160,20 @@ profit/
   it that way. Per-brand config lives in `accounts.report_config_json`
   ({weekly, monthly, hide:[channel ids]}), edited from the Reports tab;
   `report_channel` is edited in Settings via `/api/client-settings`.
+- **Creative cards, not rows (2026-08-29).** "Where the budget went" renders a
+  card grid (`.ad-grid`/`.ad-card`) inside the Meta channel card: the creative
+  large, the name, then a stat grid. **▶ plays the real ad in place** —
+  `preview_iframe.php` sets NO `X-Frame-Options` and NO `frame-ancestors`
+  (verified 2026-08-29 server-side) and needs no Facebook login, so it works on
+  the client's link too. `wireAdCards()` scales the fixed 340×620 preview to
+  whatever width the card has, keeps the thumbnail in the DOM underneath, and
+  is called by BOTH report renderers after paint — listeners go on the media
+  nodes, never on `#main`. Meta's preview tokens expire on a long horizon; the
+  thumbnail is a baked data URI and always survives, which the copy says.
+  Hook/hold/CTR appear only when the payload carries them, so old frozen
+  reports render three stats instead of six. The table under the grid
+  reconciles the shown ads, the combined tail and the total to 100% of
+  ad-level spend — the "no silent partial" rule, now stated as arithmetic.
 - **The Daily Brief lives HERE but runs THERE.** Its tab is in this tool (all its
   numbers are store-level), while the account-health worker keeps the endpoints, the
   hourly brief trigger and the TW/Anthropic/Slack secrets. `PROXY_PATHS` forwards

@@ -103,6 +103,27 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
 - Channel sections auto-detect from data (a dormant channel with zeros is
   suppressed); per-brand exclusions in `accounts.report_config_json.hide`,
   weekly/monthly opt-outs in `.weekly`/`.monthly` (default on).
+- **Hook and hold rate (2026-08-29).** `ad_daily` carries `link_clicks`,
+  `video_3s`, `video_thruplay`, `video_p100` from the Meta insights fields of
+  the same names. Hook = `video_3s / impressions`, hold =
+  `video_thruplay / video_3s`, both **gated on `v3 > 0`** so a row synced
+  before these columns existed reads as "no data" rather than a 0% hook rate —
+  an image ad and an unsynced video ad must not look alike. The columns were
+  added after the original 90-day backfill, so `syncAdDaily` runs a SECOND
+  resumable walk (`accounts.ads_video_done` / `ads_video_cursor`, 14-day
+  slices, same shape as the first) until 90 days are refilled; a fresh account
+  sets both flags at once. Old frozen reports never gain the fields, and the
+  UI drops the three stats when they are absent.
+- **The creative format split reads the ad NAME, and the guards are measured,
+  not assumed.** The segment after the last `|` is the format. On Lucky's
+  2026-08-17 week the real tags are UGC ($2,222 at 0.70x) and Still ($1,456 at
+  2.32x) — but also `0616`, a shoot code, and 46 ads ($1,283, 24% of spend)
+  with no pipe at all. Hence: a tag must contain a LETTER, a tag under 4% of ad
+  spend folds into Untagged, Untagged always renders last, and the split ships
+  only with 2+ material formats and **≥55%** of ad spend tagged. Do not raise
+  that to 70% — Lucky runs 67% and is the case this exists for. Rows reconcile
+  to 100% of ad-level spend, and `formats_tagged_share` states the coverage on
+  the page.
 
 ## Later additions (2026-08-20 night)
 

@@ -336,19 +336,26 @@ async function syncAdSlice(env, acct, since, until) {
   const rows = await metaAll(env, `${acct.act_id}/insights`, {
     level: 'ad', time_increment: 1,
     time_range: { since, until },
-    fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,actions,action_values',
+    fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,inline_link_clicks,actions,action_values,'
+      + 'video_3_sec_watched_actions,video_thruplay_watched_actions,video_p100_watched_actions',
     limit: 500,
   }, 25);
+  // Video metrics arrive as action arrays with a single video_view entry; sum
+  // defensively in case Meta ever splits them by attribution window.
+  const sumActs = a => Array.isArray(a) ? a.reduce((s, x) => s + (+x.value || 0), 0) : 0;
   const daily = rows.filter(r => r.ad_id).map(r => [acct.act_id, r.ad_id, r.date_start, +r.spend || 0, +r.impressions || 0,
-    pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES)]);
+    pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES),
+    +r.inline_link_clicks || 0, sumActs(r.video_3_sec_watched_actions),
+    sumActs(r.video_thruplay_watched_actions), sumActs(r.video_p100_watched_actions)]);
   const stmts = [];
-  for (let i = 0; i < daily.length; i += 14) {
-    const chunk = daily.slice(i, i + 14);
+  for (let i = 0; i < daily.length; i += 9) {          // 9 rows × 11 cols = 99 bound params, under D1's 100
+    const chunk = daily.slice(i, i + 9);
     stmts.push(env.DB.prepare(
-      `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue) VALUES ` +
-      chunk.map(() => '(?,?,?,?,?,?,?)').join(',') +
+      `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s, video_thruplay, video_p100) VALUES ` +
+      chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?)').join(',') +
       ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
-        purchases = excluded.purchases, revenue = excluded.revenue`,
+        purchases = excluded.purchases, revenue = excluded.revenue, link_clicks = excluded.link_clicks,
+        video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100`,
     ).bind(...chunk.flat()));
   }
   const ads = new Map();
@@ -396,7 +403,23 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
   const today = localDate(acct.tz);
   try {
     if (acct.ads_backfill_done) {
-      const n = await syncAdSlice(env, acct, addDays(today, -RESYNC_DAYS), today);
+      let n = await syncAdSlice(env, acct, addDays(today, -RESYNC_DAYS), today);
+      // Video re-backfill (2026-08-29): hook/hold columns were added after the
+      // original 90d backfill, so rows before it hold zeros. Walk the window
+      // again in the same resumable 14-day slices — the upsert fills the new
+      // columns without touching anything a report already froze.
+      if (!acct.ads_video_done) {
+        const target = addDays(today, -BACKFILL_DAYS);
+        let cursor = acct.ads_video_cursor || addDays(today, -RESYNC_DAYS);   // resync above just covered the recent days
+        let slices = maxSlices;
+        while (slices-- > 0 && cursor > target) {
+          const since = addDays(cursor, -14) < target ? target : addDays(cursor, -14);
+          n += await syncAdSlice(env, acct, since, cursor);
+          cursor = since;
+        }
+        await env.DB.prepare(`UPDATE accounts SET ads_video_cursor = ?2, ads_video_done = ?3 WHERE act_id = ?1`)
+          .bind(acct.act_id, cursor, cursor <= target ? 1 : 0).run();
+      }
       await updFirstSpend(env, acct.act_id);
       await syncAdMeta(env, acct);
       return { rows: n, done: true };
@@ -410,7 +433,8 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
       cursor = since;
     }
     const done = cursor <= target;
-    if (done) await env.DB.prepare(`UPDATE accounts SET ads_backfill_done = 1 WHERE act_id = ?1`).bind(acct.act_id).run();
+    // A fresh backfill pulls the video columns from day one, so it settles both flags.
+    if (done) await env.DB.prepare(`UPDATE accounts SET ads_backfill_done = 1, ads_video_done = 1 WHERE act_id = ?1`).bind(acct.act_id).run();
     await updFirstSpend(env, acct.act_id);
     await syncAdMeta(env, acct);
     return { rows: total, done, daysDone: Math.min(BACKFILL_DAYS, Math.max(0, ymdDiff(today, cursor))), daysTotal: BACKFILL_DAYS };
@@ -1735,6 +1759,8 @@ async function reportData(env, acct, period, start, end) {
     // and saying nothing about the rest implies the table is the whole account.
     const { results: adRows } = await env.DB.prepare(
       `SELECT d.ad_id, SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue,
+              SUM(d.impressions) AS impressions, SUM(d.link_clicks) AS clicks,
+              SUM(d.video_3s) AS v3, SUM(d.video_thruplay) AS vtp,
               COALESCE(a.name, d.ad_id) AS name
        FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
        WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
@@ -1753,10 +1779,67 @@ async function reportData(env, acct, period, start, end) {
       cpa: r.purchases ? r.spend / r.purchases : null,
       roas: r.spend && r.revenue ? r.revenue / r.spend : null,
       share: metaSpend ? r.spend / metaSpend : null,
+      // Motion's scroll-stopping pair. Hook = 3-second views ÷ impressions (did
+      // it stop the scroll); hold = ThruPlay ÷ 3-second views (did it earn the
+      // watch). Gated on v3 > 0 so rows synced before the video columns existed
+      // read as "no data", never as a 0% hook rate.
+      ctr: r.impressions && r.clicks ? r.clicks / r.impressions : null,
+      hook: r.impressions && r.v3 ? r.v3 / r.impressions : null,
+      hold: r.v3 ? (r.vtp || 0) / r.v3 : null,
       preview: previews[r.ad_id] || null,
       thumb: thumbs[r.ad_id]?.thumb || null,
       video: !!thumbs[r.ad_id]?.video,
     });
+    // Format split from the account's own naming convention — "310 B | Still",
+    // "Cole - 3 | UGC". The segment after the last pipe is the format, so no
+    // tagging UI is needed. Computed over EVERY ad that spent, same
+    // 100%-accounting rule as the cards.
+    //
+    // The convention is real but not clean, and the guards below come from
+    // measuring it rather than assuming it. On Lucky's 2026-08-17 week the
+    // tags are UGC ($2,222), Still ($1,456) and `0616` ($504) — the last a
+    // shoot code, not a format — while 46 ads carrying $1,283 have no pipe at
+    // all. So: a tag must contain a LETTER (a pure number is a date or a job
+    // code, never a format), and a tag holding under 4% of ad spend is a
+    // one-off rather than a category. Everything rejected joins Untagged,
+    // which is always shown — disclosing the coverage beats gating on it.
+    const UNTAGGED = 'Untagged';
+    const fmtOf = n => {
+      const m = /\|([^|]+)$/.exec(n || '');
+      const label = m ? m[1].trim() : '';
+      return label && label.length <= 24 && /[a-z]/i.test(label) ? label : null;
+    };
+    const totalAdSpend = adRows.reduce((a, r) => a + (r.spend || 0), 0);
+    const tally = (rows, keyOf) => {
+      const by = {};
+      for (const r of rows) {
+        const label = keyOf(r);
+        const f = by[label.toLowerCase()] ??= { label, count: 0, spend: 0, purchases: 0, revenue: 0 };
+        f.count++; f.spend += r.spend || 0; f.purchases += r.purchases || 0; f.revenue += r.revenue || 0;
+      }
+      return by;
+    };
+    // First pass finds which tags carry material spend; the second pass folds
+    // the rest in, so their purchases and revenue land in Untagged too.
+    const firstPass = tally(adRows, r => fmtOf(r.name) || UNTAGGED);
+    const material = new Set(Object.values(firstPass)
+      .filter(f => f.label !== UNTAGGED && totalAdSpend && f.spend / totalAdSpend >= 0.04)
+      .map(f => f.label.toLowerCase()));
+    const byFmt = tally(adRows, r => {
+      const label = fmtOf(r.name);
+      return label && material.has(label.toLowerCase()) ? label : UNTAGGED;
+    });
+    const fin = f => ({
+      ...f,
+      share: totalAdSpend ? f.spend / totalAdSpend : null,
+      cpa: f.purchases ? f.spend / f.purchases : null,
+      roas: f.spend && f.revenue ? f.revenue / f.spend : null,
+    });
+    // Untagged always sits last — it is the remainder, not a competitor.
+    const named = Object.values(byFmt).filter(f => f.label !== UNTAGGED).sort((a, b) => b.spend - a.spend).map(fin);
+    const untagged = byFmt[UNTAGGED.toLowerCase()] ? fin(byFmt[UNTAGGED.toLowerCase()]) : null;
+    const formats = untagged ? [...named, untagged] : named;
+    const taggedShare = totalAdSpend ? named.reduce((a, f) => a + f.spend, 0) / totalAdSpend : 0;
     // Everything not listed, as one line, so the table accounts for 100% of
     // ad-level spend and the tail can be compared with the headline ads.
     const shownSet = new Set(shown.map(r => r.ad_id));
@@ -1768,6 +1851,12 @@ async function reportData(env, acct, period, start, end) {
       .sort((a, b) => (a.spend / a.purchases) - (b.spend / b.purchases))[0] || null;
     if (shown.length) ads = {
       floor, top: shown.map(row),
+      // Needs 2+ material formats and a majority of ad spend tagged; below that
+      // the split describes the naming convention rather than the creative.
+      // Lucky's flagship week runs 67% tagged, so a stricter bar would suppress
+      // exactly the case this was built for.
+      formats: named.length >= 2 && taggedShare >= 0.55 ? formats : null,
+      formats_tagged_share: named.length >= 2 && taggedShare >= 0.55 ? taggedShare : null,
       qualified_total: qualified.length,
       others: rest.length ? {
         count: rest.length, spend: restSpend, purchases: restPur || null, revenue: restRev || null,
@@ -1849,7 +1938,10 @@ async function writeReportNarrative(env, acct, data) {
   const label = data.period === 'weekly' ? 'week' : 'month';
   const slim = t => t ? { sales: f2(t.sales), spend: f2(t.spend), orders: t.orders, mer: f2(t.mer), amer: f2(t.amer), aov: f2(t.aov), new_customer_cpa: f2(t.ncpa), new_share: f2(t.new_share), cm: f2(t.cm) } : null;
   const chLines = (data.channels || []).map(c => `- ${c.label}: ${JSON.stringify(c.cur)} | prior ${label}: ${JSON.stringify(c.prev)}`);
-  const adLines = (data.ads?.top || []).slice(0, 5).map(a => `- ${a.name}: spend ${f2(a.spend)} (${Math.round((a.share || 0) * 100)}% of Meta), CPA ${f2(a.cpa)}, ROAS ${f2(a.roas)}`);
+  const adLines = (data.ads?.top || []).slice(0, 5).map(a => `- ${a.name}: spend ${f2(a.spend)} (${Math.round((a.share || 0) * 100)}% of Meta), CPA ${f2(a.cpa)}, ROAS ${f2(a.roas)}`
+    + (a.hook != null ? `, hook rate ${Math.round(a.hook * 100)}% (3s views/impressions; 30-40% is typical)` : '')
+    + (a.hold != null ? `, hold rate ${Math.round(a.hold * 100)}% (ThruPlay/3s views; 40-50% is typical)` : ''));
+  const fmtLines = (data.ads?.formats || []).map(f => `- ${f.label}: ${f.count} ads, spend ${f2(f.spend)} (${Math.round((f.share || 0) * 100)}%), CPA ${f2(f.cpa)}, ROAS ${f2(f.roas)}`);
   // Notable changes individually; routine churn as counts. Feeding the model 14
   // rows of "new ad" made it write about ad names instead of about the money.
   const ch = data.changes || {};
@@ -1871,6 +1963,7 @@ async function writeReportNarrative(env, acct, data) {
       (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
       `Channels — each platform's OWN attributed revenue/ROAS. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
       `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
+      (fmtLines.length ? `Meta spend by creative format (from the ad naming convention — covers every ad that spent):\n${fmtLines.join('\n')}\n` : '') +
       `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
       (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : ''),
   });
@@ -2672,6 +2765,7 @@ export default {
         if (!acct) return json({ error: 'unknown account' }, 404);
         let backfill = null;
         if (!acct.ads_backfill_done) backfill = await syncAdDaily(env, acct, { maxSlices: 3 });
+        else if (!acct.ads_video_done) ctx.waitUntil(syncAdDaily(env, acct, { maxSlices: 3 }).catch(() => {}));  // hook/hold columns still filling
         else {
           const missing = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND created_time IS NULL`).bind(act).first();
           if (missing?.n > 0) ctx.waitUntil(syncAdMeta(env, acct).catch(() => {}));  // heal ages for pre-history ads
