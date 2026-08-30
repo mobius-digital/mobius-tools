@@ -1572,6 +1572,84 @@ async function adPreviewLinks(env, adIds) {
   return out;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Real video playback                                                 */
+/*                                                                      */
+/*  Meta withholds a video's `source` mp4 from the USER token even with */
+/*  pages_read_engagement — it needs a PAGE-scoped token. Those come    */
+/*  from me/accounts and, for a system user, do not expire, so they are  */
+/*  cached; a page missing from the cache (a newly assigned brand)       */
+/*  triggers one refresh before giving up.                              */
+/*                                                                      */
+/*  The mp4 URL itself is short-lived and signed, which is exactly why   */
+/*  it is resolved at PLAY time and never frozen into a report. The      */
+/*  cover frame is baked in and always survives; playback is the part    */
+/*  allowed to expire.                                                   */
+/* ------------------------------------------------------------------ */
+
+async function pageTokens(env, { refresh = false } = {}) {
+  if (!refresh) {
+    const cached = safeJson(await getSetting(env, 'pageTokens'), null);
+    if (cached?.map) return cached.map;
+  }
+  const r = await meta(env, 'me/accounts', { fields: 'id,access_token', limit: 100 });
+  const map = {};
+  for (const p of r?.data || []) if (p.access_token) map[String(p.id)] = p.access_token;
+  await putSetting(env, 'pageTokens', JSON.stringify({ map, at: new Date().toISOString() }));
+  return map;
+}
+
+/** A fresh, playable mp4 URL for one ad, or null when it genuinely cannot be
+ *  played — a creative on a page we were never granted, or an ad with no video.
+ *  Never throws: the card falls back to its cover image. */
+async function adVideoSource(env, adId, hint = {}) {
+  if (!env.META_TOKEN) return null;
+  let videoId = hint.video_id || null, pageId = hint.page_id || null;
+  if (!videoId || !pageId) {
+    try {
+      const r = await meta(env, `${adId}/adcreatives`, { fields: 'video_id,object_story_spec,asset_feed_spec', limit: 1 });
+      const c = r?.data?.[0] || {};
+      videoId ||= c.video_id || c.object_story_spec?.video_data?.video_id || c.asset_feed_spec?.videos?.[0]?.video_id || null;
+      pageId ||= c.object_story_spec?.page_id || null;
+    } catch { return null; }
+  }
+  if (!videoId || !pageId) return null;
+  let tokens = await pageTokens(env).catch(() => ({}));
+  let tok = tokens[String(pageId)];
+  if (!tok) {
+    tokens = await pageTokens(env, { refresh: true }).catch(() => ({}));
+    tok = tokens[String(pageId)];
+  }
+  if (!tok) return null;                       // a partner/creator page we do not own
+  try {
+    const u = new URL(`${GRAPH}/${videoId}`);
+    u.searchParams.set('fields', 'source');
+    u.searchParams.set('access_token', tok);
+    const res = await fetch(u);
+    const b = await res.json();
+    return b?.source || null;
+  } catch { return null; }
+}
+
+/** Is this ad actually listed in one of that client's SENT reports?
+ *  This is what stops the endpoint being an open proxy for arbitrary Meta
+ *  videos: an unauthenticated caller can only ever play an ad that already
+ *  appears in a report their own archive link covers. Returns the stored row
+ *  so its video_id can be reused instead of asking Meta again. */
+async function adInSentReport(env, token, adId) {
+  const tokens = safeJson(await getSetting(env, 'reportTokens'), {});
+  const actId = tokens?.[token]?.act_id;
+  if (!actId || !adId) return null;
+  const { results } = await env.DB.prepare(
+    `SELECT data_json FROM reports WHERE act_id = ?1 AND status = 'sent'`,
+  ).bind(actId).all();
+  for (const r of results) {
+    const row = (safeJson(r.data_json, {})?.ads?.top || []).find(a => String(a.ad_id) === String(adId));
+    if (row) return row;
+  }
+  return null;
+}
+
 /** Creative thumbnails for the ads a report lists, BAKED INTO the report.
  *
  *  Meta's image URLs are signed and expire, so linking to them would leave a
@@ -1889,6 +1967,11 @@ async function reportData(env, acct, period, start, end) {
       thumb: thumbs[r.ad_id]?.thumb || null,
       video: !!thumbs[r.ad_id]?.video,
       ad_id: r.ad_id,
+      // Kept so playback can skip a Meta round trip. The mp4 URL itself is
+      // deliberately NOT stored — it is signed and expires within hours.
+      video_id: thumbs[r.ad_id]?.video_id || null,
+      page_id: thumbs[r.ad_id]?.page_id || null,
+      duration: thumbs[r.ad_id]?.duration ?? null,
       // The ad's own words, plus where it lives — everything the detail view needs
       // is frozen with the numbers, so an archived report stays complete.
       headline: thumbs[r.ad_id]?.headline || null,
@@ -2743,6 +2826,31 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+    /* A playable mp4 for one ad. Two ways in, and no third:
+       - a signed-in team member (session/admin), for the Reports tab;
+       - `?report=<archive token>`, for the client's link, which only ever
+         resolves an ad that IS in one of that client's sent reports.
+       Returns the URL rather than streaming it, so the browser talks straight
+       to the CDN and seeking/range requests work properly. */
+    if (path === '/api/ad-video') {
+      const adId = url.searchParams.get('ad');
+      const repTok = url.searchParams.get('report');
+      if (!adId) return json({ error: 'ad is required' }, 400);
+      let hint = {};
+      if (repTok) {
+        const row = await adInSentReport(env, repTok, adId);
+        if (!row) return json({ error: 'not found in this report' }, 404);
+        hint = { video_id: row.video_id, page_id: row.page_id };
+      } else if (!(await isAdmin(request, env))) {
+        return json({ error: 'unauthorized' }, 401);
+      }
+      const src = await adVideoSource(env, adId, hint);
+      if (!src) return json({ error: 'no playable video for this ad' }, 404);
+      // Deliberately uncached: the signed URL is short-lived, and a cached one
+      // that has expired plays as a broken video rather than an honest retry.
+      return json({ src });
+    }
 
     if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);

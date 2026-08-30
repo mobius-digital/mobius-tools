@@ -209,14 +209,21 @@
   .ad-media.none{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:22px}
   .ad-rank{position:absolute;top:8px;left:8px;min-width:20px;height:20px;padding:0 5px;border-radius:6px;
     background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .ad-dur{position:absolute;bottom:8px;right:8px;padding:1px 6px;border-radius:6px;
+    background:rgba(0,0,0,.62);color:#fff;font-size:10.5px;font-weight:700}
   .ad-play{position:absolute;inset:0;width:100%;border:0;background:rgba(0,0,0,.12);cursor:pointer;
     display:flex;align-items:center;justify-content:center;transition:background .12s}
   .ad-play:hover{background:rgba(0,0,0,.28)}
   .ad-play i{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;
     background:rgba(255,255,255,.94);color:#111;font-size:15px;font-style:normal;padding-left:3px;
     box-shadow:0 2px 10px rgba(0,0,0,.3)}
-  .ad-frame{position:absolute;inset:0;background:#fff;overflow:hidden}
-  .ad-frame iframe{border:0;display:block}
+  .ad-frame{position:absolute;inset:0;background:#000;overflow:hidden}
+  .ad-frame video{width:100%;height:100%;display:block;object-fit:contain;background:#000}
+  .ad-frame .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:18px;color:#fff;font-size:12.5px;line-height:1.5;background:rgba(0,0,0,.72)}
+  .ad-frame .msg a{color:#fff}
+  .ad-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:12px;background:rgba(0,0,0,.45)}
   .ad-close{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;cursor:pointer;
     background:rgba(0,0,0,.62);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
   .ad-body{padding:11px 13px 13px;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -1825,6 +1832,9 @@ const addDaysStr = (ymd, n) => { const dt = new Date(ymd + 'T12:00:00Z'); dt.set
    lives on the account-health worker; these endpoints are proxied. */
 // `act` records which client the selection belongs to (same trap as PL).
 const RP = { act: null, period: null, start: null };
+// The client archive link has no session, so its token IS the credential for
+// playback. Null on every internal view, which is what selects session auth.
+const RS = { token: null };
 const shortD = ymd => `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+ymd.slice(5, 7) - 1]} ${+ymd.slice(8, 10)}`;
 /** Change-log categories are stored as snake_case ids; a raw CAMPAIGN_RELAUNCHED
  *  both reads like a database dump and overflows its column. `n` pluralises the
@@ -1961,12 +1971,14 @@ function reportBodyHTML(d, summary, opts = {}) {
       const media = a.thumb
         ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
         : `<span aria-hidden="true">${a.video ? '&#9654;' : '&#9633;'}</span>`;
-      // Play ONLY on a real video. It was previously shown whenever a preview
-      // link existed, which put a play badge on every static in the report.
-      const canPlay = a.video && a.preview;
+      // Play ONLY on a real video, and only when we have the ad id needed to
+      // resolve its mp4. Reports frozen before that field existed keep the
+      // cover image and the link out, which is the honest degradation.
+      const canPlay = a.video && a.ad_id;
       return `<article class="ad-card" data-ad="${i}">
-        <div class="ad-media${a.thumb ? '' : ' none'}"${canPlay ? ` data-src="${esc(a.preview)}"` : ''}>
+        <div class="ad-media${a.thumb ? '' : ' none'}"${canPlay ? ` data-ad="${esc(a.ad_id)}"` : ''}${canPlay && a.preview ? ` data-preview="${esc(a.preview)}"` : ''}>
           ${media}<span class="ad-rank">${i + 1}</span>
+          ${a.duration ? `<span class="ad-dur">${Math.round(a.duration)}s</span>` : ''}
           ${canPlay ? `<button class="ad-play" type="button" title="Play this video ad"><i>&#9654;</i></button>` : ''}
         </div>
         <div class="ad-body">
@@ -2127,17 +2139,33 @@ function wireReportChart(d, cur, internal) {
   });
 }
 
-/* Meta's MOBILE_FEED_STANDARD preview renders at a fixed size, so it is scaled
-   to whatever width the card actually has rather than being clipped. */
-const PREVIEW_W = 340, PREVIEW_H = 620;
+/** Ask the engine for a fresh, playable mp4 for one ad.
+ *  On the client's archive link there is no session, so the report token is the
+ *  credential — the engine only resolves ads that are in that client's own sent
+ *  reports. RS.token is set by the share renderer; internal callers have a
+ *  session and send nothing. */
+async function adVideoUrl(adId) {
+  const q = `ad=${encodeURIComponent(adId)}` + (RS.token ? `&report=${encodeURIComponent(RS.token)}` : '');
+  if (RS.token) {
+    const res = await fetch(`${S.url.replace(/\/+$/, '')}/api/ad-video?${q}`);
+    const b = await res.json();
+    if (!res.ok) throw new Error(b.error || 'could not load this video');
+    return b.src;
+  }
+  return (await api(`/api/ad-video?${q}`)).src;
+}
 
-/** Play the real ad inside its card. `preview_iframe.php` is built to be framed
- *  and needs no Facebook login, which is why the report can carry it to a
- *  client. Called by BOTH report renderers after paint. Listeners go on the
- *  media nodes the render replaces, never on #main, which survives every render.
+/** Play the REAL creative inside its card — the actual mp4 in a native video
+ *  element, not Meta's preview iframe. The iframe loaded 750KB of Facebook
+ *  chrome to show a video we can now address directly, which is why this is
+ *  instant and seekable instead of a page load.
  *
- *  The thumbnail stays in the DOM underneath, so closing the player is just
- *  removing the frame — and if a token has expired, the image is still there. */
+ *  The mp4 URL is signed and short-lived, so it is fetched at play time and
+ *  never frozen into the report; the cover frame IS baked in, so an old report
+ *  always shows the creative even when playback has expired.
+ *
+ *  Called by BOTH report renderers after paint. Listeners go on the media nodes
+ *  the render replaces, never on #main, which survives every render. */
 const CTA_LABEL = {
   SHOP_NOW: 'Shop Now', LEARN_MORE: 'Learn More', SIGN_UP: 'Sign Up', BUY_NOW: 'Buy Now',
   GET_OFFER: 'Get Offer', ORDER_NOW: 'Order Now', SUBSCRIBE: 'Subscribe', CONTACT_US: 'Contact Us',
@@ -2204,30 +2232,44 @@ function wireAdCards(ads, cur, prevTag) {
     if (!a) return;
     card.onclick = e => {
       if (e.target.closest('a')) return;                       // the name links out
-      if (e.target.closest('.ad-media[data-src]')) return;     // video media plays instead
+      if (e.target.closest('.ad-media[data-ad]')) return;      // video media plays instead
       if (e.target.closest('.ad-frame')) return;               // clicks inside a playing ad
       adDetailModal(a, cur, prevTag);
     };
   });
-  document.querySelectorAll('#main .ad-media[data-src]').forEach(m => {
+  document.querySelectorAll('#main .ad-media[data-ad]').forEach(m => {
     const btn = m.querySelector('.ad-play');
     if (!btn) return;
     m.onclick = e => { if (!e.target.closest('.ad-frame') && !m.querySelector('.ad-frame')) btn.click(); };
-    btn.onclick = e => {
+    btn.onclick = async e => {
       e.stopPropagation();
       if (m.querySelector('.ad-frame')) return;
-      const s = Math.min(1, (m.clientWidth || PREVIEW_W) / PREVIEW_W);
-      m.classList.add('playing');
-      m.style.height = Math.round(PREVIEW_H * s) + 'px';
+      const adId = m.dataset.ad;
+      m.insertAdjacentHTML('beforeend', '<div class="ad-spin">Loading…</div>');
+      let src = null, err = null;
+      try { src = await adVideoUrl(adId); } catch (ex) { err = ex.message; }
+      const spin = m.querySelector('.ad-spin');
+      if (spin) spin.remove();
+      if (m.querySelector('.ad-frame')) return;                 // double click while loading
+      const fallback = m.dataset.preview
+        ? `<a href="${esc(m.dataset.preview)}" target="_blank" rel="noopener noreferrer">Open it on Facebook ↗</a>`
+        : '';
       m.insertAdjacentHTML('beforeend', `<div class="ad-frame">
-        <iframe src="${esc(m.dataset.src)}" title="Ad preview" referrerpolicy="no-referrer" scrolling="no"
-          style="width:${PREVIEW_W}px;height:${PREVIEW_H}px;transform:scale(${s});transform-origin:top left"></iframe>
+        ${src ? `<video src="${esc(src)}" controls autoplay playsinline preload="metadata"></video>`
+              : `<div class="msg"><div>${esc(err || 'This video can’t be played here.')}<br>${fallback}</div></div>`}
         <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
+      // The click IS the user gesture, but the await for the URL breaks the
+      // chain, so `autoplay` alone can be refused and leave a paused frame
+      // under a play button that looks broken. Ask explicitly and let the
+      // controls take over if the browser still says no.
+      const vid = m.querySelector('.ad-frame video');
+      if (vid) vid.play().catch(() => {});
       m.querySelector('.ad-close').onclick = ev => {
         ev.stopPropagation();                    // closing must not open the detail view
-        m.querySelector('.ad-frame').remove();
-        m.classList.remove('playing');
-        m.style.height = '';
+        const f = m.querySelector('.ad-frame');
+        const v = f.querySelector('video');
+        if (v) { v.pause(); v.removeAttribute('src'); v.load(); }   // stop the download too
+        f.remove();
       };
     };
   });
@@ -2440,6 +2482,7 @@ async function renderReports(first) {
  *  client, SENT reports only — the worker enforces all of that; this only
  *  renders what it is given. */
 async function renderReportsShare(token, sel) {
+  RS.token = token;
   document.querySelector('.hd-right').style.display = 'none';
   $('#tabs').style.display = 'none';
   { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }

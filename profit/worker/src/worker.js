@@ -27,6 +27,10 @@ const PROXY_PATHS = new Set([
   // the account-health worker (TW/Anthropic/Slack secrets + the crons).
   '/api/reports', '/api/report', '/api/report-generate', '/api/report-summary',
   '/api/report-send', '/api/report-link', '/api/brief-text', '/api/brief-draft',
+  // Playback for a creative card. Unauthenticated callers reach it only with
+  // a report archive token, which the engine validates against that client's
+  // own sent reports.
+  '/api/ad-video',
 ]);
 
 /* ---------------- dates ---------------- */
