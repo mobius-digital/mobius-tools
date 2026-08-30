@@ -92,6 +92,38 @@
   nav.subtabs button.on{color:#fff;border-bottom-color:var(--brand)}
   @media (max-width:720px){ nav.subtabs .in{padding:0 14px} }
 
+  /* PERIOD BAR. Always under the tabs, on every screen that shows data, always
+     naming the RESOLVED dates. The range picker used to be an unlabelled select
+     in the header, hidden on six of nine tabs because only three honoured it -
+     so "am I looking at 30 days, 7 days or yesterday" had no answer anywhere.
+     A screen with a fixed period still gets the bar, stating what that period
+     is, so the bar is the one place the question is ever asked. */
+  .pbar{background:var(--surface);border-bottom:1px solid var(--line)}
+  .pbar .in{max-width:1240px;margin:0 auto;padding:9px 26px;display:flex;align-items:center;
+    gap:10px;flex-wrap:wrap;min-height:44px}
+  .pb-lab{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .pb-ctl{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .pb-ctl .chip{padding:5px 11px;font-size:12.5px;border-radius:99px;border:1px solid transparent;
+    color:var(--ink-2);background:transparent;font-weight:600;white-space:nowrap}
+  .pb-ctl .chip:hover{background:var(--surface-2,var(--bg))}
+  .pb-ctl .chip.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
+  .pb-fixed{font-size:13px;color:var(--ink-2);font-weight:600}
+  /* The dates are the point of the bar, so they are the strongest thing in it
+     after the active chip - a label like "Last 30 days" does not tell you
+     whether today is in it, and today is excluded everywhere in this tool. */
+  .pb-dates{margin-left:auto;font-size:12.5px;color:var(--muted);text-align:right}
+  .pb-dates b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+  .pb-custom{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+  .pb-custom input[type=date]{padding:5px 8px;font-size:12.5px}
+  @media (max-width:720px){
+    .pbar .in{padding:9px 14px}
+    .pb-dates{margin-left:0;width:100%;text-align:left}
+    /* Seven chips wrapped to three rows and made the bar 175px tall on a phone -
+       more screen than the content it was describing. One scrolling row instead:
+       the bar stays ~70px and the active chip is always the one in view. */
+    .pb-ctl{flex-wrap:nowrap;overflow-x:auto;max-width:100%;scrollbar-width:none;-ms-overflow-style:none}
+    .pb-ctl::-webkit-scrollbar{display:none}
+  }
   main{max-width:1240px;margin:0 auto;padding:26px 26px 90px}
   h2{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:4px}
   /* The per-page detail rides UNDER the purpose sentence, one step quieter, so
@@ -466,12 +498,6 @@
     <div class="hd-title">Locus</div>
     <div class="hd-right">
       <select id="clientPick" style="display:none"></select>
-      <select id="rangePick" style="display:none">
-        <option value="7">Last 7 days</option>
-        <option value="30" selected>Last 30 days</option>
-        <option value="60">Last 60 days</option>
-        <option value="90">Last 90 days</option>
-      </select>
       <span class="hd-chip" id="connChip">…</span>
       <button class="hd-btn" id="btnOut" style="display:none">Sign out</button>
     </div>
@@ -495,6 +521,11 @@
        that element entirely; a nav rendered inside it would be wiped on every
        sub-tab switch. -->
   <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
+  <div class="pbar" id="periodBar" style="display:none"><div class="in">
+    <span class="pb-lab">Showing</span>
+    <div class="pb-ctl" id="pbCtl"></div>
+    <span class="pb-dates" id="pbDates"></span>
+  </div></div>
 </header>
 
 <main id="main"></main>
@@ -504,7 +535,7 @@
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
-const LS = { url:'pf_worker', tok:'pf_token', act:'pf_act', tab:'pf_tab', days:'pf_days' };
+const LS = { url:'pf_worker', tok:'pf_token', act:'pf_act', tab:'pf_tab', days:'pf_days', range:'pf_range' };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -521,6 +552,7 @@ const S = {
   act: localStorage.getItem(LS.act) || 'all',
   tab: localStorage.getItem(LS.tab) || 'overview',
   days: +localStorage.getItem(LS.days) || 30,
+  range: (() => { try { return JSON.parse(localStorage.getItem(LS.range)) || { preset: '30' }; } catch { return { preset: '30' }; } })(),
   accounts: [],
 };
 
@@ -589,12 +621,12 @@ async function boot() {
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
-    const r = await api('/api/overview?days=' + S.days);
+    const r = await api('/api/overview?' + rangeQ());
     S.accounts = r.accounts;
     S.kind = r.kind || 'admin';
     applyKind();
     setChip('Live','live');
-    $('#btnOut').style.display=''; $('#tabs').style.display=''; $('#rangePick').style.display='';
+    $('#btnOut').style.display=''; $('#tabs').style.display='';
     renderPicker();
     show(S.tab);
   } catch (e) {
@@ -654,7 +686,7 @@ async function renderPlanShare(token) {
   setChip(d.agreed_at ? 'Agreed' : 'Proposed', d.agreed_at ? 'live' : 'off');
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
-  ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+  ['#clientPick', '#periodBar', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
   clientFooter('This page shows one client and updates as the month runs.');
 }
 
@@ -758,7 +790,7 @@ async function renderPerfShare(token) {
   setChip('Live', 'live');
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
-  ['#clientPick', '#rangePick', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+  ['#clientPick', '#periodBar', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
   clientFooter('This page shows one client and updates as the month runs.');
 }
 
@@ -775,7 +807,7 @@ function clientFooter(note) {
 function renderGate(err, offerRetry) {
   setChip('Signed out','off');
   $('#tabs').style.display='none'; $('#clientPick').style.display='none';
-  $('#rangePick').style.display='none'; $('#btnOut').style.display='none';
+  $('#periodBar').style.display='none'; $('#btnOut').style.display='none';
   { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
   $('#main').innerHTML = `
   <div class="gate">
@@ -810,9 +842,6 @@ function renderPicker() {
   if (!S.accounts.find(a => a.act_id === S.act)) S.act = 'all';
   p.value = S.act;
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
-  const rp = $('#rangePick');
-  rp.value = String(S.days);
-  rp.onchange = () => { S.days = +rp.value; localStorage.setItem(LS.days, S.days); inPlace(async () => { await boot(); show(S.tab); }); };
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
 
@@ -1159,7 +1188,7 @@ const PAGE_HELP = {
  *  Anything that changes goals or the underlying data must call this, or other tabs
  *  keep serving the copy of S.accounts they were handed at page load. */
 async function refreshAccounts() {
-  try { const r = await api('/api/overview?days=' + S.days); if (r && r.accounts) S.accounts = r.accounts; }
+  try { const r = await api('/api/overview?' + rangeQ()); if (r && r.accounts) S.accounts = r.accounts; }
   catch { /* a stale snapshot is better than a broken page */ }
 }
 
@@ -1180,11 +1209,117 @@ let RUN = 0;
    rather than left visible and inert - a control that does nothing reads as broken. */
 const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 
+/* ---------- The period bar ----------
+   EVERY window in this tool ends YESTERDAY. Today is partial on every source -
+   Meta keeps settling conversions for ~72h and Triple Whale syncs the day after
+   - so no window includes it, and the bar says so, because "Last 30 days" does
+   not tell you whether today is in it and that ambiguity was half the problem. */
+const PB = { presets: [
+  ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['30', 'Last 30 days'],
+  ['mtd', 'Month to date'], ['lastmonth', 'Last month'], ['90', 'Last 90 days'],
+  ['custom', 'Custom'],
+] };
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const daySpan = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000) + 1;
+const prettyDate = (s, withYear) => parseYmd(s).toLocaleDateString('en-US',
+  { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
+
+/** Resolve the saved selection into real dates. Browser-local: the worker still
+ *  clamps per account timezone, so a client an hour behind can never be shown a
+ *  partial day even when the label rounds. */
+function resolveRange() {
+  const now = new Date(), yday = new Date(now); yday.setDate(now.getDate() - 1);
+  const to = ymd(yday);
+  const r = S.range || { preset: '30' };
+  if (r.preset === 'custom' && r.from && r.to) {
+    const t = r.to > to ? to : r.to;                 // never let today in
+    return { from: r.from > t ? t : r.from, to: t, preset: 'custom' };
+  }
+  if (r.preset === 'yesterday') return { from: to, to, preset: 'yesterday' };
+  if (r.preset === 'mtd') return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to, preset: 'mtd' };
+  if (r.preset === 'lastmonth') {
+    const s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return { from: ymd(s), to: ymd(new Date(now.getFullYear(), now.getMonth(), 0)), preset: 'lastmonth' };
+  }
+  const n = +r.preset || 30;
+  const f = new Date(yday); f.setDate(yday.getDate() - (n - 1));
+  return { from: ymd(f), to, preset: String(n) };
+}
+
+/** Query string for the data endpoints. A plain "N days ending yesterday" still
+ *  goes out as `days` so nothing that predates the bar changes behaviour; only
+ *  Last month and a custom range need explicit dates. */
+function rangeQ() {
+  const r = resolveRange(), n = daySpan(r.from, r.to);
+  const now = new Date(), yday = new Date(now); yday.setDate(now.getDate() - 1);
+  S.days = n;                                        // keep legacy readers honest
+  return r.to === ymd(yday) ? `days=${n}` : `from=${r.from}&to=${r.to}`;
+}
+
+/** What a tab's window IS, when the tab does not use the shared picker. Stated
+ *  rather than hidden, so the bar is never absent and never inert-looking. */
+const PB_FIXED = {
+  costs:   'The last 60 days — long enough to judge whether the cost data holds up',
+  brief:   'One day at a time — yesterday, or the date you pick on the page',
+  reports: 'One week or one month — pick the report on the page',
+  plan:    'One calendar month — pick it on the page',
+  meta:    'Set within each Meta screen — they use their own windows',
+};
+
+function renderPeriodBar(tab) {
+  const bar = $('#periodBar'); if (!bar) return;
+  if (!S.tok || tab === 'settings') { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  const ctl = $('#pbCtl'), dates = $('#pbDates');
+
+  if (!RANGE_TABS.has(tab)) {
+    ctl.innerHTML = `<span class="pb-fixed">${esc(PB_FIXED[tab] || '')}</span>`;
+    dates.innerHTML = '';
+    return;
+  }
+  const r = resolveRange();
+  ctl.innerHTML = PB.presets.map(([v, l]) =>
+    `<button class="chip ${r.preset === v ? 'on' : ''}" data-p="${v}">${esc(l)}</button>`).join('')
+    + (r.preset === 'custom' ? `<span class="pb-custom"><input type="date" id="pbFrom" value="${r.from}" max="${r.to}">
+        to <input type="date" id="pbTo" value="${r.to}"></span>` : '');
+  const sameYear = r.from.slice(0, 4) === r.to.slice(0, 4);
+  const n = daySpan(r.from, r.to);
+  // "today excluded" only earns its place on a window that RUNS UP TO now. On
+  // Last month it states the obvious and reads as boilerplate.
+  const now = new Date(), yd = new Date(now); yd.setDate(now.getDate() - 1);
+  const tail = r.to === ymd(yd) ? ' · today excluded' : '';
+  dates.innerHTML = r.from === r.to
+    ? `<b>${esc(prettyDate(r.from, true))}</b> · 1 day`   // the date itself already says today is not in it
+    : `<b>${esc(prettyDate(r.from, !sameYear))} – ${esc(prettyDate(r.to, true))}</b> · ${n} days${tail}`;
+
+  ctl.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    const p = b.dataset.p;
+    if (p === 'custom' && S.range?.preset !== 'custom') {
+      // Seed the custom fields from whatever was showing, so it opens on a real
+      // range rather than empty inputs the user has to fill before anything works.
+      S.range = { preset: 'custom', from: r.from, to: r.to };
+    } else S.range = { preset: p };
+    localStorage.setItem(LS.range, JSON.stringify(S.range));
+    renderPeriodBar(tab);
+    inPlace(async () => { await boot(); show(S.tab); });
+  });
+  const f = $('#pbFrom'), t = $('#pbTo');
+  const commit = () => {
+    if (!f.value || !t.value) return;
+    S.range = { preset: 'custom', from: f.value <= t.value ? f.value : t.value, to: t.value };
+    localStorage.setItem(LS.range, JSON.stringify(S.range));
+    renderPeriodBar(tab);
+    inPlace(async () => { await boot(); show(S.tab); });
+  };
+  if (f) f.onchange = commit;
+  if (t) t.onchange = commit;
+}
+
 function show(tab) {
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
-  const rp = $('#rangePick');
-  if (rp && S.tok) rp.style.display = RANGE_TABS.has(tab) ? '' : 'none';
+  renderPeriodBar(tab);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const sn = $('#subtabs');
   if (sn) sn.style.display = tab === 'meta' ? '' : 'none';
@@ -1366,7 +1501,7 @@ function statCard(label, value, sub, info) {
 /* ---------- Overview ---------- */
 async function renderOverview() {
   const rows = S.act === 'all' ? S.accounts : S.accounts.filter(a => a.act_id === S.act);
-  $('#main').innerHTML = `${pageHead('overview', 'Overview', `Last ${S.days} days. Every channel, not just ads &mdash; MER and aMER are blended on both sides, so nothing is double-counted.`)}
+  $('#main').innerHTML = `${pageHead('overview', 'Overview', 'Every channel, not just ads &mdash; MER and aMER are blended on both sides, so nothing is double-counted.')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="overview">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num" title="Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as 'Net Sales + Shipping'. It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure 'Total Sales' and stores it as netSales; shipping is already inside it, so it is never added twice.">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
@@ -1450,7 +1585,7 @@ function renderProfitAll() {
     return bv - av;
   });
   const totalTrusted = ranked.filter(a => cmTrusted(a.cost_health) && a.window.cm != null);
-  $('#main').innerHTML = `${pageHead('profit', 'Profit', `What each brand kept over the last ${S.days} days, best first. Click a card for its full waterfall.`)}
+  $('#main').innerHTML = `${pageHead('profit', 'Profit', 'Ranked by what each brand actually kept. Click a card for its full waterfall.')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
     ${totalTrusted.length < S.accounts.length ? `<div class="notice warn">ℹ️ <div><b>${S.accounts.length - totalTrusted.length} client${S.accounts.length - totalTrusted.length > 1 ? 's are' : ' is'} missing from the profit ranking</b> because their cost data can't be trusted. Revenue and efficiency still work for them — see the <b>Costs</b> tab.</div></div>` : ''}
     <div id="pfAllGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
@@ -1585,7 +1720,7 @@ async function renderProfit(first) {
   const run = ++RUN;
   if (first) $('#main').innerHTML = `<h2>Profit</h2><div class="card"><span class="hint">Loading…</span></div>`;
   let d, fc = null;
-  try { d = await api(`/api/client?act=${S.act}&days=${S.days}`); }
+  try { d = await api(`/api/client?act=${S.act}&${rangeQ()}`); }
   catch (e) { if (run === RUN) $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
   try { fc = await api(`/api/forecast?act=${S.act}`); } catch { /* forecast is a bonus, never a blocker */ }
   let rh = null;
@@ -1598,7 +1733,7 @@ async function renderProfit(first) {
   const chart = salesSpendSVG(d.rows, cur);
   const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
 
-  $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, `Last ${S.days} days. <b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.`)}
+  $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, '<b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.')}
     <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-help="profit">? How to use</button></div>
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
@@ -2942,7 +3077,7 @@ async function renderReportsShare(token, sel) {
     setChip('Report', 'live');
     $('#connChip').style.display = '';
     document.querySelector('.hd-right').style.display = '';
-    ['#clientPick', '#rangePick', '#btnOut'].forEach(s2 => { const el = $(s2); if (el) el.style.display = 'none'; });
+    ['#clientPick', '#periodBar', '#btnOut'].forEach(s2 => { const el = $(s2); if (el) el.style.display = 'none'; });
     clientFooter('Each report is a fixed snapshot of the period it covers.');
   };
   if (!d.report) {
@@ -3552,7 +3687,7 @@ function cohortCard(co, cur) {
 }
 
 async function renderCustomersAll() {
-  $('#main').innerHTML = `${pageHead('customers', 'Customers', `Last ${S.days} days. <b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder.`)}
+  $('#main').innerHTML = `${pageHead('customers', 'Customers', '<b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder.')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
@@ -3569,7 +3704,7 @@ async function renderCustomersAll() {
   });
   const run = ++RUN;
   for (const a of S.accounts) {
-    api(`/api/customers?act=${a.act_id}&days=${S.days}`).then(r => {
+    api(`/api/customers?act=${a.act_id}&${rangeQ()}`).then(r => {
       if (run !== RUN) return;
       const h = r.headline, set = (k, v) => { const el = $(`[data-c="${k}-${a.act_id}"]`); if (el) el.innerHTML = v; };
       set('cac', `<b>${fmtMoney(h.cac, a.currency)}</b>`);
@@ -3586,14 +3721,14 @@ async function renderCustomers(first) {
   if (S.act === 'all') return renderCustomersAll();
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
-  const shell = body => `${pageHead('customers', `Customers &mdash; ${esc(acct?.name || '')}`, `Last ${S.days} days. Not a true lifetime value &mdash; Triple Whale gives us no per-customer history.`)}
+  const shell = body => `${pageHead('customers', `Customers &mdash; ${esc(acct?.name || '')}`, 'Not a true lifetime value &mdash; Triple Whale gives us no per-customer history.')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
   let co = null;
   try { co = await api(`/api/cohorts?act=${S.act}`); } catch { /* cohorts are a bonus */ }
-  try { d = await api(`/api/customers?act=${S.act}&days=${S.days}`); }
+  try { d = await api(`/api/customers?act=${S.act}&${rangeQ()}`); }
   catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
   if (run !== RUN) return;
   const cur = d.account.currency, h = d.headline;

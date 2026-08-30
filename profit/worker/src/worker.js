@@ -891,14 +891,17 @@ async function cohorts(env, acct) {
  * to bid harder. When it is negative the business depends on people coming back, and
  * the repeat share below is the number that has to hold up.
  */
-async function customerEconomics(env, acct, months = 6, days = 30) {
+/* `range` is the period bar's explicit window when it has one. Without it the
+   window is the old "N days ending yesterday", unchanged. Needed because
+   "Last month" and a custom range cannot be written as a day count. */
+async function customerEconomics(env, acct, months = 6, days = 30, range = null) {
   const today = localDate(acct.tz);
   const thisYm = monthOf(today);
   const list = [];
   let m = thisYm;
   for (let i = 0; i < months; i++) { list.unshift(m); m = prevMonth(m); }
-  const to = addDays(today, -1);
-  const winFrom = addDays(today, -days);
+  const to = range?.to || addDays(today, -1);
+  const winFrom = range?.from || addDays(today, -days);
   const monthsFrom = `${list[0]}-01`;
   const from = winFrom < monthsFrom ? winFrom : monthsFrom;
   const { rows, margin_pct } = await seriesFor(env, acct, from, to);
@@ -1488,6 +1491,20 @@ export default {
 
     try {
       const days = Math.min(+url.searchParams.get('days') || 30, 180);
+      /* An explicit window, for the period bar's "Last month" and "Custom range".
+         Neither is expressible as "N days ending yesterday", which is all `days`
+         can say. When absent every caller keeps the old behaviour exactly.
+         `to` is still clamped to yesterday per account below - today is partial
+         everywhere in this tool and must not leak into a window. */
+      const qFrom = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') || '') ? url.searchParams.get('from') : null;
+      const qTo = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('to') || '') ? url.searchParams.get('to') : null;
+      /** The window for one account, honouring an explicit range over `days`. */
+      const windowFor = (acct) => {
+        const today = localDate(acct.tz), yday = addDays(today, -1);
+        const to = qTo && qTo < yday ? qTo : yday;
+        const from = qFrom || addDays(today, -days);
+        return { today, from: from > to ? to : from, to };
+      };
 
       /* All clients, store-level. The blended view Account Health deliberately lacks. */
       if (path === '/api/overview') {
@@ -1501,9 +1518,10 @@ export default {
           // Fetch back to the 1st even when the picker window is shorter, so "MTD"
           // is always genuinely month-to-date - a 7-day window used to silently
           // truncate it to the last 7 days and still label it MTD.
-          const from = addDays(today, -days), to = addDays(today, -1), monthStart = `${ym}-01`;
+          const { from, to } = windowFor(a);
+          const monthStart = `${ym}-01`;
           const { rows: allRows, margin_pct, shipping } = await seriesFor(env, a, from < monthStart ? from : monthStart, to);
-          const rows = allRows.filter(r => r.date >= from);
+          const rows = allRows.filter(r => r.date >= from && r.date <= to);
           const g = goalsFor(a, ym);
           // First load (or a new client) has no snapshot yet — judge inline so the
           // page is never blank, and let refreshIfStale persist it in the background.
@@ -1529,7 +1547,7 @@ export default {
         // Brief and Settings both call PROXIED endpoints on the account-health
         // worker, which does not know the demo password and answers 401 - showing a
         // reviewer two tabs that only ever error is worse than not showing them.
-        return json({ days, accounts: out, kind });
+        return json({ days, from: qFrom, to: qTo, accounts: out, kind });
       }
 
       /* One client: the daily series and totals behind it. */
@@ -1537,16 +1555,16 @@ export default {
         const act = url.searchParams.get('act');
         const acct = (await accountsFor(false)).find(a => a.act_id === act);
         if (!acct) return json({ error: 'unknown account' }, 404);
-        const today = localDate(acct.tz);
+        const { today, from, to } = windowFor(acct);
         const ym = monthOf(today);
-        const from = addDays(today, -days), to = addDays(today, -1), monthStart = `${ym}-01`;
+        const monthStart = `${ym}-01`;
         const { rows: allRows, margin_pct, shipping } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
-        const rows = allRows.filter(r => r.date >= from);
+        const rows = allRows.filter(r => r.date >= from && r.date <= to);
         // planFor spreads the month goal over the days ELAPSED, so it must see the
         // month-to-date rows - the whole window here once pro-rated a plan past 100%.
         const mtdRows = allRows.filter(r => r.date >= monthStart);
         return json({
-          account: pubAccount(acct), days, margin_pct, rows, shipping,
+          account: pubAccount(acct), days, from, to, margin_pct, rows, shipping,
           totals: totals(rows), mtd: totals(mtdRows),
           goals: goalsFor(acct, ym), plan: planFor(acct, ym, mtdRows),
         });
@@ -1854,7 +1872,7 @@ export default {
         if (!acct) return json({ error: 'unknown account' }, 404);
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(act).first().catch(() => null);
         const r = await customerEconomics(env, acct, Math.min(+url.searchParams.get('months') || 6, 12),
-          Math.min(+url.searchParams.get('days') || 30, 180));
+          Math.min(+url.searchParams.get('days') || 30, 180), (qFrom || qTo) ? windowFor(acct) : null);
         // Margin drives first-order CM, so the same trust gate applies.
         return json({ ...r, cm_ok: r.margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none') });
       }
