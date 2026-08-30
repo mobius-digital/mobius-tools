@@ -2091,6 +2091,9 @@ let RUN = 0;
 /* Tabs whose data actually follows the range picker. Everywhere else it is hidden
    rather than left visible and inert - a control that does nothing reads as broken. */
 const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
+/** Tab titles, so an error page can still say which tab it is. */
+const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
+  reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings' };
 
 /* ---------- The period bar ----------
    EVERY window in this tool ends YESTERDAY. Today is partial on every source -
@@ -2251,11 +2254,27 @@ function show(tab) {
   const first = !m.firstElementChild;
   if (!first) m.classList.add('busy');
   const done = () => m.classList.remove('busy');
-  const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings })[tab](first);
-  // Offered AFTER the render, or the bar is prepended to a page that is about
-  // to be replaced wholesale by the renderer.
+  /* A RENDERER THAT THROWS MUST NOT LEAVE THE PREVIOUS TAB ON SCREEN.
+     Without this, an unexpected payload - a field the API stopped sending, a
+     shape that drifted - aborts the paint and #main keeps the OUTGOING tab's
+     content. The tab simply appears not to open, which is indistinguishable
+     from a dead button and is exactly the failure that has been reported here
+     more than once. Now it says what happened and offers a retry. */
+  const fail = err => {
+    if (run !== RUN) return;                       // a newer tab is already painting
+    console.error('[Locus]', tab, err);
+    $('#main').innerHTML = `<h2>${esc(TAB_TITLE[tab] || 'Something went wrong')}</h2>
+      <div class="card"><p style="color:var(--bad);margin:0 0 8px"><b>This page didn't load.</b> ${esc(err && err.message || String(err))}</p>
+      <p class="hint" style="margin:0 0 12px">The data came back in a shape this page did not expect. Nothing has been changed.</p>
+      <button class="btn primary" id="tabRetry">Try again</button></div>`;
+    const rb = $('#tabRetry'); if (rb) rb.onclick = () => show(tab);
+  };
   const after = () => { done(); offerTour(tab); };
-  if (r && typeof r.then === 'function') r.then(after, after); else after();
+  let r;
+  const run = RUN;
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings })[tab](first); }
+  catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
+  if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
 
 /* ---------- Meta ----------
@@ -3824,7 +3843,11 @@ async function renderReportsAll(first) {
   catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
   if (run !== RUN) return;
   const by = {};
-  for (const row of r.rows) { by[row.act_id] ??= {}; by[row.act_id][row.period] ??= row; }   // rows arrive newest-first
+  // `|| []` is not defensive noise: without it a malformed response throws
+  // INSIDE the renderer, which leaves the previous tab's content on screen with
+  // no error anywhere - the page simply appears not to have opened. Every other
+  // renderer in this file already guards its iteration; this was the last one.
+  for (const row of (r.rows || [])) { by[row.act_id] ??= {}; by[row.act_id][row.period] ??= row; }   // newest-first
   const cell = row => row
     ? `${repRangeLabel({ period: row.period, start: row.period_start, end: row.period_end })} <span class="pill ${row.status === 'sent' ? 'good' : 'warn'}">${row.status}</span>`
     : '<span class="tiny">none yet</span>';
