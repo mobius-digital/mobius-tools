@@ -220,3 +220,37 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
   cannot double post - `sendBrief`'s `skipIfSent` is still there - and `lastBriefRun`
   is only written when a run actually sent something, so it stays a record of the last
   real send instead of being overwritten hourly by no-ops.
+
+## Creative assets and real video playback (2026-08-30)
+
+- **The Meta token now carries page access.** The six brand pages (and their
+  Instagram accounts) are assigned to the `Mobius Tools` system user, and its
+  token was regenerated with `pages_read_engagement` + `pages_show_list` on top
+  of `ads_read` + `business_management`. This is load-bearing: without it,
+  video creatives return `object_type: PRIVACY_CHECK_FAIL`, no `image_url`, and
+  Meta substitutes the PAGE AVATAR for `thumbnail_url` — which is why three of
+  Lucky's video ads once shared one identical clover logo.
+- **A video ad's cover frame comes from the VIDEO, never the creative.**
+  `/{video_id}?fields=picture` returns a real frame and works with the user
+  token. `thumbnail_url` on a video creative is the page avatar. Statics are
+  different — `image_url` is the original at full resolution and true aspect,
+  so the source order is cover → image_url → thumbnail_url.
+- **`source` (the mp4) needs a PAGE-scoped token**, not the user token, even
+  with pages_read_engagement. `pageTokens()` caches the map from
+  `me/accounts?fields=id,access_token` in `settings.pageTokens` (system-user
+  page tokens do not expire) and refreshes once when a page is missing.
+- **The mp4 URL is signed and short-lived, so it is NEVER frozen into a
+  report.** It is resolved at play time by `GET /api/ad-video`. The cover frame
+  IS baked in. Image permanent, playback best-effort — do not "improve" this by
+  storing the URL, it will 403 within hours.
+- **`/api/ad-video` must stay closed.** Two ways in only: an admin/session
+  caller, or `?report=<archive token>` where `adInSentReport()` confirms the ad
+  appears in one of THAT client's SENT reports. Anything looser makes it an open
+  proxy for arbitrary Meta video ids. Verified: no credential 401, forged token
+  404, missing ad 400.
+- **Some creatives can never be played, and that is not a bug.** Page
+  `100526684753365` carries one of Lucky's video ads and is not one of our six —
+  a creator/partner page. Every path here degrades to the cover image and a link
+  out rather than throwing.
+- **Inline image budget is 700KB total / 150KB per image.** The whole report is
+  ONE D1 row; full-resolution statics were on course to crowd out the numbers.
