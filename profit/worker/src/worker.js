@@ -27,6 +27,11 @@ const PROXY_PATHS = new Set([
   // the account-health worker (TW/Anthropic/Slack secrets + the crons).
   '/api/reports', '/api/report', '/api/report-generate', '/api/report-summary',
   '/api/report-send', '/api/report-link', '/api/brief-text', '/api/brief-draft',
+  /* The live creative browser. It reads `ad_daily` and calls Meta for the
+     creative assets, both of which belong to the account-health worker, but it
+     is rendered by index.html whose `api()` points HERE - so without this it
+     404s. That is exactly what shipped: "Couldn't load ads: not found". */
+  '/api/ads',
   // Playback for a creative card. Unauthenticated callers reach it only with
   // a report archive token, which the engine validates against that client's
   // own sent reports.

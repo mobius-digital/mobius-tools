@@ -1535,6 +1535,10 @@ document.addEventListener('click', e => {
    states how many were considered and how much spend is on screen, because a
    "top 8 by ROAS" that quietly dropped 90% of spend is a lie of omission. */
 const CB = { sort: 'spend', fmt: '', limit: 8 };
+/* Sorts that are a RATIO and therefore need a spend floor to mean anything.
+   Kept beside the UI as well as in the worker so the page can say which rule is
+   currently in force rather than leaving the reader to guess. */
+const RATIO_SORTS = new Set(['roas', 'cpa', 'ctr', 'cpm', 'hook', 'hold', 'completion', 'frequency']);
 const CB_SORTS = [
   ['spend', 'Spend'], ['roas', 'ROAS'], ['cpa', 'CPA'], ['purchases', 'Purchases'],
   ['hook', 'Hook rate'], ['hold', 'Hold rate'], ['ctr', 'CTR'], ['cpm', 'CPM'], ['newest', 'Newest'],
@@ -1608,9 +1612,9 @@ async function renderCreativeBrowser(host, act, range) {
     <p class="tiny" style="margin-top:4px">
       Showing <b>${d.ads.length}</b> of ${d.matched} ad${d.matched === 1 ? '' : 's'} ·
       <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} ad spend on screen.
-      ${['roas','cpa','ctr','cpm','hook','hold'].includes(CB.sort)
-        ? `Ratio sorts only rank ads that spent at least <b>${fmtK(d.floor, cur)}</b> — otherwise a single lucky conversion on a tiny budget tops the list.`
-        : ''}
+      ${RATIO_SORTS.has(CB.sort)
+        ? `<b>Minimum spend to be ranked: ${fmtMoney(d.floor, cur)}</b> — the larger of $50 or 3% of the ${fmtK(d.total_spend, cur)} spent in this window. Without a floor, one lucky conversion on a $12 ad tops every list.`
+        : `Every ad that spent is ranked. <span title="The larger of $50 or 3% of window spend">Sorting by a ratio (ROAS, CPA, hook…) applies a ${fmtMoney(d.floor, cur)} minimum spend</span>, so a tiny ad cannot win on one lucky conversion.`}
       ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
       <br>Hook and hold are judged against <b>Motion's published benchmarks</b> (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history.
       These are Meta-reported and match Ads Manager.</p>`;
