@@ -142,7 +142,13 @@
   .cl-it .note:hover{color:var(--ink)}
   .note-btn{font-size:11.5px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:7px;padding:5px 9px;white-space:nowrap}
   .note-btn:hover{color:var(--ink);border-color:var(--brand-ink);border-style:solid}
-  .modal-wrap{position:fixed;inset:0;background:rgba(12,22,29,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 0}
+  /* overflow-y is load-bearing: a modal taller than the viewport (the Add a brand
+     form on a phone, or any of the long help modals) had its footer buttons off
+     the bottom of a fixed, non-scrolling overlay - unreachable, with no scrollbar
+     to suggest there was more. Measured at 375x760: 640px of form under 12vh of
+     padding. Bottom padding keeps the last button clear of the edge. */
+  .modal-wrap{position:fixed;inset:0;background:rgba(12,22,29,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 24px;overflow-y:auto;overscroll-behavior:contain}
+  @media (max-height:820px){ .modal-wrap{padding-top:5vh} }
   .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;width:100%;max-width:460px;box-shadow:0 18px 50px rgba(12,22,29,.25)}
   .modal h3{font-size:15.5px;font-weight:700;margin-bottom:4px}
   .modal .hint{color:var(--muted);font-size:12.5px;margin-bottom:12px;line-height:1.5}
@@ -177,6 +183,15 @@
   .set-sec{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--ink-2);
     margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .set-sec:first-child{margin-top:4px}
+  /* Add-a-brand form. Labelled controls with an explanation under each, per the
+     standing rule that a control never appears without saying what it does. */
+  .ab-form{display:flex;flex-direction:column;gap:16px}
+  .ab-f label{display:block;font-weight:700;font-size:14px;margin-bottom:2px}
+  .ab-f .hint{margin:0 0 7px;font-size:12.5px;line-height:1.45}
+  .ab-f input[type=text],.ab-f select{width:100%;max-width:100%}
+  .ab-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .ab-two .tiny{display:block;margin-bottom:3px}
+  @media (max-width:520px){ .ab-two{grid-template-columns:1fr} }
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
   .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .strip{position:relative;height:30px}
@@ -776,6 +791,103 @@ function confirmModal(title, hint, cta) {
     w.addEventListener('mousedown', e => { if (e.target === w) done(false); });
     w.querySelector('[data-m="no"]').onclick = () => done(false);
     w.querySelector('[data-m="yes"]').onclick = () => done(true);
+  });
+}
+
+/* ---------- Add a brand ----------
+   Cole, 2026-08-30: "it's not really a track for new accounts, I just want to add
+   a new brand and it asks me questions - what's the brand name, what ad account,
+   what's the Triple Whale link". He is right. The old flow was a table of every
+   ad account the Meta login can see with a Tracked toggle on each: the shape of
+   the DATA, not the shape of the JOB. This asks the four questions instead.
+
+   A brand IS a Meta ad account here - `accounts.act_id` is the primary key - so
+   the ad account is chosen, never typed, and a client that runs no Meta ads
+   cannot be added at all. That is a schema constraint, not a UI one; the modal
+   says so rather than pretending otherwise.
+
+   Resolves to the chosen act_id on success, null if cancelled. */
+function addBrandModal(untracked, chList, onDiscover) {
+  return new Promise(resolve => {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    const chOpts = (sel) => Array.isArray(chList)
+      ? `<option value="">— none for now —</option>` + chList.map(c =>
+          `<option value="${esc(c.id)}"${c.id === sel ? ' selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')
+      : '';
+    const field = (label, help, control) => `<div class="ab-f">
+      <label>${label}</label><p class="hint">${help}</p>${control}</div>`;
+
+    w.innerHTML = `<div class="modal" style="max-width:520px"><h3>Add a brand</h3>
+      <p class="hint" style="margin-bottom:16px">Four questions. You can change any of it later.</p>
+      <div class="ab-form">
+        ${field('Which Meta ad account?',
+          untracked.length
+            ? 'Every brand is tied to one Meta ad account. Only accounts you are not already tracking are listed.'
+            : 'Every ad account your Meta login can reach is already being tracked.',
+          untracked.length
+            ? `<select id="abAct"><option value="">— choose an ad account —</option>${untracked.map(a =>
+                `<option value="${esc(a.act_id)}" data-name="${esc(a.name)}">${esc(a.name)} · ${esc(a.act_id)}</option>`).join('')}</select>`
+            : `<button class="btn" id="abDiscover">↻ Check Meta for new accounts</button>
+               <span class="tiny" id="abDiscMsg" style="margin-left:8px"></span>`)}
+        ${field('Brand name', 'What you want to call them everywhere in Locus. Meta account names are often messy — this is the one clients and reports see.',
+          `<input type="text" id="abName" placeholder="e.g. Bonk Golf">`)}
+        ${field('Triple Whale shop', 'Their Shopify domain as Triple Whale knows it. <b>Without this there are no revenue, MER or profit numbers at all</b> — only Meta ad data.',
+          `<input type="text" id="abShop" placeholder="name.myshopify.com">`)}
+        ${Array.isArray(chList) ? field('Slack channels <span class="tiny" style="font-weight:400">— optional</span>',
+          'Where reporting goes. <b>Internal</b> is your team’s: drafts and alerts. <b>Client</b> is theirs: only approved briefs and reports. You can leave both and set them later.',
+          `<div class="ab-two">
+             <div><span class="tiny">Internal</span><select id="abInt">${chOpts()}</select></div>
+             <div><span class="tiny">Client</span><select id="abCli">${chOpts()}</select></div>
+           </div>`) : ''}
+      </div>
+      <p class="tiny" id="abErr" style="color:var(--bad);min-height:16px;margin:10px 0 0"></p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:6px 0 0">
+        <button class="btn" data-m="no">Cancel</button>
+        <button class="btn primary" data-m="yes">Add brand</button></div></div>`;
+    document.body.appendChild(w);
+
+    const $$ = s => w.querySelector(s);
+    const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
+    const k = e => { if (e.key === 'Escape') done(null); };
+    document.addEventListener('keydown', k);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
+    $$('[data-m="no"]').onclick = () => done(null);
+
+    // Picking the account fills the name, because the Meta name is right often
+    // enough to save typing and wrong often enough to stay editable.
+    const actSel = $$('#abAct');
+    if (actSel) actSel.onchange = () => {
+      const n = actSel.selectedOptions[0]?.dataset.name || '';
+      const nameIn = $$('#abName');
+      if (n && !nameIn.dataset.touched) nameIn.value = n;
+    };
+    $$('#abName').oninput = e => { e.target.dataset.touched = '1'; };
+
+    const disc = $$('#abDiscover');
+    if (disc) disc.onclick = async () => {
+      disc.disabled = true; disc.textContent = 'Checking Meta…';
+      const found = await onDiscover();
+      done(null);
+      // Re-open with whatever Meta just returned, so the answer lands in the
+      // form rather than behind it.
+      addBrandModal(found.filter(a => !a.active), chList, onDiscover).then(resolve);
+    };
+
+    $$('[data-m="yes"]').onclick = async () => {
+      const err = $$('#abErr');
+      const act = actSel ? actSel.value : '';
+      const name = $$('#abName').value.trim();
+      const shop = $$('#abShop').value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      if (!act) return err.textContent = untracked.length ? 'Choose which Meta ad account this brand runs on.' : 'There is no untracked ad account to add. Check Meta for new ones first.';
+      if (!name) return err.textContent = 'Give the brand a name.';
+      if (shop && !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+        return err.textContent = 'The Triple Whale shop should look like name.myshopify.com';
+      }
+      const btn = $$('[data-m="yes"]'); btn.disabled = true; btn.textContent = 'Adding…';
+      err.textContent = '';
+      done({ act, name, shop, internal: $$('#abInt')?.value || '', client: $$('#abCli')?.value || '' });
+    };
   });
 }
 
@@ -3646,12 +3758,12 @@ async function renderSettings() {
       const off = list.filter(a => !a.active).length;
       holder.innerHTML = `<h3 class="set-sec">Clients</h3>
         <div class="card settings"><div class="row" style="margin-bottom:6px">
-        <h3 style="margin:0">Your clients</h3><span style="flex:1"></span>
-        <button class="btn" id="mtDiscover">↻ Check Meta for new accounts</button><span class="tiny" id="mtMsg"></span></div>
-        <p class="hint" style="margin-bottom:10px"><b>The table below IS the list of clients</b> — every ad account your Meta login can reach, whether you track it or not. <b>To add a client, find its row and switch <i>Tracked</i> on</b>, then type its Triple Whale shop domain, or none of the money numbers work. After that set its Slack channels further down, and agree a monthly number on the <b>Plan</b> tab.
-        ${one ? `<br><b>Only ${esc(one.name)} is shown.</b> Switch the picker top-right to <b>All clients</b> to see the rest.`
-        : off ? `<br><b>${off} account${off === 1 ? ' is' : 's are'} switched off</b> and not being tracked.`
-        : '<br>Every account is switched on. If a new client is missing, press <b>Check Meta for new accounts</b>.'}</p>
+        <h3 style="margin:0">Your brands</h3><span style="flex:1"></span>
+        <button class="btn primary" id="mtAdd">+ Add a brand</button><span class="tiny" id="mtMsg"></span></div>
+        <p class="hint" style="margin-bottom:10px">Every brand Locus reports on. <b>Press “+ Add a brand”</b> and it asks you the four things it needs: which Meta ad account, what to call them, their Triple Whale shop, and where their Slack reporting goes. Then agree a monthly number on the <b>Plan</b> tab.
+        ${one ? `<br><b>Only ${esc(one.name)} is shown.</b> Switch the picker top-right to <b>All brands</b>.`
+        : off ? `<br>${off} ad account${off === 1 ? '' : 's'} your Meta login can see ${off === 1 ? 'is' : 'are'} not set up as a brand. <a href="#" id="mtDiscover">Check Meta for new accounts</a>.`
+        : '<br>Every ad account your Meta login can see is already set up. <a href="#" id="mtDiscover">Check Meta for new accounts</a>.'}</p>
         <div class="tbl-wrap"><table>
           <thead><tr><th>Ad account</th><th title="Whether this account syncs and appears anywhere in Mobius">Tracked</th><th title="The client's Triple Whale shop domain. Every blended number - revenue, MER, contribution margin, the reports - depends on this.">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead>
           <tbody id="mtRows">${list.map(a => `<tr data-id="${a.act_id}">
@@ -3672,23 +3784,60 @@ async function renderSettings() {
          Paint FIRST, then write the message into the fresh DOM. And say what
          happened even when the answer is "nothing new", because on an account
          where every client is already on, that is the normal outcome. */
-      $('#mtDiscover').onclick = async () => {
-        const b = $('#mtDiscover');
+      /** Ask Meta which ad accounts this login can reach. Returns the fresh list
+       *  so a caller can act on it; repaints and reports either way. */
+      const discover = async () => {
         const before = new Set(accounts.map(a => a.act_id));
-        b.disabled = true; b.textContent = 'Checking Meta…';
         try {
           const r = await mApi('/api/discover', { method: 'POST' });
           const next = r.accounts || [];
           const added = next.filter(a => !before.has(a.act_id));
-          paint(next);                                  // replaces the card, #mtMsg included
+          // Paint FIRST, then write the message. The old handler did the reverse
+          // and paint() replaced the very span it had just written to, so a
+          // successful scan produced no visible change at all.
+          paint(next);
           const msg = $('#mtMsg');
           if (msg) msg.textContent = added.length
-            ? `${added.length} new: ${added.map(a => a.name).join(', ')} — switch it on below`
+            ? `${added.length} new ad account${added.length === 1 ? '' : 's'} found: ${added.map(a => a.name).join(', ')}`
             : `Nothing new — Meta returned the same ${next.length} account${next.length === 1 ? '' : 's'}`;
+          return next;
         } catch (e) {
-          b.disabled = false; b.textContent = '↻ Check Meta for new accounts';
           noteModal('Could not reach Meta', `<p>${esc(e.message)}</p>
             <p class="hint">This asks Meta which ad accounts your login can see. If it keeps failing, the Meta token may need reconnecting.</p>`);
+          return accounts;
+        }
+      };
+      const discLink = $('#mtDiscover');
+      if (discLink) discLink.onclick = e => { e.preventDefault(); discover(); };
+
+      $('#mtAdd').onclick = async () => {
+        const picked = await addBrandModal(accounts.filter(a => !a.active), chList, discover);
+        if (!picked) return;
+        const msg0 = $('#mtMsg'); if (msg0) msg0.textContent = `Adding ${picked.name}…`;
+        try {
+          // One call sets up the brand itself; channels are a separate table on
+          // the profit worker, so only call it when something was actually chosen.
+          await mApi(`/api/accounts/${picked.act}`, { method: 'PUT', body: JSON.stringify({
+            active: true, name: picked.name, ...(picked.shop ? { tw_shop: picked.shop } : {}),
+          }) });
+          if (picked.internal || picked.client) {
+            await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({
+              act: picked.act, slack_channel: picked.internal || null, brief_channel: picked.client || null,
+            }) });
+          }
+          const row = accounts.find(a => a.act_id === picked.act);
+          if (row) { row.active = true; row.name = picked.name; if (picked.shop) row.tw_shop = picked.shop; }
+          paint(accounts);
+          await refreshAccounts();
+          noteModal(`${picked.name} is set up`, `<p>Two things happen next, both on their own:</p>
+            <ul style="margin:8px 0 0;padding-left:18px;font-size:14px;line-height:1.55">
+              <li>Meta backfills <b>90 days</b> of ad history on the first sync.</li>
+              ${picked.shop ? '<li>Triple Whale starts filling in revenue, so profit numbers appear once it has synced.</li>'
+                            : '<li style="color:var(--bad)"><b>No Triple Whale shop was set</b>, so there will be no revenue, MER or profit for this brand until you add one in the table.</li>'}
+            </ul>
+            <p style="margin-top:12px">Then <b>agree a monthly number on the Plan tab</b> — the daily brief and both reports measure every day against it, so nothing can report until it exists.</p>`);
+        } catch (e) {
+          noteModal('Could not add the brand', `<p>${esc(e.message)}</p><p class="hint">Nothing was saved. Try again, or add it from the table below.</p>`);
         }
       };
       const rowAcct = el => accounts.find(x => x.act_id === el.closest('tr').dataset.id);
