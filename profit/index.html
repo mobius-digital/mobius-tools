@@ -231,6 +231,26 @@
      the bottom of a fixed, non-scrolling overlay - unreachable, with no scrollbar
      to suggest there was more. Measured at 375x760: 640px of form under 12vh of
      padding. Bottom padding keeps the last button clear of the edge. */
+  /* TOURS. The spotlight is one box with a huge outward shadow rather than an
+     SVG mask - it needs no second element, tracks a moving target cheaply, and
+     degrades to a plain dimmed overlay if the step has no element. */
+  .tour-wrap{position:fixed;inset:0;z-index:60}
+  .tour-spot{position:fixed;border-radius:10px;box-shadow:0 0 0 9999px rgba(12,22,29,.55);
+    border:2px solid var(--brand);pointer-events:none;transition:top .18s ease,left .18s ease,width .18s ease,height .18s ease}
+  .tour-box{position:fixed;z-index:61;background:var(--surface);border:1px solid var(--line-strong);
+    border-radius:var(--radius);box-shadow:0 18px 50px rgba(12,22,29,.3);padding:16px 18px;width:min(360px,calc(100vw - 24px))}
+  .tour-box h3{font-family:var(--serif);font-weight:400;font-size:18px;margin:2px 0 6px}
+  .tour-box p{font-size:14px;line-height:1.55;margin:0}
+  .tour-n{font-family:var(--sans);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .tour-btns{display:flex;align-items:center;gap:8px;margin-top:14px}
+  .tour-btns .btn[data-t="skip"]:empty{display:none}
+  /* The offer is a BAR, never a modal - an interruption you did not ask for is
+     what makes people hate product tours. */
+  .tour-offer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    background:var(--brand-soft);border:1px solid var(--brand);border-radius:var(--radius);
+    padding:11px 15px;margin-bottom:16px;font-size:13.5px}
+  .tour-offer .btn{padding:5px 11px;font-size:12.5px}
+  @media (prefers-reduced-motion:reduce){ .tour-spot{transition:none} }
   .modal-wrap{position:fixed;inset:0;background:rgba(12,22,29,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 24px;overflow-y:auto;overscroll-behavior:contain}
   @media (max-height:820px){ .modal-wrap{padding-top:5vh} }
   .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;width:100%;max-width:460px;box-shadow:0 18px 50px rgba(12,22,29,.25)}
@@ -303,7 +323,15 @@
   .bd-c input[type=text]:hover{border-color:var(--brand)}
   .bd-c input[type=text]:focus,.bd-c select:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
   .bd-c select{width:100%;max-width:300px;font-size:13px}
+  /* FOURTH time this trap has bitten. `.unit-in` draws the border and the %
+     suffix as ONE pill with a bare input inside it, so any rule that gives
+     `input[type=text]` its own border draws a box inside the box. The generic
+     rule above is (0,2,1) and `.unit-in input[type=text]` is also (0,2,1), so
+     the later one won. Must out-specify it, not merely repeat it. */
   .bd-c .unit-in{max-width:110px}
+  .bd-c .unit-in input[type=text]{border:none;border-radius:0;padding:6px 3px;background:transparent;width:100%;max-width:none}
+  .bd-c .unit-in input[type=text]:focus{border:none;box-shadow:none}
+  .bd-c .unit-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
   .bd-static{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .bd-danger .btn{border-color:var(--bad);color:var(--bad)}
   .bd-danger .btn:hover{background:var(--bad-bg)}
@@ -1244,6 +1272,218 @@ function pageHead(tab, title, extra) {
   return `<h2>${title}</h2><p class="sub">${TAB_PURPOSE[tab] || ''}${extra ? ` <span class="sub-x">${extra}</span>` : ''}</p>`;
 }
 
+/* ---------- Tours ----------
+   Cole asked for "a tour of the entire page, and every page has its own tour
+   you can redo". The condition that decides whether it works: a tour must
+   teach the JOB, not the features. Walking someone round pointing at controls
+   produces the same confusion as the 8,600 words of help text, only slower.
+
+   So the first-run tour never names a control - it answers "when do I open
+   what", which is the question that made this tool hard to explain. The
+   per-page tours are capped at five steps and each step says what to DO.
+
+   A step whose element is missing is SKIPPED, not shown against nothing:
+   these pages differ by state (no client selected, no report yet, a brand with
+   no Shopify), and a tour that points at empty space is worse than no tour. */
+const TOUR_SEEN = 'pf_tours_seen';
+const tourSeen = () => { try { return JSON.parse(localStorage.getItem(TOUR_SEEN)) || {}; } catch { return {}; } };
+const markTourSeen = k => { const s = tourSeen(); s[k] = 1; localStorage.setItem(TOUR_SEEN, JSON.stringify(s)); };
+
+const TOURS = {
+  start: { name: 'How Locus fits together', steps: [
+    { body: '<b>Locus answers three questions, on a rhythm.</b> You agree a number with the client once a month, you watch it every morning, and you report against it every week. The tabs are grouped that way — this takes about a minute.' },
+    { sel: '#tabs .grp:nth-of-type(3)', title: 'Once a month', body: 'On <b>Plan</b> you set next month’s revenue number with the client. <b>Customers</b> tells you what a new customer costs, which is what decides whether a bigger number is affordable. Everything else in Locus measures against what you set here.' },
+    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b> is which clients are making money. <b>Profit</b> is where one client’s money went. <b>Meta</b> is the ads behind it. They are in that order on purpose — it is a drill-down.' },
+    { sel: '#tabs .grp:nth-of-type(2)', title: 'What the client gets', body: 'The <b>Daily Brief</b> is a short morning update. <b>Reports</b> are the weekly and monthly documents you walk through on calls. Both draft to your internal Slack first — nothing reaches a client until you press send.' },
+    { sel: '#periodBar', title: 'What period am I looking at?', body: 'This bar is on every screen that shows data and always names the real dates. <b>Every window ends yesterday</b> — today is still settling on every source, so it is never included.' },
+    { sel: '.help-btn[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
+  ] },
+
+  overview: { name: 'The Overview', steps: [
+    { sel: '#main h2', title: 'Start here every morning', body: 'One row per client, showing what their business actually did — not what any ad platform claims.' },
+    { sel: '#main tbody tr', title: 'Contribution margin is the column that matters', body: 'It is what was left after product costs, fees <i>and</i> ad spend. A client can grow revenue and go backwards here.' },
+    { sel: '#periodBar', title: 'Change the window here', body: 'Yesterday, last 7, month to date, last month, or any custom range. The dates on the right are always the real ones.' },
+    { sel: '#main tbody tr', title: 'Click any client', body: 'That opens their Profit page — the full waterfall from revenue down to what was kept.' },
+  ] },
+
+  profit: { name: 'The Profit page', steps: [
+    { sel: '#main h2', title: 'Where one client’s money went', body: 'Store-level and blended: every sale from every source, minus every cost including all ad platforms.' },
+    { sel: '#main .card', title: 'Read the waterfall top to bottom', body: 'Revenue → product costs → fulfilment → fees → gross profit → ad spend → contribution margin. Each line is money leaving.' },
+    { sel: '#pfShare', title: 'The client can see this too', body: '<b>Client link</b> gives a read-only page with just their business on it — no other client, none of your internal workings.' },
+  ] },
+
+  plan: { name: 'Planning the month', steps: [
+    { sel: '#main h2', title: 'This is where the number gets set', body: 'Once a month, with the client, before the month starts. Every other tab reports against what you save here.' },
+    { sel: '#main .card', title: 'Type two, not three', body: '<b>Revenue = MER × spend.</b> Fill in any two and the third is arithmetic — the greyed one is the one being calculated. Press <b>calculate this instead</b> to move which.' },
+    { sel: '#main .card', title: 'Check the verdict line', body: 'Any plan implies a rate of buying new customers. Locus compares that with what this client has actually managed in the last 28 days and says whether the plan is achievable, a stretch, or unrealistic.' },
+    { sel: '#main .card', title: 'Then agree it', body: '<b>Client link</b> is a read-only page with just this plan on it, for the call. Flip <b>agreed</b> once they say yes — and changing the numbers afterwards clears that, so a plan cannot drift after sign-off.' },
+  ] },
+
+  brief: { name: 'The Daily Brief', steps: [
+    { sel: '#main h2', title: 'The client’s morning update', body: 'Yesterday against the plan, written as something a person would read. It drafts itself overnight.' },
+    { sel: '#main .card', title: 'The draft sits at the top', body: 'Read it as the client will see it. <b>Edit wording</b> to change anything — what you send is exactly what you approved, never a regenerated version.' },
+    { sel: '#main .card', title: 'Nothing sends itself', body: 'With review on, the brief waits for you every morning. <b>Send to client</b> posts it to their Slack channel and freezes it.' },
+  ] },
+
+  reports: { name: 'Reports', steps: [
+    { sel: '#main h2', title: 'The weekly and monthly review', body: 'A draft appears every Monday for last week, and on the 1st for last month. This is the document you walk through on calls.' },
+    { sel: '#main .card', title: 'Reports are frozen', body: 'The numbers are captured when the report is generated, so what you read on Monday is exactly what the client opens on Thursday. Once sent it can never change.' },
+    { sel: '#main .card', title: 'Edit the summary, then send', body: 'The written summary is yours to change. <b>Send to client</b> posts the headline numbers and their permanent archive link into their Slack.' },
+  ] },
+
+  customers: { name: 'The Customers page', steps: [
+    { sel: '#main h2', title: 'Can this client afford to spend more?', body: 'That is the whole question. Read this before you set a plan, not after.' },
+    { sel: '#main .card', title: 'Payback is the number', body: '<b>Above 1.0x</b> the client profits on the first order and can afford to bid harder for customers. Below it, the business depends on people coming back — which makes repeat share the number that has to hold up.' },
+  ] },
+
+  costs: { name: 'The Costs page', steps: [
+    { sel: '#main h2', title: 'Can we trust this client’s cost data?', body: 'Every profit figure in Locus rests on it, so when a cost warning appears anywhere, this is where you find out why.' },
+    { sel: '#main .card', title: 'Real cost data barely moves', body: 'A flat daily margin means the costs are trustworthy. Wild swings mean only some products have costs entered, which produces a confident and completely wrong profit number.' },
+    { sel: '#main .card', title: 'Two ways to fix it', body: 'Enter the missing product costs in Triple Whale — the real answer — or set a <b>flat margin</b> here, which is honest and stable but cannot tell you which products make money.' },
+  ] },
+
+  settings: { name: 'Settings', steps: [
+    { sel: '#brAdd', title: 'Adding a brand starts here', body: 'It asks the four things it needs: which Meta ad account, what to call them, their Triple Whale shop, and where their Slack reporting goes.' },
+    { sel: '.bd', title: 'One row per brand', body: 'Open a row and everything about that brand is in it — its store, both Slack channels, review-first, the daily brief, its margin. The line on the right tells you what is still missing.' },
+    { sel: '#teamCard', title: 'Who can sign in', body: 'Anyone on your domain already can. Invite anyone else by email — and make them a <b>Viewer</b> if they should watch the numbers without being able to send anything to a client.' },
+  ] },
+};
+
+const TOUR = { key: null, i: 0, steps: [] };
+
+function endTour() {
+  document.querySelectorAll('.tour-wrap').forEach(n => n.remove());
+  window.removeEventListener('resize', drawTour);
+  window.removeEventListener('scroll', drawTour, true);
+  document.removeEventListener('keydown', tourKeys);
+  TOUR.key = null;
+}
+function tourKeys(e) {
+  if (e.key === 'Escape') endTour();
+  else if (e.key === 'ArrowRight' || e.key === 'Enter') stepTour(1);
+  else if (e.key === 'ArrowLeft') stepTour(-1);
+}
+function stepTour(d) {
+  const n = TOUR.i + d;
+  if (n < 0) return;
+  if (n >= TOUR.steps.length) { markTourSeen(TOUR.key); return endTour(); }
+  TOUR.i = n; TOUR.scrolled = false; drawTour();
+}
+
+/** Paint the current step. Called again on resize and scroll so the spotlight
+ *  tracks the element rather than drifting off it. */
+function drawTour() {
+  if (!TOUR.key) return;
+  const s = TOUR.steps[TOUR.i];
+  let wrap = document.querySelector('.tour-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.className = 'tour-wrap';
+    wrap.innerHTML = '<div class="tour-spot"></div><div class="tour-box"></div>';
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', e => { if (e.target === wrap) endTour(); });
+  }
+  const spot = wrap.querySelector('.tour-spot'), box = wrap.querySelector('.tour-box');
+  const el = s.sel ? document.querySelector(s.sel) : null;
+
+  if (el) {
+    /* Bring it into view, ONCE per step, then measure again in the SAME pass.
+       An earlier version deferred the re-measure to requestAnimationFrame,
+       which does not fire at all in a background tab - the tour froze on step
+       one while the index climbed behind it. `behavior:'instant'` completes
+       synchronously, so there is nothing to wait for. Once-per-step also
+       matters on its own: an element pinned near the top of the page can never
+       satisfy `top >= 60`, so an unguarded check re-scrolls on every redraw. */
+    if (!TOUR.scrolled) {
+      TOUR.scrolled = true;
+      const r0 = el.getBoundingClientRect();
+      if (r0.top < 60 || r0.bottom > innerHeight - 60) el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
+    const r = el.getBoundingClientRect(), p = 8;
+    spot.style.cssText = `display:block;top:${r.top - p}px;left:${r.left - p}px;width:${r.width + p * 2}px;height:${r.height + p * 2}px`;
+  } else {
+    spot.style.display = 'none';
+  }
+
+  const last = TOUR.i === TOUR.steps.length - 1;
+  box.innerHTML = `<div class="tour-n">${TOUR.i + 1} of ${TOUR.steps.length}</div>
+    ${s.title ? `<h3>${s.title}</h3>` : ''}
+    <p>${s.body}</p>
+    <div class="tour-btns">
+      <button class="btn" data-t="skip">${last ? '' : 'Skip'}</button><span style="flex:1"></span>
+      ${TOUR.i ? '<button class="btn" data-t="back">Back</button>' : ''}
+      <button class="btn primary" data-t="next">${last ? 'Done' : 'Next'}</button>
+    </div>`;
+  box.querySelector('[data-t="next"]').onclick = () => stepTour(1);
+  const b = box.querySelector('[data-t="back"]'); if (b) b.onclick = () => stepTour(-1);
+  box.querySelector('[data-t="skip"]').onclick = () => { markTourSeen(TOUR.key); endTour(); };
+
+  // Position: under the element if it fits, above if not, centred with no element.
+  box.style.cssText = 'visibility:hidden;display:block';
+  const bw = box.offsetWidth, bh = box.offsetHeight;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    const below = r.bottom + 14 + bh < innerHeight;
+    const top = below ? r.bottom + 14 : Math.max(12, r.top - bh - 14);
+    let left = r.left + r.width / 2 - bw / 2;
+    left = Math.max(12, Math.min(left, innerWidth - bw - 12));
+    box.style.cssText = `top:${top}px;left:${left}px`;
+  } else {
+    box.style.cssText = `top:${Math.max(12, innerHeight / 2 - bh / 2)}px;left:${Math.max(12, innerWidth / 2 - bw / 2)}px`;
+  }
+}
+
+function startTour(key) {
+  const t = TOURS[key]; if (!t) return;
+  endTour();
+  // Drop steps whose element is not on screen for this state, rather than
+  // pointing the spotlight at nothing.
+  TOUR.steps = t.steps.filter(s => !s.sel || document.querySelector(s.sel));
+  if (!TOUR.steps.length) return;
+  TOUR.key = key; TOUR.i = 0; TOUR.scrolled = false;
+  window.addEventListener('resize', drawTour);
+  window.addEventListener('scroll', drawTour, true);
+  document.addEventListener('keydown', tourKeys);
+  drawTour();
+}
+
+/** Offer a tab's tour once, the first time it is opened. Never twice, and never
+ *  as a modal - an interruption you did not ask for is the thing everyone hates
+ *  about product tours. */
+function offerTour(tab) {
+  const key = TOURS[tab] ? tab : null;
+  if (!key || !S.tok) return;
+  const seen = tourSeen();
+  if (!seen.start) {                       // the cadence tour comes first, once
+    if (seen.startOffered) return;
+    localStorage.setItem(TOUR_SEEN, JSON.stringify({ ...seen, startOffered: 1 }));
+    const bar = document.createElement('div');
+    bar.className = 'tour-offer';
+    bar.innerHTML = `<span><b>First time here?</b> A one-minute tour of how Locus fits together.</span>
+      <button class="btn primary" data-t="go">Show me</button><button class="btn" data-t="no">No thanks</button>`;
+    $('#main').prepend(bar);
+    bar.querySelector('[data-t="go"]').onclick = () => { bar.remove(); startTour('start'); };
+    bar.querySelector('[data-t="no"]').onclick = () => { markTourSeen('start'); bar.remove(); };
+    return;
+  }
+  if (seen[key]) return;
+  markTourSeen(key);                        // offered once, whether or not taken
+  const bar = document.createElement('div');
+  bar.className = 'tour-offer';
+  bar.innerHTML = `<span>New to this page? <b>${esc(TOURS[key].name)}</b> in ${TOURS[key].steps.length} steps.</span>
+    <button class="btn primary" data-t="go">Show me</button><button class="btn" data-t="no">Dismiss</button>`;
+  $('#main').prepend(bar);
+  bar.querySelector('[data-t="go"]').onclick = () => { bar.remove(); startTour(key); };
+  bar.querySelector('[data-t="no"]').onclick = () => bar.remove();
+}
+
+/* "Show me" sits beside the help buttons on every page, and Settings carries the
+   full list so any tour can be replayed - Cole asked for exactly that. */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-tour]');
+  if (b) { e.preventDefault(); startTour(b.dataset.tour); }
+});
+
 /* ---------- Metrics glossary ----------
    Cole: "I don't understand what the metrics do." Every metric WAS defined -
    in 34 ⓘ icons and 62 hover tooltips, each in its own words, several of them
@@ -1579,7 +1819,10 @@ function show(tab) {
   if (!first) m.classList.add('busy');
   const done = () => m.classList.remove('busy');
   const r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings })[tab](first);
-  if (r && typeof r.then === 'function') r.then(done, done); else done();
+  // Offered AFTER the render, or the bar is prepended to a page that is about
+  // to be replaced wholesale by the renderer.
+  const after = () => { done(); offerTour(tab); };
+  if (r && typeof r.then === 'function') r.then(after, after); else after();
 }
 
 /* ---------- Meta ----------
@@ -1753,7 +1996,7 @@ function statCard(label, value, sub, info) {
 async function renderOverview() {
   const rows = S.act === 'all' ? S.accounts : S.accounts.filter(a => a.act_id === S.act);
   $('#main').innerHTML = `${pageHead('overview', 'Overview', 'Every channel, not just ads &mdash; MER and aMER are blended on both sides, so nothing is double-counted.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="overview">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="overview">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="overview">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num" title="Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as 'Net Sales + Shipping'. It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure 'Total Sales' and stores it as netSales; shipping is already inside it, so it is never added twice.">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
       <tbody>${rows.map(a => {
@@ -1837,7 +2080,7 @@ function renderProfitAll() {
   });
   const totalTrusted = ranked.filter(a => cmTrusted(a.cost_health) && a.window.cm != null);
   $('#main').innerHTML = `${pageHead('profit', 'Profit', 'Ranked by what each brand actually kept. Click a card for its full waterfall.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="profit">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
     ${totalTrusted.length < S.accounts.length ? `<div class="notice warn">ℹ️ <div><b>${S.accounts.length - totalTrusted.length} client${S.accounts.length - totalTrusted.length > 1 ? 's are' : ' is'} missing from the profit ranking</b> because their cost data can't be trusted. Revenue and efficiency still work for them — see the <b>Costs</b> tab.</div></div>` : ''}
     <div id="pfAllGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
       ${ranked.map(a => {
@@ -1985,7 +2228,7 @@ async function renderProfit(first) {
   const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
 
   $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, '<b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.')}
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-tour="profit">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
@@ -2079,7 +2322,7 @@ function marginSVG(rows) {
 async function renderCosts(first) {
   if (S.act === 'all') {
     $('#main').innerHTML = `${pageHead('costs', 'Costs', 'Product costs <i>and</i> delivery, per client.')}
-      <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
+      <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="costs">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfilment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfilment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
         <tbody>${S.accounts.map(a => { const h = a.cost_health, s = a.shipping; return `<tr data-id="${a.act_id}" style="cursor:pointer">
@@ -2112,7 +2355,7 @@ async function renderCosts(first) {
   const winSales = (d.rows || []).reduce((a, x) => a + (x.sales || 0), 0);
 
   $('#main').innerHTML = `${pageHead('costs', `Costs &mdash; ${esc(d.account.name)}`, 'Last 60 days of daily margin, which is what reveals whether the cost data holds up.')}
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span><button class="help-btn" data-tour="costs">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
     ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> — the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost — not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
       : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
       : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) — the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} — clear the override below to use it.`}</div></div>`
@@ -2301,7 +2544,7 @@ async function renderBrief(first) {
       <label class="tiny">day</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
       <button class="btn" id="bfTwSync">↻ Refresh Triple Whale data</button>
       <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet — hit refresh'}</span>
-      <span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="brief">? How to use</button>
+      <span style="flex:1"></span><button class="help-btn" data-tour="brief">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="brief">? How to use</button>
     </div>
     ${d.goals && d.goals_planned === false ? `<div class="notice warn">⚠️ <div><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure below is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so out loud. <button class="btn" id="bfToPlan2" style="margin-left:6px">Set ${esc(monthLabel(d.month))}'s plan</button></div></div>` : ''}
     ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
@@ -3106,7 +3349,7 @@ function wireAdCards(ads, cur, prevTag) {
 /** All-clients view: the latest weekly and monthly report per brand at a glance. */
 async function renderReportsAll(first) {
   const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically &mdash; Monday covers last Mon&ndash;Sun, the 1st covers last month. <b>Nothing reaches a client on its own.</b>')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="reports">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button></div>
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -3198,7 +3441,7 @@ async function renderReports(first) {
       <button class="btn" id="rpGenW">Generate last week</button>
       <button class="btn" id="rpGenM">Generate last month</button>
       <span class="tiny" id="rpGenMsg"></span>
-      <span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button>
+      <span style="flex:1"></span><button class="help-btn" data-tour="reports">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button>
     </div>
     ${chips ? `<div class="row" style="margin-bottom:12px">${chips}</div>` : ''}
     ${configCard}
@@ -3605,7 +3848,7 @@ async function renderPlan(first) {
     <div class="row" style="margin-bottom:14px;flex-wrap:wrap">
       ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
       <span id="plChip">${statusPill}</span>
-      <span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="plan">? How to use</button>
+      <span style="flex:1"></span><button class="help-btn" data-tour="plan">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="plan">? How to use</button>
     </div>
 
     ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
@@ -3940,7 +4183,7 @@ function cohortCard(co, cur) {
 
 async function renderCustomersAll() {
   $('#main').innerHTML = `${pageHead('customers', 'Customers', '<b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="customers">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
       <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer"><td><b>${esc(a.name)}</b></td>
@@ -3974,7 +4217,7 @@ async function renderCustomers(first) {
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const shell = body => `${pageHead('customers', `Customers &mdash; ${esc(acct?.name || '')}`, 'Not a true lifetime value &mdash; Triple Whale gives us no per-customer history.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="customers">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
@@ -4078,12 +4321,15 @@ async function renderSettings() {
   $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ' &mdash; ' + esc(one.name) : ''}`,
     one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
         : 'Everything about a brand lives in one place: open its row to set its Meta account, store, Slack channels and margin.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="settings">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="settings">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="settings">? How to use</button></div>
     <h3 class="set-sec">Brands</h3>
     <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
     <h3 class="set-sec">Team</h3>
     <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
     <h3 class="set-sec">Everything else</h3>
+    <div class="card"><h3 style="margin-bottom:6px">Guided tours</h3>
+      <p class="hint" style="margin-bottom:10px">Every page has a short walkthrough, and you can replay any of them here as often as you like. Each one is on the page itself under <b>Show me</b>.</p>
+      <div class="row" style="gap:6px;flex-wrap:wrap" id="tourList"></div></div>
     <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
       <p class="hint" style="margin-bottom:10px">When the brief posts each morning, for <b>every</b> brand with it switched on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
       <div class="row"><select id="btHour" style="max-width:190px"></select><span class="tiny" id="btMsg"></span></div></div>`;
@@ -4398,6 +4644,14 @@ async function renderSettings() {
     };
     try { paint(await mApi('/api/team')); }
     catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn’t load the team list: ${esc(e.message)}</span></div>`; }
+  })();
+
+  /* ---- replayable tours ---- */
+  (() => {
+    const host = $('#tourList'); if (!host) return;
+    host.innerHTML = Object.entries(TOURS).map(([k, t]) =>
+      `<button class="btn" data-tour="${k}">${esc(t.name)}</button>`).join('')
+      + '<span class="tiny" style="width:100%;margin-top:6px">The first one explains how the whole platform fits together — start there if you are showing someone else around.</span>';
   })();
 
   /* ---- global send time ---- */
