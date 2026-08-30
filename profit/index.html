@@ -267,6 +267,34 @@
   .set-sec{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--ink-2);
     margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .set-sec:first-child{margin-top:4px}
+  /* BRAND ROWS. One expandable row per brand holding everything about it,
+     replacing four tables organised by SYSTEM (every ad account, Shopify,
+     channels, costs) that made setting up one brand a tour of four places. */
+  .bd{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+  .bd[open]{border-color:var(--line-strong);box-shadow:0 2px 10px rgba(12,22,29,.05)}
+  .bd summary{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;
+    list-style:none;flex-wrap:wrap}
+  .bd summary::-webkit-details-marker{display:none}
+  .bd summary::before{content:'▸';color:var(--muted);font-size:12px;flex:none;transition:transform .12s ease}
+  .bd[open] summary::before{transform:rotate(90deg)}
+  .bd summary:hover{background:var(--bg)}
+  .bd-name{font-weight:700;font-size:15px}
+  .bd-sum{margin-left:auto;font-size:12.5px;text-align:right}
+  .bd-ok{color:var(--muted)}
+  .bd-warn{color:var(--warn);font-weight:600}
+  /* Two columns of fields on a wide screen, one on a narrow one. Each field
+     carries its own label AND a line saying what it does - the standing rule
+     that a control never appears without saying what it is for. */
+  .bd-body{border-top:1px solid var(--line);padding:16px 18px 18px;
+    display:grid;grid-template-columns:1fr 1fr;gap:16px 26px;background:var(--bg)}
+  .bd-f label{display:block;font-weight:700;font-size:13.5px;margin-bottom:2px}
+  .bd-f .hint{margin:0 0 7px;font-size:12px;line-height:1.45}
+  .bd-f input[type=text],.bd-f select{font-size:13px}
+  .bd-static{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .bd-danger{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px}
+  .bd-danger .btn{border-color:var(--bad);color:var(--bad)}
+  .bd-danger .btn:hover{background:var(--bad-bg)}
+  @media (max-width:760px){ .bd-body{grid-template-columns:1fr} .bd-sum{margin-left:0;width:100%;text-align:left} }
   /* Add-a-brand form. Labelled controls with an explanation under each, per the
      standing rule that a control never appears without saying what it does. */
   .ab-form{display:flex;flex-direction:column;gap:16px}
@@ -4002,278 +4030,335 @@ async function renderCustomers(first) {
 }
 
 /* ---------- Settings ---------- */
-/** Shopify connections: which client stores are connected, and the one link that
- *  connects a new one. This is the answer to "where do I add clients" - before it
- *  existed a store connected only if its domain happened to match `tw_shop`, with
- *  nothing on screen to say whether it had, or to fix it when it had not. */
-async function connectionsCard(run) {
-  let d;
-  try { d = await api('/api/connections'); }
-  catch (e) { return `<div class="card"><h3 style="margin-bottom:6px">Shopify connections</h3>
-    <p class="hint" style="margin-bottom:0">Could not load (${esc(e.message)}).</p></div>`; }
-  if (run !== RUN) return null;
 
-  const one = S.act === 'all' ? null : S.act;
-  const shown = one ? d.clients.filter(c => c.act_id === one) : d.clients;
+/* ---------- Settings ----------
+   REBUILT 2026-08-30, brand-first. Cole: "this shouldn't be set up by ad
+   account, this is set up by brand… it should just be all condensed into one
+   thing, not separate sections for each individual thing."
 
-  const pill = c => c.status === 'connected'
-    ? '<span class="pill good">Connected</span>'
-    : c.status === 'uninstalled'
-    ? '<span class="pill bad">Removed by client</span>'
-    : '<span class="pill">Not connected</span>';
+   It was four tables, one per SYSTEM: every ad account the Meta login can see
+   (25 of them once portfolio discovery landed, of which six are brands),
+   Shopify connections, Slack channels, and cost settings. Setting up one brand
+   meant visiting four tables and knowing which row was the same brand in each.
 
-  // What the connection actually BUYS them, per client - otherwise "connected" is a
-  // green dot with no meaning. Cohorts are the only thing that needs Shopify.
-  const gives = c => c.status !== 'connected'
-    ? '<span class="tiny">no lifetime-value cohorts</span>'
-    : c.cohort_months
-    ? `<span class="tiny">${c.cohort_months} cohort months${c.cohort_as_of ? ' &middot; as of ' + esc(String(c.cohort_as_of).slice(0, 10)) : ''}</span>`
-    : '<span class="tiny">connected, no cohort data pulled yet</span>';
+   Now: one expandable row per brand, holding everything about that brand. The
+   ad accounts you do NOT use never render at all - they exist only inside the
+   Add a brand picker, which is the one moment they are relevant.
 
-  const rows = shown.map(c => `<tr data-act="${esc(c.act_id)}">
-    <td><b>${esc(c.name)}</b>${c.active ? '' : ' <span class="tiny">(inactive)</span>'}<br>
-      <span class="tiny">${c.shop ? esc(c.shop) : 'no store domain on file'}</span></td>
-    <td>${pill(c)}${c.uninstalled_at ? `<br><span class="tiny">removed ${esc(String(c.uninstalled_at).slice(0, 10))}</span>` : ''}</td>
-    <td>${gives(c)}</td>
-    <td>${c.install_url
-      ? `<button class="btn" data-copy="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>`
-      : '<span class="tiny">set this client\'s Triple Whale shop in <b>Your clients</b> above first</span>'}
-      ${c.status === 'connected' ? `<button class="btn" data-sync="${esc(c.act_id)}" style="font-size:11.5px;padding:4px 8px;margin-left:4px">Sync cohorts</button>` : ''}
-      <span class="tiny" data-msg="${esc(c.act_id)}"></span></td>
-  </tr>`).join('');
-
-  // A store that installed but matched nothing is the one failure that is otherwise
-  // invisible: the merchant sees success, and the data goes nowhere.
-  const unmatched = d.unmatched.length ? `<div class="notice warn" style="margin-top:12px">&#9888;&#65039;
-    <div><b>${d.unmatched.length} connected ${d.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a client.</b>
-    ${d.unmatched.length === 1 ? 'Its data is being held but nothing reports on it until you point it' : 'Their data is being held but nothing reports on it until you point each one'} at a client.
-    <div style="margin-top:8px">${d.unmatched.map(u => `<div class="row" style="margin:4px 0;gap:8px">
-      <code style="font-size:12px">${esc(u.shop)}</code>
-      <select data-map="${esc(u.shop)}" style="max-width:200px"><option value="">&mdash; pick a client &mdash;</option>${
-        d.clients.map(c => `<option value="${esc(c.act_id)}">${esc(c.name)}</option>`).join('')}</select>
-      <span class="tiny" data-mapmsg="${esc(u.shop)}"></span></div>`).join('')}</div></div></div>` : '';
-
-  return `<div class="card"><h3 style="margin-bottom:2px">Shopify connections
-      <span class="info-i" title="Connecting a store lets us read its orders, customers and products directly. Triple Whale has no per-customer history, so this is the only way to get true lifetime value by cohort. Everything else on every tab works without it.">i</span></h3>
-    <p class="hint" style="margin-bottom:10px">The last step of adding a client, once they are switched on in <b>Your clients</b> above: <b>copy their install link below and send it to them</b>. They approve it once and it stays connected. Shopify is what powers the cohort figures on <b>Customers</b>; everything else works without it. ${one ? 'Switch the picker to <b>All clients</b> to see every brand.' : ''}</p>
-    ${d.app_configured ? '' : '<div class="notice warn">&#9888;&#65039; <div>The Shopify app is not configured on the server yet, so these links will not work.</div></div>'}
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th>Status</th><th>What it adds</th><th>Install link</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4"><span class="hint">No clients.</span></td></tr>'}</tbody></table></div>
-    ${unmatched}
-    <p class="tiny" style="margin-top:10px">The link opens Shopify\u2019s own permission screen on the client\u2019s store. We request read-only access to orders, customers, products and analytics, and never write anything back. If a client removes the app, this page says so \u2014 their cohort data stops updating but nothing else breaks.</p>
-  </div>`;
-}
-
+   A brand IS a Meta ad account here: `accounts.act_id` is the primary key. So
+   the linked account is shown and never edited - pointing a brand at a
+   different ad account would be a different brand - and that is stated rather
+   than left as a missing control. */
 async function renderSettings() {
   const run = ++RUN;
-  // Honour the client picker, exactly like every other tab: "All clients" lists
-  // everyone, a selected brand shows only that brand.
   const one = S.act === 'all' ? null : S.accounts.find(a => a.act_id === S.act);
-  const oneId = one ? one.act_id : null;
-  const shownRows = () => oneId ? S.accounts.filter(a => a.act_id === oneId) : S.accounts;
+  // meta.js owns its own closure and only has a token if the host hands it one.
+  // Doing this ONCE at the top, before anything calls it, is the fix for the
+  // Team card reporting "the Meta section was not given a sign-in token" -
+  // previously only the ad-accounts block set it, and it ran last.
+  if (window.MetaTab) window.MetaTab.setToken(S.tok);
+
   $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ' &mdash; ' + esc(one.name) : ''}`,
     one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
-        : 'One database behind the whole platform, so nothing here needs keeping in sync twice.')}
+        : 'Everything about a brand lives in one place: open its row to set its Meta account, store, Slack channels and margin.')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="settings">? How to use</button></div>
-    <div id="metaCard"><div class="card"><span class="hint">Loading clients\u2026</span></div></div>
-    <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
+    <h3 class="set-sec">Brands</h3>
+    <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
     <h3 class="set-sec">Team</h3>
     <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
-    <h3 class="set-sec">Where each client's reporting goes</h3>
-    <div class="card settings"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th title="Your team's channel. Drafts waiting for review land here, along with delivery alerts. Nothing here is seen by the client.">Internal channel</th><th title="The client's channel. Approved briefs and reports are sent here, and nothing else ever posts here.">Client channel</th><th title="On: the daily brief and both reports draft to your internal channel and wait for you to edit and send. Off: each one posts straight to the client on its own.">Review first</th><th title="Run the daily forecast-vs-actual brief for this brand each morning.">Daily brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
-      <tbody id="setRows"></tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved.
-      <b>Two channels per client, and one rule.</b> The <b>internal channel</b> is your team's: drafts waiting for review land there, along with delivery alerts. The <b>client channel</b> is theirs: an approved brief or report is sent there, and nothing else ever posts there.
-      With <b>review first</b> on, everything — daily brief, weekly report, monthly report — drafts to the internal channel and waits for you to read it, change the wording, and press send. Off, each one posts straight to the client on its own.
-      A client send never falls back to the internal channel: if the client channel is empty it stops and says so, rather than quietly posting to your team.</p></div>
     <h3 class="set-sec">Everything else</h3>
     <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
-      <p class="hint" style="margin-bottom:10px">${one ? '<b>Applies to all brands, not just ' + esc(one.name) + '.</b> ' : ''}When the brief posts each morning, for <b>every</b> brand with auto-post on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
-      <div class="row">
-        <select id="btHour" style="max-width:190px"></select>
-        <span class="tiny" id="btMsg"></span>
-      </div></div>`;
+      <p class="hint" style="margin-bottom:10px">When the brief posts each morning, for <b>every</b> brand with it switched on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
+      <div class="row"><select id="btHour" style="max-width:190px"></select><span class="tiny" id="btMsg"></span></div></div>`;
 
-  const tb = $('#setRows');
-  let chList = null;                       // null = loading, 'error' = list unavailable
-  /* The note line is ALWAYS rendered, empty or not. Appending a warning only
-     when it applies made that row taller than its neighbours and shunted the
-     dropdowns out of alignment — the warning was moving the thing it warned
-     about. Reserved space keeps every row identical. */
-  const chCell = (a, key, blank, note) => {
-    const control = Array.isArray(chList)
-      ? `<select data-k="${key}" style="max-width:168px"><option value="">${esc(blank)}</option>${chList.map(c =>
-          `<option value="${esc(c.id)}" ${a[key] === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite bot'}</option>`).join('')}</select>`
-      : chList === 'error'
-      ? `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID" style="width:140px">`
-      : `<span class="tiny">loading channels…</span>`;
-    return `${control}<span class="ch-note">${note ? `⚠ ${esc(note)}` : ''}</span>`;
+  /* ---- the shared lookups every brand row needs ---- */
+  const mApi = window.MetaTab ? window.MetaTab.api : null;
+  let chList = null, conns = null, metaAccts = [];
+  const [chRes, connRes, metaRes] = await Promise.allSettled([
+    api('/api/slack-channels'),
+    api('/api/connections'),
+    window.MetaTab ? window.MetaTab.ensureAccounts(true).then(() => window.MetaTab.accounts()) : Promise.resolve([]),
+  ]);
+  if (run !== RUN) return;
+  chList = chRes.status === 'fulfilled' ? (chRes.value.channels || []) : 'error';
+  conns = connRes.status === 'fulfilled' ? connRes.value : null;
+  metaAccts = metaRes.status === 'fulfilled' ? (metaRes.value || []) : [];
+
+  const metaOf = act => metaAccts.find(m => m.act_id === act) || {};
+  const connOf = act => (conns?.clients || []).find(c => c.act_id === act) || {};
+  const chName = id => (Array.isArray(chList) ? chList.find(c => c.id === id)?.name : null);
+
+  /* ---- one row per brand ---- */
+  const brands = () => (one ? S.accounts.filter(a => a.act_id === one.act_id) : S.accounts);
+
+  const chSelect = (a, key, blank) => Array.isArray(chList)
+    ? `<select data-k="${key}" style="width:100%;max-width:260px"><option value="">${esc(blank)}</option>${chList.map(c =>
+        `<option value="${esc(c.id)}" ${a[key] === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite the bot'}</option>`).join('')}</select>`
+    : `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID" style="width:100%;max-width:260px">`;
+
+  /* The collapsed line has to be worth reading on its own, or every row has to
+     be opened to find the one that needs attention. It names only what is
+     WRONG or missing; a fully configured brand says so in one word. */
+  const summary = a => {
+    const m = metaOf(a.act_id), c = connOf(a.act_id);
+    const bad = [];
+    if (!m.tw_shop) bad.push('no Triple Whale shop');
+    if (!a.slack_channel) bad.push('no internal channel');
+    if (!a.brief_channel) bad.push('no client channel');
+    else if (a.brief_channel === a.slack_channel) bad.push('client channel is your internal one');
+    if (c.status === 'uninstalled') bad.push('Shopify removed by client');
+    return bad.length
+      ? `<span class="bd-warn">⚠ ${esc(bad.join(' · '))}</span>`
+      : `<span class="bd-ok">Set up · ${a.brief_enabled ? 'brief on' : 'brief off'}${a.review_first ? ', reviewed first' : ''}${c.status === 'connected' ? ', Shopify connected' : ''}</span>`;
   };
 
-  const draw = () => {
-    tb.innerHTML = shownRows().map(a => `<tr data-id="${a.act_id}">
-      <td><b>${esc(a.name)}</b></td>
-      <td>${chCell(a, 'slack_channel', '— not set —', a.slack_channel ? '' : 'drafts and alerts have nowhere to go')}</td>
-      <td>${chCell(a, 'brief_channel', '— not set —',
-        !a.brief_channel ? 'nothing can be sent to this client'
-        : a.brief_channel === a.slack_channel ? 'same as internal — a client send would post to your team'
-        : '')}</td>
-      <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.review_first?'on':''}" data-k="review_first" title="On: everything drafts internally and waits for you. Off: everything sends itself to the client."></div><span class="tiny">${a.review_first?'review first':'sends itself'}</span></div></td>
-      <td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled?'on':''}" data-k="brief_enabled" title="${a.brief_enabled?'Running each morning':'Off'}"></div><span class="tiny">${a.brief_enabled?'on':'off'}${!(a.brief_channel||a.slack_channel)?' · needs a channel':''}</span></div></td>
-      <td><div class="unit-in" style="width:82px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct!=null?Math.round(a.margin_pct*100):''}" placeholder="auto"><span>%</span></div></td>
-      <td>${healthPill(a.cost_health)}</td>
-      <td><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430d</button> <span class="tiny" data-bf="${a.act_id}"></span></td>
-    </tr>`).join('');
+  const field = (label, help, control) => `<div class="bd-f"><label>${label}</label>${help ? `<p class="hint">${help}</p>` : ''}${control}</div>`;
+
+  const brandRow = a => {
+    const m = metaOf(a.act_id), c = connOf(a.act_id);
+    return `<details class="bd" data-act="${esc(a.act_id)}">
+      <summary><span class="bd-name">${esc(a.name)}</span>${healthPill(a.cost_health)}<span class="bd-sum">${summary(a)}</span></summary>
+      <div class="bd-body">
+        ${field('Meta ad account', 'A brand and its Meta ad account are the same record, so this cannot be repointed — a different ad account is a different brand.',
+          `<div class="bd-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
+            <button class="btn" data-k="sync" style="font-size:11.5px;padding:4px 8px;margin-left:8px">Sync now</button>
+            <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`)}
+        ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}" style="width:100%;max-width:260px">`)}
+        ${field('Triple Whale shop', '<b>Every money number depends on this</b> — revenue, MER, contribution margin, every report.',
+          `<input type="text" data-k="tw_shop" value="${esc(m.tw_shop || '')}" placeholder="name.myshopify.com" style="width:100%;max-width:260px">${m.tw_shop ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ without this the brand has no revenue at all</span>'}`)}
+        ${field('Internal Slack channel', 'Your team’s. Drafts waiting for review land here, along with delivery alerts. A client never sees it.', chSelect(a, 'slack_channel', '— not set —'))}
+        ${field('Client Slack channel', 'Theirs. An approved brief or report is sent here and nothing else ever is.',
+          chSelect(a, 'brief_channel', '— not set —') + (a.brief_channel && a.brief_channel === a.slack_channel
+            ? '<br><span class="tiny" style="color:var(--warn)">⚠ this is the same as the internal channel, so reviewing before sending achieves nothing</span>' : ''))}
+        ${field('Review before sending', 'On: the daily brief and both reports draft to your internal channel and wait for you. Off: each one posts straight to the client on its own.',
+          `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.review_first ? 'on' : ''}" data-k="review_first"></div><span class="tiny">${a.review_first ? 'reviewed first' : 'sends itself'}</span></div>`)}
+        ${field('Daily brief', 'The morning forecast-vs-actual update. Needs a channel and a plan before it can run.',
+          `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled ? 'on' : ''}" data-k="brief_enabled"></div><span class="tiny">${a.brief_enabled ? 'running each morning' : 'off'}</span></div>`)}
+        ${field('Margin override', 'One flat margin instead of per-product costs. Leave blank to use the real Triple Whale costs.',
+          `<div class="unit-in" style="width:92px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct != null ? Math.round(a.margin_pct * 100) : ''}" placeholder="auto"><span>%</span></div>`)}
+        ${field('Shopify', 'Only powers the lifetime-value cohorts on <b>Customers</b>. Everything else works without it.',
+          `<div class="bd-static">${c.status === 'connected' ? '<span class="pill good">Connected</span>' : c.status === 'uninstalled' ? '<span class="pill bad">Removed by client</span>' : '<span class="pill">Not connected</span>'}
+            ${c.install_url ? `<button class="btn" data-k="copy" data-url="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px;margin-left:8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>` : ''}
+            ${c.status === 'connected' ? '<button class="btn" data-k="cohorts" style="font-size:11.5px;padding:4px 8px;margin-left:4px">Sync cohorts</button>' : ''}
+            <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}
+        ${field('Triple Whale history', 'Re-pulls this brand’s full history. Needed once so sales tax is on record for every month. Run one brand at a time.',
+          `<div class="bd-static"><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
+        <div class="bd-f bd-danger">${field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted — switch it back on any time from Add a brand.',
+          `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`)}</div>
+      </div></details>`;
   };
-  draw();
 
-  const flash = el => { const t = el.closest('.unit-in') || el; t.classList.add('flash-saved'); setTimeout(() => t.classList.remove('flash-saved'), 1300); };
+  const list = $('#brandList');
+  const drawBrands = () => {
+    const rows = brands();
+    list.innerHTML = `<div class="row" style="margin:0 0 10px"><span class="tiny">${rows.length} brand${rows.length === 1 ? '' : 's'}${one ? '' : ' · open a row to change anything about it'}
+        &nbsp;·&nbsp; <a href="#" id="brWhy">Why don’t I see all my ad accounts?</a></span>
+        <span style="flex:1"></span><button class="btn primary" id="brAdd">+ Add a brand</button><span class="tiny" id="brMsg"></span></div>
+      <div id="brAccess"></div>
+      ${rows.map(brandRow).join('') || '<div class="card"><span class="hint">No brands yet — press <b>+ Add a brand</b>.</span></div>'}
+      ${conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px">⚠️<div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
+        The data is being held but nothing reports on it until you point it at one.
+        <div style="margin-top:8px">${conns.unmatched.map(u => `<div class="row" style="margin:4px 0;gap:8px"><code style="font-size:12px">${esc(u.shop)}</code>
+          <select data-map="${esc(u.shop)}" style="max-width:200px"><option value="">— pick a brand —</option>${rows.map(b => `<option value="${esc(b.act_id)}">${esc(b.name)}</option>`).join('')}</select>
+          <span class="tiny" data-mapmsg="${esc(u.shop)}"></span></div>`).join('')}</div></div></div>` : ''}`;
+    wire();
+  };
 
-  tb.addEventListener('click', async e => {
-    // The label counts as part of the switch - a 38x22 pill is a small target
-    // in a table this wide, and clicking the words next to it did nothing.
-    const grp = e.target.closest('.tgl');
-    const tg = e.target.closest('.toggle') || (grp ? grp.querySelector('.toggle') : null);
-    if (!tg) return;
-    const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
-    if (!a) return;
-    const on = !tg.classList.contains('on');
-    if (tg.dataset.k === 'review_first') {
-      if (!on && !(await confirmModal('Let this brand send itself?',
-        `Every daily brief and every weekly and monthly report for ${a.name} will post straight to the client with nobody reading it first.`,
-        'Send without review'))) return;
-      tg.classList.toggle('on', on);
-      try { await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, review_first: on }) }); a.review_first = on; draw(); refreshAccounts(); }
-      catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); tg.classList.toggle('on', !on); }
-      return;
-    }
-    if (on && !(a.brief_channel || a.slack_channel)) {
-      return noteModal('This brand has nowhere to post', `<p>Pick a <b>Daily Brief channel</b> for ${esc(a.name)} first — the brief needs somewhere to go.</p>`);
-    }
-    if (on && !a.goals) {
-      return noteModal('This brand has no plan yet', `<p>Set ${esc(a.name)}’s monthly goals on the <b>Plan</b> tab first. The brief compares every number to a plan, so it needs one before it can say anything useful.</p>`);
-    }
-    if (on && !a.brief_channel) {
-      const ok = await confirmModal('Post the client brief to an internal channel?',
-        `No Daily Brief channel is set for ${a.name}, so it will fall back to the internal alerts channel. The brief is written for the client, so they would never see it. Set a client channel instead?`,
-        'Post internally anyway');
-      if (!ok) return;
-    }
-    tg.classList.toggle('on', on);
-    try { await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, brief_enabled: on }) }); a.brief_enabled = on; draw(); }
-    catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); tg.classList.toggle('on', !on); }
-  });
+  /* One delegated listener on the LIST, which every redraw replaces - never on
+     #main, which survives and would stack a copy per visit. */
+  function wire() {
+    const acctOf = el => S.accounts.find(x => x.act_id === el.closest('[data-act]')?.dataset.act);
+    const msg = (el, sel, t) => { const m = el.closest('.bd')?.querySelector(sel); if (m) m.textContent = t; };
+    const flash = el => { const t = el.closest('.unit-in') || el; t.classList.add('flash-saved'); setTimeout(() => t.classList.remove('flash-saved'), 1300); };
+    const saveClient = (a, body) => api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, ...body }) });
+    const saveMeta = (a, body) => mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify(body) });
 
-  tb.addEventListener('change', async e => {
-    const k = e.target.dataset.k; if (!k) return;
-    const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
-    try {
-      if (k === 'margin') {
+    list.querySelectorAll('.bd').forEach(row => {
+      const a = S.accounts.find(x => x.act_id === row.dataset.act); if (!a) return;
+      const m = metaOf(a.act_id);
+      const q = k => row.querySelector(`[data-k="${k}"]`);
+
+      q('name').onchange = async e => {
+        const v = e.target.value.trim(); if (!v) return;
+        try { await saveMeta(a, { name: v }); a.name = v; m.name = v; flash(e.target); row.querySelector('.bd-name').textContent = v; await refreshAccounts(); }
+        catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+      };
+      q('tw_shop').onchange = async e => {
+        const v = e.target.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        e.target.value = v;
+        try { await saveMeta(a, { tw_shop: v }); m.tw_shop = v; flash(e.target); }
+        catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+      };
+      ['slack_channel', 'brief_channel'].forEach(k => { const el = q(k); if (el) el.onchange = async () => {
+        try { await saveClient(a, { [k]: el.value || null }); a[k] = el.value || null; flash(el); drawBrands(); await refreshAccounts(); }
+        catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+      }; });
+      q('margin').onchange = async e => {
         const raw = e.target.value.replace(/[^0-9.]/g, '');
         const pct = raw === '' ? null : +raw / 100;
-        if (pct != null && !(pct > 0 && pct < 1)) {
-          return noteModal('That margin looks wrong', '<p>Enter a margin between <b>1</b> and <b>99</b> percent, or leave it blank to use the real per-product costs from Triple Whale.</p>');
+        if (pct != null && !(pct > 0 && pct < 1)) return noteModal('That margin looks wrong', '<p>Enter a margin between <b>1</b> and <b>99</b> percent, or leave it blank to use the real per-product costs.</p>');
+        try { const r = await api('/api/margin', { method: 'PUT', body: JSON.stringify({ act: a.act_id, margin_pct: pct }) });
+          a.margin_pct = pct; if (r.cost_health) a.cost_health = r.cost_health; flash(e.target); drawBrands(); await refreshAccounts(); }
+        catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+      };
+      row.querySelectorAll('.tgl').forEach(g => g.onclick = async () => {
+        const tg = g.querySelector('.toggle'), k = tg.dataset.k, on = !tg.classList.contains('on');
+        if (k === 'review_first' && !on && !(await confirmModal('Let this brand send itself?',
+          `Every daily brief and every weekly and monthly report for ${a.name} will post straight to the client with nobody reading it first.`, 'Send without review'))) return;
+        if (k === 'brief_enabled' && on) {
+          if (!(a.brief_channel || a.slack_channel)) return noteModal('Nowhere to post', `<p>Pick a Slack channel for ${esc(a.name)} first.</p>`);
+          if (!a.goals) return noteModal('No plan yet', `<p>Set ${esc(a.name)}’s monthly number on the <b>Plan</b> tab first. The brief compares every day to a plan, so it needs one.</p>`);
         }
-        const mr = await api('/api/margin', { method:'PUT', body: JSON.stringify({ act: a.act_id, margin_pct: pct }) });
-        a.margin_pct = pct;
-        // The route re-grades cost health and returns the new verdict, so the
-        // pill can update without another round trip.
-        if (mr?.verdict) a.cost_health = { ...(a.cost_health || {}), verdict: mr.verdict };
-      } else {
-        await api('/api/client-settings', { method:'PUT', body: JSON.stringify({ act: a.act_id, [k]: e.target.value }) });
-        a[k] = e.target.value || null;
-      }
-      flash(e.target);
-      // Saving used to re-run boot() and repaint the whole tab, which reads as
-      // the page hanging on every dropdown. The value is already persisted and
-      // S.accounts is already updated, so redraw the table locally - instant,
-      // no spinner - and refresh the shared snapshot in the background for the
-      // other tabs. Nothing is ever left unsaved, so there is no state to warn
-      // about on leaving.
-      draw();
-      refreshAccounts();
-    } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
-  });
+        try { await saveClient(a, { [k]: on }); a[k] = on; drawBrands(); await refreshAccounts(); }
+        catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+      });
+      q('sync').onclick = async e => {
+        e.target.disabled = true; msg(e.target, '[data-k="syncmsg"]', 'syncing…');
+        try { const r = await mApi(`/api/sync?act=${a.act_id}`, { method: 'POST' }); msg(e.target, '[data-k="syncmsg"]', r.result?.error || 'done ✓'); }
+        catch (err) { msg(e.target, '[data-k="syncmsg"]', err.message); }
+        e.target.disabled = false;
+      };
+      const cp = q('copy');
+      if (cp) cp.onclick = async e => {
+        try { await navigator.clipboard.writeText(e.target.dataset.url); msg(e.target, '[data-k="shopmsg"]', 'copied ✓'); }
+        catch { noteModal('Copy the install link', `<p>Send this to the client:</p><p><code style="font-size:12px;word-break:break-all">${esc(e.target.dataset.url)}</code></p>`); }
+      };
+      const co = q('cohorts');
+      if (co) co.onclick = async e => {
+        e.target.disabled = true; msg(e.target, '[data-k="shopmsg"]', 'pulling from Shopify…');
+        try { const r = await api(`/api/cohort-sync?act=${encodeURIComponent(a.act_id)}`, { method: 'POST' });
+          const x = (r.results && r.results[0]) || {};
+          msg(e.target, '[data-k="shopmsg"]', x.error || x.skipped || `✓ ${x.months} cohort months`); }
+        catch (err) { msg(e.target, '[data-k="shopmsg"]', err.message); }
+        e.target.disabled = false;
+      };
+      q('backfill').onclick = async e => {
+        e.target.disabled = true; msg(e.target, '[data-k="bfmsg"]', 'pulling 430 days…');
+        try { const r = await api(`/api/tw-sync?act=${a.act_id}&days=430`, { method: 'POST' });
+          const x = r.results?.[0] || {};
+          msg(e.target, '[data-k="bfmsg"]', x.ok ? `✓ ${x.metrics} metrics, ${x.from} → ${x.to}` : (x.error || x.skipped || 'done'));
+          if (x.ok) await refreshAccounts(); }
+        catch (err) { msg(e.target, '[data-k="bfmsg"]', err.message); }
+        e.target.disabled = false;
+      };
+      q('off').onclick = async () => {
+        if (!(await confirmModal(`Stop tracking ${a.name}?`,
+          'It disappears from every tab and stops syncing. Nothing is deleted, and you can switch it back on from Add a brand.', 'Stop tracking'))) return;
+        try { await saveMeta(a, { active: false }); const mm = metaOf(a.act_id); if (mm) mm.active = false;
+          await refreshAccounts(); await inPlace(async () => { await boot(); show('settings'); }); }
+        catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
+      };
+    });
 
-  // Send time
-  (async () => {
-    const sel = $('#btHour'); if (!sel) return;
-    const h = await loadBriefTime();
-    if (run !== RUN) return;
-    sel.innerHTML = Array.from({ length: 24 }, (_, i) => `<option value="${i}" ${i === h ? 'selected' : ''}>${esc(hourLabel(i))}</option>`).join('');
-    if (h == null) { $('#btMsg').textContent = 'could not load the current time'; return; }
-    sel.onchange = async () => {
-      $('#btMsg').textContent = 'Saving…';
+    list.querySelectorAll('[data-map]').forEach(sel => sel.onchange = async () => {
+      const shop = sel.dataset.map, el = list.querySelector(`[data-mapmsg="${CSS.escape(shop)}"]`);
+      if (!sel.value) return;
+      if (el) el.textContent = 'linking…';
+      try { await api('/api/connections/map', { method: 'POST', body: JSON.stringify({ shop, act: sel.value }) });
+        if (el) el.textContent = 'linked ✓';
+        conns = await api('/api/connections').catch(() => conns);
+        drawBrands(); }
+      catch (err) { if (el) el.textContent = err.message; }
+    });
+
+    /* "I can't see all my ad accounts" has several causes that look identical
+       from here. Ask the worker which one it is instead of writing copy that
+       guesses - that guessing cost two wrong instructions before. */
+    const why = $('#brWhy');
+    if (why) why.onclick = async e => {
+      e.preventDefault();
+      const box = $('#brAccess');
+      box.innerHTML = '<p class="hint">Asking Meta what this token can reach…</p>';
       try {
-        const r = await api('/api/brief-time', { method: 'PUT', body: JSON.stringify({ hour: +sel.value }) });
-        BT.hour = r.hour;
-        $('#btMsg').textContent = `Saved ✓ — briefs post at ${hourLabel(r.hour)}`;
-      } catch (e) { $('#btMsg').textContent = e.message; }
+        const d = await mApi('/api/meta-access');
+        const ok = d.businesses.length > 0 && !d.needsBusinessId;
+        box.innerHTML = `<div class="notice ${ok ? '' : 'warn'}" style="margin:0 0 12px">${ok ? '✓' : '⚠️'}<div>
+          <b>${esc(d.verdict)}</b>
+          <p class="tiny" style="margin:8px 0 0">Token: ${esc(d.token?.type || 'unknown')}${d.token?.never_expires ? ', never expires' : ''} ·
+          Permissions: ${d.scopes.length ? esc(d.scopes.join(', ')) : 'none reported'} ·
+          Directly assigned: ${d.direct ?? '—'} · Portfolios reachable: ${d.businesses.length}</p>
+          ${d.errors.length ? `<p class="tiny" style="margin:4px 0 0;color:var(--bad)">${d.errors.map(x => esc(x.at + ': ' + x.error)).join(' · ')}</p>` : ''}
+          ${!d.needsBusinessId ? '' : `<div style="margin:12px 0 0">
+            <p style="margin:0 0 8px;font-size:13.5px">Paste your <b>Business portfolio ID</b> from
+            <a href="https://business.facebook.com/settings/info" target="_blank" rel="noopener">Business Settings → Business info</a>.
+            Once set, every account a client shares with you — including future clients — is found automatically.</p>
+            <div class="row" style="gap:8px;margin:0"><input type="text" id="mbId" placeholder="e.g. 1234567890123456" style="width:220px" inputmode="numeric">
+            <button class="btn primary" id="mbSave">Save</button><span class="tiny" id="mbMsg"></span></div></div>`}
+        </div></div>`;
+        const sv = $('#mbSave');
+        if (sv) sv.onclick = async () => {
+          const idv = $('#mbId').value.trim(), msg2 = $('#mbMsg');
+          sv.disabled = true; msg2.textContent = 'Checking with Meta…';
+          try {
+            const r = await mApi('/api/meta-business', { method: 'PUT', body: JSON.stringify({ id: idv }) });
+            msg2.textContent = `Saved: ${r.name} — finding accounts…`;
+            const dr = await mApi('/api/discover', { method: 'POST' });
+            metaAccts = dr.accounts || metaAccts;
+            msg2.textContent = `${r.name}: ${metaAccts.length} ad accounts now visible`;
+          } catch (err) { sv.disabled = false; msg2.textContent = err.message; }
+        };
+      } catch (err) { box.innerHTML = `<div class="notice warn" style="margin:0 0 12px">⚠️<div>Couldn’t check: ${esc(err.message)}</div></div>`; }
     };
-  })();
 
-  // Per-client Triple Whale backfill. ONE CLIENT AT A TIME on purpose: a 430-day
-  // pull is ~25-50k rows and every D1 batch is a subrequest, so running all six in
-  // one invocation blows the Worker limit.
-  tb.addEventListener('click', async e => {
-    const b = e.target.closest('[data-k="backfill"]'); if (!b) return;
-    const tr = e.target.closest('tr'); const a = S.accounts.find(x => x.act_id === tr.dataset.id);
-    if (!a) return;
-    const msg = $(`[data-bf="${a.act_id}"]`);
-    b.disabled = true; msg.textContent = 'pulling 430 days…';
-    try {
-      const r = await api(`/api/tw-sync?act=${a.act_id}&days=430`, { method: 'POST' });
-      const x = (r.results && r.results[0]) || {};
-      msg.textContent = x.ok ? `✓ ${x.metrics} metrics, ${x.from} → ${x.to}` : (x.error || x.skipped || 'done');
-      if (x.ok) await refreshAccounts();   // the numbers behind every other tab just changed
-    } catch (err) { msg.textContent = err.message; }
-    b.disabled = false;
-  });
+    const add = $('#brAdd');
+    if (add) add.onclick = async () => {
+      const untracked = metaAccts.filter(x => !x.active);
+      const picked = await addBrandModal(untracked, chList, async () => {
+        try { const r = await mApi('/api/discover', { method: 'POST' }); metaAccts = r.accounts || metaAccts; return metaAccts; }
+        catch (e) { noteModal('Could not reach Meta', `<p>${esc(e.message)}</p>`); return metaAccts; }
+      }, metaAccts.length);
+      if (!picked) return;
+      const bm = $('#brMsg'); if (bm) bm.textContent = `Adding ${picked.name}…`;
+      try {
+        await mApi(`/api/accounts/${picked.act}`, { method: 'PUT', body: JSON.stringify({
+          active: true, name: picked.name, ...(picked.shop ? { tw_shop: picked.shop } : {}) }) });
+        if (picked.internal || picked.client) {
+          await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({
+            act: picked.act, slack_channel: picked.internal || null, brief_channel: picked.client || null }) });
+        }
+        await refreshAccounts();
+        await inPlace(async () => { await boot(); show('settings'); });
+        noteModal(`${picked.name} is set up`, `<p>Two things happen on their own from here:</p>
+          <ul style="margin:8px 0 0;padding-left:18px;font-size:14px;line-height:1.55">
+            <li>Meta backfills <b>90 days</b> of ad history on the first sync.</li>
+            ${picked.shop ? '<li>Triple Whale starts filling in revenue, so profit numbers appear once it has synced.</li>'
+                          : '<li style="color:var(--bad)"><b>No Triple Whale shop was set</b>, so this brand has no revenue, MER or profit until you add one in its row.</li>'}
+          </ul>
+          <p style="margin-top:12px">Then <b>agree a monthly number on the Plan tab</b> — the daily brief and both reports measure every day against it.</p>`);
+      } catch (e) {
+        if (bm) bm.textContent = '';
+        noteModal('Could not add the brand', `<p>${esc(e.message)}</p><p class="hint">Nothing was saved.</p>`);
+      }
+    };
+  }
+  drawBrands();
 
-  /* ---- Team ----
-     `allowedEmails` was read by both workers on every sign-in and written by
-     NOTHING: adding a collaborator from outside the Mobius domain meant editing
-     D1 by hand, and nothing on screen said that anyone on the domain was
-     admitted automatically. Worse, every person who could sign in was a full
-     admin who could press "Send to client" into a real client's Slack. */
+  /* ---- Team ---- */
   (async () => {
-    const host = $('#teamCard'); if (!host || !window.MetaTab) return;
-    const mApi = window.MetaTab.api;
+    const host = $('#teamCard'); if (!host || !mApi) return;
     const paint = d => {
-      const rows = d.members.map(m => `<tr data-e="${esc(m.email)}">
-        <td><b>${esc(m.email)}</b>${m.email === d.you ? ' <span class="tiny">(you)</span>' : ''}
-          <br><span class="tiny">${m.guest ? 'Invited guest' : 'On your domain'}</span></td>
-        <td><select data-k="role" style="max-width:150px">
-          <option value="admin"${m.role === 'admin' ? ' selected' : ''}>Admin — can change things</option>
-          <option value="viewer"${m.role === 'viewer' ? ' selected' : ''}>Viewer — read only</option>
-        </select></td>
-        <td>${m.email === d.you ? '<span class="tiny">—</span>'
-          : `<button class="btn" data-k="remove" style="font-size:11.5px;padding:4px 8px">Remove</button>`}
+      const rows = d.members.map(mm => `<tr data-e="${esc(mm.email)}">
+        <td><b>${esc(mm.email)}</b>${mm.email === d.you ? ' <span class="tiny">(you)</span>' : ''}<br><span class="tiny">${mm.guest ? 'Invited guest' : 'On your domain'}</span></td>
+        <td><select data-k="role" style="max-width:170px">
+          <option value="admin"${mm.role === 'admin' ? ' selected' : ''}>Admin — can change things</option>
+          <option value="viewer"${mm.role === 'viewer' ? ' selected' : ''}>Viewer — read only</option></select></td>
+        <td>${mm.email === d.you ? '<span class="tiny">—</span>' : '<button class="btn" data-k="remove" style="font-size:11.5px;padding:4px 8px">Remove</button>'}
           <span class="tiny" data-msg></span></td></tr>`).join('');
       host.innerHTML = `<div class="card settings">
-        <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Who can sign in</h3></div>
-        <p class="hint" style="margin-bottom:10px"><b>Anyone with an @${esc(d.domain)} email can already sign in</b> — they do not need inviting, and by default they are an admin.
-        Invite anyone else by email below. <b>Admins can change anything</b>, including sending a report into a client's Slack.
-        <b>Viewers see every screen and can press nothing that leaves the building</b> — no sending, no plan changes, no settings. Use Viewer for a client, a contractor, or anyone you want watching the numbers without being able to move them.</p>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Person</th><th>Can they change things?</th><th></th></tr></thead>
-          <tbody id="teamRows">${rows || '<tr><td colspan="3" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody>
-        </table></div>
+        <p class="hint" style="margin:0 0 10px"><b>Anyone with an @${esc(d.domain)} email can already sign in</b> — no invite needed, and they are an admin by default. Invite anyone else below.
+        <b>Admins can change anything</b>, including sending a report into a client’s Slack. <b>Viewers see every screen and can press nothing that leaves the building</b> — use it for a client, a contractor, or anyone who should watch the numbers without moving them.</p>
+        <div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Can they change things?</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="3" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody></table></div>
         <div class="row" style="margin-top:12px;gap:8px">
           <input type="text" id="tmEmail" placeholder="name@example.com" style="width:230px">
-          <select id="tmRole" style="max-width:150px"><option value="viewer">Viewer — read only</option><option value="admin">Admin — can change things</option></select>
-          <button class="btn primary" id="tmAdd">Invite</button><span class="tiny" id="tmMsg"></span>
-        </div></div>`;
-
-      const save = async (email, body, msgEl) => {
-        if (msgEl) msgEl.textContent = 'Saving…';
+          <select id="tmRole" style="max-width:170px"><option value="viewer">Viewer — read only</option><option value="admin">Admin — can change things</option></select>
+          <button class="btn primary" id="tmAdd">Invite</button><span class="tiny" id="tmMsg"></span></div></div>`;
+      const save = async (email, body, el) => {
+        if (el) el.textContent = 'Saving…';
         try { await mApi('/api/team', { method: 'PUT', body: JSON.stringify({ email, ...body }) }); return true; }
-        catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); if (msgEl) msgEl.textContent = ''; return false; }
+        catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); if (el) el.textContent = ''; return false; }
       };
       const reload = async () => { try { paint(await mApi('/api/team')); } catch { /* keep what is on screen */ } };
-
       host.querySelectorAll('[data-k="role"]').forEach(sel => sel.onchange = async () => {
         const tr = sel.closest('tr');
         if (await save(tr.dataset.e, { role: sel.value }, tr.querySelector('[data-msg]'))) reload();
@@ -4289,247 +4374,24 @@ async function renderSettings() {
       };
     };
     try { paint(await mApi('/api/team')); }
-    catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load the team list: ${esc(e.message)}</span></div>`; }
+    catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn’t load the team list: ${esc(e.message)}</span></div>`; }
   })();
 
-  /* Meta ad accounts — this is where a NEW CLIENT starts.
-     It used to live in the separate Account Health dashboard, which is why
-     "how do I add a client" had no answer in one place. Discovering the account
-     and switching it on is step one; everything else on this page then applies
-     to it. Uses MetaTab's own client (the account-health worker), because that
-     worker owns the Meta sync and the account list includes clients not yet
-     switched on - which is exactly the list you need here. */
+  /* ---- global send time ---- */
   (async () => {
-    const holder = $('#metaCard');
-    if (!holder) return;
-    // Blanking the card on a meta.js failure left Settings with NO way to add a
-    // client and nothing on screen saying why - it just looked like the feature
-    // did not exist. Say so instead.
-    if (!window.MetaTab) {
-      holder.innerHTML = `<div class="card"><h3 style="margin-bottom:6px">Clients</h3>
-        <span style="color:var(--bad)">The client list didn't load, so clients can't be added right now.</span>
-        <p class="hint" style="margin-top:6px">Hard-refresh the page (Ctrl+Shift+R). If it persists, <code>meta.js</code> failed to fetch.</p></div>`;
-      return;
-    }
-    const mApi = window.MetaTab.api;
-    const paint = accounts => {
-      const list = one ? accounts.filter(a => a.act_id === one.act_id) : accounts;
-      const off = list.filter(a => !a.active).length;
-      const ld = window.MetaTab.lastDiscover?.();
-      holder.innerHTML = `<h3 class="set-sec">Clients</h3>
-        <div class="card settings"><div class="row" style="margin-bottom:6px">
-        <h3 style="margin:0">Your brands</h3><span style="flex:1"></span>
-        <button class="btn primary" id="mtAdd">+ Add a brand</button><span class="tiny" id="mtMsg"></span></div>
-        <p class="hint" style="margin-bottom:10px">Every brand Locus reports on. <b>Press “+ Add a brand”</b> and it asks you the four things it needs: which Meta ad account, what to call them, their Triple Whale shop, and where their Slack reporting goes. Then agree a monthly number on the <b>Plan</b> tab.
-        ${one ? `<br><b>Only ${esc(one.name)} is shown.</b> Switch the picker top-right to <b>All brands</b>.`
-        : off ? `<br>${off} ad account${off === 1 ? '' : 's'} your business owns ${off === 1 ? 'is' : 'are'} not set up as a brand yet.`
-        : '<br>Every ad account your business owns is already set up as a brand.'}
-        <br><span class="tiny">Locus checks Meta for new ad accounts <b>every night</b> — including ones you buy or get access to later — so this list keeps itself current. ${ld ? `Last checked ${esc(fmtAgo(ld.at))}${ld.viaBusiness ? `: ${ld.direct} assigned directly, ${ld.viaBusiness} via your Business Manager` : ''}.` : ''} <a href="#" id="mtDiscover">Check now</a> · <a href="#" id="mtWhy">Why don't I see all my accounts?</a></span></p>
-        <div id="mtAccess"></div>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Ad account</th><th title="Whether this account syncs and appears anywhere in Mobius">Tracked</th><th title="The client's Triple Whale shop domain. Every blended number - revenue, MER, contribution margin, the reports - depends on this.">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead>
-          <tbody id="mtRows">${list.map(a => `<tr data-id="${a.act_id}">
-            <td><b>${esc(a.name)}</b><br><span class="tiny">${esc(a.act_id)}${a.last_error ? ` · <span style="color:var(--bad)">${esc(String(a.last_error).slice(0, 50))}</span>` : ''}</span></td>
-            <td><div class="row" style="margin:0;gap:8px"><div class="toggle ${a.active ? 'on' : ''}" data-mk="active"></div><span class="tiny">${a.active ? 'on' : 'off'}</span></div></td>
-            <td><input type="text" data-mk="tw_shop" value="${esc(a.tw_shop || '')}" placeholder="name.myshopify.com" style="width:190px">${a.active && !a.tw_shop ? '<br><span class="tiny" style="color:var(--warn)">⚠ no blended data without this</span>' : ''}</td>
-            <td><span class="tiny">${a.last_sync_insights ? fmtAgo(a.last_sync_insights) : 'never'}</span></td>
-            <td><button class="btn" data-mk="sync" style="font-size:11.5px;padding:4px 8px">Sync now</button> <span class="tiny" data-ms="${a.act_id}"></span></td>
-          </tr>`).join('') || '<tr><td colspan="5" class="tiny">No accounts yet — press “Check Meta for new accounts”.</td></tr>'}</tbody>
-        </table></div>
-        <p class="tiny" style="margin-top:10px">Switching an account on backfills 90 days on its first sync. These settings are shared with the Meta tab — one database behind the whole platform.</p></div>`;
-
-      /* THE BUTTON LOOKED DEAD, AND ALMOST WAS. The old handler set #mtMsg and
-         THEN called paint(), which replaces the whole card - destroying the span
-         it had just written to. So a successful scan produced no visible change
-         whatsoever: same table, no message. Cole pressed it and reported nothing
-         happened, correctly.
-         Paint FIRST, then write the message into the fresh DOM. And say what
-         happened even when the answer is "nothing new", because on an account
-         where every client is already on, that is the normal outcome. */
-      /** Ask Meta which ad accounts this login can reach. Returns the fresh list
-       *  so a caller can act on it; repaints and reports either way. */
-      const discover = async () => {
-        const before = new Set(accounts.map(a => a.act_id));
-        try {
-          const r = await mApi('/api/discover', { method: 'POST' });
-          const next = r.accounts || [];
-          const added = next.filter(a => !before.has(a.act_id));
-          // Paint FIRST, then write the message. The old handler did the reverse
-          // and paint() replaced the very span it had just written to, so a
-          // successful scan produced no visible change at all.
-          paint(next);
-          const msg = $('#mtMsg');
-          // Say where they came from. Meta returns a SHORTER list from
-          // me/adaccounts (only what the system user is individually assigned)
-          // than from the business edges, and a silently short list is exactly
-          // what made this look broken.
-          const via = r.viaBusiness ? ` · ${r.direct} assigned directly, ${r.viaBusiness} via your Business Manager` : '';
-          if (msg) msg.textContent = added.length
-            ? `${added.length} new: ${added.map(a => a.name).join(', ')}${via}`
-            : `Nothing new — Meta returned the same ${next.length} account${next.length === 1 ? '' : 's'}${via}`;
-          return next;
-        } catch (e) {
-          noteModal('Could not reach Meta', `<p>${esc(e.message)}</p>
-            <p class="hint">This asks Meta which ad accounts your login can see. If it keeps failing, the Meta token may need reconnecting.</p>`);
-          return accounts;
-        }
-      };
-      const discLink = $('#mtDiscover');
-      if (discLink) discLink.onclick = e => { e.preventDefault(); discover(); };
-
-      /* "None of my ad accounts show up" has three different causes that look
-         identical from here - a missing scope, a system user with no Business
-         Manager role, or assets simply never granted. Ask the worker which one
-         it is rather than writing copy that guesses. */
-      const why = $('#mtWhy');
-      if (why) why.onclick = async e => {
-        e.preventDefault();
-        const box = $('#mtAccess');
-        box.innerHTML = '<p class="hint">Asking Meta what this token can reach…</p>';
-        try {
-          const d = await mApi('/api/meta-access');
-          // "Fixed" means a portfolio was actually REACHED. Scopes alone are not
-          // enough: a system user token carries business_management and still
-          // returns nothing from /me/businesses, which is what misled us once.
-          const fixed = d.businesses.length > 0;
-          box.innerHTML = `<div class="notice ${fixed ? '' : 'warn'}" style="margin:10px 0 0">${fixed ? '✓' : '⚠️'}<div>
-            <b>${esc(d.verdict)}</b>
-            <p class="tiny" style="margin:8px 0 0">Token: ${esc(d.token?.type || 'unknown')}${d.token?.never_expires ? ', never expires' : ''} ·
-            Permissions: ${d.scopes.length ? esc(d.scopes.join(', ')) : 'none reported'} ·
-            Directly assigned ad accounts: ${d.direct ?? '—'} ·
-            Business Managers visible: ${d.businesses.length}${d.businesses.length ? ' (' + d.businesses.map(b => esc(b.name)).join(', ') + ')' : ''}</p>
-            ${Object.keys(d.edges).length ? `<p class="tiny" style="margin:4px 0 0">${Object.entries(d.edges).map(([k, v]) => `${esc(k)}: <b>${esc(String(v))}</b>`).join(' · ')}</p>` : ''}
-            ${d.errors.length ? `<p class="tiny" style="margin:4px 0 0;color:var(--bad)">${d.errors.map(x => esc(x.at + ': ' + x.error)).join(' · ')}</p>` : ''}
-            ${!d.needsBusinessId ? '' : `<div style="margin:12px 0 0">
-              <p style="margin:0 0 8px;font-size:13.5px"><b>One thing to paste, once.</b> Open
-              <a href="https://business.facebook.com/settings/info" target="_blank" rel="noopener">Business Settings → Business info</a>
-              for <b>Mobius Digital</b> and copy the <b>Business portfolio ID</b>. Then every ad account a client shares with you —
-              including future clients — is picked up automatically. <b>Do not regenerate the token</b>; it is already correct.</p>
-              <div class="row" style="gap:8px;margin:0">
-                <input type="text" id="mbId" placeholder="e.g. 1234567890123456" style="width:220px" inputmode="numeric">
-                <button class="btn primary" id="mbSave">Save</button><span class="tiny" id="mbMsg"></span>
-              </div></div>`}
-          </div></div>`;
-          const save = $('#mbSave');
-          if (save) save.onclick = async () => {
-            const idv = $('#mbId').value.trim(), msg = $('#mbMsg');
-            save.disabled = true; msg.textContent = 'Checking with Meta…';
-            try {
-              const r = await mApi('/api/meta-business', { method: 'PUT', body: JSON.stringify({ id: idv }) });
-              msg.textContent = `Saved: ${r.name} — finding accounts…`;
-              // Run discovery straight away: the whole point of the id is what it
-              // unlocks, and making him press a second button to find out is the
-              // "control that does nothing" problem again.
-              const next = await discover();
-              msg.textContent = `${r.name}: ${next.length} ad accounts now visible`;
-            } catch (e) { save.disabled = false; msg.textContent = e.message; }
-          };
-        } catch (err) {
-          box.innerHTML = `<div class="notice warn" style="margin:10px 0 0">⚠️<div>Couldn't check: ${esc(err.message)}</div></div>`;
-        }
-      };
-
-      $('#mtAdd').onclick = async () => {
-        const picked = await addBrandModal(accounts.filter(a => !a.active), chList, discover, accounts.length);
-        if (!picked) return;
-        const msg0 = $('#mtMsg'); if (msg0) msg0.textContent = `Adding ${picked.name}…`;
-        try {
-          // One call sets up the brand itself; channels are a separate table on
-          // the profit worker, so only call it when something was actually chosen.
-          await mApi(`/api/accounts/${picked.act}`, { method: 'PUT', body: JSON.stringify({
-            active: true, name: picked.name, ...(picked.shop ? { tw_shop: picked.shop } : {}),
-          }) });
-          if (picked.internal || picked.client) {
-            await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({
-              act: picked.act, slack_channel: picked.internal || null, brief_channel: picked.client || null,
-            }) });
-          }
-          const row = accounts.find(a => a.act_id === picked.act);
-          if (row) { row.active = true; row.name = picked.name; if (picked.shop) row.tw_shop = picked.shop; }
-          paint(accounts);
-          await refreshAccounts();
-          noteModal(`${picked.name} is set up`, `<p>Two things happen next, both on their own:</p>
-            <ul style="margin:8px 0 0;padding-left:18px;font-size:14px;line-height:1.55">
-              <li>Meta backfills <b>90 days</b> of ad history on the first sync.</li>
-              ${picked.shop ? '<li>Triple Whale starts filling in revenue, so profit numbers appear once it has synced.</li>'
-                            : '<li style="color:var(--bad)"><b>No Triple Whale shop was set</b>, so there will be no revenue, MER or profit for this brand until you add one in the table.</li>'}
-            </ul>
-            <p style="margin-top:12px">Then <b>agree a monthly number on the Plan tab</b> — the daily brief and both reports measure every day against it, so nothing can report until it exists.</p>`);
-        } catch (e) {
-          noteModal('Could not add the brand', `<p>${esc(e.message)}</p><p class="hint">Nothing was saved. Try again, or add it from the table below.</p>`);
-        }
-      };
-      const rowAcct = el => accounts.find(x => x.act_id === el.closest('tr').dataset.id);
-      holder.querySelectorAll('[data-mk="active"]').forEach(tg => tg.onclick = async () => {
-        const a = rowAcct(tg); const on = !tg.classList.contains('on');
-        tg.classList.toggle('on', on);
-        try { await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ active: on }) }); a.active = on; paint(accounts); }
-        catch (e) { tg.classList.toggle('on', !on); noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
-      });
-      holder.querySelectorAll('[data-mk="tw_shop"]').forEach(inp => inp.onchange = async () => {
-        const a = rowAcct(inp);
-        try { await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ tw_shop: inp.value.trim() }) }); a.tw_shop = inp.value.trim(); flash(inp); }
-        catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
-      });
-      holder.querySelectorAll('[data-mk="sync"]').forEach(b => b.onclick = async () => {
-        const a = rowAcct(b); const msg = $(`[data-ms="${a.act_id}"]`);
-        b.disabled = true; if (msg) msg.textContent = 'syncing…';
-        try { const r = await mApi(`/api/sync?act=${a.act_id}`, { method: 'POST' }); if (msg) msg.textContent = r.result?.error ? r.result.error : 'done ✓'; }
-        catch (e) { if (msg) msg.textContent = e.message; }
-        b.disabled = false;
-      });
+    const sel = $('#btHour'); if (!sel) return;
+    sel.innerHTML = Array.from({ length: 24 }, (_, h) => {
+      const l = h === 0 ? '12:00 AM' : h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`;
+      return `<option value="${h}">${l} Central</option>`;
+    }).join('');
+    try { const r = await api('/api/brief-time'); sel.value = String(r.hour ?? 9); }
+    catch { sel.value = '9'; }
+    sel.onchange = async () => {
+      $('#btMsg').textContent = 'Saving…';
+      try { await api('/api/brief-time', { method: 'PUT', body: JSON.stringify({ hour: +sel.value }) }); $('#btMsg').textContent = 'Saved ✓'; }
+      catch (e) { $('#btMsg').textContent = e.message; }
     };
-    // meta.js keeps its own closure, so it only has a token if someone hands it
-    // one. render() does that for the Meta tab; this call path never did.
-    window.MetaTab.setToken(S.tok);
-    try { await window.MetaTab.ensureAccounts(true); if (run === RUN) paint(window.MetaTab.accounts()); }
-    catch (e) { holder.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load Meta accounts: ${esc(e.message)}</span></div>`; }
   })();
-
-  // Connections. Listeners go on the card, never on #main - #main survives every
-  // render, so a listener there stacks one copy per visit.
-  (async () => {
-    const html = await connectionsCard(run);
-    if (html == null || run !== RUN) return;
-    const host = $('#connCard'); if (!host) return;
-    host.innerHTML = html;
-
-    host.addEventListener('click', async e => {
-      const sync = e.target.closest('[data-sync]');
-      if (sync) {
-        const act = sync.dataset.sync, msg = $(`[data-msg="${act}"]`);
-        sync.disabled = true; if (msg) msg.textContent = 'pulling from Shopify…';
-        try {
-          const r = await api(`/api/cohort-sync?act=${encodeURIComponent(act)}`, { method: 'POST' });
-          const x = (r.results && r.results[0]) || {};
-          if (msg) msg.textContent = x.error ? x.error : x.skipped ? x.skipped : `✓ ${x.months} cohort months`;
-          if (!x.error) await inPlace(async () => { await boot(); show('settings'); });
-        } catch (err) { if (msg) msg.textContent = err.message; }
-        sync.disabled = false;
-        return;
-      }
-      const b = e.target.closest('[data-copy]'); if (!b) return;
-      const msg = $(`[data-msg="${b.closest('tr').dataset.act}"]`);
-      try { await navigator.clipboard.writeText(b.dataset.copy); if (msg) msg.textContent = 'copied \u2713'; }
-      catch { noteModal('Copy the install link', `<p>Send this to the client:</p><p><code style="font-size:12px;word-break:break-all">${esc(b.dataset.copy)}</code></p>`); }
-      setTimeout(() => { if (msg) msg.textContent = ''; }, 2500);
-    });
-
-    host.addEventListener('change', async e => {
-      const sel = e.target.closest('[data-map]'); if (!sel || !sel.value) return;
-      const shop = sel.dataset.map, msg = $(`[data-mapmsg="${shop}"]`);
-      if (msg) msg.textContent = 'saving\u2026';
-      try {
-        await api('/api/connections/map', { method: 'POST', body: JSON.stringify({ shop, act: sel.value }) });
-        if (msg) msg.textContent = 'mapped \u2713';
-        await inPlace(async () => { await boot(); show('settings'); });
-      } catch (err) { if (msg) msg.textContent = err.message; }
-    });
-  })();
-
-  api('/api/slack-channels').then(r => { if (run !== RUN) return; chList = r.channels; draw(); })
-    .catch(err => { if (run !== RUN) return; chList = 'error'; draw();
-      $('#main .tiny').insertAdjacentHTML('beforeend', ` <span style="color:var(--bad)">Couldn't list Slack channels (${esc(err.message)}) — paste channel IDs instead.</span>`); });
 }
 
 boot();
