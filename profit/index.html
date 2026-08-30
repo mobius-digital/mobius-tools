@@ -900,7 +900,7 @@ function picker(host, items, { placeholder = 'Search…', empty = 'No matches', 
    says so rather than pretending otherwise.
 
    Resolves to the chosen act_id on success, null if cancelled. */
-function addBrandModal(untracked, chList, onDiscover) {
+function addBrandModal(untracked, chList, onDiscover, total) {
   return new Promise(resolve => {
     const w = document.createElement('div');
     w.className = 'modal-wrap';
@@ -911,9 +911,12 @@ function addBrandModal(untracked, chList, onDiscover) {
       <p class="hint" style="margin-bottom:16px">Four questions. You can change any of it later.</p>
       <div class="ab-form">
         ${field('Which Meta ad account?',
+          // Say the arithmetic. An empty or short list here is USUALLY correct -
+          // accounts already set up as brands are filtered out - but it is
+          // indistinguishable from a broken Meta connection unless it says so.
           untracked.length
-            ? 'Every brand is tied to one Meta ad account. Only accounts you are not already tracking are listed.'
-            : 'Every ad account your Meta login can reach is already being tracked.',
+            ? `<b>${untracked.length} of your ${total ?? untracked.length} ad accounts</b> ${untracked.length === 1 ? 'is' : 'are'} not set up as a brand yet, so ${untracked.length === 1 ? 'it is' : 'those are'} what you can pick from. The rest are already brands.`
+            : `<b>All ${total ?? 0} of the ad accounts Locus can see are already set up as brands</b>, so there is nothing here to add. If one is genuinely missing, it is a Meta permissions problem, not a Locus one.`,
           untracked.length
             ? `<div id="abAct"></div>
                <p class="tiny" style="margin:7px 0 0">Not seeing the account you want? <a href="#" id="abDiscover">Check Meta again</a>. Locus also does this by itself every night. If it is still missing, that account has to be assigned to the <b>Mobius Tools</b> system user in Business Manager.</p>`
@@ -972,7 +975,7 @@ function addBrandModal(untracked, chList, onDiscover) {
       done(null);
       // Re-open with whatever Meta just returned, so the answer lands in the
       // form rather than behind it.
-      addBrandModal(found.filter(a => !a.active), chList, onDiscover).then(resolve);
+      addBrandModal(found.filter(a => !a.active), chList, onDiscover, found.length).then(resolve);
     };
 
     $$('[data-m="yes"]').onclick = async () => {
@@ -3950,7 +3953,7 @@ async function renderSettings() {
       };
 
       $('#mtAdd').onclick = async () => {
-        const picked = await addBrandModal(accounts.filter(a => !a.active), chList, discover);
+        const picked = await addBrandModal(accounts.filter(a => !a.active), chList, discover, accounts.length);
         if (!picked) return;
         const msg0 = $('#mtMsg'); if (msg0) msg0.textContent = `Adding ${picked.name}…`;
         try {
