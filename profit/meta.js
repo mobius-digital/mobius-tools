@@ -28,6 +28,10 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const S = { url: AH_URL, tok: '', act: 'all', accounts: [], overview: null, health: null };
 
 async function api(path, opts = {}) {
+  /* An empty token sends "Bearer " and comes back as a bare 401 "unauthorized",
+     which reads as a broken login rather than a host that forgot to hand the
+     token over. Name the real cause instead - see setToken below. */
+  if (!S.tok) throw new Error('the Meta section was not given a sign-in token');
   const res = await fetch(S.url.replace(/\/+$/, '') + path, {
     ...opts,
     headers: { 'Authorization': 'Bearer ' + S.tok,
@@ -961,6 +965,15 @@ async function ensureAccounts(force) {
 
 window.MetaTab = {
   subs: SUBS.map(([id, label]) => ({ id, label })),
+  /* THE HOST MUST CALL THIS BEFORE ANY OTHER ENTRY POINT.
+     `render()` sets S.tok from its ctx, so the Meta tab always worked - but the
+     merged Settings tab calls ensureAccounts() DIRECTLY, and did so without ever
+     passing a token. Land on Settings without opening Meta first (the normal
+     path: sign in, click Settings) and every call went out as "Bearer " and came
+     back 401, so the Clients card - the one place a client is added - rendered
+     "Couldn't load Meta accounts: unauthorized" and nothing else. Visiting Meta
+     first made it work, which is what made it look intermittent. */
+  setToken(t) { S.tok = t || ''; },
   /** ctx = { tok, act, sub } — the host owns sign-in and the client picker. */
   async render(ctx) {
     S.tok = ctx.tok;

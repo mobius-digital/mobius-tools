@@ -3429,7 +3429,7 @@ async function connectionsCard(run) {
     <td>${gives(c)}</td>
     <td>${c.install_url
       ? `<button class="btn" data-copy="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>`
-      : '<span class="tiny">set this client\'s Triple Whale shop in <b>Meta ad accounts</b> above first</span>'}
+      : '<span class="tiny">set this client\'s Triple Whale shop in <b>Your clients</b> above first</span>'}
       ${c.status === 'connected' ? `<button class="btn" data-sync="${esc(c.act_id)}" style="font-size:11.5px;padding:4px 8px;margin-left:4px">Sync cohorts</button>` : ''}
       <span class="tiny" data-msg="${esc(c.act_id)}"></span></td>
   </tr>`).join('');
@@ -3447,7 +3447,7 @@ async function connectionsCard(run) {
 
   return `<div class="card"><h3 style="margin-bottom:2px">Shopify connections
       <span class="info-i" title="Connecting a store lets us read its orders, customers and products directly. Triple Whale has no per-customer history, so this is the only way to get true lifetime value by cohort. Everything else on every tab works without it.">i</span></h3>
-    <p class="hint" style="margin-bottom:10px">The last step of adding a client, once they are switched on in <b>Meta ad accounts</b> above: <b>copy their install link below and send it to them</b>. They approve it once and it stays connected. Shopify is what powers the cohort figures on <b>Customers</b>; everything else works without it. ${one ? 'Switch the picker to <b>All clients</b> to see every brand.' : ''}</p>
+    <p class="hint" style="margin-bottom:10px">The last step of adding a client, once they are switched on in <b>Your clients</b> above: <b>copy their install link below and send it to them</b>. They approve it once and it stays connected. Shopify is what powers the cohort figures on <b>Customers</b>; everything else works without it. ${one ? 'Switch the picker to <b>All clients</b> to see every brand.' : ''}</p>
     ${d.app_configured ? '' : '<div class="notice warn">&#9888;&#65039; <div>The Shopify app is not configured on the server yet, so these links will not work.</div></div>'}
     <div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th>Status</th><th>What it adds</th><th>Install link</th></tr></thead>
@@ -3711,6 +3711,9 @@ async function renderSettings() {
         b.disabled = false;
       });
     };
+    // meta.js keeps its own closure, so it only has a token if someone hands it
+    // one. render() does that for the Meta tab; this call path never did.
+    window.MetaTab.setToken(S.tok);
     try { await window.MetaTab.ensureAccounts(true); if (run === RUN) paint(window.MetaTab.accounts()); }
     catch (e) { holder.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load Meta accounts: ${esc(e.message)}</span></div>`; }
   })();
