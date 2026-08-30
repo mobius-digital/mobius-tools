@@ -171,6 +171,12 @@
   .info-i:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .help-body{font-size:13.5px;line-height:1.6;max-height:60vh;overflow-y:auto}
   .help-body p{margin-bottom:9px}
+  /* Settings section headings. Settings is four unrelated jobs on one page —
+     adding clients, routing reporting, and rarely-touched globals — and without
+     a break between them "where do I add a client" has nothing to scan for. */
+  .set-sec{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--ink-2);
+    margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .set-sec:first-child{margin-top:4px}
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
   .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .strip{position:relative;height:30px}
@@ -862,7 +868,7 @@ const PAGE_HELP = {
     <p><b>The current month is shown but excluded from the headline</b> — its new customers have not had time to come back yet, so including it would understate repeat behavior.</p>`,
   settings: `
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
-    <p><b>Adding a client starts here</b>, in the <b>Meta ad accounts</b> card: find the account on Meta, switch it on, then set its Triple Whale shop — nothing blended works without that. Channels are below, and the monthly number is agreed on <b>Plan</b>.</p>
+    <p><b>Adding a client:</b> press <b>+ Add a client</b> at the top of this page, switch the new ad account on, then type its Triple Whale shop — nothing blended works without that. Channels are further down, and the monthly number is agreed on <b>Plan</b>.</p>
     <p><b>Daily Brief channel:</b> where the client's morning update posts. Invite the Slack bot to the channel first or it can't post there — channels the bot hasn't joined are marked.</p>
     <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
     <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>
@@ -3461,21 +3467,23 @@ async function renderSettings() {
   $('#main').innerHTML = `<h2>Settings${one ? ' — ' + esc(one.name) : ''}</h2>
     <p class="sub">Where ${one ? `<b>${esc(one.name)}</b>'s` : "each brand's"} reporting goes, and what its profit is calculated on. <b>Every setting here is shared with the Meta tab</b> — one database behind the whole platform, so there is no second copy to keep in sync.${one ? ' Switch the picker to <b>All clients</b> to see every brand at once.' : ''}</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
-    <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
-      <p class="hint" style="margin-bottom:10px">${one ? '<b>Applies to all brands, not just ' + esc(one.name) + '.</b> ' : ''}When the brief posts each morning, for <b>every</b> brand with auto-post on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
-      <div class="row">
-        <select id="btHour" style="max-width:190px"></select>
-        <span class="tiny" id="btMsg"></span>
-      </div></div>
-    <div id="metaCard"><div class="card"><span class="hint">Loading Meta ad accounts\u2026</span></div></div>
+    <div id="metaCard"><div class="card"><span class="hint">Loading clients\u2026</span></div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
+    <h3 class="set-sec">Where each client's reporting goes</h3>
     <div class="card settings"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th title="Your team's channel. Drafts waiting for review land here, along with delivery alerts. Nothing here is seen by the client.">Internal channel</th><th title="The client's channel. Approved briefs and reports are sent here, and nothing else ever posts here.">Client channel</th><th title="On: the daily brief and both reports draft to your internal channel and wait for you to edit and send. Off: each one posts straight to the client on its own.">Review first</th><th title="Run the daily forecast-vs-actual brief for this brand each morning.">Daily brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
       <tbody id="setRows"></tbody></table></div>
       <p class="tiny" style="margin-top:10px">Each cell saves the moment you change it — a green flash means saved.
       <b>Two channels per client, and one rule.</b> The <b>internal channel</b> is your team's: drafts waiting for review land there, along with delivery alerts. The <b>client channel</b> is theirs: an approved brief or report is sent there, and nothing else ever posts there.
       With <b>review first</b> on, everything — daily brief, weekly report, monthly report — drafts to the internal channel and waits for you to read it, change the wording, and press send. Off, each one posts straight to the client on its own.
-      A client send never falls back to the internal channel: if the client channel is empty it stops and says so, rather than quietly posting to your team.</p></div>`;
+      A client send never falls back to the internal channel: if the client channel is empty it stops and says so, rather than quietly posting to your team.</p></div>
+    <h3 class="set-sec">Everything else</h3>
+    <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
+      <p class="hint" style="margin-bottom:10px">${one ? '<b>Applies to all brands, not just ' + esc(one.name) + '.</b> ' : ''}When the brief posts each morning, for <b>every</b> brand with auto-post on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
+      <div class="row">
+        <select id="btHour" style="max-width:190px"></select>
+        <span class="tiny" id="btMsg"></span>
+      </div></div>`;
 
   const tb = $('#setRows');
   let chList = null;                       // null = loading, 'error' = list unavailable
@@ -3622,14 +3630,24 @@ async function renderSettings() {
      switched on - which is exactly the list you need here. */
   (async () => {
     const holder = $('#metaCard');
-    if (!holder || !window.MetaTab) { if (holder) holder.innerHTML = ''; return; }
+    if (!holder) return;
+    // Blanking the card on a meta.js failure left Settings with NO way to add a
+    // client and nothing on screen saying why - it just looked like the feature
+    // did not exist. Say so instead.
+    if (!window.MetaTab) {
+      holder.innerHTML = `<div class="card"><h3 style="margin-bottom:6px">Clients</h3>
+        <span style="color:var(--bad)">The client list didn't load, so clients can't be added right now.</span>
+        <p class="hint" style="margin-top:6px">Hard-refresh the page (Ctrl+Shift+R). If it persists, <code>meta.js</code> failed to fetch.</p></div>`;
+      return;
+    }
     const mApi = window.MetaTab.api;
     const paint = accounts => {
       const list = one ? accounts.filter(a => a.act_id === one.act_id) : accounts;
-      holder.innerHTML = `<div class="card settings"><div class="row" style="margin-bottom:6px">
-        <h3 style="margin:0">Meta ad accounts</h3><span style="flex:1"></span>
-        <button class="btn" id="mtDiscover">Find ad accounts on Meta</button><span class="tiny" id="mtMsg"></span></div>
-        <p class="hint" style="margin-bottom:10px"><b>Adding a client starts here.</b> Press <b>Find ad accounts on Meta</b>, switch the new account on, then set its Triple Whale shop so the blended numbers work. After that, set its channels below and agree a monthly plan on the <b>Plan</b> tab.</p>
+      holder.innerHTML = `<h3 class="set-sec">Clients</h3>
+        <div class="card settings"><div class="row" style="margin-bottom:6px">
+        <h3 style="margin:0">Add a client, or turn one off</h3><span style="flex:1"></span>
+        <button class="btn primary" id="mtDiscover">+ Add a client</button><span class="tiny" id="mtMsg"></span></div>
+        <p class="hint" style="margin-bottom:10px"><b>This is where a client starts.</b> Press <b>+ Add a client</b> — it lists every ad account your Meta login can reach. Switch the new one on, then type its Triple Whale shop domain, or none of the money numbers work. After that set its Slack channels below, and agree a monthly number on the <b>Plan</b> tab.${one ? ' <b>Only ' + esc(one.name) + ' is shown</b> — switch the picker top-right to <b>All clients</b> to add a new one.' : ''}</p>
         <div class="tbl-wrap"><table>
           <thead><tr><th>Ad account</th><th title="Whether this account syncs and appears anywhere in Mobius">Tracked</th><th title="The client's Triple Whale shop domain. Every blended number - revenue, MER, contribution margin, the reports - depends on this.">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead>
           <tbody id="mtRows">${list.map(a => `<tr data-id="${a.act_id}">
@@ -3638,13 +3656,13 @@ async function renderSettings() {
             <td><input type="text" data-mk="tw_shop" value="${esc(a.tw_shop || '')}" placeholder="name.myshopify.com" style="width:190px">${a.active && !a.tw_shop ? '<br><span class="tiny" style="color:var(--warn)">⚠ no blended data without this</span>' : ''}</td>
             <td><span class="tiny">${a.last_sync_insights ? fmtAgo(a.last_sync_insights) : 'never'}</span></td>
             <td><button class="btn" data-mk="sync" style="font-size:11.5px;padding:4px 8px">Sync now</button> <span class="tiny" data-ms="${a.act_id}"></span></td>
-          </tr>`).join('') || '<tr><td colspan="5" class="tiny">Nothing found yet — press “Find ad accounts on Meta”.</td></tr>'}</tbody>
+          </tr>`).join('') || '<tr><td colspan="5" class="tiny">No clients yet — press “+ Add a client”.</td></tr>'}</tbody>
         </table></div>
         <p class="tiny" style="margin-top:10px">Switching an account on backfills 90 days on its first sync. These settings are shared with the Meta tab — one database behind the whole platform.</p></div>`;
 
       $('#mtDiscover').onclick = async () => {
         const b = $('#mtDiscover'); b.disabled = true; $('#mtMsg').textContent = 'Asking Meta…';
-        try { const r = await mApi('/api/discover', { method: 'POST' }); $('#mtMsg').textContent = `Found ${r.found}`; paint(r.accounts || []); }
+        try { const r = await mApi('/api/discover', { method: 'POST' }); $('#mtMsg').textContent = `${r.found} ad account${r.found === 1 ? '' : 's'} found — switch on the one you want`; paint(r.accounts || []); }
         catch (e) { $('#mtMsg').textContent = e.message; }
         b.disabled = false;
       };
