@@ -245,17 +245,27 @@
      the only way in — it says what a click does without competing for it. */
   .ad-open{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;
     font-weight:600;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px}
-  /* Detail view: the creative big on the left, everything we know on the right. */
-  .adm{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:20px}
+  /* Detail view: the creative big on the left, everything we know on the right.
+     It gets its own wider shell — the shared 460px help modal squeezed the stat
+     table until values were cut off mid-number. */
+  .ad-modal-wrap{padding:5vh 16px 0}
+  .modal.wide{max-width:940px}
+  .ad-modal-body{max-height:76vh;overflow-y:auto;font-size:13.5px;line-height:1.6}
+  .adm{display:grid;grid-template-columns:minmax(0,330px) minmax(0,1fr);gap:22px}
   .adm-media{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);position:relative}
   .adm-media img{width:100%;display:block}
+  .adm-media .ad-frame{position:absolute;inset:0}
+  .adm table{width:100%}
+  .adm td:first-child{white-space:nowrap}
   .adm-copy{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg);margin-bottom:14px}
   .adm-copy .hd{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin-bottom:3px;padding:0}
   .adm-copy .bd{font-size:13px;line-height:1.55;white-space:pre-wrap}
   .adm-facts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
   .adm-facts span{font-size:11.5px;border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--muted)}
   .adm-facts span b{color:var(--ink);font-weight:700}
-  @media(max-width:720px){.adm{grid-template-columns:1fr}}
+  /* minmax(0,1fr), never a bare 1fr: a bare fr floors at min-content, so the
+     stat table pushed this grid to 504px inside a 343px modal on a phone. */
+  @media(max-width:720px){.adm{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:420px){.ad-grid{grid-template-columns:1fr}}
   a.ad-link{color:var(--ink);text-decoration:none;max-width:320px}
   a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
@@ -2032,7 +2042,15 @@ function reportBodyHTML(d, summary, opts = {}) {
           <td class="num">${f.roas != null ? fmtX(f.roas) : '—'}</td></tr>`).join('')}</tbody></table></div>${verdict}`;
     })() : '';
 
+    // A report frozen before the creative fields existed has no ad ids, so no
+    // playback and no ad copy. That reads as a broken feature rather than an old
+    // snapshot, so it says which it is. Internal only — a client has no
+    // Regenerate button and the report they were sent is the one they get.
+    const stale = opts.internal && !A.top.some(a => a.ad_id)
+      ? `<div class="notice warn" style="margin:12px 0">⚠️ <div><b>This report predates the creative upgrade.</b> It was generated before cover art, inline playback and ad copy existed, so the cards below show numbers only. Hit <b>↻ Regenerate</b> above to rebuild it — the ads, the money and the summary all refresh together.</div></div>`
+      : '';
     return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went <span class="info-i" title="${esc(metricInfo)}">i</span></h4>
+      ${stale}
       <p class="hint" style="margin-bottom:10px">The ads that carried real spend this ${prevTag}, biggest first.${A.qualified_total > A.top.length ? ` Showing the ${A.top.length} biggest of ${A.qualified_total} that cleared ${money(A.floor)}.` : ''} ${A.top.some(a => a.preview) ? 'Press ▶ to play the ad right here — no Facebook login needed. Meta’s preview links expire after a few months, so on an older report the image always stays but play may not.' : ''}</p>
       <div class="ad-grid">${A.top.map(card).join('')}</div>
       <div class="tbl-wrap"><table><thead><tr><th>Adding up to every ad that spent</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
@@ -2183,10 +2201,13 @@ function adDetailModal(a, cur, prevTag) {
     `<tr><td>${label}</td><td class="num"><b>${val}</b></td><td class="tiny">${note || ''}</td></tr>`;
   const pctOr = (v, d = 0) => v == null ? null : fmtPct(v, d);
   const days = a.created ? Math.round((Date.now() - new Date(a.created + 'T12:00:00Z')) / 86400e3) : null;
+  const canPlay = a.video && a.ad_id;
   const body = `<div class="adm">
     <div>
-      <div class="adm-media">${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
-        : '<div style="padding:40px;text-align:center;color:var(--muted);font-size:13px">No image available</div>'}</div>
+      <div class="adm-media"${canPlay ? ` data-ad="${esc(a.ad_id)}"` : ''}${canPlay && a.preview ? ` data-preview="${esc(a.preview)}"` : ''}>
+        ${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
+        : '<div style="padding:40px;text-align:center;color:var(--muted);font-size:13px">No image available</div>'}
+        ${canPlay ? '<button class="ad-play" type="button" title="Play this video ad"><i>&#9654;</i></button>' : ''}</div>
       ${a.preview ? `<p style="margin-top:10px"><a href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" style="font-size:12.5px">Open the full ad preview ↗</a></p>` : ''}
     </div>
     <div>
@@ -2217,7 +2238,65 @@ function adDetailModal(a, cur, prevTag) {
       </tbody></table></div>
       ${a.campaign || a.adset ? `<p class="tiny" style="margin-top:10px">${a.campaign ? `Campaign <b>${esc(a.campaign)}</b>` : ''}${a.adset ? ` · Ad set <b>${esc(a.adset)}</b>` : ''}</p>` : ''}
     </div></div>`;
-  helpModal(a.name, body);
+  // Its own shell rather than helpModal: that one is 460px wide with a 60vh
+  // body, which cut the stat values off mid-number and hid half the table.
+  const w = document.createElement('div');
+  w.className = 'modal-wrap ad-modal-wrap';
+  w.innerHTML = `<div class="modal wide"><h3>${esc(a.name)}</h3>
+    <div class="ad-modal-body">${body}</div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-m="ok">Close</button></div></div>`;
+  document.body.appendChild(w);
+  const done = () => {
+    const v = w.querySelector('video');
+    if (v) { v.pause(); v.removeAttribute('src'); v.load(); }   // never leave a video downloading
+    w.remove();
+    document.removeEventListener('keydown', k);
+  };
+  const k = ev => { if (ev.key === 'Escape') done(); };
+  document.addEventListener('keydown', k);
+  w.addEventListener('mousedown', ev => { if (ev.target === w) done(); });
+  w.querySelector('[data-m="ok"]').onclick = done;
+  const media = w.querySelector('.adm-media[data-ad]');
+  if (media) attachPlay(media);
+}
+
+/** Make one `.ad-media[data-ad]` block playable. Shared by the card grid and
+ *  the detail view, so a video behaves the same in both. */
+function attachPlay(m) {
+  const btn = m.querySelector('.ad-play');
+  if (!btn) return;
+  m.onclick = e => { if (!e.target.closest('.ad-frame') && !m.querySelector('.ad-frame')) btn.click(); };
+  btn.onclick = async e => {
+    e.stopPropagation();
+    if (m.querySelector('.ad-frame')) return;
+    const adId = m.dataset.ad;
+    m.insertAdjacentHTML('beforeend', '<div class="ad-spin">Loading…</div>');
+    let src = null, err = null;
+    try { src = await adVideoUrl(adId); } catch (ex) { err = ex.message; }
+    const spin = m.querySelector('.ad-spin');
+    if (spin) spin.remove();
+    if (m.querySelector('.ad-frame')) return;                 // double click while loading
+    const fallback = m.dataset.preview
+      ? `<a href="${esc(m.dataset.preview)}" target="_blank" rel="noopener noreferrer">Open it on Facebook ↗</a>`
+      : '';
+    m.insertAdjacentHTML('beforeend', `<div class="ad-frame">
+      ${src ? `<video src="${esc(src)}" controls autoplay playsinline preload="metadata"></video>`
+            : `<div class="msg"><div>${esc(err || 'This video can’t be played here.')}<br>${fallback}</div></div>`}
+      <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
+    // The click IS the user gesture, but the await for the URL breaks the
+    // chain, so `autoplay` alone can be refused and leave a paused frame
+    // under a play button that looks broken. Ask explicitly and let the
+    // controls take over if the browser still says no.
+    const vid = m.querySelector('.ad-frame video');
+    if (vid) vid.play().catch(() => {});
+    m.querySelector('.ad-close').onclick = ev => {
+      ev.stopPropagation();                      // closing must not open the detail view
+      const f = m.querySelector('.ad-frame');
+      const v = f.querySelector('video');
+      if (v) { v.pause(); v.removeAttribute('src'); v.load(); }   // stop the download too
+      f.remove();
+    };
+  };
 }
 
 function wireAdCards(ads, cur, prevTag) {
@@ -2237,42 +2316,7 @@ function wireAdCards(ads, cur, prevTag) {
       adDetailModal(a, cur, prevTag);
     };
   });
-  document.querySelectorAll('#main .ad-media[data-ad]').forEach(m => {
-    const btn = m.querySelector('.ad-play');
-    if (!btn) return;
-    m.onclick = e => { if (!e.target.closest('.ad-frame') && !m.querySelector('.ad-frame')) btn.click(); };
-    btn.onclick = async e => {
-      e.stopPropagation();
-      if (m.querySelector('.ad-frame')) return;
-      const adId = m.dataset.ad;
-      m.insertAdjacentHTML('beforeend', '<div class="ad-spin">Loading…</div>');
-      let src = null, err = null;
-      try { src = await adVideoUrl(adId); } catch (ex) { err = ex.message; }
-      const spin = m.querySelector('.ad-spin');
-      if (spin) spin.remove();
-      if (m.querySelector('.ad-frame')) return;                 // double click while loading
-      const fallback = m.dataset.preview
-        ? `<a href="${esc(m.dataset.preview)}" target="_blank" rel="noopener noreferrer">Open it on Facebook ↗</a>`
-        : '';
-      m.insertAdjacentHTML('beforeend', `<div class="ad-frame">
-        ${src ? `<video src="${esc(src)}" controls autoplay playsinline preload="metadata"></video>`
-              : `<div class="msg"><div>${esc(err || 'This video can’t be played here.')}<br>${fallback}</div></div>`}
-        <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
-      // The click IS the user gesture, but the await for the URL breaks the
-      // chain, so `autoplay` alone can be refused and leave a paused frame
-      // under a play button that looks broken. Ask explicitly and let the
-      // controls take over if the browser still says no.
-      const vid = m.querySelector('.ad-frame video');
-      if (vid) vid.play().catch(() => {});
-      m.querySelector('.ad-close').onclick = ev => {
-        ev.stopPropagation();                    // closing must not open the detail view
-        const f = m.querySelector('.ad-frame');
-        const v = f.querySelector('video');
-        if (v) { v.pause(); v.removeAttribute('src'); v.load(); }   // stop the download too
-        f.remove();
-      };
-    };
-  });
+  document.querySelectorAll('#main .ad-media[data-ad]').forEach(attachPlay);
 }
 
 /** All-clients view: the latest weekly and monthly report per brand at a glance. */
