@@ -1532,6 +1532,21 @@ export default {
         created_at: row.created_at, label: row.label, ...d });
     }
 
+    /* PLAYBACK ON A CLIENT LINK, and this was broken for reports too.
+       /api/ad-video is in PROXY_PATHS, but the proxy runs INSIDE the authed
+       section - so an unauthenticated client clicking play hit this gate and
+       got "unauthorized" long before the request reached the worker that knows
+       how to validate a share token. Forward it here instead when it carries
+       one; account-health checks the token against that client's own sent
+       report or shared ad set, and rejects anything else. */
+    if (path === '/api/ad-video' && request.method === 'GET'
+        && (url.searchParams.get('report') || url.searchParams.get('ads'))) {
+      const target = `${AUTH_WORKER}${path}${url.search}`;
+      const init = { method: 'GET', headers: {} };
+      const res = env.AUTH ? await env.AUTH.fetch(new Request(target, init)) : await fetch(target, init);
+      return new Response(await res.text(), { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
+    }
+
     const kind = await authKind(request, env);
     if (!kind) return json({ error: 'unauthorized' }, 401);
     const isDemo = kind === 'demo';

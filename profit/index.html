@@ -275,55 +275,55 @@
   /* BRAND ROWS. One expandable row per brand holding everything about it,
      replacing four tables organised by SYSTEM (every ad account, Shopify,
      channels, costs) that made setting up one brand a tour of four places. */
-  .bd{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
-  .bd[open]{border-color:var(--line-strong);box-shadow:0 2px 10px rgba(12,22,29,.05)}
-  .bd summary{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;
+  .brow{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+  .brow[open]{border-color:var(--line-strong);box-shadow:0 2px 10px rgba(12,22,29,.05)}
+  .brow summary{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;
     list-style:none;flex-wrap:wrap}
-  .bd summary::-webkit-details-marker{display:none}
-  .bd summary::before{content:'▸';color:var(--muted);font-size:12px;flex:none;transition:transform .12s ease}
-  .bd[open] summary::before{transform:rotate(90deg)}
-  .bd summary:hover{background:var(--bg)}
-  .bd-name{font-weight:700;font-size:15px}
-  .bd-sum{margin-left:auto;font-size:12.5px;text-align:right}
-  .bd-ok{color:var(--muted)}
-  .bd-warn{color:var(--warn);font-weight:600}
+  .brow summary::-webkit-details-marker{display:none}
+  .brow summary::before{content:'▸';color:var(--muted);font-size:12px;flex:none;transition:transform .12s ease}
+  .brow[open] summary::before{transform:rotate(90deg)}
+  .brow summary:hover{background:var(--bg)}
+  .brow-name{font-weight:700;font-size:15px}
+  .brow-sum{margin-left:auto;font-size:12.5px;text-align:right}
+  .brow-ok{color:var(--muted)}
+  .brow-warn{color:var(--warn);font-weight:600}
   /* ONE SETTING PER ROW, stacked. A two-column grid of cards made the eye
      zigzag and left the controls on ragged left edges; a single vertical list
      with the label on the left and every control aligned on one column reads
      as a form rather than a collage. Each field carries a line saying what it
      does - the standing rule that a control never appears unexplained. */
-  .bd-body{border-top:1px solid var(--line);padding:4px 20px 8px;background:var(--bg)}
-  .bd-f{display:grid;grid-template-columns:280px minmax(0,1fr);gap:6px 26px;
+  .brow-body{border-top:1px solid var(--line);padding:4px 20px 8px;background:var(--bg)}
+  .brow-f{display:grid;grid-template-columns:280px minmax(0,1fr);gap:6px 26px;
     padding:14px 0;border-bottom:1px solid var(--line);align-items:start}
-  .bd-f:last-child{border-bottom:0}
-  .bd-l label{display:block;font-weight:700;font-size:13.5px;margin-bottom:2px}
-  .bd-l .hint{margin:0;font-size:12px;line-height:1.45}
-  .bd-c{padding-top:1px;min-width:0}
+  .brow-f:last-child{border-bottom:0}
+  .brow-l label{display:block;font-weight:700;font-size:13.5px;margin-bottom:2px}
+  .brow-l .hint{margin:0;font-size:12px;line-height:1.45}
+  .brow-c{padding-top:1px;min-width:0}
   /* Text inputs in the page body had NO styling at all - `main select` was
      covered but `main input[type=text]` never was, so every one of them fell
      back to the raw OS box. That is what read as boxy next to the pill-shaped
      pickers beside them. */
-  .bd-c input[type=text],main .card input[type=text]{border:1px solid var(--line-strong);border-radius:8px;
+  .brow-c input[type=text],main .card input[type=text]{border:1px solid var(--line-strong);border-radius:8px;
     padding:7px 10px;font-size:13px;background:var(--surface);color:var(--ink);width:100%;max-width:300px}
-  .bd-c input[type=text]:hover{border-color:var(--brand)}
-  .bd-c input[type=text]:focus,.bd-c select:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  .bd-c select{width:100%;max-width:300px;font-size:13px}
+  .brow-c input[type=text]:hover{border-color:var(--brand)}
+  .brow-c input[type=text]:focus,.brow-c select:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .brow-c select{width:100%;max-width:300px;font-size:13px}
   /* FOURTH time this trap has bitten. `.unit-in` draws the border and the %
      suffix as ONE pill with a bare input inside it, so any rule that gives
      `input[type=text]` its own border draws a box inside the box. The generic
      rule above is (0,2,1) and `.unit-in input[type=text]` is also (0,2,1), so
      the later one won. Must out-specify it, not merely repeat it. */
-  .bd-c .unit-in{max-width:110px}
-  .bd-c .unit-in input[type=text]{border:none;border-radius:0;padding:6px 3px;background:transparent;width:100%;max-width:none}
-  .bd-c .unit-in input[type=text]:focus{border:none;box-shadow:none}
-  .bd-c .unit-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  .bd-static{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-  .bd-danger .btn{border-color:var(--bad);color:var(--bad)}
-  .bd-danger .btn:hover{background:var(--bad-bg)}
+  .brow-c .unit-in{max-width:110px}
+  .brow-c .unit-in input[type=text]{border:none;border-radius:0;padding:6px 3px;background:transparent;width:100%;max-width:none}
+  .brow-c .unit-in input[type=text]:focus{border:none;box-shadow:none}
+  .brow-c .unit-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .brow-static{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .brow-danger .btn{border-color:var(--bad);color:var(--bad)}
+  .brow-danger .btn:hover{background:var(--bad-bg)}
   @media (max-width:760px){
-    .bd-f{grid-template-columns:1fr;gap:8px}
-    .bd-sum{margin-left:0;width:100%;text-align:left}
-    .bd-c input[type=text],.bd-c select{max-width:100%}
+    .brow-f{grid-template-columns:1fr;gap:8px}
+    .brow-sum{margin-left:0;width:100%;text-align:left}
+    .brow-c input[type=text],.brow-c select{max-width:100%}
   }
   /* Add-a-brand form. Labelled controls with an explanation under each, per the
      standing rule that a control never appears without saying what it does. */
@@ -554,7 +554,7 @@
   .adm td:first-child{white-space:nowrap}
   .adm-copy{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg);margin-bottom:14px}
   .adm-copy .hd{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin-bottom:3px;padding:0}
-  .adm-copy .bd{font-size:13px;line-height:1.55;white-space:pre-wrap}
+  .adm-copy .brow{font-size:13px;line-height:1.55;white-space:pre-wrap}
   .adm-facts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
   .adm-facts span{font-size:11.5px;border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--muted)}
   .adm-facts span b{color:var(--ink);font-weight:700}
@@ -1383,7 +1383,7 @@ const TOURS = {
 
   settings: { name: 'Settings', steps: [
     { sel: '#brAdd', title: 'Adding a brand starts here', body: 'It asks the four things it needs: which Meta ad account, what to call them, their Triple Whale shop, and where their Slack reporting goes.' },
-    { sel: '.bd', title: 'One row per brand', body: 'Open a row and everything about that brand is in it — its store, both Slack channels, review-first, the daily brief, its margin. The line on the right tells you what is still missing.' },
+    { sel: '.brow', title: 'One row per brand', body: 'Open a row and everything about that brand is in it — its store, both Slack channels, review-first, the daily brief, its margin. The line on the right tells you what is still missing.' },
     { sel: '#teamCard', title: 'Who can sign in', body: 'Anyone on your domain already can. Invite anyone else by email — and make them a <b>Viewer</b> if they should watch the numbers without being able to send anything to a client.' },
   ] },
 };
@@ -1546,7 +1546,7 @@ async function renderAdShare(token) {
   const money = n => n == null ? '—' : fmtMoney(n, cur);
   const pct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
   const stat = (l, v) => `<div class="cb-s"><span>${l}</span><b>${v}</b></div>`;
-  const card = (a, i) => `<article class="ad-card cb-card">
+  const card = (a, i) => `<article class="ad-card cb-card" data-ad="${esc(a.ad_id)}">
     <div class="ad-media${a.thumb ? '' : ' none'}"${a.is_video && a.ad_id ? ` data-ad="${esc(a.ad_id)}"` : ''}>
       ${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">` : `<span aria-hidden="true">${a.is_video ? '▶' : '▢'}</span>`}
       <span class="ad-rank">${i + 1}</span><span class="ad-type">${a.media_type === 'carousel' ? 'Carousel' : a.is_video ? 'Video' : 'Image'}</span>
@@ -1561,7 +1561,9 @@ async function renderAdShare(token) {
         ${a.is_video ? stat('Hook', pct(a.hook)) : ''}
         ${a.is_video ? stat('Hold', pct(a.hold)) : ''}
         ${stat('CTR', pct(a.ctr))}
-      </div></div></article>`;
+      </div>
+      <div class="cb-foot"><span style="flex:1"></span><span class="ad-open tiny">Details →</span></div>
+      </div></article>`;
 
   const range = d.range || {};
   $('#main').innerHTML = `<h2>${esc(d.account.name)} — what is working</h2>
@@ -1580,6 +1582,17 @@ async function renderAdShare(token) {
   // This renderer paints into #main, not a passed-in host - the browser's own
   // renderer takes one and I copied the line across without the context.
   $('#main').querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);
+  /* The detail popout on the client's link too. It was wired on the internal
+     browser only, so a card here looked clickable and did nothing - which is
+     worse than not looking clickable at all. Same modal, same one-rule-one-
+     exception: the card opens the detail, the media on a video plays it.
+     Nothing internal reaches it - the share route already stripped the
+     materiality floor, the totals and each ad's share of spend. */
+  $('#main').querySelectorAll('.cb-card').forEach(el => el.onclick = ev => {
+    if (ev.target.closest('.ad-media[data-ad]') || ev.target.closest('.ad-frame')) return;
+    const hit = (d.ads || []).find(x => x.ad_id === el.dataset.ad);
+    if (hit) adDetailModal(hit, cur);
+  });
 }
 
 /* ---------- Creative browser ----------
@@ -3534,6 +3547,11 @@ const CTA_LABEL = {
  *  matter once you have already decided to look closely. All of it is frozen
  *  into the report, so an archived one opens exactly the same way. */
 function adDetailModal(a, cur, prevTag) {
+  /* The report passes 'week' or 'month'. The live creative browser has no fixed
+     period, so it passes nothing - and the table header rendered "This
+     undefined". Default to a neutral word; the "prior X" notes below only
+     render when a prior figure exists, which the live browser never sends. */
+  prevTag = prevTag || 'period';
   const money = n => fmtMoney(n, cur);
   const fact = (label, val) => val ? `<span>${label} <b>${esc(String(val))}</b></span>` : '';
   const line = (label, val, note) => val == null ? '' :
@@ -4724,25 +4742,25 @@ async function renderSettings() {
     else if (a.brief_channel === a.slack_channel) bad.push('client channel is your internal one');
     if (c.status === 'uninstalled') bad.push('Shopify removed by client');
     return bad.length
-      ? `<span class="bd-warn">⚠ ${esc(bad.join(' · '))}</span>`
-      : `<span class="bd-ok">Set up · ${a.brief_enabled ? 'brief on' : 'brief off'}${a.review_first ? ', reviewed first' : ''}${c.status === 'connected' ? ', Shopify connected' : ''}</span>`;
+      ? `<span class="brow-warn">⚠ ${esc(bad.join(' · '))}</span>`
+      : `<span class="brow-ok">Set up · ${a.brief_enabled ? 'brief on' : 'brief off'}${a.review_first ? ', reviewed first' : ''}${c.status === 'connected' ? ', Shopify connected' : ''}</span>`;
   };
 
   /* Label and its explanation on the left, the control on the right, one row
      per setting. The control column is wrapped so grid placement is
      deterministic - a bare third child would depend on how many nodes the
      control happened to be. */
-  const field = (label, help, control) => `<div class="bd-f">
-    <div class="bd-l"><label>${label}</label>${help ? `<p class="hint">${help}</p>` : ''}</div>
-    <div class="bd-c">${control}</div></div>`;
+  const field = (label, help, control) => `<div class="brow-f">
+    <div class="brow-l"><label>${label}</label>${help ? `<p class="hint">${help}</p>` : ''}</div>
+    <div class="brow-c">${control}</div></div>`;
 
   const brandRow = a => {
     const m = metaOf(a.act_id), c = connOf(a.act_id);
-    return `<details class="bd" data-act="${esc(a.act_id)}">
-      <summary><span class="bd-name">${esc(a.name)}</span>${healthPill(a.cost_health)}<span class="bd-sum">${summary(a)}</span></summary>
-      <div class="bd-body">
+    return `<details class="brow" data-act="${esc(a.act_id)}">
+      <summary><span class="brow-name">${esc(a.name)}</span>${healthPill(a.cost_health)}<span class="brow-sum">${summary(a)}</span></summary>
+      <div class="brow-body">
         ${field('Meta ad account', 'A brand and its Meta ad account are the same record, so this cannot be repointed — a different ad account is a different brand.',
-          `<div class="bd-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
+          `<div class="brow-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
             <button class="btn" data-k="sync" style="font-size:11.5px;padding:4px 8px;margin-left:8px">Sync now</button>
             <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`)}
         ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}">`)}
@@ -4759,14 +4777,14 @@ async function renderSettings() {
         ${field('Margin override', 'One flat margin instead of per-product costs. Leave blank to use the real Triple Whale costs.',
           `<div class="unit-in" style="width:92px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct != null ? Math.round(a.margin_pct * 100) : ''}" placeholder="auto"><span>%</span></div>`)}
         ${field('Shopify', 'Only powers the lifetime-value cohorts on <b>Customers</b>. Everything else works without it.',
-          `<div class="bd-static">${c.status === 'connected' ? '<span class="pill good">Connected</span>' : c.status === 'uninstalled' ? '<span class="pill bad">Removed by client</span>' : '<span class="pill">Not connected</span>'}
+          `<div class="brow-static">${c.status === 'connected' ? '<span class="pill good">Connected</span>' : c.status === 'uninstalled' ? '<span class="pill bad">Removed by client</span>' : '<span class="pill">Not connected</span>'}
             ${c.install_url ? `<button class="btn" data-k="copy" data-url="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px;margin-left:8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>` : ''}
             ${c.status === 'connected' ? '<button class="btn" data-k="cohorts" style="font-size:11.5px;padding:4px 8px;margin-left:4px">Sync cohorts</button>' : ''}
             <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}
         ${field('Triple Whale history', 'Re-pulls this brand’s full history. Needed once so sales tax is on record for every month. Run one brand at a time.',
-          `<div class="bd-static"><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
+          `<div class="brow-static"><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
         ${field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted — switch it back on any time from Add a brand.',
-          `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`).replace('class="bd-f"', 'class="bd-f bd-danger"')}
+          `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`).replace('class="brow-f"', 'class="brow-f brow-danger"')}
       </div></details>`;
   };
 
@@ -4790,19 +4808,19 @@ async function renderSettings() {
      #main, which survives and would stack a copy per visit. */
   function wire() {
     const acctOf = el => S.accounts.find(x => x.act_id === el.closest('[data-act]')?.dataset.act);
-    const msg = (el, sel, t) => { const m = el.closest('.bd')?.querySelector(sel); if (m) m.textContent = t; };
+    const msg = (el, sel, t) => { const m = el.closest('.brow')?.querySelector(sel); if (m) m.textContent = t; };
     const flash = el => { const t = el.closest('.unit-in') || el; t.classList.add('flash-saved'); setTimeout(() => t.classList.remove('flash-saved'), 1300); };
     const saveClient = (a, body) => api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, ...body }) });
     const saveMeta = (a, body) => mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify(body) });
 
-    list.querySelectorAll('.bd').forEach(row => {
+    list.querySelectorAll('.brow').forEach(row => {
       const a = S.accounts.find(x => x.act_id === row.dataset.act); if (!a) return;
       const m = metaOf(a.act_id);
       const q = k => row.querySelector(`[data-k="${k}"]`);
 
       q('name').onchange = async e => {
         const v = e.target.value.trim(); if (!v) return;
-        try { await saveMeta(a, { name: v }); a.name = v; m.name = v; flash(e.target); row.querySelector('.bd-name').textContent = v; await refreshAccounts(); }
+        try { await saveMeta(a, { name: v }); a.name = v; m.name = v; flash(e.target); row.querySelector('.brow-name').textContent = v; await refreshAccounts(); }
         catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
       };
       q('tw_shop').onchange = async e => {
