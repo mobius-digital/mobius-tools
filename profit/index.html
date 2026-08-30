@@ -61,19 +61,29 @@
      The label sits ABOVE its group, not inline with the buttons: inline, at the
      same baseline and the same row, it read as another tab and Cole tried to
      click it. A caption over a group cannot be mistaken for one. */
-  nav.tabs .in{align-items:stretch}
+  nav.tabs .in{align-items:stretch;gap:0}
   nav.tabs .grp{display:flex;flex-direction:column;justify-content:flex-end}
-  nav.tabs .grp + .grp{margin-left:10px;padding-left:12px;border-left:1px solid #22323E}
-  nav.tabs .band{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-    color:#54697A;padding:6px 14px 0;white-space:nowrap;user-select:none;pointer-events:none}
-  nav.tabs .grp-btns{display:flex;gap:4px}
+  /* Grouping by PROXIMITY, not by rules. Vertical dividers plus captions plus
+     nine buttons was three separating devices doing one job and it read as
+     clutter; 28px between groups against 2px within says the same thing and
+     leaves the row quiet. */
+  nav.tabs .grp + .grp{margin-left:28px}
+  nav.tabs .band{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+    color:#4B6072;padding:7px 14px 1px;white-space:nowrap;user-select:none;pointer-events:none}
+  nav.tabs .grp-btns{display:flex;gap:2px}
+  /* The active tab reads as the brand, not just as lighter text. */
+  nav.tabs button{transition:color .12s ease}
+  nav.tabs button:hover{color:#D6E4EC}
+  nav.tabs .grp:has(button.on) .band{color:#7E97A8}
   /* 1100, not 900: measured, the four labels add ~220px of width and the row
      began scrolling at 1024 with them in. Below that the labels go entirely -
      display:none, not font-size:0, so the row loses their height too and the
      grouping survives as spacing. */
   @media (max-width:1100px){
     nav.tabs .band{display:none}
-    nav.tabs .grp + .grp{margin-left:6px;padding-left:8px}
+    /* With the captions gone, proximity alone is too subtle at a glance, so the
+       hairline comes back here and only here - it costs 1px instead of ~220. */
+    nav.tabs .grp + .grp{margin-left:8px;padding-left:10px;border-left:1px solid #1D2C38}
   }
   /* Meta sub-tabs: one step quieter than the main tabs so the hierarchy reads. */
   nav.subtabs{background:#111E27;border-top:1px solid var(--hd-line)}
