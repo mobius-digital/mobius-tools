@@ -2806,14 +2806,21 @@ async function adRows(env, acct, from, to, opts = {}) {
      AOV). Spend, impressions, reach, clicks, hook, hold, CTR and CPM stay Meta's
      in every case, because Triple Whale does not measure delivery and never
      claims to. */
-  const attrModel = opts.attr && opts.attr !== 'meta' ? opts.attr : null;
-  let attrBy = null;
+  let attrModel = opts.attr && opts.attr !== 'meta' ? opts.attr : null;
+  let attrBy = null, attrFellBack = false;
   if (attrModel) {
     const { results: ar } = await env.DB.prepare(
       `SELECT ad_id, SUM(revenue) AS revenue, SUM(orders) AS orders
        FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date >= ?3 AND date <= ?4
        GROUP BY ad_id`).bind(acct.act_id, attrModel, from, to).all().catch(() => ({ results: [] }));
-    attrBy = Object.fromEntries((ar || []).map(r => [r.ad_id, r]));
+    /* NOTHING STORED FOR THIS WINDOW MEANS FALL BACK TO META, not show zeros.
+       Attribution only syncs 7 days a night and a brand backfilled yesterday
+       has nothing for last month - and with a Triple Whale model selected by
+       default, every revenue figure on the page read 0.00 and the whole thing
+       looked broken. A page of honest Meta numbers with a line saying why beats
+       a page of zeros that are technically true and completely useless. */
+    if (!(ar || []).length) { attrModel = null; attrFellBack = true; }
+    else attrBy = Object.fromEntries(ar.map(r => [r.ad_id, r]));
   }
   const { results } = await env.DB.prepare(
     `SELECT d.ad_id, a.name, a.created_time, a.first_spend_date, a.status, a.media_type,
@@ -2832,7 +2839,8 @@ async function adRows(env, acct, from, to, opts = {}) {
      GROUP BY d.ad_id HAVING SUM(d.spend) > 0
      ORDER BY spend DESC LIMIT 500`,
   ).bind(acct.act_id, from, to).all();
-  if (!results.length) return { ads: [], total_spend: 0, shown_spend: 0, floor: 0, acct_cpa: null, formats: [] };
+  if (!results.length) return { ads: [], types: [], matched: 0, total_spend: 0, shown_spend: 0,
+    floor: 0, acct_cpa: null, attr: 'meta', attr_available: null, attr_fell_back: false };
 
   const today = localDate(acct.tz);
   const totalSpend = results.reduce((n, r) => n + r.spend, 0);
@@ -2940,9 +2948,10 @@ async function adRows(env, acct, from, to, opts = {}) {
   const top = list.slice(0, limit);
   return {
     ads: top, types, attr: attrModel || 'meta',
-    // Whether this window actually has attribution stored - the UI must not
-    // offer a model that would silently return zeros for every ad.
-    attr_available: attrBy ? Object.keys(attrBy).length > 0 : null,
+    // Whether a Triple Whale model was ASKED for and had nothing behind it, so
+    // the page can explain the fallback instead of quietly changing source.
+    attr_requested: opts.attr && opts.attr !== 'meta' ? opts.attr : null,
+    attr_fell_back: attrFellBack,
     matched: list.length,
     total_spend: totalSpend,
     shown_spend: top.reduce((n, r) => n + r.spend, 0),

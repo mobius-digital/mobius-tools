@@ -430,6 +430,10 @@
     font-size:13px;color:var(--ink);background:transparent}
   .cb-sel-menu button:hover{background:var(--brand-soft)}
   .cb-sel-menu button.on{background:var(--brand-soft);color:var(--brand-ink);font-weight:700}
+  /* A model the API cannot give us is shown and disabled, never hidden - its
+     absence should read as an answer, not as something we forgot. */
+  .cb-sel-off{display:block;padding:6px 10px;font-size:13px;color:var(--muted);cursor:default;opacity:.75}
+  .cb-sel-off small{display:block;font-size:11px;line-height:1.35;margin-top:1px;max-width:230px;white-space:normal}
   .cb-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
   /* Two rows of four, Cole's suggestion: a fixed short grid makes the SORT do
      the work, where an unbounded one invites scrolling past the answer. */
@@ -1616,17 +1620,24 @@ const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb
    and impose it. Only revenue, purchases, ROAS and CPA change with this; spend,
    hook, hold, CTR and CPM are delivery figures TW does not measure and stay
    Meta's under every setting. */
+/* TRIPLE WHALE'S OWN NAMES, because the API's names are not what Cole sees in
+   Triple Whale. Their docs: Triple Attribution "gives credit to the last ad the
+   customer clicked through on the particular platform" and is "sometimes
+   referred to as last platform click" - so `lastPlatformClick` IS Triple
+   Attribution, and calling it by the API key made the one model he uses look
+   missing.
+   TRIPLE ATTRIBUTION + VIEWS IS NOT IN THE API, and that is measured rather
+   than assumed: a live sync across 130 orders reported exactly seven models -
+   firstClick, lastClick, fullFirstClick, fullLastClick, lastPlatformClick,
+   linear, linearAll - none of them view-based. It is listed and disabled rather
+   than omitted, so its absence is an answer instead of a puzzle. */
 const CB_ATTR = [
-  // TRIPLE WHALE'S OWN NAMES. Cole asked "where is Triple Attribution?" - it was
-  // here all along under the API's name for it: Triple Whale's docs state that
-  // Triple Attribution credits the last ad clicked on the platform being viewed
-  // and is "sometimes referred to as last platform click". Labelling it
-  // `lastPlatformClick` meant the one model he uses looked absent.
   ['lastPlatformClick', 'Triple Attribution'],
-  ['linearAll', 'Linear (all touches)'],
-  ['linear', 'Linear (paid)'],
-  ['fullLastClick', 'Last click'],
-  ['fullFirstClick', 'First click'],
+  ['__views', 'Triple Attribution + Views', 'not available through the API — it blends ad views, and the endpoint returns click touchpoints only'],
+  ['linearAll', 'Linear All'],
+  ['linear', 'Linear'],
+  ['fullLastClick', 'Last Click'],
+  ['fullFirstClick', 'First Click'],
   ['meta', 'Meta’s own attribution'],
 ];
 /* Sorts that are a RATIO and therefore need a spend floor to mean anything.
@@ -1703,12 +1714,13 @@ async function renderCreativeBrowser(host, act, range) {
      as boxy the moment you opened one. Same custom menu the date control uses,
      so every dropdown in Locus now looks the same open AND closed. */
   const sel = (k, opts, cur) => {
-    const now = opts.find(o => String(o[0]) === String(cur)) || opts[0];
+    const now = opts.find(o => String(o[0]) === String(cur) && !o[2]) || opts.find(o => !o[2]);
     return `<span class="cb-sel" data-sel="${k}">
       <button type="button" class="cb-sel-btn">${esc(String(now[1]))}
         <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
-      <span class="cb-sel-menu" role="menu">${opts.map(([v, l]) =>
-        `<button type="button" role="menuitem" class="${String(v) === String(cur) ? 'on' : ''}" data-v="${esc(String(v))}">${esc(String(l))}</button>`).join('')}</span></span>`;
+      <span class="cb-sel-menu" role="menu">${opts.map(([v, l, why]) => why
+        ? `<span class="cb-sel-off" title="${esc(why)}">${esc(String(l))}<small>${esc(why)}</small></span>`
+        : `<button type="button" role="menuitem" class="${String(v) === String(cur) ? 'on' : ''}" data-v="${esc(String(v))}">${esc(String(l))}</button>`).join('')}</span></span>`;
   };
 
   host.innerHTML = `
@@ -1733,8 +1745,8 @@ async function renderCreativeBrowser(host, act, range) {
         ? '<b>Revenue, purchases, ROAS and CPA are Meta’s own attributed figures</b> and match Ads Manager.'
         : `<b>Revenue, purchases, ROAS and CPA come from Triple Whale</b> (${esc((CB_ATTR.find(x => x[0] === d.attr) || [, d.attr])[1].replace('Triple Whale · ', ''))}), so they will not match Ads Manager — Triple Whale’s pixel attributes differently and usually credits more.`}
       <b>Spend, hook, hold, CTR and CPM are always Meta’s</b>, because Triple Whale does not measure delivery.
-      ${d.attr !== 'meta' && d.attr_available === false
-        ? '<br><span style="color:var(--warn)"><b>⚠ No Triple Whale attribution is stored for this window yet</b>, so every revenue figure above reads zero. It syncs nightly for the last 7 days; ask for a longer backfill if you need history.</span>'
+      ${d.attr_fell_back
+        ? `<br><span style="color:var(--warn)"><b>⚠ Showing Meta's figures instead.</b> No Triple Whale attribution is stored for this brand over this window yet, so the ${esc((CB_ATTR.find(x => x[0] === d.attr_requested) || [, 'selected'])[1])} numbers would all have been zero. Attribution syncs nightly for the last 7 days — ask for a longer backfill if you need history.</span>`
         : ''}</p>`;
 
   host.querySelectorAll('.cb-sel').forEach(w => {
