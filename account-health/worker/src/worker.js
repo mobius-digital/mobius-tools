@@ -2663,7 +2663,11 @@ async function adRows(env, acct, from, to, opts = {}) {
             SUM(d.link_clicks) AS link_clicks, SUM(d.clicks_all) AS clicks_all,
             SUM(d.outbound_clicks) AS outbound_clicks,
             SUM(d.video_3s) AS v3, SUM(d.video_thruplay) AS vtp,
-            SUM(d.video_p100) AS v100, SUM(d.video_plays) AS vplays
+            SUM(d.video_p25) AS v25, SUM(d.video_p50) AS v50, SUM(d.video_p75) AS v75,
+            SUM(d.video_p100) AS v100, SUM(d.video_plays) AS vplays,
+            -- avg_watch is an AVERAGE per day and must never be summed; weight
+            -- it by that day's plays to get a true average across the window.
+            SUM(d.video_avg_watch * d.video_plays) AS watch_weighted
      FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
      WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
      GROUP BY d.ad_id HAVING SUM(d.spend) > 0
@@ -2716,6 +2720,21 @@ async function adRows(env, acct, from, to, opts = {}) {
       hold: isVideo && r.v3 ? (r.vtp || 0) / r.v3 : null,
       completion: isVideo && r.vplays ? (r.v100 || 0) / r.vplays : null,
       is_video: media === 'video' || isVideo, media_type: media, format: tag,
+      /* Aliases and the derived metrics the detail popout shows. Named to match
+         what the REPORT's adDetailModal already expects, so one modal serves
+         both surfaces rather than a lookalike that drifts from it. */
+      video: media === 'video' || isVideo,
+      created: origin || null,
+      clicks: r.clicks_all || 0,
+      cpc: r.link_clicks ? r.spend / r.link_clicks : null,
+      cvr: r.link_clicks ? r.purchases / r.link_clicks : null,
+      aov: r.purchases ? r.revenue / r.purchases : null,
+      cost_per_thumbstop: r.v3 ? r.spend / r.v3 : null,
+      avg_watch: r.vplays ? (r.watch_weighted || 0) / r.vplays : null,
+      retention: isVideo && r.vplays ? {
+        p25: (r.v25 || 0) / r.vplays, p50: (r.v50 || 0) / r.vplays,
+        p75: (r.v75 || 0) / r.vplays, p100: (r.v100 || 0) / r.vplays,
+      } : null,
       age: origin ? Math.max(0, ymdDiff(today, origin)) : null,
       material: r.spend >= floor,
       share: totalSpend ? r.spend / totalSpend : 0,
@@ -3257,11 +3276,23 @@ export default {
       const adId = url.searchParams.get('ad');
       const repTok = url.searchParams.get('report');
       if (!adId) return json({ error: 'ad is required' }, 400);
+      const adsTok = url.searchParams.get('ads');
       let hint = {};
       if (repTok) {
         const row = await adInSentReport(env, repTok, adId);
         if (!row) return json({ error: 'not found in this report' }, 404);
         hint = { video_id: row.video_id, page_id: row.page_id };
+      } else if (adsTok) {
+        /* A shared creative snapshot authorises playback for the ads IT
+           contains and nothing else - the same rule as a report archive token.
+           Anything looser turns this into an open proxy for arbitrary Meta
+           video ids, which is the one thing this endpoint must never be. */
+        if (!/^[a-f0-9]{16,}$/.test(adsTok)) return json({ error: 'bad token' }, 400);
+        const row = await env.DB.prepare(`SELECT data_json FROM p_ad_share WHERE token = ?1`).bind(adsTok).first();
+        if (!row) return json({ error: 'this link is no longer valid' }, 404);
+        const hit = (safeJson(row.data_json, {}).ads || []).find(a => a.ad_id === adId);
+        if (!hit) return json({ error: 'not in this set of ads' }, 404);
+        hint = { video_id: hit.video_id, page_id: hit.page_id };
       } else if (!(await isAdmin(request, env))) {
         return json({ error: 'unauthorized' }, 401);
       }

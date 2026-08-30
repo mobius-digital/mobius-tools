@@ -92,52 +92,37 @@
   nav.subtabs button.on{color:#fff;border-bottom-color:var(--brand)}
   @media (max-width:720px){ nav.subtabs .in{padding:0 14px} }
 
-  /* PERIOD BAR. Always under the tabs, on every screen that shows data, always
-     naming the RESOLVED dates. The range picker used to be an unlabelled select
-     in the header, hidden on six of nine tabs because only three honoured it -
-     so "am I looking at 30 days, 7 days or yesterday" had no answer anywhere.
-     A screen with a fixed period still gets the bar, stating what that period
-     is, so the bar is the one place the question is ever asked. */
-  .pbar{background:var(--surface);border-bottom:1px solid var(--line)}
-  .pbar .in{max-width:1240px;margin:0 auto;padding:9px 26px;display:flex;align-items:center;
-    gap:10px;flex-wrap:wrap;min-height:44px}
-  .pb-lab{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-  .pb-ctl{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-  .pb-ctl .chip{padding:5px 11px;font-size:12.5px;border-radius:99px;border:1px solid transparent;
-    color:var(--ink-2);background:transparent;font-weight:600;white-space:nowrap}
-  .pb-ctl .chip:hover{background:var(--surface-2,var(--bg))}
-  .pb-ctl .chip.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
-  .pb-fixed{font-size:13px;color:var(--ink-2);font-weight:600}
-  /* The dates are the point of the bar, so they are the strongest thing in it
-     after the active chip - a label like "Last 30 days" does not tell you
-     whether today is in it, and today is excluded everywhere in this tool. */
-  .pb-dates{margin-left:auto;font-size:12.5px;color:var(--muted);text-align:right}
-  .pb-dates b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
-  /* The custom fields sit in a row of pills, so they are pills. The calendar
-     POPUP is drawn by the OS and cannot be styled from here - same limitation
-     as a native <select> - but the field is ours, and a square-cornered box
-     beside six rounded chips is what read as boxy. */
-  .pb-custom{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);
-    margin-left:4px;padding-left:10px;border-left:1px solid var(--line)}
-  .pb-custom input[type=date]{padding:4px 10px;font-size:12.5px;border-radius:99px;
-    border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);
-    font-weight:600;font-variant-numeric:tabular-nums;line-height:1.5}
-  .pb-custom input[type=date]:hover{border-color:var(--brand)}
-  .pb-custom input[type=date]:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  /* Nudge the OS calendar button so it sits on the pill's optical centre. */
-  .pb-custom input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;margin-left:2px}
-  .pb-custom input[type=date]:hover::-webkit-calendar-picker-indicator{opacity:.85}
-  @media (max-width:720px){
-    .pbar .in{padding:9px 14px}
-    .pb-dates{margin-left:0;width:100%;text-align:left}
-    /* Seven chips wrapped to three rows and made the bar 175px tall on a phone -
-       more screen than the content it was describing. One scrolling row instead:
-       the bar stays ~70px and the active chip is always the one in view. */
-    .pb-ctl{flex-wrap:nowrap;overflow-x:auto;max-width:100%;scrollbar-width:none;-ms-overflow-style:none}
-    .pb-ctl::-webkit-scrollbar{display:none}
-  }
-  main{max-width:1240px;margin:0 auto;padding:26px 26px 90px}
-  h2{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:4px}
+  /* PERIOD CONTROL. Was a full-width strip under the tabs; Cole found it "weird"
+     and it cost ~50px of vertical space on every screen while showing one fact.
+     Now a compact header dropdown, Triple-Whale style, with the resolved dates
+     as its own second line so the window is still never a guess. */
+  .hd-period{position:relative}
+  .hd-per-btn{display:flex;align-items:center;gap:9px;background:#15232D;border:1px solid var(--hd-line);
+    border-radius:8px;padding:5px 11px;color:#DFEAF2;cursor:pointer;text-align:left;line-height:1.25}
+  .hd-per-btn:hover{border-color:#3A5060}
+  .hd-per-l{font-size:12.5px;font-weight:600;white-space:nowrap}
+  .hd-per-d{font-size:11px;color:#8FA6B5;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .hd-per-btn svg{color:#8FA6B5;flex:none}
+  .hd-per-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:230px;
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:6px;
+    box-shadow:0 16px 40px rgba(12,22,29,.28)}
+  .hd-period.open .hd-per-menu{display:block}
+  .hd-per-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:6px;
+    font-size:13px;color:var(--ink);background:transparent}
+  .hd-per-menu button:hover{background:var(--brand-soft)}
+  .hd-per-menu button.on{background:var(--brand-soft);color:var(--brand-ink);font-weight:700}
+  .hd-per-custom{display:flex;gap:8px;padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:5px}
+  .hd-per-custom label{flex:1;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .hd-per-custom input[type=date]{display:block;width:100%;margin-top:3px;padding:5px 7px;font-size:12px;
+    border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);color:var(--ink)}
+  .hd-per-note{margin:6px 10px 2px;font-size:11px;line-height:1.4;color:var(--muted)}
+  /* A fixed-window screen states its window in one quiet line, not a strip. */
+  .pbar{background:transparent;border:0}
+  .pbar .in{max-width:1240px;margin:0 auto;padding:10px 26px 0}
+  .pb-fixed{font-size:12px;color:var(--muted)}
+  @media (max-width:720px){ .pbar .in{padding:8px 14px 0} .hd-per-d{display:none} }
+  main{max-width:1240px;margin:0 auto;padding:18px 26px 64px}
+  h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
   /* The per-page detail rides UNDER the purpose sentence, one step quieter, so
      the purpose is always the first thing read and never competes with it. */
   .sub .sub-x{display:block;margin-top:3px;font-size:13px;color:var(--muted)}
@@ -162,7 +147,7 @@
   .notice.good{background:var(--good-bg);border-color:#BFDFC9;color:var(--good)}
   .notice code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:4px}
 
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px}
   .card h3{font-size:15px;font-weight:700;margin-bottom:4px}
   .card .hint{color:var(--muted);font-size:13px}
   .soon-card{border-style:dashed;background:transparent}
@@ -436,7 +421,7 @@
   @media(max-width:860px){ .cb-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
   @media(max-width:560px){ .cb-grid{grid-template-columns:minmax(0,1fr)} }
   .cb-stats{display:flex;flex-direction:column;gap:2px;margin-top:8px}
-  .cb-s{display:flex;align-items:baseline;gap:8px;font-size:12.5px;line-height:1.5}
+  .cb-s{display:flex;align-items:baseline;gap:8px;font-size:12px;line-height:1.42}
   .cb-s span{color:var(--muted)}
   .cb-s b{margin-left:auto;font-variant-numeric:tabular-nums;font-size:13px}
   .cb-s b.good{color:var(--good)} .cb-s b.bad{color:var(--bad)} .cb-s b.ok{color:var(--ink)}
@@ -474,7 +459,7 @@
   .ad-card:hover .ad-open{color:var(--brand-ink)}
   /* 4:5, not square. Most of these creatives are shot 9:16 for Reels and Stories,
      and a square tile crops the top and bottom off the thing you are judging. */
-  .ad-media{position:relative;aspect-ratio:4/5;background:var(--bg);border-bottom:1px solid var(--line);overflow:hidden}
+  .ad-media{position:relative;aspect-ratio:1/1;background:var(--bg);border-bottom:1px solid var(--line);overflow:hidden}
   .ad-media.playing{aspect-ratio:auto}
   .ad-media>img{width:100%;height:100%;object-fit:cover;display:block}
   .ad-media.none{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:22px}
@@ -497,8 +482,8 @@
     color:#fff;font-size:12px;background:rgba(0,0,0,.45)}
   .ad-close{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;cursor:pointer;
     background:rgba(0,0,0,.62);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
-  .ad-body{padding:13px 14px 14px;display:flex;flex-direction:column;gap:0;min-width:0}
-  .ad-body .ad-name{font-size:15px;font-weight:700;max-width:100%;margin-bottom:10px;line-height:1.3;
+  .ad-body{padding:10px 12px 11px;display:flex;flex-direction:column;gap:0;min-width:0}
+  .ad-body .ad-name{font-size:14px;font-weight:700;max-width:100%;margin-bottom:7px;line-height:1.3;
     white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   /* Type and length sit ON the creative, where the eye already is. */
   .ad-type{position:absolute;bottom:8px;left:8px;padding:2px 8px;border-radius:6px;
@@ -651,6 +636,7 @@
     <div class="hd-title">Locus</div>
     <div class="hd-right">
       <select id="clientPick" style="display:none"></select>
+      <div class="hd-period" id="hdPeriod" style="display:none"></div>
       <span class="hd-chip" id="connChip">…</span>
       <button class="hd-btn" id="btnOut" style="display:none">Sign out</button>
     </div>
@@ -674,11 +660,7 @@
        that element entirely; a nav rendered inside it would be wiped on every
        sub-tab switch. -->
   <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
-  <div class="pbar" id="periodBar" style="display:none"><div class="in">
-    <span class="pb-lab">Showing</span>
-    <div class="pb-ctl" id="pbCtl"></div>
-    <span class="pb-dates" id="pbDates"></span>
-  </div></div>
+  <div class="pbar" id="periodBar" style="display:none"><div class="in" id="pbIn"></div></div>
 </header>
 
 <main id="main"></main>
@@ -1525,6 +1507,10 @@ document.addEventListener('click', e => {
   if (b) { e.preventDefault(); startTour(b.dataset.tour); }
 });
 
+/* Set while a shared ad page is open, so the video endpoint can authorise
+   playback against that snapshot the way a report token does. */
+let AD_SHARE_TOKEN = null;
+
 /** The client's view of a shared set of ads. Unauthenticated, read-only, and
  *  frozen: the rows and the cover images were stored when the link was made, so
  *  this says the same thing in a month as it did on the day it was sent.
@@ -1545,9 +1531,10 @@ async function renderAdShare(token) {
   const pct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
   const stat = (l, v) => `<div class="cb-s"><span>${l}</span><b>${v}</b></div>`;
   const card = (a, i) => `<article class="ad-card cb-card">
-    <div class="ad-media${a.thumb ? '' : ' none'}">
+    <div class="ad-media${a.thumb ? '' : ' none'}"${a.is_video && a.ad_id ? ` data-ad="${esc(a.ad_id)}"` : ''}>
       ${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">` : `<span aria-hidden="true">${a.is_video ? '▶' : '▢'}</span>`}
       <span class="ad-rank">${i + 1}</span><span class="ad-type">${a.media_type === 'carousel' ? 'Carousel' : a.is_video ? 'Video' : 'Image'}</span>
+      ${a.is_video && a.ad_id ? '<button class="ad-play" type="button" title="Play this ad"><i>▶</i></button>' : ''}
     </div>
     <div class="ad-body"><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>
       <div class="cb-stats">
@@ -1565,8 +1552,18 @@ async function renderAdShare(token) {
     <p class="sub">${d.ads.length} ad${d.ads.length === 1 ? '' : 's'}${range.from ? ` from <b>${esc(prettyDate(range.from))} – ${esc(prettyDate(range.to, true))}</b>` : ''}.
       <span class="sub-x">Prepared by Mobius Digital${d.created_at ? ` on ${esc(String(d.created_at).slice(0, 10))}` : ''}. These are Meta&rsquo;s own reported figures for these ads.</span></p>
     <div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>
-    <p class="tiny" style="margin-top:10px">Spend, ROAS and CPA are as Meta reports them for each ad. <b>Hook rate</b> is the share of people shown the ad who watched three seconds — did it stop the scroll. <b>Hold rate</b> is how many of those stayed to the end. Image ads show neither, because there is nothing to watch.</p>
-    ${clientFooter('')}`;
+    <p class="tiny" style="margin-top:10px">Spend, ROAS and CPA are as Meta reports them for each ad. <b>Hook rate</b> is the share of people shown the ad who watched three seconds — did it stop the scroll. <b>Hold rate</b> is how many of those stayed to the end. Image ads show neither, because there is nothing to watch.</p>`;
+  // clientFooter WRITES into #foot and returns nothing, so interpolating it into
+  // a template printed the string "undefined" onto a page a client opens.
+  clientFooter('');
+  // Playback, on the client's link too. The share token authorises it the same
+  // way a report archive token does, so a client can press play on the ads you
+  // sent rather than looking at a still with a dead-looking badge.
+  RS.token = null;
+  AD_SHARE_TOKEN = token;
+  // This renderer paints into #main, not a passed-in host - the browser's own
+  // renderer takes one and I copied the line across without the context.
+  $('#main').querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);
 }
 
 /* ---------- Creative browser ----------
@@ -1637,7 +1634,8 @@ async function renderCreativeBrowser(host, act, range) {
         </div>
         <div class="cb-foot">${a.format ? `<span class="catpill">${esc(a.format)}</span>` : ''}
           ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
-          ${a.material ? '' : '<span class="tiny" title="Below the materiality floor, so it is excluded from the ratio sorts">low spend</span>'}</div>
+          ${a.material ? '' : '<span class="tiny" title="Below the materiality floor, so it is excluded from the ratio sorts">low spend</span>'}
+          <span style="flex:1"></span><span class="ad-open tiny">Details →</span></div>
       </div></article>`;
   };
 
@@ -1671,7 +1669,8 @@ async function renderCreativeBrowser(host, act, range) {
         : `Every ad that spent is ranked. <span title="The larger of $50 or 3% of window spend">Sorting by a ratio (ROAS, CPA, hook…) applies a ${fmtMoney(d.floor, cur)} minimum spend</span>, so a tiny ad cannot win on one lucky conversion.`}
       ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
       <br>Hook and hold are judged against <b>Motion's published benchmarks</b> (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history.
-      These are Meta-reported and match Ads Manager.</p>`;
+      <br><b>Source: Meta.</b> Spend, purchases, revenue, ROAS and CPA here are <b>Meta's own attributed figures</b> and match Ads Manager — they are not Triple Whale's, and they will not tie to the blended numbers on the other tabs.
+      <span class="info-i" title="Triple Whale cannot currently supply ad-level rows to Locus: its Summary Page API is shop-level with no ad dimension, and the Pixel Attribution endpoint that does carry ad-level attribution returns 403 because our API key has not been granted the 'Pixel Attribution: Read' scope. Grant that scope in Triple Whale and these figures can move onto TW attribution; hook, hold, CTR and CPM would stay Meta's, since those are delivery metrics Triple Whale does not measure.">i</span></p>`;
 
   host.querySelectorAll('select[data-cb]').forEach(el => el.onchange = () => {
     const k = el.dataset.cb;
@@ -1703,6 +1702,18 @@ async function renderCreativeBrowser(host, act, range) {
   // Playback reuses the SAME attachPlay the reports use, so a video behaves
   // identically here and in the document the client eventually opens.
   host.querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);
+
+  /* Click the card for the full picture - the ad copy, the CTA, where it lives,
+     and the metrics there was no room for. ONE rule with ONE exception, exactly
+     as the report does it: the whole card opens the detail view, except the
+     media on a video, which plays. Two identical-looking clicks must never do
+     different things, and this is the same modal the report uses rather than a
+     lookalike, so the two cannot drift apart. */
+  host.querySelectorAll('.cb-card').forEach(el => el.onclick = e => {
+    if (e.target.closest('.ad-media[data-ad]') || e.target.closest('.ad-frame')) return;
+    const a = d.ads.find(x => x.ad_id === el.dataset.ad);
+    if (a) adDetailModal(a, cur);
+  });
 }
 
 /* ---------- Metrics glossary ----------
@@ -1980,54 +1991,83 @@ const PB_FIXED = {
 };
 
 function renderPeriodBar(tab) {
-  const bar = $('#periodBar'); if (!bar) return;
-  if (!S.tok || tab === 'settings') { bar.style.display = 'none'; return; }
-  bar.style.display = '';
-  const ctl = $('#pbCtl'), dates = $('#pbDates');
+  const hd = $('#hdPeriod'), bar = $('#periodBar'), inn = $('#pbIn');
+  if (!hd) return;
+  if (!S.tok || tab === 'settings') { hd.style.display = 'none'; if (bar) bar.style.display = 'none'; return; }
 
-  /* The Creative browser is the one Meta screen that takes an arbitrary window
-     - Cole asked for "the same date ranges, today, yesterday, past 7, month to
-     date, last month, custom" - so the shared bar drives it there and only
-     there. The other Meta screens genuinely have their own fixed windows. */
   const metaCreative = tab === 'meta' && localStorage.getItem(MSUB.key) === 'creative';
-  if (!RANGE_TABS.has(tab) && !metaCreative) {
-    ctl.innerHTML = `<span class="pb-fixed">${esc(PB_FIXED[tab] || '')}</span>`;
-    dates.innerHTML = '';
+  const interactive = RANGE_TABS.has(tab) || metaCreative;
+
+  /* A screen with a FIXED window says so in one quiet line rather than a
+     full-width strip - it is a fact about the page, not a control. */
+  if (!interactive) {
+    hd.style.display = 'none';
+    if (bar) { bar.style.display = ''; inn.innerHTML = `<span class="pb-fixed">${esc(PB_FIXED[tab] || '')}</span>`; }
     return;
   }
+  if (bar) bar.style.display = 'none';
+  hd.style.display = '';
+
   const r = resolveRange();
-  ctl.innerHTML = PB.presets.map(([v, l]) =>
-    `<button class="chip ${r.preset === v ? 'on' : ''}" data-p="${v}">${esc(l)}</button>`).join('')
-    + (r.preset === 'custom' ? `<span class="pb-custom"><input type="date" id="pbFrom" value="${r.from}" max="${r.to}">
-        to <input type="date" id="pbTo" value="${r.to}"></span>` : '');
+  const now = new Date(), yd = new Date(now); yd.setDate(now.getDate() - 1);
   const sameYear = r.from.slice(0, 4) === r.to.slice(0, 4);
   const n = daySpan(r.from, r.to);
-  // "today excluded" only earns its place on a window that RUNS UP TO now. On
-  // Last month it states the obvious and reads as boilerplate.
-  const now = new Date(), yd = new Date(now); yd.setDate(now.getDate() - 1);
-  const tail = r.to === ymd(yd) ? ' · today excluded' : '';
-  dates.innerHTML = r.from === r.to
-    ? `<b>${esc(prettyDate(r.from, true))}</b> · 1 day`   // the date itself already says today is not in it
-    : `<b>${esc(prettyDate(r.from, !sameYear))} – ${esc(prettyDate(r.to, true))}</b> · ${n} days${tail}`;
+  const label = (PB.presets.find(x => x[0] === r.preset) || ['', 'Custom'])[1];
+  const dates = r.from === r.to
+    ? prettyDate(r.from, true)
+    : `${prettyDate(r.from, !sameYear)} – ${prettyDate(r.to, true)}`;
 
-  ctl.querySelectorAll('.chip').forEach(b => b.onclick = () => {
-    const p = b.dataset.p;
-    if (p === 'custom' && S.range?.preset !== 'custom') {
-      // Seed the custom fields from whatever was showing, so it opens on a real
-      // range rather than empty inputs the user has to fill before anything works.
-      S.range = { preset: 'custom', from: r.from, to: r.to };
-    } else S.range = { preset: p };
+  /* One compact control in the header instead of a full-width bar under the
+     tabs. Cole: "it sticks to the top and it's really weird… this can be a
+     dropdown similar to Triple Whale". It also buys back ~50px of vertical
+     space on every screen, which was the other half of his complaint. */
+  hd.innerHTML = `<button class="hd-per-btn" id="pbOpen" aria-haspopup="true" aria-expanded="false">
+      <span class="hd-per-l">${esc(label)}</span>
+      <span class="hd-per-d">${esc(dates)}</span>
+      <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+    </button>
+    <div class="hd-per-menu" id="pbMenu" role="menu">
+      ${PB.presets.map(([v, l]) => `<button role="menuitem" class="${r.preset === v ? 'on' : ''}" data-p="${v}">${l}</button>`).join('')}
+      <div class="hd-per-custom">
+        <label>From <input type="date" id="pbFrom" value="${r.from}" max="${ymd(yd)}"></label>
+        <label>To <input type="date" id="pbTo" value="${r.to}" max="${ymd(yd)}"></label>
+      </div>
+      <p class="hd-per-note">${n} day${n === 1 ? '' : 's'}${r.to === ymd(yd) ? ' · today is excluded because it is still settling' : ''}</p>
+    </div>`;
+
+  const menu = $('#pbMenu'), btn = $('#pbOpen');
+  const close = () => { hd.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+  btn.onclick = e => {
+    e.stopPropagation();
+    const open = !hd.classList.contains('open');
+    hd.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  // Bound on document so a click anywhere else closes it; removed with the node
+  // on the next render, since hd.innerHTML replaces everything inside.
+  document.addEventListener('click', function off(ev) {
+    if (!hd.contains(ev.target)) { close(); document.removeEventListener('click', off); }
+  });
+  document.addEventListener('keydown', function esc2(ev) {
+    if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', esc2); }
+  });
+
+  const apply = () => { renderPeriodBar(tab); inPlace(async () => { await boot(); show(S.tab); }); };
+  menu.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+    const pr = b.dataset.p;
+    // Custom opens seeded from whatever was showing, so it is never two empty
+    // date fields the user has to fill before anything happens.
+    S.range = pr === 'custom' ? { preset: 'custom', from: r.from, to: r.to } : { preset: pr };
     localStorage.setItem(LS.range, JSON.stringify(S.range));
-    renderPeriodBar(tab);
-    inPlace(async () => { await boot(); show(S.tab); });
+    if (pr === 'custom') { renderPeriodBar(tab); $('#hdPeriod').classList.add('open'); return; }
+    close(); apply();
   });
   const f = $('#pbFrom'), t = $('#pbTo');
   const commit = () => {
     if (!f.value || !t.value) return;
     S.range = { preset: 'custom', from: f.value <= t.value ? f.value : t.value, to: t.value };
     localStorage.setItem(LS.range, JSON.stringify(S.range));
-    renderPeriodBar(tab);
-    inPlace(async () => { await boot(); show(S.tab); });
+    close(); apply();
   };
   if (f) f.onchange = commit;
   if (t) t.onchange = commit;
@@ -3401,9 +3441,11 @@ const VID_CACHE = new Map();
 
 function adVideoUrl(adId) {
   if (VID_CACHE.has(adId)) return VID_CACHE.get(adId);
-  const q = `ad=${encodeURIComponent(adId)}` + (RS.token ? `&report=${encodeURIComponent(RS.token)}` : '');
+  const q = `ad=${encodeURIComponent(adId)}`
+    + (RS.token ? `&report=${encodeURIComponent(RS.token)}` : '')
+    + (AD_SHARE_TOKEN ? `&ads=${encodeURIComponent(AD_SHARE_TOKEN)}` : '');
   const p = (async () => {
-    if (RS.token) {
+    if (RS.token || AD_SHARE_TOKEN) {
       const res = await fetch(`${S.url.replace(/\/+$/, '')}/api/ad-video?${q}`);
       const b = await res.json();
       if (!res.ok) throw new Error(b.error || 'could not load this video');
