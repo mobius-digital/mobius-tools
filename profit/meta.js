@@ -162,7 +162,7 @@ async function renderChangeLog() {
       <input type="date" id="clTo" value="${to}" max="${ymdLocal(new Date())}">
       <span style="flex:1"></span>
       <input class="search" id="clQ" placeholder="Search changes…" value="${esc(CL.q)}">
-      <button class="help-btn" data-mhelp="changelog">? How to use</button>
+      <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="changelog">? How to use</button>
       <button class="btn" id="clAddBtn">+ Add change</button>
       <button class="btn primary" id="clSumBtn">✦ Summarise</button>
     </div>
@@ -574,7 +574,7 @@ async function renderAverages() {
       <span class="tiny" style="font-weight:700" title="How far back the charts look. This only changes how much history the lines show — the cards' current values are always the last 7 days.">History shown:</span>
       ${['30','60','90','180'].map(w => `<button class="chip ${AV.win===w?'on':''}" data-w="${w}">last ${w} days</button>`).join('')}
       <span style="flex:1"></span>
-      <button class="help-btn" data-mhelp="averages">? How to use</button>
+      <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="averages">? How to use</button>
       </div>
     <div id="avBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
   document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
@@ -769,7 +769,7 @@ async function renderCreative() {
       <span class="tiny" style="font-weight:700;margin-left:14px" title="The cards look at spend from this recent period">Look at the last:</span>
       ${[['1', '1 day'], ['7', '7 days'], ['14', '14 days']].map(([v, l]) => `<button class="chip ${CR.win === v ? 'on' : ''}" data-g="${v}">${l}</button>`).join('')}
       <span style="flex:1"></span>
-      <button class="help-btn" data-mhelp="creative">? How to use</button>
+      <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="creative">? How to use</button>
     </div>
     <div id="crBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
   document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
@@ -848,6 +848,8 @@ function wireCreativeCharts(d) {
 async function renderMetaOverview() {
   $('#main').innerHTML = `<h2>Meta — Overview</h2>
     <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Meta-reported, so these match Ads Manager — they will not match the blended figures on the other tabs, and are not meant to.</p>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span>
+      <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div>
     ${setupBanner()}<div class="card"><span class="hint">Loading…</span></div>`;
   if (!S.accounts.some(a => a.active)) { const c = $('#main .card'); if (c) c.remove(); return; }
   let data;
@@ -901,7 +903,7 @@ async function renderToday() {
   $('#main').innerHTML = `<h2>Meta — Today</h2>
     <p class="sub">Is today running hot or cold against a normal day? Today's cumulative Meta spend against the average shape of the last 7 days, hour by hour.</p>
     ${setupBanner()}
-    <div class="row"><span style="flex:1"></span><button class="help-btn" data-mhelp="today">? How to use</button></div>
+    <div class="row"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="today">? How to use</button></div>
     <div id="hpToday"><div class="card"><span class="hint">${single ? 'Pulling today&rsquo;s hourly spend from Meta…' : 'Loading…'}</span></div></div>`;
   if (!single) {
     const active = S.accounts.filter(a => a.active);
@@ -944,12 +946,46 @@ const SUBS = [
   ['averages', 'Averages', renderAverages],
   ['creative', 'Creative', renderCreative],
 ];
-const HELP_TITLES = { today: 'How to use Today', changelog: 'How to use the Change Log',
-  averages: 'How to use Averages', creative: 'How to use Creative Rotation' };
+const HELP_TITLES = { overview: 'Meta at a glance', today: 'Today', changelog: 'The Change Log',
+  averages: 'Averages', creative: 'Creative Rotation' };
+/* Same short-first shape as the host page's help - see PAGE_BRIEF there for
+   why. The host owns `helpModalFor`; this file only supplies the briefs. */
+const META_BRIEF = {
+  overview: {
+    answers: 'Which Meta accounts are running hot or cold against their own normal.',
+    when: 'Daily, as the ads-side companion to Overview.',
+    todo: 'Scan for red. These match Ads Manager and deliberately will not match the blended tabs.',
+  },
+  today: {
+    answers: 'Whether Meta is delivering right now, or has stalled.',
+    when: 'Mid-morning, or any time spend looks wrong.',
+    todo: 'Compare spend so far with a typical day by this hour. Under -10% is worth a look in Ads Manager.',
+  },
+  changelog: {
+    answers: 'What was changed in the account, and when.',
+    when: 'When a number moved and you want to know what you did.',
+    todo: 'Find the change near the date that moved, and tag it with a reason — the daily brief reads those.',
+  },
+  averages: {
+    answers: 'Whether the last 7 days beat this account’s own last 30.',
+    when: 'Weekly, or when something feels off but you cannot name it.',
+    todo: 'Ignore moves under ~5%. Trust the 7-vs-30 read; the last 3 days are still settling.',
+  },
+  creative: {
+    answers: 'Whether you are feeding the account new ads or coasting on old ones.',
+    when: 'Weekly, with your creative strategist.',
+    todo: 'Check the share of spend going to new ads. Falling week after week means fatigue is building.',
+  },
+};
 
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-mhelp]');
-  if (hb) helpModal(HELP_TITLES[hb.dataset.mhelp], META_HELP[hb.dataset.mhelp]);
+  if (!hb) return;
+  const k = hb.dataset.mhelp;
+  // helpModalFor lives in the host page; meta.js is loaded before it but this
+  // resolves at CLICK time, so the host is always defined by then.
+  if (typeof helpModalFor === 'function') helpModalFor(k, HELP_TITLES[k], META_HELP[k], META_BRIEF[k]);
+  else helpModal(HELP_TITLES[k], META_HELP[k]);
 });
 
 /** Load the Meta account list once per session (currency, tz, active flags). */

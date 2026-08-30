@@ -301,7 +301,36 @@
   .pk-opt:hover,.pk-opt.hl{background:var(--brand-soft)}
   .pk-opt[aria-selected=true]{font-weight:700}
   .pk-none{padding:9px;color:var(--muted);font-size:12.5px}
+  /* Two-tier help: the three lines you actually needed, then the essay. */
+  .hb{border-left:3px solid var(--brand);background:var(--brand-soft);padding:12px 15px;border-radius:0 8px 8px 0;margin-bottom:14px}
+  .hb p{margin:0 0 8px;font-size:14px;line-height:1.5}
+  .hb p:last-child{margin:0}
+  .hb b{color:var(--brand-ink)}
+  .hb-more{border-top:1px solid var(--line);padding-top:10px}
+  .hb-more summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);list-style:none;padding:2px 0}
+  .hb-more summary::-webkit-details-marker{display:none}
+  .hb-more summary::before{content:'▸ ';color:var(--brand-ink)}
+  .hb-more[open] summary::before{content:'▾ '}
+  .hb-more summary:hover{color:var(--brand-ink)}
+  .hb-more .help-body{padding-top:8px}
+  .hb-foot{margin:14px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:13px}
+  .hb-foot a{color:var(--brand-ink);font-weight:700;text-decoration:none}
+  .hb-foot a:hover{text-decoration:underline}
+  /* Glossary. One entry per metric, and the LAST line - what to do when it
+     moves - is the one that did not exist anywhere before. */
+  .gl{display:flex;flex-direction:column;gap:16px}
+  .gl-i{border-top:1px solid var(--line);padding-top:13px}
+  .gl-i:first-child{border-top:0;padding-top:0}
+  .gl-i h4{margin:0 0 3px;font-size:15px;font-weight:700}
+  .gl-tag{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:2px 7px;margin-left:5px}
+  .gl-one{margin:0 0 8px;font-size:14px;line-height:1.5;color:var(--ink)}
+  .gl dl{display:grid;grid-template-columns:132px 1fr;gap:5px 14px;margin:0;font-size:13px;line-height:1.5}
+  .gl dt{font-family:inherit;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:3px}
+  .gl dd{margin:0;color:var(--ink-2)}
+  @media (max-width:560px){ .gl dl{grid-template-columns:1fr;gap:2px} .gl dt{padding-top:7px} }
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
+  .help-btn + .help-btn{margin-left:6px}
   .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
   .strip{position:relative;height:30px}
   .strip .dot{position:absolute;top:9px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);cursor:default;border:1.5px solid #fff;box-shadow:0 0 0 1px var(--line-strong)}
@@ -867,15 +896,86 @@ document.addEventListener('click', e => {
   const label = ii.closest('.av-label')?.textContent.replace(/\s*i\s*$/, '').trim() || 'What this means';
   helpModal(label, `<p>${esc(holder.title)}</p>`);
 }, true);
+/* The glossary is reachable from every help modal and from every page. */
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-gloss]');
+  if (g) { e.preventDefault(); document.querySelectorAll('.modal-wrap').forEach(w => w.remove()); glossaryModal(); }
+}, true);
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
-  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', brief:'How the Daily Brief works', reports:'How Reports work', plan:'How planning the month works', customers:'How to read the Customers page', settings:'How Settings works' }[hb.dataset.help] || 'How this page works', PAGE_HELP[hb.dataset.help]);
+  if (hb) {
+    const k = hb.dataset.help;
+    helpModalFor(k, { overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings' }[k] || 'This page', PAGE_HELP[k]);
+  }
 });
 
-function helpModal(title, html) {
+/* ---------- Help, short first ----------
+   The twelve help modals ran to 4,531 words - Reports alone was 667 across 11
+   paragraphs. You open one because you are stuck MID-TASK, and eleven
+   paragraphs is a three-minute read, so nobody read them, so the next
+   explanation went into a tooltip instead and the page grew a fourth layer of
+   prose. Every word is kept; only the order changes. Three lines answer the
+   question you actually had, and the essay is one click away for the day you
+   want to know how the format-tag coverage threshold works. */
+const PAGE_BRIEF = {
+  overview: {
+    answers: 'Which clients are making money, and which are not.',
+    when: 'Every morning, first thing. It is the front door.',
+    todo: 'Scan the contribution margin column, then click any client to see why.',
+  },
+  profit: {
+    answers: 'Where one client’s money went — revenue down to what was actually left.',
+    when: 'When Overview shows something you want to understand.',
+    todo: 'Read the waterfall top to bottom. The gap between revenue and ad spend on the chart is what paid for everything else.',
+  },
+  plan: {
+    answers: 'What next month’s revenue target should be, and what it will cost to hit.',
+    when: 'Once a month, on the call where you agree the number with the client.',
+    todo: 'Type two of revenue / spend / MER — the third is arithmetic. Check the verdict line says achievable, then save and share the client link.',
+  },
+  brief: {
+    answers: 'How yesterday went against the plan, in words you can send.',
+    when: 'Each morning, when the draft notice lands in your internal Slack.',
+    todo: 'Read the draft at the top, edit the wording if you want, press Send to client.',
+  },
+  reports: {
+    answers: 'How last week or last month actually went, as a document you hand over.',
+    when: 'Monday when the weekly draft appears, and the 1st for the monthly.',
+    todo: 'Read the summary, edit it, press Send to client. Nothing reaches a client on its own.',
+  },
+  customers: {
+    answers: 'What a new customer costs, and whether their first order pays that back.',
+    when: 'Before you set a plan — it decides whether higher spend is affordable.',
+    todo: 'Look at payback. Above 1.0x you can afford to bid harder; below it, the business depends on people coming back.',
+  },
+  costs: {
+    answers: 'Whether this client’s cost data can be trusted.',
+    when: 'When a “cost data” warning appears anywhere else. Otherwise never.',
+    todo: 'If the verdict is broken, either fix the product costs in Triple Whale or set a flat margin here.',
+  },
+  settings: {
+    answers: 'Who the clients are, and where each one’s reporting is sent.',
+    when: 'Adding a client, or changing where their Slack updates go.',
+    todo: 'Add brands at the top; set the internal and client channels in the table below.',
+  },
+};
+
+/** The two-tier help modal. `key` selects the brief; `html` is the full essay. */
+function helpModalFor(key, title, html, briefOverride) {
+  const b = briefOverride || PAGE_BRIEF[key];
+  const brief = b ? `<div class="hb">
+      <p><b>What it answers.</b> ${b.answers}</p>
+      <p><b>When you open it.</b> ${b.when}</p>
+      <p><b>What to do.</b> ${b.todo}</p>
+    </div>` : '';
+  const more = html ? `<details class="hb-more"><summary>Full detail</summary><div class="help-body">${html}</div></details>` : '';
+  helpModal(title, `${brief}${more}<p class="hb-foot"><a href="#" data-gloss="1">What do these numbers mean? →</a></p>`);
+}
+
+function helpModal(title, html, opts = {}) {
   const w = document.createElement('div');
   w.className = 'modal-wrap';
-  w.innerHTML = `<div class="modal" style="max-width:580px"><h3>${esc(title)}</h3><div class="help-body">${html}</div>
+  w.innerHTML = `<div class="modal" style="max-width:${opts.wide ? 760 : 580}px"><h3>${esc(title)}</h3><div class="help-body">${html}</div>
     <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-m="ok">Got it</button></div></div>`;
   document.body.appendChild(w);
   const done = () => { w.remove(); document.removeEventListener('keydown', k); };
@@ -1097,6 +1197,100 @@ const TAB_PURPOSE = {
  *  which month) and should stay short - it sits under the purpose, not in it. */
 function pageHead(tab, title, extra) {
   return `<h2>${title}</h2><p class="sub">${TAB_PURPOSE[tab] || ''}${extra ? ` <span class="sub-x">${extra}</span>` : ''}</p>`;
+}
+
+/* ---------- Metrics glossary ----------
+   Cole: "I don't understand what the metrics do." Every metric WAS defined -
+   in 34 ⓘ icons and 62 hover tooltips, each in its own words, several of them
+   in three places with three different framings. What did not exist anywhere
+   was one page you could read, and a line saying what to DO when the number
+   moves. That fourth line is the whole point; the first three already existed
+   scattered across the UI. */
+const GLOSSARY = [
+  { k: 'Revenue', tag: 'Net Sales + Shipping',
+    one: 'Everything the store actually sold, from every source — paid, organic, email, direct.',
+    f: 'Shopify Total Sales − sales tax. Gross sales, less discounts and returns, plus shipping charged to customers.',
+    good: 'It is the base for everything else here. It is <b>not</b> what any ad platform reports — those are attributed claims, this is money.',
+    moves: 'A fall with steady spend shows up immediately as a lower MER. Check <b>Profit</b> for which day, then <b>Meta</b> for whether delivery changed.' },
+  { k: 'MER', tag: 'blended',
+    one: 'How much revenue every advertising dollar brought in, across the whole store.',
+    f: 'MER = revenue ÷ <b>total</b> ad spend, all platforms combined.',
+    good: 'Judged against the MER in that month’s plan, never a universal number. Your six currently sit around 2.1–2.5.',
+    moves: 'MER holding while <b>aMER</b> falls is the one that matters — it means the ads stopped acquiring and the email list is carrying the store.' },
+  { k: 'aMER', tag: 'blended, new customers only',
+    one: 'The same thing, but only counting revenue from people buying for the first time.',
+    f: 'aMER = new-customer revenue ÷ that same total ad spend.',
+    good: 'Compared with this account’s own trailing 28 days. Across your six it runs roughly 1.3–2.1.',
+    moves: 'Falling aMER means acquisition is getting more expensive. Check <b>Customers</b> for payback, then <b>Meta → Creative</b> for whether you are coasting on old ads.' },
+  { k: 'Contribution margin', tag: 'CM',
+    one: 'What was left after every cost that moves with sales — including the ads.',
+    f: 'Revenue − product costs − fulfilment − handling − payment fees − <b>all ad spend</b>.',
+    good: 'Positive and growing. It deliberately ignores rent, salaries, software and our retainer, so it is <b>not</b> net profit — it answers "did the marketing make money on the margin?"',
+    moves: 'Down while revenue is up means you bought revenue that did not pay for itself. The <b>Plan</b> page warns when a growth target does this.' },
+  { k: 'Gross profit', tag: '',
+    one: 'What was left after making and shipping the product, before any advertising.',
+    f: 'Revenue − product costs − fulfilment − handling − payment fees.',
+    good: 'Steady. It should barely move day to day; if it swings, the cost data is the problem, not the business.',
+    moves: 'A wobbly gross margin is exactly what the <b>Costs</b> tab exists to catch.' },
+  { k: 'CAC', tag: 'blended',
+    one: 'What it cost to buy one new customer.',
+    f: 'CAC = total ad spend ÷ new-customer orders.',
+    good: 'Only meaningful next to what that customer is worth — which is why <b>payback</b> is the number to read, not CAC alone.',
+    moves: 'Rising CAC with flat payback is survivable; rising CAC with payback under 1.0x is not.' },
+  { k: 'First-order payback', tag: '',
+    one: 'Whether a new customer’s first order covers what you paid to get them.',
+    f: 'First-order margin ÷ CAC.',
+    good: '<b>Above 1.0x</b> the client profits on the first order and can afford to bid harder. Below it, the business depends on repeat buyers.',
+    moves: 'Slipping below 1.0x changes what a sensible plan looks like. Read it with repeat share — weak on both leaves no margin for error.' },
+  { k: 'Repeat share', tag: 'orders, not people',
+    one: 'The share of orders you did not have to buy with advertising.',
+    f: 'Returning orders ÷ total orders. One shopper buying three times counts three times.',
+    good: 'Higher means a base is carrying the brand. Low means growth stops the moment spend stops.',
+    moves: 'It is the safety net under a weak payback. If both are weak, the plan has to be built on acquisition alone.' },
+  { k: 'New %', tag: '',
+    one: 'How much of the revenue came from first-time buyers.',
+    f: 'New-customer revenue ÷ revenue.',
+    good: 'An acquisition business runs high. There is no universal target — watch the direction.',
+    moves: 'Falling new % with flat revenue means the list is doing the work. Same warning as aMER, seen from the other side.' },
+  { k: 'ROAS', tag: 'platform-attributed — not blended',
+    one: 'What Meta or Google <i>claims</i> it earned per dollar, using its own attribution.',
+    f: 'Platform-reported revenue ÷ that platform’s spend. Platforms double-count each other.',
+    good: '<b>There is no target for it here.</b> It sits structurally below blended MER by construction, so judging it against the MER goal is a category error.',
+    moves: 'Useful for comparing ads <i>within</i> one platform, and for nothing else. The blended numbers are the honest headline.' },
+  { k: 'CPA', tag: 'platform',
+    one: 'What one purchase cost, as that platform counts purchases.',
+    f: 'Platform spend ÷ platform-attributed purchases.',
+    good: 'Compared with this account’s own average, never an outside benchmark.',
+    moves: 'On <b>Meta → Creative</b> an ad 40%+ worse than the account average is flagged to cut or fix — but give new ads a few days first.' },
+  { k: 'Hook rate', tag: 'video only',
+    one: 'Whether the creative stopped the scroll.',
+    f: '3-second video views ÷ impressions.',
+    good: 'Motion’s published benchmarks across many accounts: 30%+ strong, under 20% low.',
+    moves: 'A low hook is a creative problem before it is a targeting one. High hook with low ROAS means it stops people but does not sell.' },
+  { k: 'Hold rate', tag: 'video only',
+    one: 'Of the people it stopped, how many stayed.',
+    f: 'ThruPlay views ÷ 3-second views.',
+    good: '60%+ strong, under 40% low.',
+    moves: 'Good hook and poor hold means the opening works and the middle does not — usually an editing fix, not a new concept.' },
+  { k: 'CTR / CPM', tag: 'platform',
+    one: 'How often people clicked, and what a thousand impressions cost.',
+    f: 'CTR = link clicks ÷ impressions. CPM = spend ÷ impressions × 1,000.',
+    good: 'Read against this account’s own history. CPM also moves with auction seasonality, so a January and a November CPM are not comparable.',
+    moves: 'Rising CPM with steady CTR is usually the auction, not you. Falling CTR with steady CPM is creative fatigue.' },
+];
+
+function glossaryModal() {
+  const body = GLOSSARY.map(m => `<div class="gl-i">
+    <h4>${esc(m.k)}${m.tag ? ` <span class="gl-tag">${esc(m.tag)}</span>` : ''}</h4>
+    <p class="gl-one">${m.one}</p>
+    <dl>
+      <dt>The maths</dt><dd>${m.f}</dd>
+      <dt>What good looks like</dt><dd>${m.good}</dd>
+      <dt>When it moves</dt><dd>${m.moves}</dd>
+    </dl></div>`).join('');
+  helpModal('What the numbers mean', `<p class="hint" style="margin-bottom:14px">Every figure in Locus, what it is made of, and what to do when it changes.
+    <b>Blended</b> means real store money over real total spend — nothing can be claimed twice.
+    <b>Platform</b> means that platform’s own attributed claim.</p><div class="gl">${body}</div>`, { wide: true });
 }
 
 const PAGE_HELP = {
@@ -1514,7 +1708,7 @@ function statCard(label, value, sub, info) {
 async function renderOverview() {
   const rows = S.act === 'all' ? S.accounts : S.accounts.filter(a => a.act_id === S.act);
   $('#main').innerHTML = `${pageHead('overview', 'Overview', 'Every channel, not just ads &mdash; MER and aMER are blended on both sides, so nothing is double-counted.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="overview">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="overview">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num" title="Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as 'Net Sales + Shipping'. It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure 'Total Sales' and stores it as netSales; shipping is already inside it, so it is never added twice.">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
       <tbody>${rows.map(a => {
@@ -1598,7 +1792,7 @@ function renderProfitAll() {
   });
   const totalTrusted = ranked.filter(a => cmTrusted(a.cost_health) && a.window.cm != null);
   $('#main').innerHTML = `${pageHead('profit', 'Profit', 'Ranked by what each brand actually kept. Click a card for its full waterfall.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
     ${totalTrusted.length < S.accounts.length ? `<div class="notice warn">ℹ️ <div><b>${S.accounts.length - totalTrusted.length} client${S.accounts.length - totalTrusted.length > 1 ? 's are' : ' is'} missing from the profit ranking</b> because their cost data can't be trusted. Revenue and efficiency still work for them — see the <b>Costs</b> tab.</div></div>` : ''}
     <div id="pfAllGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
       ${ranked.map(a => {
@@ -1746,7 +1940,7 @@ async function renderProfit(first) {
   const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
 
   $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, '<b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.')}
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-help="profit">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
@@ -1840,7 +2034,7 @@ function marginSVG(rows) {
 async function renderCosts(first) {
   if (S.act === 'all') {
     $('#main').innerHTML = `${pageHead('costs', 'Costs', 'Product costs <i>and</i> delivery, per client.')}
-      <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
+      <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfilment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfilment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
         <tbody>${S.accounts.map(a => { const h = a.cost_health, s = a.shipping; return `<tr data-id="${a.act_id}" style="cursor:pointer">
@@ -1873,7 +2067,7 @@ async function renderCosts(first) {
   const winSales = (d.rows || []).reduce((a, x) => a + (x.sales || 0), 0);
 
   $('#main').innerHTML = `${pageHead('costs', `Costs &mdash; ${esc(d.account.name)}`, 'Last 60 days of daily margin, which is what reveals whether the cost data holds up.')}
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
     ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> — the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost — not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
       : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
       : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) — the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} — clear the override below to use it.`}</div></div>`
@@ -2062,7 +2256,7 @@ async function renderBrief(first) {
       <label class="tiny">day</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
       <button class="btn" id="bfTwSync">↻ Refresh Triple Whale data</button>
       <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet — hit refresh'}</span>
-      <span style="flex:1"></span><button class="help-btn" data-help="brief">? How to use</button>
+      <span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="brief">? How to use</button>
     </div>
     ${d.goals && d.goals_planned === false ? `<div class="notice warn">⚠️ <div><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure below is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so out loud. <button class="btn" id="bfToPlan2" style="margin-left:6px">Set ${esc(monthLabel(d.month))}'s plan</button></div></div>` : ''}
     ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
@@ -2866,7 +3060,7 @@ function wireAdCards(ads, cur, prevTag) {
 /** All-clients view: the latest weekly and monthly report per brand at a glance. */
 async function renderReportsAll(first) {
   const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically &mdash; Monday covers last Mon&ndash;Sun, the 1st covers last month. <b>Nothing reaches a client on its own.</b>')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="reports">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button></div>
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -2958,7 +3152,7 @@ async function renderReports(first) {
       <button class="btn" id="rpGenW">Generate last week</button>
       <button class="btn" id="rpGenM">Generate last month</button>
       <span class="tiny" id="rpGenMsg"></span>
-      <span style="flex:1"></span><button class="help-btn" data-help="reports">? How to use</button>
+      <span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button>
     </div>
     ${chips ? `<div class="row" style="margin-bottom:12px">${chips}</div>` : ''}
     ${configCard}
@@ -3365,7 +3559,7 @@ async function renderPlan(first) {
     <div class="row" style="margin-bottom:14px;flex-wrap:wrap">
       ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
       <span id="plChip">${statusPill}</span>
-      <span style="flex:1"></span><button class="help-btn" data-help="plan">? How to use</button>
+      <span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="plan">? How to use</button>
     </div>
 
     ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
@@ -3700,7 +3894,7 @@ function cohortCard(co, cur) {
 
 async function renderCustomersAll() {
   $('#main').innerHTML = `${pageHead('customers', 'Customers', '<b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
       <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer"><td><b>${esc(a.name)}</b></td>
@@ -3734,7 +3928,7 @@ async function renderCustomers(first) {
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const shell = body => `${pageHead('customers', `Customers &mdash; ${esc(acct?.name || '')}`, 'Not a true lifetime value &mdash; Triple Whale gives us no per-customer history.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
@@ -3880,7 +4074,7 @@ async function renderSettings() {
   $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ' &mdash; ' + esc(one.name) : ''}`,
     one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
         : 'One database behind the whole platform, so nothing here needs keeping in sync twice.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="settings">? How to use</button></div>
     <div id="metaCard"><div class="card"><span class="hint">Loading clients\u2026</span></div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
     <h3 class="set-sec">Where each client's reporting goes</h3>
