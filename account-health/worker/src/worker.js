@@ -751,6 +751,7 @@ async function syncTwAttribution(env, acct, days = 7) {
   const start = addDays(end, -(Math.min(days, 60) - 1));
 
   const agg = new Map();                       // `${date}|${ad}|${model}` -> {rev, ord}
+  const seenModels = new Set();                // what TW ACTUALLY sends, not what we assumed
   let page = 1, orders = 0, pages = 0;
   // Capped: this runs nightly for six brands and a runaway page loop would
   // spend the whole invocation budget on one of them.
@@ -766,6 +767,7 @@ async function syncTwAttribution(env, acct, days = 7) {
       // money did, which is what every other figure in Locus is dated by.
       const date = String(o.created_at || '').slice(0, 10);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      for (const k of Object.keys(o.attribution || {})) seenModels.add(k);
       for (const model of TW_ATTR_MODELS) {
         const tps = (o.attribution?.[model] || []).filter(t => t && t.adId);
         if (!tps.length) continue;             // organic, direct, or a non-paid touch
@@ -802,7 +804,8 @@ async function syncTwAttribution(env, acct, days = 7) {
     }
     await env.DB.prepare(sql).bind(...binds).run();
   }
-  return { name: acct.name, from: start, to: end, orders, pages, rows: rows.length };
+  return { name: acct.name, from: start, to: end, orders, pages, rows: rows.length,
+    models_seen: [...seenModels].sort(), models_stored: TW_ATTR_MODELS };
 }
 
 async function twWindow(env, shopDomain, start, end) {
@@ -3745,6 +3748,17 @@ export default {
       /* Live creative browser. Same rows the weekly report draws, but for any
          window and any sort, and it fetches the creative asset only for the
          handful of ads actually shown - one batched Meta call per view. */
+      /* Creative assets for a named set of ads, fetched AFTER the cards paint.
+         Splitting this out is what makes sorting and filtering feel instant:
+         the numbers are one D1 query, and the images arrive when they arrive. */
+      if (path === '/api/ad-creatives') {
+        const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 40);
+        if (!ids.length) return json({ assets: {} });
+        let assets = {};
+        try { assets = await adThumbnails(env, ids); } catch (e) { return json({ assets: {}, error: e.message }); }
+        return json({ assets });
+      }
+
       if (path === '/api/ads') {
         const act = url.searchParams.get('act');
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
@@ -3755,6 +3769,7 @@ export default {
         if (to > yday) to = yday;                        // today is never complete
         const days = Math.min(Math.max(+url.searchParams.get('days') || 30, 1), 400);
         const from = ymd(url.searchParams.get('from')) || addDays(to, -(days - 1));
+        const t0 = Date.now();
         const r = await adRows(env, acct, from > to ? to : from, to, {
           sort: url.searchParams.get('sort'),
           format: url.searchParams.get('format'),
@@ -3763,11 +3778,38 @@ export default {
         });
         // Assets for the shown ads only. Never fatal - the numbers are the point
         // and a card with no image still answers the question.
+        const t1 = Date.now();
+        /* CREATIVE IS NO LONGER FETCHED HERE unless asked for. It was the whole
+           reason filtering felt slow: an unseen ad costs a creative call plus a
+           video-cover call against Meta, so one dropdown click could be sixteen
+           sequential round trips before a single number appeared. The cards do
+           not need the image to be correct - they need it to be fast - so the
+           rows come back immediately and the images are fetched separately and
+           patched in. `?assets=1` keeps the old one-shot behaviour for any
+           caller that genuinely wants both together. */
         let assets = {};
-        try { assets = await adThumbnails(env, r.ads.map(a => a.ad_id)); } catch { /* numbers still stand */ }
-        for (const a of r.ads) Object.assign(a, assets[a.ad_id] || {});
+        if (url.searchParams.get('assets') === '1') {
+          try { assets = await adThumbnails(env, r.ads.map(a => a.ad_id)); } catch { /* numbers still stand */ }
+          for (const a of r.ads) Object.assign(a, assets[a.ad_id] || {});
+        } else {
+          // Anything already cached is free, so send that much with the rows.
+          try {
+            const ids = r.ads.map(a => a.ad_id);
+            const q = ids.map((_, i) => `?${i + 1}`).join(',');
+            const { results } = await env.DB.prepare(
+              `SELECT ad_id, json FROM ad_creative WHERE ad_id IN (${q})`).bind(...ids).all();
+            for (const row of results || []) {
+              const v = safeJson(row.json, null);
+              const a = r.ads.find(x => x.ad_id === row.ad_id);
+              if (v && a) Object.assign(a, v);
+            }
+          } catch { /* the numbers stand without it */ }
+        }
+        const t2 = Date.now();
+        // Timings ride along permanently. "It feels slow" is not actionable;
+        // "creative took 4.1s of 4.3s" says exactly what to fix.
         return json({ account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
-          from, to, ...r });
+          from, to, ...r, timing: { rows_ms: t1 - t0, creative_ms: t2 - t1, total_ms: t2 - t0 } });
       }
 
       if (path === '/api/creative') {

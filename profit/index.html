@@ -1609,7 +1609,7 @@ async function renderAdShare(token) {
    The ratio sorts are filtered to MATERIAL ads server-side; the footer always
    states how many were considered and how much spend is on screen, because a
    "top 8 by ROAS" that quietly dropped 90% of spend is a lie of omission. */
-const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb_attr') || 'lastPlatformClick' };
+const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb_attr') || 'lastPlatformClick', run: 0 };
 /* ATTRIBUTION SOURCE. Cole's rule is Triple Whale for anything attribution-
    shaped, Meta only where TW cannot measure it - and TW returns ALL of these
    models in the SAME response, so there was never a reason to pick one in code
@@ -1617,11 +1617,16 @@ const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb
    hook, hold, CTR and CPM are delivery figures TW does not measure and stay
    Meta's under every setting. */
 const CB_ATTR = [
-  ['lastPlatformClick', 'Triple Whale · last platform click'],
-  ['linear', 'Triple Whale · linear'],
-  ['linearAll', 'Triple Whale · linear (all touches)'],
-  ['fullLastClick', 'Triple Whale · last click'],
-  ['fullFirstClick', 'Triple Whale · first click'],
+  // TRIPLE WHALE'S OWN NAMES. Cole asked "where is Triple Attribution?" - it was
+  // here all along under the API's name for it: Triple Whale's docs state that
+  // Triple Attribution credits the last ad clicked on the platform being viewed
+  // and is "sometimes referred to as last platform click". Labelling it
+  // `lastPlatformClick` meant the one model he uses looked absent.
+  ['lastPlatformClick', 'Triple Attribution'],
+  ['linearAll', 'Linear (all touches)'],
+  ['linear', 'Linear (paid)'],
+  ['fullLastClick', 'Last click'],
+  ['fullFirstClick', 'First click'],
   ['meta', 'Meta’s own attribution'],
 ];
 /* Sorts that are a RATIO and therefore need a spend floor to mean anything.
@@ -1779,6 +1784,39 @@ async function renderCreativeBrowser(host, act, range) {
   // Playback reuses the SAME attachPlay the reports use, so a video behaves
   // identically here and in the document the client eventually opens.
   host.querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);
+
+  /* IMAGES ARRIVE AFTER THE NUMBERS. Fetching creative inline was the whole of
+     the slowness: an ad nobody had looked at before costs a creative call plus
+     a video-cover call against Meta, so one dropdown click could be sixteen
+     sequential round trips before anything appeared. The rows are one D1 query
+     and paint immediately; anything already cached comes with them, and the
+     rest is patched in here. A failure leaves the placeholder, which is what
+     the card already shows. */
+  const need = d.ads.filter(a => !a.thumb).map(a => a.ad_id);
+  if (need.length) {
+    const token = ++CB.run;
+    api('/api/ad-creatives?ads=' + encodeURIComponent(need.join(','))).then(r => {
+      if (token !== CB.run || !host.isConnected) return;   // a newer view is on screen
+      for (const [id, v] of Object.entries(r.assets || {})) {
+        const a = d.ads.find(x => x.ad_id === id);
+        if (a) Object.assign(a, v);
+        const el = host.querySelector(`.cb-card[data-ad="${CSS.escape(id)}"]`);
+        if (!el || !v.thumb) continue;
+        const media = el.querySelector('.ad-media');
+        media.classList.remove('none');
+        const ph = media.querySelector('span[aria-hidden]');
+        if (ph) ph.remove();
+        media.insertAdjacentHTML('afterbegin', `<img src="${v.thumb}" alt="Creative for ${esc(a?.name || '')}">`);
+        // A cover only proves it is a video once it has arrived, so the play
+        // badge appears with it rather than being guessed at beforehand.
+        if (v.video && !media.querySelector('.ad-play')) {
+          media.dataset.ad = id;
+          media.insertAdjacentHTML('beforeend', '<button class="ad-play" type="button" title="Play this video ad"><i>▶</i></button>');
+          attachPlay(media);
+        }
+      }
+    }).catch(() => { /* the placeholder is the honest fallback */ });
+  }
 
   /* Click the card for the full picture - the ad copy, the CTA, where it lives,
      and the metrics there was no room for. ONE rule with ONE exception, exactly

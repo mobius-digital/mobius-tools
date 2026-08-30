@@ -32,6 +32,8 @@ const PROXY_PATHS = new Set([
      is rendered by index.html whose `api()` points HERE - so without this it
      404s. That is exactly what shipped: "Couldn't load ads: not found". */
   '/api/ads',
+  // Creative assets, fetched after the cards paint so filtering feels instant.
+  '/api/ad-creatives',
   // Playback for a creative card. Unauthenticated callers reach it only with
   // a report archive token, which the engine validates against that client's
   // own sent reports.
