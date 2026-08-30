@@ -1600,7 +1600,9 @@ async function adThumbnails(env, adIds) {
   } catch { /* the cards still work without status and dates */ }
   // 480px covers the card at roughly 2x without the weight of a full-res asset,
   // which cannot be baked in: a frozen report has to carry its own images.
-  let budget = 900_000;                       // total base64 to inline across the report
+  // The ceiling is not aesthetic — the whole report is ONE D1 row, so the
+  // inlined images have to leave room for the numbers beside them.
+  let budget = 700_000;                       // total base64 to inline across the report
   for (const id of adIds.slice(0, 10)) {
     try {
       const r = await meta(env, `${id}/adcreatives`, {
@@ -1633,7 +1635,26 @@ async function adThumbnails(env, adIds) {
         || c?.object_story_spec?.video_data
         || (Array.isArray(c?.asset_feed_spec?.videos) && c.asset_feed_spec.videos.length));
       out[id].video = isVideo;
-      /* WHY VIDEO ADS SHOW A POOR COVER IMAGE (measured 2026-08-30, Lucky Golf).
+      // A video creative's own thumbnail_url is the PAGE AVATAR (see the note
+      // below), so the cover frame has to come from the video object itself.
+      // `picture` is a real frame and is readable with the user token now that
+      // it carries pages_read_engagement; `source` still needs a page-scoped
+      // token, which is playback's problem, not the cover's.
+      const vidId = c?.video_id || c?.object_story_spec?.video_data?.video_id
+        || c?.asset_feed_spec?.videos?.[0]?.video_id || null;
+      out[id].video_id = vidId;
+      out[id].page_id = c?.object_story_spec?.page_id || null;
+      let coverUrl = null;
+      if (isVideo && vidId) {
+        try {
+          const v = await meta(env, vidId, { fields: 'picture,length' });
+          coverUrl = v?.picture || null;
+          out[id].duration = v?.length ?? null;
+        } catch { /* a creative on a page we do not own stays coverless */ }
+      }
+      /* RESOLVED 2026-08-30 by granting the system user page access. Kept because
+       * it explains the shape of the code above and what still cannot work.
+       * WHY VIDEO ADS SHOWED A POOR COVER IMAGE (measured 2026-08-30, Lucky Golf).
        * NOT because they are page posts — the STATICS are page posts too, from
        * the SAME page (2043316342580398), and they return a perfectly good
        * image_url. The difference is that a VIDEO object requires page-level
@@ -1649,20 +1670,29 @@ async function adThumbnails(env, adIds) {
        * 100526684753365), so some creatives may be partner/creator-sourced;
        * a page we are never granted stays unreadable.
        * Proof the mechanism is permission and not the field: the ad account's
-       * OWN 669 videos DO return a real `source` mp4. The fix is a token with
-       * page access (pages_read_engagement + the page assigned to the system
-       * user), not a different field. Statics are unaffected. */
+       * OWN 669 videos DO return a real `source` mp4.
+       * THE FIX, applied: the six brand pages were assigned to the Mobius Tools
+       * system user and its token regenerated with pages_read_engagement +
+       * pages_show_list. Verified after: object_type is VIDEO instead of
+       * PRIVACY_CHECK_FAIL, `picture` returns a real cover frame, and all six
+       * pages resolve by name. Ads insights still read exactly as before.
+       * STILL IMPOSSIBLE, by design not by bug: page 100526684753365 carries one
+       * of Lucky's video ads and is NOT one of our six — a creator/partner page.
+       * Anything on a page we are not granted stays coverless and unplayable, so
+       * this whole block must keep degrading quietly rather than throwing.
+       * PLAYBACK: `source` is still withheld from the USER token; it needs a
+       * PAGE-scoped token from me/accounts. Verified working. */
       // `image_url` is the ORIGINAL static creative — real resolution, real aspect
       // ratio, no square crop — so it is tried first and `thumbnail_url` is the
       // fallback. Video ads have no image_url at all (see the note below).
-      const sources = [c?.image_url, c?.thumbnail_url].filter(Boolean);
+      const sources = [coverUrl, c?.image_url, c?.thumbnail_url].filter(Boolean);
       let picked = null;
       for (const src of sources) {
         try {
           const img = await fetch(src);
           if (!img.ok) continue;
           const buf = await img.arrayBuffer();
-          if (buf.byteLength > 250_000 || buf.byteLength * 1.34 > budget) continue;   // try the smaller source
+          if (buf.byteLength > 150_000 || buf.byteLength * 1.34 > budget) continue;   // try the smaller source
           // Chunked: spreading a 250k array into String.fromCharCode blows the stack.
           const bytes = new Uint8Array(buf);
           let bin = '';

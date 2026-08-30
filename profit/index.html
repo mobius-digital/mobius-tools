@@ -201,7 +201,9 @@
     transition:border-color .12s,box-shadow .12s}
   .ad-card:hover{border-color:var(--brand-ink);box-shadow:0 2px 12px rgba(0,0,0,.07)}
   .ad-card:hover .ad-open{color:var(--brand-ink)}
-  .ad-media{position:relative;aspect-ratio:1/1;background:var(--bg);border-bottom:1px solid var(--line);overflow:hidden}
+  /* 4:5, not square. Most of these creatives are shot 9:16 for Reels and Stories,
+     and a square tile crops the top and bottom off the thing you are judging. */
+  .ad-media{position:relative;aspect-ratio:4/5;background:var(--bg);border-bottom:1px solid var(--line);overflow:hidden}
   .ad-media.playing{aspect-ratio:auto}
   .ad-media>img{width:100%;height:100%;object-fit:cover;display:block}
   .ad-media.none{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:22px}
