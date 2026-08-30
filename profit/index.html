@@ -737,7 +737,7 @@ document.addEventListener('click', e => {
 }, true);
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-help]');
-  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', brief:'How the Daily Brief works', reports:'How Reports work', plan:'How planning the month works', settings:'How Settings works' }[hb.dataset.help], PAGE_HELP[hb.dataset.help]);
+  if (hb) helpModal({ overview:'How to use the Overview', profit:'How to use the Profit page', costs:'How the Costs page works', brief:'How the Daily Brief works', reports:'How Reports work', plan:'How planning the month works', customers:'How to read the Customers page', settings:'How Settings works' }[hb.dataset.help] || 'How this page works', PAGE_HELP[hb.dataset.help]);
 });
 
 function helpModal(title, html) {
@@ -782,7 +782,7 @@ const PAGE_HELP = {
     • <b>MER</b> — Net Sales ÷ Ad Spend. Blended on both sides. The honest "are the ads paying for themselves" number.<br>
     • <b>aMER</b> — new-customer revenue ÷ that same spend. Strips out repeat buyers and email so ads can't take credit for them.<br>
     • <b>Contribution Margin</b> — what's left after product costs, fees and ad spend. The number that decides whether the client is a business or a hobby.</p>
-    <p><b>Why these never match Ads Manager:</b> because they shouldn't. Meta and Google each claim credit for sales using their own attribution, and they double-count each other. These figures come from Shopify — real money, counted once. For platform-attributed numbers, use <b>Account Health</b>.</p>
+    <p><b>Why these never match Ads Manager:</b> because they shouldn't. Meta and Google each claim credit for sales using their own attribution, and they double-count each other. These figures come from Shopify — real money, counted once. For platform-attributed numbers, use the <b>Meta</b> tab.</p>
     <p><b>If a row says "cost data ⚠":</b> that client's COGS in Triple Whale is unreliable, so no profit number is shown for it. Open the <b>Costs</b> tab for that client to see exactly what's wrong and fix it.</p>`,
   profit: `
     <p><b>What this page is:</b> where one client's money actually goes, from revenue down to what's left.</p>
@@ -802,7 +802,7 @@ const PAGE_HELP = {
     • <b>Noisy</b> — margin moves more than it should. Directionally fine, don't quote it to the decimal.<br>
     • <b>Broken</b> — costs exceed revenue on some days, or margin is wildly unstable. <b>All profit figures for this client are suppressed everywhere</b>, including the Daily Brief, until it's fixed.</p>
     <p><b>Two ways to fix it:</b> enter the missing product costs in Triple Whale (Settings → Costs) — the right long-term answer — or set a <b>flat margin override</b> here, which uses one blended percentage instead of per-product costs. The override is honest and stable; it just can't tell you which products are the profitable ones.</p>
-    <p><b>The override is shared:</b> setting it here also fixes the Daily Brief in Account Health, because both read the same field.</p>
+    <p><b>The override is shared:</b> setting it here also fixes the Daily Brief and both reports, because they all read the same field.</p>
     <p><b>Fulfilment is the second variable cost, and it fails more quietly than COGS.</b> Product costs announce a problem — margin swings, days go negative. Delivery does not: where no shipping rate is configured, Triple Whale copies the charge the customer paid into the cost field, the two cancel to the cent, and contribution margin is left carrying no delivery cost at all while looking perfectly healthy. The Fulfilment card tells you which of three states a client is in:<br>
     • <b>Measured</b> — a real rate is configured; what shipping costs is already inside contribution margin. Nothing to do.<br>
     • <b>Not measured</b> — the recorded cost is the charge copied back, on nearly every day, to the cent. The cost is unknown, not zero.<br>
@@ -864,7 +864,7 @@ const PAGE_HELP = {
     <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
     <p><b>Adding a client starts here</b>, in the <b>Meta ad accounts</b> card: find the account on Meta, switch it on, then set its Triple Whale shop — nothing blended works without that. Channels are below, and the monthly number is agreed on <b>Plan</b>.</p>
     <p><b>Daily Brief channel:</b> where the client's morning update posts. Invite the Slack bot to the channel first or it can't post there — channels the bot hasn't joined are marked.</p>
-    <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning from Account Health. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
+    <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
     <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>
     <p><b>Send time</b> applies to every brand at once and is set in <b>Central</b>. The trigger runs hourly and posts only in the hour you choose, so the time stays put when the clocks change.</p>
     <p><b>Backfill 430d</b> re-pulls that client's full Triple Whale history. Run it <b>one client at a time</b> — a full pull is tens of thousands of rows. You need it once per client so sales tax is on record for every month; without it, months older than the last sync read very slightly high, because revenue is stated net of tax.</p>`,
@@ -1093,8 +1093,8 @@ async function renderOverview() {
           <td><b>${esc(a.name)}</b><br><span class="tiny">${healthPill(h)}</span></td>
           <td class="num"><b>${fmtK(w.sales, a.currency)}</b><br><span class="tiny">MTD ${fmtK(a.mtd.sales, a.currency)}${vsPlan(a.mtd.sales, a.plan?.sales)}</span></td>
           <td class="num">${fmtK(w.spend, a.currency)}<br><span class="tiny">${w.meta_spend!=null?`M ${fmtK(w.meta_spend,a.currency)}`:''}${w.google_spend!=null?` · G ${fmtK(w.google_spend,a.currency)}`:''}</span></td>
-          <td class="num"><b>${fmtX(w.mer)}</b>${a.plan?.mer?`<br><span class="tiny">plan ${fmtX(a.plan.mer)}</span>`:''}</td>
-          <td class="num"><b>${fmtX(w.amer)}</b>${a.plan?.amer?`<br><span class="tiny">goal ${fmtX(a.plan.amer)}</span>`:''}</td>
+          <td class="num"><b>${fmtX(w.mer)}</b>${a.plan?.mer?`<br><span class="tiny" title="The plan's MER for this month, pro-rated to the days elapsed. The bold figure above it covers the selected date range, so the two only line up when that range is the month so far.">MTD plan ${fmtX(a.plan.mer)}</span>`:''}</td>
+          <td class="num"><b>${fmtX(w.amer)}</b>${a.plan?.amer?`<br><span class="tiny" title="The month's aMER goal. A rate rather than a total, so it is comparable to any window — unlike the MER plan beside it.">month goal ${fmtX(a.plan.amer)}</span>`:''}</td>
           <td class="num">${fmtPct(w.new_share)}</td>
           <td class="num">${trusted
             ? `<b style="color:${w.cm==null?'inherit':w.cm>=0?'var(--good)':'var(--bad)'}">${fmtK(w.cm, a.currency)}</b><br><span class="tiny">margin ${fmtPct(w.margin)}</span>`
@@ -1462,12 +1462,8 @@ async function renderCosts(first) {
       <p class="hint" style="margin-bottom:6px">Retail-only cost data draws a nearly flat line. Every spike below the red zero line is a day where product cost exceeded store revenue — the fingerprint of a wholesale order or an inventory delivery, not of a bad product catalog.</p>
       ${marginSVG(d.rows)}</div>
     ${fulfilSection(d.shipping, cur, S.act, winSales, 60, d.margin_pct)}
-    ${d.worst?.length ? `<div class="card"><h3 style="margin-bottom:8px">Worst days</h3>
-      <p class="hint" style="margin-bottom:10px">The days with the lowest margin. Check a couple against Shopify: if the orders that day don't account for the cost, the difference went out as wholesale or stock, and the revenue for it lives outside this dashboard.</p>
-      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="num">Net sales</th><th class="num">Recorded COGS</th><th class="num">Fees</th><th class="num">Margin</th></tr></thead>
-      <tbody>${d.worst.map(x => `<tr><td>${x.date}</td><td class="num">${fmtMoney(x.sales, cur)}</td><td class="num">${fmtMoney(x.cogs, cur)}</td><td class="num">${fmtMoney(x.fees, cur)}</td><td class="num"><b style="color:${x.margin<0?'var(--bad)':x.margin<0.2?'var(--warn)':'inherit'}">${fmtPct(x.margin)}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
     <div class="card"><h3 style="margin-bottom:6px">Flat margin override</h3>
-      <p class="hint" style="margin-bottom:10px">Uses one blended margin percentage for this client instead of per-product costs. Honest and stable — it just can't tell you <i>which</i> products make money. <b>This also fixes the Daily Brief in Account Health</b>, because both read the same setting. Leave blank to use real per-product costs.</p>
+      <p class="hint" style="margin-bottom:10px">Uses one blended margin percentage for this client instead of per-product costs. Honest and stable — it just can't tell you <i>which</i> products make money. <b>This also fixes the Daily Brief and both reports</b>, because they all read the same setting. Leave blank to use real per-product costs.</p>
       <div class="row">
         <div class="unit-in" style="width:96px"><input id="mPct" type="text" inputmode="decimal" value="${d.margin_pct!=null?Math.round(d.margin_pct*100):''}" placeholder="—"><span>%</span></div>
         <button class="btn primary" id="mSave">Save</button>
@@ -3420,7 +3416,7 @@ async function connectionsCard(run) {
     <td>${gives(c)}</td>
     <td>${c.install_url
       ? `<button class="btn" data-copy="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>`
-      : '<span class="tiny">add the store domain in Account Health first</span>'}
+      : '<span class="tiny">set this client\'s Triple Whale shop in <b>Meta ad accounts</b> above first</span>'}
       ${c.status === 'connected' ? `<button class="btn" data-sync="${esc(c.act_id)}" style="font-size:11.5px;padding:4px 8px;margin-left:4px">Sync cohorts</button>` : ''}
       <span class="tiny" data-msg="${esc(c.act_id)}"></span></td>
   </tr>`).join('');
@@ -3438,7 +3434,7 @@ async function connectionsCard(run) {
 
   return `<div class="card"><h3 style="margin-bottom:2px">Shopify connections
       <span class="info-i" title="Connecting a store lets us read its orders, customers and products directly. Triple Whale has no per-customer history, so this is the only way to get true lifetime value by cohort. Everything else on every tab works without it.">i</span></h3>
-    <p class="hint" style="margin-bottom:10px">Adding a client: create them in Account Health, then <b>copy their install link below and send it to them</b>. They approve it once and it stays connected. ${one ? 'Switch the picker to <b>All clients</b> to see every brand.' : ''}</p>
+    <p class="hint" style="margin-bottom:10px">The last step of adding a client, once they are switched on in <b>Meta ad accounts</b> above: <b>copy their install link below and send it to them</b>. They approve it once and it stays connected. Shopify is what powers the cohort figures on <b>Customers</b>; everything else works without it. ${one ? 'Switch the picker to <b>All clients</b> to see every brand.' : ''}</p>
     ${d.app_configured ? '' : '<div class="notice warn">&#9888;&#65039; <div>The Shopify app is not configured on the server yet, so these links will not work.</div></div>'}
     <div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th>Status</th><th>What it adds</th><th>Install link</th></tr></thead>
@@ -3456,7 +3452,7 @@ async function renderSettings() {
   const oneId = one ? one.act_id : null;
   const shownRows = () => oneId ? S.accounts.filter(a => a.act_id === oneId) : S.accounts;
   $('#main').innerHTML = `<h2>Settings${one ? ' — ' + esc(one.name) : ''}</h2>
-    <p class="sub">Where ${one ? `<b>${esc(one.name)}</b>'s` : "each brand's"} reporting goes, and what its profit is calculated on. <b>Every setting here is shared with Account Health</b> — one database behind both tools, so there is no second copy to keep in sync.${one ? ' Switch the picker to <b>All clients</b> to see every brand at once.' : ''}</p>
+    <p class="sub">Where ${one ? `<b>${esc(one.name)}</b>'s` : "each brand's"} reporting goes, and what its profit is calculated on. <b>Every setting here is shared with the Meta tab</b> — one database behind the whole platform, so there is no second copy to keep in sync.${one ? ' Switch the picker to <b>All clients</b> to see every brand at once.' : ''}</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
     <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
       <p class="hint" style="margin-bottom:10px">${one ? '<b>Applies to all brands, not just ' + esc(one.name) + '.</b> ' : ''}When the brief posts each morning, for <b>every</b> brand with auto-post on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>

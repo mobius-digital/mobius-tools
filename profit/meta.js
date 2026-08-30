@@ -108,7 +108,7 @@ const META_HELP = {
   today: `
     <p><b>What this page is:</b> is today running hot or cold compared with a normal day for this account? It is the only view in Mobius that looks <i>inside</i> the current day.</p>
     <p><b>The curve:</b> today's cumulative Meta spend against the average shape of the last 7 days by the same hour. Over +10% = running hot, under -10% = delivery running cold. Either is worth a look in Ads Manager.</p>
-    <p><b>Projected today</b> is today's spend divided by the share of a normal day that is usually finished by this hour — so if a typical day is 15% done and this one has spent $166, it projects about $1.1k. It assumes today keeps the same hourly shape as the last 7 days and that nobody changes a budget after you look. <b>Early in the day it is a big extrapolation</b>, which is why the card says what share of a normal day is in; under 5% it refuses to project at all. <b>Refresh</b> re-pulls from Meta.</p>
+    <p><b>Day elapsed</b> is the share of a normal day that is usually finished by this hour, measured from the last 7 days. It is the denominator for everything else here: at 9am it is often under 15%, and a big "vs normal" swing on that little of a day is mostly noise. <b>There is deliberately no "projected today"</b> — on Meta the daily budget is something you set, so projecting where the day lands only restates a number you already chose. Forecasting belongs on <b>Plan</b>, at the blended monthly level. <b>Refresh</b> re-pulls from Meta.</p>
     <p><b>Why there is no monthly pacing here any more:</b> the month is planned and forecast in <b>Plan</b>, against blended revenue and total spend across every platform. A second, Meta-only version of the same question disagreed with it and was the noisier of the two. What survives is the part Plan genuinely cannot see: what is happening in the last few hours.</p>
     <p><b>Meta only</b> — every figure here matches Ads Manager.</p>`,
   changelog: `
@@ -637,7 +637,7 @@ function buildTodayCard(p) {
       <div class="st"><b>${fmtK(p.spent, cur)}</b><span>Spend so far</span></div>
       <div class="st"><b>${fmtK(p.l7_by_now, cur)}</b><span>L7 avg by this hour</span></div>
       <div class="st"><b class="${paceCls === 'good' ? '' : ''}" style="color:${p.vs_pace == null ? 'inherit' : Math.abs(p.vs_pace) <= 0.1 ? 'inherit' : p.vs_pace > 0 ? 'var(--good)' : 'var(--warn)'}">${p.vs_pace == null ? '—' : fmtPct(p.vs_pace, 1)}</b><span>vs L7 pace</span></div>
-      <div class="st"><b>${dayShare(p) != null && dayShare(p) < 0.05 ? 'too early' : fmtK(p.projected, cur)}</b><span>Projected today${dayShare(p) != null ? ` · ${Math.round(dayShare(p) * 100)}% of a normal day in` : ''}</span></div>
+      <div class="st"><b>${dayShare(p) != null ? Math.round(dayShare(p) * 100) + '%' : '—'}</b><span>Of a normal day elapsed</span></div>
       <div class="st"><b>${fmtK(p.l7_daily_avg, cur)}</b><span>L7 daily avg</span></div>
     </div>
     <div id="hpReadout" class="tiny" style="height:20px;font-weight:600"></div>
@@ -879,11 +879,15 @@ async function renderMetaOverview() {
  *  rather than printing a confident figure off almost nothing. */
 const dayShare = p => (p && p.l7_by_now && p.l7_daily_avg) ? p.l7_by_now / p.l7_daily_avg : null;
 
-function projCell(p, cur) {
+/** How much of a normal day is behind us — the denominator that decides whether
+ *  "vs normal" means anything yet. At 9am it is often under 15%, and a swing on
+ *  that little elapsed day is noise. We show the share and let the reader judge;
+ *  we deliberately do NOT project where the day lands, because on Meta the daily
+ *  budget is something you SET, so projecting it restates a number you chose. */
+function elapsedCell(p) {
   const share = dayShare(p);
-  if (share == null || p.projected == null) return '<span class="tiny">—</span>';
-  if (share < 0.05) return `<span class="tiny">too early to project</span>`;
-  return `${fmtK(p.projected, cur)}<br><span class="tiny">${Math.round(share * 100)}% of a normal day in</span>`;
+  if (share == null) return '<span class="tiny">—</span>';
+  return `${Math.round(share * 100)}%<br><span class="tiny">of a normal day</span>`;
 }
 
 /* ---------- Today (live intraday) ----------
@@ -898,7 +902,7 @@ async function renderToday() {
   if (!single) {
     const active = S.accounts.filter(a => a.active);
     $('#hpToday').innerHTML = `<div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th class="num">Spent so far</th><th class="num">Typical by now</th><th class="num">vs normal</th><th class="num">Projected today</th></tr></thead>
+      <thead><tr><th>Client</th><th class="num">Spent so far</th><th class="num">Typical by now</th><th class="num">vs normal</th><th class="num">Day elapsed</th></tr></thead>
       <tbody id="hpRows">${active.map(a => `<tr data-act="${a.act_id}"><td><b>${esc(a.name)}</b></td><td colspan="4" class="tiny">loading…</td></tr>`).join('') || '<tr><td class="tiny">No active clients.</td></tr>'}</tbody></table></div>
       <p class="tiny" style="margin-top:10px">Pick a client in the top-right for the full hour-by-hour curve. Pulled live from Meta on every visit.</p></div>`;
     for (const a of active) {
@@ -911,7 +915,7 @@ async function renderToday() {
           <td class="num"><b>${fmtK(p.spent, a.currency)}</b></td>
           <td class="num">${fmtK(p.l7_by_now, a.currency)}</td>
           <td class="num"><span class="delta ${cls}">${p.vs_pace == null ? '—' : fmtPct(p.vs_pace, 0)}</span></td>
-          <td class="num">${projCell(p, a.currency)}</td>`;
+          <td class="num">${elapsedCell(p)}</td>`;
       } catch { /* one client failing must not blank the whole table */ }
     }
     return;
