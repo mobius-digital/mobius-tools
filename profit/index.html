@@ -402,6 +402,25 @@
   .gl dt{font-family:inherit;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:3px}
   .gl dd{margin:0;color:var(--ink-2)}
   @media (max-width:560px){ .gl dl{grid-template-columns:1fr;gap:2px} .gl dt{padding-top:7px} }
+  /* Profit's brand chooser: a list, deliberately not cards. Cards invited
+     comparison, which is Overview's job and was the duplication. */
+  .pf-pick{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+    padding:13px 18px;border-bottom:1px solid var(--line);font-size:14px;background:transparent}
+  .pf-pick:last-child{border-bottom:0}
+  .pf-pick:hover{background:var(--brand-soft)}
+  .pf-pick-n{font-weight:700;font-size:15px}
+  .pf-pick-v{margin-left:auto;font-variant-numeric:tabular-nums}
+  .pf-pick-go{color:var(--muted);flex:none}
+  .pf-pick:hover .pf-pick-go{color:var(--brand-ink)}
+  /* The weekday rhythm on Plan: real analysis, but context for a conversation
+     rather than a result, so it opens only when asked for. */
+  .rh-wrap{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);margin-bottom:14px}
+  .rh-wrap summary{cursor:pointer;padding:13px 18px;font-weight:700;font-size:14.5px;list-style:none}
+  .rh-wrap summary::-webkit-details-marker{display:none}
+  .rh-wrap summary::before{content:'▸ ';color:var(--brand-ink)}
+  .rh-wrap[open] summary::before{content:'▾ '}
+  .rh-wrap summary .tiny{font-weight:400}
+  .rh-body .card{margin:0;border:0;border-top:1px solid var(--line);border-radius:0}
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
   .help-btn + .help-btn{margin-left:6px}
   .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
@@ -1993,10 +2012,28 @@ function statCard(label, value, sub, info) {
 }
 
 /* ---------- Overview ---------- */
+/* SORTING LIVES HERE, and that is why the Profit tab no longer ranks brands.
+   `renderProfitAll` used to draw the same six figures from the same snapshot
+   over the same window as this table, as cards sorted by contribution margin -
+   a genuine duplicate, and two tabs answering one question is exactly the
+   confusion this whole pass exists to remove. The ranking was the only thing
+   it added, so the ranking came here. */
+const OV_SORT = [
+  ['cm', 'Contribution margin', a => cmTrusted(a.cost_health) ? (a.window.cm ?? -Infinity) : -Infinity],
+  ['sales', 'Revenue', a => a.window.sales ?? -Infinity],
+  ['spend', 'Ad spend', a => a.window.spend ?? -Infinity],
+  ['mer', 'MER', a => a.window.mer ?? -Infinity],
+  ['name', 'Name', null],
+];
 async function renderOverview() {
-  const rows = S.act === 'all' ? S.accounts : S.accounts.filter(a => a.act_id === S.act);
+  const sortKey = localStorage.getItem('pf_ovsort') || 'cm';
+  const srt = OV_SORT.find(x => x[0] === sortKey) || OV_SORT[0];
+  const rows = (S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act))
+    .sort((a, b) => srt[2] ? srt[2](b) - srt[2](a) : a.name.localeCompare(b.name));
   $('#main').innerHTML = `${pageHead('overview', 'Overview', 'Every channel, not just ads &mdash; MER and aMER are blended on both sides, so nothing is double-counted.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="overview">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="overview">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px;gap:6px;flex-wrap:wrap"><span class="tiny" style="font-weight:700">Sort by</span>
+      ${OV_SORT.map(([k, l]) => `<button class="chip ${k === sortKey ? 'on' : ''}" data-sort="${k}">${l}</button>`).join('')}
+      <span style="flex:1"></span><button class="help-btn" data-tour="overview">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="overview">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num" title="Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as 'Net Sales + Shipping'. It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure 'Total Sales' and stores it as netSales; shipping is already inside it, so it is never added twice.">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
       <tbody>${rows.map(a => {
@@ -2015,6 +2052,10 @@ async function renderOverview() {
         </tr>`; }).join('') || '<tr><td colspan="7" class="tiny">No clients yet.</td></tr>'}
       </tbody></table></div>
       <p class="tiny" style="margin-top:10px"><b>Revenue = Shopify Total Sales minus sales tax</b> — gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's "Net Sales + Shipping", and it reconciles to Shopify's own sales report. MER = revenue ÷ all ad spend. aMER = new-customer revenue ÷ that same spend. Contribution Margin = revenue − <b>every variable cost</b> (product, fulfilment, handling, payment fees, ad spend), which is CTC's definition; fixed costs including our retainer are excluded. "vs plan" compares month-to-date against the month's goal pro-rated to the days elapsed. These will never match Ads Manager — that's the point. Click a client for its detail.</p></div>`;
+  $('#main').querySelectorAll('[data-sort]').forEach(b => b.onclick = () => {
+    localStorage.setItem('pf_ovsort', b.dataset.sort);
+    inPlace(() => renderOverview());
+  });
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -2072,35 +2113,39 @@ function wireSalesSpend(svgId, readoutId, rows, fmtRow) {
 }
 
 /** Profit with no client selected: rank every brand by what it actually kept. */
+/* PROFIT WITH NO CLIENT SELECTED IS A CHOOSER, not a second scoreboard.
+   It used to render the same six figures - CM, revenue, MER, aMER, new %,
+   spend - from the same `S.accounts` snapshot over the same window as the
+   Overview table, as ranked cards. Same data, same source, same window, drawn
+   twice on two tabs. Overview is a strict superset (it also carries MTD vs
+   plan) and now sorts, so the ranking that was this view's only contribution
+   lives there instead.
+   What remains is the job you actually opened Profit to do: pick a brand. One
+   line each, the kept figure for orientation, and nothing to compare. */
 function renderProfitAll() {
   const ranked = S.accounts.slice().sort((a, b) => {
-    const av = cmTrusted(a.cost_health) ? (a.window.cm ?? -Infinity) : -Infinity;
-    const bv = cmTrusted(b.cost_health) ? (b.window.cm ?? -Infinity) : -Infinity;
-    return bv - av;
+    const v = x => cmTrusted(x.cost_health) ? (x.window.cm ?? -Infinity) : -Infinity;
+    return v(b) - v(a);
   });
-  const totalTrusted = ranked.filter(a => cmTrusted(a.cost_health) && a.window.cm != null);
-  $('#main').innerHTML = `${pageHead('profit', 'Profit', 'Ranked by what each brand actually kept. Click a card for its full waterfall.')}
+  $('#main').innerHTML = `${pageHead('profit', 'Profit', 'Pick a brand to see where its money went, from revenue down to what was left.')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="profit">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
-    ${totalTrusted.length < S.accounts.length ? `<div class="notice warn">ℹ️ <div><b>${S.accounts.length - totalTrusted.length} client${S.accounts.length - totalTrusted.length > 1 ? 's are' : ' is'} missing from the profit ranking</b> because their cost data can't be trusted. Revenue and efficiency still work for them — see the <b>Costs</b> tab.</div></div>` : ''}
-    <div id="pfAllGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+    <div class="card" style="padding:6px 0"><div id="pfPick">
       ${ranked.map(a => {
         const w = a.window, trusted = cmTrusted(a.cost_health);
-        const bar = trusted && w.sales ? Math.max(0, Math.min(100, (w.cm / w.sales) * 100)) : 0;
-        return `<div class="card" data-id="${a.act_id}" style="margin:0;cursor:pointer">
-          <div class="row" style="margin-bottom:6px"><b style="font-size:15px">${esc(a.name)}</b><span style="flex:1"></span>${healthPill(a.cost_health)}</div>
-          <div style="font-size:24px;font-weight:700;color:${!trusted ? 'var(--muted)' : w.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${trusted ? fmtMoney(w.cm, a.currency) : 'not reported'}</div>
-          <div class="tiny" style="margin-bottom:8px">${trusted ? `kept ${fmtPct(w.sales ? w.cm / w.sales : null)} of ${fmtK(w.sales, a.currency)} net sales` : `cost data unreliable — ${fmtK(w.sales, a.currency)} net sales`}</div>
-          ${trusted ? `<div style="height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:${bar.toFixed(1)}%;background:${w.cm>=0?'var(--good)':'var(--bad)'}"></div></div>` : ''}
-          <div class="tiny">MER <b>${fmtX(w.mer)}</b> · aMER <b>${fmtX(w.amer)}</b> · ${fmtPct(w.new_share)} new · spend ${fmtK(w.spend, a.currency)}</div>
-        </div>`;
-      }).join('')}
-    </div>
-    <p class="tiny" style="margin-top:12px">Contribution margin = net sales − product costs − payment fees − all ad spend. It excludes fixed costs, so it is the profitability of the marketing, not of the business. Money is each client's own currency and is never summed across them.</p>`;
-  // On the grid, not #main - #main survives re-renders, so a listener there
-  // stacked up one copy per visit.
-  $('#pfAllGrid').addEventListener('click', e => {
-    const c = e.target.closest('.card[data-id]'); if (!c) return;
-    S.act = c.dataset.id; localStorage.setItem(LS.act, S.act);
+        return `<button class="pf-pick" data-id="${a.act_id}">
+          <span class="pf-pick-n">${esc(a.name)}</span>
+          <span class="pf-pick-v">${trusted
+            ? `<b style="color:${w.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(w.cm, a.currency)}</b> <span class="tiny">kept</span>`
+            : '<span class="tiny">cost data unreliable — see Costs</span>'}</span>
+          <span class="pf-pick-go">→</span></button>`;
+      }).join('') || '<p class="hint" style="padding:14px 18px">No brands yet.</p>'}
+    </div></div>
+    <p class="tiny" style="margin-top:12px">Ordered by what each brand kept. <b>To compare brands side by side, use Overview</b> — it carries the same figures for every client at once, and sorts.</p>`;
+  // On the list, not #main - #main survives re-renders and would stack a
+  // listener per visit.
+  $('#pfPick').addEventListener('click', e => {
+    const b = e.target.closest('[data-id]'); if (!b) return;
+    S.act = b.dataset.id; localStorage.setItem(LS.act, S.act);
     $('#clientPick').value = S.act; show('profit');
   });
 }
@@ -2217,8 +2262,8 @@ async function renderProfit(first) {
   try { d = await api(`/api/client?act=${S.act}&${rangeQ()}`); }
   catch (e) { if (run === RUN) $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; return; }
   try { fc = await api(`/api/forecast?act=${S.act}`); } catch { /* forecast is a bonus, never a blocker */ }
-  let rh = null;
-  try { rh = await api(`/api/rhythm?act=${S.act}`); } catch { /* rhythm is context, never a blocker */ }
+  // The weekday rhythm used to be fetched here; it lives on Plan now, so this
+  // page is one round trip lighter as well as one card shorter.
   if (run !== RUN) return;
   const cur = d.account.currency, t = d.totals;
   const acct = S.accounts.find(a => a.act_id === S.act);
@@ -2259,7 +2304,7 @@ async function renderProfit(first) {
       <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue — everything the store sold that day, from every channel. <span style="color:#C08A2E;font-weight:700">Amber</span> is ad spend across every platform. The gap between the lines is what was left after advertising, before product costs, fulfilment and payment fees come out of it — so it is <b>not</b> gross profit, which subtracts those but not the ads. Hover or tap for exact values.</p>
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
       ${chart.svg}</div>
-    ${rhythmCard(rh, cur, trusted)}
+
     <div class="card"><h3 style="margin-bottom:6px">New vs returning</h3>
       <p class="hint" style="margin-bottom:0">${fmtMoney(t.new_rev, cur)} from new customers (<b>${fmtPct(t.new_share)}</b>) · ${fmtMoney(t.ret_rev, cur)} returning. What that customer <i>cost</i>, what their first order is worth and whether it pays back live on <b>Customers</b> — this page is about where the money went, that one is about who it came from.</p></div>`;
 
@@ -3854,6 +3899,7 @@ async function renderPlan(first) {
     ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
 
     <div id="plQuarter"></div>
+    <div id="plRhythm"></div>
 
     <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
       <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> — the plan below is not an average of it.</p>
@@ -4010,6 +4056,22 @@ async function renderPlan(first) {
         <tbody>${q.per.map(mrow).join('')}</tbody></table></div></div>`;
   }).catch(() => {});
   loadQuarter();
+
+  /* THE WEEKDAY RHYTHM MOVED HERE FROM PROFIT (2026-08-30). It carried five
+     separate disclaimers - "this is what happened, not a target", "do not build
+     a story around it for the client", "illustrative only", "NOT the plan",
+     "not what the Daily Brief compares against" - on the page you open to answer
+     "did we make money". A card that needs five disclaimers is on the wrong
+     page: it is not a result, it is CONTEXT FOR A CONVERSATION, and the
+     conversation is the monthly one that happens here.
+     Collapsed, and loaded last, so it can never delay or crowd the plan itself. */
+  api(`/api/rhythm?act=${S.act}`).then(rh => {
+    if (run !== RUN) return;
+    const el = $('#plRhythm'); if (!el || !rh || !rh.months?.length) return;
+    el.innerHTML = `<details class="rh-wrap"><summary>How ${esc(p.account.name)}&rsquo;s week usually runs
+        <span class="tiny">— context for the call, never a target</span></summary>
+      <div class="rh-body">${rhythmCard(rh, p.account.currency, false)}</div></details>`;
+  }).catch(() => { /* context, never a blocker */ });
 
   const sv = $('#plSave');
   if (sv) sv.onclick = async () => {
