@@ -4918,6 +4918,8 @@ async function renderSettings() {
             <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}
         ${field('Triple Whale history', 'Re-pulls this brand’s full history. Needed once so sales tax is on record for every month. Run one brand at a time.',
           `<div class="brow-static"><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
+        ${field('Ad attribution', 'Which ads Triple Whale credits each order to — what the <b>Revenue from</b> picker on Meta → Creative reads. It fills itself in nightly; this pulls 120 days at once. One brand at a time.',
+          `<div class="brow-static"><button class="btn" data-k="attr" style="font-size:11.5px;padding:4px 8px">Sync 120 days</button> <span class="tiny" data-k="attrmsg"></span></div>`)}
         ${field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted — switch it back on any time from Add a brand.',
           `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`).replace('class="brow-f"', 'class="brow-f brow-danger"')}
       </div></details>`;
@@ -5005,6 +5007,15 @@ async function renderSettings() {
           const x = (r.results && r.results[0]) || {};
           msg(e.target, '[data-k="shopmsg"]', x.error || x.skipped || `✓ ${x.months} cohort months`); }
         catch (err) { msg(e.target, '[data-k="shopmsg"]', err.message); }
+        e.target.disabled = false;
+      };
+      q('attr').onclick = async e => {
+        e.target.disabled = true; msg(e.target, '[data-k="attrmsg"]', 'pulling journeys from Triple Whale…');
+        try {
+          const r = await api(`/api/tw-attr-sync?act=${a.act_id}&days=120`, { method: 'POST' });
+          const x = r.results?.[0] || {};
+          msg(e.target, '[data-k="attrmsg"]', x.error || x.skipped || `✓ ${x.orders} orders → ${x.rows} rows, ${x.from} → ${x.to}`);
+        } catch (err) { msg(e.target, '[data-k="attrmsg"]', err.message); }
         e.target.disabled = false;
       };
       q('backfill').onclick = async e => {
