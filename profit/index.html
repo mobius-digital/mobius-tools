@@ -1631,6 +1631,7 @@ const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb
    firstClick, lastClick, fullFirstClick, fullLastClick, lastPlatformClick,
    linear, linearAll - none of them view-based. It is listed and disabled rather
    than omitted, so its absence is an answer instead of a puzzle. */
+const attrLabel = k => (CB_ATTR.find(x => x[0] === k) || [, k || 'attribution'])[1];
 const CB_ATTR = [
   ['lastPlatformClick', 'Triple Attribution'],
   ['__views', 'Triple Attribution + Views', 'not available through the API — it blends ad views, and the endpoint returns click touchpoints only'],
@@ -1732,7 +1733,16 @@ async function renderCreativeBrowser(host, act, range) {
       <span style="flex:1"></span>
       <button class="btn" id="cbShare">↗ Share with client</button><span class="tiny" id="cbShareMsg"></span>
     </div>
-    ${d.ads.length ? `<div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>` : '<div class="card"><span class="hint">No ads spent in this window.</span></div>'}
+    ${d.attr_missing ? `<div class="notice bad" style="margin:0 0 12px">⚠️<div>
+        <b>No ${esc(attrLabel(d.attr_requested))} data for ${esc(d.account.name)} over this window.</b>
+        Nothing is being shown rather than a wall of zeros, and <b>nothing has been silently swapped to Meta</b> —
+        if this is unexpected, the attribution sync is the thing that is wrong.
+        <p class="tiny" style="margin:8px 0 0">Attribution syncs nightly for the last 7 days. Anything older needs a backfill.</p>
+        <div class="row" style="gap:8px;margin:10px 0 0">
+          <button class="btn primary" id="cbSync">Sync attribution for this window</button>
+          <button class="btn" id="cbUseMeta">Use Meta’s figures instead</button>
+          <span class="tiny" id="cbSyncMsg"></span></div></div></div>`
+      : d.ads.length ? `<div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>` : '<div class="card"><span class="hint">No ads spent in this window.</span></div>'}
     <p class="tiny" style="margin-top:4px">
       Showing <b>${d.ads.length}</b> of ${d.matched} ad${d.matched === 1 ? '' : 's'} ·
       <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} ad spend on screen.
@@ -1745,9 +1755,29 @@ async function renderCreativeBrowser(host, act, range) {
         ? '<b>Revenue, purchases, ROAS and CPA are Meta’s own attributed figures</b> and match Ads Manager.'
         : `<b>Revenue, purchases, ROAS and CPA come from Triple Whale</b> (${esc((CB_ATTR.find(x => x[0] === d.attr) || [, d.attr])[1].replace('Triple Whale · ', ''))}), so they will not match Ads Manager — Triple Whale’s pixel attributes differently and usually credits more.`}
       <b>Spend, hook, hold, CTR and CPM are always Meta’s</b>, because Triple Whale does not measure delivery.
-      ${d.attr_fell_back
-        ? `<br><span style="color:var(--warn)"><b>⚠ Showing Meta's figures instead.</b> No Triple Whale attribution is stored for this brand over this window yet, so the ${esc((CB_ATTR.find(x => x[0] === d.attr_requested) || [, 'selected'])[1])} numbers would all have been zero. Attribution syncs nightly for the last 7 days — ask for a longer backfill if you need history.</span>`
-        : ''}</p>`;
+</p>`;
+
+  const useMeta = $('#cbUseMeta');
+  if (useMeta) useMeta.onclick = () => {
+    // A DELIBERATE switch, by him, not by the code behind his back.
+    CB.attr = 'meta'; localStorage.setItem('pf_cb_attr', 'meta');
+    renderCreativeBrowser(host, act, range);
+  };
+  const syncBtn = $('#cbSync');
+  if (syncBtn) syncBtn.onclick = async () => {
+    const msg = $('#cbSyncMsg');
+    syncBtn.disabled = true; msg.textContent = 'Pulling from Triple Whale…';
+    try {
+      // Cover the whole window plus a margin, so a range that starts before the
+      // default look-back is actually filled rather than half-filled.
+      const days = Math.min(60, Math.max(7, daySpan(range.from, range.to) + 2));
+      const r = await api(`/api/tw-attr-sync?act=${encodeURIComponent(act)}&days=${days}`, { method: 'POST' });
+      const x = (r.results || [])[0] || {};
+      if (x.error) { msg.textContent = x.error; syncBtn.disabled = false; return; }
+      msg.textContent = `${x.orders} orders → ${x.rows} rows`;
+      renderCreativeBrowser(host, act, range);
+    } catch (e) { msg.textContent = e.message; syncBtn.disabled = false; }
+  };
 
   host.querySelectorAll('.cb-sel').forEach(w => {
     const btn = w.querySelector('.cb-sel-btn');

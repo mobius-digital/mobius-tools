@@ -2807,19 +2807,21 @@ async function adRows(env, acct, from, to, opts = {}) {
      in every case, because Triple Whale does not measure delivery and never
      claims to. */
   let attrModel = opts.attr && opts.attr !== 'meta' ? opts.attr : null;
-  let attrBy = null, attrFellBack = false;
+  let attrBy = null, attrMissing = false;
   if (attrModel) {
     const { results: ar } = await env.DB.prepare(
       `SELECT ad_id, SUM(revenue) AS revenue, SUM(orders) AS orders
        FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date >= ?3 AND date <= ?4
        GROUP BY ad_id`).bind(acct.act_id, attrModel, from, to).all().catch(() => ({ results: [] }));
-    /* NOTHING STORED FOR THIS WINDOW MEANS FALL BACK TO META, not show zeros.
-       Attribution only syncs 7 days a night and a brand backfilled yesterday
-       has nothing for last month - and with a Triple Whale model selected by
-       default, every revenue figure on the page read 0.00 and the whole thing
-       looked broken. A page of honest Meta numbers with a line saying why beats
-       a page of zeros that are technically true and completely useless. */
-    if (!(ar || []).length) { attrModel = null; attrFellBack = true; }
+    /* NOTHING STORED MEANS SAY SO. NEVER SUBSTITUTE.
+       I briefly made this fall back to Meta, and Cole was right to reject it:
+       "how will I know if it fails - if it fails then something's wrong and I
+       need to come back to you". A quiet source-swap turns a broken sync into
+       plausible-looking numbers, which is the worst of both. So the flag is
+       returned and NOTHING is attributed; the page refuses to draw cards and
+       says what happened instead. Showing zeros would be equally dishonest -
+       they read as a real result. */
+    if (!(ar || []).length) attrMissing = true;
     else attrBy = Object.fromEntries(ar.map(r => [r.ad_id, r]));
   }
   const { results } = await env.DB.prepare(
@@ -2840,7 +2842,7 @@ async function adRows(env, acct, from, to, opts = {}) {
      ORDER BY spend DESC LIMIT 500`,
   ).bind(acct.act_id, from, to).all();
   if (!results.length) return { ads: [], types: [], matched: 0, total_spend: 0, shown_spend: 0,
-    floor: 0, acct_cpa: null, attr: 'meta', attr_available: null, attr_fell_back: false };
+    floor: 0, acct_cpa: null, attr: 'meta', attr_requested: null, attr_missing: false };
 
   const today = localDate(acct.tz);
   const totalSpend = results.reduce((n, r) => n + r.spend, 0);
@@ -2951,7 +2953,7 @@ async function adRows(env, acct, from, to, opts = {}) {
     // Whether a Triple Whale model was ASKED for and had nothing behind it, so
     // the page can explain the fallback instead of quietly changing source.
     attr_requested: opts.attr && opts.attr !== 'meta' ? opts.attr : null,
-    attr_fell_back: attrFellBack,
+    attr_missing: attrMissing,
     matched: list.length,
     total_spend: totalSpend,
     shown_spend: top.reduce((n, r) => n + r.spend, 0),
@@ -3487,23 +3489,24 @@ export default {
       return json({ src });
     }
 
-    /* Backfill attribution on demand - the nightly pass only covers 7 days,
-       and a new brand or a longer look-back needs more than that. */
-    if (path === '/api/tw-attr-sync' && request.method === 'POST') {
-      const act = url.searchParams.get('act');
-      const days = Math.min(+url.searchParams.get('days') || 30, 60);
-      const list = act && act !== 'all'
-        ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
-        : await listAccounts(env, true);
-      const out = [];
-      for (const a of list) out.push(await syncTwAttribution(env, a, days).catch(e => ({ name: a.name, error: e.message })));
-      return json({ ok: true, results: out });
-    }
 
     if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
 
 
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+
+      /* Backfill attribution on demand - the nightly pass only covers 7 days,
+         and a new brand or a longer look-back needs more than that. */
+      if (path === '/api/tw-attr-sync' && request.method === 'POST') {
+        const act = url.searchParams.get('act');
+        const days = Math.min(+url.searchParams.get('days') || 30, 60);
+        const list = act && act !== 'all'
+          ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
+          : await listAccounts(env, true);
+        const out = [];
+        for (const a of list) out.push(await syncTwAttribution(env, a, days).catch(e => ({ name: a.name, error: e.message })));
+        return json({ ok: true, results: out });
+      }
       if (request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         const h = +b.hour;

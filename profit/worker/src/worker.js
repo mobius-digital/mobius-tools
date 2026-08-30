@@ -34,6 +34,8 @@ const PROXY_PATHS = new Set([
   '/api/ads',
   // Creative assets, fetched after the cards paint so filtering feels instant.
   '/api/ad-creatives',
+  // Backfill Triple Whale ad-level attribution for a window, from the UI.
+  '/api/tw-attr-sync',
   // Playback for a creative card. Unauthenticated callers reach it only with
   // a report archive token, which the engine validates against that client's
   // own sent reports.
