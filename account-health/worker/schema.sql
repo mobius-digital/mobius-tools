@@ -17,8 +17,10 @@ CREATE TABLE IF NOT EXISTS accounts (
                                                  -- Deliberately NO fallback to slack_channel on a client send - a silent
                                                  -- redirect to the team is the failure the review flow exists to prevent.
   ads_backfill_done   INTEGER NOT NULL DEFAULT 0,-- 90d ad-level backfill finished (walks back 14d per sync until set)
-  ads_video_done      INTEGER NOT NULL DEFAULT 0,-- ad_daily video columns (hook/hold, added 2026-08-29) re-backfilled
-  ads_video_cursor    TEXT,                      -- resumable cursor for that re-backfill (walks back 14d per sync)
+  ads_video_done      INTEGER NOT NULL DEFAULT 0,-- RETIRED 2026-08-30, superseded by ads_metrics_version
+  ads_video_cursor    TEXT,                      -- RETIRED 2026-08-30, superseded by ads_metrics_cursor
+  ads_metrics_version INTEGER NOT NULL DEFAULT 0,-- highest ADS_METRICS_VERSION this account has re-backfilled
+  ads_metrics_cursor  TEXT,                      -- resumable cursor for that re-backfill (walks back 14d per sync)
   tw_shop             TEXT,                      -- Triple Whale shop domain (pulls Google Ads spend into the money math)
   google_spend_json   TEXT,                      -- cached {ym, metric, mtd, lm_same_day, lm_total, updated}
   goals_json          TEXT NOT NULL DEFAULT '{}',-- Daily Brief goals: {"2026-08":{sales,spend,amer,cm_pct},"default":{...}}
@@ -114,6 +116,13 @@ CREATE TABLE IF NOT EXISTS ad_daily (
   video_3s       INTEGER NOT NULL DEFAULT 0,      -- 3-second video views (hook-rate numerator)
   video_thruplay INTEGER NOT NULL DEFAULT 0,      -- ThruPlay views (hold-rate numerator, over video_3s)
   video_p100     INTEGER NOT NULL DEFAULT 0,      -- watched to 100%
+  reach            INTEGER NOT NULL DEFAULT 0,    -- people reached (impressions/reach = frequency)
+  clicks_all       INTEGER NOT NULL DEFAULT 0,    -- every click, incl. reactions and profile taps
+  outbound_clicks  INTEGER NOT NULL DEFAULT 0,    -- clicks that actually left Meta
+  video_p25        INTEGER NOT NULL DEFAULT 0,    -- retention curve: 25/50/75/100
+  video_p50        INTEGER NOT NULL DEFAULT 0,
+  video_p75        INTEGER NOT NULL DEFAULT 0,
+  video_avg_watch  REAL    NOT NULL DEFAULT 0,    -- average seconds watched (an AVERAGE - never summed)
   PRIMARY KEY (act_id, ad_id, date)
 );
 

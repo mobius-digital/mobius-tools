@@ -23,6 +23,10 @@
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
 const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle late)
+// Bump when ad_daily gains columns: every account then re-walks the 90-day
+// window once, filling the new fields on rows that already exist.
+// 1 = hook/hold (2026-08-29)   2 = reach, clicks, outbound, p25/50/75, watch time (2026-08-30)
+const ADS_METRICS_VERSION = 2;
 const ACTIVITY_BACKFILL_DAYS = 90;
 // One platform: the Meta screens are now a tab inside Mobius (was the separate
 // Account Health dashboard, which is kept only as a redirect). This worker is
@@ -336,8 +340,14 @@ async function syncAdSlice(env, acct, since, until) {
   const rows = await metaAll(env, `${acct.act_id}/insights`, {
     level: 'ad', time_increment: 1,
     time_range: { since, until },
-    fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,inline_link_clicks,actions,action_values,'
-      + 'video_3_sec_watched_actions,video_thruplay_watched_actions,video_p100_watched_actions',
+    // NO `video_3_sec_watched_actions` — Meta REMOVED it, and asking for it
+    // fails the WHOLE request with "(#100) not valid for fields param", which
+    // silently broke every brand's ad sync for two nights in August 2026. The
+    // 3-second view now lives in `actions` as action_type `video_view`.
+    fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,reach,clicks,inline_link_clicks,outbound_clicks,'
+      + 'actions,action_values,video_thruplay_watched_actions,'
+      + 'video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,'
+      + 'video_avg_time_watched_actions',
     limit: 500,
   }, 25);
   // Video metrics arrive as action arrays with a single video_view entry; sum
@@ -345,17 +355,27 @@ async function syncAdSlice(env, acct, since, until) {
   const sumActs = a => Array.isArray(a) ? a.reduce((s, x) => s + (+x.value || 0), 0) : 0;
   const daily = rows.filter(r => r.ad_id).map(r => [acct.act_id, r.ad_id, r.date_start, +r.spend || 0, +r.impressions || 0,
     pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES),
-    +r.inline_link_clicks || 0, sumActs(r.video_3_sec_watched_actions),
-    sumActs(r.video_thruplay_watched_actions), sumActs(r.video_p100_watched_actions)]);
+    +r.inline_link_clicks || 0, pickAction(r.actions, ['video_view']),
+    sumActs(r.video_thruplay_watched_actions), sumActs(r.video_p100_watched_actions),
+    +r.reach || 0, +r.clicks || 0, sumActs(r.outbound_clicks),
+    sumActs(r.video_p25_watched_actions), sumActs(r.video_p50_watched_actions), sumActs(r.video_p75_watched_actions),
+    // avg watch time is SECONDS per impression-ish, not a count — never summed.
+    sumActs(r.video_avg_time_watched_actions)]);
+  const COLS = 18;
+  const per = Math.floor(100 / COLS);                  // D1 caps a statement at 100 bound params
   const stmts = [];
-  for (let i = 0; i < daily.length; i += 9) {          // 9 rows × 11 cols = 99 bound params, under D1's 100
-    const chunk = daily.slice(i, i + 9);
+  for (let i = 0; i < daily.length; i += per) {
+    const chunk = daily.slice(i, i + per);
     stmts.push(env.DB.prepare(
-      `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s, video_thruplay, video_p100) VALUES ` +
-      chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?)').join(',') +
+      `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s,
+         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch) VALUES ` +
+      chunk.map(() => `(${Array(COLS).fill('?').join(',')})`).join(',') +
       ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
         purchases = excluded.purchases, revenue = excluded.revenue, link_clicks = excluded.link_clicks,
-        video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100`,
+        video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100,
+        reach = excluded.reach, clicks_all = excluded.clicks_all, outbound_clicks = excluded.outbound_clicks,
+        video_p25 = excluded.video_p25, video_p50 = excluded.video_p50, video_p75 = excluded.video_p75,
+        video_avg_watch = excluded.video_avg_watch`,
     ).bind(...chunk.flat()));
   }
   const ads = new Map();
@@ -404,21 +424,29 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
   try {
     if (acct.ads_backfill_done) {
       let n = await syncAdSlice(env, acct, addDays(today, -RESYNC_DAYS), today);
-      // Video re-backfill (2026-08-29): hook/hold columns were added after the
-      // original 90d backfill, so rows before it hold zeros. Walk the window
-      // again in the same resumable 14-day slices — the upsert fills the new
-      // columns without touching anything a report already froze.
-      if (!acct.ads_video_done) {
+      // Metric re-backfill. Every time ad_daily gains columns, the rows already
+      // stored hold zeros for them, so the window has to be walked again in the
+      // same resumable 14-day slices — the upsert fills the new columns without
+      // touching anything a report already froze.
+      //
+      // Keyed on a VERSION rather than a per-feature boolean: the first round of
+      // this (hook/hold, 2026-08-29) used `ads_video_done`, and adding a second
+      // batch of columns a day later would have needed a second flag, then a
+      // third. Bump ADS_METRICS_VERSION when columns are added and every account
+      // re-backfills itself once.
+      if ((acct.ads_metrics_version || 0) < ADS_METRICS_VERSION) {
         const target = addDays(today, -BACKFILL_DAYS);
-        let cursor = acct.ads_video_cursor || addDays(today, -RESYNC_DAYS);   // resync above just covered the recent days
+        let cursor = acct.ads_metrics_cursor || addDays(today, -RESYNC_DAYS);   // the resync above just covered the recent days
         let slices = maxSlices;
         while (slices-- > 0 && cursor > target) {
           const since = addDays(cursor, -14) < target ? target : addDays(cursor, -14);
           n += await syncAdSlice(env, acct, since, cursor);
           cursor = since;
         }
-        await env.DB.prepare(`UPDATE accounts SET ads_video_cursor = ?2, ads_video_done = ?3 WHERE act_id = ?1`)
-          .bind(acct.act_id, cursor, cursor <= target ? 1 : 0).run();
+        const done = cursor <= target;
+        await env.DB.prepare(
+          `UPDATE accounts SET ads_metrics_cursor = ?2, ads_metrics_version = ?3 WHERE act_id = ?1`,
+        ).bind(acct.act_id, done ? null : cursor, done ? ADS_METRICS_VERSION : (acct.ads_metrics_version || 0)).run();
       }
       await updFirstSpend(env, acct.act_id);
       await syncAdMeta(env, acct);
@@ -434,12 +462,13 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
     }
     const done = cursor <= target;
     // A fresh backfill pulls the video columns from day one, so it settles both flags.
-    if (done) await env.DB.prepare(`UPDATE accounts SET ads_backfill_done = 1, ads_video_done = 1 WHERE act_id = ?1`).bind(acct.act_id).run();
+    if (done) await env.DB.prepare(`UPDATE accounts SET ads_backfill_done = 1, ads_metrics_version = ?2 WHERE act_id = ?1`).bind(acct.act_id, ADS_METRICS_VERSION).run();
     await updFirstSpend(env, acct.act_id);
     await syncAdMeta(env, acct);
     return { rows: total, done, daysDone: Math.min(BACKFILL_DAYS, Math.max(0, ymdDiff(today, cursor))), daysTotal: BACKFILL_DAYS };
   } catch (e) {
     await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, `ad sync: ${e.message}`).run().catch(() => {});
+    await alertSyncFailure(env, acct, e.message).catch(() => {});
     return { error: e.message };
   }
 }
@@ -1507,6 +1536,34 @@ async function alertClaudeFailure(env, context, message) {
     null, { username: 'Mobius Reports', icon: ':warning:' }).catch(() => {});
 }
 
+/** A sync that keeps failing must SAY SO. `syncAdDaily` writes its error to
+ *  accounts.last_error and returns quietly, which is right for one bad night —
+ *  but when Meta removed `video_3_sec_watched_actions` the whole ad-level pull
+ *  broke for every brand and ran silently for two nights, because nothing reads
+ *  last_error unless a human opens Settings. A field being retired is exactly
+ *  the kind of break that never fixes itself.
+ *
+ *  Deduped globally on 12 hours like the Claude alert: one bad field fails all
+ *  six brands within a minute, and six identical messages is how an alert gets
+ *  muted. */
+async function alertSyncFailure(env, acct, message) {
+  const channel = await getSetting(env, 'reportChannel') || await getSetting(env, 'slackChannel');
+  if (!channel) return;
+  const last = safeJson(await getSetting(env, 'lastSyncAlert'), null);
+  if (last?.at && Date.now() - last.at < 12 * 3600e3) return;
+  await putSetting(env, 'lastSyncAlert', JSON.stringify({ at: Date.now(), act: acct.act_id, message })).catch(() => {});
+  const msg = String(message || '');
+  const badField = /is not valid for fields param/i.test(msg);
+  await slackPost(env, channel,
+    `:rotating_light: *Meta ad-level sync is failing* — first seen on ${acct.name}.\n` +
+    '```' + msg.slice(0, 300) + '```\n' +
+    (badField
+      ? '*Meta has retired a field we ask for.* Creative stats (hook, hold, retention) will be stale or empty until the field list in `syncAdSlice` is updated.'
+      : 'Ad-level spend, creative cards and the report ad table will be stale until this clears.') +
+    '\n_One alert per 12 hours, however many brands are affected._',
+    null, { username: 'Mobius Reports', icon: ':rotating_light:' }).catch(() => {});
+}
+
 /** Public, login-free preview links for the ads a report lists.
  *
  *  `preview_shareable_link` is Meta's own field for exactly this: a URL that
@@ -1676,16 +1733,16 @@ async function adThumbnails(env, adIds) {
       fields: 'created_time,effective_status,campaign{name},adset{name}',
     }) || {};
   } catch { /* the cards still work without status and dates */ }
-  // 480px covers the card at roughly 2x without the weight of a full-res asset,
-  // which cannot be baked in: a frozen report has to carry its own images.
+  // Cards render ~255x319 CSS px, so a 2x screen wants ~640px on the long edge.
+  // Meta is asked for 1080 and the largest result under the per-image ceiling wins.
   // The ceiling is not aesthetic — the whole report is ONE D1 row, so the
   // inlined images have to leave room for the numbers beside them.
-  let budget = 700_000;                       // total base64 to inline across the report
+  let budget = 1_100_000;                     // total base64 to inline across the report
   for (const id of adIds.slice(0, 10)) {
     try {
       const r = await meta(env, `${id}/adcreatives`, {
         fields: 'thumbnail_url,image_url,object_type,video_id,object_story_spec,asset_feed_spec,body,title',
-        thumbnail_width: 480, thumbnail_height: 480, limit: 1,
+        thumbnail_width: 1080, thumbnail_height: 1080, limit: 1,
       });
       const c = r?.data?.[0];
       const m = metaById[id] || {};
@@ -1725,9 +1782,16 @@ async function adThumbnails(env, adIds) {
       let coverUrl = null;
       if (isVideo && vidId) {
         try {
-          const v = await meta(env, vidId, { fields: 'picture,length' });
-          coverUrl = v?.picture || null;
+          const v = await meta(env, vidId, { fields: 'picture,length,thumbnails{uri,width,height,is_preferred}' });
           out[id].duration = v?.length ?? null;
+          // `picture` is a small fixed-size still — it was the low-quality cover.
+          // `thumbnails` carries several frames at real resolution, so take the
+          // biggest (preferring the one Meta marks preferred at equal size).
+          const thumbs = (v?.thumbnails?.data || []).filter(t => t.uri);
+          const best = thumbs.sort((a, b) =>
+            ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0))
+            || (b.is_preferred === true) - (a.is_preferred === true))[0];
+          coverUrl = best?.uri || v?.picture || null;
         } catch { /* a creative on a page we do not own stays coverless */ }
       }
       /* RESOLVED 2026-08-30 by granting the system user page access. Kept because
@@ -1770,7 +1834,7 @@ async function adThumbnails(env, adIds) {
           const img = await fetch(src);
           if (!img.ok) continue;
           const buf = await img.arrayBuffer();
-          if (buf.byteLength > 150_000 || buf.byteLength * 1.34 > budget) continue;   // try the smaller source
+          if (buf.byteLength > 190_000 || buf.byteLength * 1.34 > budget) continue;   // too big: fall through to a smaller source
           // Chunked: spreading a 250k array into String.fromCharCode blows the stack.
           const bytes = new Uint8Array(buf);
           let bin = '';
@@ -1928,6 +1992,12 @@ async function reportData(env, acct, period, start, end) {
       `SELECT d.ad_id, SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue,
               SUM(d.impressions) AS impressions, SUM(d.link_clicks) AS clicks,
               SUM(d.video_3s) AS v3, SUM(d.video_thruplay) AS vtp, SUM(d.video_p100) AS vp100,
+              SUM(d.reach) AS reach, SUM(d.clicks_all) AS clicks_all, SUM(d.outbound_clicks) AS outbound,
+              SUM(d.video_p25) AS vp25, SUM(d.video_p50) AS vp50, SUM(d.video_p75) AS vp75,
+              -- avg watch time is an average, so it is weighted by impressions
+              -- rather than summed; summing would grow with the window length.
+              CASE WHEN SUM(d.impressions) > 0
+                   THEN SUM(d.video_avg_watch * d.impressions) / SUM(d.impressions) END AS avg_watch,
               COALESCE(a.name, d.ad_id) AS name
        FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
        WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
@@ -1963,6 +2033,24 @@ async function reportData(env, acct, period, start, end) {
       hook: r.impressions && r.v3 ? r.v3 / r.impressions : null,
       hold: r.v3 ? (r.vtp || 0) / r.v3 : null,
       completion: r.v3 ? (r.vp100 || 0) / r.v3 : null,   // watched to the end, of those it stopped
+      // Cost and efficiency, the rest of what a creative review asks for.
+      cpm: r.impressions ? r.spend / r.impressions * 1000 : null,
+      cpc: r.clicks ? r.spend / r.clicks : null,
+      // How many of the people it sent to the site actually bought. The clearest
+      // separator of "the creative works" from "the offer works".
+      cvr: r.clicks ? (r.purchases || 0) / r.clicks : null,
+      aov: r.purchases ? (r.revenue || 0) / r.purchases : null,
+      frequency: r.reach ? r.impressions / r.reach : null,
+      reach: r.reach || null,
+      // Cost to stop one thumb — spend over 3-second views. Directly comparable
+      // between video ads in a way CPM is not.
+      cost_per_thumbstop: r.v3 ? r.spend / r.v3 : null,
+      avg_watch: r.avg_watch ?? null,
+      // The retention curve, each as a share of the 3-second views that started it.
+      retention: r.v3 ? {
+        p25: (r.vp25 || 0) / r.v3, p50: (r.vp50 || 0) / r.v3,
+        p75: (r.vp75 || 0) / r.v3, p100: (r.vp100 || 0) / r.v3,
+      } : null,
       preview: previews[r.ad_id] || null,
       thumb: thumbs[r.ad_id]?.thumb || null,
       video: !!thumbs[r.ad_id]?.video,
@@ -2990,7 +3078,7 @@ export default {
         if (!acct) return json({ error: 'unknown account' }, 404);
         let backfill = null;
         if (!acct.ads_backfill_done) backfill = await syncAdDaily(env, acct, { maxSlices: 3 });
-        else if (!acct.ads_video_done) ctx.waitUntil(syncAdDaily(env, acct, { maxSlices: 3 }).catch(() => {}));  // hook/hold columns still filling
+        else if ((acct.ads_metrics_version || 0) < ADS_METRICS_VERSION) ctx.waitUntil(syncAdDaily(env, acct, { maxSlices: 3 }).catch(() => {}));  // new metric columns still filling
         else {
           const missing = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND created_time IS NULL`).bind(act).first();
           if (missing?.n > 0) ctx.waitUntil(syncAdMeta(env, acct).catch(() => {}));  // heal ages for pre-history ads

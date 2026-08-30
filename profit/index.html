@@ -2162,15 +2162,39 @@ function wireReportChart(d, cur, internal) {
  *  credential — the engine only resolves ads that are in that client's own sent
  *  reports. RS.token is set by the share renderer; internal callers have a
  *  session and send nothing. */
-async function adVideoUrl(adId) {
+// Resolved mp4 URLs, keyed by ad id. Populated as soon as a report paints, so
+// pressing play is instant instead of waiting on a round trip to Meta. The
+// value is the PROMISE, not the URL, so a click that lands mid-flight joins the
+// request already running rather than starting a second one.
+const VID_CACHE = new Map();
+
+function adVideoUrl(adId) {
+  if (VID_CACHE.has(adId)) return VID_CACHE.get(adId);
   const q = `ad=${encodeURIComponent(adId)}` + (RS.token ? `&report=${encodeURIComponent(RS.token)}` : '');
-  if (RS.token) {
-    const res = await fetch(`${S.url.replace(/\/+$/, '')}/api/ad-video?${q}`);
-    const b = await res.json();
-    if (!res.ok) throw new Error(b.error || 'could not load this video');
-    return b.src;
-  }
-  return (await api(`/api/ad-video?${q}`)).src;
+  const p = (async () => {
+    if (RS.token) {
+      const res = await fetch(`${S.url.replace(/\/+$/, '')}/api/ad-video?${q}`);
+      const b = await res.json();
+      if (!res.ok) throw new Error(b.error || 'could not load this video');
+      return b.src;
+    }
+    return (await api(`/api/ad-video?${q}`)).src;
+  })();
+  // A failure must not be cached — the next click should retry rather than
+  // replay the error for as long as the page is open.
+  p.catch(() => VID_CACHE.delete(adId));
+  VID_CACHE.set(adId, p);
+  return p;
+}
+
+/** Warm the cache for every playable ad on the page. Fired after paint; the
+ *  requests are cheap (one Meta lookup each) and there are rarely more than a
+ *  handful of videos in a report. Failures stay silent — the click path
+ *  reports them properly. */
+function prefetchAdVideos() {
+  document.querySelectorAll('#main .ad-media[data-ad]').forEach(m => {
+    adVideoUrl(m.dataset.ad).catch(() => {});
+  });
 }
 
 /** Play the REAL creative inside its card — the actual mp4 in a native video
@@ -2229,13 +2253,31 @@ function adDetailModal(a, cur, prevTag) {
         ${line('Revenue', a.revenue != null ? money(a.revenue) : null)}
         ${line('CPA', a.cpa != null ? money(a.cpa) : null, a.prev_cpa != null ? `prior ${prevTag} ${money(a.prev_cpa)}` : '')}
         ${line('ROAS', a.roas != null ? fmtX(a.roas) : null, a.prev_roas != null ? `prior ${prevTag} ${fmtX(a.prev_roas)}` : '')}
+        ${line('AOV', a.aov != null ? money(a.aov) : null, 'revenue per purchase')}
         ${line('Impressions', a.impressions != null ? fmtInt(a.impressions) : null)}
+        ${line('Reach', a.reach != null ? fmtInt(a.reach) : null, a.frequency != null ? `seen ${a.frequency.toFixed(1)}x each on average` : '')}
+        ${line('CPM', a.cpm != null ? money(a.cpm) : null, 'cost per thousand impressions')}
         ${line('Link clicks', a.clicks != null ? fmtInt(a.clicks) : null)}
         ${line('CTR', pctOr(a.ctr, 2), 'link clicks divided by impressions')}
+        ${line('CPC', a.cpc != null ? money(a.cpc) : null, 'cost per link click')}
+        ${line('Click to purchase', pctOr(a.cvr, 1), 'of the people it sent to the site, how many bought')}
+      </tbody></table></div>
+      ${a.hook != null ? `<h4 style="font-size:12.5px;font-weight:700;margin:16px 0 6px">How the video held attention</h4>
+      <div class="tbl-wrap"><table><tbody>
         ${line('Hook rate', pctOr(a.hook), '3-second views over impressions — 30%+ is strong')}
         ${line('Hold rate', pctOr(a.hold), 'ThruPlay over 3-second views — 60%+ is strong')}
-        ${line('Watched to the end', pctOr(a.completion), 'of the people it stopped')}
+        ${line('Average watch time', a.avg_watch != null ? `${a.avg_watch.toFixed(1)}s` : null, a.duration ? `of ${Math.round(a.duration)}s` : '')}
+        ${line('Cost per thumbstop', a.cost_per_thumbstop != null ? money(a.cost_per_thumbstop) : null, 'spend per 3-second view')}
       </tbody></table></div>
+      ${a.retention ? `<div style="margin-top:10px">
+        <div class="tiny" style="margin-bottom:5px">Of everyone the ad stopped, how far they got:</div>
+        ${[['25%', a.retention.p25], ['50%', a.retention.p50], ['75%', a.retention.p75], ['Finished', a.retention.p100]]
+          .map(([lb, v]) => `<div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+            <span class="tiny" style="width:58px;flex:none">${lb}</span>
+            <span style="flex:1;height:7px;border-radius:99px;background:var(--line);overflow:hidden">
+              <i style="display:block;height:100%;width:${Math.max(0, Math.min(100, (v || 0) * 100)).toFixed(1)}%;background:var(--brand-ink)"></i></span>
+            <b style="width:44px;text-align:right;font-size:12px">${fmtPct(v)}</b></div>`).join('')}
+      </div>` : ''}` : ''}
       ${a.campaign || a.adset ? `<p class="tiny" style="margin-top:10px">${a.campaign ? `Campaign <b>${esc(a.campaign)}</b>` : ''}${a.adset ? ` · Ad set <b>${esc(a.adset)}</b>` : ''}</p>` : ''}
     </div></div>`;
   // Its own shell rather than helpModal: that one is 460px wide with a 60vh
@@ -2270,9 +2312,15 @@ function attachPlay(m) {
     e.stopPropagation();
     if (m.querySelector('.ad-frame')) return;
     const adId = m.dataset.ad;
-    m.insertAdjacentHTML('beforeend', '<div class="ad-spin">Loading…</div>');
-    let src = null, err = null;
-    try { src = await adVideoUrl(adId); } catch (ex) { err = ex.message; }
+    // The URL is usually already prefetched, so only show a spinner if it is
+    // genuinely not ready — a flash of "Loading" on an instant play is worse
+    // than no feedback at all.
+    let settled = false, src = null, err = null;
+    const pending = adVideoUrl(adId).then(u => { src = u; settled = true; },
+                                          ex => { err = ex.message; settled = true; });
+    await Promise.race([pending, new Promise(r => setTimeout(r, 120))]);
+    if (!settled) m.insertAdjacentHTML('beforeend', '<div class="ad-spin">Loading…</div>');
+    await pending;
     const spin = m.querySelector('.ad-spin');
     if (spin) spin.remove();
     if (m.querySelector('.ad-frame')) return;                 // double click while loading
@@ -2317,6 +2365,7 @@ function wireAdCards(ads, cur, prevTag) {
     };
   });
   document.querySelectorAll('#main .ad-media[data-ad]').forEach(attachPlay);
+  prefetchAdVideos();
 }
 
 /** All-clients view: the latest weekly and monthly report per brand at a glance. */
