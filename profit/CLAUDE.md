@@ -461,6 +461,14 @@ profit/
 - **`.info-i` must reset `letter-spacing`, `font-style` and `text-transform`** — stat
   labels are uppercase and letter-spaced, and without the reset the glyph inside the
   circle is squashed and reads as broken.
+- **Name the SOURCE on every ROAS, always.** Meta ROAS and Google ROAS are each
+  PLATFORM-reported (Meta's API; TW's `ga_ROAS`, which is Google Ads' own figure
+  passed through). Blended ROAS is Triple Whale's. MER is ours. Four numbers for one
+  day that all disagree by design: Grunk 2026-08-23..29 read Meta 3.81, Google 1.70,
+  TW Blended ROAS 2.96, our MER 2.50. Cole lost an afternoon to a Google guy's
+  screenshot of the 2.91 Blended headline against a 0.16 Google line in a brief. The
+  channel cards now print the source in bold and say outright that a platform figure
+  sits below TW's Blended headline by construction.
 - **TW dates: verify, never assume.** `charts.current` x is ONE-BASED day-of-year.
   After any change to the mapping or a backfill, join `tw_daily.fb_ads_spend`
   against `daily_insights.spend` on the same date — Meta's dates are authoritative

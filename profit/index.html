@@ -2137,12 +2137,19 @@ function reportBodyHTML(d, summary, opts = {}) {
     if (['meta', 'google', 'tiktok', 'pinterest'].includes(c.id)) {
       rows = chRow('Spend', A.spend, P.spend, money, true)
         + chRow('Attributed revenue', A.revenue, P.revenue, money)
-        + chRow('ROAS', A.roas, P.roas, fmtX, false, A.peer_roas)
+        // A ROAS built on fewer than two conversions is one order's value over the
+        // whole window's spend, so it is withheld rather than printed as a result.
+        // Grunk 2026-08-29 read 0.16x off exactly one $19.95 Google conversion, and
+        // that number reached a client brief as though it described the day.
+        + (A.low_signal
+            ? `<tr><td>ROAS</td><td class="num" colspan="4"><span class="tiny">Not enough conversions to report</span></td></tr>`
+            : chRow('ROAS', A.roas, P.roas, fmtX, false, A.peer_roas))
         + chRow('Purchases', A.purchases, P.purchases, fmtInt)
         + chRow('CPA', A.cpa, P.cpa, money, true)
         + chRow('CPM', A.cpm, P.cpm, money, true, A.peer_cpm)
         + chRow('CTR', A.ctr, P.ctr, n => fmtPct(n, 2), false, A.peer_ctr);
-      note = `Revenue, ROAS and CPA here are ${esc(c.label)}'s own attributed figures, as Triple Whale reports them — directional, and deliberately not comparable to the blended scorecard above, which counts every sale once. They will differ slightly from ${esc(c.label)}'s own dashboard, which uses different attribution windows.`
+      note = `Revenue, ROAS and CPA here are <b>${esc(A.source || c.label + "-reported")}</b> — ${esc(c.label)}'s own attributed figures, passed through by Triple Whale rather than measured by it. They are directional, and deliberately not comparable to the blended scorecard above, which counts every sale once. Expect them to sit BELOW Triple Whale's own Blended ROAS headline, which divides the whole store's order revenue by every platform's spend at once.`
+        + (A.low_signal ? ` <b>ROAS withheld:</b> ${esc(c.label)} recorded ${A.purchases === 0 ? 'no' : 'one'} conversion in this period. A ratio off that is one order, not a rate, so the spend is shown and the ratio is not.` : '')
         + (A.peer_cpm != null || A.peer_ctr != null ? ` <b>Peers</b> is Triple Whale's benchmark across comparable stores.` : '')
         + (A.awaiting_tw ? ` <b>Spend only:</b> Triple Whale has not synced this period yet, so this is Meta-reported spend with no attribution behind it.` : '');
     } else if (c.id === 'amazon') {

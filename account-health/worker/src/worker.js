@@ -603,6 +603,26 @@ async function writeUpdate(env, { act, from, to, template }) {
 /*  touch it; spend on those pages is Meta-reported, matching Ads Mgr)   */
 /* ------------------------------------------------------------------ */
 
+/* Triple Whale's summary-page WINDOW IS SHIFTED ONE DAY EARLIER than the dates you
+   ask for. Asking for 2026-08-29..2026-08-29 returns 2026-08-28's numbers; asking
+   2026-08-24..2026-08-30 returns 2026-08-23..2026-08-29. Verified 2026-08-30 on
+   Grunk Dolfer against tw_daily, four windows, matching to the cent.
+
+   Which side is wrong is not a guess: tw_daily is built from charts.current (whose
+   x is a one-based day-of-year and carries its own date), and its fb_ads_spend
+   matches Meta's OWN dated spend to the cent for 2026-08-24 through 2026-08-27. So
+   tw_daily is right and the period totals are the shifted ones.
+
+   twWindow is therefore the ONLY way any period total should be fetched - it asks
+   for [start+1, end+1] so the numbers that come back are [start, end]. twSummary
+   stays raw for syncTwDaily, which reads charts.current and does not care.
+
+   This mattered: every weekly and monthly report ran on the raw call, so a report
+   billed as Mon-Sun actually covered Sun-Sat. */
+async function twWindow(env, shopDomain, start, end) {
+  return twSummary(env, shopDomain, addDays(start, 1), addDays(end, 1));
+}
+
 async function twSummary(env, shopDomain, start, end) {
   const res = await fetch('https://api.triplewhale.com/api/v2/summary-page/get-data', {
     method: 'POST',
@@ -903,7 +923,20 @@ async function briefData(env, acct, upTo) {
       google_spend: gSpend,
       meta_roas: mrow && mrow.spend ? mrow.revenue / mrow.spend : null,
       meta_purchases: mrow?.purchases ?? null,
+      // ga_ROAS is GOOGLE ADS' OWN reported figure (Triple Whale titles it "Google
+      // ROAS" and pipes it straight from the Google Ads API) - it is NOT Triple
+      // Whale pixel attribution, which the summary page does not break out per
+      // channel. Carry the CONVERSION COUNT beside it, because the count is what
+      // decides whether the ratio means anything: on a day Google recorded one
+      // conversion the ROAS is just that single order's value over a whole day of
+      // spend. Grunk 2026-08-29 read 0.16x off exactly one $19.95 conversion.
+      // googleAllCpa is real dollars-per-conversion; googleCpa is NOT (Triple Whale
+      // has the two ids swapped against their own titles).
       google_roas: piv.ga_ROAS?.[date] ?? null,
+      google_purchases: (() => {
+        const c = piv.googleAllCpa?.[date], s = piv.ga_adCost?.[date];
+        return c > 0 && s > 0 ? Math.round(s / c) : (s > 0 ? 0 : null);
+      })(),
       blended_roas: piv.totalRoas?.[date] ?? null,
       gross_profit: piv.grossProfit?.[date] ?? null,
       total_sales: netSalesDay, tax, net_sales: sales == null ? null : sales - shipRev,
@@ -1035,12 +1068,12 @@ So What?
 2–4 sentences: the single interpretation that best explains the day — tie performance moves to the changes we made when the change log supports it, and say whether this reads as a demand problem, a platform problem, or our own levers.
 What's Next?
 • 1–3 bullets: concrete actions or watch-items with a trigger ("if X doesn't improve today, we do Y").
-Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
+Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. Google's conversions settle late too, and unevenly: hedge a recent Google read the same way, and NEVER report a Google ROAS the block marks n/a — say Google's conversions have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
 async function writeBriefNarrative(env, acct, data, date) {
   const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
-    `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)} GoogleROAS ${f2(x.a?.google_roas)}`);
+    `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)} (Meta-reported) GoogleROAS ${x.a?.google_purchases != null && x.a.google_purchases < 2 ? `n/a - Google recorded only ${x.a.google_purchases} conversion(s), too few to form a rate` : `${f2(x.a?.google_roas)} (Google-reported, off ${x.a?.google_purchases ?? '?'} conversions)`} BlendedROAS ${f2(x.a?.blended_roas)} (Triple Whale)`);
   const { results: evs } = await env.DB.prepare(
     `SELECT event_time, category, summary, reason, note FROM activities
      WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
@@ -1060,7 +1093,7 @@ async function writeBriefNarrative(env, acct, data, date) {
       // the clearest case: blended 2.52 - goal met - while its Meta ROAS of
       // 1.64 was written up as a miss.
       `Goals this month: ${JSON.stringify(data.goals)}. Forecast weighting: ${data.weights}.\n` +
-      `Meta and Google ROAS below are each platform's OWN attributed figure. There is no ROAS target: the only agreed goals are the blended ones above (net sales, spend, MER, aMER). Never judge a platform's ROAS against the MER goal - blended MER counts every channel's revenue against total spend and is always the higher number, so doing that reports a healthy account as failing. Use platform ROAS only to say which channel moved, never to declare a target missed.\n` +
+      `Meta and Google ROAS below are each platform's OWN attributed figure, NOT Triple Whale's. Blended ROAS is Triple Whale's, and it is the same idea as MER (it counts sales tax, so it runs a shade above our MER). Name the source whenever you quote a ROAS, because a platform figure and the Triple Whale figure for the same day differ by design and get mistaken for a contradiction. There is no ROAS target: the only agreed goals are the blended ones above (net sales, spend, MER, aMER). Never judge a platform's ROAS against the MER goal - blended MER counts every channel's revenue against total spend and is always the higher number, so doing that reports a healthy account as failing. Use platform ROAS only to say which channel moved, never to declare a target missed.\n` +
       (data.goals && data.goals_planned === false
         ? `IMPORTANT: no target was actually set for ${MONTH_OF(data.month)} - the figures above are carried over from ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from) : 'the last plan on file'}. Do NOT call them this month's goal or say the client is ahead of/behind "plan" as though it were agreed. Refer to them as last month's pace, and put setting this month's target in What's Next?.\n`
         : '') +
@@ -1431,7 +1464,7 @@ function channelSections(piv, metaBy, ranges, hide, tw, twPrev) {
       const imp = m.facebookImpressions ?? null;
       const clicks = m.facebookClicks ?? m.facebookOutboundClicks ?? null;
       return {
-        spend, roas,
+        spend, roas, source: 'Meta-reported',
         revenue: roas != null ? spend * roas : null,
         purchases: pur, cpa: m.facebookCpa ?? (pur ? spend / pur : null),
         cpm: m.averageFacebookCpm ?? (imp ? spend / imp * 1000 : null),
@@ -1451,10 +1484,16 @@ function channelSections(piv, metaBy, ranges, hide, tw, twPrev) {
       // googleAllCpa is real dollars-per-conversion; googleCpa is NOT (~0.18,
       // some other ratio) and dividing spend by it fabricated conversions.
       const cpa = m ? m.googleAllCpa : null;
+      const purchases = cpa ? Math.round(spend / cpa) : null;
+      // A ratio built on nearly no conversions is not a result. Below two, the
+      // ROAS is one order's value over the window's whole spend, so it is carried
+      // as low_signal and the renderers show the conversion count instead.
+      const lowSignal = purchases != null && purchases < 2;
       return {
-        spend, roas: roas ?? null,
+        spend, roas: roas ?? null, low_signal: lowSignal || undefined,
+        source: 'Google-reported',
         revenue: roas != null ? spend * roas : null,
-        purchases: cpa ? Math.round(spend / cpa) : null,
+        purchases,
         cpa: cpa ?? null,
         cpm: (m && m.totalGoogleAdsCpm != null) ? m.totalGoogleAdsCpm : (imp ? spend / imp * 1000 : null),
         ctr: (m && m.totalGoogleAdsCtr != null) ? m.totalGoogleAdsCtr / 100 : (imp && clicks ? clicks / imp : null),
@@ -1972,8 +2011,10 @@ async function reportData(env, acct, period, start, end) {
   // reconstructed from daily rows that do not carry them.
   let twCur = null, twPrev = null;
   if (acct.tw_shop && env.TW_API_KEY) {
-    twCur = (await twSummary(env, acct.tw_shop, start, end).catch(() => null))?.map ?? null;
-    twPrev = (await twSummary(env, acct.tw_shop, prevStart, prevEnd).catch(() => null))?.map ?? null;
+    // twWindow, never twSummary - see the comment on twWindow. The raw call is
+    // shifted a day, which silently made every report cover Sun-Sat.
+    twCur = (await twWindow(env, acct.tw_shop, start, end).catch(() => null))?.map ?? null;
+    twPrev = (await twWindow(env, acct.tw_shop, prevStart, prevEnd).catch(() => null))?.map ?? null;
   }
   const channels = channelSections(piv, metaBy, { cur: curDates, prev: prevDates }, Array.isArray(cfg.hide) ? cfg.hide : [], twCur, twPrev);
 
@@ -2274,7 +2315,7 @@ async function writeReportNarrative(env, acct, data) {
       (unplanned.length ? `IMPORTANT: no plan was actually set for ${unplanned.map(([ym]) => ym).join(', ')} — the "plan" figures are carried over from an earlier month. Do not present them as an agreed target; refer to them as the prior pace.\n` : '') +
       (data.cm_ok ? '' : `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality?.reason}). Contribution margin has been removed from the report — do NOT mention margin, CM or profit anywhere.\n`) +
       (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
-      `Channels — each platform's OWN attributed revenue/ROAS. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
+      `Channels — each platform's OWN attributed revenue/ROAS, NOT Triple Whale's; a line marked low_signal recorded fewer than two conversions in the whole window, so quote its spend and say the conversions have not landed rather than repeating the ratio. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
       `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
       (fmtLines.length ? `Meta spend by creative format (from the ad naming convention — covers every ad that spent):\n${fmtLines.join('\n')}\n` : '') +
       `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
@@ -2966,7 +3007,7 @@ export default {
     }
 
     if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
-      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+    if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       if (request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         const h = +b.hour;
@@ -3011,6 +3052,13 @@ export default {
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
+      /* DIAGNOSTIC, TEMPORARY (2026-08-30) - delete with settings key twDiagKey.
+       Dumps every metric Triple Whale returns for a shop: id, human title and the
+       value for the window, INCLUDING the ones TW_KEEP drops on the way into
+       tw_daily. Added to settle which field is the Google ROAS on the Triple Whale
+       dashboard, because ga_ROAS (Google Ads' OWN reported figure) is not it.
+       Gated on a random one-time key in the settings table rather than the admin
+       token, so investigating this could never require rotating a live secret. */
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
 
     if (path === '/api/me') {

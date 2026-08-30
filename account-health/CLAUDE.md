@@ -149,6 +149,43 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
   `newCustomerSales`, `rcRevenue`, `blendedAds` (all-platform spend),
   `ga_adCost` (Google spend), `grossProfit`, `totalProductCosts` (COGS),
   `totalPaymentGatewayCosts`. new + returning sums to `totalSales`.
+- **The summary-page WINDOW IS SHIFTED ONE DAY EARLIER than the dates you ask for,
+  and `charts.current` is NOT.** Asking `period` 2026-08-29..2026-08-29 returns
+  2026-08-28's totals; asking 08-24..08-30 returns 08-23..08-29. Verified 2026-08-30
+  on Grunk Dolfer across four windows, matching `tw_daily` to the cent. `tw_daily` is
+  the correct side — it is built from `charts.current`, which carries its own
+  one-based day-of-year, and its `fb_ads_spend` matches Meta's own dated spend
+  exactly. **Any PERIOD TOTAL must go through `twWindow()`**, which asks for
+  `[start+1, end+1]`; `twSummary()` stays raw for `syncTwDaily`, which reads the
+  self-dating charts and does not care. This shipped broken: every weekly and monthly
+  report ran on the raw call, so a report billed as Mon–Sun actually covered Sun–Sat.
+- **`ga_ROAS` is GOOGLE ADS' OWN number, not Triple Whale attribution** — TW titles
+  it "Google ROAS" and pipes it straight from the Google Ads API. Same for
+  `fb_ads_purchase_roas` ("Facebook ROAS", Meta-reported). Triple Whale's own
+  attributed figures are `totalRoas` / `blendedAttributedRoas`, and it exposes **no
+  per-channel pixel ROAS on the summary page** — that lives in the Pixel Joined
+  warehouse table, and the Attribution endpoint returns **403 until the API key is
+  granted the `Pixel Attribution: Read` scope** (ours is not, as of 2026-08-30).
+  Never describe a platform ROAS as "what Triple Whale reports"; name the source.
+- **TW's `totalRoas` ("Blended ROAS") is NOT our MER, and the gap is ~18%.**
+  It is `blendedSales` ÷ `blendedAds`, where `blendedSales` = `totalSales` =
+  "Order Revenue" — BEFORE returns and INCLUDING tax. Our MER is
+  (`netSales` − `totalNetTaxes`) ÷ `blendedAds`. Grunk 2026-08-23..29: TW Blended
+  ROAS 2.96, our MER 2.50, on identical spend. Both are right; they are different
+  revenue bases. This is the same "TW's field names LIE" trap documented in
+  profit/CLAUDE.md, and it cost an afternoon when a client compared the two.
+- **A ROAS on fewer than two conversions is not a result — withhold it.** Google's
+  conversions land late and unevenly, so a day can record one. Grunk 2026-08-29:
+  $122 of Google spend, ONE conversion worth $19.95, printed as "0.16x" in a client
+  brief as though it described the day's performance. `briefData` now carries
+  `google_purchases` (spend ÷ `googleAllCpa`) and `channelSections` sets
+  `low_signal`; both renderers show the conversion count instead of the ratio, and
+  the prompts are told never to quote a withheld figure.
+- **`googleCpa` and `googleAllCpa` HAVE THEIR IDS SWAPPED against their own titles.**
+  `googleAllCpa` is titled "Google CPA" and IS real dollars-per-conversion;
+  `googleCpa` is titled "Google All CPA" and is ~0.18, some other ratio entirely.
+  Dividing spend by `googleCpa` once fabricated 11,951 conversions. Use
+  `googleAllCpa`, and never trust a TW id to mean what it says.
 - **Daily Brief math**: aMER = new-customer revenue ÷ blended spend; CM basis
   chain = cm_pct override → grossProfit − fees − spend → netSales − COGS −
   fees − spend; forecast weights = trailing-28d day-of-week shares frozen at
