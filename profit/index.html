@@ -57,17 +57,23 @@
   /* Tab BANDS. The row used to be nine equal buttons in build order, so Costs -
      opened twice a year - carried the same weight as Reports. Grouping them by
      how often you open one is the only thing in the chrome that answers "when
-     do I use this", and it is the question that made the tool hard to explain. */
-  nav.tabs .band{display:flex;align-items:center;font-size:9.5px;font-weight:700;letter-spacing:.13em;
-    text-transform:uppercase;color:#5E7686;padding:0 10px 0 0;white-space:nowrap;align-self:center}
-  nav.tabs .band:not(:first-child){padding-left:14px;margin-left:10px;border-left:1px solid #22323E}
-  /* 1100, not 900: measured, the four labels add ~220px and the row starts
-     scrolling at 1024 with them in. The labels are the first thing to go - the
-     grouping still reads as spacing, and nine buttons that FIT beat nine buttons
-     plus four labels that scroll. */
+     do I use this", and it is the question that made the tool hard to explain.
+     The label sits ABOVE its group, not inline with the buttons: inline, at the
+     same baseline and the same row, it read as another tab and Cole tried to
+     click it. A caption over a group cannot be mistaken for one. */
+  nav.tabs .in{align-items:stretch}
+  nav.tabs .grp{display:flex;flex-direction:column;justify-content:flex-end}
+  nav.tabs .grp + .grp{margin-left:10px;padding-left:12px;border-left:1px solid #22323E}
+  nav.tabs .band{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:#54697A;padding:6px 14px 0;white-space:nowrap;user-select:none;pointer-events:none}
+  nav.tabs .grp-btns{display:flex;gap:4px}
+  /* 1100, not 900: measured, the four labels add ~220px of width and the row
+     began scrolling at 1024 with them in. Below that the labels go entirely -
+     display:none, not font-size:0, so the row loses their height too and the
+     grouping survives as spacing. */
   @media (max-width:1100px){
-    nav.tabs .band{font-size:0;padding:0;margin-left:8px}
-    nav.tabs .band:not(:first-child){padding-left:8px}
+    nav.tabs .band{display:none}
+    nav.tabs .grp + .grp{margin-left:6px;padding-left:8px}
   }
   /* Meta sub-tabs: one step quieter than the main tabs so the hierarchy reads. */
   nav.subtabs{background:#111E27;border-top:1px solid var(--hd-line)}
@@ -461,18 +467,19 @@
     </div>
   </div>
   <nav class="tabs" id="tabs" style="display:none"><div class="in">
-    <span class="band">Daily</span>
-    <button data-t="overview">Overview</button>
-    <button data-t="profit">Profit</button>
-    <button data-t="meta">Meta</button>
-    <span class="band">To the client</span>
-    <button data-t="brief">Daily Brief</button>
-    <button data-t="reports">Reports</button>
-    <span class="band">Monthly</span>
-    <button data-t="plan">Plan</button>
-    <button data-t="customers">Customers</button>
-    <span class="band">Setup</span>
-    <button data-t="costs">Costs</button><button data-t="settings">Settings</button>
+    <div class="grp"><span class="band">Daily</span><div class="grp-btns">
+      <button data-t="overview">Overview</button>
+      <button data-t="profit">Profit</button>
+      <button data-t="meta">Meta</button></div></div>
+    <div class="grp"><span class="band">To the client</span><div class="grp-btns">
+      <button data-t="brief">Daily Brief</button>
+      <button data-t="reports">Reports</button></div></div>
+    <div class="grp"><span class="band">Monthly</span><div class="grp-btns">
+      <button data-t="plan">Plan</button>
+      <button data-t="customers">Customers</button></div></div>
+    <div class="grp"><span class="band">Setup</span><div class="grp-btns">
+      <button data-t="costs">Costs</button>
+      <button data-t="settings">Settings</button></div></div>
   </div></nav>
   <!-- Sub-tabs for the Meta section. Kept OUTSIDE #main because meta.js owns
        that element entirely; a nav rendered inside it would be wiped on every
