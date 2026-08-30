@@ -703,6 +703,108 @@ async function writeUpdate(env, { act, from, to, template }) {
 
    This mattered: every weekly and monthly report ran on the raw call, so a report
    billed as Mon-Sun actually covered Sun-Sat. */
+/* ---------------- Triple Whale ad-level attribution ----------------
+   Cole's rule: anything attribution-shaped should be Triple Whale's, and Meta
+   only where TW cannot measure it. TW CAN do this - the earlier note in this
+   file saying the endpoint 403s was wrong (see the 2026-08-30 section).
+
+   `attribution/get-orders-with-journeys-v2` returns ORDERS, not aggregated ad
+   metrics, so the aggregation is ours: page the orders for a window, walk each
+   order's touchpoints, and credit its revenue to the ad that touchpoint names.
+
+   ALL SIX MODELS ARE STORED, not one. They arrive in the SAME response - every
+   order carries firstClick, lastClick, fullFirstClick, fullLastClick,
+   lastPlatformClick, linear and linearAll side by side - so storing every one
+   costs no extra call, and picking a single model in code would have forced a
+   decision onto Cole that the UI can simply offer him.
+
+   The two models named "linear" SPLIT one order across its touchpoints; the
+   click models give the whole order to one. Both are handled by weighting each
+   touchpoint 1/n within its own model, which is exactly what linear means and
+   is a harmless no-op for a single-touchpoint click model. */
+const TW_ATTR_MODELS = ['firstClick', 'lastClick', 'fullFirstClick', 'fullLastClick',
+  'lastPlatformClick', 'linear', 'linearAll'];
+
+async function twJourneys(env, shopDomain, start, end, page) {
+  const res = await fetch('https://api.triplewhale.com/api/v2/attribution/get-orders-with-journeys-v2', {
+    method: 'POST',
+    headers: { 'x-api-key': env.TW_API_KEY, 'content-type': 'application/json' },
+    /* Send the exact key set the probe proved returns 200. `shopId` gives a
+       403 Access Denied; `shopDomain` alone also 403s here, so TW evidently
+       wants `shop` too. Both date spellings are sent because the probe carried
+       both and it is not worth another round trip to discover which it reads. */
+    body: JSON.stringify({ shopDomain, shop: shopDomain,
+      startDate: start, endDate: end, start_date: start, end_date: end, page }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Triple Whale attribution: ${body.message || body.error || `HTTP ${res.status}`}`);
+  return body;
+}
+
+/** Pull journeys for [start,end] and roll them up to (date, ad_id, model).
+ *  Returns {orders, ads, pages} for reporting. */
+async function syncTwAttribution(env, acct, days = 7) {
+  if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY not set' };
+  if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop' };
+  const today = localDate(acct.tz);
+  const end = addDays(today, -1);
+  const start = addDays(end, -(Math.min(days, 60) - 1));
+
+  const agg = new Map();                       // `${date}|${ad}|${model}` -> {rev, ord}
+  let page = 1, orders = 0, pages = 0;
+  // Capped: this runs nightly for six brands and a runaway page loop would
+  // spend the whole invocation budget on one of them.
+  while (page <= 40) {
+    const body = await twJourneys(env, acct.tw_shop, start, end, page);
+    const rows = body.ordersWithJourneys || [];
+    pages++;
+    for (const o of rows) {
+      orders++;
+      const rev = +o.total_price || 0;
+      if (!rev) continue;
+      // The order's OWN date, not the touchpoint's - revenue lands when the
+      // money did, which is what every other figure in Locus is dated by.
+      const date = String(o.created_at || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      for (const model of TW_ATTR_MODELS) {
+        const tps = (o.attribution?.[model] || []).filter(t => t && t.adId);
+        if (!tps.length) continue;             // organic, direct, or a non-paid touch
+        const w = 1 / tps.length;
+        for (const t of tps) {
+          const k = `${date}|${t.adId}|${model}`;
+          const cur = agg.get(k) || { rev: 0, ord: 0 };
+          cur.rev += rev * w; cur.ord += w;
+          agg.set(k, cur);
+        }
+      }
+    }
+    if (body.finishedRange || !rows.length) break;
+    page++;
+  }
+
+  /* Replace the window wholesale rather than upserting: attribution RESTATES as
+     journeys resolve, so an order that moved from one ad to another must not
+     leave its old credit behind. Deleting the window first makes the sync
+     idempotent - re-running it can only ever converge. */
+  await env.DB.prepare(`DELETE FROM tw_ad_attr WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`)
+    .bind(acct.act_id, start, end).run();
+
+  const rows = [...agg.entries()];
+  // D1 caps a statement at 100 bound parameters; 6 columns -> 16 rows a chunk.
+  for (let i = 0; i < rows.length; i += 16) {
+    const chunk = rows.slice(i, i + 16);
+    const sql = `INSERT INTO tw_ad_attr (act_id, date, ad_id, model, revenue, orders) VALUES `
+      + chunk.map((_, n) => `(?${n * 6 + 1},?${n * 6 + 2},?${n * 6 + 3},?${n * 6 + 4},?${n * 6 + 5},?${n * 6 + 6})`).join(',');
+    const binds = [];
+    for (const [k, v] of chunk) {
+      const [date, ad, model] = k.split('|');
+      binds.push(acct.act_id, date, ad, model, v.rev, v.ord);
+    }
+    await env.DB.prepare(sql).bind(...binds).run();
+  }
+  return { name: acct.name, from: start, to: end, orders, pages, rows: rows.length };
+}
+
 async function twWindow(env, shopDomain, start, end) {
   return twSummary(env, shopDomain, addDays(start, 1), addDays(end, 1));
 }
@@ -1848,9 +1950,36 @@ async function adInSentReport(env, token, adId) {
  *  Best effort throughout - an ad with no usable thumbnail simply shows its
  *  name and numbers rather than a broken image.
  */
+/* Creative assets are CACHED, and this is why filtering used to crawl.
+   Every sort or filter change re-picks the top N, and each new ad meant a
+   creative fetch plus a video lookup against Meta - up to sixteen sequential
+   round trips for one click on a dropdown. An ad's creative does not change,
+   so it is fetched once and kept.
+   Cached in `ad_creative` keyed by ad_id, refreshed after 14 days so a swapped
+   asset eventually corrects itself. Only rows under 90KB are stored: a full
+   resolution static can be far larger and D1 is not an image host. */
+const AD_CREATIVE_TTL_DAYS = 14;
+
 async function adThumbnails(env, adIds) {
   const out = {};
   if (!env.META_TOKEN || !adIds.length) return out;
+  const want = [...new Set(adIds)];
+  let missing = want;
+  try {
+    const q = want.map((_, i) => `?${i + 1}`).join(',');
+    const { results } = await env.DB.prepare(
+      `SELECT ad_id, json, fetched_at FROM ad_creative WHERE ad_id IN (${q})`).bind(...want).all();
+    const cutoff = new Date(Date.now() - AD_CREATIVE_TTL_DAYS * 86400e3).toISOString().slice(0, 19).replace('T', ' ');
+    const fresh = new Set();
+    for (const r of results || []) {
+      if (String(r.fetched_at) < cutoff) continue;          // stale: refetch
+      const v = safeJson(r.json, null);
+      if (v) { out[r.ad_id] = v; fresh.add(r.ad_id); }
+    }
+    missing = want.filter(id => !fresh.has(id));
+  } catch { missing = want; }                                // cache miss must never break the cards
+  if (!missing.length) return out;
+  adIds = missing;
   // Whatever we resolve here is written back to `ads.media_type` at the end, so
   // the creative browser can filter by type without a Meta call per ad. It
   // fills in as ads are looked at, and the video/static fallback below covers
@@ -2002,6 +2131,18 @@ async function adThumbnails(env, adIds) {
       .map(([id, v]) => env.DB.prepare(`UPDATE ads SET media_type = ?2 WHERE ad_id = ?1`).bind(id, v.media_type));
     if (st.length) await env.DB.batch(st);
   } catch { /* the cards do not depend on this */ }
+  // Cache what we just fetched, one row at a time so a single oversized
+  // creative cannot fail the whole batch and lose the others.
+  for (const id of missing) {
+    const v = out[id]; if (!v) continue;
+    try {
+      const j = JSON.stringify(v);
+      if (j.length > 90_000) continue;                       // D1 is not an image host
+      await env.DB.prepare(
+        `INSERT INTO ad_creative (ad_id, json, fetched_at) VALUES (?1,?2,datetime('now'))
+         ON CONFLICT(ad_id) DO UPDATE SET json = excluded.json, fetched_at = excluded.fetched_at`).bind(id, j).run();
+    } catch { /* best effort */ }
+  }
   return out;
 }
 
@@ -2656,6 +2797,21 @@ async function hourlyPacing(env, acct) {
    spend) for the same reason - same floor here, and the response says how much
    spend it excluded so the omission is never silent. */
 async function adRows(env, acct, from, to, opts = {}) {
+  /* ATTRIBUTION SOURCE. `opts.attr` is a Triple Whale model name, or 'meta' /
+     absent for Meta's own reported conversions. Only the ATTRIBUTED figures
+     move - revenue, purchases and everything derived from them (ROAS, CPA, CVR,
+     AOV). Spend, impressions, reach, clicks, hook, hold, CTR and CPM stay Meta's
+     in every case, because Triple Whale does not measure delivery and never
+     claims to. */
+  const attrModel = opts.attr && opts.attr !== 'meta' ? opts.attr : null;
+  let attrBy = null;
+  if (attrModel) {
+    const { results: ar } = await env.DB.prepare(
+      `SELECT ad_id, SUM(revenue) AS revenue, SUM(orders) AS orders
+       FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date >= ?3 AND date <= ?4
+       GROUP BY ad_id`).bind(acct.act_id, attrModel, from, to).all().catch(() => ({ results: [] }));
+    attrBy = Object.fromEntries((ar || []).map(r => [r.ad_id, r]));
+  }
   const { results } = await env.DB.prepare(
     `SELECT d.ad_id, a.name, a.created_time, a.first_spend_date, a.status, a.media_type,
             SUM(d.spend) AS spend, SUM(d.revenue) AS revenue, SUM(d.purchases) AS purchases,
@@ -2683,6 +2839,12 @@ async function adRows(env, acct, from, to, opts = {}) {
 
   const rows = results.map(r => {
     const imp = r.impressions || 0;
+    /* An ad with no attributed row has genuinely earned nothing under this
+       model - a real zero, not missing data - so it reads as 0, not null.
+       Getting that wrong would quietly promote unattributed ads up a CPA sort. */
+    const at = attrBy ? (attrBy[r.ad_id] || { revenue: 0, orders: 0 }) : null;
+    const revenue = at ? at.revenue : r.revenue;
+    const purchases = at ? at.orders : r.purchases;
     // Ads already spending when our history begins would read as brand new, so
     // fall back to Meta's own creation date for their age.
     const origin = r.created_time && r.first_spend_date && String(r.created_time).slice(0, 10) < r.first_spend_date
@@ -2707,9 +2869,10 @@ async function adRows(env, acct, from, to, opts = {}) {
     const media = r.media_type || (isVideo ? 'video' : 'image');
     return {
       ad_id: r.ad_id, name: r.name || r.ad_id, status: r.status || null,
-      spend: r.spend, revenue: r.revenue, purchases: r.purchases,
-      roas: r.spend ? r.revenue / r.spend : null,
-      cpa: r.purchases ? r.spend / r.purchases : null,
+      spend: r.spend, revenue, purchases,
+      roas: r.spend ? revenue / r.spend : null,
+      cpa: purchases ? r.spend / purchases : null,
+      attr: attrModel || 'meta',
       impressions: imp, reach: r.reach || 0,
       frequency: r.reach ? imp / r.reach : null,
       cpm: imp ? (r.spend / imp) * 1000 : null,
@@ -2727,8 +2890,8 @@ async function adRows(env, acct, from, to, opts = {}) {
       created: origin || null,
       clicks: r.clicks_all || 0,
       cpc: r.link_clicks ? r.spend / r.link_clicks : null,
-      cvr: r.link_clicks ? r.purchases / r.link_clicks : null,
-      aov: r.purchases ? r.revenue / r.purchases : null,
+      cvr: r.link_clicks ? purchases / r.link_clicks : null,
+      aov: purchases ? revenue / purchases : null,
       cost_per_thumbstop: r.v3 ? r.spend / r.v3 : null,
       avg_watch: r.vplays ? (r.watch_weighted || 0) / r.vplays : null,
       retention: isVideo && r.vplays ? {
@@ -2773,7 +2936,10 @@ async function adRows(env, acct, from, to, opts = {}) {
   const limit = Math.min(Math.max(+opts.limit || 8, 1), 40);
   const top = list.slice(0, limit);
   return {
-    ads: top, types,
+    ads: top, types, attr: attrModel || 'meta',
+    // Whether this window actually has attribution stored - the UI must not
+    // offer a model that would silently return zeros for every ad.
+    attr_available: attrBy ? Object.keys(attrBy).length > 0 : null,
     matched: list.length,
     total_spend: totalSpend,
     shown_spend: top.reduce((n, r) => n + r.spend, 0),
@@ -3224,12 +3390,18 @@ async function nightly(env) {
   for (const a of accounts) results.push(await syncAccount(env, a));
   const tw = [];
   for (const a of accounts) tw.push(await syncTwDaily(env, a, 10).catch(e => ({ name: a.name, error: e.message })));
+  /* Triple Whale ad-level attribution. A 7-day window every night because
+     attribution RESTATES as journeys resolve - yesterday's numbers keep moving
+     for several days, so re-pulling a week and replacing it is what keeps the
+     stored figures converging on the truth rather than freezing a first guess. */
+  const twAttr = [];
+  for (const a of accounts) twAttr.push(await syncTwAttribution(env, a, 7).catch(e => ({ name: a.name, error: e.message })));
   // Alerts moved to deliveryPass() on the hourly trigger: this job runs at
   // 03:30 UTC, which is late evening locally, and could only ever report on
   // a day that had already been over for the best part of a day.
   const pace = { skipped: 'delivery alerts run on the hourly pass' };
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('lastRun', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-    .bind(JSON.stringify({ at: new Date().toISOString(), discover: disc, results, tw, pace })).run();
+    .bind(JSON.stringify({ at: new Date().toISOString(), discover: disc, results, tw, twAttr, pace })).run();
   return results;
 }
 
@@ -3303,7 +3475,21 @@ export default {
       return json({ src });
     }
 
+    /* Backfill attribution on demand - the nightly pass only covers 7 days,
+       and a new brand or a longer look-back needs more than that. */
+    if (path === '/api/tw-attr-sync' && request.method === 'POST') {
+      const act = url.searchParams.get('act');
+      const days = Math.min(+url.searchParams.get('days') || 30, 60);
+      const list = act && act !== 'all'
+        ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
+        : await listAccounts(env, true);
+      const out = [];
+      for (const a of list) out.push(await syncTwAttribution(env, a, days).catch(e => ({ name: a.name, error: e.message })));
+      return json({ ok: true, results: out });
+    }
+
     if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
+
 
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       if (request.method === 'PUT') {
@@ -3573,6 +3759,7 @@ export default {
           sort: url.searchParams.get('sort'),
           format: url.searchParams.get('format'),
           limit: url.searchParams.get('limit'),
+          attr: url.searchParams.get('attr'),
         });
         // Assets for the shown ads only. Never fatal - the numbers are the point
         // and a card with no image still answers the question.

@@ -331,3 +331,47 @@ window, walk each order's touchpoints under the chosen model, and credit
 Meta-sourced (delivery metrics TW does not measure), but purchases, revenue,
 ROAS and CPA CAN move to Triple Whale attribution, which is Cole's stated
 preference: TW for anything attribution-shaped, Meta only as a last resort.
+
+### Ad-level TW attribution SHIPPED (2026-08-30) — `tw_ad_attr`
+
+`syncTwAttribution()` pages `attribution/get-orders-with-journeys-v2`, walks each
+order's touchpoints and credits `total_price` to the `adId`, storing **all seven
+models** in `tw_ad_attr (act_id, date, ad_id, model, revenue, orders)`. All the
+models arrive in the SAME response, so storing every one costs no extra call —
+which is why the UI offers a picker instead of the code choosing one.
+
+- **Request shape is fussy and every failure looks like a permission error.**
+  `shopId` → 403. `shopDomain` ALONE → 403 from this route (it worked for the
+  probe only because the probe also sent `shop`). What works: `shopDomain` AND
+  `shop`, plus both date spellings. Do not "tidy" that body without re-testing.
+- **Revenue is dated by the ORDER's `created_at`**, not the touchpoint's — money
+  lands when the money landed, matching every other figure in Locus.
+- **The window is DELETED then rewritten, never upserted.** Attribution restates
+  as journeys resolve; an order that moves from one ad to another must not leave
+  its old credit behind. That makes the sync idempotent.
+- Linear models split one order across its touchpoints (weight 1/n); click
+  models give the whole order to one. Both handled by the same weighting.
+- Nightly re-pulls **7 days** because recent attribution keeps moving.
+  `POST /api/tw-attr-sync?act=&days=` backfills up to 60.
+- **`tw_ad_attr` holds Google ad_ids too**, so a raw SUM over the table is NOT
+  comparable to Meta's totals. Per-ad joins against `ad_daily` are correct
+  because non-Meta ad_ids simply do not match. Measured Lucky 2026-07-31..08-29:
+  TW lastPlatformClick $62,677 across all platforms vs Meta's own $44,215 for
+  Meta ads alone.
+- Live per-ad check, Lucky August: `310 B | Still` reads **2.62x on Meta and
+  1.25x on TW**; `Cole - 3 | UGC` 1.27x vs 1.00x. The two sources genuinely
+  disagree per ad, which is the point of offering both.
+- **Only revenue/purchases/ROAS/CPA/CVR/AOV switch source.** Spend, impressions,
+  reach, clicks, hook, hold, CTR and CPM stay Meta's under every model, because
+  Triple Whale does not measure delivery.
+- An ad with no attributed row under a model reads **0, not null** — that is a
+  real zero, and treating it as missing would quietly promote unattributed ads
+  up a CPA sort.
+
+### `ad_creative` cache (2026-08-30) — why filtering used to crawl
+Every sort/filter change re-picks the top N, and each unseen ad cost a creative
+fetch plus a video lookup: up to sixteen sequential Meta round trips for one
+click on a dropdown. Creatives do not change, so `adThumbnails` now reads
+`ad_creative` first and only calls Meta for what is missing, writing back rows
+under 90KB with a 14-day TTL. A cache miss or a write failure is swallowed —
+the cards must never depend on it.

@@ -1609,7 +1609,21 @@ async function renderAdShare(token) {
    The ratio sorts are filtered to MATERIAL ads server-side; the footer always
    states how many were considered and how much spend is on screen, because a
    "top 8 by ROAS" that quietly dropped 90% of spend is a lie of omission. */
-const CB = { sort: 'spend', fmt: '', limit: 8 };
+const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb_attr') || 'lastPlatformClick' };
+/* ATTRIBUTION SOURCE. Cole's rule is Triple Whale for anything attribution-
+   shaped, Meta only where TW cannot measure it - and TW returns ALL of these
+   models in the SAME response, so there was never a reason to pick one in code
+   and impose it. Only revenue, purchases, ROAS and CPA change with this; spend,
+   hook, hold, CTR and CPM are delivery figures TW does not measure and stay
+   Meta's under every setting. */
+const CB_ATTR = [
+  ['lastPlatformClick', 'Triple Whale · last platform click'],
+  ['linear', 'Triple Whale · linear'],
+  ['linearAll', 'Triple Whale · linear (all touches)'],
+  ['fullLastClick', 'Triple Whale · last click'],
+  ['fullFirstClick', 'Triple Whale · first click'],
+  ['meta', 'Meta’s own attribution'],
+];
 /* Sorts that are a RATIO and therefore need a spend floor to mean anything.
    Kept beside the UI as well as in the worker so the page can say which rule is
    currently in force rather than leaving the reader to guess. */
@@ -1623,7 +1637,8 @@ async function renderCreativeBrowser(host, act, range) {
   host.innerHTML = '<div class="card"><span class="hint">Loading ads…</span></div>';
   let d;
   const q = `act=${encodeURIComponent(act)}&from=${range.from}&to=${range.to}`
-    + `&sort=${CB.sort}&limit=${CB.limit}${CB.fmt ? '&format=' + encodeURIComponent(CB.fmt) : ''}`;
+    + `&sort=${CB.sort}&limit=${CB.limit}&attr=${encodeURIComponent(CB.attr)}`
+    + `${CB.fmt ? '&format=' + encodeURIComponent(CB.fmt) : ''}`;
   try { d = await api('/api/ads?' + q); }
   catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load ads: ${esc(e.message)}</span></div>`; return; }
 
@@ -1696,6 +1711,7 @@ async function renderCreativeBrowser(host, act, range) {
       <label class="cb-l">Sort by ${sel('sort', CB_SORTS, CB.sort)}</label>
       <label class="cb-l">Show ${sel('fmt', types, CB.fmt)}</label>
       <label class="cb-l">Top ${sel('limit', [4, 8, 12, 20].map(n => [n, n + ' ads']), CB.limit)}</label>
+      <label class="cb-l">Revenue from ${sel('attr', CB_ATTR, CB.attr)}</label>
       <span style="flex:1"></span>
       <button class="btn" id="cbShare">↗ Share with client</button><span class="tiny" id="cbShareMsg"></span>
     </div>
@@ -1708,8 +1724,13 @@ async function renderCreativeBrowser(host, act, range) {
         : `Every ad that spent is ranked. <span title="The larger of $50 or 3% of window spend">Sorting by a ratio (ROAS, CPA, hook…) applies a ${fmtMoney(d.floor, cur)} minimum spend</span>, so a tiny ad cannot win on one lucky conversion.`}
       ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
       <br>Hook and hold are judged against <b>Motion's published benchmarks</b> (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history.
-      <br><b>Source: Meta.</b> Spend, purchases, revenue, ROAS and CPA here are <b>Meta's own attributed figures</b> and match Ads Manager — they are not Triple Whale's, and they will not tie to the blended numbers on the other tabs.
-      <span class="info-i" title="Triple Whale cannot currently supply ad-level rows to Locus: its Summary Page API is shop-level with no ad dimension, and the Pixel Attribution endpoint that does carry ad-level attribution returns 403 because our API key has not been granted the 'Pixel Attribution: Read' scope. Grant that scope in Triple Whale and these figures can move onto TW attribution; hook, hold, CTR and CPM would stay Meta's, since those are delivery metrics Triple Whale does not measure.">i</span></p>`;
+      <br>${d.attr === 'meta'
+        ? '<b>Revenue, purchases, ROAS and CPA are Meta’s own attributed figures</b> and match Ads Manager.'
+        : `<b>Revenue, purchases, ROAS and CPA come from Triple Whale</b> (${esc((CB_ATTR.find(x => x[0] === d.attr) || [, d.attr])[1].replace('Triple Whale · ', ''))}), so they will not match Ads Manager — Triple Whale’s pixel attributes differently and usually credits more.`}
+      <b>Spend, hook, hold, CTR and CPM are always Meta’s</b>, because Triple Whale does not measure delivery.
+      ${d.attr !== 'meta' && d.attr_available === false
+        ? '<br><span style="color:var(--warn)"><b>⚠ No Triple Whale attribution is stored for this window yet</b>, so every revenue figure above reads zero. It syncs nightly for the last 7 days; ask for a longer backfill if you need history.</span>'
+        : ''}</p>`;
 
   host.querySelectorAll('.cb-sel').forEach(w => {
     const btn = w.querySelector('.cb-sel-btn');
@@ -1724,6 +1745,7 @@ async function renderCreativeBrowser(host, act, range) {
       const k = w.dataset.sel;
       if (k === 'sort') CB.sort = b.dataset.v;
       else if (k === 'fmt') CB.fmt = b.dataset.v;
+      else if (k === 'attr') { CB.attr = b.dataset.v; localStorage.setItem('pf_cb_attr', CB.attr); }
       else CB.limit = +b.dataset.v;
       renderCreativeBrowser(host, act, range);
     });
