@@ -2153,6 +2153,23 @@ async function reportData(env, acct, period, start, end) {
       // exactly the case this was built for.
       formats: named.length >= 2 && taggedShare >= 0.55 ? formats : null,
       formats_tagged_share: named.length >= 2 && taggedShare >= 0.55 ? taggedShare : null,
+      // This account's OWN typical hook and hold, so an ad can be judged against
+      // what this brand actually achieves rather than a generic e-commerce
+      // benchmark. Motion's 30%/60% vary enormously by vertical, placement and
+      // video length, and the decision a buyer makes is "is this better than our
+      // normal", not "is this better than the internet".
+      // Median, not mean — one runaway ad should not move the bar. Needs at
+      // least 4 video ads or it is noise, and the UI falls back to the published
+      // benchmark and says so.
+      benchmarks: (() => {
+        const hooks = [], holds = [];
+        for (const r of qualified) {
+          if (r.impressions && r.v3) hooks.push(r.v3 / r.impressions);
+          if (r.v3) holds.push((r.vtp || 0) / r.v3);
+        }
+        const med = a => a.length ? a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)] : null;
+        return hooks.length >= 4 ? { hook: med(hooks), hold: med(holds), n: hooks.length } : null;
+      })(),
       qualified_total: qualified.length,
       others: rest.length ? {
         count: rest.length, spend: restSpend, purchases: restPur || null, revenue: restRev || null,

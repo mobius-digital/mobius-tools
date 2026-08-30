@@ -289,7 +289,27 @@
   /* minmax(0,1fr), never a bare 1fr: a bare fr floors at min-content, so the
      stat table pushed this grid to 504px inside a 343px modal on a phone. */
   @media(max-width:720px){.adm{grid-template-columns:minmax(0,1fr)}}
-  @media(max-width:420px){.ad-grid{grid-template-columns:1fr}}
+  /* Two cards on a tablet, one on a phone. `auto-fill` alone gave a single
+     560px-wide card on an iPad, which wastes the row and makes the creative
+     absurdly large. */
+  @media(max-width:1100px){.ad-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:860px){.ad-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:560px){
+    .ad-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+    .ad-body{padding:12px}
+    .ad-body .ad-name{font-size:14.5px}
+    .ad-row>span:first-child{font-size:12.5px}
+    .ad-row>b{font-size:15px}
+  }
+  /* The modal is full-bleed on a phone: 12vh of top padding on a 640px screen
+     wastes a fifth of the view before any content. */
+  @media(max-width:560px){
+    .ad-modal-wrap{padding:2vh 8px 0}
+    .modal.wide{padding:16px 14px}
+    .ad-modal-body{max-height:82vh;padding-right:6px}
+    .adm{gap:14px}
+    .retn-row .lb{width:52px}
+  }
   a.ad-link{color:var(--ink);text-decoration:none;max-width:320px}
   a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
   a.ad-link .ext{color:var(--muted);font-size:10.5px;margin-left:5px;vertical-align:1px}
@@ -1981,10 +2001,21 @@ function reportBodyHTML(d, summary, opts = {}) {
     const A = d.ads;
     if (!A?.top?.length) return '';
     const o = A.others;
-    // Motion's published benchmarks, not our own measurement — the ⓘ says so.
-    // A word beside the number, never colour alone.
-    const rate = (v, ok, strong) => v == null ? null
-      : { pct: fmtPct(v), tag: v >= strong ? 'strong' : v >= ok ? 'average' : 'low' };
+    // Judge against THIS account's own median where there is enough data to
+    // compute one, because "better than our normal" is the decision a buyer
+    // actually makes; fall back to Motion's published benchmark otherwise, and
+    // say which bar is being used either way.
+    const BM = A.benchmarks;
+    const rate = (v, ok, strong, own) => {
+      if (v == null) return null;
+      if (own != null) {
+        const r = v / own;
+        return { pct: fmtPct(v), bar: fmtPct(own), own: true,
+          tag: r >= 1.15 ? 'above' : r <= 0.85 ? 'below' : 'typical' };
+      }
+      return { pct: fmtPct(v), bar: fmtPct(strong), own: false,
+        tag: v >= strong ? 'strong' : v >= ok ? 'average' : 'low' };
+    };
     // A delta only earns its place when there is a real prior figure to compare
     // with; a brand-new ad gets nothing rather than a misleading +100%.
     const dlt = (now, then, lower) => {
@@ -2001,9 +2032,10 @@ function reportBodyHTML(d, summary, opts = {}) {
     // meant nothing without knowing the benchmark — Cole read it as "out of 100"
     // and could not tell good from bad. The word says which it is; the colour
     // only reinforces it.
-    const verdict = r => !r ? '' : `<span class="vtag ${r.tag === 'strong' ? 'good' : r.tag === 'average' ? 'ok' : 'bad'}">${r.tag}</span>`;
+    const GOOD = new Set(['strong', 'above']), OK = new Set(['average', 'typical']);
+    const verdict = r => !r ? '' : `<span class="vtag ${GOOD.has(r.tag) ? 'good' : OK.has(r.tag) ? 'ok' : 'bad'}">${r.tag}</span>`;
     const card = (a, i) => {
-      const hook = rate(a.hook, 0.20, 0.30), hold = rate(a.hold, 0.40, 0.60);
+      const hook = rate(a.hook, 0.20, 0.30, BM?.hook), hold = rate(a.hold, 0.40, 0.60, BM?.hold);
       const media = a.thumb
         ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
         : `<span aria-hidden="true">${a.video ? '&#9654;' : '&#9633;'}</span>`;
@@ -2027,8 +2059,8 @@ function reportBodyHTML(d, summary, opts = {}) {
             ${row('ROAS', a.roas != null ? fmtX(a.roas) : '—', dlt(a.roas, a.prev_roas))}
             ${row('CPA', a.cpa != null ? money(a.cpa) : '—', dlt(a.cpa, a.prev_cpa, true))}
             ${row('Purchases', fmtInt(a.purchases))}
-            ${a.hook != null ? row(`Hook rate <em class="bm">vs 30%</em>`, hook.pct, verdict(hook)) : ''}
-            ${a.hold != null ? row(`Hold rate <em class="bm">vs 60%</em>`, hold.pct, verdict(hold)) : ''}
+            ${a.hook != null ? row(`Hook rate <em class="bm">vs ${hook.bar}${hook.own ? ' here' : ''}</em>`, hook.pct, verdict(hook)) : ''}
+            ${a.hold != null ? row(`Hold rate <em class="bm">vs ${hold.bar}${hold.own ? ' here' : ''}</em>`, hold.pct, verdict(hold)) : ''}
           </div>
           ${(() => {
             // The ad's own format tag plus its state — the two things you would
