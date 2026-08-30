@@ -54,6 +54,21 @@
   nav.tabs button{padding:11px 14px;font-size:13px;font-weight:600;color:#9FB4C2;border-bottom:2px solid transparent;white-space:nowrap}
   nav.tabs button.on{color:#fff;border-bottom-color:var(--brand)}
   nav.tabs button .soon{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#64788A;margin-left:6px}
+  /* Tab BANDS. The row used to be nine equal buttons in build order, so Costs -
+     opened twice a year - carried the same weight as Reports. Grouping them by
+     how often you open one is the only thing in the chrome that answers "when
+     do I use this", and it is the question that made the tool hard to explain. */
+  nav.tabs .band{display:flex;align-items:center;font-size:9.5px;font-weight:700;letter-spacing:.13em;
+    text-transform:uppercase;color:#5E7686;padding:0 10px 0 0;white-space:nowrap;align-self:center}
+  nav.tabs .band:not(:first-child){padding-left:14px;margin-left:10px;border-left:1px solid #22323E}
+  /* 1100, not 900: measured, the four labels add ~220px and the row starts
+     scrolling at 1024 with them in. The labels are the first thing to go - the
+     grouping still reads as spacing, and nine buttons that FIT beat nine buttons
+     plus four labels that scroll. */
+  @media (max-width:1100px){
+    nav.tabs .band{font-size:0;padding:0;margin-left:8px}
+    nav.tabs .band:not(:first-child){padding-left:8px}
+  }
   /* Meta sub-tabs: one step quieter than the main tabs so the hierarchy reads. */
   nav.subtabs{background:#111E27;border-top:1px solid var(--hd-line)}
   nav.subtabs .in{max-width:1240px;margin:0 auto;padding:0 26px;display:flex;gap:2px;overflow-x:auto}
@@ -63,6 +78,9 @@
 
   main{max-width:1240px;margin:0 auto;padding:26px 26px 90px}
   h2{font-family:var(--serif);font-weight:400;font-size:24px;margin-bottom:4px}
+  /* The per-page detail rides UNDER the purpose sentence, one step quieter, so
+     the purpose is always the first thing read and never competes with it. */
+  .sub .sub-x{display:block;margin-top:3px;font-size:13px;color:var(--muted)}
   .sub{color:var(--muted);font-size:13px;margin-bottom:16px;max-width:820px}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
   .btn{border:1px solid var(--line-strong);border-radius:8px;padding:8px 13px;font-size:13px;font-weight:600;background:var(--surface)}
@@ -443,13 +461,17 @@
     </div>
   </div>
   <nav class="tabs" id="tabs" style="display:none"><div class="in">
+    <span class="band">Daily</span>
     <button data-t="overview">Overview</button>
     <button data-t="profit">Profit</button>
-    <button data-t="plan">Plan</button>
+    <button data-t="meta">Meta</button>
+    <span class="band">To the client</span>
     <button data-t="brief">Daily Brief</button>
     <button data-t="reports">Reports</button>
-    <button data-t="meta">Meta</button>
+    <span class="band">Monthly</span>
+    <button data-t="plan">Plan</button>
     <button data-t="customers">Customers</button>
+    <span class="band">Setup</span>
     <button data-t="costs">Costs</button><button data-t="settings">Settings</button>
   </div></nav>
   <!-- Sub-tabs for the Meta section. Kept OUTSIDE #main because meta.js owns
@@ -995,6 +1017,30 @@ function addBrandModal(untracked, chList, onDiscover, total) {
   });
 }
 
+/* ---------- What each tab is FOR ----------
+   One sentence per tab, permanently under the heading - not in a modal, not
+   behind a ⓘ. Cole could not explain the tool on a call because every page
+   explained what its NUMBERS meant and no page said what the page was for; the
+   help modals ran to 8,600 words and answered a question nobody was asking.
+   Each line names the job, and where there is a next step it names that too.
+   Keep them ONE sentence. The detail already has three other homes. */
+const TAB_PURPOSE = {
+  overview:  'Which clients are making money right now. Start here every morning — click a client to dig into theirs.',
+  profit:    "Where one client's money actually went — from revenue down to what was left after every cost.",
+  meta:      "The ads themselves. These numbers come from Meta and match Ads Manager — on purpose, they won't match the other tabs.",
+  brief:     'The short update that goes to the client every morning. Read it, adjust the wording, send it.',
+  reports:   'The weekly and monthly report you walk through on calls, then send to the client.',
+  plan:      "Set next month's revenue number with the client. Every other tab measures against what you set here.",
+  customers: 'What a new customer costs, and whether their first order pays it back. Read this before you set a plan.',
+  costs:     'Whether a client’s cost data can be trusted. Everything profit-related depends on the answer, so check it here when a warning appears.',
+  settings:  'Add clients, and choose where each brand’s reporting goes.',
+};
+/** Standard page heading. `extra` is for the genuinely per-page bit (which client,
+ *  which month) and should stay short - it sits under the purpose, not in it. */
+function pageHead(tab, title, extra) {
+  return `<h2>${title}</h2><p class="sub">${TAB_PURPOSE[tab] || ''}${extra ? ` <span class="sub-x">${extra}</span>` : ''}</p>`;
+}
+
 const PAGE_HELP = {
   overview: `
     <p><b>What this page is:</b> every client's real economics side by side. Not ad metrics — <i>business</i> metrics. This is the page that tells you which clients are actually profitable.</p>
@@ -1303,8 +1349,7 @@ function statCard(label, value, sub, info) {
 /* ---------- Overview ---------- */
 async function renderOverview() {
   const rows = S.act === 'all' ? S.accounts : S.accounts.filter(a => a.act_id === S.act);
-  $('#main').innerHTML = `<h2>Overview</h2>
-    <p class="sub">Every client's real economics over the last ${S.days} days — all channels, not just ads. <b>MER</b> and <b>aMER</b> are blended on both sides: real Shopify revenue over real total ad spend, so nothing is double-counted.</p>
+  $('#main').innerHTML = `${pageHead('overview', 'Overview', `Last ${S.days} days. Every channel, not just ads &mdash; MER and aMER are blended on both sides, so nothing is double-counted.`)}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="overview">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num" title="Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as 'Net Sales + Shipping'. It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure 'Total Sales' and stores it as netSales; shipping is already inside it, so it is never added twice.">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
@@ -1388,8 +1433,7 @@ function renderProfitAll() {
     return bv - av;
   });
   const totalTrusted = ranked.filter(a => cmTrusted(a.cost_health) && a.window.cm != null);
-  $('#main').innerHTML = `<h2>Profit</h2>
-    <p class="sub">What each brand actually kept over the last ${S.days} days, best first. Pick a client above — or click a card — for its full waterfall.</p>
+  $('#main').innerHTML = `${pageHead('profit', 'Profit', `What each brand kept over the last ${S.days} days, best first. Click a card for its full waterfall.`)}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="profit">? How to use</button></div>
     ${totalTrusted.length < S.accounts.length ? `<div class="notice warn">ℹ️ <div><b>${S.accounts.length - totalTrusted.length} client${S.accounts.length - totalTrusted.length > 1 ? 's are' : ' is'} missing from the profit ranking</b> because their cost data can't be trusted. Revenue and efficiency still work for them — see the <b>Costs</b> tab.</div></div>` : ''}
     <div id="pfAllGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
@@ -1537,8 +1581,7 @@ async function renderProfit(first) {
   const chart = salesSpendSVG(d.rows, cur);
   const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
 
-  $('#main').innerHTML = `<h2>Profit — ${esc(d.account.name)}</h2>
-    <p class="sub">Where the money went over the last ${S.days} days. Store-level and blended: every sale from every source, minus every cost including all ad platforms. <b>Revenue</b> here is Shopify Total Sales minus sales tax — the same line on every tab.</p>
+  $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, `Last ${S.days} days. <b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.`)}
     <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-help="profit">? How to use</button></div>
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
@@ -1632,8 +1675,7 @@ function marginSVG(rows) {
 
 async function renderCosts(first) {
   if (S.act === 'all') {
-    $('#main').innerHTML = `<h2>Costs</h2>
-      <p class="sub">Contribution margin is only as good as the costs behind it — product <i>and</i> delivery. This is where you check both, per client.</p>
+    $('#main').innerHTML = `${pageHead('costs', 'Costs', 'Product costs <i>and</i> delivery, per client.')}
       <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfilment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfilment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
@@ -1666,8 +1708,7 @@ async function renderCosts(first) {
   const r = u.retail || null;   // margin measured only on days cost and revenue agree
   const winSales = (d.rows || []).reduce((a, x) => a + (x.sales || 0), 0);
 
-  $('#main').innerHTML = `<h2>Costs — ${esc(d.account.name)}</h2>
-    <p class="sub">Can we trust this client's product costs? Everything profit-related — here and in the Daily Brief — depends on the answer.</p>
+  $('#main').innerHTML = `${pageHead('costs', `Costs &mdash; ${esc(d.account.name)}`, 'Last 60 days of daily margin, which is what reveals whether the cost data holds up.')}
     <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span><button class="help-btn" data-help="costs">? How to use</button></div>
     ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> — the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost — not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
       : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
@@ -1738,8 +1779,7 @@ async function renderBriefAll(first) {
   // On a tab switch #main still holds the OUTGOING tab's DOM, so writing into
   // `#main .card` would inject this table into the previous page — or throw, when
   // that tab has no card, leaving the Brief tab unable to open at all.
-  const shell = body => `<h2>Daily Brief</h2>
-    <p class="sub">Every client's yesterday against its plan — Contribution Margin, Net Sales, Spend and aMER, forecast vs actual. Pick a client (dropdown top-right) to set goals, read the full brief, and post it to Slack.</p>
+  const shell = body => `${pageHead('brief', 'Daily Brief', 'Every client&rsquo;s yesterday against its plan. Pick a client top-right to read and send its brief.')}
     <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>This is the only page that isn't Meta-reported: sales, margin and total spend come from <b>Triple Whale</b> (the whole business, every platform), because net sales and contribution margin don't exist inside Meta. Every other tab — Overview, Pacing, Averages, Change Log, Creative Rotation — is Meta-only and matches Ads Manager. Expect these numbers to differ from Meta's; that's the point.</div></div>
     ${body}`;
   const run = ++RUN;
@@ -1812,8 +1852,7 @@ async function renderBrief(first) {
   const acct = S.accounts.find(a => a.act_id === S.act);
   // Same rule as renderBriefAll: every paint re-emits the whole page. Appending to
   // whatever `#main` happens to hold would graft this brief onto the outgoing tab.
-  const shell = body => `<h2>Daily Brief</h2>
-    <p class="sub">Did ${esc(acct?.name || 'this client')} beat the plan yesterday? Forecast vs actual on the money that matters, the story behind it, and one click (or zero — flip auto-post) to put it in the client's Slack.</p>
+  const shell = body => `${pageHead('brief', 'Daily Brief', `Did ${esc(acct?.name || 'this client')} beat the plan yesterday? Forecast vs actual, and the story behind it.`)}
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -2662,8 +2701,7 @@ function wireAdCards(ads, cur, prevTag) {
 
 /** All-clients view: the latest weekly and monthly report per brand at a glance. */
 async function renderReportsAll(first) {
-  const shell = body => `<h2>Reports</h2>
-    <p class="sub">Weekly and monthly client reports — drafted automatically (Monday covers last Mon–Sun, the 1st covers last month), reviewed here, then sent to the client's Slack with a button. Nothing reaches a client on its own.</p>
+  const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically &mdash; Monday covers last Mon&ndash;Sun, the 1st covers last month. <b>Nothing reaches a client on its own.</b>')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="reports">? How to use</button></div>
     ${body}`;
   const run = ++RUN;
@@ -2696,8 +2734,7 @@ async function renderReports(first) {
   if (S.act === 'all') return renderReportsAll(first);
   const acct = S.accounts.find(a => a.act_id === S.act);
   if (RP.act !== S.act) { RP.act = S.act; RP.period = null; RP.start = null; }
-  const shell = body => `<h2>Reports — ${esc(acct?.name || '')}</h2>
-    <p class="sub">The weekly and monthly reports you take to calls and send to the client. Each one is frozen when it is generated — the numbers you review here are exactly the numbers the client sees.</p>
+  const shell = body => `${pageHead('reports', `Reports &mdash; ${esc(acct?.name || '')}`, 'Each report is frozen when generated, so what you review here is exactly what the client opens.')}
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -3158,10 +3195,9 @@ async function renderPlan(first) {
     </div>`;
   };
 
-  $('#main').innerHTML = `<h2>Plan — ${esc(p.account.name)}</h2>
-    <p class="sub">${p.status === 'past'
-      ? 'A month that has already finished. What was planned, and what actually happened.'
-      : 'Revenue = MER × spend, so you choose <b>two</b> and the third follows. Everything else in this tool then measures against what you save here.'}</p>
+  $('#main').innerHTML = `${pageHead('plan', `Plan &mdash; ${esc(p.account.name)}`, p.status === 'past'
+      ? 'This month has already finished &mdash; what was planned, and what actually happened.'
+      : 'Revenue = MER &times; spend, so you choose <b>two</b> and the third follows.')}
     <div class="row" style="margin-bottom:14px;flex-wrap:wrap">
       ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
       <span id="plChip">${statusPill}</span>
@@ -3387,8 +3423,7 @@ async function renderPlan(first) {
 /** All clients at a glance: who still needs next month agreed. */
 async function renderPlanAll() {
   const next = shiftMonth(ymdLocal(new Date()).slice(0, 7), 1);
-  $('#main').innerHTML = `<h2>Plan</h2>
-    <p class="sub">A forecast nobody agreed to is just a guess. This is where next month's number gets set with each client — once a month, then you leave it alone.</p>
+  $('#main').innerHTML = `${pageHead('plan', 'Plan', 'A forecast nobody agreed to is just a guess. Set it once a month, then leave it alone.')}
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">${esc(monthLabel(next))} goal</th><th>Status</th><th></th></tr></thead>
       <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer">
@@ -3500,8 +3535,7 @@ function cohortCard(co, cur) {
 }
 
 async function renderCustomersAll() {
-  $('#main').innerHTML = `<h2>Customers</h2>
-    <p class="sub">What a new customer costs, what their first order is worth, and whether it pays that cost back, over the <b>last ${S.days} days</b>. <b>Payback over 1.0x</b> means the brand is profitable on the first order and can afford to bid harder.</p>
+  $('#main').innerHTML = `${pageHead('customers', 'Customers', `Last ${S.days} days. <b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder.`)}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
@@ -3535,8 +3569,7 @@ async function renderCustomers(first) {
   if (S.act === 'all') return renderCustomersAll();
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
-  const shell = body => `<h2>Customers — ${esc(acct?.name || '')}</h2>
-    <p class="sub">What a new customer costs to buy, and whether their first order pays it back, over the <b>last ${S.days} days</b> — change it with the range picker. Not a true lifetime value: Triple Whale gives us no per-customer history.</p>
+  const shell = body => `${pageHead('customers', `Customers &mdash; ${esc(acct?.name || '')}`, `Last ${S.days} days. Not a true lifetime value &mdash; Triple Whale gives us no per-customer history.`)}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="customers">? How to use</button></div>
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -3680,8 +3713,9 @@ async function renderSettings() {
   const one = S.act === 'all' ? null : S.accounts.find(a => a.act_id === S.act);
   const oneId = one ? one.act_id : null;
   const shownRows = () => oneId ? S.accounts.filter(a => a.act_id === oneId) : S.accounts;
-  $('#main').innerHTML = `<h2>Settings${one ? ' — ' + esc(one.name) : ''}</h2>
-    <p class="sub">Where ${one ? `<b>${esc(one.name)}</b>'s` : "each brand's"} reporting goes, and what its profit is calculated on. <b>Every setting here is shared with the Meta tab</b> — one database behind the whole platform, so there is no second copy to keep in sync.${one ? ' Switch the picker to <b>All clients</b> to see every brand at once.' : ''}</p>
+  $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ' &mdash; ' + esc(one.name) : ''}`,
+    one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
+        : 'One database behind the whole platform, so nothing here needs keeping in sync twice.')}
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-help="settings">? How to use</button></div>
     <div id="metaCard"><div class="card"><span class="hint">Loading clients\u2026</span></div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
