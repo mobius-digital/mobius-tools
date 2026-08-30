@@ -1509,6 +1509,29 @@ export default {
       return json({ ok: true, topic });
     }
 
+    /* A shared creative snapshot. UNAUTHENTICATED by design - it is sent to a
+       client - so it lives above the auth gate with the other share links, and
+       it can only ever return the one snapshot its token names. Frozen at mint
+       time: the rows and the cover images are stored whole, so what the client
+       opens is exactly what was on screen when it was shared. */
+    let asm;
+    if ((asm = path.match(/^\/api\/ad-share\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
+      const row = await env.DB.prepare(
+        `SELECT act_id, created_at, label, data_json FROM p_ad_share WHERE token = ?1`).bind(asm[1]).first();
+      if (!row) return json({ error: 'This link is no longer valid.' }, 404);
+      const acct = await env.DB.prepare(`SELECT name, currency FROM accounts WHERE act_id = ?1`).bind(row.act_id).first();
+      const d = safeJson(row.data_json, null);
+      if (!d) return json({ error: 'This link is no longer valid.' }, 404);
+      /* Strip anything that is OURS rather than theirs. The browser carries a
+         materiality floor, a total-spend denominator and per-ad share figures
+         that exist to keep US honest about what a ranking omits; a client
+         reading "8 of 61 ads" learns only that something is being withheld. */
+      delete d.floor; delete d.matched; delete d.acct_cpa; delete d.total_spend; delete d.shown_spend;
+      for (const a of d.ads || []) { delete a.share; delete a.material; delete a.status; }
+      return json({ share: true, account: { name: acct?.name || '', currency: acct?.currency || 'USD' },
+        created_at: row.created_at, label: row.label, ...d });
+    }
+
     const kind = await authKind(request, env);
     if (!kind) return json({ error: 'unauthorized' }, 401);
     const isDemo = kind === 'demo';
@@ -1759,6 +1782,22 @@ export default {
       }
 
       /* Mint (or return) this client's read-only performance link. */
+      /* Freeze the creative browser exactly as it is on screen and mint a link.
+         The whole payload is stored, including the baked cover images, because
+         Meta's asset URLs are signed and expire - a link that renders empty
+         boxes in a fortnight is worse than no link. */
+      if (path === '/api/ad-share' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        if (!b.act || !b.data || !Array.isArray(b.data.ads)) return json({ error: 'nothing to share' }, 400);
+        const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const token = crypto.randomUUID().replace(/-/g, '');
+        await env.DB.prepare(
+          `INSERT INTO p_ad_share (token, act_id, label, data_json) VALUES (?1,?2,?3,?4)`,
+        ).bind(token, b.act, String(b.label || '').slice(0, 120), JSON.stringify(b.data)).run();
+        return json({ ok: true, token, url: `${DASHBOARD_URL}?ads=${token}` });
+      }
+
       if (path === '/api/profit-share' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
         const acct = (await accountsFor(false)).find(a => a.act_id === b.act);

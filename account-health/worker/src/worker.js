@@ -1851,6 +1851,11 @@ async function adInSentReport(env, token, adId) {
 async function adThumbnails(env, adIds) {
   const out = {};
   if (!env.META_TOKEN || !adIds.length) return out;
+  // Whatever we resolve here is written back to `ads.media_type` at the end, so
+  // the creative browser can filter by type without a Meta call per ad. It
+  // fills in as ads are looked at, and the video/static fallback below covers
+  // anything not yet seen.
+
   // Ad-level facts for the detail view, in ONE batched call rather than per ad.
   let metaById = {};
   try {
@@ -1896,6 +1901,19 @@ async function adThumbnails(env, adIds) {
         || c?.object_story_spec?.video_data
         || (Array.isArray(c?.asset_feed_spec?.videos) && c.asset_feed_spec.videos.length));
       out[id].video = isVideo;
+      /* MEDIA TYPE, and only the three that are real: video, carousel, image.
+         Cole: "the type should only be All, Video, Static, Carousel" - the
+         format tags read from ad NAMES (UGC, Still) were being offered as
+         filters beside them and duplicated the same split, since UGC is video
+         and Still is static.
+         A carousel is a creative with child attachments, or an Advantage+ one
+         Meta has flagged as such. Checked BEFORE video, because a carousel of
+         videos is a carousel first - that is how it behaves in the feed. */
+      const kids = c?.object_story_spec?.link_data?.child_attachments;
+      const isCarousel = (Array.isArray(kids) && kids.length > 1)
+        || c?.object_type === 'CAROUSEL'
+        || !!c?.asset_feed_spec?.additional_data?.multi_share_end_card;
+      out[id].media_type = isCarousel ? 'carousel' : isVideo ? 'video' : 'image';
       // A video creative's own thumbnail_url is the PAGE AVATAR (see the note
       // below), so the cover frame has to come from the video object itself.
       // `picture` is a real frame and is readable with the user token now that
@@ -1976,6 +1994,14 @@ async function adThumbnails(env, adIds) {
       out[id].thumb = `data:${picked.type};base64,${picked.b64}`;
     } catch { /* no creative for this ad; the card still renders its numbers */ }
   }
+  /* Persist what we learned. Costs one batch, saves a Meta call per ad on every
+     future filter, and means an ad only has to be LOOKED at once for its type
+     to be known. Best-effort - a failure here must never break the cards. */
+  try {
+    const st = Object.entries(out).filter(([, v]) => v.media_type)
+      .map(([id, v]) => env.DB.prepare(`UPDATE ads SET media_type = ?2 WHERE ad_id = ?1`).bind(id, v.media_type));
+    if (st.length) await env.DB.batch(st);
+  } catch { /* the cards do not depend on this */ }
   return out;
 }
 
@@ -2631,7 +2657,7 @@ async function hourlyPacing(env, acct) {
    spend it excluded so the omission is never silent. */
 async function adRows(env, acct, from, to, opts = {}) {
   const { results } = await env.DB.prepare(
-    `SELECT d.ad_id, a.name, a.created_time, a.first_spend_date, a.status,
+    `SELECT d.ad_id, a.name, a.created_time, a.first_spend_date, a.status, a.media_type,
             SUM(d.spend) AS spend, SUM(d.revenue) AS revenue, SUM(d.purchases) AS purchases,
             SUM(d.impressions) AS impressions, SUM(d.reach) AS reach,
             SUM(d.link_clicks) AS link_clicks, SUM(d.clicks_all) AS clicks_all,
@@ -2668,7 +2694,13 @@ async function adRows(env, acct, from, to, opts = {}) {
     })();
     // Gated on v3 > 0: an image ad and a video ad synced before these columns
     // existed must not look alike, and a 0% hook on a static is meaningless.
+    /* `ads.media_type` is authoritative once an ad has been looked at. Until
+       then fall back to the video signal we already store, so a never-seen ad
+       is still correctly video or static - it just cannot be known to be a
+       carousel yet, which is why the Carousel filter only appears when at
+       least one ad actually is one. */
     const isVideo = (r.v3 || 0) > 0 || (r.vplays || 0) > 0;
+    const media = r.media_type || (isVideo ? 'video' : 'image');
     return {
       ad_id: r.ad_id, name: r.name || r.ad_id, status: r.status || null,
       spend: r.spend, revenue: r.revenue, purchases: r.purchases,
@@ -2683,20 +2715,23 @@ async function adRows(env, acct, from, to, opts = {}) {
       hook: isVideo && imp ? (r.v3 || 0) / imp : null,
       hold: isVideo && r.v3 ? (r.vtp || 0) / r.v3 : null,
       completion: isVideo && r.vplays ? (r.v100 || 0) / r.vplays : null,
-      is_video: isVideo, format: tag,
+      is_video: media === 'video' || isVideo, media_type: media, format: tag,
       age: origin ? Math.max(0, ymdDiff(today, origin)) : null,
       material: r.spend >= floor,
       share: totalSpend ? r.spend / totalSpend : 0,
     };
   });
 
-  // Formats present, so the UI can offer only filters that would match something.
-  const formats = [...new Set(rows.map(r => r.format).filter(Boolean))].sort();
+  /* The TYPES actually present, so the UI never offers a filter that would
+     return nothing. Only the three real media types - the pipe-suffix tags in
+     ad names (UGC, Still) are a naming convention, not a type, and offering
+     them beside Video/Static duplicated the same split twice over. */
+  const types = ['video', 'image', 'carousel'].filter(t => rows.some(r => r.media_type === t));
 
   let list = rows;
-  if (opts.format === 'video') list = list.filter(r => r.is_video);
-  else if (opts.format === 'static') list = list.filter(r => !r.is_video);
-  else if (opts.format) list = list.filter(r => r.format === opts.format);
+  if (opts.format === 'video') list = list.filter(r => r.media_type === 'video');
+  else if (opts.format === 'static') list = list.filter(r => r.media_type === 'image');
+  else if (opts.format === 'carousel') list = list.filter(r => r.media_type === 'carousel');
 
   /* Ratio sorts see MATERIAL ads only. A sort by best ROAS that surfaces
      an ad with $12 of spend is not a ranking, it is a rounding error. Spend
@@ -2719,7 +2754,7 @@ async function adRows(env, acct, from, to, opts = {}) {
   const limit = Math.min(Math.max(+opts.limit || 8, 1), 40);
   const top = list.slice(0, limit);
   return {
-    ads: top, formats,
+    ads: top, types,
     matched: list.length,
     total_spend: totalSpend,
     shown_spend: top.reduce((n, r) => n + r.spend, 0),

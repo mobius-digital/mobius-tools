@@ -424,8 +424,11 @@
   /* Creative browser. Reuses .ad-card/.ad-media/.ad-grid from the reports on
      purpose: what you sort through here is what the client eventually opens,
      so it must not be a lookalike that drifts. */
-  .cb-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:8px}
-  .cb-bar .chip{padding:4px 10px;font-size:12.5px}
+  /* Labelled dropdowns, matching every other control in Locus. Nine sorts as
+     pills was two wrapping rows of buttons that looked like nothing else here. */
+  .cb-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+  .cb-l{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--muted)}
+  .cb-l select{font-weight:500;color:var(--ink)}
   .cb-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
   /* Two rows of four, Cole's suggestion: a fixed short grid makes the SORT do
      the work, where an unbounded one invites scrolling past the answer. */
@@ -750,6 +753,8 @@ async function boot() {
   // The client's report archive link (?reports=token). Read-only, no sign-in.
   const repTok = qs.get('reports');
   if (repTok) return renderReportsShare(repTok);
+  const adsTok = qs.get('ads');
+  if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
   if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings'].includes(open)) {
@@ -1520,6 +1525,50 @@ document.addEventListener('click', e => {
   if (b) { e.preventDefault(); startTour(b.dataset.tour); }
 });
 
+/** The client's view of a shared set of ads. Unauthenticated, read-only, and
+ *  frozen: the rows and the cover images were stored when the link was made, so
+ *  this says the same thing in a month as it did on the day it was sent.
+ *  It deliberately carries NO totals, no materiality floor and no per-ad share
+ *  of spend - those exist to keep US honest about what a ranking leaves out,
+ *  and to a client "8 of 61 ads" only says that something is being withheld. */
+async function renderAdShare(token) {
+  ['#clientPick', '#periodBar', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+  const tabs = $('#tabs'); if (tabs) tabs.style.display = 'none';
+  const subs = $('#subtabs'); if (subs) subs.style.display = 'none';
+  setChip('Shared', 'ok');
+  let d;
+  try { d = await api(`/api/ad-share/${encodeURIComponent(token)}`); }
+  catch (e) { $('#main').innerHTML = `<div class="card"><h2>Link not available</h2><p class="hint">${esc(e.message)}</p></div>`; return; }
+
+  const cur = d.account.currency;
+  const money = n => n == null ? '—' : fmtMoney(n, cur);
+  const pct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+  const stat = (l, v) => `<div class="cb-s"><span>${l}</span><b>${v}</b></div>`;
+  const card = (a, i) => `<article class="ad-card cb-card">
+    <div class="ad-media${a.thumb ? '' : ' none'}">
+      ${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">` : `<span aria-hidden="true">${a.is_video ? '▶' : '▢'}</span>`}
+      <span class="ad-rank">${i + 1}</span><span class="ad-type">${a.media_type === 'carousel' ? 'Carousel' : a.is_video ? 'Video' : 'Image'}</span>
+    </div>
+    <div class="ad-body"><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>
+      <div class="cb-stats">
+        ${stat('Spend', money(a.spend))}
+        ${stat('ROAS', a.roas != null ? fmtX(a.roas) : '—')}
+        ${stat('CPA', money(a.cpa))}
+        ${stat('Purchases', a.purchases ? Math.round(a.purchases) : '—')}
+        ${a.is_video ? stat('Hook', pct(a.hook)) : ''}
+        ${a.is_video ? stat('Hold', pct(a.hold)) : ''}
+        ${stat('CTR', pct(a.ctr))}
+      </div></div></article>`;
+
+  const range = d.range || {};
+  $('#main').innerHTML = `<h2>${esc(d.account.name)} — what is working</h2>
+    <p class="sub">${d.ads.length} ad${d.ads.length === 1 ? '' : 's'}${range.from ? ` from <b>${esc(prettyDate(range.from))} – ${esc(prettyDate(range.to, true))}</b>` : ''}.
+      <span class="sub-x">Prepared by Mobius Digital${d.created_at ? ` on ${esc(String(d.created_at).slice(0, 10))}` : ''}. These are Meta&rsquo;s own reported figures for these ads.</span></p>
+    <div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>
+    <p class="tiny" style="margin-top:10px">Spend, ROAS and CPA are as Meta reports them for each ad. <b>Hook rate</b> is the share of people shown the ad who watched three seconds — did it stop the scroll. <b>Hold rate</b> is how many of those stayed to the end. Image ads show neither, because there is nothing to watch.</p>
+    ${clientFooter('')}`;
+}
+
 /* ---------- Creative browser ----------
    Cole asked for the report's ad cards, live and sortable: "top ads by spend,
    by ROAS, by CPA, by hook rate… filter by video only, static only", with the
@@ -1592,21 +1641,26 @@ async function renderCreativeBrowser(host, act, range) {
       </div></article>`;
   };
 
-  const chip = (k, l, on) => `<button class="chip ${on ? 'on' : ''}" data-cb="${k}">${l}</button>`;
-  const fmts = [['', 'All'], ['video', 'Video'], ['static', 'Static']]
-    .concat((d.formats || []).map(f => [f, f]));
+  /* DROPDOWNS, not chips. Nine sorts and four types as pills was two wrapping
+     rows of buttons that looked nothing like the rest of Locus - every other
+     control on this page is a labelled select. Same custom chevron, same
+     border, same focus ring.
+     TYPES ARE THE THREE REAL ONES. The pipe-suffix tags in ad names (UGC,
+     Still) were being offered here beside Video and Static and duplicated the
+     identical split - UGC is video, Still is static. Only types actually
+     present in the window are listed, so a filter never returns nothing. */
+  const TYPE_LABEL = { video: 'Video', image: 'Static', carousel: 'Carousel' };
+  const types = [['', 'All types']].concat((d.types || []).map(t => [t === 'image' ? 'static' : t, TYPE_LABEL[t]]));
+  const sel = (k, opts, cur) => `<select data-cb="${k}">${opts.map(([v, l]) =>
+    `<option value="${v}"${String(v) === String(cur) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
 
   host.innerHTML = `
     <div class="cb-bar">
-      <span class="tiny" style="font-weight:700">Sort by</span>
-      ${CB_SORTS.map(([k, l]) => chip('sort:' + k, l, CB.sort === k)).join('')}
-    </div>
-    <div class="cb-bar">
-      <span class="tiny" style="font-weight:700">Show</span>
-      ${fmts.map(([k, l]) => chip('fmt:' + k, l, CB.fmt === k)).join('')}
+      <label class="cb-l">Sort by ${sel('sort', CB_SORTS, CB.sort)}</label>
+      <label class="cb-l">Show ${sel('fmt', types, CB.fmt)}</label>
+      <label class="cb-l">Top ${sel('limit', [4, 8, 12, 20].map(n => [n, n + ' ads']), CB.limit)}</label>
       <span style="flex:1"></span>
-      <span class="tiny" style="font-weight:700">Top</span>
-      ${[4, 8, 12, 20].map(n => chip('limit:' + n, String(n), CB.limit === n)).join('')}
+      <button class="btn" id="cbShare">↗ Share with client</button><span class="tiny" id="cbShareMsg"></span>
     </div>
     ${d.ads.length ? `<div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>` : '<div class="card"><span class="hint">No ads spent in this window.</span></div>'}
     <p class="tiny" style="margin-top:4px">
@@ -1619,13 +1673,33 @@ async function renderCreativeBrowser(host, act, range) {
       <br>Hook and hold are judged against <b>Motion's published benchmarks</b> (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history.
       These are Meta-reported and match Ads Manager.</p>`;
 
-  host.querySelectorAll('[data-cb]').forEach(b => b.onclick = () => {
-    const [k, v] = b.dataset.cb.split(':');
-    if (k === 'sort') CB.sort = v;
-    else if (k === 'fmt') CB.fmt = v;
-    else CB.limit = +v;
+  host.querySelectorAll('select[data-cb]').forEach(el => el.onchange = () => {
+    const k = el.dataset.cb;
+    if (k === 'sort') CB.sort = el.value;
+    else if (k === 'fmt') CB.fmt = el.value;
+    else CB.limit = +el.value;
     renderCreativeBrowser(host, act, range);
   });
+
+  /* Freeze what is on screen and mint a link for the client. FROZEN, like the
+     reports and for the same reason: "here is what is working" sent on Tuesday
+     must still say that on Friday, and a live page would not. */
+  $('#cbShare').onclick = async () => {
+    const b = $('#cbShare'), msg = $('#cbShareMsg');
+    b.disabled = true; msg.textContent = 'Preparing…';
+    try {
+      const r = await api('/api/ad-share', { method: 'POST', body: JSON.stringify({
+        act, label: `${CB_SORTS.find(x => x[0] === CB.sort)?.[1] || ''} · ${prettyDate(range.from)}–${prettyDate(range.to, true)}`,
+        data: { ...d, range },
+      }) });
+      if (navigator.clipboard) await navigator.clipboard.writeText(r.url).catch(() => {});
+      msg.textContent = '';
+      noteModal('Link ready to send', `<p>A read-only page with <b>just these ${d.ads.length} ads</b> and their numbers. No login, nothing else about the account, and it is frozen — what they open next week is what you are looking at now.</p>
+        <p style="margin-top:10px"><code style="font-size:12px;word-break:break-all">${esc(r.url)}</code></p>
+        <p class="hint" style="margin-top:10px">Copied to your clipboard. The cover images are stored with it, so they never expire. Video playback is not available on the shared page.</p>`);
+    } catch (e) { msg.textContent = ''; noteModal('Could not create the link', `<p>${esc(e.message)}</p>`); }
+    b.disabled = false;
+  };
   // Playback reuses the SAME attachPlay the reports use, so a video behaves
   // identically here and in the document the client eventually opens.
   host.querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);

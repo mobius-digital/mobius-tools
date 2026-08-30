@@ -102,3 +102,19 @@ CREATE TABLE IF NOT EXISTS p_cohorts (
 -- Health's lists and the Slack brief, which both require active = 1, can never see it.
 -- Additive on the SHARED accounts table, so it must tolerate already existing.
 ALTER TABLE accounts ADD COLUMN demo INTEGER NOT NULL DEFAULT 0;
+
+-- A FROZEN snapshot of the creative browser, for sending to a client.
+-- Frozen, not live, for the same reason reports are: a link that keeps moving
+-- disagrees with the message that announced it within hours. The rows and the
+-- baked cover images are stored whole, so the client sees exactly what was on
+-- screen when it was shared, forever. One row per share - unlike p_profit_share
+-- there is no stable per-client link, because the whole point is that it
+-- captures a particular question at a particular moment.
+CREATE TABLE IF NOT EXISTS p_ad_share (
+  token      TEXT PRIMARY KEY,
+  act_id     TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  label      TEXT,
+  data_json  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS p_ad_share_act_idx ON p_ad_share (act_id, created_at);
