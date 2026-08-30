@@ -142,6 +142,33 @@ function parseInsightRow(r) {
    client ad accounts. Every extra call is wrapped: business_management scope may
    be absent, in which case discovery must degrade to exactly what it did before
    rather than failing outright. Returns {found, direct, viaBusiness}. */
+/* WHICH BUSINESS PORTFOLIOS CAN THIS TOKEN SEE?
+   `me/businesses` is the obvious call and it returns 0 for a SYSTEM USER, even
+   one holding Admin business access with business_management granted - measured
+   on Cole's live token, 2026-08-30. A system user is OWNED BY a business rather
+   than a member of one, so the /me/businesses edge simply does not apply to it,
+   and no amount of re-ticking permissions changes that. It cost a wrong
+   instruction to him before the diagnostic proved it.
+   So derive it instead: ask an ad account the token ALREADY has who owns it.
+   `GET /act_x?fields=business` names the portfolio, and from that id the owned
+   and client edges list everything the portfolio holds - now and in future.
+   One assigned account is therefore enough to unlock the whole portfolio. */
+async function businessesFor(env, seedAccounts) {
+  const byId = new Map();
+  try {
+    for (const b of await metaAll(env, 'me/businesses', { fields: 'id,name' }, 5)) byId.set(b.id, b);
+  } catch { /* expected to fail or return nothing for a system user token */ }
+  // Ask a handful of known accounts who owns them. Distinct portfolios are few,
+  // so a few probes find them all without a call per account.
+  for (const a of (seedAccounts || []).slice(0, 8)) {
+    try {
+      const r = await meta(env, a.id, { fields: 'business' });
+      if (r?.business?.id && !byId.has(r.business.id)) byId.set(r.business.id, r.business);
+    } catch { /* an account with no business, or no permission to read it */ }
+  }
+  return [...byId.values()];
+}
+
 async function discoverAdAccounts(env) {
   const FIELDS = 'id,account_id,name,currency,timezone_name,account_status';
   const byId = new Map();
@@ -149,9 +176,7 @@ async function discoverAdAccounts(env) {
   for (const a of direct) byId.set(a.id, a);
   const before = byId.size;
 
-  let businesses = [];
-  try { businesses = await metaAll(env, 'me/businesses', { fields: 'id,name', limit: 100 }, 5); }
-  catch { /* no business_management scope - direct assignments are all we get */ }
+  const businesses = await businessesFor(env, direct);
   for (const b of businesses) {
     for (const edge of ['owned_ad_accounts', 'client_ad_accounts']) {
       try {
@@ -3169,11 +3194,12 @@ export default {
             never_expires: t.expires_at === 0, valid: !!t.is_valid };
           out.scopes = t.scopes || [];
         } catch (e) { out.errors.push({ at: 'debug_token', error: e.message }); }
-        try { out.direct = (await metaAll(env, 'me/adaccounts', { fields: 'id', limit: 200 })).length; }
+        let seed = [];
+        try { seed = await metaAll(env, 'me/adaccounts', { fields: 'id', limit: 200 }); out.direct = seed.length; }
         catch (e) { out.errors.push({ at: 'me/adaccounts', error: e.message }); }
         let bs = [];
-        try { bs = await metaAll(env, 'me/businesses', { fields: 'id,name', limit: 100 }, 5); }
-        catch (e) { out.errors.push({ at: 'me/businesses', error: e.message }); }
+        try { bs = await businessesFor(env, seed); }
+        catch (e) { out.errors.push({ at: 'businessesFor', error: e.message }); }
         out.businesses = bs.map(b => ({ id: b.id, name: b.name }));
         for (const b of bs) {
           for (const edge of ['owned_ad_accounts', 'client_ad_accounts']) {
@@ -3183,10 +3209,12 @@ export default {
         }
         // The one-line verdict, so the UI never has to interpret the above.
         const need = ['business_management', 'ads_read'].filter(s => !out.scopes.includes(s));
+        const owned = Object.entries(out.edges).reduce((n, [, v]) => n + (typeof v === 'number' ? v : 0), 0);
         out.verdict = out.errors.length && !out.direct ? 'The Meta token is not working at all.'
           : need.length ? `The token is missing the ${need.join(' and ')} permission${need.length > 1 ? 's' : ''}, so it can only see ad accounts assigned to it one by one.`
-          : !out.businesses.length ? 'The token carries no Business Manager access, so only individually-assigned ad accounts are visible.'
-          : 'The token can read your Business Manager, so every ad account it owns should appear.';
+          : !out.businesses.length ? 'No Business Manager could be reached, so only individually-assigned ad accounts are visible. Assign one more ad account to the Mobius Tools system user and the rest of that portfolio unlocks with it.'
+          : owned > out.direct ? `Reading your Business Manager directly — ${owned} ad accounts in the portfolio against ${out.direct} assigned individually, so new accounts will appear on their own.`
+          : `Reading your Business Manager (${out.businesses.map(b => b.name).join(', ')}). Every ad account it owns, now and in future, is picked up automatically.`;
         return json(out);
       }
 

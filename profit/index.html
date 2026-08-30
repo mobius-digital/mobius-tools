@@ -3933,7 +3933,10 @@ async function renderSettings() {
         box.innerHTML = '<p class="hint">Asking Meta what this token can reach…</p>';
         try {
           const d = await mApi('/api/meta-access');
-          const fixed = d.scopes.includes('business_management') && d.businesses.length;
+          // "Fixed" means a portfolio was actually REACHED. Scopes alone are not
+          // enough: a system user token carries business_management and still
+          // returns nothing from /me/businesses, which is what misled us once.
+          const fixed = d.businesses.length > 0;
           box.innerHTML = `<div class="notice ${fixed ? '' : 'warn'}" style="margin:10px 0 0">${fixed ? '✓' : '⚠️'}<div>
             <b>${esc(d.verdict)}</b>
             <p class="tiny" style="margin:8px 0 0">Token: ${esc(d.token?.type || 'unknown')}${d.token?.never_expires ? ', never expires' : ''} ·
@@ -3942,10 +3945,10 @@ async function renderSettings() {
             Business Managers visible: ${d.businesses.length}${d.businesses.length ? ' (' + d.businesses.map(b => esc(b.name)).join(', ') + ')' : ''}</p>
             ${Object.keys(d.edges).length ? `<p class="tiny" style="margin:4px 0 0">${Object.entries(d.edges).map(([k, v]) => `${esc(k)}: <b>${esc(String(v))}</b>`).join(' · ')}</p>` : ''}
             ${d.errors.length ? `<p class="tiny" style="margin:4px 0 0;color:var(--bad)">${d.errors.map(x => esc(x.at + ': ' + x.error)).join(' · ')}</p>` : ''}
-            ${fixed ? '' : `<p style="margin:10px 0 0;font-size:13.5px"><b>To see every account without granting them one at a time:</b> in Meta
-              <b>Business Settings → Users → System users → Mobius Tools</b>, give it the <b>Admin</b> business role rather than
-              per-asset access, then regenerate its token ticking <b>business_management</b> and <b>ads_read</b>.
-              A business-admin token returns everything the business owns, and everything it owns in future, with no further setup.</p>`}
+            ${fixed ? '' : `<p style="margin:10px 0 0;font-size:13.5px"><b>What to do:</b> assign <i>one more</i> ad account to the
+              <b>Mobius Tools</b> system user in <b>Business Settings → Users → System users → Assign assets</b>.
+              Locus reads the portfolio from any account it can already see, so a single assignment unlocks the whole
+              portfolio — including accounts added later. <b>Do not regenerate the token</b>; the permissions are already correct.</p>`}
           </div></div>`;
         } catch (err) {
           box.innerHTML = `<div class="notice warn" style="margin:10px 0 0">⚠️<div>Couldn't check: ${esc(err.message)}</div></div>`;
