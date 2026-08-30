@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS ad_daily (
   video_p50        INTEGER NOT NULL DEFAULT 0,
   video_p75        INTEGER NOT NULL DEFAULT 0,
   video_avg_watch  REAL    NOT NULL DEFAULT 0,    -- average seconds watched (an AVERAGE - never summed)
+  video_plays      INTEGER NOT NULL DEFAULT 0,    -- video plays: the denominator for the retention curve
   PRIMARY KEY (act_id, ad_id, date)
 );
 

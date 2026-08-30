@@ -26,7 +26,10 @@ const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle la
 // Bump when ad_daily gains columns: every account then re-walks the 90-day
 // window once, filling the new fields on rows that already exist.
 // 1 = hook/hold (2026-08-29)   2 = reach, clicks, outbound, p25/50/75, watch time (2026-08-30)
-const ADS_METRICS_VERSION = 2;
+// 3 = video_plays — the correct denominator for the retention curve. Dividing
+//     by 3-second views produced 150%, because a 25% view of a 7-second video
+//     happens BEFORE 3 seconds.
+const ADS_METRICS_VERSION = 3;
 const ACTIVITY_BACKFILL_DAYS = 90;
 // One platform: the Meta screens are now a tab inside Mobius (was the separate
 // Account Health dashboard, which is kept only as a redirect). This worker is
@@ -345,7 +348,7 @@ async function syncAdSlice(env, acct, since, until) {
     // silently broke every brand's ad sync for two nights in August 2026. The
     // 3-second view now lives in `actions` as action_type `video_view`.
     fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,reach,clicks,inline_link_clicks,outbound_clicks,'
-      + 'actions,action_values,video_thruplay_watched_actions,'
+      + 'actions,action_values,video_play_actions,video_thruplay_watched_actions,'
       + 'video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,'
       + 'video_avg_time_watched_actions',
     limit: 500,
@@ -360,22 +363,22 @@ async function syncAdSlice(env, acct, since, until) {
     +r.reach || 0, +r.clicks || 0, sumActs(r.outbound_clicks),
     sumActs(r.video_p25_watched_actions), sumActs(r.video_p50_watched_actions), sumActs(r.video_p75_watched_actions),
     // avg watch time is SECONDS per impression-ish, not a count — never summed.
-    sumActs(r.video_avg_time_watched_actions)]);
-  const COLS = 18;
+    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions)]);
+  const COLS = 19;
   const per = Math.floor(100 / COLS);                  // D1 caps a statement at 100 bound params
   const stmts = [];
   for (let i = 0; i < daily.length; i += per) {
     const chunk = daily.slice(i, i + per);
     stmts.push(env.DB.prepare(
       `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s,
-         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch) VALUES ` +
+         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays) VALUES ` +
       chunk.map(() => `(${Array(COLS).fill('?').join(',')})`).join(',') +
       ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
         purchases = excluded.purchases, revenue = excluded.revenue, link_clicks = excluded.link_clicks,
         video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100,
         reach = excluded.reach, clicks_all = excluded.clicks_all, outbound_clicks = excluded.outbound_clicks,
         video_p25 = excluded.video_p25, video_p50 = excluded.video_p50, video_p75 = excluded.video_p75,
-        video_avg_watch = excluded.video_avg_watch`,
+        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays`,
     ).bind(...chunk.flat()));
   }
   const ads = new Map();
@@ -1993,7 +1996,7 @@ async function reportData(env, acct, period, start, end) {
               SUM(d.impressions) AS impressions, SUM(d.link_clicks) AS clicks,
               SUM(d.video_3s) AS v3, SUM(d.video_thruplay) AS vtp, SUM(d.video_p100) AS vp100,
               SUM(d.reach) AS reach, SUM(d.clicks_all) AS clicks_all, SUM(d.outbound_clicks) AS outbound,
-              SUM(d.video_p25) AS vp25, SUM(d.video_p50) AS vp50, SUM(d.video_p75) AS vp75,
+              SUM(d.video_p25) AS vp25, SUM(d.video_p50) AS vp50, SUM(d.video_p75) AS vp75, SUM(d.video_plays) AS plays,
               -- avg watch time is an average, so it is weighted by impressions
               -- rather than summed; summing would grow with the window length.
               CASE WHEN SUM(d.impressions) > 0
@@ -2046,11 +2049,16 @@ async function reportData(env, acct, period, start, end) {
       // between video ads in a way CPM is not.
       cost_per_thumbstop: r.v3 ? r.spend / r.v3 : null,
       avg_watch: r.avg_watch ?? null,
-      // The retention curve, each as a share of the 3-second views that started it.
-      retention: r.v3 ? {
-        p25: (r.vp25 || 0) / r.v3, p50: (r.vp50 || 0) / r.v3,
-        p75: (r.vp75 || 0) / r.v3, p100: (r.vp100 || 0) / r.v3,
-      } : null,
+      // Retention is a share of video PLAYS, not of 3-second views. Dividing by
+      // 3-second views reported 150% at the 25% mark, because on a 7-second
+      // video the 25% point (1.75s) is reached before the 3-second one is.
+      // Older reports have no `plays`, so they fall back and stay capped.
+      retention: (r.plays || r.v3) ? (den => ({
+        p25: Math.min(1, (r.vp25 || 0) / den), p50: Math.min(1, (r.vp50 || 0) / den),
+        p75: Math.min(1, (r.vp75 || 0) / den), p100: Math.min(1, (r.vp100 || 0) / den),
+        basis: r.plays ? 'plays' : 'three_second_views',
+      }))(r.plays || r.v3) : null,
+      plays: r.plays || null,
       preview: previews[r.ad_id] || null,
       thumb: thumbs[r.ad_id]?.thumb || null,
       video: !!thumbs[r.ad_id]?.video,

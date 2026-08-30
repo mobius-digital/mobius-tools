@@ -239,8 +239,19 @@
   .ad-row .dlt{font-size:10.5px;font-weight:700;padding:1px 5px;border-radius:5px;white-space:nowrap}
   .ad-row .dlt.up{background:var(--good-bg);color:var(--good)}
   .ad-row .dlt.dn{background:var(--bad-bg);color:var(--bad)}
-  .ad-row .meter{flex:none;width:52px;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
-  .ad-row .meter i{display:block;height:100%}
+  .vtag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+    padding:1px 5px;border-radius:5px;white-space:nowrap}
+  .vtag.good{background:var(--good-bg);color:var(--good)}
+  .vtag.ok{background:var(--warn-bg,#FDF3E0);color:var(--warn)}
+  .vtag.bad{background:var(--bad-bg);color:var(--bad)}
+  /* The scroll gutter sits over the right edge of the body, so percentages need
+     room or they read as touching the scrollbar. */
+  .ad-modal-body{padding-right:10px}
+  .retn-row{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .retn-row .lb{font-size:11.5px;color:var(--muted);width:58px;flex:none}
+  .retn-row .track{flex:1;height:7px;border-radius:99px;background:var(--line);overflow:hidden}
+  .retn-row .track i{display:block;height:100%;background:var(--brand-ink)}
+  .retn-row .pc{width:46px;text-align:right;font-size:12px;font-weight:700;flex:none}
   /* The whole card opens the detail view, so this is an affordance rather than
      the only way in — it says what a click does without competing for it. */
   .ad-open{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;
@@ -1974,8 +1985,11 @@ function reportBodyHTML(d, summary, opts = {}) {
     // label … value delta — the value is what you scan down the column, the
     // change qualifies it, so the change reads after it.
     const row = (label, val, extra, before) => `<div class="ad-row"><span>${label}</span>${before || ''}<b>${val}</b>${extra || ''}</div>`;
-    const meter = (v, ok, strong) => v == null ? '' :
-      `<span class="meter"><i style="width:${Math.min(100, Math.round(v * 100 / strong * 0.9))}%;background:${v >= strong ? 'var(--good)' : v >= ok ? 'var(--warn)' : 'var(--bad)'}"></i></span>`;
+    // A verdict WORD, not a bar. The bar was scaled against the benchmark, which
+    // meant nothing without knowing the benchmark — Cole read it as "out of 100"
+    // and could not tell good from bad. The word says which it is; the colour
+    // only reinforces it.
+    const verdict = r => !r ? '' : `<span class="vtag ${r.tag === 'strong' ? 'good' : r.tag === 'average' ? 'ok' : 'bad'}">${r.tag}</span>`;
     const card = (a, i) => {
       const hook = rate(a.hook, 0.20, 0.30), hold = rate(a.hold, 0.40, 0.60);
       const media = a.thumb
@@ -2000,8 +2014,8 @@ function reportBodyHTML(d, summary, opts = {}) {
             ${row('ROAS', a.roas != null ? fmtX(a.roas) : '—', dlt(a.roas, a.prev_roas))}
             ${row('CPA', a.cpa != null ? money(a.cpa) : '—', dlt(a.cpa, a.prev_cpa, true))}
             ${row('Purchases', fmtInt(a.purchases))}
-            ${a.hook != null ? row('Hook rate', hook.pct, '', meter(a.hook, 0.20, 0.30)) : ''}
-            ${a.hold != null ? row('Hold rate', hold.pct, '', meter(a.hold, 0.40, 0.60)) : ''}
+            ${a.hook != null ? row('Hook rate', hook.pct, verdict(hook)) : ''}
+            ${a.hold != null ? row('Hold rate', hold.pct, verdict(hold)) : ''}
           </div>
           <div class="ad-open"><span>Details</span><span aria-hidden="true">→</span></div>
         </div></article>`;
@@ -2270,13 +2284,12 @@ function adDetailModal(a, cur, prevTag) {
         ${line('Cost per thumbstop', a.cost_per_thumbstop != null ? money(a.cost_per_thumbstop) : null, 'spend per 3-second view')}
       </tbody></table></div>
       ${a.retention ? `<div style="margin-top:10px">
-        <div class="tiny" style="margin-bottom:5px">Of everyone the ad stopped, how far they got:</div>
+        <div class="tiny" style="margin-bottom:5px">Of everyone who started the video, how far they got:</div>
         ${[['25%', a.retention.p25], ['50%', a.retention.p50], ['75%', a.retention.p75], ['Finished', a.retention.p100]]
-          .map(([lb, v]) => `<div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
-            <span class="tiny" style="width:58px;flex:none">${lb}</span>
-            <span style="flex:1;height:7px;border-radius:99px;background:var(--line);overflow:hidden">
-              <i style="display:block;height:100%;width:${Math.max(0, Math.min(100, (v || 0) * 100)).toFixed(1)}%;background:var(--brand-ink)"></i></span>
-            <b style="width:44px;text-align:right;font-size:12px">${fmtPct(v)}</b></div>`).join('')}
+          .map(([lb, v]) => `<div class="retn-row"><span class="lb">${lb}</span>
+            <span class="track"><i style="width:${Math.max(0, Math.min(100, (v || 0) * 100)).toFixed(1)}%"></i></span>
+            <span class="pc">${fmtPct(v)}</span></div>`).join('')}
+        ${a.retention.basis === 'three_second_views' ? '<div class="tiny" style="margin-top:6px">Measured against 3-second views on this older report, so the early figures read high.</div>' : ''}
       </div>` : ''}` : ''}
       ${a.campaign || a.adset ? `<p class="tiny" style="margin-top:10px">${a.campaign ? `Campaign <b>${esc(a.campaign)}</b>` : ''}${a.adset ? ` · Ad set <b>${esc(a.adset)}</b>` : ''}</p>` : ''}
     </div></div>`;
