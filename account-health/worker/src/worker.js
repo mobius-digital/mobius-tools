@@ -134,11 +134,38 @@ function parseInsightRow(r) {
 /*  Accounts                                                           */
 /* ------------------------------------------------------------------ */
 
+/* `me/adaccounts` on a SYSTEM USER token returns only the ad accounts that user
+   has been individually assigned in Business Manager - not everything the
+   business owns. Cole reported accounts missing from the picker; that is why,
+   and it is a Meta permission fact, not a bug here.
+   So we also walk the businesses the token can see and take their owned AND
+   client ad accounts. Every extra call is wrapped: business_management scope may
+   be absent, in which case discovery must degrade to exactly what it did before
+   rather than failing outright. Returns {found, direct, viaBusiness}. */
+async function discoverAdAccounts(env) {
+  const FIELDS = 'id,account_id,name,currency,timezone_name,account_status';
+  const byId = new Map();
+  const direct = await metaAll(env, 'me/adaccounts', { fields: FIELDS, limit: 200 });
+  for (const a of direct) byId.set(a.id, a);
+  const before = byId.size;
+
+  let businesses = [];
+  try { businesses = await metaAll(env, 'me/businesses', { fields: 'id,name', limit: 100 }, 5); }
+  catch { /* no business_management scope - direct assignments are all we get */ }
+  for (const b of businesses) {
+    for (const edge of ['owned_ad_accounts', 'client_ad_accounts']) {
+      try {
+        for (const a of await metaAll(env, `${b.id}/${edge}`, { fields: FIELDS, limit: 200 }, 5)) {
+          if (!byId.has(a.id)) byId.set(a.id, a);
+        }
+      } catch { /* one edge failing must not lose the other, or the direct list */ }
+    }
+  }
+  return { rows: [...byId.values()], direct: before, viaBusiness: byId.size - before };
+}
+
 async function discoverAccounts(env) {
-  const rows = await metaAll(env, 'me/adaccounts', {
-    fields: 'id,account_id,name,currency,timezone_name,account_status',
-    limit: 200,
-  });
+  const { rows, direct, viaBusiness } = await discoverAdAccounts(env);
   const stmts = rows.map(a => env.DB.prepare(
     `INSERT INTO accounts (act_id, name, currency, tz, account_status)
      VALUES (?1, ?2, ?3, ?4, ?5)
@@ -146,7 +173,7 @@ async function discoverAccounts(env) {
        account_status = excluded.account_status`,
   ).bind(a.id, a.name || a.id, a.currency || 'USD', a.timezone_name || 'America/Chicago', a.account_status ?? null));
   if (stmts.length) await env.DB.batch(stmts);
-  return rows.length;
+  return { found: rows.length, direct, viaBusiness };
 }
 
 async function listAccounts(env, activeOnly = false) {
@@ -3103,8 +3130,8 @@ export default {
         return json({ ok: true });
       }
       if (path === '/api/discover' && request.method === 'POST') {
-        const n = await discoverAccounts(env);
-        return json({ ok: true, found: n, accounts: await listAccounts(env) });
+        const d = await discoverAccounts(env);
+        return json({ ok: true, ...d, accounts: await listAccounts(env) });
       }
 
       /* ---- sync ---- */

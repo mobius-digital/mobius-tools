@@ -127,8 +127,14 @@
   .catpill{border:1px solid var(--line);border-radius:99px;padding:4px 11px;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft)}
   .catpill.off{background:transparent;color:var(--muted);border-style:dashed;opacity:.75}
   .catpill i{font-style:normal;font-weight:600;opacity:.65;margin-left:4px}
-  main input[type=date],main .search,main select{border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--surface)}
-  main select{appearance:none;-webkit-appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
+  /* Controls. `.modal` is in the list because modals are appended to <body>,
+     OUTSIDE <main> - so a main-scoped rule never reaches them and every select
+     and input inside a modal fell back to the raw OS widget. Cole spotted it on
+     the Add a brand form: native grey dropdowns beside branded text boxes. */
+  main input[type=date],main .search,main select,
+  .modal input[type=text],.modal input[type=date],.modal select{border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--surface)}
+  main select,.modal select{appearance:none;-webkit-appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
+  .modal input[type=text]:focus,.modal select:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
   main .search{min-width:190px}
   .cl-it{display:grid;grid-template-columns:104px minmax(0,1fr) auto;gap:10px 18px;padding:16px 0;border-bottom:1px solid var(--line);align-items:center;font-size:13.5px}
   .cl-it:first-child{padding-top:4px}
@@ -827,7 +833,8 @@ function addBrandModal(untracked, chList, onDiscover) {
             : 'Every ad account your Meta login can reach is already being tracked.',
           untracked.length
             ? `<select id="abAct"><option value="">— choose an ad account —</option>${untracked.map(a =>
-                `<option value="${esc(a.act_id)}" data-name="${esc(a.name)}">${esc(a.name)} · ${esc(a.act_id)}</option>`).join('')}</select>`
+                `<option value="${esc(a.act_id)}" data-name="${esc(a.name)}">${esc(a.name)} · ${esc(a.act_id)}</option>`).join('')}</select>
+               <p class="tiny" style="margin:7px 0 0">Not seeing the account you want? <a href="#" id="abDiscover">Check Meta again</a>. Meta only returns accounts the <b>Mobius Tools</b> system user can reach — if it is still missing, assign it to that system user in Business Manager.</p>`
             : `<button class="btn" id="abDiscover">↻ Check Meta for new accounts</button>
                <span class="tiny" id="abDiscMsg" style="margin-left:8px"></span>`)}
         ${field('Brand name', 'What you want to call them everywhere in Locus. Meta account names are often messy — this is the one clients and reports see.',
@@ -865,7 +872,8 @@ function addBrandModal(untracked, chList, onDiscover) {
     $$('#abName').oninput = e => { e.target.dataset.touched = '1'; };
 
     const disc = $$('#abDiscover');
-    if (disc) disc.onclick = async () => {
+    if (disc) disc.onclick = async (e) => {
+      e.preventDefault();                       // it is a link when accounts exist, a button when none do
       disc.disabled = true; disc.textContent = 'Checking Meta…';
       const found = await onDiscover();
       done(null);
@@ -3797,9 +3805,14 @@ async function renderSettings() {
           // successful scan produced no visible change at all.
           paint(next);
           const msg = $('#mtMsg');
+          // Say where they came from. Meta returns a SHORTER list from
+          // me/adaccounts (only what the system user is individually assigned)
+          // than from the business edges, and a silently short list is exactly
+          // what made this look broken.
+          const via = r.viaBusiness ? ` · ${r.direct} assigned directly, ${r.viaBusiness} via your Business Manager` : '';
           if (msg) msg.textContent = added.length
-            ? `${added.length} new ad account${added.length === 1 ? '' : 's'} found: ${added.map(a => a.name).join(', ')}`
-            : `Nothing new — Meta returned the same ${next.length} account${next.length === 1 ? '' : 's'}`;
+            ? `${added.length} new: ${added.map(a => a.name).join(', ')}${via}`
+            : `Nothing new — Meta returned the same ${next.length} account${next.length === 1 ? '' : 's'}${via}`;
           return next;
         } catch (e) {
           noteModal('Could not reach Meta', `<p>${esc(e.message)}</p>
