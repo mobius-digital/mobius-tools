@@ -1737,7 +1737,7 @@ async function renderCreativeBrowser(host, act, range) {
         <b>No ${esc(attrLabel(d.attr_requested))} data for ${esc(d.account.name)} over this window.</b>
         Nothing is being shown rather than a wall of zeros, and <b>nothing has been silently swapped to Meta</b> —
         if this is unexpected, the attribution sync is the thing that is wrong.
-        <p class="tiny" style="margin:8px 0 0">Attribution syncs nightly for the last 7 days. Anything older needs a backfill.</p>
+        <p class="tiny" style="margin:8px 0 0">Attribution refreshes every night for the last 7 days, and older history fills itself in about two weeks at a time each night, back to 120 days. This notice should get rarer on its own — press the button if you need this window now.</p>
         <div class="row" style="gap:8px;margin:10px 0 0">
           <button class="btn primary" id="cbSync">Sync attribution for this window</button>
           <button class="btn" id="cbUseMeta">Use Meta’s figures instead</button>

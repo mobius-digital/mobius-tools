@@ -741,14 +741,19 @@ async function twJourneys(env, shopDomain, start, end, page) {
   return body;
 }
 
-/** Pull journeys for [start,end] and roll them up to (date, ad_id, model).
- *  Returns {orders, ads, pages} for reporting. */
-async function syncTwAttribution(env, acct, days = 7) {
+/* How far back attribution is kept. Chosen to cover the longest window the
+   period control offers (90 days) with room to spare, so a range the UI can ask
+   for is never one the data cannot answer. */
+const TW_ATTR_HISTORY_DAYS = 120;
+
+/** Pull journeys for a window and roll them up to (date, ad_id, model).
+ *  Pass {from,to} to pull an explicit range; otherwise the last `days`. */
+async function syncTwAttribution(env, acct, days = 7, range = null) {
   if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY not set' };
   if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop' };
   const today = localDate(acct.tz);
-  const end = addDays(today, -1);
-  const start = addDays(end, -(Math.min(days, 60) - 1));
+  const end = range ? range.to : addDays(today, -1);
+  const start = range ? range.from : addDays(end, -(Math.min(days, 120) - 1));
 
   const agg = new Map();                       // `${date}|${ad}|${model}` -> {rev, ord}
   const seenModels = new Set();                // what TW ACTUALLY sends, not what we assumed
@@ -3421,6 +3426,28 @@ async function nightly(env) {
      stored figures converging on the truth rather than freezing a first guess. */
   const twAttr = [];
   for (const a of accounts) twAttr.push(await syncTwAttribution(env, a, 7).catch(e => ({ name: a.name, error: e.message })));
+  /* HISTORY FILLS ITSELF. The rolling 7 days above keeps recent attribution
+     correcting as journeys resolve, but it never reaches backwards - so a
+     90-day window would stay empty forever unless someone remembered to press
+     a button, which is not a system, it is a chore. One older slice per night,
+     walking back to TW_ATTR_HISTORY_DAYS and then stopping. Resumable via
+     `tw_attr_cursor`, the same shape as the ad-insights backfill. */
+  for (const a of accounts) {
+    if (a.tw_attr_done) continue;
+    try {
+      const today = localDate(a.tz);
+      const floor = addDays(today, -TW_ATTR_HISTORY_DAYS);
+      const to = addDays(a.tw_attr_cursor || addDays(today, -7), -1);
+      if (to <= floor) {
+        await env.DB.prepare(`UPDATE accounts SET tw_attr_done = 1 WHERE act_id = ?1`).bind(a.act_id).run();
+        continue;
+      }
+      const from = addDays(to, -14) < floor ? floor : addDays(to, -14);
+      const r = await syncTwAttribution(env, a, 0, { from, to });
+      await env.DB.prepare(`UPDATE accounts SET tw_attr_cursor = ?2 WHERE act_id = ?1`).bind(a.act_id, from).run();
+      twAttr.push({ ...r, backfill: true });
+    } catch (e) { twAttr.push({ name: a.name, backfill: true, error: e.message }); }
+  }
   // Alerts moved to deliveryPass() on the hourly trigger: this job runs at
   // 03:30 UTC, which is late evening locally, and could only ever report on
   // a day that had already been over for the best part of a day.
@@ -3510,7 +3537,7 @@ export default {
          and a new brand or a longer look-back needs more than that. */
       if (path === '/api/tw-attr-sync' && request.method === 'POST') {
         const act = url.searchParams.get('act');
-        const days = Math.min(+url.searchParams.get('days') || 30, 60);
+        const days = Math.min(+url.searchParams.get('days') || 30, TW_ATTR_HISTORY_DAYS);
         const list = act && act !== 'all'
           ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
           : await listAccounts(env, true);
