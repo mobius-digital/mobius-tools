@@ -126,6 +126,33 @@ async function authKind(request, env) {
 
 const isAdmin = async (request, env) => (await authKind(request, env)) === 'admin';
 
+/* ---- Roles ----
+   TWO roles and no more: admin, and viewer. `settings.userRoles` maps an email
+   to its role and ANYONE NOT LISTED IS AN ADMIN, which is exactly today's
+   behaviour - so adding this cannot lock anybody out, including whoever forgets
+   they added themselves.
+   A viewer is GET-only. That is the whole rule: they see every screen and can
+   press nothing that leaves the building - no send to client, no plan save, no
+   margin override, no settings, no sync. It reuses the read-only gate the demo
+   account already proved, rather than inventing a second permission model. */
+async function roleFor(env, email) {
+  if (!email) return 'admin';
+  try {
+    const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userRoles'`).first();
+    const map = safeJson(row?.value, {}) || {};
+    return String(map[String(email).toLowerCase()] || 'admin').toLowerCase() === 'viewer' ? 'viewer' : 'admin';
+  } catch { return 'admin'; }
+}
+
+/** The signed-in email, or null for a password/token session that has none. */
+async function sessionEmail(env, request) {
+  const auth = request.headers.get('Authorization') || '';
+  if (!auth.startsWith('Bearer ')) return null;
+  const sess = await verifySession(env, auth.slice(7));
+  return sess?.email || null;
+}
+
+
 /* ---------------- Shopify OAuth ----------------
  * ONE unlisted public app installs on every client store. Public distribution is the
  * only kind that installs across separate merchant organizations - custom distribution
@@ -1484,6 +1511,10 @@ export default {
     // change nothing - no goals, no margin overrides, no Triple Whale backfills.
     if (isDemo && request.method !== 'GET') {
       return json({ error: 'This is a read-only demo account.' }, 403);
+    }
+    // Same gate, different reason. Viewers read everything and change nothing.
+    if (request.method !== 'GET' && (await roleFor(env, await sessionEmail(env, request))) === 'viewer') {
+      return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
     }
     // Every account lookup below goes through this, so a demo session can only ever
     // resolve the demo brand and a real session can never see it.

@@ -3006,6 +3006,32 @@ async function googleLogin(env, credential) {
   return { ...s, name: info.name || '', picture: info.picture || '' };
 }
 
+/* ---- Roles ----
+   TWO roles and no more: admin, and viewer. `settings.userRoles` maps an email
+   to its role and ANYONE NOT LISTED IS AN ADMIN, which is exactly today's
+   behaviour - so adding this cannot lock anybody out, including whoever forgets
+   they added themselves.
+   A viewer is GET-only. That is the whole rule: they see every screen and can
+   press nothing that leaves the building - no send to client, no plan save, no
+   margin override, no settings, no sync. It reuses the read-only gate the demo
+   account already proved, rather than inventing a second permission model. */
+async function roleFor(env, email) {
+  if (!email) return 'admin';
+  try {
+    const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userRoles'`).first();
+    const map = safeJson(row?.value, {}) || {};
+    return String(map[String(email).toLowerCase()] || 'admin').toLowerCase() === 'viewer' ? 'viewer' : 'admin';
+  } catch { return 'admin'; }
+}
+
+/** The signed-in email, or null for a password/token session that has none. */
+async function sessionEmail(env, request) {
+  const auth = request.headers.get('Authorization') || '';
+  if (!auth.startsWith('Bearer ')) return null;
+  const sess = await verifySession(env, auth.slice(7));
+  return sess?.email || null;
+}
+
 async function isAdmin(request, env) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return false;
@@ -3152,6 +3178,60 @@ export default {
        Gated on a random one-time key in the settings table rather than the admin
        token, so investigating this could never require rotating a live secret. */
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+
+    /* View-only accounts read everything and change nothing. GET-only is the
+       entire rule - simple enough to hold in your head and to explain to the
+       person it applies to. Anyone not listed in settings.userRoles is an admin,
+       so this is inert until a role is actually assigned. */
+    const who = await sessionEmail(env, request);
+    if (request.method !== 'GET' && (await roleFor(env, who)) === 'viewer') {
+      return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
+    }
+
+    /* ---- Team: who can sign in, and at what level ----
+       `allowedEmails` (who may sign in from outside the Mobius domain) and
+       `userRoles` (what they can do) were both settings with NO interface at
+       all - an outside collaborator meant hand-editing D1, and every person who
+       could sign in was a full admin who could press Send to client. */
+    if (path === '/api/team' && request.method === 'GET') {
+      const [ae, ur] = await Promise.all([
+        env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null),
+        env.DB.prepare(`SELECT value FROM settings WHERE key = 'userRoles'`).first().catch(() => null),
+      ]);
+      const extra = (safeJson(ae?.value, []) || []).map(e => String(e).toLowerCase());
+      const roles = safeJson(ur?.value, {}) || {};
+      // Everyone we know about: invited guests, plus anyone given an explicit role.
+      const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase())])].sort();
+      return json({
+        domain: ALLOWED_DOMAIN, you: who,
+        members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e) })),
+      });
+    }
+    if (path === '/api/team' && request.method === 'PUT') {
+      const b = await request.json().catch(() => ({}));
+      const email = String(b.email || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'That does not look like an email address' }, 400);
+      const role = b.role === 'viewer' ? 'viewer' : 'admin';
+      const [ae, ur] = await Promise.all([
+        env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null),
+        env.DB.prepare(`SELECT value FROM settings WHERE key = 'userRoles'`).first().catch(() => null),
+      ]);
+      let extra = (safeJson(ae?.value, []) || []).map(e => String(e).toLowerCase());
+      const roles = safeJson(ur?.value, {}) || {};
+      const onDomain = email.endsWith('@' + ALLOWED_DOMAIN);
+      if (b.remove) {
+        // Never let someone remove their own access and lock themselves out.
+        if (who && email === String(who).toLowerCase()) return json({ error: 'You cannot remove your own access.' }, 400);
+        extra = extra.filter(e => e !== email);
+        delete roles[email];
+      } else {
+        if (!onDomain && !extra.includes(email)) extra.push(email);   // domain accounts need no invite
+        if (role === 'viewer') roles[email] = 'viewer'; else delete roles[email];
+      }
+      await putSetting(env, 'allowedEmails', JSON.stringify(extra));
+      await putSetting(env, 'userRoles', JSON.stringify(roles));
+      return json({ ok: true, email, role, guest: extra.includes(email) });
+    }
 
     if (path === '/api/me') {
       const sess = await verifySession(env, (request.headers.get('Authorization') || '').slice(7));

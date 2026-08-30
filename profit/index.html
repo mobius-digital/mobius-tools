@@ -2297,9 +2297,10 @@ async function renderBrief(first) {
       ${statCard('MER', a.mer, f.mer, fx, 'Marketing Efficiency Ratio = ALL store revenue ÷ ALL ad spend. Both sides blended: every sale the store made (paid, organic, email, direct — not ad-attributed) over every dollar spent across Meta, Google and any other platform. The single "are the ads paying for themselves" number. Plan = your net-sales goal ÷ your spend goal.')}
       ${statCard('aMER', a.amer, f.amer, fx, 'Acquisition MER = NEW-customer revenue ÷ that same total ad spend. Same blended basis as MER, but only counts first-time buyers — so email and repeat customers can’t flatter the ads. This is the number CTC leads their reports with.')}
     </div>
-    <div class="card"><h3 style="margin-bottom:4px">Where the money came from</h3>
-      <p style="font-size:14px;margin:4px 0">${a.new_rev != null ? `<b>${fmtMoney(a.new_rev, cur)}</b> from new customers${a.new_share != null ? ` (${Math.round(a.new_share * 100)}% of revenue)` : ''} · <b>${fmtMoney(a.ret_rev, cur)}</b> returning` : '<span class="tiny">no split available</span>'}
-      ${a.meta_spend != null ? ` &nbsp;·&nbsp; Meta ${fmtMoney(a.meta_spend, cur)}${a.meta_roas != null ? ` at ${fx(a.meta_roas)} <span class="info-i" title="Meta-attributed ROAS from the Meta API — conversions keep settling for ~72h, so recent days read low. The Net Sales and aMER numbers above don't have this problem.">i</span>` : ''}` : ''}${a.google_spend != null ? ` · Google ${fmtMoney(a.google_spend, cur)}` : ''}</p></div>
+    ${/* Was its own card restating the new/returning split that Profit and
+          Customers both already carry. One line under the stats instead - the
+          only part that is NOT elsewhere on this page is the channel split. */''}
+    <p class="tiny" style="margin:-4px 0 14px">${a.new_rev != null ? `<b>${fmtMoney(a.new_rev, cur)}</b> from new customers${a.new_share != null ? ` (${Math.round(a.new_share * 100)}%)` : ''} · <b>${fmtMoney(a.ret_rev, cur)}</b> returning` : 'No new-vs-returning split available'}${a.meta_spend != null ? ` &nbsp;·&nbsp; Meta ${fmtMoney(a.meta_spend, cur)}${a.meta_roas != null ? ` at ${fx(a.meta_roas)} <span class="info-i" title="Meta's OWN attributed ROAS, from the Meta API. Structurally lower than blended MER and it has no target here - conversions also keep settling for ~72h, so recent days read low.">i</span>` : ''}` : ''}${a.google_spend != null ? ` · Google ${fmtMoney(a.google_spend, cur)}` : ''}</p>
     <div class="card"><h3 style="margin-bottom:2px">The month vs the plan</h3>
       <p class="hint" style="margin-bottom:6px">Cumulative net sales: <span style="color:#14608C;font-weight:700">blue</span> = actual, <span style="color:#8195A2;font-weight:700">dashed gray</span> = the plan. Forecast weighting: ${esc(d.weights)}.${d.mtd.sales != null && d.mtd.sales_f ? ` So far: <b>${fmtK(d.mtd.sales, cur)}</b> vs <b>${fmtK(d.mtd.sales_f, cur)}</b> planned (${fmtPct(d.mtd.sales / d.mtd.sales_f - 1, 0)}).` : ''}</p>
       <div id="bfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart for exact values…</div>
@@ -4077,6 +4078,8 @@ async function renderSettings() {
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="settings">? How to use</button></div>
     <div id="metaCard"><div class="card"><span class="hint">Loading clients\u2026</span></div></div>
     <div id="connCard"><div class="card"><span class="hint">Loading Shopify connections\u2026</span></div></div>
+    <h3 class="set-sec">Team</h3>
+    <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
     <h3 class="set-sec">Where each client's reporting goes</h3>
     <div class="card settings"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th title="Your team's channel. Drafts waiting for review land here, along with delivery alerts. Nothing here is seen by the client.">Internal channel</th><th title="The client's channel. Approved briefs and reports are sent here, and nothing else ever posts here.">Client channel</th><th title="On: the daily brief and both reports draft to your internal channel and wait for you to edit and send. Off: each one posts straight to the client on its own.">Review first</th><th title="Run the daily forecast-vs-actual brief for this brand each morning.">Daily brief</th><th title="Flat margin used instead of per-product costs. Blank = real Triple Whale costs.">Margin</th><th>Cost data</th><th title="Re-pull this client's full Triple Whale history. Needed once so sales tax is available for every month.">Triple Whale</th></tr></thead>
@@ -4228,6 +4231,66 @@ async function renderSettings() {
     } catch (err) { msg.textContent = err.message; }
     b.disabled = false;
   });
+
+  /* ---- Team ----
+     `allowedEmails` was read by both workers on every sign-in and written by
+     NOTHING: adding a collaborator from outside the Mobius domain meant editing
+     D1 by hand, and nothing on screen said that anyone on the domain was
+     admitted automatically. Worse, every person who could sign in was a full
+     admin who could press "Send to client" into a real client's Slack. */
+  (async () => {
+    const host = $('#teamCard'); if (!host || !window.MetaTab) return;
+    const mApi = window.MetaTab.api;
+    const paint = d => {
+      const rows = d.members.map(m => `<tr data-e="${esc(m.email)}">
+        <td><b>${esc(m.email)}</b>${m.email === d.you ? ' <span class="tiny">(you)</span>' : ''}
+          <br><span class="tiny">${m.guest ? 'Invited guest' : 'On your domain'}</span></td>
+        <td><select data-k="role" style="max-width:150px">
+          <option value="admin"${m.role === 'admin' ? ' selected' : ''}>Admin — can change things</option>
+          <option value="viewer"${m.role === 'viewer' ? ' selected' : ''}>Viewer — read only</option>
+        </select></td>
+        <td>${m.email === d.you ? '<span class="tiny">—</span>'
+          : `<button class="btn" data-k="remove" style="font-size:11.5px;padding:4px 8px">Remove</button>`}
+          <span class="tiny" data-msg></span></td></tr>`).join('');
+      host.innerHTML = `<div class="card settings">
+        <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Who can sign in</h3></div>
+        <p class="hint" style="margin-bottom:10px"><b>Anyone with an @${esc(d.domain)} email can already sign in</b> — they do not need inviting, and by default they are an admin.
+        Invite anyone else by email below. <b>Admins can change anything</b>, including sending a report into a client's Slack.
+        <b>Viewers see every screen and can press nothing that leaves the building</b> — no sending, no plan changes, no settings. Use Viewer for a client, a contractor, or anyone you want watching the numbers without being able to move them.</p>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Person</th><th>Can they change things?</th><th></th></tr></thead>
+          <tbody id="teamRows">${rows || '<tr><td colspan="3" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody>
+        </table></div>
+        <div class="row" style="margin-top:12px;gap:8px">
+          <input type="text" id="tmEmail" placeholder="name@example.com" style="width:230px">
+          <select id="tmRole" style="max-width:150px"><option value="viewer">Viewer — read only</option><option value="admin">Admin — can change things</option></select>
+          <button class="btn primary" id="tmAdd">Invite</button><span class="tiny" id="tmMsg"></span>
+        </div></div>`;
+
+      const save = async (email, body, msgEl) => {
+        if (msgEl) msgEl.textContent = 'Saving…';
+        try { await mApi('/api/team', { method: 'PUT', body: JSON.stringify({ email, ...body }) }); return true; }
+        catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); if (msgEl) msgEl.textContent = ''; return false; }
+      };
+      const reload = async () => { try { paint(await mApi('/api/team')); } catch { /* keep what is on screen */ } };
+
+      host.querySelectorAll('[data-k="role"]').forEach(sel => sel.onchange = async () => {
+        const tr = sel.closest('tr');
+        if (await save(tr.dataset.e, { role: sel.value }, tr.querySelector('[data-msg]'))) reload();
+      });
+      host.querySelectorAll('[data-k="remove"]').forEach(b => b.onclick = async () => {
+        const tr = b.closest('tr');
+        if (!(await confirmModal('Remove access?', `${tr.dataset.e} will no longer be able to sign in to Locus.`, 'Remove'))) return;
+        if (await save(tr.dataset.e, { remove: true }, tr.querySelector('[data-msg]'))) reload();
+      });
+      $('#tmAdd').onclick = async () => {
+        const em = $('#tmEmail').value.trim(); if (!em) return;
+        if (await save(em, { role: $('#tmRole').value }, $('#tmMsg'))) { $('#tmEmail').value = ''; reload(); }
+      };
+    };
+    try { paint(await mApi('/api/team')); }
+    catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load the team list: ${esc(e.message)}</span></div>`; }
+  })();
 
   /* Meta ad accounts — this is where a NEW CLIENT starts.
      It used to live in the separate Account Health dashboard, which is why
