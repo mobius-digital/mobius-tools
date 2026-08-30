@@ -760,8 +760,10 @@ function crAds(d) {
 async function renderCreative() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
-  $('#main').innerHTML = `<h2>Creative Rotation</h2>
-    <p class="sub"><b>One question: are we feeding this account new ads, or coasting on old ones?</b> Old ads wear out and CPA creeps up — this page shows the coasting before the CPA spike. An ad counts as "new" for its first days of spending (you pick how many below).</p>
+  $('#main').innerHTML = `<h2>Creative</h2>
+    <p class="sub"><b>Which ads are working, and are we feeding this account new ones?</b> The cards answer the first question — sort them however you are thinking. The freshness analysis below answers the second: old ads wear out and CPA creeps up, and this shows the coasting before the spike.</p>
+    ${single ? '<div id="cbHost"></div>' : '<div class="notice">ℹ️ <div>Pick a client in the top-right to browse its ads. The freshness comparison below works across all of them.</div></div>'}
+    <h3 style="font-family:var(--serif);font-weight:400;font-size:20px;margin:26px 0 2px">Are we coasting on old ads?</h3>
     ${setupBanner()}
     <div class="row">
       <span class="tiny" style="font-weight:700" title="An ad younger than this counts as new">An ad is “new” for its first:</span>
@@ -777,6 +779,12 @@ async function renderCreative() {
     if (c.dataset.g) { CR.win = c.dataset.g; localStorage.setItem('ah_cr_win', CR.win); }
     renderCreative();
   });
+  /* The live card browser, for one client at a time - "top ads by X" is not a
+     question you ask of six brands at once. Rendered before the freshness
+     analysis is fetched so it appears immediately. */
+  if (single && window.renderCreativeBrowser && window.resolveRange) {
+    renderCreativeBrowser($('#cbHost'), single.act_id, resolveRange());
+  }
   const targets = single ? [single] : active;
   if (!targets.length) { $('#crBody').innerHTML = ''; return; }
   try {

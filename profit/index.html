@@ -421,6 +421,23 @@
   .rh-wrap[open] summary::before{content:'▾ '}
   .rh-wrap summary .tiny{font-weight:400}
   .rh-body .card{margin:0;border:0;border-top:1px solid var(--line);border-radius:0}
+  /* Creative browser. Reuses .ad-card/.ad-media/.ad-grid from the reports on
+     purpose: what you sort through here is what the client eventually opens,
+     so it must not be a lookalike that drifts. */
+  .cb-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+  .cb-bar .chip{padding:4px 10px;font-size:12.5px}
+  .cb-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  /* Two rows of four, Cole's suggestion: a fixed short grid makes the SORT do
+     the work, where an unbounded one invites scrolling past the answer. */
+  @media(max-width:1100px){ .cb-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  @media(max-width:860px){ .cb-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media(max-width:560px){ .cb-grid{grid-template-columns:minmax(0,1fr)} }
+  .cb-stats{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+  .cb-s{display:flex;align-items:baseline;gap:8px;font-size:12.5px;line-height:1.5}
+  .cb-s span{color:var(--muted)}
+  .cb-s b{margin-left:auto;font-variant-numeric:tabular-nums;font-size:13px}
+  .cb-s b.good{color:var(--good)} .cb-s b.bad{color:var(--bad)} .cb-s b.ok{color:var(--ink)}
+  .cb-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
   .help-btn + .help-btn{margin-left:6px}
   .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
@@ -1503,6 +1520,113 @@ document.addEventListener('click', e => {
   if (b) { e.preventDefault(); startTour(b.dataset.tour); }
 });
 
+/* ---------- Creative browser ----------
+   Cole asked for the report's ad cards, live and sortable: "top ads by spend,
+   by ROAS, by CPA, by hook rate… filter by video only, static only", with the
+   same date ranges as everywhere else. The card layout is deliberately the same
+   shape the weekly report already uses, because the whole point is that what
+   you sort through here is what the client eventually sees.
+
+   Eight by default, in two rows of four - his suggestion and a good one: an
+   unbounded grid invites scrolling, while a fixed short list forces the sort to
+   do the work. Fewer than eight simply renders fewer.
+
+   The ratio sorts are filtered to MATERIAL ads server-side; the footer always
+   states how many were considered and how much spend is on screen, because a
+   "top 8 by ROAS" that quietly dropped 90% of spend is a lie of omission. */
+const CB = { sort: 'spend', fmt: '', limit: 8 };
+const CB_SORTS = [
+  ['spend', 'Spend'], ['roas', 'ROAS'], ['cpa', 'CPA'], ['purchases', 'Purchases'],
+  ['hook', 'Hook rate'], ['hold', 'Hold rate'], ['ctr', 'CTR'], ['cpm', 'CPM'], ['newest', 'Newest'],
+];
+
+async function renderCreativeBrowser(host, act, range) {
+  host.innerHTML = '<div class="card"><span class="hint">Loading ads…</span></div>';
+  let d;
+  const q = `act=${encodeURIComponent(act)}&from=${range.from}&to=${range.to}`
+    + `&sort=${CB.sort}&limit=${CB.limit}${CB.fmt ? '&format=' + encodeURIComponent(CB.fmt) : ''}`;
+  try { d = await api('/api/ads?' + q); }
+  catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load ads: ${esc(e.message)}</span></div>`; return; }
+
+  const cur = d.account.currency;
+  const money = n => n == null ? '—' : fmtMoney(n, cur);
+  const pct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+  /* The strong/average/low words are Motion's published benchmarks across many
+     accounts, not this account's own history - stated on the page so nobody
+     reads them as a Locus opinion. */
+  const band = (v, low, good) => v == null ? '' : v >= good ? ' good' : v < low ? ' bad' : ' ok';
+
+  const stat = (label, value, cls = '') =>
+    `<div class="cb-s"><span>${label}</span><b class="${cls}">${value}</b></div>`;
+
+  const card = (a, i) => {
+    const canPlay = a.is_video && a.ad_id;
+    const media = a.thumb
+      ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}" loading="lazy">`
+      : `<span aria-hidden="true">${a.is_video ? '▶' : '▢'}</span>`;
+    return `<article class="ad-card cb-card" data-ad="${esc(a.ad_id)}">
+      <div class="ad-media${a.thumb ? '' : ' none'}"${canPlay ? ` data-ad="${esc(a.ad_id)}"` : ''}>
+        ${media}<span class="ad-rank">${i + 1}</span>
+        <span class="ad-type">${a.is_video ? 'Video' : 'Image'}</span>
+        ${canPlay ? '<button class="ad-play" type="button" title="Play this video ad"><i>▶</i></button>' : ''}
+      </div>
+      <div class="ad-body">
+        <span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>
+        <div class="cb-stats">
+          ${stat('Spend', money(a.spend))}
+          ${stat('ROAS', a.roas != null ? fmtX(a.roas) : '—')}
+          ${stat('CPA', money(a.cpa))}
+          ${stat('Purchases', a.purchases ? Math.round(a.purchases) : '—')}
+          ${a.is_video ? stat('Hook', pct(a.hook), band(a.hook, 0.20, 0.30)) : ''}
+          ${a.is_video ? stat('Hold', pct(a.hold), band(a.hold, 0.40, 0.60)) : ''}
+          ${stat('CTR', pct(a.ctr))}
+          ${stat('CPM', money(a.cpm))}
+        </div>
+        <div class="cb-foot">${a.format ? `<span class="catpill">${esc(a.format)}</span>` : ''}
+          ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
+          ${a.material ? '' : '<span class="tiny" title="Below the materiality floor, so it is excluded from the ratio sorts">low spend</span>'}</div>
+      </div></article>`;
+  };
+
+  const chip = (k, l, on) => `<button class="chip ${on ? 'on' : ''}" data-cb="${k}">${l}</button>`;
+  const fmts = [['', 'All'], ['video', 'Video'], ['static', 'Static']]
+    .concat((d.formats || []).map(f => [f, f]));
+
+  host.innerHTML = `
+    <div class="cb-bar">
+      <span class="tiny" style="font-weight:700">Sort by</span>
+      ${CB_SORTS.map(([k, l]) => chip('sort:' + k, l, CB.sort === k)).join('')}
+    </div>
+    <div class="cb-bar">
+      <span class="tiny" style="font-weight:700">Show</span>
+      ${fmts.map(([k, l]) => chip('fmt:' + k, l, CB.fmt === k)).join('')}
+      <span style="flex:1"></span>
+      <span class="tiny" style="font-weight:700">Top</span>
+      ${[4, 8, 12, 20].map(n => chip('limit:' + n, String(n), CB.limit === n)).join('')}
+    </div>
+    ${d.ads.length ? `<div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>` : '<div class="card"><span class="hint">No ads spent in this window.</span></div>'}
+    <p class="tiny" style="margin-top:4px">
+      Showing <b>${d.ads.length}</b> of ${d.matched} ad${d.matched === 1 ? '' : 's'} ·
+      <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} ad spend on screen.
+      ${['roas','cpa','ctr','cpm','hook','hold'].includes(CB.sort)
+        ? `Ratio sorts only rank ads that spent at least <b>${fmtK(d.floor, cur)}</b> — otherwise a single lucky conversion on a tiny budget tops the list.`
+        : ''}
+      ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
+      <br>Hook and hold are judged against <b>Motion's published benchmarks</b> (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history.
+      These are Meta-reported and match Ads Manager.</p>`;
+
+  host.querySelectorAll('[data-cb]').forEach(b => b.onclick = () => {
+    const [k, v] = b.dataset.cb.split(':');
+    if (k === 'sort') CB.sort = v;
+    else if (k === 'fmt') CB.fmt = v;
+    else CB.limit = +v;
+    renderCreativeBrowser(host, act, range);
+  });
+  // Playback reuses the SAME attachPlay the reports use, so a video behaves
+  // identically here and in the document the client eventually opens.
+  host.querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);
+}
+
 /* ---------- Metrics glossary ----------
    Cole: "I don't understand what the metrics do." Every metric WAS defined -
    in 34 ⓘ icons and 62 hover tooltips, each in its own words, several of them
@@ -1783,7 +1907,12 @@ function renderPeriodBar(tab) {
   bar.style.display = '';
   const ctl = $('#pbCtl'), dates = $('#pbDates');
 
-  if (!RANGE_TABS.has(tab)) {
+  /* The Creative browser is the one Meta screen that takes an arbitrary window
+     - Cole asked for "the same date ranges, today, yesterday, past 7, month to
+     date, last month, custom" - so the shared bar drives it there and only
+     there. The other Meta screens genuinely have their own fixed windows. */
+  const metaCreative = tab === 'meta' && localStorage.getItem(MSUB.key) === 'creative';
+  if (!RANGE_TABS.has(tab) && !metaCreative) {
     ctl.innerHTML = `<span class="pb-fixed">${esc(PB_FIXED[tab] || '')}</span>`;
     dates.innerHTML = '';
     return;

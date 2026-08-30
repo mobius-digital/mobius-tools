@@ -2614,6 +2614,119 @@ async function hourlyPacing(env, acct) {
 
 /** Per-ad rollup for the selected window: who's carrying spend, who's earning it.
  *  Verdicts are relative to the account's own window CPA, never absolute benchmarks. */
+/* ---- Ad-level rows for the live Creative browser ----
+   The weekly report already renders exactly this - big creative, stats
+   underneath, playable - but only inside a FROZEN document that appears twice a
+   month. Cole: "if a client asks what ads are working right now", there was no
+   answer except waiting for Monday. Same data, same card, live and sortable.
+
+   Every metric here is already synced nightly into `ad_daily` (19 columns since
+   2026-08-29); nothing new is pulled from Meta except the creative asset for
+   the handful of ads actually shown.
+
+   THE MATERIALITY FLOOR IS LOAD-BEARING. Sorting by ROAS or CPA without one
+   puts a $12 ad that happened to convert once at the top of every list, which
+   is noise dressed as a finding. The reports already use max($50, 3% of ad
+   spend) for the same reason - same floor here, and the response says how much
+   spend it excluded so the omission is never silent. */
+async function adRows(env, acct, from, to, opts = {}) {
+  const { results } = await env.DB.prepare(
+    `SELECT d.ad_id, a.name, a.created_time, a.first_spend_date, a.status,
+            SUM(d.spend) AS spend, SUM(d.revenue) AS revenue, SUM(d.purchases) AS purchases,
+            SUM(d.impressions) AS impressions, SUM(d.reach) AS reach,
+            SUM(d.link_clicks) AS link_clicks, SUM(d.clicks_all) AS clicks_all,
+            SUM(d.outbound_clicks) AS outbound_clicks,
+            SUM(d.video_3s) AS v3, SUM(d.video_thruplay) AS vtp,
+            SUM(d.video_p100) AS v100, SUM(d.video_plays) AS vplays
+     FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
+     WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
+     GROUP BY d.ad_id HAVING SUM(d.spend) > 0
+     ORDER BY spend DESC LIMIT 500`,
+  ).bind(acct.act_id, from, to).all();
+  if (!results.length) return { ads: [], total_spend: 0, shown_spend: 0, floor: 0, acct_cpa: null, formats: [] };
+
+  const today = localDate(acct.tz);
+  const totalSpend = results.reduce((n, r) => n + r.spend, 0);
+  const totalPurch = results.reduce((n, r) => n + r.purchases, 0);
+  const acctCpa = totalPurch ? totalSpend / totalPurch : null;
+  const floor = Math.max(50, totalSpend * 0.03);
+
+  const rows = results.map(r => {
+    const imp = r.impressions || 0;
+    // Ads already spending when our history begins would read as brand new, so
+    // fall back to Meta's own creation date for their age.
+    const origin = r.created_time && r.first_spend_date && String(r.created_time).slice(0, 10) < r.first_spend_date
+      ? String(r.created_time).slice(0, 10) : r.first_spend_date;
+    // The format tag is the segment after the last pipe in the ad's own name -
+    // "310 B | Still", "Cole - 3 | UGC". It must contain a LETTER, or shoot
+    // codes like "0616" get treated as a format.
+    const tag = (() => {
+      const p = String(r.name || '').split('|');
+      if (p.length < 2) return null;
+      const t = p[p.length - 1].trim();
+      return /[a-z]/i.test(t) ? t : null;
+    })();
+    // Gated on v3 > 0: an image ad and a video ad synced before these columns
+    // existed must not look alike, and a 0% hook on a static is meaningless.
+    const isVideo = (r.v3 || 0) > 0 || (r.vplays || 0) > 0;
+    return {
+      ad_id: r.ad_id, name: r.name || r.ad_id, status: r.status || null,
+      spend: r.spend, revenue: r.revenue, purchases: r.purchases,
+      roas: r.spend ? r.revenue / r.spend : null,
+      cpa: r.purchases ? r.spend / r.purchases : null,
+      impressions: imp, reach: r.reach || 0,
+      frequency: r.reach ? imp / r.reach : null,
+      cpm: imp ? (r.spend / imp) * 1000 : null,
+      ctr: imp ? (r.link_clicks || 0) / imp : null,
+      // Thumbstop is the 3-second view rate - the same numerator as hook. Kept
+      // as its own name because that is what the creative team calls it.
+      hook: isVideo && imp ? (r.v3 || 0) / imp : null,
+      hold: isVideo && r.v3 ? (r.vtp || 0) / r.v3 : null,
+      completion: isVideo && r.vplays ? (r.v100 || 0) / r.vplays : null,
+      is_video: isVideo, format: tag,
+      age: origin ? Math.max(0, ymdDiff(today, origin)) : null,
+      material: r.spend >= floor,
+      share: totalSpend ? r.spend / totalSpend : 0,
+    };
+  });
+
+  // Formats present, so the UI can offer only filters that would match something.
+  const formats = [...new Set(rows.map(r => r.format).filter(Boolean))].sort();
+
+  let list = rows;
+  if (opts.format === 'video') list = list.filter(r => r.is_video);
+  else if (opts.format === 'static') list = list.filter(r => !r.is_video);
+  else if (opts.format) list = list.filter(r => r.format === opts.format);
+
+  /* Ratio sorts see MATERIAL ads only. A sort by best ROAS that surfaces
+     an ad with $12 of spend is not a ranking, it is a rounding error. Spend
+     and recency have no such problem and rank everything. */
+  const RATIO = new Set(['roas', 'cpa', 'ctr', 'cpm', 'hook', 'hold', 'completion', 'frequency']);
+  const sort = opts.sort || 'spend';
+  if (RATIO.has(sort)) list = list.filter(r => r.material);
+  if (sort === 'hook' || sort === 'hold' || sort === 'completion') list = list.filter(r => r.is_video);
+
+  const dir = sort === 'cpa' || sort === 'cpm' || sort === 'frequency' ? 1 : -1;  // lower is better
+  const key = sort === 'newest' ? (r => -(r.age ?? 1e9)) : (r => r[sort]);
+  list = list.slice().sort((a, b) => {
+    const av = key(a), bv = key(b);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;                 // nulls last, whichever direction
+    if (bv == null) return -1;
+    return (av - bv) * dir;
+  });
+
+  const limit = Math.min(Math.max(+opts.limit || 8, 1), 40);
+  const top = list.slice(0, limit);
+  return {
+    ads: top, formats,
+    matched: list.length,
+    total_spend: totalSpend,
+    shown_spend: top.reduce((n, r) => n + r.spend, 0),
+    floor, acct_cpa: acctCpa, sort,
+  };
+}
+
 async function adBreakdown(env, acct, windowDays, freshDays) {
   const today = localDate(acct.tz);
   const from = addDays(today, -windowDays);
@@ -3374,6 +3487,33 @@ export default {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         return json(await hourlyPacing(env, acct));
+      }
+
+      /* Live creative browser. Same rows the weekly report draws, but for any
+         window and any sort, and it fetches the creative asset only for the
+         handful of ads actually shown - one batched Meta call per view. */
+      if (path === '/api/ads') {
+        const act = url.searchParams.get('act');
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const today = localDate(acct.tz), yday = addDays(today, -1);
+        const ymd = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null;
+        let to = ymd(url.searchParams.get('to')) || yday;
+        if (to > yday) to = yday;                        // today is never complete
+        const days = Math.min(Math.max(+url.searchParams.get('days') || 30, 1), 400);
+        const from = ymd(url.searchParams.get('from')) || addDays(to, -(days - 1));
+        const r = await adRows(env, acct, from > to ? to : from, to, {
+          sort: url.searchParams.get('sort'),
+          format: url.searchParams.get('format'),
+          limit: url.searchParams.get('limit'),
+        });
+        // Assets for the shown ads only. Never fatal - the numbers are the point
+        // and a card with no image still answers the question.
+        let assets = {};
+        try { assets = await adThumbnails(env, r.ads.map(a => a.ad_id)); } catch { /* numbers still stand */ }
+        for (const a of r.ads) Object.assign(a, assets[a.ad_id] || {});
+        return json({ account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
+          from, to, ...r });
       }
 
       if (path === '/api/creative') {
