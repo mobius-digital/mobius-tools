@@ -3304,6 +3304,7 @@ export default {
     }
 
     if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
+
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       if (request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));

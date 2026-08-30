@@ -414,6 +414,22 @@
   .cb-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
   .cb-l{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--muted)}
   .cb-l select{font-weight:500;color:var(--ink)}
+  /* Custom menus, because a native select's OPEN list belongs to the OS. */
+  .cb-sel{position:relative;display:inline-block}
+  .cb-sel-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-strong);
+    border-radius:8px;padding:6px 10px;background:var(--surface);color:var(--ink);
+    font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+  .cb-sel-btn:hover{border-color:var(--brand)}
+  .cb-sel.open .cb-sel-btn{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .cb-sel-btn svg{color:var(--muted);flex:none}
+  .cb-sel-menu{display:none;position:absolute;left:0;top:calc(100% + 5px);z-index:25;min-width:100%;
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;padding:5px;
+    box-shadow:0 14px 34px rgba(12,22,29,.2);white-space:nowrap}
+  .cb-sel.open .cb-sel-menu{display:block}
+  .cb-sel-menu button{display:block;width:100%;text-align:left;padding:6px 10px;border-radius:6px;
+    font-size:13px;color:var(--ink);background:transparent}
+  .cb-sel-menu button:hover{background:var(--brand-soft)}
+  .cb-sel-menu button.on{background:var(--brand-soft);color:var(--brand-ink);font-weight:700}
   .cb-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
   /* Two rows of four, Cole's suggestion: a fixed short grid makes the SORT do
      the work, where an unbounded one invites scrolling past the answer. */
@@ -1649,8 +1665,18 @@ async function renderCreativeBrowser(host, act, range) {
      present in the window are listed, so a filter never returns nothing. */
   const TYPE_LABEL = { video: 'Video', image: 'Static', carousel: 'Carousel' };
   const types = [['', 'All types']].concat((d.types || []).map(t => [t === 'image' ? 'static' : t, TYPE_LABEL[t]]));
-  const sel = (k, opts, cur) => `<select data-cb="${k}">${opts.map(([v, l]) =>
-    `<option value="${v}"${String(v) === String(cur) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+  /* A native <select> can be styled SHUT but its open list is drawn by the
+     operating system and is unreachable from CSS - that is why these still read
+     as boxy the moment you opened one. Same custom menu the date control uses,
+     so every dropdown in Locus now looks the same open AND closed. */
+  const sel = (k, opts, cur) => {
+    const now = opts.find(o => String(o[0]) === String(cur)) || opts[0];
+    return `<span class="cb-sel" data-sel="${k}">
+      <button type="button" class="cb-sel-btn">${esc(String(now[1]))}
+        <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
+      <span class="cb-sel-menu" role="menu">${opts.map(([v, l]) =>
+        `<button type="button" role="menuitem" class="${String(v) === String(cur) ? 'on' : ''}" data-v="${esc(String(v))}">${esc(String(l))}</button>`).join('')}</span></span>`;
+  };
 
   host.innerHTML = `
     <div class="cb-bar">
@@ -1672,12 +1698,28 @@ async function renderCreativeBrowser(host, act, range) {
       <br><b>Source: Meta.</b> Spend, purchases, revenue, ROAS and CPA here are <b>Meta's own attributed figures</b> and match Ads Manager — they are not Triple Whale's, and they will not tie to the blended numbers on the other tabs.
       <span class="info-i" title="Triple Whale cannot currently supply ad-level rows to Locus: its Summary Page API is shop-level with no ad dimension, and the Pixel Attribution endpoint that does carry ad-level attribution returns 403 because our API key has not been granted the 'Pixel Attribution: Read' scope. Grant that scope in Triple Whale and these figures can move onto TW attribution; hook, hold, CTR and CPM would stay Meta's, since those are delivery metrics Triple Whale does not measure.">i</span></p>`;
 
-  host.querySelectorAll('select[data-cb]').forEach(el => el.onchange = () => {
-    const k = el.dataset.cb;
-    if (k === 'sort') CB.sort = el.value;
-    else if (k === 'fmt') CB.fmt = el.value;
-    else CB.limit = +el.value;
-    renderCreativeBrowser(host, act, range);
+  host.querySelectorAll('.cb-sel').forEach(w => {
+    const btn = w.querySelector('.cb-sel-btn');
+    btn.onclick = e => {
+      e.stopPropagation();
+      const open = !w.classList.contains('open');
+      // Only one menu open at a time, or two overlapping lists is the next bug.
+      host.querySelectorAll('.cb-sel.open').forEach(o => o.classList.remove('open'));
+      w.classList.toggle('open', open);
+    };
+    w.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+      const k = w.dataset.sel;
+      if (k === 'sort') CB.sort = b.dataset.v;
+      else if (k === 'fmt') CB.fmt = b.dataset.v;
+      else CB.limit = +b.dataset.v;
+      renderCreativeBrowser(host, act, range);
+    });
+  });
+  // A click anywhere else closes them. Bound on document because the menus are
+  // inside `host`, which this render replaces wholesale on every change.
+  document.addEventListener('click', function shut(ev) {
+    if (!host.isConnected) return document.removeEventListener('click', shut);
+    if (!ev.target.closest('.cb-sel')) host.querySelectorAll('.cb-sel.open').forEach(o => o.classList.remove('open'));
   });
 
   /* Freeze what is on screen and mint a link for the client. FROZEN, like the

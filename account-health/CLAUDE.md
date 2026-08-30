@@ -291,3 +291,43 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
   out rather than throwing.
 - **Inline image budget is 700KB total / 150KB per image.** The whole report is
   ONE D1 row; full-resolution statics were on course to crowd out the numbers.
+
+## Triple Whale attribution IS available — the old note here was wrong (2026-08-30)
+
+**Corrected.** An earlier line in this file said the Attribution endpoint "returns
+403 until the API key is granted the `Pixel Attribution: Read` scope (ours is
+not)". **That is false.** Cole said the key had full access; he was right and the
+note was wrong. Measured live on 2026-08-30:
+
+- `POST /api/v2/attribution/get-orders-with-journeys-v2` → **200**.
+- The path needs the **`-v2` suffix**. Without it TW returns `404 Not found`,
+  which reads exactly like a missing route and was misread as a missing scope
+  for six attempts. `/attribution/get-ads-data`, `/attribution/stats`,
+  `/pixel/attribution`, `/tw-metrics/metrics-data` and `/metrics/get-data` all
+  404 — they do not exist.
+- **The body key is `shopDomain`, not `shopId`.** `shopId` returns
+  `403 Access Denied`, which ALSO reads like a permission problem and is not.
+  A control call to the known-good `summary-page/get-data` is what separated the
+  two: same key, 403 with `shopId`, 200 with `shopDomain`.
+
+**LESSON, and it is the same one as the Meta system-user saga earlier the same
+day: 403 and 404 from a third party are not evidence about permissions until a
+KNOWN-GOOD call has been made with the same key. Always probe with a control.**
+
+**What the endpoint actually returns:** order-level journeys, not aggregated ad
+metrics. Each order carries `order_id`, `total_price`, `created_at`,
+`customer_id`, and `attribution` with six models — `firstClick`, `lastClick`,
+`fullFirstClick`, `fullLastClick`, `lastPlatformClick`, `linear`, `linearAll` —
+each an array of touchpoints. **A touchpoint carries `source`, `campaignId`,
+`adsetId`, `adId` and `clickDate`** (verified on Lucky Golf; `source` values seen
+include `facebook-ads`, `google-ads`, `organic_and_social`, `Excluded`).
+
+So TW-attributed **ad-level** revenue is derivable: page through the orders for a
+window, walk each order's touchpoints under the chosen model, and credit
+`total_price` to the `adId`. Paged — the response carries `count`, `page` and
+`finishedRange`. Non-paid touchpoints have an empty `adId` and must be dropped.
+
+**Consequence for Locus:** the creative browser's spend/hook/hold/CTR/CPM stay
+Meta-sourced (delivery metrics TW does not measure), but purchases, revenue,
+ROAS and CPA CAN move to Triple Whale attribution, which is Cole's stated
+preference: TW for anything attribution-shaped, Meta only as a last resort.
