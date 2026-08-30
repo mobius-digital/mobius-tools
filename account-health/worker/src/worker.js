@@ -1590,14 +1590,41 @@ async function adPreviewLinks(env, adIds) {
 async function adThumbnails(env, adIds) {
   const out = {};
   if (!env.META_TOKEN || !adIds.length) return out;
-  let budget = 420_000;                       // total base64 to inline, keeps the row sane
+  // Ad-level facts for the detail view, in ONE batched call rather than per ad.
+  let metaById = {};
+  try {
+    metaById = await meta(env, '', {
+      ids: adIds.slice(0, 10).join(','),
+      fields: 'created_time,effective_status,campaign{name},adset{name}',
+    }) || {};
+  } catch { /* the cards still work without status and dates */ }
+  // 480px covers the card at roughly 2x without the weight of a full-res asset,
+  // which cannot be baked in: a frozen report has to carry its own images.
+  let budget = 900_000;                       // total base64 to inline across the report
   for (const id of adIds.slice(0, 10)) {
     try {
       const r = await meta(env, `${id}/adcreatives`, {
-        fields: 'thumbnail_url,object_type,video_id,object_story_spec,asset_feed_spec',
-        thumbnail_width: 320, thumbnail_height: 320, limit: 1,
+        fields: 'thumbnail_url,image_url,object_type,video_id,object_story_spec,asset_feed_spec,body,title',
+        thumbnail_width: 480, thumbnail_height: 480, limit: 1,
       });
       const c = r?.data?.[0];
+      const m = metaById[id] || {};
+      // The words in the ad. Page-post ads keep them in object_story_spec (link_data
+      // for a static, video_data for a video); Advantage+ ads keep several of each
+      // in asset_feed_spec, where the first is the primary variant.
+      const ld = c?.object_story_spec?.link_data, vd = c?.object_story_spec?.video_data;
+      const afs = c?.asset_feed_spec || {};
+      const copy = {
+        body: vd?.message || ld?.message || afs.bodies?.[0]?.text || c?.body || null,
+        headline: vd?.title || ld?.name || afs.titles?.[0]?.text || c?.title || null,
+        description: ld?.description || afs.descriptions?.[0]?.text || null,
+        cta: vd?.call_to_action?.type || ld?.call_to_action?.type || afs.call_to_action_types?.[0] || null,
+        status: m.effective_status || null,
+        created: m.created_time ? String(m.created_time).slice(0, 10) : null,
+        campaign: m.campaign?.name || null,
+        adset: m.adset?.name || null,
+      };
+      Object.assign(out[id] ??= {}, copy);
       // Video hides in several places depending on how the ad was built: a
       // top-level video_id, inside object_story_spec.video_data for a page-post
       // ad, or in asset_feed_spec.videos for a dynamic/Advantage+ creative.
@@ -1605,19 +1632,46 @@ async function adThumbnails(env, adIds) {
       const isVideo = !!(c?.video_id || c?.object_type === 'VIDEO'
         || c?.object_story_spec?.video_data
         || (Array.isArray(c?.asset_feed_spec?.videos) && c.asset_feed_spec.videos.length));
-      if (!c?.thumbnail_url) { out[id] = { thumb: null, video: isVideo }; continue; }
-      const img = await fetch(c.thumbnail_url);
-      if (!img.ok) { out[id] = { thumb: null, video: isVideo }; continue; }
-      const buf = await img.arrayBuffer();
-      if (buf.byteLength > 60_000 || buf.byteLength * 1.34 > budget) { out[id] = { thumb: null, video: isVideo }; continue; }
-      // Chunked: spreading a 60k array into String.fromCharCode blows the stack.
-      const bytes = new Uint8Array(buf);
-      let bin = '';
-      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-      const b64 = btoa(bin);
-      budget -= b64.length;
-      out[id] = { thumb: `data:${img.headers.get('content-type') || 'image/jpeg'};base64,${b64}`, video: isVideo };
-    } catch { /* no thumbnail for this ad; the row still renders */ }
+      out[id].video = isVideo;
+      /* WHY VIDEO ADS SHOW A POOR COVER IMAGE (measured 2026-08-30, Lucky Golf).
+       * These ads are built from EXISTING PAGE POSTS, so the video object belongs
+       * to the Facebook Page, not the ad account. Our token is the "Mobius Tools"
+       * user with ads_read + business_management + public_profile ONLY, and
+       * `me/accounts` is empty — so `/{video_id}?fields=source,picture` returns
+       * "does not exist, cannot be loaded due to missing permissions", and the
+       * creative reports object_type PRIVACY_CHECK_FAIL with no image_url. Meta
+       * then hands back the PAGE AVATAR as thumbnail_url, which is why three of
+       * Lucky's four video ads showed the same clover logo.
+       * The ad account DOES own 669 videos and those DO expose a real `source`
+       * mp4 — so the fix is page access (a page-scoped token via
+       * pages_read_engagement), not a different field. Until then: no cover
+       * frame and no inline playback for page-post videos. Statics are
+       * unaffected — image_url works today. */
+      // `image_url` is the ORIGINAL static creative — real resolution, real aspect
+      // ratio, no square crop — so it is tried first and `thumbnail_url` is the
+      // fallback. Video ads have no image_url at all (see the note below).
+      const sources = [c?.image_url, c?.thumbnail_url].filter(Boolean);
+      let picked = null;
+      for (const src of sources) {
+        try {
+          const img = await fetch(src);
+          if (!img.ok) continue;
+          const buf = await img.arrayBuffer();
+          if (buf.byteLength > 250_000 || buf.byteLength * 1.34 > budget) continue;   // try the smaller source
+          // Chunked: spreading a 250k array into String.fromCharCode blows the stack.
+          const bytes = new Uint8Array(buf);
+          let bin = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+          picked = { b64: btoa(bin), type: img.headers.get('content-type') || 'image/jpeg' };
+          break;
+        } catch { /* try the next source */ }
+      }
+      if (!picked) { out[id].thumb = null; continue; }
+      budget -= picked.b64.length;
+      // Assign the field, never the object — the ad's copy and metadata are
+      // already on it, and replacing it here silently dropped all of them.
+      out[id].thumb = `data:${picked.type};base64,${picked.b64}`;
+    } catch { /* no creative for this ad; the card still renders its numbers */ }
   }
   return out;
 }
@@ -1760,12 +1814,21 @@ async function reportData(env, acct, period, start, end) {
     const { results: adRows } = await env.DB.prepare(
       `SELECT d.ad_id, SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue,
               SUM(d.impressions) AS impressions, SUM(d.link_clicks) AS clicks,
-              SUM(d.video_3s) AS v3, SUM(d.video_thruplay) AS vtp,
+              SUM(d.video_3s) AS v3, SUM(d.video_thruplay) AS vtp, SUM(d.video_p100) AS vp100,
               COALESCE(a.name, d.ad_id) AS name
        FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
        WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
        GROUP BY d.ad_id HAVING SUM(d.spend) > 0 ORDER BY spend DESC LIMIT 500`,
     ).bind(acct.act_id, start, end).all();
+    // The SAME ads in the prior period, so each card can say whether it is being
+    // scaled or wound down. A card without this reads as a snapshot with no
+    // direction, which is the thing a weekly report exists to show.
+    const { results: prevAdRows } = await env.DB.prepare(
+      `SELECT d.ad_id, SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue
+       FROM ad_daily d WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
+       GROUP BY d.ad_id HAVING SUM(d.spend) > 0`,
+    ).bind(acct.act_id, prevStart, prevEnd).all();
+    const prevById = Object.fromEntries(prevAdRows.map(r => [r.ad_id, r]));
     const floor = Math.max(50, metaSpend * 0.03);
     const TOP_N = 10;
     const qualified = adRows.filter(r => r.spend >= floor);
@@ -1786,9 +1849,28 @@ async function reportData(env, acct, period, start, end) {
       ctr: r.impressions && r.clicks ? r.clicks / r.impressions : null,
       hook: r.impressions && r.v3 ? r.v3 / r.impressions : null,
       hold: r.v3 ? (r.vtp || 0) / r.v3 : null,
+      completion: r.v3 ? (r.vp100 || 0) / r.v3 : null,   // watched to the end, of those it stopped
       preview: previews[r.ad_id] || null,
       thumb: thumbs[r.ad_id]?.thumb || null,
       video: !!thumbs[r.ad_id]?.video,
+      ad_id: r.ad_id,
+      // The ad's own words, plus where it lives — everything the detail view needs
+      // is frozen with the numbers, so an archived report stays complete.
+      headline: thumbs[r.ad_id]?.headline || null,
+      body: thumbs[r.ad_id]?.body || null,
+      description: thumbs[r.ad_id]?.description || null,
+      cta: thumbs[r.ad_id]?.cta || null,
+      status: thumbs[r.ad_id]?.status || null,
+      created: thumbs[r.ad_id]?.created || null,
+      campaign: thumbs[r.ad_id]?.campaign || null,
+      adset: thumbs[r.ad_id]?.adset || null,
+      impressions: r.impressions || null,
+      clicks: r.clicks || null,
+      prev_spend: prevById[r.ad_id]?.spend ?? null,
+      prev_roas: prevById[r.ad_id]?.spend && prevById[r.ad_id]?.revenue
+        ? prevById[r.ad_id].revenue / prevById[r.ad_id].spend : null,
+      prev_cpa: prevById[r.ad_id]?.purchases
+        ? prevById[r.ad_id].spend / prevById[r.ad_id].purchases : null,
     });
     // Format split from the account's own naming convention — "310 B | Still",
     // "Cole - 3 | UGC". The segment after the last pipe is the format, so no

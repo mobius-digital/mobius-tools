@@ -214,15 +214,35 @@
   .ad-frame iframe{border:0;display:block}
   .ad-close{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;cursor:pointer;
     background:rgba(0,0,0,.62);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
-  .ad-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:7px;min-width:0}
-  .ad-body .ad-name{font-size:13px;font-weight:600;max-width:100%}
-  .ad-bar{height:4px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:4px}
-  .ad-bar i{display:block;height:100%;background:var(--brand-ink)}
-  .ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px}
-  .ad-stats>div{min-width:0}
-  .ad-stats span{display:block;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
-  .ad-stats b{font-size:13.5px;font-weight:700}
-  .ad-stats em{font-style:normal;font-size:10px;color:var(--muted);font-weight:600}
+  .ad-body{padding:11px 13px 13px;display:flex;flex-direction:column;gap:2px;min-width:0}
+  .ad-body .ad-name{font-size:13px;font-weight:600;max-width:100%;margin-bottom:6px}
+  /* Stats read as VERTICAL rows — label left, value right — because that is how
+     the eye scans a list of unlike quantities. A horizontal grid made you read
+     each column heading to know what the number was. */
+  .ad-stats{display:flex;flex-direction:column}
+  .ad-row{display:flex;align-items:baseline;gap:8px;padding:4px 0;border-top:1px solid var(--line)}
+  .ad-row:first-child{border-top:0}
+  .ad-row>span{font-size:11.5px;color:var(--muted);flex:1;min-width:0}
+  .ad-row>b{font-size:13.5px;font-weight:700;white-space:nowrap}
+  .ad-row .dlt{font-size:10.5px;font-weight:700;padding:1px 5px;border-radius:5px;white-space:nowrap}
+  .ad-row .dlt.up{background:var(--good-bg);color:var(--good)}
+  .ad-row .dlt.dn{background:var(--bad-bg);color:var(--bad)}
+  .ad-row .meter{flex:none;width:52px;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+  .ad-row .meter i{display:block;height:100%}
+  .ad-more{margin-top:9px;width:100%;border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;
+    padding:6px 0;font:inherit;font-size:12px;font-weight:600;color:var(--ink);cursor:pointer}
+  .ad-more:hover{border-color:var(--brand-ink);color:var(--brand-ink)}
+  /* Detail view: the creative big on the left, everything we know on the right. */
+  .adm{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:20px}
+  .adm-media{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);position:relative}
+  .adm-media img{width:100%;display:block}
+  .adm-copy{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg);margin-bottom:14px}
+  .adm-copy .hd{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin-bottom:3px;padding:0}
+  .adm-copy .bd{font-size:13px;line-height:1.55;white-space:pre-wrap}
+  .adm-facts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .adm-facts span{font-size:11.5px;border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--muted)}
+  .adm-facts span b{color:var(--ink);font-weight:700}
+  @media(max-width:720px){.adm{grid-template-columns:1fr}}
   @media(max-width:420px){.ad-grid{grid-template-columns:1fr}}
   a.ad-link{color:var(--ink);text-decoration:none;max-width:320px}
   a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
@@ -1912,36 +1932,50 @@ function reportBodyHTML(d, summary, opts = {}) {
     const A = d.ads;
     if (!A?.top?.length) return '';
     const o = A.others;
-    const anyHook = A.top.some(a => a.hook != null);
     // Motion's published benchmarks, not our own measurement — the ⓘ says so.
     // A word beside the number, never colour alone.
     const rate = (v, ok, strong) => v == null ? null
       : { pct: fmtPct(v), tag: v >= strong ? 'strong' : v >= ok ? 'average' : 'low' };
-    const stat = (label, val, sub) => `<div><span>${label}</span><b>${val}</b>${sub ? `<em>${sub}</em>` : ''}</div>`;
+    // A delta only earns its place when there is a real prior figure to compare
+    // with; a brand-new ad gets nothing rather than a misleading +100%.
+    const dlt = (now, then, lower) => {
+      if (now == null || then == null || !then) return '';
+      const off = Math.round((now / then - 1) * 100);
+      if (off === 0) return '';
+      const good = lower ? off < 0 : off > 0;
+      return ` <span class="dlt ${good ? 'up' : 'dn'}">${off > 0 ? '+' : ''}${off}%</span>`;
+    };
+    // label … value delta — the value is what you scan down the column, the
+    // change qualifies it, so the change reads after it.
+    const row = (label, val, extra, before) => `<div class="ad-row"><span>${label}</span>${before || ''}<b>${val}</b>${extra || ''}</div>`;
+    const meter = (v, ok, strong) => v == null ? '' :
+      `<span class="meter"><i style="width:${Math.min(100, Math.round(v * 100 / strong * 0.9))}%;background:${v >= strong ? 'var(--good)' : v >= ok ? 'var(--warn)' : 'var(--bad)'}"></i></span>`;
     const card = (a, i) => {
       const hook = rate(a.hook, 0.20, 0.30), hold = rate(a.hold, 0.40, 0.60);
       const media = a.thumb
         ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
         : `<span aria-hidden="true">${a.video ? '&#9654;' : '&#9633;'}</span>`;
-      return `<article class="ad-card">
-        <div class="ad-media${a.thumb ? '' : ' none'}"${a.preview ? ` data-src="${esc(a.preview)}"` : ''}>
+      // Play ONLY on a real video. It was previously shown whenever a preview
+      // link existed, which put a play badge on every static in the report.
+      const canPlay = a.video && a.preview;
+      return `<article class="ad-card" data-ad="${i}">
+        <div class="ad-media${a.thumb ? '' : ' none'}"${canPlay ? ` data-src="${esc(a.preview)}"` : ''}>
           ${media}<span class="ad-rank">${i + 1}</span>
-          ${a.preview ? `<button class="ad-play" type="button" title="Play the ad here"><i>&#9654;</i></button>` : ''}
+          ${canPlay ? `<button class="ad-play" type="button" title="Play this video ad"><i>&#9654;</i></button>` : ''}
         </div>
         <div class="ad-body">
           ${a.preview
             ? `<a class="ad-name ad-link" href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" title="${esc(a.name)}">${esc(a.name)}<span class="ext">↗</span></a>`
             : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}
-          <div><b style="font-size:15px">${money(a.spend)}</b> <span class="tiny">${fmtPct(a.share)} of Meta spend</span>
-            <div class="ad-bar"><i style="width:${Math.max(2, Math.min(100, (a.share || 0) * 100)).toFixed(1)}%"></i></div></div>
           <div class="ad-stats">
-            ${stat('Purchases', fmtInt(a.purchases))}
-            ${stat('CPA', a.cpa != null ? money(a.cpa) : '—')}
-            ${stat('ROAS', a.roas != null ? fmtX(a.roas) : '—')}
-            ${anyHook ? stat('Hook', hook ? hook.pct : '—', hook ? hook.tag : '') : ''}
-            ${anyHook ? stat('Hold', hold ? hold.pct : '—', hold ? hold.tag : '') : ''}
-            ${anyHook ? stat('CTR', a.ctr != null ? fmtPct(a.ctr, 2) : '—') : ''}
+            ${row('Spend', money(a.spend), dlt(a.spend, a.prev_spend))}
+            ${row('ROAS', a.roas != null ? fmtX(a.roas) : '—', dlt(a.roas, a.prev_roas))}
+            ${row('CPA', a.cpa != null ? money(a.cpa) : '—', dlt(a.cpa, a.prev_cpa, true))}
+            ${row('Purchases', fmtInt(a.purchases))}
+            ${a.hook != null ? row('Hook rate', hook.pct, '', meter(a.hook, 0.20, 0.30)) : ''}
+            ${a.hold != null ? row('Hold rate', hold.pct, '', meter(a.hold, 0.40, 0.60)) : ''}
           </div>
+          <button class="ad-more" type="button" data-more="${i}">Copy &amp; full stats</button>
         </div></article>`;
     };
     const metricInfo = 'Spend, purchases, CPA and ROAS are Meta-reported for this ad. '
@@ -2098,7 +2132,66 @@ const PREVIEW_W = 340, PREVIEW_H = 620;
  *
  *  The thumbnail stays in the DOM underneath, so closing the player is just
  *  removing the frame — and if a token has expired, the image is still there. */
-function wireAdCards() {
+const CTA_LABEL = {
+  SHOP_NOW: 'Shop Now', LEARN_MORE: 'Learn More', SIGN_UP: 'Sign Up', BUY_NOW: 'Buy Now',
+  GET_OFFER: 'Get Offer', ORDER_NOW: 'Order Now', SUBSCRIBE: 'Subscribe', CONTACT_US: 'Contact Us',
+  DOWNLOAD: 'Download', BOOK_TRAVEL: 'Book Now', GET_QUOTE: 'Get Quote', APPLY_NOW: 'Apply Now',
+};
+
+/** The detail view behind "Copy & full stats". Everything the card had no room
+ *  for: the words the ad actually ran, where it lives, and the metrics that
+ *  matter once you have already decided to look closely. All of it is frozen
+ *  into the report, so an archived one opens exactly the same way. */
+function adDetailModal(a, cur, prevTag) {
+  const money = n => fmtMoney(n, cur);
+  const fact = (label, val) => val ? `<span>${label} <b>${esc(String(val))}</b></span>` : '';
+  const line = (label, val, note) => val == null ? '' :
+    `<tr><td>${label}</td><td class="num"><b>${val}</b></td><td class="tiny">${note || ''}</td></tr>`;
+  const pctOr = (v, d = 0) => v == null ? null : fmtPct(v, d);
+  const days = a.created ? Math.round((Date.now() - new Date(a.created + 'T12:00:00Z')) / 86400e3) : null;
+  const body = `<div class="adm">
+    <div>
+      <div class="adm-media">${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
+        : '<div style="padding:40px;text-align:center;color:var(--muted);font-size:13px">No image available</div>'}</div>
+      ${a.preview ? `<p style="margin-top:10px"><a href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" style="font-size:12.5px">Open the full ad preview ↗</a></p>` : ''}
+    </div>
+    <div>
+      <div class="adm-facts">
+        ${fact('', a.video ? 'Video' : 'Image')}
+        ${fact('Status', a.status ? a.status.toLowerCase().replace(/_/g, ' ') : null)}
+        ${fact('Live since', a.created)}
+        ${days != null ? `<span>Running <b>${days} days</b></span>` : ''}
+        ${fact('CTA', a.cta ? (CTA_LABEL[a.cta] || a.cta.toLowerCase().replace(/_/g, ' ')) : null)}
+      </div>
+      ${a.headline ? `<div class="adm-copy"><div class="hd">Headline</div><div class="bd">${esc(a.headline)}</div></div>` : ''}
+      ${a.body ? `<div class="adm-copy"><div class="hd">Primary text</div><div class="bd">${esc(a.body)}</div></div>` : ''}
+      ${a.description ? `<div class="adm-copy"><div class="hd">Description</div><div class="bd">${esc(a.description)}</div></div>` : ''}
+      ${!a.headline && !a.body ? '<p class="hint" style="margin-bottom:14px">The ad\'s text was not available from Meta for this creative.</p>' : ''}
+      <div class="tbl-wrap"><table><thead><tr><th>This ${prevTag}</th><th class="num"></th><th></th></tr></thead><tbody>
+        ${line('Spend', money(a.spend), a.prev_spend != null ? `prior ${prevTag} ${money(a.prev_spend)}` : '')}
+        ${line('Share of Meta spend', pctOr(a.share))}
+        ${line('Purchases', fmtInt(a.purchases))}
+        ${line('Revenue', a.revenue != null ? money(a.revenue) : null)}
+        ${line('CPA', a.cpa != null ? money(a.cpa) : null, a.prev_cpa != null ? `prior ${prevTag} ${money(a.prev_cpa)}` : '')}
+        ${line('ROAS', a.roas != null ? fmtX(a.roas) : null, a.prev_roas != null ? `prior ${prevTag} ${fmtX(a.prev_roas)}` : '')}
+        ${line('Impressions', a.impressions != null ? fmtInt(a.impressions) : null)}
+        ${line('Link clicks', a.clicks != null ? fmtInt(a.clicks) : null)}
+        ${line('CTR', pctOr(a.ctr, 2), 'link clicks divided by impressions')}
+        ${line('Hook rate', pctOr(a.hook), '3-second views over impressions — 30%+ is strong')}
+        ${line('Hold rate', pctOr(a.hold), 'ThruPlay over 3-second views — 60%+ is strong')}
+        ${line('Watched to the end', pctOr(a.completion), 'of the people it stopped')}
+      </tbody></table></div>
+      ${a.campaign || a.adset ? `<p class="tiny" style="margin-top:10px">${a.campaign ? `Campaign <b>${esc(a.campaign)}</b>` : ''}${a.adset ? ` · Ad set <b>${esc(a.adset)}</b>` : ''}</p>` : ''}
+    </div></div>`;
+  helpModal(a.name, body);
+}
+
+function wireAdCards(ads, cur, prevTag) {
+  const rows = ads?.top || [];
+  document.querySelectorAll('#main [data-more]').forEach(b => b.onclick = () => {
+    const a = rows[+b.dataset.more];
+    if (a) adDetailModal(a, cur, prevTag);
+  });
   document.querySelectorAll('#main .ad-media[data-src]').forEach(m => {
     const btn = m.querySelector('.ad-play');
     if (!btn) return;
@@ -2223,7 +2316,7 @@ async function renderReports(first) {
     ${configCard}
     ${body}`);
 
-  if (d) { wireReportChart(d, acct?.currency, true); wireAdCards(); }
+  if (d) { wireReportChart(d, acct?.currency, true); wireAdCards(d.ads, acct?.currency, d.period === 'weekly' ? 'week' : 'month'); }
 
   /* chip → open that report */
   document.querySelectorAll('#main [data-rp]').forEach(b => b.onclick = () => {
@@ -2362,7 +2455,7 @@ async function renderReportsShare(token, sel) {
     ${picker}
     ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, {})}`;
   wireReportChart(r.data || {}, cur, false);
-  wireAdCards();
+  wireAdCards(r.data?.ads, cur, r.period === 'weekly' ? 'week' : 'month');
   const pk = $('#rsPick');
   if (pk) pk.onchange = () => { const [pp, ss] = pk.value.split('|'); renderReportsShare(token, { period: pp, start: ss }); };
   finish();
