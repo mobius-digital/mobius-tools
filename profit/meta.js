@@ -766,17 +766,15 @@ async function renderCreative() {
     <h3 style="font-family:var(--serif);font-weight:400;font-size:20px;margin:26px 0 2px">Are we coasting on old ads?</h3>
     ${setupBanner()}
     <div class="row">
-      <span class="tiny" style="font-weight:700" title="An ad younger than this counts as new">An ad is “new” for its first:</span>
+      <span class="tiny" style="font-weight:700" title="An ad younger than this counts as new. This is a DEFINITION, not a date range - the date range comes from the period control at the top.">An ad is “new” for its first:</span>
       ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">${v} days</button>`).join('')}
-      <span class="tiny" style="font-weight:700;margin-left:14px" title="The cards look at spend from this recent period">Look at the last:</span>
-      ${[['1', '1 day'], ['7', '7 days'], ['14', '14 days']].map(([v, l]) => `<button class="chip ${CR.win === v ? 'on' : ''}" data-g="${v}">${l}</button>`).join('')}
+      <span class="tiny" style="margin-left:12px">Measured over <b>${esc(periodLabel())}</b> — change it at the top.</span>
       <span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="creative">? How to use</button>
     </div>
     <div id="crBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
   document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
     if (c.dataset.f) { CR.fresh = c.dataset.f; localStorage.setItem('ah_cr_fresh', CR.fresh); }
-    if (c.dataset.g) { CR.win = c.dataset.g; localStorage.setItem('ah_cr_win', CR.win); }
     renderCreative();
   });
   /* The live card browser, for one client at a time - "top ads by X" is not a
@@ -788,7 +786,9 @@ async function renderCreative() {
   const targets = single ? [single] : active;
   if (!targets.length) { $('#crBody').innerHTML = ''; return; }
   try {
-    const res = await Promise.all(targets.map(a => api(`/api/creative?act=${a.act_id}&fresh=${CR.fresh}&window=${CR.win}`)));
+    const rg = window.resolveRange ? resolveRange() : null;
+    const winQ = rg ? `&from=${rg.from}&to=${rg.to}` : `&window=${CR.win}`;
+    const res = await Promise.all(targets.map(a => api(`/api/creative?act=${a.act_id}&fresh=${CR.fresh}${winQ}`)));
     $('#crBody').innerHTML = res.map((d, i) => {
       const head = single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`;
       const bf = d.backfill;
@@ -954,6 +954,15 @@ const SUBS = [
   ['averages', 'Averages', renderAverages],
   ['creative', 'Creative', renderCreative],
 ];
+/** The shared period control's label, for sections that follow it. Host-owned;
+ *  falls back if meta.js is ever loaded without it. */
+function periodLabel() {
+  if (!window.resolveRange || !window.prettyDate) return 'the selected period';
+  const r = resolveRange();
+  return r.from === r.to ? prettyDate(r.from, true)
+    : `${prettyDate(r.from, r.from.slice(0, 4) !== r.to.slice(0, 4))} – ${prettyDate(r.to, true)}`;
+}
+
 const HELP_TITLES = { overview: 'Meta at a glance', today: 'Today', changelog: 'The Change Log',
   averages: 'Averages', creative: 'Creative Rotation' };
 /* Same short-first shape as the host page's help - see PAGE_BRIEF there for

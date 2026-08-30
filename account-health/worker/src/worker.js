@@ -939,7 +939,7 @@ async function suggestGoals(env, acct) {
   const { results } = await env.DB.prepare(
     `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3
      AND metric IN ('netSales','totalSales','newCustomerSales','blendedAds','ga_adCost','grossProfit','totalProductCosts','totalPaymentGatewayCosts','totalNetTaxes')`,
-  ).bind(acct.act_id, from, today).all();
+  ).bind(acct.act_id, from, addDays(win ? win.to : today, 1)).all();
   const piv = {};
   for (const r of results) (piv[r.metric] ??= {})[r.date] = r.value;
   const dates = Object.keys(piv.netSales || piv.totalSales || {}).sort();
@@ -2961,9 +2961,10 @@ async function adRows(env, acct, from, to, opts = {}) {
   };
 }
 
-async function adBreakdown(env, acct, windowDays, freshDays) {
+async function adBreakdown(env, acct, windowDays, freshDays, win = null) {
   const today = localDate(acct.tz);
-  const from = addDays(today, -windowDays);
+  const from = win ? win.from : addDays(today, -windowDays);
+  const to = win ? addDays(win.to, 1) : today;
   const { results } = await env.DB.prepare(
     `SELECT d.ad_id, a.name, a.first_spend_date, a.created_time,
             SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue, SUM(d.impressions) AS impressions
@@ -2971,7 +2972,7 @@ async function adBreakdown(env, acct, windowDays, freshDays) {
      WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date < ?3
      GROUP BY d.ad_id HAVING SUM(d.spend) > 0
      ORDER BY spend DESC LIMIT 40`,
-  ).bind(acct.act_id, from, today).all();
+  ).bind(acct.act_id, from, to).all();
   if (!results.length) return null;
   const tot = results.reduce((a, r) => ({ spend: a.spend + r.spend, purch: a.purch + r.purchases }), { spend: 0, purch: 0 });
   const acctCpa = tot.purch ? tot.spend / tot.purch : null;
@@ -2990,12 +2991,19 @@ async function adBreakdown(env, acct, windowDays, freshDays) {
       revenue: r.revenue, cpa, roas: r.spend ? r.revenue / r.spend : null,
       share: tot.spend ? r.spend / tot.spend : 0, age, fresh: age != null && age <= freshDays, verdict };
   });
-  return { window: windowDays, acct_cpa: acctCpa, total_spend: tot.spend, ads };
+  return { window: windowDays, from, acct_cpa: acctCpa, total_spend: tot.spend, ads };
 }
 
-async function creative(env, acct, freshDays, windowDays) {
+/* `win` is {from,to} when the caller has a real date range - the shared period
+   control - and null for the old "last N days" behaviour. The freshness cards
+   compare the window against the SAME LENGTH immediately before it, so an
+   arbitrary range works as well as a day count. The 97-day history behind the
+   weekly trend chart is separate and unaffected: that chart is about the shape
+   over time, not about the selected window. */
+async function creative(env, acct, freshDays, windowDays, win = null) {
   const today = localDate(acct.tz);
-  const from = addDays(today, -97);
+  const histFrom = win ? addDays(win.from, -97) : addDays(today, -97);
+  const from = histFrom;
   const { results: rows } = await env.DB.prepare(
     `SELECT d.date, d.spend, d.purchases, a.first_spend_date, a.created_time
      FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
@@ -3011,7 +3019,10 @@ async function creative(env, acct, freshDays, windowDays) {
     r.age = Math.max(0, ymdDiff(r.date, origin));
   }
 
-  const winFrom = addDays(today, -windowDays), prevFrom = addDays(today, -2 * windowDays);
+  const span = win ? Math.max(1, ymdDiff(win.to, win.from) + 1) : windowDays;
+  const winTo = win ? win.to : addDays(today, -1);
+  const winFrom = win ? win.from : addDays(today, -windowDays);
+  const prevFrom = addDays(winFrom, -span);
   const split = list => {
     const s = { freshSpend: 0, freshPurch: 0, staleSpend: 0, stalePurch: 0, ageSpend: 0, total: 0 };
     for (const r of list) {
@@ -3021,7 +3032,7 @@ async function creative(env, acct, freshDays, windowDays) {
     }
     return s;
   };
-  const cur = split(rows.filter(r => r.date >= winFrom));
+  const cur = split(rows.filter(r => r.date >= winFrom && r.date <= winTo));
   const prev = split(rows.filter(r => r.date >= prevFrom && r.date < winFrom));
 
   const weekStart = d => { const dt = new Date(d + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay()); return dt.toISOString().slice(0, 10); };
@@ -3053,7 +3064,7 @@ async function creative(env, acct, freshDays, windowDays) {
       staleCpa: cur.stalePurch ? cur.staleSpend / cur.stalePurch : null,
     },
     weekly,
-    ads: await adBreakdown(env, acct, Math.max(windowDays, 7), freshDays),
+    ads: await adBreakdown(env, acct, Math.max(span, 7), freshDays, win),
     insight: half >= 3 ? {
       n: half,
       topShare: avgShare(ranked.slice(0, half)), topCpa: median(ranked.slice(0, half)),
@@ -3825,6 +3836,10 @@ export default {
       }
 
       if (path === '/api/creative') {
+        // from/to come from the shared period control; `window` remains for any
+        // caller that still asks in days.
+        var _cvFrom = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') || '') ? url.searchParams.get('from') : null;
+        var _cvTo = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('to') || '') ? url.searchParams.get('to') : null;
         const act = url.searchParams.get('act');
         const freshDays = Math.min(+url.searchParams.get('fresh') || 14, 60);
         const windowDays = Math.min(+url.searchParams.get('window') || 14, 30);
@@ -3837,7 +3852,8 @@ export default {
           const missing = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND created_time IS NULL`).bind(act).first();
           if (missing?.n > 0) ctx.waitUntil(syncAdMeta(env, acct).catch(() => {}));  // heal ages for pre-history ads
         }
-        const r = await creative(env, acct, freshDays, windowDays);
+        const r = await creative(env, acct, freshDays, windowDays,
+          _cvFrom && _cvTo ? { from: _cvFrom, to: _cvTo } : null);
         if (backfill && !backfill.done) r.backfill = backfill;   // progress or error for the banner
         return json(r);
       }

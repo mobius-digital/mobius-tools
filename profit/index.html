@@ -2130,6 +2130,13 @@ function resolveRange() {
   return { from: ymd(f), to, preset: String(n) };
 }
 
+/* meta.js runs in its own closure and reads these off `window`. `function`
+   declarations land there on their own; `const` arrows do not, which is why
+   `prettyDate` has to be handed over explicitly - without it the Creative
+   section's "measured over …" label silently degraded to a generic phrase. */
+window.prettyDate = prettyDate;
+window.daySpan = daySpan;
+
 /** Query string for the data endpoints. A plain "N days ending yesterday" still
  *  goes out as `days` so nothing that predates the bar changes behaviour; only
  *  Last month and a custom range need explicit dates. */
