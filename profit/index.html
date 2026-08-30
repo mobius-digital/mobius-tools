@@ -226,19 +226,31 @@
     color:#fff;font-size:12px;background:rgba(0,0,0,.45)}
   .ad-close{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;cursor:pointer;
     background:rgba(0,0,0,.62);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
-  .ad-body{padding:11px 13px 13px;display:flex;flex-direction:column;gap:2px;min-width:0}
-  .ad-body .ad-name{font-size:13px;font-weight:600;max-width:100%;margin-bottom:6px}
+  .ad-body{padding:13px 14px 14px;display:flex;flex-direction:column;gap:0;min-width:0}
+  .ad-body .ad-name{font-size:15px;font-weight:700;max-width:100%;margin-bottom:10px;line-height:1.3;
+    white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* Type and length sit ON the creative, where the eye already is. */
+  .ad-type{position:absolute;bottom:8px;left:8px;padding:2px 8px;border-radius:6px;
+    background:rgba(0,0,0,.62);color:#fff;font-size:10.5px;font-weight:700}
+  .ad-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+  .ad-chips span{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:99px;
+    background:var(--brand-soft);color:var(--brand-ink)}
+  .ad-chips span.grey{background:var(--line);color:var(--muted)}
   /* Stats read as VERTICAL rows — label left, value right — because that is how
      the eye scans a list of unlike quantities. A horizontal grid made you read
      each column heading to know what the number was. */
-  .ad-stats{display:flex;flex-direction:column}
-  .ad-row{display:flex;align-items:baseline;gap:8px;padding:4px 0;border-top:1px solid var(--line)}
-  .ad-row:first-child{border-top:0}
-  .ad-row>span{font-size:11.5px;color:var(--muted);flex:1;min-width:0}
-  .ad-row>b{font-size:13.5px;font-weight:700;white-space:nowrap}
+  /* No dividers between rows — spacing does the separating, which is quieter
+     and lets the values line up as a column the eye can run down. */
+  .ad-stats{display:flex;flex-direction:column;gap:7px}
+  .ad-row{display:flex;align-items:baseline;gap:8px}
+  .ad-row>span:first-child{font-size:12px;color:var(--muted);flex:1;min-width:0}
+  .ad-row>b{font-size:14px;font-weight:700;white-space:nowrap;margin-left:auto}
   .ad-row .dlt{font-size:10.5px;font-weight:700;padding:1px 5px;border-radius:5px;white-space:nowrap}
   .ad-row .dlt.up{background:var(--good-bg);color:var(--good)}
   .ad-row .dlt.dn{background:var(--bad-bg);color:var(--bad)}
+  /* The bar the number is judged against, stated on the row itself. Asked twice
+     what "strong" meant, which means an ⓘ tooltip was not enough. */
+  .ad-row .bm{font-style:normal;font-size:10.5px;color:var(--muted);opacity:.75;margin-left:4px}
   .vtag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
     padding:1px 5px;border-radius:5px;white-space:nowrap}
   .vtag.good{background:var(--good-bg);color:var(--good)}
@@ -2002,6 +2014,7 @@ function reportBodyHTML(d, summary, opts = {}) {
       return `<article class="ad-card" data-ad="${i}">
         <div class="ad-media${a.thumb ? '' : ' none'}"${canPlay ? ` data-ad="${esc(a.ad_id)}"` : ''}${canPlay && a.preview ? ` data-preview="${esc(a.preview)}"` : ''}>
           ${media}<span class="ad-rank">${i + 1}</span>
+          <span class="ad-type">${a.video ? 'Video' : 'Image'}</span>
           ${a.duration ? `<span class="ad-dur">${Math.round(a.duration)}s</span>` : ''}
           ${canPlay ? `<button class="ad-play" type="button" title="Play this video ad"><i>&#9654;</i></button>` : ''}
         </div>
@@ -2014,9 +2027,18 @@ function reportBodyHTML(d, summary, opts = {}) {
             ${row('ROAS', a.roas != null ? fmtX(a.roas) : '—', dlt(a.roas, a.prev_roas))}
             ${row('CPA', a.cpa != null ? money(a.cpa) : '—', dlt(a.cpa, a.prev_cpa, true))}
             ${row('Purchases', fmtInt(a.purchases))}
-            ${a.hook != null ? row('Hook rate', hook.pct, verdict(hook)) : ''}
-            ${a.hold != null ? row('Hold rate', hold.pct, verdict(hold)) : ''}
+            ${a.hook != null ? row(`Hook rate <em class="bm">vs 30%</em>`, hook.pct, verdict(hook)) : ''}
+            ${a.hold != null ? row(`Hold rate <em class="bm">vs 60%</em>`, hold.pct, verdict(hold)) : ''}
           </div>
+          ${(() => {
+            // The ad's own format tag plus its state — the two things you would
+            // otherwise have to open the card to learn.
+            const m = /\|([^|]+)$/.exec(a.name || '');
+            const tag = m && /[a-z]/i.test(m[1]) ? m[1].trim() : null;
+            const chips = [tag ? `<span>${esc(tag)}</span>` : '',
+              a.status && a.status !== 'ACTIVE' ? `<span class="grey">${esc(a.status.toLowerCase().replace(/_/g, ' '))}</span>` : ''].filter(Boolean).join('');
+            return chips ? `<div class="ad-chips">${chips}</div>` : '';
+          })()}
           <div class="ad-open"><span>Details</span><span aria-hidden="true">→</span></div>
         </div></article>`;
     };
