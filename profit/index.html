@@ -207,7 +207,12 @@
   .pk-in{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:8px;
     padding:7px 10px;background:var(--surface);cursor:pointer;font-size:13px}
   .pk-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  .pk-in input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13px;padding:0}
+  /* MUST carry [type=text] to win. `.modal input[type=text]` is (0,2,1) and this
+     was (0,1,1), so the inner input kept its own border and padding and drew a
+     box inside the box - the identical specificity trap `.unit-in` hit, now for
+     the second time. Any control that wraps an input needs the attribute too. */
+  .pk-in input,.pk-in input[type=text]{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13px;padding:0;border-radius:0;box-shadow:none}
+  .pk-in input:focus,.pk-in input[type=text]:focus{border:none;box-shadow:none;outline:none}
   .pk-in .pk-cv{width:10px;height:6px;flex:none;opacity:.6}
   .pk-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;max-height:230px;overflow-y:auto;
     background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;
@@ -3861,7 +3866,8 @@ async function renderSettings() {
         ${one ? `<br><b>Only ${esc(one.name)} is shown.</b> Switch the picker top-right to <b>All brands</b>.`
         : off ? `<br>${off} ad account${off === 1 ? '' : 's'} your business owns ${off === 1 ? 'is' : 'are'} not set up as a brand yet.`
         : '<br>Every ad account your business owns is already set up as a brand.'}
-        <br><span class="tiny">Locus checks Meta for new ad accounts <b>every night</b> — including ones you buy or get access to later — so this list keeps itself current. ${ld ? `Last checked ${esc(fmtAgo(ld.at))}${ld.viaBusiness ? `: ${ld.direct} assigned directly, ${ld.viaBusiness} via your Business Manager` : ''}.` : ''} <a href="#" id="mtDiscover">Check now</a></span></p>
+        <br><span class="tiny">Locus checks Meta for new ad accounts <b>every night</b> — including ones you buy or get access to later — so this list keeps itself current. ${ld ? `Last checked ${esc(fmtAgo(ld.at))}${ld.viaBusiness ? `: ${ld.direct} assigned directly, ${ld.viaBusiness} via your Business Manager` : ''}.` : ''} <a href="#" id="mtDiscover">Check now</a> · <a href="#" id="mtWhy">Why don't I see all my accounts?</a></span></p>
+        <div id="mtAccess"></div>
         <div class="tbl-wrap"><table>
           <thead><tr><th>Ad account</th><th title="Whether this account syncs and appears anywhere in Mobius">Tracked</th><th title="The client's Triple Whale shop domain. Every blended number - revenue, MER, contribution margin, the reports - depends on this.">Triple Whale shop</th><th>Last sync</th><th></th></tr></thead>
           <tbody id="mtRows">${list.map(a => `<tr data-id="${a.act_id}">
@@ -3912,6 +3918,36 @@ async function renderSettings() {
       };
       const discLink = $('#mtDiscover');
       if (discLink) discLink.onclick = e => { e.preventDefault(); discover(); };
+
+      /* "None of my ad accounts show up" has three different causes that look
+         identical from here - a missing scope, a system user with no Business
+         Manager role, or assets simply never granted. Ask the worker which one
+         it is rather than writing copy that guesses. */
+      const why = $('#mtWhy');
+      if (why) why.onclick = async e => {
+        e.preventDefault();
+        const box = $('#mtAccess');
+        box.innerHTML = '<p class="hint">Asking Meta what this token can reach…</p>';
+        try {
+          const d = await mApi('/api/meta-access');
+          const fixed = d.scopes.includes('business_management') && d.businesses.length;
+          box.innerHTML = `<div class="notice ${fixed ? '' : 'warn'}" style="margin:10px 0 0">${fixed ? '✓' : '⚠️'}<div>
+            <b>${esc(d.verdict)}</b>
+            <p class="tiny" style="margin:8px 0 0">Token: ${esc(d.token?.type || 'unknown')}${d.token?.never_expires ? ', never expires' : ''} ·
+            Permissions: ${d.scopes.length ? esc(d.scopes.join(', ')) : 'none reported'} ·
+            Directly assigned ad accounts: ${d.direct ?? '—'} ·
+            Business Managers visible: ${d.businesses.length}${d.businesses.length ? ' (' + d.businesses.map(b => esc(b.name)).join(', ') + ')' : ''}</p>
+            ${Object.keys(d.edges).length ? `<p class="tiny" style="margin:4px 0 0">${Object.entries(d.edges).map(([k, v]) => `${esc(k)}: <b>${esc(String(v))}</b>`).join(' · ')}</p>` : ''}
+            ${d.errors.length ? `<p class="tiny" style="margin:4px 0 0;color:var(--bad)">${d.errors.map(x => esc(x.at + ': ' + x.error)).join(' · ')}</p>` : ''}
+            ${fixed ? '' : `<p style="margin:10px 0 0;font-size:13.5px"><b>To see every account without granting them one at a time:</b> in Meta
+              <b>Business Settings → Users → System users → Mobius Tools</b>, give it the <b>Admin</b> business role rather than
+              per-asset access, then regenerate its token ticking <b>business_management</b> and <b>ads_read</b>.
+              A business-admin token returns everything the business owns, and everything it owns in future, with no further setup.</p>`}
+          </div></div>`;
+        } catch (err) {
+          box.innerHTML = `<div class="notice warn" style="margin:10px 0 0">⚠️<div>Couldn't check: ${esc(err.message)}</div></div>`;
+        }
+      };
 
       $('#mtAdd').onclick = async () => {
         const picked = await addBrandModal(accounts.filter(a => !a.active), chList, discover);

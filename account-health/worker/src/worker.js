@@ -3154,6 +3154,42 @@ export default {
         }
         return json({ ok: true });
       }
+      /* WHY CAN'T IT SEE MY AD ACCOUNTS? Answer it with facts instead of guesses.
+         Reports what META_TOKEN actually is, which scopes it carries, which
+         businesses it can see, and what each ad-account edge returned - errors
+         included, verbatim. Cole hit an empty picker and no amount of UI copy
+         could say whether the cause was a missing scope, a system user with no
+         business role, or simply no assets granted. */
+      if (path === '/api/meta-access' && request.method === 'GET') {
+        const out = { token: null, scopes: [], businesses: [], edges: {}, direct: null, errors: [] };
+        try {
+          const d = await meta(env, 'debug_token', { input_token: env.META_TOKEN });
+          const t = d.data || {};
+          out.token = { type: t.type || null, app_id: t.app_id || null, expires_at: t.expires_at || 0,
+            never_expires: t.expires_at === 0, valid: !!t.is_valid };
+          out.scopes = t.scopes || [];
+        } catch (e) { out.errors.push({ at: 'debug_token', error: e.message }); }
+        try { out.direct = (await metaAll(env, 'me/adaccounts', { fields: 'id', limit: 200 })).length; }
+        catch (e) { out.errors.push({ at: 'me/adaccounts', error: e.message }); }
+        let bs = [];
+        try { bs = await metaAll(env, 'me/businesses', { fields: 'id,name', limit: 100 }, 5); }
+        catch (e) { out.errors.push({ at: 'me/businesses', error: e.message }); }
+        out.businesses = bs.map(b => ({ id: b.id, name: b.name }));
+        for (const b of bs) {
+          for (const edge of ['owned_ad_accounts', 'client_ad_accounts']) {
+            try { out.edges[`${b.name || b.id} · ${edge}`] = (await metaAll(env, `${b.id}/${edge}`, { fields: 'id' }, 5)).length; }
+            catch (e) { out.edges[`${b.name || b.id} · ${edge}`] = `error: ${e.message}`; }
+          }
+        }
+        // The one-line verdict, so the UI never has to interpret the above.
+        const need = ['business_management', 'ads_read'].filter(s => !out.scopes.includes(s));
+        out.verdict = out.errors.length && !out.direct ? 'The Meta token is not working at all.'
+          : need.length ? `The token is missing the ${need.join(' and ')} permission${need.length > 1 ? 's' : ''}, so it can only see ad accounts assigned to it one by one.`
+          : !out.businesses.length ? 'The token carries no Business Manager access, so only individually-assigned ad accounts are visible.'
+          : 'The token can read your Business Manager, so every ad account it owns should appear.';
+        return json(out);
+      }
+
       if (path === '/api/discover' && request.method === 'POST') {
         const d = await discoverAccounts(env);
         return json({ ok: true, ...d, accounts: await listAccounts(env) });
