@@ -282,19 +282,36 @@
   .bd-sum{margin-left:auto;font-size:12.5px;text-align:right}
   .bd-ok{color:var(--muted)}
   .bd-warn{color:var(--warn);font-weight:600}
-  /* Two columns of fields on a wide screen, one on a narrow one. Each field
-     carries its own label AND a line saying what it does - the standing rule
-     that a control never appears without saying what it is for. */
-  .bd-body{border-top:1px solid var(--line);padding:16px 18px 18px;
-    display:grid;grid-template-columns:1fr 1fr;gap:16px 26px;background:var(--bg)}
-  .bd-f label{display:block;font-weight:700;font-size:13.5px;margin-bottom:2px}
-  .bd-f .hint{margin:0 0 7px;font-size:12px;line-height:1.45}
-  .bd-f input[type=text],.bd-f select{font-size:13px}
-  .bd-static{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-  .bd-danger{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px}
+  /* ONE SETTING PER ROW, stacked. A two-column grid of cards made the eye
+     zigzag and left the controls on ragged left edges; a single vertical list
+     with the label on the left and every control aligned on one column reads
+     as a form rather than a collage. Each field carries a line saying what it
+     does - the standing rule that a control never appears unexplained. */
+  .bd-body{border-top:1px solid var(--line);padding:4px 20px 8px;background:var(--bg)}
+  .bd-f{display:grid;grid-template-columns:280px minmax(0,1fr);gap:6px 26px;
+    padding:14px 0;border-bottom:1px solid var(--line);align-items:start}
+  .bd-f:last-child{border-bottom:0}
+  .bd-l label{display:block;font-weight:700;font-size:13.5px;margin-bottom:2px}
+  .bd-l .hint{margin:0;font-size:12px;line-height:1.45}
+  .bd-c{padding-top:1px;min-width:0}
+  /* Text inputs in the page body had NO styling at all - `main select` was
+     covered but `main input[type=text]` never was, so every one of them fell
+     back to the raw OS box. That is what read as boxy next to the pill-shaped
+     pickers beside them. */
+  .bd-c input[type=text],main .card input[type=text]{border:1px solid var(--line-strong);border-radius:8px;
+    padding:7px 10px;font-size:13px;background:var(--surface);color:var(--ink);width:100%;max-width:300px}
+  .bd-c input[type=text]:hover{border-color:var(--brand)}
+  .bd-c input[type=text]:focus,.bd-c select:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .bd-c select{width:100%;max-width:300px;font-size:13px}
+  .bd-c .unit-in{max-width:110px}
+  .bd-static{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .bd-danger .btn{border-color:var(--bad);color:var(--bad)}
   .bd-danger .btn:hover{background:var(--bad-bg)}
-  @media (max-width:760px){ .bd-body{grid-template-columns:1fr} .bd-sum{margin-left:0;width:100%;text-align:left} }
+  @media (max-width:760px){
+    .bd-f{grid-template-columns:1fr;gap:8px}
+    .bd-sum{margin-left:0;width:100%;text-align:left}
+    .bd-c input[type=text],.bd-c select{max-width:100%}
+  }
   /* Add-a-brand form. Labelled controls with an explanation under each, per the
      standing rule that a control never appears without saying what it does. */
   .ab-form{display:flex;flex-direction:column;gap:16px}
@@ -4092,9 +4109,9 @@ async function renderSettings() {
   const brands = () => (one ? S.accounts.filter(a => a.act_id === one.act_id) : S.accounts);
 
   const chSelect = (a, key, blank) => Array.isArray(chList)
-    ? `<select data-k="${key}" style="width:100%;max-width:260px"><option value="">${esc(blank)}</option>${chList.map(c =>
+    ? `<select data-k="${key}"><option value="">${esc(blank)}</option>${chList.map(c =>
         `<option value="${esc(c.id)}" ${a[key] === c.id ? 'selected' : ''}>#${esc(c.name)}${c.member ? '' : ' · invite the bot'}</option>`).join('')}</select>`
-    : `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID" style="width:100%;max-width:260px">`;
+    : `<input type="text" data-k="${key}" value="${esc(a[key] || '')}" placeholder="channel ID">`;
 
   /* The collapsed line has to be worth reading on its own, or every row has to
      be opened to find the one that needs attention. It names only what is
@@ -4112,7 +4129,13 @@ async function renderSettings() {
       : `<span class="bd-ok">Set up · ${a.brief_enabled ? 'brief on' : 'brief off'}${a.review_first ? ', reviewed first' : ''}${c.status === 'connected' ? ', Shopify connected' : ''}</span>`;
   };
 
-  const field = (label, help, control) => `<div class="bd-f"><label>${label}</label>${help ? `<p class="hint">${help}</p>` : ''}${control}</div>`;
+  /* Label and its explanation on the left, the control on the right, one row
+     per setting. The control column is wrapped so grid placement is
+     deterministic - a bare third child would depend on how many nodes the
+     control happened to be. */
+  const field = (label, help, control) => `<div class="bd-f">
+    <div class="bd-l"><label>${label}</label>${help ? `<p class="hint">${help}</p>` : ''}</div>
+    <div class="bd-c">${control}</div></div>`;
 
   const brandRow = a => {
     const m = metaOf(a.act_id), c = connOf(a.act_id);
@@ -4123,9 +4146,9 @@ async function renderSettings() {
           `<div class="bd-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
             <button class="btn" data-k="sync" style="font-size:11.5px;padding:4px 8px;margin-left:8px">Sync now</button>
             <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`)}
-        ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}" style="width:100%;max-width:260px">`)}
+        ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}">`)}
         ${field('Triple Whale shop', '<b>Every money number depends on this</b> — revenue, MER, contribution margin, every report.',
-          `<input type="text" data-k="tw_shop" value="${esc(m.tw_shop || '')}" placeholder="name.myshopify.com" style="width:100%;max-width:260px">${m.tw_shop ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ without this the brand has no revenue at all</span>'}`)}
+          `<input type="text" data-k="tw_shop" value="${esc(m.tw_shop || '')}" placeholder="name.myshopify.com">${m.tw_shop ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ without this the brand has no revenue at all</span>'}`)}
         ${field('Internal Slack channel', 'Your team’s. Drafts waiting for review land here, along with delivery alerts. A client never sees it.', chSelect(a, 'slack_channel', '— not set —'))}
         ${field('Client Slack channel', 'Theirs. An approved brief or report is sent here and nothing else ever is.',
           chSelect(a, 'brief_channel', '— not set —') + (a.brief_channel && a.brief_channel === a.slack_channel
@@ -4143,8 +4166,8 @@ async function renderSettings() {
             <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}
         ${field('Triple Whale history', 'Re-pulls this brand’s full history. Needed once so sales tax is on record for every month. Run one brand at a time.',
           `<div class="bd-static"><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
-        <div class="bd-f bd-danger">${field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted — switch it back on any time from Add a brand.',
-          `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`)}</div>
+        ${field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted — switch it back on any time from Add a brand.',
+          `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`).replace('class="bd-f"', 'class="bd-f bd-danger"')}
       </div></details>`;
   };
 
