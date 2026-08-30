@@ -3945,11 +3945,30 @@ async function renderSettings() {
             Business Managers visible: ${d.businesses.length}${d.businesses.length ? ' (' + d.businesses.map(b => esc(b.name)).join(', ') + ')' : ''}</p>
             ${Object.keys(d.edges).length ? `<p class="tiny" style="margin:4px 0 0">${Object.entries(d.edges).map(([k, v]) => `${esc(k)}: <b>${esc(String(v))}</b>`).join(' · ')}</p>` : ''}
             ${d.errors.length ? `<p class="tiny" style="margin:4px 0 0;color:var(--bad)">${d.errors.map(x => esc(x.at + ': ' + x.error)).join(' · ')}</p>` : ''}
-            ${fixed ? '' : `<p style="margin:10px 0 0;font-size:13.5px"><b>What to do:</b> assign <i>one more</i> ad account to the
-              <b>Mobius Tools</b> system user in <b>Business Settings → Users → System users → Assign assets</b>.
-              Locus reads the portfolio from any account it can already see, so a single assignment unlocks the whole
-              portfolio — including accounts added later. <b>Do not regenerate the token</b>; the permissions are already correct.</p>`}
+            ${!d.needsBusinessId ? '' : `<div style="margin:12px 0 0">
+              <p style="margin:0 0 8px;font-size:13.5px"><b>One thing to paste, once.</b> Open
+              <a href="https://business.facebook.com/settings/info" target="_blank" rel="noopener">Business Settings → Business info</a>
+              for <b>Mobius Digital</b> and copy the <b>Business portfolio ID</b>. Then every ad account a client shares with you —
+              including future clients — is picked up automatically. <b>Do not regenerate the token</b>; it is already correct.</p>
+              <div class="row" style="gap:8px;margin:0">
+                <input type="text" id="mbId" placeholder="e.g. 1234567890123456" style="width:220px" inputmode="numeric">
+                <button class="btn primary" id="mbSave">Save</button><span class="tiny" id="mbMsg"></span>
+              </div></div>`}
           </div></div>`;
+          const save = $('#mbSave');
+          if (save) save.onclick = async () => {
+            const idv = $('#mbId').value.trim(), msg = $('#mbMsg');
+            save.disabled = true; msg.textContent = 'Checking with Meta…';
+            try {
+              const r = await mApi('/api/meta-business', { method: 'PUT', body: JSON.stringify({ id: idv }) });
+              msg.textContent = `Saved: ${r.name} — finding accounts…`;
+              // Run discovery straight away: the whole point of the id is what it
+              // unlocks, and making him press a second button to find out is the
+              // "control that does nothing" problem again.
+              const next = await discover();
+              msg.textContent = `${r.name}: ${next.length} ad accounts now visible`;
+            } catch (e) { save.disabled = false; msg.textContent = e.message; }
+          };
         } catch (err) {
           box.innerHTML = `<div class="notice warn" style="margin:10px 0 0">⚠️<div>Couldn't check: ${esc(err.message)}</div></div>`;
         }

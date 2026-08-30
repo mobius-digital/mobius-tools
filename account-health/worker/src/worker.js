@@ -155,6 +155,24 @@ function parseInsightRow(r) {
    One assigned account is therefore enough to unlock the whole portfolio. */
 async function businessesFor(env, seedAccounts) {
   const byId = new Map();
+  /* OUR OWN portfolio first, and it has to be configured because nothing can
+     derive it. Measured on Cole's token 2026-08-30: the six businesses derived
+     from his ad accounts are the CLIENTS' portfolios (Lucky Golf, Dartee Golf,
+     …) - every account is owned by the client and merely shared with Mobius
+     Digital, so Mobius Digital never appears among them, and a system user
+     cannot enumerate another business's assets (all twelve edges returned 0).
+     The accounts we want are Mobius Digital's `client_ad_accounts`: the ones
+     shared TO us, which is exactly the set that grows when a new client
+     arrives. Set once in Settings, stored as settings.metaBusinessId. */
+  try {
+    const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'metaBusinessId'`).first();
+    const id = String(safeJson(row?.value, row?.value) || '').trim();
+    if (id) {
+      let name = 'your portfolio';
+      try { name = (await meta(env, id, { fields: 'name' }))?.name || name; } catch { /* id may be wrong; the edges will say so */ }
+      byId.set(id, { id, name });
+    }
+  } catch { /* no id configured yet */ }
   try {
     for (const b of await metaAll(env, 'me/businesses', { fields: 'id,name' }, 5)) byId.set(b.id, b);
   } catch { /* expected to fail or return nothing for a system user token */ }
@@ -3185,6 +3203,23 @@ export default {
          included, verbatim. Cole hit an empty picker and no amount of UI copy
          could say whether the cause was a missing scope, a system user with no
          business role, or simply no assets granted. */
+      if (path === '/api/meta-business' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        const id = String(b.id || '').trim().replace(/\D/g, '');
+        if (id) {
+          // Prove it before storing: a wrong id would otherwise fail silently
+          // inside discovery and look exactly like no id at all.
+          let name;
+          try { name = (await meta(env, id, { fields: 'name' }))?.name; }
+          catch (e) { return json({ error: `Meta will not read business ${id}: ${e.message}` }, 400); }
+          await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('metaBusinessId', ?1)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(id).run();
+          return json({ ok: true, id, name });
+        }
+        await env.DB.prepare(`DELETE FROM settings WHERE key = 'metaBusinessId'`).run();
+        return json({ ok: true, id: null });
+      }
+
       if (path === '/api/meta-access' && request.method === 'GET') {
         const out = { token: null, scopes: [], businesses: [], edges: {}, direct: null, errors: [] };
         try {
@@ -3212,9 +3247,11 @@ export default {
         const owned = Object.entries(out.edges).reduce((n, [, v]) => n + (typeof v === 'number' ? v : 0), 0);
         out.verdict = out.errors.length && !out.direct ? 'The Meta token is not working at all.'
           : need.length ? `The token is missing the ${need.join(' and ')} permission${need.length > 1 ? 's' : ''}, so it can only see ad accounts assigned to it one by one.`
-          : !out.businesses.length ? 'No Business Manager could be reached, so only individually-assigned ad accounts are visible. Assign one more ad account to the Mobius Tools system user and the rest of that portfolio unlocks with it.'
-          : owned > out.direct ? `Reading your Business Manager directly — ${owned} ad accounts in the portfolio against ${out.direct} assigned individually, so new accounts will appear on their own.`
-          : `Reading your Business Manager (${out.businesses.map(b => b.name).join(', ')}). Every ad account it owns, now and in future, is picked up automatically.`;
+          : !out.businesses.length ? 'No Business Manager could be reached, so only individually-assigned ad accounts are visible.'
+          : owned > out.direct ? `Reading your portfolio directly — ${owned} ad accounts against ${out.direct} assigned individually, so new ones appear on their own.`
+          : owned === 0 ? 'The portfolios reachable here are your CLIENTS’ own — their ad accounts are shared with you rather than owned by you, and Meta will not let a system user list another business’s assets. Set your own Business Portfolio ID below and Locus can read everything shared with you, including future clients.'
+          : `Reading your portfolio (${out.businesses.map(b => b.name).join(', ')}). Every ad account in it, now and in future, is picked up automatically.`;
+        out.needsBusinessId = owned === 0;
         return json(out);
       }
 
