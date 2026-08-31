@@ -4930,6 +4930,14 @@ async function renderSettings() {
 
   const list = $('#brandList');
   const drawBrands = () => {
+    /* PRESERVE WHICH ROWS ARE OPEN. Saving a cell calls drawBrands(), which
+       rebuilds every row from scratch - and a fresh <details> has no `open`, so
+       the row the user was working in slammed shut. It read as "the dropdown
+       closed and my change was not saved", when in fact it HAD saved and the
+       row had simply been rebuilt underneath them. Cole hit this on the Slack
+       channel pickers. Same family as the stale-array bug: a redraw that
+       forgets the state the user could see. */
+    const wasOpen = new Set([...list.querySelectorAll('.brow[open]')].map(el => el.dataset.act));
     const rows = brands();
     list.innerHTML = `<div class="row" style="margin:0 0 10px"><span class="tiny">${rows.length} brand${rows.length === 1 ? '' : 's'}${one ? '' : ' · open a row to change anything about it'}
         &nbsp;·&nbsp; <a href="#" id="brWhy">Why don’t I see all my ad accounts?</a></span>
@@ -4941,6 +4949,7 @@ async function renderSettings() {
         <div style="margin-top:8px">${conns.unmatched.map(u => `<div class="row" style="margin:4px 0;gap:8px"><code style="font-size:12px">${esc(u.shop)}</code>
           <select data-map="${esc(u.shop)}" style="max-width:200px"><option value="">— pick a brand —</option>${rows.map(b => `<option value="${esc(b.act_id)}">${esc(b.name)}</option>`).join('')}</select>
           <span class="tiny" data-mapmsg="${esc(u.shop)}"></span></div>`).join('')}</div></div></div>` : ''}`;
+    for (const el of list.querySelectorAll('.brow')) if (wasOpen.has(el.dataset.act)) el.open = true;
     wire();
   };
 
