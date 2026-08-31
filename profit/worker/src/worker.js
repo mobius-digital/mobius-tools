@@ -36,6 +36,8 @@ const PROXY_PATHS = new Set([
   '/api/ad-creatives',
   // Backfill Triple Whale ad-level attribution for a window, from the UI.
   '/api/tw-attr-sync',
+  // Who a client-facing send will appear to come from.
+  '/api/slack-identity',
   // Playback for a creative card. Unauthenticated callers reach it only with
   // a report archive token, which the engine validates against that client's
   // own sent reports.

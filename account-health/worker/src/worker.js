@@ -1441,7 +1441,8 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   const channel = acct.brief_channel;
   if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no client channel set for this brand — pick one in Settings', r?.data); return { name: acct.name, skipped: 'no client channel set' }; }
   try {
-    await slackPost(env, channel, text, null, { username: 'Daily Update', icon: ':wave:' });
+    // Goes to the client, so it comes from Cole - not a bot wearing a name.
+    await slackPost(env, channel, text, null, { asUser: true });
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
     // The brief still went out with its numbers, which is right - but a missing
     // narrative is invisible to everyone unless it is said out loud. Usually
@@ -2696,8 +2697,9 @@ async function sendReport(env, acct, period, start) {
   const opener = period === 'weekly'
     ? `Hey Team :wave: Here's your Weekly Report covering ${prettyDate(start)} → ${prettyDate(row.period_end)} →`
     : `Hey Team :wave: Here's your ${MONTH_OF(monthOf(start))} report →`;
+  // Client-facing, so it posts as the person, not the app.
   await slackPost(env, channel, `${opener}\n${reportHeadline(data)}\n\n<${url}|Open the full report>`,
-    null, { username: `${label} Report`, icon: ':bar_chart:' });
+    null, { asUser: true });
   await env.DB.prepare(
     `UPDATE reports SET status = 'sent', sent_at = ?4, sent_channel = ?5
      WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
@@ -3183,17 +3185,48 @@ async function putSetting(env, key, value) {
     .bind(key, value).run();
 }
 
+/* WHO THE MESSAGE COMES FROM.
+   Internal traffic - drafts awaiting review, delivery alerts, failure notices -
+   posts as the BOT, which is right: it is machine output and should look like
+   it. Anything reaching a CLIENT posts as a PERSON, via `asUser`.
+
+   Cole, 2026-08-31: "whenever I send it to the client I want it to come through
+   me specifically". This is not cosmetic. A bot token can set `username` and an
+   avatar, but Slack still stamps an APP badge on the message, so a client can
+   always tell. Only a user token (xoxp-) posts as the human - their name, their
+   picture, no badge.
+
+   Two rules follow:
+   - A user token can only post where THAT PERSON is a member. There is no
+     bot-style invite, and if he is not in the channel it fails, correctly.
+   - `asUser` NEVER falls back to the bot. Sending as "Mobius Reports" when he
+     asked for it to come from him is the wrong sender on a client message, and
+     he would never know it happened. It fails loudly instead. */
 async function slackPost(env, channel, text, blocks, opts = {}) {
-  // Sender identity is per-message: the Daily Brief goes to CLIENTS and posts as
-  // "Daily Update", while internal pace and failure alerts keep the Mobius name so
-  // you can tell at a glance which is which. Needs the chat:write.customize scope on
-  // the shared bot; without it Slack falls back to the bot's own default name.
+  const asUser = !!opts.asUser;
+  const token = asUser ? env.SLACK_USER_TOKEN : env.SLACK_BOT_TOKEN;
+  if (asUser && !token) {
+    throw new Error('No Slack user token is set, so this cannot be sent as you rather than as the bot. Add SLACK_USER_TOKEN in Cloudflare, or post it from Slack by hand.');
+  }
   const send = payload => fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then(r => r.json().catch(() => ({})));
   const base = { channel, text, ...(blocks ? { blocks } : {}) };
+  if (asUser) {
+    // A user token posts AS that user; overriding name or avatar is neither
+    // possible nor wanted, so the identity fields are bot-only.
+    const j = await send(base);
+    if (!j.ok) {
+      const hint = j.error === 'not_in_channel' ? ' — you are not a member of that channel. Join it in Slack and send again.'
+        : (j.error === 'invalid_auth' || j.error === 'token_revoked') ? ' — the Slack user token is no longer valid and needs regenerating.'
+        : j.error === 'missing_scope' ? ' — the Slack user token is missing the chat:write scope.'
+        : '';
+      throw new Error(`Slack: ${j.error || 'unknown error'}${hint}`);
+    }
+    return;
+  }
   let j = await send({ ...base, username: opts.username || 'Mobius Account Health', icon_emoji: opts.icon || ':bar_chart:' });
   if (!j.ok && /missing_scope|invalid_arg/i.test(j.error || '')) j = await send(base);
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
@@ -3551,7 +3584,18 @@ export default {
 
       /* Backfill attribution on demand - the nightly pass only covers 7 days,
          and a new brand or a longer look-back needs more than that. */
-      if (path === '/api/tw-attr-sync' && request.method === 'POST') {
+      /* Who will a client-facing send appear to come from? Reports the identity
+       behind SLACK_USER_TOKEN without exposing the token, so the answer is a
+       name rather than an assumption. Read-only and admin-gated. */
+    if (path === '/api/slack-identity' && request.method === 'GET') {
+      if (!env.SLACK_USER_TOKEN) return json({ configured: false });
+      const r = await fetch('https://slack.com/api/auth.test', {
+        headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}` },
+      }).then(x => x.json()).catch(e => ({ ok: false, error: e.message }));
+      return json({ configured: true, ok: !!r.ok, user: r.user || null, team: r.team || null, error: r.error || null });
+    }
+
+    if (path === '/api/tw-attr-sync' && request.method === 'POST') {
         const act = url.searchParams.get('act');
         const days = Math.min(+url.searchParams.get('days') || 30, TW_ATTR_HISTORY_DAYS);
         const list = act && act !== 'all'

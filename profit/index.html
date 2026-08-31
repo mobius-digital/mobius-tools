@@ -4833,6 +4833,9 @@ async function renderSettings() {
     <h3 class="set-sec">Team</h3>
     <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
     <h3 class="set-sec">Everything else</h3>
+    <div class="card"><h3 style="margin-bottom:6px">Who client messages come from</h3>
+      <p class="hint" style="margin-bottom:8px">Drafts and alerts in your <b>internal</b> channels post as the Mobius bot — they are machine output and should look like it. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.</p>
+      <div id="slackWho"><span class="hint">Checking…</span></div></div>
     <div class="card"><h3 style="margin-bottom:6px">Guided tours</h3>
       <p class="hint" style="margin-bottom:10px">Every page has a short walkthrough, and you can replay any of them here as often as you like. Each one is on the page itself under <b>Show me</b>.</p>
       <div class="row" style="gap:6px;flex-wrap:wrap" id="tourList"></div></div>
@@ -5161,6 +5164,20 @@ async function renderSettings() {
     };
     try { paint(await mApi('/api/team')); }
     catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn’t load the team list: ${esc(e.message)}</span></div>`; }
+  })();
+
+  /* ---- who client messages come from ---- */
+  (async () => {
+    const host = $('#slackWho'); if (!host || !mApi) return;
+    try {
+      const r = await mApi('/api/slack-identity');
+      host.innerHTML = !r.configured
+        ? `<div class="notice warn" style="margin:0">⚠️<div><b>No Slack user token is set</b>, so client sends will fail rather than quietly going out as the bot. Add <code>SLACK_USER_TOKEN</code> in Cloudflare.</div></div>`
+        : r.ok
+        ? `<div class="notice" style="margin:0">✓<div>Client briefs and reports post as <b>${esc(r.user || 'you')}</b>${r.team ? ` in ${esc(r.team)}` : ''}. They will look like you typed them — no app badge.
+            <p class="tiny" style="margin:6px 0 0">You must be a member of the client's channel; a personal token cannot post where you are not. If a send fails with “not in channel”, join it in Slack and press send again.</p></div></div>`
+        : `<div class="notice bad" style="margin:0">⚠️<div><b>The Slack user token is not working:</b> ${esc(r.error || 'unknown error')}. Client sends will fail until it is fixed — deliberately, rather than falling back to the bot.</div></div>`;
+    } catch (e) { host.innerHTML = `<span class="hint">Couldn't check: ${esc(e.message)}</span>`; }
   })();
 
   /* ---- replayable tours ---- */
