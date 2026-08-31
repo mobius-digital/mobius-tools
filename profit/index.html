@@ -150,6 +150,30 @@
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px}
   .card h3{font-size:15px;font-weight:700;margin-bottom:4px}
   .card .hint{color:var(--muted);font-size:13px}
+
+  /* ONE FRAME PER THING (Cole, 2026-08-31: "boxes in boxes all over Locus").
+     A bordered panel inside a bordered card draws two identical outlines over
+     two identical white backgrounds — the inner frame adds a line and takes
+     away air, and says nothing the spacing was not already saying. Anything
+     nested inside a card drops its frame and becomes a SECTION of that card,
+     carried by spacing, a left rule, or a recessed fill instead.
+     Done in CSS rather than at each call site on purpose: the nesting comes
+     from helpers like statCard() and slackPreview() that are also used
+     un-nested, where the frame is right. The same markup has to read both
+     ways, so the container decides, not the helper. */
+  .card .card{border:0;border-radius:0;background:transparent;padding:0;margin:0}
+  /* Notices keep their severity — that colour IS the signal — but carry it on a
+     left rule rather than a full outline. Same device the Reports summary card
+     already uses, so this is the existing vocabulary, not a new one. */
+  .card .notice{border:0;border-left:3px solid var(--line-strong);border-radius:0;
+    background:transparent;padding:1px 0 1px 13px}
+  .card .notice.warn{border-left-color:var(--warn)}
+  .card .notice.bad{border-left-color:var(--bad)}
+  .card .notice.good{border-left-color:var(--good)}
+  /* The Slack preview stays a distinct panel — it is a mock of the message the
+     client actually receives, which is its whole job. It just must not be a
+     second white box with the same border: recessed onto the page colour. */
+  .card .slackmsg{border:0;background:var(--bg)}
   .soon-card{border-style:dashed;background:transparent}
   .soon-card .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--brand-soft);color:var(--brand-ink);border-radius:99px;padding:3px 9px;margin-bottom:8px}
 
@@ -4287,7 +4311,7 @@ async function renderPlan(first) {
     }
     if (src.margin_month && p.ctx.margin != null) rows.push(['Product margin', `${esc(monthLabel(src.margin_month))} actual`]);
     if (!rows.length) return '';
-    return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg)">
+    return `<div style="border-radius:8px;padding:10px 12px;background:var(--bg)">
       <div class="tiny" style="font-weight:600;margin-bottom:6px">Based on</div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;align-items:baseline">
         ${rows.map(r => `<span class="tiny" style="color:var(--muted)">${r[0]}</span><span class="tiny" style="font-weight:600">${r[1]}</span>`).join('')}
