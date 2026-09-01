@@ -66,6 +66,15 @@ const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
  * instead of 6, silently, exactly the same way. Counting is the fix. The plan
  * is headroom. */
 
+/* D1 BATCH SIZE IS A SUBREQUEST DIAL. Each batch() call is ONE subrequest no
+   matter how many statements it carries, so a small chunk size is pure waste:
+   syncTwDaily was writing 45 days x ~12 metrics in chunks of 30, which is 18
+   subrequests for work that fits in 4. Measured 2026-09-01: one brief cost 51
+   calls, more than the whole free-plan budget, and most of it was this.
+   150 is already proven in this file (the ad_daily writer has used it since
+   August). Do not lower these without measuring what it costs. */
+const D1_CHUNK = 150;
+
 const SUB_LIMIT_FREE = 50;
 /* Held back so a job that runs out of budget can still WRITE DOWN that it ran
    out and post the alert saying so. Every silent failure we hit came from the
@@ -528,7 +537,7 @@ async function syncActivities(env, acct, sinceISO) {
       (cat === 'name' || /^asa_auto/.test(ev.object_name || '')) ? -1 : 0,   // renames + Meta's auto-generated ASC audiences are noise; ✓/✗ can override
       suggestReason(cat, ev, insights));
   });
-  for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
+  for (let i = 0; i < stmts.length; i += D1_CHUNK) await env.DB.batch(stmts.slice(i, i + D1_CHUNK));
   await env.DB.prepare(`UPDATE accounts SET last_sync_activities = datetime('now') WHERE act_id = ?1`).bind(acct.act_id).run();
   return rows.length;
 }
@@ -594,7 +603,7 @@ async function syncAdSlice(env, acct, since, until) {
       ` ON CONFLICT(act_id, ad_id) DO UPDATE SET name = excluded.name, adset_id = excluded.adset_id, campaign_id = excluded.campaign_id`,
     ).bind(...chunk.flat()));
   }
-  for (let i = 0; i < stmts.length; i += 30) await env.DB.batch(stmts.slice(i, i + 30));
+  for (let i = 0; i < stmts.length; i += D1_CHUNK) await env.DB.batch(stmts.slice(i, i + D1_CHUNK));
   return rows.length;
 }
 
@@ -618,7 +627,7 @@ async function syncAdMeta(env, acct) {
       ` ON CONFLICT(act_id, ad_id) DO UPDATE SET created_time = excluded.created_time`,
     ).bind(...chunk.flat()));
   }
-  for (let i = 0; i < stmts.length; i += 30) await env.DB.batch(stmts.slice(i, i + 30));
+  for (let i = 0; i < stmts.length; i += D1_CHUNK) await env.DB.batch(stmts.slice(i, i + D1_CHUNK));
   return vals.length;
 }
 
@@ -1063,7 +1072,7 @@ async function syncTwDaily(env, acct, days = 10) {
       ).bind(acct.act_id, date, id, v));
   // Bigger batches: a 400-day backfill is ~25k rows, and every batch is a
   // subrequest against the Worker's per-invocation limit.
-  for (let i = 0; i < stmts.length; i += 150) await env.DB.batch(stmts.slice(i, i + 150));
+  for (let i = 0; i < stmts.length; i += D1_CHUNK) await env.DB.batch(stmts.slice(i, i + D1_CHUNK));
   if (Array.isArray(res.raw?.metrics)) {
     await putSetting(env, `twCatalog:${acct.act_id}`,
       JSON.stringify(res.raw.metrics.map(m => ({ id: m.metricId ?? m.id, title: m.title })))).catch(() => {});
@@ -3015,7 +3024,7 @@ async function hourlyPacing(env, acct) {
        purchases = excluded.purchases, revenue = excluded.revenue, synced_at = excluded.synced_at`,
   ).bind(acct.act_id, r.date_start, hourOf(r), +r.spend || 0, +r.impressions || 0,
     pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES)));
-  for (let i = 0; i < stmts.length; i += 40) await env.DB.batch(stmts.slice(i, i + 40));
+  for (let i = 0; i < stmts.length; i += D1_CHUNK) await env.DB.batch(stmts.slice(i, i + D1_CHUNK));
 
   const byDay = {};
   for (const r of rows) (byDay[r.date_start] ??= Array(24).fill(0))[hourOf(r)] += +r.spend || 0;
