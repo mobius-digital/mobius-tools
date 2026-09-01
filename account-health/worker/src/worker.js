@@ -81,6 +81,9 @@ let SUB_LIMIT = SUB_LIMIT_FREE;
 
 function subReset(env) {
   SUB_USED = 0;
+  // Learned costs are per-invocation. Carrying them between ticks would let one
+  // pathological brand ratchet the estimate up permanently and starve the rest.
+  COST_SEEN.clear();
   // Set SUB_LIMIT in wrangler.toml [vars] after upgrading to Workers Paid and
   // every job simply does more per tick — no other change needed.
   const n = +(env?.SUBREQUEST_LIMIT ?? 0);
@@ -93,13 +96,32 @@ function subLeft() { return SUB_LIMIT - SUB_USED - SUB_RESERVE; }
 /** Can this invocation afford a unit of work costing roughly `n` calls? */
 function subCanAfford(n) { return subLeft() >= n; }
 
-/* Rough per-brand costs, used to decide whether to start another brand rather
-   than to stop half way through one. Deliberately generous: overestimating
-   defers a brand to the next tick, underestimating kills it mid-write. */
+/* Per-brand cost SEEDS. These are only the opening guess — `costOf` replaces
+   them with what the work actually cost the moment one brand has been through,
+   because the first real tick proved the guesses were badly low: the estimate
+   for a brief was 12 and the invocation finished at 53 of a 50 budget having
+   drafted one brand. Guessing a fixed number is the same mistake as not
+   counting, one level up. Measure, then decide. */
 const COST_SYNC_BRAND = 20;    // insights + activities + ad-level slices
-const COST_BRIEF_BRAND = 12;   // TW sync + brief data + Claude + Slack + writes
-const COST_REPORT_BRAND = 12;  // report data + Claude + Slack + writes
-const COST_DELIVERY_BRAND = 3; // one D1 read, sometimes one Meta pacing call
+const COST_BRIEF_BRAND = 22;   // TW sync + brief data + Claude + Slack + writes
+const COST_REPORT_BRAND = 22;  // report data + Claude + Slack + writes
+const COST_DELIVERY_BRAND = 4; // D1 reads, sometimes one Meta pacing call
+
+/* Observed cost per unit of work, highest seen this invocation. Highest rather
+   than average: the decision being made is "will the NEXT one fit", and a brand
+   that needs a Triple Whale backfill costs several times one that does not. */
+const COST_SEEN = new Map();
+function costOf(kind, seed) { return Math.max(COST_SEEN.get(kind) || 0, seed); }
+/** Wrap one unit of work, recording what it really cost. */
+async function measured(kind, fn) {
+  const before = subUsed();
+  try { return await fn(); }
+  finally {
+    const spent = subUsed() - before;
+    if (spent > (COST_SEEN.get(kind) || 0)) COST_SEEN.set(kind, spent);
+  }
+}
+function costReport() { return Object.fromEntries(COST_SEEN); }
 
 /** Wrap `env` so every D1 call counts itself. Done once at the entry point
  *  rather than at 112 call sites, so nothing can be added later that forgets.
@@ -1425,8 +1447,16 @@ async function writeBriefNarrative(env, acct, data, date) {
  *  missed, pick up the days since the last one, the way CTC's own update covered
  *  "8/18 and 8/19". Capped at 4 days and never crosses out of the month. */
 async function coverageDates(env, acct, date, data) {
+  /* 'skipped' counts as DEALT WITH, exactly like 'sent'.
+     Cole, 2026-09-01: Bonk Golf had stacked up days because catching up only
+     ever looked for a SENT brief, so a day nobody wanted to send was carried
+     forward for ever and every new draft opened "covering 8/28, 8/29 and 8/30".
+     The catch-up is worth keeping — it is what covers a morning he forgets —
+     but it needs a way to say "not this one, start fresh", and that is what
+     skipping is. The days are not lost: the numbers stay on the Profit and
+     Brief pages, they just stop queueing for a client message. */
   const last = await env.DB.prepare(
-    `SELECT MAX(date) AS d FROM briefs WHERE act_id = ?1 AND status = 'sent' AND date < ?2`,
+    `SELECT MAX(date) AS d FROM briefs WHERE act_id = ?1 AND status IN ('sent','skipped') AND date < ?2`,
   ).bind(acct.act_id, date).first().catch(() => null);
   const monthStart = `${monthOf(date)}-01`;
   let from = last?.d ? addDays(last.d, 1) : date;
@@ -1677,7 +1707,7 @@ async function dailyBriefs(env) {
     // none: the old behaviour ran until Cloudflare killed it, which could land
     // between the Slack post and the row that records it — a client message with
     // no record that it was sent, and a retry next hour that sends it twice.
-    if (!subCanAfford(COST_BRIEF_BRAND)) {
+    if (!subCanAfford(costOf('brief', COST_BRIEF_BRAND))) {
       results.push({ name: a.name, date, deferred: 'out of subrequest budget — next tick picks this up' });
       continue;
     }
@@ -1685,14 +1715,24 @@ async function dailyBriefs(env) {
     didWork = true;
     let r;
     try {
-      await syncTwDaily(env, a, 45).catch(() => {});
-      // Two modes per brand. Review-first parks a draft internally and waits for
-      // a human; auto sends straight to the client. A daily deliverable can be
-      // either, and forcing every brand through a morning approval is exactly
-      // the button-pushing this tool exists to avoid.
-      r = a.review_first
-        ? await draftBrief(env, a, date, { skipIfExists: true })
-        : await sendBrief(env, a, date, { skipIfSent: true });
+      r = await measured('brief', async () => {
+        /* Only sync Triple Whale if this brand is actually missing the day.
+           A blind 45-day pull per brand was the single biggest cost in this
+           loop, and it is now usually redundant: syncPass refreshes TW on the
+           hourly tick, so by brief time the data is normally already here. One
+           cheap SELECT replaces a network call plus a batch write. */
+        const have = await env.DB.prepare(
+          `SELECT 1 AS x FROM tw_daily WHERE act_id = ?1 AND date = ?2 LIMIT 1`,
+        ).bind(a.act_id, date).first().catch(() => null);
+        if (!have) await syncTwDaily(env, a, 45).catch(() => {});
+        // Two modes per brand. Review-first parks a draft internally and waits for
+        // a human; auto sends straight to the client. A daily deliverable can be
+        // either, and forcing every brand through a morning approval is exactly
+        // the button-pushing this tool exists to avoid.
+        return a.review_first
+          ? await draftBrief(env, a, date, { skipIfExists: true })
+          : await sendBrief(env, a, date, { skipIfSent: true });
+      });
     } catch (e) { r = { name: a.name, error: e.message }; }
     results.push(r);
     // Never let a broken alert stop the remaining brands from getting their brief.
@@ -2915,12 +2955,13 @@ async function reportsPass(env) {
          A report half-written is a `reports` row with no narrative that then
          blocks every retry, because the check above only asks whether a row
          exists. That is exactly what happened on 2026-08-31. */
-      if (!subCanAfford(COST_REPORT_BRAND)) {
+      if (!subCanAfford(costOf('report', COST_REPORT_BRAND))) {
         results.push({ name: a.name, period: j.period, deferred: 'out of subrequest budget — next tick picks this up' });
         continue;
       }
       did = true;
       try {
+       await measured('report', async () => {
         // tw_daily is cumulative and dailyBriefs has usually just synced this brand
         // in the same invocation — only sync here if the period's last day is absent,
         // to stay well inside the Worker subrequest budget.
@@ -2946,6 +2987,7 @@ async function reportsPass(env) {
           ...step,
           narrative_error: r.narrative_error ?? null,
         });
+       });
       } catch (e) {
         results.push({ name: a.name, period: j.period, error: e.message });
       }
@@ -3517,7 +3559,7 @@ async function deliveryPass(env) {
     /* A brand skipped here is NOT marked as checked (st.day / st.intra stay
        put), so the next tick re-checks it. That is the whole reason the state
        flags record "a check ran" rather than "an hour passed". */
-    if (!subCanAfford(COST_DELIVERY_BRAND)) { deferred.push(a.name); continue; }
+    if (!subCanAfford(costOf('delivery', COST_DELIVERY_BRAND))) { deferred.push(a.name); continue; }
     const today = localDate(a.tz);
     const hour = Math.floor(localHourFrac(a.tz));
     const yesterday = addDays(today, -1);
@@ -3676,7 +3718,7 @@ async function isAdmin(request, env) {
 async function recordRun(env, key, payload) {
   const body = JSON.stringify({
     at: new Date().toISOString(),
-    subrequests: { used: subUsed(), limit: SUB_LIMIT },
+    subrequests: { used: subUsed(), limit: SUB_LIMIT, cost_per_unit: costReport() },
     ...payload,
   });
   await env.DB.prepare(
@@ -3699,7 +3741,7 @@ async function recordRun(env, key, payload) {
  * because its last_sync_insights did not move — the retry is the ordering, not
  * a separate mechanism. */
 async function syncPass(env) {
-  if (!subCanAfford(COST_SYNC_BRAND)) {
+  if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) {
     return { skipped: 'budget spent on higher-priority work this tick' };
   }
   const accounts = await listAccounts(env, true);
@@ -3711,11 +3753,14 @@ async function syncPass(env) {
 
   const done = [];
   for (const a of accounts) {
-    if (!subCanAfford(COST_SYNC_BRAND)) { done.push({ name: a.name, deferred: 'out of budget' }); break; }
-    const r = await syncAccount(env, a);
-    // Triple Whale rides along with the same brand rather than in its own loop.
-    // Doing all Meta then all TW meant TW was always the half that got cut.
-    r.tw = await syncTwDaily(env, a, 10).catch(e => ({ error: e.message }));
+    if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) { done.push({ name: a.name, deferred: 'out of budget' }); break; }
+    const r = await measured('sync', async () => {
+      const x = await syncAccount(env, a);
+      // Triple Whale rides along with the same brand rather than in its own loop.
+      // Doing all Meta then all TW meant TW was always the half that got cut.
+      x.tw = await syncTwDaily(env, a, 10).catch(e => ({ error: e.message }));
+      return x;
+    });
     done.push(r);
   }
   return { synced: done, remaining: subLeft() };
@@ -3746,7 +3791,7 @@ async function nightly(env) {
      converging on the truth rather than freezing a first guess. */
   const twAttr = [];
   for (const a of accounts) {
-    if (!subCanAfford(COST_SYNC_BRAND)) { twAttr.push({ name: a.name, deferred: 'out of budget' }); break; }
+    if (!subCanAfford(costOf('attr', COST_SYNC_BRAND))) { twAttr.push({ name: a.name, deferred: 'out of budget' }); break; }
     twAttr.push(await syncTwAttribution(env, a, 7).catch(e => ({ name: a.name, error: e.message })));
   }
   /* HISTORY FILLS ITSELF. The rolling 7 days above keeps recent attribution
@@ -3757,7 +3802,7 @@ async function nightly(env) {
      `tw_attr_cursor`, the same shape as the ad-insights backfill. */
   for (const a of accounts) {
     if (a.tw_attr_done) continue;
-    if (!subCanAfford(COST_SYNC_BRAND)) { twAttr.push({ name: a.name, backfill: true, deferred: 'out of budget' }); break; }
+    if (!subCanAfford(costOf('attr', COST_SYNC_BRAND))) { twAttr.push({ name: a.name, backfill: true, deferred: 'out of budget' }); break; }
     try {
       const today = localDate(a.tz);
       const floor = addDays(today, -TW_ATTR_HISTORY_DAYS);
@@ -3776,7 +3821,7 @@ async function nightly(env) {
 
   // Whatever is left goes to the syncs, then discovery last of all.
   out.sync = await syncPass(env).catch(e => ({ error: e.message }));
-  out.discover = subCanAfford(COST_SYNC_BRAND)
+  out.discover = subCanAfford(costOf('sync', COST_SYNC_BRAND))
     ? await discoverAccounts(env).catch(e => ({ error: e.message }))
     : { deferred: 'out of budget — runs tomorrow' };
 
@@ -4442,6 +4487,30 @@ export default {
         ).bind(b.act, b.date, b.text).run();
         if (!r.meta?.changes) return json({ error: 'no draft for that day (a sent brief cannot be edited)' }, 404);
         return json({ ok: true });
+      }
+      /* "Don't send this one." Marks the day handled without messaging the
+         client, so the catch-up stops carrying it into every later draft.
+         Reversible: pressing Write the brief again drafts the day afresh. */
+      if (path === '/api/brief-skip' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const date = b.date || addDays(localDate(acct.tz), -1);
+        // A sent brief is a record of what the client received and is frozen —
+        // the same rule the edit endpoint follows.
+        const prior = await env.DB.prepare(
+          `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
+        ).bind(acct.act_id, date).first().catch(() => null);
+        if (prior?.status === 'sent') return json({ error: 'this brief was already sent to the client — it cannot be un-sent' }, 400);
+        const r = await env.DB.prepare(
+          `UPDATE briefs SET status = 'skipped' WHERE act_id = ?1 AND date = ?2 AND status <> 'sent'`,
+        ).bind(acct.act_id, date).run();
+        if (!r.meta?.changes) {
+          // No draft for that day yet — record the skip anyway, so a day that
+          // was never drafted still stops the catch-up carrying it forward.
+          await upsertBrief(env, acct.act_id, date, 'skipped', null, 'Skipped — deliberately not sent to the client.', null);
+        }
+        return json({ ok: true, date, skipped: true });
       }
       /* Build (or rebuild) today's draft by hand, for a brand set to review. */
       if (path === '/api/brief-draft' && request.method === 'POST') {

@@ -3066,6 +3066,7 @@ async function renderBrief(first) {
         ${bfDraft ? '<button class="btn" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn" id="bfCancel" style="display:none">Cancel</button>' : ''}
         <button class="btn primary" id="bfPost" style="display:${bfDraft ? '' : 'none'}">Send to client</button>
         <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
+        ${bfSent ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
         <span class="tiny" id="bfMsg"></span>
       </div>
       ${bfSent
@@ -3232,6 +3233,24 @@ async function renderBrief(first) {
     } catch (e) { $('#bfMsg').textContent = e.message; }
   };
   $('#bfCopy').onclick = () => { navigator.clipboard.writeText(bfBody()).then(() => $('#bfMsg').textContent = 'Copied ✓'); };
+  /* "Don't send this one." The catch-up that covers a morning you forget is the
+     same mechanism that stacks days up when you deliberately don't send — this
+     is how you tell the two apart. */
+  const bfSkip = $('#bfSkip');
+  if (bfSkip) bfSkip.onclick = async () => {
+    const covered = (bfDraft?.text || '').match(/covering ([^\n→]+)/i);
+    if (!(await confirmModal(`Don't send the brief for ${d.date}?`,
+      `<p>This marks the day <b>handled</b> without messaging the client. Nothing is sent, and it stops being carried into later briefs${covered ? ` — this draft currently covers <b>${esc(covered[1].trim())}</b>` : ''}.</p>
+       <p class="tiny">The numbers are not lost: this day still counts everywhere on Profit, Plan and the chart above. You are only saying the client does not need a message about it.</p>
+       <p class="tiny">Changed your mind later? Press <b>Write the brief</b> on this date and it drafts again.</p>`,
+      'Don\'t send it'))) return;
+    $('#bfMsg').textContent = 'Skipping…';
+    try {
+      await api('/api/brief-skip', { method: 'POST', body: JSON.stringify({ act: S.act, date: d.date }) });
+      $('#bfMsg').textContent = 'Skipped ✓ — tomorrow starts fresh';
+      await inPlace(() => renderBrief());
+    } catch (e) { $('#bfMsg').textContent = e.message; }
+  };
   const bfRev = $('#bfReview');
   if (bfRev) bfRev.onclick = async () => {
     const on = !bfRev.classList.contains('on');

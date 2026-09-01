@@ -27,6 +27,8 @@ const PROXY_PATHS = new Set([
   // the account-health worker (TW/Anthropic/Slack secrets + the crons).
   '/api/reports', '/api/report', '/api/report-generate', '/api/report-summary',
   '/api/report-send', '/api/report-link', '/api/brief-text', '/api/brief-draft',
+  // "Don't send this one" — marks a day handled so the catch-up stops carrying it.
+  '/api/brief-skip',
   /* The live creative browser. It reads `ad_daily` and calls Meta for the
      creative assets, both of which belong to the account-health worker, but it
      is rendered by index.html whose `api()` points HERE - so without this it
