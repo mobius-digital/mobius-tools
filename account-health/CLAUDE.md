@@ -136,6 +136,64 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
   ≥4 days of history, median ≥ $50.
 - Ad backfill slices: 8 per nightly run, 3 per Creative-Rotation visit.
 
+## THE SUBREQUEST BUDGET — read this before touching any scheduled job (2026-09-01)
+
+**Cloudflare counts every `fetch` AND every D1 query against ONE invocation.**
+Free plan: **50**. Paid: **10,000**. D1 counting is the part that catches
+people — this worker has 112 query sites and they all count.
+
+Nothing counted them until 2026-09-01, and every scheduled job looped all six
+brands doing 10–20 calls each. So each job ran flat into the ceiling and was
+killed mid-brand; whatever ran first won and everything after got nothing.
+Measured from the live DB, one morning's damage:
+
+- the nightly synced **one** brand of six, and every TW + attribution sync failed;
+- `daily_insights` sat a day stale, so the delivery check found no row for
+  Dartee's yesterday, read `dayRow?.spend ?? 0` as **zero**, and alarmed about
+  billing on a brand that had spent **$892.87**;
+- the first Monday reports ran, all six generated with no narrative, posted to
+  nobody, and recorded `ok: true` — hard-coded next to the caught error;
+- nothing surfaced any of it for four days.
+
+**The rules now, and do not undo them:**
+
+- `meterEnv(env)` wraps the D1 binding **once per entry point** (`scheduled`
+  and `fetch`), so all 112 sites count themselves and nothing added later can
+  forget. Wrapped statements carry `__raw` because `batch()` needs the real
+  objects — if you add a D1 method to the wrapper, unwrap it there too.
+- Every outbound HTTP call goes through **`xfetch`**, never bare `fetch`.
+- Every scheduled loop calls **`subCanAfford(COST_*)` BEFORE starting a brand**
+  and defers it otherwise. Never mid-brand: the kill can land between the Slack
+  post and the row that records it, which gives a client a message with no
+  record and a duplicate next hour.
+- **`SUB_RESERVE` (8) is not spare capacity.** It is what lets a job that ran
+  out still write down that it ran out and post the alert. Every silent failure
+  came from the bookkeeping being the thing that got cut off.
+- **`SUB_USED` is module scope and MUST be reset at every entry point.** Warm
+  isolates are reused. Concurrent requests share it, which only ever makes a job
+  more conservative — safe by design, but do not "fix" it by removing the reset.
+- **Ordering is by cost and time-criticality, not importance.** Delivery check →
+  briefs → reports (at `briefHour + REPORT_HOUR_OFFSET`) → sync on the leftovers.
+- **`discoverAccounts` goes LAST.** It walks 25 ad accounts and, running first,
+  spent the whole night's allowance before one brand was synced. A new ad
+  account arriving a day late costs nothing; a stale brand costs a false alarm
+  in a client channel.
+- Per-brand syncing lives on the **hourly** tick, **stalest first**
+  (`ORDER BY last_sync_insights`). A brand that errored sorts to the front next
+  hour on its own — the retry IS the ordering, not a separate mechanism.
+
+**Upgrading to Workers Paid does NOT replace any of this.** It raises the
+ceiling 200×, which is worth $5, but an uncounted loop still does not know where
+the ceiling is: it moves the cliff to 60 clients and falls off it the same
+silent way. Set `SUBREQUEST_LIMIT = "10000"` in `wrangler.toml` after upgrading
+and every job simply finishes in one tick instead of two. That is the only
+change needed.
+
+**Where to look when something scheduled misbehaves:** Locus → Settings → *Are
+the automatic jobs actually running?*, or `GET /api/schedule-health` (admin).
+It reports per-brand data freshness, what each job did last run, and the
+subrequests it used.
+
 ## Hard-won rules (do not relearn these)
 
 - **Triple Whale summary-page** (`twSummary`): metrics live in `metrics[]` with

@@ -1609,22 +1609,24 @@ async function alertScheduleTrouble(env, label, payload) {
   const flat = JSON.stringify(payload || {});
   const errors = (flat.match(/"error":/g) || []).length;
   const deferred = (flat.match(/"deferred":/g) || []).length;
-  if (!errors && !deferred) { await putSetting(env, 'lastTrouble', '').catch(() => {}); return; }
+  /* DEFERRAL IS NOT A FAULT — it is how this worker is supposed to behave now,
+     and on the free plan it happens on most ticks by design. Alerting on it
+     would put a Slack message in front of Cole every hour for normal
+     operation, which is how alerting becomes wallpaper and a real failure gets
+     scrolled past. Only errors speak. Deferrals ride along as context when
+     something else has already earned the message, and are always visible in
+     Settings. */
+  if (!errors) { await putSetting(env, 'lastTrouble', '').catch(() => {}); return; }
   const ch = await getSetting(env, 'slackChannel');
   if (!ch || !env.SLACK_BOT_TOKEN) return;
   // One message per distinct fault, not one per hour it persists.
-  const sig = `${label}|${errors}|${deferred}`;
+  const sig = `${label}|${errors}`;
   if ((await getSetting(env, 'lastTrouble')) === sig) return;
   await putSetting(env, 'lastTrouble', sig).catch(() => {});
-  const bits = [];
-  if (errors) bits.push(`*${errors}* error${errors > 1 ? 's' : ''}`);
-  if (deferred) bits.push(`*${deferred}* item${deferred > 1 ? 's' : ''} deferred to the next run`);
   await slackPost(env, ch,
-    `:construction: *${label}* finished with ${bits.join(' and ')}.\n` +
-    `Used ${subUsed()} of ${SUB_LIMIT} subrequests. ` +
-    (deferred && !errors
-      ? '_Deferred work is normal and picks itself up next tick — this is only worth acting on if it repeats all day._'
-      : '_Open Locus → Settings for the detail._'),
+    `:construction: *${label}* finished with *${errors}* error${errors > 1 ? 's' : ''}` +
+    `${deferred ? ` (and ${deferred} item${deferred > 1 ? 's' : ''} deferred to the next run, which is normal)` : ''}.\n` +
+    `Used ${subUsed()} of ${SUB_LIMIT} subrequests. _Locus → Settings → “Are the automatic jobs actually running?” has the detail._`,
   ).catch(() => {});
 }
 
