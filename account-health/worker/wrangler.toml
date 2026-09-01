@@ -32,11 +32,16 @@ GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleus
 # did, so nothing is ever killed mid-brand — they just do fewer brands per tick
 # and pick the rest up on the next one.
 #
-# AFTER UPGRADING TO WORKERS PAID, set this to 10000 and redeploy. That is the
-# only change needed: every job simply finishes in one tick instead of two or
-# three. Leave it unset (or 0) and the worker assumes the free-plan 50, which is
-# correct but slower — briefs finish over two hourly ticks rather than one.
-# SUBREQUEST_LIMIT = "10000"
+# Workers Paid since 2026-09-01, so the real ceiling is 10,000. Every job now
+# finishes in one tick instead of spreading over several.
+#
+# THIS IS A CEILING, NOT PERMISSION TO STOP COUNTING. The jobs still measure
+# what they spend and still stop before the wall — that is what keeps a brand
+# from being killed mid-brief, and it is what will make the next problem show up
+# as "deferred" in Settings instead of as silence. Measured cost of one brief on
+# 2026-09-01: 51 subrequests. Six brands plus reports plus syncs is comfortably
+# inside 10,000, but "comfortably inside" is a thing you know by counting.
+SUBREQUEST_LIMIT = "10000"
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put META_TOKEN        system-user token, ads_read on every client ad account
