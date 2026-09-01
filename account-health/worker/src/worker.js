@@ -1520,7 +1520,9 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
     const prior = await env.DB.prepare(
       `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
     ).bind(acct.act_id, date).first().catch(() => null);
-    if (prior && (prior.status === 'draft' || prior.status === 'sent')) {
+    // 'skipped' belongs here too — a day deliberately not sent must not be
+    // rebuilt and re-announced by the next scheduled tick.
+    if (prior && ['draft', 'sent', 'skipped'].includes(prior.status)) {
       return { name: acct.name, already: prior.status, date };
     }
   }
@@ -1564,6 +1566,9 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     `SELECT status, text FROM briefs WHERE act_id = ?1 AND date = ?2`,
   ).bind(acct.act_id, date).first().catch(() => null);
   if (skipIfSent && prior?.status === 'sent') return { name: acct.name, already_sent: true, date };
+  // A skipped day is a decision, not a gap to fill. Only an explicit send from
+  // the UI (skipIfSent false) may override it.
+  if (skipIfSent && prior?.status === 'skipped') return { name: acct.name, skipped_by_hand: true, date };
 
   let text = null, r = null;
   // 'error' is no longer written (see the catch below), but rows from before
@@ -1707,6 +1712,13 @@ async function dailyBriefs(env) {
       `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
     ).bind(a.act_id, date).first().catch(() => null);
     if (prior?.status === 'sent') { results.push({ name: a.name, already_sent: true, date }); continue; }
+    /* SKIPPED IS HANDLED. "Don't send this one" means don't send it — and it
+       must also mean don't rebuild it, or the hourly trigger simply drafts the
+       day again and posts it to the internal channel every hour. That is
+       exactly what happened on 2026-09-01: 21 days were marked skipped in one
+       go and the next tick re-posted a draft for all six brands, because the
+       only statuses treated as finished were 'sent' and 'draft'. */
+    if (prior?.status === 'skipped') { results.push({ name: a.name, skipped_by_hand: true, date }); continue; }
     // A brand awaiting review already has its draft. Without this the hourly
     // trigger would re-sync 45 days of Triple Whale and rebuild the same draft
     // every hour until someone pressed send.
