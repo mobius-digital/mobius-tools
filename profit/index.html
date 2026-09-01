@@ -4860,6 +4860,9 @@ async function renderSettings() {
     <div class="card"><h3 style="margin-bottom:6px">Who client messages come from</h3>
       <p class="hint" style="margin-bottom:8px">Drafts and alerts in your <b>internal</b> channels post as the Mobius bot — they are machine output and should look like it. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.</p>
       <div id="slackWho"><span class="hint">Checking…</span></div></div>
+    <div class="card"><h3 style="margin-bottom:6px">Are the automatic jobs actually running?</h3>
+      <p class="hint" style="margin-bottom:8px">The briefs, the reports and the Meta sync all run on a schedule you never see. When one of them fails there is nothing on any other page to say so — for four days in August the nightly sync was syncing one brand of six and every dashboard looked normal. This is that missing page.</p>
+      <div id="schedHealth"><span class="hint">Checking…</span></div></div>
     <div class="card"><h3 style="margin-bottom:6px">Guided tours</h3>
       <p class="hint" style="margin-bottom:10px">Every page has a short walkthrough, and you can replay any of them here as often as you like. Each one is on the page itself under <b>Show me</b>.</p>
       <div class="row" style="gap:6px;flex-wrap:wrap" id="tourList"></div></div>
@@ -5210,6 +5213,52 @@ async function renderSettings() {
         ? `<div class="notice" style="margin:0">✓<div>Client briefs and reports post as <b>${esc(r.user || 'you')}</b>${r.team ? ` in ${esc(r.team)}` : ''}. They will look like you typed them — no app badge.
             <p class="tiny" style="margin:6px 0 0">You must be a member of the client's channel; a personal token cannot post where you are not. If a send fails with “not in channel”, join it in Slack and press send again.</p></div></div>`
         : `<div class="notice bad" style="margin:0">⚠️<div><b>The Slack user token is not working:</b> ${esc(r.error || 'unknown error')}. Client sends will fail until it is fixed — deliberately, rather than falling back to the bot.</div></div>`;
+    } catch (e) { host.innerHTML = `<span class="hint">Couldn't check: ${esc(e.message)}</span>`; }
+  })();
+
+  /* ---- are the scheduled jobs actually running? ----
+     Reads what the crons wrote about themselves. The three things worth knowing
+     are: is any brand's data stale, did the last tick have to defer work, and
+     did anything error. Everything else is detail and stays folded away. */
+  (async () => {
+    const host = $('#schedHealth'); if (!host || !mApi) return;
+    try {
+      const h = await mApi('/api/schedule-health');
+      const today = ymdLocal(new Date()), yday = addDaysStr(today, -1);
+      // "Stale" means Meta has not given us yesterday yet. Today is always
+      // partial and never expected to be present.
+      const stale = (h.data_freshness || []).filter(r => !r.latest || r.latest < yday);
+      const faults = [];
+      const scan = (label, run) => {
+        if (!run) return;
+        const s = JSON.stringify(run);
+        const e = (s.match(/"error":/g) || []).length, d = (s.match(/"deferred":/g) || []).length;
+        if (e || d) faults.push(`${label}: ${[e && `${e} error${e > 1 ? 's' : ''}`, d && `${d} deferred`].filter(Boolean).join(', ')}`);
+      };
+      scan('hourly', h.hourly); scan('nightly', h.nightly); scan('reports', h.reports);
+      const ago = t => t ? fmtAgo(t) : 'never';
+      const planLine = h.plan === 'paid'
+        ? `Workers <b>Paid</b> — ${h.subrequest_limit.toLocaleString()} calls per run, so a tick finishes everything in one go.`
+        : `Workers <b>Free</b> — only <b>${h.subrequest_limit}</b> calls per run. Jobs still finish, they just spread over more hourly ticks. Upgrading removes the spreading entirely.`;
+      const staleNames = stale.map(r => {
+        const when = r.latest ? '(last ' + esc(r.latest) + ')' : '(no data at all)';
+        return esc(r.name) + ' <span class="tiny">' + when + '</span>';
+      }).join(' · ');
+      host.innerHTML = `
+        ${stale.length ? `<div class="notice warn" style="margin:0 0 10px">⚠️<div><b>${stale.length} brand${stale.length > 1 ? 's have' : ' has'} no Meta data for ${esc(yday)}:</b> ${staleNames}.
+          <p class="tiny" style="margin:6px 0 0">The sync refreshes the stalest brand first on every hourly tick, so this usually clears itself. If it is still here tomorrow, something is actually wrong.</p></div></div>`
+          : `<div class="notice good" style="margin:0 0 10px">✓<div>Every brand has Meta data through <b>${esc(yday)}</b>.</div></div>`}
+        ${faults.length ? `<div class="notice warn" style="margin:0 0 10px">⚠️<div><b>Last run had trouble:</b> ${esc(faults.join(' · '))}.
+          <p class="tiny" style="margin:6px 0 0">Deferred work is normal and picks itself up on the next tick. Errors are not — open the detail below.</p></div></div>` : ''}
+        <div class="row" style="gap:22px;flex-wrap:wrap;margin-bottom:4px">
+          <div><div class="tiny">Last hourly tick</div><div style="font-weight:700">${esc(ago(h.hourly?.at))}</div></div>
+          <div><div class="tiny">Last nightly</div><div style="font-weight:700">${esc(ago(h.nightly?.at))}</div></div>
+          <div><div class="tiny">Brief hour</div><div style="font-weight:700">${h.brief_hour}:00 Central</div></div>
+          <div><div class="tiny">Report hour</div><div style="font-weight:700">${h.report_hour}:00 Central</div></div>
+        </div>
+        <p class="tiny" style="margin:8px 0 0">${planLine}${h.hourly?.subrequests ? ` Last tick used <b>${h.hourly.subrequests.used}</b> of ${h.hourly.subrequests.limit}.` : ''}</p>
+        <details style="margin-top:8px"><summary class="tiny" style="cursor:pointer">What each job did last time</summary>
+          <pre class="tiny" style="white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border-radius:8px;padding:10px 12px;margin-top:6px;max-height:280px;overflow:auto">${esc(JSON.stringify({ hourly: h.hourly, nightly: h.nightly, reports: h.reports }, null, 1))}</pre></details>`;
     } catch (e) { host.innerHTML = `<span class="hint">Couldn't check: ${esc(e.message)}</span>`; }
   })();
 

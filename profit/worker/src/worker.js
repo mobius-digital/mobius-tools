@@ -38,6 +38,10 @@ const PROXY_PATHS = new Set([
   '/api/tw-attr-sync',
   // Who a client-facing send will appear to come from.
   '/api/slack-identity',
+  // What the scheduled jobs actually did on their last run, and how stale each
+  // brand's Meta data is. The crons live on the account-health worker, so this
+  // is the only place that knows.
+  '/api/schedule-health',
   // Playback for a creative card. Unauthenticated callers reach it only with
   // a report archive token, which the engine validates against that client's
   // own sent reports.

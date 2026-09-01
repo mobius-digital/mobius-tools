@@ -37,6 +37,102 @@ const ACTIVITY_BACKFILL_DAYS = 90;
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 
 /* ------------------------------------------------------------------ */
+/*  SUBREQUEST BUDGET — the thing this worker never had                */
+/* ------------------------------------------------------------------ */
+/* Cloudflare counts EVERY outbound call made during ONE invocation, and the
+   part that caught us is that D1 counts: "a subrequest is any request a Worker
+   makes using the Fetch API or to Cloudflare services like R2, KV, or D1."
+   Free plan allows 50. Paid allows 10,000.
+ *
+ * Nothing here was counting, and every scheduled job looped all six brands
+ * doing ~10-20 calls each. So each job ran flat into the ceiling and the
+ * platform killed it mid-brand. Whatever ran first won; everything after it
+ * got nothing. On 2026-08-31 that meant: the nightly synced Bonk Golf and
+ * abandoned the other five, every Triple Whale sync failed, and the weekly
+ * reports were generated with no narrative and never posted to Slack — while
+ * `lastRun` cheerfully recorded ok:true. It also left daily_insights a day
+ * stale, which is what made the delivery check shout that Dartee had spent
+ * nothing. One unmetered loop, five visible symptoms.
+ *
+ * THE RULE NOW: a job never runs into the ceiling. It counts what it spends,
+ * stops while it can still afford to record what it did, and leaves the rest
+ * for the next tick. Every loop here is already idempotent — brands that are
+ * done are skipped on the way back in — so stopping early is free and resuming
+ * is automatic. The hourly trigger gives us 24 chances a day to finish.
+ *
+ * This is why the fix is not "buy the paid plan". Paid raises the ceiling 200x
+ * and is well worth $5, but an uncounted loop still has no idea where the
+ * ceiling is — it just moves the cliff further out and hits it at 60 clients
+ * instead of 6, silently, exactly the same way. Counting is the fix. The plan
+ * is headroom. */
+
+const SUB_LIMIT_FREE = 50;
+/* Held back so a job that runs out of budget can still WRITE DOWN that it ran
+   out and post the alert saying so. Every silent failure we hit came from the
+   bookkeeping being the thing that got cut off. */
+const SUB_RESERVE = 8;
+
+/* Module scope is reused across invocations in a warm isolate, so this MUST be
+   reset at every entry point — see `scheduled` and `fetch`. Concurrent requests
+   in one isolate share it; that only ever makes a job more conservative (it
+   defers work to the next tick), never less, so the race is safe by design. */
+let SUB_USED = 0;
+let SUB_LIMIT = SUB_LIMIT_FREE;
+
+function subReset(env) {
+  SUB_USED = 0;
+  // Set SUB_LIMIT in wrangler.toml [vars] after upgrading to Workers Paid and
+  // every job simply does more per tick — no other change needed.
+  const n = +(env?.SUBREQUEST_LIMIT ?? 0);
+  SUB_LIMIT = Number.isFinite(n) && n > 0 ? n : SUB_LIMIT_FREE;
+}
+function subSpend(n = 1) { SUB_USED += n; }
+function subUsed() { return SUB_USED; }
+/** How many calls are still safe to make, after the bookkeeping reserve. */
+function subLeft() { return SUB_LIMIT - SUB_USED - SUB_RESERVE; }
+/** Can this invocation afford a unit of work costing roughly `n` calls? */
+function subCanAfford(n) { return subLeft() >= n; }
+
+/* Rough per-brand costs, used to decide whether to start another brand rather
+   than to stop half way through one. Deliberately generous: overestimating
+   defers a brand to the next tick, underestimating kills it mid-write. */
+const COST_SYNC_BRAND = 20;    // insights + activities + ad-level slices
+const COST_BRIEF_BRAND = 12;   // TW sync + brief data + Claude + Slack + writes
+const COST_REPORT_BRAND = 12;  // report data + Claude + Slack + writes
+const COST_DELIVERY_BRAND = 3; // one D1 read, sometimes one Meta pacing call
+
+/** Wrap `env` so every D1 call counts itself. Done once at the entry point
+ *  rather than at 112 call sites, so nothing can be added later that forgets.
+ *  Statements keep a `__raw` handle because D1's batch() needs the real
+ *  objects, not these wrappers. */
+function meterEnv(env) {
+  if (env.__metered) return env;
+  const raw = env.DB;
+  if (!raw) return env;
+  const wrapStmt = st => ({
+    __raw: st,
+    bind: (...a) => wrapStmt(st.bind(...a)),
+    first: (...a) => { subSpend(); return st.first(...a); },
+    all: (...a) => { subSpend(); return st.all(...a); },
+    run: (...a) => { subSpend(); return st.run(...a); },
+    raw: (...a) => { subSpend(); return st.raw(...a); },
+  });
+  const DB = {
+    prepare: q => wrapStmt(raw.prepare(q)),
+    batch: list => { subSpend(); return raw.batch((list || []).map(s => (s && s.__raw) || s)); },
+    exec: q => { subSpend(); return raw.exec(q); },
+    dump: () => raw.dump(),
+  };
+  return new Proxy(env, {
+    get: (t, k) => (k === 'DB' ? DB : k === '__metered' ? true : t[k]),
+  });
+}
+
+/** Every outbound HTTP call in this worker goes through here so it is counted.
+ *  Same signature as fetch; the only difference is the meter. */
+function xfetch(...args) { subSpend(); return fetch(...args); }
+
+/* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
 /* ------------------------------------------------------------------ */
 
@@ -81,7 +177,7 @@ async function meta(env, path, params = {}) {
     url.searchParams.set(k, typeof v === 'string' ? v : JSON.stringify(v));
   }
   url.searchParams.set('access_token', env.META_TOKEN);
-  const res = await fetch(url.toString());
+  const res = await xfetch(url.toString());
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body.error) {
     const e = body.error || {};
@@ -99,7 +195,7 @@ async function metaAll(env, path, params, maxPages = 30) {
     out.push(...(page.data || []));
     const next = page.paging?.next;
     if (!next || ++n >= maxPages) break;
-    const res = await fetch(next);
+    const res = await xfetch(next);
     page = await res.json();
     if (page.error) throw new MetaError(page.error.message, page.error.code);
   }
@@ -588,7 +684,7 @@ async function claude(env, { system, user, maxTokens = 4000 }) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY secret is not set — run `npx wrangler secret put ANTHROPIC_API_KEY` in account-health/worker/');
   }
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await xfetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'x-api-key': env.ANTHROPIC_API_KEY,
@@ -729,7 +825,7 @@ const TW_ATTR_MODELS = ['firstClick', 'lastClick', 'fullFirstClick', 'fullLastCl
 const LINEAR_MODELS = new Set(['linear', 'linearAll']);
 
 async function twJourneys(env, shopDomain, start, end, page) {
-  const res = await fetch('https://api.triplewhale.com/api/v2/attribution/get-orders-with-journeys-v2', {
+  const res = await xfetch('https://api.triplewhale.com/api/v2/attribution/get-orders-with-journeys-v2', {
     method: 'POST',
     headers: { 'x-api-key': env.TW_API_KEY, 'content-type': 'application/json' },
     /* Send the exact key set the probe proved returns 200. `shopId` gives a
@@ -834,7 +930,7 @@ async function twWindow(env, shopDomain, start, end) {
 }
 
 async function twSummary(env, shopDomain, start, end) {
-  const res = await fetch('https://api.triplewhale.com/api/v2/summary-page/get-data', {
+  const res = await xfetch('https://api.triplewhale.com/api/v2/summary-page/get-data', {
     method: 'POST',
     headers: { 'x-api-key': env.TW_API_KEY, 'content-type': 'application/json' },
     body: JSON.stringify({ shopDomain, period: { start, end }, todayHour: 24 }),
@@ -1431,7 +1527,9 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   if (skipIfSent && prior?.status === 'sent') return { name: acct.name, already_sent: true, date };
 
   let text = null, r = null;
-  if (useStored && prior?.text && prior.status !== 'skipped' && prior.status !== 'error') text = prior.text;
+  // 'error' is no longer written (see the catch below), but rows from before
+  // that change still exist and their text is worth sending, not regenerating.
+  if (useStored && prior?.text && prior.status !== 'skipped') text = prior.text;
   if (!text) {
     r = await makeBrief(env, acct, date);
     if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
@@ -1450,8 +1548,19 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     if (r?.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
     return { name: acct.name, ok: true, channel, date, narrative_error: r?.narrative_error ?? null };
   } catch (e) {
-    await upsertBrief(env, acct.act_id, date, 'error', channel, `${e.message}\n\n${text}`, r?.data);
-    return { name: acct.name, error: e.message };
+    /* A FAILED SEND LEAVES A SENDABLE DRAFT. This used to write status 'error'
+       with the error message glued onto the front of the text, which did three
+       damaging things at once: the Reports/Brief UI only shows Edit and Send on
+       a 'draft', so the buttons vanished and the brief dropped to the read-only
+       history at the bottom of the page; the wording Cole had just spent time
+       editing was overwritten; and sendBrief itself then refused to reuse the
+       text, so the only way forward regenerated it from scratch.
+       Cole hit all three on Dartee, 2026-08-31, because SLACK_USER_TOKEN was
+       not set. The send failing is normal — an unset token, a channel he is not
+       in, Slack being down. It is not a reason to destroy the draft.
+       The row stays exactly as it was; the error goes to the caller (the UI
+       shows it) and to the internal channel via alertBriefFailure. */
+    return { name: acct.name, error: e.message, draft_intact: true };
   }
 }
 
@@ -1477,6 +1586,47 @@ async function alertBriefFailure(env, acct, date, result) {
 
 const BRIEF_TZ = 'America/Chicago';           // Cole's timezone; the send hour is set in it
 const DEFAULT_BRIEF_HOUR = 9;                 // 9am Central
+/* Reports start this many hours after the brief hour. They share a budget with
+   the briefs, and a report is the biggest single unit of work in this worker —
+   given the same tick it would be the thing deferred six times over while six
+   briefs went first. Its own tick, its own allowance. */
+const REPORT_HOUR_OFFSET = 2;
+
+/* ------------------------------------------------------------------ */
+/*  A scheduled job that fails must SAY SO                             */
+/* ------------------------------------------------------------------ */
+/* Every failure in this worker has been silent. `lastRun` recorded ok:true
+   while six reports posted to nobody; the nightly recorded six subrequest
+   errors and no human saw them for four days. A record nobody reads is not
+   monitoring.
+ *
+ * So: any tick that errored or had to defer work posts ONE line to the internal
+ * channel. Deliberately one message for the whole tick rather than one per
+ * brand, and deliberately quiet about a clean deferral that resolved itself —
+ * see `sameAsLast`, which keeps an ongoing fault to a single message instead of
+ * a drip every hour. */
+async function alertScheduleTrouble(env, label, payload) {
+  const flat = JSON.stringify(payload || {});
+  const errors = (flat.match(/"error":/g) || []).length;
+  const deferred = (flat.match(/"deferred":/g) || []).length;
+  if (!errors && !deferred) { await putSetting(env, 'lastTrouble', '').catch(() => {}); return; }
+  const ch = await getSetting(env, 'slackChannel');
+  if (!ch || !env.SLACK_BOT_TOKEN) return;
+  // One message per distinct fault, not one per hour it persists.
+  const sig = `${label}|${errors}|${deferred}`;
+  if ((await getSetting(env, 'lastTrouble')) === sig) return;
+  await putSetting(env, 'lastTrouble', sig).catch(() => {});
+  const bits = [];
+  if (errors) bits.push(`*${errors}* error${errors > 1 ? 's' : ''}`);
+  if (deferred) bits.push(`*${deferred}* item${deferred > 1 ? 's' : ''} deferred to the next run`);
+  await slackPost(env, ch,
+    `:construction: *${label}* finished with ${bits.join(' and ')}.\n` +
+    `Used ${subUsed()} of ${SUB_LIMIT} subrequests. ` +
+    (deferred && !errors
+      ? '_Deferred work is normal and picks itself up next tick — this is only worth acting on if it repeats all day._'
+      : '_Open Locus → Settings for the detail._'),
+  ).catch(() => {});
+}
 
 /** The hour (0-23, Central) the Daily Brief should go out. */
 async function briefHour(env) {
@@ -1521,6 +1671,15 @@ async function dailyBriefs(env) {
     // every hour until someone pressed send.
     if (a.review_first && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
 
+    // Stop BEFORE starting a brand we cannot finish. Half a brief is worse than
+    // none: the old behaviour ran until Cloudflare killed it, which could land
+    // between the Slack post and the row that records it — a client message with
+    // no record that it was sent, and a retry next hour that sends it twice.
+    if (!subCanAfford(COST_BRIEF_BRAND)) {
+      results.push({ name: a.name, date, deferred: 'out of subrequest budget — next tick picks this up' });
+      continue;
+    }
+
     didWork = true;
     let r;
     try {
@@ -1543,6 +1702,28 @@ async function dailyBriefs(env) {
     await putSetting(env, 'lastBriefRun', JSON.stringify({ at: new Date().toISOString(), results })).catch(() => {});
   }
   return results;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Is a brand's Meta data current enough to judge?                    */
+/* ------------------------------------------------------------------ */
+/* The delivery check reads spend out of D1, not out of Meta. That is right —
+ * it must be cheap enough to run every hour — but it means a sync that did not
+ * happen is indistinguishable from an account that did not spend, and the old
+ * code resolved that ambiguity the worst possible way: `dayRow?.spend ?? 0`.
+ *
+ * On 2026-08-31 Dartee Golf had spent $892.87 and the missing row said $0, so a
+ * client-facing brand got a 🚨 in Slack about billing, campaign status and
+ * policy. Nothing was wrong with the account. The sync had run out of
+ * subrequests eight hours earlier and never written the row.
+ *
+ * A missing row is now a MISSING ROW. It is worth knowing about — it just is
+ * not a spend story, and it must never be told as one. */
+async function insightsFreshness(env, a, day) {
+  const row = await env.DB.prepare(
+    `SELECT date FROM daily_insights WHERE act_id = ?1 AND date <= ?2 ORDER BY date DESC LIMIT 1`,
+  ).bind(a.act_id, day).first().catch(() => null);
+  return { latest: row?.date || null, current: row?.date === day };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1935,7 +2116,7 @@ async function adVideoSource(env, adId, hint = {}) {
     const u = new URL(`${GRAPH}/${videoId}`);
     u.searchParams.set('fields', 'source');
     u.searchParams.set('access_token', tok);
-    const res = await fetch(u);
+    const res = await xfetch(u);
     const b = await res.json();
     return b?.source || null;
   } catch { return null; }
@@ -2129,7 +2310,7 @@ async function adThumbnails(env, adIds) {
       let picked = null;
       for (const src of sources) {
         try {
-          const img = await fetch(src);
+          const img = await xfetch(src);
           if (!img.ok) continue;
           const buf = await img.arrayBuffer();
           if (buf.byteLength > 190_000 || buf.byteLength * 1.34 > budget) continue;   // too big: fall through to a smaller source
@@ -2728,6 +2909,14 @@ async function reportsPass(env) {
         `SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
       ).bind(a.act_id, j.period, j.start).first().catch(() => null);
       if (prior) { results.push({ name: a.name, period: j.period, already: prior.status }); continue; }
+      /* Same rule as the brief: do not start what this tick cannot finish.
+         A report half-written is a `reports` row with no narrative that then
+         blocks every retry, because the check above only asks whether a row
+         exists. That is exactly what happened on 2026-08-31. */
+      if (!subCanAfford(COST_REPORT_BRAND)) {
+        results.push({ name: a.name, period: j.period, deferred: 'out of subrequest budget — next tick picks this up' });
+        continue;
+      }
       did = true;
       try {
         // tw_daily is cumulative and dailyBriefs has usually just synced this brand
@@ -2741,13 +2930,20 @@ async function reportsPass(env) {
         if (r.narrative_error) await alertClaudeFailure(env, `${j.period} report summary for ${a.name}`, r.narrative_error);
         // Same switch as the daily brief: review means it waits for a human,
         // off means it goes straight to the client. One rule for all three.
-        if (a.review_first) {
-          const posted = await postReportDraft(env, a, r).catch(e => ({ error: e.message }));
-          results.push({ name: a.name, period: j.period, ok: true, posted, narrative_error: r.narrative_error ?? null });
-        } else {
-          const sent = await sendReport(env, a, j.period, j.start).catch(e => ({ error: e.message }));
-          results.push({ name: a.name, period: j.period, ok: true, sent, narrative_error: r.narrative_error ?? null });
-        }
+        /* `ok: true` USED TO BE HARD-CODED HERE, next to a caught error.
+           On the first Monday reports ran, all six failed to reach Slack and
+           all six were recorded as successes — which is why nobody knew for a
+           week. The outcome is now whatever actually happened. */
+        const step = a.review_first
+          ? { posted: await postReportDraft(env, a, r).catch(e => ({ error: e.message })) }
+          : { sent: await sendReport(env, a, j.period, j.start).catch(e => ({ error: e.message })) };
+        const failure = (step.posted || step.sent)?.error || null;
+        results.push({
+          name: a.name, period: j.period,
+          ...(failure ? { error: failure } : { ok: true }),
+          ...step,
+          narrative_error: r.narrative_error ?? null,
+        });
       } catch (e) {
         results.push({ name: a.name, period: j.period, error: e.message });
       }
@@ -3208,7 +3404,7 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
   if (asUser && !token) {
     throw new Error('No Slack user token is set, so this cannot be sent as you rather than as the bot. Add SLACK_USER_TOKEN in Cloudflare, or post it from Slack by hand.');
   }
-  const send = payload => fetch('https://slack.com/api/chat.postMessage', {
+  const send = payload => xfetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -3274,7 +3470,19 @@ async function checkCompletedDay(env, a, day) {
   if (prior.length < 4) return null;                       // not enough history to judge
   const med = prior[Math.floor(prior.length / 2)];
   if (med < DELIVERY_MIN_SPEND) return null;               // tiny spender: too noisy
-  const spend = dayRow?.spend ?? 0;
+
+  /* NO ROW IS NOT ZERO SPEND. Meta has not told us about this day yet, or the
+     sync did not get to this brand. Either way there is nothing to judge, and
+     guessing $0 is how a brand spending $892 got a billing alarm. Say what is
+     actually wrong instead — a stale sync IS a fault, just a different one. */
+  if (!dayRow) {
+    const f = await insightsFreshness(env, a, day);
+    return `🕓 *${a.name}* — no Meta spend data for ${day} yet, so delivery could not be checked.` +
+      (f.latest ? ` The last day on file is ${f.latest}.` : ' There is no spend history at all for this brand.') +
+      ` _This is a sync problem, not necessarily a spend problem — check the account in Ads Manager if it persists past the next sync._`;
+  }
+
+  const spend = dayRow.spend ?? 0;
   if (spend > med * DELIVERY_FLOOR) return null;
   return spend === 0
     ? `🚨 *${a.name}* spent *nothing* yesterday (a normal day is about ${money(med, a.currency)}). Check billing, campaign status and policy.`
@@ -3302,7 +3510,12 @@ async function deliveryPass(env) {
   const byChannel = new Map();
   let touched = false;
 
+  const deferred = [];
   for (const a of await listAccounts(env, true)) {
+    /* A brand skipped here is NOT marked as checked (st.day / st.intra stay
+       put), so the next tick re-checks it. That is the whole reason the state
+       flags record "a check ran" rather than "an hour passed". */
+    if (!subCanAfford(COST_DELIVERY_BRAND)) { deferred.push(a.name); continue; }
     const today = localDate(a.tz);
     const hour = Math.floor(localHourFrac(a.tz));
     const yesterday = addDays(today, -1);
@@ -3332,7 +3545,7 @@ async function deliveryPass(env) {
   }
 
   if (touched) await putSetting(env, 'deliveryState', JSON.stringify(state)).catch(() => {});
-  if (!byChannel.size) return { ok: true, alerts: 0 };
+  if (!byChannel.size) return { ok: true, alerts: 0, ...(deferred.length ? { deferred } : {}) };
   let alerts = 0;
   const results = [];
   for (const [ch, lines] of byChannel) {
@@ -3409,7 +3622,7 @@ async function googleLogin(env, credential) {
   if (!env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID.startsWith('PASTE')) {
     return { error: 'Google sign-in is not configured yet', status: 501 };
   }
-  const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  const res = await xfetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
   const info = await res.json().catch(() => ({}));
   if (!res.ok || info.aud !== env.GOOGLE_CLIENT_ID) return { error: 'Invalid Google token', status: 401 };
   if (info.email_verified !== 'true' && info.email_verified !== true) return { error: 'Email not verified', status: 401 };
@@ -3455,26 +3668,85 @@ async function isAdmin(request, env) {
   return !!row?.value && (await sha256hex(tok)) === row.value;
 }
 
-async function nightly(env) {
-  /* Cole, 2026-08-30: "I want it to include ALL things I own and future things
-     too" - i.e. never press a Discover button again. Runs FIRST and cannot fail
-     the pass: a Meta outage must not cost the night's syncs. New accounts land
-     with active = 0, so this only ever grows the pool you can pick a brand
-     from; nothing starts syncing, reporting or posting to Slack on its own.
-     That distinction is deliberate - auto-TRACKING every ad account the business
-     owns would put non-clients into every tab and every API budget. */
-  const disc = await discoverAccounts(env).catch(e => ({ error: e.message }));
+/** Write down what a scheduled tick actually did, including what it could not
+ *  afford. This is the only record anyone has, so it is budgeted for (see
+ *  SUB_RESERVE) and it never throws. */
+async function recordRun(env, key, payload) {
+  const body = JSON.stringify({
+    at: new Date().toISOString(),
+    subrequests: { used: subUsed(), limit: SUB_LIMIT },
+    ...payload,
+  });
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).bind(key, body.slice(0, 60000)).run().catch(() => {});
+}
+
+/* ------------------------------------------------------------------ */
+/*  Keeping the data fresh — spread across the hourly ticks            */
+/* ------------------------------------------------------------------ */
+/* This used to be the whole of nightly(): one 03:30 invocation looping every
+ * brand. On the free plan that got through ONE brand before Cloudflare killed
+ * it, so five of six sat a day stale every single day, and nothing said so —
+ * the delivery check then read the missing day as "spent nothing" and shouted
+ * about a brand that had spent $892.
+ *
+ * Now: STALEST FIRST, as many as this tick can afford, every hour. Six brands
+ * over 24 ticks means each one is refreshed several times a day and no tick has
+ * to be big. A brand that errors sorts to the front next hour automatically,
+ * because its last_sync_insights did not move — the retry is the ordering, not
+ * a separate mechanism. */
+async function syncPass(env) {
+  if (!subCanAfford(COST_SYNC_BRAND)) {
+    return { skipped: 'budget spent on higher-priority work this tick' };
+  }
   const accounts = await listAccounts(env, true);
-  const results = [];
-  for (const a of accounts) results.push(await syncAccount(env, a));
-  const tw = [];
-  for (const a of accounts) tw.push(await syncTwDaily(env, a, 10).catch(e => ({ name: a.name, error: e.message })));
-  /* Triple Whale ad-level attribution. A 7-day window every night because
-     attribution RESTATES as journeys resolve - yesterday's numbers keep moving
-     for several days, so re-pulling a week and replacing it is what keeps the
-     stored figures converging on the truth rather than freezing a first guess. */
+  if (!accounts.length) return { skipped: 'no active accounts' };
+  // NULL (never synced) sorts first under an empty-string key, which is right:
+  // a brand with no data at all is the most urgent thing on the list.
+  accounts.sort((x, z) =>
+    String(x.last_sync_insights || '').localeCompare(String(z.last_sync_insights || '')));
+
+  const done = [];
+  for (const a of accounts) {
+    if (!subCanAfford(COST_SYNC_BRAND)) { done.push({ name: a.name, deferred: 'out of budget' }); break; }
+    const r = await syncAccount(env, a);
+    // Triple Whale rides along with the same brand rather than in its own loop.
+    // Doing all Meta then all TW meant TW was always the half that got cut.
+    r.tw = await syncTwDaily(env, a, 10).catch(e => ({ error: e.message }));
+    done.push(r);
+  }
+  return { synced: done, remaining: subLeft() };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Nightly — only the work that genuinely wants a quiet hour          */
+/* ------------------------------------------------------------------ */
+async function nightly(env) {
+  const out = {};
+  /* Cole, 2026-08-30: "I want it to include ALL things I own and future things
+     too" - i.e. never press a Discover button again. New accounts land with
+     active = 0, so this only ever grows the pool you can pick a brand from;
+     nothing starts syncing, reporting or posting to Slack on its own.
+
+     IT NO LONGER RUNS FIRST. Discovery walks 25 ad accounts across every
+     business and is the single most expensive thing here; running it ahead of
+     the syncs meant it spent most of the night's allowance before one brand had
+     been touched, which is exactly how five of six ended up stale. It goes last
+     now, on whatever is left, and simply waits for tomorrow if there is nothing
+     left — a new ad account showing up a day later costs nothing, a brand going
+     a day stale costs a false alarm in a client channel. */
+  const accounts = await listAccounts(env, true);
+
+  /* Triple Whale ad-level attribution. A 7-day window because attribution
+     RESTATES as journeys resolve - yesterday's numbers keep moving for several
+     days, so re-pulling a week and replacing it is what keeps the stored figures
+     converging on the truth rather than freezing a first guess. */
   const twAttr = [];
-  for (const a of accounts) twAttr.push(await syncTwAttribution(env, a, 7).catch(e => ({ name: a.name, error: e.message })));
+  for (const a of accounts) {
+    if (!subCanAfford(COST_SYNC_BRAND)) { twAttr.push({ name: a.name, deferred: 'out of budget' }); break; }
+    twAttr.push(await syncTwAttribution(env, a, 7).catch(e => ({ name: a.name, error: e.message })));
+  }
   /* HISTORY FILLS ITSELF. The rolling 7 days above keeps recent attribution
      correcting as journeys resolve, but it never reaches backwards - so a
      90-day window would stay empty forever unless someone remembered to press
@@ -3483,6 +3755,7 @@ async function nightly(env) {
      `tw_attr_cursor`, the same shape as the ad-insights backfill. */
   for (const a of accounts) {
     if (a.tw_attr_done) continue;
+    if (!subCanAfford(COST_SYNC_BRAND)) { twAttr.push({ name: a.name, backfill: true, deferred: 'out of budget' }); break; }
     try {
       const today = localDate(a.tz);
       const floor = addDays(today, -TW_ATTR_HISTORY_DAYS);
@@ -3497,13 +3770,17 @@ async function nightly(env) {
       twAttr.push({ ...r, backfill: true });
     } catch (e) { twAttr.push({ name: a.name, backfill: true, error: e.message }); }
   }
-  // Alerts moved to deliveryPass() on the hourly trigger: this job runs at
-  // 03:30 UTC, which is late evening locally, and could only ever report on
-  // a day that had already been over for the best part of a day.
-  const pace = { skipped: 'delivery alerts run on the hourly pass' };
-  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('lastRun', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-    .bind(JSON.stringify({ at: new Date().toISOString(), discover: disc, results, tw, twAttr, pace })).run();
-  return results;
+  out.twAttr = twAttr;
+
+  // Whatever is left goes to the syncs, then discovery last of all.
+  out.sync = await syncPass(env).catch(e => ({ error: e.message }));
+  out.discover = subCanAfford(COST_SYNC_BRAND)
+    ? await discoverAccounts(env).catch(e => ({ error: e.message }))
+    : { deferred: 'out of budget — runs tomorrow' };
+
+  await recordRun(env, 'lastRun', out);
+  await alertScheduleTrouble(env, 'nightly sync', out);
+  return out;
 }
 
 export default {
@@ -3514,6 +3791,7 @@ export default {
     // dashboard and stable across daylight saving, without adding a trigger (the
     // account is at the free-plan limit of 5).
     if (event.cron === '0 * * * *') {
+      env = meterEnv(env); subReset(env);
       ctx.waitUntil((async () => {
         // AT OR AFTER the configured hour, never an exact match. An exact match has
         // no way to recover from a single miss, and the misses are real: changing the
@@ -3522,19 +3800,52 @@ export default {
         // tick or a transient failure did the same. Every later tick now retries, and
         // dailyBriefs skips brands already posted for the date, so this cannot double
         // post and costs one cheap SELECT per brand per hour once the hour is past.
-        await deliveryPass(env).catch(() => {});
-        if (centralHour() >= await briefHour(env)) {
-          await dailyBriefs(env);
-          // Weekly/monthly report drafts ride the same gate: Monday drafts last
-          // Mon–Sun, the 1st drafts last month. Internal drafts only — the
-          // Send-to-client button is the only path to a client channel.
-          await reportsPass(env).catch(() => {});
+        //
+        // ORDER MATTERS, AND IT IS NOT THE ORDER OF IMPORTANCE.
+        // Everything below shares ONE subrequest budget. Before the budget was
+        // counted, this ran briefs then reports, and the briefs ate the whole
+        // allowance — so on the first Monday reports existed at all, all six were
+        // generated with no narrative and posted to nobody, while recording
+        // ok:true. Cheapest and most time-critical first, and every job below
+        // stops on its own when the budget runs low rather than being killed.
+        const hour = centralHour();
+        const bh = await briefHour(env);
+        const ran = {};
+        ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
+        if (hour >= bh) {
+          ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
+          // Reports wait TWO hours behind the brief. They could share a tick now
+          // that both stop politely, but a weekly report is the biggest single
+          // unit of work here and it should not be the thing that gets deferred
+          // six times because six briefs went first. Monday drafts last Mon–Sun,
+          // the 1st drafts last month. Internal drafts only — the Send-to-client
+          // button is still the only path to a client channel.
+          if (hour >= bh + REPORT_HOUR_OFFSET) {
+            ran.reports = await reportsPass(env).catch(e => ({ error: e.message }));
+          }
         }
+        // Whatever budget survived goes to keeping the data fresh. This used to
+        // live entirely in the 03:30 nightly, which meant one invocation tried to
+        // sync every brand and got through one; daily_insights sat a day stale and
+        // the delivery check read the missing day as "spent nothing". Draining it
+        // an hour at a time across 24 ticks means a brand is never more than a few
+        // hours old, and no single tick has to be big.
+        ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
+        await recordRun(env, 'lastHourly', ran);
       })());
-    } else ctx.waitUntil(nightly(env));
+    } else {
+      env = meterEnv(env); subReset(env);
+      ctx.waitUntil(nightly(env));
+    }
   },
 
   async fetch(request, env, ctx) {
+    /* Metered here too. Nothing in the request path GATES on the budget — a
+       dashboard call must answer or fail honestly, never half-answer — but the
+       count is what makes an endpoint's real cost visible in /api/health
+       instead of being discovered when a page starts failing for one client
+       and not another. */
+    env = meterEnv(env); subReset(env);
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -3589,7 +3900,7 @@ export default {
        name rather than an assumption. Read-only and admin-gated. */
     if (path === '/api/slack-identity' && request.method === 'GET') {
       if (!env.SLACK_USER_TOKEN) return json({ configured: false });
-      const r = await fetch('https://slack.com/api/auth.test', {
+      const r = await xfetch('https://slack.com/api/auth.test', {
         headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}` },
       }).then(x => x.json()).catch(e => ({ ok: false, error: e.message }));
       return json({ configured: true, ok: !!r.ok, user: r.user || null, team: r.team || null, error: r.error || null });
@@ -3617,6 +3928,30 @@ export default {
     if (path === '/health') {
       const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastRun'`).first().catch(() => null);
       return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY, hasSlackToken: !!env.SLACK_BOT_TOKEN, hasTwKey: !!env.TW_API_KEY });
+    }
+    /* WHAT THE SCHEDULE ACTUALLY DID. Everything below already existed in the
+       settings table and none of it was on screen anywhere, which is the real
+       reason four days of failures went unnoticed. Admin-gated: it names
+       brands and errors. */
+    if (path === '/api/schedule-health' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const stale = (await env.DB.prepare(
+        `SELECT a.name, a.act_id, MAX(d.date) AS latest
+           FROM accounts a LEFT JOIN daily_insights d ON d.act_id = a.act_id
+          WHERE a.active = 1 GROUP BY a.act_id ORDER BY latest`,
+      ).all().catch(() => ({ results: [] }))).results;
+      return json({
+        subrequest_limit: SUB_LIMIT,
+        plan: SUB_LIMIT > SUB_LIMIT_FREE ? 'paid' : 'free',
+        brief_hour: await briefHour(env),
+        report_hour: (await briefHour(env)) + REPORT_HOUR_OFFSET,
+        central_hour: centralHour(),
+        hourly: safeJson(await getSetting(env, 'lastHourly'), null),
+        nightly: safeJson(await getSetting(env, 'lastRun'), null),
+        briefs: safeJson(await getSetting(env, 'lastBriefRun'), null),
+        reports: safeJson(await getSetting(env, 'lastReportRun'), null),
+        data_freshness: stale,
+      });
     }
     if (path === '/' ) return Response.redirect(DASHBOARD_URL, 302);
 
@@ -3974,7 +4309,7 @@ export default {
           u.searchParams.set('exclude_archived', 'true');
           u.searchParams.set('types', 'public_channel,private_channel');
           if (cursor) u.searchParams.set('cursor', cursor);
-          const r = await fetch(u, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+          const r = await xfetch(u, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
           const j = await r.json().catch(() => ({}));
           if (!j.ok) return json({ error: `Slack: ${j.error || r.status}` }, 400);
           out.push(...j.channels.map(c => ({ id: c.id, name: c.name, member: !!c.is_member })));

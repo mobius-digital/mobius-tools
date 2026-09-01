@@ -26,6 +26,17 @@ database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 # Public config (Google OAuth client id is public by design; used to verify sign-ins).
 [vars]
 GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"
+# SUBREQUEST BUDGET. Cloudflare counts every fetch AND every D1 query against a
+# single invocation: 50 on the free plan, 10,000 on Workers Paid. The scheduled
+# jobs measure what they spend and stop while they can still record what they
+# did, so nothing is ever killed mid-brand — they just do fewer brands per tick
+# and pick the rest up on the next one.
+#
+# AFTER UPGRADING TO WORKERS PAID, set this to 10000 and redeploy. That is the
+# only change needed: every job simply finishes in one tick instead of two or
+# three. Leave it unset (or 0) and the worker assumes the free-plan 50, which is
+# correct but slower — briefs finish over two hourly ticks rather than one.
+# SUBREQUEST_LIMIT = "10000"
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put META_TOKEN        system-user token, ads_read on every client ad account
