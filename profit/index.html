@@ -220,18 +220,31 @@
   .asm-src{margin-top:7px;color:var(--muted);line-height:1.6}
   .asm-cav{margin-top:5px;line-height:1.6;padding-left:9px;border-left:2px solid var(--line)}
   .asm-row.over .asm-cav{border-left-color:var(--brand)}
-  .asm-row.over{background:var(--brand-soft);border-radius:8px;padding-left:11px;padding-right:11px;margin:2px -11px}
+  /* An overridden row is tinted, and the tint has to stay INSIDE the card. The
+     first version pulled it out to the card's edge with a negative margin, which
+     made the block look like it had escaped the panel - and put a colored band
+     hard against the border with no breathing room. A left rule marks it instead:
+     it reads as "this row is different" without redrawing the card's edge. */
+  .asm-row.over{background:var(--brand-soft);border-radius:0 8px 8px 0;
+    box-shadow:inset 3px 0 0 var(--brand-ink);padding-left:12px;padding-right:12px}
+  .asm-row.over+.asm-row{border-top-color:transparent}
   /* --- The three plan boxes --- */
   .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
   .pf-card{border:1px solid var(--line);border-radius:10px;padding:13px 14px;background:var(--surface);
-    display:flex;flex-direction:column}
-  .pf-card.res{border-style:dashed;border-color:var(--line-strong);background:var(--bg)}
+    display:flex;flex-direction:column;min-height:132px}
+  /* The calculated one is the BYPRODUCT of the two you set, so it must read as
+     different without reading as more important. var(--bg) against a white card is
+     nearly the same white - the difference has to come from the border and the
+     tag, not a tint you cannot see. */
+  .pf-card.res{border:1px dashed var(--line-strong);background:transparent}
   .pf-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:18px}
   .pf-lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
     display:inline-flex;align-items:center;gap:5px}
   .pf-tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
     border:1px solid var(--line-strong);border-radius:99px;padding:1px 7px;flex:none}
-  .pf-val{font-size:clamp(21px,2.3vw,27px);font-weight:700;line-height:1.15;margin:9px 0 3px}
+  /* Matched to the input values on purpose: the result is not the headline. */
+  .pf-val{font-size:19px;font-weight:700;line-height:1.5;margin:9px 0 3px;
+    padding:5px 0;border-bottom:1px solid var(--line)}
   .pf-in{width:100%;margin:9px 0 3px}
   .pf-in input{font-size:17px;font-weight:600;padding:5px 3px}
   .pf-sub{color:var(--muted);min-height:16px}
