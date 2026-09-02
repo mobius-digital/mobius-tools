@@ -228,6 +228,109 @@
   .asm-row.over{background:var(--brand-soft);border-radius:0 8px 8px 0;
     box-shadow:inset 3px 0 0 var(--brand-ink);padding-left:12px;padding-right:12px}
   .asm-row.over+.asm-row{border-top-color:transparent}
+  /* ============================================================
+     EDITORIAL LAYER  (2026-09-02 revamp)
+     ------------------------------------------------------------
+     Locus reads as a textbook with numbers in it: four rows of chrome
+     before any data, paragraphs of gray prose competing with the figures,
+     and every card the same white box at the same weight - so nothing on
+     screen says what matters. The fix is not a new palette. It is
+     hierarchy, and hierarchy here comes from three things:
+
+       TYPE   money is set in the serif the wordmark already uses, large.
+              A figure should look like a figure, not a table cell.
+       RULE   hairlines and whitespace instead of boxes. A page of bordered
+              cards has no foreground; a page of rules does.
+       COLOR  spent only on verdicts. Everything else is ink and muted.
+
+     Prose does not disappear - it moves behind the (i) and the "? How to
+     use" panel that already exist and are already written.
+     ============================================================ */
+
+  /* Page head: one line, not four. The title carries the client, the
+     period sits beside it, the help affordances shrink to icons. */
+  .ph{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+    flex-wrap:wrap;padding-bottom:11px;margin-bottom:18px;border-bottom:1px solid var(--line-strong)}
+  .ph-t{font-family:var(--serif);font-weight:400;font-size:27px;line-height:1.1;letter-spacing:-.01em}
+  .ph-t em{font-style:normal;color:var(--muted)}
+  .ph-r{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .ph-sub{font-size:12.5px;color:var(--muted);margin:5px 0 0;max-width:74ch;line-height:1.55}
+
+  /* An icon-sized help affordance. The words "Show me / Metrics / ? How to
+     use" took a whole row on every page to say the same three things. */
+  .ph-ico{width:26px;height:26px;border-radius:99px;border:1px solid var(--line-strong);
+    background:var(--surface);color:var(--muted);font-size:12px;line-height:1;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;flex:none;padding:0;font-family:inherit}
+  .ph-ico:hover{border-color:var(--brand-ink);color:var(--brand-ink);background:var(--brand-soft)}
+
+  /* The headline strip. Figures in the serif, separated by rules rather
+     than boxed - four bordered cards in a row read as four equal things,
+     which is exactly the problem. */
+  .fig-strip{display:grid;gap:0;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:20px}
+  .fig{padding:13px 18px 14px;border-left:1px solid var(--line)}
+  .fig:first-child{border-left:none;padding-left:0}
+  .fig-l{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:6px}
+  .fig-v{font-family:var(--serif);font-weight:400;font-size:clamp(25px,2.6vw,33px);
+    line-height:1.05;letter-spacing:-.015em;font-variant-numeric:tabular-nums}
+  .fig-v.good{color:var(--good)}
+  .fig-v.bad{color:var(--bad)}
+  .fig-s{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+
+  /* One sentence that says what the numbers mean. This is what replaces the
+     paragraph - a verdict earns its place, an explanation does not. */
+  .verdict{font-size:14.5px;line-height:1.6;margin:0 0 20px;padding-left:13px;
+    border-left:2px solid var(--line-strong);max-width:84ch}
+  .verdict.good{border-left-color:var(--good)}
+  .verdict.warn{border-left-color:var(--warn)}
+  .verdict.bad{border-left-color:var(--bad)}
+
+  /* Section heading: a rule and a label, no card. */
+  .sec{display:flex;align-items:baseline;gap:11px;margin:26px 0 12px}
+  .sec-t{font-family:var(--serif);font-weight:400;font-size:17px;flex:none}
+  .sec-r{flex:1;height:1px;background:var(--line)}
+  .sec-n{font-size:11.5px;color:var(--muted);flex:none}
+
+  /* The ledger: the client table, unboxed. Money in the serif so the eye
+     lands on it, rows separated by hairlines, one hover state. */
+  .ledger{width:100%;border-collapse:collapse}
+  .ledger th{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);text-align:right;padding:0 0 9px;border-bottom:1px solid var(--line-strong);
+    white-space:nowrap}
+  .ledger th:first-child{text-align:left}
+  .ledger td{padding:13px 0;border-bottom:1px solid var(--line);text-align:right;
+    vertical-align:baseline;white-space:nowrap}
+  .ledger td:first-child{text-align:left;padding-right:16px;white-space:normal}
+  .ledger th+th,.ledger td+td{padding-left:18px}
+  .ledger tbody tr{cursor:pointer}
+  .ledger tbody tr:hover td{background:var(--brand-soft)}
+  .ledger tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--brand-ink)}
+  .lg-name{font-size:14.5px;font-weight:600;line-height:1.3}
+  .lg-num{font-family:var(--serif);font-weight:400;font-size:19px;line-height:1.15;
+    font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .lg-num.good{color:var(--good)}
+  .lg-num.bad{color:var(--bad)}
+  .lg-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4;font-variant-numeric:tabular-nums}
+  .lg-flag{font-size:11px;color:var(--warn);margin-top:3px}
+
+  /* A quiet inline control row - sorting is a preference, not a decision,
+     so it should not carry the same weight as Save. */
+  .ctl-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .ctl-lbl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .ctl{font:inherit;font-size:12.5px;padding:4px 11px;border-radius:99px;cursor:pointer;
+    border:1px solid transparent;background:transparent;color:var(--muted)}
+  .ctl:hover{color:var(--ink);background:var(--bg)}
+  .ctl.on{color:var(--brand-ink);border-color:var(--brand);background:var(--brand-soft);font-weight:600}
+
+  /* Foot note: the small print that used to be a five-line gray paragraph
+     mid-page. It stays available, at the bottom, opt-in. */
+  .footnote{margin-top:26px;padding-top:13px;border-top:1px solid var(--line)}
+  .footnote summary{font-size:12px;color:var(--muted);cursor:pointer;list-style:none}
+  .footnote summary::-webkit-details-marker{display:none}
+  .footnote summary:hover{color:var(--ink)}
+  .footnote .fn-body{font-size:12px;color:var(--muted);line-height:1.65;margin-top:9px;max-width:88ch}
+
   /* --- The three plan boxes --- */
   .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
   .pf-card{border:1px solid var(--line);border-radius:10px;padding:13px 14px;background:var(--surface);
@@ -1155,7 +1258,7 @@ document.addEventListener('click', e => {
   if (g) { e.preventDefault(); document.querySelectorAll('.modal-wrap').forEach(w => w.remove()); glossaryModal(); }
 }, true);
 document.addEventListener('click', e => {
-  const hb = e.target.closest('.help-btn[data-help]');
+  const hb = e.target.closest('[data-help]');
   if (hb) {
     const k = hb.dataset.help;
     helpModalFor(k, { overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings' }[k] || 'This page', PAGE_HELP[k]);
@@ -1448,8 +1551,33 @@ const TAB_PURPOSE = {
 };
 /** Standard page heading. `extra` is for the genuinely per-page bit (which client,
  *  which month) and should stay short - it sits under the purpose, not in it. */
+/* One line, not four rows.
+ *
+ * Every tab opened with a title, a purpose sentence, a second definition
+ * sentence, and a row of three word-buttons - four rows of chrome before a
+ * single figure, all of it text the reader has seen five hundred times. The
+ * purpose line stays (it is genuinely useful the first week and harmless
+ * after) but the definitions and the three buttons collapse to icons: the
+ * words were doing the same job the (i) and the help panel already do.
+ *
+ * `pageHead(tab, title, extra)` keeps its signature so every caller is
+ * unchanged; `extra` now renders as the sub-line rather than a second
+ * sentence competing with the first.
+ */
 function pageHead(tab, title, extra) {
-  return `<h2>${title}</h2><p class="sub">${TAB_PURPOSE[tab] || ''}${extra ? ` <span class="sub-x">${extra}</span>` : ''}</p>`;
+  const purpose = TAB_PURPOSE[tab] || '';
+  return `<div class="ph">
+      <div>
+        <div class="ph-t">${title}</div>
+        ${purpose ? `<p class="ph-sub">${purpose}</p>` : ''}
+      </div>
+      <div class="ph-r">
+        <button class="ph-ico" data-tour="${tab}" title="Show me round this page">&#9655;</button>
+        <button class="ph-ico" data-gloss="1" title="What every metric means">${'&#402;x'}</button>
+        <button class="ph-ico" data-help="${tab}" title="How to use this page">?</button>
+      </div>
+    </div>
+    ${extra ? `<p class="ph-sub" style="margin:-8px 0 18px">${extra}</p>` : ''}`;
 }
 
 /* ---------- Tours ----------
@@ -1476,7 +1604,7 @@ const TOURS = {
     { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b> is which clients are making money. <b>Profit</b> is where one client’s money went. <b>Meta</b> is the ads behind it. They are in that order on purpose — it is a drill-down.' },
     { sel: '#tabs .grp:nth-of-type(2)', title: 'What the client gets', body: 'The <b>Daily Brief</b> is a short morning update. <b>Reports</b> are the weekly and monthly documents you walk through on calls. Both draft to your internal Slack first — nothing reaches a client until you press send.' },
     { sel: '#periodBar', title: 'What period am I looking at?', body: 'This bar is on every screen that shows data and always names the real dates. <b>Every window ends yesterday</b> — today is still settling on every source, so it is never included.' },
-    { sel: '.help-btn[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
+    { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
 
   overview: { name: 'The Overview', steps: [
@@ -2254,6 +2382,17 @@ const daySpan = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000) + 1
 const prettyDate = (s, withYear) => parseYmd(s).toLocaleDateString('en-US',
   { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
 
+/** The selected window in words, for anywhere that needs to state its basis.
+ *  Every derived number on this tool has to say where it came from, and a page
+ *  that prints a total without naming its window is the same silent-staleness
+ *  bug in a different shape. */
+function rangeLabel() {
+  const r = resolveRange();
+  const preset = (PB.presets.find(x => x[0] === r.preset) || [])[1];
+  const span = `${prettyDate(r.from)} – ${prettyDate(r.to)}`;
+  return r.preset === 'yesterday' ? `${preset}, ${prettyDate(r.to)}` : `${preset || span} · ${span}`;
+}
+
 /** Resolve the saved selection into real dates. Browser-local: the worker still
  *  clamps per account timezone, so a client an hour behind can never be shown a
  *  partial day even when the label rounds. */
@@ -2601,41 +2740,121 @@ const OV_SORT = [
   ['mer', 'MER', a => a.window.mer ?? -Infinity],
   ['name', 'Name', null],
 ];
+/* ---------- Overview: the portfolio ledger ----------
+ *
+ * This is the first screen every morning, and it used to answer the wrong
+ * question first. It opened with a table of eleven numbers per client, each
+ * with a smaller number underneath it, and closed with a five-line gray
+ * paragraph defining revenue. Nothing said which client needed attention -
+ * every figure sat at the same weight, so the page had to be read rather
+ * than scanned.
+ *
+ * It now answers three questions in order:
+ *   1. how is the whole book doing        -> the figure strip
+ *   2. is anything wrong                  -> one verdict sentence
+ *   3. which client, and how              -> the ledger, money in the serif
+ *
+ * The definitions did not get deleted; they moved into the footnote and the
+ * (i) tooltips, which is where a definition belongs once you have read it.
+ * Money is set in Instrument Serif at 19px so the eye lands on the figure
+ * and not on the label - the single change that does most of the work here.
+ */
 async function renderOverview() {
   const sortKey = localStorage.getItem('pf_ovsort') || 'cm';
   const srt = OV_SORT.find(x => x[0] === sortKey) || OV_SORT[0];
   const rows = (S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act))
     .sort((a, b) => srt[2] ? srt[2](b) - srt[2](a) : a.name.localeCompare(b.name));
-  $('#main').innerHTML = `${pageHead('overview', 'Overview', 'Every channel, not just ads &mdash; MER and aMER are blended on both sides, so nothing is double-counted.')}
-    <div class="row" style="margin-bottom:12px;gap:6px;flex-wrap:wrap"><span class="tiny" style="font-weight:700">Sort by</span>
-      ${OV_SORT.map(([k, l]) => `<button class="chip ${k === sortKey ? 'on' : ''}" data-sort="${k}">${l}</button>`).join('')}
-      <span style="flex:1"></span><button class="help-btn" data-tour="overview">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="overview">? How to use</button></div>
-    <div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th class="num" title="Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as 'Net Sales + Shipping'. It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure 'Total Sales' and stores it as netSales; shipping is already inside it, so it is never added twice.">Revenue</th><th class="num">Ad Spend</th><th class="num">MER</th><th class="num">aMER</th><th class="num">New %</th><th class="num">Contribution Margin</th></tr></thead>
-      <tbody>${rows.map(a => {
-        const w = a.window, h = a.cost_health;
-        const trusted = cmTrusted(h);
-        return `<tr data-id="${a.act_id}" style="cursor:pointer">
-          <td><b>${esc(a.name)}</b><br><span class="tiny">${healthPill(h)}</span></td>
-          <td class="num"><b>${fmtK(w.sales, a.currency)}</b><br><span class="tiny">MTD ${fmtK(a.mtd.sales, a.currency)}${vsPlan(a.mtd.sales, a.plan?.sales)}</span></td>
-          <td class="num">${fmtK(w.spend, a.currency)}<br><span class="tiny">${w.meta_spend!=null?`M ${fmtK(w.meta_spend,a.currency)}`:''}${w.google_spend!=null?` · G ${fmtK(w.google_spend,a.currency)}`:''}</span></td>
-          <td class="num"><b>${fmtX(w.mer)}</b>${a.plan?.mer?`<br><span class="tiny" title="The plan's MER for this month, pro-rated to the days elapsed. The bold figure above it covers the selected date range, so the two only line up when that range is the month so far.">MTD plan ${fmtX(a.plan.mer)}</span>`:''}</td>
-          <td class="num"><b>${fmtX(w.amer)}</b>${a.plan?.amer?`<br><span class="tiny" title="The month's aMER goal. A rate rather than a total, so it is comparable to any window — unlike the MER plan beside it.">month goal ${fmtX(a.plan.amer)}</span>`:''}</td>
-          <td class="num">${fmtPct(w.new_share)}</td>
-          <td class="num">${trusted
-            ? `<b style="color:${w.cm==null?'inherit':w.cm>=0?'var(--good)':'var(--bad)'}">${fmtK(w.cm, a.currency)}</b><br><span class="tiny">margin ${fmtPct(w.margin)}</span>`
-            : `<span class="tiny" title="${esc(h?.reason||'')}">suppressed — see Costs</span>`}</td>
-        </tr>`; }).join('') || '<tr><td colspan="7" class="tiny">No clients yet.</td></tr>'}
-      </tbody></table></div>
-      <p class="tiny" style="margin-top:10px"><b>Revenue = Shopify Total Sales minus sales tax</b> — gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's "Net Sales + Shipping", and it reconciles to Shopify's own sales report. MER = revenue ÷ all ad spend. aMER = new-customer revenue ÷ that same spend. Contribution Margin = revenue − <b>every variable cost</b> (product, fulfilment, handling, payment fees, ad spend), which is CTC's definition; fixed costs including our retainer are excluded. "vs plan" compares month-to-date against the month's goal pro-rated to the days elapsed. These will never match Ads Manager — that's the point. Click a client for its detail.</p></div>`;
+
+  /* The book, added up. Only across ONE currency - summing money across
+     currencies is the oldest trap in this codebase, so where the book is
+     mixed the strip says so instead of printing a wrong total. */
+  const curs = [...new Set(rows.map(a => a.currency))];
+  const oneCur = curs.length === 1 ? curs[0] : null;
+  const sum = get => { let t = 0, any = false; for (const a of rows) { const v = get(a); if (v != null) { t += v; any = true; } } return any ? t : null; };
+  const tot = {
+    sales: sum(a => a.window?.sales), spend: sum(a => a.window?.spend),
+    cm: sum(a => cmTrusted(a.cost_health) ? a.window?.cm : null),
+  };
+  tot.mer = tot.sales != null && tot.spend ? tot.sales / tot.spend : null;
+
+  // Who needs a look, and why - computed once so the verdict and the row
+  // flags cannot disagree with each other.
+  const behind = rows.filter(a => a.plan?.sales && a.mtd?.sales != null && a.mtd.sales < a.plan.sales * 0.9);
+  const untrusted = rows.filter(a => !cmTrusted(a.cost_health));
+  const verdict = () => {
+    if (!rows.length) return '';
+    const bits = [];
+    if (behind.length) bits.push(`<b>${behind.length} ${behind.length === 1 ? 'brand is' : 'brands are'} behind plan</b> for the month &mdash; ${behind.map(a => esc(a.name)).join(', ')}`);
+    if (untrusted.length) bits.push(`${untrusted.length} ${untrusted.length === 1 ? 'has' : 'have'} cost data the tool will not report profit from (${untrusted.map(a => esc(a.name)).join(', ')})`);
+    const tone = behind.length ? (behind.length > rows.length / 2 ? 'bad' : 'warn') : 'good';
+    if (!bits.length) return `<p class="verdict good">Every brand is tracking at or above its plan for the month, and all cost data is trustworthy. Nothing here needs a decision today.</p>`;
+    return `<p class="verdict ${tone}">${bits.join('. ')}. Click a brand for the detail.</p>`;
+  };
+
+  const fig = (label, value, sub, cls) => `<div class="fig">
+    <div class="fig-l">${label}</div>
+    <div class="fig-v${cls ? ' ' + cls : ''}">${value}</div>
+    ${sub ? `<div class="fig-s">${sub}</div>` : ''}</div>`;
+
+  const strip = !oneCur
+    ? `<p class="ph-sub" style="margin:0 0 18px">Your brands report in ${curs.length} currencies, so there is no combined total &mdash; the ledger below is per brand.</p>`
+    : `<div class="fig-strip">
+        ${fig('Revenue', fmtK(tot.sales, oneCur), `${rows.length} brand${rows.length === 1 ? '' : 's'} &middot; ${esc(rangeLabel())}`)}
+        ${fig('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended')}
+        ${fig('MER', fmtX(tot.mer), 'revenue &divide; ad spend')}
+        ${fig('Contribution margin', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur),
+            untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'} excluded &mdash; cost data` : 'after every variable cost',
+            tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
+      </div>`;
+
+  const row = a => {
+    const w = a.window, h = a.cost_health, trusted = cmTrusted(h);
+    const off = a.plan?.sales && a.mtd?.sales != null ? a.mtd.sales / a.plan.sales - 1 : null;
+    return `<tr data-id="${a.act_id}">
+      <td>
+        <div class="lg-name">${esc(a.name)}</div>
+        ${off != null ? `<div class="lg-sub">month to date ${fmtK(a.mtd.sales, a.currency)} ${vsPlan(a.mtd.sales, a.plan.sales)}</div>` : ''}
+        ${trusted ? '' : `<div class="lg-flag" title="${esc(h?.reason || '')}">cost data needs a look</div>`}
+      </td>
+      <td><div class="lg-num">${fmtK(w.sales, a.currency)}</div></td>
+      <td><div class="lg-num">${fmtK(w.spend, a.currency)}</div>
+        ${w.meta_spend != null || w.google_spend != null ? `<div class="lg-sub">${w.meta_spend != null ? `Meta ${fmtK(w.meta_spend, a.currency)}` : ''}${w.google_spend != null ? `${w.meta_spend != null ? ' &middot; ' : ''}Google ${fmtK(w.google_spend, a.currency)}` : ''}</div>` : ''}</td>
+      <td><div class="lg-num">${fmtX(w.mer)}</div>
+        ${a.plan?.mer ? `<div class="lg-sub" title="The plan's MER for this month, pro-rated to the days elapsed. The figure above covers the selected date range, so the two only line up when that range is the month so far.">plan ${fmtX(a.plan.mer)}</div>` : ''}</td>
+      <td><div class="lg-num">${fmtX(w.amer)}</div>
+        <div class="lg-sub">${fmtPct(w.new_share)} new</div></td>
+      <td>${trusted
+        ? `<div class="lg-num ${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${fmtK(w.cm, a.currency)}</div><div class="lg-sub">${fmtPct(w.margin)} margin</div>`
+        : `<div class="lg-sub" title="${esc(h?.reason || '')}">not reported</div>`}</td>
+    </tr>`;
+  };
+
+  $('#main').innerHTML = `${pageHead('overview', S.act === 'all' ? 'Overview' : `Overview <em>&mdash; ${esc(rows[0]?.name || '')}</em>`)}
+    ${strip}
+    ${verdict()}
+    <div class="sec"><span class="sec-t">By brand</span><span class="sec-r"></span>
+      <span class="sec-n">${esc(rangeLabel())}</span></div>
+    <div class="ctl-row"><span class="ctl-lbl">Sort</span>
+      ${OV_SORT.map(([k, l]) => `<button class="ctl ${k === sortKey ? 'on' : ''}" data-sort="${k}">${l}</button>`).join('')}</div>
+    <div class="tbl-wrap"><table class="ledger">
+      <thead><tr><th>Brand</th><th>Revenue</th><th>Ad spend</th><th>MER</th><th>aMER</th><th>Contribution margin</th></tr></thead>
+      <tbody>${rows.map(row).join('') || '<tr><td colspan="6" class="lg-sub">No brands yet &mdash; add one in Settings.</td></tr>'}</tbody>
+    </table></div>
+    <details class="footnote"><summary>How these numbers are defined</summary>
+      <div class="fn-body"><b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's &ldquo;Net Sales + Shipping&rdquo;, and it reconciles to Shopify's own sales report. Every channel counts: paid, organic, email and direct, never a platform's attributed revenue.<br><br>
+      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue divided by that same spend, so repeat buyers and email cannot flatter it. <b>Contribution margin</b> is revenue less every variable cost &mdash; product, fulfilment, handling, payment fees and ad spend &mdash; which is CTC's definition; fixed costs including our retainer are excluded.<br><br>
+      &ldquo;vs plan&rdquo; compares month-to-date against the month's goal pro-rated to the days elapsed. None of this will match Ads Manager, and that is the point &mdash; Ads Manager reports what Meta claims it caused, this reports what the store actually took.</div></details>`;
+
   $('#main').querySelectorAll('[data-sort]').forEach(b => b.onclick = () => {
     localStorage.setItem('pf_ovsort', b.dataset.sort);
     inPlace(() => renderOverview());
   });
-  $('#main tbody').addEventListener('click', e => {
+  const tb = $('#main tbody');
+  if (tb) tb.addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
-    $('#clientPick').value = S.act; show('profit');
+    const cp = $('#clientPick'); if (cp) cp.value = S.act;
+    show('profit');
   });
 }
 
