@@ -221,6 +221,10 @@
   .asm-cav{margin-top:5px;line-height:1.6;padding-left:9px;border-left:2px solid var(--line)}
   .asm-row.over .asm-cav{border-left-color:var(--brand)}
   .asm-row.over{background:var(--brand-soft);border-radius:8px;padding-left:11px;padding-right:11px;margin:2px -11px}
+  /* --- Which number absorbs a bad month --- */
+  .st-note{margin-top:13px;font-size:12.5px;line-height:1.7;padding:11px 13px;border-radius:8px;
+    background:var(--brand-soft);border:1px solid var(--brand);color:var(--ink-2)}
+  .st-alt{display:block;margin-top:6px;color:var(--muted)}
   /* --- Catch-up: what it takes from here --- */
   .cu{border-radius:10px;padding:13px 15px;border:1px solid var(--line);background:var(--bg)}
   .cu.warn{border-color:var(--warn)}
@@ -906,11 +910,20 @@ async function renderPlanShare(token) {
       if (A.amer != null) rows.push(['Acquisition efficiency', `${fmtX(A.amer)}`, 'set by your team - the revenue expected per dollar of ad spend from new customers']);
       if (A.margin != null) rows.push(['Product margin', `${fmtPct(A.margin)}`, 'set by your team, before ad spend']);
       const floor = A.spend_floor_per_day;
-      if (!rows.length && floor == null) {
+      /* The one sentence that tells a client what happens when a month runs cold.
+         Without it "the plan" reads as three equal promises, and the first soft
+         week turns into an argument about which of them we meant. */
+      const structure = A.derive === 'spend'
+        ? `<p style="font-size:14px;line-height:1.7;margin:0 0 12px"><b>The budget moves.</b> ${fmtMoney(d.goals.spend ?? d.required_spend, cur)} is what the revenue target takes at this efficiency, not a cap. If a month runs cold we spend more to chase the target &mdash; and the MER above is the limit that stops us chasing it too far.</p>`
+        : A.derive
+        ? `<p style="font-size:14px;line-height:1.7;margin:0 0 12px"><b>The budget is fixed at ${fmtMoney(d.goals.spend ?? d.required_spend, cur)}.</b> The revenue figure is what that budget buys if efficiency holds &mdash; a forecast, not a second promise. If a month runs cold, revenue lands lower and the budget holds rather than us spending past it.</p>`
+        : '';
+      if (!rows.length && floor == null && !structure) {
         return `<div class="card"><h3 style="margin-bottom:6px">What this plan assumes</h3>
           <p style="font-size:14px;line-height:1.7;margin:0">Three things, all measured from your own recent trading rather than chosen: what returning customers bring in on their own, how much new-customer revenue each dollar of ad spend has been buying, and your product margin. The revenue target above is what those imply at this ad spend &mdash; if any of them move during the month, the target moves with them, and we will say so.</p></div>`;
       }
       return `<div class="card"><h3 style="margin-bottom:6px">What this plan assumes</h3>
+        ${structure}
         <p class="hint" style="margin-bottom:10px">A plan is a forecast, and every forecast rests on assumptions. These are this one's. Anything not listed below was measured from your own recent trading.</p>
         ${rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>Assumption</th><th class="num">Set to</th></tr></thead>
           <tbody>${rows.map(r => `<tr><td><b>${r[0]}</b><div class="tiny" style="color:var(--muted)">${r[2]}</div></td><td class="num"><b>${r[1]}</b></td></tr>`).join('')}</tbody></table></div>` : ''}
@@ -2114,6 +2127,12 @@ const PAGE_HELP = {
     · <i>"We want $100k and we'll spend $40k"</i> — type revenue and spend, read the MER it needs.<br>
     · <i>"We have $40k and need 2.5x"</i> — type spend and MER, read the revenue it buys.<br>
     · <i>"We want $100k at 2.5x"</i> — type revenue and MER, read the spend required.</p>
+    <p><b>Which one you leave calculated is the real decision, and it is not just arithmetic.</b>
+    Of the three, <b>ad spend is the only one you actually control</b> — MER is the market's answer (you influence it with creative and offer, you cannot set it) and revenue is simply the two multiplied. So the calculated field is the one that <i>absorbs</i> a month that runs cold, and only one choice leaves you a lever:<br>
+    · <b>Ad spend calculated — the budget moves.</b> The plan chases the revenue goal and the MER you typed is the limit that stops it chasing too far. If efficiency dips, spend rises until it would break that MER. Use this when the client wants growth and cash is not the constraint.<br>
+    · <b>Ad spend typed — the budget is fixed.</b> Revenue and MER are then forecasts of what that budget buys, not promises. If efficiency dips, revenue lands lower and nothing gets pulled to rescue it. Use this when protecting cash is the point.<br>
+    The page states which one is in force under the three boxes, and the catch-up card obeys it — on a fixed budget it will never tell you to spend your way out.</p>
+    <p><b>The spend floor is the hard deck.</b> The least you keep spending per day whatever the month does, set under <b>What this plan assumes</b>. It matters most when MER is doing the constraining: holding a ratio in a bad month means spending less, and spending less means fewer new customers — who are next month's returning revenue. Cutting acquisition to protect a ratio shrinks the business the ratio is measured against, and the floor is what stops one soft week becoming a soft quarter.</p>
     <p><b>Which numbers come from where</b> — it is deliberately a mix, and the page states it under the plan:<br>
     · The <b>revenue basis</b> ("+10% on July") is that month's <b>actual</b> — a whole finished month, never a part-month, which would lowball the goal.<br>
     · The <b>acquisition efficiency</b> and the <b>returning revenue</b> estimate come from the <b>last 28 days</b>, with the exact dates shown. Recent, not a six-month average, because efficiency moves and you care what the account is doing now.<br>
@@ -4354,7 +4373,12 @@ async function renderPlan(first) {
     PL.sales = base;
     PL.spend = seedSpend;
     PL.mer = base != null && seedSpend ? base / seedSpend : null;
-    PL.derive = 'mer';
+    // Restore which field the plan was AGREED with as the result. That choice is
+    // the difference between "the budget moves" and "the budget is fixed", so
+    // silently reseeding it to 'mer' every visit would quietly re-state the plan.
+    let savedDerive = null;
+    try { savedDerive = JSON.parse(saved?.assumptions_json || '{}').derive; } catch { /* a plan saved before this existed */ }
+    PL.derive = ['sales', 'spend', 'mer'].includes(savedDerive) ? savedDerive : 'mer';
     PL.act = S.act;
   }
 
@@ -4472,6 +4496,29 @@ async function renderPlan(first) {
       : 'Behind plan &mdash; this needs re-agreeing, not more spend';
     const need = t.spend_per_day;
     const belowFloor = floor != null && need != null && need < floor;
+
+    /* A fixed budget makes "spend more to catch up" an instruction the plan does
+       not permit. Saying it anyway is how a tool talks a team into breaking the
+       one number the client actually committed to - so when spend was TYPED
+       rather than derived, the prescription is what the month lands at inside the
+       budget, and the decision is whether the target still stands. */
+    if (!budgetMoves()) {
+      const budgetDay = c && c.spend != null ? c.spend / p.ctx.days_in_month : null;
+      const landsAt = budgetDay != null && A.amer != null
+        ? pace.mtd_sales + (A.returning_per_day || 0) * pace.days_remaining + budgetDay * A.amer * pace.days_remaining
+        : null;
+      const shortBy = landsAt != null ? p.goals.sales - landsAt : null;
+      return `<div class="cu ${shortBy != null && p.goals.sales && shortBy > p.goals.sales * 0.05 ? 'warn' : ''}" style="margin-bottom:14px">
+        <div class="cu-hd">Behind plan &mdash; and the budget is fixed</div>
+        ${landsAt != null ? `<div class="cu-big">At ${fmtMoney(budgetDay, cur)}/day the month lands near ${fmtMoney(landsAt, cur)}</div>` : ''}
+        <div class="cu-sub">
+          ${fmtMoney(pace.mtd_sales, cur)} banked of <b>${fmtMoney(p.goals.sales, cur)}</b> after ${pace.days_elapsed} of ${pace.days_in_month} days.
+          ${need != null ? `Closing the gap would take <b>${fmtMoney(need, cur)} a day</b>${budgetDay ? ` against the ${fmtMoney(budgetDay, cur)} the budget allows` : ''} &mdash; <b>which this plan does not permit.</b>` : ''}
+          ${shortBy != null && shortBy > 0 ? `<br>So the decision is whether <b>${fmtMoney(p.goals.sales, cur)}</b> still stands or the month re-cuts to about <b>${fmtMoney(landsAt, cur)}</b>. Raising the budget is a separate conversation with the client, not a catch-up.` : ''}
+          ${floor != null && budgetDay != null && budgetDay < floor ? `<br><b>Below your hard deck.</b> The budget works out at ${fmtMoney(budgetDay, cur)}/day against a ${fmtMoney(floor, cur)}/day floor.` : ''}
+        </div>
+      </div>`;
+    }
     return `<div class="cu ${tone}" style="margin-bottom:14px">
       <div class="cu-hd">${head}</div>
       <div class="cu-big">${need != null ? `${fmtMoney(need, cur)} a day` : `${fmtMoney(t.revenue_per_day, cur)} a day of revenue`} for the remaining ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'}</div>
@@ -4588,6 +4635,36 @@ async function renderPlan(first) {
         'How many dollars the store takes in for every dollar spent on ads. 2.5x means $2.50 back for every $1 spent.');
   };
 
+  /* What the derived field actually commits you to.
+   *
+   * Revenue = MER x spend, so two are chosen and the third follows - and the tool
+   * has always let you pick which. What it never said is that the choice is not
+   * only arithmetic: the DERIVED field is the one that absorbs a bad month, and
+   * only one of the three is a number you can actually turn.
+   *
+   *   derive = spend  -> the budget MOVES to chase the revenue goal, and the MER
+   *                      you set is what stops it moving too far. A live lever.
+   *   spend is typed  -> the budget is FIXED. Revenue and MER are forecasts of
+   *                      what it buys, and nothing can be pulled to rescue them.
+   *
+   * That distinction is the whole difference between "spend more to catch up" and
+   * "the target needs re-agreeing", which is why the catch-up card reads it too.
+   */
+  const budgetMoves = () => PL.derive === 'spend';
+  const structureHtml = () => {
+    const x = calc();
+    if (!x) return '';
+    if (budgetMoves()) {
+      return `<div class="st-note"><b>The budget moves.</b> ${fmtMoney(x.spend, cur)} is what the goal takes at ${fmtX(x.mer)} &mdash; not a cap.
+        If the month runs cold we spend more to chase <b>${fmtMoney(x.sales, cur)}</b>, and the <b>${fmtX(x.mer)} MER is the limit</b> that stops us chasing it too far.
+        <span class="st-alt">Want a fixed budget instead? Type the spend and press <b>calculate this instead</b> on Revenue or MER.</span></div>`;
+    }
+    const derivedName = PL.derive === 'sales' ? 'Revenue' : 'MER';
+    return `<div class="st-note"><b>The budget is fixed at ${fmtMoney(x.spend, cur)}.</b> ${derivedName} is the result, not a second promise &mdash; ${fmtMoney(x.sales, cur)} at ${fmtX(x.mer)} is what this budget buys if efficiency holds.
+      If the month runs cold, <b>revenue lands lower and the budget holds</b>. There is nothing to pull.
+      <span class="st-alt">Want the budget to move to chase the revenue goal? Press <b>calculate this instead</b> on Ad spend.</span></div>`;
+  };
+
   const fieldCard = (key, label, value, sub, info) => {
     const derived = PL.derive === key;
     return `<div class="card" style="margin:0;${derived ? 'background:var(--bg)' : ''}">
@@ -4598,7 +4675,7 @@ async function renderPlan(first) {
            <div class="tiny" style="margin-top:6px;color:var(--muted)">calculated from the other two</div>`
         : `<div class="unit-in" style="width:100%;margin:6px 0 2px">${key === 'mer' ? '' : `<span>${sym(cur)}</span>`}<input id="pfi_${key}" type="text" inputmode="decimal" value="${value}">${key === 'mer' ? '<span>x</span>' : ''}</div>
            <div class="tiny" id="pfs_${key}">${sub}</div>
-           <button class="btn" data-derive="${key}" style="margin-top:6px;font-size:11.5px;padding:4px 8px">calculate this instead</button>`}
+           <button class="btn" data-derive="${key}" style="margin-top:6px;font-size:11.5px;padding:4px 8px" title="Make this the number that gets calculated - and therefore the one that absorbs a month that runs hot or cold.">make this the result</button>`}
     </div>`;
   };
 
@@ -4633,7 +4710,7 @@ async function renderPlan(first) {
       ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> — ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>
 
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
-      <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the grayed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
+      <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the grayed one is worked out for you. Press <b>make this the result</b> on a field to move which one is calculated. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
       ${staleBasis()}
       <div id="plCatchUp">${catchUpCard()}</div>
       <div id="plAssump" style="margin-bottom:14px">${basisNote()}</div>
@@ -4643,6 +4720,7 @@ async function renderPlan(first) {
       </div>
       <div id="plFields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">${fieldsHtml()}
       </div>
+      <div id="plStruct">${structureHtml()}</div>
       <div class="tiny" style="margin-top:14px;line-height:1.7" id="plVerdict">${verdictHtml(c)}</div>
       <div class="row" style="margin-top:14px;gap:22px;flex-wrap:wrap;align-items:flex-start">
         <div><div class="tiny">Contribution margin</div><div style="font-size:19px;font-weight:700" id="plCm">${fmtMoney(c.cm, cur)}</div><div class="tiny" id="plCmSub">${c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : ''}</div></div>
@@ -4678,6 +4756,7 @@ async function renderPlan(first) {
     setTxt('#plCmSub', c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : '');
     $('#main').querySelectorAll('[data-g]').forEach(b =>
       b.classList.toggle('on', c.growth != null && Math.abs(c.growth - +b.dataset.g) < 0.005));
+    const sn = $('#plStruct'); if (sn) sn.innerHTML = structureHtml();
     const v = $('#plVerdict'); if (v) v.innerHTML = verdictHtml(c);
     const n = $('#plCmNote'); if (n) n.innerHTML = cmHtml(c);
   };
@@ -4856,6 +4935,7 @@ async function renderPlan(first) {
           amer: isOver('amer') ? A.amer : null,
           margin: isOver('margin') ? A.margin : null,
           spend_floor_per_day: A.spend_floor_per_day,
+          derive: PL.derive,
         } }) });
       p.goals = Object.assign({}, p.goals || {}, { sales: Math.round(cc.sales) });
       p.planned = true;

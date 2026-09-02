@@ -1818,6 +1818,11 @@ export default {
             const v = b.assumptions[k];
             if (v != null && v !== '' && isFinite(+v)) assumptions[k] = +v;
           }
+          // Which of the three is CALCULATED, and therefore the one that absorbs a
+          // month running hot or cold. 'spend' means the budget moves to chase the
+          // revenue goal; anything else means the budget was typed and holds. Stored
+          // so the client link can say which was agreed rather than infer it.
+          if (['sales', 'spend', 'mer'].includes(b.assumptions.derive)) assumptions.derive = b.assumptions.derive;
         }
         const assumptionsJson = Object.keys(assumptions).length ? JSON.stringify(assumptions) : null;
 
