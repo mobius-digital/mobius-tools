@@ -200,6 +200,36 @@ class MetaError extends Error {
   constructor(msg, code, sub) { super(msg); this.code = code; this.sub = sub; }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Meta rate limiting — back off, do not keep knocking                */
+/* ------------------------------------------------------------------ */
+/* Meta's limits are per app and per ad account, and they do not reset because
+   you retried. Codes 4 and 17 are "you have used your quota"; 1 and 2 are
+   transient "service temporarily unavailable" but mean the same in practice —
+   stop calling for a while.
+ *
+ * Before this, a rate-limited account was retried on the next tick and every
+ * tick after, which is the behaviour that earns a longer ban rather than
+ * clearing one. Now the first limit error parks ALL Meta work for an hour.
+ * Deliberately global rather than per account: the app-level quota is shared,
+ * so one brand hitting it means the others are about to. */
+const META_BACKOFF_CODES = new Set([1, 2, 4, 17, 32, 613]);
+const META_BACKOFF_MS = 60 * 60 * 1000;
+
+async function noteMetaError(env, e) {
+  const code = e?.code;
+  const rateish = META_BACKOFF_CODES.has(code) ||
+    /request limit reached|temporarily unavailable|rate limit/i.test(e?.message || '');
+  if (!rateish) return false;
+  await putSetting(env, 'metaBackoffUntil', String(Date.now() + META_BACKOFF_MS)).catch(() => {});
+  return true;
+}
+/** True while Meta has told us to stop. Cheap: one settings read. */
+async function metaBackedOff(env) {
+  const until = +(await getSetting(env, 'metaBackoffUntil') || 0);
+  return Number.isFinite(until) && until > Date.now();
+}
+
 async function meta(env, path, params = {}) {
   if (!env.META_TOKEN) throw new MetaError('META_TOKEN secret is not set', 0);
   const url = new URL(`${GRAPH}/${path.replace(/^\//, '')}`);
@@ -688,7 +718,22 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
 }
 
 /** Full sync for one account. `days` overrides the insights window. */
-async function syncAccount(env, acct, days) {
+/* `includeAds` exists because the two halves of this function have completely
+   different appetites for Meta's rate limit.
+ *
+ * Account-level insights and the activity log are a couple of cheap calls and
+ * are what everything time-critical reads — the delivery check, the brief, every
+ * dashboard number. Ad-level is a 14-day-sliced walk, up to 8 slices a brand,
+ * and it feeds creative cards and the report ad table: useful, never urgent.
+ *
+ * When per-brand syncing moved from the nightly onto the hourly tick
+ * (2026-09-01) the ad-level walk came with it, and six brands x 8 slices went
+ * from ~48 Meta calls a day to over a thousand. Meta answered with "Application
+ * request limit reached", which is how Cole found out. The staleness fix needed
+ * the cheap half hourly; it never needed the expensive half. So the hourly tick
+ * takes insights and activities, and ad-level stays on the nightly where it
+ * always belonged. */
+async function syncAccount(env, acct, days, { includeAds = true } = {}) {
   const out = { act_id: acct.act_id, name: acct.name };
   try {
     const insightDays = days ?? (acct.last_sync_insights ? RESYNC_DAYS : BACKFILL_DAYS);
@@ -697,9 +742,11 @@ async function syncAccount(env, acct, days) {
       ? new Date(new Date(acct.last_sync_activities).getTime() - 6 * 3600e3).toISOString()  // 6h overlap
       : new Date(Date.now() - ACTIVITY_BACKFILL_DAYS * 86400e3).toISOString();
     out.activities = await syncActivities(env, acct, since);
-    out.ad = await syncAdDaily(env, acct, { maxSlices: 8 });
+    if (includeAds) out.ad = await syncAdDaily(env, acct, { maxSlices: 8 });
   } catch (e) {
     out.error = e.message;
+    // A rate limit is not this brand's fault and not this brand's problem alone.
+    if (await noteMetaError(env, e)) out.backoff = true;
     await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, e.message).run();
   }
   return out;
@@ -3772,11 +3819,15 @@ async function syncPass(env) {
   accounts.sort((x, z) =>
     String(x.last_sync_insights || '').localeCompare(String(z.last_sync_insights || '')));
 
+  // Meta said stop. Asking again on the next tick is how a short limit becomes
+  // a long one, and the D1-backed data is only an hour stale meanwhile.
+  if (await metaBackedOff(env)) return { skipped: 'Meta rate limit — backing off until it clears' };
   const done = [];
   for (const a of accounts) {
     if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) { done.push({ name: a.name, deferred: 'out of budget' }); break; }
     const r = await measured('sync', async () => {
-      const x = await syncAccount(env, a);
+      // Cheap half only — see syncAccount. Ad-level rides the nightly.
+      const x = await syncAccount(env, a, undefined, { includeAds: false });
       // Triple Whale rides along with the same brand rather than in its own loop.
       // Doing all Meta then all TW meant TW was always the half that got cut.
       x.tw = await syncTwDaily(env, a, 10).catch(e => ({ error: e.message }));
@@ -3839,6 +3890,18 @@ async function nightly(env) {
     } catch (e) { twAttr.push({ name: a.name, backfill: true, error: e.message }); }
   }
   out.twAttr = twAttr;
+
+  /* The ad-level walk, once a day, here and nowhere else. Rate-limited by Meta
+     rather than by us, so it is also the first thing to yield when Meta is
+     unhappy — `metaBackedOff` short-circuits the whole pass. */
+  const ads = [];
+  for (const a of accounts) {
+    if (await metaBackedOff(env)) { ads.push({ name: a.name, deferred: 'Meta rate limit — backing off' }); break; }
+    if (!subCanAfford(costOf('ads', COST_SYNC_BRAND))) { ads.push({ name: a.name, deferred: 'out of budget' }); break; }
+    try { ads.push({ name: a.name, ...(await measured('ads', () => syncAdDaily(env, a, { maxSlices: 8 }))) }); }
+    catch (e) { ads.push({ name: a.name, error: e.message }); await noteMetaError(env, e); }
+  }
+  out.ads = ads;
 
   // Whatever is left goes to the syncs, then discovery last of all.
   out.sync = await syncPass(env).catch(e => ({ error: e.message }));
