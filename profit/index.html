@@ -221,6 +221,25 @@
   .asm-cav{margin-top:5px;line-height:1.6;padding-left:9px;border-left:2px solid var(--line)}
   .asm-row.over .asm-cav{border-left-color:var(--brand)}
   .asm-row.over{background:var(--brand-soft);border-radius:8px;padding-left:11px;padding-right:11px;margin:2px -11px}
+  /* --- The three plan boxes --- */
+  .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+  .pf-card{border:1px solid var(--line);border-radius:10px;padding:13px 14px;background:var(--surface);
+    display:flex;flex-direction:column}
+  .pf-card.res{border-style:dashed;border-color:var(--line-strong);background:var(--bg)}
+  .pf-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:18px}
+  .pf-lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    display:inline-flex;align-items:center;gap:5px}
+  .pf-tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    border:1px solid var(--line-strong);border-radius:99px;padding:1px 7px;flex:none}
+  .pf-val{font-size:clamp(21px,2.3vw,27px);font-weight:700;line-height:1.15;margin:9px 0 3px}
+  .pf-in{width:100%;margin:9px 0 3px}
+  .pf-in input{font-size:17px;font-weight:600;padding:5px 3px}
+  .pf-sub{color:var(--muted);min-height:16px}
+  .pf-foot{margin-top:auto;padding-top:8px;color:var(--muted)}
+  .pf-btn{margin-top:auto;align-self:flex-start;font:inherit;font-size:11px;letter-spacing:.03em;
+    padding:5px 10px;border:1px solid var(--line-strong);border-radius:99px;background:var(--surface);
+    color:var(--muted);cursor:pointer;white-space:nowrap}
+  .pf-btn:hover{border-color:var(--brand-ink);color:var(--brand-ink);background:var(--brand-soft)}
   /* --- Which number absorbs a bad month --- */
   .st-note{margin-top:13px;font-size:12.5px;line-height:1.7;padding:11px 13px;border-radius:8px;
     background:var(--brand-soft);border:1px solid var(--brand);color:var(--ink-2)}
@@ -374,9 +393,23 @@
      rule above is (0,2,1) and `.unit-in input[type=text]` is also (0,2,1), so
      the later one won. Must out-specify it, not merely repeat it. */
   .brow-c .unit-in{max-width:110px}
-  .brow-c .unit-in input[type=text]{border:none;border-radius:0;padding:6px 3px;background:transparent;width:100%;max-width:none}
-  .brow-c .unit-in input[type=text]:focus{border:none;box-shadow:none}
-  .brow-c .unit-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  /* FIFTH time. The rule above (`main .card input[type=text]`) is (0,2,1) and so
+     is `.unit-in input[type=text]` at the top of the file - equal specificity, and
+     this one is LATER, so it won and drew a border plus a 300px cap inside every
+     pill on the Plan page. Repeating the reset at equal weight has failed four
+     times; it has to OUT-SPECIFY every generic body rule and sit after them.
+     `.unit-in` is the single place that owns the border, so anything inside it is
+     stripped bare regardless of where the pill is used. */
+  .unit-in input,
+  main .card .unit-in input[type=text],
+  main .card .unit-in input[type=number],
+  .brow-c .unit-in input[type=text],
+  .settings .unit-in input[type=text],
+  .settings .unit-in input[type=number]{
+    border:none!important;border-radius:0;padding:6px 3px;background:transparent;
+    width:100%;max-width:none;min-width:0;outline:none;box-shadow:none!important}
+  .unit-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .unit-in:hover{border-color:var(--brand)}
   .brow-static{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .brow-danger .btn{border-color:var(--bad);color:var(--bad)}
   .brow-danger .btn:hover{background:var(--bad-bg)}
@@ -4665,17 +4698,25 @@ async function renderPlan(first) {
       <span class="st-alt">Want the budget to move to chase the revenue goal? Press <b>calculate this instead</b> on Ad spend.</span></div>`;
   };
 
+  /* Three boxes, and one of them is visibly not like the others.
+     The derived field used to differ only by a slightly different background,
+     which read as an accidental band across the row rather than "this one is
+     calculated". It now gets a dashed border and a RESULT tag, so which number
+     you are committing to and which one falls out is legible at a glance. */
   const fieldCard = (key, label, value, sub, info) => {
     const derived = PL.derive === key;
-    return `<div class="card" style="margin:0;${derived ? 'background:var(--bg)' : ''}">
-      <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
+    return `<div class="pf-card${derived ? ' res' : ''}">
+      <div class="pf-top">
+        <span class="pf-lbl">${label} <span class="info-i" title="${esc(info)}">i</span></span>
+        ${derived ? '<span class="pf-tag">result</span>' : ''}
+      </div>
       ${derived
-        ? `<div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:6px 0 2px" id="pf_${key}">${value}</div>
-           <div class="tiny" id="pfs_${key}">${sub}</div>
-           <div class="tiny" style="margin-top:6px;color:var(--muted)">calculated from the other two</div>`
-        : `<div class="unit-in" style="width:100%;margin:6px 0 2px">${key === 'mer' ? '' : `<span>${sym(cur)}</span>`}<input id="pfi_${key}" type="text" inputmode="decimal" value="${value}">${key === 'mer' ? '<span>x</span>' : ''}</div>
-           <div class="tiny" id="pfs_${key}">${sub}</div>
-           <button class="btn" data-derive="${key}" style="margin-top:6px;font-size:11.5px;padding:4px 8px" title="Make this the number that gets calculated - and therefore the one that absorbs a month that runs hot or cold.">make this the result</button>`}
+        ? `<div class="pf-val" id="pf_${key}">${value}</div>
+           <div class="tiny pf-sub" id="pfs_${key}">${sub}</div>
+           <div class="tiny pf-foot">calculated from the other two</div>`
+        : `<div class="unit-in pf-in">${key === 'mer' ? '' : `<span>${sym(cur)}</span>`}<input id="pfi_${key}" type="text" inputmode="decimal" value="${value}">${key === 'mer' ? '<span>x</span>' : ''}</div>
+           <div class="tiny pf-sub" id="pfs_${key}">${sub}</div>
+           <button class="pf-btn" data-derive="${key}" title="Make this the number that gets calculated - and therefore the one that absorbs a month that runs hot or cold.">make this the result</button>`}
     </div>`;
   };
 
@@ -4710,7 +4751,7 @@ async function renderPlan(first) {
       ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> — ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>
 
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
-      <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the grayed one is worked out for you. Press <b>make this the result</b> on a field to move which one is calculated. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
+      <p class="hint" style="margin-bottom:10px">Set any <b>two</b>. The third is worked out for you — press <b>make this the result</b> to move which. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own; everything above that has to be bought with the ad spend.</p>
       ${staleBasis()}
       <div id="plCatchUp">${catchUpCard()}</div>
       <div id="plAssump" style="margin-bottom:14px">${basisNote()}</div>
@@ -4718,7 +4759,7 @@ async function renderPlan(first) {
         ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
         <span class="tiny">quick-fill the revenue goal from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
       </div>
-      <div id="plFields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">${fieldsHtml()}
+      <div id="plFields" class="pf-grid">${fieldsHtml()}
       </div>
       <div id="plStruct">${structureHtml()}</div>
       <div class="tiny" style="margin-top:14px;line-height:1.7" id="plVerdict">${verdictHtml(c)}</div>
