@@ -306,9 +306,13 @@
   .ledger tbody tr{cursor:pointer}
   .ledger tbody tr:hover td{background:var(--brand-soft)}
   .ledger tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--brand-ink)}
-  .lg-name{font-size:14.5px;font-weight:600;line-height:1.3}
-  .lg-num{font-family:var(--serif);font-weight:400;font-size:19px;line-height:1.15;
-    font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .lg-name{font-size:14px;font-weight:500;line-height:1.3;color:var(--ink-2)}
+  .ledger tbody tr:hover .lg-name{color:var(--ink)}
+  /* The figure carries the row, so it has to out-weigh the name beside it.
+     Set at 22px it reads first at a glance down the column, which is the
+     whole point of a ledger. */
+  .lg-num{font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.1;
+    font-variant-numeric:tabular-nums;letter-spacing:-.015em;color:var(--ink)}
   .lg-num.good{color:var(--good)}
   .lg-num.bad{color:var(--bad)}
   .lg-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4;font-variant-numeric:tabular-nums}
@@ -1573,7 +1577,7 @@ function pageHead(tab, title, extra) {
       </div>
       <div class="ph-r">
         <button class="ph-ico" data-tour="${tab}" title="Show me round this page">&#9655;</button>
-        <button class="ph-ico" data-gloss="1" title="What every metric means">${'&#402;x'}</button>
+        <button class="ph-ico" data-gloss="1" title="What every metric means">&#8801;</button>
         <button class="ph-ico" data-help="${tab}" title="How to use this page">?</button>
       </div>
     </div>
@@ -2788,7 +2792,7 @@ async function renderOverview() {
     if (untrusted.length) bits.push(`${untrusted.length} ${untrusted.length === 1 ? 'has' : 'have'} cost data the tool will not report profit from (${untrusted.map(a => esc(a.name)).join(', ')})`);
     const tone = behind.length ? (behind.length > rows.length / 2 ? 'bad' : 'warn') : 'good';
     if (!bits.length) return `<p class="verdict good">Every brand is tracking at or above its plan for the month, and all cost data is trustworthy. Nothing here needs a decision today.</p>`;
-    return `<p class="verdict ${tone}">${bits.join('. ')}. Click a brand for the detail.</p>`;
+    return `<p class="verdict ${tone}">${bits.join('. ')}.</p>`;
   };
 
   const fig = (label, value, sub, cls) => `<div class="fig">
