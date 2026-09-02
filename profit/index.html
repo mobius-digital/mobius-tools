@@ -198,6 +198,37 @@
   .flash-saved{border-color:var(--good) !important;box-shadow:0 0 0 2px var(--good-bg);transition:box-shadow .2s}
   .unit-in{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);padding:0 7px}
   .unit-in span{color:var(--muted);font-size:12.5px;flex:none}
+  /* --- Plan assumptions: every derived number, stated and editable --- */
+  .asm-card{border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
+  .asm-card>summary{list-style:none;cursor:pointer;padding:11px 14px;display:flex;align-items:center;
+    justify-content:space-between;gap:10px;font-size:13px}
+  .asm-card>summary::-webkit-details-marker{display:none}
+  .asm-card>summary:hover{background:var(--card)}
+  .asm-chev{color:var(--muted);font-size:11px;transition:transform .15s}
+  .asm-card[open] .asm-chev{transform:rotate(180deg)}
+  .asm-body{padding:0 14px 14px}
+  .asm-row{padding:12px 0;border-top:1px solid var(--line)}
+  .asm-row:first-of-type{border-top:none;padding-top:2px}
+  .asm-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px}
+  .asm-lbl{font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+  .asm-tag{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+    border:1px solid var(--line);border-radius:99px;padding:1px 8px}
+  .asm-tag.mine{color:var(--accent);border-color:var(--accent)}
+  .asm-ctl{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+  .asm-eq{color:var(--muted)}
+  .asm-reset{font-size:11.5px;padding:4px 9px}
+  .asm-src{margin-top:7px;color:var(--muted);line-height:1.6}
+  .asm-cav{margin-top:5px;line-height:1.6;padding-left:9px;border-left:2px solid var(--line)}
+  .asm-row.over .asm-cav{border-left-color:var(--accent)}
+  /* --- Catch-up: what it takes from here --- */
+  .cu{border-radius:10px;padding:13px 15px;border:1px solid var(--line);background:var(--bg)}
+  .cu.warn{border-color:var(--warn)}
+  .cu.bad{border-color:var(--bad)}
+  .cu-hd{font-size:13px;font-weight:700;margin-bottom:5px}
+  .cu.warn .cu-hd{color:var(--warn)}
+  .cu.bad .cu-hd{color:var(--bad)}
+  .cu-big{font-size:clamp(17px,2vw,21px);font-weight:700;margin:3px 0 4px}
+  .cu-sub{line-height:1.65;color:var(--muted)}
   .unit-in input,.unit-in input[type=text],.unit-in input[type=number]{border:none;border-radius:0;padding:6px 3px;width:100%;min-width:0;background:transparent;outline:none}
   .toggle{width:38px;height:22px;border-radius:99px;background:#C9D5DD;position:relative;transition:.15s;flex:none}
   .toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
@@ -862,6 +893,28 @@ async function renderPlanShare(token) {
     ${hist.length ? `<div class="card"><h3 style="margin-bottom:8px">How we got here</h3>
       <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th></tr></thead>
       <tbody>${hist.map(h => `<tr><td>${esc(h.month)}</td><td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    ${(() => {
+      /* What the plan assumes, on the page the client actually reads.
+         A plan is a forecast, and a forecast is assumptions - so they are named
+         here rather than left in a backend where "how are we getting this number"
+         has no answer a month later. Anything the team set by hand is called out
+         as a judgement, not presented as measurement. */
+      const A = d.assumptions || {};
+      const rows = [];
+      if (A.returning_per_day != null) rows.push(['Returning revenue', `${fmtMoney(A.returning_per_day * 30, cur)} a month`, 'set by your team, rather than the recent measured rate']);
+      if (A.amer != null) rows.push(['Acquisition efficiency', `${fmtX(A.amer)}`, 'set by your team - the revenue expected per dollar of ad spend from new customers']);
+      if (A.margin != null) rows.push(['Product margin', `${fmtPct(A.margin)}`, 'set by your team, before ad spend']);
+      const floor = A.spend_floor_per_day;
+      if (!rows.length && floor == null) {
+        return `<div class="card"><h3 style="margin-bottom:6px">What this plan assumes</h3>
+          <p style="font-size:14px;line-height:1.7;margin:0">Three things, all measured from your own recent trading rather than chosen: what returning customers bring in on their own, how much new-customer revenue each dollar of ad spend has been buying, and your product margin. The revenue target above is what those imply at this ad spend &mdash; if any of them move during the month, the target moves with them, and we will say so.</p></div>`;
+      }
+      return `<div class="card"><h3 style="margin-bottom:6px">What this plan assumes</h3>
+        <p class="hint" style="margin-bottom:10px">A plan is a forecast, and every forecast rests on assumptions. These are this one's. Anything not listed below was measured from your own recent trading.</p>
+        ${rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>Assumption</th><th class="num">Set to</th></tr></thead>
+          <tbody>${rows.map(r => `<tr><td><b>${r[0]}</b><div class="tiny" style="color:var(--muted)">${r[2]}</div></td><td class="num"><b>${r[1]}</b></td></tr>`).join('')}</tbody></table></div>` : ''}
+        ${floor != null ? `<p style="font-size:14px;line-height:1.7;margin:${rows.length ? '12px' : '0'} 0 0"><b>Spend floor: ${fmtMoney(floor, cur)} a day.</b> The minimum we keep spending even in a slow month. Today's new customers are next month's returning revenue, so cutting acquisition the moment a week runs soft costs the month after as well.</p>` : ''}</div>`;
+    })()}
     ${d.note ? `<div class="card"><h3 style="margin-bottom:6px">Notes</h3><p style="font-size:14px">${esc(d.note)}</p></div>` : ''}
     <p class="tiny">Contribution margin is revenue minus product costs, fulfilment, payment fees and ad spend. It excludes fixed costs such as rent, salaries and software.</p>`;
   setChip(d.agreed_at ? 'Agreed' : 'Proposed', d.agreed_at ? 'live' : 'off');
@@ -2628,6 +2681,50 @@ function weeksTable(fc, cur) {
 /** Where the month lands, built bottom-up: returning customers are the predictable
  *  base, paid acquisition is the volatile top. Two scenarios, because "spend the
  *  budget" and "carry on as you are" often disagree, and that gap is the decision. */
+/* "To get back on plan" - the prescription, not just the diagnosis.
+ *
+ * A report that says a month is 11% behind hands the client a problem. The same
+ * report saying it takes $1,850/day for the remaining 12 days hands them a
+ * decision. Same escalation as the Plan tab, and for the same reason: the ramp
+ * is what the media buyer is actually being asked for, so above ~1.5x the honest
+ * line is that the goal needs re-agreeing rather than that spend needs raising -
+ * tripling budget late in a month buys colder traffic at worse efficiency than
+ * the figure assumes.
+ *
+ * Client-safe by construction: every number in it is that client's own, and it
+ * names the basis (this month's own returning rate and aMER) rather than
+ * implying a precision the data does not have.
+ */
+function catchUpLine(pc, money) {
+  const t = pc && pc.to_hit;
+  if (!t) return '';
+  const label = `the remaining ${t.days_remaining} day${t.days_remaining === 1 ? '' : 's'}`;
+  if (t.already_there) {
+    return `<div class="cu" style="margin-top:12px"><div class="cu-hd">Already there</div>
+      <div class="cu-sub">The month's target is banked with ${label} still to run.</div></div>`;
+  }
+  if (t.covered_by_returning) {
+    return `<div class="cu" style="margin-top:12px"><div class="cu-hd">To finish on plan</div>
+      <div class="cu-big">${money(t.revenue_per_day)} a day over ${label}</div>
+      <div class="cu-sub">Returning customers alone are running at ${money(t.returning_per_day)} a day, which covers it &mdash; no extra spend is needed to reach the target.</div></div>`;
+  }
+  const ramp = t.spend_ramp;
+  const tone = ramp == null ? '' : ramp <= 1.2 ? '' : ramp <= 1.5 ? 'warn' : 'bad';
+  const head = ramp == null ? 'To finish on plan'
+    : ramp <= 1.2 ? 'To finish on plan'
+    : ramp <= 1.5 ? 'To finish on plan &mdash; this is the ask'
+    : 'To finish on plan &mdash; worth re-agreeing the number';
+  return `<div class="cu ${tone}" style="margin-top:12px">
+    <div class="cu-hd">${head}</div>
+    <div class="cu-big">${money(t.revenue_per_day)} a day of revenue over ${label}</div>
+    <div class="cu-sub">
+      Returning customers cover about ${money(t.returning_per_day)} of that each day, so <b>${money(t.new_per_day)} a day</b> has to come from new customers.
+      ${t.spend_per_day != null ? `At the ${fmtX(t.amer)} the ads have bought new customers at this month, that is <b>${money(t.spend_per_day)} a day of spend</b>${t.spend_ramp ? `, against ${money(t.spend_now_per_day)} a day running now &mdash; a <b>${fmtX(t.spend_ramp)}</b> increase` : ''}.` : ''}
+      ${ramp != null && ramp > 1.5 ? `<br><b>A step-up this size usually costs efficiency.</b> Spending at more than one and a half times the current rate late in a month reaches colder audiences than the ${fmtX(t.amer)} above assumes, so the better conversation is whether the target still fits the month rather than simply raising budget.` : ''}
+    </div>
+  </div>`;
+}
+
 function forecastCard(fc, cur) {
   const g = fc.goal, p = fc.projected, pace = fc.at_current_pace?.sales;
   const pill = v => v == null ? '' : `<span class="pill ${v >= 0 ? 'good' : Math.abs(v) / (g || 1) < 0.1 ? 'warn' : 'bad'}">${v >= 0 ? '+' : ''}${fmtK(v, cur)}</span>`;
@@ -3095,7 +3192,8 @@ async function renderBrief(first) {
     <div class="card"><h3 style="margin-bottom:2px">The month vs the plan</h3>
       <p class="hint" style="margin-bottom:6px">Cumulative net sales: <span style="color:#14608C;font-weight:700">blue</span> = actual, <span style="color:#8195A2;font-weight:700">dashed gray</span> = the plan. Forecast weighting: ${esc(d.weights)}.${d.mtd.sales != null && d.mtd.sales_f ? ` So far: <b>${fmtK(d.mtd.sales, cur)}</b> vs <b>${fmtK(d.mtd.sales_f, cur)}</b> planned (${fmtPct(d.mtd.sales / d.mtd.sales_f - 1, 0)}).` : ''}</p>
       <div id="bfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart for exact values…</div>
-      ${chart.svg}</div>
+      ${chart.svg}
+      ${catchUpLine(d.to_hit ? { to_hit: d.to_hit } : null, n => fmtMoney(n, cur))}</div>
     <div class="card"><h3 style="margin-bottom:6px">The plan this is measured against</h3>
       <p class="hint" style="margin-bottom:10px">Set on the <b>Plan</b> tab, once a month, with the client. Nothing here changes it — this page only reports against it.</p>
       <div class="row" style="gap:22px;flex-wrap:wrap">
@@ -3404,6 +3502,7 @@ function reportBodyHTML(d, summary, opts = {}) {
         ? `<b>Ahead of forecast</b> — ${money(pc.mtd_sales)} booked against ${money(pc.plan_to_date)} forecast by today${behindNow > 0 ? `, ${money(behindNow)} to the good` : ''}.`
         : `<b>Behind forecast by ${offPct}%</b> — ${money(pc.mtd_sales)} booked against ${money(pc.plan_to_date)} forecast by today, a shortfall of ${money(Math.abs(behindNow))}.`}${
         endGap != null ? ` At this pace ${esc(monthLabel(pc.month))} finishes around <b>${money(pc.projected)}</b>, ${endGap >= 0 ? `${money(endGap)} above` : `${money(Math.abs(endGap))} short of`} the ${money(pc.goal_sales)} target.` : ''}</p>` : ''}
+      ${catchUpLine(pc, money)}
     </div>`;
   })() : '';
 
@@ -4224,7 +4323,23 @@ async function renderPlan(first) {
   const saved = p.plan;
   const editable = p.status !== 'past';
   const nowYm = p.current_month;
-  const expRet = (p.ctx.returning_per_day || 0) * p.ctx.days_in_month;
+  // The three numbers the plan ASSUMES, as live values rather than frozen constants.
+  // Each starts at what the data measured; typing over one makes it yours, and the
+  // measured figure stays on screen beside it so nobody has to ask on a call where a
+  // number came from. `spend_floor` is not an assumption at all — it is the hard deck.
+  const MEAS = p.ctx.measured || { returning_per_day: p.ctx.returning_per_day, amer: p.ctx.amer, margin: p.ctx.margin };
+  if (PL.aAct !== S.act + '|' + p.month) {
+    PL.assump = {
+      returning_per_day: p.ctx.returning_per_day, amer: p.ctx.amer, margin: p.ctx.margin,
+      spend_floor_per_day: p.ctx.spend_floor_per_day ?? null,
+    };
+    PL.aAct = S.act + '|' + p.month;
+  }
+  const A = PL.assump;
+  const expRetOf = () => (A.returning_per_day || 0) * p.ctx.days_in_month;
+  const isOver = k => A[k] != null && MEAS[k] != null && Math.abs(A[k] - MEAS[k]) > Math.abs(MEAS[k]) * 1e-6;
+  const anyOver = () => ['returning_per_day', 'amer', 'margin'].some(isOver);
+  const expRet = expRetOf();
 
   // Revenue = MER x spend. Two of the three are yours to choose; the third is
   // arithmetic. Seed from the saved plan, else last month's revenue at the
@@ -4250,15 +4365,15 @@ async function renderPlan(first) {
     if (sales == null || spend == null) return null;
     // What the plan quietly assumes about acquisition: returning revenue turns up
     // on its own, so every dollar above it has to be bought with this spend.
-    const newNeeded = Math.max(0, sales - expRet);
+    const newNeeded = Math.max(0, sales - expRetOf());
     const impliedAmer = spend > 0 ? newNeeded / spend : null;
-    const trailing = p.ctx.amer;
+    const trailing = A.amer;
     let verdict = null;
     if (impliedAmer != null && trailing) {
       const ratio = impliedAmer / trailing;
       verdict = ratio <= 1.05 ? 'ok' : ratio <= 1.25 ? 'stretch' : 'unrealistic';
     }
-    const cm = p.ctx.margin != null ? sales * p.ctx.margin - spend : null;
+    const cm = A.margin != null ? sales * A.margin - spend : null;
     return { sales, spend, mer: mer != null ? mer : (spend ? sales / spend : null),
       newNeeded, impliedAmer, trailing, verdict, cm,
       growth: p.basis && p.basis.sales ? sales / p.basis.sales - 1 : null,
@@ -4321,22 +4436,134 @@ async function renderPlan(first) {
       &ldquo;vs plan&rdquo; is measuring against a stale number. Pick a growth chip below and <b>Save</b> to bring it in line.</div></div>`;
   };
 
-  const basisNote = () => {
-    const rows = [];
-    if (src.basis_month) rows.push(['Revenue basis', `${esc(monthLabel(src.basis_month))} actual`]);
-    if (src.trailing_from && src.trailing_to) {
-      const short = d => `${MONTHS[+d.slice(5, 7) - 1].slice(0, 3)} ${+d.slice(8, 10)}`;
-      rows.push([`Efficiency &amp; returning`, `last ${src.trailing_days || 28} days &middot; ${short(src.trailing_from)} – ${short(src.trailing_to)}`]);
+  /* Catch-up: what it takes FROM HERE.
+   *
+   * Showing that a month is behind is half the job; the other half is the ask.
+   * Returning revenue arrives on its own, so the shortfall has to be bought with
+   * new customers, which costs spend - that is what `to_hit` prices.
+   *
+   * The tone escalates with the RAMP, not the gap, because the ramp is what the
+   * media buyer is actually being asked for:
+   *   <= 1.2x  normal variance, one plain line;
+   *   <= 1.5x  a real ask, amber;
+   *   >  1.5x  the goal needs re-agreeing, not more spend - a plan you cannot
+   *            reach by spending is a plan, not a delivery problem.
+   * And a floor set on the Plan is enforced here too: if the catch-up maths asks
+   * for LESS than the hard deck, the deck wins and the card says so.
+   */
+  const catchUpCard = () => {
+    const t = p.to_hit, pace = p.pace;
+    if (!t || !pace || p.status !== 'current') return '';
+    const floor = A.spend_floor_per_day;
+    if (t.already_there) {
+      return `<div class="cu" style="margin-bottom:14px"><div class="cu-hd">Ahead of plan</div>
+        <div class="cu-sub">${fmtMoney(pace.mtd_sales, cur)} banked with ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'} to go &mdash; the month's goal of <b>${fmtMoney(p.goals.sales, cur)}</b> is already met. Nothing to make up.</div></div>`;
     }
-    if (src.margin_month && p.ctx.margin != null) rows.push(['Product margin', `${esc(monthLabel(src.margin_month))} actual`]);
-    if (!rows.length) return '';
-    return `<div style="border-radius:8px;padding:10px 12px;background:var(--bg)">
-      <div class="tiny" style="font-weight:600;margin-bottom:6px">Based on</div>
-      <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;align-items:baseline">
-        ${rows.map(r => `<span class="tiny" style="color:var(--muted)">${r[0]}</span><span class="tiny" style="font-weight:600">${r[1]}</span>`).join('')}
+    if (t.covered_by_returning) {
+      return `<div class="cu" style="margin-bottom:14px"><div class="cu-hd">On track without extra spend</div>
+        <div class="cu-sub">What is left of the goal is covered by returning revenue alone over the remaining ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'}. Hold the current budget${floor != null ? ` &mdash; and not below the ${fmtMoney(floor, cur)}/day floor` : ''}.</div></div>`;
+    }
+    const ramp = t.spend_ramp;
+    const tone = ramp == null ? '' : ramp <= 1.2 ? '' : ramp <= 1.5 ? 'warn' : 'bad';
+    const head = ramp == null ? 'To still hit the goal'
+      : ramp <= 1.2 ? 'Slightly behind &mdash; here is the catch-up'
+      : ramp <= 1.5 ? 'Behind plan &mdash; this is the ask'
+      : 'Behind plan &mdash; this needs re-agreeing, not more spend';
+    const need = t.spend_per_day;
+    const belowFloor = floor != null && need != null && need < floor;
+    return `<div class="cu ${tone}" style="margin-bottom:14px">
+      <div class="cu-hd">${head}</div>
+      <div class="cu-big">${need != null ? `${fmtMoney(need, cur)} a day` : `${fmtMoney(t.revenue_per_day, cur)} a day of revenue`} for the remaining ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'}</div>
+      <div class="cu-sub">
+        ${fmtMoney(pace.mtd_sales, cur)} banked of <b>${fmtMoney(p.goals.sales, cur)}</b> after ${pace.days_elapsed} of ${pace.days_in_month} days.
+        ${need != null && pace.spend_per_day ? `That is <b>${fmtX(ramp)}</b> the ${fmtMoney(pace.spend_per_day, cur)}/day you are spending now, at the ${fmtX(A.amer)} acquisition efficiency assumed below.` : ''}
+        ${ramp != null && ramp > 1.5 ? `<br><b>A ramp this size is not a delivery problem.</b> Tripling budget with two weeks left buys colder traffic at worse efficiency than the ${fmtX(A.amer)} this figure assumes, so the honest move is to agree a revised number with the client rather than spend into it.` : ''}
+        ${belowFloor ? `<br><b>Below your hard deck.</b> The maths only asks for ${fmtMoney(need, cur)}/day, but the floor is ${fmtMoney(floor, cur)}/day &mdash; hold the floor. Cutting acquisition to hit a ratio costs next month too.` : ''}
       </div>
-      <div class="tiny" style="margin-top:7px;color:var(--muted)">Recent efficiency, not a six-month average — it is what the account is doing now. The table above is context, not an input.</div>
     </div>`;
+  };
+
+  /* Every assumption the plan makes, named, sourced and editable.
+   *
+   * A forecast IS assumptions - you cannot remove them, only expose them. So the
+   * measured figure is the DEFAULT rather than the answer: it is pre-filled, it
+   * says which window it came from, and typing over it marks the row as yours.
+   * The alternative - deriving three numbers in the backend and never showing
+   * them - is what makes a client ask "how are we getting this number" a month
+   * later with nobody able to answer.
+   *
+   * Two of these carry a caveat the data cannot settle, so the caveat is printed
+   * rather than assumed away:
+   *   returning - treated as arriving without spend, though some of those buyers
+   *               may well have come back off an ad;
+   *   aMER      - measured at the spend the account is ACTUALLY running, and
+   *               efficiency generally falls as spend rises.
+   */
+  const shortD = d => `${MONTHS[+d.slice(5, 7) - 1].slice(0, 3)} ${+d.slice(8, 10)}`;
+  const trailWin = src.trailing_from && src.trailing_to
+    ? `last ${src.trailing_days || 28} days &middot; ${shortD(src.trailing_from)} &ndash; ${shortD(src.trailing_to)}`
+    : 'the trailing window';
+
+  const ASSUMPS = [
+    { key: 'returning_per_day', label: 'Returning revenue', unit: 'money', perDay: true,
+      srcTxt: `Measured from your own data &mdash; ${trailWin}, scaled to ${p.ctx.days_in_month} days.`,
+      caveat: 'The plan treats this as arriving <b>without ad spend</b>, so only the gap above it is costed. Some returning buyers may have come back after seeing an ad, which would mean the plan asks for less spend than it really needs.',
+      info: 'What repeat customers are expected to bring in this month on their own. Everything above this figure has to be bought with the ad budget, so raising it LOWERS the spend the plan asks for.' },
+    { key: 'amer', label: 'Acquisition efficiency (aMER)', unit: 'x',
+      srcTxt: `Measured from your own data &mdash; ${trailWin}${src.trailing_spend_per_day ? `, at ${fmtMoney(src.trailing_spend_per_day, cur)} a day of spend` : ''}.`,
+      caveat: '<b>Efficiency usually falls as spend rises</b> &mdash; you buy colder audiences. If this plan spends materially more than the window above, lower this by hand rather than assuming the current rate holds.',
+      info: 'New-customer revenue per dollar of ad spend. This is the rate the plan buys growth at: halve it and the same revenue goal costs twice the budget.' },
+    { key: 'margin', label: 'Product margin', unit: 'pct',
+      srcTxt: src.margin_month ? `Measured from your own data &mdash; ${esc(monthLabel(src.margin_month))} actual.` : 'Measured from the last complete month.',
+      caveat: '',
+      info: 'Gross margin before ad spend: revenue less product cost, fulfilment, handling and payment fees. Only used to work out the expected contribution margin - it does not change the revenue or spend numbers.' },
+  ];
+
+  const asmShow = (a, v) => v == null ? '&mdash;'
+    : a.unit === 'pct' ? fmtPct(v) : a.unit === 'x' ? fmtX(v) : `${fmtMoney(v, cur)}/day`;
+  const asmRaw = (a, v) => v == null ? ''
+    : a.unit === 'pct' ? (Math.round(v * 1000) / 10).toFixed(1)
+    : a.unit === 'x' ? (Math.round(v * 100) / 100).toFixed(2)
+    : Math.round(v).toLocaleString('en-US');
+
+  const assumpRow = a => {
+    const v = A[a.key], over = isOver(a.key);
+    return `<div class="asm-row${over ? ' over' : ''}" id="asmr_${a.key}">
+      <div class="asm-head">
+        <span class="asm-lbl">${a.label} <span class="info-i" title="${esc(a.info)}">i</span></span>
+        <span class="asm-tag${over ? ' mine' : ''}">${over ? 'you set this' : 'assumed'}</span>
+      </div>
+      <div class="asm-ctl">
+        <div class="unit-in" style="width:148px">${a.unit === 'money' ? `<span>${sym(cur)}</span>` : ''}<input id="asm_${a.key}" type="text" inputmode="decimal" value="${asmRaw(a, v)}">${a.unit === 'x' ? '<span>x</span>' : a.unit === 'pct' ? '<span>%</span>' : '<span>/day</span>'}</div>
+        <span class="tiny asm-eq" id="asmv_${a.key}">${a.perDay && v != null ? `= ${fmtMoney(v * p.ctx.days_in_month, cur)} this month` : ''}</span>
+        ${over ? `<button class="btn asm-reset" data-reset="${a.key}">Use measured (${asmShow(a, MEAS[a.key])})</button>` : ''}
+      </div>
+      <div class="tiny asm-src">${over ? `<b>Your figure, not ours.</b> The measured value was ${asmShow(a, MEAS[a.key])} &mdash; ${trailWin}.` : a.srcTxt}</div>
+      ${a.caveat ? `<div class="tiny asm-cav">${a.caveat}</div>` : ''}
+    </div>`;
+  };
+
+  const basisNote = () => {
+    const n = ['returning_per_day', 'amer', 'margin'].filter(isOver).length;
+    return `<details class="asm-card"${n ? ' open' : ''}>
+    <summary><span><b>What this plan assumes</b> <span class="tiny" style="color:var(--muted)">&mdash; ${n ? `${n} changed by you` : 'all three measured from your own data'}</span></span><span class="asm-chev">&#9662;</span></summary>
+    <div class="asm-body">
+      <p class="tiny" style="margin:0 0 13px;color:var(--muted);line-height:1.6">Every forecast rests on assumptions &mdash; these are this one's. Each is pre-filled with what your data measured, and <b>each can be changed</b>. Anything you change is labelled as yours here and on the client link, so the plan can always say where its numbers came from.</p>
+      ${ASSUMPS.map(assumpRow).join('')}
+      <div class="asm-row asm-floor${A.spend_floor_per_day != null ? ' over' : ''}">
+        <div class="asm-head">
+          <span class="asm-lbl">Spend floor &mdash; the hard deck <span class="info-i" title="The least you keep spending per day, whatever the month does. Not part of the arithmetic - a guardrail. If the plan or the catch-up maths ever asks for less than this, the page says so instead of letting spend drift down quietly.">i</span></span>
+          <span class="asm-tag${A.spend_floor_per_day != null ? ' mine' : ''}">${A.spend_floor_per_day != null ? 'set' : 'optional'}</span>
+        </div>
+        <div class="asm-ctl">
+          <div class="unit-in" style="width:148px"><span>${sym(cur)}</span><input id="asm_spend_floor_per_day" type="text" inputmode="decimal" value="${A.spend_floor_per_day != null ? Math.round(A.spend_floor_per_day).toLocaleString('en-US') : ''}" placeholder="none"><span>/day</span></div>
+          <span class="tiny asm-eq" id="asmv_spend_floor_per_day">${A.spend_floor_per_day != null ? `= ${fmtMoney(A.spend_floor_per_day * p.ctx.days_in_month, cur)} for the month` : 'leave blank for no floor'}</span>
+        </div>
+        <div class="tiny asm-src">The minimum daily spend you hold to even in a bad month. <b>Stopping compounds:</b> today's new customers are next month's returning revenue, so cutting budget the moment efficiency dips turns one bad week into a bad quarter. Set it and the plan warns instead of quietly asking for less.</div>
+      </div>
+      <div class="tiny" style="margin-top:13px;color:var(--muted);line-height:1.6">The revenue basis is <b>${src.basis_month ? esc(monthLabel(src.basis_month)) + ' actual' : 'the last complete month'}</b> &mdash; that is history rather than an assumption, so it is not editable here. Changes save with the plan.</div>
+    </div>
+  </details>`;
   };
 
   const picker = [-1, 0, 1, 2, 3, 4].map(n => shiftMonth(nowYm, n));
@@ -4407,7 +4634,8 @@ async function renderPlan(first) {
     ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
       <p class="hint" style="margin-bottom:8px">Type into any <b>two</b> of these; the grayed one is worked out for you. Press <b>calculate this instead</b> on a field to move which one is derived. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own this month — everything above that has to be bought with the ad spend.</p>
       ${staleBasis()}
-      <div style="margin-bottom:14px">${basisNote()}</div>
+      <div id="plCatchUp">${catchUpCard()}</div>
+      <div id="plAssump" style="margin-bottom:14px">${basisNote()}</div>
       <div class="row" style="gap:8px;margin-bottom:12px">
         ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
         <span class="tiny">quick-fill the revenue goal from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
@@ -4479,6 +4707,52 @@ async function renderPlan(first) {
     // Rebuild only the three field cards. Re-rendering the page would scroll you back
     // to the top mid-decision, which is exactly what makes a tool feel broken.
     const rebuildFields = () => { $('#plFields').innerHTML = fieldsHtml(); bind(); repaint(); };
+
+    /* The assumptions. Changing one moves the whole plan - a lower aMER means the
+       same revenue goal needs more spend - so every edit re-runs the arithmetic and
+       repaints the fields. The card rebuilds itself too (the "you set this" badge and
+       the reset button have to appear), but only the card: the <details> keeps its
+       open state because we write into its body rather than replacing the element. */
+    const rebuildAssump = () => {
+      const host = $('#plAssump');
+      if (!host) return;
+      const wasOpen = host.querySelector('details')?.open;
+      host.innerHTML = basisNote();
+      const d = host.querySelector('details');
+      if (d && wasOpen != null) d.open = wasOpen;
+      bindAssump();
+      repaint();
+      const cu = $('#plCatchUp'); if (cu) cu.innerHTML = catchUpCard();
+    };
+    const bindAssump = () => {
+      ['returning_per_day', 'amer', 'margin', 'spend_floor_per_day'].forEach(k => {
+        const el = $(`#asm_${k}`);
+        if (!el) return;
+        const commit = () => {
+          const txt = el.value.trim();
+          // Empty means "no opinion": measured for the three assumptions, no floor
+          // for the deck. That is how you undo an override by hand.
+          if (txt === '') {
+            A[k] = k === 'spend_floor_per_day' ? null : MEAS[k];
+            rebuildAssump();
+            return;
+          }
+          const raw = +txt.replace(/[^0-9.]/g, '');
+          if (!isFinite(raw)) return;
+          // Margin is typed as a percentage and stored as a fraction.
+          A[k] = k === 'margin' ? raw / 100 : raw;
+          rebuildAssump();
+        };
+        el.onchange = commit;
+        el.onblur = commit;
+        el.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); commit(); el.blur(); } };
+      });
+      $('#main').querySelectorAll('[data-reset]').forEach(b => b.onclick = () => {
+        A[b.dataset.reset] = MEAS[b.dataset.reset];
+        rebuildAssump();
+      });
+    };
+    bindAssump();
     $('#main').querySelectorAll('[data-derive]').forEach(b => b.onclick = () => {
       // Freeze current values so switching which one is derived changes nothing.
       const cc = calc();
@@ -4501,7 +4775,7 @@ async function renderPlan(first) {
 
   $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
     if (b.dataset.m === PL.month) return;
-    PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null;
+    PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null; PL.aAct = null;
     inPlace(() => renderPlan(false));
   });
 
@@ -4572,7 +4846,16 @@ async function renderPlan(first) {
         spend: cc.spend != null ? Math.round(cc.spend) : null,
         growth_pct: cc.growth, basis_sales: p.basis ? p.basis.sales : null,
         basis_label: p.basis ? monthLabel(p.basis.month) : null,
-        expected_cm: cc.cm, reagree: changed }) });
+        expected_cm: cc.cm, reagree: changed,
+        // Only what was actually overridden goes up. Sending a value equal to the
+        // measured one would freeze today's figure into the row and stop the
+        // default tracking the data - the reset is an ABSENCE, not a copy.
+        assumptions: {
+          returning_per_day: isOver('returning_per_day') ? A.returning_per_day : null,
+          amer: isOver('amer') ? A.amer : null,
+          margin: isOver('margin') ? A.margin : null,
+          spend_floor_per_day: A.spend_floor_per_day,
+        } }) });
       p.goals = Object.assign({}, p.goals || {}, { sales: Math.round(cc.sales) });
       p.planned = true;
       if (changed) {

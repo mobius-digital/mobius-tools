@@ -1346,6 +1346,42 @@ async function briefData(env, acct, upTo) {
     spend: sum(done, x => x.a.spend), spend_f: sum(done, x => x.f.spend ?? null),
     cm: sum(done, x => x.a.cm), cm_f: sum(done, x => x.f.cm ?? null),
   };
+  /* The catch-up: what it takes FROM HERE, not just how far behind we are.
+   *
+   * Every other figure in the brief describes the past. This one is the only
+   * forward ask on the page, and it is the sentence a media buyer can act on the
+   * same morning. Returning revenue arrives on its own, so the shortfall has to be
+   * bought with new customers - priced at the rate this month's ads have actually
+   * bought them at. Month-to-date basis on purpose: it is the window both sides of
+   * a client call can see for themselves.
+   */
+  let toHit = null;
+  {
+    const elapsed = done.length;
+    const remain = dim - elapsed;
+    const goalSales = goals?.sales ?? null;
+    if (goalSales != null && remain > 0 && elapsed > 0 && mtd.sales != null) {
+      const retMtd = sum(done, x => x.a.ret_rev);
+      const newMtd = sum(done, x => x.a.new_rev);
+      const retPerDay = retMtd != null ? retMtd / elapsed : null;
+      const mAmer = newMtd != null && mtd.spend > 0 ? newMtd / mtd.spend : null;
+      const spendPerDay = mtd.spend != null ? mtd.spend / elapsed : null;
+      const shortfall = goalSales - mtd.sales;
+      const perDay = shortfall / remain;
+      const newPerDay = perDay - (retPerDay || 0);
+      const spendNeeded = mAmer && newPerDay > 0 ? newPerDay / mAmer : null;
+      toHit = {
+        days_elapsed: elapsed, days_in_month: dim, days_remaining: remain,
+        goal_sales: goalSales, mtd_sales: mtd.sales,
+        revenue_per_day: perDay, new_per_day: newPerDay,
+        spend_per_day: spendNeeded, spend_now_per_day: spendPerDay,
+        spend_ramp: spendNeeded != null && spendPerDay > 0 ? spendNeeded / spendPerDay : null,
+        amer: mAmer, returning_per_day: retPerDay,
+        already_there: shortfall <= 0,
+        covered_by_returning: newPerDay <= 0,
+      };
+    }
+  }
   const lastSync = (await env.DB.prepare(`SELECT MAX(synced_at) AS t FROM tw_daily WHERE act_id = ?1`).bind(acct.act_id).first())?.t ?? null;
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz },
@@ -1353,7 +1389,7 @@ async function briefData(env, acct, upTo) {
     cm_pct: cmPct, margin_28d: margin28,
     cogs_quality: cmPct != null ? { verdict: 'override', reason: `using your ${Math.round(cmPct * 100)}% margin override` } : cogsQuality,
     weights: 'even across the month',
-    new_share_28d: newShare, days, mtd, tw_last_sync: lastSync, shipping_mode: shipMode,
+    new_share_28d: newShare, days, mtd, to_hit: toHit, tw_last_sync: lastSync, shipping_mode: shipMode,
     brief_enabled: !!acct.brief_enabled,
   };
 }
@@ -1406,6 +1442,27 @@ function buildBriefText(data, dates, narrative) {
     L.push('', `*Week in review — ${prettyDate(wk.from)} to ${prettyDate(wk.to)}*`);
     L.push(`Net Sales ${fm(wk.a.sales)} against ${fm(wk.f.sales)} planned · Spend ${fm(wk.a.spend)} of ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)}` : ''} · aMER ${fx(wk.a.amer)}`);
     if (wk.best) L.push(`Best day ${prettyDate(wk.best.date)} at ${fm(wk.best.sales)}, slowest ${prettyDate(wk.worst.date)} at ${fm(wk.worst.sales)}`);
+  }
+  /* The one forward-looking line in the brief: what it takes from here.
+     Everything above describes the past; this is the sentence somebody can act on
+     this morning. Tone escalates with the RAMP rather than the gap, because the
+     ramp is what is actually being asked of the budget - and above 1.5x the honest
+     read is that the target needs revisiting, since spending at that rate late in a
+     month buys colder traffic than the aMER the figure assumes. */
+  const th = data.to_hit;
+  if (th && !th.already_there && th.days_remaining > 0) {
+    const day = `the remaining ${th.days_remaining} day${th.days_remaining === 1 ? '' : 's'}`;
+    if (th.covered_by_returning) {
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day} — returning customers alone are running at ${fm(th.returning_per_day)}/day, so no extra spend is needed.`);
+    } else if (th.spend_per_day != null) {
+      const ramp = th.spend_ramp;
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day} — ${fm(th.new_per_day)}/day of that from new customers, which is *${fm(th.spend_per_day)}/day of spend* at the ${fx(th.amer)} aMER this month has run${ramp ? ` (${fx(ramp)} the ${fm(th.spend_now_per_day)}/day running now)` : ''}.`);
+      if (ramp && ramp > 1.5) L.push(`_A step-up that size buys colder traffic than ${fx(th.amer)} assumes — worth agreeing a revised number rather than spending into it._`);
+    } else {
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day}.`);
+    }
+  } else if (th && th.already_there) {
+    L.push('', `*The month's target is already banked* with ${th.days_remaining} day${th.days_remaining === 1 ? '' : 's'} still to run.`);
   }
   // An inherited target is not a plan anyone agreed to. Say so rather than letting
   // last month's number pass as this month's.
@@ -1492,6 +1549,7 @@ async function writeBriefNarrative(env, acct, data, date) {
 `
         : '') +
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
+    (data.to_hit ? `Catch-up already stated in the numbers block above (do NOT restate the figures, but you may build on what they imply): ${JSON.stringify(data.to_hit)}\n\n` : '') +
       (data.week ? `This brief also carries a week-in-review block (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)} — weigh the weekly picture in So What?/What's Next?, not just the single day.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}`,
   });
@@ -2555,6 +2613,33 @@ async function reportData(env, acct, period, start, end) {
           : mtd.sales != null && elapsed > 0 ? mtd.sales / elapsed * dim : null,
         planned: !!gjson[ymEnd],
       };
+      // Saying a month is behind is half the job. The other half is the ask: what
+      // it takes from here. Returning revenue arrives on its own, so the shortfall
+      // has to be bought with new customers, which costs spend. Priced off THIS
+      // MONTH's own returning rate and aMER - the report states the window, and a
+      // month-to-date basis is the one both sides of the call can see.
+      const remain = dim - elapsed;
+      if (gEnd.sales != null && remain > 0 && mtd.sales != null) {
+        const retPerDay = mtd.ret_rev != null && elapsed > 0 ? mtd.ret_rev / elapsed : null;
+        const mAmer = mtd.new_rev != null && mtd.spend > 0 ? mtd.new_rev / mtd.spend : null;
+        const spendPerDay = mtd.spend != null && elapsed > 0 ? mtd.spend / elapsed : null;
+        const shortfall = gEnd.sales - mtd.sales;
+        const perDay = shortfall / remain;
+        const newPerDay = perDay - (retPerDay || 0);
+        const spendNeeded = mAmer && newPerDay > 0 ? newPerDay / mAmer : null;
+        pacing.to_hit = {
+          days_remaining: remain,
+          revenue_per_day: perDay,
+          new_per_day: newPerDay,
+          spend_per_day: spendNeeded,
+          spend_now_per_day: spendPerDay,
+          spend_ramp: spendNeeded != null && spendPerDay > 0 ? spendNeeded / spendPerDay : null,
+          amer: mAmer,
+          returning_per_day: retPerDay,
+          already_there: shortfall <= 0,
+          covered_by_returning: newPerDay <= 0,
+        };
+      }
     }
   }
 

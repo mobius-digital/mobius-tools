@@ -1328,6 +1328,13 @@ export default {
           growth_pct: row.growth_pct, basis_sales: row.basis_sales, basis_label: row.basis_label,
           required_spend: row.required_spend, expected_cm: row.expected_cm,
           agreed_at: row.agreed_at, note: row.note,
+          /* The assumptions behind the plan, on the page the client reads.
+             This is the whole point of storing them: "how are we getting this
+             number" has an answer at the moment the plan is agreed rather than a
+             month later. Only the OVERRIDDEN ones are here - the measured
+             defaults are described in words on the page, and dumping internal
+             trailing windows onto a client link would be workings, not the plan. */
+          assumptions: safeJson(row.assumptions_json, null),
           history: history.filter(h => !h.empty).map(h => ({ month: h.month, sales: h.sales, spend: h.spend, partial: h.partial })),
         });
       } catch (e) { return json({ error: e.message }, 500); }
@@ -1704,17 +1711,43 @@ export default {
         // (they move), while the revenue basis and margin come from the last
         // COMPLETE month (a part-month would lowball the goal).
         const marginSrc = lastComplete || current;
-        const ctx = {
-          days_in_month: daysInMonth(ym),
+        // What the data says. These are the DEFAULTS, never the final word — the
+        // planner can overrule any of them, because a number the app derived and
+        // will not let you change is the one a client asks about on the call.
+        const measured = {
           returning_per_day: fc?.basis?.returning_per_day ?? null,
           amer: fc?.basis?.amer ?? null,
           margin: marginSrc?.margin ?? null,
+        };
+        const savedPlan = await env.DB.prepare(`SELECT * FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(act, ym).first();
+        const ov = safeJson(savedPlan?.assumptions_json, {}) || {};
+        // An override only counts when it is a real number. `null` and `''` mean
+        // "back to measured", which is how the reset button clears one.
+        const pick = k => (ov[k] != null && ov[k] !== '' && isFinite(+ov[k])) ? +ov[k] : measured[k];
+        const ctx = {
+          days_in_month: daysInMonth(ym),
+          returning_per_day: pick('returning_per_day'),
+          amer: pick('amer'),
+          margin: pick('margin'),
+          measured,
+          // Which of the three the planner set by hand. The UI badges these and the
+          // client-facing plan link names them, so nobody has to guess later where
+          // a number came from.
+          overrides: Object.fromEntries(['returning_per_day', 'amer', 'margin']
+            .filter(k => pick(k) !== measured[k]).map(k => [k, pick(k)])),
+          // The hard deck: the least we keep spending per day, whatever the month
+          // does. Not a cap and not part of the arithmetic — a floor that has to be
+          // breached deliberately, because a plan whose logic argues spend down to
+          // zero costs next month too.
+          spend_floor_per_day: (ov.spend_floor_per_day != null && ov.spend_floor_per_day !== '' && isFinite(+ov.spend_floor_per_day))
+            ? +ov.spend_floor_per_day : null,
           sources: {
             trailing_days: fc?.basis?.days ?? null,
             trailing_from: fc?.basis?.from ?? null,
             trailing_to: fc?.basis?.to ?? null,
             margin_month: marginSrc?.month ?? null,
             basis_month: basis?.month ?? null,
+            trailing_spend_per_day: fc?.basis?.spend_per_day ?? null,
           },
         };
         const options = basis ? [0, 0.1, 0.2, 0.3].map(g => planMath('growth', g, ctx, basis.sales)) : [];
@@ -1729,9 +1762,17 @@ export default {
           if (h) actual = { sales: h.sales, spend: h.spend, cm: h.cm, mer: h.mer, amer: h.amer,
             days: h.days, days_in_month: h.days_in_month, partial: !!h.partial };
         }
-        const saved = await env.DB.prepare(`SELECT * FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(act, ym).first();
+        const saved = savedPlan;
         return json({
           account: pubAccount(acct), month: ym, status, actual, history, basis, ctx, options,
+          // Catch-up: what it takes from here. Only the month in flight has one.
+          to_hit: (status === 'current' && fc) ? fc.to_hit : null,
+          pace: (status === 'current' && fc) ? {
+            days_elapsed: fc.days_elapsed, days_remaining: fc.days_remaining,
+            days_in_month: fc.days_in_month, mtd_sales: fc.mtd?.sales ?? null,
+            mtd_spend: fc.mtd?.spend ?? null, spend_per_day: fc.basis?.spend_per_day ?? null,
+            projected: fc.projected, at_pace: fc.at_current_pace?.sales ?? null,
+          } : null,
           goals: goalsFor(acct, ym), plan: saved || null,
           // A month only counts as planned if somebody planned THAT month. The
           // `default` block is an inheritance convenience and would otherwise make
@@ -1766,17 +1807,32 @@ export default {
         // Changing the numbers invalidates any previous sign-off — you cannot agree
         // to a plan and then quietly move it.
         const numbersChanged = b.reagree === true;
+        // Only the keys actually overridden are stored. Sending null or '' for one
+        // drops it, which is what the "use measured" reset does — the alternative,
+        // freezing today's measured value into the row, would silently stop the
+        // default from tracking the data.
+        const AK = ['returning_per_day', 'amer', 'margin', 'spend_floor_per_day'];
+        const assumptions = {};
+        if (b.assumptions && typeof b.assumptions === 'object') {
+          for (const k of AK) {
+            const v = b.assumptions[k];
+            if (v != null && v !== '' && isFinite(+v)) assumptions[k] = +v;
+          }
+        }
+        const assumptionsJson = Object.keys(assumptions).length ? JSON.stringify(assumptions) : null;
+
         await env.DB.prepare(
-          `INSERT INTO p_plan (act_id, month, growth_pct, basis_sales, basis_label, required_spend, expected_cm, agreed_at, agreed_by, share_token, note, updated_at)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,datetime('now'))
+          `INSERT INTO p_plan (act_id, month, growth_pct, basis_sales, basis_label, required_spend, expected_cm, agreed_at, agreed_by, share_token, note, assumptions_json, updated_at)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,datetime('now'))
            ON CONFLICT(act_id, month) DO UPDATE SET growth_pct=excluded.growth_pct, basis_sales=excluded.basis_sales,
              basis_label=excluded.basis_label, required_spend=excluded.required_spend, expected_cm=excluded.expected_cm,
-             agreed_at=excluded.agreed_at, agreed_by=excluded.agreed_by, note=excluded.note, updated_at=datetime('now')`,
+             agreed_at=excluded.agreed_at, agreed_by=excluded.agreed_by, note=excluded.note,
+             assumptions_json=excluded.assumptions_json, updated_at=datetime('now')`,
         ).bind(acct.act_id, ym, b.growth_pct ?? null, b.basis_sales ?? null, b.basis_label ?? null,
           b.spend ?? null, b.expected_cm ?? null,
           numbersChanged ? null : (prev?.agreed_at ?? null),
           numbersChanged ? null : (prev?.agreed_by ?? null),
-          prev?.share_token ?? null, b.note ?? null).run();
+          prev?.share_token ?? null, b.note ?? null, assumptionsJson).run();
         return json({ ok: true, goals: m });
       }
 

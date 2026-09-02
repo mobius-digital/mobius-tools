@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS p_plan (
   agreed_by      TEXT,
   share_token    TEXT,                           -- read-only client link
   note           TEXT,
+  -- Assumptions the planner OVERRODE, plus the spend floor. A forecast is made of
+  -- assumptions; the only honest thing to do is name them, say where the default
+  -- came from, and let the number be changed. Absent keys mean "use the measured
+  -- value", so a plan saved before this existed behaves exactly as it did.
+  --   { returning_per_day, amer, margin, spend_floor_per_day }
+  assumptions_json TEXT,
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (act_id, month)
 );
