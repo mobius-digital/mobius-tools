@@ -332,8 +332,12 @@ subrequests it used.
   so the source order is cover → image_url → thumbnail_url.
 - **`source` (the mp4) needs a PAGE-scoped token**, not the user token, even
   with pages_read_engagement. `pageTokens()` caches the map from
-  `me/accounts?fields=id,access_token` in `settings.pageTokens` (system-user
-  page tokens do not expire) and refreshes once when a page is missing.
+  `me/accounts?fields=id,access_token` in `settings.pageTokens`.
+  **"System-user page tokens do not expire" was an assumption, and it was
+  wrong** (2026-09-03): all six pages had tokens, all cached 2026-08-30, and
+  playback failed on every one of them. The cache was only ever refreshed when a
+  page was MISSING, so a token that was present but no longer accepted failed
+  forever. `adVideoSource` now refreshes once on ANY empty answer and retries.
 - **The mp4 URL is signed and short-lived, so it is NEVER frozen into a
   report.** It is resolved at play time by `GET /api/ad-video`. The cover frame
   IS baked in. Image permanent, playback best-effort — do not "improve" this by
@@ -347,8 +351,28 @@ subrequests it used.
   `100526684753365` carries one of Lucky's video ads and is not one of our six —
   a creator/partner page. Every path here degrades to the cover image and a link
   out rather than throwing.
-- **Inline image budget is 700KB total / 150KB per image.** The whole report is
-  ONE D1 row; full-resolution statics were on course to crowd out the numbers.
+- **The inline image budget belongs to the REPORT, and only to the report**
+  (190KB per image / 1.1MB total). A report is ONE D1 row, so full-resolution
+  statics would crowd out the numbers. The LIVE creative browser is a JSON
+  response and has no such constraint — it passes `LIVE_THUMBS`.
+  **Applying the report's ceilings to the live browser is what broke the
+  Creative tab** (found 2026-09-03: 13 of 20 cached creatives had
+  `thumb: null`). Two compounding mistakes, both fixed:
+  1. The video cover deliberately picked the LARGEST frame Meta offered, then
+     hard-rejected it for being over the ceiling — discarding four smaller
+     copies of the same frame in the process. Now every size is kept, ordered
+     smallest-that-still-covers-a-2x-card first.
+  2. The `ad_creative` cache refused any row over 90,000 chars. Base64 is 1.34x,
+     so **no image that passed the 190KB fetch ceiling could ever be cached** —
+     every one was refetched from Meta forever. Now 400,000.
+- **A missing image must not draw a ▶.** The placeholder glyph was a play
+  triangle on video cards, indistinguishable from the real play badge, so a card
+  whose creative had failed to load read as a playable video and the click
+  produced "no playable video". It says "No preview" now.
+- **`is_video` puts a play badge on a card, so it must mean "this can be
+  played"**, not "there is video in here somewhere". It was
+  `media_type === 'video' || isVideo`, and since a carousel of videos has
+  `video_3s > 0` every carousel got a badge it could never honour.
 
 ## Triple Whale attribution IS available — the old note here was wrong (2026-08-30)
 
@@ -431,7 +455,8 @@ Every sort/filter change re-picks the top N, and each unseen ad cost a creative
 fetch plus a video lookup: up to sixteen sequential Meta round trips for one
 click on a dropdown. Creatives do not change, so `adThumbnails` now reads
 `ad_creative` first and only calls Meta for what is missing, writing back rows
-under 90KB with a 14-day TTL. A cache miss or a write failure is swallowed —
+under 400KB with a 14-day TTL (was 90KB — see the image-budget note above; it
+was smaller than any image that passed the fetch ceiling, so nothing cached). A cache miss or a write failure is swallowed —
 the cards must never depend on it.
 
 ### Attribution weighting follows the MODEL (corrected 2026-08-30)

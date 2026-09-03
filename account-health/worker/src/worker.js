@@ -2272,22 +2272,39 @@ async function adVideoSource(env, adId, hint = {}) {
       pageId ||= c.object_story_spec?.page_id || null;
     } catch { return null; }
   }
-  if (!videoId || !pageId) return null;
-  let tokens = await pageTokens(env).catch(() => ({}));
-  let tok = tokens[String(pageId)];
-  if (!tok) {
-    tokens = await pageTokens(env, { refresh: true }).catch(() => ({}));
-    tok = tokens[String(pageId)];
-  }
-  if (!tok) return null;                       // a partner/creator page we do not own
-  try {
+  if (!videoId) return { src: null, reason: 'This ad has no single video to play (a carousel or a dynamic creative).' };
+  if (!pageId) return { src: null, reason: 'Meta does not say which page this creative belongs to, so it cannot be opened.' };
+
+  const ask = async tok => {
     const u = new URL(`${GRAPH}/${videoId}`);
     u.searchParams.set('fields', 'source');
     u.searchParams.set('access_token', tok);
     const res = await xfetch(u);
-    const b = await res.json();
-    return b?.source || null;
-  } catch { return null; }
+    const b = await res.json().catch(() => ({}));
+    return { src: b?.source || null, err: b?.error?.message || (res.ok ? null : `Meta returned ${res.status}`) };
+  };
+
+  /* PAGE TOKENS GO STALE, AND NOTHING NOTICED. The cached map was only ever
+     refetched when a page was MISSING from it — a token that was present but no
+     longer accepted (the user token behind it regenerated, the page reassigned)
+     failed here forever, and the card said "no playable video", which is not
+     what had happened at all. Measured 2026-09-03: all six pages had tokens,
+     all cached 2026-08-30, and playback was failing anyway.
+     So: try the cache, and on ANY empty answer refresh once and try again.
+     A genuinely unplayable ad costs one extra call; a stale token now heals. */
+  let tokens = await pageTokens(env).catch(() => ({}));
+  let tok = tokens[String(pageId)];
+  let out = tok ? await ask(tok).catch(e => ({ src: null, err: e.message })) : { src: null, err: 'no page token' };
+  if (!out.src) {
+    tokens = await pageTokens(env, { refresh: true }).catch(() => ({}));
+    const fresh = tokens[String(pageId)];
+    if (fresh && fresh !== tok) out = await ask(fresh).catch(e => ({ src: null, err: e.message }));
+    else if (!tok) out = { src: null, err: 'no page token' };
+  }
+  if (out.src) return { src: out.src };
+  return { src: null, reason: out.err === 'no page token'
+    ? 'This creative lives on a page we have not been granted access to.'
+    : `Meta would not return the video file — ${out.err || 'no reason given'}.` };
 }
 
 /** Is this ad actually listed in one of that client's SENT reports?
@@ -2333,8 +2350,24 @@ async function adInSentReport(env, token, adId) {
    asset eventually corrects itself. Only rows under 90KB are stored: a full
    resolution static can be far larger and D1 is not an image host. */
 const AD_CREATIVE_TTL_DAYS = 14;
+/* What the LIVE creative browser may spend on one image, and across a batch.
+   Deliberately not the report's numbers: a report inlines every image into a
+   single D1 row and must stay small, whereas this is a JSON response that is
+   thrown away after paint. `budget` is effectively uncapped — it exists so a
+   pathological account cannot build an unbounded response, not to ration. */
+const LIVE_THUMBS = { maxBytes: 280_000, budget: 24_000_000 };
 
-async function adThumbnails(env, adIds) {
+/* `maxBytes` / `budget` are the REPORT's constraints, and they were being
+   applied to the live creative browser too, which does not share them.
+   A report inlines every image into ONE D1 row, so it must stay under ~1.1MB
+   in total and reject any single image over 190KB. The Creative tab just
+   streams JSON to a browser and has no such ceiling — but it inherited both,
+   and because the video cover deliberately picks the LARGEST frame Meta offers
+   (and statics are asked for at 1080), most images were fetched, found to be
+   over 190KB, and thrown away. Measured 2026-09-03: 13 of 20 cached creatives
+   had `thumb: null`, and the card falls back to a glyph placeholder — which is
+   what "the creative won't load" was. */
+async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000 } = {}) {
   const out = {};
   if (!env.META_TOKEN || !adIds.length) return out;
   const want = [...new Set(adIds)];
@@ -2368,10 +2401,10 @@ async function adThumbnails(env, adIds) {
     }) || {};
   } catch { /* the cards still work without status and dates */ }
   // Cards render ~255x319 CSS px, so a 2x screen wants ~640px on the long edge.
-  // Meta is asked for 1080 and the largest result under the per-image ceiling wins.
-  // The ceiling is not aesthetic — the whole report is ONE D1 row, so the
-  // inlined images have to leave room for the numbers beside them.
-  let budget = 1_100_000;                     // total base64 to inline across the report
+  // The SMALLEST frame that still covers that wins, and every other size is
+  // kept as a fallback — picking the biggest and hard-rejecting it over the
+  // ceiling is what left most cards with no image at all.
+  const LONG_EDGE = 640;
   for (const id of adIds.slice(0, 10)) {
     try {
       const r = await meta(env, `${id}/adcreatives`, {
@@ -2403,7 +2436,6 @@ async function adThumbnails(env, adIds) {
       const isVideo = !!(c?.video_id || c?.object_type === 'VIDEO'
         || c?.object_story_spec?.video_data
         || (Array.isArray(c?.asset_feed_spec?.videos) && c.asset_feed_spec.videos.length));
-      out[id].video = isVideo;
       /* MEDIA TYPE, and only the three that are real: video, carousel, image.
          Cole: "the type should only be All, Video, Static, Carousel" - the
          format tags read from ad NAMES (UGC, Still) were being offered as
@@ -2417,6 +2449,13 @@ async function adThumbnails(env, adIds) {
         || c?.object_type === 'CAROUSEL'
         || !!c?.asset_feed_spec?.additional_data?.multi_share_end_card;
       out[id].media_type = isCarousel ? 'carousel' : isVideo ? 'video' : 'image';
+      /* `video` is what puts a PLAY BADGE on the card, so it must mean "this
+         ad can actually be played", not "there is video somewhere in it". A
+         carousel of videos has no single video to play — `adVideoSource` finds
+         no video_id and the click died on "no playable video". Set AFTER the
+         carousel test for that reason; setting it beside `isVideo` above is
+         what put an unusable badge on every carousel. */
+      out[id].video = out[id].media_type === 'video';
       // A video creative's own thumbnail_url is the PAGE AVATAR (see the note
       // below), so the cover frame has to come from the video object itself.
       // `picture` is a real frame and is readable with the user token now that
@@ -2426,19 +2465,26 @@ async function adThumbnails(env, adIds) {
         || c?.asset_feed_spec?.videos?.[0]?.video_id || null;
       out[id].video_id = vidId;
       out[id].page_id = c?.object_story_spec?.page_id || null;
-      let coverUrl = null;
+      let coverUrls = [];
       if (isVideo && vidId) {
         try {
           const v = await meta(env, vidId, { fields: 'picture,length,thumbnails{uri,width,height,is_preferred}' });
           out[id].duration = v?.length ?? null;
-          // `picture` is a small fixed-size still — it was the low-quality cover.
-          // `thumbnails` carries several frames at real resolution, so take the
-          // biggest (preferring the one Meta marks preferred at equal size).
+          /* `picture` is a small fixed-size still — it was the low-quality cover.
+             `thumbnails` carries several frames at real resolution.
+             ONE candidate used to come out of here: the biggest. If that one
+             frame came back over the byte ceiling the ad ended up with no cover
+             at all, even though Meta had offered four smaller copies of the very
+             same frame. So ALL of them are kept, ordered by what we actually
+             want: the smallest that still covers a 2x card first, then the
+             larger ones, then the small ones, then `picture` as the floor. */
+          const edge = t => Math.max(t.width || 0, t.height || 0);
+          const pref = (a, b) => (b.is_preferred === true) - (a.is_preferred === true);
           const thumbs = (v?.thumbnails?.data || []).filter(t => t.uri);
-          const best = thumbs.sort((a, b) =>
-            ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0))
-            || (b.is_preferred === true) - (a.is_preferred === true))[0];
-          coverUrl = best?.uri || v?.picture || null;
+          const enough = thumbs.filter(t => edge(t) >= LONG_EDGE).sort((a, b) => edge(a) - edge(b) || pref(a, b));
+          const small = thumbs.filter(t => edge(t) < LONG_EDGE).sort((a, b) => edge(b) - edge(a) || pref(a, b));
+          coverUrls = [...enough, ...small].map(t => t.uri);
+          if (v?.picture) coverUrls.push(v.picture);
         } catch { /* a creative on a page we do not own stays coverless */ }
       }
       /* RESOLVED 2026-08-30 by granting the system user page access. Kept because
@@ -2474,14 +2520,14 @@ async function adThumbnails(env, adIds) {
       // `image_url` is the ORIGINAL static creative — real resolution, real aspect
       // ratio, no square crop — so it is tried first and `thumbnail_url` is the
       // fallback. Video ads have no image_url at all (see the note below).
-      const sources = [coverUrl, c?.image_url, c?.thumbnail_url].filter(Boolean);
+      const sources = [...coverUrls, c?.image_url, c?.thumbnail_url].filter(Boolean);
       let picked = null;
       for (const src of sources) {
         try {
           const img = await xfetch(src);
           if (!img.ok) continue;
           const buf = await img.arrayBuffer();
-          if (buf.byteLength > 190_000 || buf.byteLength * 1.34 > budget) continue;   // too big: fall through to a smaller source
+          if (buf.byteLength > maxBytes || buf.byteLength * 1.34 > budget) continue;   // too big: fall through to a smaller source
           // Chunked: spreading a 250k array into String.fromCharCode blows the stack.
           const bytes = new Uint8Array(buf);
           let bin = '';
@@ -2511,7 +2557,13 @@ async function adThumbnails(env, adIds) {
     const v = out[id]; if (!v) continue;
     try {
       const j = JSON.stringify(v);
-      if (j.length > 90_000) continue;                       // D1 is not an image host
+      /* Was 90,000, which no image that passed the 190KB fetch ceiling could
+         ever satisfy — base64 is 1.34x, so a 190KB image is a 254KB string and
+         every one of them was silently dropped from the cache and refetched
+         from Meta forever. 400,000 covers the largest image either caller will
+         now accept. D1 is still not an image host: anything above this is
+         served once and not kept. */
+      if (j.length > 400_000) continue;
       await env.DB.prepare(
         `INSERT INTO ad_creative (ad_id, json, fetched_at) VALUES (?1,?2,datetime('now'))
          ON CONFLICT(ad_id) DO UPDATE SET json = excluded.json, fetched_at = excluded.fetched_at`).bind(id, j).run();
@@ -3311,11 +3363,18 @@ async function adRows(env, acct, from, to, opts = {}) {
       hook: isVideo && imp ? (r.v3 || 0) / imp : null,
       hold: isVideo && r.v3 ? (r.vtp || 0) / r.v3 : null,
       completion: isVideo && r.vplays ? (r.v100 || 0) / r.vplays : null,
-      is_video: media === 'video' || isVideo, media_type: media, format: tag,
+      /* `is_video` PUTS A PLAY BADGE ON THE CARD, so it has to mean "this can
+         be played", not "there is video in here somewhere". `|| isVideo`
+         defeated the whole point of `media_type` being authoritative: a
+         carousel of videos has v3 > 0, so it was flagged playable, and the
+         click died on "no playable video" because a carousel has no single
+         video id. `media` already falls back to isVideo when the type is
+         unknown, so nothing is lost by dropping the alternative. */
+      is_video: media === 'video', media_type: media, format: tag,
       /* Aliases and the derived metrics the detail popout shows. Named to match
          what the REPORT's adDetailModal already expects, so one modal serves
          both surfaces rather than a lookalike that drifts from it. */
-      video: media === 'video' || isVideo,
+      video: media === 'video',
       created: origin || null,
       clicks: r.clicks_all || 0,
       cpc: r.link_clicks ? r.spend / r.link_clicks : null,
@@ -4096,8 +4155,12 @@ export default {
       } else if (!(await isAdmin(request, env))) {
         return json({ error: 'unauthorized' }, 401);
       }
-      const src = await adVideoSource(env, adId, hint);
-      if (!src) return json({ error: 'no playable video for this ad' }, 404);
+      /* The old message here was one flat "no playable video for this ad" for
+         five different causes — no video, no page, no token, a stale token, a
+         refusal from Meta — which is why a card that plainly WAS a video read
+         as though the ad had none. `adVideoSource` now says which. */
+      const { src, reason } = await adVideoSource(env, adId, hint);
+      if (!src) return json({ error: reason || 'This ad has no video to play.' }, 404);
       // Deliberately uncached: the signed URL is short-lived, and a cached one
       // that has expired plays as a broken video rather than an honest retry.
       return json({ src });
@@ -4416,7 +4479,10 @@ export default {
         const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 40);
         if (!ids.length) return json({ assets: {} });
         let assets = {};
-        try { assets = await adThumbnails(env, ids); } catch (e) { return json({ assets: {}, error: e.message }); }
+        /* LIVE limits, not the report's. This response is JSON to a browser,
+           not an image inlined into one D1 row, so the only ceiling that matters
+           is what a single card is worth keeping. */
+        try { assets = await adThumbnails(env, ids, LIVE_THUMBS); } catch (e) { return json({ assets: {}, error: e.message }); }
         return json({ assets });
       }
 
@@ -4450,7 +4516,7 @@ export default {
            caller that genuinely wants both together. */
         let assets = {};
         if (url.searchParams.get('assets') === '1') {
-          try { assets = await adThumbnails(env, r.ads.map(a => a.ad_id)); } catch { /* numbers still stand */ }
+          try { assets = await adThumbnails(env, r.ads.map(a => a.ad_id), LIVE_THUMBS); } catch { /* numbers still stand */ }
           for (const a of r.ads) Object.assign(a, assets[a.ad_id] || {});
         } else {
           // Anything already cached is free, so send that much with the rows.
