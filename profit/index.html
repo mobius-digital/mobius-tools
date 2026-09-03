@@ -3103,7 +3103,7 @@ function renderProfitAll() {
     return v(b) - v(a);
   });
   $('#main').innerHTML = `${pageHead('profit', 'Profit', 'Pick a brand to see where its money went, from revenue down to what was left.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="profit">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
+    
     <div class="card" style="padding:6px 0"><div id="pfPick">
       ${ranked.map(a => {
         const w = a.window, trusted = cmTrusted(a.cost_health);
@@ -3292,7 +3292,7 @@ async function renderProfit(first) {
   const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
 
   $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, '<b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.')}
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button><button class="help-btn" data-tour="profit">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="profit">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button></div>
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
@@ -3386,7 +3386,7 @@ function marginSVG(rows) {
 async function renderCosts(first) {
   if (S.act === 'all') {
     $('#main').innerHTML = `${pageHead('costs', 'Costs', 'Product costs <i>and</i> delivery, per client.')}
-      <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="costs">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
+      
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfilment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfilment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
         <tbody>${S.accounts.map(a => { const h = a.cost_health, s = a.shipping; return `<tr data-id="${a.act_id}" style="cursor:pointer">
@@ -3419,7 +3419,7 @@ async function renderCosts(first) {
   const winSales = (d.rows || []).reduce((a, x) => a + (x.sales || 0), 0);
 
   $('#main').innerHTML = `${pageHead('costs', `Costs &mdash; ${esc(d.account.name)}`, 'Last 60 days of daily margin, which is what reveals whether the cost data holds up.')}
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span><button class="help-btn" data-tour="costs">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="costs">? How to use</button></div>
+    <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span></div>
     ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> — the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost — not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
       : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
       : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) — the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} — clear the override below to use it.`}</div></div>`
@@ -3608,7 +3608,7 @@ async function renderBrief(first) {
       <label class="tiny">day</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
       <button class="btn" id="bfTwSync">↻ Refresh Triple Whale data</button>
       <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet — hit refresh'}</span>
-      <span style="flex:1"></span><button class="help-btn" data-tour="brief">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="brief">? How to use</button>
+      <span style="flex:1"></span>
     </div>
     ${d.goals && d.goals_planned === false ? `<div class="notice warn">⚠️ <div><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure below is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so out loud. <button class="btn" id="bfToPlan2" style="margin-left:6px">Set ${esc(monthLabel(d.month))}'s plan</button></div></div>` : ''}
     ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
@@ -4441,7 +4441,7 @@ function wireAdCards(ads, cur, prevTag) {
 /** All-clients view: the latest weekly and monthly report per brand at a glance. */
 async function renderReportsAll(first) {
   const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically &mdash; Monday covers last Mon&ndash;Sun, the 1st covers last month. <b>Nothing reaches a client on its own.</b>')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="reports">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button></div>
+    
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -4537,7 +4537,7 @@ async function renderReports(first) {
       <button class="btn" id="rpGenW">Generate last week</button>
       <button class="btn" id="rpGenM">Generate last month</button>
       <span class="tiny" id="rpGenMsg"></span>
-      <span style="flex:1"></span><button class="help-btn" data-tour="reports">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="reports">? How to use</button>
+      <span style="flex:1"></span>
     </div>
     ${chips ? `<div class="row" style="margin-bottom:12px">${chips}</div>` : ''}
     ${configCard}
@@ -5138,7 +5138,7 @@ async function renderPlan(first) {
     <div class="row" style="margin-bottom:14px;flex-wrap:wrap">
       ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
       <span id="plChip">${statusPill}</span>
-      <span style="flex:1"></span><button class="help-btn" data-tour="plan">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="plan">? How to use</button>
+      <span style="flex:1"></span>
     </div>
 
     ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
@@ -5549,7 +5549,7 @@ function cohortCard(co, cur) {
 
 async function renderCustomersAll() {
   $('#main').innerHTML = `${pageHead('customers', 'Customers', '<b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="customers">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
+    
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
       <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer"><td><b>${esc(a.name)}</b></td>
@@ -5583,7 +5583,7 @@ async function renderCustomers(first) {
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const shell = body => `${pageHead('customers', `Customers &mdash; ${esc(acct?.name || '')}`, 'Not a true lifetime value &mdash; Triple Whale gives us no per-customer history.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="customers">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="customers">? How to use</button></div>
+    
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
@@ -5687,7 +5687,7 @@ async function renderSettings() {
   $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ' &mdash; ' + esc(one.name) : ''}`,
     one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
         : 'Everything about a brand lives in one place: open its row to set its Meta account, store, Slack channels and margin.')}
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span><button class="help-btn" data-tour="settings">Show me</button><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-help="settings">? How to use</button></div>
+    
     <h3 class="set-sec">Brands</h3>
     <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
     <h3 class="set-sec">Team</h3>
