@@ -8,21 +8,46 @@
 <link rel="icon" href="../favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
+  /* ============================================================
+     Direction C, adopted app-wide 2026-09-02.
+     ------------------------------------------------------------
+     Three things changed and everything else follows from them:
+
+       GROUND   a barely-warm off-white replaces the cool blue-grey.
+                The old #F4F8FA read as a stock admin panel; this one
+                is quieter and lets the ink do the work.
+       DISPLAY  Archivo carries figures and names - tighter, more
+                characterful, and it holds at 30px where the old
+                stack went soft. Instrument Serif stays for page
+                titles and the wordmark, which is where it earns
+                its keep; Instrument Sans keeps the running text.
+       STATE    every card that carries a verdict states it in FORM
+                as well as number - a 3px top stripe - so triage
+                happens before anything is read.
+
+     Semantic colour (good / warn / bad) is deliberately separate
+     from the brand hue and is never used for decoration.
+     ============================================================ */
   :root{
-    --bg:#F4F8FA; --surface:#FFFFFF;
-    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
-    --line:#DFE7EC; --line-strong:#C4D2DB;
+    --bg:#FBFAF8; --surface:#FFFFFF;
+    --ink:#1A1815; --ink-2:#4A453D; --muted:#8A8378;
+    --line:#EBE7E0; --line-strong:#D6D0C6;
     --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
-    --hd:#0C161D; --hd-line:#1D2C38;
-    --good:#1C7A46; --good-bg:#E4F2E9;
-    --warn:#8F6412; --warn-bg:#F8EED6;
-    --bad:#9C3A2E;  --bad-bg:#F7E7E4;
-    --unk:#647684;  --unk-bg:#EDF1F4;
-    --radius:12px;
+    --hd:#1A1815; --hd-line:#33302A;
+    /* The dark roll-up bar: the one heavy element on a page, so the
+       headline figures are unmissable without a hero. */
+    --ink-panel:#1A1815; --ink-panel-2:#33302A;
+    --on-ink:#F5F2EC; --on-ink-2:#9A9285;
+    --good:#2E7D4F; --good-bg:#E6F1EA; --good-on:#7FD9A2;
+    --warn:#A5720F; --warn-bg:#F8EFDA; --warn-on:#E8C583;
+    --bad:#B34A38;  --bad-bg:#F8E9E5;  --bad-on:#F0A091;
+    --unk:#8A8378;  --unk-bg:#F0EDE7;
+    --radius:10px;
     --sans:'Instrument Sans',system-ui,sans-serif;
     --serif:'Instrument Serif',Georgia,serif;
+    --display:'Archivo','Helvetica Neue',Arial,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
@@ -228,6 +253,94 @@
   .asm-row.over{background:var(--brand-soft);border-radius:0 8px 8px 0;
     box-shadow:inset 3px 0 0 var(--brand-ink);padding-left:12px;padding-right:12px}
   .asm-row.over+.asm-row{border-top-color:transparent}
+  /* ============================================================
+     DIRECTION C  -  the component layer
+     ------------------------------------------------------------
+     Two pieces, and they are used on different kinds of tab:
+
+       THE ROLL-UP (.rollup) - the dark bar of headline figures.
+       Goes on EVERY tab. It is the one heavy element on the page,
+       which is what lets the rest stay quiet and still have a
+       foreground - the old build had six white cards in a row and
+       therefore no hierarchy at all.
+
+       THE STATE CARD (.sc) - big figure, caption, small stat grid,
+       and ONE SENTENCE SAYING WHAT TO DO. That last line is the
+       part that matters: every tab used to end in numbers and
+       leave the reader to work out the move. A 3px top stripe
+       carries the verdict in form as well as in words, so triage
+       happens in peripheral vision.
+
+     The TRIAGE GROUPING (.grp) only goes on tabs with a list to
+     sort - Overview, the creative browser, Reports. A single-brand
+     tab has nothing to triage, so it takes the card anatomy and
+     the roll-up without the grouping.
+     ============================================================ */
+
+  /* ---- the dark roll-up ---- */
+  .rollup{display:flex;align-items:stretch;background:var(--ink-panel);color:var(--on-ink);
+    border-radius:var(--radius);overflow:hidden;margin-bottom:22px;flex-wrap:wrap}
+  .ru{padding:15px 20px 16px;border-left:1px solid var(--ink-panel-2);flex:1 1 160px;min-width:0}
+  .ru:first-child{border-left:none}
+  .ru-l{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--on-ink-2);margin-bottom:6px}
+  .ru-v{font-family:var(--display);font-weight:800;font-size:clamp(22px,2.4vw,27px);
+    letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;
+    overflow-wrap:anywhere}
+  .ru-v.good{color:var(--good-on)}
+  .ru-v.bad{color:var(--bad-on)}
+  .ru-v.warn{color:var(--warn-on)}
+  .ru-d{font-size:11px;color:var(--on-ink-2);margin-top:6px;line-height:1.45}
+
+  /* ---- triage group heading ---- */
+  .grp{display:flex;align-items:center;gap:10px;margin:0 0 12px;
+    font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .grp .ct{color:var(--ink)}
+  .grp .ln{flex:1;height:1px;background:var(--line)}
+
+  /* ---- the state card ---- */
+  .sc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));
+    gap:12px;margin-bottom:26px}
+  .sc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px 14px;border-top:3px solid var(--line-strong);
+    display:flex;flex-direction:column;cursor:default}
+  .sc.ok{border-top-color:var(--good)}
+  .sc.wn{border-top-color:var(--warn)}
+  .sc.bd{border-top-color:var(--bad)}
+  a.sc,.sc[data-id]{cursor:pointer}
+  .sc[data-id]:hover{border-color:var(--line-strong);box-shadow:0 2px 10px -4px rgba(26,24,21,.18)}
+  .sc-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:11px}
+  .sc-n{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:-.01em;line-height:1.2}
+  .sc-s{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    flex:none;color:var(--muted);text-align:right}
+  .sc.ok .sc-s{color:var(--good)}
+  .sc.wn .sc-s{color:var(--warn)}
+  .sc.bd .sc-s{color:var(--bad)}
+  .sc-big{font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:-.03em;
+    line-height:1;font-variant-numeric:tabular-nums;margin-bottom:4px;overflow-wrap:anywhere}
+  .sc-cap{font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.45}
+  .sc-spark{display:block;margin-bottom:12px}
+  .sc-g{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;
+    border-top:1px solid var(--line);padding-top:11px}
+  .sc-g>div{min-width:0}
+  .sc-gl{font-size:9.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sc-gv{font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:-.01em;
+    font-variant-numeric:tabular-nums}
+  .sc-gv.good{color:var(--good)}
+  .sc-gv.bad{color:var(--bad)}
+  /* The line that turns a card of numbers into a decision. */
+  .sc-act{font-size:11.5px;color:var(--ink-2);margin:11px 0 0;padding-top:10px;
+    border-top:1px solid var(--line);line-height:1.5}
+  .sc-act b{color:var(--ink);font-weight:600}
+  .sc-foot{margin-top:auto}
+
+  /* Display face for figures that used the serif in the editorial pass.
+     Archivo holds at 30px where the serif went light against the ground. */
+  .fig-v,.lg-num{font-family:var(--display);font-weight:800;letter-spacing:-.025em}
+  .lg-num{font-weight:700;font-size:20px}
+  .ph-t{font-family:var(--serif)}
+
   /* ============================================================
      EDITORIAL LAYER  (2026-09-02 revamp)
      ------------------------------------------------------------
@@ -2751,121 +2864,177 @@ const OV_SORT = [
   ['mer', 'MER', a => a.window.mer ?? -Infinity],
   ['name', 'Name', null],
 ];
-/* ---------- Overview: the portfolio ledger ----------
+/* ---------- Overview: the triage board ----------
  *
- * This is the first screen every morning, and it used to answer the wrong
- * question first. It opened with a table of eleven numbers per client, each
- * with a smaller number underneath it, and closed with a five-line gray
- * paragraph defining revenue. Nothing said which client needed attention -
- * every figure sat at the same weight, so the page had to be read rather
- * than scanned.
+ * The morning question is not "what are the numbers", it is "who do I deal
+ * with first". A sorted table cannot answer that - it makes you read six rows
+ * and hold the comparison in your head. So the screen does the triage: brands
+ * group by whether they need a decision, and each card leads with the figure
+ * that put it there and names the actual next move.
  *
- * It now answers three questions in order:
- *   1. how is the whole book doing        -> the figure strip
- *   2. is anything wrong                  -> one verdict sentence
- *   3. which client, and how              -> the ledger, money in the serif
+ * Two rules keep this honest:
  *
- * The definitions did not get deleted; they moved into the footnote and the
- * (i) tooltips, which is where a definition belongs once you have read it.
- * Money is set in Instrument Serif at 19px so the eye lands on the figure
- * and not on the label - the single change that does most of the work here.
+ *   The grouping is stated, not implied. `triage()` is the only place a brand
+ *   is judged, so the roll-up count, the group it sits in and the words on its
+ *   card can never disagree - the failure mode of a status UI is three parts of
+ *   one page telling you different things.
+ *
+ *   A card never shows a verdict the data cannot support. No plan means no
+ *   pace judgement (it says so and sits under Unplanned rather than being
+ *   quietly called fine), and untrusted cost data suppresses contribution
+ *   margin here exactly as it does everywhere else.
  */
-async function renderOverview() {
-  const sortKey = localStorage.getItem('pf_ovsort') || 'cm';
-  const srt = OV_SORT.find(x => x[0] === sortKey) || OV_SORT[0];
-  const rows = (S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act))
-    .sort((a, b) => srt[2] ? srt[2](b) - srt[2](a) : a.name.localeCompare(b.name));
+const TRIAGE = {
+  bd: { key: 'bd', label: 'Needs a decision', rank: 0 },
+  wn: { key: 'wn', label: 'Watch', rank: 1 },
+  ok: { key: 'ok', label: 'On track', rank: 2 },
+  un: { key: 'un', label: 'No plan set', rank: 3 },
+};
 
-  /* The book, added up. Only across ONE currency - summing money across
-     currencies is the oldest trap in this codebase, so where the book is
-     mixed the strip says so instead of printing a wrong total. */
-  const curs = [...new Set(rows.map(a => a.currency))];
+/** One brand, judged once. Pace against the month's pro-rated plan is the
+ *  spine - it is the only measure that says whether today needs an action -
+ *  with cost-data trust as an override, because a brand whose profit cannot
+ *  be reported needs a look regardless of how its revenue is running. */
+function triage(a) {
+  const trusted = cmTrusted(a.cost_health);
+  const plan = a.plan?.sales, mtd = a.mtd?.sales;
+  if (plan == null || mtd == null) {
+    return { g: trusted ? 'un' : 'wn', off: null,
+      state: trusted ? 'no plan' : 'check costs',
+      act: trusted
+        ? 'No plan for this month, so nothing here is measured against a target. Set one on <b>Plan</b>.'
+        : 'Cost data will not support a profit figure for this brand. Open <b>Costs</b> before reporting anything.' };
+  }
+  const off = mtd / plan - 1;
+  const g = off <= -0.30 ? 'bd' : off <= -0.08 ? 'wn' : 'ok';
+  const pct = Math.round(Math.abs(off) * 100);
+  const state = off >= 0 ? `${pct}% ahead` : `${pct}% behind`;
+  return { g: !trusted && g === 'ok' ? 'wn' : g, off, state, act: null };
+}
+
+async function renderOverview() {
+  const all = S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act);
+
+  /* The book, added up - across ONE currency only. Summing money across
+     currencies is the oldest trap in this codebase; where the book is mixed
+     the roll-up says so rather than printing a wrong total. */
+  const curs = [...new Set(all.map(a => a.currency))];
   const oneCur = curs.length === 1 ? curs[0] : null;
-  const sum = get => { let t = 0, any = false; for (const a of rows) { const v = get(a); if (v != null) { t += v; any = true; } } return any ? t : null; };
+  const sum = get => { let t = 0, any = false; for (const a of all) { const v = get(a); if (v != null) { t += v; any = true; } } return any ? t : null; };
   const tot = {
     sales: sum(a => a.window?.sales), spend: sum(a => a.window?.spend),
+    newRev: sum(a => a.window?.new_rev),
     cm: sum(a => cmTrusted(a.cost_health) ? a.window?.cm : null),
   };
   tot.mer = tot.sales != null && tot.spend ? tot.sales / tot.spend : null;
+  tot.amer = tot.newRev != null && tot.spend ? tot.newRev / tot.spend : null;
+  tot.cmPct = tot.cm != null && tot.sales ? tot.cm / tot.sales : null;
+  const untrusted = all.filter(a => !cmTrusted(a.cost_health));
 
-  // Who needs a look, and why - computed once so the verdict and the row
-  // flags cannot disagree with each other.
-  const behind = rows.filter(a => a.plan?.sales && a.mtd?.sales != null && a.mtd.sales < a.plan.sales * 0.9);
-  const untrusted = rows.filter(a => !cmTrusted(a.cost_health));
-  const verdict = () => {
-    if (!rows.length) return '';
-    const bits = [];
-    if (behind.length) bits.push(`<b>${behind.length} ${behind.length === 1 ? 'brand is' : 'brands are'} behind plan</b> for the month &mdash; ${behind.map(a => esc(a.name)).join(', ')}`);
-    if (untrusted.length) bits.push(`${untrusted.length} ${untrusted.length === 1 ? 'has' : 'have'} cost data the tool will not report profit from (${untrusted.map(a => esc(a.name)).join(', ')})`);
-    const tone = behind.length ? (behind.length > rows.length / 2 ? 'bad' : 'warn') : 'good';
-    if (!bits.length) return `<p class="verdict good">Every brand is tracking at or above its plan for the month, and all cost data is trustworthy. Nothing here needs a decision today.</p>`;
-    return `<p class="verdict ${tone}">${bits.join('. ')}.</p>`;
+  const judged = all.map(a => ({ a, t: triage(a) }))
+    .sort((x, y) => TRIAGE[x.t.g].rank - TRIAGE[y.t.g].rank
+      || (x.t.off ?? 0) - (y.t.off ?? 0)
+      || (y.a.window?.sales ?? 0) - (x.a.window?.sales ?? 0));
+  const needs = judged.filter(j => j.t.g === 'bd').length;
+
+  const rollup = () => {
+    const cell = (l, v, d, cls) => `<div class="ru"><div class="ru-l">${l}</div>
+      <div class="ru-v${cls ? ' ' + cls : ''}">${v}</div><div class="ru-d">${d}</div></div>`;
+    if (!oneCur) {
+      return `<div class="rollup"><div class="ru" style="flex-basis:100%">
+        <div class="ru-l">${all.length} brands</div>
+        <div class="ru-v" style="font-size:19px">${curs.join(' &middot; ')}</div>
+        <div class="ru-d">Your brands report in different currencies, so there is no combined total. The cards below are per brand.</div>
+      </div></div>`;
+    }
+    return `<div class="rollup">
+      ${cell('Revenue', fmtK(tot.sales, oneCur), `${all.length} brand${all.length === 1 ? '' : 's'} &middot; ${esc(rangeLabel())}`)}
+      ${cell('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended')}
+      ${cell('MER', fmtX(tot.mer), tot.amer != null ? `aMER ${fmtX(tot.amer)}` : 'revenue &divide; ad spend')}
+      ${cell('Contribution', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur),
+        untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'} excluded &mdash; cost data`
+          : tot.cmPct != null ? `${fmtPct(tot.cmPct)} of revenue` : 'after every variable cost',
+        tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
+    </div>`;
   };
 
-  const fig = (label, value, sub, cls) => `<div class="fig">
-    <div class="fig-l">${label}</div>
-    <div class="fig-v${cls ? ' ' + cls : ''}">${value}</div>
-    ${sub ? `<div class="fig-s">${sub}</div>` : ''}</div>`;
-
-  const strip = !oneCur
-    ? `<p class="ph-sub" style="margin:0 0 18px">Your brands report in ${curs.length} currencies, so there is no combined total &mdash; the ledger below is per brand.</p>`
-    : `<div class="fig-strip">
-        ${fig('Revenue', fmtK(tot.sales, oneCur), `${rows.length} brand${rows.length === 1 ? '' : 's'} &middot; ${esc(rangeLabel())}`)}
-        ${fig('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended')}
-        ${fig('MER', fmtX(tot.mer), 'revenue &divide; ad spend')}
-        ${fig('Contribution margin', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur),
-            untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'} excluded &mdash; cost data` : 'after every variable cost',
-            tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
-      </div>`;
-
-  const row = a => {
-    const w = a.window, h = a.cost_health, trusted = cmTrusted(h);
-    const off = a.plan?.sales && a.mtd?.sales != null ? a.mtd.sales / a.plan.sales - 1 : null;
-    return `<tr data-id="${a.act_id}">
-      <td>
-        <div class="lg-name">${esc(a.name)}</div>
-        ${off != null ? `<div class="lg-sub">month to date ${fmtK(a.mtd.sales, a.currency)} ${vsPlan(a.mtd.sales, a.plan.sales)}</div>` : ''}
-        ${trusted ? '' : `<div class="lg-flag" title="${esc(h?.reason || '')}">cost data needs a look</div>`}
-      </td>
-      <td><div class="lg-num">${fmtK(w.sales, a.currency)}</div></td>
-      <td><div class="lg-num">${fmtK(w.spend, a.currency)}</div>
-        ${w.meta_spend != null || w.google_spend != null ? `<div class="lg-sub">${w.meta_spend != null ? `Meta ${fmtK(w.meta_spend, a.currency)}` : ''}${w.google_spend != null ? `${w.meta_spend != null ? ' &middot; ' : ''}Google ${fmtK(w.google_spend, a.currency)}` : ''}</div>` : ''}</td>
-      <td><div class="lg-num">${fmtX(w.mer)}</div>
-        ${a.plan?.mer ? `<div class="lg-sub" title="The plan's MER for this month, pro-rated to the days elapsed. The figure above covers the selected date range, so the two only line up when that range is the month so far.">plan ${fmtX(a.plan.mer)}</div>` : ''}</td>
-      <td><div class="lg-num">${fmtX(w.amer)}</div>
-        <div class="lg-sub">${fmtPct(w.new_share)} new</div></td>
-      <td>${trusted
-        ? `<div class="lg-num ${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${fmtK(w.cm, a.currency)}</div><div class="lg-sub">${fmtPct(w.margin)} margin</div>`
-        : `<div class="lg-sub" title="${esc(h?.reason || '')}">not reported</div>`}</td>
-    </tr>`;
+  /* Thirty days of revenue, drawn small. A figure says where a brand is; the
+     line says which way it is going, which is most of what a glance is for. */
+  const spark = a => {
+    const pts = (a.spark || []).filter(v => v != null);
+    if (pts.length < 4) return '';
+    const hi = Math.max(...pts), lo = Math.min(...pts), rng = hi - lo || 1;
+    const d = pts.map((v, i) => `${(i / (pts.length - 1) * 200).toFixed(1)},${(26 - (v - lo) / rng * 22).toFixed(1)}`).join(' ');
+    const rising = pts.slice(-Math.ceil(pts.length / 3)).reduce((s2, v) => s2 + v, 0) / Math.ceil(pts.length / 3)
+      >= pts.slice(0, Math.ceil(pts.length / 3)).reduce((s2, v) => s2 + v, 0) / Math.ceil(pts.length / 3);
+    return `<svg class="sc-spark" width="100%" height="28" viewBox="0 0 200 28" preserveAspectRatio="none"
+      role="img" aria-label="Daily revenue over the selected window, ${rising ? 'rising' : 'falling'}">
+      <polyline points="${d}" fill="none" stroke="${rising ? 'var(--good)' : 'var(--bad)'}" stroke-width="2"
+        stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   };
 
-  $('#main').innerHTML = `${pageHead('overview', S.act === 'all' ? 'Overview' : `Overview <em>&mdash; ${esc(rows[0]?.name || '')}</em>`)}
-    ${strip}
-    ${verdict()}
-    <div class="sec"><span class="sec-t">By brand</span><span class="sec-r"></span>
-      <span class="sec-n">${esc(rangeLabel())}</span></div>
-    <div class="ctl-row"><span class="ctl-lbl">Sort</span>
-      ${OV_SORT.map(([k, l]) => `<button class="ctl ${k === sortKey ? 'on' : ''}" data-sort="${k}">${l}</button>`).join('')}</div>
-    <div class="tbl-wrap"><table class="ledger">
-      <thead><tr><th>Brand</th><th>Revenue</th><th>Ad spend</th><th>MER</th><th>aMER</th><th>Contribution margin</th></tr></thead>
-      <tbody>${rows.map(row).join('') || '<tr><td colspan="6" class="lg-sub">No brands yet &mdash; add one in Settings.</td></tr>'}</tbody>
-    </table></div>
-    <details class="footnote"><summary>How these numbers are defined</summary>
-      <div class="fn-body"><b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's &ldquo;Net Sales + Shipping&rdquo;, and it reconciles to Shopify's own sales report. Every channel counts: paid, organic, email and direct, never a platform's attributed revenue.<br><br>
-      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue divided by that same spend, so repeat buyers and email cannot flatter it. <b>Contribution margin</b> is revenue less every variable cost &mdash; product, fulfilment, handling, payment fees and ad spend &mdash; which is CTC's definition; fixed costs including our retainer are excluded.<br><br>
-      &ldquo;vs plan&rdquo; compares month-to-date against the month's goal pro-rated to the days elapsed. None of this will match Ads Manager, and that is the point &mdash; Ads Manager reports what Meta claims it caused, this reports what the store actually took.</div></details>`;
+  const card = ({ a, t }) => {
+    const w = a.window, trusted = cmTrusted(a.cost_health);
+    const cur = a.currency;
+    // The action line. Written per state, and never asserting something the
+    // data has not shown - "spend more" is only ever said where a plan exists.
+    const act = t.act || (() => {
+      if (t.g === 'bd') {
+        const gap = a.plan.sales - a.mtd.sales;
+        return `<b>${fmtK(gap, cur)} short</b> of the pro-rated plan. Open <b>Plan</b> for what it takes from here, or agree a revised number.`;
+      }
+      if (t.g === 'wn' && !trusted) return 'Running close to plan, but cost data will not support a profit figure. Check <b>Costs</b>.';
+      if (t.g === 'wn') return 'Inside normal variance. Nothing to do unless the gap widens this week.';
+      if (t.off > 0.2) return `Running well ahead of plan${w.mer != null && a.plan?.mer ? ` at ${fmtX(w.mer)} against a ${fmtX(a.plan.mer)} target` : ''}. There may be headroom to spend &mdash; worth a conversation.`;
+      return 'Tracking its plan. No decision needed today.';
+    })();
+    const planned = a.plan?.sales != null && a.mtd?.sales != null;
+    return `<div class="sc ${t.g === 'un' ? '' : t.g}" data-id="${a.act_id}" tabindex="0" role="button"
+        aria-label="${esc(a.name)} &mdash; ${esc(t.state)}. Open its detail.">
+      <div class="sc-h"><span class="sc-n">${esc(a.name)}</span><span class="sc-s">${esc(t.state)}</span></div>
+      <div class="sc-big">${planned ? fmtK(a.mtd.sales, cur) : fmtK(w.sales, cur)}</div>
+      <div class="sc-cap">${planned
+        ? `month to date, against ${fmtK(a.plan.sales, cur)} planned by now`
+        : `${esc(rangeLabel())}`}</div>
+      ${spark(a)}
+      <div class="sc-foot">
+        <div class="sc-g">
+          <div><div class="sc-gl">MER</div><div class="sc-gv">${fmtX(w.mer)}</div></div>
+          <div><div class="sc-gl">${a.plan?.mer ? 'Plan' : 'aMER'}</div><div class="sc-gv">${a.plan?.mer ? fmtX(a.plan.mer) : fmtX(w.amer)}</div></div>
+          <div><div class="sc-gl">${trusted ? 'Margin' : 'Costs'}</div>
+            <div class="sc-gv${trusted ? (w.cm == null ? '' : w.cm >= 0 ? ' good' : ' bad') : ''}">${trusted ? fmtK(w.cm, cur) : '&mdash;'}</div></div>
+        </div>
+        <p class="sc-act">${act}</p>
+      </div>
+    </div>`;
+  };
 
-  $('#main').querySelectorAll('[data-sort]').forEach(b => b.onclick = () => {
-    localStorage.setItem('pf_ovsort', b.dataset.sort);
-    inPlace(() => renderOverview());
-  });
-  const tb = $('#main tbody');
-  if (tb) tb.addEventListener('click', e => {
-    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
-    S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
+  const groups = ['bd', 'wn', 'ok', 'un'].map(g => {
+    const list = judged.filter(j => j.t.g === g);
+    if (!list.length) return '';
+    return `<p class="grp"><span class="ct">${TRIAGE[g].label}</span>
+        <span>&middot; ${list.length} brand${list.length === 1 ? '' : 's'}</span><span class="ln"></span></p>
+      <div class="sc-grid">${list.map(card).join('')}</div>`;
+  }).join('');
+
+  $('#main').innerHTML = `${pageHead('overview', 'Overview')}
+    ${rollup()}
+    ${all.length
+      ? (needs ? '' : `<p class="verdict good" style="margin-bottom:22px">Nothing needs a decision today &mdash; every brand with a plan is tracking it.</p>`) + groups
+      : `<p class="verdict">No brands yet. Add one in <b>Settings</b>.</p>`}
+    <details class="footnote"><summary>How these numbers are defined, and how a brand is sorted</summary>
+      <div class="fn-body"><b>The grouping</b> compares month-to-date revenue against this month's agreed goal, pro-rated to the days elapsed. More than 30% behind needs a decision; 8&ndash;30% behind is worth watching; anything closer is on track. A brand whose cost data will not support a profit figure is never shown as on track, and a brand with no plan for the month is listed separately rather than being called fine &mdash; there is nothing to measure it against.<br><br>
+      <b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's &ldquo;Net Sales + Shipping&rdquo;. Every channel counts: paid, organic, email and direct, never a platform's attributed revenue.<br><br>
+      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue over that same spend, so repeat buyers and email cannot flatter it. <b>Contribution margin</b> is revenue less every variable cost &mdash; product, fulfilment, handling, payment fees and ad spend; fixed costs including our retainer are excluded. None of this will match Ads Manager, and that is the point: Ads Manager reports what Meta claims it caused, this reports what the store actually took.</div></details>`;
+
+  const open = id => {
+    S.act = id; localStorage.setItem(LS.act, S.act);
     const cp = $('#clientPick'); if (cp) cp.value = S.act;
     show('profit');
+  };
+  $('#main').querySelectorAll('.sc[data-id]').forEach(c => {
+    c.onclick = () => open(c.dataset.id);
+    c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.dataset.id); } };
   });
 }
 

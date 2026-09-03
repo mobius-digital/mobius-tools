@@ -1634,6 +1634,11 @@ export default {
             ...pubAccount(a),
             window: totals(rows),
             mtd: totals(mtdRows),
+            // Daily revenue for the sparkline on Overview's cards. A figure says
+            // where a brand is; the line says which way it is going, and that is
+            // most of what a glance is for. Capped at 60 points so a 90-day window
+            // does not push six of these through the payload at full resolution.
+            spark: (rows.length > 60 ? rows.slice(-60) : rows).map(r => r.sales ?? null),
             goals: g.sales != null || g.spend != null ? g : null,
             plan: planFor(a, ym, mtdRows),
             margin_pct, cost_health: health, shipping,
