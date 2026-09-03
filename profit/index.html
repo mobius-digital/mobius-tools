@@ -299,7 +299,7 @@
   .grp .ln{flex:1;height:1px;background:var(--line)}
 
   /* ---- the state card ---- */
-  .sc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));
+  .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));
     gap:12px;margin-bottom:26px}
   .sc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
     padding:15px 16px 14px;border-top:3px solid var(--line-strong);
@@ -2981,7 +2981,10 @@ async function renderOverview() {
     const act = t.act || (() => {
       if (t.g === 'bd') {
         const gap = a.plan.sales - a.mtd.sales;
-        return `<b>${fmtK(gap, cur)} short</b> of the pro-rated plan. Open <b>Plan</b> for what it takes from here, or agree a revised number.`;
+        const deep = t.off <= -0.45;
+        return `<b>${fmtK(gap, cur)} short</b> of the pro-rated plan. ${deep
+          ? 'A gap this size rarely closes by spending &mdash; worth re-agreeing the number.'
+          : 'See <b>Plan</b> for the daily spend it would take from here.'}`;
       }
       if (t.g === 'wn' && !trusted) return 'Running close to plan, but cost data will not support a profit figure. Check <b>Costs</b>.';
       if (t.g === 'wn') return 'Inside normal variance. Nothing to do unless the gap widens this week.';
