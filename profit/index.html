@@ -303,6 +303,10 @@
   .ru-v.bad{color:var(--bad-on)}
   .ru-v.warn{color:var(--warn-on)}
   .ru-d{font-size:11px;color:var(--on-ink-2);margin-top:6px;line-height:1.45}
+  /* The (i) sits on ink here, so it takes the panel's own borders and hover
+     rather than the page's - the default light-on-light glyph vanished. */
+  .ru-i{border-color:var(--ink-panel-2)!important;color:var(--on-ink-2)!important}
+  .ru-i:hover{border-color:var(--on-ink-2)!important;color:var(--on-ink)!important}
 
   /* ---- triage group heading ---- */
   .grp{display:flex;align-items:center;gap:10px;margin:0 0 12px;
@@ -1165,16 +1169,16 @@ async function renderPlanShare(token) {
   const hist = (d.history || []).filter(h => !h.partial);
   $('#main').innerHTML = `<h2>${monthName} ${y} plan</h2>
     <p class="sub">The revenue target for the month and what it takes to get there.${d.agreed_at ? ` Agreed ${esc(String(d.agreed_at).slice(0, 10))}.` : ''}</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:14px">
-      <div class="card" style="margin:0"><div class="av-label" style="font-size:12px;color:var(--muted)">REVENUE TARGET</div>
-        <div style="font-size:30px;font-weight:700;margin:4px 0 2px">${fmtMoney(d.goals.sales, cur)}</div>
+    <div class="rollup">
+      <div class="ru"><div class="ru-l">Revenue target</div>
+        <div class="ru-v">${fmtMoney(d.goals.sales, cur)}</div>
         <div class="tiny">${d.growth_pct != null && d.basis_label ? `${d.growth_pct >= 0 ? '+' : ''}${Math.round(d.growth_pct * 100)}% on ${esc(d.basis_label)}` : ''}</div></div>
-      <div class="card" style="margin:0"><div class="av-label" style="font-size:12px;color:var(--muted)">AD SPEND</div>
-        <div style="font-size:30px;font-weight:700;margin:4px 0 2px">${fmtMoney(d.goals.spend ?? d.required_spend, cur)}</div>
-        <div class="tiny">what the target takes</div></div>
-      ${d.expected_cm != null ? `<div class="card" style="margin:0"><div class="av-label" style="font-size:12px;color:var(--muted)">EXPECTED CONTRIBUTION MARGIN</div>
-        <div style="font-size:30px;font-weight:700;margin:4px 0 2px">${fmtMoney(d.expected_cm, cur)}</div>
-        <div class="tiny">after product costs, fees and ad spend</div></div>` : ''}
+      <div class="ru"><div class="ru-l">Ad spend</div>
+        <div class="ru-v">${fmtMoney(d.goals.spend ?? d.required_spend, cur)}</div>
+        <div class="ru-d">what the target takes</div></div>
+      ${d.expected_cm != null ? `<div class="ru"><div class="ru-l">Expected contribution margin</div>
+        <div class="ru-v good">${fmtMoney(d.expected_cm, cur)}</div>
+        <div class="ru-d">after product costs, fees and ad spend</div></div>` : ''}
     </div>
     ${hist.length ? `<div class="card"><h3 style="margin-bottom:8px">How we got here</h3>
       <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th></tr></thead>
@@ -1268,16 +1272,14 @@ async function renderPerfShare(token) {
     const cls = good ? 'good' : Math.abs(off) <= 0.1 ? 'warn' : 'bad';
     return `<span class="pill ${cls}">${fmtSigned(off)} vs plan</span>`;
   };
-  const card = (label, value, sub) => `<div class="card" style="margin:0">
-    <div class="av-label" style="font-size:12px;color:var(--muted)">${label}</div>
-    <div style="font-size:clamp(20px,2.4vw,28px);font-weight:700;margin:4px 0 2px">${value}</div>
-    <div class="tiny">${sub}</div></div>`;
+  const card = (label, value, sub) =>
+    `<div class="ru"><div class="ru-l">${label}</div><div class="ru-v">${value}</div><div class="ru-d">${sub}</div></div>`;
   const hist = (d.history || []).filter(h => !h.partial);
   const w = d.waterfall;
   const wRow = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg ? 'var(--bad)' : 'inherit'}">${neg ? '−' : ''}${fmtMoney(Math.abs(val ?? 0), cur)}</td><td class="tiny">${note}</td></tr>`;
   $('#main').innerHTML = `<h2>${esc(monthLabel(d.month))} so far</h2>
     <p class="sub">${d.days} of ${d.days_in_month} days. Every channel combined — ads, email, organic and direct — not any single platform's reported figures.</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:14px">
+    <div class="rollup">
       ${card('REVENUE', fmtMoney(m.sales, cur), pl && pl.sales ? `${fmtMoney(pl.sales, cur)} planned by now ${vs(m.sales, pl.sales)}` : 'month to date')}
       ${card('AD SPEND', fmtMoney(m.spend, cur), pl && pl.spend ? `${fmtMoney(pl.spend, cur)} planned by now ${vs(m.spend, pl.spend, true)}` : 'across every platform')}
       ${card('MER', fmtX(m.mer), pl && pl.mer ? `${fmtX(pl.mer)} planned ${vs(m.mer, pl.mer)}` : 'revenue divided by ad spend')}
@@ -2854,11 +2856,24 @@ function vsPlan(actual, planned) {
   return ` <span class="pill ${cls}" style="padding:1px 6px;font-size:10px">${fmtSigned(off)} vs plan</span>`;
 }
 
-function statCard(label, value, sub, info) {
-  return `<div class="card" style="margin:0">
-    <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
-    <div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:4px 0 2px;overflow-wrap:anywhere">${value}</div>
-    <div class="tiny">${sub}</div>
+/* A headline figure, as a cell of the dark roll-up.
+ *
+ * This used to be a white card, and a row of them was six white cards on a
+ * white-ish page: no foreground, every figure the same weight, nothing telling
+ * you where to look. As roll-up cells they become the one heavy element on the
+ * page - the same near-black as the nav header, so the header reads as
+ * continuing down into the numbers.
+ *
+ * Twenty calls across eight tabs come through here, which is the point: the
+ * headline row converts everywhere at once and cannot drift apart later.
+ * `tone` ('good' | 'bad' | 'warn') colours the figure where a verdict is
+ * genuinely attached to it; most callers pass nothing.
+ */
+function statCard(label, value, sub, info, tone) {
+  return `<div class="ru">
+    <div class="ru-l">${label}${info ? ` <span class="info-i ru-i" title="${esc(info)}">i</span>` : ''}</div>
+    <div class="ru-v${tone ? ' ' + tone : ''}">${value}</div>
+    ${sub ? `<div class="ru-d">${sub}</div>` : ''}
   </div>`;
 }
 
@@ -3311,7 +3326,7 @@ async function renderProfit(first) {
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate — only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
+    <div class="rollup">
       ${statCard('Net Sales + Shipping', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as "Net Sales + Shipping". It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure "Total Sales" and stores it as netSales; shipping is already inside it, so it is never added twice.')}
       ${statCard('Ad Spend', fmtMoney(t.spend, cur), `${t.meta_spend!=null?`Meta ${fmtK(t.meta_spend,cur)}`:''}${t.google_spend!=null?` · Google ${fmtK(t.google_spend,cur)}`:''}`, 'Every ad platform combined, from Triple Whale. Falls back to Meta + Google spend if the blended figure is unavailable.')}
       ${statCard('MER', fmtX(t.mer), `${fmtMoney(t.sales, cur)} ÷ ${fmtMoney(t.spend, cur)}`, 'Marketing Efficiency Ratio = all store revenue ÷ all ad spend. Blended on both sides, so no platform can double-count. The single "are the ads paying for themselves" number.')}
@@ -3440,7 +3455,7 @@ async function renderCosts(first) {
       : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) — the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} — clear the override below to use it.`}</div></div>`
       : h.verdict === 'none' ? `<div class="notice warn">ℹ️ <div><b>No cost data at all.</b> Triple Whale has no COGS for this client, so no profit figure can be calculated. Add costs in Triple Whale, or set a flat margin below.</div></div>`
       : `<div class="notice">✓ <div><b>Cost data looks solid</b> — margin is stable day to day across ${h.days} days. Profit figures for this client are trustworthy.</div></div>`}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px">
+    <div class="rollup">
       ${statCard('Trailing margin', u.blended!=null?fmtPct(u.blended):'—', `real cost data, 60 days${d.margin_pct!=null?' (not the override)':''}`, 'Gross profit as a share of net sales across the whole window, before ad spend. Stable, believable numbers usually land between 30% and 85% depending on the product.')}
       ${statCard('Daily range', u.p10!=null?`${Math.round(u.p10*100)}% – ${Math.round(u.p90*100)}%`:'—', '10th to 90th percentile', 'How much daily margin moves. Real cost data barely moves. A wide range means the product mix is being costed inconsistently — some SKUs have COGS, others don’t.')}
       ${statCard('Days cost exceeded revenue', String(u.negatives ?? 0), u.negatives ? 'revenue booked elsewhere' : 'none, as it should be', 'Days where recorded product cost exceeded everything the store took in. A store cannot sell at a loss this consistently, so these days almost always mean the product left the building but the money arrived somewhere Shopify cannot see — a wholesale order paid by invoice, or an inventory delivery booked as one day of cost.')}
@@ -3653,7 +3668,7 @@ async function renderBrief(first) {
            <textarea id="bfEdit" style="display:none;width:100%;min-height:360px;border:1px solid var(--line-strong);border-radius:8px;padding:12px;font:inherit;font-size:13px;line-height:1.6;background:var(--bg)">${esc(bfDraft.text || '')}</textarea>
            <p class="tiny" id="bfEditHint" style="display:none;margin-top:6px">Slack formatting: <code>*bold*</code>, <code>_italic_</code>, <code>:wave:</code> for emoji. Save to see it rendered.</p>`
         : `<div id="bfPreview"></div>`}</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px">
+    <div class="rollup">
       ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
       <div class="card" style="margin:0;opacity:.65">
         <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">Contribution Margin <span class="info-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or set a flat margin % on the Costs tab.">i</span></div>
@@ -5540,10 +5555,9 @@ function cohortCard(co, cur) {
     ? `<div class="notice">ℹ️ <div><b>Repeat buying adds a modest amount.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so <b>${pct0(uplift)}</b> of purchases come after the first — real, but not enough to carry a CAC the opening order could not cover on its own. Treat it as a cushion, not a license to bid up.</div></div>`
     : `<div class="notice">✓ <div><b>Customers get materially more valuable over time.</b> A matured customer places <b>${(sm.orders_per_customer || 1).toFixed(2)}</b> orders, so <b>${pct0(uplift)}</b> of purchases come after the first. That is genuine headroom: you can afford a CAC the opening order alone would not justify, as long as the repeat rate holds.</div></div>`;
 
-  const card = (label, value, sub, info) => `<div class="card" style="margin:0">
-    <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
-    <div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:4px 0 2px">${value}</div>
-    <div class="tiny">${sub}</div></div>`;
+  const card = (label, value, sub, info) =>
+    `<div class="ru"><div class="ru-l">${label}${info ? ` <span class="info-i ru-i" title="${esc(info)}">i</span>` : ''}</div>` +
+    `<div class="ru-v">${value}</div><div class="ru-d">${sub}</div></div>`;
 
   return `<div class="card"><h3 style="margin-bottom:2px">Lifetime value by cohort <span class="info-i" title="Customers grouped by the month they FIRST bought, then followed forward. This is true cohort analysis and it comes from Shopify, not Triple Whale. A cohort's lifetime value only means something once it has had time to mature, so anything under nine months old is faded and left out of the averages.">i</span></h3>
     <p class="hint" style="margin-bottom:10px">Each row is everyone who first bought in that month, and what they have been worth since. Recent cohorts are faded — they have not had time to come back yet, and reading them as if they had is the classic way to misjudge a retention curve.</p>
@@ -5616,10 +5630,9 @@ async function renderCustomers(first) {
     ? `<div class="notice">✓ <div><b>Profitable on the first order.</b> A new customer costs <b>${fmtMoney(h.cac, cur)}</b> to acquire and their first order leaves <b>${fmtMoney(h.first_order_gp, cur)}</b> after product costs — a <b>${pb.toFixed(2)}x</b> payback, <b>${fmtMoney(h.first_order_cm, cur)}</b> ahead before they ever come back. This client can afford to bid harder for customers; the ceiling on growth is demand, not economics.</div></div>`
     : `<div class="notice warn">⚠️ <div><b>The first order does not cover the customer.</b> Acquiring one costs <b>${fmtMoney(h.cac, cur)}</b> while their first order leaves <b>${fmtMoney(h.first_order_gp, cur)}</b> after product costs — a <b>${pb.toFixed(2)}x</b> payback, <b>${fmtMoney(Math.abs(h.first_order_cm), cur)}</b> short. That is not automatically bad, but it means the brand only works if people come back, so the <b>${fmtPct(h.repeat_share)}</b> repeat share is the number to defend. Pushing spend harder here buys losses faster unless repeat holds.</div></div>`;
 
-  const card = (label, value, sub, info) => `<div class="card" style="margin:0">
-    <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
-    <div style="font-size:clamp(19px,2.2vw,26px);font-weight:700;margin:4px 0 2px">${value}</div>
-    <div class="tiny">${sub}</div></div>`;
+  const card = (label, value, sub, info) =>
+    `<div class="ru"><div class="ru-l">${label}${info ? ` <span class="info-i ru-i" title="${esc(info)}">i</span>` : ''}</div>` +
+    `<div class="ru-v">${value}</div><div class="ru-d">${sub}</div></div>`;
 
   const rows = d.series.filter(x => !x.empty).map(x => `<tr${x.partial ? ' style="opacity:.6"' : ''}>
     <td><b>${esc(monthLabel(x.month))}</b>${x.partial ? ' <span class="tiny">(so far)</span>' : ''}</td>
@@ -5639,7 +5652,7 @@ async function renderCustomers(first) {
         : `<b>Part-bought, part-carried.</b> ${fmtPct(h.repeat_share)} of orders come from previous customers, so most of each month still has to be bought with ad spend, but the base is doing real work.`}</p>` : ''}
     ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> CAC and payback swing hard on small numbers — widen the range picker, or read the month-by-month table below instead of the headline.</div></div>` : ''}
     ${verdict}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:14px 0">
+    <div class="rollup">
       ${card('Cost to acquire', fmtMoney(h.cac, cur), `${h.new_orders} new customers`, 'All ad spend across every platform divided by the number of genuinely new customers. Blended, so it is not any single platform\u2019s reported cost per acquisition and will not match Ads Manager.')}
       ${card('First order value', fmtMoney(h.new_aov, cur), 'average, new customers', 'What a new customer spends on their first order, before any costs. Revenue from new customers divided by new-customer orders.')}
       ${d.cm_ok ? card('Margin on that order', fmtMoney(h.first_order_gp, cur), `at ${fmtPct(h.margin)} product margin`, 'What the first order leaves after product costs, fulfilment and fees, before the cost of acquiring the customer. This is what has to cover CAC.') : ''}
