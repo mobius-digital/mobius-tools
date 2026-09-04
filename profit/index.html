@@ -3613,11 +3613,11 @@ async function renderBrief(first) {
     const cls = good ? 'good' : Math.abs(off) <= 0.15 ? 'warn' : 'bad';
     return `<span class="pill ${cls}">${fmtPct(off, 0)} vs plan</span>`;
   };
-  const statCard = (label, aV, fV, fmt, info, lower = false) => `
-    <div class="card" style="margin:0">
-      <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">${label} <span class="info-i" title="${esc(info)}">i</span></div>
-      <div style="font-size:26px;font-weight:700;margin:4px 0 2px">${fmt(aV)}</div>
-      <div class="tiny">plan ${fmt(fV)} ${offPill(aV, fV, lower)}</div>
+  const statCard = (label, aV, fV, fmt, info, lower = false) =>
+    `<div class="ru">
+      <div class="ru-l">${label} <span class="info-i ru-i" title="${esc(info)}">i</span></div>
+      <div class="ru-v">${fmt(aV)}</div>
+      <div class="ru-d">plan ${fmt(fV)} ${offPill(aV, fV, lower)}</div>
     </div>`;
   const yd = new Date(d.date + 'T12:00:00Z').toUTCString().slice(0, 11);
   const noTw = !a || a.sales == null;
@@ -3670,10 +3670,10 @@ async function renderBrief(first) {
         : `<div id="bfPreview"></div>`}</div>
     <div class="rollup">
       ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
-      <div class="card" style="margin:0;opacity:.65">
-        <div class="av-label" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">Contribution Margin <span class="info-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or set a flat margin % on the Costs tab.">i</span></div>
-        <div style="font-size:20px;font-weight:600;margin:4px 0 2px">not reported</div>
-        <div class="tiny">cost data unreliable — see the note above</div>
+      <div class="ru" style="opacity:.72">
+        <div class="ru-l">Contribution Margin <span class="info-i ru-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or set a flat margin % on the Costs tab.">i</span></div>
+        <div class="ru-v" style="font-size:19px">not reported</div>
+        <div class="ru-d">cost data unreliable — see the note above</div>
       </div>` : statCard('Contribution Margin', a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a flat margin % set on the Costs tab.'))}
       ${statCard('Net Sales + Shipping', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify Total Sales minus sales tax: every channel — paid, organic, email, direct — after discounts and returns, plus shipping charged to customers, less tax. Not ad-platform-attributed revenue — this is what actually hit the store, and it is the same line every tab uses.')}
       ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
