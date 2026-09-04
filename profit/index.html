@@ -3466,27 +3466,31 @@ async function renderHealth(first) {
   $('#main').innerHTML = `${pageHead('health', 'Data Health')}<div class="card"><p class="hint">Checking every brand against Meta and the other platforms…</p></div>`;
   const d = await api('/api/data-health?act=all&days=14');
   if (run !== RUN) return;
-  const brands = d.brands || [];
-  const broken = brands.filter(b => b.verdict === 'broken');
-  const warn = brands.filter(b => b.verdict === 'warn');
+  let brands = d.brands || [];
 
-  const top = broken.length
-    ? `<div class="notice bad">⚠️ <div><b>${broken.length} brand${broken.length === 1 ? '' : 's'} cannot be reported on right now.</b>
-        ${broken.length === brands.length ? 'Every brand is affected, which almost always means one integration, not six.' : ''}
-        Nothing has gone to a client — a flagged day is refused at send, whoever asks for it.</div></div>`
-    : warn.length
-    ? `<div class="notice warn">ℹ️ <div><b>Everything adds up, with ${warn.length} thing${warn.length === 1 ? '' : 's'} worth a look.</b> Nothing here blocks a send.</div></div>`
-    : `<div class="notice good">✓ <div><b>Triple Whale agrees with every platform it reports, across all ${brands.length} brands.</b> The last 14 days are safe to send.</div></div>`;
+  const badDaysOf = b => (b.days || []).filter(x => x.issues?.some(i => i.severity === 'broken'));
 
-  const card = b => {
+  const topHtml = () => {
+    const broken = brands.filter(b => b.verdict === 'broken');
+    const warn = brands.filter(b => b.verdict === 'warn');
+    return broken.length
+      ? `<div class="notice bad">⚠️ <div><b>${broken.length} brand${broken.length === 1 ? '' : 's'} cannot be reported on right now.</b>
+          ${broken.length === brands.length ? 'Every brand is affected, which almost always means one integration, not six.' : ''}
+          Nothing has gone to a client — a flagged day is refused at send, whoever asks for it.</div></div>`
+      : warn.length
+      ? `<div class="notice warn">ℹ️ <div><b>Everything adds up, with ${warn.length} thing${warn.length === 1 ? '' : 's'} worth a look.</b> Nothing here blocks a send.</div></div>`
+      : `<div class="notice good">✓ <div><b>Triple Whale agrees with every platform it reports, across all ${brands.length} brands.</b> The last 14 days are safe to send.</div></div>`;
+  };
+
+  const cardHtml = b => {
     const [cls, label] = HEALTH_PILL[b.verdict] || HEALTH_PILL.unknown;
-    const bad = (b.days || []).filter(x => x.issues?.some(i => i.severity === 'broken'));
-    // One line per DISTINCT problem, not per day. Six days of the same broken
-    // connection is one thing to fix, and listing it six times buries it.
+    const bad = badDaysOf(b);
+    /* One line per DISTINCT problem, not per day. Six days of one broken
+       connection is one thing to fix, and listing it six times buries it. */
     const seen = new Map();
     for (const day of (b.days || [])) {
       for (const i of (day.issues || [])) {
-        const k = `${i.code}|${i.what.replace(/\$[\d,]+/g, '$')}`;
+        const k = `${i.code}|${i.label || ''}`;
         if (!seen.has(k)) seen.set(k, { ...i, dates: [] });
         seen.get(k).dates.push(day.date);
       }
@@ -3496,7 +3500,6 @@ async function renderHealth(first) {
         <div><b>${esc(i.what)}</b>${i.dates.length ? ` <span class="tiny">· ${i.dates.length === 1 ? prettyDay(i.dates[0]) : `${i.dates.length} days, ${prettyDay(i.dates[0])} → ${prettyDay(i.dates[i.dates.length - 1])}`}</span>` : ''}</div>
         <div class="tiny">${esc(i.fix)}</div>
       </div>`).join('');
-    // The evidence, for the days that failed: what TW claimed, what we used.
     const rows = bad.slice(-7).map(x => `<tr>
         <td>${prettyDay(x.date)}</td>
         <td class="num">${fmtMoney(x.tw_blended, b.account.currency)}</td>
@@ -3516,49 +3519,140 @@ async function renderHealth(first) {
         <thead><tr><th>Day</th><th class="num">Triple Whale said</th><th class="num">Meta’s own figure</th><th class="num">Spend we used</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>` : ''}
       ${b.verdict === 'broken' || b.verdict === 'warn' ? `<div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
-        <button class="btn" data-hl="sync">↻ Re-sync Triple Whale</button>
+        <button class="btn" data-hl="sync">↻ Re-sync this brand</button>
         ${bad.length ? `<button class="btn primary" data-hl="rebuild">Rebuild ${bad.length} flagged draft${bad.length === 1 ? '' : 's'}</button>` : ''}
         <span class="tiny" data-hl="msg"></span>
       </div>` : ''}
     </div>`;
   };
 
-  $('#main').innerHTML = `${pageHead('health', 'Data Health')}
-    ${top}
-    <p class="hint" style="margin:0 0 14px">Every blended number in Locus comes through Triple Whale. This checks it against the one source that owes it nothing — <b>Meta’s own API</b> — and watches every other platform for a connection that has gone quiet. Checked just now, covering the last 14 complete days.</p>
-    ${brands.map(card).join('')}
-    <p class="tiny" style="margin-top:14px">Meta is the only platform with a second source, so a missing Meta figure is repaired automatically and marked <i>rebuilt</i>. Everything else — Google, TikTok, store revenue, product costs — can only be flagged, never reconstructed, until those platforms are connected to Locus directly.</p>`;
+  /* True while a fleet-wide job owns the bar. A per-brand card finishing at the
+     same moment must not repaint over its progress line and re-enable its
+     buttons mid-run. */
+  let barBusy = false;
+  const paintBar = () => {
+    if (barBusy) return;
+    const total = brands.reduce((n, b) => n + badDaysOf(b).length, 0);
+    $('#hlBar').innerHTML = `<button class="btn" data-hl="syncall">↻ Re-sync all brands</button>
+      ${total ? `<button class="btn primary" data-hl="rebuildall">Rebuild all ${total} flagged draft${total === 1 ? '' : 's'}</button>` : ''}
+      <span class="tiny" data-hl="barmsg"></span>`;
+  };
 
-  $('#main').addEventListener('click', async e => {
-    const btn = e.target.closest('button[data-hl]'); if (!btn) return;
+  /* Repaint ONE card in place.
+   *
+   * The first version called show('health') after a per-brand sync, which
+   * repainted the entire page — so a second brand could not be started while
+   * the first was still running, and the whole point of the page (a fleet-wide
+   * outage, six brands to fix) was the case it handled worst. Cards are
+   * independent now: each owns its buttons, its message line and its own
+   * refresh, so several can run at once. */
+  const repaintCard = async act => {
+    const fresh = await api(`/api/data-health?act=${encodeURIComponent(act)}&days=14`);
+    const nb = (fresh.brands || [])[0];
+    if (!nb) return;
+    brands = brands.map(b => b.account.act_id === act ? nb : b);
+    const el = $(`.hl-card[data-act="${CSS.escape(act)}"]`);
+    if (el) el.outerHTML = cardHtml(nb);
+    $('#hlTop').innerHTML = topHtml();
+    paintBar();
+  };
+
+  $('#main').innerHTML = `${pageHead('health', 'Data Health')}
+    <div id="hlTop">${topHtml()}</div>
+    <div class="row" id="hlBar" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <p class="hint" style="margin:0 0 14px">Every blended number in Locus comes through Triple Whale. This checks it against the one source that owes it nothing — <b>Meta’s own API</b> — and watches every other platform for a connection that has gone quiet. Covering the last 14 complete days. Each brand runs on its own, so you can start several at once without waiting.</p>
+    <div id="hlList">${brands.map(cardHtml).join('')}</div>
+    <p class="tiny" style="margin-top:14px">Meta is the only platform with a second source, so a missing Meta figure is repaired automatically and marked <i>rebuilt</i>. Everything else — Google, TikTok, store revenue, product costs — can only be flagged, never reconstructed, until those platforms are connected to Locus directly.</p>`;
+  paintBar();
+
+  /* Delegated onto #hlBar and #hlList, NEVER onto #main.
+   *
+   * #main survives every render, so a listener attached there stacks one copy
+   * per visit to the tab and the third visit fires three syncs - the exact
+   * trap already documented in CLAUDE.md. These two nodes are rebuilt by this
+   * render, so their listeners die with them, while cards replaced INSIDE
+   * #hlList keep working with nothing rebound. */
+  const onClick = async e => {
+    const btn = e.target.closest('button[data-hl]');
+    if (!btn) return;
+    const kind = btn.dataset.hl;
+
+    /* ---- fleet-wide ---- */
+    if (kind === 'syncall' || kind === 'rebuildall') {
+      const bar = $('#hlBar');
+      const msg = bar.querySelector('[data-hl="barmsg"]');
+      const lock = on => { barBusy = on; bar.querySelectorAll('button').forEach(x => { x.disabled = on; x.style.opacity = on ? .55 : 1; }); };
+      try {
+        lock(true);
+        if (kind === 'syncall') {
+          msg.textContent = `Pulling the last 45 days for all ${brands.length} brands…`;
+          /* act=all loops server-side in ONE request. Safe because this worker
+             runs on the paid subrequest ceiling (10,000, not 50) — see the
+             budget note in account-health/CLAUDE.md before reusing this shape
+             anywhere that loops brands. */
+          await api('/api/tw-sync?act=all&days=45', { method: 'POST' });
+          msg.textContent = 'Re-synced. Re-checking every brand…';
+          const fresh = await api('/api/data-health?act=all&days=14');
+          brands = fresh.brands || brands;
+          $('#hlTop').innerHTML = topHtml();
+          $('#hlList').innerHTML = brands.map(cardHtml).join('');
+          lock(false);                       // drops barBusy so paintBar may draw
+          paintBar();
+          return;
+        }
+        const jobs = brands.flatMap(b => badDaysOf(b).map(x => [b, x.date]));
+        const nBrands = new Set(jobs.map(j => j[0].account.act_id)).size;
+        if (!(await confirmModal(`Rebuild ${jobs.length} draft${jobs.length === 1 ? '' : 's'} across ${nBrands} brand${nBrands === 1 ? '' : 's'}?`,
+          'Each day is regenerated from the data as it stands now, including the written summary. Any wording you had edited on those drafts is replaced. Days already sent to a client are left alone.', 'Rebuild them all'))) return lock(false);
+        let done = 0; const failed = [];
+        for (const [b, date] of jobs) {
+          msg.textContent = `Rebuilding ${b.account.name}, ${prettyDay(date)}… (${done + 1} of ${jobs.length})`;
+          try { await api('/api/brief-rebuild', { method: 'POST', body: JSON.stringify({ act: b.account.act_id, date }) }); done++; }
+          catch (err) { failed.push(`${b.account.name} ${prettyDay(date)}: ${err.message}`); }
+        }
+        msg.textContent = `${done} draft${done === 1 ? '' : 's'} rebuilt${failed.length ? ` · ${failed.length} could not be: ${failed.join('; ')}` : ' — read them on the Daily Brief tab.'}`;
+        const summary = msg.textContent;
+        const fresh = await api('/api/data-health?act=all&days=14').catch(() => null);
+        if (fresh) { brands = fresh.brands || brands; $('#hlTop').innerHTML = topHtml(); $('#hlList').innerHTML = brands.map(cardHtml).join(''); }
+        lock(false);
+        paintBar();
+        const bm = $('#hlBar [data-hl="barmsg"]');
+        if (bm) bm.textContent = summary;
+      } catch (err) { msg.textContent = err.message; lock(false); }
+      return;
+    }
+
+    /* ---- one brand, independently of every other ---- */
     const cardEl = btn.closest('.hl-card');
+    if (!cardEl) return;
     const act = cardEl.dataset.act;
     const b = brands.find(x => x.account.act_id === act);
     const msg = cardEl.querySelector('[data-hl="msg"]');
-    const buttons = [...cardEl.querySelectorAll('button[data-hl]')];
-    const lock = on => buttons.forEach(x => { x.disabled = on; x.style.opacity = on ? .55 : 1; });
+    const lock = on => cardEl.querySelectorAll('button[data-hl]').forEach(x => { x.disabled = on; x.style.opacity = on ? .55 : 1; });
     try {
       lock(true);
-      if (btn.dataset.hl === 'sync') {
+      if (kind === 'sync') {
         msg.textContent = 'Pulling the last 45 days from Triple Whale…';
         await api(`/api/tw-sync?act=${encodeURIComponent(act)}&days=45`, { method: 'POST' });
-        msg.textContent = 'Re-synced. Re-checking…';
-        return show('health');
+        msg.textContent = 'Re-synced, re-checking…';
+        await repaintCard(act);            // this card only; the others keep running
+        return;
       }
-      // Rebuild: one day per call, oldest first, with visible progress.
-      const days = (b.days || []).filter(x => x.issues?.some(i => i.severity === 'broken')).map(x => x.date);
+      const days = badDaysOf(b).map(x => x.date);
       if (!(await confirmModal(`Rebuild ${days.length} draft${days.length === 1 ? '' : 's'} for ${b.account.name}?`,
         'Each day is regenerated from the data as it stands now, including the written summary. Any wording you had edited on those drafts is replaced. Days already sent to the client are left alone.', 'Rebuild them'))) return lock(false);
-      let done = 0, failed = [];
+      let done = 0; const failed = [];
       for (const date of days) {
         msg.textContent = `Rebuilding ${prettyDay(date)}… (${done + 1} of ${days.length})`;
         try { await api('/api/brief-rebuild', { method: 'POST', body: JSON.stringify({ act, date }) }); done++; }
         catch (err) { failed.push(`${prettyDay(date)}: ${err.message}`); }
       }
-      msg.textContent = `${done} draft${done === 1 ? '' : 's'} rebuilt${failed.length ? ` · ${failed.length} could not be: ${failed.join('; ')}` : ' — open the Daily Brief tab to read them.'}`;
+      msg.textContent = `${done} draft${done === 1 ? '' : 's'} rebuilt${failed.length ? ` · ${failed.length} could not be: ${failed.join('; ')}` : ' — read them on the Daily Brief tab.'}`;
       lock(false);
     } catch (err) { msg.textContent = err.message; lock(false); }
-  });
+  };
+  $('#hlBar').addEventListener('click', onClick);
+  $('#hlList').addEventListener('click', onClick);
 }
 
 /** "Sep 3" — the same shape the briefs use, so a date reads the same everywhere. */
