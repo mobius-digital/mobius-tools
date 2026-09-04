@@ -8,7 +8,7 @@
 <link rel="icon" href="../favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
      Direction C, adopted app-wide 2026-09-02.
@@ -18,11 +18,11 @@
        GROUND   a barely-warm off-white replaces the cool blue-grey.
                 The old #F4F8FA read as a stock admin panel; this one
                 is quieter and lets the ink do the work.
-       DISPLAY  Archivo carries figures and names - tighter, more
-                characterful, and it holds at 30px where the old
-                stack went soft. Instrument Serif stays for page
-                titles and the wordmark, which is where it earns
-                its keep; Instrument Sans keeps the running text.
+       DISPLAY  figures and names are set in Instrument Sans at 700
+                with tight tracking - the same family as the running
+                text, so the tool has two faces and not three.
+                Instrument Serif keeps the page titles and the
+                wordmark, which is where it earns its keep.
        STATE    every card that carries a verdict states it in FORM
                 as well as number - a 3px top stripe - so triage
                 happens before anything is read.
@@ -31,23 +31,35 @@
      from the brand hue and is never used for decoration.
      ============================================================ */
   :root{
-    --bg:#FBFAF8; --surface:#FFFFFF;
-    --ink:#1A1815; --ink-2:#4A453D; --muted:#8A8378;
-    --line:#EBE7E0; --line-strong:#D6D0C6;
+    /* Mobius, not the mockup. The first cut took a warm off-white ground and
+       Archivo straight off the direction board, which gave the tool an
+       identity that was not the agency's - a cream page under a blue logo,
+       set in a face Mobius uses nowhere else. Cole caught it. The palette is
+       cool again and the two Instrument faces do all the work; 700 is the
+       heaviest weight they ship, which is plenty at these sizes.
+
+       The ground sits a shade deeper than the old #F4F8FA so white cards and
+       ruled sections actually separate from it. Flatness was the real
+       complaint, not temperature. */
+    --bg:#EFF4F7; --surface:#FFFFFF;
+    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
+    --line:#DFE7EC; --line-strong:#C4D2DB;
     --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
-    --hd:#1A1815; --hd-line:#33302A;
-    /* The dark roll-up bar: the one heavy element on a page, so the
-       headline figures are unmissable without a hero. */
-    --ink-panel:#1A1815; --ink-panel-2:#33302A;
-    --on-ink:#F5F2EC; --on-ink-2:#9A9285;
-    --good:#2E7D4F; --good-bg:#E6F1EA; --good-on:#7FD9A2;
-    --warn:#A5720F; --warn-bg:#F8EFDA; --warn-on:#E8C583;
-    --bad:#B34A38;  --bad-bg:#F8E9E5;  --bad-on:#F0A091;
-    --unk:#8A8378;  --unk-bg:#F0EDE7;
+    --hd:#0C161D; --hd-line:#1D2C38;
+    /* The roll-up is the SAME material as the nav header, deliberately: it
+       reads as the header continuing down into the page rather than a black
+       box dropped on top of it, and it is the one heavy element that gives an
+       otherwise light page a foreground. */
+    --ink-panel:#0C161D; --ink-panel-2:#1D2C38;
+    --on-ink:#EAF2F7; --on-ink-2:#8195A2;
+    --good:#1C7A46; --good-bg:#E4F2E9; --good-on:#5FD292;
+    --warn:#8F6412; --warn-bg:#F8EED6; --warn-on:#EBBF63;
+    --bad:#9C3A2E;  --bad-bg:#F7E7E4;  --bad-on:#F09182;
+    --unk:#647684;  --unk-bg:#EDF1F4;
     --radius:10px;
     --sans:'Instrument Sans',system-ui,sans-serif;
     --serif:'Instrument Serif',Georgia,serif;
-    --display:'Archivo','Helvetica Neue',Arial,sans-serif;
+    --display:'Instrument Sans',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
@@ -284,7 +296,7 @@
   .ru:first-child{border-left:none}
   .ru-l{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     color:var(--on-ink-2);margin-bottom:6px}
-  .ru-v{font-family:var(--display);font-weight:800;font-size:clamp(22px,2.4vw,27px);
+  .ru-v{font-family:var(--display);font-weight:700;font-size:clamp(22px,2.4vw,27px);
     letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;
     overflow-wrap:anywhere}
   .ru-v.good{color:var(--good-on)}
@@ -316,7 +328,7 @@
   .sc.ok .sc-s{color:var(--good)}
   .sc.wn .sc-s{color:var(--warn)}
   .sc.bd .sc-s{color:var(--bad)}
-  .sc-big{font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:-.03em;
+  .sc-big{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:-.032em;
     line-height:1;font-variant-numeric:tabular-nums;margin-bottom:4px;overflow-wrap:anywhere}
   .sc-cap{font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.45}
   .sc-spark{display:block;margin-bottom:12px}
@@ -336,8 +348,8 @@
   .sc-foot{margin-top:auto}
 
   /* Display face for figures that used the serif in the editorial pass.
-     Archivo holds at 30px where the serif went light against the ground. */
-  .fig-v,.lg-num{font-family:var(--display);font-weight:800;letter-spacing:-.025em}
+     The sans holds at 30px where the serif went light against the ground. */
+  .fig-v,.lg-num{font-family:var(--display);font-weight:700;letter-spacing:-.028em}
   .lg-num{font-weight:700;font-size:20px}
   .ph-t{font-family:var(--serif)}
 
