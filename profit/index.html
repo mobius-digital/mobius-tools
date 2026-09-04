@@ -4469,9 +4469,20 @@ function wireAdCards(ads, cur, prevTag) {
 }
 
 /** All-clients view: the latest weekly and monthly report per brand at a glance. */
+/* ---------- Reports, all clients: what is waiting on you ----------
+ *
+ * This was a three-column table of every brand's latest weekly and monthly,
+ * which made you read six rows to find the one thing that needed doing. The
+ * only question this screen answers is "what is waiting for me to send", so
+ * it groups on exactly that.
+ *
+ * The grouping is deliberately about ACTION, not health: a draft nobody has
+ * reviewed is the whole point of the tab, and a brand with no internal channel
+ * is a setup fault that silently stops drafts reaching anyone - which is worse
+ * than a late report, because nothing tells you it happened.
+ */
 async function renderReportsAll(first) {
-  const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically &mdash; Monday covers last Mon&ndash;Sun, the 1st covers last month. <b>Nothing reaches a client on its own.</b>')}
-    
+  const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically &mdash; Monday covers last Mon&ndash;Sun, the 1st covers last month. Nothing reaches a client until you send it.')}
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -4479,27 +4490,90 @@ async function renderReportsAll(first) {
   try { r = await api('/api/reports?act=all'); }
   catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
   if (run !== RUN) return;
+
   const by = {};
   // `|| []` is not defensive noise: without it a malformed response throws
   // INSIDE the renderer, which leaves the previous tab's content on screen with
-  // no error anywhere - the page simply appears not to have opened. Every other
-  // renderer in this file already guards its iteration; this was the last one.
+  // no error anywhere - the page simply appears not to have opened.
   for (const row of (r.rows || [])) { by[row.act_id] ??= {}; by[row.act_id][row.period] ??= row; }   // newest-first
-  const cell = row => row
-    ? `${repRangeLabel({ period: row.period, start: row.period_start, end: row.period_end })} <span class="pill ${row.status === 'sent' ? 'good' : 'warn'}">${row.status}</span>`
+
+  const judged = S.accounts.map(a => {
+    const wk = by[a.act_id]?.weekly, mo = by[a.act_id]?.monthly;
+    const drafts = [wk, mo].filter(x => x && x.status === 'draft');
+    const noChannel = !a.slack_channel;
+    // Setup faults outrank waiting drafts: a brand whose drafts post nowhere
+    // will never appear in the "waiting" list at all, which is the failure you
+    // cannot see from this page.
+    const g = noChannel ? 'bd' : drafts.length ? 'wn' : (wk || mo) ? 'ok' : 'un';
+    return { a, wk, mo, drafts, noChannel, g };
+  }).sort((x, y) => ({ bd: 0, wn: 1, ok: 2, un: 3 })[x.g] - ({ bd: 0, wn: 1, ok: 2, un: 3 })[y.g]
+    || x.a.name.localeCompare(y.a.name));
+
+  const waiting = judged.reduce((n, j) => n + j.drafts.length, 0);
+  const sent = (r.rows || []).filter(x => x.status === 'sent').length;
+  const gaps = judged.filter(j => j.noChannel).length;
+
+  const state = row => row
+    ? `${repRangeLabel({ period: row.period, start: row.period_start, end: row.period_end })} <span class="pill ${row.status === 'sent' ? 'good' : 'warn'}">${row.status === 'sent' ? 'sent' : 'draft'}</span>`
     : '<span class="tiny">none yet</span>';
-  $('#main').innerHTML = shell(`<div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th>Client</th><th>Latest weekly</th><th>Latest monthly</th></tr></thead>
-    <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer">
-      <td><b>${esc(a.name)}</b>${a.slack_channel ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ no internal channel — set one in Settings</span>'}</td>
-      <td>${cell(by[a.act_id]?.weekly)}</td><td>${cell(by[a.act_id]?.monthly)}</td></tr>`).join('')}</tbody></table></div>
-    <p class="tiny" style="margin-top:10px">A <b>draft</b> is internal — the client has not seen it. <b>Sent</b> reports are frozen and live on the client's archive link. Click a client to open their reports.</p></div>`);
-  $('#main tbody').addEventListener('click', e => {
-    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
-    S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
-    $('#clientPick').value = S.act;
+
+  const card = j => {
+    const act = j.noChannel
+      ? 'No internal channel, so drafts for this brand post <b>nowhere</b>. Set one in <b>Settings</b> before the next Monday run.'
+      : j.drafts.length
+      ? `${j.drafts.length === 2 ? 'Both reports are' : 'A report is'} drafted and waiting on you. Open it, read it, then send.`
+      : (j.wk || j.mo) ? 'Everything drafted so far has been sent. Nothing waiting.'
+      : 'No report has been generated yet. The next Monday run will draft one.';
+    return `<div class="sc ${j.g === 'un' ? '' : j.g}" data-id="${j.a.act_id}" tabindex="0" role="button"
+        aria-label="${esc(j.a.name)} reports">
+      <div class="sc-h"><span class="sc-n">${esc(j.a.name)}</span>
+        <span class="sc-s">${j.noChannel ? 'no channel' : j.drafts.length ? `${j.drafts.length} waiting` : (j.wk || j.mo) ? 'all sent' : 'none yet'}</span></div>
+      <div class="sc-foot">
+        <div class="sc-g" style="grid-template-columns:1fr 1fr;border-top:none;padding-top:0">
+          <div><div class="sc-gl">Latest weekly</div><div class="tiny" style="line-height:1.5">${state(j.wk)}</div></div>
+          <div><div class="sc-gl">Latest monthly</div><div class="tiny" style="line-height:1.5">${state(j.mo)}</div></div>
+        </div>
+        <p class="sc-act">${act}</p>
+      </div>
+    </div>`;
+  };
+
+  const LABEL = { bd: 'Cannot be delivered', wn: 'Waiting on you', ok: 'All sent', un: 'Nothing generated yet' };
+  const groups = ['bd', 'wn', 'ok', 'un'].map(g => {
+    const list = judged.filter(j => j.g === g);
+    if (!list.length) return '';
+    return `<p class="grp"><span class="ct">${LABEL[g]}</span>
+        <span>&middot; ${list.length} brand${list.length === 1 ? '' : 's'}</span><span class="ln"></span></p>
+      <div class="sc-grid">${list.map(card).join('')}</div>`;
+  }).join('');
+
+  $('#main').innerHTML = shell(`
+    <div class="rollup">
+      <div class="ru"><div class="ru-l">Waiting on you</div>
+        <div class="ru-v${waiting ? ' warn' : ''}">${waiting}</div>
+        <div class="ru-d">${waiting ? 'drafted, not yet sent to the client' : 'nothing drafted is unsent'}</div></div>
+      <div class="ru"><div class="ru-l">Sent</div><div class="ru-v">${sent}</div>
+        <div class="ru-d">frozen and live on the client's archive link</div></div>
+      <div class="ru"><div class="ru-l">Brands</div><div class="ru-v">${S.accounts.length}</div>
+        <div class="ru-d">weekly on Monday, monthly on the 1st</div></div>
+      <div class="ru"><div class="ru-l">Setup gaps</div>
+        <div class="ru-v${gaps ? ' bad' : ''}">${gaps}</div>
+        <div class="ru-d">${gaps ? 'no internal channel &mdash; drafts post nowhere' : 'every brand has an internal channel'}</div></div>
+    </div>
+    ${groups}
+    <details class="footnote"><summary>How reports are drafted and sent</summary>
+      <div class="fn-body">A <b>draft</b> is internal &mdash; it posts to the brand's internal channel and the client has not seen it. <b>Sent</b> reports are frozen at the moment they go out and live on the client's archive link, so what they opened last month is exactly what they can still open today; nothing about a sent report can be edited afterwards.<br><br>
+      Weekly reports draft automatically on Monday covering last Monday to Sunday; monthly ones draft on the 1st covering the month just finished. Both post to <b>report_channel</b>, which is deliberately internal with no fallback &mdash; a brand with no internal channel set gets a draft that reaches nobody rather than one that reaches the client by accident.</div></details>`);
+
+  const open = id => {
+    S.act = id; localStorage.setItem(LS.act, S.act);
+    const cp = $('#clientPick'); if (cp) cp.value = S.act;
     RP.act = null; RP.period = null; RP.start = null;
     show('reports');
+  };
+  $('#main').querySelectorAll('.sc[data-id]').forEach(c => {
+    c.onclick = () => open(c.dataset.id);
+    c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.dataset.id); } };
   });
 }
 
@@ -5370,11 +5444,19 @@ async function renderPlan(first) {
     };
     el.innerHTML = `<div class="card"><h3 style="margin-bottom:2px">${esc(q.quarter.replace('-', ' '))} so far <span class="info-i" title="The three monthly plans in this quarter added together, against what has actually happened. There is no separate quarterly target: a quarter is only as planned as its months, so any month without an agreed plan is named rather than guessed at.">i</span></h3>
       <p class="hint" style="margin-bottom:10px">${q.days_done} of ${q.days_total} days elapsed.${q.unplanned.length ? ` <b>${q.unplanned.map(m => esc(monthLabel(m))).join(' and ')}</b> ${q.unplanned.length === 1 ? 'has' : 'have'} no agreed plan, so the quarter total below is only what has been committed so far.` : ' All three months are planned.'}</p>
-      <div class="row" style="gap:22px;flex-wrap:wrap;margin-bottom:12px">
-        <div><div class="tiny">Revenue so far</div><div style="font-size:19px;font-weight:700">${fmtMoney(q.sales, cur)}</div>${goalToDate ? `<div class="tiny">${fmtMoney(goalToDate, cur)} expected by now ${off != null ? `<span class="pill ${off >= 0 ? 'good' : off >= -0.1 ? 'warn' : 'bad'}">${fmtSigned(off)}</span>` : ''}</div>` : '<div class="tiny">no quarter target</div>'}</div>
-        <div><div class="tiny">Ad spend</div><div style="font-size:19px;font-weight:700">${fmtMoney(q.spend, cur)}</div><div class="tiny">${q.goal_spend != null ? `of ${fmtMoney(q.goal_spend, cur)} committed` : 'no budget set'}</div></div>
-        <div><div class="tiny">Contribution margin</div><div style="font-size:19px;font-weight:700">${fmtMoney(q.cm, cur)}</div><div class="tiny">${q.sales ? fmtPct(q.cm / q.sales) + ' of revenue' : ''}</div></div>
-        <div><div class="tiny">Quarter target</div><div style="font-size:19px;font-weight:700">${q.goal_sales != null ? fmtMoney(q.goal_sales, cur) : '—'}</div><div class="tiny">${q.unplanned.length ? `${3 - q.unplanned.length} of 3 months` : 'all three months'}</div></div>
+      <div class="rollup">
+        <div class="ru"><div class="ru-l">Revenue so far</div>
+          <div class="ru-v">${fmtMoney(q.sales, cur)}</div>
+          <div class="ru-d">${goalToDate ? `${fmtMoney(goalToDate, cur)} expected by now ${off != null ? `<span class="pill ${off >= 0 ? 'good' : off >= -0.1 ? 'warn' : 'bad'}">${fmtSigned(off)}</span>` : ''}` : 'no quarter target'}</div></div>
+        <div class="ru"><div class="ru-l">Ad spend</div>
+          <div class="ru-v">${fmtMoney(q.spend, cur)}</div>
+          <div class="ru-d">${q.goal_spend != null ? `of ${fmtMoney(q.goal_spend, cur)} committed` : 'no budget set'}</div></div>
+        <div class="ru"><div class="ru-l">Contribution margin</div>
+          <div class="ru-v${q.cm == null ? '' : q.cm >= 0 ? ' good' : ' bad'}">${fmtMoney(q.cm, cur)}</div>
+          <div class="ru-d">${q.sales ? fmtPct(q.cm / q.sales) + ' of revenue' : ''}</div></div>
+        <div class="ru"><div class="ru-l">Quarter target</div>
+          <div class="ru-v">${q.goal_sales != null ? fmtMoney(q.goal_sales, cur) : '&mdash;'}</div>
+          <div class="ru-d">${q.unplanned.length ? `${3 - q.unplanned.length} of 3 months planned` : 'all three months planned'}</div></div>
       </div>
       <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Agreed</th><th class="num">Actual</th><th class="num">vs plan</th></tr></thead>
         <tbody>${q.per.map(mrow).join('')}</tbody></table></div></div>`;
@@ -5715,7 +5797,7 @@ async function renderSettings() {
   $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ' &mdash; ' + esc(one.name) : ''}`,
     one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
         : 'Everything about a brand lives in one place: open its row to set its Meta account, store, Slack channels and margin.')}
-    
+    <div id="setRollup"></div>
     <h3 class="set-sec">Brands</h3>
     <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
     <h3 class="set-sec">Team</h3>
@@ -5841,6 +5923,30 @@ async function renderSettings() {
           <select data-map="${esc(u.shop)}" style="max-width:200px"><option value="">— pick a brand —</option>${rows.map(b => `<option value="${esc(b.act_id)}">${esc(b.name)}</option>`).join('')}</select>
           <span class="tiny" data-mapmsg="${esc(u.shop)}"></span></div>`).join('')}</div></div></div>` : ''}`;
     for (const el of list.querySelectorAll('.brow')) if (wasOpen.has(el.dataset.act)) el.open = true;
+
+    /* Settings is a form, not a dashboard, so its brand rows stay editable
+       rows rather than becoming state cards. What it was missing is the thing
+       a form cannot show you: whether the SET of brands is actually configured.
+       Counted from the same array the rows are drawn from, so the bar and the
+       rows can never disagree. */
+    const ru = $('#setRollup');
+    if (ru) {
+      const briefs = rows.filter(b => b.brief_enabled).length;
+      const noBrief = rows.filter(b => !b.brief_channel).length;
+      const noShop = rows.filter(b => !b.tw_shop).length;
+      ru.innerHTML = `<div class="rollup">
+        <div class="ru"><div class="ru-l">Brands</div><div class="ru-v">${rows.length}</div>
+          <div class="ru-d">${one ? 'filtered to this one brand' : 'reporting through Locus'}</div></div>
+        <div class="ru"><div class="ru-l">Daily brief on</div><div class="ru-v">${briefs}</div>
+          <div class="ru-d">${briefs === rows.length ? 'every brand posts each morning' : `${rows.length - briefs} not sending`}</div></div>
+        <div class="ru"><div class="ru-l">No client channel</div>
+          <div class="ru-v${noBrief ? ' warn' : ''}">${noBrief}</div>
+          <div class="ru-d">${noBrief ? 'briefs and reports have nowhere to go' : 'every brand has one set'}</div></div>
+        <div class="ru"><div class="ru-l">No Triple Whale shop</div>
+          <div class="ru-v${noShop ? ' bad' : ''}">${noShop}</div>
+          <div class="ru-d">${noShop ? 'nothing blended works without it' : 'every brand is connected'}</div></div>
+      </div>`;
+    }
     wire();
   };
 
