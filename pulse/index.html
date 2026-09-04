@@ -9,21 +9,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<!-- The shared Mobius design system: palette, header, roll-up, state card,
+     buttons, tables. Loaded BEFORE this page's own <style>, so anything this
+     tool defines locally deliberately wins over it. -->
+<link rel="stylesheet" href="/mobius.css">
 <style>
-  :root{
-    --bg:#F4F8FA; --surface:#FFFFFF;
-    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
-    --line:#DFE7EC; --line-strong:#C4D2DB;
-    --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
-    --hd:#0C161D; --hd-line:#1D2C38;
-    --good:#1C7A46; --good-bg:#E4F2E9;
-    --warn:#8F6412; --warn-bg:#F8EED6;
-    --bad:#9C3A2E;  --bad-bg:#F7E7E4;
-    --unk:#647684;  --unk-bg:#EDF1F4;
-    --radius:12px;
-    --sans:'Instrument Sans',system-ui,sans-serif;
-    --serif:'Instrument Serif',Georgia,serif;
-  }
+  /* The palette lives in /mobius.css now. This block held a byte-identical
+     copy of it - which is exactly how four tools drift apart: nobody edits
+     four files, so three of them quietly go stale. Anything genuinely
+     specific to this tool still belongs here, below. */
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
   body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;font-feature-settings:"tnum" 1}

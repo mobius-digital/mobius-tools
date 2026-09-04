@@ -1,0 +1,329 @@
+/* ==========================================================================
+   mobius.css - the Mobius Tools design system
+   --------------------------------------------------------------------------
+   ONE stylesheet, linked by every Mobius tool. Before this file each app
+   carried its own copy of the palette, the header and the components, which
+   is four places for the same rule to drift - and it already had: four
+   different stat-card variants existed inside Locus alone before they were
+   collapsed into one.
+
+   Extracted from Locus rather than retyped, so the values are identical to
+   the app that defines the system rather than a hand-copy of them.
+
+   WHAT BELONGS HERE   tokens, page furniture, and any component more than one
+                       tool would use: the roll-up, the state card, buttons,
+                       chips, tables, pills, notices, modals, form controls.
+   WHAT DOES NOT       anything only one app has. A tool's own screens stay in
+                       that tool's stylesheet, loaded AFTER this one so it can
+                       override deliberately.
+
+   Load order matters:
+     <link rel="stylesheet" href="/mobius.css">
+     <style> ...this tool's own rules... </style>
+
+   The two Instrument faces are assumed to be loaded by the host page:
+     https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap
+   ========================================================================== */
+
+/* ============================================================
+     Direction C, adopted app-wide 2026-09-02.
+     ------------------------------------------------------------
+     Three things changed and everything else follows from them:
+
+       GROUND   a cool neutral a shade deeper than the old #F4F8FA,
+                so white cards and ruled sections separate from it.
+                Flatness was the complaint, not temperature - a warm
+                ground was tried and reverted: it put a cream page
+                under a blue logo.
+       DISPLAY  figures and names are set in Instrument Sans at 700
+                with tight tracking - the same family as the running
+                text, so the tool has two faces and not three.
+                Instrument Serif keeps the page titles and the
+                wordmark, which is where it earns its keep.
+       STATE    every card that carries a verdict states it in FORM
+                as well as number - a 3px top stripe - so triage
+                happens before anything is read.
+
+     Semantic colour (good / warn / bad) is deliberately separate
+     from the brand hue and is never used for decoration.
+     ============================================================ */
+  :root{
+    /* Mobius, not the mockup. The first cut took a warm off-white ground and
+       Archivo straight off the direction board, which gave the tool an
+       identity that was not the agency's - a cream page under a blue logo,
+       set in a face Mobius uses nowhere else. Cole caught it. The palette is
+       cool again and the two Instrument faces do all the work; 700 is the
+       heaviest weight they ship, which is plenty at these sizes.
+
+       The ground sits a shade deeper than the old #F4F8FA so white cards and
+       ruled sections actually separate from it. Flatness was the real
+       complaint, not temperature. */
+    --bg:#EFF4F7; --surface:#FFFFFF;
+    --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
+    --line:#DFE7EC; --line-strong:#C4D2DB;
+    --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
+    --hd:#0C161D; --hd-line:#1D2C38;
+    /* The roll-up is the SAME material as the nav header, deliberately: it
+       reads as the header continuing down into the page rather than a black
+       box dropped on top of it, and it is the one heavy element that gives an
+       otherwise light page a foreground. */
+    --ink-panel:#0C161D; --ink-panel-2:#1D2C38;
+    --on-ink:#EAF2F7; --on-ink-2:#8195A2;
+    --good:#1C7A46; --good-bg:#E4F2E9; --good-on:#5FD292;
+    --warn:#8F6412; --warn-bg:#F8EED6; --warn-on:#EBBF63;
+    --bad:#9C3A2E;  --bad-bg:#F7E7E4;  --bad-on:#F09182;
+    --unk:#647684;  --unk-bg:#EDF1F4;
+    --radius:10px;
+    --sans:'Instrument Sans',system-ui,sans-serif;
+    --serif:'Instrument Serif',Georgia,serif;
+    --display:'Instrument Sans',system-ui,sans-serif;
+  }
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;font-feature-settings:"tnum" 1}
+button{font:inherit;cursor:pointer;color:inherit;background:none;border:none}
+a{color:var(--brand-ink)}
+h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
+/* The per-page detail rides UNDER the purpose sentence, one step quieter, so
+     the purpose is always the first thing read and never competes with it. */
+  .sub .sub-x{display:block;margin-top:3px;font-size:13px;color:var(--muted)}
+.sub{color:var(--muted);font-size:13px;margin-bottom:16px;max-width:820px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.btn{border:1px solid var(--line-strong);border-radius:8px;padding:8px 13px;font-size:13px;font-weight:600;background:var(--surface)}
+.btn:hover{border-color:var(--brand-ink)}
+.btn.primary{background:var(--hd);color:#fff;border-color:var(--hd)}
+.btn[disabled]{opacity:.5;cursor:default}
+.gate{max-width:460px;margin:60px auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:34px}
+.gate h1{font-family:var(--serif);font-weight:400;font-size:28px;margin-bottom:6px}
+.gate p{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.gate label{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 5px}
+.gate input{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px 12px}
+.gate .cta{width:100%;margin-top:20px;background:var(--brand);color:var(--hd);border-radius:9px;padding:12px;font-weight:700;font-size:14.5px}
+.gate .err{color:var(--bad);font-size:13px;margin-top:12px}
+.notice{display:flex;gap:12px;align-items:flex-start;border-radius:var(--radius);padding:13px 18px;font-size:13.5px;margin-bottom:14px;border:1px solid var(--line)}
+.notice.warn{background:var(--warn-bg);border-color:#EAD9AE;color:var(--warn)}
+.notice.bad{background:var(--bad-bg);border-color:#EBC8C2;color:var(--bad)}
+.notice.good{background:var(--good-bg);border-color:#BFDFC9;color:var(--good)}
+.notice code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px}
+.card h3{font-size:15px;font-weight:700;margin-bottom:4px}
+.card .hint{color:var(--muted);font-size:13px}
+/* ONE FRAME PER THING (Cole, 2026-08-31: "boxes in boxes all over Locus").
+     A bordered panel inside a bordered card draws two identical outlines over
+     two identical white backgrounds — the inner frame adds a line and takes
+     away air, and says nothing the spacing was not already saying. Anything
+     nested inside a card drops its frame and becomes a SECTION of that card,
+     carried by spacing, a left rule, or a recessed fill instead.
+     Done in CSS rather than at each call site on purpose: the nesting comes
+     from helpers like statCard() and slackPreview() that are also used
+     un-nested, where the frame is right. The same markup has to read both
+     ways, so the container decides, not the helper. */
+  .card .card{border:0;border-radius:0;background:transparent;padding:0;margin:0}
+/* Notices keep their severity — that colour IS the signal — but carry it on a
+     left rule rather than a full outline. Same device the Reports summary card
+     already uses, so this is the existing vocabulary, not a new one. */
+  .card .notice{border:0;border-left:3px solid var(--line-strong);border-radius:0;
+    background:transparent;padding:1px 0 1px 13px}
+.card .notice.warn{border-left-color:var(--warn)}
+.card .notice.bad{border-left-color:var(--bad)}
+.card .notice.good{border-left-color:var(--good)}
+/* The Slack preview stays a distinct panel — it is a mock of the message the
+     client actually receives, which is its whole job. It just must not be a
+     second white box with the same border: recessed onto the page colour. */
+  .card .slackmsg{border:0;background:var(--bg)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+td.num,th.num{text-align:right}
+td b{font-weight:700}
+.tiny{font-size:11.5px;color:var(--muted)}
+.pill{display:inline-block;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;white-space:nowrap}
+.pill.good{background:var(--good-bg);color:var(--good)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.unk{background:var(--unk-bg);color:var(--unk)}
+.tbl-wrap{overflow-x:auto}
+.unit-in{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);padding:0 7px}
+.unit-in span{color:var(--muted);font-size:12.5px;flex:none}
+/* ============================================================
+     DIRECTION C  -  the component layer
+     ------------------------------------------------------------
+     Two pieces, and they are used on different kinds of tab:
+
+       THE ROLL-UP (.rollup) - the dark bar of headline figures.
+       Goes on EVERY tab. It is the one heavy element on the page,
+       which is what lets the rest stay quiet and still have a
+       foreground - the old build had six white cards in a row and
+       therefore no hierarchy at all.
+
+       THE STATE CARD (.sc) - big figure, caption, small stat grid,
+       and ONE SENTENCE SAYING WHAT TO DO. That last line is the
+       part that matters: every tab used to end in numbers and
+       leave the reader to work out the move. A 3px top stripe
+       carries the verdict in form as well as in words, so triage
+       happens in peripheral vision.
+
+     The TRIAGE GROUPING (.grp) only goes on tabs with a list to
+     sort - Overview, the creative browser, Reports. A single-brand
+     tab has nothing to triage, so it takes the card anatomy and
+     the roll-up without the grouping.
+     ============================================================ */
+
+  /* ---- the dark roll-up ---- */
+  .rollup{display:flex;align-items:stretch;background:var(--ink-panel);color:var(--on-ink);
+    border-radius:var(--radius);overflow:hidden;margin-bottom:22px;flex-wrap:wrap}
+.ru{padding:15px 20px 16px;border-left:1px solid var(--ink-panel-2);flex:1 1 160px;min-width:0}
+.ru:first-child{border-left:none}
+/* ---- triage group heading ---- */
+  .grp{display:flex;align-items:center;gap:10px;margin:0 0 12px;
+    font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.grp .ct{color:var(--ink)}
+.grp .ln{flex:1;height:1px;background:var(--line)}
+.sc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px 14px;border-top:3px solid var(--line-strong);
+    display:flex;flex-direction:column;cursor:default}
+.sc.ok{border-top-color:var(--good)}
+.sc.wn{border-top-color:var(--warn)}
+.sc.bd{border-top-color:var(--bad)}
+a.sc,.sc[data-id]{cursor:pointer}
+.sc[data-id]:hover{border-color:var(--line-strong);box-shadow:0 2px 10px -4px rgba(26,24,21,.18)}
+.sc.ok .sc-s{color:var(--good)}
+.sc.wn .sc-s{color:var(--warn)}
+.sc.bd .sc-s{color:var(--bad)}
+/* Display face for figures that used the serif in the editorial pass.
+     The sans holds at 30px where the serif went light against the ground. */
+  .fig-v,.lg-num{font-family:var(--display);font-weight:700;letter-spacing:-.028em}
+.lg-num{font-weight:700;font-size:20px}
+/* ============================================================
+     EDITORIAL LAYER  (2026-09-02 revamp)
+     ------------------------------------------------------------
+     Locus reads as a textbook with numbers in it: four rows of chrome
+     before any data, paragraphs of gray prose competing with the figures,
+     and every card the same white box at the same weight - so nothing on
+     screen says what matters. The fix is not a new palette. It is
+     hierarchy, and hierarchy here comes from three things:
+
+       TYPE   money is set in the serif the wordmark already uses, large.
+              A figure should look like a figure, not a table cell.
+       RULE   hairlines and whitespace instead of boxes. A page of bordered
+              cards has no foreground; a page of rules does.
+       COLOR  spent only on verdicts. Everything else is ink and muted.
+
+     Prose does not disappear - it moves behind the (i) and the "? How to
+     use" panel that already exist and are already written.
+     ============================================================ */
+
+  /* Page head: one line, not four. The title carries the client, the
+     period sits beside it, the help affordances shrink to icons. */
+  .ph{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+    flex-wrap:wrap;padding-bottom:11px;margin-bottom:18px;border-bottom:1px solid var(--line-strong)}
+.fig{padding:13px 18px 14px;border-left:1px solid var(--line)}
+.fig:first-child{border-left:none;padding-left:0}
+/* One sentence that says what the numbers mean. This is what replaces the
+     paragraph - a verdict earns its place, an explanation does not. */
+  .verdict{font-size:14.5px;line-height:1.6;margin:0 0 20px;padding-left:13px;
+    border-left:2px solid var(--line-strong);max-width:84ch}
+.verdict.good{border-left-color:var(--good)}
+.verdict.warn{border-left-color:var(--warn)}
+.verdict.bad{border-left-color:var(--bad)}
+/* Section heading: a rule and a label, no card. */
+  .sec{display:flex;align-items:baseline;gap:11px;margin:26px 0 12px}
+/* The ledger: the client table, unboxed. Money in the serif so the eye
+     lands on it, rows separated by hairlines, one hover state. */
+  .ledger{width:100%;border-collapse:collapse}
+.ledger th{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);text-align:right;padding:0 0 9px;border-bottom:1px solid var(--line-strong);
+    white-space:nowrap}
+.ledger th:first-child{text-align:left}
+.ledger td{padding:13px 0;border-bottom:1px solid var(--line);text-align:right;
+    vertical-align:baseline;white-space:nowrap}
+.ledger td:first-child{text-align:left;padding-right:16px;white-space:normal}
+.ledger th+th,.ledger td+td{padding-left:18px}
+.ledger tbody tr{cursor:pointer}
+.ledger tbody tr:hover td{background:var(--brand-soft)}
+.ledger tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--brand-ink)}
+.lg-name{font-size:14px;font-weight:500;line-height:1.3;color:var(--ink-2)}
+.ledger tbody tr:hover .lg-name{color:var(--ink)}
+/* The figure carries the row, so it has to out-weigh the name beside it.
+     Set at 22px it reads first at a glance down the column, which is the
+     whole point of a ledger. */
+  .lg-num{font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.1;
+    font-variant-numeric:tabular-nums;letter-spacing:-.015em;color:var(--ink)}
+.lg-num.good{color:var(--good)}
+.lg-num.bad{color:var(--bad)}
+.lg-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4;font-variant-numeric:tabular-nums}
+.lg-flag{font-size:11px;color:var(--warn);margin-top:3px}
+.ctl{font:inherit;font-size:12.5px;padding:4px 11px;border-radius:99px;cursor:pointer;
+    border:1px solid transparent;background:transparent;color:var(--muted)}
+.ctl:hover{color:var(--ink);background:var(--bg)}
+.ctl.on{color:var(--brand-ink);border-color:var(--brand);background:var(--brand-soft);font-weight:600}
+/* Foot note: the small print that used to be a five-line gray paragraph
+     mid-page. It stays available, at the bottom, opt-in. */
+  .footnote{margin-top:26px;padding-top:13px;border-top:1px solid var(--line)}
+.footnote summary{font-size:12px;color:var(--muted);cursor:pointer;list-style:none}
+.footnote summary::-webkit-details-marker{display:none}
+.footnote summary:hover{color:var(--ink)}
+.footnote .fn-body{font-size:12px;color:var(--muted);line-height:1.65;margin-top:9px;max-width:88ch}
+.unit-in input,.unit-in input[type=text],.unit-in input[type=number]{border:none;border-radius:0;padding:6px 3px;width:100%;min-width:0;background:transparent;outline:none}
+.toggle{width:38px;height:22px;border-radius:99px;background:#C9D5DD;position:relative;transition:.15s;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.toggle.on{background:var(--good)}
+.toggle.on::after{left:19px}
+/* Change Log (Chat 1) */
+  .chip{border:1px solid var(--line-strong);border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:600;background:var(--surface)}
+.chip.on{background:var(--hd);color:#fff;border-color:var(--hd)}
+/* Controls. `.modal` is in the list because modals are appended to <body>,
+     OUTSIDE <main> - so a main-scoped rule never reaches them and every select
+     and input inside a modal fell back to the raw OS widget. Cole spotted it on
+     the Add a brand form: native grey dropdowns beside branded text boxes. */
+  main input[type=date],main .search,main select,
+  .modal input[type=text],.modal input[type=date],.modal select{border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--surface)}
+main select,.modal select{appearance:none;-webkit-appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
+.modal input[type=text]:focus,.modal select:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+.modal h3{font-size:15.5px;font-weight:700;margin-bottom:4px}
+.modal .hint{color:var(--muted);font-size:12.5px;margin-bottom:12px;line-height:1.5}
+.modal input,.modal textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;background:var(--surface)}
+.modal textarea{min-height:76px;resize:vertical}
+.info-i{display:inline-flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;min-width:16px;border:1px solid var(--line-strong);border-radius:50%;font-size:11px;line-height:1;font-weight:700;font-style:normal;letter-spacing:0;text-transform:none;color:var(--muted);cursor:pointer;vertical-align:middle}
+.info-i:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
+/* FIFTH time. The rule above (`main .card input[type=text]`) is (0,2,1) and so
+     is `.unit-in input[type=text]` at the top of the file - equal specificity, and
+     this one is LATER, so it won and drew a border plus a 300px cap inside every
+     pill on the Plan page. Repeating the reset at equal weight has failed four
+     times; it has to OUT-SPECIFY every generic body rule and sit after them.
+     `.unit-in` is the single place that owns the border, so anything inside it is
+     stripped bare regardless of where the pill is used. */
+  .unit-in input,
+  main .card .unit-in input[type=text],
+  main .card .unit-in input[type=number],
+  .brow-c .unit-in input[type=text],
+  .settings .unit-in input[type=text],
+  .settings .unit-in input[type=number]{
+    border:none!important;border-radius:0;padding:6px 3px;background:transparent;
+    width:100%;max-width:none;min-width:0;outline:none;box-shadow:none!important}
+.unit-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+.unit-in:hover{border-color:var(--brand)}
+.pk-in{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:8px;
+    padding:7px 10px;background:var(--surface);cursor:pointer;font-size:13px}
+.pk-in:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+/* MUST carry [type=text] to win. `.modal input[type=text]` is (0,2,1) and this
+     was (0,1,1), so the inner input kept its own border and padding and drew a
+     box inside the box - the identical specificity trap `.unit-in` hit, now for
+     the second time. Any control that wraps an input needs the attribute too. */
+  .pk-in input,.pk-in input[type=text]{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13px;padding:0;border-radius:0;box-shadow:none}
+.pk-in input:focus,.pk-in input[type=text]:focus{border:none;box-shadow:none;outline:none}
+.pk-in .pk-cv{width:10px;height:6px;flex:none;opacity:.6}
+.pk-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;max-height:230px;overflow-y:auto;
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;
+    box-shadow:0 12px 28px rgba(12,22,29,.16);padding:4px;display:none}
+.pk-opt{padding:7px 9px;border-radius:6px;cursor:pointer;font-size:13.5px;line-height:1.35}
+.pk-opt small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+.pk-opt:hover,.pk-opt.hl{background:var(--brand-soft)}
+.pk-opt[aria-selected=true]{font-weight:700}
+.pk-none{padding:9px;color:var(--muted);font-size:12.5px}
+.modal.wide{max-width:940px}
+.modal.wide{padding:16px 14px}
+a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
+a.ad-link .ext{color:var(--muted);font-size:10.5px;margin-left:5px;vertical-align:1px}
+a.ad-link:hover .ext{color:var(--brand-ink)}
+h2{font-size:21px}

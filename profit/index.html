@@ -9,15 +9,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<!-- The shared Mobius design system. Loaded BEFORE this page's own <style>, so
+     anything Locus still defines locally deliberately wins over it. -->
+<link rel="stylesheet" href="/mobius.css">
 <style>
   /* ============================================================
      Direction C, adopted app-wide 2026-09-02.
      ------------------------------------------------------------
      Three things changed and everything else follows from them:
 
-       GROUND   a barely-warm off-white replaces the cool blue-grey.
-                The old #F4F8FA read as a stock admin panel; this one
-                is quieter and lets the ink do the work.
+       GROUND   a cool neutral a shade deeper than the old #F4F8FA,
+                so white cards and ruled sections separate from it.
+                Flatness was the complaint, not temperature - a warm
+                ground was tried and reverted: it put a cream page
+                under a blue logo.
        DISPLAY  figures and names are set in Instrument Sans at 700
                 with tight tracking - the same family as the running
                 text, so the tool has two faces and not three.
