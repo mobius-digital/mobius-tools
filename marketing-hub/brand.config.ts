@@ -19,8 +19,20 @@
  *   - `font.family` is requested from Google Fonts at runtime, so any family
  *     available there works with no code change.
  */
+/*
+ * The DEFAULT palette, which is Mobius's own.
+ *
+ * This is deliberately NOT the client-facing look: a brand's colours come from
+ * its `brands` row at request time, so every client page still paints itself.
+ * What this file dresses is the handful of surfaces the hub owns rather than
+ * rents - the front door, the agency admin screen and the offline page - and
+ * those were sitting on a stock #2563EB blue and Inter while every other
+ * Mobius tool moved to the shared system. Matched to /mobius.css by hand
+ * because this app cannot link it: no literal colour may enter globals.css,
+ * which is what makes the white-labelling work.
+ */
 export const brand = {
-  name: "Your Brand",
+  name: "Mobius Digital",
   logoUrl: "/logo.svg",
   /**
    * true  — a single-color SVG mark, painted in your accent color (works on
@@ -29,18 +41,18 @@ export const brand = {
    */
   logoTint: true,
   colors: {
-    background: "#F7F7F8", // page
+    background: "#EFF4F7", // page — matches --bg in /mobius.css
     surface: "#FFFFFF", // cards and panels
-    primary: "#2563EB", // accent — replace with your own
+    primary: "#14608C", // Mobius brand ink
     primaryText: "#FFFFFF", // sits on the accent
-    text: "#18181B",
-    textMuted: "#6B7280",
-    danger: "#B91C1C",
-    tentative: "#8B8B93",
-    scrim: "#18181B",
+    text: "#13202B",
+    textMuted: "#647684",
+    danger: "#9C3A2E",
+    tentative: "#8195A2",
+    scrim: "#0C161D",
   },
   font: {
-    family: "Inter", // any Google Fonts family
+    family: "Instrument Sans", // the Mobius face, on Google Fonts
     headingWeight: 700,
     bodyWeight: 400,
   },
