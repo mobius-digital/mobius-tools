@@ -29,6 +29,10 @@ const PROXY_PATHS = new Set([
   '/api/report-send', '/api/report-link', '/api/brief-text', '/api/brief-draft',
   // "Don't send this one" — marks a day handled so the catch-up stops carrying it.
   '/api/brief-skip',
+  /* Data Health: does Triple Whale still agree with the ad platforms? The
+     check reads tw_daily and daily_insights, both written by the
+     account-health worker, and Rebuild regenerates a draft there. */
+  '/api/data-health', '/api/brief-rebuild',
   /* The live creative browser. It reads `ad_daily` and calls Meta for the
      creative assets, both of which belong to the account-health worker, but it
      is rendered by index.html whose `api()` points HERE - so without this it

@@ -1204,6 +1204,202 @@ function judgeCogs(dayMargins, blended) {
   return out;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Data health — can Triple Whale be trusted for this day?            */
+/*                                                                     */
+/*  2026-09-02: fb_ads_spend went to 0 for five of six brands and      */
+/*  nothing noticed for three days. Bonk's brief reported $204 of       */
+/*  spend against $769 actually spent, and its MER read 7.7x.          */
+/*                                                                     */
+/*  THE CHECK THAT DOES NOT WORK is adding Triple Whale's own numbers   */
+/*  up. `blendedAds` IS the sum of TW's platform rows - measured over   */
+/*  95 days of history it matches fb_ads_spend + ga_adCost + tiktok_    */
+/*  spend + vibeSpend + … to the cent, on the broken days too, because  */
+/*  a platform that drops out contributes a clean zero to both sides.   */
+/*  An internal-consistency check would have passed every day of this   */
+/*  outage.                                                            */
+/*                                                                     */
+/*  Two checks that DO work:                                           */
+/*    1. AN OUTSIDE WITNESS. `daily_insights` is synced hourly from     */
+/*       Meta's own API and owes Triple Whale nothing, so it can        */
+/*       contradict it. This is the only platform we have a second      */
+/*       source for, which is why Meta is treated specially - not       */
+/*       because Meta matters more.                                     */
+/*    2. CONTINUITY. A platform that has spent every day for a          */
+/*       fortnight and reports nothing today has dropped out, whoever   */
+/*       is at fault. It is weaker than a witness (a genuine pause      */
+/*       looks identical) but it is all there is for Google, TikTok     */
+/*       and the rest.                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Triple Whale's per-platform ad spend ids → the name a human uses.
+ *  A platform absent from this map is still counted inside blendedAds; it just
+ *  gets no continuity check of its own, so adding one here only ever helps. */
+const TW_PLATFORM_SPEND = {
+  fb_ads_spend: 'Meta', ga_adCost: 'Google', tiktok_spend: 'TikTok',
+  snapchatSpend: 'Snapchat', pinterestSpend: 'Pinterest', twitter_spend: 'X',
+  redditSpend: 'Reddit', applovinSpend: 'AppLovin', adrollSpend: 'AdRoll',
+  stackadaptSpend: 'StackAdapt', vibeSpend: 'Vibe', impactSpend: 'Impact',
+  influencerSpend: 'Influencer', bingSpend: 'Microsoft',
+};
+/* Below this, a day's Meta spend is too small for the comparison to mean
+   anything: TW and Meta cut the day on different clocks, so a $12 day can
+   legitimately differ by half. */
+const META_WITNESS_FLOOR = 25;
+/* How far under Meta's own figure TW is allowed to sit before we stop
+   believing it. 10% absorbs the timezone edge; a dropped connection is 100%. */
+const META_WITNESS_TOL = 0.9;
+/* A platform reporting less than a fifth of its own fortnight is a dropout,
+   not a slow day. */
+const DROPOUT_RATIO = 0.2;
+/* Ignore continuity on platforms spending pocket change - an influencer line
+   that runs $3 some days and $0 others is not an outage. */
+const DROPOUT_FLOOR = 10;
+
+/** The day's total ad spend, and whether Triple Whale's own total was believable.
+ *  `metaApi` is Meta's own reported spend for that date (daily_insights).
+ *
+ *  When TW's Meta row is materially below Meta's own figure we REBUILD the
+ *  total rather than dropping TW: keep every other platform TW reports
+ *  (its blended total minus its own Meta row) and put Meta's real figure back
+ *  in place. Verified against 2026-09-03: Lucky rebuilt to $1,277 against
+ *  $1,276 actually spent across Meta, Google and Vibe. */
+function spendFor(piv, date, metaApi) {
+  const blended = piv.blendedAds?.[date] ?? null;
+  const twMeta = piv.fb_ads_spend?.[date] ?? null;
+  const google = piv.ga_adCost?.[date] ?? null;
+  const witnessed = metaApi != null && metaApi > META_WITNESS_FLOOR;
+  const metaMissing = witnessed && (twMeta == null || twMeta < metaApi * META_WITNESS_TOL);
+  if (metaMissing) {
+    const others = blended != null
+      ? Math.max(0, blended - (twMeta ?? 0))     // every platform TW still reports
+      : (google ?? 0);
+    return { spend: metaApi + others, source: 'rebuilt', tw_blended: blended, tw_meta: twMeta, meta_api: metaApi };
+  }
+  if (blended != null) return { spend: blended, source: 'triple_whale', tw_blended: blended, tw_meta: twMeta, meta_api: metaApi };
+  // No TW row at all — the pre-existing fallback, kept so a brand mid-backfill
+  // still reports something.
+  const parts = metaApi != null || google != null ? (metaApi ?? 0) + (google ?? 0) : null;
+  return { spend: parts, source: parts == null ? 'none' : 'platforms', tw_blended: null, tw_meta: twMeta, meta_api: metaApi };
+}
+
+/** Median of a platform's last 14 days, as the baseline a dropout is judged against.
+ *  Median not mean: one $0 day must not drag the bar down to where the next $0
+ *  day looks normal. */
+function platformBaseline(piv, metric, date) {
+  const vals = [];
+  for (let i = 1; i <= 14; i++) { const v = piv[metric]?.[addDays(date, -i)]; if (v != null) vals.push(v); }
+  if (!vals.length) return null;
+  vals.sort((a, b) => a - b);
+  return vals[Math.floor(vals.length / 2)];
+}
+
+const fmtUsd = n => n == null ? '—' : `$${Math.round(n).toLocaleString('en-US')}`;
+
+/** Everything wrong with one day, in words a person can act on.
+ *  Pure — it reads the pivot both briefData and dataHealth already hold, so
+ *  running it costs no queries. */
+function dayIssues(piv, metaBy, date, sp) {
+  const issues = [];
+  const sales = twDay(piv, date, TW_SALES);
+  const m = metaBy[date];
+  if (sp.tw_blended == null && sales == null) {
+    issues.push({ code: 'missing_day', severity: 'broken', label: 'Triple Whale has no data for these days',
+      what: 'Triple Whale has no data at all for this day',
+      fix: 'Re-sync Triple Whale. If it stays empty, check the shop is still connected in Triple Whale.' });
+    return issues;                               // everything else is downstream of this
+  }
+  if (sp.source === 'rebuilt') {
+    issues.push({ code: 'meta_missing', severity: 'broken', label: 'Meta spend is missing from Triple Whale',
+      what: `Triple Whale reports ${fmtUsd(sp.tw_meta ?? 0)} of Meta spend, Meta itself reports ${fmtUsd(sp.meta_api)}`,
+      fix: 'Reconnect Meta in Triple Whale → Settings → Integrations, then Re-sync and Rebuild here.' });
+  }
+  for (const [metric, label] of Object.entries(TW_PLATFORM_SPEND)) {
+    if (metric === 'fb_ads_spend') continue;     // the witness above is stronger
+    const base = platformBaseline(piv, metric, date);
+    if (base == null || base < DROPOUT_FLOOR) continue;
+    const v = piv[metric]?.[date] ?? null;
+    if (v == null || v < base * DROPOUT_RATIO) {
+      issues.push({ code: 'platform_dropout', severity: 'broken', label: `${label} spend has stopped arriving`,
+        what: `${label} spend reads ${v == null ? 'nothing' : fmtUsd(v)} against a 14-day typical of ${fmtUsd(base)}`,
+        fix: `Check the ${label} connection in Triple Whale → Settings → Integrations. If ${label} was genuinely paused, this clears itself in two weeks.` });
+    }
+  }
+  if (sales == null) {
+    issues.push({ code: 'no_sales', severity: 'broken', label: 'store revenue is missing',
+      what: 'no store revenue recorded for this day',
+      fix: 'Re-sync Triple Whale; if it stays empty, the Shopify connection inside Triple Whale needs attention.' });
+  } else if (sales === 0 && m?.purchases > 0) {
+    issues.push({ code: 'zero_sales', severity: 'warn', label: 'store revenue reads zero on a day with orders',
+      what: `Triple Whale shows no revenue while Meta recorded ${m.purchases} purchase(s)`,
+      fix: 'Usually a lagging Shopify sync — re-sync and check again before sending.' });
+  }
+  return issues;
+}
+
+/** One brand's data health over a window. Three queries, no network. */
+async function dataHealth(env, acct, { days = 14, upTo = null } = {}) {
+  const end = upTo || addDays(localDate(acct.tz), -1);
+  const start = addDays(end, -(days - 1));
+  const from = addDays(start, -14);              // continuity needs its baseline
+  const { results: twRows } = await env.DB.prepare(
+    `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`,
+  ).bind(acct.act_id, from, end).all();
+  const piv = {};
+  for (const r of twRows) (piv[r.metric] ??= {})[r.date] = r.value;
+  const { results: mRows } = await env.DB.prepare(
+    `SELECT date, spend, purchases FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`,
+  ).bind(acct.act_id, from, end).all();
+  const metaBy = Object.fromEntries(mRows.map(r => [r.date, r]));
+  const lastSync = (await env.DB.prepare(
+    `SELECT MAX(synced_at) AS t FROM tw_daily WHERE act_id = ?1`,
+  ).bind(acct.act_id).first())?.t ?? null;
+
+  const out = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    const sp = spendFor(piv, d, metaBy[d]?.spend ?? null);
+    out.push({ date: d, ...sp, sales: twDay(piv, d, TW_SALES), issues: dayIssues(piv, metaBy, d, sp) });
+  }
+  // Account-level: is the data even fresh? A brand nobody has synced for two
+  // days looks perfectly healthy day by day, because every day it holds is old.
+  const issues = [];
+  const staleH = lastSync ? (Date.now() - Date.parse(`${lastSync.replace(' ', 'T')}Z`)) / 36e5 : null;
+  if (!acct.tw_shop) {
+    issues.push({ code: 'not_connected', severity: 'warn',
+      what: 'this brand has no Triple Whale shop set, so every blended figure is built from platform data alone',
+      fix: 'Add the Triple Whale shop in Settings.' });
+  } else if (staleH == null) {
+    issues.push({ code: 'never_synced', severity: 'broken',
+      what: 'Triple Whale has never synced for this brand', fix: 'Press Re-sync Triple Whale.' });
+  } else if (staleH > 30) {
+    issues.push({ code: 'stale', severity: 'warn',
+      what: `Triple Whale data was last refreshed ${Math.round(staleH)} hours ago`,
+      fix: 'Press Re-sync Triple Whale.' });
+  }
+  const badDays = out.filter(x => x.issues.some(i => i.severity === 'broken'));
+  const warnDays = out.filter(x => x.issues.some(i => i.severity === 'warn'));
+  const verdict = badDays.length || issues.some(i => i.severity === 'broken') ? 'broken'
+    : warnDays.length || issues.length ? 'warn' : 'ok';
+  /* The headline is the whole point of this endpoint: it must say what is wrong
+     and what to do without the reader opening anything or asking anyone. */
+  let headline = 'Triple Whale agrees with every platform it reports.';
+  if (badDays.length) {
+    /* Group by LABEL, never by the sentence: the sentence carries that day's
+       figures, so two days of one broken connection read as two problems. */
+    const labels = [...new Set(badDays.flatMap(x => x.issues.filter(i => i.severity === 'broken').map(i => i.label || i.code)))];
+    const named = labels.length <= 2 ? labels.join(', and ') : `${labels.slice(0, 2).join(', ')} and ${labels.length - 2} more`;
+    const when = badDays.length === 1 ? `on ${prettyDate(badDays[0].date)}`
+      : `on ${badDays.length} of the last ${days} days (${prettyDate(badDays[0].date)} → ${prettyDate(badDays[badDays.length - 1].date)})`;
+    headline = `${named[0].toUpperCase()}${named.slice(1)} — ${when}.`;
+  } else if (issues.length) headline = issues[0].what;
+  return {
+    account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
+    from: start, to: end, last_sync: lastSync, stale_hours: staleH,
+    verdict, headline, issues, days: out,
+    bad_dates: badDays.map(x => x.date),
+  };
+}
+
 /** Month goals for an account: month override merged over "default". Null if none set. */
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
@@ -1297,12 +1493,20 @@ async function briefData(env, acct, upTo) {
     const rawRet = piv.rcRevenue?.[date] ?? null;
     const rawSplit = (rawNew ?? 0) + (rawRet ?? 0);
     const newShareDay = rawSplit > 0 && rawNew != null ? rawNew / rawSplit : null;
+    const sp = spendFor(piv, date, mrow?.spend ?? null);
     const a = {
       sales,
       new_share: newShareDay,
       new_rev: newShareDay != null && sales != null ? sales * newShareDay : rawNew,
       ret_rev: newShareDay != null && sales != null ? sales * (1 - newShareDay) : rawRet,
-      spend: blended ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null),
+      /* NOT `blended ?? meta+google` any more. That trusted any blended figure
+         Triple Whale returned, and on 2026-09-02 it returned a Google-only
+         total for five brands — non-null, internally consistent, and wrong by
+         70%. spendFor() checks TW's Meta row against Meta's own API and
+         rebuilds the total when they disagree. See the data-health block. */
+      spend: sp.spend,
+      spend_source: sp.source,
+      tw_blended: sp.tw_blended,
       meta_spend: mrow?.spend ?? null,
       google_spend: gSpend,
       meta_roas: mrow && mrow.spend ? mrow.revenue / mrow.spend : null,
@@ -1336,6 +1540,9 @@ async function briefData(env, acct, upTo) {
     a.cm = cmPct != null && sales != null && a.spend != null ? sales * cmPct - a.spend
       : variable != null && sales != null && a.spend != null ? sales - variable - a.spend : null;
     a.cm_basis = cmPct != null ? 'margin' : variable != null ? 'cogs' : null;
+    /* Free: dayIssues reads the pivot this function already holds, so every
+       brief knows whether its own numbers can be trusted without a query. */
+    a.issues = dayIssues(piv, meta, date, sp);
     days.push({ date, f, a });
   }
 
@@ -1391,6 +1598,14 @@ async function briefData(env, acct, upTo) {
     weights: 'even across the month',
     new_share_28d: newShare, days, mtd, to_hit: toHit, tw_last_sync: lastSync, shipping_mode: shipMode,
     brief_enabled: !!acct.brief_enabled,
+    /* Which days of THIS month cannot be trusted. The Brief page banners it,
+       and sendBrief refuses to put a flagged day in front of a client. */
+    health: {
+      verdict: done.some(x => x.a.issues?.some(i => i.severity === 'broken')) ? 'broken'
+        : done.some(x => x.a.issues?.length) ? 'warn' : 'ok',
+      bad_dates: done.filter(x => x.a.issues?.some(i => i.severity === 'broken')).map(x => x.date),
+      by_date: Object.fromEntries(done.filter(x => x.a.issues?.length).map(x => [x.date, x.a.issues])),
+    },
   };
 }
 
@@ -1595,7 +1810,28 @@ async function makeBrief(env, acct, date) {
   data.covering = dates;
   let narrative = null, narrative_error = null;
   try { narrative = await writeBriefNarrative(env, acct, data, date); } catch (e) { narrative_error = e.message; }
-  return { data, dates, text: buildBriefText(data, dates, narrative), narrative_error };
+  /* Only the days this brief actually reports on can block it. A bad day
+     earlier in the month is the Data Health tab's problem, not this send's. */
+  const health = briefHealth(data, dates);
+  return { data, dates, text: buildBriefText(data, dates, narrative), narrative_error, health };
+}
+
+/** The health of the days a brief covers: what stops it going to a client. */
+function briefHealth(data, dates) {
+  const list = Array.isArray(dates) ? dates : [dates];
+  const flagged = list.map(d => ({ date: d, issues: (data.health?.by_date?.[d] || []) }))
+    .filter(x => x.issues.length);
+  const broken = flagged.filter(x => x.issues.some(i => i.severity === 'broken'));
+  return {
+    verdict: broken.length ? 'broken' : flagged.length ? 'warn' : 'ok',
+    dates: broken.map(x => x.date),
+    flagged,
+    /* One sentence, written once, reused by the Slack notice, the send refusal
+       and the banner on the Brief page — so all three say the same thing. */
+    summary: broken.length
+      ? `${broken.map(x => prettyDate(x.date)).join(' and ')}: ${broken[0].issues.find(i => i.severity === 'broken').what}`
+      : null,
+  };
 }
 
 /** Generate + post one brief to the brand's Slack channel; log it in `briefs`. */
@@ -1649,10 +1885,21 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
     const body = r.text.length > 3600
       ? r.text.slice(0, 3600) + '\n…(too long for Slack — open it in Locus for the rest)'
       : r.text;
+    /* The data warning goes ABOVE the brief and never inside it. The text is
+       what the client receives; this notice is ours. Without it the numbers
+       look ordinary — that is exactly how five brands under-reported spend by
+       70% for three days in September 2026 with nobody noticing. */
+    const bad = r.health?.verdict === 'broken';
+    const notice = bad
+      ? `:rotating_light: *Do not send — the numbers are wrong.* ${r.health.summary}\n` +
+        `_${r.health.flagged[0].issues.find(i => i.severity === 'broken').fix}_\n` +
+        `Spend below has been rebuilt from the platforms' own reporting where possible.\n\n`
+      : '';
     await slackPost(env, ch,
       `:memo: *Draft — ${acct.name}, ${prettyDate(date)}* · _not sent to the client yet_\n\n` +
+      notice +
       `${body}\n\n` +
-      `<${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(acct.act_id)}&date=${date}|Send it, or edit the wording first →>`,
+      `<${DASHBOARD_URL}?open=${bad ? 'health' : 'brief'}&act=${encodeURIComponent(acct.act_id)}&date=${date}|${bad ? 'Fix it in Locus →' : 'Send it, or edit the wording first →'}>`,
       null, { username: 'Mobius Reports', icon: ':memo:' }).catch(() => {});
   }
   if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
@@ -1663,7 +1910,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
  *  `useStored` sends the reviewed text exactly as it stands, edits included —
  *  regenerating at send time would silently discard the wording that was
  *  approved, which is the whole point of the review step. */
-async function sendBrief(env, acct, date, { skipIfSent = false, useStored = false } = {}) {
+async function sendBrief(env, acct, date, { skipIfSent = false, useStored = false, ignoreHealth = false } = {}) {
   // The trigger fires hourly, so a brand already posted for this date must never
   // be posted again. Only a genuine 'sent' blocks a retry - a skipped or errored
   // day should still get another chance.
@@ -1674,6 +1921,21 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   // A skipped day is a decision, not a gap to fill. Only an explicit send from
   // the UI (skipIfSent false) may override it.
   if (skipIfSent && prior?.status === 'skipped') return { name: acct.name, skipped_by_hand: true, date };
+
+  /* THE GATE. A day whose data contradicts the platforms does not reach a
+     client, whichever route asked for the send — the cron, the button, or a
+     retry. Checked even on the useStored path, because the stored text was
+     built from the same bad numbers. Two D1 reads; a send is a rare click.
+     `ignoreHealth` exists for the one case where a human has looked at the
+     numbers and decided they are right anyway. */
+  if (!ignoreHealth) {
+    const hd = await briefData(env, acct, date).catch(() => null);
+    const hh = hd && briefHealth(hd, await coverageDates(env, acct, date, hd).catch(() => [date]));
+    if (hh?.verdict === 'broken') {
+      return { name: acct.name, blocked: true, date,
+        error: `Not sent — the data for ${hh.dates.map(prettyDate).join(' and ')} is wrong. ${hh.summary}. Fix it on the Data Health tab, then rebuild this brief.` };
+    }
+  }
 
   let text = null, r = null;
   // 'error' is no longer written (see the catch below), but rows from before
@@ -1855,9 +2117,13 @@ async function dailyBriefs(env) {
         // a human; auto sends straight to the client. A daily deliverable can be
         // either, and forcing every brand through a morning approval is exactly
         // the button-pushing this tool exists to avoid.
-        return a.review_first
-          ? await draftBrief(env, a, date, { skipIfExists: true })
-          : await sendBrief(env, a, date, { skipIfSent: true });
+        if (a.review_first) return await draftBrief(env, a, date, { skipIfExists: true });
+        const sent = await sendBrief(env, a, date, { skipIfSent: true });
+        /* An auto-send brand whose data is broken still gets a morning message —
+           internally, as a draft, saying why it was held. Silence is the worst
+           outcome available: the client gets nothing and nobody knows. */
+        if (sent.blocked) return { ...(await draftBrief(env, a, date, { skipIfExists: false })), held: sent.error };
+        return sent;
       });
     } catch (e) { r = { name: a.name, error: e.message }; }
     results.push(r);
@@ -1927,7 +2193,11 @@ function econDay(piv, metaBy, date, cmPct) {
   const fees = piv.totalPaymentGatewayCosts?.[date] ?? null;
   const mrow = metaBy[date];
   const gSpend = piv.ga_adCost?.[date] ?? null;
-  const spend = piv.blendedAds?.[date] ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null);
+  // Same guard as the Daily Brief: a blended total that contradicts Meta's own
+  // API is rebuilt rather than believed. The weekly report sums these days, so
+  // an unchecked one understates a whole week's spend.
+  const sp = spendFor(piv, date, mrow?.spend ?? null);
+  const spend = sp.spend;
   const rawNew = piv.newCustomerSales?.[date] ?? null;
   const rawRet = piv.rcRevenue?.[date] ?? null;
   const split = (rawNew ?? 0) + (rawRet ?? 0);
@@ -1941,7 +2211,7 @@ function econDay(piv, metaBy, date, cmPct) {
     new_rev: newRev,
     ret_rev: newShare != null ? sales * (1 - newShare) : rawRet,
     new_orders: piv.newCustomersOrders?.[date] ?? null,
-    meta_spend: mrow?.spend ?? null, google_spend: gSpend,
+    meta_spend: mrow?.spend ?? null, google_spend: gSpend, spend_source: sp.source,
     gp, margin: sales > 0 && gp != null ? gp / sales : null,
     cm: gp != null && spend != null ? gp - spend : null,
   };
@@ -4676,6 +4946,48 @@ export default {
         for (const a of accounts) results.push(await syncTwDaily(env, a, days).catch(e => ({ name: a.name, error: e.message })));
         return json({ ok: true, results });
       }
+      /* ---- Data health (2026-09-04) ----
+         Answers "can I trust this morning's numbers?" without anybody reading
+         code or asking. Three D1 reads per brand and no network calls, so it
+         is safe to open as often as you like. */
+      if (path === '/api/data-health' && request.method === 'GET') {
+        const act = url.searchParams.get('act');
+        const days = Math.min(+url.searchParams.get('days') || 14, 60);
+        const accounts = (await listAccounts(env, true)).filter(a => !act || act === 'all' || a.act_id === act);
+        const brands = [];
+        for (const a of accounts) {
+          brands.push(await dataHealth(env, a, { days }).catch(e => ({
+            account: { act_id: a.act_id, name: a.name }, verdict: 'unknown',
+            headline: `This check could not run: ${e.message}`, issues: [], days: [], bad_dates: [],
+          })));
+        }
+        const rank = { broken: 0, unknown: 1, warn: 2, ok: 3 };
+        brands.sort((x, y) => (rank[x.verdict] ?? 9) - (rank[y.verdict] ?? 9) || x.account.name.localeCompare(y.account.name));
+        return json({ ok: true, checked_at: new Date().toISOString(), brands });
+      }
+      /* Rebuild one day's draft from freshly-checked data. Deliberately ONE
+         brand and ONE day per call: a brief is the most expensive unit of work
+         in this worker (~22 subrequests of a 50 budget), so a loop over six
+         brands would die halfway and leave half-written drafts. The UI walks
+         the list and shows progress instead. */
+      if (path === '/api/brief-rebuild' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        const date = b.date;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return json({ error: 'date is required (YYYY-MM-DD)' }, 400);
+        const prior = await env.DB.prepare(
+          `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
+        ).bind(acct.act_id, date).first().catch(() => null);
+        // A sent brief is a record of what the client received. It does not get
+        // quietly rewritten, however wrong the numbers turned out to be.
+        if (prior?.status === 'sent') return json({ error: 'that day was already sent to the client, so it cannot be rebuilt — say so in the channel instead' }, 400);
+        const r = await makeBrief(env, acct, date);
+        if (r.error) return json({ error: r.error }, 400);
+        // Silent: no Slack post. This is a repair, not a new morning notice.
+        await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data);
+        return json({ ok: true, date, health: r.health, narrative_error: r.narrative_error ?? null });
+      }
       if (path === '/api/goal-suggest' && request.method === 'GET') {
         const act = url.searchParams.get('act');
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
@@ -4709,8 +5021,10 @@ export default {
         const date = b.date || addDays(localDate(acct.tz), -1);
         // Send what was reviewed. Regenerating here would discard any wording
         // edit made on the draft, which is the entire point of the review step.
-        const r = await sendBrief(env, acct, date, { useStored: b.regenerate !== true });
-        return r.ok ? json(r) : json({ error: r.error || r.skipped }, 400);
+        // `ignore_health` is the human override: someone has looked at the
+        // flagged numbers and decided they are right. The UI asks first.
+        const r = await sendBrief(env, acct, date, { useStored: b.regenerate !== true, ignoreHealth: b.ignore_health === true });
+        return r.ok ? json(r) : json({ error: r.error || r.skipped, blocked: r.blocked === true }, 400);
       }
       /* Save an edited draft. Only a draft is editable — once it is sent, the
          client has that text and it must stay a record of what they received. */

@@ -231,6 +231,12 @@
   .pill.warn{background:var(--warn-bg);color:var(--warn)}
   .pill.bad{background:var(--bad-bg);color:var(--bad)}
   .pill.unk{background:var(--unk-bg);color:var(--unk)}
+  /* Data Health. One issue per row, its fix directly underneath in the muted
+     size - the fix is the point of the row, so it never sits in a tooltip. */
+  .hl-issue{border-left:3px solid var(--bad);background:var(--bad-bg);border-radius:0 6px 6px 0;
+    padding:9px 12px;margin:8px 0;font-size:13px}
+  .hl-issue.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+  .hl-issue .tiny{opacity:.85;margin-top:3px}
   .delta{font-size:12px;font-weight:600;margin-left:6px}
   .delta.good{color:var(--good)} .delta.bad{color:var(--bad)} .delta.unk{color:var(--muted)}
   .tbl-wrap{overflow-x:auto}
@@ -1023,6 +1029,7 @@
       <button data-t="plan">Plan</button>
       <button data-t="customers">Customers</button></div></div>
     <div class="grp"><span class="band">Setup</span><div class="grp-btns">
+      <button data-t="health">Data Health</button>
       <button data-t="costs">Costs</button>
       <button data-t="settings">Settings</button></div></div>
   </div></nav>
@@ -1109,7 +1116,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // A Slack draft notice names one specific day. Without carrying the date
     // across, the link opened whatever "yesterday" meant at the moment of
@@ -1400,7 +1407,7 @@ document.addEventListener('click', e => {
   const hb = e.target.closest('[data-help]');
   if (hb) {
     const k = hb.dataset.help;
-    helpModalFor(k, { overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings' }[k] || 'This page', PAGE_HELP[k]);
+    helpModalFor(k, { overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings', health:'Data Health' }[k] || 'This page', PAGE_HELP[k]);
   }
 });
 
@@ -1452,6 +1459,11 @@ const PAGE_BRIEF = {
     answers: 'Who the clients are, and where each one’s reporting is sent.',
     when: 'Adding a client, or changing where their Slack updates go.',
     todo: 'Add brands at the top; set the internal and client channels in the table below.',
+  },
+  health: {
+    answers: 'Whether Triple Whale still agrees with the ad platforms — and so whether this morning’s numbers can be sent.',
+    when: 'When a draft looks off, or a red alert lands in an internal channel. Otherwise never — a broken day cannot reach a client on its own.',
+    todo: 'Read the red line, fix the connection where it says (usually in Triple Whale), then press Re-sync and Rebuild here.',
   },
 };
 
@@ -1686,6 +1698,7 @@ const TAB_PURPOSE = {
   plan:      "Set next month's revenue number with the client. Every other tab measures against what you set here.",
   customers: 'What a new customer costs, and whether their first order pays it back. Read this before you set a plan.',
   costs:     'Whether a client’s cost data can be trusted. Everything profit-related depends on the answer, so check it here when a warning appears.',
+  health:    'Whether Triple Whale still agrees with the ad platforms. Green means this morning’s numbers are safe to send; red tells you what broke and what to press.',
   settings:  'Add clients, and choose where each brand’s reporting goes.',
 };
 /** Standard page heading. `extra` is for the genuinely per-page bit (which client,
@@ -2399,6 +2412,17 @@ const PAGE_HELP = {
     <p><b>Delivery has two ways of going missing, and one of them is silent.</b> If a client bills shipping and records no fulfilment cost, that shipping income is already inside revenue and cannot be netted back out — so contribution margin really is overstated by roughly what delivery costs. The quieter failure is worse: where no delivery rate is configured, Triple Whale writes the shipping <i>charge</i> into the cost field, the two cancel exactly, and fulfilment disappears from the margin with nothing on screen to say so. The <b>Costs</b> tab tells the two apart and sizes what it is worth. Neither is adjusted for automatically — a silent correction would be indistinguishable from a measurement.</p>
     <p><b>The chart:</b> daily net sales against daily ad spend, so you can see whether spending more actually moved revenue, or just moved cost. Hover or tap anywhere for exact values.</p>
     <p><b>New vs returning:</b> a healthy acquisition business runs high on new. A high returning share with weak new revenue means the ads have stopped working and the list is carrying the store — MER looks fine while aMER quietly collapses. That's the failure mode this page exists to catch.</p>`,
+  health: `
+    <p><b>What this page is:</b> the one screen that says whether the numbers everywhere else are real. Every blended figure in Locus — net sales, spend, MER, aMER, contribution margin, every channel read in a report — arrives through Triple Whale. This page checks Triple Whale against the platforms themselves.</p>
+    <p><b>Why it exists:</b> on <b>2 September 2026</b> Triple Whale stopped reporting Meta spend for five of six brands. Bonk's brief said $204 of spend against $769 actually spent and printed a 7.7x MER. Nothing flagged it; it was found by eye three days later. Nothing had been sent to a client, but only because the drafts happened to be waiting for review.</p>
+    <p><b>The check that does <i>not</i> work</b> — and this is worth knowing, because it is the obvious one: adding Triple Whale's own platform numbers up. Their blended total <i>is</i> the sum of their platform rows, so when a platform drops out it contributes a clean zero to both sides and the arithmetic still balances. Measured across 95 days of history it matched to the cent, broken days included.</p>
+    <p><b>The two checks that do work:</b><br>
+    · <b>An outside witness.</b> Meta's own API is synced hourly into Locus, independently of Triple Whale, so it can contradict it. If Triple Whale's Meta spend is more than 10% below Meta's own figure, the day is flagged and the total is <i>rebuilt</i> — every other platform Triple Whale reports, plus Meta's real number in place of the missing one.<br>
+    · <b>Continuity.</b> Meta is the only platform with a second source. For Google, TikTok and the rest, a platform that has spent every day for a fortnight and reports nothing today is flagged as a dropout. Weaker — a genuine pause looks the same — so it clears itself after two weeks of the new normal.</p>
+    <p><b>What a red day does:</b> it cannot reach a client. The send is refused whoever asks for it — the morning cron, the Send button, a retry — and an auto-send brand is downgraded to an internal draft with the reason attached, so you get told rather than getting silence.</p>
+    <p><b>How you fix it:</b> the red line names the connection and where to reconnect it, which is nearly always inside Triple Whale — nobody can re-authorise someone else's integration from here. Then <b>Re-sync Triple Whale</b> pulls the corrected data, and <b>Rebuild flagged drafts</b> regenerates each affected day's brief from it. One brand and one day per press, because a brief is the most expensive thing this system does and a loop over six brands would die halfway.</p>
+    <p><b>What it can and cannot repair.</b> Meta spend has a second source, so it self-heals — the number you see is already correct, labelled <i>rebuilt</i>. Everything else Triple Whale alone knows — net sales, COGS, new vs returning, channel ROAS — can only be flagged as missing or implausible, never reconstructed. That is the argument for connecting Shopify and Google directly, which is the next piece of work.</p>
+    <p><b>Sent briefs are never rebuilt.</b> A sent brief is the record of what the client received; if it went out wrong, say so in the channel rather than quietly rewriting history.</p>`,
   costs: `
     <p><b>What this page is:</b> the foundation everything else stands on. Contribution margin is only as good as the product costs behind it, and cost data is the thing most stores get wrong.</p>
     <p><b>The problem it catches:</b> Triple Whale reports costs even when only <i>some</i> of a store's products have COGS entered. The result looks like data but isn't — daily margin swings wildly, and on a day when the costed products happen to sell, margin can go <i>negative</i>. Averaged over a month it produces a confident, completely wrong profit number.</p>
@@ -2507,7 +2531,8 @@ let RUN = 0;
 const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 /** Tab titles, so an error page can still say which tab it is. */
 const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
-  reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings' };
+  reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
+  health: 'Data Health' };
 
 /* ---------- The period bar ----------
    EVERY window in this tool ends YESTERDAY. Today is partial on every source -
@@ -2583,6 +2608,7 @@ const PB_FIXED = {
   reports: 'One week or one month — pick the report on the page',
   plan:    'One calendar month — pick it on the page',
   meta:    'Set within each Meta screen — they use their own windows',
+  health:  'The last 14 complete days, every brand — the window a broken feed shows up in',
 };
 
 function renderPeriodBar(tab) {
@@ -2697,7 +2723,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -3418,6 +3444,126 @@ function marginSVG(rows) {
   </svg>`;
 }
 
+/* ---------- Data Health ----------
+ *
+ * The page that exists so nobody has to ask why a number looked wrong.
+ *
+ * It is deliberately ALL BRANDS, always — the client picker is ignored here.
+ * The September 2026 outage hit five brands at once, and a per-client page
+ * would have shown five separate mysteries instead of one story. Broken brands
+ * sort to the top; a green page is meant to be read in two seconds and closed.
+ *
+ * Every red line carries its own fix, and the two buttons under it are the
+ * whole repair: Re-sync pulls Triple Whale again, Rebuild regenerates the
+ * drafts that were built from the bad numbers. Rebuild walks one day at a time
+ * with progress, because each one is a full brief (~22 of a 50-subrequest
+ * budget) and a parallel loop would die halfway.
+ */
+const HEALTH_PILL = { ok: ['good', '✓ Agrees'], warn: ['warn', '⚠ Check'], broken: ['bad', '✕ Broken'], unknown: ['warn', '? Unknown'] };
+
+async function renderHealth(first) {
+  const run = ++RUN;
+  $('#main').innerHTML = `${pageHead('health', 'Data Health')}<div class="card"><p class="hint">Checking every brand against Meta and the other platforms…</p></div>`;
+  const d = await api('/api/data-health?act=all&days=14');
+  if (run !== RUN) return;
+  const brands = d.brands || [];
+  const broken = brands.filter(b => b.verdict === 'broken');
+  const warn = brands.filter(b => b.verdict === 'warn');
+
+  const top = broken.length
+    ? `<div class="notice bad">⚠️ <div><b>${broken.length} brand${broken.length === 1 ? '' : 's'} cannot be reported on right now.</b>
+        ${broken.length === brands.length ? 'Every brand is affected, which almost always means one integration, not six.' : ''}
+        Nothing has gone to a client — a flagged day is refused at send, whoever asks for it.</div></div>`
+    : warn.length
+    ? `<div class="notice warn">ℹ️ <div><b>Everything adds up, with ${warn.length} thing${warn.length === 1 ? '' : 's'} worth a look.</b> Nothing here blocks a send.</div></div>`
+    : `<div class="notice good">✓ <div><b>Triple Whale agrees with every platform it reports, across all ${brands.length} brands.</b> The last 14 days are safe to send.</div></div>`;
+
+  const card = b => {
+    const [cls, label] = HEALTH_PILL[b.verdict] || HEALTH_PILL.unknown;
+    const bad = (b.days || []).filter(x => x.issues?.some(i => i.severity === 'broken'));
+    // One line per DISTINCT problem, not per day. Six days of the same broken
+    // connection is one thing to fix, and listing it six times buries it.
+    const seen = new Map();
+    for (const day of (b.days || [])) {
+      for (const i of (day.issues || [])) {
+        const k = `${i.code}|${i.what.replace(/\$[\d,]+/g, '$')}`;
+        if (!seen.has(k)) seen.set(k, { ...i, dates: [] });
+        seen.get(k).dates.push(day.date);
+      }
+    }
+    for (const i of (b.issues || [])) seen.set(`acct|${i.code}`, { ...i, dates: [] });
+    const lines = [...seen.values()].map(i => `<div class="hl-issue ${i.severity}">
+        <div><b>${esc(i.what)}</b>${i.dates.length ? ` <span class="tiny">· ${i.dates.length === 1 ? prettyDay(i.dates[0]) : `${i.dates.length} days, ${prettyDay(i.dates[0])} → ${prettyDay(i.dates[i.dates.length - 1])}`}</span>` : ''}</div>
+        <div class="tiny">${esc(i.fix)}</div>
+      </div>`).join('');
+    // The evidence, for the days that failed: what TW claimed, what we used.
+    const rows = bad.slice(-7).map(x => `<tr>
+        <td>${prettyDay(x.date)}</td>
+        <td class="num">${fmtMoney(x.tw_blended, b.account.currency)}</td>
+        <td class="num">${fmtMoney(x.meta_api, b.account.currency)}</td>
+        <td class="num"><b>${fmtMoney(x.spend, b.account.currency)}</b></td>
+        <td class="tiny">${x.source === 'rebuilt' ? 'rebuilt from platforms' : x.source === 'triple_whale' ? 'Triple Whale' : esc(x.source)}</td>
+      </tr>`).join('');
+    return `<div class="card hl-card" data-act="${esc(b.account.act_id)}">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
+        <div><h3 style="margin:0 0 2px">${esc(b.account.name)}</h3>
+          <p class="tiny" style="margin:0">Triple Whale last refreshed ${esc(fmtAgo(b.last_sync))}${b.from ? ` · checked ${prettyDay(b.from)} → ${prettyDay(b.to)}` : ''}</p></div>
+        <span class="pill ${cls}">${label}</span>
+      </div>
+      <p style="margin:10px 0 ${lines ? '10px' : '0'}">${esc(b.headline)}</p>
+      ${lines}
+      ${rows ? `<div class="tbl-wrap" style="margin-top:10px"><table>
+        <thead><tr><th>Day</th><th class="num">Triple Whale said</th><th class="num">Meta’s own figure</th><th class="num">Spend we used</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>` : ''}
+      ${b.verdict === 'broken' || b.verdict === 'warn' ? `<div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-hl="sync">↻ Re-sync Triple Whale</button>
+        ${bad.length ? `<button class="btn primary" data-hl="rebuild">Rebuild ${bad.length} flagged draft${bad.length === 1 ? '' : 's'}</button>` : ''}
+        <span class="tiny" data-hl="msg"></span>
+      </div>` : ''}
+    </div>`;
+  };
+
+  $('#main').innerHTML = `${pageHead('health', 'Data Health')}
+    ${top}
+    <p class="hint" style="margin:0 0 14px">Every blended number in Locus comes through Triple Whale. This checks it against the one source that owes it nothing — <b>Meta’s own API</b> — and watches every other platform for a connection that has gone quiet. Checked just now, covering the last 14 complete days.</p>
+    ${brands.map(card).join('')}
+    <p class="tiny" style="margin-top:14px">Meta is the only platform with a second source, so a missing Meta figure is repaired automatically and marked <i>rebuilt</i>. Everything else — Google, TikTok, store revenue, product costs — can only be flagged, never reconstructed, until those platforms are connected to Locus directly.</p>`;
+
+  $('#main').addEventListener('click', async e => {
+    const btn = e.target.closest('button[data-hl]'); if (!btn) return;
+    const cardEl = btn.closest('.hl-card');
+    const act = cardEl.dataset.act;
+    const b = brands.find(x => x.account.act_id === act);
+    const msg = cardEl.querySelector('[data-hl="msg"]');
+    const buttons = [...cardEl.querySelectorAll('button[data-hl]')];
+    const lock = on => buttons.forEach(x => { x.disabled = on; x.style.opacity = on ? .55 : 1; });
+    try {
+      lock(true);
+      if (btn.dataset.hl === 'sync') {
+        msg.textContent = 'Pulling the last 45 days from Triple Whale…';
+        await api(`/api/tw-sync?act=${encodeURIComponent(act)}&days=45`, { method: 'POST' });
+        msg.textContent = 'Re-synced. Re-checking…';
+        return show('health');
+      }
+      // Rebuild: one day per call, oldest first, with visible progress.
+      const days = (b.days || []).filter(x => x.issues?.some(i => i.severity === 'broken')).map(x => x.date);
+      if (!(await confirmModal(`Rebuild ${days.length} draft${days.length === 1 ? '' : 's'} for ${b.account.name}?`,
+        'Each day is regenerated from the data as it stands now, including the written summary. Any wording you had edited on those drafts is replaced. Days already sent to the client are left alone.', 'Rebuild them'))) return lock(false);
+      let done = 0, failed = [];
+      for (const date of days) {
+        msg.textContent = `Rebuilding ${prettyDay(date)}… (${done + 1} of ${days.length})`;
+        try { await api('/api/brief-rebuild', { method: 'POST', body: JSON.stringify({ act, date }) }); done++; }
+        catch (err) { failed.push(`${prettyDay(date)}: ${err.message}`); }
+      }
+      msg.textContent = `${done} draft${done === 1 ? '' : 's'} rebuilt${failed.length ? ` · ${failed.length} could not be: ${failed.join('; ')}` : ' — open the Daily Brief tab to read them.'}`;
+      lock(false);
+    } catch (err) { msg.textContent = err.message; lock(false); }
+  });
+}
+
+/** "Sep 3" — the same shape the briefs use, so a date reads the same everywhere. */
+const prettyDay = ymd => ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '—';
+
 async function renderCosts(first) {
   if (S.act === 'all') {
     $('#main').innerHTML = `${pageHead('costs', 'Costs', 'Product costs <i>and</i> delivery, per client.')}
@@ -3648,6 +3794,11 @@ async function renderBrief(first) {
     ${d.goals && d.goals_planned === false ? `<div class="notice warn">⚠️ <div><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure below is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so out loud. <button class="btn" id="bfToPlan2" style="margin-left:6px">Set ${esc(monthLabel(d.month))}'s plan</button></div></div>` : ''}
     ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab — the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
     ${noTw && d.goals ? `<div class="notice warn">⚠️ <div>No Triple Whale sales data for ${d.date} yet — hit “Refresh Triple Whale data”, and check the shop domain in Settings if it persists.</div></div>` : ''}
+    ${(d.health?.by_date?.[d.date] || []).some(i => i.severity === 'broken') ? `<div class="notice bad">🚨 <div><b>The data behind this day is wrong — it cannot be sent.</b>
+      ${esc((d.health.by_date[d.date].find(i => i.severity === 'broken')).what)}.
+      ${esc((d.health.by_date[d.date].find(i => i.severity === 'broken')).fix)}
+      Spend below has been rebuilt from the platforms' own reporting where a second source exists.
+      <button class="btn" id="bfToHealth" style="margin-left:6px">Open Data Health</button></div></div>` : ''}
     ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely — every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or set a flat <b>margin %</b> on the <b>Costs</b> tab instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> — ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab overrides it with a stable rate.</div></div>` : ''}
     <!-- The draft is the job; the numbers underneath are context. This card
          used to sit below the stat cards, the chart and the plan, so reviewing
@@ -3756,6 +3907,8 @@ async function renderBrief(first) {
   if (toPlan) toPlan.onclick = openPlan;
   const toPlan2 = $('#bfToPlan2');
   if (toPlan2) toPlan2.onclick = openPlan;
+  const toHealth = $('#bfToHealth');
+  if (toHealth) toHealth.onclick = () => show('health');
   $('#bfAuto').onclick = async e => {
     const on = !e.target.classList.contains('on');
     if (on && !d.goals) { $('#gMsg').textContent = 'Set goals first — auto-post needs a plan to compare against.'; return; }
