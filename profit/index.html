@@ -4500,34 +4500,51 @@ async function renderReportsAll(first) {
   const judged = S.accounts.map(a => {
     const wk = by[a.act_id]?.weekly, mo = by[a.act_id]?.monthly;
     const drafts = [wk, mo].filter(x => x && x.status === 'draft');
+    const skipped = [wk, mo].filter(x => x && x.status === 'skipped');
     const noChannel = !a.slack_channel;
     // Setup faults outrank waiting drafts: a brand whose drafts post nowhere
     // will never appear in the "waiting" list at all, which is the failure you
     // cannot see from this page.
-    const g = noChannel ? 'bd' : drafts.length ? 'wn' : (wk || mo) ? 'ok' : 'un';
-    return { a, wk, mo, drafts, noChannel, g };
+    // A skipped report is not "all sent" - it was generated and deliberately
+    // not sent, which is a state worth seeing rather than one to round off.
+    const g = noChannel ? 'bd' : drafts.length ? 'wn' : skipped.length ? 'un' : (wk || mo) ? 'ok' : 'un';
+    return { a, wk, mo, drafts, skipped, noChannel, g };
   }).sort((x, y) => ({ bd: 0, wn: 1, ok: 2, un: 3 })[x.g] - ({ bd: 0, wn: 1, ok: 2, un: 3 })[y.g]
     || x.a.name.localeCompare(y.a.name));
 
   const waiting = judged.reduce((n, j) => n + j.drafts.length, 0);
   const sent = (r.rows || []).filter(x => x.status === 'sent').length;
+  const skippedTotal = (r.rows || []).filter(x => x.status === 'skipped').length;
   const gaps = judged.filter(j => j.noChannel).length;
 
-  const state = row => row
-    ? `${repRangeLabel({ period: row.period, start: row.period_start, end: row.period_end })} <span class="pill ${row.status === 'sent' ? 'good' : 'warn'}">${row.status === 'sent' ? 'sent' : 'draft'}</span>`
-    : '<span class="tiny">none yet</span>';
+  /* Name the status the row ACTUALLY has.
+     The old table printed "draft" for anything that was not 'sent', which is a
+     fallback dressed as a check - and it hid a real state: every report in the
+     database right now is `skipped`, generated in full and then marked as not
+     to be sent. Reading "draft" told you there was something to review when
+     there was not. A status this page does not recognise says so rather than
+     picking the nearest familiar word. */
+  const PILL = { sent: ['good', 'sent'], draft: ['warn', 'draft'], skipped: ['unk', 'skipped'] };
+  const state = row => {
+    if (!row) return '<span class="tiny">none yet</span>';
+    const [cls, label] = PILL[row.status] || ['unk', row.status || 'unknown'];
+    return `${repRangeLabel({ period: row.period, start: row.period_start, end: row.period_end })} <span class="pill ${cls}">${esc(label)}</span>`;
+  };
 
   const card = j => {
     const act = j.noChannel
       ? 'No internal channel, so drafts for this brand post <b>nowhere</b>. Set one in <b>Settings</b> before the next Monday run.'
       : j.drafts.length
       ? `${j.drafts.length === 2 ? 'Both reports are' : 'A report is'} drafted and waiting on you. Open it, read it, then send.`
+      : j.skipped.length
+      ? `${j.skipped.length === 2 ? 'Both reports were' : 'A report was'} generated in full and then marked <b>skipped</b>, so ${j.skipped.length === 2 ? 'neither' : 'it'} will be sent. Open it to read what was written.`
       : (j.wk || j.mo) ? 'Everything drafted so far has been sent. Nothing waiting.'
       : 'No report has been generated yet. The next Monday run will draft one.';
     return `<div class="sc ${j.g === 'un' ? '' : j.g}" data-id="${j.a.act_id}" tabindex="0" role="button"
         aria-label="${esc(j.a.name)} reports">
       <div class="sc-h"><span class="sc-n">${esc(j.a.name)}</span>
-        <span class="sc-s">${j.noChannel ? 'no channel' : j.drafts.length ? `${j.drafts.length} waiting` : (j.wk || j.mo) ? 'all sent' : 'none yet'}</span></div>
+        <span class="sc-s">${j.noChannel ? 'no channel' : j.drafts.length ? `${j.drafts.length} waiting`
+          : j.skipped.length ? `${j.skipped.length} skipped` : (j.wk || j.mo) ? 'all sent' : 'none yet'}</span></div>
       <div class="sc-foot">
         <div class="sc-g" style="grid-template-columns:1fr 1fr;border-top:none;padding-top:0">
           <div><div class="sc-gl">Latest weekly</div><div class="tiny" style="line-height:1.5">${state(j.wk)}</div></div>
@@ -4538,7 +4555,7 @@ async function renderReportsAll(first) {
     </div>`;
   };
 
-  const LABEL = { bd: 'Cannot be delivered', wn: 'Waiting on you', ok: 'All sent', un: 'Nothing generated yet' };
+  const LABEL = { bd: 'Cannot be delivered', wn: 'Waiting on you', ok: 'All sent', un: 'Generated but not going out' };
   const groups = ['bd', 'wn', 'ok', 'un'].map(g => {
     const list = judged.filter(j => j.g === g);
     if (!list.length) return '';
@@ -4553,7 +4570,7 @@ async function renderReportsAll(first) {
         <div class="ru-v${waiting ? ' warn' : ''}">${waiting}</div>
         <div class="ru-d">${waiting ? 'drafted, not yet sent to the client' : 'nothing drafted is unsent'}</div></div>
       <div class="ru"><div class="ru-l">Sent</div><div class="ru-v">${sent}</div>
-        <div class="ru-d">frozen and live on the client's archive link</div></div>
+        <div class="ru-d">${skippedTotal ? `${skippedTotal} generated then skipped` : "frozen and live on the client's archive link"}</div></div>
       <div class="ru"><div class="ru-l">Brands</div><div class="ru-v">${S.accounts.length}</div>
         <div class="ru-d">weekly on Monday, monthly on the 1st</div></div>
       <div class="ru"><div class="ru-l">Setup gaps</div>
