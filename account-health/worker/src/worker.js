@@ -1354,6 +1354,17 @@ async function dataHealth(env, acct, { days = 14, upTo = null } = {}) {
   const lastSync = (await env.DB.prepare(
     `SELECT MAX(synced_at) AS t FROM tw_daily WHERE act_id = ?1`,
   ).bind(acct.act_id).first())?.t ?? null;
+  /* Unsent drafts in the window, so a draft written from numbers that have
+     since been repaired can still be rebuilt.
+     THE CASE THIS EXISTS FOR: on 2026-09-05 Triple Whale was fixed and every
+     brand went green — which took the Rebuild button away while six drafts
+     still carried the wrong spend. Health describes the DATA; a draft is a
+     copy of the data taken at a moment, and the two heal separately. */
+  const { results: draftRows } = await env.DB.prepare(
+    `SELECT date, status, posted_at FROM briefs
+      WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 AND status != 'sent'
+      ORDER BY date`,
+  ).bind(acct.act_id, start, end).all().catch(() => ({ results: [] }));
 
   const out = [];
   for (let d = start; d <= end; d = addDays(d, 1)) {
@@ -1397,6 +1408,13 @@ async function dataHealth(env, acct, { days = 14, upTo = null } = {}) {
     from: start, to: end, last_sync: lastSync, stale_hours: staleH,
     verdict, headline, issues, days: out,
     bad_dates: badDays.map(x => x.date),
+    /* `written_before_last_sync` is the honest signal, not proof: Triple Whale
+       re-syncs hourly, so it flags a draft older than the data rather than a
+       draft that is actually wrong. The page says which it is. */
+    drafts: draftRows.map(r => ({
+      date: r.date, status: r.status, posted_at: r.posted_at,
+      written_before_last_sync: !!(lastSync && r.posted_at && Date.parse(`${lastSync.replace(' ', 'T')}Z`) > Date.parse(r.posted_at)),
+    })),
   };
 }
 

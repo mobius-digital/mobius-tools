@@ -237,6 +237,11 @@
     padding:9px 12px;margin:8px 0;font-size:13px}
   .hl-issue.warn{border-left-color:var(--warn);background:var(--warn-bg)}
   .hl-issue .tiny{opacity:.85;margin-top:3px}
+  .hl-drafts{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+  .hl-draft{display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:10px;
+    padding:5px 0;font-size:13px}
+  .hl-draft + .hl-draft{border-top:1px solid var(--line)}
+  .hl-draft button{padding:4px 10px;font-size:12px}
   .delta{font-size:12px;font-weight:600;margin-left:6px}
   .delta.good{color:var(--good)} .delta.bad{color:var(--bad)} .delta.unk{color:var(--muted)}
   .tbl-wrap{overflow-x:auto}
@@ -3507,6 +3512,22 @@ async function renderHealth(first) {
         <td class="num"><b>${fmtMoney(x.spend, b.account.currency)}</b></td>
         <td class="tiny">${x.source === 'rebuilt' ? 'rebuilt from platforms' : x.source === 'triple_whale' ? 'Triple Whale' : esc(x.source)}</td>
       </tr>`).join('');
+    /* Drafts are listed WHATEVER the verdict.
+       A brand can be green — the feed repaired, every day agreeing — while its
+       unsent drafts still carry the numbers from when it was broken. That is
+       exactly what happened on 2026-09-05, and the old page answered it by
+       taking the Rebuild button away. Health is about the data; a draft is a
+       copy of the data taken at a moment. */
+    const drafts = b.drafts || [];
+    const stale = drafts.filter(x => x.written_before_last_sync);
+    const draftBlock = drafts.length ? `<div class="hl-drafts">
+        <div class="tiny" style="margin-bottom:6px"><b>${drafts.length} unsent draft${drafts.length === 1 ? '' : 's'}</b>${stale.length ? ` · ${stale.length} written before the latest Triple Whale refresh, so ${stale.length === 1 ? 'it may be' : 'they may be'} carrying older numbers` : ' · all written since the latest refresh'}</div>
+        ${drafts.map(x => `<div class="hl-draft">
+          <span>${prettyDay(x.date)}</span>
+          <span class="tiny">${x.status === 'skipped' ? 'marked don’t-send' : 'draft'}${x.posted_at ? ` · written ${esc(fmtAgo(x.posted_at))}` : ''}${x.written_before_last_sync ? ' · <b>older than the data</b>' : ''}</span>
+          <button class="btn" data-hl="rebuildday" data-date="${esc(x.date)}">Rebuild</button>
+        </div>`).join('')}
+      </div>` : '';
     return `<div class="card hl-card" data-act="${esc(b.account.act_id)}">
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
         <div><h3 style="margin:0 0 2px">${esc(b.account.name)}</h3>
@@ -3518,11 +3539,13 @@ async function renderHealth(first) {
       ${rows ? `<div class="tbl-wrap" style="margin-top:10px"><table>
         <thead><tr><th>Day</th><th class="num">Triple Whale said</th><th class="num">Meta’s own figure</th><th class="num">Spend we used</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>` : ''}
-      ${b.verdict === 'broken' || b.verdict === 'warn' ? `<div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
+      ${draftBlock}
+      <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
         <button class="btn" data-hl="sync">↻ Re-sync this brand</button>
         ${bad.length ? `<button class="btn primary" data-hl="rebuild">Rebuild ${bad.length} flagged draft${bad.length === 1 ? '' : 's'}</button>` : ''}
+        ${!bad.length && stale.length ? `<button class="btn primary" data-hl="rebuildstale">Rebuild ${stale.length} draft${stale.length === 1 ? '' : 's'} older than the data</button>` : ''}
         <span class="tiny" data-hl="msg"></span>
-      </div>` : ''}
+      </div>
     </div>`;
   };
 
@@ -3638,7 +3661,9 @@ async function renderHealth(first) {
         await repaintCard(act);            // this card only; the others keep running
         return;
       }
-      const days = badDaysOf(b).map(x => x.date);
+      const days = kind === 'rebuildday' ? [btn.dataset.date]
+        : kind === 'rebuildstale' ? (b.drafts || []).filter(x => x.written_before_last_sync).map(x => x.date)
+        : badDaysOf(b).map(x => x.date);
       if (!(await confirmModal(`Rebuild ${days.length} draft${days.length === 1 ? '' : 's'} for ${b.account.name}?`,
         'Each day is regenerated from the data as it stands now, including the written summary. Any wording you had edited on those drafts is replaced. Days already sent to the client are left alone.', 'Rebuild them'))) return lock(false);
       let done = 0; const failed = [];
@@ -3647,7 +3672,11 @@ async function renderHealth(first) {
         try { await api('/api/brief-rebuild', { method: 'POST', body: JSON.stringify({ act, date }) }); done++; }
         catch (err) { failed.push(`${prettyDay(date)}: ${err.message}`); }
       }
-      msg.textContent = `${done} draft${done === 1 ? '' : 's'} rebuilt${failed.length ? ` · ${failed.length} could not be: ${failed.join('; ')}` : ' — read them on the Daily Brief tab.'}`;
+      const summary = `${done} draft${done === 1 ? '' : 's'} rebuilt${failed.length ? ` · ${failed.length} could not be: ${failed.join('; ')}` : ' — read them on the Daily Brief tab.'}`;
+      // Refresh the card so the "written" times and the stale flags are true again.
+      await repaintCard(act).catch(() => {});
+      const line = $(`.hl-card[data-act="${CSS.escape(act)}"] [data-hl="msg"]`);
+      if (line) line.textContent = summary; else msg.textContent = summary;
       lock(false);
     } catch (err) { msg.textContent = err.message; lock(false); }
   };
