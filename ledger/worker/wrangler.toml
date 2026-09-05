@@ -19,6 +19,14 @@ database_id = "3b6d3d66-e6b5-4e56-aaa6-3886ca804e5a"
 binding = "RECEIPTS"
 id = "8f918b1da0084875b718a044d930c924"
 
+# Auth delegation: sessions are verified against mobius-account-health over a
+# SERVICE BINDING, not its public URL — Cloudflare blocks a Worker fetching
+# another Worker's *.workers.dev URL on the same account, so the public-URL
+# version failed closed and locked everyone out (found 2026-09-05, day one).
+[[services]]
+binding = "AUTH"
+service = "mobius-account-health"
+
 # Secrets (set once, never committed):
 #   npx wrangler secret put ADMIN_TOKEN         master/recovery key for the API
 #   npx wrangler secret put ANTHROPIC_API_KEY   optional — receipt reading (Claude);

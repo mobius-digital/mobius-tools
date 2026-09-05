@@ -37,19 +37,24 @@ async function sha256hex(s) {
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/* Session check is a network call, so cache verdicts per isolate (10 min). */
+/* Session check goes over the AUTH service binding — a Worker cannot fetch
+ * another Worker's *.workers.dev URL on the same account (the public-URL
+ * version of this failed closed and locked everyone out on day one).
+ * Verdicts cache per isolate: passes 10 min, failures 60s so a transient
+ * error can't lock the door for long. */
 const sessCache = new Map();
-async function validSession(tok) {
+async function validSession(env, tok) {
   if (!/^mds\./.test(tok || '')) return false;
   const hit = sessCache.get(tok);
   if (hit && hit.until > Date.now()) return hit.ok;
   let ok = false;
   try {
-    const r = await fetch(AUTH_WORKER + '/api/me', { headers: { Authorization: 'Bearer ' + tok } });
+    const req = new Request(AUTH_WORKER + '/api/me', { headers: { Authorization: 'Bearer ' + tok } });
+    const r = env.AUTH ? await env.AUTH.fetch(req) : await fetch(req);
     const j = await r.json();
     ok = !!j.email;
   } catch (e) { /* auth worker unreachable — fail closed */ }
-  sessCache.set(tok, { ok, until: Date.now() + 10 * 60e3 });
+  sessCache.set(tok, { ok, until: Date.now() + (ok ? 10 * 60e3 : 60e3) });
   return ok;
 }
 
@@ -58,7 +63,7 @@ async function isAdmin(request, env) {
   if (!auth.startsWith('Bearer ')) return false;
   const tok = auth.slice(7);
   if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
-  if (await validSession(tok)) return true;
+  if (await validSession(env, tok)) return true;
   const stored = await getSetting(env, 'passwordHash');
   return !!stored && (await sha256hex(tok)) === stored;
 }
