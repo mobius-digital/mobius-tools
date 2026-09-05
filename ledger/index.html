@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mobius Ledger</title>
+<meta name="description" content="Money in, money out, month close and the CPA pack — Mobius Digital's internal finance tool.">
+<link rel="icon" href="../favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="../favicon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../mobius.css">
+<style>
+  /* ---- page furniture ---- */
+  .hdr{background:var(--hd);color:var(--on-ink);position:sticky;top:0;z-index:20}
+  .hdr .in{max-width:1140px;margin:0 auto;padding:0 18px;display:flex;align-items:center;gap:14px;height:54px}
+  .hdr .wm{font-family:var(--serif);font-size:19px;color:#fff;white-space:nowrap}
+  .hdr .wm em{font-style:italic;color:var(--brand)}
+  .hdr nav{display:flex;gap:2px;margin-left:10px;overflow-x:auto;scrollbar-width:none}
+  .hdr nav::-webkit-scrollbar{display:none}
+  .hdr nav button{color:var(--on-ink-2);font-size:13px;font-weight:600;padding:7px 11px;border-radius:8px;white-space:nowrap;position:relative}
+  .hdr nav button:hover{color:#fff}
+  .hdr nav button.on{color:#fff;background:var(--hd-line)}
+  .hdr nav button .bdg{display:inline-block;min-width:16px;text-align:center;background:var(--warn-on);color:var(--hd);font-size:10px;font-weight:700;border-radius:99px;padding:1px 4px;margin-left:5px;vertical-align:1px}
+  .hdr .chip-conn{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--on-ink-2);border:1px solid var(--hd-line);border-radius:99px;padding:4px 10px;white-space:nowrap}
+  .hdr .chip-conn[data-s=live]{color:var(--good-on);border-color:rgba(95,210,146,.4)}
+  .hdr .chip-conn[data-s=down]{color:var(--bad-on)}
+  main{max-width:1140px;margin:0 auto;padding:22px 18px 90px}
+  /* mobius.css sets .lg-num to the ink color, which vanishes on the dark roll-up */
+  .rollup .lg-num{color:var(--on-ink)}
+  .mo-nav{display:flex;align-items:center;gap:8px}
+  .mo-nav b{font-size:14px;min-width:112px;text-align:center}
+  .mo-nav button{border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);width:26px;height:26px;font-size:13px;line-height:1}
+  .mo-nav button:hover{border-color:var(--brand-ink)}
+  .mo-lock{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:99px;padding:2px 8px}
+  .mo-lock.closed{background:var(--good-bg);color:var(--good)}
+  .mo-lock.open{background:var(--warn-bg);color:var(--warn)}
+
+  /* ---- modal shell ---- */
+  .scrim{position:fixed;inset:0;background:rgba(12,22,29,.45);z-index:40;display:none}
+  .scrim.on{display:block}
+  .modal{position:fixed;inset:0;z-index:50;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 14px}
+  .modal.on{display:flex}
+  .mbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 24px;max-width:520px;width:100%;box-shadow:0 24px 70px rgba(12,22,29,.3)}
+  .mbox .mrow{display:flex;gap:10px;margin-top:10px}
+  .mbox .mrow>div{flex:1;min-width:0}
+  .mbox label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
+  .mbox label .why{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px;margin-top:1px}
+  .mbox input,.mbox select,.mbox textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;background:var(--surface)}
+  .mbox .acts{display:flex;gap:10px;margin-top:20px;align-items:center}
+  .mbox .acts .spacer{flex:1}
+  .seg{display:flex;border:1px solid var(--line-strong);border-radius:9px;overflow:hidden}
+  .seg button{flex:1;padding:8px;font-size:13px;font-weight:600;color:var(--muted)}
+  .seg button.on{background:var(--hd);color:#fff}
+  .ck{display:flex;gap:9px;align-items:flex-start;margin-top:12px;font-size:13px;cursor:pointer}
+  .ck input{width:auto;margin-top:2px}
+  .ck small{display:block;color:var(--muted);font-size:11.5px}
+
+  /* ---- transactions table ---- */
+  .txn-tbl td{white-space:normal}
+  .txn-tbl .amt{font-family:var(--serif);font-size:17px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .txn-tbl .amt.in{color:var(--good)}
+  .txn-tbl .amt.neg{color:var(--bad)}
+  .txn-tbl tbody tr{cursor:pointer}
+  .txn-tbl tbody tr:hover td{background:var(--brand-soft)}
+  .txn-tbl .cat{font-size:11.5px;color:var(--muted)}
+  .rc{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap}
+  .rc.has{background:var(--good-bg);color:var(--good)}
+  .rc.miss{background:var(--warn-bg);color:var(--warn)}
+  .rc.na{background:var(--unk-bg);color:var(--unk)}
+
+  /* ---- receipts ---- */
+  .drop{border:2px dashed var(--line-strong);border-radius:var(--radius);background:var(--surface);padding:34px 20px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--brand-ink);color:var(--brand-ink);background:var(--brand-soft)}
+  .drop b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+  .vault{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .vitem{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:11.5px}
+  .vitem:hover{border-color:var(--brand-ink)}
+  .vitem .vt{font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vitem .vm{color:var(--muted)}
+
+  /* ---- close checklist ---- */
+  .clx{display:flex;flex-direction:column;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .cli{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .cli:last-child{border-bottom:none}
+  .cli .ic{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px}
+  .cli.ok .ic{background:var(--good-bg);color:var(--good)}
+  .cli.warn .ic{background:var(--warn-bg);color:var(--warn)}
+  .cli.info .ic{background:var(--unk-bg);color:var(--unk)}
+  .cli b{font-size:14px}
+  .cli p{color:var(--muted);font-size:12.5px;margin-top:1px}
+  .cli .go{margin-left:auto;flex:none;font-size:12.5px;font-weight:700;color:var(--brand-ink);cursor:pointer;white-space:nowrap;padding:4px 0}
+
+  /* ---- report card ---- */
+  .rpt{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px 30px;max-width:820px}
+  .rpt h1{font-family:var(--serif);font-weight:400;font-size:26px}
+  .rpt .rsub{color:var(--muted);font-size:12.5px;margin-bottom:18px}
+  .rpt .figs{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line);margin-bottom:18px}
+  .rpt .figs .fig{flex:1 1 140px}
+  .rpt h4{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
+  .kv{width:100%;border-collapse:collapse;font-size:13.5px}
+  .kv td{padding:8px 0;border-bottom:1px solid var(--line);white-space:normal}
+  .kv td:last-child{text-align:right;font-family:var(--serif);font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .kv tr.tot td{font-weight:700;border-bottom:none}
+  .kv tr.tot td:last-child{font-size:18px}
+  .fig-l{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+  .fig-v{font-size:26px}
+  .fig-d{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .split-tbl td:first-child small{display:block;color:var(--muted);font-size:11px}
+
+  /* ---- forecast / misc ---- */
+  .bars{display:flex;align-items:flex-end;gap:6px;height:130px;margin-top:8px}
+  .bars .b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;height:100%;text-align:center;min-width:0}
+  .bars .b .f{border-radius:3px 3px 0 0;background:var(--brand);min-height:2px}
+  .bars .b .f.ex{background:var(--line-strong)}
+  .bars .b .m{font-size:10px;color:var(--muted);white-space:nowrap}
+  .conc{display:flex;height:14px;border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+  .leg{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11.5px;color:var(--muted)}
+  .leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .msg{font-size:13px;margin-top:10px}
+  .msg.bad{color:var(--bad)}
+  .msg.good{color:var(--good)}
+  footer{max-width:1140px;margin:0 auto;padding:0 18px 34px;color:var(--muted);font-size:12px}
+
+  @media print{
+    body{background:#fff}
+    .hdr,footer,.no-print{display:none!important}
+    main{padding:0;max-width:none}
+    .rpt{border:none;padding:0;max-width:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hdr no-print">
+  <div class="in">
+    <span class="wm">Mobius <em>Ledger</em></span>
+    <nav id="nav"></nav>
+    <span class="chip-conn" id="connChip">…</span>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<div class="scrim" id="scrim"></div>
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+
+<footer class="no-print">Mobius Ledger · the sheet's own formulas: net = revenue − expenses − merchant fee; the app never moves money — it computes the split, you make the transfers.</footer>
+
+<script>
+'use strict';
+/* ================= config / state ================= */
+const DEFAULT_WORKER_URL = 'https://mobius-ledger.mobius-digital.workers.dev';
+const LS = { url:'ledger_worker', tok:'ledger_token', month:'ledger_month' };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* Shared Mobius session (set by /hq Google sign-in; same origin, all tools). */
+function sharedSession() {
+  const t = localStorage.getItem('mobius_session');
+  const exp = +localStorage.getItem('mobius_session_exp') || 0;
+  return t && (exp === 0 || exp > Date.now() + 60e3) ? t : null;
+}
+
+const nowMonth = () => new Date().toISOString().slice(0, 7);
+let S = {
+  url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
+  tok: localStorage.getItem(LS.tok) || sharedSession() || '',
+  view: 'dash',
+  month: localStorage.getItem(LS.month) || nowMonth(),
+  boot: null, summary: null, txns: null, txnMonth: null,
+  filter: 'all', packData: null, report: null, reportMonth: null,
+};
+
+async function api(path, opts = {}) {
+  const res = await fetch(S.url.replace(/\/+$/,'') + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + S.tok,
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers||{}) },
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  return j;
+}
+
+/* ================= formatting ================= */
+const fmt$ = n => (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtK = n => (n < 0 ? '−$' : '$') + (Math.abs(n) >= 1000 ? (Math.abs(n)/1000).toFixed(1).replace(/\.0$/,'') + 'K' : Math.abs(n).toFixed(0));
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const moName = m => MONTHS[+m.slice(5,7)-1] + ' ' + m.slice(0,4);
+const moShort = m => MONTHS[+m.slice(5,7)-1].slice(0,3);
+const addMonths = (m, n) => { const d = new Date(m + '-15T12:00:00Z'); d.setUTCMonth(d.getUTCMonth()+n); return d.toISOString().slice(0,7); };
+const fmtDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+const moState = m => (S.boot?.months || []).find(x => x.month === m)?.status || 'open';
+
+/* ================= boot ================= */
+async function boot() {
+  if (!S.tok) return renderGate();
+  setChip('…', 'off');
+  try {
+    S.boot = await api('/api/boot');
+    // idempotent: make sure this month's expected recurring rows exist
+    if (moState(nowMonth()) !== 'closed') await api('/api/recurring', { method:'POST', body: JSON.stringify({ month: nowMonth() }) }).catch(()=>{});
+    setChip('Live', 'live');
+    show(S.view);
+  } catch (e) {
+    if (/unauthorized/i.test(e.message)) {
+      const wasShared = S.tok && S.tok === sharedSession();
+      S.tok=''; localStorage.removeItem(LS.tok);
+      if (wasShared) { ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); return renderGate('Your session expired — sign in again.'); }
+      return renderGate('Wrong password — try again.');
+    }
+    setChip('Worker down', 'down');
+    $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p>
+      <button class="cta" onclick="boot()">Retry</button></div>`;
+  }
+}
+function setChip(t, s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
+
+function renderGate(err) {
+  setChip('Signed out','off');
+  $('#nav').innerHTML = '';
+  $('#main').innerHTML = `
+  <div class="gate">
+    <h1>Mobius Ledger</h1>
+    <p>Money in, money out, and the end-of-month report card. Sign in once at Mobius HQ and every internal tool opens.</p>
+    <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/ledger/">Continue with Google</a>
+    ${err ? `<div class="err">${esc(err)}</div>` : ''}
+    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
+      <label>Password</label><input id="gTok" type="password" placeholder="password">
+      <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
+      <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
+    </details>
+  </div>`;
+  const go = () => {
+    S.url = ($('#gUrl').value || '').trim() || DEFAULT_WORKER_URL;
+    S.tok = $('#gTok').value.trim();
+    localStorage.setItem(LS.url, S.url); localStorage.setItem(LS.tok, S.tok);
+    boot();
+  };
+  $('#gGo').onclick = go;
+  $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
+}
+
+/* ================= nav ================= */
+const VIEWS = [
+  ['dash','Dashboard'], ['txns','Transactions'], ['receipts','Receipts'],
+  ['close','Close'], ['reports','Reports'], ['forecast','Forecast'], ['settings','Settings'],
+];
+function navHTML(){
+  const rv = Object.values(S.boot?.flags || {}).reduce((s,f)=>s+(+f.review||0),0);
+  return VIEWS.map(([id,label]) =>
+    `<button class="${S.view===id?'on':''}" onclick="show('${id}')">${label}${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`).join('');
+}
+function show(view){
+  S.view = view;
+  $('#nav').innerHTML = navHTML();
+  ({dash:renderDash, txns:renderTxns, receipts:renderReceipts, close:renderClose,
+    reports:renderReports, forecast:renderForecast, settings:renderSettings}[view])();
+}
+function setMonth(m){ S.month = m; localStorage.setItem(LS.month, m); S.txns=null; show(S.view); }
+function monthNav(){
+  const st = moState(S.month);
+  return `<div class="mo-nav no-print">
+    <button onclick="setMonth('${addMonths(S.month,-1)}')" aria-label="Previous month">‹</button>
+    <b>${moName(S.month)}</b>
+    <button onclick="setMonth('${addMonths(S.month,1)}')" aria-label="Next month">›</button>
+    <span class="mo-lock ${st}">${st === 'closed' ? 'Closed' : 'Open'}</span>
+  </div>`;
+}
+
+/* ================= dashboard ================= */
+async function renderDash(){
+  const m = $('#main');
+  m.innerHTML = '<div class="sub">Loading…</div>';
+  let sum;
+  try { sum = await api('/api/summary?month=' + S.month); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  S.summary = sum;
+  const r = sum.report, a = sum.attention;
+  const needs = (+a.review||0) + (+a.expected||0);
+  const st = moState(S.month);
+  const verdictCls = needs ? 'warn' : 'good';
+  const verdict = st === 'closed'
+    ? `${moName(S.month)} is closed — the report card is frozen. Net income came to <b>${fmt$(r.net)}</b> at a ${r.margin ?? '—'}% margin.`
+    : needs
+      ? `${needs} item${needs>1?'s':''} need${needs>1?'':'s'} you before ${moName(S.month)} can close — ${+a.expected||0} expected to confirm, ${+a.review||0} in review.`
+      : `Nothing needs you right now. When the month ends, Close takes about a minute.`;
+
+  const yr = sum.year || [];
+  const maxV = Math.max(1, ...yr.map(x => Math.max(x.revenue, x.expenses + x.fees)));
+  const bars = yr.map(x => `
+    <div class="b" title="${moName(x.month)} — in ${fmt$(x.revenue)}, out ${fmt$(x.expenses + x.fees)}">
+      <div class="f" style="height:${Math.round(x.revenue/maxV*100)}%"></div>
+      <div class="f ex" style="height:${Math.max(2,Math.round((x.expenses+x.fees)/maxV*100))}%"></div>
+      <span class="m">${moShort(x.month)}</span>
+    </div>`).join('');
+
+  const renew = (sum.renewals||[]).slice(0,8).map(v =>
+    `<tr><td>${esc(v.name)}</td><td class="num">${fmt$(v.expected_amount||0)}</td></tr>`).join('');
+
+  m.innerHTML = `
+    <div class="ph"><div><h2>Where the money stands</h2>
+      <div class="sub" style="margin-bottom:0">Everything below covers <b>${moName(S.month)}</b>. Confirmed transactions only — expected rows wait until you confirm them.</div></div>
+      ${monthNav()}</div>
+
+    <div class="rollup">
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Money in</div><div class="fig-v lg-num">${fmtK(r.revenue)}</div></div>
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Money out</div><div class="fig-v lg-num">${fmtK(r.expenses + r.fees)}</div></div>
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Net income</div><div class="fig-v lg-num" style="color:${r.net>=0?'var(--good-on)':'var(--bad-on)'}">${fmtK(r.net)}</div></div>
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Margin</div><div class="fig-v lg-num">${r.margin != null ? r.margin + '%' : '—'}</div></div>
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Set aside for tax (${r.taxPct}%)</div><div class="fig-v lg-num">${fmtK(r.taxes)}</div></div>
+    </div>
+
+    <p class="verdict ${verdictCls}">${verdict}</p>
+
+    <div class="grp"><span class="ct">Needs you</span><span class="ln"></span></div>
+    <div class="grid3">
+      <div class="sc ${+a.expected?'wn':'ok'}" onclick="S.filter='expected';show('txns')">
+        <div class="fig-l">Expected, unconfirmed</div><div class="fig-v lg-num">${+a.expected||0}</div>
+        <div class="fig-d">Recurring rows the engine pre-created — tap to confirm the amount landed.</div></div>
+      <div class="sc ${+a.review?'wn':'ok'}" onclick="S.filter='review';show('txns')">
+        <div class="fig-l">Review inbox</div><div class="fig-v lg-num">${+a.review||0}</div>
+        <div class="fig-d">New vendors waiting for a category — one tap makes it a permanent rule.</div></div>
+      <div class="sc ${+a.noReceipt?'wn':'ok'}" onclick="show('receipts')">
+        <div class="fig-l">Missing receipts</div><div class="fig-v lg-num">${+a.noReceipt||0}</div>
+        <div class="fig-d">Expenses this month without a receipt attached — the old yellow highlight.</div></div>
+      <div class="sc ${st==='closed'?'ok':''}" onclick="show('close')">
+        <div class="fig-l">Month close</div><div class="fig-v lg-num" style="font-size:20px">${st==='closed'?'Closed ✓':'Open'}</div>
+        <div class="fig-d">${st==='closed'?'Report card frozen — view it under Reports.':'The checklist checks itself — review the exceptions and close.'}</div></div>
+    </div>
+
+    <div class="grid2" style="margin-top:22px">
+      <div class="card"><h3>${S.month.slice(0,4)} by month</h3>
+        <div class="hint">Blue = money in · grey = money out (fees included)</div>
+        <div class="bars">${bars || '<div class="hint">No data yet this year.</div>'}</div></div>
+      <div class="card"><h3>Recurring commitments</h3>
+        <div class="hint">What the engine expects every month — edit under Settings.</div>
+        <div class="tbl-wrap"><table><tbody>${renew}</tbody></table></div></div>
+    </div>`;
+}
+
+/* ================= transactions ================= */
+async function loadTxns(){
+  if (S.txns && S.txnMonth === S.month) return;
+  S.txns = (await api('/api/transactions?month=' + S.month)).transactions;
+  S.txnMonth = S.month;
+}
+const FILTERS = [['all','All'],['in','Money in'],['out','Expenses'],['expected','Expected'],['review','Review'],['norcpt','No receipt']];
+function txnRows(){
+  return (S.txns||[]).filter(t => {
+    if (S.filter==='in') return t.type==='in';
+    if (S.filter==='out') return t.type!=='in';
+    if (S.filter==='expected') return t.expected===1;
+    if (S.filter==='review') return t.status==='review' && !t.expected;
+    if (S.filter==='norcpt') return t.type==='out' && !t.expected && !t.receipt_key;
+    return true;
+  });
+}
+async function renderTxns(){
+  const m = $('#main');
+  m.innerHTML = '<div class="sub">Loading…</div>';
+  try { await loadTxns(); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  const closed = moState(S.month) === 'closed';
+  const rows = txnRows();
+  const chips = FILTERS.map(([id,label]) => {
+    const n = id==='review' ? (S.txns||[]).filter(t=>t.status==='review'&&!t.expected).length
+      : id==='expected' ? (S.txns||[]).filter(t=>t.expected===1).length : null;
+    return `<button class="ctl ${S.filter===id?'on':''}" onclick="S.filter='${id}';renderTxns()">${label}${n?` (${n})`:''}</button>`;
+  }).join('');
+  const body = rows.map(t => {
+    const rc = t.type==='out' && !t.expected
+      ? (t.receipt_key ? '<span class="rc has">✓ receipt</span>' : '<span class="rc miss">no receipt</span>')
+      : '<span class="rc na">—</span>';
+    const flag = t.expected ? '<span class="pill warn">expected</span>'
+      : t.status==='review' ? '<span class="pill bad">review</span>'
+      : t.one_time ? '<span class="pill unk">one-time</span>' : '';
+    return `<tr onclick="editTxn(${t.id})">
+      <td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
+      <td><b>${esc(t.vendor)}</b>${t.note?` <span class="tiny">· ${esc(t.note)}</span>`:''} ${flag}
+        <div class="cat">${esc(t.bucket||'—')} · ${esc(t.tax_cat||'uncategorized')}</div></td>
+      <td>${rc}</td>
+      <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}">${t.type==='in'?'':'−'}${fmt$(Math.abs(t.amount)).replace('−','')}</td>
+    </tr>`;
+  }).join('');
+  m.innerHTML = `
+    <div class="ph"><div><h2>Transactions</h2>
+      <div class="sub" style="margin-bottom:0">Every dollar in or out of ${moName(S.month)}. Click a row to edit, confirm or attach a receipt.</div></div>
+      ${monthNav()}</div>
+    <div class="row">
+      ${chips}
+      <span style="flex:1"></span>
+      <button class="btn" onclick="importModal()" ${closed?'disabled title="Month is closed"':''}>⇪ Import CSV</button>
+      <button class="btn primary" onclick="addModal()" ${closed?'disabled title="Month is closed"':''}>+ Add transaction</button>
+    </div>
+    ${closed?'<div class="notice good">This month is closed — amounts and dates are frozen with its report card. You can still attach receipts. Reopen from the Close page if something must change.</div>':''}
+    <div class="card" style="padding:0">
+      <div class="tbl-wrap"><table class="txn-tbl">
+        <thead><tr><th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
+        <tbody>${body || '<tr><td colspan="4" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
+      </table></div></div>`;
+}
+
+/* ---- add / edit modal ---- */
+function catSelects(bucket, tax){
+  const bs = ['Revenue','Merchant fee',...(S.boot.buckets||[])];
+  return `<div class="mrow">
+    <div><label>Your bucket <span class="why">Drives the dashboard + report card</span></label>
+      <select id="tBucket">${bs.map(b=>`<option ${b===bucket?'selected':''}>${b}</option>`).join('')}</select></div>
+    <div><label>Tax category <span class="why">The CPA's layer</span></label>
+      <select id="tTax"><option value="">— pick one —</option>${['Client revenue',...S.boot.taxCats].map(c=>`<option ${c===tax?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+  </div>`;
+}
+function vendorDatalist(){
+  const names = [...new Set([...(S.boot.vendors||[]).map(v=>v.name), ...(S.boot.clients||[]).map(c=>c.name)])];
+  return `<datalist id="dlV">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`;
+}
+function openModal(html){ $('#mbox').innerHTML = html; $('#modal').classList.add('on'); $('#scrim').classList.add('on'); }
+function closeModal(){ $('#modal').classList.remove('on'); $('#scrim').classList.remove('on'); }
+$('#scrim').onclick = closeModal;
+
+function addModal(prefill = {}){
+  const today = new Date().toISOString().slice(0,10);
+  const inMonth = monthISO => monthISO.slice(0,7) === S.month ? monthISO : S.month + '-15';
+  openModal(`
+    <h3>Add a transaction</h3>
+    <div class="hint">Known vendors categorize themselves. A new vendor asks once, then it's a rule.</div>
+    <div class="seg" id="tType" style="margin-top:12px">
+      <button data-v="out" class="${prefill.type!=='in'?'on':''}">Money out</button>
+      <button data-v="in" class="${prefill.type==='in'?'on':''}">Money in</button>
+    </div>
+    ${vendorDatalist()}
+    <div class="mrow">
+      <div><label>Vendor / client</label><input id="tVendor" list="dlV" value="${esc(prefill.vendor||'')}" placeholder="e.g. Slack, Lucky Golf"></div>
+      <div style="max-width:130px"><label>Amount ($)</label><input id="tAmt" type="number" step="0.01" value="${prefill.amount??''}" placeholder="0.00"></div>
+    </div>
+    <div class="mrow">
+      <div style="max-width:170px"><label>Date</label><input id="tDate" type="date" value="${esc(prefill.date || inMonth(today))}"></div>
+      <div><label>Note <span class="why">Optional</span></label><input id="tNote" value="${esc(prefill.note||'')}" placeholder="what was this?"></div>
+    </div>
+    <div id="tCats">${catSelects('Other','')}</div>
+    <label class="ck"><input type="checkbox" id="tOne"><span>One-time purchase<small>Kept out of the recurring baseline and forecast.</small></span></label>
+    <label class="ck"><input type="checkbox" id="tRule" checked><span>Remember this vendor's categories<small>Next time it categorizes itself.</small></span></label>
+    <div class="acts"><span class="spacer"></span>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="tSave">Add it</button></div>
+    <div class="msg" id="tMsg"></div>`);
+  let type = prefill.type === 'in' ? 'in' : 'out';
+  $('#tType').querySelectorAll('button').forEach(b => b.onclick = () => {
+    type = b.dataset.v;
+    $('#tType').querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b));
+    $('#tCats').style.display = type==='in' ? 'none':'';
+  });
+  $('#tCats').style.display = type==='in' ? 'none':'';
+  $('#tVendor').addEventListener('change', () => {
+    const rule = (S.boot.vendors||[]).find(v => v.name.toLowerCase() === $('#tVendor').value.trim().toLowerCase());
+    if (rule) $('#tCats').innerHTML = catSelects(rule.bucket, rule.tax_cat);
+  });
+  $('#tSave').onclick = async () => {
+    const row = {
+      type, vendor: $('#tVendor').value.trim(), amount: +$('#tAmt').value,
+      date: $('#tDate').value, note: $('#tNote').value.trim(),
+      bucket: type==='in' ? 'Revenue' : $('#tBucket').value,
+      tax_cat: type==='in' ? 'Client revenue' : $('#tTax').value,
+      one_time: $('#tOne').checked, saveRule: $('#tRule').checked,
+    };
+    if (!row.vendor || !row.amount || !row.date) { $('#tMsg').className='msg bad'; $('#tMsg').textContent='Vendor, amount and date are required.'; return; }
+    try {
+      await api('/api/transactions', { method:'POST', body: JSON.stringify(row) });
+      closeModal(); S.txns=null; S.boot = await api('/api/boot'); show(S.view);
+    } catch(e){ $('#tMsg').className='msg bad'; $('#tMsg').textContent=e.message; }
+  };
+}
+
+async function editTxn(id){
+  const t = (S.txns||[]).find(x => x.id === id); if (!t) return;
+  const closed = moState(t.month) === 'closed';
+  openModal(`
+    <h3>${t.expected ? 'Confirm expected transaction' : 'Edit transaction'}</h3>
+    <div class="hint">${t.expected
+      ? 'The recurring engine pre-created this. Fix the amount if it differs, then confirm.'
+      : closed ? 'This month is closed — categories, notes and receipts can change; amounts and dates are frozen.' : esc(t.vendor)}</div>
+    ${vendorDatalist()}
+    <div class="mrow">
+      <div><label>Vendor / client</label><input id="eVendor" list="dlV" value="${esc(t.vendor)}"></div>
+      <div style="max-width:130px"><label>Amount ($)</label><input id="eAmt" type="number" step="0.01" value="${t.amount}" ${closed?'disabled':''}></div>
+    </div>
+    <div class="mrow">
+      <div style="max-width:170px"><label>Date</label><input id="eDate" type="date" value="${esc(t.date)}" ${closed?'disabled':''}></div>
+      <div><label>Note</label><input id="eNote" value="${esc(t.note||'')}"></div>
+    </div>
+    ${t.type==='out' ? catSelects(t.bucket||'Other', t.tax_cat||'') : ''}
+    ${t.type==='out' && t.status==='review' ? `<label class="ck"><input type="checkbox" id="eRule" checked><span>Remember this vendor's categories<small>Clears it from Review for good.</small></span></label>`:''}
+    ${t.type==='out' ? `<label class="ck"><input type="checkbox" id="eOne" ${t.one_time?'checked':''}><span>One-time purchase</span></label>`:''}
+    <label>Receipt</label>
+    <div class="row" style="margin-bottom:0">
+      ${t.receipt_key
+        ? `<button class="btn" onclick="viewReceipt(${t.id})">👁 View ${esc(t.receipt_name||'receipt')}</button>
+           <button class="btn" onclick="removeReceipt(${t.id})">Remove</button>`
+        : t.type==='out' ? `<button class="btn" onclick="attachReceipt(${t.id})">📎 Attach receipt</button>` : '<span class="tiny">Receipts attach to expenses.</span>'}
+    </div>
+    <div class="acts">
+      ${!closed && !t.expected ? `<button class="btn" style="color:var(--bad)" onclick="delTxn(${t.id})">Delete</button>`:''}
+      ${t.expected ? `<button class="btn" style="color:var(--bad)" onclick="delTxn(${t.id})">Didn't happen — remove</button>`:''}
+      <span class="spacer"></span>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="eSave">${t.expected ? 'Confirm ✓' : 'Save'}</button></div>
+    <div class="msg" id="eMsg"></div>`);
+  $('#eSave').onclick = async () => {
+    const b = { id, vendor: $('#eVendor').value.trim(), note: $('#eNote').value.trim() };
+    if (!closed) { b.amount = +$('#eAmt').value; b.date = $('#eDate').value; }
+    if (t.type==='out') {
+      b.bucket = $('#tBucket')?.value; b.tax_cat = $('#tTax')?.value || null;
+      b.one_time = $('#eOne')?.checked;
+      if (t.status==='review' && b.bucket && b.tax_cat) { b.status='ok'; b.saveRule = $('#eRule')?.checked; }
+    }
+    if (t.expected) b.confirm = true;
+    try {
+      await api('/api/transaction', { method:'PUT', body: JSON.stringify(b) });
+      closeModal(); S.txns=null; S.boot = await api('/api/boot'); show(S.view);
+    } catch(e){ $('#eMsg').className='msg bad'; $('#eMsg').textContent=e.message; }
+  };
+}
+async function delTxn(id){
+  try { await api('/api/transaction?id=' + id, { method:'DELETE' }); closeModal(); S.txns=null; show(S.view); }
+  catch(e){ const el=$('#eMsg'); if(el){el.className='msg bad'; el.textContent=e.message;} }
+}
+
+/* ---- receipts plumbing ---- */
+function downscale(file){
+  return new Promise((resolve, reject) => {
+    if (!/^image\//.test(file.type)) { // PDFs etc. pass through untouched
+      const r = new FileReader();
+      r.onload = () => resolve({ data: r.result.split(',')[1], type: file.type || 'application/octet-stream' });
+      r.onerror = reject; r.readAsDataURL(file); return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1800, scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width*scale); c.height = Math.round(img.height*scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve({ data: c.toDataURL('image/jpeg', .82).split(',')[1], type: 'image/jpeg' });
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+function pickFile(cb){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*,application/pdf';
+  inp.onchange = () => inp.files[0] && cb(inp.files[0]);
+  inp.click();
+}
+async function attachReceipt(id){
+  pickFile(async file => {
+    const el = $('#eMsg'); if (el){ el.className='msg'; el.textContent='Uploading…'; }
+    try {
+      const { data, type } = await downscale(file);
+      await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name: file.name, type, data }) });
+      closeModal(); S.txns=null; S.boot = await api('/api/boot'); show(S.view);
+    } catch(e){ if (el){ el.className='msg bad'; el.textContent=e.message; } }
+  });
+}
+async function removeReceipt(id){
+  try { await api('/api/receipt?id=' + id, { method:'DELETE' }); closeModal(); S.txns=null; show(S.view); } catch(e){}
+}
+async function viewReceipt(id){
+  try {
+    const res = await fetch(S.url + '/api/receipt?id=' + id, { headers: { Authorization: 'Bearer ' + S.tok } });
+    if (!res.ok) throw new Error('could not load receipt');
+    const blob = await res.blob();
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch(e){ alert(e.message); }
+}
+
+/* ---- CSV import ---- */
+function importModal(){
+  openModal(`
+    <h3>Import a CSV</h3>
+    <div class="hint">A bank or card export works as-is if it has date, description and amount columns. Every row lands as an expense in Review unless the vendor is already known.</div>
+    <label>Paste CSV or choose a file</label>
+    <textarea id="csvText" rows="6" placeholder="date,description,amount\n2026-09-03,SLACK T012345,52.50"></textarea>
+    <div class="row" style="margin:10px 0 0"><button class="btn" onclick="pickCsv()">Choose file…</button></div>
+    <div class="acts"><span class="spacer"></span>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="runImport()">Preview & import</button></div>
+    <div class="msg" id="csvMsg"></div>`);
+}
+function pickCsv(){
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='.csv,text/csv';
+  inp.onchange = () => { const r = new FileReader(); r.onload = () => $('#csvText').value = r.result; r.readAsText(inp.files[0]); };
+  inp.click();
+}
+function parseCsv(text){
+  const lines = text.trim().split(/\r?\n/).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g,'')));
+  if (lines.length < 2) return [];
+  const hd = lines[0].map(h => h.toLowerCase());
+  const di = hd.findIndex(h => /date/.test(h));
+  const vi = hd.findIndex(h => /desc|vendor|payee|name|merchant/.test(h));
+  const ai = hd.findIndex(h => /amount|amt|debit|charge/.test(h));
+  if (di < 0 || vi < 0 || ai < 0) return null;
+  return lines.slice(1).map(c => {
+    let d = c[di] || '';
+    const mdY = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (mdY) d = `${mdY[3].length===2?'20'+mdY[3]:mdY[3]}-${mdY[1].padStart(2,'0')}-${mdY[2].padStart(2,'0')}`;
+    return { date: d, vendor: (c[vi]||'').slice(0,120), amount: Math.abs(parseFloat((c[ai]||'').replace(/[$,]/g,''))), type:'out', source:'import' };
+  }).filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && r.vendor && r.amount > 0);
+}
+async function runImport(){
+  const el = $('#csvMsg');
+  const rows = parseCsv($('#csvText').value);
+  if (rows === null) { el.className='msg bad'; el.textContent='Could not find date / description / amount columns in the header row.'; return; }
+  if (!rows.length) { el.className='msg bad'; el.textContent='No usable rows found.'; return; }
+  el.className='msg'; el.textContent=`Importing ${rows.length} rows…`;
+  try {
+    const res = await api('/api/transactions', { method:'POST', body: JSON.stringify({ rows }) });
+    el.className='msg good'; el.textContent=`Imported ${res.inserted.length} of ${rows.length} (skipped rows fell in closed months). Known vendors categorized themselves; the rest are in Review.`;
+    S.txns=null; S.boot = await api('/api/boot');
+    setTimeout(() => { closeModal(); show('txns'); }, 1600);
+  } catch(e){ el.className='msg bad'; el.textContent=e.message; }
+}
+
+/* ================= receipts view ================= */
+async function renderReceipts(){
+  const m = $('#main');
+  m.innerHTML = '<div class="sub">Loading…</div>';
+  try { await loadTxns(); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  const missing = (S.txns||[]).filter(t => t.type==='out' && !t.expected && !t.receipt_key);
+  const have = (S.txns||[]).filter(t => t.receipt_key);
+  m.innerHTML = `
+    <div class="ph"><div><h2>Receipts</h2>
+      <div class="sub" style="margin-bottom:0">Drop or snap a receipt — Ledger reads it and matches it to the right transaction. This replaces the Drive folders and the yellow highlighting.</div></div>
+      ${monthNav()}</div>
+    <div class="drop" id="drop" onclick="dropPick()">
+      <b>Drop a receipt here — or tap to choose / take a photo</b>
+      Images are read automatically${S.boot.extractAvailable?'':' (reading is off until the ANTHROPIC_API_KEY secret is set — files still attach fine)'}; PDFs attach directly.
+    </div>
+    <div class="grp" style="margin-top:22px"><span class="ct">Missing a receipt — ${moName(S.month)}</span><span class="ln"></span></div>
+    ${missing.length ? `<div class="card" style="padding:0"><div class="tbl-wrap"><table class="txn-tbl"><tbody>
+      ${missing.map(t=>`<tr><td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
+        <td><b>${esc(t.vendor)}</b><div class="cat">${esc(t.bucket||'')}</div></td>
+        <td class="amt">−${fmt$(t.amount).replace('−','')}</td>
+        <td style="text-align:right"><button class="btn" onclick="attachFor(${t.id})">📎 Attach</button></td></tr>`).join('')}
+    </tbody></table></div></div>` : '<div class="notice good">Every expense this month has its receipt. ✓</div>'}
+    <div class="grp" style="margin-top:22px"><span class="ct">Vault — ${moName(S.month)}</span><span class="ln"></span></div>
+    <div class="vault">${have.map(t=>`<div class="vitem" onclick="viewReceipt(${t.id})">
+      <div class="vt">${esc(t.vendor)}</div><div class="vm">${fmtDate(t.date)} · ${fmt$(t.amount)}</div>
+      <div class="vm">${esc(t.receipt_name||'file')}</div></div>`).join('') || '<div class="hint">No receipts stored for this month yet.</div>'}</div>`;
+  const dz = $('#drop');
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); };
+  dz.ondragleave = () => dz.classList.remove('over');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handleDrop(f); };
+}
+function dropPick(){ pickFile(handleDrop); }
+function attachFor(id){
+  event.stopPropagation();
+  pickFile(async file => {
+    try {
+      const { data, type } = await downscale(file);
+      await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type, data }) });
+      S.txns=null; S.boot = await api('/api/boot'); renderReceipts();
+    } catch(e){ alert(e.message); }
+  });
+}
+async function handleDrop(file){
+  const dz = $('#drop');
+  dz.innerHTML = '<b>Reading receipt…</b>one moment';
+  let ext = null, payload = null;
+  try {
+    payload = await downscale(file);
+    if (S.boot.extractAvailable) {
+      const r = await api('/api/extract', { method:'POST', body: JSON.stringify({ data: payload.data, media_type: payload.type }) });
+      ext = r.extracted;
+    }
+  } catch(e){ /* extraction is best-effort */ }
+  matchModal(file, payload, ext);
+}
+function matchModal(file, payload, ext){
+  renderReceipts(); // reset the drop zone
+  const cand = (S.txns||[]).filter(t => t.type==='out' && !t.receipt_key)
+    .map(t => ({ t, score: (ext?.amount && Math.abs(t.amount - ext.amount) < .01 ? 2 : 0) +
+      (ext?.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0]) ? 1 : 0) }))
+    .sort((a,b) => b.score - a.score).slice(0, 6);
+  openModal(`
+    <h3>File this receipt</h3>
+    <div class="hint">${ext ? `Read: <b>${esc(ext.vendor||'?')}</b> · <b>${ext.amount!=null?fmt$(+ext.amount):'?'}</b>${ext.date?` · ${esc(ext.date)}`:''}` : 'Pick the transaction this belongs to, or create a new one.'}</div>
+    <label>Match to an existing expense</label>
+    ${cand.map(({t,score}) => `<button class="btn" style="display:flex;width:100%;margin-top:6px;text-align:left;gap:10px" onclick="fileTo(${t.id})">
+      <span style="flex:1">${esc(t.vendor)} <span class="tiny">${fmtDate(t.date)}</span></span>
+      <b>${fmt$(t.amount)}</b>${score>=2?' <span class="pill good">match</span>':''}</button>`).join('') || '<div class="hint">No unreceipted expenses this month.</div>'}
+    <div class="acts">
+      <button class="btn" onclick='newFromReceipt()'>+ New transaction from this</button>
+      <span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button></div>
+    <div class="msg" id="fMsg"></div>`);
+  window.__pendingReceipt = { file, payload, ext };
+}
+async function fileTo(id){
+  const { file, payload } = window.__pendingReceipt || {};
+  if (!payload) return;
+  const el = $('#fMsg'); el.className='msg'; el.textContent='Attaching…';
+  try {
+    await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type:payload.type, data:payload.data }) });
+    closeModal(); S.txns=null; S.boot = await api('/api/boot'); renderReceipts();
+  } catch(e){ el.className='msg bad'; el.textContent=e.message; }
+}
+function newFromReceipt(){
+  const { ext } = window.__pendingReceipt || {};
+  closeModal();
+  addModal({ vendor: ext?.vendor || '', amount: ext?.amount ?? '', date: ext?.date || '', note: ext?.note || '' });
+  // after saving, the user can attach from the edit modal; simplest reliable path
+}
+
+/* ================= close ================= */
+async function renderClose(){
+  const m = $('#main');
+  m.innerHTML = '<div class="sub">Loading…</div>';
+  let rep;
+  try { await loadTxns(); rep = await api('/api/report?month=' + S.month); }
+  catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  const closed = moState(S.month) === 'closed';
+  const t = S.txns || [];
+  const expected = t.filter(x => x.expected===1);
+  const review = t.filter(x => x.status==='review' && !x.expected);
+  const noRcpt = t.filter(x => x.type==='out' && !x.expected && !x.receipt_key);
+  const hasRevenue = t.some(x => x.type==='in' && !x.expected);
+  const hasFee = t.some(x => x.type==='fee');
+  const item = (ok, warn, title, sub, go, dis) => `
+    <div class="cli ${ok?'ok':(warn?'warn':'info')}">
+      <div class="ic">${ok?'✓':(warn?'!':'i')}</div>
+      <div><b>${title}</b><p>${sub}</p></div>
+      ${go && !ok ? `<span class="go" onclick="${go}">Fix →</span>`:''}
+    </div>`;
+  m.innerHTML = `
+    <div class="ph"><div><h2>Close ${moName(S.month)}</h2>
+      <div class="sub" style="margin-bottom:0">The old nine-step Asana checklist, checking itself. Clear the exceptions, close, done — the report card freezes so the numbers never shift under you.</div></div>
+      ${monthNav()}</div>
+    ${closed ? `<div class="notice good">This month is closed — its report card is frozen. <b style="cursor:pointer" onclick="S.reportMonth='${S.month}';show('reports')">View the report card →</b></div>
+      <div class="row"><button class="btn" onclick="reopenMonth()">Reopen ${moName(S.month)}</button></div>` : `
+    <div class="clx">
+      ${item(hasRevenue, true, 'Revenue is in',
+        hasRevenue ? `${fmt$(rep.report.revenue)} across ${t.filter(x=>x.type==='in'&&!x.expected).length} payments.` : 'No confirmed money-in rows yet — add the client payments for this month.',
+        `S.filter='in';show('txns')`)}
+      ${item(expected.length===0, true, 'Expected rows confirmed',
+        expected.length ? `${expected.length} recurring row(s) still waiting — confirm each landed (or remove the ones that didn't).` : 'Every recurring row was confirmed.',
+        `S.filter='expected';show('txns')`)}
+      ${item(review.length===0, true, 'Review inbox empty',
+        review.length ? `${review.length} transaction(s) still need categories.` : 'Everything is categorized — both layers.',
+        `S.filter='review';show('txns')`)}
+      ${item(hasFee, false, 'Merchant fee',
+        hasFee ? `Actual fee recorded: ${fmt$(rep.report.fees)}.` : `No fee row yet — the report will estimate ${fmt$(rep.report.fees)} at ${S.boot.money.feePct}%. Add the real Stripe number for the exact figure.`,
+        `addModal({type:'out'})`)}
+      ${item(noRcpt.length===0, false, 'Receipts attached',
+        noRcpt.length ? `${noRcpt.length} expense(s) missing a receipt — fine to close, but the CPA pack will list them.` : 'Every expense carries its receipt.',
+        `show('receipts')`)}
+    </div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn primary" onclick="doClose()" style="padding:11px 22px">Close ${moName(S.month)} →</button>
+      <span class="tiny">Closing freezes amounts &amp; dates and generates the report card. You can reopen later if needed.</span>
+    </div>`}
+    <div class="msg" id="clMsg"></div>`;
+}
+async function doClose(){
+  const el = $('#clMsg');
+  try {
+    const t = S.txns || [];
+    const expected = t.filter(x => x.expected===1).length;
+    const rep = await api('/api/close', { method:'POST', body: JSON.stringify({ month: S.month, dropExpected: expected > 0 ? confirmDrop(expected) : false }) });
+    S.boot = await api('/api/boot'); S.txns = null;
+    S.reportMonth = S.month; show('reports');
+  } catch(e){ el.className='msg bad'; el.textContent = e.message; }
+}
+function confirmDrop(n){
+  return confirm(`${n} expected row(s) were never confirmed. Close anyway and drop them?\n\n(They were pre-created guesses — dropping them means they didn't happen this month.)`);
+}
+async function reopenMonth(){
+  await api('/api/reopen', { method:'POST', body: JSON.stringify({ month: S.month }) });
+  S.boot = await api('/api/boot'); S.txns=null; show('close');
+}
+
+/* ================= reports ================= */
+async function renderReports(){
+  const m = $('#main');
+  const rm = S.reportMonth || addMonths(nowMonth(), -1);
+  S.reportMonth = rm;
+  m.innerHTML = '<div class="sub">Loading…</div>';
+  let data;
+  try { data = await api('/api/report?month=' + rm); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  let prev = null;
+  try { prev = (await api('/api/report?month=' + addMonths(rm,-1))).report; } catch(e){}
+  const r = data.report;
+  const d = (cur, pv) => pv == null || !pv ? '' : `<div class="fig-d">${cur>=pv?'▲':'▼'} ${fmtK(Math.abs(cur-pv))} vs ${moShort(addMonths(rm,-1))}</div>`;
+  const splitRows = Object.entries(r.split).map(([k,v]) => {
+    const label = { personal:'Personal account', tax:'Tax account', ads:'Ads / Marketing account', savings:'Savings account', other:'Other expenses account' }[k] || k;
+    return `<tr><td>${label}<small>${r.splitPct[k]}% of net income</small></td><td>${fmt$(v)}</td></tr>`;
+  }).join('');
+  const bucketRows = Object.entries(r.byBucket).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('');
+  const clientRows = Object.entries(r.byClient).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('');
+  const months = (S.boot.months||[]).map(x=>x.month).filter(x=>x<=nowMonth());
+  m.innerHTML = `
+    <div class="ph no-print"><div><h2>Reports</h2>
+      <div class="sub" style="margin-bottom:0">The month's report card, print-ready — and the CPA pack below it.</div></div>
+      <div class="row" style="margin-bottom:0">
+        <select onchange="S.reportMonth=this.value;renderReports()">${months.map(x=>`<option value="${x}" ${x===rm?'selected':''}>${moName(x)}</option>`).join('')}</select>
+        <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
+      </div></div>
+
+    <div class="rpt">
+      <h1>Financial report card — ${moName(rm)}</h1>
+      <div class="rsub">Mobius Digital · ${data.frozen ? 'Closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · figures frozen' : data.status === 'closed' ? 'Closed · imported from the 2026 sheet' : 'Month still open — figures live'}${r.feeEstimated?' · merchant fee estimated at '+S.boot.money.feePct+'%':''}</div>
+      <div class="figs">
+        <div class="fig"><div class="fig-l">Revenue</div><div class="fig-v lg-num">${fmt$(r.revenue)}</div>${d(r.revenue, prev?.revenue)}</div>
+        <div class="fig"><div class="fig-l">Total expenses</div><div class="fig-v lg-num">${fmt$(r.expenses)}</div>${d(r.expenses, prev?.expenses)}</div>
+        <div class="fig"><div class="fig-l">Merchant fee</div><div class="fig-v lg-num">${fmt$(r.fees)}</div></div>
+        <div class="fig"><div class="fig-l">Net income</div><div class="fig-v lg-num" style="color:${r.net>=0?'var(--good)':'var(--bad)'}">${fmt$(r.net)}</div>${d(r.net, prev?.net)}</div>
+        <div class="fig"><div class="fig-l">Margin</div><div class="fig-v lg-num">${r.margin!=null?r.margin+'%':'—'}</div></div>
+      </div>
+      <div class="grid2">
+        <div>
+          <h4>The bottom line</h4>
+          <table class="kv">
+            <tr><td>Net income</td><td>${fmt$(r.net)}</td></tr>
+            <tr><td>Taxes (${r.taxPct}%)</td><td>${fmt$(r.taxes)}</td></tr>
+            <tr><td>Distributions (${r.distPct}%)</td><td>${fmt$(r.distributions)}</td></tr>
+            <tr class="tot"><td>Business profit, after tax</td><td>${fmt$(r.profit)}</td></tr>
+          </table>
+          <h4>Move this money</h4>
+          <table class="kv split-tbl">${splitRows}</table>
+        </div>
+        <div>
+          <h4>Expenses by bucket</h4>
+          <table class="kv">${bucketRows || '<tr><td class="hint">No expenses.</td><td></td></tr>'}</table>
+          <h4>Revenue by client</h4>
+          <table class="kv">${clientRows || '<tr><td class="hint">No revenue recorded.</td><td></td></tr>'}</table>
+        </div>
+      </div>
+    </div>
+
+    <div class="no-print" style="margin-top:30px">
+      <div class="grp"><span class="ct">CPA pack</span><span class="ln"></span></div>
+      <div class="card">
+        <h3>Everything your CPA needs, one click</h3>
+        <div class="hint">P&amp;L by tax category, the full ledger as CSV, contractor totals for 1099s, and a page-one list of open questions. Pick a range:</div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" onclick="loadPack('${rm}','${rm}')">This month</button>
+          <button class="btn" onclick="loadPack('${rm.slice(0,4)}-01','${rm}')">${rm.slice(0,4)} year-to-date</button>
+          <button class="btn" onclick="loadPack('${qStart(rm)}','${rm}')">This quarter</button>
+        </div>
+        <div id="packOut"></div>
+      </div>
+    </div>`;
+}
+const qStart = m => m.slice(0,4) + '-' + ['01','01','01','04','04','04','07','07','07','10','10','10'][+m.slice(5,7)-1];
+
+async function loadPack(from, to){
+  const out = $('#packOut');
+  out.innerHTML = '<div class="hint" style="margin-top:12px">Building…</div>';
+  let p;
+  try { p = await api(`/api/pack?from=${from}&to=${to}`); } catch(e){ out.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`; return; }
+  S.packData = p;
+  const taxTotals = {};
+  for (const t of p.transactions) if (t.type!=='in') taxTotals[t.tax_cat||'Uncategorized'] = (taxTotals[t.tax_cat||'Uncategorized']||0)+t.amount;
+  const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
+  const exp = Object.values(taxTotals).reduce((s,v)=>s+v,0);
+  out.innerHTML = `
+    <div class="grid2" style="margin-top:16px">
+      <div>
+        <h4 style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">P&amp;L — ${from} → ${to} (tax categories)</h4>
+        <table class="kv">
+          <tr class="tot"><td>Revenue</td><td>${fmt$(rev)}</td></tr>
+          ${Object.entries(taxTotals).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('')}
+          <tr class="tot"><td>Net</td><td>${fmt$(rev-exp)}</td></tr>
+        </table>
+      </div>
+      <div>
+        <h4 style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Contractors (1099 check)</h4>
+        <table class="kv">${Object.entries(p.contractors).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}${v>=600?' <span class="pill warn">1099 needed</span>':''}</td><td>${fmt$(v)}</td></tr>`).join('') || '<tr><td class="hint">None in range.</td><td></td></tr>'}</table>
+        <h4 style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px">Open questions for the CPA (${p.openQuestions.length})</h4>
+        ${p.openQuestions.length ? `<div class="tiny">${p.openQuestions.slice(0,10).map(t=>`${esc(t.vendor)} · ${fmt$(t.amount)} · ${esc(t.tax_cat||'uncategorized')}`).join('<br>')}${p.openQuestions.length>10?'<br>…and more in the CSV':''}</div>` : '<div class="tiny">None — nothing flagged personal or uncategorized. ✓</div>'}
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn primary" onclick="dlLedgerCsv()">⬇ Full ledger (CSV)</button>
+      <button class="btn" onclick="dlContractorCsv()">⬇ 1099 summary (CSV)</button>
+      <span class="tiny">Receipts stay viewable per transaction; a bundled receipt ZIP ships with the connectors phase.</span>
+    </div>`;
+}
+function dl(name, text){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type:'text/csv' }));
+  a.download = name; a.click();
+}
+const csvCell = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
+function dlLedgerCsv(){
+  const p = S.packData; if (!p) return;
+  const rows = [['date','type','vendor','amount','bucket','tax_category','note','one_time','has_receipt','status'].join(',')];
+  for (const t of p.transactions) rows.push([t.date, t.type, csvCell(t.vendor), t.amount, csvCell(t.bucket), csvCell(t.tax_cat), csvCell(t.note), t.one_time?'yes':'', t.receipt_key?'yes':'no', t.status].join(','));
+  dl(`mobius-ledger_${p.from}_${p.to}.csv`, rows.join('\n'));
+}
+function dlContractorCsv(){
+  const p = S.packData; if (!p) return;
+  const rows = [['contractor','total_paid','needs_1099'].join(',')];
+  for (const [k,v] of Object.entries(p.contractors)) rows.push([csvCell(k), v, v>=600?'yes':'no'].join(','));
+  dl(`mobius-1099-summary_${p.from}_${p.to}.csv`, rows.join('\n'));
+}
+
+/* ================= forecast ================= */
+async function renderForecast(){
+  const m = $('#main');
+  const clients = (S.boot.clients||[]).filter(c=>c.active);
+  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active);
+  const inflow = clients.reduce((s,c)=>s+(c.retainer||0),0);
+  const outflow = vendors.reduce((s,v)=>s+(v.expected_amount||0),0);
+  const feePct = S.boot.money.feePct;
+  const fee = inflow * feePct / 100;
+  const net = inflow - outflow - fee;
+  const months3 = [1,2,3].map(i => addMonths(nowMonth(), i));
+  const total = inflow || 1;
+  const palette = ['#62BDEA','#14608C','#1C7A46','#EBBF63','#9C3A2E','#647684','#8F6412','#5FD292','#F09182'];
+  const conc = clients.map((c,i)=>`<div style="flex:${c.retainer||0};background:${palette[i%palette.length]}" title="${esc(c.name)} ${fmt$(c.retainer||0)}"></div>`).join('');
+  const leg = clients.map((c,i)=>`<span><i style="background:${palette[i%palette.length]}"></i>${esc(c.name)} ${(100*(c.retainer||0)/total).toFixed(0)}%</span>`).join('');
+  const top = clients.slice().sort((a,b)=>(b.retainer||0)-(a.retainer||0))[0];
+  m.innerHTML = `
+    <div class="ph"><div><h2>Cash, 90 days out</h2>
+      <div class="sub" style="margin-bottom:0">Projected from the retainer book and the recurring commitments — both editable in Settings. One-time purchases are deliberately excluded.</div></div></div>
+    <div class="rollup">
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Retainers / month</div><div class="fig-v lg-num">${fmtK(inflow)}</div></div>
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Recurring out / month</div><div class="fig-v lg-num">${fmtK(outflow)}</div></div>
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Est. merchant fee</div><div class="fig-v lg-num">${fmtK(fee)}</div></div>
+      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Projected net / month</div><div class="fig-v lg-num" style="color:${net>=0?'var(--good-on)':'var(--bad-on)'}">${fmtK(net)}</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Next three months, if nothing changes</h3>
+        <div class="hint">Baseline projection — actuals replace it as each month fills in.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">In</th><th class="num">Out</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
+          ${months3.map((mo,i)=>`<tr><td><b>${moName(mo)}</b></td><td class="num">${fmt$(inflow)}</td><td class="num">${fmt$(outflow+fee)}</td><td class="num">${fmt$(net)}</td><td class="num"><b>${fmt$(net*(i+1))}</b></td></tr>`).join('')}
+        </tbody></table></div>
+      </div>
+      <div class="card">
+        <h3>Client concentration</h3>
+        <div class="hint">${top ? `${esc(top.name)} is ${(100*(top.retainer||0)/total).toFixed(0)}% of the retainer book — the number to watch.` : 'Add retainers in Settings.'}</div>
+        <div class="conc" style="margin-top:12px">${conc}</div>
+        <div class="leg">${leg}</div>
+        <h3 style="margin-top:20px">What-if</h3>
+        <div class="hint">Tap a client to see the book without them:</div>
+        <div class="row" style="margin-top:8px">${clients.map(c=>`<button class="chip" onclick="whatIf('${esc(c.name)}')">${esc(c.name)}</button>`).join('')}</div>
+        <div class="msg" id="wiOut"></div>
+      </div>
+    </div>`;
+}
+function whatIf(name){
+  const clients = (S.boot.clients||[]).filter(c=>c.active);
+  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active);
+  const c = clients.find(x=>x.name===name); if (!c) return;
+  const inflow = clients.reduce((s,x)=>s+(x.retainer||0),0) - (c.retainer||0);
+  const out = vendors.reduce((s,v)=>s+(v.expected_amount||0),0) + inflow * S.boot.money.feePct/100;
+  const el = $('#wiOut');
+  el.className = 'msg'; el.innerHTML = `Without <b>${esc(name)}</b>: ${fmt$(inflow)} in, ${fmt$(out)} out → net <b style="color:${inflow-out>=0?'var(--good)':'var(--bad)'}">${fmt$(inflow-out)}</b> per month.`;
+}
+
+/* ================= settings ================= */
+function renderSettings(){
+  const m = $('#main');
+  const mo = S.boot.money;
+  const vendors = S.boot.vendors||[], clients = S.boot.clients||[];
+  m.innerHTML = `
+    <div class="ph"><div><h2>Settings</h2>
+      <div class="sub" style="margin-bottom:0">The money rules, the retainer book, and every vendor rule — the app runs on what's on this page.</div></div></div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Money rules</h3>
+        <div class="hint">Used by every report card and the close math. Percentages of net income.</div>
+        <div class="mrow" style="margin-top:12px">
+          <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Tax set-aside %</label>
+            <div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
+          <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Distributions %</label>
+            <div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
+          <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Merchant fee est. %</label>
+            <div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin:14px 0 4px">Account split (% of net)</div>
+        <div class="mrow">
+          ${['personal','tax','ads','savings','other'].map(k=>`
+          <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px">${k}</label>
+            <div class="unit-in"><input id="sp_${k}" type="number" value="${mo.split[k]}"><span>%</span></div></div>`).join('')}
+        </div>
+        <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveMoney()">Save money rules</button><span class="msg" id="sMsg"></span></div>
+      </div>
+      <div class="card">
+        <h3>Retainer book</h3>
+        <div class="hint">Expected monthly revenue per client — drives the recurring engine and the forecast. Inactive clients keep their history but stop being expected.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Client</th><th class="num">Retainer</th><th>Active</th></tr></thead><tbody>
+          ${clients.map(c=>`<tr><td><b>${esc(c.name)}</b></td>
+            <td class="num" style="width:120px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" onchange="saveClient('${esc(c.name)}', this.value, ${c.active})"></div></td>
+            <td><div class="toggle ${c.active?'on':''}" onclick="saveClient('${esc(c.name)}', null, ${c.active?0:1})"></div></td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="row" style="margin-top:10px"><button class="btn" onclick="addClientModal()">+ Add client</button></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Vendor rules</h3>
+      <div class="hint">One row per known vendor — the rule that categorizes it forever. "Recurring" rows are pre-created by the engine each month at the expected amount. Fix a wrong guess here and it applies to future transactions (and, if you choose, existing ones).</div>
+      <div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th class="num">Expected $</th><th>Recurring</th><th>Active</th></tr></thead><tbody>
+        ${vendors.map((v,i)=>`<tr>
+          <td><b>${esc(v.name)}</b></td>
+          <td><select onchange="saveVendorField('${esc(v.name)}','bucket',this.value)">${(S.boot.buckets||[]).map(b=>`<option ${b===v.bucket?'selected':''}>${b}</option>`).join('')}<option ${v.bucket==='Merchant fee'?'selected':''}>Merchant fee</option></select></td>
+          <td><select onchange="saveVendorField('${esc(v.name)}','tax_cat',this.value)">${S.boot.taxCats.map(c=>`<option ${c===v.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}<option ${v.tax_cat==='Bank & merchant fees'?'selected':''}>Bank &amp; merchant fees</option></select></td>
+          <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" step="0.01" value="${v.expected_amount??''}" onchange="saveVendorField('${esc(v.name)}','expected_amount',this.value)"></div></td>
+          <td><div class="toggle ${v.recurring?'on':''}" onclick="saveVendorField('${esc(v.name)}','recurring',${v.recurring?0:1})"></div></td>
+          <td><div class="toggle ${v.active?'on':''}" onclick="saveVendorField('${esc(v.name)}','active',${v.active?0:1})"></div></td>
+        </tr>`).join('')}
+      </tbody></table></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Access</h3>
+      <div class="hint">Google sign-in via Mobius HQ covers the team. A password is the backup way in.</div>
+      <div class="row" style="margin-top:10px">
+        <input id="sPw" type="password" placeholder="new password (8+ chars)" style="max-width:240px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px">
+        <button class="btn" onclick="savePw()">Set password</button><span class="msg" id="pwMsg"></span>
+      </div>
+    </div>`;
+}
+async function saveMoney(){
+  const el = $('#sMsg');
+  const split = {}; for (const k of ['personal','tax','ads','savings','other']) split[k] = +$('#sp_'+k).value;
+  const sum = Object.values(split).reduce((s,v)=>s+v,0);
+  try {
+    await api('/api/settings', { method:'PUT', body: JSON.stringify({ money: { taxPct:+$('#sTax').value, distPct:+$('#sDist').value, feePct:+$('#sFee').value, split } }) });
+    S.boot = await api('/api/boot');
+    el.className='msg good'; el.textContent = 'Saved.' + (sum!==100 ? ` (heads up: the split adds to ${sum}%, not 100%)` : '');
+  } catch(e){ el.className='msg bad'; el.textContent=e.message; }
+}
+async function saveClient(name, retainer, active){
+  const c = (S.boot.clients||[]).find(x=>x.name===name) || {};
+  await api('/api/client', { method:'POST', body: JSON.stringify({ name, retainer: retainer==null?(c.retainer||0):+retainer, active: !!active }) });
+  S.boot = await api('/api/boot'); renderSettings();
+}
+function addClientModal(){
+  openModal(`<h3>Add a client</h3>
+    <label>Client name</label><input id="cName" placeholder="e.g. New Brand Co">
+    <label>Monthly retainer ($)</label><input id="cRet" type="number" placeholder="4000">
+    <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="addClient()">Add</button></div><div class="msg" id="cMsg"></div>`);
+}
+async function addClient(){
+  try {
+    await api('/api/client', { method:'POST', body: JSON.stringify({ name: $('#cName').value.trim(), retainer:+$('#cRet').value||0 }) });
+    closeModal(); S.boot = await api('/api/boot'); renderSettings();
+  } catch(e){ $('#cMsg').className='msg bad'; $('#cMsg').textContent=e.message; }
+}
+async function saveVendorField(name, field, value){
+  const v = (S.boot.vendors||[]).find(x=>x.name===name); if (!v) return;
+  const body = { name, bucket:v.bucket, tax_cat:v.tax_cat, recurring:!!v.recurring, expected_amount:v.expected_amount, active:!!v.active };
+  body[field] = field==='recurring'||field==='active' ? !!value : field==='expected_amount' ? +value : value;
+  if (field==='bucket'||field==='tax_cat') body.applyToExisting = confirm('Apply this category to this vendor\'s existing transactions too?\n\nOK = yes, everything. Cancel = future transactions only.');
+  await api('/api/vendor', { method:'POST', body: JSON.stringify(body) });
+  S.boot = await api('/api/boot'); renderSettings();
+}
+async function savePw(){
+  const el = $('#pwMsg');
+  try { await api('/api/password', { method:'POST', body: JSON.stringify({ password: $('#sPw').value }) });
+    el.className='msg good'; el.textContent='Password set.'; }
+  catch(e){ el.className='msg bad'; el.textContent=e.message; }
+}
+
+/* ================= go ================= */
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+boot();
+</script>
+</body>
+</html>
