@@ -3555,6 +3555,12 @@ async function hourlyPacing(env, acct) {
    is noise dressed as a finding. The reports already use max($50, 3% of ad
    spend) for the same reason - same floor here, and the response says how much
    spend it excluded so the omission is never silent. */
+/* Sales are what a ratio rests on, so enough of them earns an ad a place in a
+   ratio ranking whatever it spent. Three is the smallest number that is not a
+   coincidence — one lucky conversion on a $12 ad is the thing the spend floor
+   exists to keep out, and it still is. */
+const MIN_RANK_PURCHASES = 3;
+
 async function adRows(env, acct, from, to, opts = {}) {
   /* ATTRIBUTION SOURCE. `opts.attr` is a Triple Whale model name, or 'meta' /
      absent for Meta's own reported conversions. Only the ATTRIBUTED figures
@@ -3675,7 +3681,22 @@ async function adRows(env, acct, from, to, opts = {}) {
         p75: (r.v75 || 0) / r.vplays, p100: (r.v100 || 0) / r.vplays,
       } : null,
       age: origin ? Math.max(0, ymdDiff(today, origin)) : null,
-      material: r.spend >= floor,
+      /* MATERIAL = "this ratio is worth ranking", and there are TWO ways to
+         earn it.
+         The spend floor alone was 3% of the account's window spend, which
+         scales with the ACCOUNT rather than with the evidence behind the ad.
+         Dartee runs $17.5K across 256 ads, so the floor was $525 while the
+         average ad spent $68 — and a brand-new campaign was therefore
+         invisible on a ROAS sort for weeks. Cole hit exactly that on
+         2026-09-05: ads 357-7 and 357-13 launched 2 September, took $46 and
+         $79, returned 20.6x and 19.1x off 9 and 15 sales, and appeared
+         nowhere.
+         Sales are the evidence a ratio actually rests on, so an ad that has
+         made MIN_RANK_PURCHASES of them is ranked however little it spent —
+         while 357-12 ($2, one sale) stays out, which is the noise the floor
+         was built to keep out in the first place. */
+      material: r.spend >= floor || purchases >= MIN_RANK_PURCHASES,
+      material_by: r.spend >= floor ? 'spend' : purchases >= MIN_RANK_PURCHASES ? 'sales' : null,
       share: totalSpend ? r.spend / totalSpend : 0,
     };
   });
@@ -3720,7 +3741,11 @@ async function adRows(env, acct, from, to, opts = {}) {
     matched: list.length,
     total_spend: totalSpend,
     shown_spend: top.reduce((n, r) => n + r.spend, 0),
-    floor, acct_cpa: acctCpa, sort,
+    floor, min_purchases: MIN_RANK_PURCHASES, acct_cpa: acctCpa, sort,
+    // How much of the account this ranking actually saw. "Showing 8 of 12" is
+    // a very different sentence when there are 256 ads behind it.
+    ads_with_spend: rows.length,
+    ranked_by_sales: rows.filter(r => r.material_by === 'sales').length,
   };
 }
 

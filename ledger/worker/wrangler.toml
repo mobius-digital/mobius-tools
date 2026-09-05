@@ -1,0 +1,28 @@
+# Mobius Ledger — Cloudflare Worker config
+# Deploy:  npx wrangler deploy   (from this folder — NEVER from repo root)
+name = "mobius-ledger"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# D1: the ledger itself (transactions, vendor rules, clients, months, settings).
+# Schema changes: npx wrangler d1 execute mobius-ledger --remote --file=schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "mobius-ledger"
+database_id = "3b6d3d66-e6b5-4e56-aaa6-3886ca804e5a"
+
+# KV: receipt files (images/PDFs, client-side downscaled before upload).
+# R2 was the plan but is not enabled on this Cloudflare account (code 10042,
+# needs a dashboard opt-in) — KV holds Phase 1 volume (~35 receipts/mo) fine.
+# If R2 is enabled later, add an R2 binding and migrate `rcpt:` keys.
+[[kv_namespaces]]
+binding = "RECEIPTS"
+id = "8f918b1da0084875b718a044d930c924"
+
+# Secrets (set once, never committed):
+#   npx wrangler secret put ADMIN_TOKEN         master/recovery key for the API
+#   npx wrangler secret put ANTHROPIC_API_KEY   optional — receipt reading (Claude);
+#                                               without it uploads still work, the
+#                                               fields are just typed by hand
+# Google sign-in needs NO secret here: sessions minted by mobius-account-health
+# are verified by calling its /api/me (see AUTH_WORKER in worker.js).

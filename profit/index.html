@@ -2121,7 +2121,8 @@ async function renderCreativeBrowser(host, act, range) {
         </div>
         <div class="cb-foot">${a.format ? `<span class="catpill">${esc(a.format)}</span>` : ''}
           ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
-          ${a.material ? '' : '<span class="tiny" title="Below the materiality floor, so it is excluded from the ratio sorts">low spend</span>'}
+          ${a.material_by === 'sales' ? `<span class="tiny" title="Too small to clear the spend bar, but it has made enough sales for the ratio to mean something — so it is ranked anyway">ranked on sales</span>`
+            : a.material ? '' : '<span class="tiny" title="Below the spend bar and under 3 sales, so it is left out of the ratio sorts">low spend</span>'}
           <span style="flex:1"></span><span class="ad-open tiny">Details →</span></div>
       </div></article>`;
   };
@@ -2170,11 +2171,13 @@ async function renderCreativeBrowser(host, act, range) {
           <span class="tiny" id="cbSyncMsg"></span></div></div></div>`
       : d.ads.length ? `<div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>` : '<div class="card"><span class="hint">No ads spent in this window.</span></div>'}
     <p class="tiny" style="margin-top:4px">
-      Showing <b>${d.ads.length}</b> of ${d.matched} ad${d.matched === 1 ? '' : 's'} ·
+      Showing <b>${d.ads.length}</b> of ${d.matched} ranked ad${d.matched === 1 ? '' : 's'}${d.ads_with_spend ? ` · <b>${d.ads_with_spend}</b> ads spent in this window` : ''} ·
       <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} ad spend on screen.
       ${RATIO_SORTS.has(CB.sort)
-        ? `<b>Minimum spend to be ranked: ${fmtMoney(d.floor, cur)}</b> — the larger of $50 or 3% of the ${fmtK(d.total_spend, cur)} spent in this window. Without a floor, one lucky conversion on a $12 ad tops every list.`
-        : `Every ad that spent is ranked. <span title="The larger of $50 or 3% of window spend">Sorting by a ratio (ROAS, CPA, hook…) applies a ${fmtMoney(d.floor, cur)} minimum spend</span>, so a tiny ad cannot win on one lucky conversion.`}
+        ? `<b>To be ranked, an ad must have spent ${fmtMoney(d.floor, cur)} <i>or</i> made ${d.min_purchases ?? 3} sales.</b>
+           The spend bar is the larger of $50 or 3% of the ${fmtK(d.total_spend, cur)} in this window; the sales route is how a brand-new ad gets in before it has spent that much${d.ranked_by_sales ? ` — <b>${d.ranked_by_sales}</b> ${d.ranked_by_sales === 1 ? 'ad is' : 'ads are'} here on sales alone right now` : ''}.
+           One lucky conversion on a $12 ad still cannot top the list.`
+        : `Every ad that spent is ranked. <span title="Spent the larger of $50 or 3% of window spend, or made ${d.min_purchases ?? 3} sales">Sorting by a ratio (ROAS, CPA, hook…) needs ${fmtMoney(d.floor, cur)} of spend <i>or</i> ${d.min_purchases ?? 3} sales</span>, so a tiny ad cannot win on one lucky conversion — but a new winner does not have to wait.`}
       ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
       <br><b>Link CTR</b> is link clicks ÷ impressions — Meta's link click-through rate. It runs <b>well under 1% on most accounts</b> and is <b>not</b> the "CTR (all)" Ads Manager shows by default, which counts every click including reactions and profile taps and reads roughly twice as high.
       <b>“no sales”</b> means the ad spent and produced no purchases in this window — a result, not missing data, which is why it is not a dash.
