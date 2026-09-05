@@ -3610,7 +3610,19 @@ async function adRows(env, acct, from, to, opts = {}) {
   const totalSpend = results.reduce((n, r) => n + r.spend, 0);
   const totalPurch = results.reduce((n, r) => n + r.purchases, 0);
   const acctCpa = totalPurch ? totalSpend / totalPurch : null;
-  const floor = Math.max(50, totalSpend * 0.03);
+  /* THE SPEND BAR IS 3x THE ACCOUNT'S OWN CPA — the rule the team already uses
+     when deciding whether an ad has been given a fair run.
+     It replaces max($50, 3% of window spend), which scaled with the SIZE OF THE
+     ACCOUNT rather than with its unit economics and was wildly inconsistent
+     across brands: measured 2026-09-05 over 30 days it set the bar at $106 for
+     Party Patch and $779 for The Golf Sock, and left SIX of Dartee's 254 ads
+     eligible for a ROAS sort.
+     3x CPA says the same thing everywhere: this ad has had enough budget to
+     have sold three times. Live values: Grunk $100, Bonk/Party Patch $116,
+     Golf Sock $131, Dartee $180, Lucky $278.
+     A window with no purchases at all has no CPA, so it keeps the old bar. */
+  const floor = acctCpa ? Math.max(50, acctCpa * 3) : Math.max(50, totalSpend * 0.03);
+  const floorBasis = acctCpa ? 'cpa' : 'share';
 
   const rows = results.map(r => {
     const imp = r.impressions || 0;
@@ -3681,20 +3693,21 @@ async function adRows(env, acct, from, to, opts = {}) {
         p75: (r.v75 || 0) / r.vplays, p100: (r.v100 || 0) / r.vplays,
       } : null,
       age: origin ? Math.max(0, ymdDiff(today, origin)) : null,
-      /* MATERIAL = "this ratio is worth ranking", and there are TWO ways to
-         earn it.
-         The spend floor alone was 3% of the account's window spend, which
-         scales with the ACCOUNT rather than with the evidence behind the ad.
-         Dartee runs $17.5K across 256 ads, so the floor was $525 while the
-         average ad spent $68 — and a brand-new campaign was therefore
-         invisible on a ROAS sort for weeks. Cole hit exactly that on
-         2026-09-05: ads 357-7 and 357-13 launched 2 September, took $46 and
-         $79, returned 20.6x and 19.1x off 9 and 15 sales, and appeared
-         nowhere.
-         Sales are the evidence a ratio actually rests on, so an ad that has
-         made MIN_RANK_PURCHASES of them is ranked however little it spent —
-         while 357-12 ($2, one sale) stays out, which is the noise the floor
-         was built to keep out in the first place. */
+      /* MATERIAL = "this ratio is worth ranking", and the two routes in are
+         NOT the same test. Cole asked whether 3x CPA of spend is essentially
+         three purchases; it is not, and the pair is why both are here:
+           SPEND >= 3x CPA — the ad had enough budget to have sold three times.
+             This is the route that catches LOSERS: an ad that took 5x CPA and
+             produced nothing is the single most useful row on a CPA sort, and
+             a purchases test can never surface it, because it has none.
+           SALES >= 3 — the ad actually sold three times. This is the route that
+             catches WINNERS EARLY, before they have spent much. Dartee's 357-7
+             and 357-13 launched 2 September, took $46 and $79 against a $180
+             bar, and returned 20.7x and 19.1x off 9 and 15 sales. A spend test
+             alone — including the team's own 3x-CPA rule — hides those for
+             weeks.
+         Either one earns a ranking; 357-12 ($2, one sale, 39x) satisfies
+         neither, which is exactly the noise a floor exists for. */
       material: r.spend >= floor || purchases >= MIN_RANK_PURCHASES,
       material_by: r.spend >= floor ? 'spend' : purchases >= MIN_RANK_PURCHASES ? 'sales' : null,
       share: totalSpend ? r.spend / totalSpend : 0,
@@ -3741,7 +3754,7 @@ async function adRows(env, acct, from, to, opts = {}) {
     matched: list.length,
     total_spend: totalSpend,
     shown_spend: top.reduce((n, r) => n + r.spend, 0),
-    floor, min_purchases: MIN_RANK_PURCHASES, acct_cpa: acctCpa, sort,
+    floor, floor_basis: floorBasis, min_purchases: MIN_RANK_PURCHASES, acct_cpa: acctCpa, sort,
     // How much of the account this ranking actually saw. "Showing 8 of 12" is
     // a very different sentence when there are 256 ads behind it.
     ads_with_spend: rows.length,

@@ -2175,9 +2175,12 @@ async function renderCreativeBrowser(host, act, range) {
       <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} ad spend on screen.
       ${RATIO_SORTS.has(CB.sort)
         ? `<b>To be ranked, an ad must have spent ${fmtMoney(d.floor, cur)} <i>or</i> made ${d.min_purchases ?? 3} sales.</b>
-           The spend bar is the larger of $50 or 3% of the ${fmtK(d.total_spend, cur)} in this window; the sales route is how a brand-new ad gets in before it has spent that much${d.ranked_by_sales ? ` — <b>${d.ranked_by_sales}</b> ${d.ranked_by_sales === 1 ? 'ad is' : 'ads are'} here on sales alone right now` : ''}.
+           ${d.floor_basis === 'cpa'
+             ? `${fmtMoney(d.floor, cur)} is <b>3× this account's CPA</b> of ${fmtMoney(d.acct_cpa, cur)} — enough budget to have sold three times, whether or not it did, which is how a <i>losing</i> ad earns its place on a CPA sort.`
+             : `Nothing sold in this window, so the bar falls back to the larger of $50 or 3% of the ${fmtK(d.total_spend, cur)} spent.`}
+           The sales route is how a brand-new winner gets in before it has spent that much${d.ranked_by_sales ? ` — <b>${d.ranked_by_sales}</b> ${d.ranked_by_sales === 1 ? 'ad is' : 'ads are'} here on sales alone right now` : ''}.
            One lucky conversion on a $12 ad still cannot top the list.`
-        : `Every ad that spent is ranked. <span title="Spent the larger of $50 or 3% of window spend, or made ${d.min_purchases ?? 3} sales">Sorting by a ratio (ROAS, CPA, hook…) needs ${fmtMoney(d.floor, cur)} of spend <i>or</i> ${d.min_purchases ?? 3} sales</span>, so a tiny ad cannot win on one lucky conversion — but a new winner does not have to wait.`}
+        : `Every ad that spent is ranked. <span title="3× the account's CPA of spend, or ${d.min_purchases ?? 3} sales">Sorting by a ratio (ROAS, CPA, hook…) needs ${fmtMoney(d.floor, cur)} of spend${d.floor_basis === 'cpa' ? ' (3× this account’s CPA)' : ''} <i>or</i> ${d.min_purchases ?? 3} sales</span>, so a tiny ad cannot win on one lucky conversion — but a new winner does not have to wait.`}
       ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
       <br><b>Link CTR</b> is link clicks ÷ impressions — Meta's link click-through rate. It runs <b>well under 1% on most accounts</b> and is <b>not</b> the "CTR (all)" Ads Manager shows by default, which counts every click including reactions and profile taps and reads roughly twice as high.
       <b>“no sales”</b> means the ad spent and produced no purchases in this window — a result, not missing data, which is why it is not a dash.
