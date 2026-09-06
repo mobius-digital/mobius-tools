@@ -35,12 +35,17 @@ CREATE TABLE IF NOT EXISTS vendors (
   active INTEGER DEFAULT 1
 );
 
--- Retainer clients. retainer = expected monthly amount (forecast + expected
--- revenue rows); active=0 keeps history but stops expecting money.
+-- Clients. billing 'retainer' = fixed monthly amount; 'percent' = % of ad
+-- spend, so the amount varies — retainer then holds the ESTIMATE (forecast +
+-- the pre-created expected row, which Cole overwrites with the actual when
+-- invoicing) and pct records the agreed percentage. active=0 keeps history
+-- but stops expecting money.
 CREATE TABLE IF NOT EXISTS clients (
   name TEXT PRIMARY KEY,
   retainer REAL,
-  active INTEGER DEFAULT 1
+  active INTEGER DEFAULT 1,
+  billing TEXT DEFAULT 'retainer',
+  pct REAL
 );
 
 -- Month close state. A closed month's report card is FROZEN in report_json —

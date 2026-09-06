@@ -288,7 +288,7 @@ export default {
         await env.DB.prepare('INSERT OR IGNORE INTO months (month, status) VALUES (?1, \'open\')').bind(month).run();
         const [vendors, clients, existing] = await Promise.all([
           env.DB.prepare('SELECT * FROM vendors WHERE recurring = 1 AND active = 1').all(),
-          env.DB.prepare('SELECT * FROM clients WHERE active = 1 AND retainer > 0').all(),
+          env.DB.prepare(`SELECT * FROM clients WHERE active = 1 AND (retainer > 0 OR billing = 'percent')`).all(),
           env.DB.prepare('SELECT vendor FROM transactions WHERE month = ?1').bind(month).all(),
         ]);
         const have = new Set(existing.results.map(r => r.vendor.toLowerCase()));
@@ -302,9 +302,13 @@ export default {
         }
         for (const c of clients.results) {
           if (have.has(c.name.toLowerCase())) continue;
-          await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, expected, source)
-            VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', 1, 'recurring')`)
-            .bind(month + '-01', month, c.name, c.retainer).run();
+          // % of ad spend clients vary month to month: the row carries the
+          // estimate and says so — the actual is typed in at confirm time.
+          const note = c.billing === 'percent'
+            ? `Variable — ${c.pct ? c.pct + '% of ad spend' : '% of ad spend'}. Amount is an estimate: enter the actual, then confirm.` : null;
+          await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, expected, source)
+            VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', ?5, 1, 'recurring')`)
+            .bind(month + '-01', month, c.name, c.retainer || 0, note).run();
           created++;
         }
         return json({ ok: true, created });
@@ -478,8 +482,10 @@ export default {
         const b = await request.json().catch(() => ({}));
         const name = String(b.name || '').trim().slice(0, 120);
         if (!name) return json({ error: 'name required' }, 400);
-        await env.DB.prepare('INSERT OR REPLACE INTO clients (name, retainer, active) VALUES (?1, ?2, ?3)')
-          .bind(name, Number(b.retainer) || 0, b.active === false ? 0 : 1).run();
+        await env.DB.prepare('INSERT OR REPLACE INTO clients (name, retainer, active, billing, pct) VALUES (?1, ?2, ?3, ?4, ?5)')
+          .bind(name, Number(b.retainer) || 0, b.active === false ? 0 : 1,
+                b.billing === 'percent' ? 'percent' : 'retainer',
+                Number.isFinite(Number(b.pct)) && Number(b.pct) > 0 ? Number(b.pct) : null).run();
         return json({ ok: true });
       }
 

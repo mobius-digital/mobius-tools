@@ -31,6 +31,23 @@
   main{max-width:1140px;margin:0 auto;padding:22px 18px 90px}
   /* mobius.css sets .lg-num to the ink color, which vanishes on the dark roll-up */
   .rollup .lg-num{color:var(--on-ink)}
+  .toggle{cursor:pointer}
+  /* settings field groups: label sits ON its input, groups breathe */
+  .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 16px;margin-top:12px}
+  .fld label{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;white-space:nowrap}
+  .del-x{color:var(--muted);font-size:15px;line-height:1;padding:4px 7px;border-radius:6px}
+  .del-x:hover{color:var(--bad);background:var(--bad-bg)}
+  /* CPA pack: monthly P&L grid + its own print layout */
+  .pl-tbl th,.pl-tbl td{white-space:nowrap}
+  .pl-tbl td.num{font-variant-numeric:tabular-nums}
+  .pl-tbl tr.hd-row td{font-weight:700;border-top:2px solid var(--line-strong)}
+  #cpaPrint{display:none}
+  @media print{
+    body.print-cpa #rptCard,body.print-cpa .rpt-picker{display:none!important}
+    body.print-cpa #cpaPrint{display:block}
+    #cpaPrint .rpt{border:none;padding:0;max-width:none}
+    #cpaPrint table{page-break-inside:auto}
+  }
   .mo-nav{display:flex;align-items:center;gap:8px}
   .mo-nav b{font-size:14px;min-width:112px;text-align:center}
   .mo-nav button{border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);width:26px;height:26px;font-size:13px;line-height:1}
@@ -802,16 +819,19 @@ async function renderReports(){
   }).join('');
   const bucketRows = Object.entries(r.byBucket).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('');
   const clientRows = Object.entries(r.byClient).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('');
-  const months = (S.boot.months||[]).map(x=>x.month).filter(x=>x<=nowMonth());
+  // a month appears once it has begun or has data in it — future empty months
+  // would just be blank report cards (Oct–Dec show up when they arrive)
+  const months = [...new Set([...(S.boot.months||[]).map(x=>x.month), ...Object.keys(S.boot.flags||{})])]
+    .filter(x => x <= nowMonth() || (S.boot.flags||{})[x]).sort();
   m.innerHTML = `
     <div class="ph no-print"><div><h2>Reports</h2>
-      <div class="sub" style="margin-bottom:0">The month's report card, print-ready — and the CPA pack below it.</div></div>
-      <div class="row" style="margin-bottom:0">
+      <div class="sub" style="margin-bottom:0">The month's report card, print-ready — and the CPA pack below it. Months appear here as they arrive; the app rolls into 2027 and beyond on its own.</div></div>
+      <div class="row rpt-picker" style="margin-bottom:0">
         <select onchange="S.reportMonth=this.value;renderReports()">${months.map(x=>`<option value="${x}" ${x===rm?'selected':''}>${moName(x)}</option>`).join('')}</select>
         <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
       </div></div>
 
-    <div class="rpt">
+    <div class="rpt" id="rptCard">
       <h1>Financial report card — ${moName(rm)}</h1>
       <div class="rsub">Mobius Digital · ${data.frozen ? 'Closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · figures frozen' : data.status === 'closed' ? 'Closed · imported from the 2026 sheet' : 'Month still open — figures live'}${r.feeEstimated?' · merchant fee estimated at '+S.boot.money.feePct+'%':''}</div>
       <div class="figs">
@@ -846,50 +866,106 @@ async function renderReports(){
       <div class="grp"><span class="ct">CPA pack</span><span class="ln"></span></div>
       <div class="card">
         <h3>Everything your CPA needs, one click</h3>
-        <div class="hint">P&amp;L by tax category, the full ledger as CSV, contractor totals for 1099s, and a page-one list of open questions. Pick a range:</div>
+        <div class="hint">Most CPAs want both formats: the <b>PDF</b> to read (P&amp;L with monthly columns, 1099 totals, open questions) and the <b>ledger CSV</b> to pull into their software. Categories come from your vendor rules — Settings → Vendor rules is where to check or fix how anything (gas, meals, supplies…) is classified.</div>
         <div class="row" style="margin-top:12px">
           <button class="btn" onclick="loadPack('${rm}','${rm}')">This month</button>
-          <button class="btn" onclick="loadPack('${rm.slice(0,4)}-01','${rm}')">${rm.slice(0,4)} year-to-date</button>
           <button class="btn" onclick="loadPack('${qStart(rm)}','${rm}')">This quarter</button>
+          <button class="btn" onclick="loadPack('${rm.slice(0,4)}-01','${rm}')">${rm.slice(0,4)} year-to-date</button>
         </div>
         <div id="packOut"></div>
       </div>
-    </div>`;
+    </div>
+    <div id="cpaPrint"></div>`;
 }
 const qStart = m => m.slice(0,4) + '-' + ['01','01','01','04','04','04','07','07','07','10','10','10'][+m.slice(5,7)-1];
 
+/* The accountant's layout: tax categories down the side, months across,
+ * totals on the right — the shape a P&L is read in, on screen and in print. */
+function plTableHTML(p, { compactCap = 0 } = {}){
+  const months = p.monthReports.map(r => r.month);
+  const cats = [...new Set(p.transactions.filter(t=>t.type!=='in').map(t=>t.tax_cat||'Uncategorized'))];
+  const cell = {};
+  for (const t of p.transactions) if (t.type!=='in')
+    cell[(t.tax_cat||'Uncategorized')+'|'+t.month] = (cell[(t.tax_cat||'Uncategorized')+'|'+t.month]||0) + t.amount;
+  const catTotal = c => months.reduce((s,m)=>s+(cell[c+'|'+m]||0),0);
+  cats.sort((a,b)=>catTotal(b)-catTotal(a));
+  const revBy = {}; let revTot = 0;
+  for (const t of p.transactions) if (t.type==='in'){ revBy[t.month]=(revBy[t.month]||0)+t.amount; revTot+=t.amount; }
+  const money = n => n ? fmt$(n) : '—';
+  const one = months.length === 1;
+  const mCols = one ? '' : months.map(m=>`<th class="num">${moShort(m)}</th>`).join('');
+  const rows = cats.map(c => `<tr><td>${esc(c)}</td>${one?'':months.map(m=>`<td class="num">${money(cell[c+'|'+m])}</td>`).join('')}<td class="num"><b>${fmt$(catTotal(c))}</b></td></tr>`).join('');
+  const expBy = m => cats.reduce((s,c)=>s+(cell[c+'|'+m]||0),0);
+  const expTot = cats.reduce((s,c)=>s+catTotal(c),0);
+  return `<div class="tbl-wrap"><table class="pl-tbl">
+    <thead><tr><th>Category</th>${mCols}<th class="num">Total</th></tr></thead><tbody>
+    <tr class="hd-row" style="border-top:none"><td><b>Revenue</b></td>${one?'':months.map(m=>`<td class="num">${money(revBy[m])}</td>`).join('')}<td class="num"><b>${fmt$(revTot)}</b></td></tr>
+    ${rows}
+    <tr class="hd-row"><td><b>Total expenses</b></td>${one?'':months.map(m=>`<td class="num">${money(expBy(m))}</td>`).join('')}<td class="num"><b>${fmt$(expTot)}</b></td></tr>
+    <tr class="hd-row"><td><b>Net</b></td>${one?'':months.map(m=>`<td class="num">${money((revBy[m]||0)-expBy(m))}</td>`).join('')}<td class="num"><b>${fmt$(revTot-expTot)}</b></td></tr>
+    </tbody></table></div>`;
+}
+function contractorTableHTML(p){
+  const rows = Object.entries(p.contractors).sort((a,b)=>b[1]-a[1]);
+  return `<table class="kv">${rows.map(([k,v])=>`<tr><td>${esc(k)}${v>=600?' <span class="pill warn">1099 needed</span>':''}</td><td>${fmt$(v)}</td></tr>`).join('') || '<tr><td class="hint">None in range.</td><td></td></tr>'}</table>`;
+}
+function openQHTML(p, cap){
+  if (!p.openQuestions.length) return '<div class="tiny">None — nothing flagged personal or uncategorized. ✓</div>';
+  const items = cap ? p.openQuestions.slice(0, cap) : p.openQuestions;
+  return `<table class="kv">${items.map(t=>`<tr><td>${esc(t.vendor)} <span class="tiny">${fmtDate(t.date)} · ${esc(t.tax_cat||'uncategorized')}</span></td><td>${fmt$(t.amount)}</td></tr>`).join('')}</table>
+    ${cap && p.openQuestions.length>cap ? `<div class="tiny" style="margin-top:6px">…and ${p.openQuestions.length-cap} more in the PDF and CSV.</div>`:''}`;
+}
 async function loadPack(from, to){
   const out = $('#packOut');
   out.innerHTML = '<div class="hint" style="margin-top:12px">Building…</div>';
   let p;
   try { p = await api(`/api/pack?from=${from}&to=${to}`); } catch(e){ out.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`; return; }
   S.packData = p;
-  const taxTotals = {};
-  for (const t of p.transactions) if (t.type!=='in') taxTotals[t.tax_cat||'Uncategorized'] = (taxTotals[t.tax_cat||'Uncategorized']||0)+t.amount;
   const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
-  const exp = Object.values(taxTotals).reduce((s,v)=>s+v,0);
+  const exp = p.transactions.filter(t=>t.type!=='in').reduce((s,t)=>s+t.amount,0);
   out.innerHTML = `
-    <div class="grid2" style="margin-top:16px">
+    <div class="row" style="margin:16px 0 14px">
+      <button class="btn primary" onclick="printCpa()">🖨 Print the pack (PDF)</button>
+      <button class="btn" onclick="dlLedgerCsv()">⬇ Ledger (CSV)</button>
+      <button class="btn" onclick="dlContractorCsv()">⬇ 1099 summary (CSV)</button>
+    </div>
+    <div class="grp"><span class="ct">P&amp;L · ${moName(from)}${from!==to?' → '+moName(to):''}</span><span class="ln"></span></div>
+    ${plTableHTML(p)}
+    <div class="grid2" style="margin-top:20px">
       <div>
-        <h4 style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">P&amp;L — ${from} → ${to} (tax categories)</h4>
-        <table class="kv">
-          <tr class="tot"><td>Revenue</td><td>${fmt$(rev)}</td></tr>
-          ${Object.entries(taxTotals).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('')}
-          <tr class="tot"><td>Net</td><td>${fmt$(rev-exp)}</td></tr>
-        </table>
+        <div class="grp"><span class="ct">Contractor totals (1099s)</span><span class="ln"></span></div>
+        ${contractorTableHTML(p)}
       </div>
       <div>
-        <h4 style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Contractors (1099 check)</h4>
-        <table class="kv">${Object.entries(p.contractors).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}${v>=600?' <span class="pill warn">1099 needed</span>':''}</td><td>${fmt$(v)}</td></tr>`).join('') || '<tr><td class="hint">None in range.</td><td></td></tr>'}</table>
-        <h4 style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px">Open questions for the CPA (${p.openQuestions.length})</h4>
-        ${p.openQuestions.length ? `<div class="tiny">${p.openQuestions.slice(0,10).map(t=>`${esc(t.vendor)} · ${fmt$(t.amount)} · ${esc(t.tax_cat||'uncategorized')}`).join('<br>')}${p.openQuestions.length>10?'<br>…and more in the CSV':''}</div>` : '<div class="tiny">None — nothing flagged personal or uncategorized. ✓</div>'}
+        <div class="grp"><span class="ct">Open questions for the CPA (${p.openQuestions.length})</span><span class="ln"></span></div>
+        ${openQHTML(p, 8)}
       </div>
     </div>
-    <div class="row" style="margin-top:16px">
-      <button class="btn primary" onclick="dlLedgerCsv()">⬇ Full ledger (CSV)</button>
-      <button class="btn" onclick="dlContractorCsv()">⬇ 1099 summary (CSV)</button>
-      <span class="tiny">Receipts stay viewable per transaction; a bundled receipt ZIP ships with the connectors phase.</span>
-    </div>`;
+    <div class="tiny" style="margin-top:14px">Receipts stay viewable per transaction; a bundled receipt ZIP ships with the connectors phase. Category assignments come from Settings → Vendor rules.</div>`;
+}
+function printCpa(){
+  const p = S.packData; if (!p) return;
+  const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
+  const exp = p.transactions.filter(t=>t.type!=='in').reduce((s,t)=>s+t.amount,0);
+  $('#cpaPrint').innerHTML = `<div class="rpt">
+    <h1>CPA pack — ${moName(p.from)}${p.from!==p.to?' → '+moName(p.to):''}</h1>
+    <div class="rsub">Mobius Digital · prepared ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} · tax set-aside ${p.money.taxPct}% · every figure traces to the attached ledger CSV</div>
+    <div class="figs">
+      <div class="fig"><div class="fig-l">Revenue</div><div class="fig-v lg-num">${fmt$(rev)}</div></div>
+      <div class="fig"><div class="fig-l">Expenses</div><div class="fig-v lg-num">${fmt$(exp)}</div></div>
+      <div class="fig"><div class="fig-l">Net</div><div class="fig-v lg-num">${fmt$(rev-exp)}</div></div>
+    </div>
+    <h4>Open questions — please rule on these first</h4>
+    ${openQHTML(p, 0)}
+    <h4 style="margin-top:24px">Profit &amp; loss, by tax category</h4>
+    ${plTableHTML(p)}
+    <h4 style="margin-top:24px">Contractor totals (1099 check)</h4>
+    ${contractorTableHTML(p)}
+  </div>`;
+  document.body.classList.add('print-cpa');
+  const done = () => { document.body.classList.remove('print-cpa'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
 }
 function dl(name, text){
   const a = document.createElement('a');
@@ -976,38 +1052,42 @@ function renderSettings(){
     <div class="grid2">
       <div class="card">
         <h3>Money rules</h3>
-        <div class="hint">Used by every report card and the close math. Percentages of net income.</div>
-        <div class="mrow" style="margin-top:12px">
-          <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Tax set-aside %</label>
-            <div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
-          <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Distributions %</label>
-            <div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
-          <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Merchant fee est. %</label>
-            <div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
+        <div class="hint">Used by every report card and the close math. All percentages of net income.</div>
+        <div class="fields">
+          <div class="fld"><label>Tax set-aside</label><div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
+          <div class="fld"><label>Distributions</label><div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
+          <div class="fld"><label>Merchant fee est.</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
         </div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin:14px 0 4px">Account split (% of net)</div>
-        <div class="mrow">
-          ${['personal','tax','ads','savings','other'].map(k=>`
-          <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px">${k}</label>
-            <div class="unit-in"><input id="sp_${k}" type="number" value="${mo.split[k]}"><span>%</span></div></div>`).join('')}
+        <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:20px 0 0;padding-top:14px;border-top:1px solid var(--line)">Account split — where net income goes</div>
+        <div class="fields">
+          ${[['personal','Personal'],['tax','Tax'],['ads','Ads / Marketing'],['savings','Savings'],['other','Other expenses']].map(([k,l])=>`
+          <div class="fld"><label>${l}</label><div class="unit-in"><input id="sp_${k}" type="number" value="${mo.split[k]}"><span>%</span></div></div>`).join('')}
         </div>
-        <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveMoney()">Save money rules</button><span class="msg" id="sMsg"></span></div>
+        <div class="row" style="margin-top:16px"><button class="btn primary" onclick="saveMoney()">Save money rules</button><span class="msg" id="sMsg"></span></div>
       </div>
       <div class="card">
-        <h3>Retainer book</h3>
-        <div class="hint">Expected monthly revenue per client — drives the recurring engine and the forecast. Inactive clients keep their history but stop being expected.</div>
-        <div class="tbl-wrap"><table><thead><tr><th>Client</th><th class="num">Retainer</th><th>Active</th></tr></thead><tbody>
-          ${clients.map(c=>`<tr><td><b>${esc(c.name)}</b></td>
-            <td class="num" style="width:120px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" onchange="saveClient('${esc(c.name)}', this.value, ${c.active})"></div></td>
-            <td><div class="toggle ${c.active?'on':''}" onclick="saveClient('${esc(c.name)}', null, ${c.active?0:1})"></div></td></tr>`).join('')}
+        <h3>Clients</h3>
+        <div class="hint">Drives the recurring engine and the forecast. Fixed retainers pre-fill at their amount; "% of ad spend" clients pre-fill at the estimate and ask for the actual each month. Inactive clients keep their history but stop being expected. Deleting removes only the client from this list — their transactions stay.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Client</th><th>Billing</th><th class="num">Monthly $</th><th class="num">%</th><th>Active</th><th></th></tr></thead><tbody>
+          ${clients.map(c=>`<tr>
+            <td><b>${esc(c.name)}</b></td>
+            <td><select onchange="saveClientField('${esc(c.name)}','billing',this.value)">
+              <option value="retainer" ${c.billing!=='percent'?'selected':''}>Retainer</option>
+              <option value="percent" ${c.billing==='percent'?'selected':''}>% of ad spend</option></select></td>
+            <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" title="${c.billing==='percent'?'Estimate — the actual is entered each month':'Fixed monthly retainer'}" onchange="saveClientField('${esc(c.name)}','retainer',this.value)"></div></td>
+            <td class="num" style="width:80px">${c.billing==='percent'?`<div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" onchange="saveClientField('${esc(c.name)}','pct',this.value)"><span>%</span></div>`:'<span class="tiny">—</span>'}</td>
+            <td><div class="toggle ${c.active?'on':''}" onclick="saveClientField('${esc(c.name)}','active',${c.active?0:1})"></div></td>
+            <td><button class="del-x" title="Delete ${esc(c.name)} from the client list" onclick="delClient('${esc(c.name)}')">✕</button></td>
+          </tr>`).join('')}
         </tbody></table></div>
         <div class="row" style="margin-top:10px"><button class="btn" onclick="addClientModal()">+ Add client</button></div>
       </div>
     </div>
     <div class="card" style="margin-top:14px">
       <h3>Vendor rules</h3>
-      <div class="hint">One row per known vendor — the rule that categorizes it forever. "Recurring" rows are pre-created by the engine each month at the expected amount. Fix a wrong guess here and it applies to future transactions (and, if you choose, existing ones).</div>
-      <div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th class="num">Expected $</th><th>Recurring</th><th>Active</th></tr></thead><tbody>
+      <div class="hint">One row per known vendor — the rule that categorizes it forever, recurring or one-off. You rarely add rows here by hand: adding a transaction for a new vendor creates its rule automatically. "Recurring" rows are pre-created by the engine each month at the expected amount; a one-off vendor just keeps recurring off. Deleting a rule keeps the vendor's existing transactions.</div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="addVendorModal()">+ Add vendor rule</button></div>
+      <div class="tbl-wrap" style="margin-top:4px"><table><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th class="num">Expected $</th><th>Recurring</th><th>Active</th><th></th></tr></thead><tbody>
         ${vendors.map((v,i)=>`<tr>
           <td><b>${esc(v.name)}</b></td>
           <td><select onchange="saveVendorField('${esc(v.name)}','bucket',this.value)">${(S.boot.buckets||[]).map(b=>`<option ${b===v.bucket?'selected':''}>${b}</option>`).join('')}<option ${v.bucket==='Merchant fee'?'selected':''}>Merchant fee</option></select></td>
@@ -1015,6 +1095,7 @@ function renderSettings(){
           <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" step="0.01" value="${v.expected_amount??''}" onchange="saveVendorField('${esc(v.name)}','expected_amount',this.value)"></div></td>
           <td><div class="toggle ${v.recurring?'on':''}" onclick="saveVendorField('${esc(v.name)}','recurring',${v.recurring?0:1})"></div></td>
           <td><div class="toggle ${v.active?'on':''}" onclick="saveVendorField('${esc(v.name)}','active',${v.active?0:1})"></div></td>
+          <td><button class="del-x" title="Delete this rule (transactions stay)" onclick="delVendor('${esc(v.name)}')">✕</button></td>
         </tr>`).join('')}
       </tbody></table></div>
     </div>
@@ -1037,23 +1118,58 @@ async function saveMoney(){
     el.className='msg good'; el.textContent = 'Saved.' + (sum!==100 ? ` (heads up: the split adds to ${sum}%, not 100%)` : '');
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
 }
-async function saveClient(name, retainer, active){
-  const c = (S.boot.clients||[]).find(x=>x.name===name) || {};
-  await api('/api/client', { method:'POST', body: JSON.stringify({ name, retainer: retainer==null?(c.retainer||0):+retainer, active: !!active }) });
+async function saveClientField(name, field, value){
+  const c = (S.boot.clients||[]).find(x=>x.name===name); if (!c) return;
+  const body = { name, retainer: c.retainer||0, active: !!c.active, billing: c.billing||'retainer', pct: c.pct };
+  body[field] = field==='active' ? !!value : field==='retainer'||field==='pct' ? +value : value;
+  await api('/api/client', { method:'POST', body: JSON.stringify(body) });
+  S.boot = await api('/api/boot'); renderSettings();
+}
+async function delClient(name){
+  if (!confirm(`Delete ${name} from the client list?\n\nTheir transactions and history stay — this only stops the app expecting money from them.`)) return;
+  await api('/api/client?name=' + encodeURIComponent(name), { method:'DELETE' });
   S.boot = await api('/api/boot'); renderSettings();
 }
 function addClientModal(){
   openModal(`<h3>Add a client</h3>
     <label>Client name</label><input id="cName" placeholder="e.g. New Brand Co">
-    <label>Monthly retainer ($)</label><input id="cRet" type="number" placeholder="4000">
+    <label>Billing <span class="why">Fixed retainer, or a % of their ad spend that varies monthly</span></label>
+    <select id="cBil"><option value="retainer">Retainer (fixed)</option><option value="percent">% of ad spend (varies)</option></select>
+    <div class="mrow">
+      <div><label>Monthly $ <span class="why">For % clients this is the estimate used in forecasts</span></label><input id="cRet" type="number" placeholder="4000"></div>
+      <div style="max-width:110px"><label>% <span class="why">If % billing</span></label><input id="cPct" type="number" step="0.1" placeholder="10"></div>
+    </div>
     <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="addClient()">Add</button></div><div class="msg" id="cMsg"></div>`);
 }
 async function addClient(){
   try {
-    await api('/api/client', { method:'POST', body: JSON.stringify({ name: $('#cName').value.trim(), retainer:+$('#cRet').value||0 }) });
+    await api('/api/client', { method:'POST', body: JSON.stringify({ name: $('#cName').value.trim(), retainer:+$('#cRet').value||0, billing: $('#cBil').value, pct: +$('#cPct').value||null }) });
     closeModal(); S.boot = await api('/api/boot'); renderSettings();
   } catch(e){ $('#cMsg').className='msg bad'; $('#cMsg').textContent=e.message; }
+}
+function addVendorModal(){
+  openModal(`<h3>Add a vendor rule</h3>
+    <div class="hint">Usually you don't need this — adding a transaction for a new vendor creates its rule. This is for setting one up ahead of time.</div>
+    <label>Vendor name</label><input id="vName" placeholder="e.g. Figma">
+    ${catSelects('Software','Software & subscriptions')}
+    <div class="mrow">
+      <div><label>Expected $ / month <span class="why">Only matters if recurring</span></label><input id="vAmt" type="number" step="0.01" placeholder="15.00"></div>
+    </div>
+    <label class="ck"><input type="checkbox" id="vRec"><span>Recurring<small>The engine pre-creates this row every month for you to confirm. Leave off for one-off vendors.</small></span></label>
+    <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="addVendor()">Add rule</button></div><div class="msg" id="vMsg"></div>`);
+}
+async function addVendor(){
+  try {
+    await api('/api/vendor', { method:'POST', body: JSON.stringify({ name: $('#vName').value.trim(), bucket: $('#tBucket').value, tax_cat: $('#tTax').value, recurring: $('#vRec').checked, expected_amount: +$('#vAmt').value||null }) });
+    closeModal(); S.boot = await api('/api/boot'); renderSettings();
+  } catch(e){ $('#vMsg').className='msg bad'; $('#vMsg').textContent=e.message; }
+}
+async function delVendor(name){
+  if (!confirm(`Delete the rule for ${name}?\n\nExisting transactions keep their categories — but the next ${name} charge will land in Review again.`)) return;
+  await api('/api/vendor?name=' + encodeURIComponent(name), { method:'DELETE' });
+  S.boot = await api('/api/boot'); renderSettings();
 }
 async function saveVendorField(name, field, value){
   const v = (S.boot.vendors||[]).find(x=>x.name===name); if (!v) return;
