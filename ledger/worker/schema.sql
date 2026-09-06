@@ -23,16 +23,19 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_txn_month ON transactions(month);
 CREATE INDEX IF NOT EXISTS idx_txn_vendor ON transactions(vendor);
 
--- Vendor rules: one row per known vendor. The rule IS the categorization —
--- a transaction for a known vendor never asks again. recurring=1 rows are
--- pre-created each month by the recurring engine at expected_amount.
+-- Vendor rules: one row per known vendor (recurring AND one-off — the rule IS
+-- the categorization, a known vendor never asks again). recurring=1 rows are
+-- pre-created by the engine: cadence 'monthly' every month, 'yearly' only in
+-- renew_month (1–12) — domains, Amex, annual plans.
 CREATE TABLE IF NOT EXISTS vendors (
   name TEXT PRIMARY KEY,
   bucket TEXT NOT NULL,
   tax_cat TEXT NOT NULL,
   recurring INTEGER DEFAULT 0,
   expected_amount REAL,
-  active INTEGER DEFAULT 1
+  active INTEGER DEFAULT 1,
+  cadence TEXT DEFAULT 'monthly',
+  renew_month INTEGER
 );
 
 -- Clients. billing 'retainer' = fixed monthly amount; 'percent' = % of ad

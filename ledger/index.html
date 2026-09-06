@@ -987,11 +987,14 @@ function dlContractorCsv(){
 }
 
 /* ================= forecast ================= */
+/* A client's forecastable monthly revenue: fixed retainer, or — when they
+ * carry a % of ad spend — their recent 3-month average (fallback: base). */
+const clientMonthly = c => ((c.pct||0)>0 || c.billing==='percent') ? (c.recent_avg ?? c.retainer ?? 0) : (c.retainer||0);
 async function renderForecast(){
   const m = $('#main');
   const clients = (S.boot.clients||[]).filter(c=>c.active);
-  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active);
-  const inflow = clients.reduce((s,c)=>s+(c.retainer||0),0);
+  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active && v.cadence!=='yearly');
+  const inflow = clients.reduce((s,c)=>s+clientMonthly(c),0);
   const outflow = vendors.reduce((s,v)=>s+(v.expected_amount||0),0);
   const feePct = S.boot.money.feePct;
   const fee = inflow * feePct / 100;
@@ -999,9 +1002,9 @@ async function renderForecast(){
   const months3 = [1,2,3].map(i => addMonths(nowMonth(), i));
   const total = inflow || 1;
   const palette = ['#62BDEA','#14608C','#1C7A46','#EBBF63','#9C3A2E','#647684','#8F6412','#5FD292','#F09182'];
-  const conc = clients.map((c,i)=>`<div style="flex:${c.retainer||0};background:${palette[i%palette.length]}" title="${esc(c.name)} ${fmt$(c.retainer||0)}"></div>`).join('');
-  const leg = clients.map((c,i)=>`<span><i style="background:${palette[i%palette.length]}"></i>${esc(c.name)} ${(100*(c.retainer||0)/total).toFixed(0)}%</span>`).join('');
-  const top = clients.slice().sort((a,b)=>(b.retainer||0)-(a.retainer||0))[0];
+  const conc = clients.map((c,i)=>`<div style="flex:${clientMonthly(c)};background:${palette[i%palette.length]}" title="${esc(c.name)} ${fmt$(clientMonthly(c))}"></div>`).join('');
+  const leg = clients.map((c,i)=>`<span><i style="background:${palette[i%palette.length]}"></i>${esc(c.name)} ${(100*clientMonthly(c)/total).toFixed(0)}%</span>`).join('');
+  const top = clients.slice().sort((a,b)=>clientMonthly(b)-clientMonthly(a))[0];
   m.innerHTML = `
     <div class="ph"><div><h2>Cash, 90 days out</h2>
       <div class="sub" style="margin-bottom:0">Projected from the retainer book and the recurring commitments — both editable in Settings. One-time purchases are deliberately excluded.</div></div></div>
@@ -1021,7 +1024,7 @@ async function renderForecast(){
       </div>
       <div class="card">
         <h3>Client concentration</h3>
-        <div class="hint">${top ? `${esc(top.name)} is ${(100*(top.retainer||0)/total).toFixed(0)}% of the retainer book — the number to watch.` : 'Add retainers in Settings.'}</div>
+        <div class="hint">${top ? `${esc(top.name)} is ${(100*clientMonthly(top)/total).toFixed(0)}% of expected monthly revenue — the number to watch. % clients counted at their recent average.` : 'Add clients in Settings.'}</div>
         <div class="conc" style="margin-top:12px">${conc}</div>
         <div class="leg">${leg}</div>
         <h3 style="margin-top:20px">What-if</h3>
@@ -1033,9 +1036,9 @@ async function renderForecast(){
 }
 function whatIf(name){
   const clients = (S.boot.clients||[]).filter(c=>c.active);
-  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active);
+  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active && v.cadence!=='yearly');
   const c = clients.find(x=>x.name===name); if (!c) return;
-  const inflow = clients.reduce((s,x)=>s+(x.retainer||0),0) - (c.retainer||0);
+  const inflow = clients.reduce((s,x)=>s+clientMonthly(x),0) - clientMonthly(c);
   const out = vendors.reduce((s,v)=>s+(v.expected_amount||0),0) + inflow * S.boot.money.feePct/100;
   const el = $('#wiOut');
   el.className = 'msg'; el.innerHTML = `Without <b>${esc(name)}</b>: ${fmt$(inflow)} in, ${fmt$(out)} out → net <b style="color:${inflow-out>=0?'var(--good)':'var(--bad)'}">${fmt$(inflow-out)}</b> per month.`;
@@ -1067,37 +1070,57 @@ function renderSettings(){
       </div>
       <div class="card">
         <h3>Clients</h3>
-        <div class="hint">Drives the recurring engine and the forecast. Fixed retainers pre-fill at their amount; "% of ad spend" clients pre-fill at the estimate and ask for the actual each month. Inactive clients keep their history but stop being expected. Deleting removes only the client from this list — their transactions stay.</div>
-        <div class="tbl-wrap"><table><thead><tr><th>Client</th><th>Billing</th><th class="num">Monthly $</th><th class="num">%</th><th>Active</th><th></th></tr></thead><tbody>
-          ${clients.map(c=>`<tr>
-            <td><b>${esc(c.name)}</b></td>
-            <td><select onchange="saveClientField('${esc(c.name)}','billing',this.value)">
-              <option value="retainer" ${c.billing!=='percent'?'selected':''}>Retainer</option>
-              <option value="percent" ${c.billing==='percent'?'selected':''}>% of ad spend</option></select></td>
-            <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" title="${c.billing==='percent'?'Estimate — the actual is entered each month':'Fixed monthly retainer'}" onchange="saveClientField('${esc(c.name)}','retainer',this.value)"></div></td>
-            <td class="num" style="width:80px">${c.billing==='percent'?`<div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" onchange="saveClientField('${esc(c.name)}','pct',this.value)"><span>%</span></div>`:'<span class="tiny">—</span>'}</td>
+        <div class="hint">Base retainer + optional % of ad spend. A client with a % is treated as variable: each month their expected row prefills with their <b>recent 3-month average</b> and asks for the actual invoice total. Inactive clients keep their history but stop being expected; deleting removes only the list entry — transactions stay.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Client</th><th class="num">Base retainer</th><th class="num">+ % of ad spend</th><th>Active</th><th></th></tr></thead><tbody>
+          ${clients.map(c=>{ const variable = (c.pct||0)>0 || c.billing==='percent'; return `<tr>
+            <td><b>${esc(c.name)}</b>${variable && c.recent_avg ? `<div class="tiny">recent avg ${fmt$(c.recent_avg)}/mo — used for the prefill + forecast</div>`:''}</td>
+            <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" onchange="saveClientField('${esc(c.name)}','retainer',this.value)"></div></td>
+            <td class="num" style="width:90px"><div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" placeholder="—" title="Leave empty for fixed-retainer clients" onchange="saveClientField('${esc(c.name)}','pct',this.value)"><span>%</span></div></td>
             <td><div class="toggle ${c.active?'on':''}" onclick="saveClientField('${esc(c.name)}','active',${c.active?0:1})"></div></td>
             <td><button class="del-x" title="Delete ${esc(c.name)} from the client list" onclick="delClient('${esc(c.name)}')">✕</button></td>
-          </tr>`).join('')}
+          </tr>`}).join('')}
         </tbody></table></div>
         <div class="row" style="margin-top:10px"><button class="btn" onclick="addClientModal()">+ Add client</button></div>
       </div>
     </div>
     <div class="card" style="margin-top:14px">
-      <h3>Vendor rules</h3>
-      <div class="hint">One row per known vendor — the rule that categorizes it forever, recurring or one-off. You rarely add rows here by hand: adding a transaction for a new vendor creates its rule automatically. "Recurring" rows are pre-created by the engine each month at the expected amount; a one-off vendor just keeps recurring off. Deleting a rule keeps the vendor's existing transactions.</div>
+      <h3>Tax categories</h3>
+      <div class="hint">The CPA layer every expense maps to. Add one if something doesn't fit; removing one keeps it on transactions that already use it.</div>
+      <div class="row" style="margin-top:10px;gap:8px">
+        ${S.boot.taxCats.map(c=>`<span class="chip" style="cursor:default">${esc(c)} <button class="del-x" style="padding:0 2px;font-size:12px" title="Remove ${esc(c)}" onclick="delTaxCat('${esc(c)}')">✕</button></span>`).join('')}
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="newCat" placeholder="e.g. Education & courses" style="max-width:240px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px">
+        <button class="btn" onclick="addTaxCat()">+ Add category</button><span class="msg" id="catMsg"></span>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Vendors</h3>
+      <div class="hint">One row per known vendor — the rule that categorizes it forever. <b>Repeats</b> is what makes a vendor recurring: Monthly rows are pre-created every month, Yearly rows (domains, Amex, annual plans) only in their renewal month, and Off is for one-off vendors — those need nothing here, a new one creates its own rule the first time you log it. Deleting a rule keeps the vendor's transactions.</div>
       <div class="row" style="margin-top:10px"><button class="btn" onclick="addVendorModal()">+ Add vendor rule</button></div>
-      <div class="tbl-wrap" style="margin-top:4px"><table><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th class="num">Expected $</th><th>Recurring</th><th>Active</th><th></th></tr></thead><tbody>
-        ${vendors.map((v,i)=>`<tr>
+      ${[['Repeats monthly', v=>v.recurring && v.cadence!=='yearly'],
+         ['Renews yearly', v=>v.recurring && v.cadence==='yearly'],
+         ['One-off & known vendors', v=>!v.recurring]].map(([label, test]) => {
+        const group = vendors.filter(test);
+        if (!group.length) return '';
+        return `<div class="grp" style="margin-top:16px"><span class="ct">${label} (${group.length})</span><span class="ln"></span></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th class="num">Expected $</th><th>Repeats</th><th>Active</th><th></th></tr></thead><tbody>
+        ${group.map(v=>`<tr>
           <td><b>${esc(v.name)}</b></td>
           <td><select onchange="saveVendorField('${esc(v.name)}','bucket',this.value)">${(S.boot.buckets||[]).map(b=>`<option ${b===v.bucket?'selected':''}>${b}</option>`).join('')}<option ${v.bucket==='Merchant fee'?'selected':''}>Merchant fee</option></select></td>
-          <td><select onchange="saveVendorField('${esc(v.name)}','tax_cat',this.value)">${S.boot.taxCats.map(c=>`<option ${c===v.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}<option ${v.tax_cat==='Bank & merchant fees'?'selected':''}>Bank &amp; merchant fees</option></select></td>
+          <td><select onchange="saveVendorField('${esc(v.name)}','tax_cat',this.value)">${S.boot.taxCats.map(c=>`<option ${c===v.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}${S.boot.taxCats.includes(v.tax_cat)||!v.tax_cat?'':`<option selected>${esc(v.tax_cat)}</option>`}<option ${v.tax_cat==='Bank & merchant fees'?'selected':''}>Bank &amp; merchant fees</option></select></td>
           <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" step="0.01" value="${v.expected_amount??''}" onchange="saveVendorField('${esc(v.name)}','expected_amount',this.value)"></div></td>
-          <td><div class="toggle ${v.recurring?'on':''}" onclick="saveVendorField('${esc(v.name)}','recurring',${v.recurring?0:1})"></div></td>
+          <td style="white-space:nowrap"><select onchange="saveVendorField('${esc(v.name)}','repeats',this.value)">
+            <option value="off" ${!v.recurring?'selected':''}>Off</option>
+            <option value="monthly" ${v.recurring&&v.cadence!=='yearly'?'selected':''}>Monthly</option>
+            <option value="yearly" ${v.recurring&&v.cadence==='yearly'?'selected':''}>Yearly</option></select>
+            ${v.recurring&&v.cadence==='yearly'?`<select title="Renewal month" onchange="saveVendorField('${esc(v.name)}','renew_month',this.value)">${MONTHS.map((mn,i)=>`<option value="${i+1}" ${v.renew_month===i+1?'selected':''}>${mn.slice(0,3)}</option>`).join('')}</select>`:''}
+          </td>
           <td><div class="toggle ${v.active?'on':''}" onclick="saveVendorField('${esc(v.name)}','active',${v.active?0:1})"></div></td>
           <td><button class="del-x" title="Delete this rule (transactions stay)" onclick="delVendor('${esc(v.name)}')">✕</button></td>
         </tr>`).join('')}
-      </tbody></table></div>
+        </tbody></table></div>`;
+      }).join('')}
     </div>
     <div class="card" style="margin-top:14px">
       <h3>Access</h3>
@@ -1120,9 +1143,23 @@ async function saveMoney(){
 }
 async function saveClientField(name, field, value){
   const c = (S.boot.clients||[]).find(x=>x.name===name); if (!c) return;
-  const body = { name, retainer: c.retainer||0, active: !!c.active, billing: c.billing||'retainer', pct: c.pct };
-  body[field] = field==='active' ? !!value : field==='retainer'||field==='pct' ? +value : value;
+  const body = { name, retainer: c.retainer||0, active: !!c.active, pct: c.pct };
+  body[field] = field==='active' ? !!value : +value || (field==='retainer' ? 0 : null);
+  body.billing = (body.pct||0) > 0 ? 'percent' : 'retainer'; // % set = variable client
   await api('/api/client', { method:'POST', body: JSON.stringify(body) });
+  S.boot = await api('/api/boot'); renderSettings();
+}
+async function addTaxCat(){
+  const el = $('#catMsg'); const cat = $('#newCat').value.trim();
+  if (!cat) { el.className='msg bad'; el.textContent='Type a category name first.'; return; }
+  try {
+    await api('/api/settings', { method:'PUT', body: JSON.stringify({ taxCats: [...S.boot.taxCats, cat] }) });
+    S.boot = await api('/api/boot'); renderSettings();
+  } catch(e){ el.className='msg bad'; el.textContent=e.message; }
+}
+async function delTaxCat(cat){
+  if (!confirm(`Remove "${cat}" from the list?\n\nTransactions and vendor rules already using it keep the name — this only takes it out of the pickers.`)) return;
+  await api('/api/settings', { method:'PUT', body: JSON.stringify({ taxCats: S.boot.taxCats.filter(c=>c!==cat) }) });
   S.boot = await api('/api/boot'); renderSettings();
 }
 async function delClient(name){
@@ -1133,18 +1170,18 @@ async function delClient(name){
 function addClientModal(){
   openModal(`<h3>Add a client</h3>
     <label>Client name</label><input id="cName" placeholder="e.g. New Brand Co">
-    <label>Billing <span class="why">Fixed retainer, or a % of their ad spend that varies monthly</span></label>
-    <select id="cBil"><option value="retainer">Retainer (fixed)</option><option value="percent">% of ad spend (varies)</option></select>
     <div class="mrow">
-      <div><label>Monthly $ <span class="why">For % clients this is the estimate used in forecasts</span></label><input id="cRet" type="number" placeholder="4000"></div>
-      <div style="max-width:110px"><label>% <span class="why">If % billing</span></label><input id="cPct" type="number" step="0.1" placeholder="10"></div>
+      <div><label>Base retainer $ / month</label><input id="cRet" type="number" placeholder="4000"></div>
+      <div style="max-width:130px"><label>+ % of ad spend <span class="why">Leave empty if fixed</span></label><input id="cPct" type="number" step="0.1" placeholder="—"></div>
     </div>
+    <div class="hint" style="margin-top:8px">With a % set, the client is treated as variable: each month prefills at their recent average and asks for the actual invoice total.</div>
     <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="addClient()">Add</button></div><div class="msg" id="cMsg"></div>`);
 }
 async function addClient(){
   try {
-    await api('/api/client', { method:'POST', body: JSON.stringify({ name: $('#cName').value.trim(), retainer:+$('#cRet').value||0, billing: $('#cBil').value, pct: +$('#cPct').value||null }) });
+    const pct = +$('#cPct').value || null;
+    await api('/api/client', { method:'POST', body: JSON.stringify({ name: $('#cName').value.trim(), retainer:+$('#cRet').value||0, billing: pct ? 'percent':'retainer', pct }) });
     closeModal(); S.boot = await api('/api/boot'); renderSettings();
   } catch(e){ $('#cMsg').className='msg bad'; $('#cMsg').textContent=e.message; }
 }
@@ -1156,13 +1193,23 @@ function addVendorModal(){
     <div class="mrow">
       <div><label>Expected $ / month <span class="why">Only matters if recurring</span></label><input id="vAmt" type="number" step="0.01" placeholder="15.00"></div>
     </div>
-    <label class="ck"><input type="checkbox" id="vRec"><span>Recurring<small>The engine pre-creates this row every month for you to confirm. Leave off for one-off vendors.</small></span></label>
+    <label>Repeats <span class="why">Monthly pre-creates the row every month; Yearly only in its renewal month (domains, annual plans)</span></label>
+    <div class="mrow" style="margin-top:0">
+      <div><select id="vRep" onchange="$('#vRenWrap').style.display=this.value==='yearly'?'':'none'">
+        <option value="off">Off — one-off vendor</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div>
+      <div id="vRenWrap" style="display:none;max-width:140px"><select id="vRen">${MONTHS.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join('')}</select></div>
+    </div>
     <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="addVendor()">Add rule</button></div><div class="msg" id="vMsg"></div>`);
 }
 async function addVendor(){
   try {
-    await api('/api/vendor', { method:'POST', body: JSON.stringify({ name: $('#vName').value.trim(), bucket: $('#tBucket').value, tax_cat: $('#tTax').value, recurring: $('#vRec').checked, expected_amount: +$('#vAmt').value||null }) });
+    const rep = $('#vRep').value;
+    await api('/api/vendor', { method:'POST', body: JSON.stringify({
+      name: $('#vName').value.trim(), bucket: $('#tBucket').value, tax_cat: $('#tTax').value,
+      recurring: rep !== 'off', cadence: rep === 'yearly' ? 'yearly' : 'monthly',
+      renew_month: rep === 'yearly' ? +$('#vRen').value : null,
+      expected_amount: +$('#vAmt').value||null }) });
     closeModal(); S.boot = await api('/api/boot'); renderSettings();
   } catch(e){ $('#vMsg').className='msg bad'; $('#vMsg').textContent=e.message; }
 }
@@ -1173,8 +1220,18 @@ async function delVendor(name){
 }
 async function saveVendorField(name, field, value){
   const v = (S.boot.vendors||[]).find(x=>x.name===name); if (!v) return;
-  const body = { name, bucket:v.bucket, tax_cat:v.tax_cat, recurring:!!v.recurring, expected_amount:v.expected_amount, active:!!v.active };
-  body[field] = field==='recurring'||field==='active' ? !!value : field==='expected_amount' ? +value : value;
+  const body = { name, bucket:v.bucket, tax_cat:v.tax_cat, recurring:!!v.recurring,
+    expected_amount:v.expected_amount, active:!!v.active,
+    cadence:v.cadence||'monthly', renew_month:v.renew_month };
+  if (field === 'repeats') {
+    body.recurring = value !== 'off';
+    body.cadence = value === 'yearly' ? 'yearly' : 'monthly';
+    if (value === 'yearly' && !body.renew_month) body.renew_month = new Date().getMonth()+1;
+  }
+  else if (field === 'renew_month') body.renew_month = +value;
+  else if (field === 'active') body.active = !!value;
+  else if (field === 'expected_amount') body.expected_amount = +value;
+  else body[field] = value;
   if (field==='bucket'||field==='tax_cat') body.applyToExisting = confirm('Apply this category to this vendor\'s existing transactions too?\n\nOK = yes, everything. Cancel = future transactions only.');
   await api('/api/vendor', { method:'POST', body: JSON.stringify(body) });
   S.boot = await api('/api/boot'); renderSettings();

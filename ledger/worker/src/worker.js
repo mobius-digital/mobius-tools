@@ -82,6 +82,18 @@ async function getMoney(env) {
   return { ...DEFAULT_MONEY, ...safeJson(await getSetting(env, 'money'), {}) };
 }
 
+/* Trailing average of each client's last 3 confirmed months of revenue —
+ * what a "retainer + % of ad spend" client's next invoice most plausibly is. */
+async function recentRevenueAvg(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT vendor, month, SUM(amount) AS amt FROM transactions
+     WHERE type = 'in' AND expected = 0 GROUP BY vendor, month ORDER BY month DESC`).all();
+  const by = {};
+  for (const r of results) { const a = (by[r.vendor] ||= []); if (a.length < 3) a.push(r.amt); }
+  return Object.fromEntries(Object.entries(by).map(([k, a]) =>
+    [k, Math.round(a.reduce((s, v) => s + v, 0) / a.length * 100) / 100]));
+}
+
 const monthOf = date => String(date).slice(0, 7);
 const validMonth = m => /^\d{4}-\d{2}$/.test(m || '');
 const round2 = n => Math.round(n * 100) / 100;
@@ -176,9 +188,11 @@ export default {
             SUM(CASE WHEN expected = 1 THEN 1 ELSE 0 END) AS expected,
             SUM(CASE WHEN type != 'in' AND type != 'fee' AND expected = 0 AND receipt_key IS NULL THEN 1 ELSE 0 END) AS noReceipt
           FROM transactions GROUP BY month`).all();
+        const avg = await recentRevenueAvg(env);
         return json({
           money, taxCats: safeJson(taxCatsRaw, []),
-          clients: clients.results, vendors: vendors.results, months: months.results,
+          clients: clients.results.map(c => ({ ...c, recent_avg: avg[c.name] ?? null })),
+          vendors: vendors.results, months: months.results,
           flags: Object.fromEntries(flags.results.map(f => [f.month, f])),
           extractAvailable: !!env.ANTHROPIC_API_KEY,
           buckets: BUCKETS_OUT,
@@ -292,23 +306,30 @@ export default {
           env.DB.prepare('SELECT vendor FROM transactions WHERE month = ?1').bind(month).all(),
         ]);
         const have = new Set(existing.results.map(r => r.vendor.toLowerCase()));
+        const mm = +month.slice(5, 7);
         let created = 0;
         for (const v of vendors.results) {
           if (have.has(v.name.toLowerCase())) continue;
-          await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, expected, source)
-            VALUES (?1, ?2, 'out', ?3, ?4, ?5, ?6, 1, 'recurring')`)
-            .bind(month + '-01', month, v.name, v.expected_amount || 0, v.bucket, v.tax_cat).run();
+          // yearly renewals (domains, Amex, annual plans) only land in their month
+          if (v.cadence === 'yearly' && v.renew_month !== mm) continue;
+          const note = v.cadence === 'yearly' ? 'Yearly renewal' : null;
+          await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, expected, source)
+            VALUES (?1, ?2, 'out', ?3, ?4, ?5, ?6, ?7, 1, 'recurring')`)
+            .bind(month + '-01', month, v.name, v.expected_amount || 0, v.bucket, v.tax_cat, note).run();
           created++;
         }
+        const avg = await recentRevenueAvg(env);
         for (const c of clients.results) {
           if (have.has(c.name.toLowerCase())) continue;
-          // % of ad spend clients vary month to month: the row carries the
-          // estimate and says so — the actual is typed in at confirm time.
-          const note = c.billing === 'percent'
-            ? `Variable — ${c.pct ? c.pct + '% of ad spend' : '% of ad spend'}. Amount is an estimate: enter the actual, then confirm.` : null;
+          // retainer + % of ad spend clients vary month to month: prefill with
+          // their recent average and say so — the actual is typed at confirm.
+          const variable = c.billing === 'percent' || (c.pct || 0) > 0;
+          const amount = variable ? (avg[c.name] ?? c.retainer ?? 0) : (c.retainer || 0);
+          const note = variable
+            ? `Variable — retainer${c.pct ? ' + ' + c.pct + '% of ad spend' : ' + % of ad spend'}. Prefilled with the recent average: enter the invoice total, then confirm.` : null;
           await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, expected, source)
             VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', ?5, 1, 'recurring')`)
-            .bind(month + '-01', month, c.name, c.retainer || 0, note).run();
+            .bind(month + '-01', month, c.name, amount, note).run();
           created++;
         }
         return json({ ok: true, created });
@@ -461,11 +482,14 @@ export default {
         const b = await request.json().catch(() => ({}));
         const name = String(b.name || '').trim().slice(0, 120);
         if (!name || !b.bucket || !b.tax_cat) return json({ error: 'name, bucket, tax_cat required' }, 400);
-        await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
+        const cadence = b.cadence === 'yearly' ? 'yearly' : 'monthly';
+        const rmn = Number(b.renew_month);
+        await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active, cadence, renew_month)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`)
           .bind(name, String(b.bucket), String(b.tax_cat), b.recurring ? 1 : 0,
                 Number.isFinite(Number(b.expected_amount)) ? Number(b.expected_amount) : null,
-                b.active === false ? 0 : 1).run();
+                b.active === false ? 0 : 1, cadence,
+                cadence === 'yearly' && rmn >= 1 && rmn <= 12 ? rmn : null).run();
         if (b.applyToExisting) {
           await env.DB.prepare(`UPDATE transactions SET bucket = ?2, tax_cat = ?3
             WHERE vendor = ?1 COLLATE NOCASE AND type = 'out'`).bind(name, String(b.bucket), String(b.tax_cat)).run();
@@ -509,7 +533,11 @@ export default {
             split,
           }));
         }
-        return json({ money: await getMoney(env) });
+        if (Array.isArray(b.taxCats)) {
+          const cats = [...new Set(b.taxCats.map(c => String(c).trim().slice(0, 60)).filter(Boolean))].slice(0, 40);
+          if (cats.length) await putSetting(env, 'taxCats', JSON.stringify(cats));
+        }
+        return json({ money: await getMoney(env), taxCats: safeJson(await getSetting(env, 'taxCats'), []) });
       }
 
       if (path === '/api/password' && request.method === 'POST') {
