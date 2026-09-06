@@ -2169,15 +2169,21 @@ export default {
         // (drafts, delivery alerts) and brief_channel is the CLIENT's. Every
         // deliverable - daily brief, weekly report, monthly report - uses that
         // pair, and `review_first` decides which one it lands in first.
+        /* `target_cpa` is the brand's GOAL cost per purchase — what we want it
+           to be, not what it currently is. The Creative tab's spend threshold
+           is a multiple of it, so it is a shared standard rather than one
+           person's view setting, which is why it is saved here and not in
+           localStorage. Empty string clears it back to null. */
         await env.DB.prepare(
           `UPDATE accounts SET slack_channel = ?2, brief_channel = ?3, brief_enabled = ?4,
-             report_config_json = ?5, review_first = ?6 WHERE act_id = ?1`,
+             report_config_json = ?5, review_first = ?6, target_cpa = ?7 WHERE act_id = ?1`,
         ).bind(b.act,
           'slack_channel' in b ? (b.slack_channel || null) : cur.slack_channel,
           'brief_channel' in b ? (b.brief_channel || null) : cur.brief_channel,
           'brief_enabled' in b ? (b.brief_enabled ? 1 : 0) : cur.brief_enabled,
           'report_config' in b ? JSON.stringify(b.report_config || {}) : cur.report_config_json,
           'review_first' in b ? (b.review_first ? 1 : 0) : cur.review_first,
+          'target_cpa' in b ? (b.target_cpa === '' || b.target_cpa == null ? null : Math.max(0, +b.target_cpa) || null) : cur.target_cpa,
         ).run();
         return json({ ok: true });
       }

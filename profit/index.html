@@ -772,6 +772,18 @@
   .cb-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
   .cb-l{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--muted)}
   .cb-l select{font-weight:500;color:var(--ink)}
+  /* The qualifying threshold controls. `.unit-in input` needs [type=text] in
+     the selector or a later rule out-specifies it and draws a box inside the
+     pill — the same trap documented four times in CLAUDE.md. */
+  .cb-in{width:88px}
+  .cb-in input,.cb-in input[type=text]{width:100%;font-weight:600}
+  .cb-thresh{color:var(--ink);font-weight:700}
+  /* The rule, stated above the grid. Quiet, but never hidden. */
+  .cb-rule{font-size:12.5px;color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 12px}
+  .cb-rule b{color:var(--ink)}
+  .lnk{color:var(--brand-ink);font-weight:600;text-decoration:underline;
+    text-underline-offset:2px;font-size:inherit;margin-left:8px}
   /* Custom menus, because a native select's OPEN list belongs to the OS. */
   .cb-sel{position:relative;display:inline-block}
   .cb-sel-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-strong);
@@ -2035,7 +2047,20 @@ async function renderAdShare(token) {
    The ratio sorts are filtered to MATERIAL ads server-side; the footer always
    states how many were considered and how much spend is on screen, because a
    "top 8 by ROAS" that quietly dropped 90% of spend is a lie of omission. */
-const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb_attr') || 'lastPlatformClick', run: 0 };
+const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb_attr') || 'lastPlatformClick', run: 0,
+  /* THE QUALIFYING THRESHOLD, as a multiple of the brand's GOAL CPA.
+     A multiple rather than a dollar figure because it means the same thing in
+     every account: "this ad has had enough budget to have hit target N times".
+     The multiple is a view preference and lives here; the GOAL CPA it multiplies
+     is a team standard and lives on the account, so two people cannot be looking
+     at two different bars without knowing it. */
+  /* `+null` is 0, and 0 is a MEANINGFUL value here ("Any spend") — so a missing
+     key read through Number() silently makes "rank everything" the default for
+     everyone who has never touched the control, which is the opposite of the
+     intent. Check for the key before coercing it. */
+  mult: (() => { const raw = localStorage.getItem('pf_cb_mult'); const v = raw == null ? NaN : +raw; return isFinite(v) && v >= 0 ? v : 3; })(),
+  minSpend: null };
+const CB_MULTS = [['0', 'Any spend'], ['1', '1×'], ['2', '2×'], ['3', '3×'], ['5', '5×'], ['custom', 'Custom $…']];
 /* ATTRIBUTION SOURCE. Cole's rule is Triple Whale for anything attribution-
    shaped, Meta only where TW cannot measure it - and TW returns ALL of these
    models in the SAME response, so there was never a reason to pick one in code
@@ -2077,7 +2102,8 @@ async function renderCreativeBrowser(host, act, range) {
   let d;
   const q = `act=${encodeURIComponent(act)}&from=${range.from}&to=${range.to}`
     + `&sort=${CB.sort}&limit=${CB.limit}&attr=${encodeURIComponent(CB.attr)}`
-    + `${CB.fmt ? '&format=' + encodeURIComponent(CB.fmt) : ''}`;
+    + `${CB.fmt ? '&format=' + encodeURIComponent(CB.fmt) : ''}`
+    + (CB.minSpend != null ? `&min_spend=${CB.minSpend}` : `&mult=${CB.mult}`);
   try { d = await api('/api/ads?' + q); }
   catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load ads: ${esc(e.message)}</span></div>`; return; }
 
@@ -2157,9 +2183,31 @@ async function renderCreativeBrowser(host, act, range) {
       <label class="cb-l">Show ${sel('fmt', types, CB.fmt)}</label>
       <label class="cb-l">Top ${sel('limit', [4, 8, 12, 20].map(n => [n, n + ' ads']), CB.limit)}</label>
       <label class="cb-l">Revenue from ${sel('attr', CB_ATTR, CB.attr)}</label>
+      <label class="cb-l" title="What we WANT this account's cost per purchase to be. The qualifying threshold is a multiple of it, and it is saved on the brand, so everyone judging these ads uses the same line.">Goal CPA
+        <span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbGoalCpa" type="text" inputmode="decimal" value="${d.target_cpa != null ? Math.round(d.target_cpa) : ''}" placeholder="${d.acct_cpa != null ? Math.round(d.acct_cpa) : 'set'}"></span></label>
+      <label class="cb-l" title="An ad has to clear this before a ratio sort will rank it — or make 3 sales, whichever comes first.">Counts at ${sel('mult', CB_MULTS, CB.minSpend != null ? 'custom' : String(CB.mult))}
+        ${CB.minSpend != null ? `<span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbMinSpend" type="text" inputmode="decimal" value="${Math.round(CB.minSpend)}"></span>`
+          : `<b class="cb-thresh">${CB.mult ? fmtMoney(d.floor, cur) : 'any'}</b>`}</label>
       <span style="flex:1"></span>
       <button class="btn" id="cbShare">↗ Share with client</button><span class="tiny" id="cbShareMsg"></span>
     </div>
+    ${(() => {
+      /* THE RULE, STATED WHERE THE ADS ARE.
+         It used to live in the footer under four other paragraphs, which is how
+         a $525 threshold hid a 20x campaign for three days without anyone
+         seeing why. It is one line, above the grid, always. */
+      const basis = d.floor_basis === 'target_cpa'
+        ? `${CB.mult}× the ${fmtMoney(d.target_cpa, cur)} goal CPA`
+        : d.floor_basis === 'actual_cpa'
+        ? `${CB.mult}× this account’s actual ${fmtMoney(d.acct_cpa, cur)} CPA — <b>no goal CPA set</b>, type one above and it becomes the line`
+        : d.floor_basis === 'custom' ? 'your own threshold'
+        : 'a fallback: nothing sold in this window, so there is no CPA to build on';
+      const ranked = `<b>${d.matched}</b> of ${d.ads_with_spend ?? d.matched} ads that spent`;
+      return `<p class="cb-rule">${RATIO_SORTS.has(CB.sort)
+        ? `<b>Counts:</b> an ad is ranked once it has spent <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'anything'}</b> ${d.floor > 0 ? `(${basis})` : ''} <b>or</b> made <b>${d.min_purchases ?? 3} sales</b>. ${ranked} qualify.`
+        : `<b>Counts:</b> every ad that spent is ranked on this sort. On a ratio sort (ROAS, CPA, hook…) an ad needs <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'any spend'}</b> ${d.floor > 0 ? `(${basis})` : ''} or <b>${d.min_purchases ?? 3} sales</b> — ${ranked} would qualify.`}
+        <button class="lnk" id="cbWhy" type="button">Why isn’t my ad here?</button></p>`;
+    })()}
     ${d.attr_missing ? `<div class="notice bad" style="margin:0 0 12px">⚠️<div>
         <b>No ${esc(attrLabel(d.attr_requested))} data for ${esc(d.account.name)} over this window.</b>
         Nothing is being shown rather than a wall of zeros, and <b>nothing has been silently swapped to Meta</b> —
@@ -2173,14 +2221,7 @@ async function renderCreativeBrowser(host, act, range) {
     <p class="tiny" style="margin-top:4px">
       Showing <b>${d.ads.length}</b> of ${d.matched} ranked ad${d.matched === 1 ? '' : 's'}${d.ads_with_spend ? ` · <b>${d.ads_with_spend}</b> ads spent in this window` : ''} ·
       <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} ad spend on screen.
-      ${RATIO_SORTS.has(CB.sort)
-        ? `<b>To be ranked, an ad must have spent ${fmtMoney(d.floor, cur)} <i>or</i> made ${d.min_purchases ?? 3} sales.</b>
-           ${d.floor_basis === 'cpa'
-             ? `${fmtMoney(d.floor, cur)} is <b>3× this account's CPA</b> of ${fmtMoney(d.acct_cpa, cur)} — enough budget to have sold three times, whether or not it did, which is how a <i>losing</i> ad earns its place on a CPA sort.`
-             : `Nothing sold in this window, so the bar falls back to the larger of $50 or 3% of the ${fmtK(d.total_spend, cur)} spent.`}
-           The sales route is how a brand-new winner gets in before it has spent that much${d.ranked_by_sales ? ` — <b>${d.ranked_by_sales}</b> ${d.ranked_by_sales === 1 ? 'ad is' : 'ads are'} here on sales alone right now` : ''}.
-           One lucky conversion on a $12 ad still cannot top the list.`
-        : `Every ad that spent is ranked. <span title="3× the account's CPA of spend, or ${d.min_purchases ?? 3} sales">Sorting by a ratio (ROAS, CPA, hook…) needs ${fmtMoney(d.floor, cur)} of spend${d.floor_basis === 'cpa' ? ' (3× this account’s CPA)' : ''} <i>or</i> ${d.min_purchases ?? 3} sales</span>, so a tiny ad cannot win on one lucky conversion — but a new winner does not have to wait.`}
+      ${d.ranked_by_sales ? `<b>${d.ranked_by_sales}</b> of them ${d.ranked_by_sales === 1 ? 'is' : 'are'} ranked on sales rather than spend — a new ad proving itself before it has spent the threshold.` : ''}
       ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
       <br><b>Link CTR</b> is link clicks ÷ impressions — Meta's link click-through rate. It runs <b>well under 1% on most accounts</b> and is <b>not</b> the "CTR (all)" Ads Manager shows by default, which counts every click including reactions and profile taps and reads roughly twice as high.
       <b>“no sales”</b> means the ad spent and produced no purchases in this window — a result, not missing data, which is why it is not a dash.
@@ -2228,6 +2269,16 @@ async function renderCreativeBrowser(host, act, range) {
       if (k === 'sort') CB.sort = b.dataset.v;
       else if (k === 'fmt') CB.fmt = b.dataset.v;
       else if (k === 'attr') { CB.attr = b.dataset.v; localStorage.setItem('pf_cb_attr', CB.attr); }
+      else if (k === 'mult') {
+        if (b.dataset.v === 'custom') {
+          // Seed the box with the threshold currently in force, so "custom"
+          // starts from where you are rather than from zero.
+          CB.minSpend = Math.round(d.floor || 0);
+        } else {
+          CB.minSpend = null; CB.mult = +b.dataset.v;
+          localStorage.setItem('pf_cb_mult', String(CB.mult));
+        }
+      }
       else CB.limit = +b.dataset.v;
       renderCreativeBrowser(host, act, range);
     });
@@ -2238,6 +2289,49 @@ async function renderCreativeBrowser(host, act, range) {
     if (!host.isConnected) return document.removeEventListener('click', shut);
     if (!ev.target.closest('.cb-sel')) host.querySelectorAll('.cb-sel.open').forEach(o => o.classList.remove('open'));
   });
+
+  /* Goal CPA — saved on the BRAND, not in this browser, because it is the line
+     the whole team judges ads against. Commits on Enter or on leaving the box;
+     an unchanged value never writes. */
+  const goalIn = $('#cbGoalCpa');
+  if (goalIn) {
+    const before = goalIn.value.trim();
+    const commit = async () => {
+      const raw = goalIn.value.trim();
+      if (raw === before) return;
+      const v = raw === '' ? '' : +raw.replace(/[^0-9.]/g, '');
+      if (raw !== '' && !(v > 0)) { goalIn.value = before; return; }
+      goalIn.disabled = true;
+      try {
+        await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act, target_cpa: v }) });
+        await refreshAccounts().catch(() => {});
+        renderCreativeBrowser(host, act, range);
+      } catch (e) { goalIn.disabled = false; goalIn.value = before; $('#cbShareMsg').textContent = e.message; }
+    };
+    goalIn.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); goalIn.blur(); } };
+    goalIn.onblur = commit;
+  }
+  const minIn = $('#cbMinSpend');
+  if (minIn) {
+    const commit = () => {
+      const v = +minIn.value.replace(/[^0-9.]/g, '');
+      CB.minSpend = isFinite(v) && v >= 0 ? v : 0;
+      renderCreativeBrowser(host, act, range);
+    };
+    minIn.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); minIn.blur(); } };
+    minIn.onblur = commit;
+  }
+  const why = $('#cbWhy');
+  if (why) why.onclick = () => helpModal('Why isn’t my ad here?', `
+    <p>Sorting by a <b>ratio</b> — ROAS, CPA, CTR, CPM, hook, hold — only ranks ads there is enough evidence to judge. Two ways to earn that, and an ad needs one of them:</p>
+    <p>· <b>It spent ${d.floor > 0 ? fmtMoney(d.floor, cur) : 'anything'}.</b> ${d.floor_basis === 'target_cpa'
+      ? `That is ${CB.mult}× the ${fmtMoney(d.target_cpa, cur)} goal CPA — enough budget to have hit target ${CB.mult} times, whether or not it did. This is how a <i>losing</i> ad earns its place on a CPA sort: it had the money and nothing came back.`
+      : d.floor_basis === 'actual_cpa'
+      ? `That is ${CB.mult}× this account's actual CPA of ${fmtMoney(d.acct_cpa, cur)}. <b>Set a goal CPA</b> in the bar above and the line moves to what you are aiming for instead of what you happen to be getting — a bar built on actual CPA rises as performance gets worse, which is exactly backwards.`
+      : 'You set that number yourself in the bar above.'}</p>
+    <p>· <b>Or it made ${d.min_purchases ?? 3} sales.</b> Sales are the other kind of evidence, and this is how a brand-new winner appears before it has spent much. Dartee's 357-13 took $79 against a $180 bar and returned 19x off 15 sales — a spend test alone would have hidden it for weeks.</p>
+    <p>An ad with one lucky sale on $12 satisfies neither, which is the whole point: it would otherwise top every ROAS list.</p>
+    <p><b>To see everything anyway:</b> set <b>Counts at → Any spend</b>, or sort by <b>Spend</b>, <b>Purchases</b> or <b>Newest</b> — those rank every ad that spent, because they are not ratios and cannot be flattered by a tiny denominator.</p>`);
 
   /* Freeze what is on screen and mint a link for the client. FROZEN, like the
      reports and for the same reason: "here is what is working" sent on Tuesday

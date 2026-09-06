@@ -3560,6 +3560,10 @@ async function hourlyPacing(env, acct) {
    coincidence — one lucky conversion on a $12 ad is the thing the spend floor
    exists to keep out, and it still is. */
 const MIN_RANK_PURCHASES = 3;
+/* How many times over the goal CPA an ad must have spent before a ratio is
+   worth ranking. The team's own rule, and now the page's default; the control
+   in the Creative toolbar can loosen or tighten it for one look. */
+const DEFAULT_CPA_MULTIPLE = 3;
 
 async function adRows(env, acct, from, to, opts = {}) {
   /* ATTRIBUTION SOURCE. `opts.attr` is a Triple Whale model name, or 'meta' /
@@ -3610,19 +3614,33 @@ async function adRows(env, acct, from, to, opts = {}) {
   const totalSpend = results.reduce((n, r) => n + r.spend, 0);
   const totalPurch = results.reduce((n, r) => n + r.purchases, 0);
   const acctCpa = totalPurch ? totalSpend / totalPurch : null;
-  /* THE SPEND BAR IS 3x THE ACCOUNT'S OWN CPA — the rule the team already uses
-     when deciding whether an ad has been given a fair run.
-     It replaces max($50, 3% of window spend), which scaled with the SIZE OF THE
-     ACCOUNT rather than with its unit economics and was wildly inconsistent
-     across brands: measured 2026-09-05 over 30 days it set the bar at $106 for
-     Party Patch and $779 for The Golf Sock, and left SIX of Dartee's 254 ads
-     eligible for a ROAS sort.
-     3x CPA says the same thing everywhere: this ad has had enough budget to
-     have sold three times. Live values: Grunk $100, Bonk/Party Patch $116,
-     Golf Sock $131, Dartee $180, Lucky $278.
-     A window with no purchases at all has no CPA, so it keeps the old bar. */
-  const floor = acctCpa ? Math.max(50, acctCpa * 3) : Math.max(50, totalSpend * 0.03);
-  const floorBasis = acctCpa ? 'cpa' : 'share';
+  /* THE SPEND BAR: a multiple of the brand's GOAL CPA, set on the page.
+   *
+   * It replaced max($50, 3% of window spend), which scaled with the SIZE of the
+   * account rather than its economics — $106 at Party Patch against $779 at The
+   * Golf Sock, and only SIX of Dartee's 254 ads eligible for a ROAS sort.
+   *
+   * GOAL, not actual, and the distinction is the point (Cole, 2026-09-06).
+   * Judging ads against the CPA the account currently achieves means the bar
+   * RISES as performance gets worse, so you start looking later exactly when
+   * you should be looking sooner. A goal is a fixed line. `acct.target_cpa` is
+   * that line; the actual CPA is only the fallback until somebody sets one, and
+   * `floor_basis` says which is in force so a missing goal is visible rather
+   * than silent.
+   */
+  const targetCpa = acct.target_cpa > 0 ? acct.target_cpa : null;
+  const cpaBasis = targetCpa ?? acctCpa;
+  const mult = opts.mult != null && opts.mult >= 0 ? opts.mult : DEFAULT_CPA_MULTIPLE;
+  let floor, floorBasis, floorMult = null;
+  if (opts.minSpend != null && opts.minSpend >= 0) {
+    floor = opts.minSpend; floorBasis = 'custom';
+  } else if (cpaBasis) {
+    floorMult = mult; floor = mult * cpaBasis;
+    floorBasis = targetCpa ? 'target_cpa' : 'actual_cpa';
+  } else {
+    // Nothing sold in the window, so there is no CPA of any kind to build on.
+    floor = Math.max(50, totalSpend * 0.03); floorBasis = 'share';
+  }
 
   const rows = results.map(r => {
     const imp = r.impressions || 0;
@@ -3754,7 +3772,8 @@ async function adRows(env, acct, from, to, opts = {}) {
     matched: list.length,
     total_spend: totalSpend,
     shown_spend: top.reduce((n, r) => n + r.spend, 0),
-    floor, floor_basis: floorBasis, min_purchases: MIN_RANK_PURCHASES, acct_cpa: acctCpa, sort,
+    floor, floor_basis: floorBasis, floor_mult: floorMult,
+    min_purchases: MIN_RANK_PURCHASES, acct_cpa: acctCpa, target_cpa: targetCpa, sort,
     // How much of the account this ranking actually saw. "Showing 8 of 12" is
     // a very different sentence when there are 256 ads behind it.
     ads_with_spend: rows.length,
@@ -4823,11 +4842,20 @@ export default {
         const days = Math.min(Math.max(+url.searchParams.get('days') || 30, 1), 400);
         const from = ymd(url.searchParams.get('from')) || addDays(to, -(days - 1));
         const t0 = Date.now();
+        /* `mult` and `min_spend` come from the threshold control in the
+           Creative toolbar. mult=0 is a real value — "rank every ad that
+           spent" — so it is parsed with a null check, never a truthiness one. */
+        const numParam = k => {
+          const v = url.searchParams.get(k);
+          return v == null || v === '' || !isFinite(+v) ? null : Math.max(0, +v);
+        };
         const r = await adRows(env, acct, from > to ? to : from, to, {
           sort: url.searchParams.get('sort'),
           format: url.searchParams.get('format'),
           limit: url.searchParams.get('limit'),
           attr: url.searchParams.get('attr'),
+          mult: numParam('mult'),
+          minSpend: numParam('min_spend'),
         });
         // Assets for the shown ads only. Never fatal - the numbers are the point
         // and a card with no image still answers the question.
