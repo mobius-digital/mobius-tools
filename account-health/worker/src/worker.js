@@ -3151,11 +3151,11 @@ async function reportData(env, acct, period, start, end) {
     // one-off rather than a category. Everything rejected joins Untagged,
     // which is always shown — disclosing the coverage beats gating on it.
     const UNTAGGED = 'Untagged';
-    const fmtOf = n => {
-      const m = /\|([^|]+)$/.exec(n || '');
-      const label = m ? m[1].trim() : '';
-      return label && label.length <= 24 && /[a-z]/i.test(label) ? label : null;
-    };
+    /* ONLY A KNOWN FORMAT WORD MAY BE A FORMAT HERE. This table goes to a
+       client as "how UGC did against Still", so a partner's name arriving in
+       the same slot of the ad name must never become a row in it. Labels fold
+       into Untagged, whose share is disclosed rather than hidden. */
+    const fmtOf = n => { const t = nameTag(n); return t && t.kind === 'format' ? t.tag : null; };
     const totalAdSpend = adRows.reduce((a, r) => a + (r.spend || 0), 0);
     const tally = (rows, keyOf) => {
       const by = {};
@@ -3577,6 +3577,41 @@ async function hourlyPacing(env, acct) {
    ratio ranking whatever it spent. Three is the smallest number that is not a
    coincidence — one lucky conversion on a $12 ad is the thing the spend floor
    exists to keep out, and it still is. */
+/* WHAT COUNTS AS A FORMAT — a dictionary, because nothing about the SHAPE of a
+   tag separates a format from a partner's name.
+   The tag is whatever follows the last `|` in the ad's own name, and the
+   convention is not uniform. Measured across all six brands, July–August 2026,
+   that slot holds: UGC and Still (real formats, 61–97% of spend depending on
+   the brand), partner names (James and Justin, Hozzle and Hack, Jesse, Owen,
+   Brian, Luke), a product line (Lifestyle Bundle), shoot codes (0616 carrying
+   $6,206 of Lucky's spend, and bare 1/2/3), and for 111 of Lucky's 274 ads no
+   pipe at all.
+   So the tool stops inferring: a tag is a FORMAT when it is a known format
+   word, and a LABEL otherwise. A label still shows on the card — it is useful,
+   it is what the team wrote — but it can never be reported as a creative
+   format, which is what stopped "James and Justin" from turning up in a
+   client's UGC-vs-Still table.
+   Meta already tells us the true medium (video / image / carousel) and that is
+   what the card's badge shows; this is only about the naming layer on top.
+   ADD WORDS HERE when the team adopts one. */
+const FORMAT_WORDS = new Map([
+  ['ugc', 'UGC'], ['still', 'Still'], ['stills', 'Still'], ['static', 'Static'],
+  ['statics', 'Static'], ['video', 'Video'], ['vid', 'Video'], ['gif', 'GIF'],
+  ['carousel', 'Carousel'], ['image', 'Image'], ['photo', 'Photo'],
+  ['whitelist', 'Whitelist'], ['ws', 'Whitelist'],
+]);
+
+/** The tag on an ad's name, and whether it is a format or just a label.
+ *  Case is normalised so "still" and "Still" are one thing, not two. */
+function nameTag(name) {
+  const m = /\|([^|]+)$/.exec(name || '');
+  const raw = m ? m[1].trim() : '';
+  // A tag with no letters is a shoot code, not a name for anything.
+  if (!raw || raw.length > 24 || !/[a-z]/i.test(raw)) return null;
+  const known = FORMAT_WORDS.get(raw.toLowerCase());
+  return known ? { tag: known, kind: 'format' } : { tag: raw, kind: 'label' };
+}
+
 const MIN_RANK_PURCHASES = 3;
 /* How many times over the goal CPA an ad must have spent before a ratio is
    worth ranking. The team's own rule, and now the page's default; the control
@@ -3675,12 +3710,7 @@ async function adRows(env, acct, from, to, opts = {}) {
     // The format tag is the segment after the last pipe in the ad's own name -
     // "310 B | Still", "Cole - 3 | UGC". It must contain a LETTER, or shoot
     // codes like "0616" get treated as a format.
-    const tag = (() => {
-      const p = String(r.name || '').split('|');
-      if (p.length < 2) return null;
-      const t = p[p.length - 1].trim();
-      return /[a-z]/i.test(t) ? t : null;
-    })();
+    const tagged = nameTag(r.name);
     // Gated on v3 > 0: an image ad and a video ad synced before these columns
     // existed must not look alike, and a 0% hook on a static is meaningless.
     /* `ads.media_type` is authoritative once an ad has been looked at. Until
@@ -3712,7 +3742,10 @@ async function adRows(env, acct, from, to, opts = {}) {
          click died on "no playable video" because a carousel has no single
          video id. `media` already falls back to isVideo when the type is
          unknown, so nothing is lost by dropping the alternative. */
-      is_video: media === 'video', media_type: media, format: tag,
+      is_video: media === 'video', media_type: media,
+      format: tagged ? tagged.tag : null,
+      // 'format' = a known format word; 'label' = a partner, product or code.
+      format_kind: tagged ? tagged.kind : null,
       /* Aliases and the derived metrics the detail popout shows. Named to match
          what the REPORT's adDetailModal already expects, so one modal serves
          both surfaces rather than a lookalike that drifts from it. */

@@ -874,6 +874,12 @@
   /* Meta's preview iframe, used when the mp4 is not ours to fetch (partnership
      ads). It renders at a fixed width, so it is scaled to the card rather than
      cropped - the same trick the report cards use. */
+  .prev-modal{max-width:420px}
+  /* Meta draws the unit at a fixed width; the box holds it at that size and
+     scrolls only if the viewport is genuinely too short. */
+  .prev-box{width:100%;height:min(760px,72vh);background:#fff;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden}
+  .prev-box iframe{width:100%;height:100%;border:0;display:block}
   .ad-frame iframe.ad-embed{position:absolute;top:0;left:0;border:0;display:block;background:#fff}
   .ad-frame .ad-embed-note{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.78);
     color:#fff;font-size:10.5px;line-height:1.3;padding:5px 28px 5px 8px;
@@ -2154,7 +2160,9 @@ async function renderCreativeBrowser(host, act, range) {
           ${stat('Link CTR', pct(a.ctr))}
           ${stat('CPM', money(a.cpm))}
         </div>
-        <div class="cb-foot">${a.format ? `<span class="catpill" title="Taken from this ad's own name — whatever follows the last | in &quot;${esc(a.name)}&quot;. It is your naming convention, so it is usually the creative format (UGC, Still) and on partnership ads it is the partner.">${esc(a.format)}</span>` : ''}
+        <div class="cb-foot">${a.format ? `<span class="catpill${a.format_kind === 'label' ? ' off' : ''}" title="${a.format_kind === 'label'
+            ? `A label from this ad's name, not a creative format — it is whatever follows the last | in &quot;${esc(a.name)}&quot;, here a partner, product or shoot name. Labels never appear as formats in a client report.`
+            : `The creative format, read from this ad's name (the part after the last |). Recognised format words only — anything else is shown as a label instead.`}">${esc(a.format)}</span>` : ''}
           ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
           ${a.material_by === 'sales' ? `<span class="tiny" title="Too small to clear the spend bar, but it has made enough sales for the ratio to mean something — so it is ranked anyway">ranked on sales</span>`
             : a.material ? '' : '<span class="tiny" title="Below the spend bar and under 3 sales, so it is left out of the ratio sorts">low spend</span>'}
@@ -4800,10 +4808,53 @@ function adDetailModal(a, cur, prevTag) {
 
 /** Make one `.ad-media[data-ad]` block playable. Shared by the card grid and
  *  the detail view, so a video behaves the same in both. */
+/* ONE PLAYER AT A TIME. Two videos talking over each other is nobody's
+   intention, and on a grid of eight cards it was one click away. Closing also
+   tears the source out of the element, so the browser stops downloading a video
+   nobody is watching. */
+function stopAllAdFrames(except) {
+  document.querySelectorAll('.ad-frame').forEach(f => {
+    if (f === except) return;
+    const v = f.querySelector('video');
+    if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch { /* already gone */ } }
+    f.remove();
+  });
+}
+
+/* Meta's preview is a WHOLE FEED UNIT - profile row, primary text, the video,
+   the call-to-action - drawn at a fixed size inside a cross-origin iframe we
+   cannot restyle, crop or de-scrollbar. Squeezed into a 4:5 card it was tiny
+   and still scrolled, which is what Cole saw. So a partnership ad opens in a
+   modal big enough to hold the unit at its natural size instead: nothing is
+   scaled, nothing is cropped, and the scrollbar has nothing left to scroll.
+   This is the honest shape of the caveat - our own ads give us the raw file and
+   fill the card; a partner's ad we can only ever show as Meta draws it. */
+const PREVIEW_W = 380, PREVIEW_H = 760;
+function adPreviewModal(url, note) {
+  stopAllAdFrames();
+  const w = document.createElement('div');
+  w.className = 'modal-wrap';
+  w.innerHTML = `<div class="modal prev-modal">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px">
+      <div><h3 style="margin:0 0 3px">Partnership ad</h3>
+        <p class="tiny" style="margin:0;max-width:46ch">${esc(note || 'Meta’s own preview of this ad.')}</p></div>
+      <button class="btn" data-m="ok">Close</button>
+    </div>
+    <div class="prev-box"><iframe src="${esc(url)}" title="Meta's preview of this ad" scrolling="no"
+      allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe></div>
+    <p class="tiny" style="margin:10px 0 0"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open it on Facebook ↗</a>
+      &nbsp;·&nbsp; Press play inside the preview — the file itself is on the creator’s page, so we cannot stream it directly.</p>
+  </div>`;
+  document.body.appendChild(w);
+  const done = () => { w.remove(); document.removeEventListener('keydown', k); };
+  const k = e => { if (e.key === 'Escape') done(); };
+  document.addEventListener('keydown', k);
+  w.onclick = e => { if (e.target === w || e.target.closest('[data-m="ok"]')) done(); };
+}
+
 /* "This is a partnership ad - the video file lives on the creator's page, not
-   ours, so Meta will not hand it over. Showing Meta's own preview instead."
-   is the right sentence to be able to read, and the wrong one to paint across a
-   creative. The card gets the headline; the tooltip keeps the rest. */
+   ours, so Meta will not hand it over." is the right sentence to be able to
+   read, and the wrong one to paint across a creative. */
 function partnershipNote(reason) {
   if (!reason) return 'Meta’s preview';
   return /partnership/i.test(reason) ? 'Partnership ad — Meta’s preview' : 'Meta’s preview';
@@ -4856,7 +4907,10 @@ function attachPlay(m) {
     const spin = m.querySelector('.ad-spin');
     if (spin) spin.remove();
     if (m.querySelector('.ad-frame')) return;                 // double click while loading
+    stopAllAdFrames();                       // never two players at once
     const link = preview || m.dataset.preview || null;
+    /* A preview cannot usefully live inside a card - see adPreviewModal. */
+    if (!src && link) return adPreviewModal(link, note);
     const openOut = link
       ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Open it on Facebook ↗</a>`
       : '';
