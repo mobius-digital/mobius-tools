@@ -871,6 +871,13 @@
   .ad-frame .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     text-align:center;padding:18px;color:#fff;font-size:12.5px;line-height:1.5;background:rgba(0,0,0,.72)}
   .ad-frame .msg a{color:#fff}
+  /* Meta's preview iframe, used when the mp4 is not ours to fetch (partnership
+     ads). It renders at a fixed width, so it is scaled to the card rather than
+     cropped - the same trick the report cards use. */
+  .ad-frame iframe.ad-embed{width:100%;height:100%;border:0;display:block;background:#000}
+  .ad-frame .ad-embed-note{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.72);
+    color:#fff;font-size:11px;line-height:1.35;padding:6px 30px 6px 8px}
+  .ad-frame .ad-embed-note a{color:#fff;text-decoration:underline}
   .ad-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     color:#fff;font-size:12px;background:rgba(0,0,0,.45)}
   .ad-close{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;cursor:pointer;
@@ -4648,14 +4655,20 @@ function adVideoUrl(adId) {
   const q = `ad=${encodeURIComponent(adId)}`
     + (RS.token ? `&report=${encodeURIComponent(RS.token)}` : '')
     + (AD_SHARE_TOKEN ? `&ads=${encodeURIComponent(AD_SHARE_TOKEN)}` : '');
+  /* Returns the WHOLE answer, not just the mp4.
+     A partnership ad has no fetchable file - the video lives on the creator's
+     page - but Meta's own preview iframe renders it with no login and no page
+     token, so the response carries `preview` and the card shows the real ad
+     instead of an apology. Callers read `.src` first and fall back to
+     `.preview`. */
   const p = (async () => {
     if (RS.token || AD_SHARE_TOKEN) {
       const res = await fetch(`${S.url.replace(/\/+$/, '')}/api/ad-video?${q}`);
       const b = await res.json();
       if (!res.ok) throw new Error(b.error || 'could not load this video');
-      return b.src;
+      return b;
     }
-    return (await api(`/api/ad-video?${q}`)).src;
+    return await api(`/api/ad-video?${q}`);
   })();
   // A failure must not be cached — the next click should retry rather than
   // replay the error for as long as the page is open.
@@ -4796,21 +4809,35 @@ function attachPlay(m) {
     // The URL is usually already prefetched, so only show a spinner if it is
     // genuinely not ready — a flash of "Loading" on an instant play is worse
     // than no feedback at all.
-    let settled = false, src = null, err = null;
-    const pending = adVideoUrl(adId).then(u => { src = u; settled = true; },
-                                          ex => { err = ex.message; settled = true; });
+    let settled = false, src = null, err = null, preview = null, note = null;
+    const pending = adVideoUrl(adId).then(u => {
+      // Older shapes returned a bare URL string; tolerate both.
+      if (typeof u === 'string') src = u;
+      else if (u) { src = u.src || null; preview = u.preview || null; note = u.reason || null; }
+      settled = true;
+    }, ex => { err = ex.message; settled = true; });
     await Promise.race([pending, new Promise(r => setTimeout(r, 120))]);
     if (!settled) m.insertAdjacentHTML('beforeend', '<div class="ad-spin">Loading…</div>');
     await pending;
     const spin = m.querySelector('.ad-spin');
     if (spin) spin.remove();
     if (m.querySelector('.ad-frame')) return;                 // double click while loading
-    const fallback = m.dataset.preview
-      ? `<a href="${esc(m.dataset.preview)}" target="_blank" rel="noopener noreferrer">Open it on Facebook ↗</a>`
+    const link = preview || m.dataset.preview || null;
+    const openOut = link
+      ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Open it on Facebook ↗</a>`
       : '';
+    /* THREE OUTCOMES, in order of how good they are:
+         mp4      - our own page, seekable, instant;
+         preview  - Meta's iframe, which needs no page token and is the ONLY way
+                    a partnership ad is ever viewable here;
+         message  - nothing to show, so say precisely what happened.
+       Before this, a partnership ad fell straight to the message with nothing to
+       click, and the message blamed access we were never going to be given. */
     m.insertAdjacentHTML('beforeend', `<div class="ad-frame">
       ${src ? `<video src="${esc(src)}" controls autoplay playsinline preload="metadata"></video>`
-            : `<div class="msg"><div>${esc(err || 'This video can’t be played here.')}<br>${fallback}</div></div>`}
+            : link ? `<iframe class="ad-embed" src="${esc(link)}" loading="lazy" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Meta's preview of this ad"></iframe>
+                     <div class="ad-embed-note">${esc(note || 'Playing Meta’s preview — the video file itself is not ours to fetch.')} ${openOut}</div>`
+            : `<div class="msg"><div>${esc(err || note || 'This video can’t be played here.')}<br>${openOut}</div></div>`}
       <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
     // The click IS the user gesture, but the await for the URL breaks the
     // chain, so `autoplay` alone can be refused and leave a paused frame

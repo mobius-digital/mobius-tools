@@ -2589,10 +2589,22 @@ async function adVideoSource(env, adId, hint = {}) {
     if (fresh && fresh !== tok) out = await ask(fresh).catch(e => ({ src: null, err: e.message }));
     else if (!tok) out = { src: null, err: 'no page token' };
   }
-  if (out.src) return { src: out.src };
-  return { src: null, reason: out.err === 'no page token'
-    ? 'This creative lives on a page we have not been granted access to.'
-    : `Meta would not return the video file — ${out.err || 'no reason given'}.` };
+  if (out.src) return { src: out.src, page_id: String(pageId) };
+  /* NAME THE PARTNERSHIP CASE. "We have not been granted access" is true of a
+     page we simply have not been given, and ALSO of every branded-content /
+     partnership ad — where the creative sits on the CREATOR's page and never
+     will be ours. The second is not a permissions problem to chase, it is how
+     partnership ads work, and reading the generic message sent Cole looking for
+     an access fix that does not exist. `ours` is the set of pages we actually
+     hold tokens for, so anything outside it is somebody else's page. */
+  const ours = Object.keys(tokens || {});
+  const partnership = ours.length > 0 && !ours.includes(String(pageId));
+  return { src: null, page_id: String(pageId), partnership,
+    reason: out.err === 'no page token'
+      ? (partnership
+        ? 'This is a partnership ad — the video file lives on the creator’s page, not ours, so Meta will not hand it over. Showing Meta’s own preview instead.'
+        : 'This creative lives on a page we have not been granted access to.')
+      : `Meta would not return the video file — ${out.err || 'no reason given'}.` };
 }
 
 /** Is this ad actually listed in one of that client's SENT reports?
@@ -4504,8 +4516,19 @@ export default {
          five different causes — no video, no page, no token, a stale token, a
          refusal from Meta — which is why a card that plainly WAS a video read
          as though the ad had none. `adVideoSource` now says which. */
-      const { src, reason } = await adVideoSource(env, adId, hint);
-      if (!src) return json({ error: reason || 'This ad has no video to play.' }, 404);
+      const { src, reason, partnership, page_id } = await adVideoSource(env, adId, hint);
+      if (!src) {
+        /* AN AD WE CANNOT FETCH IS NOT AN AD YOU CANNOT SEE.
+           Meta's `/previews` iframe renders the real creative — video included —
+           with NO login and NO page token, which is exactly the case a
+           partnership ad falls into. It is what the client-facing reports have
+           always used, so this is proven machinery rather than a new idea.
+           Returning 200 with a null src (rather than the old flat 404) is what
+           lets the card show the ad instead of an apology. */
+        const preview = (await adPreviewLinks(env, [adId]).catch(() => ({})))[adId] || null;
+        if (preview) return json({ src: null, preview, reason, partnership: !!partnership, page_id: page_id ?? null });
+        return json({ error: reason || 'This ad has no video to play.' }, 404);
+      }
       // Deliberately uncached: the signed URL is short-lived, and a cached one
       // that has expired plays as a broken video rather than an honest retry.
       return json({ src });
