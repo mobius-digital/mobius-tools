@@ -367,11 +367,12 @@ async function loadTxns(){
   S.txns = (await api('/api/transactions?month=' + S.month)).transactions;
   S.txnMonth = S.month;
 }
-const FILTERS = [['all','All'],['in','Money in'],['out','Expenses'],['expected','Expected'],['review','Review'],['norcpt','No receipt']];
+const FILTERS = [['all','All'],['in','Money in'],['out','Expenses'],['transfer','Transfers'],['expected','Expected'],['review','Review'],['norcpt','No receipt']];
 function txnRows(){
   return (S.txns||[]).filter(t => {
     if (S.filter==='in') return t.type==='in';
-    if (S.filter==='out') return t.type!=='in';
+    if (S.filter==='transfer') return t.type==='transfer';
+    if (S.filter==='out') return t.type==='out'||t.type==='fee';
     if (S.filter==='expected') return t.expected===1;
     if (S.filter==='review') return t.status==='review' && !t.expected;
     if (S.filter==='norcpt') return t.type==='out' && !t.expected && !t.receipt_key;
@@ -402,7 +403,7 @@ async function renderTxns(){
       <td><b>${esc(t.vendor)}</b>${t.note?` <span class="tiny">· ${esc(t.note)}</span>`:''} ${flag}
         <div class="cat">${esc(t.bucket||'—')} · ${esc(t.tax_cat||'uncategorized')}</div></td>
       <td>${rc}</td>
-      <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}">${t.type==='in'?'':'−'}${fmt$(Math.abs(t.amount)).replace('−','')}</td>
+      <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}" ${t.type==='transfer'?'style="color:var(--muted)" title="Transfer — money moving between your own accounts, not counted in any report"':''}>${t.type==='transfer'?'⇄ ':t.type==='in'?'':'−'}${fmt$(Math.abs(t.amount)).replace('−','')}</td>
     </tr>`;
   }).join('');
   m.innerHTML = `
@@ -450,6 +451,7 @@ function addModal(prefill = {}){
     <div class="seg" id="tType" style="margin-top:12px">
       <button data-v="out" class="${prefill.type!=='in'?'on':''}">Money out</button>
       <button data-v="in" class="${prefill.type==='in'?'on':''}">Money in</button>
+      <button data-v="transfer" title="Between your own accounts — never counted as income or expense">Transfer</button>
     </div>
     ${vendorDatalist()}
     <div class="mrow">
@@ -471,9 +473,9 @@ function addModal(prefill = {}){
   $('#tType').querySelectorAll('button').forEach(b => b.onclick = () => {
     type = b.dataset.v;
     $('#tType').querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b));
-    $('#tCats').style.display = type==='in' ? 'none':'';
+    $('#tCats').style.display = type==='out' ? '':'none';
   });
-  $('#tCats').style.display = type==='in' ? 'none':'';
+  $('#tCats').style.display = type==='out' ? '':'none';
   $('#tVendor').addEventListener('change', () => {
     const rule = (S.boot.vendors||[]).find(v => v.name.toLowerCase() === $('#tVendor').value.trim().toLowerCase());
     if (rule) $('#tCats').innerHTML = catSelects(rule.bucket, rule.tax_cat);
@@ -482,8 +484,8 @@ function addModal(prefill = {}){
     const row = {
       type, vendor: $('#tVendor').value.trim(), amount: +$('#tAmt').value,
       date: $('#tDate').value, note: $('#tNote').value.trim(),
-      bucket: type==='in' ? 'Revenue' : $('#tBucket').value,
-      tax_cat: type==='in' ? 'Client revenue' : $('#tTax').value,
+      bucket: type==='in' ? 'Revenue' : type==='transfer' ? 'Transfer' : $('#tBucket').value,
+      tax_cat: type==='in' ? 'Client revenue' : type==='transfer' ? 'Transfer — not P&L' : $('#tTax').value,
       one_time: $('#tOne').checked, saveRule: $('#tRule').checked,
     };
     if (!row.vendor || !row.amount || !row.date) { $('#tMsg').className='msg bad'; $('#tMsg').textContent='Vendor, amount and date are required.'; return; }

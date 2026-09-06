@@ -113,9 +113,13 @@ async function computeReport(env, month) {
     'SELECT * FROM transactions WHERE month = ?1 AND expected = 0 ORDER BY date, id'
   ).bind(month).all();
 
-  let revenue = 0, fees = 0, expenses = 0;
+  let revenue = 0, fees = 0, expenses = 0, transfers = 0;
   const byBucket = {}, byTax = {}, byClient = {};
   for (const t of txns) {
+    // transfers are money MOVING, not money made or spent: the Amex payment
+    // from Novo, Stripe payouts landing, the 50/30/10/5/5 moves — counting
+    // them would double every dollar that already counted as a charge
+    if (t.type === 'transfer') { transfers += t.amount; continue; }
     if (t.type === 'in') { revenue += t.amount; byClient[t.vendor] = (byClient[t.vendor] || 0) + t.amount; }
     else if (t.type === 'fee') fees += t.amount;
     else {
@@ -140,6 +144,7 @@ async function computeReport(env, month) {
     revenue: round2(revenue), expenses: round2(expenses), fees: round2(fees), feeEstimated,
     net, taxes, distributions: dist, profit,
     margin: revenue > 0 ? round2(net / revenue * 100) : null,
+    transfers: round2(transfers),
     opCost, split, splitPct: money.split, taxPct: money.taxPct, distPct: money.distPct,
     byBucket: mapRound(byBucket), byTax: mapRound(byTax), byClient: mapRound(byClient),
     txnCount: txns.length,
@@ -152,6 +157,7 @@ const mapRound = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, r
 async function applyRule(env, row) {
   if (row.type === 'in') { row.bucket = 'Revenue'; row.tax_cat = 'Client revenue'; return row; }
   if (row.type === 'fee') { row.bucket = 'Merchant fee'; row.tax_cat = 'Bank & merchant fees'; return row; }
+  if (row.type === 'transfer') { row.bucket = 'Transfer'; row.tax_cat = 'Transfer — not P&L'; return row; }
   if (row.bucket && row.tax_cat) return row;
   const rule = await env.DB.prepare('SELECT * FROM vendors WHERE name = ?1 COLLATE NOCASE').bind(row.vendor).first();
   if (rule) { row.bucket = row.bucket || rule.bucket; row.tax_cat = row.tax_cat || rule.tax_cat; }
@@ -483,7 +489,7 @@ export default {
           SELECT month,
             SUM(CASE WHEN status = 'review' THEN 1 ELSE 0 END) AS review,
             SUM(CASE WHEN expected = 1 THEN 1 ELSE 0 END) AS expected,
-            SUM(CASE WHEN type != 'in' AND type != 'fee' AND expected = 0 AND receipt_key IS NULL THEN 1 ELSE 0 END) AS noReceipt
+            SUM(CASE WHEN type = 'out' AND expected = 0 AND receipt_key IS NULL THEN 1 ELSE 0 END) AS noReceipt
           FROM transactions GROUP BY month`).all();
         const avg = await recentRevenueAvg(env);
         return json({
@@ -520,7 +526,7 @@ export default {
         for (const r of rows) {
           const date = /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : null;
           const amount = Number(r.amount);
-          const type = ['in', 'out', 'fee'].includes(r.type) ? r.type : null;
+          const type = ['in', 'out', 'fee', 'transfer'].includes(r.type) ? r.type : null;
           const vendor = String(r.vendor || '').trim().slice(0, 120);
           if (!date || !vendor || !type || !Number.isFinite(amount) || amount === 0) continue;
           const month = monthOf(date);
