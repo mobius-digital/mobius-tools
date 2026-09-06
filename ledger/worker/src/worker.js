@@ -213,6 +213,22 @@ async function findReceiptsChannel(env) {
   return { error: 'no #receipts channel found' };
 }
 
+/* Slack signs every event: HMAC of "v0:<timestamp>:<raw body>". Verifying it is
+ * what makes the events endpoint safe to leave unauthenticated — without this
+ * anyone who learned the URL could make the worker file transactions. */
+async function verifySlackSig(env, ts, rawBody, sig) {
+  if (!env.SLACK_SIGNING_SECRET || !ts || !sig) return false;
+  if (Math.abs(Date.now() / 1000 - +ts) > 300) return false;   // replay guard
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.SLACK_SIGNING_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`v0:${ts}:${rawBody}`));
+  const mine = 'v0=' + [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (mine.length !== sig.length) return false;
+  let diff = 0;
+  for (let i = 0; i < mine.length; i++) diff |= mine.charCodeAt(i) ^ sig.charCodeAt(i);
+  return diff === 0;
+}
+
 const SEEN_CAP = 300;
 
 /**
@@ -225,6 +241,12 @@ async function processSlackReceipts(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
   const cfg = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
   cfg.seen = cfg.seen || [];
+  // An event and the cron can fire on the same file within seconds of each
+  // other; both would read the same `seen` list and file the receipt twice.
+  // A short lease makes the loser skip instead.
+  if (cfg.lockUntil && cfg.lockUntil > Date.now()) return { skipped: 'another run in progress' };
+  cfg.lockUntil = Date.now() + 60e3;
+  await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
   if (!cfg.channelId) {
     const ch = await findReceiptsChannel(env);
     if (ch.error) { cfg.lastError = ch.error; await putSetting(env, 'slackReceipts', JSON.stringify(cfg)); return { error: ch.error }; }
@@ -305,6 +327,7 @@ async function processSlackReceipts(env) {
       }
     }
   }
+  cfg.lockUntil = 0;
   await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
   return { handled, channel: cfg.channelId };
 }
@@ -602,12 +625,31 @@ export default {
     }
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
     if (path === '/health') return json({ ok: true });
     if (!path.startsWith('/api/')) return json({ error: 'not found' }, 404);
+
+    /* Slack Events — the one route with no Bearer token: Slack calls it.
+     * Its signature IS the credential (verifySlackSig), so it is checked
+     * before anything else happens, including the setup handshake. */
+    if (path === '/api/slack-events' && request.method === 'POST') {
+      const raw = await request.text();
+      const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'),
+        raw, request.headers.get('x-slack-signature'));
+      if (!ok) return json({ error: 'bad signature' }, 401);
+      const body = safeJson(raw, {}) || {};
+      if (body.type === 'url_verification') return json({ challenge: body.challenge });
+      // Slack retries anything it can't get an answer from in 3 seconds, so
+      // acknowledge first and do the reading/filing after the response.
+      const ev = body.event || {};
+      if ((ev.files || []).length || ev.subtype === 'file_share')
+        ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack event: ' + e.message)));
+      return json({ ok: true });
+    }
+
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
 
     try {
@@ -635,6 +677,7 @@ export default {
           extractAvailable: !!env.ANTHROPIC_API_KEY,
           stripeConfigured: !!env.STRIPE_KEY,
           slackConfigured: !!env.SLACK_BOT_TOKEN,
+          slackInstant: !!env.SLACK_SIGNING_SECRET,
           plaidConfigured: plaidReady(env),
           plaidEnv: env.PLAID_ENV || 'sandbox',
           plaidItems: (await getPlaidItems(env)).map(i => ({
@@ -982,7 +1025,8 @@ export default {
         if (!auth.ok) return json({ configured: true, ok: false, error: auth.error });
         const ch = await findReceiptsChannel(env);
         return json({ configured: true, ok: !ch.error, bot: auth.user, team: auth.team,
-          channel: ch.id || null, isMember: ch.is_member ?? null, error: ch.error || null });
+          channel: ch.id || null, isMember: ch.is_member ?? null, error: ch.error || null,
+          instant: !!env.SLACK_SIGNING_SECRET });
       }
 
       if (path === '/api/slack-poll' && request.method === 'POST') {

@@ -1137,7 +1137,7 @@ function renderSettings(){
     <div class="card" style="margin-top:14px">
       <h3>Slack receipts</h3>
       ${S.boot.slackConfigured
-        ? `<div class="hint">Connected ✓ — drop a receipt photo or PDF into <b>#receipts</b> and within ~10 minutes Ledger reads it, matches it to the expense (or files a new one), attaches it, and replies in the thread with what it did.</div>
+        ? `<div class="hint">Connected ✓ — drop a receipt photo or PDF into <b>#receipts</b> and Ledger reads it, matches it to the expense (or files a new one), attaches it, and replies in the thread with what it did. ${S.boot.slackInstant ? '<b>Instant:</b> receipts are handled the moment they land, with a 10-minute sweep as backup.' : 'Runs every 10 minutes — add the signing secret to make it instant.'}</div>
            <div class="row" style="margin-top:10px"><button class="btn" onclick="slackPollNow(this)">↻ Check the channel now</button><span class="msg" id="spMsg"></span></div>`
         : `<div class="hint">Not connected — paste the Slack bot token (xoxb-…) into <code>ledger/worker/.env</code> and have it pushed, then drop receipts into #receipts from your phone.</div>`}
     </div>
