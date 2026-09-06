@@ -874,10 +874,12 @@
   /* Meta's preview iframe, used when the mp4 is not ours to fetch (partnership
      ads). It renders at a fixed width, so it is scaled to the card rather than
      cropped - the same trick the report cards use. */
-  .ad-frame iframe.ad-embed{width:100%;height:100%;border:0;display:block;background:#000}
-  .ad-frame .ad-embed-note{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.72);
-    color:#fff;font-size:11px;line-height:1.35;padding:6px 30px 6px 8px}
-  .ad-frame .ad-embed-note a{color:#fff;text-decoration:underline}
+  .ad-frame iframe.ad-embed{position:absolute;top:0;left:0;border:0;display:block;background:#fff}
+  .ad-frame .ad-embed-note{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.78);
+    color:#fff;font-size:10.5px;line-height:1.3;padding:5px 28px 5px 8px;
+    display:flex;gap:6px;align-items:baseline;white-space:nowrap;overflow:hidden}
+  .ad-frame .ad-embed-note span{overflow:hidden;text-overflow:ellipsis}
+  .ad-frame .ad-embed-note a{color:#fff;text-decoration:underline;flex:none}
   .ad-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     color:#fff;font-size:12px;background:rgba(0,0,0,.45)}
   .ad-close{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;cursor:pointer;
@@ -2152,7 +2154,7 @@ async function renderCreativeBrowser(host, act, range) {
           ${stat('Link CTR', pct(a.ctr))}
           ${stat('CPM', money(a.cpm))}
         </div>
-        <div class="cb-foot">${a.format ? `<span class="catpill">${esc(a.format)}</span>` : ''}
+        <div class="cb-foot">${a.format ? `<span class="catpill" title="Taken from this ad's own name — whatever follows the last | in &quot;${esc(a.name)}&quot;. It is your naming convention, so it is usually the creative format (UGC, Still) and on partnership ads it is the partner.">${esc(a.format)}</span>` : ''}
           ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
           ${a.material_by === 'sales' ? `<span class="tiny" title="Too small to clear the spend bar, but it has made enough sales for the ratio to mean something — so it is ranked anyway">ranked on sales</span>`
             : a.material ? '' : '<span class="tiny" title="Below the spend bar and under 3 sales, so it is left out of the ratio sorts">low spend</span>'}
@@ -4798,6 +4800,38 @@ function adDetailModal(a, cur, prevTag) {
 
 /** Make one `.ad-media[data-ad]` block playable. Shared by the card grid and
  *  the detail view, so a video behaves the same in both. */
+/* "This is a partnership ad - the video file lives on the creator's page, not
+   ours, so Meta will not hand it over. Showing Meta's own preview instead."
+   is the right sentence to be able to read, and the wrong one to paint across a
+   creative. The card gets the headline; the tooltip keeps the rest. */
+function partnershipNote(reason) {
+  if (!reason) return 'Meta’s preview';
+  return /partnership/i.test(reason) ? 'Partnership ad — Meta’s preview' : 'Meta’s preview';
+}
+
+/* Meta's preview iframe has a fixed intrinsic size, so it must be SCALED into
+   whatever box it lands in rather than stretched or cropped. Re-run on resize
+   because a card's width follows the grid. */
+const EMBED_W = 340, EMBED_H = 620;
+function fitEmbed(m) {
+  const f = m.querySelector('iframe.ad-embed');
+  if (!f) return;
+  const apply = () => {
+    const w = m.clientWidth, h = m.clientHeight;
+    if (!w || !h) return;                       // not laid out yet (or a test DOM)
+    const s = Math.min(w / EMBED_W, h / EMBED_H);
+    f.style.width = EMBED_W + 'px';
+    f.style.height = EMBED_H + 'px';
+    f.style.transformOrigin = 'top left';
+    f.style.transform = `translate(${((w - EMBED_W * s) / 2).toFixed(1)}px, ${((h - EMBED_H * s) / 2).toFixed(1)}px) scale(${s.toFixed(4)})`;
+  };
+  apply();
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(() => { if (m.querySelector('iframe.ad-embed')) apply(); else ro.disconnect(); });
+    ro.observe(m);
+  }
+}
+
 function attachPlay(m) {
   const btn = m.querySelector('.ad-play');
   if (!btn) return;
@@ -4833,12 +4867,21 @@ function attachPlay(m) {
          message  - nothing to show, so say precisely what happened.
        Before this, a partnership ad fell straight to the message with nothing to
        click, and the message blamed access we were never going to be given. */
+    /* ONE LINE, not a paragraph. The full sentence covered a third of the
+       creative on a card this size — the explanation belongs on hover and in
+       the detail view, not stamped across the ad. */
+    const shortNote = partnershipNote(note);
     m.insertAdjacentHTML('beforeend', `<div class="ad-frame">
       ${src ? `<video src="${esc(src)}" controls autoplay playsinline preload="metadata"></video>`
-            : link ? `<iframe class="ad-embed" src="${esc(link)}" loading="lazy" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Meta's preview of this ad"></iframe>
-                     <div class="ad-embed-note">${esc(note || 'Playing Meta’s preview — the video file itself is not ours to fetch.')} ${openOut}</div>`
+            : link ? `<iframe class="ad-embed" src="${esc(link)}" loading="lazy" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="${esc(note || 'Meta’s preview of this ad')}"></iframe>
+                     <div class="ad-embed-note" title="${esc(note || '')}"><span>${esc(shortNote)}</span> ${openOut}</div>`
             : `<div class="msg"><div>${esc(err || note || 'This video can’t be played here.')}<br>${openOut}</div></div>`}
       <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
+    /* Meta renders its preview at a FIXED size (a mobile feed unit, ~340x620).
+       Dropped into a 4:5 card it was cropped to a letterbox of itself, which is
+       the "formatting is weird" Cole saw. Scale the whole unit to fit and
+       centre it: the ad is small but WHOLE, and nothing is cut off. */
+    fitEmbed(m);
     // The click IS the user gesture, but the await for the URL breaks the
     // chain, so `autoplay` alone can be refused and leave a paused frame
     // under a play button that looks broken. Ask explicitly and let the

@@ -2601,8 +2601,7 @@ async function adVideoSource(env, adId, hint = {}) {
   const partnership = ours.length > 0 && !ours.includes(String(pageId));
   return { src: null, page_id: String(pageId), partnership,
     reason: out.err === 'no page token'
-      ? (partnership
-        ? 'This is a partnership ad — the video file lives on the creator’s page, not ours, so Meta will not hand it over. Showing Meta’s own preview instead.'
+      ? (partnership ? PARTNERSHIP_REASON
         : 'This creative lives on a page we have not been granted access to.')
       : `Meta would not return the video file — ${out.err || 'no reason given'}.` };
 }
@@ -2650,6 +2649,13 @@ async function adInSentReport(env, token, adId) {
    asset eventually corrects itself. Only rows under 90KB are stored: a full
    resolution static can be far larger and D1 is not an image host. */
 const AD_CREATIVE_TTL_DAYS = 14;
+/* How long a cached preview URL is trusted. Meta's preview tokens expire on a
+   long horizon, so a week is comfortably inside it while still self-healing if
+   one ever dies early. */
+const AD_PREVIEW_TTL_DAYS = 7;
+/* Said in one place, by both the short-circuit and the live resolution, so the
+   card cannot explain itself two different ways depending on the cache. */
+const PARTNERSHIP_REASON = 'This is a partnership ad — the video file lives on the creator’s page, not ours, so Meta will not hand it over. Showing Meta’s own preview instead.';
 /* What the LIVE creative browser may spend on one image, and across a batch.
    Deliberately not the report's numbers: a report inlines every image into a
    single D1 row and must stay small, whereas this is a JSON response that is
@@ -4516,6 +4522,22 @@ export default {
          five different causes — no video, no page, no token, a stale token, a
          refusal from Meta — which is why a card that plainly WAS a video read
          as though the ad had none. `adVideoSource` now says which. */
+      /* A PARTNERSHIP AD WILL NEVER YIELD AN MP4, SO STOP PAYING TO FIND OUT.
+         Resolving one costs four or five sequential Meta round trips — the
+         creative, the page-token map, the video, a token refresh, then the
+         preview — and for a creator's page every one of them is doomed by
+         construction. Cole's first click took seconds. The verdict is cached
+         per ad and re-checked weekly; only the partnership case short-circuits,
+         because an mp4 URL is signed and short-lived and must stay live. */
+      const cachedPrev = await env.DB.prepare(
+        `SELECT url, partnership, fetched_at FROM ad_preview WHERE ad_id = ?1`,
+      ).bind(adId).first().catch(() => null);
+      const previewFresh = cachedPrev?.fetched_at
+        && Date.now() - Date.parse(cachedPrev.fetched_at) < AD_PREVIEW_TTL_DAYS * 86400e3;
+      if (cachedPrev?.partnership && cachedPrev.url && previewFresh) {
+        return json({ src: null, preview: cachedPrev.url, partnership: true, cached: true,
+          reason: PARTNERSHIP_REASON });
+      }
       const { src, reason, partnership, page_id } = await adVideoSource(env, adId, hint);
       if (!src) {
         /* AN AD WE CANNOT FETCH IS NOT AN AD YOU CANNOT SEE.
@@ -4526,7 +4548,17 @@ export default {
            Returning 200 with a null src (rather than the old flat 404) is what
            lets the card show the ad instead of an apology. */
         const preview = (await adPreviewLinks(env, [adId]).catch(() => ({})))[adId] || null;
-        if (preview) return json({ src: null, preview, reason, partnership: !!partnership, page_id: page_id ?? null });
+        if (preview) {
+          // Remember it, so the next click on a partnership ad costs one D1 read
+          // instead of five Meta calls.
+          await env.DB.prepare(
+            `INSERT INTO ad_preview (ad_id, url, partnership, page_id, fetched_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(ad_id) DO UPDATE SET url = excluded.url, partnership = excluded.partnership,
+               page_id = excluded.page_id, fetched_at = excluded.fetched_at`,
+          ).bind(adId, preview, partnership ? 1 : 0, page_id ?? null, new Date().toISOString()).run().catch(() => {});
+          return json({ src: null, preview, reason, partnership: !!partnership, page_id: page_id ?? null });
+        }
         return json({ error: reason || 'This ad has no video to play.' }, 404);
       }
       // Deliberately uncached: the signed URL is short-lived, and a cached one

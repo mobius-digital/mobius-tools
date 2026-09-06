@@ -172,3 +172,16 @@ CREATE TABLE IF NOT EXISTS briefs (
   data_json TEXT,                                -- the forecast/actual numbers behind the text
   PRIMARY KEY (act_id, date)
 );
+
+-- Cached login-free preview URLs, and the verdict on WHY an ad has no mp4.
+-- A partnership ad's video lives on the creator's page and can never be fetched,
+-- so resolving one costs five doomed Meta calls; the verdict is cached and the
+-- click short-circuits. Preview tokens expire on a long horizon (see
+-- AD_PREVIEW_TTL_DAYS), so rows are re-checked weekly.
+CREATE TABLE IF NOT EXISTS ad_preview (
+  ad_id       TEXT PRIMARY KEY,
+  url         TEXT,
+  partnership INTEGER NOT NULL DEFAULT 0,
+  page_id     TEXT,
+  fetched_at  TEXT NOT NULL
+);
