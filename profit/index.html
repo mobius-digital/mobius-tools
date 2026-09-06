@@ -533,6 +533,9 @@
   .chip.on{background:var(--hd);color:#fff;border-color:var(--hd)}
   .catpill{border:1px solid var(--line);border-radius:99px;padding:4px 11px;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--brand-ink);background:var(--brand-soft)}
   .catpill.off{background:transparent;color:var(--muted);border-style:dashed;opacity:.75}
+  /* A FACT about the ad (Meta says the creative is on someone else's page),
+     not a word from its name - so it is filled, where the name tag is outlined. */
+  .catpill.part{background:var(--hd);border-color:var(--hd);color:#fff}
   .catpill i{font-style:normal;font-weight:600;opacity:.65;margin-left:4px}
   /* Controls. `.modal` is in the list because modals are appended to <body>,
      OUTSIDE <main> - so a main-scoped rule never reaches them and every select
@@ -2160,7 +2163,7 @@ async function renderCreativeBrowser(host, act, range) {
           ${stat('Link CTR', pct(a.ctr))}
           ${stat('CPM', money(a.cpm))}
         </div>
-        <div class="cb-foot">${a.format ? `<span class="catpill${a.format_kind === 'label' ? ' off' : ''}" title="${a.format_kind === 'label'
+        <div class="cb-foot">${a.partnership ? `<span class="catpill part" title="A partnership ad: the creative lives on the partner's own page, not ours. Meta will not release the video file for these, so pressing play opens Meta's preview of the post instead.">Partnership</span>` : ''}${a.format ? `<span class="catpill${a.format_kind === 'label' ? ' off' : ''}" title="${a.format_kind === 'label'
             ? `A label from this ad's name, not a creative format — it is whatever follows the last | in &quot;${esc(a.name)}&quot;, here a partner, product or shoot name. Labels never appear as formats in a client report.`
             : `The creative format, read from this ad's name (the part after the last |). Recognised format words only — anything else is shown as a label instead.`}">${esc(a.format)}</span>` : ''}
           ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
@@ -4742,6 +4745,7 @@ function adDetailModal(a, cur, prevTag) {
     <div>
       <div class="adm-facts">
         ${fact('', a.video ? 'Video' : 'Image')}
+        ${a.partnership ? '<span>Partnership ad</span>' : ''}
         ${fact('Status', a.status ? a.status.toLowerCase().replace(/_/g, ' ') : null)}
         ${fact('Live since', a.created)}
         ${days != null ? `<span>Running <b>${days} days</b></span>` : ''}

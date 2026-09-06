@@ -4974,6 +4974,21 @@ export default {
             }
           } catch { /* the numbers stand without it */ }
         }
+        /* MARK PARTNERSHIP ADS ON THE CARD, not only when you press play.
+           The cached creative already carries `page_id`, and the page-token map
+           is a settings read, so knowing whether a creative sits on OUR page or
+           a creator's costs nothing here. Before this, the only way to find out
+           was to click play and read the apology - and the pill said "Hozzle
+           and Hack" (the name the team typed) with nothing to say the ad was a
+           partnership at all. An ad whose creative has never been cached simply
+           has no page_id yet and stays unmarked rather than guessed at. */
+        try {
+          const ours = new Set(Object.keys(await pageTokens(env).catch(() => ({}))));
+          if (ours.size) for (const a of r.ads) {
+            if (a.page_id && !ours.has(String(a.page_id))) a.partnership = true;
+          }
+        } catch { /* the numbers stand without it */ }
+
         const t2 = Date.now();
         // Timings ride along permanently. "It feels slow" is not actionable;
         // "creative took 4.1s of 4.3s" says exactly what to fix.
