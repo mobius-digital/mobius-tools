@@ -281,43 +281,52 @@ async function processSlackReceipts(env) {
         // Claude's image ceiling is ~5MB of data; oversize files still get stored
         const ext = bytes.length < 4.5 * 1024 * 1024 ? await claudeExtract(env, b64, f.mimetype) : null;
         const today = centralDate(Date.now() / 1000);
+        // THE RECEIPT'S OWN DATE DECIDES THE MONTH. A receipt photographed in
+        // September for an April lunch belongs to April — filing it under
+        // "today" would silently move spend between months (and years).
+        const rDate = /^\d{4}-\d{2}-\d{2}$/.test(ext?.date || '') && ext.date <= today ? ext.date : today;
+        const rMonth = monthOf(rDate);
 
-        // 1) best case: it pays off an expense already in the ledger
+        // 1) best case: it pays off an expense already in the ledger. Search the
+        // receipt's own month ±1 (a card posts a day or two after the purchase);
+        // attaching to a CLOSED month is allowed — only new rows are frozen out.
         let target = null;
         if (ext?.amount) {
           const { results } = await env.DB.prepare(
             `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
-             AND month >= ?1 AND ABS(amount - ?2) < 0.01 ORDER BY date DESC LIMIT 5`)
-            .bind(addMonthsYmd(today, -1).slice(0, 7), ext.amount).all();
+             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01 ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
+            .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)), ext.amount, rDate).all();
           target = results.find(t => ext.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0])) || results[0] || null;
         }
         // 2) otherwise a readable receipt files itself as a new expense
         if (!target && ext?.vendor && ext?.amount) {
-          const date = /^\d{4}-\d{2}-\d{2}$/.test(ext.date || '') && ext.date <= today && monthOf(ext.date) >= addMonthsYmd(today, -1).slice(0, 7)
-            ? ext.date : today;
-          const month = monthOf(date);
-          if ((await monthStatus(env, month)) !== 'closed') {
-            const row = await applyRule(env, {
-              date, month, type: 'out', vendor: String(ext.vendor).slice(0, 120),
-              amount: round2(Number(ext.amount)), bucket: null, tax_cat: null,
-              note: ext.note ? String(ext.note).slice(0, 300) : null, status: 'ok',
-            });
-            const res = await env.DB.prepare(`INSERT INTO transactions
-              (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
-              VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
-              .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
-            target = { id: res.meta.last_row_id, vendor: row.vendor, amount: row.amount, date: row.date,
-                       __new: true, __review: row.status === 'review' };
+          const date = rDate, month = rMonth;
+          if ((await monthStatus(env, month)) === 'closed') {
+            await reply(`🔒 That looks like *${ext.vendor}* $${Number(ext.amount).toFixed(2)} from ${date} — but ${moLabel(month)} is closed and nothing there matches that amount. Reopen the month in the app if it really belongs there.`);
+            handled++; continue;
           }
+          const row = await applyRule(env, {
+            date, month, type: 'out', vendor: String(ext.vendor).slice(0, 120),
+            amount: round2(Number(ext.amount)), bucket: null, tax_cat: null,
+            note: ext.note ? String(ext.note).slice(0, 300) : null, status: 'ok',
+          });
+          const res = await env.DB.prepare(`INSERT INTO transactions
+            (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
+            VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
+            .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
+          target = { id: res.meta.last_row_id, vendor: row.vendor, amount: row.amount, date: row.date,
+                     __new: true, __review: row.status === 'review' };
         }
         if (target) {
           const key = `rcpt:${target.id}:${Date.now()}`;
           await env.RECEIPTS.put(key, buf);
           await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
             .bind(target.id, key, (f.name || 'receipt').slice(0, 120), f.mimetype).run();
+          // the month is always stated: a receipt filed into the wrong month is
+          // the one mistake that would quietly move spend around behind him
           await reply(target.__new
-            ? `🧾 Filed: *${target.vendor}* $${target.amount.toFixed(2)} — receipt attached.${target.__review ? ' New vendor, so it\'s waiting in Review for a category (one tap in the app).' : ' Categorized automatically.'}`
-            : `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} (${target.date}) — receipt attached.`);
+            ? `🧾 Filed: *${target.vendor}* $${target.amount.toFixed(2)} — dated ${target.date}, so it lands in *${moLabel(monthOf(target.date))}*. Receipt attached.${target.__review ? ' New vendor, so it\'s waiting in Review for a category (one tap in the app).' : ' Categorized automatically.'}`
+            : `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`);
         } else {
           await reply(`⚠️ Couldn't read a vendor + total off this one — add it from the app's Receipts tab instead.`);
         }
@@ -331,6 +340,9 @@ async function processSlackReceipts(env) {
   await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
   return { handled, channel: cfg.channelId };
 }
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const moLabel = m => `${MONTH_NAMES[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
 
 const addMonthsYmd = (ymd, n) => {
   const d = new Date(ymd + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n);
