@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200">
+  <title>Mobius Ledger</title>
+  <defs>
+    <linearGradient id="g" x1="204.0" y1="0" x2="995.0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e9f4ee"/><stop offset="1" stop-color="#5cc395"/>
+    </linearGradient>
+    <clipPath id="cut"><rect x="0" y="0" width="993" height="1200"/></clipPath>
+  </defs>
+  <rect width="1200" height="1200" fill="#0d2119"/>
+  <line x1="299.5" y1="745.5" x2="604.5" y2="439.5" stroke="url(#g)" stroke-width="191.0" stroke-linecap="round"/>
+  <line x1="604.5" y1="759.5" x2="900.0" y2="463.5" stroke="url(#g)" stroke-width="191.0" stroke-linecap="round"/>
+  <line x1="900.0" y1="772.5" x2="1200.0" y2="472.5" stroke="url(#g)" stroke-width="179.0" stroke-linecap="round" clip-path="url(#cut)"/>
+</svg>
