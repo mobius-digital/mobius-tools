@@ -17,11 +17,15 @@ CREATE TABLE IF NOT EXISTS transactions (
   receipt_key TEXT,                      -- KV key of the attached receipt file
   receipt_name TEXT,
   receipt_type TEXT,                     -- MIME type of the stored file
-  source TEXT DEFAULT 'manual',          -- manual | recurring | import | backfill
-  created_at TEXT DEFAULT (datetime('now'))
+  source TEXT DEFAULT 'manual',          -- manual | recurring | import | backfill | stripe
+  created_at TEXT DEFAULT (datetime('now')),
+  stripe_id TEXT,                        -- Stripe charge/refund id — sync dedupe key
+  stripe_cus TEXT,                       -- Stripe customer id, for the learn-the-mapping flow
+  fee REAL                               -- Stripe fee on this charge; monthly fee row = SUM(fee)
 );
 CREATE INDEX IF NOT EXISTS idx_txn_month ON transactions(month);
 CREATE INDEX IF NOT EXISTS idx_txn_vendor ON transactions(vendor);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_txn_stripe ON transactions(stripe_id) WHERE stripe_id IS NOT NULL;
 
 -- Vendor rules: one row per known vendor (recurring AND one-off — the rule IS
 -- the categorization, a known vendor never asks again). recurring=1 rows are

@@ -160,10 +160,153 @@ async function applyRule(env, row) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Stripe sync (Phase 3)                                              */
+/* ------------------------------------------------------------------ */
+
+async function stripeGet(env, path, params = {}) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) for (const x of v) qs.append(k, x); else qs.append(k, v);
+  }
+  const r = await fetch('https://api.stripe.com/v1/' + path + '?' + qs, {
+    headers: { Authorization: 'Bearer ' + env.STRIPE_KEY },
+  });
+  const j = await r.json();
+  if (j.error) throw new Error('Stripe: ' + j.error.message);
+  return j;
+}
+
+/* Money lands on the day it landed in Cole's timezone, matching the sheet. */
+const centralDate = ts => new Intl.DateTimeFormat('en-CA',
+  { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts * 1000));
+
+/* Which client is this charge from? Order: the learned customer→client map,
+ * then a conservative name/email match against the client list (which also
+ * LEARNS the mapping). No match → Review inbox, never a silent guess. */
+function resolveClient(clients, map, cusId, texts) {
+  if (cusId && map[cusId]) return { client: map[cusId], learned: false };
+  const hay = texts.filter(Boolean).map(s => String(s).toLowerCase());
+  for (const c of clients) {
+    const name = c.name.toLowerCase();
+    const first = name.split(' ')[0];
+    const hit = hay.some(h => h.includes(name) || (first.length >= 4 && h.includes(first)));
+    if (hit) return { client: c.name, learned: !!cusId };
+  }
+  return { client: null, learned: false };
+}
+
+/**
+ * Pull charges + refunds for [fromYmd..toYmd] (Central dates) into the ledger.
+ * Idempotent: rows key on stripe_id; the monthly Stripe-fee row is recomputed
+ * from SUM(fee) after every run. Closed months are never written into.
+ */
+async function syncStripe(env, fromYmd, toYmd) {
+  if (!env.STRIPE_KEY) throw new Error('STRIPE_KEY is not set on the worker');
+  const [clientsQ, mapRaw, monthsQ] = await Promise.all([
+    env.DB.prepare('SELECT name FROM clients').all(),
+    getSetting(env, 'stripeMap'),
+    env.DB.prepare('SELECT month, status FROM months').all(),
+  ]);
+  const clients = clientsQ.results;
+  // JSON.parse(null) is null, not a throw — the fallback alone doesn't save us
+  const map = safeJson(mapRaw, {}) || {};
+  const closed = new Set(monthsQ.results.filter(m => m.status === 'closed').map(m => m.month));
+  // coarse window (±1 day) — precise bucketing happens on the Central date
+  const gte = Math.floor(Date.parse(fromYmd + 'T00:00:00Z') / 1000) - 86400;
+  const lte = Math.floor(Date.parse(toYmd + 'T23:59:59Z') / 1000) + 86400;
+
+  let mapDirty = false, added = 0, review = 0, skippedClosed = 0;
+  const touched = new Set();
+
+  const walk = async (path, expand, handler) => {
+    let after = null;
+    do {
+      const page = await stripeGet(env, path, {
+        limit: 100, 'created[gte]': gte, 'created[lte]': lte,
+        'expand[]': expand, ...(after ? { starting_after: after } : {}),
+      });
+      for (const item of page.data) await handler(item);
+      after = page.has_more ? page.data[page.data.length - 1].id : null;
+    } while (after);
+  };
+
+  await walk('charges', ['data.balance_transaction', 'data.customer'], async c => {
+    if (!c.paid || c.status !== 'succeeded') return;
+    const date = centralDate(c.created), month = monthOf(date);
+    if (date < fromYmd || date > toYmd) return;
+    if (closed.has(month)) { skippedClosed++; return; }
+    const cus = typeof c.customer === 'object' && c.customer ? c.customer : null;
+    const cusId = cus?.id || (typeof c.customer === 'string' ? c.customer : null);
+    const { client, learned } = resolveClient(clients, map, cusId,
+      [cus?.name, cus?.email, cus?.description, c.description, c.calculated_statement_descriptor, c.billing_details?.name, c.billing_details?.email]);
+    if (learned && cusId) { map[cusId] = client; mapDirty = true; }
+    const vendor = client || (cus?.name || cus?.email || c.billing_details?.name || c.description || 'Stripe customer');
+    const fee = c.balance_transaction && typeof c.balance_transaction === 'object' ? c.balance_transaction.fee / 100 : null;
+    const res = await env.DB.prepare(`INSERT OR IGNORE INTO transactions
+      (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, stripe_id, stripe_cus, fee)
+      VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', ?5, ?6, 'stripe', ?7, ?8, ?9)`)
+      .bind(date, month, vendor, round2(c.amount / 100),
+            client ? null : 'New Stripe customer — pick the client and Ledger remembers it',
+            client ? 'ok' : 'review', c.id, cusId, fee).run();
+    if (res.meta.changes) { added++; touched.add(month); if (!client) review++; }
+  });
+
+  await walk('refunds', ['data.charge'], async r => {
+    if (r.status && r.status !== 'succeeded') return;
+    const date = centralDate(r.created), month = monthOf(date);
+    if (date < fromYmd || date > toYmd) return;
+    if (closed.has(month)) { skippedClosed++; return; }
+    const ch = typeof r.charge === 'object' && r.charge ? r.charge : null;
+    const cusId = ch ? (typeof ch.customer === 'string' ? ch.customer : ch.customer?.id) : null;
+    const client = cusId && map[cusId] ? map[cusId] : null;
+    const res = await env.DB.prepare(`INSERT OR IGNORE INTO transactions
+      (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, stripe_id, stripe_cus)
+      VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', 'Refund', ?5, 'stripe', ?6, ?7)`)
+      .bind(date, month, client || ch?.description || 'Stripe refund', -round2(r.amount / 100),
+            client ? 'ok' : 'review', r.id, cusId).run();
+    if (res.meta.changes) { added++; touched.add(month); if (!client) review++; }
+  });
+
+  if (mapDirty) await putSetting(env, 'stripeMap', JSON.stringify(map));
+
+  // fee rows + expected-row cleanup run for every stripe month in the window,
+  // not just fresh inserts — so a rerun after a mid-sync failure still finishes
+  const { results: mrows } = await env.DB.prepare(
+    `SELECT DISTINCT month FROM transactions WHERE source = 'stripe' AND month >= ?1 AND month <= ?2`)
+    .bind(monthOf(fromYmd), monthOf(toYmd)).all();
+  for (const r of mrows) if (!closed.has(r.month)) touched.add(r.month);
+
+  for (const month of touched) {
+    // one aggregated fee row per month, recomputed from the stored per-charge fees
+    const f = await env.DB.prepare(`SELECT SUM(fee) AS fees FROM transactions WHERE month = ?1 AND source = 'stripe'`).bind(month).first();
+    const fees = round2(f?.fees || 0);
+    if (fees > 0) {
+      await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, source, stripe_id)
+        VALUES (?1, ?2, 'fee', 'Stripe', ?3, 'Merchant fee', 'Bank & merchant fees', 'Exact fees from Stripe, per charge', 'stripe', ?4)
+        ON CONFLICT(stripe_id) WHERE stripe_id IS NOT NULL DO UPDATE SET amount = ?3`)
+        .bind(month + '-01', month, fees, 'stripefees:' + month).run();
+    }
+    // a real Stripe payment satisfies that client's pre-created expected row
+    await env.DB.prepare(`DELETE FROM transactions WHERE month = ?1 AND expected = 1 AND type = 'in'
+      AND vendor IN (SELECT vendor FROM transactions WHERE month = ?1 AND source = 'stripe' AND type = 'in')`).bind(month).run();
+  }
+  return { added, review, skippedClosed, months: [...touched].sort() };
+}
+
+/* ------------------------------------------------------------------ */
 /*  worker                                                             */
 /* ------------------------------------------------------------------ */
 
 export default {
+  async scheduled(event, env, ctx) {
+    // nightly: re-pull the last 10 days — Stripe data settles late sometimes,
+    // and stripe_id dedupe makes the overlap free
+    if (!env.STRIPE_KEY) return;
+    const to = centralDate(Date.now() / 1000);
+    const from = centralDate(Date.now() / 1000 - 10 * 86400);
+    ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -195,6 +338,7 @@ export default {
           vendors: vendors.results, months: months.results,
           flags: Object.fromEntries(flags.results.map(f => [f.month, f])),
           extractAvailable: !!env.ANTHROPIC_API_KEY,
+          stripeConfigured: !!env.STRIPE_KEY,
           buckets: BUCKETS_OUT,
         });
       }
@@ -270,6 +414,13 @@ export default {
         } else if (b.date !== undefined || b.amount !== undefined) {
           return json({ error: `${cur.month} is closed — reopen it to change amounts or dates.` }, 400);
         }
+        // learning: naming a Stripe customer's client once teaches the sync forever
+        if (b.mapStripe && cur.stripe_cus && next.vendor && next.vendor !== cur.vendor) {
+          const map = safeJson(await getSetting(env, 'stripeMap'), {}) || {};
+          map[cur.stripe_cus] = next.vendor;
+          await putSetting(env, 'stripeMap', JSON.stringify(map));
+          next.status = 'ok'; next.note = null;
+        }
         if (next.status === 'ok' && cur.status === 'review' && next.bucket && next.tax_cat && b.saveRule && cur.type === 'out') {
           await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active)
             VALUES (?1, ?2, ?3, ?4, ?5, 1)`)
@@ -291,6 +442,23 @@ export default {
         if (cur.receipt_key) await env.RECEIPTS.delete(cur.receipt_key);
         await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(id).run();
         return json({ ok: true });
+      }
+
+      /* ---- Stripe ---- */
+      if (path === '/api/stripe-check') {
+        if (!env.STRIPE_KEY) return json({ configured: false });
+        const bal = await stripeGet(env, 'balance_transactions', { limit: 3 });
+        return json({ configured: true, ok: true,
+          sample: bal.data.map(b => ({ type: b.type, amount: b.amount / 100, fee: b.fee / 100, when: centralDate(b.created) })) });
+      }
+
+      if (path === '/api/stripe-sync' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        let from = b.from, to = b.to;
+        if (validMonth(b.month)) { from = b.month + '-01'; to = b.month + '-31'; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
+          return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
+        return json({ ok: true, ...(await syncStripe(env, from, to)) });
       }
 
       /* ---- recurring engine: pre-create this month's expected rows ---- */

@@ -393,9 +393,10 @@ async function renderTxns(){
     const rc = t.type==='out' && !t.expected
       ? (t.receipt_key ? '<span class="rc has">✓ receipt</span>' : '<span class="rc miss">no receipt</span>')
       : '<span class="rc na">—</span>';
-    const flag = t.expected ? '<span class="pill warn">expected</span>'
+    const flag = (t.expected ? '<span class="pill warn">expected</span>'
       : t.status==='review' ? '<span class="pill bad">review</span>'
-      : t.one_time ? '<span class="pill unk">one-time</span>' : '';
+      : t.one_time ? '<span class="pill unk">one-time</span>' : '')
+      + (t.source==='stripe' ? ' <span class="pill good" title="Synced from Stripe — amount and fee are exact">stripe</span>' : '');
     return `<tr onclick="editTxn(${t.id})">
       <td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
       <td><b>${esc(t.vendor)}</b>${t.note?` <span class="tiny">· ${esc(t.note)}</span>`:''} ${flag}
@@ -512,6 +513,7 @@ async function editTxn(id){
     </div>
     ${t.type==='out' ? catSelects(t.bucket||'Other', t.tax_cat||'') : ''}
     ${t.type==='out' && t.status==='review' ? `<label class="ck"><input type="checkbox" id="eRule" checked><span>Remember this vendor's categories<small>Clears it from Review for good.</small></span></label>`:''}
+    ${t.stripe_cus ? `<label class="ck"><input type="checkbox" id="eMap" ${t.status==='review'?'checked':''}><span>Remember: this Stripe customer is the client above<small>Every future payment from them auto-matches — set the vendor to the right client first.</small></span></label>`:''}
     ${t.type==='out' ? `<label class="ck"><input type="checkbox" id="eOne" ${t.one_time?'checked':''}><span>One-time purchase</span></label>`:''}
     <label>Receipt</label>
     <div class="row" style="margin-bottom:0">
@@ -536,6 +538,7 @@ async function editTxn(id){
       if (t.status==='review' && b.bucket && b.tax_cat) { b.status='ok'; b.saveRule = $('#eRule')?.checked; }
     }
     if (t.expected) b.confirm = true;
+    if (t.stripe_cus && $('#eMap')?.checked) { b.mapStripe = true; b.status = 'ok'; }
     try {
       await api('/api/transaction', { method:'PUT', body: JSON.stringify(b) });
       closeModal(); S.txns=null; S.boot = await api('/api/boot'); show(S.view);
@@ -1123,6 +1126,13 @@ function renderSettings(){
       }).join('')}
     </div>
     <div class="card" style="margin-top:14px">
+      <h3>Stripe</h3>
+      ${S.boot.stripeConfigured
+        ? `<div class="hint">Connected ✓ — charges, refunds and exact fees sync every night (last 10 days re-pulled, so late-settling data self-corrects). A payment from a new Stripe customer lands in Review once; name the client and it auto-matches forever. Closed months are never touched.</div>
+           <div class="row" style="margin-top:10px"><button class="btn" onclick="stripeSyncNow(this)">↻ Sync the last 60 days now</button><span class="msg" id="ssMsg"></span></div>`
+        : `<div class="hint">Not connected — paste a restricted key into <code>ledger/worker/.env</code> and push it, then this card lights up.</div>`}
+    </div>
+    <div class="card" style="margin-top:14px">
       <h3>Access</h3>
       <div class="hint">Google sign-in via Mobius HQ covers the team. A password is the backup way in.</div>
       <div class="row" style="margin-top:10px">
@@ -1235,6 +1245,19 @@ async function saveVendorField(name, field, value){
   if (field==='bucket'||field==='tax_cat') body.applyToExisting = confirm('Apply this category to this vendor\'s existing transactions too?\n\nOK = yes, everything. Cancel = future transactions only.');
   await api('/api/vendor', { method:'POST', body: JSON.stringify(body) });
   S.boot = await api('/api/boot'); renderSettings();
+}
+async function stripeSyncNow(btn){
+  const el = $('#ssMsg'); btn.disabled = true;
+  el.className='msg'; el.textContent='Syncing…';
+  try {
+    const to = new Date().toISOString().slice(0,10);
+    const from = new Date(Date.now()-60*86400e3).toISOString().slice(0,10);
+    const r = await api('/api/stripe-sync', { method:'POST', body: JSON.stringify({ from, to }) });
+    el.className='msg good';
+    el.textContent = `Done — ${r.added} new transaction(s)` + (r.review?`, ${r.review} need a client picked in Review`:'') + (r.skippedClosed?`, ${r.skippedClosed} skipped (closed months)`:'') + '.';
+    S.boot = await api('/api/boot'); S.txns = null;
+  } catch(e){ el.className='msg bad'; el.textContent=e.message; }
+  btn.disabled = false;
 }
 async function savePw(){
   const el = $('#pwMsg');
