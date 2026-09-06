@@ -1,13 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <title>Mobius Pulse</title>
-  <defs>
-    <linearGradient id="g" x1="204.0" y1="0" x2="995.0" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f7e0b0"/><stop offset="1" stop-color="#c49433"/>
-    </linearGradient>
-    <clipPath id="cut"><rect x="0" y="0" width="993" height="1200"/></clipPath>
-  </defs>
-  <rect width="1200" height="1200" fill="#241a0a"/>
-  <line x1="299.5" y1="745.5" x2="604.5" y2="439.5" stroke="url(#g)" stroke-width="191.0" stroke-linecap="round"/>
-  <line x1="604.5" y1="759.5" x2="900.0" y2="463.5" stroke="url(#g)" stroke-width="191.0" stroke-linecap="round"/>
-  <line x1="900.0" y1="772.5" x2="1200.0" y2="472.5" stroke="url(#g)" stroke-width="179.0" stroke-linecap="round" clip-path="url(#cut)"/>
+  <defs><linearGradient id="g" x1="163.84" y1="0" x2="860.16" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0.0" stop-color="#f7e0b0"/><stop offset="1.0" stop-color="#c49433"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="#241a0a"/>
+  <path d="M196.464 694.499 C163.840 661.886 163.840 608.516 196.464 575.890 L455.891 316.543 C488.515 283.929 541.900 283.929 574.536 316.543 C607.160 349.157 607.160 402.527 574.536 435.152 L315.110 694.499 C282.486 727.113 229.100 727.113 196.464 694.499 M844.953 471.289 L685.620 630.573 L685.620 649.000 C685.620 695.132 723.369 732.869 769.515 732.869 C815.662 732.869 853.411 695.132 853.411 649.000 L853.411 461.748 C850.806 465.044 847.999 468.244 844.953 471.289 M573.891 707.457 L827.536 453.890 C860.160 421.276 860.160 367.906 827.536 335.281 C794.912 302.667 741.526 302.667 708.890 335.281 L455.246 588.848 C422.622 621.461 422.622 674.831 455.246 707.457 C487.870 740.071 541.255 740.071 573.891 707.457 L827.536 453.890 C860.160 421.276 860.160 367.906 827.536 335.281 C794.912 302.667 741.526 302.667 708.890 335.281 L455.246 588.848 C422.622 621.461 422.622 674.831 455.246 707.457 C487.870 740.071 541.255 740.071 573.891 707.457 Z" fill="url(#g)" />
 </svg>
