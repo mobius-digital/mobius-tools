@@ -21,11 +21,13 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TEXT DEFAULT (datetime('now')),
   stripe_id TEXT,                        -- Stripe charge/refund id — sync dedupe key
   stripe_cus TEXT,                       -- Stripe customer id, for the learn-the-mapping flow
-  fee REAL                               -- Stripe fee on this charge; monthly fee row = SUM(fee)
+  fee REAL,                              -- Stripe fee on this charge; monthly fee row = SUM(fee)
+  plaid_id TEXT                          -- Plaid transaction id — bank-feed dedupe key
 );
 CREATE INDEX IF NOT EXISTS idx_txn_month ON transactions(month);
 CREATE INDEX IF NOT EXISTS idx_txn_vendor ON transactions(vendor);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_txn_stripe ON transactions(stripe_id) WHERE stripe_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_txn_plaid ON transactions(plaid_id) WHERE plaid_id IS NOT NULL;
 
 -- Vendor rules: one row per known vendor (recurring AND one-off — the rule IS
 -- the categorization, a known vendor never asks again). recurring=1 rows are

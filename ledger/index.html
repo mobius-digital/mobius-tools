@@ -1142,6 +1142,19 @@ function renderSettings(){
         : `<div class="hint">Not connected — paste the Slack bot token (xoxb-…) into <code>ledger/worker/.env</code> and have it pushed, then drop receipts into #receipts from your phone.</div>`}
     </div>
     <div class="card" style="margin-top:14px">
+      <h3>Bank feeds (Plaid) ${S.boot.plaidEnv==='sandbox' && S.boot.plaidConfigured ? '<span class="pill warn">sandbox — test mode</span>':''}</h3>
+      ${!S.boot.plaidConfigured
+        ? `<div class="hint">Not connected — paste the Plaid client_id and sandbox secret into <code>ledger/worker/.env</code> (Dashboard → Developers → Keys) and have them pushed.</div>`
+        : `<div class="hint">Novo and Amex lines flow in nightly. Each bank line first tries to <b>confirm an expected row</b>, then to <b>adopt a matching manual entry</b>, and only then creates something new — so nothing double-counts. Amex payments, Stripe payouts and account moves are auto-tagged as transfers.</div>
+           ${(S.boot.plaidItems||[]).map(i=>`<div class="row" style="margin:8px 0 0"><b>${esc(i.name)}</b><span class="tiny">${i.accounts.map(esc).join(' · ')}</span>
+             <span style="flex:1"></span><button class="del-x" title="Disconnect ${esc(i.name)}" onclick="plaidRemove('${esc(i.item_id)}')">✕</button></div>`).join('')}
+           <div class="row" style="margin-top:12px">
+             <button class="btn primary" onclick="plaidConnect(this)">+ Connect a bank or card</button>
+             ${(S.boot.plaidItems||[]).length?`<button class="btn" onclick="plaidSyncNow(this)">↻ Sync now</button>`:''}
+             <span class="msg" id="plMsg"></span>
+           </div>`}
+    </div>
+    <div class="card" style="margin-top:14px">
       <h3>Access</h3>
       <div class="hint">Google sign-in via Mobius HQ covers the team. A password is the backup way in.</div>
       <div class="row" style="margin-top:10px">
@@ -1278,6 +1291,54 @@ async function slackPollNow(btn){
     S.txns = null; S.boot = await api('/api/boot');
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
   btn.disabled = false;
+}
+function loadPlaidLink(){
+  return new Promise((res, rej) => {
+    if (window.Plaid) return res();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+    s.onload = res; s.onerror = () => rej(new Error('could not load Plaid Link'));
+    document.head.appendChild(s);
+  });
+}
+async function plaidConnect(btn){
+  const el = $('#plMsg'); btn.disabled = true;
+  el.className='msg'; el.textContent='Opening the bank picker…';
+  try {
+    await loadPlaidLink();
+    const { link_token } = await api('/api/plaid-link-token', { method:'POST', body: JSON.stringify({}) });
+    const handler = Plaid.create({
+      token: link_token,
+      onSuccess: async (public_token, meta) => {
+        el.textContent = 'Linking…';
+        try {
+          const r = await api('/api/plaid-exchange', { method:'POST', body: JSON.stringify({ public_token, institution: meta.institution?.name }) });
+          el.className='msg good'; el.textContent = `Connected ${r.name || 'account'} (${r.accounts} account${r.accounts>1?'s':''}) — syncing…`;
+          await api('/api/plaid-sync', { method:'POST', body: JSON.stringify({}) });
+          S.boot = await api('/api/boot'); S.txns = null; renderSettings();
+        } catch(e){ el.className='msg bad'; el.textContent = e.message; }
+      },
+      onExit: (err) => { if (err) { el.className='msg bad'; el.textContent = err.display_message || err.error_message || 'Link closed.'; } else { el.textContent=''; } },
+    });
+    handler.open();
+  } catch(e){ el.className='msg bad'; el.textContent = e.message; }
+  btn.disabled = false;
+}
+async function plaidSyncNow(btn){
+  const el = $('#plMsg'); btn.disabled = true;
+  el.className='msg'; el.textContent='Syncing bank feeds…';
+  try {
+    const r = await api('/api/plaid-sync', { method:'POST', body: JSON.stringify({}) });
+    const bits = Object.entries(r).filter(([k])=>k!=='ok').map(([k,v])=>`${v} ${k.replace(/-/g,' ')}`);
+    el.className='msg good'; el.textContent = 'Done — ' + (bits.join(', ') || 'nothing new') + '.';
+    S.boot = await api('/api/boot'); S.txns = null;
+  } catch(e){ el.className='msg bad'; el.textContent=e.message; }
+  btn.disabled = false;
+}
+async function plaidRemove(itemId){
+  if (!confirm('Disconnect this account?\n\nAlready-imported transactions stay in the ledger; it just stops syncing.')) return;
+  await api('/api/plaid-item?item_id=' + encodeURIComponent(itemId), { method:'DELETE' });
+  S.boot = await api('/api/boot'); renderSettings();
 }
 async function savePw(){
   const el = $('#pwMsg');

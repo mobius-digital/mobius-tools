@@ -449,6 +449,140 @@ async function syncStripe(env, fromYmd, toYmd) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Plaid bank feeds (Novo + Amex)                                     */
+/* ------------------------------------------------------------------ */
+
+async function plaid(env, path, body = {}) {
+  const r = await fetch(`https://${env.PLAID_ENV || 'sandbox'}.plaid.com${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, ...body }),
+  });
+  const j = await r.json();
+  if (j.error_code) throw new Error(`Plaid: ${j.error_code} — ${j.error_message || ''}`);
+  return j;
+}
+
+const plaidReady = env => !!(env.PLAID_CLIENT_ID && env.PLAID_SECRET);
+const getPlaidItems = async env => safeJson(await getSetting(env, 'plaidItems'), []) || [];
+
+/* Money moving between Cole's own accounts — the double-count guard.
+ * The Amex payment out of Novo, Stripe payouts landing, savings/tax moves. */
+function looksLikeTransfer(name, pfc) {
+  const n = (name || '').toLowerCase();
+  if (/(amex|american express)/.test(n) && /(pay|epay|autopay|pmt)/.test(n)) return true;
+  if (/stripe/.test(n)) return true;
+  if (/^(transfer|xfer|online transfer|withdrawal to|deposit from)/.test(n)) return true;
+  const p = pfc?.primary || '';
+  return p === 'TRANSFER_IN' || p === 'TRANSFER_OUT' || p === 'LOAN_PAYMENTS';
+}
+
+/**
+ * One Plaid transaction → the ledger, reconcile-first:
+ *   1. an EXPECTED row for the same vendor/amount confirms itself (the engine's
+ *      guess meets the real bank line);
+ *   2. an existing manual/receipt row with the same amount adopts the plaid_id
+ *      instead of duplicating;
+ *   3. otherwise it inserts through the vendor rules (unknown → Review).
+ */
+async function processPlaidTxn(env, item, t) {
+  if (t.pending) return 'pending';
+  const date = t.date, month = monthOf(date);
+  const start = await getSetting(env, 'plaidStart');
+  if (start && date < start) return 'before-start';
+  if ((await monthStatus(env, month)) === 'closed') return 'closed';
+
+  const acctType = item.accounts?.[t.account_id]?.type || 'depository';
+  const rawName = t.merchant_name || t.name || 'Unknown';
+  const vendor = String(rawName).replace(/\s+/g, ' ').trim().slice(0, 120);
+  const amt = round2(t.amount); // Plaid: positive = money OUT, negative = money IN
+
+  let type, amount, status = 'ok', note = null;
+  if (looksLikeTransfer(rawName, t.personal_finance_category)) {
+    type = 'transfer'; amount = Math.abs(amt);
+  } else if (amt > 0) {
+    type = 'out'; amount = amt;
+  } else if (acctType === 'credit') {
+    type = 'out'; amount = amt; note = 'Card refund / return';   // negative out shrinks the category
+  } else {
+    type = 'in'; amount = Math.abs(amt); status = 'review';
+    note = 'Deposit that isn\'t a Stripe payout — what is it? (Revenue outside Stripe, or mark it a transfer.)';
+  }
+
+  const first = vendor.toLowerCase().split(' ')[0];
+  if (type === 'out' && amount > 0) {
+    // 1) confirm the recurring engine's expected row
+    const { results: exp } = await env.DB.prepare(
+      `SELECT * FROM transactions WHERE month = ?1 AND expected = 1 AND type = 'out' AND plaid_id IS NULL`).bind(month).all();
+    const eHit = exp.find(x => x.vendor.toLowerCase().split(' ')[0] === first
+        || x.vendor.toLowerCase().includes(first) || first.includes(x.vendor.toLowerCase().split(' ')[0]))
+      || exp.find(x => Math.abs(x.amount - amount) < 0.01);
+    if (eHit) {
+      await env.DB.prepare(`UPDATE transactions SET amount=?2, date=?3, expected=0, status='ok', plaid_id=?4 WHERE id=?1`)
+        .bind(eHit.id, amount, date, t.transaction_id).run();
+      return 'confirmed-expected';
+    }
+    // 2) adopt an existing manual row (same month, amount to the cent)
+    const { results: cand } = await env.DB.prepare(
+      `SELECT * FROM transactions WHERE month = ?1 AND type = 'out' AND expected = 0 AND plaid_id IS NULL
+       AND ABS(amount - ?2) < 0.01`).bind(month, amount).all();
+    const mHit = cand.find(x => x.vendor.toLowerCase().split(' ')[0] === first) || (cand.length === 1 ? cand[0] : null);
+    if (mHit) {
+      await env.DB.prepare(`UPDATE transactions SET plaid_id=?2 WHERE id=?1`).bind(mHit.id, t.transaction_id).run();
+      return 'matched-existing';
+    }
+  }
+
+  // 3) new row through the rules
+  const row = await applyRule(env, { date, month, type, vendor, amount, bucket: null, tax_cat: null, note, status });
+  const res = await env.DB.prepare(`INSERT OR IGNORE INTO transactions
+    (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, plaid_id)
+    VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'plaid',?10)`)
+    .bind(row.date, row.month, row.type, row.vendor, row.amount, row.bucket, row.tax_cat,
+          row.note, row.status, t.transaction_id).run();
+  return res.meta.changes ? (row.status === 'review' ? 'added-review' : 'added') : 'duplicate';
+}
+
+async function syncPlaid(env) {
+  if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
+  const items = await getPlaidItems(env);
+  if (!items.length) return { skipped: 'no connected accounts' };
+  const totals = {};
+  for (const item of items) {
+    let hasMore = true;
+    while (hasMore) {
+      const page = await plaid(env, '/transactions/sync',
+        { access_token: item.access_token, cursor: item.cursor || undefined, count: 250 });
+      for (const t of page.added) {
+        const out = await processPlaidTxn(env, item, t);
+        totals[out] = (totals[out] || 0) + 1;
+      }
+      for (const t of page.modified) {
+        const cur = await env.DB.prepare('SELECT id, month, type FROM transactions WHERE plaid_id = ?1').bind(t.transaction_id).first();
+        if (cur && (await monthStatus(env, cur.month)) !== 'closed' && !t.pending) {
+          // keep the row's own sign convention: out-rows carry Plaid's sign
+          // (negative = card refund), everything else stores the magnitude
+          const amount = cur.type === 'out' ? round2(t.amount) : round2(Math.abs(t.amount));
+          await env.DB.prepare('UPDATE transactions SET amount = ?2, date = ?3, month = ?4 WHERE id = ?1')
+            .bind(cur.id, amount, t.date, monthOf(t.date)).run();
+          totals.modified = (totals.modified || 0) + 1;
+        }
+      }
+      for (const r of page.removed) {
+        const cur = await env.DB.prepare('SELECT id, month FROM transactions WHERE plaid_id = ?1').bind(r.transaction_id).first();
+        if (cur && (await monthStatus(env, cur.month)) !== 'closed') {
+          await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(cur.id).run();
+          totals.removed = (totals.removed || 0) + 1;
+        }
+      }
+      item.cursor = page.next_cursor;
+      hasMore = page.has_more;
+      await putSetting(env, 'plaidItems', JSON.stringify(items)); // persist cursor per page
+    }
+  }
+  return { ok: true, ...totals };
+}
+
+/* ------------------------------------------------------------------ */
 /*  worker                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -457,10 +591,11 @@ export default {
     if (event.cron === '17 8 * * *') {
       // nightly: re-pull the last 10 days — Stripe data settles late sometimes,
       // and stripe_id dedupe makes the overlap free
-      if (!env.STRIPE_KEY) return;
       const to = centralDate(Date.now() / 1000);
       const from = centralDate(Date.now() / 1000 - 10 * 86400);
-      ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
+      if (env.STRIPE_KEY)
+        ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
+      ctx.waitUntil(syncPlaid(env).catch(e => console.log('plaid sync failed: ' + e.message)));
     } else {
       // every 10 minutes: anything new dropped in Slack #receipts
       ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message)));
@@ -500,6 +635,12 @@ export default {
           extractAvailable: !!env.ANTHROPIC_API_KEY,
           stripeConfigured: !!env.STRIPE_KEY,
           slackConfigured: !!env.SLACK_BOT_TOKEN,
+          plaidConfigured: plaidReady(env),
+          plaidEnv: env.PLAID_ENV || 'sandbox',
+          plaidItems: (await getPlaidItems(env)).map(i => ({
+            item_id: i.item_id, name: i.name,
+            accounts: Object.values(i.accounts || {}).map(a => `${a.name} (${a.type})`),
+          })),
           buckets: BUCKETS_OUT,
         });
       }
@@ -620,6 +761,50 @@ export default {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
           return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
         return json({ ok: true, ...(await syncStripe(env, from, to)) });
+      }
+
+      /* ---- Plaid ---- */
+      if (path === '/api/plaid-link-token' && request.method === 'POST') {
+        if (!plaidReady(env)) return json({ error: 'Plaid keys are not set on the worker yet' }, 400);
+        const r = await plaid(env, '/link/token/create', {
+          user: { client_user_id: 'cole' }, client_name: 'Mobius Ledger',
+          products: ['transactions'], country_codes: ['US'], language: 'en',
+        });
+        return json({ link_token: r.link_token });
+      }
+
+      if (path === '/api/plaid-exchange' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        if (!b.public_token) return json({ error: 'public_token required' }, 400);
+        const ex = await plaid(env, '/item/public_token/exchange', { public_token: b.public_token });
+        const acc = await plaid(env, '/accounts/get', { access_token: ex.access_token });
+        const items = await getPlaidItems(env);
+        items.push({
+          item_id: ex.item_id, access_token: ex.access_token, cursor: null,
+          name: acc.item?.institution_name || b.institution || 'Bank',
+          accounts: Object.fromEntries(acc.accounts.map(a => [a.account_id, { name: a.name, type: a.type }])),
+        });
+        await putSetting(env, 'plaidItems', JSON.stringify(items));
+        if (!(await getSetting(env, 'plaidStart'))) {
+          // never import history older than the earliest OPEN month — the sheet
+          // backfill and closed report cards already own everything before it
+          const open = await env.DB.prepare(`SELECT MIN(month) AS m FROM months WHERE status = 'open'`).first();
+          await putSetting(env, 'plaidStart', (open?.m || new Date().toISOString().slice(0, 7)) + '-01');
+        }
+        return json({ ok: true, name: acc.item?.institution_name, accounts: acc.accounts.length });
+      }
+
+      if (path === '/api/plaid-sync' && request.method === 'POST') {
+        return json(await syncPlaid(env));
+      }
+
+      if (path === '/api/plaid-item' && request.method === 'DELETE') {
+        const itemId = url.searchParams.get('item_id');
+        const items = await getPlaidItems(env);
+        const it = items.find(x => x.item_id === itemId);
+        if (it) await plaid(env, '/item/remove', { access_token: it.access_token }).catch(() => {});
+        await putSetting(env, 'plaidItems', JSON.stringify(items.filter(x => x.item_id !== itemId)));
+        return json({ ok: true });
       }
 
       /* ---- recurring engine: pre-create this month's expected rows ---- */
