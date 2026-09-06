@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobius Digital — Information Security Policy</title>
+<meta name="description" content="Mobius Digital's information security, access control, vulnerability management, and data retention policy.">
+<link rel="icon" href="../../icons/ledger-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../mobius.css">
+<style>
+  body{background:var(--bg)}
+  .wrap{max-width:800px;margin:0 auto;padding:44px 22px 90px}
+  .back{font-size:12.5px;color:var(--muted);text-decoration:none}
+  .back:hover{color:var(--ink)}
+  h1{font-family:var(--serif);font-weight:400;font-size:34px;margin:18px 0 4px}
+  .meta{color:var(--muted);font-size:13px;margin-bottom:26px}
+  h2{font-family:var(--serif);font-weight:400;font-size:22px;margin:32px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
+  h3{font-size:14px;font-weight:700;margin:18px 0 5px}
+  p,li{font-size:14.5px;line-height:1.65;color:var(--ink-2);margin-bottom:10px}
+  ul{padding-left:20px;margin-bottom:13px}
+  .lede{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 24px}
+  .lede p:last-child{margin-bottom:0}
+  strong{color:var(--ink)}
+  a{color:var(--brand-ink)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:12px 0 16px}
+  th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line-strong);padding:7px 10px 7px 0}
+  td{border-bottom:1px solid var(--line);padding:9px 10px 9px 0;vertical-align:top;white-space:normal}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../">&larr; Mobius Ledger</a>
+  <h1>Information Security Policy</h1>
+  <div class="meta">Mobius Digital LLC · Version 1.0 · Effective 6 September 2026 · Reviewed annually, next review September 2027</div>
+
+  <div class="lede">
+    <p><strong>Scope.</strong> This policy covers every system Mobius Digital LLC operates that stores or processes company financial data, client advertising data, or credentials — including Mobius Ledger and the internal tools hosted at tools.go-mobius-digital.com. It applies to all personnel and contractors with access to those systems.</p>
+    <p><strong>Owner.</strong> Cole Wetzler, Owner, is responsible for information security and for reviewing this policy annually. Contact: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p>
+  </div>
+
+  <h2>1. Risk identification and review</h2>
+  <p>The owner maintains a written inventory of systems that hold sensitive data, the categories of data in each, and the third parties that process data on our behalf. That inventory is reviewed at least annually and whenever a new integration is added. Adding any integration that reads financial or client data requires a documented decision on what data it needs, the minimum permissions to achieve it, and where its credentials will be stored.</p>
+  <p>Current sensitive systems: Cloudflare (application hosting, D1 databases, KV storage, secrets), Google Workspace (identity, mail, documents), Plaid (bank connectivity), Stripe (payment processing), Slack (internal messaging), Anthropic API (receipt and report text processing), Meta and Google advertising platforms (client campaign data).</p>
+
+  <h2>2. Access control</h2>
+  <ul>
+    <li><strong>Single sign-on.</strong> Internal applications authenticate through Google Workspace, restricted to the go-mobius-digital.com domain. Accounts outside the domain cannot sign in unless explicitly invited.</li>
+    <li><strong>Multi-factor authentication</strong> is enforced on Google Workspace accounts and enabled on the Cloudflare, Stripe, and Plaid administrative accounts.</li>
+    <li><strong>Named individual accounts.</strong> Credentials are not shared between people. Each person signs in as themselves.</li>
+    <li><strong>Least privilege.</strong> API credentials are issued with the narrowest scope that satisfies the use case, and read-only wherever a write is not required. The Stripe key used by Mobius Ledger is a restricted read-only key; the Plaid integration requests the Transactions product only.</li>
+    <li><strong>Secrets handling.</strong> API keys and access tokens live in Cloudflare Workers Secrets, encrypted at rest and not readable back through the dashboard or the application. Secrets are never committed to source control; the repository ignores local environment files by rule, and local copies are cleared once a secret is deployed.</li>
+    <li><strong>Access review and revocation.</strong> Access is reviewed at least annually and revoked the same day a person's engagement ends. Any credential believed to be exposed is rotated immediately.</li>
+  </ul>
+
+  <h2>3. Encryption</h2>
+  <ul>
+    <li><strong>In transit:</strong> all traffic to and from our applications and every third-party API is encrypted with TLS 1.2 or better. Plain HTTP is not served.</li>
+    <li><strong>At rest:</strong> application data, including all data received from the Plaid API, is stored in Cloudflare D1 and Cloudflare KV, which encrypt data at rest. Receipt files are stored in the same encrypted store. Secrets are separately encrypted in Cloudflare Workers Secrets.</li>
+    <li><strong>Endpoints:</strong> company laptops use full-disk encryption.</li>
+  </ul>
+
+  <h2>4. Vulnerability and patch management</h2>
+  <p>Production runs entirely on managed serverless infrastructure (Cloudflare Workers, D1, KV). We operate no servers, virtual machines, or containers, so operating-system and runtime patching for production is performed by the platform provider on a continuous basis. Our practices for the surface we do control:</p>
+  <ul>
+    <li>Automatic operating-system and browser updates are enabled on all company laptops.</li>
+    <li>Endpoint protection with real-time scanning is enabled on all company laptops.</li>
+    <li>Application dependencies are deliberately minimal; the internal tools are dependency-free vanilla JavaScript, which removes the majority of the third-party supply-chain surface. Where a build toolchain exists, dependency advisories are reviewed and patched when a vulnerability is reported.</li>
+    <li>Application code is reviewed before deployment, with particular attention to authentication, authorization, and any endpoint reachable without credentials.</li>
+    <li>Unauthenticated endpoints are cryptographically verified. The Slack events endpoint, for example, validates an HMAC signature with a replay window and a constant-time comparison, and fails closed if the signing secret is absent.</li>
+  </ul>
+
+  <h2>5. Data retention and deletion</h2>
+  <p>We keep only what we need, for only as long as we need it. This schedule is reviewed annually alongside this policy.</p>
+  <table>
+    <tr><th>Data</th><th>Retention</th><th>Then</th></tr>
+    <tr><td>Company financial transactions and receipts</td><td>7 years from the end of the relevant tax year</td><td>Deleted</td></tr>
+    <tr><td>Plaid and Stripe access tokens</td><td>Life of the connection</td><td>Revoked at the provider and deleted on disconnection</td></tr>
+    <tr><td>Client advertising performance data</td><td>Life of the engagement plus 12 months</td><td>Deleted</td></tr>
+    <tr><td>Application logs</td><td>30 days</td><td>Expire automatically</td></tr>
+  </table>
+  <p>Disconnecting a financial account stops collection immediately and removes the stored access token. Transactions already imported are retained for the period above because they form our own accounting records. Deletion requests relating to data we hold are handled by the owner and actioned within 30 days.</p>
+
+  <h2>6. Third parties</h2>
+  <p>Before a third party is given access to sensitive data we confirm it is an established provider with a published security posture and a data processing agreement, and we grant it the narrowest scope that meets the need. We do not sell, rent, license, or otherwise share company or client data with third parties for their own purposes.</p>
+
+  <h2>7. Incident response</h2>
+  <ol>
+    <li><strong>Contain.</strong> On suspicion of a compromise, revoke or rotate the affected credentials and disable the affected integration immediately.</li>
+    <li><strong>Assess.</strong> Determine what data was reachable, over what period, and by whom, using platform audit logs.</li>
+    <li><strong>Notify.</strong> Inform affected parties, and any provider whose data or credentials were involved — including Plaid, where its data or credentials are implicated — without undue delay and within any period their agreements require. Regulators and clients are notified where the applicable law or contract requires it.</li>
+    <li><strong>Remediate and record.</strong> Fix the root cause, write down what happened and what changed, and revisit this policy if the incident exposes a gap.</li>
+  </ol>
+  <p>Suspected incidents are reported to <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p>
+
+  <h2>8. Review</h2>
+  <p>This policy is reviewed at least annually by the owner, and whenever a significant new system or integration is introduced. The version and effective date at the top of this page record the current revision.</p>
+</div>
+</body>
+</html>

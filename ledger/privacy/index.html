@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobius Ledger — Privacy Policy</title>
+<meta name="description" content="How Mobius Ledger handles financial account data from connected bank and card accounts.">
+<link rel="icon" href="../../icons/ledger-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../mobius.css">
+<style>
+  body{background:var(--bg)}
+  .wrap{max-width:760px;margin:0 auto;padding:44px 22px 90px}
+  .back{font-size:12.5px;color:var(--muted);text-decoration:none}
+  .back:hover{color:var(--ink)}
+  h1{font-family:var(--serif);font-weight:400;font-size:34px;margin:18px 0 4px}
+  .meta{color:var(--muted);font-size:13px;margin-bottom:30px}
+  h2{font-family:var(--serif);font-weight:400;font-size:22px;margin:34px 0 8px}
+  p,li{font-size:14.5px;line-height:1.65;color:var(--ink-2);margin-bottom:11px}
+  ul{padding-left:20px;margin-bottom:14px}
+  .lede{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 24px;margin-bottom:8px}
+  .lede p:last-child{margin-bottom:0}
+  strong{color:var(--ink)}
+  a{color:var(--brand-ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../">&larr; Mobius Ledger</a>
+  <h1>Privacy Policy — Mobius Ledger</h1>
+  <div class="meta">Mobius Digital LLC · Last updated 6 September 2026</div>
+
+  <div class="lede">
+    <p><strong>The short version.</strong> Mobius Ledger is an internal bookkeeping tool built and used by Mobius Digital LLC for its own accounting. It connects only to accounts the company itself owns — its business checking account, its business credit card, and its own payment processor. It has no customers and no public sign-up. We do not sell, rent, share, or license any data it holds, and we do not use it to train models.</p>
+  </div>
+
+  <h2>Who we are</h2>
+  <p>Mobius Digital LLC, a marketing agency. Questions about this policy, or requests relating to data we hold, go to <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p>
+
+  <h2>Who uses this application</h2>
+  <p>Access is limited to Mobius Digital personnel, authenticated through Google Workspace single sign-on restricted to our own company domain. There is no public registration, no consumer user base, and no third-party access. The only financial accounts ever connected are accounts belonging to Mobius Digital LLC, connected by an owner of those accounts.</p>
+
+  <h2>What data we access</h2>
+  <ul>
+    <li><strong>Bank and credit card transactions</strong>, retrieved through Plaid from accounts we own: date, amount, merchant or description, and account identifier. We use these to record and categorize our own business spending.</li>
+    <li><strong>Payment processor records</strong>, retrieved from Stripe: our own charges, refunds, payouts, and processing fees, used to record our revenue.</li>
+    <li><strong>Receipts</strong> that we upload ourselves — photographs and PDF invoices for our own purchases.</li>
+  </ul>
+  <p>We request the minimum necessary: from Plaid we use the Transactions product only. We do not request identity, balance, account or routing numbers, income, liabilities, investments, or asset data, and we do not initiate payments or transfers of any kind.</p>
+
+  <h2>What we do with it</h2>
+  <p>Categorize our expenses, match receipts to the transactions they belong to, produce our monthly internal financial reports, and prepare the year-end package our accountant needs to file our taxes. Nothing else. The data is never used for advertising, profiling, resale, or model training.</p>
+
+  <h2>Who we share it with</h2>
+  <p>We do not sell, rent, or license this data, and we do not share it with any third party for their own purposes. It is disclosed only to:</p>
+  <ul>
+    <li><strong>Our accountant</strong>, as part of preparing and filing our own company tax return.</li>
+    <li><strong>Our infrastructure and service providers</strong>, who process data on our behalf under their own terms: Cloudflare (application hosting and database), Plaid (bank connectivity), Stripe (payment processing), Anthropic (reading uploaded receipts), Slack and Google Workspace (internal messaging and sign-in).</li>
+    <li><strong>A government or regulator</strong>, where we are legally required to do so.</li>
+  </ul>
+
+  <h2>How it is protected</h2>
+  <ul>
+    <li>All traffic is encrypted in transit over TLS 1.2 or better.</li>
+    <li>All stored data is encrypted at rest by our hosting provider.</li>
+    <li>API credentials and access tokens are held in an encrypted secret store, never in source control, and are not readable by the application's users.</li>
+    <li>Access requires Google Workspace single sign-on restricted to our company domain, with multi-factor authentication enforced on those accounts.</li>
+  </ul>
+  <p>Our full information security practices are described in our <a href="../security/">Information Security Policy</a>.</p>
+
+  <h2>How long we keep it</h2>
+  <p>Financial records are retained for <strong>seven years</strong> from the end of the tax year they relate to, which is the period we are required to be able to substantiate our tax filings. Receipts are retained for the same period. Records past that point are deleted. Our retention and deletion practices are set out in full in the <a href="../security/">Information Security Policy</a>.</p>
+  <p>Disconnecting an account stops all further data collection immediately. Transactions already imported remain in our accounting records for the retention period above, because they are our own books.</p>
+
+  <h2>Consent</h2>
+  <p>Accounts are connected by their owner through Plaid Link, which presents Plaid's own consent and privacy disclosures before any connection is made. Plaid's handling of that data is described in the <a href="https://plaid.com/legal/#end-user-privacy-policy" rel="noopener">Plaid End User Privacy Policy</a>. A connection can be revoked at any time from within this application or from the financial institution.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes materially, the date at the top of this page is updated. Because this application has no external users, changes are not separately notified.</p>
+</div>
+</body>
+</html>
