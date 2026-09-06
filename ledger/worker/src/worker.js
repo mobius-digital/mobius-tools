@@ -159,6 +159,155 @@ async function applyRule(env, row) {
   return row;
 }
 
+/* Claude reads a receipt: vendor, total, date, short note — or null. */
+async function claudeExtract(env, b64, mediaType) {
+  if (!env.ANTHROPIC_API_KEY) return null;
+  const block = mediaType === 'application/pdf'
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 300,
+      messages: [{ role: 'user', content: [block, { type: 'text', text:
+        'This is a receipt or invoice. Reply with ONLY a JSON object: {"vendor": string, "amount": number (the total), "date": "YYYY-MM-DD" or null, "note": short string or null}. No other text.' }] }],
+    }),
+  });
+  const j = await r.json().catch(() => ({}));
+  const m = (j?.content?.[0]?.text || '').match(/\{[\s\S]*\}/);
+  return m ? safeJson(m[0], null) : null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Slack #receipts intake (Phase 3)                                   */
+/* ------------------------------------------------------------------ */
+
+async function slack(env, method, params = {}, post = false) {
+  const r = post
+    ? await fetch(`https://slack.com/api/${method}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(params) })
+    : await fetch(`https://slack.com/api/${method}?${new URLSearchParams(params)}`, {
+        headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+  return r.json();
+}
+
+async function findReceiptsChannel(env) {
+  let cursor = '';
+  do {
+    const r = await slack(env, 'conversations.list',
+      { types: 'public_channel,private_channel', exclude_archived: 'true', limit: '200', ...(cursor ? { cursor } : {}) });
+    if (!r.ok) return { error: r.error };
+    const hit = (r.channels || []).find(c => c.name === 'receipts');
+    if (hit) return { id: hit.id, is_member: !!hit.is_member };
+    cursor = r.response_metadata?.next_cursor || '';
+  } while (cursor);
+  return { error: 'no #receipts channel found' };
+}
+
+const SEEN_CAP = 300;
+
+/**
+ * Poll #receipts: each new image/PDF is downloaded, read by Claude, then
+ * matched to an unreceipted expense (this month or last, amount to the cent)
+ * or filed as a new transaction — and the thread gets a reply saying which.
+ * Dedupe: Slack file ids in settings.slackReceipts.seen; cursor on lastTs.
+ */
+async function processSlackReceipts(env) {
+  if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
+  const cfg = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
+  cfg.seen = cfg.seen || [];
+  if (!cfg.channelId) {
+    const ch = await findReceiptsChannel(env);
+    if (ch.error) { cfg.lastError = ch.error; await putSetting(env, 'slackReceipts', JSON.stringify(cfg)); return { error: ch.error }; }
+    cfg.channelId = ch.id;
+  }
+  const hist = await slack(env, 'conversations.history',
+    { channel: cfg.channelId, limit: '30', ...(cfg.lastTs ? { oldest: cfg.lastTs } : {}) });
+  if (!hist.ok) { cfg.lastError = hist.error; await putSetting(env, 'slackReceipts', JSON.stringify(cfg)); return { error: hist.error }; }
+  cfg.lastError = null;
+
+  const msgs = (hist.messages || []).slice().reverse();   // oldest first
+  let handled = 0;
+  for (const msg of msgs) {
+    if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
+    for (const f of msg.files || []) {
+      const isPdf = f.mimetype === 'application/pdf';
+      if (!isPdf && !/^image\//.test(f.mimetype || '')) continue;
+      if (cfg.seen.includes(f.id)) continue;
+      cfg.seen.push(f.id); if (cfg.seen.length > SEEN_CAP) cfg.seen = cfg.seen.slice(-SEEN_CAP);
+      const reply = text => slack(env, 'chat.postMessage',
+        { channel: cfg.channelId, thread_ts: msg.ts, text, unfurl_links: false }, true);
+      try {
+        if ((f.size || 0) > 8 * 1024 * 1024) { await reply('⚠️ That file is over 8MB — attach it from the app instead.'); continue; }
+        const dl = await fetch(f.url_private_download || f.url_private,
+          { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+        const buf = await dl.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let b64 = '';
+        for (let i = 0; i < bytes.length; i += 0x8000)
+          b64 += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        b64 = btoa(b64);
+        // Claude's image ceiling is ~5MB of data; oversize files still get stored
+        const ext = bytes.length < 4.5 * 1024 * 1024 ? await claudeExtract(env, b64, f.mimetype) : null;
+        const today = centralDate(Date.now() / 1000);
+
+        // 1) best case: it pays off an expense already in the ledger
+        let target = null;
+        if (ext?.amount) {
+          const { results } = await env.DB.prepare(
+            `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
+             AND month >= ?1 AND ABS(amount - ?2) < 0.01 ORDER BY date DESC LIMIT 5`)
+            .bind(addMonthsYmd(today, -1).slice(0, 7), ext.amount).all();
+          target = results.find(t => ext.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0])) || results[0] || null;
+        }
+        // 2) otherwise a readable receipt files itself as a new expense
+        if (!target && ext?.vendor && ext?.amount) {
+          const date = /^\d{4}-\d{2}-\d{2}$/.test(ext.date || '') && ext.date <= today && monthOf(ext.date) >= addMonthsYmd(today, -1).slice(0, 7)
+            ? ext.date : today;
+          const month = monthOf(date);
+          if ((await monthStatus(env, month)) !== 'closed') {
+            const row = await applyRule(env, {
+              date, month, type: 'out', vendor: String(ext.vendor).slice(0, 120),
+              amount: round2(Number(ext.amount)), bucket: null, tax_cat: null,
+              note: ext.note ? String(ext.note).slice(0, 300) : null, status: 'ok',
+            });
+            const res = await env.DB.prepare(`INSERT INTO transactions
+              (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
+              VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
+              .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
+            target = { id: res.meta.last_row_id, vendor: row.vendor, amount: row.amount, date: row.date,
+                       __new: true, __review: row.status === 'review' };
+          }
+        }
+        if (target) {
+          const key = `rcpt:${target.id}:${Date.now()}`;
+          await env.RECEIPTS.put(key, buf);
+          await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
+            .bind(target.id, key, (f.name || 'receipt').slice(0, 120), f.mimetype).run();
+          await reply(target.__new
+            ? `🧾 Filed: *${target.vendor}* $${target.amount.toFixed(2)} — receipt attached.${target.__review ? ' New vendor, so it\'s waiting in Review for a category (one tap in the app).' : ' Categorized automatically.'}`
+            : `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} (${target.date}) — receipt attached.`);
+        } else {
+          await reply(`⚠️ Couldn't read a vendor + total off this one — add it from the app's Receipts tab instead.`);
+        }
+        handled++;
+      } catch (e) {
+        await reply(`⚠️ Something went wrong handling this file: ${String(e.message || e).slice(0, 140)}`).catch(() => {});
+      }
+    }
+  }
+  await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
+  return { handled, channel: cfg.channelId };
+}
+
+const addMonthsYmd = (ymd, n) => {
+  const d = new Date(ymd + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 /* ------------------------------------------------------------------ */
 /*  Stripe sync (Phase 3)                                              */
 /* ------------------------------------------------------------------ */
@@ -299,12 +448,17 @@ async function syncStripe(env, fromYmd, toYmd) {
 
 export default {
   async scheduled(event, env, ctx) {
-    // nightly: re-pull the last 10 days — Stripe data settles late sometimes,
-    // and stripe_id dedupe makes the overlap free
-    if (!env.STRIPE_KEY) return;
-    const to = centralDate(Date.now() / 1000);
-    const from = centralDate(Date.now() / 1000 - 10 * 86400);
-    ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
+    if (event.cron === '17 8 * * *') {
+      // nightly: re-pull the last 10 days — Stripe data settles late sometimes,
+      // and stripe_id dedupe makes the overlap free
+      if (!env.STRIPE_KEY) return;
+      const to = centralDate(Date.now() / 1000);
+      const from = centralDate(Date.now() / 1000 - 10 * 86400);
+      ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
+    } else {
+      // every 10 minutes: anything new dropped in Slack #receipts
+      ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message)));
+    }
   },
 
   async fetch(request, env) {
@@ -339,6 +493,7 @@ export default {
           flags: Object.fromEntries(flags.results.map(f => [f.month, f])),
           extractAvailable: !!env.ANTHROPIC_API_KEY,
           stripeConfigured: !!env.STRIPE_KEY,
+          slackConfigured: !!env.SLACK_BOT_TOKEN,
           buckets: BUCKETS_OUT,
         });
       }
@@ -626,23 +781,21 @@ export default {
       if (path === '/api/extract' && request.method === 'POST') {
         if (!env.ANTHROPIC_API_KEY) return json({ available: false });
         const b = await request.json().catch(() => ({}));
-        const mt = String(b.media_type || 'image/jpeg');
-        const block = mt === 'application/pdf'
-          ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b.data } }
-          : { type: 'image', source: { type: 'base64', media_type: mt, data: b.data } };
-        const r = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001', max_tokens: 300,
-            messages: [{ role: 'user', content: [block, { type: 'text', text:
-              'This is a receipt or invoice. Reply with ONLY a JSON object: {"vendor": string, "amount": number (the total), "date": "YYYY-MM-DD" or null, "note": short string or null}. No other text.' }] }],
-          }),
-        });
-        const j = await r.json().catch(() => ({}));
-        const text = j?.content?.[0]?.text || '';
-        const m = text.match(/\{[\s\S]*\}/);
-        return json({ available: true, extracted: m ? safeJson(m[0], null) : null });
+        return json({ available: true, extracted: await claudeExtract(env, b.data, String(b.media_type || 'image/jpeg')) });
+      }
+
+      /* ---- Slack receipts ---- */
+      if (path === '/api/slack-check') {
+        if (!env.SLACK_BOT_TOKEN) return json({ configured: false });
+        const auth = await slack(env, 'auth.test', {});
+        if (!auth.ok) return json({ configured: true, ok: false, error: auth.error });
+        const ch = await findReceiptsChannel(env);
+        return json({ configured: true, ok: !ch.error, bot: auth.user, team: auth.team,
+          channel: ch.id || null, isMember: ch.is_member ?? null, error: ch.error || null });
+      }
+
+      if (path === '/api/slack-poll' && request.method === 'POST') {
+        return json(await processSlackReceipts(env));
       }
 
       /* ---- vendors / clients / settings ---- */
