@@ -4297,24 +4297,39 @@ function briefCard(acct, date, row, banner) {
 function reportCard(acct, row, banner) {
   const data = safeJson(row?.data_json, null);
   const label = row.period === 'weekly' ? 'Weekly' : 'Monthly';
-  const range = `${prettyDate(row.period_start)} → ${prettyDate(row.period_end)}`;
+  const range = `${prettyDate(row.period_start)} \u2192 ${prettyDate(row.period_end)}`;
   const v = JSON.stringify({ a: acct.act_id, p: row.period, s: row.period_start });
   const blocks = [];
 
   const head = row.status === 'sent'
-    ? `:white_check_mark: *${label} report sent to the client — ${acct.name}* (${range})`
-    : `:clipboard: *${label} report drafted — ${acct.name}* (${range})  ·  _nothing sent yet_`;
+    ? `:white_check_mark: *${label} report sent to the client \u2014 ${acct.name}* (${range})`
+    : `:clipboard: *${label} report drafted \u2014 ${acct.name}* (${range})  \u00b7  _nothing sent yet_`;
   blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
   if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
   if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: reportHeadline(data) } });
-  blocks.push({ type: 'divider' });
-  blocks.push(...mrkdwnSections(row?.summary || '_No summary written — regenerate it._'));
 
-  const notes = ['The client gets this headline and a link to their report archive, not the summary text.'];
+  /* THE SUMMARY DELIBERATELY DOES NOT GO IN THE MESSAGE, and this is the one
+     place the report and the Daily Brief differ on purpose.
+
+     The brief IS its text - what is in Slack is exactly what the client
+     receives, so putting it in the message is putting the deliverable in front
+     of the team (Cole, 2026-08-28). A report is NOT its text. The deliverable
+     is the rendered page in Locus: the waterfall, the daily chart, the creative
+     cards, the channel tables. The summary is one component of it.
+
+     Pasting 300 words of raw summary into the channel therefore did not show
+     the report - it showed a fragment of it, unformatted, and buried the
+     headline that the notice exists to deliver. Cole, 2026-09-07, on the first
+     Monday it ran: "they look like shit, they don't even look like our standard
+     reporting template". He is right, and this is a straight revert to the
+     compact notice - headline, link, done - with the buttons kept, which were
+     the actual point of the change. */
+  const notes = ['Open it in Locus to read the full report. The client receives this headline and a link to their archive \u2014 never the summary text.'];
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
-  if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: “${String(row.steer).slice(0, 220)}”`);
+  if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: \u201c${String(row.steer).slice(0, 160)}\u201d`);
   if (data?.missing_days) notes.push(`${data.missing_days} day(s) in this period had no Triple Whale data.`);
-  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  ·  ') }] });
+  if (!row.summary) notes.push(':warning: No summary was written \u2014 rewrite it before sending.');
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  \u00b7  ') }] });
 
   const els = [];
   if (row.status !== 'sent') {
@@ -4328,7 +4343,7 @@ function reportCard(acct, row, banner) {
   els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
   blocks.push({ type: 'actions', elements: els });
 
-  return { text: `${label} report ${row.status === 'sent' ? 'sent' : 'drafted'} — ${acct.name} (${range})`, blocks };
+  return { text: `${label} report ${row.status === 'sent' ? 'sent' : 'drafted'} \u2014 ${acct.name} (${range})`, blocks };
 }
 
 /* ---- Keep the card in step with the row, whichever surface moved it ---- */
@@ -5287,6 +5302,26 @@ export default {
         return json({ error: 'unauthorized' }, 401);
       }
       const b = await request.json().catch(() => ({}));
+      /* `kind:'report'` redraws the weekly/monthly notices instead of the daily
+         briefs. Same rule: rendered from the stored row, so nothing is written
+         again and no number moves - only the message in Slack. */
+      if (b.kind === 'report') {
+        const accts = !b.act || b.act === 'all'
+          ? await listAccounts(env, true)
+          : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+        const out = [];
+        for (const acct of accts) {
+          const row = await env.DB.prepare(
+            `SELECT * FROM reports WHERE act_id = ?1 AND status = 'draft' AND slack_ts IS NOT NULL
+             ORDER BY period_start DESC LIMIT 1`,
+          ).bind(acct.act_id).first().catch(() => null);
+          if (!row) { out.push({ name: acct.name, skipped: 'no drafted report with a card' }); continue; }
+          const card = reportCard(acct, row);
+          const u = await slackUpdate(env, row.slack_channel, row.slack_ts, card.text, card.blocks);
+          out.push({ name: acct.name, period: row.period, start: row.period_start, ...(u.ok ? { updated: true } : { error: u.error }) });
+        }
+        return json({ ok: true, results: out });
+      }
       const list = !b.act || b.act === 'all'
         ? await listAccounts(env, true)
         : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
