@@ -1744,7 +1744,19 @@ What's Next?
 • 1–3 bullets: concrete actions or watch-items with a trigger ("if X doesn't improve today, we do Y").
 Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. Google's conversions settle late too, and unevenly: hedge a recent Google read the same way, and NEVER report a Google ROAS the block marks n/a — say Google's conversions have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
-async function writeBriefNarrative(env, acct, data, date) {
+/* A REWRITE CAN BE STEERED. "Write it again" on its own produces a different
+   brief, not a better one -- the model has no idea what was wrong with the last
+   one. `steer` is the sentence the human would have said out loud ("lead with
+   the Google spend", "less hedging on Meta"), and it is optional everywhere:
+   both Locus and the Slack Rewrite button open a box you may leave empty.
+   It goes in LAST so it outranks the standing instructions, and it is fenced as
+   team direction rather than as data -- it must be able to change emphasis and
+   tone, never to invent a number. */
+const steerBlock = steer => steer && String(steer).trim()
+  ? `\n\nDIRECTION FROM THE TEAM FOR THIS REWRITE -- follow it, and let it override the general guidance above wherever the two disagree:\n<<<${String(steer).trim().slice(0, 1200)}>>>\nIt may change emphasis, ordering, length or tone. It may NOT introduce a number that is not in the data above; if it asks for something the data cannot support, say plainly that the data does not show it.`
+  : '';
+
+async function writeBriefNarrative(env, acct, data, date, steer) {
   const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
     `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)} (Meta-reported) GoogleROAS ${x.a?.google_purchases != null && x.a.google_purchases < 2 ? `n/a - Google recorded only ${x.a.google_purchases} conversion(s), too few to form a rate` : `${f2(x.a?.google_roas)} (Google-reported, off ${x.a?.google_purchases ?? '?'} conversions)`} BlendedROAS ${f2(x.a?.blended_roas)} (Triple Whale)`);
@@ -1784,7 +1796,8 @@ async function writeBriefNarrative(env, acct, data, date) {
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
     (data.to_hit ? `Catch-up already stated in the numbers block above (do NOT restate the figures, but you may build on what they imply): ${JSON.stringify(data.to_hit)}\n\n` : '') +
       (data.week ? `This brief also carries a week-in-review block (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)} — weigh the weekly picture in So What?/What's Next?, not just the single day.\n\n` : '') +
-      `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}`,
+      `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}` +
+      steerBlock(steer),
   });
 }
 
@@ -1816,7 +1829,7 @@ async function coverageDates(env, acct, date, data) {
   return out.length ? out : [date];
 }
 
-async function makeBrief(env, acct, date) {
+async function makeBrief(env, acct, date, { steer } = {}) {
   const data = await briefData(env, acct, date);
   const day = data.days.find(x => x.date === date);
   if (!data.goals) return { data, error: 'no goals set for this month — set them on the Daily Brief page' };
@@ -1827,11 +1840,11 @@ async function makeBrief(env, acct, date) {
   }
   data.covering = dates;
   let narrative = null, narrative_error = null;
-  try { narrative = await writeBriefNarrative(env, acct, data, date); } catch (e) { narrative_error = e.message; }
+  try { narrative = await writeBriefNarrative(env, acct, data, date, steer); } catch (e) { narrative_error = e.message; }
   /* Only the days this brief actually reports on can block it. A bad day
      earlier in the month is the Data Health tab's problem, not this send's. */
   const health = briefHealth(data, dates);
-  return { data, dates, text: buildBriefText(data, dates, narrative), narrative_error, health };
+  return { data, dates, text: buildBriefText(data, dates, narrative), narrative_error, health, steer: steer || null };
 }
 
 /** The health of the days a brief covers: what stops it going to a client. */
@@ -1855,15 +1868,22 @@ function briefHealth(data, dates) {
 /** Generate + post one brief to the brand's Slack channel; log it in `briefs`. */
 /** Write a briefs row. `data` is optional so an edit or a send of stored text
  *  cannot wipe the numbers captured when the brief was first built. */
-async function upsertBrief(env, actId, date, status, channel, text, data) {
+async function upsertBrief(env, actId, date, status, channel, text, data, extra = {}) {
+  /* `health` rides inside data_json so the Slack card can keep showing the
+     "do not send, the numbers are wrong" banner after an edit, without paying
+     for a second briefData() every time the card is redrawn. It only travels
+     with a rebuild, which is the only moment the verdict can change. */
   const dataJson = data === undefined ? null
-    : JSON.stringify({ mtd: data?.mtd ?? null, day: data?.days?.find(x => x.date === date) ?? null });
+    : JSON.stringify({ mtd: data?.mtd ?? null, day: data?.days?.find(x => x.date === date) ?? null,
+                       health: extra.health ?? null });
   await env.DB.prepare(
-    `INSERT INTO briefs (act_id, date, posted_at, channel, status, text, data_json) VALUES (?1,?2,?3,?4,?5,?6,?7)
+    `INSERT INTO briefs (act_id, date, posted_at, channel, status, text, data_json, steer) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)
      ON CONFLICT(act_id, date) DO UPDATE SET posted_at = excluded.posted_at, channel = excluded.channel,
        status = excluded.status, text = excluded.text,
-       data_json = COALESCE(excluded.data_json, briefs.data_json)`,
-  ).bind(actId, date, new Date().toISOString(), channel ?? null, status, text ?? null, dataJson).run();
+       data_json = COALESCE(excluded.data_json, briefs.data_json),
+       steer = CASE WHEN ?9 = 1 THEN excluded.steer ELSE briefs.steer END`,
+  ).bind(actId, date, new Date().toISOString(), channel ?? null, status, text ?? null, dataJson,
+         extra.steer ?? null, 'steer' in extra ? 1 : 0).run();
 }
 
 /** Build the brief and park it as a DRAFT for review, notifying the internal
@@ -1874,7 +1894,7 @@ async function upsertBrief(env, actId, date, status, channel, text, data) {
  *  first. Copy-paste loses Slack's formatting, and nothing recorded what was
  *  actually sent. Same shape as the weekly/monthly reports: draft internally,
  *  edit the wording, then one button sends the real thing. */
-async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
+async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {}) {
   if (skipIfExists) {
     const prior = await env.DB.prepare(
       `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
@@ -1885,9 +1905,9 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
       return { name: acct.name, already: prior.status, date };
     }
   }
-  const r = await makeBrief(env, acct, date);
+  const r = await makeBrief(env, acct, date, { steer });
   if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
-  await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data);
+  await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: steer ?? null });
   // Internal only, and deliberately never brief_channel — that is the client's.
   const ch = acct.slack_channel;
   if (ch) {
@@ -1900,25 +1920,21 @@ async function draftBrief(env, acct, date, { skipIfExists = false } = {}) {
     // The link stays underneath, for ACTING on it rather than reading it. `&date=`
     // matters: this notice names one day, and without it the tab opens whatever
     // "yesterday" happens to be when the link is finally clicked.
-    const body = r.text.length > 3600
-      ? r.text.slice(0, 3600) + '\n…(too long for Slack — open it in Locus for the rest)'
-      : r.text;
-    /* The data warning goes ABOVE the brief and never inside it. The text is
-       what the client receives; this notice is ours. Without it the numbers
-       look ordinary — that is exactly how five brands under-reported spend by
-       70% for three days in September 2026 with nobody noticing. */
-    const bad = r.health?.verdict === 'broken';
-    const notice = bad
-      ? `:rotating_light: *Do not send — the numbers are wrong.* ${r.health.summary}\n` +
-        `_${r.health.flagged[0].issues.find(i => i.severity === 'broken').fix}_\n` +
-        `Spend below has been rebuilt from the platforms' own reporting where possible.\n\n`
-      : '';
-    await slackPost(env, ch,
-      `:memo: *Draft — ${acct.name}, ${prettyDate(date)}* · _not sent to the client yet_\n\n` +
-      notice +
-      `${body}\n\n` +
-      `<${DASHBOARD_URL}?open=${bad ? 'health' : 'brief'}&act=${encodeURIComponent(acct.act_id)}&date=${date}|${bad ? 'Fix it in Locus →' : 'Send it, or edit the wording first →'}>`,
-      null, { username: 'Mobius Reports', icon: ':memo:' }).catch(() => {});
+    /* THE CARD IS THE WHOLE WORKFLOW NOW. It used to be the brief plus a link
+       to Locus, which meant every decision -- send it, reword it, write it
+       again, don't send it -- cost a tab switch. The buttons underneath do all
+       four, and Locus keeps every one of them for when he wants the charts. */
+    const card = briefCard(acct, date, {
+      status: 'draft', text: r.text, steer: steer ?? null,
+      data_json: JSON.stringify({ health: r.health ?? null }),
+    });
+    const posted = await slackPost(env, ch, card.text, card.blocks,
+      { username: 'Mobius Reports', icon: ':memo:' }).catch(() => null);
+    if (posted?.ts) {
+      await env.DB.prepare(
+        `UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`,
+      ).bind(acct.act_id, date, posted.ts, posted.channel || ch).run().catch(() => {});
+    }
   }
   if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
   return { name: acct.name, ok: true, drafted: true, date, channel: ch ?? null, narrative_error: r.narrative_error ?? null };
@@ -1971,6 +1987,9 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     // Goes to the client, so it comes from Cole - not a bot wearing a name.
     await slackPost(env, channel, text, null, { asUser: true });
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
+    // The review card in the internal channel still shows a live Send button
+    // for a brief the client now has. Redraw it before anyone presses it again.
+    await slackSyncBrief(env, acct, date).catch(() => {});
     // The brief still went out with its numbers, which is right - but a missing
     // narrative is invisible to everyone unless it is said out loud. Usually
     // means the Anthropic key is out of credit.
@@ -3297,7 +3316,7 @@ What's next
 • 2–4 bullets: concrete actions or watch-items for the coming period, each with a trigger or a date where possible.
 Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency, whole units. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend on every platform; aMER = new-customer revenue ÷ that same spend. Both are blended on BOTH sides — never call them attributed, and never confuse them with ROAS (which IS platform-attributed, double-counts across platforms, and should be treated as directional). Write for the client: confident, plain language, no hedging filler. Under 230 words total. No greeting, no sign-off, no markdown headers, no asterisks for bold.`;
 
-async function writeReportNarrative(env, acct, data) {
+async function writeReportNarrative(env, acct, data, steer) {
   const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
   const label = data.period === 'weekly' ? 'week' : 'month';
   const slim = t => t ? { sales: f2(t.sales), spend: f2(t.spend), orders: t.orders, mer: f2(t.mer), amer: f2(t.amer), aov: f2(t.aov), new_customer_cpa: f2(t.ncpa), new_share: f2(t.new_share), cm: f2(t.cm) } : null;
@@ -3329,7 +3348,8 @@ async function writeReportNarrative(env, acct, data) {
       `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
       (fmtLines.length ? `Meta spend by creative format (from the ad naming convention — covers every ad that spent):\n${fmtLines.join('\n')}\n` : '') +
       `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
-      (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : ''),
+      (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : '') +
+      steerBlock(steer),
   });
 }
 
@@ -3352,7 +3372,7 @@ function reportHeadline(data) {
 
 /** Build (or rebuild) one report as a DRAFT. A sent report is frozen — the
  *  client already has its numbers, so regeneration refuses. */
-async function makeReport(env, acct, period, start, { force = false } = {}) {
+async function makeReport(env, acct, period, start, { force = false, steer } = {}) {
   if (period !== 'weekly' && period !== 'monthly') throw new Error('period must be weekly or monthly');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '')) throw new Error('start must be YYYY-MM-DD');
   if (period === 'monthly' && start.slice(8) !== '01') throw new Error('a monthly report starts on the 1st');
@@ -3369,15 +3389,15 @@ async function makeReport(env, acct, period, start, { force = false } = {}) {
   if (missing > 0 && !force) throw new Error(`Triple Whale data is missing for ${missing} of the ${expected} days — refresh Triple Whale data and regenerate (or generate anyway)`);
   data.missing_days = missing;
   let summary = null, narrative_error = null;
-  try { summary = await writeReportNarrative(env, acct, data); } catch (e) { narrative_error = e.message; }
+  try { summary = await writeReportNarrative(env, acct, data, steer); } catch (e) { narrative_error = e.message; }
   await env.DB.prepare(
-    `INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json)
-     VALUES (?1,?2,?3,?4,'draft',?5,?6,?7)
+    `INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json, steer)
+     VALUES (?1,?2,?3,?4,'draft',?5,?6,?7,?8)
      ON CONFLICT(act_id, period, period_start) DO UPDATE SET period_end = excluded.period_end,
        status = 'draft', generated_at = excluded.generated_at, summary = excluded.summary,
-       data_json = excluded.data_json, sent_at = NULL, sent_channel = NULL`,
-  ).bind(acct.act_id, period, start, end, new Date().toISOString(), summary, JSON.stringify(data)).run();
-  return { period, start, end, summary, data, narrative_error };
+       data_json = excluded.data_json, steer = excluded.steer, sent_at = NULL, sent_channel = NULL`,
+  ).bind(acct.act_id, period, start, end, new Date().toISOString(), summary, JSON.stringify(data), steer || null).run();
+  return { period, start, end, summary, data, narrative_error, steer: steer || null };
 }
 
 /** One stable client link per brand — opens their report archive (sent reports
@@ -4073,12 +4093,113 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
         : '';
       throw new Error(`Slack: ${j.error || 'unknown error'}${hint}`);
     }
-    return;
+    // The caller gets {ts, channel} so an interactive card can be rewritten in
+    // place later instead of a second message piling up underneath it.
+    return { ts: j.ts, channel: j.channel };
   }
   let j = await send({ ...base, username: opts.username || 'Mobius Account Health', icon_emoji: opts.icon || ':bar_chart:' });
   if (!j.ok && /missing_scope|invalid_arg/i.test(j.error || '')) j = await send(base);
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
+  return { ts: j.ts, channel: j.channel };
 }
+
+/* ------------------------------------------------------------------ */
+/*  ACTING ON A DRAFT FROM INSIDE SLACK                                 */
+/*                                                                      */
+/*  Cole, 2026-09-07: "everything needs to be done from either in the    */
+/*  app or in Slack -- I want both, so I don't have to switch around."   */
+/*  Every action the Daily Brief and Reports tabs offer -- send to the   */
+/*  client, edit the wording, rewrite it with Claude (with or without a  */
+/*  steer), don't send -- now has a button on the review post itself.    */
+/*  Locus keeps every one of them, and gains the steer box so the two    */
+/*  surfaces offer exactly the same choices.                            */
+/*                                                                      */
+/*  ONE SOURCE OF TRUTH, TWO SURFACES. The D1 row is the truth; the      */
+/*  Slack card is a view of it. Anything that changes a draft -- a       */
+/*  button here or a click in Locus -- ends by rewriting the card from   */
+/*  the row (`slackSyncBrief` / `slackSyncReport`). That is what stops   */
+/*  a Send button sitting live in Slack under a brief that was already   */
+/*  sent from the app.                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Slack's own call, as the bot. Returns the parsed body; never throws for a
+ *  Slack-level error, because most callers here are best-effort cosmetics. */
+async function slackApi(env, method, body) {
+  if (!env.SLACK_BOT_TOKEN) return { ok: false, error: 'no_bot_token' };
+  return xfetch(`https://slack.com/api/${method}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify(body),
+  }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+}
+
+/** Rewrite a card in place. Silent on failure: a card we cannot update is a
+ *  cosmetic problem, and the action it describes has already happened. */
+async function slackUpdate(env, channel, ts, text, blocks) {
+  if (!channel || !ts) return { ok: false, error: 'no_message' };
+  return slackApi(env, 'chat.update', { channel, ts, text, ...(blocks ? { blocks } : {}) });
+}
+
+/** A one-off ephemeral note to the person who pressed a button -- used for the
+ *  refusals (not allowed to send, nothing to edit) that do not deserve to
+ *  rewrite the card everyone else is looking at. */
+async function slackWhisper(env, channel, user, text) {
+  if (!channel || !user) return;
+  await slackApi(env, 'chat.postEphemeral', { channel, user, text }).catch(() => {});
+}
+
+/* Slack caps a section's text at 3000 characters, and a brief occasionally runs
+   past it. Split on paragraph boundaries so the card reads as one message. */
+function mrkdwnSections(text, limit = 2900) {
+  const out = [];
+  let buf = '';
+  for (const para of String(text || '').split(/\n\n/)) {
+    const piece = para.length > limit ? para.slice(0, limit) : para;
+    if (buf && buf.length + piece.length + 2 > limit) { out.push(buf); buf = piece; }
+    else buf = buf ? `${buf}\n\n${piece}` : piece;
+  }
+  if (buf) out.push(buf);
+  return (out.length ? out : ['_(empty)_']).map(t => ({ type: 'section', text: { type: 'mrkdwn', text: t } }));
+}
+
+const btn = (text, action_id, value, opts = {}) => ({
+  type: 'button', text: { type: 'plain_text', text, emoji: true }, action_id, value,
+  ...(opts.style ? { style: opts.style } : {}),
+  ...(opts.url ? { url: opts.url } : {}),
+  ...(opts.confirm ? { confirm: opts.confirm } : {}),
+});
+
+const confirmDialog = (title, text, ok) => ({
+  title: { type: 'plain_text', text: title },
+  text: { type: 'mrkdwn', text },
+  confirm: { type: 'plain_text', text: ok },
+  deny: { type: 'plain_text', text: 'Cancel' },
+  style: 'primary',
+});
+
+/* WHO MAY PUT A MESSAGE IN FRONT OF A CLIENT FROM SLACK.
+   A client send posts under Cole's own name (SLACK_USER_TOKEN), so by default
+   only Cole may press it -- handing that button to a channel would let anyone
+   message a client as him without him knowing. Editing, rewriting and "don't
+   send" stay open to whoever is in the internal channel: none of them leave the
+   building. Locus -> Settings flips this to 'anyone' for a team that should
+   have it. */
+async function slackOwnerId(env) {
+  const cached = await getSetting(env, 'slackOwnerId');
+  if (cached) return cached;
+  if (!env.SLACK_USER_TOKEN) return null;
+  const r = await xfetch('https://slack.com/api/auth.test', {
+    headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}` },
+  }).then(x => x.json()).catch(() => ({}));
+  if (r?.ok && r.user_id) { await putSetting(env, 'slackOwnerId', r.user_id).catch(() => {}); return r.user_id; }
+  return null;
+}
+async function maySendFromSlack(env, userId) {
+  if ((await getSetting(env, 'slackSendWho')) === 'anyone') return true;
+  const owner = await slackOwnerId(env);
+  return !owner || owner === userId;      // no owner resolved = do not lock everyone out
+}
+
 
 /* ------------------------------------------------------------------ */
 /*  Delivery alerts — the only scheduled Slack alert left.               */

@@ -190,10 +190,12 @@ async function learnDefault(env, vendor, bucket, tax_cat) {
 
 /* Claude reads a receipt: vendor, total, date, note — and proposes the tax
  * category from the app's own list, with runner-up guesses for the buttons. */
-async function claudeExtract(env, b64, mediaType) {
+async function claudeExtract(env, b64, mediaType, textContent = null) {
   if (!env.ANTHROPIC_API_KEY) return null;
   const cats = safeJson(await getSetting(env, 'taxCats'), []) || [];
-  const block = mediaType === 'application/pdf'
+  const block = textContent
+    ? { type: 'text', text: 'EMAIL CONTENT:\n' + String(textContent).slice(0, 12000) }
+    : mediaType === 'application/pdf'
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -224,14 +226,27 @@ async function claudeExtract(env, b64, mediaType) {
 /* ------------------------------------------------------------------ */
 
 async function slack(env, method, params = {}, post = false) {
-  const r = post
-    ? await fetch(`https://slack.com/api/${method}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify(params) })
-    : await fetch(`https://slack.com/api/${method}?${new URLSearchParams(params)}`, {
-        headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
-  return r.json();
+  // The Slack app is the shared "Mobius Digital" one; posts should still read
+  // as this tool. Needs chat:write.customize — falls back plain if not granted.
+  if (method === 'chat.postMessage')
+    params = { username: 'Mobius Ledger',
+               icon_url: 'https://tools.go-mobius-digital.com/icons/ledger-512.png', ...params };
+  const send = async p => {
+    const r = post
+      ? await fetch(`https://slack.com/api/${method}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify(p) })
+      : await fetch(`https://slack.com/api/${method}?${new URLSearchParams(p)}`, {
+          headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+    return r.json();
+  };
+  let j = await send(params);
+  if (j.error === 'missing_scope' && params.username) {
+    const { username, icon_url, ...rest } = params;
+    j = await send(rest);
+  }
+  return j;
 }
 
 async function findReceiptsChannel(env) {
@@ -298,7 +313,8 @@ async function processSlackReceipts(env) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
     for (const f of msg.files || []) {
       const isPdf = f.mimetype === 'application/pdf';
-      if (!isPdf && !/^image\//.test(f.mimetype || '')) continue;
+      const isEmail = f.filetype === 'email';   // forwarded to the channel's email address
+      if (!isEmail && !isPdf && !/^image\//.test(f.mimetype || '')) continue;
       if (cfg.seen.includes(f.id)) continue;
       cfg.seen.push(f.id); if (cfg.seen.length > SEEN_CAP) cfg.seen = cfg.seen.slice(-SEEN_CAP);
       const reply = (text, blocks) => slack(env, 'chat.postMessage',
@@ -320,17 +336,37 @@ async function processSlackReceipts(env) {
         return { type: 'actions', elements: els.slice(0, 5) };
       };
       try {
-        if ((f.size || 0) > 8 * 1024 * 1024) { await reply('⚠️ That file is over 8MB — attach it from the app instead.'); continue; }
-        const dl = await fetch(f.url_private_download || f.url_private,
-          { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+        let dlUrl = f.url_private_download || f.url_private;
+        let mimetype = f.mimetype, fname = f.name || 'receipt', emailText = null;
+        if (isEmail) {
+          // An emailed invoice: prefer a PDF/image attachment inside the email;
+          // with none, Claude reads the email body and the email itself is stored.
+          const info = await slack(env, 'files.info', { file: f.id });
+          const fi = info.file || f;
+          const att = (fi.attachments || []).find(a =>
+            a.mimetype === 'application/pdf' || /^image\//.test(a.mimetype || ''));
+          if (att && (att.url || att.url_private)) {
+            dlUrl = att.url || att.url_private; mimetype = att.mimetype;
+            fname = att.filename || att.name || fname;
+          } else {
+            const from = Array.isArray(fi.from) && fi.from[0] ? (fi.from[0].address || fi.from[0].original || '') : '';
+            emailText = [fi.subject ? 'Subject: ' + fi.subject : '', from ? 'From: ' + from : '',
+                         fi.plain_text || fi.preview_plain_text || fi.preview || ''].filter(Boolean).join('\n');
+            fname = (fi.subject || 'email invoice').slice(0, 120);
+          }
+        }
+        const dl = await fetch(dlUrl, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
         const buf = await dl.arrayBuffer();
+        if (buf.byteLength > 8 * 1024 * 1024) { await reply('⚠️ That file is over 8MB — attach it from the app instead.'); continue; }
         const bytes = new Uint8Array(buf);
         let b64 = '';
         for (let i = 0; i < bytes.length; i += 0x8000)
           b64 += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
         b64 = btoa(b64);
         // Claude's image ceiling is ~5MB of data; oversize files still get stored
-        const ext = bytes.length < 4.5 * 1024 * 1024 ? await claudeExtract(env, b64, f.mimetype) : null;
+        const ext = emailText
+          ? await claudeExtract(env, null, null, emailText)
+          : bytes.length < 4.5 * 1024 * 1024 ? await claudeExtract(env, b64, mimetype) : null;
         const today = centralDate(Date.now() / 1000);
         // THE RECEIPT'S OWN DATE DECIDES THE MONTH. A receipt photographed in
         // September for an April lunch belongs to April — filing it under
@@ -381,7 +417,7 @@ async function processSlackReceipts(env) {
           const key = `rcpt:${target.id}:${Date.now()}`;
           await env.RECEIPTS.put(key, buf);
           await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
-            .bind(target.id, key, (f.name || 'receipt').slice(0, 120), f.mimetype).run();
+            .bind(target.id, key, fname.slice(0, 120), mimetype).run();
           // the month is always stated: a receipt filed into the wrong month is
           // the one mistake that would quietly move spend around behind him
           if (target.__new) {
@@ -742,6 +778,27 @@ export default {
         raw, request.headers.get('x-slack-signature'));
       if (!ok) return json({ error: 'bad signature' }, 401);
       const payload = safeJson(new URLSearchParams(raw).get('payload'), {}) || {};
+      /* One Slack app ("Mobius Digital") serves every Mobius tool, and Slack
+       * allows a single interactivity URL — this worker is it. A Ledger action
+       * carries a {id, tax} value; everything else belongs to Pulse and is
+       * handed over on the service binding with its signature intact. */
+      const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
+      const mine = acts.some(x => {
+        const v = safeJson(x.selected_option?.value || x.value, null);
+        return v && v.id !== undefined && v.tax !== undefined;
+      });
+      if (!mine) {
+        if (env.PULSE) return env.PULSE.fetch(new Request(
+          'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact', {
+            method: 'POST',
+            headers: {
+              'Content-Type': request.headers.get('content-type') || 'application/x-www-form-urlencoded',
+              'x-slack-request-timestamp': request.headers.get('x-slack-request-timestamp') || '',
+              'x-slack-signature': request.headers.get('x-slack-signature') || '',
+            },
+            body: raw }));
+        return new Response('', { status: 200 });
+      }
       if (payload.type === 'block_actions') {
         const a = (payload.actions || [])[0] || {};
         const val = safeJson(a.selected_option?.value || a.value, null);

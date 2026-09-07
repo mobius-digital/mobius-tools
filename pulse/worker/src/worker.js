@@ -257,15 +257,27 @@ async function runPoll(env, { force = false } = {}) {
 /* ------------------------------------------------------------------ */
 
 async function slackApi(env, method, body) {
-  const res = await fetch(`https://slack.com/api/${method}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`,
-      'Content-Type': 'application/json; charset=utf-8',
-    },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json();
+  // The Slack app is the shared "Mobius Digital" one; alerts should still read
+  // as Pulse. Needs chat:write.customize — falls back plain if not granted.
+  if (method === 'chat.postMessage')
+    body = { username: 'Mobius Pulse',
+             icon_url: 'https://tools.go-mobius-digital.com/icons/pulse-512.png', ...body };
+  const send = async b => {
+    const res = await fetch(`https://slack.com/api/${method}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`,
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify(b),
+    });
+    return res.json();
+  };
+  let json = await send(body);
+  if (json.error === 'missing_scope' && body.username) {
+    const { username, icon_url, ...rest } = body;
+    json = await send(rest);
+  }
   if (!json.ok) console.log(`Slack ${method} error: ${json.error}`);
   return json;
 }

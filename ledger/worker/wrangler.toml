@@ -36,6 +36,14 @@ id = "8f918b1da0084875b718a044d930c924"
 binding = "AUTH"
 service = "mobius-account-health"
 
+# Slack interactivity router: the shared "Mobius Digital" Slack app allows ONE
+# interactivity Request URL, and this worker holds it. Button clicks that are
+# not Ledger category actions (i.e. Pulse's "Send to client channels") are
+# forwarded to the Pulse worker over this binding, signature headers intact.
+[[services]]
+binding = "PULSE"
+service = "mobius-ad-status"
+
 # Secrets (set once, never committed):
 #   npx wrangler secret put ADMIN_TOKEN         master/recovery key for the API
 #   npx wrangler secret put ANTHROPIC_API_KEY   optional — receipt reading (Claude);

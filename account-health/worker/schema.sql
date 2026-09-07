@@ -158,6 +158,12 @@ CREATE TABLE IF NOT EXISTS reports (
   sent_channel TEXT,
   summary      TEXT,                             -- Claude narrative; editable while draft
   data_json    TEXT,                             -- the frozen numbers behind the page
+  -- Where the internal review post lives, so a send/edit/rewrite from EITHER
+  -- surface (Locus or the Slack buttons) can rewrite that same message rather
+  -- than leaving a stale one with live buttons underneath it.
+  slack_ts      TEXT,
+  slack_channel TEXT,
+  steer         TEXT,                            -- the direction given on the last rewrite, if any
   PRIMARY KEY (act_id, period, period_start)
 );
 
@@ -170,6 +176,12 @@ CREATE TABLE IF NOT EXISTS briefs (
   status    TEXT NOT NULL DEFAULT 'draft',       -- draft | sent | skipped | error
   text      TEXT,
   data_json TEXT,                                -- the forecast/actual numbers behind the text
+  -- The internal review post in Slack. `channel` above records where the brief
+  -- was SENT (the client); these record where the DRAFT notice sits, so either
+  -- surface can keep it in step. See slackSyncBrief in the worker.
+  slack_ts      TEXT,
+  slack_channel TEXT,
+  steer         TEXT,                            -- the direction given on the last rewrite, if any
   PRIMARY KEY (act_id, date)
 );
 
