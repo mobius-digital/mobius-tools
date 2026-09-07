@@ -1783,7 +1783,7 @@ WRITING RULES - these are what make it readable, and they matter as much as the 
 NEVER repeat a figure from the numbers block above. Revenue, spend, MER, aMER and CM are already on the page WITH their percentage gap against plan. Restating them is the single fastest way to make this look cluttered. Your bullets cover what the block CANNOT: the new-vs-returning split, the channel reads, streaks, and month-to-date.
 TWO NUMBERS PER BULLET, MAXIMUM. A bullet carrying seven figures is a table crammed into a sentence and the point disappears. If it needs a third number, it is two bullets, or the third number is not worth saying.
 "What it means" carries NO new figures at all. It is the consequence in plain words.
-NO ABBREVIATIONS OR SHORTHAND ANYWHERE. Write "month to date", not MTD. Write "Wednesday", not 48h or 72h. Write "about 20", not ~20. Write "September 8", not 09-08.
+NO ABBREVIATIONS OR SHORTHAND ANYWHERE. Write "month to date", not MTD. Write "Wednesday", not 48h or 72h. Write "about 20", not ~20. Write "September 8", not 09-08. This rule is about WORDS, not symbols: always write money with its currency symbol as "$36", never "36 dollars", and percentages as "64%".
 NEVER print a raw ad or campaign name. Say "the new creative" or "the relaunched ads".
 NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
 Every sentence should survive being read once, at speed, by a client who does not work in ads.
@@ -3394,7 +3394,7 @@ WRITING RULES - these matter as much as the facts, because the page is already f
 Every figure is ALREADY on the page in cards and tables, WITH its percentage against plan and against the prior period. Name a number only when the sentence collapses without it.
 TWO NUMBERS PER BULLET, MAXIMUM. A bullet carrying seven figures is a table crammed into a sentence and the point disappears.
 "What it means" carries NO new figures at all. It is the consequence in plain words.
-NO ABBREVIATIONS OR SHORTHAND. Write "month to date", not MTD. Write "Wednesday", not 48h. Write "about 20", not ~20. Write "September 8", not 09-08.
+NO ABBREVIATIONS OR SHORTHAND. Write "month to date", not MTD. Write "Wednesday", not 48h. Write "about 20", not ~20. Write "September 8", not 09-08. This rule is about WORDS, not symbols: always write money with its currency symbol as "$36", never "36 dollars", and percentages as "64%".
 NEVER print a raw ad or campaign name. Say "the new creative".
 NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
 Every sentence should survive being read once, at speed, by a client who does not work in ads.
