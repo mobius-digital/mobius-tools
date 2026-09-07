@@ -117,8 +117,17 @@
     background:var(--ink);color:#fff;font-size:13px;padding:11px 18px;border-radius:10px;
     box-shadow:0 12px 34px rgba(12,22,29,.34);opacity:0;pointer-events:none;transition:.22s;z-index:60}
   #flash.on{opacity:1;transform:translateX(-50%) translateY(0)}
-  .bulkbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--brand-soft);
-    border:1px solid var(--line-strong);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px}
+  /* Floats over the page rather than sitting in it: appearing in the flow
+     shoved every row down the moment a box was ticked, so the thing you were
+     aiming at moved out from under the cursor. */
+  .bulkbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:40;
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;
+    padding:11px 14px;box-shadow:0 14px 40px rgba(12,22,29,.22);max-width:min(940px,94vw);
+    animation:bulkIn .16s ease-out}
+  @keyframes bulkIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}
+                    to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  @media (prefers-reduced-motion:reduce){.bulkbar{animation:none}}
   .bulkbar select{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line-strong);
     border-radius:8px;background:var(--surface);max-width:250px}
   .srch{font:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line-strong);
@@ -599,7 +608,8 @@ async function renderTxns(){
             title="Select everything shown" onchange="pickAll(this.checked)"></th>
           <th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
         <tbody>${body || '<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
-      </table></div></div>`;
+      </table></div></div>
+    ${S.sel.size ? '<div style="height:76px"></div>' : ''}`;   // room under the floating bar
     const sb = $('#txnSearch');
     if (sb && S.q) { sb.focus(); sb.setSelectionRange(sb.value.length, sb.value.length); }
 }
