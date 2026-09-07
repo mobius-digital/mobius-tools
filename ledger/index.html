@@ -445,6 +445,31 @@ function openModal(html){ $('#mbox').innerHTML = html; $('#modal').classList.add
 function closeModal(){ $('#modal').classList.remove('on'); $('#scrim').classList.remove('on'); }
 $('#scrim').onclick = closeModal;
 
+/* In-app replacements for confirm() and alert(). The browser's own dialogs are
+   chrome-grey boxes stamped with the domain name at the top of the window —
+   they break the app the moment anything needs a yes/no. These resolve a
+   promise instead, so callers read the same: `if (!await ask(…)) return;` */
+function ask({ title, body, ok = 'Confirm', cancel = 'Cancel', danger = false }){
+  return new Promise(resolve => {
+    let done = false;
+    const finish = v => { if (done) return; done = true; closeModal(); $('#scrim').onclick = closeModal; resolve(v); };
+    openModal(`
+      <h3>${esc(title)}</h3>
+      ${body ? `<div class="hint" style="white-space:pre-line">${esc(body)}</div>` : ''}
+      <div class="acts">
+        <span class="spacer"></span>
+        <button class="btn" id="askNo">${esc(cancel)}</button>
+        <button class="btn ${danger ? '' : 'primary'}" id="askYes" ${danger ? 'style="color:var(--bad)"' : ''}>${esc(ok)}</button>
+      </div>`);
+    $('#askYes').onclick = () => finish(true);
+    $('#askNo').onclick = () => finish(false);
+    $('#askYes').focus();
+    // dismissing the modal any other way is a "no", never a silent hang
+    $('#scrim').onclick = () => finish(false);
+  });
+}
+function tell(title, body){ return ask({ title, body, ok: 'OK', cancel: 'Close' }); }
+
 function addModal(prefill = {}){
   const today = new Date().toISOString().slice(0,10);
   const inMonth = monthISO => monthISO.slice(0,7) === S.month ? monthISO : S.month + '-15';
@@ -601,7 +626,7 @@ async function viewReceipt(id){
     if (!res.ok) throw new Error('could not load receipt');
     const blob = await res.blob();
     window.open(URL.createObjectURL(blob), '_blank');
-  } catch(e){ alert(e.message); }
+  } catch(e){ tell('Could not do that', e.message); }
 }
 
 /* ---- CSV import ---- */
@@ -732,7 +757,7 @@ function attachFor(id){
       const { data, type } = await downscale(file);
       await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type, data }) });
       S.txns=null; S.boot = await api('/api/boot'); renderReceipts();
-    } catch(e){ alert(e.message); }
+    } catch(e){ tell('Could not do that', e.message); }
   });
 }
 async function handleDrop(file){
@@ -837,13 +862,16 @@ async function doClose(){
   try {
     const t = S.txns || [];
     const expected = t.filter(x => x.expected===1).length;
-    const rep = await api('/api/close', { method:'POST', body: JSON.stringify({ month: S.month, dropExpected: expected > 0 ? confirmDrop(expected) : false }) });
+    const dropExpected = expected > 0 ? await confirmDrop(expected) : false;
+    const rep = await api('/api/close', { method:'POST', body: JSON.stringify({ month: S.month, dropExpected }) });
     S.boot = await api('/api/boot'); S.txns = null;
     S.reportMonth = S.month; show('reports');
   } catch(e){ el.className='msg bad'; el.textContent = e.message; }
 }
 function confirmDrop(n){
-  return confirm(`${n} expected row(s) were never confirmed. Close anyway and drop them?\n\n(They were pre-created guesses — dropping them means they didn't happen this month.)`);
+  return ask({ title: 'Close with unconfirmed rows?',
+    body: `${n} expected row(s) were never confirmed. They were pre-created guesses — dropping them means they didn't happen this month.`,
+    ok: 'Close and drop them' });
 }
 async function reopenMonth(){
   await api('/api/reopen', { method:'POST', body: JSON.stringify({ month: S.month }) });
@@ -1281,12 +1309,16 @@ async function addTaxCat(){
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
 }
 async function delTaxCat(cat){
-  if (!confirm(`Remove "${cat}" from the list?\n\nTransactions and vendor rules already using it keep the name — this only takes it out of the pickers.`)) return;
+  if (!await ask({ title: `Remove "${cat}"?`,
+    body: 'Transactions and vendor rules already using it keep the name — this only takes it out of the pickers.',
+    ok: 'Remove', danger: true })) return;
   await api('/api/settings', { method:'PUT', body: JSON.stringify({ taxCats: S.boot.taxCats.filter(c=>c!==cat) }) });
   S.boot = await api('/api/boot'); renderSettings();
 }
 async function delClient(name){
-  if (!confirm(`Delete ${name} from the client list?\n\nTheir transactions and history stay — this only stops the app expecting money from them.`)) return;
+  if (!await ask({ title: `Delete ${name} from the client list?`,
+    body: 'Their transactions and history stay — this only stops the app expecting money from them.',
+    ok: 'Delete client', danger: true })) return;
   await api('/api/client?name=' + encodeURIComponent(name), { method:'DELETE' });
   S.boot = await api('/api/boot'); renderSettings();
 }
@@ -1337,7 +1369,9 @@ async function addVendor(){
   } catch(e){ $('#vMsg').className='msg bad'; $('#vMsg').textContent=e.message; }
 }
 async function delVendor(name){
-  if (!confirm(`Delete the rule for ${name}?\n\nExisting transactions keep their categories — but the next ${name} charge will land in Review again.`)) return;
+  if (!await ask({ title: `Delete the rule for ${name}?`,
+    body: `Existing transactions keep their categories — but the next ${name} charge will land in Review again.`,
+    ok: 'Delete rule', danger: true })) return;
   await api('/api/vendor?name=' + encodeURIComponent(name), { method:'DELETE' });
   S.boot = await api('/api/boot'); renderSettings();
 }
@@ -1355,7 +1389,10 @@ async function saveVendorField(name, field, value){
   else if (field === 'active') body.active = !!value;
   else if (field === 'expected_amount') body.expected_amount = +value;
   else body[field] = value;
-  if (field==='bucket'||field==='tax_cat') body.applyToExisting = confirm('Apply this category to this vendor\'s existing transactions too?\n\nOK = yes, everything. Cancel = future transactions only.');
+  if (field==='bucket'||field==='tax_cat') body.applyToExisting = await ask({
+    title: 'Apply to existing transactions too?',
+    body: "This vendor's past transactions can take the new category as well, or it can apply only from here on.",
+    ok: 'Yes, update past ones', cancel: 'Future only' });
   await api('/api/vendor', { method:'POST', body: JSON.stringify(body) });
   S.boot = await api('/api/boot'); renderSettings();
 }
@@ -1427,7 +1464,9 @@ async function plaidSyncNow(btn){
   btn.disabled = false;
 }
 async function plaidRemove(itemId){
-  if (!confirm('Disconnect this account?\n\nAlready-imported transactions stay in the ledger; it just stops syncing.')) return;
+  if (!await ask({ title: 'Disconnect this account?',
+    body: 'Already-imported transactions stay in the ledger; it just stops syncing.',
+    ok: 'Disconnect', danger: true })) return;
   await api('/api/plaid-item?item_id=' + encodeURIComponent(itemId), { method:'DELETE' });
   S.boot = await api('/api/boot'); renderSettings();
 }

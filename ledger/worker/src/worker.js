@@ -838,6 +838,15 @@ function looksLikeTransfer(name, pfc) {
  */
 async function processPlaidTxn(env, item, t) {
   if (t.pending) return 'pending';
+  /* Idempotency first. Plaid re-delivers a transaction whenever the cursor did
+   * not advance — which is exactly what happens after any mid-page failure. On
+   * that second delivery the reconcile steps below would match some OTHER row
+   * and try to give it a plaid_id another row already holds, which violates the
+   * unique index, aborts the sync, and strands the cursor again: a loop that
+   * never clears itself. Seen one already: it is why nothing synced. */
+  const seen = await env.DB.prepare('SELECT id FROM transactions WHERE plaid_id = ?1')
+    .bind(t.transaction_id).first();
+  if (seen) return 'duplicate';
   const date = t.date, month = monthOf(date);
   const start = await getSetting(env, 'plaidStart');
   if (start && date < start) return 'before-start';
@@ -905,8 +914,17 @@ async function syncPlaid(env) {
       const page = await plaid(env, '/transactions/sync',
         { access_token: item.access_token, cursor: item.cursor || undefined, count: 250 });
       for (const t of page.added) {
-        const out = await processPlaidTxn(env, item, t);
-        totals[out] = (totals[out] || 0) + 1;
+        // One unhappy transaction must not cost us the whole page: throwing here
+        // skips the cursor write below, so the next run re-fetches everything
+        // and fails in the same place forever.
+        try {
+          const out = await processPlaidTxn(env, item, t);
+          totals[out] = (totals[out] || 0) + 1;
+        } catch (e) {
+          totals.failed = (totals.failed || 0) + 1;
+          totals.lastError = `${t.name || t.transaction_id}: ${String(e.message || e).slice(0, 120)}`;
+          console.log('plaid txn failed: ' + totals.lastError);
+        }
       }
       for (const t of page.modified) {
         const cur = await env.DB.prepare('SELECT id, month, type FROM transactions WHERE plaid_id = ?1').bind(t.transaction_id).first();
