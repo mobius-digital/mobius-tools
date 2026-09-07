@@ -14,3 +14,4 @@ account-health/worker/.env
 .env
 **/.env
 .dev.vars
+account-health/worker/node_modules/
