@@ -1951,9 +1951,35 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
       return { name: acct.name, already: prior.status, date };
     }
   }
+  /* A REDRAFT UPDATES THE CARD IT ALREADY HAS. It must not post a second one.
+     This was a real bug, not just a preference: Locus's "Rewrite with AI"
+     calls /api/brief-draft, so every rewrite from the app dropped ANOTHER copy
+     of the brief into the internal channel, each one carrying its own live
+     Send-to-client button, while Slack's own Rewrite button (which goes through
+     the modal path) correctly edited in place. Two surfaces, two behaviours,
+     and the app's was the one that notified the whole channel again.
+     Cole, 2026-09-07, wanting today's five drafts moved onto the new format:
+     "I don't want the notifications going through, I would rather them just be
+     updated and then I go through and I check." A chat.update raises no
+     notification, which is exactly the property he is asking for.
+     So: look for the card this day already has BEFORE deciding to post. */
+  const prior = await env.DB.prepare(
+    `SELECT slack_ts, slack_channel FROM briefs WHERE act_id = ?1 AND date = ?2`,
+  ).bind(acct.act_id, date).first().catch(() => null);
+
   const r = await makeBrief(env, acct, date, { steer });
   if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
   await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: steer ?? null });
+
+  if (prior?.slack_ts && prior?.slack_channel) {
+    // slackSyncBrief re-renders the card from the row we just wrote, so the
+    // text, the health banner and the buttons all move together.
+    await slackSyncBrief(env, acct, date).catch(() => {});
+    if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
+    return { name: acct.name, ok: true, updated: true, date,
+      channel: prior.slack_channel, narrative_error: r.narrative_error ?? null };
+  }
+
   // Internal only, and deliberately never brief_channel - that is the client's.
   const ch = acct.slack_channel;
   if (ch) {
