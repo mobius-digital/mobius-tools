@@ -4348,6 +4348,23 @@ async function slackSyncReport(env, acct, period, start, banner) {
   await slackUpdate(env, row.slack_channel, row.slack_ts, card.text, card.blocks);
 }
 
+/* ADOPTING A CARD THAT PREDATES THE BUTTONS.
+   Every draft posted before this shipped is a plain-text notice with no stored
+   `slack_ts`, so nothing knows which message to rewrite. Rather than posting a
+   second copy underneath it, look it up: the old notice always opened with
+   ":memo: *Draft - <brand>, <pretty date>*", which is specific enough to match
+   on and rare enough not to collide. Needs channels:history / groups:history;
+   returns null (not an error) without them, and the caller posts fresh. */
+async function findDraftMessage(env, acct, date) {
+  const ch = acct.slack_channel;
+  if (!ch) return null;
+  const r = await slackApi(env, 'conversations.history', { channel: ch, limit: 100 });
+  if (!r.ok) return { error: r.error || 'could not read the channel' };
+  const needle = `*Draft \u2014 ${acct.name}, ${prettyDate(date)}*`;
+  const hit = (r.messages || []).find(m => (m.text || '').includes(needle));
+  return hit ? { ts: hit.ts, channel: ch } : null;
+}
+
 /* ---------------- Modals ---------------- */
 
 const EDIT_TEXT_CAP = 2900;   // Slack's plain_text_input tops out at 3000
@@ -4624,6 +4641,40 @@ async function slackViewSubmit(env, ctx, p) {
    D1 has no migration runner here, and telling Cole to paste ALTER statements is
    how a deploy half-lands. This runs once, is guarded by a settings key, and
    swallows the "duplicate column" error so a re-run is harmless. */
+/* THE MORNING'S DRAFTS SHOULD NOT HAVE TO WAIT FOR TOMORROW.
+   When this deploys, every draft already in a channel is the old plain-text
+   notice. This runs once on the next hourly tick and rewrites each one in
+   place — same text, same figures, buttons added. It renders from the stored
+   row, so Claude is never called and not a word changes; the only edit is the
+   message in Slack. Guarded by a settings key, capped at the last three days,
+   and it never touches a brief already marked sent. */
+const CARD_UPGRADE = '2026-09-07-buttons';
+async function upgradeCardsOnce(env) {
+  if ((await getSetting(env, 'cardUpgrade')) === CARD_UPGRADE) return null;
+  // Written FIRST: a half-finished pass must not run again and post duplicates.
+  await putSetting(env, 'cardUpgrade', CARD_UPGRADE).catch(() => {});
+  const out = [];
+  for (const acct of await listAccounts(env, true)) {
+    const today = localDate(acct.tz);
+    for (let back = 1; back <= 3; back++) {
+      const date = addDays(today, -back);
+      const row = await env.DB.prepare(
+        `SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2 AND status = 'draft' AND slack_ts IS NULL`,
+      ).bind(acct.act_id, date).first().catch(() => null);
+      if (!row) continue;
+      const found = await findDraftMessage(env, acct, date).catch(() => null);
+      if (!found?.ts) { out.push({ name: acct.name, date, skipped: found?.error || 'no message found' }); continue; }
+      const card = briefCard(acct, date, row);
+      const u = await slackUpdate(env, found.channel, found.ts, card.text, card.blocks);
+      if (!u.ok) { out.push({ name: acct.name, date, error: u.error }); continue; }
+      await env.DB.prepare(`UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`)
+        .bind(acct.act_id, date, found.ts, found.channel).run().catch(() => {});
+      out.push({ name: acct.name, date, upgraded: true });
+    }
+  }
+  return out;
+}
+
 const SCHEMA_VERSION = '2026-09-07-slack-cards';
 async function ensureSlackColumns(env) {
   if ((await getSetting(env, 'schemaVersion')) === SCHEMA_VERSION) return;
@@ -5042,6 +5093,11 @@ export default {
         const hour = centralHour();
         const bh = await briefHour(env);
         const ran = {};
+        // Cheap, once ever, and it is the difference between the buttons
+        // appearing on this morning's drafts and appearing tomorrow.
+        await ensureSlackColumns(env).catch(() => {});
+        const upgraded = await upgradeCardsOnce(env).catch(e => ({ error: e.message }));
+        if (upgraded) ran.cardUpgrade = upgraded;
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
@@ -5841,6 +5897,53 @@ export default {
         const steer = typeof b.steer === 'string' && b.steer.trim() ? b.steer.trim() : null;
         const r = await draftBrief(env, acct, date, { steer });
         return r.ok ? json(r) : json({ error: r.error || r.skipped }, 400);
+      }
+      /* GIVE AN EXISTING DRAFT ITS BUTTONS, WITHOUT REWRITING IT.
+         Renders `briefCard` from the stored row — no Claude, no re-pull, not
+         one word or figure changes — and rewrites the message that is already
+         in the channel. `mode:'repost'` deletes and posts fresh instead, for a
+         message chat.update refuses (Slack will not convert some old posts).
+         `act:'all'` walks every active brand for that date, which is how a
+         morning's worth of drafts gets upgraded in one call. */
+      if (path === '/api/brief-card' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const list = !b.act || b.act === 'all'
+          ? await listAccounts(env, true)
+          : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+        if (!list.length) return json({ error: 'unknown account' }, 404);
+        const out = [];
+        for (const acct of list) {
+          const date = b.date || addDays(localDate(acct.tz), -1);
+          const row = await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`)
+            .bind(acct.act_id, date).first().catch(() => null);
+          if (!row) { out.push({ name: acct.name, date, skipped: 'no brief for that day' }); continue; }
+          const card = briefCard(acct, date, row);
+          // Where the message already is: what we stored, else go and find it.
+          let where = row.slack_ts && row.slack_channel ? { ts: row.slack_ts, channel: row.slack_channel } : null;
+          if (!where) {
+            const found = await findDraftMessage(env, acct, date);
+            if (found?.error) { out.push({ name: acct.name, date, error: found.error }); continue; }
+            where = found;
+          }
+          try {
+            let ts = where?.ts, channel = where?.channel || acct.slack_channel;
+            if (where && b.mode !== 'repost') {
+              const u = await slackUpdate(env, channel, ts, card.text, card.blocks);
+              if (!u.ok) throw new Error(u.error || 'chat.update failed');
+              out.push({ name: acct.name, date, updated: true, ts });
+            } else {
+              if (where) await slackApi(env, 'chat.delete', { channel, ts }).catch(() => {});
+              if (!channel) { out.push({ name: acct.name, date, skipped: 'no internal channel set' }); continue; }
+              const posted = await slackPost(env, channel, card.text, card.blocks,
+                { username: 'Mobius Reports', icon: ':memo:' });
+              ts = posted.ts; channel = posted.channel || channel;
+              out.push({ name: acct.name, date, reposted: true, replaced: !!where, ts });
+            }
+            await env.DB.prepare(`UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`)
+              .bind(acct.act_id, date, ts, channel).run().catch(() => {});
+          } catch (e) { out.push({ name: acct.name, date, error: e.message }); }
+        }
+        return json({ ok: true, results: out });
       }
       if (path === '/api/briefs' && request.method === 'GET') {
         const act = url.searchParams.get('act');
