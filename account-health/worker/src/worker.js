@@ -4435,11 +4435,11 @@ function editModal({ callback_id, meta, title, label, hint, value, submit = 'Sav
     close: { type: 'plain_text', text: 'Cancel' },
     blocks: parts.map((chunk, i) => ({
       type: 'input', block_id: `body${i}`,
-      label: { type: 'plain_text', text: many ? `${label} — part ${i + 1} of ${parts.length}` : label },
-      hint: { type: 'plain_text', text: i === 0
-        ? hint + (many ? ' It is too long for one Slack box, so it is split here and joined back exactly as it was on save.' : '')
-        : 'Carries on from the box above.' },
-      element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 3000, initial_value: chunk },
+      label: { type: 'plain_text', text: many ? `${label} — ${i + 1}/${parts.length}` : label },
+      ...(i === 0 && many ? { hint: { type: 'plain_text', text: 'Too long for one box — split here, joined back exactly on save.' } } : {}),
+      ...(i > 0 ? { hint: { type: 'plain_text', text: 'Carries on from above.' } } : {}),
+      element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 3000,
+        initial_value: chunk, focus_on_load: i === 0 },
     })),
   };
 }
@@ -4554,9 +4554,7 @@ async function slackBlockAction(env, ctx, p) {
       callback_id: isBrief ? 'brief_edit_submit' : 'report_edit_submit',
       meta, title: isBrief ? 'Edit the brief' : 'Edit the summary',
       label: isBrief ? 'The brief, exactly as the client will read it' : 'The executive summary',
-      hint: isBrief
-        ? 'Slack bold is *single asterisks*. This is the text that gets posted — nothing is added to it.'
-        : 'The client sees the headline and their report link; this summary is what they read on the report page.',
+      hint: '',
       value: body || '',
     }) });
     return ACK();
