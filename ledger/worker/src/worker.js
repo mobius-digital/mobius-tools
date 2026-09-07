@@ -851,14 +851,17 @@ const SELF_TRANSFER_DETAIL = new Set([
   'TRANSFER_OUT_SAVINGS', 'TRANSFER_IN_SAVINGS',
   'TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS', 'TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS',
 ]);
-function looksLikeTransfer(name, pfc) {
+function looksLikeTransfer(name, pfc, selfAccounts = []) {
   const n = (name || '').toLowerCase();
   if (/(amex|american express)/.test(n) && /(pay|epay|autopay|pmt)/.test(n)) return true;
   if (/autopay payment/.test(n)) return true;
   if (/stripe/.test(n)) return true;
   if (/^(transfer|xfer|online transfer|withdrawal to|deposit from)/.test(n)) return true;
-  // his own name on the other end of it is his own account
-  if (/cole wetzler/.test(n)) return true;
+  /* Accounts Cole has told us are his own — "Joint" is his joint account, not
+   * The Joint Chiropractic, so these match the WHOLE name rather than appearing
+   * anywhere in it. Maintained as a setting, not in code, so naming a new one
+   * is something he can do from the app. */
+  if (selfAccounts.some(a => a && n === String(a).toLowerCase().trim())) return true;
   const p = pfc?.primary || '', d = pfc?.detailed || '';
   if (p === 'LOAN_PAYMENTS') return true;          // paying a card balance
   return SELF_TRANSFER_DETAIL.has(d);
@@ -893,8 +896,9 @@ async function processPlaidTxn(env, item, t) {
   const vendor = String(rawName).replace(/\s+/g, ' ').trim().slice(0, 120);
   const amt = round2(t.amount); // Plaid: positive = money OUT, negative = money IN
 
+  const selfAccounts = safeJson(await getSetting(env, 'selfAccounts'), []) || [];
   let type, amount, status = 'ok', note = null;
-  if (looksLikeTransfer(rawName, t.personal_finance_category)) {
+  if (looksLikeTransfer(rawName, t.personal_finance_category, selfAccounts)) {
     type = 'transfer'; amount = Math.abs(amt);
   } else if (amt > 0) {
     type = 'out'; amount = amt;
@@ -1241,6 +1245,18 @@ export default {
         }
         if (b.one_time !== undefined) next.one_time = b.one_time ? 1 : 0;
         if (b.receipt_skip !== undefined) next.receipt_skip = b.receipt_skip ? 1 : 0;
+        /* "This was between my own accounts" — reclassify it, and remember the
+         * name so the next one is caught by the sync instead of by Cole. */
+        if (b.markSelfTransfer) {
+          next.type = 'transfer'; next.bucket = 'Transfer';
+          next.tax_cat = 'Transfer — not P&L'; next.status = 'ok';
+          next.amount = Math.abs(next.amount);
+          const self = safeJson(await getSetting(env, 'selfAccounts'), []) || [];
+          if (!self.some(a => String(a).toLowerCase() === next.vendor.toLowerCase())) {
+            self.push(next.vendor);
+            await putSetting(env, 'selfAccounts', JSON.stringify(self.slice(0, 100)));
+          }
+        }
         // The row-level and Slack pickers send only a tax category — the bucket
         // that drives the dashboard is derived, so there is one thing to choose
         // rather than two that can disagree.
@@ -1267,9 +1283,10 @@ export default {
          * category across a vendor's other rows is always something Cole said
          * yes to — never something that happened while he was looking away. */
         await env.DB.prepare(`UPDATE transactions SET date=?2, month=?3, vendor=?4, amount=?5, bucket=?6,
-          tax_cat=?7, note=?8, one_time=?9, expected=?10, status=?11, receipt_skip=?12 WHERE id=?1`)
+          tax_cat=?7, note=?8, one_time=?9, expected=?10, status=?11, receipt_skip=?12, type=?13 WHERE id=?1`)
           .bind(id, next.date, next.month, next.vendor, next.amount, next.bucket,
-                next.tax_cat, next.note, next.one_time, next.expected, next.status, next.receipt_skip || 0).run();
+                next.tax_cat, next.note, next.one_time, next.expected, next.status,
+                next.receipt_skip || 0, next.type).run();
         return json({ ok: true, transaction: next });
       }
 

@@ -721,6 +721,8 @@ async function editTxn(id){
     ${t.type==='out' ? catSelects(t.bucket||'Other', t.tax_cat||'') : ''}
     ${t.stripe_cus ? `<label class="ck"><input type="checkbox" id="eMap" ${t.status==='review'?'checked':''}><span>Remember: this Stripe customer is the client above<small>Every future payment from them auto-matches — set the vendor to the right client first.</small></span></label>`:''}
     ${t.type==='out' ? `<label class="ck"><input type="checkbox" id="eOne" ${t.one_time?'checked':''}><span>One-time purchase</span></label>`:''}
+    ${!closed && (t.type==='out'||t.type==='in') ? `<label class="ck"><input type="checkbox" id="eSelf">
+      <span>This was money between my own accounts<small>Not income or a cost — an owner draw, a card payment, a move to savings. It stops counting in every report, and Ledger will treat “${esc(t.vendor)}” the same way from now on.</small></span></label>`:''}
     ${t.type==='out' && !t.receipt_key ? `<label class="ck"><input type="checkbox" id="eSkip" ${t.receipt_skip?'checked':''}><span>No receipt exists for this one<small>Stops it counting as missing — no month-end chasing; the CPA pack simply lists it without a receipt.</small></span></label>`:''}
     <label>Receipt</label>
     <div class="row" style="margin-bottom:0">
@@ -746,6 +748,7 @@ async function editTxn(id){
     }
     if (t.expected) b.confirm = true;
     if ($('#eSkip')) b.receipt_skip = $('#eSkip').checked;
+    if ($('#eSelf')?.checked) b.markSelfTransfer = true;
     if (t.stripe_cus && $('#eMap')?.checked) { b.mapStripe = true; b.status = 'ok'; }
     try {
       await api('/api/transaction', { method:'PUT', body: JSON.stringify(b) });
