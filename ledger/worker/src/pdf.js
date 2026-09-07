@@ -217,7 +217,7 @@ function totalRow(d, label, amount, color = INK) {
   d.y -= 2;
   const y = d.y - 12;
   d.text(label, MARGIN, y, { size: 10, bold: true });
-  d.text(amount, PAGE_W - MARGIN, y, { size: 10.5, bold: true, color });
+  d.text(amount, PAGE_W - MARGIN, y, { size: 10.5, bold: true, color, align: 'right' });
   d.y -= 18;
   d.line(MARGIN, d.y + 3, PAGE_W - MARGIN, RULE, 0.9);
   d.y -= 4;
@@ -262,7 +262,8 @@ export function buildPnlPdf(r, opts = {}) {
   d.need(40);
   d.rect(MARGIN, d.y - 30, CONTENT_W, 30, BAND);
   d.text('NET INCOME', MARGIN + 14, d.y - 19, { size: 10, bold: true });
-  d.text(money(r.net), PAGE_W - MARGIN - 14, d.y - 20, { size: 13, bold: true, color: r.net >= 0 ? ACCENT : [0.7, 0.25, 0.2] });
+  d.text(money(r.net), PAGE_W - MARGIN - 14, d.y - 20,
+    { size: 13, bold: true, align: 'right', color: r.net >= 0 ? ACCENT : [0.7, 0.25, 0.2] });
   d.y -= 44;
 
   if (r.personal) {

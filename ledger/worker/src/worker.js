@@ -390,6 +390,11 @@ async function processSlackReceipts(env) {
   let handled = 0;
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
+    // Never read our own output. The monthly P&L is posted into this channel as
+    // a PDF, and without this the poller treats it as a receipt and replies to
+    // it — which it did, on the first statement ever sent. Receipts come from a
+    // person; anything a bot posted here is ours or another tool's.
+    if (msg.bot_id || msg.subtype === 'bot_message') continue;
     for (const f of msg.files || []) {
       const isPdf = f.mimetype === 'application/pdf';
       const isEmail = f.filetype === 'email';   // forwarded to the channel's email address
