@@ -4369,18 +4369,55 @@ async function findDraftMessage(env, acct, date) {
 
 const EDIT_TEXT_CAP = 2900;   // Slack's plain_text_input tops out at 3000
 
+/* A BRIEF IS ROUTINELY LONGER THAN ONE SLACK TEXT BOX, so Edit used to refuse
+   and send you to Locus — which is the tab-switch this whole feature exists to
+   remove. Bonk's 6 September draft is 3,167 characters against a 3,000 limit.
+   The text is split across as many boxes as it needs, at paragraph breaks, and
+   rejoined on save. `joins` records the exact separator between each pair so
+   the round trip cannot lose or add a character; a single paragraph longer than
+   one box is hard-split and rejoins with nothing between. */
+function splitForEdit(text, cap = EDIT_TEXT_CAP) {
+  const parts = [], joins = [];
+  let buf = '';
+  for (const para of String(text ?? '').split('\n\n')) {
+    const next = buf ? `${buf}\n\n${para}` : para;
+    if (next.length <= cap) { buf = next; continue; }
+    if (buf) { parts.push(buf); joins.push('\n\n'); buf = ''; }
+    let rest = para;
+    while (rest.length > cap) { parts.push(rest.slice(0, cap)); joins.push(''); rest = rest.slice(cap); }
+    buf = rest;
+  }
+  parts.push(buf);
+  return { parts, joins };
+}
+
+/** Put the boxes back together in order, using the separators we split on. */
+function joinEdit(view, meta) {
+  const joins = Array.isArray(meta?.j) ? meta.j : [];
+  const vals = Object.keys(view?.state?.values || {})
+    .filter(k => /^body\d+$/.test(k))
+    .sort((a, b) => +a.slice(4) - +b.slice(4))
+    .map(k => view.state.values[k]?.v?.value ?? '');
+  return vals.reduce((acc, v, i) => i === 0 ? v : acc + (joins[i - 1] ?? '\n\n') + v, '');
+}
+
 function editModal({ callback_id, meta, title, label, hint, value, submit = 'Save' }) {
+  const { parts, joins } = splitForEdit(value);
+  const many = parts.length > 1;
   return {
-    type: 'modal', callback_id, private_metadata: JSON.stringify(meta),
+    type: 'modal', callback_id,
+    private_metadata: JSON.stringify({ ...meta, j: joins }),
     title: { type: 'plain_text', text: title },
     submit: { type: 'plain_text', text: submit },
     close: { type: 'plain_text', text: 'Cancel' },
-    blocks: [{
-      type: 'input', block_id: 'body',
-      label: { type: 'plain_text', text: label },
-      hint: { type: 'plain_text', text: hint },
-      element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 3000, initial_value: value || '' },
-    }],
+    blocks: parts.map((chunk, i) => ({
+      type: 'input', block_id: `body${i}`,
+      label: { type: 'plain_text', text: many ? `${label} — part ${i + 1} of ${parts.length}` : label },
+      hint: { type: 'plain_text', text: i === 0
+        ? hint + (many ? ' It is too long for one Slack box, so it is split here and joined back exactly as it was on save.' : '')
+        : 'Carries on from the box above.' },
+      element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 3000, initial_value: chunk },
+    })),
   };
 }
 
@@ -4490,11 +4527,6 @@ async function slackBlockAction(env, ctx, p) {
       await slackWhisper(env, chan, user, 'That one has already been sent to the client, so its wording is frozen — it is the record of what they received.');
       return ACK();
     }
-    if ((body || '').length > EDIT_TEXT_CAP) {
-      await slackWhisper(env, chan, user,
-        `This one is ${body.length} characters and Slack's edit box stops at ${EDIT_TEXT_CAP}. Edit it in Locus instead: ${isBrief ? LOCUS_BRIEF(acct.act_id, meta.d) : LOCUS_REPORTS(acct.act_id)}`);
-      return ACK();
-    }
     await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: editModal({
       callback_id: isBrief ? 'brief_edit_submit' : 'report_edit_submit',
       meta, title: isBrief ? 'Edit the brief' : 'Edit the summary',
@@ -4583,9 +4615,9 @@ async function slackViewSubmit(env, ctx, p) {
   if (!acct) return ACK();
 
   if (cb === 'brief_edit_submit') {
-    const text = modalValue(p.view, 'body');
+    const text = joinEdit(p.view, meta);
     if (!text.trim()) {
-      return new Response(JSON.stringify({ response_action: 'errors', errors: { body: 'A brief cannot be empty.' } }),
+      return new Response(JSON.stringify({ response_action: 'errors', errors: { body0: 'A brief cannot be empty.' } }),
         { headers: { 'content-type': 'application/json' } });
     }
     ctx.waitUntil((async () => {
@@ -4598,7 +4630,7 @@ async function slackViewSubmit(env, ctx, p) {
   }
 
   if (cb === 'report_edit_submit') {
-    const summary = modalValue(p.view, 'body');
+    const summary = joinEdit(p.view, meta);
     ctx.waitUntil((async () => {
       await env.DB.prepare(`UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'draft'`)
         .bind(acct.act_id, meta.p, meta.s, summary).run().catch(() => {});
