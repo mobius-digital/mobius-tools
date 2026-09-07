@@ -5317,6 +5317,22 @@ export default {
           ).bind(acct.act_id).first().catch(() => null);
           if (!row) { out.push({ name: acct.name, skipped: 'no drafted report with a card' }); continue; }
           const card = reportCard(acct, row);
+          if (b.mode === 'repost') {
+            /* Delete and post again, rather than edit in place. An edited
+               message keeps its original position in the channel, which is
+               right for a correction and wrong when the point is to see the
+               thing fresh at the bottom. Cole asked for the latter. */
+            await slackApi(env, 'chat.delete', { channel: row.slack_channel, ts: row.slack_ts }).catch(() => {});
+            const posted = await slackPost(env, row.slack_channel, card.text, card.blocks,
+              { username: 'Mobius Reports', icon: ':clipboard:' }).catch(e => ({ error: e.message }));
+            if (posted?.ts) {
+              await env.DB.prepare(
+                `UPDATE reports SET slack_ts = ?4, slack_channel = ?5 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+              ).bind(acct.act_id, row.period, row.period_start, posted.ts, posted.channel || row.slack_channel).run().catch(() => {});
+              out.push({ name: acct.name, period: row.period, start: row.period_start, reposted: true });
+            } else out.push({ name: acct.name, error: posted?.error || 'post failed' });
+            continue;
+          }
           const u = await slackUpdate(env, row.slack_channel, row.slack_ts, card.text, card.blocks);
           out.push({ name: acct.name, period: row.period, start: row.period_start, ...(u.ok ? { updated: true } : { error: u.error }) });
         }
