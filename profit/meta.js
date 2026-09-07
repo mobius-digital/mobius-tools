@@ -1,17 +1,17 @@
-/* Mobius — the Meta section.
+/* Mobius - the Meta section.
  *
  * These are the Meta-only screens that used to be the separate "Account Health"
  * dashboard, now sub-tabs inside Mobius. They live in their own file and their
  * own IIFE for two reasons: a merged single file would be ~4,400 lines, and
  * almost every helper here (esc, fmtMoney, S, api, …) shares a name with one in
  * the host page. Shadowing them inside a closure means neither side can change
- * the other's behaviour by accident — fmtPct differs between the two, for one,
+ * the other's behaviour by accident - fmtPct differs between the two, for one,
  * and this file needs its own signed version.
  *
  * It talks to the account-health worker DIRECTLY rather than through the host
  * worker's proxy: that worker still owns the Meta sync, both crons and the
  * secrets, and it already accepts the same Mobius session token. Nothing about
- * the backend moved — only the screens.
+ * the backend moved - only the screens.
  *
  * Everything here is Meta-reported and matches Ads Manager. Blended,
  * store-level money lives on the other tabs, deliberately.
@@ -42,29 +42,29 @@ async function api(path, opts = {}) {
   return j;
 }
 
-/* ---------- formatting (deliberately local — fmtPct here is SIGNED) ---------- */
-const fmtMoney = (n, cur) => n == null ? '—' : new Intl.NumberFormat('en-US', { style:'currency', currency: cur||'USD', maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }).format(n);
+/* ---------- formatting (deliberately local - fmtPct here is SIGNED) ---------- */
+const fmtMoney = (n, cur) => n == null ? ' - ' : new Intl.NumberFormat('en-US', { style:'currency', currency: cur||'USD', maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }).format(n);
 const sym = cur => { try { return new Intl.NumberFormat('en-US',{style:'currency',currency:cur||'USD'}).formatToParts(1).find(p=>p.type==='currency').value; } catch { return '$'; } };
-const fmtK = (n, cur) => n == null ? '—' : Math.abs(n) >= 1000 ? (sym(cur) + (n/1000).toFixed(1) + 'K') : fmtMoney(n, cur);
-const fmtPct = (n, d=1) => n == null ? '—' : (n>0?'+':'') + (n*100).toFixed(d) + '%';
-const fmtX = n => n == null ? '—' : n.toFixed(2) + 'x';
+const fmtK = (n, cur) => n == null ? ' - ' : Math.abs(n) >= 1000 ? (sym(cur) + (n/1000).toFixed(1) + 'K') : fmtMoney(n, cur);
+const fmtPct = (n, d=1) => n == null ? ' - ' : (n>0?'+':'') + (n*100).toFixed(d) + '%';
+const fmtX = n => n == null ? ' - ' : n.toFixed(2) + 'x';
 const parseTs = iso => new Date(iso.replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(iso) ? '' : 'Z'));
 const fmtAgo = iso => { if (!iso) return 'never'; const m = (Date.now() - parseTs(iso).getTime())/60000; return m<60 ? `${Math.round(m)}m ago` : m<1440 ? `${Math.round(m/60)}h ago` : `${Math.round(m/1440)}d ago`; };
 
-/* helpModal / noteModal are the host page's — same signature, one modal style. */
+/* helpModal / noteModal are the host page's - same signature, one modal style. */
 const mnote = msg => noteModal('Could not save', `<p>${esc(msg)}</p>`);
 
 /** Nothing to show yet, and why. */
 function setupBanner() {
   if (S.health && S.health.hasMetaToken === false) return `<div class="notice bad">⚠️ <div><b>Meta token not set.</b> Nothing can sync until <code>META_TOKEN</code> is added to the worker.</div></div>`;
   if (!S.accounts.length) return `<div class="notice warn">ℹ️ <div>No ad accounts found yet. Go to <b>Settings → Find ad accounts on Meta</b>.</div></div>`;
-  if (!S.accounts.some(a => a.active)) return `<div class="notice warn">ℹ️ <div>No accounts are switched on. Turn on the clients you want tracked in <b>Settings</b> — the first sync backfills 90 days.</div></div>`;
+  if (!S.accounts.some(a => a.active)) return `<div class="notice warn">ℹ️ <div>No accounts are switched on. Turn on the clients you want tracked in <b>Settings</b> - the first sync backfills 90 days.</div></div>`;
   return '';
 }
 
 /** delta pill: lowerIsBetter flips coloring (CPA, CPM). */
 function delta(cur, prev, lowerIsBetter=false) {
-  if (cur == null || prev == null || !prev) return '<span class="delta unk">—</span>';
+  if (cur == null || prev == null || !prev) return '<span class="delta unk"> - </span>';
   const d = cur/prev - 1;
   const good = lowerIsBetter ? d < 0 : d > 0;
   const cls = Math.abs(d) < 0.02 ? 'unk' : good ? 'good' : 'bad';
@@ -104,31 +104,31 @@ function modal({ title, hint, value = '', placeholder = '', multiline = false, s
 
 const META_HELP = {
   averages: `
-    <p><b>What this page is:</b> every metric compared to this account's <i>own</i> last-30-days normal. Not industry benchmarks — its own baseline. That's how you spot "something changed" without a spreadsheet.</p>
-    <p><b>The 10-second daily read:</b> scan the verdict word under each card — "improving"/"recovering" show in green text, "slipping"/"declining" in red, "flat" in gray. (The chart lines are always blue = 7-day and gray = 30-day; only the words and the card's top edge are color-coded.) All green or flat → move on. Red on CPA or ROAS → click that card, see where it turned, and check whether a change dot lines up with the turn.</p>
+    <p><b>What this page is:</b> every metric compared to this account's <i>own</i> last-30-days normal. Not industry benchmarks - its own baseline. That's how you spot "something changed" without a spreadsheet.</p>
+    <p><b>The 10-second daily read:</b> scan the verdict word under each card - "improving"/"recovering" show in green text, "slipping"/"declining" in red, "flat" in gray. (The chart lines are always blue = 7-day and gray = 30-day; only the words and the card's top edge are color-coded.) All green or flat → move on. Red on CPA or ROAS → click that card, see where it turned, and check whether a change dot lines up with the turn.</p>
     <p><b>Momentum table:</b> the "did something break in the last day or two" check. If Yesterday or the 3-day is 15%+ off the 7-day, investigate today, not next week.</p>
-    <p><b>Judging rules:</b> ignore moves under ~5% (noise). The last 3 days always look worse than they'll end up — conversions keep landing for ~72h. Trust the 7-day vs 30-day comparison before reacting; use the 3-day only as an early warning.</p>
+    <p><b>Judging rules:</b> ignore moves under ~5% (noise). The last 3 days always look worse than they'll end up - conversions keep landing for ~72h. Trust the 7-day vs 30-day comparison before reacting; use the 3-day only as an early warning.</p>
 `,
   today: `
     <p><b>What this page is:</b> is today running hot or cold compared with a normal day for this account? It is the only view in Mobius that looks <i>inside</i> the current day.</p>
     <p><b>The curve:</b> today's cumulative Meta spend against the average shape of the last 7 days by the same hour. Over +10% = running hot, under -10% = delivery running cold. Either is worth a look in Ads Manager.</p>
-    <p><b>Day elapsed</b> is the share of a normal day that is usually finished by this hour, measured from the last 7 days. It is the denominator for everything else here: at 9am it is often under 15%, and a big "vs normal" swing on that little of a day is mostly noise. <b>There is deliberately no "projected today"</b> — on Meta the daily budget is something you set, so projecting where the day lands only restates a number you already chose. Forecasting belongs on <b>Plan</b>, at the blended monthly level. <b>Refresh</b> re-pulls from Meta.</p>
+    <p><b>Day elapsed</b> is the share of a normal day that is usually finished by this hour, measured from the last 7 days. It is the denominator for everything else here: at 9am it is often under 15%, and a big "vs normal" swing on that little of a day is mostly noise. <b>There is deliberately no "projected today"</b> - on Meta the daily budget is something you set, so projecting where the day lands only restates a number you already chose. Forecasting belongs on <b>Plan</b>, at the blended monthly level. <b>Refresh</b> re-pulls from Meta.</p>
     <p><b>Why there is no monthly pacing here any more:</b> the month is planned and forecast in <b>Plan</b>, against blended revenue and total spend across every platform. A second, Meta-only version of the same question disagreed with it and was the noisier of the two. What survives is the part Plan genuinely cannot see: what is happening in the last few hours.</p>
-    <p><b>Meta only</b> — every figure here matches Ads Manager.</p>`,
+    <p><b>Meta only</b> - every figure here matches Ads Manager.</p>`,
   changelog: `
-    <p><b>What this page is:</b> the permanent record of what we changed, when, who, and why — pulled from Meta automatically every night. Nobody has to write anything down.</p>
-    <p><b>Daily habit (optional, ~3 clicks):</b> when you make a move that matters — budget change, kill, launch — find it here and tag the <b>why</b>. Amber suggestions are pre-filled guesses; ✓ accepts one. Use <b>+ note</b> for context worth remembering.</p>
+    <p><b>What this page is:</b> the permanent record of what we changed, when, who, and why - pulled from Meta automatically every night. Nobody has to write anything down.</p>
+    <p><b>Daily habit (optional, ~3 clicks):</b> when you make a move that matters - budget change, kill, launch - find it here and tag the <b>why</b>. Amber suggestions are pre-filled guesses; ✓ accepts one. Use <b>+ note</b> for context worth remembering.</p>
     <p><b>✗</b> hides junk from summaries. <b>+ Add change</b> records things Meta can't see (promo started, landing page swapped, tracking fixed).</p>
     <p><b>✦ Summarise:</b> Claude writes the daily standup, weekly recap, or a client-safe update from the tagged changes + performance. The more whys you tag, the smarter it reads.</p>
     <p><b>Forensics:</b> CPA spiked Tuesday? Set the dates to Tuesday and see exactly what changed.</p>`,
   creative: `
     <p><b>The problem this page catches:</b> ads wear out. The same people see them over and over, performance slowly fades, and CPA creeps up. Teams usually notice <i>after</i> the spike. This page shows whether we're feeding the account new ads <i>before</i> that happens.</p>
-    <p><b>The four cards, in order:</b> ① how much of the budget went to new ads (the number to protect — if it keeps falling, we're coasting) · ② the average age of the ads the money ran on (creeping up = same warning) · ③ <b>Fresh CPA</b> — CPA from new ads · ④ <b>Stale CPA</b> — CPA from older ads.</p>
-    <p><b>Fresh vs stale CPA:</b> don't panic if fresh looks pricier — new ads need a few days for Meta to optimize. What matters is the pattern over weeks, which is what the highlighted sentence and the bottom chart show: when we launch more, does CPA hold or improve? If yes, there's no excuse to slow the launch cadence.</p>
-    <p><b>The ad table:</b> every ad that spent in the window, biggest spender first, with a <b>scale</b> / <b>cut or fix</b> read based on how its CPA compares to this account's own average. It's the "what do I actually do today" list — but give brand-new ads a few days before judging them.</p>
+    <p><b>The four cards, in order:</b> ① how much of the budget went to new ads (the number to protect - if it keeps falling, we're coasting) · ② the average age of the ads the money ran on (creeping up = same warning) · ③ <b>Fresh CPA</b> - CPA from new ads · ④ <b>Stale CPA</b> - CPA from older ads.</p>
+    <p><b>Fresh vs stale CPA:</b> don't panic if fresh looks pricier - new ads need a few days for Meta to optimize. What matters is the pattern over weeks, which is what the highlighted sentence and the bottom chart show: when we launch more, does CPA hold or improve? If yes, there's no excuse to slow the launch cadence.</p>
+    <p><b>The ad table:</b> every ad that spent in the window, biggest spender first, with a <b>scale</b> / <b>cut or fix</b> read based on how its CPA compares to this account's own average. It's the "what do I actually do today" list - but give brand-new ads a few days before judging them.</p>
     <p><b>The bars:</b> one bar per week, dark green = brand-new ads' share of that week's spend. Watch whether the dark green is growing or dying.</p>
-    <p><b>What's a good new-ad share?</b> Rough zones: with "new = ≤7 days" aim for ~10–20%; ≤14 days ~15–30%; ≤30 days ~25–45%. Below the zone = coasting (fatigue builds, CPA pays later). Way above it every week = churning — winners never mature, or nothing is sticking. Two overrides: scaling accounts should sit at the top of the zone or higher, and if Fresh CPA keeps beating Stale CPA, push above the band without guilt.</p>
-    <p><b>When to look:</b> Monday creative meeting, once a week. This is a weeks-scale question — daily checking tells you nothing new.</p>`,
+    <p><b>What's a good new-ad share?</b> Rough zones: with "new = ≤7 days" aim for ~10–20%; ≤14 days ~15–30%; ≤30 days ~25–45%. Below the zone = coasting (fatigue builds, CPA pays later). Way above it every week = churning - winners never mature, or nothing is sticking. Two overrides: scaling accounts should sit at the top of the zone or higher, and if Fresh CPA keeps beating Stale CPA, push above the band without guilt.</p>
+    <p><b>When to look:</b> Monday creative meeting, once a week. This is a weeks-scale question - daily checking tells you nothing new.</p>`,
 };
 
 /* ---------- Change Log (Chat 1) ---------- */
@@ -152,7 +152,7 @@ function clDates() {
 async function renderChangeLog() {
   const [from, to] = clDates();
   $('#main').innerHTML = `<h2>Change Log</h2>
-    <p class="sub">Every change on the account — Meta's activity log plus manual entries — with why it was made. Tag a reason on the moves that matter and let Claude write the update. ✓ and ✗ are optional: ✓ locks in a change (and accepts an amber suggested reason), ✗ hides noise from summaries.</p>
+    <p class="sub">Every change on the account - Meta's activity log plus manual entries - with why it was made. Tag a reason on the moves that matter and let Claude write the update. ✓ and ✗ are optional: ✓ locks in a change (and accepts an amber suggested reason), ✗ hides noise from summaries.</p>
     ${setupBanner()}
     <div class="row">
       ${[['today','Today'],['yday','Yesterday'],['7','7 days'],['14','14 days'],['30','30 days'],['90','90 days']].map(([v,l]) =>
@@ -196,11 +196,11 @@ async function renderChangeLog() {
     if (sel.value === '__custom') {
       const v = await modal({
         title: 'Custom reason',
-        hint: 'Your own "why" for when the presets don\'t fit — e.g. "iOS update broke tracking". It\'s saved as this change\'s reason and Claude uses it in updates just like a preset one.',
+        hint: 'Your own "why" for when the presets don\'t fit - e.g. "iOS update broke tracking". It\'s saved as this change\'s reason and Claude uses it in updates just like a preset one.',
         placeholder: 'Why was this change made?',
         value: r.reason && !CL_REASONS.includes(r.reason) ? r.reason : '',
       });
-      if (v == null || !v.trim()) return clDrawFeed();   // cancelled — restore display
+      if (v == null || !v.trim()) return clDrawFeed();   // cancelled - restore display
       r.reason = v.trim();
     } else if (sel.value === '__sugg') {
       r.reason = r.suggested_reason;                     // picking the suggestion accepts it
@@ -216,8 +216,8 @@ async function renderChangeLog() {
     if (btn.dataset.do === 'note') {
       const v = await modal({
         title: r.note ? 'Edit note' : 'Add a note',
-        hint: 'Extra context that travels with this change — it shows in italics underneath, and Claude reads it when writing updates. The "why?" dropdown is the reason; a note is anything extra worth remembering.',
-        placeholder: 'e.g. ROAS held 3 days — revisit Friday before scaling further',
+        hint: 'Extra context that travels with this change - it shows in italics underneath, and Claude reads it when writing updates. The "why?" dropdown is the reason; a note is anything extra worth remembering.',
+        placeholder: 'e.g. ROAS held 3 days - revisit Friday before scaling further',
         value: r.note || '', multiline: true,
       });
       if (v == null) return;
@@ -276,13 +276,13 @@ function clDrawFeed() {
         <select data-id="${esc(r.id)}" class="${r.reason ? 'set' : (r.suggested_reason ? 'sugg' : '')}">${!r.reason && r.suggested_reason
           ? `<option value="__sugg" selected>${esc(r.suggested_reason)} · suggested</option>` : `<option value="">why?</option>`}${CL_REASONS.map(x =>
           `<option ${r.reason===x?'selected':''}>${x}</option>`).join('')}${r.reason && !CL_REASONS.includes(r.reason) ? `<option selected>${esc(r.reason)}</option>` : ''}<option value="__custom">Custom…</option></select>
-        <button class="note-btn" data-id="${esc(r.id)}" data-do="note" title="Extra context that rides along with this change — Claude reads it too">${r.note ? 'edit note' : '+ note'}</button>
-        <button class="icon-btn ok ${r.confirmed === 1 ? 'on' : ''}" data-id="${esc(r.id)}" data-do="ok" title="${r.confirmed === 1 ? 'Confirmed — we meant to do this' : 'Confirm: deliberate, goes in updates'}">✓</button>
-        <button class="icon-btn no ${r.confirmed === -1 ? 'on' : ''}" data-id="${esc(r.id)}" data-do="no" title="${r.confirmed === -1 ? 'Dismissed — excluded from summaries (click to undo)' : 'Dismiss: noise, keep out of summaries'}">✗</button>
+        <button class="note-btn" data-id="${esc(r.id)}" data-do="note" title="Extra context that rides along with this change - Claude reads it too">${r.note ? 'edit note' : '+ note'}</button>
+        <button class="icon-btn ok ${r.confirmed === 1 ? 'on' : ''}" data-id="${esc(r.id)}" data-do="ok" title="${r.confirmed === 1 ? 'Confirmed - we meant to do this' : 'Confirm: deliberate, goes in updates'}">✓</button>
+        <button class="icon-btn no ${r.confirmed === -1 ? 'on' : ''}" data-id="${esc(r.id)}" data-do="no" title="${r.confirmed === -1 ? 'Dismissed - excluded from summaries (click to undo)' : 'Dismiss: noise, keep out of summaries'}">✗</button>
       </div>
     </div>`;
   }
-  $('#clFeed').innerHTML = html + (CL.truncated ? `<p class="tiny" style="margin-top:10px">Showing the most recent 2,000 changes — narrow the window to see everything.</p>` : '');
+  $('#clFeed').innerHTML = html + (CL.truncated ? `<p class="tiny" style="margin-top:10px">Showing the most recent 2,000 changes - narrow the window to see everything.</p>` : '');
 }
 
 function clDrawPanel() {
@@ -292,7 +292,7 @@ function clDrawPanel() {
   const active = S.accounts.filter(a => a.active);
   if (CL.panel === 'add') {
     el.innerHTML = `<div class="card"><h3>Add a change</h3>
-      <p class="hint" style="margin-bottom:10px">For things Meta's log can't see — landing page swaps, promo starts, tracking fixes.</p>
+      <p class="hint" style="margin-bottom:10px">For things Meta's log can't see - landing page swaps, promo starts, tracking fixes.</p>
       <div class="row">
         <select id="adAct">${active.map(a => `<option value="${a.act_id}" ${a.act_id===S.act?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
         <input type="datetime-local" id="adTime" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60e3).toISOString().slice(0,16)}">
@@ -367,9 +367,9 @@ const AV_METRICS = [
   { k:'spend', label:'Spend/day', num:r=>r.spend, den:()=>1, fmt:(v,c)=>fmtK(v,c), lower:false },
   { k:'roas', label:'ROAS', num:r=>r.revenue, den:r=>r.spend, fmt:v=>fmtX(v), lower:false },
   { k:'cpa', label:'CPA', num:r=>r.spend, den:r=>r.purchases, fmt:(v,c)=>fmtMoney(v,c), lower:true },
-  { k:'ctr', label:'CTR', num:r=>(r.link_clicks||r.clicks), den:r=>r.impressions, fmt:v=>v==null?'—':(v*100).toFixed(2)+'%', lower:false },
+  { k:'ctr', label:'CTR', num:r=>(r.link_clicks||r.clicks), den:r=>r.impressions, fmt:v=>v==null?' - ':(v*100).toFixed(2)+'%', lower:false },
   { k:'cpm', label:'CPM', num:r=>r.spend*1000, den:r=>r.impressions, fmt:(v,c)=>fmtMoney(v,c), lower:true },
-  { k:'thumbstop', label:'Thumbstop', num:r=>r.video_views, den:r=>r.impressions, fmt:v=>v==null?'—':(v*100).toFixed(1)+'%', lower:false },
+  { k:'thumbstop', label:'Thumbstop', num:r=>r.video_views, den:r=>r.impressions, fmt:v=>v==null?' - ':(v*100).toFixed(1)+'%', lower:false },
 ];
 
 /** Trailing k-day moving value at each row index (ratio of sums, so CPA/ROAS are true blends). */
@@ -384,7 +384,7 @@ function maSeries(rows, m, k) {
 function lastVal(arr) { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]; return null; }
 
 function trendLabel(d37, d730, lower) {
-  if (d37 == null) return { t: '—', cls: 'unk' };
+  if (d37 == null) return { t: ' - ', cls: 'unk' };
   if (Math.abs(d37) < 0.025) return { t: 'flat', cls: 'unk' };
   const goodNow = lower ? d37 < 0 : d37 > 0;
   const good730 = d730 == null ? null : (lower ? d730 < 0 : d730 > 0);
@@ -412,10 +412,10 @@ function sparkSVG(s7, s30, w = 200, h = 46) {
 const AV_DEFS = {
   spend: 'Ad spend per day, Meta-reported.',
   roas: 'Revenue ÷ spend, as Meta attributes it. Higher is better.',
-  cpa: 'Spend ÷ purchases — what one purchase costs. Lower is better.',
-  ctr: 'Link clicks ÷ impressions — are people clicking the ads. Higher is better.',
-  cpm: 'Cost per 1,000 impressions — what Meta charges for attention. Lower is better.',
-  thumbstop: '3-second video views ÷ impressions — how often people stop scrolling. Higher is better.',
+  cpa: 'Spend ÷ purchases - what one purchase costs. Lower is better.',
+  ctr: 'Link clicks ÷ impressions - are people clicking the ads. Higher is better.',
+  cpm: 'Cost per 1,000 impressions - what Meta charges for attention. Lower is better.',
+  thumbstop: '3-second video views ÷ impressions - how often people stop scrolling. Higher is better.',
 };
 
 /** rows must be full days only (today excluded). interactive = clickable cards (single-client view). */
@@ -429,7 +429,7 @@ function buildAvCards(rows, currency, interactive = false) {
     return `<div class="av-card ${tr.cls}${interactive ? ' clickable' : ''}" ${interactive ? `data-m="${m.k}" title="Click for the full day-by-day ${m.label} chart with dates and changes"` : ''}>
       <div class="av-top"><span class="av-label">${m.label} <span class="info-i" title="${esc(AV_DEFS[m.k])} The big number is the 7-day average; the blue line is that average over time vs the gray 30-day baseline.">i</span></span><span style="text-align:right"><b class="av-val">${m.fmt(v7, currency)}</b><br><span class="tiny">7-day avg</span></span></div>
       ${sparkSVG(s7, s30)}
-      <div class="av-trend ${tr.cls}" title="Compares the average of the last 3 days against the last 7 — an early read on whether the metric just turned">${tr.t}${d37 != null ? ` · last 3d vs last 7d: ${fmtPct(d37)}` : ''}</div>
+      <div class="av-trend ${tr.cls}" title="Compares the average of the last 3 days against the last 7 - an early read on whether the metric just turned">${tr.t}${d37 != null ? ` · last 3d vs last 7d: ${fmtPct(d37)}` : ''}</div>
     </div>`;
   }).join('') + `</div>`;
 }
@@ -449,7 +449,7 @@ function focusSVG(rows, events, m, currency) {
   const y = v => pt + (1 - (v - min) / (max - min)) * (h - pt - pb);
   const line = arr => arr.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(' ');
   const hover = s7.map((v, i) => v == null ? '' :
-    `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="6" fill="transparent"><title>${rows[i].date} — day: ${m.fmt(daily[i], currency)} · 7d avg: ${m.fmt(v, currency)}</title></circle>`).join('');
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="6" fill="transparent"><title>${rows[i].date} - day: ${m.fmt(daily[i], currency)} · 7d avg: ${m.fmt(v, currency)}</title></circle>`).join('');
   const ticks = Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)).map(i =>
     `<text x="${x(i).toFixed(1)}" y="${h - 6}" font-size="10" text-anchor="middle" fill="#647684">${rows[i].date.slice(5)}</text>
      <line x1="${x(i).toFixed(1)}" y1="${pt}" x2="${x(i).toFixed(1)}" y2="${h - pb + 4}" stroke="#DFE7EC" stroke-width="1"/>`).join('');
@@ -459,7 +459,7 @@ function focusSVG(rows, events, m, currency) {
   const evDots = (events || []).map(ev => {
     const d = String(ev.event_time).slice(0, 10);
     const i = dateIdx[d]; if (i == null) return '';
-    return `<circle cx="${x(i).toFixed(1)}" cy="${railY}" r="4.5" fill="${color(ev.category)}" stroke="#fff" stroke-width="1.2"><title>${esc(d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''))}</title></circle>`;
+    return `<circle cx="${x(i).toFixed(1)}" cy="${railY}" r="4.5" fill="${color(ev.category)}" stroke="#fff" stroke-width="1.2"><title>${esc(d + ' - ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : ''))}</title></circle>`;
   }).join('');
   return `<svg viewBox="0 0 ${w} ${h + 14}" style="width:100%;height:auto;touch-action:none">
     ${ticks}
@@ -481,7 +481,7 @@ function avFocus(mKey) {
   const cur = d.account.currency;
   $('#avFocus').innerHTML = `<div class="card" style="border-color:var(--brand)">
     <div class="row" style="margin-bottom:2px"><h3>${m.label}, day by day</h3><span style="flex:1"></span><button class="btn" id="avFocusClose">✕ Close</button></div>
-    <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline — both are <b>per-day averages</b> over the window ending at that date (never totals; CPA/ROAS are blended from the window's total spend and purchases). A "—" means there isn't enough history before that date yet. Hover or tap for exact values; dots on the bottom rail are changes we made.</p>
+    <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline - both are <b>per-day averages</b> over the window ending at that date (never totals; CPA/ROAS are blended from the window's total spend and purchases). A " - " means there isn't enough history before that date yet. Hover or tap for exact values; dots on the bottom rail are changes we made.</p>
     <div id="fxReadout" style="font-size:13px;height:52px;overflow:hidden;background:var(--bg);border-radius:8px;padding:7px 11px;margin-bottom:8px">Hover or tap anywhere on the chart…</div>
     ${focusSVG(d.rows, d.events, m, cur)}</div>`;
   $('#avFocus').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -518,17 +518,17 @@ function buildAvStrip(events, fromYmd, toYmd) {
     const d = String(ev.event_time).slice(0, 10);
     const x = (new Date(d) - new Date(fromYmd)) / 86400e3 / span * 100;
     if (x < 0 || x > 100) return '';
-    const dRaw = d + ' — ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : '');
+    const dRaw = d + ' - ' + (ev.summary || ev.category) + (ev.reason ? ` (${ev.reason})` : '');
     const detail = esc(dRaw.length > 140 ? dRaw.slice(0, 140) + '…' : dRaw);
     return `<span class="dot" style="left:${x.toFixed(2)}%;background:${color(ev.category)};cursor:pointer" title="${detail}" data-detail="${detail}"></span>`;
   }).join('');
   return `<div class="card" style="padding:14px 20px 4px"><h3 style="margin-bottom:0">Changes we made in this window</h3>
-    <p class="hint">Each dot is a change from the Change Log, placed on the same timeline as the charts above — so you can see whether a move we made lines up with a metric turning. Hover any dot for the details.</p>
+    <p class="hint">Each dot is a change from the Change Log, placed on the same timeline as the charts above - so you can see whether a move we made lines up with a metric turning. Hover any dot for the details.</p>
     <div class="strip">${dots}</div>
     <div class="tiny" style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:4px">
       <span>${fromYmd}</span><span>${new Date((new Date(fromYmd).getTime() + new Date(toYmd).getTime()) / 2).toISOString().slice(0, 10)}</span><span>${toYmd}</span></div>
     <p class="tiny" id="stripDetail" style="margin:6px 0 2px;min-height:16px;font-weight:600"></p>
-    <p class="tiny" style="margin:2px 0 8px"><span style="color:var(--warn)">●</span> budget change · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other — click or hover a dot for the date and what changed</p></div>`;
+    <p class="tiny" style="margin:2px 0 8px"><span style="color:var(--warn)">●</span> budget change · <span style="color:var(--bad)">●</span> paused · <span style="color:var(--good)">●</span> relaunched · <span style="color:var(--brand-ink)">●</span> other - click or hover a dot for the date and what changed</p></div>`;
 }
 
 function buildAvTable(rows, currency) {
@@ -545,7 +545,7 @@ function buildAvTable(rows, currency) {
     <tbody>${AV_METRICS.map(m => `<tr><td><b>${m.label}</b></td>${[3, 7, 14, 30].map(n => cell(m, n)).join('')}</tr>`).join('')}</tbody></table></div></div>`;
 }
 
-/** Today vs yesterday vs 3-day vs 7-day — the "did something just break?" view. */
+/** Today vs yesterday vs 3-day vs 7-day - the "did something just break?" view. */
 function buildMomentum(fullRows, todayRow, currency) {
   const win = n => fullRows.slice(-n);
   const stat = (m, list) => { let a = 0, b = 0; list.forEach(r => { a += m.num(r) || 0; b += (m.den(r) ?? 1) || 0; }); return b ? a / b : null; };
@@ -558,8 +558,8 @@ function buildMomentum(fullRows, todayRow, currency) {
       <td class="num">${m.fmt(d3, currency)}${delta(d3, d7, m.lower)}</td>
       <td class="num">${m.fmt(d7, currency)}</td></tr>`;
   }).join('');
-  return `<div class="card"><h3 style="margin-bottom:2px">Momentum — is anything breaking right now?</h3>
-    <p class="hint" style="margin-bottom:10px">Today vs yesterday vs the short averages. The % tags compare each column to the 7-day average — if yesterday or the 3-day is way off it, something changed very recently: check the change dots below and the Change Log. Today is a partial day and conversions lag, so read its column as an early signal only.</p>
+  return `<div class="card"><h3 style="margin-bottom:2px">Momentum - is anything breaking right now?</h3>
+    <p class="hint" style="margin-bottom:10px">Today vs yesterday vs the short averages. The % tags compare each column to the 7-day average - if yesterday or the 3-day is way off it, something changed very recently: check the change dots below and the Change Log. Today is a partial day and conversions lag, so read its column as an early signal only.</p>
     <div class="tbl-wrap"><table><thead><tr><th>Metric</th><th class="num">Today</th><th class="num">Yesterday <span class="tiny">vs 7d</span></th><th class="num">3-day avg <span class="tiny">vs 7d</span></th><th class="num">7-day avg</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
@@ -568,10 +568,10 @@ async function renderAverages() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
   $('#main').innerHTML = `<h2>Averages</h2>
-    <p class="sub">Each card answers one question: <b>are the last 7 days better than this account's own normal (its last 30 days)?</b> The word under each card is the verdict — green words are good, red are bad. <b>Click any card</b> for the full day-by-day chart with dates and the changes we made. Meta data only; averages end yesterday because the last ~3 days of conversions are still settling.</p>
+    <p class="sub">Each card answers one question: <b>are the last 7 days better than this account's own normal (its last 30 days)?</b> The word under each card is the verdict - green words are good, red are bad. <b>Click any card</b> for the full day-by-day chart with dates and the changes we made. Meta data only; averages end yesterday because the last ~3 days of conversions are still settling.</p>
     ${setupBanner()}
     <div class="row">
-      <span class="tiny" style="font-weight:700" title="How far back the charts look. This only changes how much history the lines show — the cards' current values are always the last 7 days.">History shown:</span>
+      <span class="tiny" style="font-weight:700" title="How far back the charts look. This only changes how much history the lines show - the cards' current values are always the last 7 days.">History shown:</span>
       ${['30','60','90','180'].map(w => `<button class="chip ${AV.win===w?'on':''}" data-w="${w}">last ${w} days</button>`).join('')}
       <span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="averages">? How to use</button>
@@ -588,7 +588,7 @@ async function renderAverages() {
       single ? api('/api/overview').catch(() => null) : Promise.resolve(null),
     ]);
     const ovAcc = single ? ovr?.accounts?.find(x => x.act_id === single.act_id) : null;
-    const legend = `<p class="tiny" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">━</span> 7-day average (recent form) &nbsp;·&nbsp; <span style="color:#9FB0BC;font-weight:700">━</span> 30-day average (the baseline) — the shaded gap shows how far current form is from normal</p>`;
+    const legend = `<p class="tiny" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">━</span> 7-day average (recent form) &nbsp;·&nbsp; <span style="color:#9FB0BC;font-weight:700">━</span> 30-day average (the baseline) - the shaded gap shows how far current form is from normal</p>`;
     $('#avBody').innerHTML = series.map((s, i) => {
       const full = s.rows.filter(r => r.date < s.account.today);       // full days only
       const todayRow = s.rows.find(r => r.date === s.account.today) || null;
@@ -596,7 +596,7 @@ async function renderAverages() {
       const fromYmd = rows[0]?.date || s.account.today;
       if (single) AV.cur = { rows, events: s.events, account: s.account };
       return `${single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`}
-        ${rows.length < 7 ? `<div class="card"><span class="hint">Not enough data yet for ${esc(targets[i].name)} — needs at least a week of history.</span></div>`
+        ${rows.length < 7 ? `<div class="card"><span class="hint">Not enough data yet for ${esc(targets[i].name)} - needs at least a week of history.</span></div>`
           : legend + buildAvCards(rows, s.account.currency, single)
             + (single ? `<div id="avFocus"></div>` + buildMomentum(full, todayRow, s.account.currency) + buildAvStrip(s.events, fromYmd, s.account.today) + buildAvTable(rows, s.account.currency) : '')}`;
     }).join('');
@@ -640,13 +640,13 @@ function buildTodayCard(p) {
     <div class="pc-stats" style="margin:2px 0 12px">
       <div class="st"><b>${fmtK(p.spent, cur)}</b><span>Spend so far</span></div>
       <div class="st"><b>${fmtK(p.l7_by_now, cur)}</b><span>L7 avg by this hour</span></div>
-      <div class="st"><b class="${paceCls === 'good' ? '' : ''}" style="color:${p.vs_pace == null ? 'inherit' : Math.abs(p.vs_pace) <= 0.1 ? 'inherit' : p.vs_pace > 0 ? 'var(--good)' : 'var(--warn)'}">${p.vs_pace == null ? '—' : fmtPct(p.vs_pace, 1)}</b><span>vs L7 pace</span></div>
-      <div class="st"><b>${dayShare(p) != null ? Math.round(dayShare(p) * 100) + '%' : '—'}</b><span>Of a normal day elapsed</span></div>
+      <div class="st"><b class="${paceCls === 'good' ? '' : ''}" style="color:${p.vs_pace == null ? 'inherit' : Math.abs(p.vs_pace) <= 0.1 ? 'inherit' : p.vs_pace > 0 ? 'var(--good)' : 'var(--warn)'}">${p.vs_pace == null ? ' - ' : fmtPct(p.vs_pace, 1)}</b><span>vs L7 pace</span></div>
+      <div class="st"><b>${dayShare(p) != null ? Math.round(dayShare(p) * 100) + '%' : ' - '}</b><span>Of a normal day elapsed</span></div>
       <div class="st"><b>${fmtK(p.l7_daily_avg, cur)}</b><span>L7 daily avg</span></div>
     </div>
     <div id="hpReadout" class="tiny" style="height:20px;font-weight:600"></div>
     ${pacingSVG(p)}
-    <p class="tiny" style="margin-top:4px"><span style="color:#14608C;font-weight:700">━</span> today, cumulative &nbsp;·&nbsp; <span style="color:#9FB0BC;font-weight:700">━</span> average of the last 7 days &nbsp;·&nbsp; hover or tap the chart for exact hours. Meta reports today with a small lag — treat the newest hour as approximate.</p>
+    <p class="tiny" style="margin-top:4px"><span style="color:#14608C;font-weight:700">━</span> today, cumulative &nbsp;·&nbsp; <span style="color:#9FB0BC;font-weight:700">━</span> average of the last 7 days &nbsp;·&nbsp; hover or tap the chart for exact hours. Meta reports today with a small lag - treat the newest hour as approximate.</p>
   </div>`;
 }
 
@@ -661,7 +661,7 @@ function wireTodayChart(p) {
     const gx = pl + hh / 23 * (W - pl - pr);
     guide.setAttribute('x1', gx); guide.setAttribute('x2', gx); guide.setAttribute('opacity', '.55');
     const t = p.today_cum[hh], l = p.l7_cum[hh];
-    ro.innerHTML = `<b>${hh}:00</b> &nbsp; <span style="color:#14608C;font-weight:700">today:</span> ${t == null ? 'not yet' : fmtK(t, cur)} &nbsp; <span style="color:#8195A2;font-weight:700">typical by then:</span> ${l == null ? '—' : fmtK(l, cur)}`;
+    ro.innerHTML = `<b>${hh}:00</b> &nbsp; <span style="color:#14608C;font-weight:700">today:</span> ${t == null ? 'not yet' : fmtK(t, cur)} &nbsp; <span style="color:#8195A2;font-weight:700">typical by then:</span> ${l == null ? ' - ' : fmtK(l, cur)}`;
   };
   svg.addEventListener('pointermove', e => inspect(e.clientX));
   svg.addEventListener('pointerdown', e => inspect(e.clientX));
@@ -719,16 +719,16 @@ function crCards(d) {
   const c = d.cards, cur = d.account.currency;
   const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
   const verdict = c.freshCpa == null || c.staleCpa == null ? ''
-    : c.freshCpa <= c.staleCpa * 0.95 ? 'fresh converts cheaper — good sign for launching more'
-    : c.freshCpa >= c.staleCpa * 1.05 ? 'stale is cheaper right now — normal; fresh ads need a few days to settle'
+    : c.freshCpa <= c.staleCpa * 0.95 ? 'fresh converts cheaper - good sign for launching more'
+    : c.freshCpa >= c.staleCpa * 1.05 ? 'stale is cheaper right now - normal; fresh ads need a few days to settle'
     : 'fresh and stale cost about the same';
   const lbl = 'style="white-space:normal;line-height:1.45;display:block"';
   return `<div class="av-grid" style="grid-template-columns:repeat(auto-fill,minmax(225px,1fr))">
     <div class="av-card ${dpp == null ? '' : dpp >= 0 ? 'good' : 'bad'}"><span class="av-label" ${lbl} title="Of everything spent in the selected period, the share that went to ads ≤${d.fresh} days old. Falling week after week = coasting on old creative.">Budget going to new ads <span class="info-i">i</span></span>
-      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.freshShare == null ? '—' : (c.freshShare * 100).toFixed(1) + '%'}</b>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.freshShare == null ? ' - ' : (c.freshShare * 100).toFixed(1) + '%'}</b>
       <div class="av-trend ${dpp == null ? 'unk' : dpp >= 0 ? 'good' : 'bad'}">${dpp == null ? `of spend went to ads ≤${d.fresh} days old` : `was ${(c.freshSharePrev * 100).toFixed(1)}% the period before · ${dpp >= 0 ? '▲' : '▼'}${Math.abs(dpp).toFixed(1)}pp`}</div></div>
     <div class="av-card"><span class="av-label" ${lbl} title="The average age of the ads the money actually ran on, weighted by spend. 64 days = the typical dollar went to a two-month-old ad.">How old are the ads we're funding? <span class="info-i">i</span></span>
-      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.swAge == null ? '—' : Math.round(c.swAge) + ' days'}</b>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.swAge == null ? ' - ' : Math.round(c.swAge) + ' days'}</b>
       <div class="av-trend">average age of the ads behind the spend</div></div>
     <div class="av-card"><span class="av-label" ${lbl} title="CPA from ads ≤${d.fresh} days old ('fresh'), over the selected period">Fresh CPA (≤${d.fresh}d) <span class="info-i">i</span></span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend">${c.freshCpa == null ? 'no purchases from fresh ads in this period yet' : `CPA from ads ≤${d.fresh}d old`}</div></div>
@@ -738,7 +738,7 @@ function crCards(d) {
   </div>`;
 }
 
-/** Which individual ads are carrying the spend — and earning it. */
+/** Which individual ads are carrying the spend - and earning it. */
 function crAds(d) {
   const a = d.ads; if (!a || !a.ads.length) return '';
   const cur = d.account.currency;
@@ -747,12 +747,12 @@ function crAds(d) {
     <td><b class="ad-name" title="${esc(x.name)}">${esc(x.name)}</b>
       <span class="tiny">${x.age == null ? '' : x.age + 'd old'}${x.fresh ? ' · <span class="vd fresh">new</span>' : ''}</span></td>
     <td class="num">${fmtK(x.spend, cur)}<br><span class="tiny">${(x.share * 100).toFixed(0)}% of spend</span></td>
-    <td class="num">${x.purchases ? Math.round(x.purchases) : '—'}</td>
+    <td class="num">${x.purchases ? Math.round(x.purchases) : ' - '}</td>
     <td class="num"><b>${fmtMoney(x.cpa, cur)}</b>${x.cpa != null && a.acct_cpa ? delta(x.cpa, a.acct_cpa, true) : ''}</td>
     <td class="num">${fmtX(x.roas)}</td>
     <td>${x.verdict === 'scale' ? '<span class="vd scale">scale</span>' : x.verdict === 'cut' ? '<span class="vd cut">cut / fix</span>' : '<span class="tiny">holding</span>'}</td></tr>`).join('');
-  return `<div class="card"><h3 style="margin-bottom:2px">Which ads are carrying the spend — and earning it?</h3>
-    <p class="hint" style="margin-bottom:10px">Every ad that spent in the last ${a.window} days, biggest first. <b>Scale</b> = CPA at least 20% better than this account's ${fmtMoney(a.acct_cpa, cur)} average; <b>cut / fix</b> = 40%+ worse, or spending with no purchases at all. Judged against the account's own average, never an outside benchmark — and give new ads a few days before acting.</p>
+  return `<div class="card"><h3 style="margin-bottom:2px">Which ads are carrying the spend - and earning it?</h3>
+    <p class="hint" style="margin-bottom:10px">Every ad that spent in the last ${a.window} days, biggest first. <b>Scale</b> = CPA at least 20% better than this account's ${fmtMoney(a.acct_cpa, cur)} average; <b>cut / fix</b> = 40%+ worse, or spending with no purchases at all. Judged against the account's own average, never an outside benchmark - and give new ads a few days before acting.</p>
     <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Purchases</th><th class="num">CPA <span class="tiny">vs acct</span></th><th class="num">ROAS</th><th>Read</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="tiny" style="margin-top:8px">${a.ads.length > 15 ? `Showing the top 15 of ${a.ads.length} spending ads. ` : ''}${scale} to scale · ${cut} to cut or fix. ROAS/CPA are Meta-attributed.</p></div>`;
 }
@@ -761,14 +761,14 @@ async function renderCreative() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
   $('#main').innerHTML = `<h2>Creative</h2>
-    <p class="sub"><b>Which ads are working, and are we feeding this account new ones?</b> The cards answer the first question — sort them however you are thinking. The freshness analysis below answers the second: old ads wear out and CPA creeps up, and this shows the coasting before the spike.</p>
+    <p class="sub"><b>Which ads are working, and are we feeding this account new ones?</b> The cards answer the first question - sort them however you are thinking. The freshness analysis below answers the second: old ads wear out and CPA creeps up, and this shows the coasting before the spike.</p>
     ${single ? '<div id="cbHost"></div>' : '<div class="notice">ℹ️ <div>Pick a client in the top-right to browse its ads. The freshness comparison below works across all of them.</div></div>'}
     <h3 style="font-family:var(--serif);font-weight:400;font-size:20px;margin:26px 0 2px">Are we coasting on old ads?</h3>
     ${setupBanner()}
     <div class="row">
       <span class="tiny" style="font-weight:700" title="An ad younger than this counts as new. This is a DEFINITION, not a date range - the date range comes from the period control at the top.">An ad is “new” for its first:</span>
       ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">${v} days</button>`).join('')}
-      <span class="tiny" style="margin-left:12px">Measured over <b>${esc(periodLabel())}</b> — change it at the top.</span>
+      <span class="tiny" style="margin-left:12px">Measured over <b>${esc(periodLabel())}</b> - change it at the top.</span>
       <span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="creative">? How to use</button>
     </div>
@@ -792,16 +792,16 @@ async function renderCreative() {
     $('#crBody').innerHTML = res.map((d, i) => {
       const head = single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`;
       const bf = d.backfill;
-      const bfBanner = bf ? `<div class="notice warn">⏳ <div><b>Loading ad history for ${esc(targets[i].name)} — ${bf.error ? 'hit an error' : `${bf.daysDone ?? 0} of ${bf.daysTotal ?? 90} days in`}.</b> ${bf.error ? `<code>${esc(bf.error)}</code>` : 'Each refresh (and every nightly sync) pulls more; numbers firm up as it completes.'}</div></div>` : '';
-      if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet — hit ↻ Sync now.</span></div>`}`;
+      const bfBanner = bf ? `<div class="notice warn">⏳ <div><b>Loading ad history for ${esc(targets[i].name)} - ${bf.error ? 'hit an error' : `${bf.daysDone ?? 0} of ${bf.daysTotal ?? 90} days in`}.</b> ${bf.error ? `<code>${esc(bf.error)}</code>` : 'Each refresh (and every nightly sync) pulls more; numbers firm up as it completes.'}</div></div>` : '';
+      if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet - hit ↻ Sync now.</span></div>`}`;
       const ins = d.insight;
       return `${head}${bfBanner}${crCards(d)}
         ${single ? crAds(d) : ''}
         ${ins ? `<div class="cr-quote">${(() => {
           const cur2 = d.account.currency, hi = fmtMoney(ins.topCpa, cur2), lo = fmtMoney(ins.botCpa, cur2);
           if (ins.topCpa <= ins.botCpa * 0.95) return `<b>Launching more has been working for this account.</b> In weeks heavy on new ads, CPA averaged ${hi}. In weeks light on new ads, ${lo}.`;
-          if (ins.topCpa >= ins.botCpa * 1.05) return `<b>Heavy launch weeks ran a little pricier here</b> — CPA ${hi} vs ${lo} in quiet weeks. Normal: new ads need a few days to settle, so judge them on week two.`;
-          return `<b>Launching more hasn't cost this account anything</b> — CPA was about the same in heavy launch weeks (${hi}) and quiet ones (${lo}). No reason to slow the launch pace.`;
+          if (ins.topCpa >= ins.botCpa * 1.05) return `<b>Heavy launch weeks ran a little pricier here</b> - CPA ${hi} vs ${lo} in quiet weeks. Normal: new ads need a few days to settle, so judge them on week two.`;
+          return `<b>Launching more hasn't cost this account anything</b> - CPA was about the same in heavy launch weeks (${hi}) and quiet ones (${lo}). No reason to slow the launch pace.`;
         })()} <span class="tiny">(comparing the ${ins.n} weeks with the highest new-ad share vs the ${ins.n} lowest, last ~13 weeks)</span></div>` : ''}
         ${single ? `<div class="card"><h3 style="margin-bottom:2px">Where each week's budget went, by ad age</h3><p class="hint" style="margin-bottom:6px">Each bar is one week of spend, split by how old the ads were. <b>Dark green at the bottom = brand-new ads.</b> If the dark green keeps shrinking week after week, the account is coasting on old creative. Hover or tap a week for its numbers.</p>
           <div class="tiny" id="crBarsRo" style="min-height:18px;font-weight:600"></div>${crBars(d.weekly)}
@@ -813,7 +813,7 @@ async function renderCreative() {
   } catch (e) { $('#crBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
 }
 
-/** Crosshair readouts for the Creative Rotation charts — hover and tap both work. */
+/** Crosshair readouts for the Creative Rotation charts - hover and tap both work. */
 function wireCreativeCharts(d) {
   const wk = d.weekly, cur = d.account.currency, n = wk.length;
   if (!n) return;
@@ -851,11 +851,11 @@ function wireCreativeCharts(d) {
    The monthly "budget pace" column that used to sit here is gone: the month is
    planned and measured in Plan, against blended revenue and total spend across
    every platform, and a Meta-only copy of the same question disagreed with it.
-   What stays is the part that is genuinely Meta's — delivery and efficiency
+   What stays is the part that is genuinely Meta's - delivery and efficiency
    against this account's own recent form. */
 async function renderMetaOverview() {
-  $('#main').innerHTML = `<h2>Meta — Overview</h2>
-    <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Meta-reported, so these match Ads Manager — they will not match the blended figures on the other tabs, and are not meant to.</p>
+  $('#main').innerHTML = `<h2>Meta - Overview</h2>
+    <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Meta-reported, so these match Ads Manager - they will not match the blended figures on the other tabs, and are not meant to.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div>
     ${setupBanner()}<div class="card"><span class="hint">Loading…</span></div>`;
@@ -875,17 +875,17 @@ async function renderMetaOverview() {
       <td class="num">${fmtMoney(a.l7.cpa, a.currency)}${delta(a.l7.cpa, a.l30.cpa, true)}<br><span class="tiny">30d ${fmtMoney(a.l30.cpa, a.currency)}</span></td>
       <td class="num">${fmtX(a.l7.roas)}${delta(a.l7.roas, a.l30.roas)}<br><span class="tiny">30d ${fmtX(a.l30.roas)}</span></td>
       <td class="num">${fmtK(a.l7.spend_per_day, a.currency)}${delta(a.l7.spend_per_day, a.l30.spend_per_day)}<br><span class="tiny">30d ${fmtK(a.l30.spend_per_day, a.currency)}</span></td>
-      <td class="num">${a.l7.ctr==null?'—':(a.l7.ctr*100).toFixed(2)+'%'}${delta(a.l7.ctr, a.l30.ctr)}</td>
+      <td class="num">${a.l7.ctr==null?' - ':(a.l7.ctr*100).toFixed(2)+'%'}${delta(a.l7.ctr, a.l30.ctr)}</td>
       <td class="num">${fmtMoney(a.l7.cpm, a.currency)}${delta(a.l7.cpm, a.l30.cpm, true)}</td>
     </tr>`;
   }).join('');
   $('#main .card').innerHTML = `<div class="tbl-wrap"><table>
     <thead><tr><th>Client</th><th class="num">Today</th><th class="num">Month so far</th><th class="num">Last month (same day)</th><th class="num">CPA 7d vs 30d</th><th class="num">ROAS 7d vs 30d</th><th class="num">Spend/day 7d vs 30d</th><th class="num">CTR 7d</th><th class="num">CPM 7d</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="9" class="tiny">No data yet — the first sync may still be running.</td></tr>'}</tbody></table></div>
-    <p class="tiny" style="margin-top:10px">7d/30d windows end yesterday; the last ~3 days of conversions are still settling, so recent CPA and ROAS read slightly worse than they will finish. <b>ROAS here is Meta's own attributed figure</b> — structurally lower than blended MER, and not comparable to the MER goal on Plan.</p>`;
+    <tbody>${rows || '<tr><td colspan="9" class="tiny">No data yet - the first sync may still be running.</td></tr>'}</tbody></table></div>
+    <p class="tiny" style="margin-top:10px">7d/30d windows end yesterday; the last ~3 days of conversions are still settling, so recent CPA and ROAS read slightly worse than they will finish. <b>ROAS here is Meta's own attributed figure</b> - structurally lower than blended MER, and not comparable to the MER goal on Plan.</p>`;
 }
 
-/** How far through a NORMAL day this account usually is by now — the divisor
+/** How far through a NORMAL day this account usually is by now - the divisor
  *  behind the projection. Worth surfacing, because the projection is today's
  *  spend divided by it: at 9am that can be a 6x multiplier on a couple of hours
  *  of data, and a number presented without that context reads far more certain
@@ -893,14 +893,14 @@ async function renderMetaOverview() {
  *  rather than printing a confident figure off almost nothing. */
 const dayShare = p => (p && p.l7_by_now && p.l7_daily_avg) ? p.l7_by_now / p.l7_daily_avg : null;
 
-/** How much of a normal day is behind us — the denominator that decides whether
+/** How much of a normal day is behind us - the denominator that decides whether
  *  "vs normal" means anything yet. At 9am it is often under 15%, and a swing on
  *  that little elapsed day is noise. We show the share and let the reader judge;
  *  we deliberately do NOT project where the day lands, because on Meta the daily
  *  budget is something you SET, so projecting it restates a number you chose. */
 function elapsedCell(p) {
   const share = dayShare(p);
-  if (share == null) return '<span class="tiny">—</span>';
+  if (share == null) return '<span class="tiny"> - </span>';
   return `${Math.round(share * 100)}%<br><span class="tiny">of a normal day</span>`;
 }
 
@@ -908,7 +908,7 @@ function elapsedCell(p) {
    The one question Plan cannot answer: is the account delivering right now? */
 async function renderToday() {
   const single = S.act !== 'all';
-  $('#main').innerHTML = `<h2>Meta — Today</h2>
+  $('#main').innerHTML = `<h2>Meta - Today</h2>
     <p class="sub">Is today running hot or cold against a normal day? Today's cumulative Meta spend against the average shape of the last 7 days, hour by hour.</p>
     ${setupBanner()}
     <div class="row"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="today">? How to use</button></div>
@@ -928,7 +928,7 @@ async function renderToday() {
         tr.innerHTML = `<td><b>${esc(a.name)}</b></td>
           <td class="num"><b>${fmtK(p.spent, a.currency)}</b></td>
           <td class="num">${fmtK(p.l7_by_now, a.currency)}</td>
-          <td class="num"><span class="delta ${cls}">${p.vs_pace == null ? '—' : fmtPct(p.vs_pace, 0)}</span></td>
+          <td class="num"><span class="delta ${cls}">${p.vs_pace == null ? ' - ' : fmtPct(p.vs_pace, 0)}</span></td>
           <td class="num">${elapsedCell(p)}</td>`;
       } catch { /* one client failing must not blank the whole table */ }
     }
@@ -981,7 +981,7 @@ const META_BRIEF = {
   changelog: {
     answers: 'What was changed in the account, and when.',
     when: 'When a number moved and you want to know what you did.',
-    todo: 'Find the change near the date that moved, and tag it with a reason — the daily brief reads those.',
+    todo: 'Find the change near the date that moved, and tag it with a reason - the daily brief reads those.',
   },
   averages: {
     answers: 'Whether the last 7 days beat this account’s own last 30.',
@@ -1028,7 +1028,7 @@ window.MetaTab = {
      "Couldn't load Meta accounts: unauthorized" and nothing else. Visiting Meta
      first made it work, which is what made it look intermittent. */
   setToken(t) { S.tok = t || ''; },
-  /** ctx = { tok, act, sub } — the host owns sign-in and the client picker. */
+  /** ctx = { tok, act, sub } - the host owns sign-in and the client picker. */
   async render(ctx) {
     S.tok = ctx.tok;
     S.act = ctx.act || 'all';

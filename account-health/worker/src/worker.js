@@ -1,20 +1,20 @@
 /**
- * Mobius Account Health — data worker (Cloudflare Workers + D1)
+ * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
  * Pulls Meta Marketing API data for every active client ad account into D1:
- *   - daily account-level insights (spend, clicks, purchases, revenue, 3s views)
- *   - the ad-account activity log (every change anyone made), auto-classified
+ * - daily account-level insights (spend, clicks, purchases, revenue, 3s views)
+ * - the ad-account activity log (every change anyone made), auto-classified
  * and serves a small JSON API for the dashboard (../index.html).
  *
  * Bindings (see wrangler.toml):
- *   DB            — D1 database (schema.sql)
+ *   DB - D1 database (schema.sql)
  * Secrets (wrangler secret put <NAME>):
- *   META_TOKEN    — system-user token with ads_read on every client ad account
- *   ADMIN_TOKEN   — master key for the dashboard (a dashboard password can also
+ *   META_TOKEN - system-user token with ads_read on every client ad account
+ *   ADMIN_TOKEN - master key for the dashboard (a dashboard password can also
  *                   be set in Settings; its hash lives in the settings table)
- *   SLACK_BOT_TOKEN — (Chat 2) same Slack app as Pulse / Restock
- *   SLACK_SIGNING_SECRET — verifies the Slack button presses on /slack/actions
- *   ANTHROPIC_API_KEY — (Chat 1) Claude API key for POST /api/summarise
+ *   SLACK_BOT_TOKEN - (Chat 2) same Slack app as Pulse / Restock
+ *   SLACK_SIGNING_SECRET - verifies the Slack button presses on /slack/actions
+ *   ANTHROPIC_API_KEY - (Chat 1) Claude API key for POST /api/summarise
  *
  * Build plan lives in ../PRD.md. This file is Chat 0 (foundation); Chats 1–4
  * add routes + sync jobs for Change Log, Averages/Pacing, Creative Rotation,
@@ -27,7 +27,7 @@ const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle la
 // Bump when ad_daily gains columns: every account then re-walks the 90-day
 // window once, filling the new fields on rows that already exist.
 // 1 = hook/hold (2026-08-29)   2 = reach, clicks, outbound, p25/50/75, watch time (2026-08-30)
-// 3 = video_plays — the correct denominator for the retention curve. Dividing
+// 3 = video_plays - the correct denominator for the retention curve. Dividing
 //     by 3-second views produced 150%, because a 25% view of a 7-second video
 //     happens BEFORE 3 seconds.
 const ADS_METRICS_VERSION = 3;
@@ -38,7 +38,7 @@ const ACTIVITY_BACKFILL_DAYS = 90;
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 
 /* ------------------------------------------------------------------ */
-/*  SUBREQUEST BUDGET — the thing this worker never had                */
+/*  SUBREQUEST BUDGET - the thing this worker never had                */
 /* ------------------------------------------------------------------ */
 /* Cloudflare counts EVERY outbound call made during ONE invocation, and the
    part that caught us is that D1 counts: "a subrequest is any request a Worker
@@ -50,20 +50,20 @@ const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
  * platform killed it mid-brand. Whatever ran first won; everything after it
  * got nothing. On 2026-08-31 that meant: the nightly synced Bonk Golf and
  * abandoned the other five, every Triple Whale sync failed, and the weekly
- * reports were generated with no narrative and never posted to Slack — while
+ * reports were generated with no narrative and never posted to Slack - while
  * `lastRun` cheerfully recorded ok:true. It also left daily_insights a day
  * stale, which is what made the delivery check shout that Dartee had spent
  * nothing. One unmetered loop, five visible symptoms.
  *
  * THE RULE NOW: a job never runs into the ceiling. It counts what it spends,
  * stops while it can still afford to record what it did, and leaves the rest
- * for the next tick. Every loop here is already idempotent — brands that are
- * done are skipped on the way back in — so stopping early is free and resuming
+ * for the next tick. Every loop here is already idempotent - brands that are
+ * done are skipped on the way back in - so stopping early is free and resuming
  * is automatic. The hourly trigger gives us 24 chances a day to finish.
  *
  * This is why the fix is not "buy the paid plan". Paid raises the ceiling 200x
  * and is well worth $5, but an uncounted loop still has no idea where the
- * ceiling is — it just moves the cliff further out and hits it at 60 clients
+ * ceiling is - it just moves the cliff further out and hits it at 60 clients
  * instead of 6, silently, exactly the same way. Counting is the fix. The plan
  * is headroom. */
 
@@ -83,7 +83,7 @@ const SUB_LIMIT_FREE = 50;
 const SUB_RESERVE = 8;
 
 /* Module scope is reused across invocations in a warm isolate, so this MUST be
-   reset at every entry point — see `scheduled` and `fetch`. Concurrent requests
+   reset at every entry point - see `scheduled` and `fetch`. Concurrent requests
    in one isolate share it; that only ever makes a job more conservative (it
    defers work to the next tick), never less, so the race is safe by design. */
 let SUB_USED = 0;
@@ -95,7 +95,7 @@ function subReset(env) {
   // pathological brand ratchet the estimate up permanently and starve the rest.
   COST_SEEN.clear();
   // Set SUB_LIMIT in wrangler.toml [vars] after upgrading to Workers Paid and
-  // every job simply does more per tick — no other change needed.
+  // every job simply does more per tick - no other change needed.
   const n = +(env?.SUBREQUEST_LIMIT ?? 0);
   SUB_LIMIT = Number.isFinite(n) && n > 0 ? n : SUB_LIMIT_FREE;
 }
@@ -106,7 +106,7 @@ function subLeft() { return SUB_LIMIT - SUB_USED - SUB_RESERVE; }
 /** Can this invocation afford a unit of work costing roughly `n` calls? */
 function subCanAfford(n) { return subLeft() >= n; }
 
-/* Per-brand cost SEEDS. These are only the opening guess — `costOf` replaces
+/* Per-brand cost SEEDS. These are only the opening guess - `costOf` replaces
    them with what the work actually cost the moment one brand has been through,
    because the first real tick proved the guesses were badly low: the estimate
    for a brief was 12 and the invocation finished at 53 of a 50 budget having
@@ -202,11 +202,11 @@ class MetaError extends Error {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Meta rate limiting — back off, do not keep knocking                */
+/*  Meta rate limiting - back off, do not keep knocking                */
 /* ------------------------------------------------------------------ */
 /* Meta's limits are per app and per ad account, and they do not reset because
    you retried. Codes 4 and 17 are "you have used your quota"; 1 and 2 are
-   transient "service temporarily unavailable" but mean the same in practice —
+   transient "service temporarily unavailable" but mean the same in practice - 
    stop calling for a while.
  *
  * Before this, a rate-limited account was retried on the next tick and every
@@ -505,7 +505,7 @@ function summarise(ev, category, currency) {
   if (category === 'new_creative') return `New ad${obj}`;
   if (category === 'new_adset') return `New ad set${obj}`;
   if (category === 'new_campaign') return `New campaign${obj}`;
-  // Only print old → new when both are short scalars — Meta stuffs whole JSON blobs in here for audience/targeting events.
+  // Only print old → new when both are short scalars - Meta stuffs whole JSON blobs in here for audience/targeting events.
   const printable = v => v != null && typeof v !== 'object' && String(v).length <= 60 && !/^[[{]/.test(String(v).trim());
   if (printable(x.old_value) && printable(x.new_value)) {
     return `${ev.translated_event_type || ev.event_type}: ${x.old_value} → ${x.new_value}${obj}`;
@@ -513,7 +513,7 @@ function summarise(ev, category, currency) {
   return `${ev.translated_event_type || ev.event_type}${obj}`;
 }
 
-/** 'good' | 'bad' | null — how the account was trending going into `day` (3d vs 30d). */
+/** 'good' | 'bad' | null - how the account was trending going into `day` (3d vs 30d). */
 function perfSignal(insights, day) {
   const win = n => insights.filter(r => r.date < day && r.date >= addDays(day, -n));
   const stat = rows => {
@@ -527,7 +527,7 @@ function perfSignal(insights, day) {
   return good && !bad ? 'good' : bad && !good ? 'bad' : null;
 }
 
-/** Auto-suggested "why" — only where the data direction makes it defensible. */
+/** Auto-suggested "why" - only where the data direction makes it defensible. */
 function suggestReason(cat, ev, insights) {
   const day = String(ev.event_time || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
@@ -574,18 +574,18 @@ async function syncActivities(env, acct, sinceISO) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Sync: ad-level daily (Chat 3 — creative rotation)                  */
+/*  Sync: ad-level daily (Chat 3 - creative rotation)                  */
 /* ------------------------------------------------------------------ */
 
 const ymdDiff = (a, b) => Math.round((new Date(a + 'T12:00:00Z') - new Date(b + 'T12:00:00Z')) / 86400e3);
 
-/** One 14-day slice of level=ad insights. Small on purpose — Meta rejects huge ad-level
+/** One 14-day slice of level=ad insights. Small on purpose - Meta rejects huge ad-level
  *  pulls, and slices keep each invocation well under Workers subrequest limits. */
 async function syncAdSlice(env, acct, since, until) {
   const rows = await metaAll(env, `${acct.act_id}/insights`, {
     level: 'ad', time_increment: 1,
     time_range: { since, until },
-    // NO `video_3_sec_watched_actions` — Meta REMOVED it, and asking for it
+    // NO `video_3_sec_watched_actions` - Meta REMOVED it, and asking for it
     // fails the WHOLE request with "(#100) not valid for fields param", which
     // silently broke every brand's ad sync for two nights in August 2026. The
     // 3-second view now lives in `actions` as action_type `video_view`.
@@ -604,7 +604,7 @@ async function syncAdSlice(env, acct, since, until) {
     sumActs(r.video_thruplay_watched_actions), sumActs(r.video_p100_watched_actions),
     +r.reach || 0, +r.clicks || 0, sumActs(r.outbound_clicks),
     sumActs(r.video_p25_watched_actions), sumActs(r.video_p50_watched_actions), sumActs(r.video_p75_watched_actions),
-    // avg watch time is SECONDS per impression-ish, not a count — never summed.
+    // avg watch time is SECONDS per impression-ish, not a count - never summed.
     sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions)]);
   const COLS = 19;
   const per = Math.floor(100 / COLS);                  // D1 caps a statement at 100 bound params
@@ -645,7 +645,7 @@ async function updFirstSpend(env, actId) {
   ).bind(actId).run();
 }
 
-/** True creation dates from Meta — without them, ads older than our 90-day history
+/** True creation dates from Meta - without them, ads older than our 90-day history
  *  would all look "brand new" at the start of the window. */
 async function syncAdMeta(env, acct) {
   const rows = await metaAll(env, `${acct.act_id}/ads`, { fields: 'id,created_time', limit: 500 }, 10);
@@ -671,7 +671,7 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
       let n = await syncAdSlice(env, acct, addDays(today, -RESYNC_DAYS), today);
       // Metric re-backfill. Every time ad_daily gains columns, the rows already
       // stored hold zeros for them, so the window has to be walked again in the
-      // same resumable 14-day slices — the upsert fills the new columns without
+      // same resumable 14-day slices - the upsert fills the new columns without
       // touching anything a report already froze.
       //
       // Keyed on a VERSION rather than a per-feature boolean: the first round of
@@ -723,7 +723,7 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
    different appetites for Meta's rate limit.
  *
  * Account-level insights and the activity log are a couple of cheap calls and
- * are what everything time-critical reads — the delivery check, the brief, every
+ * are what everything time-critical reads - the delivery check, the brief, every
  * dashboard number. Ad-level is a 14-day-sliced walk, up to 8 slices a brand,
  * and it feeds creative cards and the report ad table: useful, never urgent.
  *
@@ -754,14 +754,14 @@ async function syncAccount(env, acct, days, { includeAds = true } = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Summarise (Chat 1) — Claude writes the daily/weekly update         */
+/*  Summarise (Chat 1) - Claude writes the daily/weekly update         */
 /* ------------------------------------------------------------------ */
 
 const ANTHROPIC_MODEL = 'claude-opus-5';
 
 async function claude(env, { system, user, maxTokens = 4000 }) {
   if (!env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY secret is not set — run `npx wrangler secret put ANTHROPIC_API_KEY` in account-health/worker/');
+    throw new Error('ANTHROPIC_API_KEY secret is not set - run `npx wrangler secret put ANTHROPIC_API_KEY` in account-health/worker/');
   }
   const res = await xfetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -791,14 +791,14 @@ Write a tight update from the change log + performance data you're given. Rules:
 - One short section per client (bold name), bullets under it. Skip clients with nothing to say.
 - Lead each bullet with what changed and why (use the reason/note tags when present), then a one-line read on performance if the data supports it.
 - Ignore housekeeping noise (renames, drafts, system events) unless it's the only activity.
-- Money stays in each account's own currency. The last ~3 days of conversions are still settling — hedge accordingly.
+- Money stays in each account's own currency. The last ~3 days of conversions are still settling - hedge accordingly.
 - Plain text with Slack-style *bold*, no headers, no preamble, no sign-off.`,
   },
   weekly: {
     label: 'Weekly recap',
     system: `You are a senior media buyer at Mobius Digital writing the internal weekly recap.
 For each client with meaningful activity or spend, write a short block:
-- *Client name* — performance vs the previous window (spend, CPA, ROAS — only metrics that actually moved),
+- *Client name* - performance vs the previous window (spend, CPA, ROAS - only metrics that actually moved),
 - what we changed and why (group related changes; use reason/note tags),
 - one line on what's next if the changes imply it.
 Ignore housekeeping noise. Money stays in each account's own currency; the last ~3 days are still settling.
@@ -808,17 +808,17 @@ Plain text with Slack-style *bold*, no preamble, no sign-off.`,
     label: 'Client-facing update',
     system: `You are writing a client-facing update from Mobius Digital, their paid-social agency, about their Meta ads account.
 Rules:
-- Warm, confident, plain English — no internal jargon, no ad-account IDs, no "activity log".
+- Warm, confident, plain English - no internal jargon, no ad-account IDs, no "activity log".
 - Summarise what was done and why it's good for them, then how the account is trending (only well-supported numbers, in their currency).
-- Recent conversions still settle for ~72h — phrase recent performance carefully.
+- Recent conversions still settle for ~72h - phrase recent performance carefully.
 - 100–180 words, no subject line, no greeting or sign-off placeholders.`,
   },
 };
 
 /** Compact plain-text data pack for one account: window stats + change list. */
 function packAccount(a, cur, prev, events, from, to) {
-  const f = n => n == null ? '—' : (Math.round(n * 100) / 100).toString();
-  const stat = s => `spend ${f(s.spend)} ${a.currency}, purchases ${f(s.purchases)}, CPA ${f(s.cpa)}, ROAS ${f(s.roas)}, CTR ${s.ctr == null ? '—' : (s.ctr * 100).toFixed(2) + '%'}`;
+  const f = n => n == null ? ' - ' : (Math.round(n * 100) / 100).toString();
+  const stat = s => `spend ${f(s.spend)} ${a.currency}, purchases ${f(s.purchases)}, CPA ${f(s.cpa)}, ROAS ${f(s.roas)}, CTR ${s.ctr == null ? ' - ' : (s.ctr * 100).toFixed(2) + '%'}`;
   const lines = [`## ${a.name} (${a.currency})`,
     `Window ${from}..${to}: ${stat(cur)}`,
     `Previous window (same length): ${stat(prev)}`,
@@ -852,13 +852,13 @@ async function writeUpdate(env, { act, from, to, template }) {
   }
   const text = await claude(env, {
     system: tpl.system,
-    user: `Window: ${from} to ${to} (previous window ${prevFrom}..${prevTo} for comparison).\nTags marked "suggested reason (auto, unreviewed)" are machine-inferred from performance direction, not stated by the team — hedge accordingly.\n\n${packs.join('\n\n')}`,
+    user: `Window: ${from} to ${to} (previous window ${prevFrom}..${prevTo} for comparison).\nTags marked "suggested reason (auto, unreviewed)" are machine-inferred from performance direction, not stated by the team - hedge accordingly.\n\n${packs.join('\n\n')}`,
   });
   return { text, template: template || 'daily', model: ANTHROPIC_MODEL, from, to, accounts: accounts.map(a => a.name) };
 }
 
 /* ------------------------------------------------------------------ */
-/*  Triple Whale client (Daily Brief only — the four Meta pages never    */
+/*  Triple Whale client (Daily Brief only - the four Meta pages never    */
 /*  touch it; spend on those pages is Meta-reported, matching Ads Mgr)   */
 /* ------------------------------------------------------------------ */
 
@@ -1016,7 +1016,7 @@ async function twSummary(env, shopDomain, start, end) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Triple Whale: ${body.message || body.error || `HTTP ${res.status}`}`);
-  // Normalize to {name: value} — TW's response shape has varied across versions.
+  // Normalize to {name: value} - TW's response shape has varied across versions.
   const map = {};
   const num = v => typeof v === 'number' && isFinite(v) ? v
     : typeof v === 'string' && v.trim() !== '' && isFinite(+v) ? +v
@@ -1042,7 +1042,7 @@ async function twSummary(env, shopDomain, start, end) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Daily Brief (Chat 5) — CTC-style forecast vs actual, per client    */
+/*  Daily Brief (Chat 5) - CTC-style forecast vs actual, per client    */
 /*  Money math is Triple Whale (net sales, new/returning, blended      */
 /*  spend); Meta ROAS stays Meta-attributed. aMER = new-customer       */
 /*  revenue ÷ total ad spend. CM = net sales × margin% − ad spend.     */
@@ -1139,7 +1139,7 @@ async function suggestGoals(env, acct) {
   const piv = {};
   for (const r of results) (piv[r.metric] ??= {})[r.date] = r.value;
   const dates = Object.keys(piv.netSales || piv.totalSales || {}).sort();
-  if (dates.length < 14) return { error: 'need at least 14 days of Triple Whale history — hit “Refresh Triple Whale data” first' };
+  if (dates.length < 14) return { error: 'need at least 14 days of Triple Whale history - hit “Refresh Triple Whale data” first' };
   const { results: metaRows } = await env.DB.prepare(
     `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date < ?3`,
   ).bind(acct.act_id, from, today).all();
@@ -1177,11 +1177,11 @@ function judgeCogs(dayMargins, blended) {
   if (!n || blended == null) return { verdict: 'none', reason: 'no cost data in Triple Whale' };
   const sorted = dayMargins.slice().sort((a, b) => a - b);
   const lo = sorted[Math.floor(n * 0.1)], hi = sorted[Math.floor(n * 0.9)];
-  // Same semantics as Profit's judgeCosts — the two tools must not drift apart:
-  //  - MATERIALITY FLOOR: a day at -0.3% is product mix, not contamination. Real
+  // Same semantics as Profit's judgeCosts - the two tools must not drift apart:
+  // - MATERIALITY FLOOR: a day at -0.3% is product mix, not contamination. Real
   //    contamination (wholesale paid outside Shopify, an inventory receipt booked
   //    to one day) is a MULTIPLE of the day's revenue. Anything above -5% ignores.
-  //  - PATTERN, not incident: one bad day in 28 used to flip the whole client to
+  // - PATTERN, not incident: one bad day in 28 used to flip the whole client to
   //    "broken" and strip CM from the client-facing brief while 27 days ran clean.
   //    Only more than a tenth of the window means the data itself is untrustworthy.
   const negatives = dayMargins.filter(m => m < -0.05).length;
@@ -1191,22 +1191,22 @@ function judgeCogs(dayMargins, blended) {
   if (heavilyContaminated || blended <= 0.15 || spread > 0.6) {
     out.verdict = 'broken';
     out.reason = heavilyContaminated
-      ? `${negatives} of the last ${n} days record more variable cost than the store took in — typically wholesale orders paid outside Shopify or an inventory delivery booked as one day's cost`
+      ? `${negatives} of the last ${n} days record more variable cost than the store took in - typically wholesale orders paid outside Shopify or an inventory delivery booked as one day's cost`
       : blended <= 0.15
-      ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin — COGS in Triple Whale looks wrong`
+      ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin - COGS in Triple Whale looks wrong`
       : `daily margin swings ${Math.round(lo * 100)}%–${Math.round(hi * 100)}%, which means only some products have COGS set`;
   } else if (negatives > 0) {
     out.verdict = 'noisy';
-    out.reason = `${negatives} of the last ${n} days record more variable cost than the store took in — almost always a wholesale order or inventory delivery; the other ${n - negatives} days are consistent, so the profit figures still stand`;
+    out.reason = `${negatives} of the last ${n} days record more variable cost than the store took in - almost always a wholesale order or inventory delivery; the other ${n - negatives} days are consistent, so the profit figures still stand`;
   } else if (spread > 0.4) {
     out.verdict = 'noisy';
-    out.reason = `daily margin ranges ${Math.round(lo * 100)}%–${Math.round(hi * 100)}% — likely a few products missing COGS`;
+    out.reason = `daily margin ranges ${Math.round(lo * 100)}%–${Math.round(hi * 100)}% - likely a few products missing COGS`;
   }
   return out;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Data health — can Triple Whale be trusted for this day?            */
+/*  Data health - can Triple Whale be trusted for this day?            */
 /*                                                                     */
 /*  2026-09-02: fb_ads_spend went to 0 for five of six brands and      */
 /*  nothing noticed for three days. Bonk's brief reported $204 of       */
@@ -1278,7 +1278,7 @@ function spendFor(piv, date, metaApi) {
     return { spend: metaApi + others, source: 'rebuilt', tw_blended: blended, tw_meta: twMeta, meta_api: metaApi };
   }
   if (blended != null) return { spend: blended, source: 'triple_whale', tw_blended: blended, tw_meta: twMeta, meta_api: metaApi };
-  // No TW row at all — the pre-existing fallback, kept so a brand mid-backfill
+  // No TW row at all - the pre-existing fallback, kept so a brand mid-backfill
   // still reports something.
   const parts = metaApi != null || google != null ? (metaApi ?? 0) + (google ?? 0) : null;
   return { spend: parts, source: parts == null ? 'none' : 'platforms', tw_blended: null, tw_meta: twMeta, meta_api: metaApi };
@@ -1295,10 +1295,10 @@ function platformBaseline(piv, metric, date) {
   return vals[Math.floor(vals.length / 2)];
 }
 
-const fmtUsd = n => n == null ? '—' : `$${Math.round(n).toLocaleString('en-US')}`;
+const fmtUsd = n => n == null ? ' - ' : `$${Math.round(n).toLocaleString('en-US')}`;
 
 /** Everything wrong with one day, in words a person can act on.
- *  Pure — it reads the pivot both briefData and dataHealth already hold, so
+ *  Pure - it reads the pivot both briefData and dataHealth already hold, so
  *  running it costs no queries. */
 function dayIssues(piv, metaBy, date, sp) {
   const issues = [];
@@ -1333,7 +1333,7 @@ function dayIssues(piv, metaBy, date, sp) {
   } else if (sales === 0 && m?.purchases > 0) {
     issues.push({ code: 'zero_sales', severity: 'warn', label: 'store revenue reads zero on a day with orders',
       what: `Triple Whale shows no revenue while Meta recorded ${m.purchases} purchase(s)`,
-      fix: 'Usually a lagging Shopify sync — re-sync and check again before sending.' });
+      fix: 'Usually a lagging Shopify sync - re-sync and check again before sending.' });
   }
   return issues;
 }
@@ -1358,7 +1358,7 @@ async function dataHealth(env, acct, { days = 14, upTo = null } = {}) {
   /* Unsent drafts in the window, so a draft written from numbers that have
      since been repaired can still be rebuilt.
      THE CASE THIS EXISTS FOR: on 2026-09-05 Triple Whale was fixed and every
-     brand went green — which took the Rebuild button away while six drafts
+     brand went green - which took the Rebuild button away while six drafts
      still carried the wrong spend. Health describes the DATA; a draft is a
      copy of the data taken at a moment, and the two heal separately. */
   const { results: draftRows } = await env.DB.prepare(
@@ -1402,7 +1402,7 @@ async function dataHealth(env, acct, { days = 14, upTo = null } = {}) {
     const named = labels.length <= 2 ? labels.join(', and ') : `${labels.slice(0, 2).join(', ')} and ${labels.length - 2} more`;
     const when = badDays.length === 1 ? `on ${prettyDate(badDays[0].date)}`
       : `on ${badDays.length} of the last ${days} days (${prettyDate(badDays[0].date)} → ${prettyDate(badDays[badDays.length - 1].date)})`;
-    headline = `${named[0].toUpperCase()}${named.slice(1)} — ${when}.`;
+    headline = `${named[0].toUpperCase()}${named.slice(1)} - ${when}.`;
   } else if (issues.length) headline = issues[0].what;
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
@@ -1520,7 +1520,7 @@ async function briefData(env, acct, upTo) {
       ret_rev: newShareDay != null && sales != null ? sales * (1 - newShareDay) : rawRet,
       /* NOT `blended ?? meta+google` any more. That trusted any blended figure
          Triple Whale returned, and on 2026-09-02 it returned a Google-only
-         total for five brands — non-null, internally consistent, and wrong by
+         total for five brands - non-null, internally consistent, and wrong by
          70%. spendFor() checks TW's Meta row against Meta's own API and
          rebuilds the total when they disagree. See the data-health block. */
       spend: sp.spend,
@@ -1630,14 +1630,14 @@ async function briefData(env, acct, upTo) {
 
 /** The deterministic numbers block of the Slack brief (CTC's Forecasted/Actual shape). */
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-/** "August 20" — CTC head each day with a real date, not an ISO stamp. */
+/** "August 20" - CTC head each day with a real date, not an ISO stamp. */
 function prettyDate(ymd) {
   return `${MONTH_NAMES[+ymd.slice(5, 7) - 1]} ${+ymd.slice(8, 10)}`;
 }
 const shortDate = ymd => `${+ymd.slice(5, 7)}/${+ymd.slice(8, 10)}`;
 
 /** The Slack message. Modelled on CTC's own daily update: a friendly opener, one
- *  block per day covered, then the narrative. Deliberately NOT a metrics dump —
+ *  block per day covered, then the narrative. Deliberately NOT a metrics dump - 
  *  the revenue split, channel reads and month-to-date all live in the Notes, where
  *  Claude writes them as sentences, because that is what makes it read like a
  *  person rather than a cron job. */
@@ -1647,9 +1647,9 @@ function buildBriefText(data, dates, narrative) {
   const cur = data.account.currency;
   const list = Array.isArray(dates) ? dates : [dates];
   // Whole currency units: CTC quote £464, not £464.23.
-  const fm = n => n == null ? '—' : new Intl.NumberFormat('en-US',
+  const fm = n => n == null ? ' - ' : new Intl.NumberFormat('en-US',
     { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
-  const fx = n => n == null ? '—' : `${n.toFixed(2)}x`;
+  const fx = n => n == null ? ' - ' : `${n.toFixed(2)}x`;
   const cmOk = data.cogs_quality?.verdict !== 'broken' && data.cogs_quality?.verdict !== 'none';
 
   const span = list.length === 1 ? prettyDate(list[0])
@@ -1662,18 +1662,18 @@ function buildBriefText(data, dates, narrative) {
     const f = day.f || {}, a = day.a;
     L.push('', `*${prettyDate(d)}*`);
     /* ONE LINE PER METRIC, not two. This used to print a `Forecasted X:` line and
-       a bold `Actual X:` line for every metric — ten lines for a single day, and
+       a bold `Actual X:` line for every metric - ten lines for a single day, and
        twenty on a catch-up brief covering two, before the reader reached a word
        of narrative. Cole, 2026-09-07: the numbers block, not the writing, was
        what made the brief feel like too much.
        Two things change here beyond the length:
-         - the GAP is stated. Forecast $1,393 against actual $612 left the reader
+ - the GAP is stated. Forecast $1,393 against actual $612 left the reader
            to work out -56% themselves, which is the one figure they actually
            want, so it was the one figure the block never showed.
-         - bold lands on the ACTUAL alone. Everything bold is what happened;
+ - bold lands on the ACTUAL alone. Everything bold is what happened;
            everything in the bracket is context. That is what makes a five-line
            block scannable in a way ten alternating lines never were.
-       Parentheses rather than pipe separators, on Cole's call — `|` reads as a
+       Parentheses rather than pipe separators, on Cole's call - `|` reads as a
        data delimiter, and it is exactly the ad-naming convention the creative
        split just moved away from.
        Order is revenue first, margin last: the client reads top-down and the top
@@ -1688,7 +1688,10 @@ function buildBriefText(data, dates, narrative) {
       } else if (fV != null) {
         tail = ` (${fmtV(fV)} planned)`;
       }
-      L.push(`${label} — *${fmtV(aV)}*${tail}`);
+      // A COLON, not a hyphen. The em-dash sweep turned every dash into " - ",
+      // which is right for a break in a sentence and wrong for a label in front
+      // of its value: "Net Sales + Shipping - $612" reads as a subtraction.
+      L.push(`${label}: *${fmtV(aV)}*${tail}`);
     };
     rowFor(a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', a.sales, f.sales, fm);
     rowFor('Ad Spend', a.spend, f.spend, fm);
@@ -1700,13 +1703,13 @@ function buildBriefText(data, dates, narrative) {
   /* NO "WEEK IN REVIEW" BLOCK. It used to print here on the Monday brief, and
      it was a straight duplicate: the weekly REPORT drafts on the same Monday
      cron over the exact same Mon–Sun window and goes to the same client
-     channel, so the client received the week twice in one morning — once as
+     channel, so the client received the week twice in one morning - once as
      three lines of Slack and once as the actual deliverable.
      Cole, 2026-09-07: "a weekly report already gets sent as a separate thing, so
      I don't think the week in review should be put in there... it should just go
      into the notes, the so what and the what's next."
-     `data.week` is still computed and still handed to Claude — the weekly shape
-     is exactly what makes Monday's So What? worth reading — it just reaches the
+     `data.week` is still computed and still handed to Claude - the weekly shape
+     is exactly what makes Monday's What it means worth reading - it just reaches the
      page as a sentence inside the narrative instead of as a second scoreboard.
      See the `data.week` paragraph in writeBriefNarrative for the instruction. */
   /* The one forward-looking line in the brief: what it takes from here.
@@ -1719,11 +1722,11 @@ function buildBriefText(data, dates, narrative) {
   if (th && !th.already_there && th.days_remaining > 0) {
     const day = `the remaining ${th.days_remaining} day${th.days_remaining === 1 ? '' : 's'}`;
     if (th.covered_by_returning) {
-      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day} — returning customers alone are running at ${fm(th.returning_per_day)}/day, so no extra spend is needed.`);
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day} - returning customers alone are running at ${fm(th.returning_per_day)}/day, so no extra spend is needed.`);
     } else if (th.spend_per_day != null) {
       const ramp = th.spend_ramp;
-      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day} — ${fm(th.new_per_day)}/day of that from new customers, which is *${fm(th.spend_per_day)}/day of spend* at the ${fx(th.amer)} aMER this month has run${ramp ? ` (${fx(ramp)} the ${fm(th.spend_now_per_day)}/day running now)` : ''}.`);
-      if (ramp && ramp > 1.5) L.push(`_A step-up that size buys colder traffic than ${fx(th.amer)} assumes — worth agreeing a revised number rather than spending into it._`);
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day} - ${fm(th.new_per_day)}/day of that from new customers, which is *${fm(th.spend_per_day)}/day of spend* at the ${fx(th.amer)} aMER this month has run${ramp ? ` (${fx(ramp)} the ${fm(th.spend_now_per_day)}/day running now)` : ''}.`);
+      if (ramp && ramp > 1.5) L.push(`_A step-up that size buys colder traffic than ${fx(th.amer)} assumes - worth agreeing a revised number rather than spending into it._`);
     } else {
       L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${day}.`);
     }
@@ -1767,15 +1770,24 @@ async function weeklyBlock(env, acct, data, date) {
   };
 }
 
-const BRIEF_SYSTEM = `You are a senior media buyer at Mobius Digital writing the narrative section of a client's daily performance brief. A numbers block (forecast vs actual for yesterday) is prepended by the system — do NOT repeat it as a list.
-Write exactly three sections, in this order, Slack-style plain text:
-Notes →
-• 3–5 bullets: the facts that matter — beats/misses vs plan with the %, streaks across recent days, new vs returning revenue, per-channel reads. Conclusion first in every bullet. The numbers block above shows ONLY forecast vs actual for CM, revenue, spend, MER and aMER — so the new-vs-returning split, the per-channel reads and month-to-date reach the reader ONLY if you write them here.
-So What?
-2–4 sentences: the single interpretation that best explains the day — tie performance moves to the changes we made when the change log supports it, and say whether this reads as a demand problem, a platform problem, or our own levers.
-What's Next?
-• 1–3 bullets: concrete actions or watch-items with a trigger ("if X doesn't improve today, we do Y").
-Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency, rounded to WHOLE units — write $612, never $611.51; the numbers block above rounds and a narrative quoting cents beside it reads as two different figures for the same thing. Write dates the way a person says them — "September 6", "the 8th" — never 2026-09-06 or 09-05. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. Google's conversions settle late too, and unevenly: hedge a recent Google read the same way, and NEVER report a Google ROAS the block marks n/a — say Google's conversions have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
+const BRIEF_SYSTEM = `You are a senior media buyer at Mobius Digital writing the narrative section of a client's daily performance brief. A numbers block (forecast vs actual for yesterday) is prepended by the system - do NOT repeat it as a list.
+Write exactly three sections, in this order, Slack-style plain text. The section titles are exactly these words on their own line, with NO arrow, colon or question mark after them:
+What we saw
+• 3-5 bullets: what happened, stated plainly. Streaks across recent days, the new-vs-returning split, the per-channel read, where the month stands. Conclusion first in every bullet.
+What it means
+2-4 sentences: what those observations ADD UP TO for this client's money. This section explains, it does not report - if a sentence here could have been a bullet above, it is in the wrong place. Say whether this reads as a demand problem, a platform problem, or our own levers, and tie moves to the change log where it supports you.
+What we're doing
+• 2-4 bullets: what we will actually do, each with a trigger or a day where possible ("if Meta is still under 1.8 on Wednesday, we cut the three weakest new ads").
+
+WRITING RULES - these are what make it readable, and they matter as much as the facts:
+NEVER repeat a figure from the numbers block above. Revenue, spend, MER, aMER and CM are already on the page WITH their percentage gap against plan. Restating them is the single fastest way to make this look cluttered. Your bullets cover what the block CANNOT: the new-vs-returning split, the channel reads, streaks, and month-to-date.
+TWO NUMBERS PER BULLET, MAXIMUM. A bullet carrying seven figures is a table crammed into a sentence and the point disappears. If it needs a third number, it is two bullets, or the third number is not worth saying.
+"What it means" carries NO new figures at all. It is the consequence in plain words.
+NO ABBREVIATIONS OR SHORTHAND ANYWHERE. Write "month to date", not MTD. Write "Wednesday", not 48h or 72h. Write "about 20", not ~20. Write "September 8", not 09-08.
+NEVER print a raw ad or campaign name. Say "the new creative" or "the relaunched ads".
+NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
+Every sentence should survive being read once, at speed, by a client who does not work in ads.
+Rules: use ONLY the numbers provided - never invent or extrapolate figures. Money in the account's own currency, rounded to WHOLE units - write $612, never $611.51. Write dates the way a person says them: "September 6", "the 8th". Meta-attributed conversions keep settling for about three days - hedge recent Meta ROAS reads accordingly. Google's conversions settle late too, and unevenly: hedge a recent Google read the same way, and NEVER report a Google ROAS the block marks n/a - say Google's conversions have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 200 words. Short bullets that are real sentences, never paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
 /* A REWRITE CAN BE STEERED. "Write it again" on its own produces a different
    brief, not a better one -- the model has no idea what was wrong with the last
@@ -1790,7 +1802,7 @@ const steerBlock = steer => steer && String(steer).trim()
   : '';
 
 async function writeBriefNarrative(env, acct, data, date, steer) {
-  const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
+  const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
     `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} MetaROAS ${f2(x.a?.meta_roas)} (Meta-reported) GoogleROAS ${x.a?.google_purchases != null && x.a.google_purchases < 2 ? `n/a - Google recorded only ${x.a.google_purchases} conversion(s), too few to form a rate` : `${f2(x.a?.google_roas)} (Google-reported, off ${x.a?.google_purchases ?? '?'} conversions)`} BlendedROAS ${f2(x.a?.blended_roas)} (Triple Whale)`);
   const { results: evs } = await env.DB.prepare(
@@ -1814,7 +1826,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
       `Goals this month: ${JSON.stringify(data.goals)}. Forecast weighting: ${data.weights}.\n` +
       `Meta and Google ROAS below are each platform's OWN attributed figure, NOT Triple Whale's. Blended ROAS is Triple Whale's, and it is the same idea as MER (it counts sales tax, so it runs a shade above our MER). Name the source whenever you quote a ROAS, because a platform figure and the Triple Whale figure for the same day differ by design and get mistaken for a contradiction. There is no ROAS target: the only agreed goals are the blended ones above (net sales, spend, MER, aMER). Never judge a platform's ROAS against the MER goal - blended MER counts every channel's revenue against total spend and is always the higher number, so doing that reports a healthy account as failing. Use platform ROAS only to say which channel moved, never to declare a target missed.\n` +
       (data.goals && data.goals_planned === false
-        ? `IMPORTANT: no target was actually set for ${MONTH_OF(data.month)} - the figures above are carried over from ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from) : 'the last plan on file'}. Do NOT call them this month's goal or say the client is ahead of/behind "plan" as though it were agreed. Refer to them as last month's pace, and put setting this month's target in What's Next?.\n`
+        ? `IMPORTANT: no target was actually set for ${MONTH_OF(data.month)} - the figures above are carried over from ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from) : 'the last plan on file'}. Do NOT call them this month's goal or say the client is ahead of/behind "plan" as though it were agreed. Refer to them as last month's pace, and put setting this month's target in What we're doing.\n`
         : '') +
       `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data: revenue minus product costs, fulfilment, handling, payment fees and ad spend (every variable cost; fixed costs are excluded by definition)'}.\n\n` +
       (data.cogs_quality && (data.cogs_quality.verdict === 'broken' || data.cogs_quality.verdict === 'none')
@@ -1829,7 +1841,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
     (data.to_hit ? `Catch-up already stated in the numbers block above (do NOT restate the figures, but you may build on what they imply): ${JSON.stringify(data.to_hit)}\n\n` : '') +
       (data.week ? `THE WEEK THAT JUST CLOSED (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)}\n`
-        + `There is NO week-in-review block in the numbers section — the weekly report is a separate deliverable and this brief must not duplicate it as a second scoreboard. So the week reaches the reader ONLY through your narrative. Give it ONE bullet in Notes with the figures that matter (net sales against plan, spend, aMER, best and slowest day), weigh the weekly shape rather than just yesterday in So What?, and let it inform What's Next?. Do not list the week metric by metric.\n\n` : '') +
+        + `There is NO week-in-review block in the numbers section - the weekly report is a separate deliverable and this brief must not duplicate it as a second scoreboard. So the week reaches the reader ONLY through your narrative. Give it ONE bullet in What we saw with the figures that matter (net sales against plan, spend, aMER, best and slowest day), weigh the weekly shape rather than just yesterday in What it means, and let it inform What we're doing. Do not list the week metric by metric.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}` +
       steerBlock(steer),
   });
@@ -1837,7 +1849,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
 
 /** Build the full brief for one account+day. Returns {data, text} or {data, error}.
  *  When `date` is a Sunday the Monday-morning send adds a week-in-review block. */
-/** Which days should this brief cover? Normally just yesterday — but if a send was
+/** Which days should this brief cover? Normally just yesterday - but if a send was
  *  missed, pick up the days since the last one, the way CTC's own update covered
  *  "8/18 and 8/19". Capped at 4 days and never crosses out of the month. */
 async function coverageDates(env, acct, date, data) {
@@ -1845,7 +1857,7 @@ async function coverageDates(env, acct, date, data) {
      Cole, 2026-09-01: Bonk Golf had stacked up days because catching up only
      ever looked for a SENT brief, so a day nobody wanted to send was carried
      forward for ever and every new draft opened "covering 8/28, 8/29 and 8/30".
-     The catch-up is worth keeping — it is what covers a morning he forgets —
+     The catch-up is worth keeping - it is what covers a morning he forgets - 
      but it needs a way to say "not this one, start fresh", and that is what
      skipping is. The days are not lost: the numbers stay on the Profit and
      Brief pages, they just stop queueing for a client message. */
@@ -1866,8 +1878,8 @@ async function coverageDates(env, acct, date, data) {
 async function makeBrief(env, acct, date, { steer } = {}) {
   const data = await briefData(env, acct, date);
   const day = data.days.find(x => x.date === date);
-  if (!data.goals) return { data, error: 'no goals set for this month — set them on the Daily Brief page' };
-  if (!day?.a || day.a.sales == null) return { data, error: `no Triple Whale sales data for ${date} yet — try “Refresh Triple Whale data”` };
+  if (!data.goals) return { data, error: 'no goals set for this month - set them on the Daily Brief page' };
+  if (!day?.a || day.a.sales == null) return { data, error: `no Triple Whale sales data for ${date} yet - try “Refresh Triple Whale data”` };
   const dates = await coverageDates(env, acct, date, data);
   if (new Date(date + 'T12:00:00Z').getUTCDay() === 0) {
     data.week = await weeklyBlock(env, acct, data, date).catch(() => null);
@@ -1892,7 +1904,7 @@ function briefHealth(data, dates) {
     dates: broken.map(x => x.date),
     flagged,
     /* One sentence, written once, reused by the Slack notice, the send refusal
-       and the banner on the Brief page — so all three say the same thing. */
+       and the banner on the Brief page - so all three say the same thing. */
     summary: broken.length
       ? `${broken.map(x => prettyDate(x.date)).join(' and ')}: ${broken[0].issues.find(i => i.severity === 'broken').what}`
       : null,
@@ -1921,7 +1933,7 @@ async function upsertBrief(env, actId, date, status, channel, text, data, extra 
 }
 
 /** Build the brief and park it as a DRAFT for review, notifying the internal
- *  channel — the client is not messaged.
+ *  channel - the client is not messaged.
  *
  *  Cole was already doing this by hand: letting the brief post to an internal
  *  channel, then copy-pasting it to the client so he could reword the narrative
@@ -1933,7 +1945,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
     const prior = await env.DB.prepare(
       `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
     ).bind(acct.act_id, date).first().catch(() => null);
-    // 'skipped' belongs here too — a day deliberately not sent must not be
+    // 'skipped' belongs here too - a day deliberately not sent must not be
     // rebuilt and re-announced by the next scheduled tick.
     if (prior && ['draft', 'sent', 'skipped'].includes(prior.status)) {
       return { name: acct.name, already: prior.status, date };
@@ -1942,7 +1954,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
   const r = await makeBrief(env, acct, date, { steer });
   if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
   await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: steer ?? null });
-  // Internal only, and deliberately never brief_channel — that is the client's.
+  // Internal only, and deliberately never brief_channel - that is the client's.
   const ch = acct.slack_channel;
   if (ch) {
     // The whole brief goes IN the message (Cole, 2026-08-28). It was a link for a
@@ -1975,7 +1987,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
 }
 
 /** Post the brief to the CLIENT's channel.
- *  `useStored` sends the reviewed text exactly as it stands, edits included —
+ *  `useStored` sends the reviewed text exactly as it stands, edits included - 
  *  regenerating at send time would silently discard the wording that was
  *  approved, which is the whole point of the review step. */
 async function sendBrief(env, acct, date, { skipIfSent = false, useStored = false, ignoreHealth = false } = {}) {
@@ -1991,7 +2003,7 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   if (skipIfSent && prior?.status === 'skipped') return { name: acct.name, skipped_by_hand: true, date };
 
   /* THE GATE. A day whose data contradicts the platforms does not reach a
-     client, whichever route asked for the send — the cron, the button, or a
+     client, whichever route asked for the send - the cron, the button, or a
      retry. Checked even on the useStored path, because the stored text was
      built from the same bad numbers. Two D1 reads; a send is a rare click.
      `ignoreHealth` exists for the one case where a human has looked at the
@@ -2001,7 +2013,7 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     const hh = hd && briefHealth(hd, await coverageDates(env, acct, date, hd).catch(() => [date]));
     if (hh?.verdict === 'broken') {
       return { name: acct.name, blocked: true, date,
-        error: `Not sent — the data for ${hh.dates.map(prettyDate).join(' and ')} is wrong. ${hh.summary}. Fix it on the Data Health tab, then rebuild this brief.` };
+        error: `Not sent - the data for ${hh.dates.map(prettyDate).join(' and ')} is wrong. ${hh.summary}. Fix it on the Data Health tab, then rebuild this brief.` };
     }
   }
 
@@ -2014,9 +2026,9 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
     text = r.text;
   }
-  // The client channel, with no fallback to the internal one — see sendReport.
+  // The client channel, with no fallback to the internal one - see sendReport.
   const channel = acct.brief_channel;
-  if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no client channel set for this brand — pick one in Settings', r?.data); return { name: acct.name, skipped: 'no client channel set' }; }
+  if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no client channel set for this brand - pick one in Settings', r?.data); return { name: acct.name, skipped: 'no client channel set' }; }
   try {
     // Goes to the client, so it comes from Cole - not a bot wearing a name.
     await slackPost(env, channel, text, null, { asUser: true });
@@ -2038,7 +2050,7 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
        editing was overwritten; and sendBrief itself then refused to reuse the
        text, so the only way forward regenerated it from scratch.
        Cole hit all three on Dartee, 2026-08-31, because SLACK_USER_TOKEN was
-       not set. The send failing is normal — an unset token, a channel he is not
+       not set. The send failing is normal - an unset token, a channel he is not
        in, Slack being down. It is not a reason to destroy the draft.
        The row stays exactly as it was; the error goes to the caller (the UI
        shows it) and to the internal channel via alertBriefFailure. */
@@ -2069,7 +2081,7 @@ async function alertBriefFailure(env, acct, date, result) {
 const BRIEF_TZ = 'America/Chicago';           // Cole's timezone; the send hour is set in it
 const DEFAULT_BRIEF_HOUR = 9;                 // 9am Central
 /* Reports start this many hours after the brief hour. They share a budget with
-   the briefs, and a report is the biggest single unit of work in this worker —
+   the briefs, and a report is the biggest single unit of work in this worker - 
    given the same tick it would be the thing deferred six times over while six
    briefs went first. Its own tick, its own allowance. */
 const REPORT_HOUR_OFFSET = 2;
@@ -2084,14 +2096,14 @@ const REPORT_HOUR_OFFSET = 2;
  *
  * So: any tick that errored or had to defer work posts ONE line to the internal
  * channel. Deliberately one message for the whole tick rather than one per
- * brand, and deliberately quiet about a clean deferral that resolved itself —
+ * brand, and deliberately quiet about a clean deferral that resolved itself - 
  * see `sameAsLast`, which keeps an ongoing fault to a single message instead of
  * a drip every hour. */
 async function alertScheduleTrouble(env, label, payload) {
   const flat = JSON.stringify(payload || {});
   const errors = (flat.match(/"error":/g) || []).length;
   const deferred = (flat.match(/"deferred":/g) || []).length;
-  /* DEFERRAL IS NOT A FAULT — it is how this worker is supposed to behave now,
+  /* DEFERRAL IS NOT A FAULT - it is how this worker is supposed to behave now,
      and on the free plan it happens on most ticks by design. Alerting on it
      would put a Slack message in front of Cole every hour for normal
      operation, which is how alerting becomes wallpaper and a real failure gets
@@ -2150,7 +2162,7 @@ async function dailyBriefs(env) {
       `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
     ).bind(a.act_id, date).first().catch(() => null);
     if (prior?.status === 'sent') { results.push({ name: a.name, already_sent: true, date }); continue; }
-    /* SKIPPED IS HANDLED. "Don't send this one" means don't send it — and it
+    /* SKIPPED IS HANDLED. "Don't send this one" means don't send it - and it
        must also mean don't rebuild it, or the hourly trigger simply drafts the
        day again and posts it to the internal channel every hour. That is
        exactly what happened on 2026-09-01: 21 days were marked skipped in one
@@ -2164,10 +2176,10 @@ async function dailyBriefs(env) {
 
     // Stop BEFORE starting a brand we cannot finish. Half a brief is worse than
     // none: the old behaviour ran until Cloudflare killed it, which could land
-    // between the Slack post and the row that records it — a client message with
+    // between the Slack post and the row that records it - a client message with
     // no record that it was sent, and a retry next hour that sends it twice.
     if (!subCanAfford(costOf('brief', COST_BRIEF_BRAND))) {
-      results.push({ name: a.name, date, deferred: 'out of subrequest budget — next tick picks this up' });
+      results.push({ name: a.name, date, deferred: 'out of subrequest budget - next tick picks this up' });
       continue;
     }
 
@@ -2190,7 +2202,7 @@ async function dailyBriefs(env) {
         // the button-pushing this tool exists to avoid.
         if (a.review_first) return await draftBrief(env, a, date, { skipIfExists: true });
         const sent = await sendBrief(env, a, date, { skipIfSent: true });
-        /* An auto-send brand whose data is broken still gets a morning message —
+        /* An auto-send brand whose data is broken still gets a morning message - 
            internally, as a draft, saying why it was held. Silence is the worst
            outcome available: the client gets nothing and nobody knows. */
         if (sent.blocked) return { ...(await draftBrief(env, a, date, { skipIfExists: false })), held: sent.error };
@@ -2212,8 +2224,8 @@ async function dailyBriefs(env) {
 /* ------------------------------------------------------------------ */
 /*  Is a brand's Meta data current enough to judge?                    */
 /* ------------------------------------------------------------------ */
-/* The delivery check reads spend out of D1, not out of Meta. That is right —
- * it must be cheap enough to run every hour — but it means a sync that did not
+/* The delivery check reads spend out of D1, not out of Meta. That is right - 
+ * it must be cheap enough to run every hour - but it means a sync that did not
  * happen is indistinguishable from an account that did not spend, and the old
  * code resolved that ambiguity the worst possible way: `dayRow?.spend ?? 0`.
  *
@@ -2222,7 +2234,7 @@ async function dailyBriefs(env) {
  * policy. Nothing was wrong with the account. The sync had run out of
  * subrequests eight hours earlier and never written the row.
  *
- * A missing row is now a MISSING ROW. It is worth knowing about — it just is
+ * A missing row is now a MISSING ROW. It is worth knowing about - it just is
  * not a spend story, and it must never be told as one. */
 async function insightsFreshness(env, a, day) {
   const row = await env.DB.prepare(
@@ -2232,7 +2244,7 @@ async function insightsFreshness(env, a, day) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Intraday pacing (Chat 4) — today's hourly curve vs the L7 shape    */
+/*  Intraday pacing (Chat 4) - today's hourly curve vs the L7 shape    */
 /* ------------------------------------------------------------------ */
 
 /** Pull today + last 7 days of hourly spend live from Meta, cache in hourly_insights,
@@ -2248,7 +2260,7 @@ async function insightsFreshness(env, a, day) {
 /*  secrets and the crons (the account is at the 5-trigger limit).     */
 /* ------------------------------------------------------------------ */
 
-/** One day of store-level economics — the same CTC math as briefData and
+/** One day of store-level economics - the same CTC math as briefData and
  *  Profit's dayEconomics: revenue = Shopify TOTAL SALES minus sales tax
  *  (shipping already inside it, never added); CM subtracts every variable
  *  cost; the new/returning split keeps TW's measured SHARE rebased onto the
@@ -2309,18 +2321,18 @@ function periodTotals(rows) {
 }
 
 /** Per-platform sections, this period vs the prior one. A channel only appears
- *  when it has data in either window (and is not on the client's hide list) —
+ *  when it has data in either window (and is not on the client's hide list) - 
  *  a section full of zeros is worse than no section. Meta reads daily_insights
  *  (the Meta API is authoritative and carries delivery metrics TW does not
  *  sync); everything else reads tw_daily. Platform revenue here is ATTRIBUTED
- *  (the platform's own claim) and the UI labels it that way — the blended
+ *  (the platform's own claim) and the UI labels it that way - the blended
  *  scorecard is the honest headline. */
 /* Channel figures come from a PERIOD Triple Whale call (`tw` / `twPrev`), not
  * from summing the daily rows. Two reasons, both learned the hard way:
- *   - TW exposes Impressions, Clicks and its PEER BENCHMARKS only as period
+ * - TW exposes Impressions, Clicks and its PEER BENCHMARKS only as period
  *     totals; they have no daily series at all, so no amount of summing
  *     tw_daily produces them.
- *   - CPM and CTR are RATIOS. Summing seven daily CPMs is meaningless and
+ * - CPM and CTR are RATIOS. Summing seven daily CPMs is meaningless and
  *     averaging them weights a $10 day like a $1,000 one. Asking TW for the
  *     window it actually is gets the arithmetic right at the source.
  * The daily rows remain the fallback when the period call fails or a shop has
@@ -2410,7 +2422,7 @@ function channelSections(piv, metaBy, ranges, hide, tw, twPrev) {
     amazon: ds => {
       const sales = S('totalAmazonSales', ds);
       const orders = S('totalAmazonOrders', ds);
-      // A connected-but-dormant Amazon account returns rows of zeros — a section
+      // A connected-but-dormant Amazon account returns rows of zeros - a section
       // of zeros in a client report is noise, so it needs actual activity to show.
       if (!(sales > 0) && !(orders > 0)) return null;
       let through = null;
@@ -2470,7 +2482,7 @@ async function alertClaudeFailure(env, context, message) {
   const msg = String(message || '');
   const likelyCredit = /credit|balance|quota|insufficient|billing|payment|402/i.test(msg);
   await slackPost(env, channel,
-    `:warning: *Claude could not write the ${context}* — the numbers went out, the written summary did not.\n` +
+    `:warning: *Claude could not write the ${context}* - the numbers went out, the written summary did not.\n` +
     '```' + msg.slice(0, 300) + '```\n' +
     (likelyCredit
       ? '*This looks like an API credit problem.* Top up at <https://platform.claude.com/settings/billing|Console → Billing>, and turn on auto-reload so it cannot happen again.'
@@ -2480,7 +2492,7 @@ async function alertClaudeFailure(env, context, message) {
 }
 
 /** A sync that keeps failing must SAY SO. `syncAdDaily` writes its error to
- *  accounts.last_error and returns quietly, which is right for one bad night —
+ *  accounts.last_error and returns quietly, which is right for one bad night - 
  *  but when Meta removed `video_3_sec_watched_actions` the whole ad-level pull
  *  broke for every brand and ran silently for two nights, because nothing reads
  *  last_error unless a human opens Settings. A field being retired is exactly
@@ -2498,7 +2510,7 @@ async function alertSyncFailure(env, acct, message) {
   const msg = String(message || '');
   const badField = /is not valid for fields param/i.test(msg);
   await slackPost(env, channel,
-    `:rotating_light: *Meta ad-level sync is failing* — first seen on ${acct.name}.\n` +
+    `:rotating_light: *Meta ad-level sync is failing* - first seen on ${acct.name}.\n` +
     '```' + msg.slice(0, 300) + '```\n' +
     (badField
       ? '*Meta has retired a field we ask for.* Creative stats (hook, hold, retention) will be stale or empty until the field list in `syncAdSlice` is updated.'
@@ -2576,7 +2588,7 @@ async function adPreviewLinks(env, adIds) {
 /*  Real video playback                                                 */
 /*                                                                      */
 /*  Meta withholds a video's `source` mp4 from the USER token even with */
-/*  pages_read_engagement — it needs a PAGE-scoped token. Those come    */
+/*  pages_read_engagement - it needs a PAGE-scoped token. Those come    */
 /*  from me/accounts and, for a system user, do not expire, so they are  */
 /*  cached; a page missing from the cache (a newly assigned brand)       */
 /*  triggers one refresh before giving up.                              */
@@ -2600,7 +2612,7 @@ async function pageTokens(env, { refresh = false } = {}) {
 }
 
 /** A fresh, playable mp4 URL for one ad, or null when it genuinely cannot be
- *  played — a creative on a page we were never granted, or an ad with no video.
+ *  played - a creative on a page we were never granted, or an ad with no video.
  *  Never throws: the card falls back to its cover image. */
 async function adVideoSource(env, adId, hint = {}) {
   if (!env.META_TOKEN) return null;
@@ -2626,7 +2638,7 @@ async function adVideoSource(env, adId, hint = {}) {
   };
 
   /* PAGE TOKENS GO STALE, AND NOTHING NOTICED. The cached map was only ever
-     refetched when a page was MISSING from it — a token that was present but no
+     refetched when a page was MISSING from it - a token that was present but no
      longer accepted (the user token behind it regenerated, the page reassigned)
      failed here forever, and the card said "no playable video", which is not
      what had happened at all. Measured 2026-09-03: all six pages had tokens,
@@ -2645,7 +2657,7 @@ async function adVideoSource(env, adId, hint = {}) {
   if (out.src) return { src: out.src, page_id: String(pageId) };
   /* NAME THE PARTNERSHIP CASE. "We have not been granted access" is true of a
      page we simply have not been given, and ALSO of every branded-content /
-     partnership ad — where the creative sits on the CREATOR's page and never
+     partnership ad - where the creative sits on the CREATOR's page and never
      will be ours. The second is not a permissions problem to chase, it is how
      partnership ads work, and reading the generic message sent Cole looking for
      an access fix that does not exist. `ours` is the set of pages we actually
@@ -2656,7 +2668,7 @@ async function adVideoSource(env, adId, hint = {}) {
     reason: out.err === 'no page token'
       ? (partnership ? PARTNERSHIP_REASON
         : 'This creative lives on a page we have not been granted access to.')
-      : `Meta would not return the video file — ${out.err || 'no reason given'}.` };
+      : `Meta would not return the video file - ${out.err || 'no reason given'}.` };
 }
 
 /** Is this ad actually listed in one of that client's SENT reports?
@@ -2708,11 +2720,11 @@ const AD_CREATIVE_TTL_DAYS = 14;
 const AD_PREVIEW_TTL_DAYS = 7;
 /* Said in one place, by both the short-circuit and the live resolution, so the
    card cannot explain itself two different ways depending on the cache. */
-const PARTNERSHIP_REASON = 'This is a partnership ad — the video file lives on the creator’s page, not ours, so Meta will not hand it over. Showing Meta’s own preview instead.';
+const PARTNERSHIP_REASON = 'This is a partnership ad - the video file lives on the creator’s page, not ours, so Meta will not hand it over. Showing Meta’s own preview instead.';
 /* What the LIVE creative browser may spend on one image, and across a batch.
    Deliberately not the report's numbers: a report inlines every image into a
    single D1 row and must stay small, whereas this is a JSON response that is
-   thrown away after paint. `budget` is effectively uncapped — it exists so a
+   thrown away after paint. `budget` is effectively uncapped - it exists so a
    pathological account cannot build an unbounded response, not to ration. */
 const LIVE_THUMBS = { maxBytes: 280_000, budget: 24_000_000 };
 
@@ -2720,11 +2732,11 @@ const LIVE_THUMBS = { maxBytes: 280_000, budget: 24_000_000 };
    applied to the live creative browser too, which does not share them.
    A report inlines every image into ONE D1 row, so it must stay under ~1.1MB
    in total and reject any single image over 190KB. The Creative tab just
-   streams JSON to a browser and has no such ceiling — but it inherited both,
+   streams JSON to a browser and has no such ceiling - but it inherited both,
    and because the video cover deliberately picks the LARGEST frame Meta offers
    (and statics are asked for at 1080), most images were fetched, found to be
    over 190KB, and thrown away. Measured 2026-09-03: 13 of 20 cached creatives
-   had `thumb: null`, and the card falls back to a glyph placeholder — which is
+   had `thumb: null`, and the card falls back to a glyph placeholder - which is
    what "the creative won't load" was. */
 async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000 } = {}) {
   const out = {};
@@ -2761,7 +2773,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
   } catch { /* the cards still work without status and dates */ }
   // Cards render ~255x319 CSS px, so a 2x screen wants ~640px on the long edge.
   // The SMALLEST frame that still covers that wins, and every other size is
-  // kept as a fallback — picking the biggest and hard-rejecting it over the
+  // kept as a fallback - picking the biggest and hard-rejecting it over the
   // ceiling is what left most cards with no image at all.
   const LONG_EDGE = 640;
   for (const id of adIds.slice(0, 10)) {
@@ -2810,7 +2822,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       out[id].media_type = isCarousel ? 'carousel' : isVideo ? 'video' : 'image';
       /* `video` is what puts a PLAY BADGE on the card, so it must mean "this
          ad can actually be played", not "there is video somewhere in it". A
-         carousel of videos has no single video to play — `adVideoSource` finds
+         carousel of videos has no single video to play - `adVideoSource` finds
          no video_id and the click died on "no playable video". Set AFTER the
          carousel test for that reason; setting it beside `isVideo` above is
          what put an unusable badge on every carousel. */
@@ -2829,7 +2841,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
         try {
           const v = await meta(env, vidId, { fields: 'picture,length,thumbnails{uri,width,height,is_preferred}' });
           out[id].duration = v?.length ?? null;
-          /* `picture` is a small fixed-size still — it was the low-quality cover.
+          /* `picture` is a small fixed-size still - it was the low-quality cover.
              `thumbnails` carries several frames at real resolution.
              ONE candidate used to come out of here: the biggest. If that one
              frame came back over the byte ceiling the ad ended up with no cover
@@ -2849,7 +2861,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       /* RESOLVED 2026-08-30 by granting the system user page access. Kept because
        * it explains the shape of the code above and what still cannot work.
        * WHY VIDEO ADS SHOWED A POOR COVER IMAGE (measured 2026-08-30, Lucky Golf).
-       * NOT because they are page posts — the STATICS are page posts too, from
+       * NOT because they are page posts - the STATICS are page posts too, from
        * the SAME page (2043316342580398), and they return a perfectly good
        * image_url. The difference is that a VIDEO object requires page-level
        * permission while an image URL is served straight off the CDN.
@@ -2858,7 +2870,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
        * pages seen here read back as "does not exist, cannot be loaded due to
        * missing permission". So the video creative comes back as object_type
        * PRIVACY_CHECK_FAIL with no image_url, `/{video_id}` is unreadable, and
-       * Meta substitutes the PAGE AVATAR as thumbnail_url — which is why three
+       * Meta substitutes the PAGE AVATAR as thumbnail_url - which is why three
        * of Lucky's four video ads shared one identical clover logo.
        * Two different pages appear across these ads (2043316342580398 and
        * 100526684753365), so some creatives may be partner/creator-sourced;
@@ -2871,13 +2883,13 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
        * PRIVACY_CHECK_FAIL, `picture` returns a real cover frame, and all six
        * pages resolve by name. Ads insights still read exactly as before.
        * STILL IMPOSSIBLE, by design not by bug: page 100526684753365 carries one
-       * of Lucky's video ads and is NOT one of our six — a creator/partner page.
+       * of Lucky's video ads and is NOT one of our six - a creator/partner page.
        * Anything on a page we are not granted stays coverless and unplayable, so
        * this whole block must keep degrading quietly rather than throwing.
        * PLAYBACK: `source` is still withheld from the USER token; it needs a
        * PAGE-scoped token from me/accounts. Verified working. */
-      // `image_url` is the ORIGINAL static creative — real resolution, real aspect
-      // ratio, no square crop — so it is tried first and `thumbnail_url` is the
+      // `image_url` is the ORIGINAL static creative - real resolution, real aspect
+      // ratio, no square crop - so it is tried first and `thumbnail_url` is the
       // fallback. Video ads have no image_url at all (see the note below).
       const sources = [...coverUrls, c?.image_url, c?.thumbnail_url].filter(Boolean);
       let picked = null;
@@ -2897,7 +2909,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       }
       if (!picked) { out[id].thumb = null; continue; }
       budget -= picked.b64.length;
-      // Assign the field, never the object — the ad's copy and metadata are
+      // Assign the field, never the object - the ad's copy and metadata are
       // already on it, and replacing it here silently dropped all of them.
       out[id].thumb = `data:${picked.type};base64,${picked.b64}`;
     } catch { /* no creative for this ad; the card still renders its numbers */ }
@@ -2917,7 +2929,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
     try {
       const j = JSON.stringify(v);
       /* Was 90,000, which no image that passed the 190KB fetch ceiling could
-         ever satisfy — base64 is 1.34x, so a 190KB image is a 254KB string and
+         ever satisfy - base64 is 1.34x, so a 190KB image is a 254KB string and
          every one of them was silently dropped from the cache and refetched
          from Meta forever. 400,000 covers the largest image either caller will
          now accept. D1 is still not an image host: anything above this is
@@ -2979,7 +2991,7 @@ async function reportData(env, acct, period, start, end) {
   }
 
   // The plan for these exact days. Each day inherits ITS OWN month's goals,
-  // spread evenly — the agreed convention — so a week straddling a month
+  // spread evenly - the agreed convention - so a week straddling a month
   // boundary is measured against both months' plans, pro-rated.
   const fcMargin = cmPct ?? margin28;
   let fSales = null, fSpend = null;
@@ -3054,7 +3066,7 @@ async function reportData(env, acct, period, start, end) {
     }
   }
 
-  // Monthly reports get the month cut into weeks instead — how it actually ran.
+  // Monthly reports get the month cut into weeks instead - how it actually ran.
   let weeks = null;
   if (period === 'monthly') {
     weeks = [];
@@ -3083,7 +3095,7 @@ async function reportData(env, acct, period, start, end) {
 
   // Where the Meta money went: top ads by spend behind a materiality floor, so
   // a $40 fluke can never headline. Deliberately framed as "where the budget
-  // went and what it did", not "the best ad" — a single crown is unjudgeable.
+  // went and what it did", not "the best ad" - a single crown is unjudgeable.
   let ads = null;
   // Ads that carried real money this period. Used twice: to build the creative
   // table, and to decide which on/off changes are worth naming in the change
@@ -3149,7 +3161,7 @@ async function reportData(env, acct, period, start, end) {
       aov: r.purchases ? (r.revenue || 0) / r.purchases : null,
       frequency: r.reach ? r.impressions / r.reach : null,
       reach: r.reach || null,
-      // Cost to stop one thumb — spend over 3-second views. Directly comparable
+      // Cost to stop one thumb - spend over 3-second views. Directly comparable
       // between video ads in a way CPM is not.
       cost_per_thumbstop: r.v3 ? r.spend / r.v3 : null,
       avg_watch: r.avg_watch ?? null,
@@ -3168,11 +3180,11 @@ async function reportData(env, acct, period, start, end) {
       video: !!thumbs[r.ad_id]?.video,
       ad_id: r.ad_id,
       // Kept so playback can skip a Meta round trip. The mp4 URL itself is
-      // deliberately NOT stored — it is signed and expires within hours.
+      // deliberately NOT stored - it is signed and expires within hours.
       video_id: thumbs[r.ad_id]?.video_id || null,
       page_id: thumbs[r.ad_id]?.page_id || null,
       duration: thumbs[r.ad_id]?.duration ?? null,
-      // The ad's own words, plus where it lives — everything the detail view needs
+      // The ad's own words, plus where it lives - everything the detail view needs
       // is frozen with the numbers, so an archived report stays complete.
       headline: thumbs[r.ad_id]?.headline || null,
       body: thumbs[r.ad_id]?.body || null,
@@ -3198,14 +3210,14 @@ async function reportData(env, acct, period, start, end) {
 
        It used to read the segment after the last `|` in the ad name, which was
        wrong in three separate ways and all three reached clients:
-         - it invented categories. "UGC" is not a format, it is a style — a UGC
-           ad IS a video — so the table compared UGC against Still as though
+ - it invented categories. "UGC" is not a format, it is a style - a UGC
+           ad IS a video - so the table compared UGC against Still as though
            they were alternatives at the same level.
-         - it leaked whatever else lived in that slot. Partner and editor names
+ - it leaked whatever else lived in that slot. Partner and editor names
            landed in the same position, which is why "UGC | SA" showed up.
-         - it could never reach 100%. Ads with no pipe, or a shoot code instead
+ - it could never reach 100%. Ads with no pipe, or a shoot code instead
            of a word, fell into "Untagged", which on Lucky's flagship week was a
-           third of ad spend — a row a client cannot act on.
+           third of ad spend - a row a client cannot act on.
 
        `ads.media_type` is resolved from the creative itself (carousel checked
        before video, since a carousel of videos behaves as a carousel), so the
@@ -3254,7 +3266,7 @@ async function reportData(env, acct, period, start, end) {
       /* The old 55%-tagged gate is gone with the naming convention it was
          guarding: the split is now Meta's own creative type and always accounts
          for 100% of ad-level spend, so there is no coverage left to fail on.
-         The only bar remaining is that a split needs something to split — one
+         The only bar remaining is that a split needs something to split - one
          row is a fact about the account, not a comparison. `formats_confirmed`
          is how much of that spend Meta itself typed, versus inferred from
          delivery data, and the page discloses it. */
@@ -3265,7 +3277,7 @@ async function reportData(env, acct, period, start, end) {
       // benchmark. Motion's 30%/60% vary enormously by vertical, placement and
       // video length, and the decision a buyer makes is "is this better than our
       // normal", not "is this better than the internet".
-      // Median, not mean — one runaway ad should not move the bar. Needs at
+      // Median, not mean - one runaway ad should not move the bar. Needs at
       // least 4 video ads or it is noise, and the UI falls back to the published
       // benchmark and says so.
       benchmarks: (() => {
@@ -3290,7 +3302,7 @@ async function reportData(env, acct, period, start, end) {
     };
   }
 
-  // What we changed during the period — feeds the narrative and the internal
+  // What we changed during the period - feeds the narrative and the internal
   // view. NOT sent to the client's payload (the profit worker strips it).
   //
   // Ranked by MATERIALITY, never by time. Taking the first N chronologically fed
@@ -3308,7 +3320,7 @@ async function reportData(env, acct, period, start, end) {
   ).bind(acct.act_id, start, end + 'T23:59:59').all();
   // `billing` is deliberately NOT notable: "Account billed" is Meta charging the
   // card, not a decision we made, and it was crowding out real moves. `review`
-  // stays — a policy rejection genuinely changes what can deliver.
+  // stays - a policy rejection genuinely changes what can deliver.
   const notableCats = new Set(['budget', 'bid_strategy', 'new_campaign', 'new_adset',
     'campaign_paused', 'campaign_relaunched', 'review']);
   // Switching ONE ad on or off among 150 is routine and belongs in the count.
@@ -3343,18 +3355,27 @@ async function reportData(env, acct, period, start, end) {
   };
 }
 
-const REPORT_SYSTEM = `You are a senior media buyer at Mobius Digital writing the executive summary of a client's WEEKLY or MONTHLY performance report. The report page already shows every number in cards and tables — do NOT restate them as a list.
-Write exactly three sections, plain text, section titles on their own line exactly as written:
-The period in brief
-2–4 sentences: what happened and the single interpretation that best explains it. Lead with the conclusion. Name only the one or two numbers that matter most (with their % vs plan or vs the prior period).
-What mattered
-• 3–5 bullets: beats/misses vs plan with the %, the trend vs the prior period, the new-vs-returning read, per-channel reads, and — when the change log supports it — which of our changes drove what. Conclusion first in every bullet.
-What's next
-• 2–4 bullets: concrete actions or watch-items for the coming period, each with a trigger or a date where possible.
-Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency, whole units. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend on every platform; aMER = new-customer revenue ÷ that same spend. Both are blended on BOTH sides — never call them attributed, and never confuse them with ROAS (which IS platform-attributed, double-counts across platforms, and should be treated as directional). Write for the client: confident, plain language, no hedging filler. Under 230 words total. No greeting, no sign-off, no markdown headers, no asterisks for bold.`;
+const REPORT_SYSTEM = `You are a senior media buyer at Mobius Digital writing the executive summary of a client's WEEKLY or MONTHLY performance report. The report page already shows every number in cards and tables - do NOT restate them as a list.
+Write exactly three sections, plain text, section titles on their own line exactly as written, with NO colon, arrow or question mark after them:
+What we saw
+• 3-5 bullets: what happened over the period, stated plainly. The trend against the prior period, the new-vs-returning read, the per-channel read, and where the month stands. Conclusion first in every bullet.
+What it means
+2-4 sentences: what those observations ADD UP TO for this client's money. This section explains, it does not report - if a sentence here could have been a bullet above, it is in the wrong place. Where the change log supports it, say which of our changes drove what.
+What we're doing
+• 2-4 bullets: what we will actually do next, each with a trigger or a date where possible.
+
+WRITING RULES - these matter as much as the facts, because the page is already full of numbers:
+Every figure is ALREADY on the page in cards and tables, WITH its percentage against plan and against the prior period. Name a number only when the sentence collapses without it.
+TWO NUMBERS PER BULLET, MAXIMUM. A bullet carrying seven figures is a table crammed into a sentence and the point disappears.
+"What it means" carries NO new figures at all. It is the consequence in plain words.
+NO ABBREVIATIONS OR SHORTHAND. Write "month to date", not MTD. Write "Wednesday", not 48h. Write "about 20", not ~20. Write "September 8", not 09-08.
+NEVER print a raw ad or campaign name. Say "the new creative".
+NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
+Every sentence should survive being read once, at speed, by a client who does not work in ads.
+Rules: use ONLY the numbers provided - never invent or extrapolate figures. Money in the account's own currency, whole units. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend on every platform; aMER = new-customer revenue ÷ that same spend. Both are blended on BOTH sides - never call them attributed, and never confuse them with ROAS (which IS platform-attributed, double-counts across platforms, and should be treated as directional). Write for the client: confident, plain language, no hedging filler. Under 230 words total. No greeting, no sign-off, no markdown headers, no asterisks for bold.`;
 
 async function writeReportNarrative(env, acct, data, steer) {
-  const f2 = n => n == null ? '—' : String(Math.round(n * 100) / 100);
+  const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
   const label = data.period === 'weekly' ? 'week' : 'month';
   const slim = t => t ? { sales: f2(t.sales), spend: f2(t.spend), orders: t.orders, mer: f2(t.mer), amer: f2(t.amer), aov: f2(t.aov), new_customer_cpa: f2(t.ncpa), new_share: f2(t.new_share), cm: f2(t.cm) } : null;
   const chLines = (data.channels || []).map(c => `- ${c.label}: ${JSON.stringify(c.cur)} | prior ${label}: ${JSON.stringify(c.prev)}`);
@@ -3378,41 +3399,41 @@ async function writeReportNarrative(env, acct, data, steer) {
       `This ${label}: ${JSON.stringify(slim(data.totals))}\n` +
       `Prior ${label} (${data.prev_start} → ${data.prev_end}): ${JSON.stringify(slim(data.previous))}\n` +
       `Plan for the period: ${JSON.stringify({ sales: f2(data.forecast?.sales), spend: f2(data.forecast?.spend), mer: f2(data.forecast?.mer), cm: f2(data.forecast?.cm) })}\n` +
-      (unplanned.length ? `IMPORTANT: no plan was actually set for ${unplanned.map(([ym]) => ym).join(', ')} — the "plan" figures are carried over from an earlier month. Do not present them as an agreed target; refer to them as the prior pace.\n` : '') +
-      (data.cm_ok ? '' : `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality?.reason}). Contribution margin has been removed from the report — do NOT mention margin, CM or profit anywhere.\n`) +
+      (unplanned.length ? `IMPORTANT: no plan was actually set for ${unplanned.map(([ym]) => ym).join(', ')} - the "plan" figures are carried over from an earlier month. Do not present them as an agreed target; refer to them as the prior pace.\n` : '') +
+      (data.cm_ok ? '' : `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality?.reason}). Contribution margin has been removed from the report - do NOT mention margin, CM or profit anywhere.\n`) +
       (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
-      `Channels — each platform's OWN attributed revenue/ROAS, NOT Triple Whale's; a line marked low_signal recorded fewer than two conversions in the whole window, so quote its spend and say the conversions have not landed rather than repeating the ratio. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
+      `Channels - each platform's OWN attributed revenue/ROAS, NOT Triple Whale's; a line marked low_signal recorded fewer than two conversions in the whole window, so quote its spend and say the conversions have not landed rather than repeating the ratio. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
       `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
-      (fmtLines.length ? `Meta spend by creative format (from the ad naming convention — covers every ad that spent):\n${fmtLines.join('\n')}\n` : '') +
+      (fmtLines.length ? `Meta spend by creative format (from the ad naming convention - covers every ad that spent):\n${fmtLines.join('\n')}\n` : '') +
       `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
       (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : '') +
       steerBlock(steer),
   });
 }
 
-const repMoney = (n, cur) => n == null ? '—' : new Intl.NumberFormat('en-US',
+const repMoney = (n, cur) => n == null ? ' - ' : new Intl.NumberFormat('en-US',
   { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
 const repPctVs = (a, b) => a != null && b ? `${a >= b ? '+' : ''}${Math.round((a / b - 1) * 100)}%` : null;
 
 /** The one-line summary used in both Slack messages. */
 /* ONE METRIC PER LINE, not a run-on. This string is the whole client-facing
-   Slack message for a report (plus a link), and as a single ` · `-joined line —
+   Slack message for a report (plus a link), and as a single ` · `-joined line - 
    "Revenue $4,742 (-51% vs plan, -34% vs prior week) · Spend $2,532 · MER 1.87x
-   · CM $1,404" — it wrapped to two or three lines on a phone with the wrap
+   · CM $1,404" - it wrapped to two or three lines on a phone with the wrap
    landing in the middle of a figure, so no number had a stable shape to scan
    for. Cole, 2026-09-07: "is there any way this can be put into a format kind of
    similar to a bullet point, just easy to digest."
    Bullets also let each metric carry its own comparison instead of only revenue
    getting one, which is the more useful change. Kept to four lines: this is the
-   notice, not the report — the report is the page behind the link. */
+   notice, not the report - the report is the page behind the link. */
 function reportHeadline(data) {
   const cur = data.account.currency, t = data.totals;
   const tag = data.period === 'weekly' ? 'week' : 'month';
   const f = data.forecast || {}, p = data.previous || {};
   const money = n => repMoney(n, cur);
-  const x = n => n != null ? `${n.toFixed(2)}x` : '—';
+  const x = n => n != null ? `${n.toFixed(2)}x` : ' - ';
   /* "vs plan" and "vs prior week" as a parenthetical, omitted entirely when
-     there is nothing to compare against — an empty bracket reads as a bug. */
+     there is nothing to compare against - an empty bracket reads as a bug. */
   const vs = (a, plan, prev) => {
     const bits = [];
     const vp = repPctVs(a, plan), vq = repPctVs(a, prev);
@@ -3431,7 +3452,7 @@ function reportHeadline(data) {
   return L.join('\n');
 }
 
-/** Build (or rebuild) one report as a DRAFT. A sent report is frozen — the
+/** Build (or rebuild) one report as a DRAFT. A sent report is frozen - the
  *  client already has its numbers, so regeneration refuses. */
 async function makeReport(env, acct, period, start, { force = false, steer } = {}) {
   if (period !== 'weekly' && period !== 'monthly') throw new Error('period must be weekly or monthly');
@@ -3442,12 +3463,12 @@ async function makeReport(env, acct, period, start, { force = false, steer } = {
   const prior = await env.DB.prepare(
     `SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
   ).bind(acct.act_id, period, start).first();
-  if (prior?.status === 'sent') throw new Error('this report was already sent to the client — sent reports are frozen');
+  if (prior?.status === 'sent') throw new Error('this report was already sent to the client - sent reports are frozen');
   const data = await reportData(env, acct, period, start, end);
   const expected = Math.round((new Date(end + 'T12:00:00Z') - new Date(start + 'T12:00:00Z')) / 86400e3) + 1;
   const missing = expected - (data.totals.days ?? 0);
-  if (data.totals.sales == null) throw new Error('no Triple Whale data for this period — refresh Triple Whale data first');
-  if (missing > 0 && !force) throw new Error(`Triple Whale data is missing for ${missing} of the ${expected} days — refresh Triple Whale data and regenerate (or generate anyway)`);
+  if (data.totals.sales == null) throw new Error('no Triple Whale data for this period - refresh Triple Whale data first');
+  if (missing > 0 && !force) throw new Error(`Triple Whale data is missing for ${missing} of the ${expected} days - refresh Triple Whale data and regenerate (or generate anyway)`);
   data.missing_days = missing;
   let summary = null, narrative_error = null;
   try { summary = await writeReportNarrative(env, acct, data, steer); } catch (e) { narrative_error = e.message; }
@@ -3461,7 +3482,7 @@ async function makeReport(env, acct, period, start, { force = false, steer } = {
   return { period, start, end, summary, data, narrative_error, steer: steer || null };
 }
 
-/** One stable client link per brand — opens their report archive (sent reports
+/** One stable client link per brand - opens their report archive (sent reports
  *  only, rendered by the profit dashboard). Same pattern as shareTokens. */
 async function reportToken(env, actId) {
   const tokens = safeJson(await getSetting(env, 'reportTokens'), {});
@@ -3475,7 +3496,7 @@ async function reportToken(env, actId) {
 }
 
 /** Internal review post. Deliberately NEVER falls back to slack_channel or
- *  brief_channel — as of 2026-08-27 every brand's alerts channel IS its client
+ *  brief_channel - as of 2026-08-27 every brand's alerts channel IS its client
  *  channel, so a "fallback" would put a draft in front of the client. No
  *  internal channel and no global reportChannel setting = no post; the draft
  *  still exists in the Reports tab. */
@@ -3507,13 +3528,13 @@ async function sendReport(env, acct, period, start) {
   ).bind(acct.act_id, period, start).first();
   if (!row) throw new Error('no report generated for that period yet');
   const data = safeJson(row.data_json, null);
-  if (!data) throw new Error('this report has no data — regenerate it first');
+  if (!data) throw new Error('this report has no data - regenerate it first');
   // ONE client destination per brand, shared by the brief and both reports.
   // Deliberately no fallback to the internal channel: "Send to client" quietly
   // posting to the team is the failure this whole flow exists to prevent, so an
   // unset client channel is an error you can see, not a silent redirect.
   const channel = acct.brief_channel;
-  if (!channel) throw new Error('no client channel set for this brand — pick one in Settings');
+  if (!channel) throw new Error('no client channel set for this brand - pick one in Settings');
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const label = period === 'weekly' ? 'Weekly' : 'Monthly';
   const opener = period === 'weekly'
@@ -3532,7 +3553,7 @@ async function sendReport(env, acct, period, start) {
 
 /** Cron pass, inside the same hourly Central-time gate as the Daily Brief.
  *  Monday drafts last Mon–Sun for every brand; the 1st drafts last month.
- *  DRAFTS ONLY — nothing reaches a client without the Send button. A brand
+ *  DRAFTS ONLY - nothing reaches a client without the Send button. A brand
  *  that failed (no row written) is retried on every later tick that day. */
 async function reportsPass(env) {
   const today = localDate(BRIEF_TZ);
@@ -3556,14 +3577,14 @@ async function reportsPass(env) {
          blocks every retry, because the check above only asks whether a row
          exists. That is exactly what happened on 2026-08-31. */
       if (!subCanAfford(costOf('report', COST_REPORT_BRAND))) {
-        results.push({ name: a.name, period: j.period, deferred: 'out of subrequest budget — next tick picks this up' });
+        results.push({ name: a.name, period: j.period, deferred: 'out of subrequest budget - next tick picks this up' });
         continue;
       }
       did = true;
       try {
        await measured('report', async () => {
         // tw_daily is cumulative and dailyBriefs has usually just synced this brand
-        // in the same invocation — only sync here if the period's last day is absent,
+        // in the same invocation - only sync here if the period's last day is absent,
         // to stay well inside the Worker subrequest budget.
         const have = await env.DB.prepare(
           `SELECT 1 AS x FROM tw_daily WHERE act_id = ?1 AND date = ?2 LIMIT 1`,
@@ -3575,7 +3596,7 @@ async function reportsPass(env) {
         // off means it goes straight to the client. One rule for all three.
         /* `ok: true` USED TO BE HARD-CODED HERE, next to a caught error.
            On the first Monday reports ran, all six failed to reach Slack and
-           all six were recorded as successes — which is why nobody knew for a
+           all six were recorded as successes - which is why nobody knew for a
            week. The outcome is now whatever actually happened. */
         const step = a.review_first
           ? { posted: await postReportDraft(env, a, r).catch(e => ({ error: e.message })) }
@@ -3664,9 +3685,9 @@ async function hourlyPacing(env, acct) {
    spend it excluded so the omission is never silent. */
 /* Sales are what a ratio rests on, so enough of them earns an ad a place in a
    ratio ranking whatever it spent. Three is the smallest number that is not a
-   coincidence — one lucky conversion on a $12 ad is the thing the spend floor
+   coincidence - one lucky conversion on a $12 ad is the thing the spend floor
    exists to keep out, and it still is. */
-/* WHAT COUNTS AS A FORMAT — a dictionary, because nothing about the SHAPE of a
+/* WHAT COUNTS AS A FORMAT - a dictionary, because nothing about the SHAPE of a
    tag separates a format from a partner's name.
    The tag is whatever follows the last `|` in the ad's own name, and the
    convention is not uniform. Measured across all six brands, July–August 2026,
@@ -3676,8 +3697,8 @@ async function hourlyPacing(env, acct) {
    $6,206 of Lucky's spend, and bare 1/2/3), and for 111 of Lucky's 274 ads no
    pipe at all.
    So the tool stops inferring: a tag is a FORMAT when it is a known format
-   word, and a LABEL otherwise. A label still shows on the card — it is useful,
-   it is what the team wrote — but it can never be reported as a creative
+   word, and a LABEL otherwise. A label still shows on the card - it is useful,
+   it is what the team wrote - but it can never be reported as a creative
    format, which is what stopped "James and Justin" from turning up in a
    client's UGC-vs-Still table.
    Meta already tells us the true medium (video / image / carousel) and that is
@@ -3759,7 +3780,7 @@ async function adRows(env, acct, from, to, opts = {}) {
   /* THE SPEND BAR: a multiple of the brand's GOAL CPA, set on the page.
    *
    * It replaced max($50, 3% of window spend), which scaled with the SIZE of the
-   * account rather than its economics — $106 at Party Patch against $779 at The
+   * account rather than its economics - $106 at Party Patch against $779 at The
    * Golf Sock, and only SIX of Dartee's 254 ads eligible for a ROAS sort.
    *
    * GOAL, not actual, and the distinction is the point (Cole, 2026-09-06).
@@ -3854,15 +3875,15 @@ async function adRows(env, acct, from, to, opts = {}) {
       /* MATERIAL = "this ratio is worth ranking", and the two routes in are
          NOT the same test. Cole asked whether 3x CPA of spend is essentially
          three purchases; it is not, and the pair is why both are here:
-           SPEND >= 3x CPA — the ad had enough budget to have sold three times.
+           SPEND >= 3x CPA - the ad had enough budget to have sold three times.
              This is the route that catches LOSERS: an ad that took 5x CPA and
              produced nothing is the single most useful row on a CPA sort, and
              a purchases test can never surface it, because it has none.
-           SALES >= 3 — the ad actually sold three times. This is the route that
+           SALES >= 3 - the ad actually sold three times. This is the route that
              catches WINNERS EARLY, before they have spent much. Dartee's 357-7
              and 357-13 launched 2 September, took $46 and $79 against a $180
              bar, and returned 20.7x and 19.1x off 9 and 15 sales. A spend test
-             alone — including the team's own 3x-CPA rule — hides those for
+             alone - including the team's own 3x-CPA rule - hides those for
              weeks.
          Either one earns a ranking; 357-12 ($2, one sale, 39x) satisfies
          neither, which is exactly the noise a floor exists for. */
@@ -3970,7 +3991,7 @@ async function creative(env, acct, freshDays, windowDays, win = null) {
      WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date < ?3 AND d.spend > 0 AND a.first_spend_date IS NOT NULL`,
   ).bind(acct.act_id, from, today).all();
   if (!rows.length) return { empty: true };
-  // Ads already spending when our history starts would look "brand new" — for those,
+  // Ads already spending when our history starts would look "brand new" - for those,
   // fall back to Meta's true creation date so their age is honest.
   const clipEdge = addDays(from, 2);
   for (const r of rows) {
@@ -4134,9 +4155,9 @@ async function putSetting(env, key, value) {
    picture, no badge.
 
    Two rules follow:
-   - A user token can only post where THAT PERSON is a member. There is no
+ - A user token can only post where THAT PERSON is a member. There is no
      bot-style invite, and if he is not in the channel it fails, correctly.
-   - `asUser` NEVER falls back to the bot. Sending as "Mobius Reports" when he
+ - `asUser` NEVER falls back to the bot. Sending as "Mobius Reports" when he
      asked for it to come from him is the wrong sender on a client message, and
      he would never know it happened. It fails loudly instead. */
 async function slackPost(env, channel, text, blocks, opts = {}) {
@@ -4156,9 +4177,9 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
     // possible nor wanted, so the identity fields are bot-only.
     const j = await send(base);
     if (!j.ok) {
-      const hint = j.error === 'not_in_channel' ? ' — you are not a member of that channel. Join it in Slack and send again.'
-        : (j.error === 'invalid_auth' || j.error === 'token_revoked') ? ' — the Slack user token is no longer valid and needs regenerating.'
-        : j.error === 'missing_scope' ? ' — the Slack user token is missing the chat:write scope.'
+      const hint = j.error === 'not_in_channel' ? ' - you are not a member of that channel. Join it in Slack and send again.'
+        : (j.error === 'invalid_auth' || j.error === 'token_revoked') ? ' - the Slack user token is no longer valid and needs regenerating.'
+        : j.error === 'missing_scope' ? ' - the Slack user token is missing the chat:write scope.'
         : '';
       throw new Error(`Slack: ${j.error || 'unknown error'}${hint}`);
     }
@@ -4292,7 +4313,7 @@ function briefCard(acct, date, row, banner) {
 
   /* ONE MESSAGE, NOT A STACK OF PANELS.
      The first version of this card put the header in its own block, then a
-     divider, then the brief, then a context line — five panels where there used
+     divider, then the brief, then a context line - five panels where there used
      to be one continuous message, and the divider cut the page in half right
      under the heading. Cole, 2026-09-07: "what happened to our specific
      structure, it literally went down and said here's this, here was the
@@ -4302,22 +4323,22 @@ function briefCard(acct, date, row, banner) {
      So the header, the data warning and the brief are ONE string, exactly as
      the plain-text notice used to be. Slack caps a block at 3000 characters and
      a brief runs past that perhaps once a week, so `mrkdwnSections` splits at a
-     paragraph break when it must — but nothing else is ever added between. The
+     paragraph break when it must - but nothing else is ever added between. The
      buttons are the only thing that is genuinely a separate element. */
   const head = status === 'sent'
-    ? `:white_check_mark: *Sent to the client — ${acct.name}, ${prettyDate(date)}*`
+    ? `:white_check_mark: *Sent to the client - ${acct.name}, ${prettyDate(date)}*`
       + (row?.channel ? `  ·  _posted to <#${row.channel}>${row.posted_at ? ` at ${shortTime(row.posted_at)} Central` : ''}_` : '')
     : status === 'skipped'
-      ? `:heavy_minus_sign: *Not sending — ${acct.name}, ${prettyDate(date)}*  ·  _marked handled; the client was not messaged_`
-      : `:memo: *Draft — ${acct.name}, ${prettyDate(date)}*  ·  _not sent to the client yet_`;
+      ? `:heavy_minus_sign: *Not sending - ${acct.name}, ${prettyDate(date)}*  ·  _marked handled; the client was not messaged_`
+      : `:memo: *Draft - ${acct.name}, ${prettyDate(date)}*  ·  _not sent to the client yet_`;
 
   /* The data warning goes ABOVE the brief and never inside it. The text is what
      the client receives; this notice is ours. Without it the numbers look
-     ordinary — that is exactly how five brands under-reported spend by 70% for
+     ordinary - that is exactly how five brands under-reported spend by 70% for
      three days in September 2026 with nobody noticing. */
   const fix = bad ? health.flagged?.[0]?.issues?.find(i => i.severity === 'broken')?.fix : null;
   const warn = bad
-    ? `:rotating_light: *Do not send — the numbers are wrong.* ${health.summary}`
+    ? `:rotating_light: *Do not send - the numbers are wrong.* ${health.summary}`
       + (fix ? `\n_${fix}_` : '')
       + `\nSpend below has been rebuilt from the platforms' own reporting where possible.`
     : '';
@@ -4353,9 +4374,9 @@ function briefCard(acct, date, row, banner) {
   }
   blocks.push({ type: 'actions', elements: els });
 
-  const fallback = status === 'sent' ? `Sent to the client — ${acct.name}, ${prettyDate(date)}`
-    : status === 'skipped' ? `Not sending — ${acct.name}, ${prettyDate(date)}`
-      : `Draft — ${acct.name}, ${prettyDate(date)} (not sent to the client yet)`;
+  const fallback = status === 'sent' ? `Sent to the client - ${acct.name}, ${prettyDate(date)}`
+    : status === 'skipped' ? `Not sending - ${acct.name}, ${prettyDate(date)}`
+      : `Draft - ${acct.name}, ${prettyDate(date)} (not sent to the client yet)`;
   return { text: fallback, blocks };
 }
 
@@ -4370,8 +4391,8 @@ function reportCard(acct, row, banner) {
   const blocks = [];
 
   const head = row.status === 'sent'
-    ? `:white_check_mark: *${label} report sent to the client \u2014 ${acct.name}* (${range})`
-    : `:clipboard: *${label} report drafted \u2014 ${acct.name}* (${range})  \u00b7  _nothing sent yet_`;
+    ? `:white_check_mark: *${label} report sent to the client - ${acct.name}* (${range})`
+    : `:clipboard: *${label} report drafted - ${acct.name}* (${range})  \u00b7  _nothing sent yet_`;
   blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
   if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
   if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: reportHeadline(data) } });
@@ -4392,11 +4413,11 @@ function reportCard(acct, row, banner) {
      reporting template". He is right, and this is a straight revert to the
      compact notice - headline, link, done - with the buttons kept, which were
      the actual point of the change. */
-  const notes = ['Open it in Locus to read the full report. The client receives this headline and a link to their archive \u2014 never the summary text.'];
+  const notes = ['Open it in Locus to read the full report. The client receives this headline and a link to their archive - never the summary text.'];
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
   if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: \u201c${String(row.steer).slice(0, 160)}\u201d`);
   if (data?.missing_days) notes.push(`${data.missing_days} day(s) in this period had no Triple Whale data.`);
-  if (!row.summary) notes.push(':warning: No summary was written \u2014 rewrite it before sending.');
+  if (!row.summary) notes.push(':warning: No summary was written - rewrite it before sending.');
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  \u00b7  ') }] });
 
   const els = [];
@@ -4411,7 +4432,7 @@ function reportCard(acct, row, banner) {
   els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
   blocks.push({ type: 'actions', elements: els });
 
-  return { text: `${label} report ${row.status === 'sent' ? 'sent' : 'drafted'} \u2014 ${acct.name} (${range})`, blocks };
+  return { text: `${label} report ${row.status === 'sent' ? 'sent' : 'drafted'} - ${acct.name} (${range})`, blocks };
 }
 
 /* ---- Keep the card in step with the row, whichever surface moved it ---- */
@@ -4443,7 +4464,13 @@ async function findDraftMessage(env, acct, date) {
   if (!ch) return null;
   const r = await slackApi(env, 'conversations.history', { channel: ch, limit: 100 });
   if (!r.ok) return { error: r.error || 'could not read the channel' };
-  const needle = `*Draft \u2014 ${acct.name}, ${prettyDate(date)}*`;
+  /* THE ONE EM DASH LEFT IN THE CODEBASE, and it has to stay. This needle is
+     matched against the text of Slack messages ALREADY POSTED, which were
+     written with an em dash. Sweeping it to a hyphen would leave the function
+     silently matching nothing - it would not error, it would just stop finding
+     the old notices it exists to adopt. Every dash a human will READ is gone;
+     this one is a lookup key for history, not copy. */
+  const needle = `*Draft — ${acct.name}, ${prettyDate(date)}*`;
   const hit = (r.messages || []).find(m => (m.text || '').includes(needle));
   return hit ? { ts: hit.ts, channel: ch } : null;
 }
@@ -4453,7 +4480,7 @@ async function findDraftMessage(env, acct, date) {
 const EDIT_TEXT_CAP = 2900;   // Slack's plain_text_input tops out at 3000
 
 /* A BRIEF IS ROUTINELY LONGER THAN ONE SLACK TEXT BOX, so Edit used to refuse
-   and send you to Locus — which is the tab-switch this whole feature exists to
+   and send you to Locus - which is the tab-switch this whole feature exists to
    remove. Bonk's 6 September draft is 3,167 characters against a 3,000 limit.
    The text is split across as many boxes as it needs, at paragraph breaks, and
    rejoined on save. `joins` records the exact separator between each pair so
@@ -4495,8 +4522,8 @@ function editModal({ callback_id, meta, title, label, hint, value, submit = 'Sav
     close: { type: 'plain_text', text: 'Cancel' },
     blocks: parts.map((chunk, i) => ({
       type: 'input', block_id: `body${i}`,
-      label: { type: 'plain_text', text: many ? `${label} — ${i + 1}/${parts.length}` : label },
-      ...(i === 0 && many ? { hint: { type: 'plain_text', text: 'Too long for one box — split here, joined back exactly on save.' } } : {}),
+      label: { type: 'plain_text', text: many ? `${label} - ${i + 1}/${parts.length}` : label },
+      ...(i === 0 && many ? { hint: { type: 'plain_text', text: 'Too long for one box - split here, joined back exactly on save.' } } : {}),
       ...(i > 0 ? { hint: { type: 'plain_text', text: 'Carries on from above.' } } : {}),
       element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 3000,
         initial_value: chunk, focus_on_load: i === 0 },
@@ -4521,7 +4548,7 @@ function rewriteModal({ callback_id, meta, title, what, current }) {
         `Claude writes ${what} again from the numbers and the Change Log. *Any wording edited on this draft is replaced.* It takes about 20–30 seconds; the message in the channel updates itself when it is done.` } },
       { type: 'input', block_id: 'steer', optional: true,
         label: { type: 'plain_text', text: 'Anything you want changed?' },
-        hint: { type: 'plain_text', text: 'Optional — leave it empty for a straight rewrite. It can change emphasis, order, length or tone, but it cannot invent a number.' },
+        hint: { type: 'plain_text', text: 'Optional - leave it empty for a straight rewrite. It can change emphasis, order, length or tone, but it cannot invent a number.' },
         element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 1200,
           initial_value: current ? String(current).slice(0, 1200) : undefined,
           placeholder: { type: 'plain_text', text: 'e.g. lead with the Google spend, and drop the hedging on Meta' } } },
@@ -4534,7 +4561,7 @@ const modalValue = (view, block) => view?.state?.values?.[block]?.v?.value ?? ''
 /* ---------------- The endpoint Slack calls ---------------- */
 
 /* Slack signs every interaction: HMAC of "v0:<timestamp>:<raw body>". Verifying
-   it is what makes this endpoint safe to leave outside the admin gate — without
+   it is what makes this endpoint safe to leave outside the admin gate - without
    it, anyone who learned the URL could send a client a brief. Fails closed when
    no signing secret is set. Same shape as the Ledger worker's. */
 async function verifySlackSig(env, ts, rawBody, sig) {
@@ -4552,8 +4579,8 @@ async function verifySlackSig(env, ts, rawBody, sig) {
 
 const ACK = () => new Response('', { status: 200 });
 
-/* SLACK GIVES YOU THREE SECONDS. Everything slow — a send, a 30-second Claude
-   rewrite — is acknowledged first and done in waitUntil, with the card redrawn
+/* SLACK GIVES YOU THREE SECONDS. Everything slow - a send, a 30-second Claude
+   rewrite - is acknowledged first and done in waitUntil, with the card redrawn
    when it lands. The two things that must happen inside the three seconds are
    the modal opens, because a trigger_id expires. */
 async function handleSlackInteract(request, env, ctx) {
@@ -4607,7 +4634,7 @@ async function slackBlockAction(env, ctx, p) {
       : await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, meta.p, meta.s).first();
     const body = isBrief ? row?.text : row?.summary;
     if (!row || row.status === 'sent') {
-      await slackWhisper(env, chan, user, 'That one has already been sent to the client, so its wording is frozen — it is the record of what they received.');
+      await slackWhisper(env, chan, user, 'That one has already been sent to the client, so its wording is frozen - it is the record of what they received.');
       return ACK();
     }
     await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: editModal({
@@ -4626,7 +4653,7 @@ async function slackBlockAction(env, ctx, p) {
       ? await env.DB.prepare(`SELECT status, steer FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, meta.d).first()
       : await env.DB.prepare(`SELECT status, steer FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, meta.p, meta.s).first();
     if (row?.status === 'sent') {
-      await slackWhisper(env, chan, user, 'That was already sent to the client, so it cannot be rewritten — say so in the channel instead.');
+      await slackWhisper(env, chan, user, 'That was already sent to the client, so it cannot be rewritten - say so in the channel instead.');
       return ACK();
     }
     await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: rewriteModal({
@@ -4665,10 +4692,10 @@ async function slackBlockAction(env, ctx, p) {
     ctx.waitUntil((async () => {
       const prior = await env.DB.prepare(`SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`)
         .bind(acct.act_id, meta.d).first().catch(() => null);
-      if (prior?.status === 'sent') { await slackWhisper(env, chan, user, 'That brief already went to the client — it cannot be un-sent.'); return; }
+      if (prior?.status === 'sent') { await slackWhisper(env, chan, user, 'That brief already went to the client - it cannot be un-sent.'); return; }
       const upd = await env.DB.prepare(`UPDATE briefs SET status = 'skipped' WHERE act_id = ?1 AND date = ?2 AND status <> 'sent'`)
         .bind(acct.act_id, meta.d).run().catch(() => null);
-      if (!upd?.meta?.changes) await upsertBrief(env, acct.act_id, meta.d, 'skipped', null, 'Skipped — deliberately not sent to the client.', undefined);
+      if (!upd?.meta?.changes) await upsertBrief(env, acct.act_id, meta.d, 'skipped', null, 'Skipped - deliberately not sent to the client.', undefined);
       await slackSyncBrief(env, acct, meta.d);
     })());
     return ACK();
@@ -4728,7 +4755,7 @@ async function slackViewSubmit(env, ctx, p) {
       if (r.error) { await slackSyncBrief(env, acct, meta.d, `:warning: *Could not rewrite it.* ${r.error}`); return; }
       await upsertBrief(env, acct.act_id, meta.d, 'draft', null, r.text, r.data, { health: r.health ?? null, steer });
       await slackSyncBrief(env, acct, meta.d,
-        r.narrative_error ? `:warning: _Numbers only — Claude failed: ${r.narrative_error}_` : null);
+        r.narrative_error ? `:warning: _Numbers only - Claude failed: ${r.narrative_error}_` : null);
     })());
     return ACK();
   }
@@ -4757,7 +4784,7 @@ async function slackViewSubmit(env, ctx, p) {
 /* THE MORNING'S DRAFTS SHOULD NOT HAVE TO WAIT FOR TOMORROW.
    When this deploys, every draft already in a channel is the old plain-text
    notice. This runs once on the next hourly tick and rewrites each one in
-   place — same text, same figures, buttons added. It renders from the stored
+   place - same text, same figures, buttons added. It renders from the stored
    row, so Claude is never called and not a word changes; the only edit is the
    message in Slack. Guarded by a settings key, capped at the last three days,
    and it never touches a brief already marked sent. */
@@ -4804,7 +4831,7 @@ async function ensureSlackColumns(env) {
 
 
 /* ------------------------------------------------------------------ */
-/*  Delivery alerts — the only scheduled Slack alert left.               */
+/*  Delivery alerts - the only scheduled Slack alert left.               */
 /*                                                                      */
 /*  An ad account can stop spending silently: a declined card, a         */
 /*  campaign paused by mistake, ads rejected on policy. Nothing else in  */
@@ -4812,12 +4839,12 @@ async function ensureSlackColumns(env) {
 /*  happened.                                                            */
 /*                                                                      */
 /*  Two checks per account per day, both against the account's OWN       */
-/*  recent normal — never an absolute number:                            */
+/*  recent normal - never an absolute number:                            */
 /*    · mid-afternoon, on today so far (catches it while it can be fixed)*/
 /*    · next morning, on the completed day (catches what broke overnight)*/
 /*                                                                      */
 /*  This replaced a 03:30 UTC nightly pass, which ran at 10:30pm Central */
-/*  and — because the local day was not over at that hour — reported on  */
+/*  and - because the local day was not over at that hour - reported on  */
 /*  the day BEFORE yesterday. A break on Monday surfaced late on Tuesday.*/
 /* ------------------------------------------------------------------ */
 
@@ -4849,19 +4876,19 @@ async function checkCompletedDay(env, a, day) {
   /* NO ROW IS NOT ZERO SPEND. Meta has not told us about this day yet, or the
      sync did not get to this brand. Either way there is nothing to judge, and
      guessing $0 is how a brand spending $892 got a billing alarm. Say what is
-     actually wrong instead — a stale sync IS a fault, just a different one. */
+     actually wrong instead - a stale sync IS a fault, just a different one. */
   if (!dayRow) {
     const f = await insightsFreshness(env, a, day);
-    return `🕓 *${a.name}* — no Meta spend data for ${day} yet, so delivery could not be checked.` +
+    return `🕓 *${a.name}* - no Meta spend data for ${day} yet, so delivery could not be checked.` +
       (f.latest ? ` The last day on file is ${f.latest}.` : ' There is no spend history at all for this brand.') +
-      ` _This is a sync problem, not necessarily a spend problem — check the account in Ads Manager if it persists past the next sync._`;
+      ` _This is a sync problem, not necessarily a spend problem - check the account in Ads Manager if it persists past the next sync._`;
   }
 
   const spend = dayRow.spend ?? 0;
   if (spend > med * DELIVERY_FLOOR) return null;
   return spend === 0
     ? `🚨 *${a.name}* spent *nothing* yesterday (a normal day is about ${money(med, a.currency)}). Check billing, campaign status and policy.`
-    : `⚠️ *${a.name}* spent ${money(spend, a.currency)} yesterday — ${Math.round((1 - spend / med) * 100)}% below its normal ${money(med, a.currency)}. Something may be paused or throttled.`;
+    : `⚠️ *${a.name}* spent ${money(spend, a.currency)} yesterday - ${Math.round((1 - spend / med) * 100)}% below its normal ${money(med, a.currency)}. Something may be paused or throttled.`;
 }
 
 /** Today so far against the shape of a normal day by this hour. One Meta call. */
@@ -4872,7 +4899,7 @@ async function checkToday(env, a) {
   if (p.spent > p.l7_by_now * DELIVERY_FLOOR) return null;
   return p.spent === 0
     ? `🚨 *${a.name}* has spent *nothing* so far today (normally about ${money(p.l7_by_now, a.currency)} by this hour). Check billing, campaign status and policy.`
-    : `⚠️ *${a.name}* has spent ${money(p.spent, a.currency)} so far today against ${money(p.l7_by_now, a.currency)} on a normal day by now — ${Math.round((1 - p.spent / p.l7_by_now) * 100)}% down. Worth a look in Ads Manager while the day is still live.`;
+    : `⚠️ *${a.name}* has spent ${money(p.spent, a.currency)} so far today against ${money(p.l7_by_now, a.currency)} on a normal day by now - ${Math.round((1 - p.spent / p.l7_by_now) * 100)}% down. Worth a look in Ads Manager while the day is still live.`;
 }
 
 /** Runs on every hourly tick; each account gates itself on its OWN local clock,
@@ -4902,7 +4929,7 @@ async function deliveryPass(env) {
       byChannel.get(ch).push(line);
     };
 
-    // Same day, mid-afternoon — the one that can still save the day's spend.
+    // Same day, mid-afternoon - the one that can still save the day's spend.
     if (hour >= DELIVERY_INTRADAY_HOUR && st.intra !== today) {
       st.intra = today; touched = true;
       const line = await checkToday(env, a).catch(() => null);
@@ -5058,18 +5085,18 @@ async function recordRun(env, key, payload) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Keeping the data fresh — spread across the hourly ticks            */
+/*  Keeping the data fresh - spread across the hourly ticks            */
 /* ------------------------------------------------------------------ */
 /* This used to be the whole of nightly(): one 03:30 invocation looping every
  * brand. On the free plan that got through ONE brand before Cloudflare killed
- * it, so five of six sat a day stale every single day, and nothing said so —
+ * it, so five of six sat a day stale every single day, and nothing said so - 
  * the delivery check then read the missing day as "spent nothing" and shouted
  * about a brand that had spent $892.
  *
  * Now: STALEST FIRST, as many as this tick can afford, every hour. Six brands
  * over 24 ticks means each one is refreshed several times a day and no tick has
  * to be big. A brand that errors sorts to the front next hour automatically,
- * because its last_sync_insights did not move — the retry is the ordering, not
+ * because its last_sync_insights did not move - the retry is the ordering, not
  * a separate mechanism. */
 async function syncPass(env) {
   if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) {
@@ -5084,12 +5111,12 @@ async function syncPass(env) {
 
   // Meta said stop. Asking again on the next tick is how a short limit becomes
   // a long one, and the D1-backed data is only an hour stale meanwhile.
-  if (await metaBackedOff(env)) return { skipped: 'Meta rate limit — backing off until it clears' };
+  if (await metaBackedOff(env)) return { skipped: 'Meta rate limit - backing off until it clears' };
   const done = [];
   for (const a of accounts) {
     if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) { done.push({ name: a.name, deferred: 'out of budget' }); break; }
     const r = await measured('sync', async () => {
-      // Cheap half only — see syncAccount. Ad-level rides the nightly.
+      // Cheap half only - see syncAccount. Ad-level rides the nightly.
       const x = await syncAccount(env, a, undefined, { includeAds: false });
       // Triple Whale rides along with the same brand rather than in its own loop.
       // Doing all Meta then all TW meant TW was always the half that got cut.
@@ -5102,7 +5129,7 @@ async function syncPass(env) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Nightly — only the work that genuinely wants a quiet hour          */
+/*  Nightly - only the work that genuinely wants a quiet hour          */
 /* ------------------------------------------------------------------ */
 async function nightly(env) {
   const out = {};
@@ -5116,7 +5143,7 @@ async function nightly(env) {
      the syncs meant it spent most of the night's allowance before one brand had
      been touched, which is exactly how five of six ended up stale. It goes last
      now, on whatever is left, and simply waits for tomorrow if there is nothing
-     left — a new ad account showing up a day later costs nothing, a brand going
+     left - a new ad account showing up a day later costs nothing, a brand going
      a day stale costs a false alarm in a client channel. */
   const accounts = await listAccounts(env, true);
 
@@ -5156,10 +5183,10 @@ async function nightly(env) {
 
   /* The ad-level walk, once a day, here and nowhere else. Rate-limited by Meta
      rather than by us, so it is also the first thing to yield when Meta is
-     unhappy — `metaBackedOff` short-circuits the whole pass. */
+     unhappy - `metaBackedOff` short-circuits the whole pass. */
   const ads = [];
   for (const a of accounts) {
-    if (await metaBackedOff(env)) { ads.push({ name: a.name, deferred: 'Meta rate limit — backing off' }); break; }
+    if (await metaBackedOff(env)) { ads.push({ name: a.name, deferred: 'Meta rate limit - backing off' }); break; }
     if (!subCanAfford(costOf('ads', COST_SYNC_BRAND))) { ads.push({ name: a.name, deferred: 'out of budget' }); break; }
     try { ads.push({ name: a.name, ...(await measured('ads', () => syncAdDaily(env, a, { maxSlices: 8 }))) }); }
     catch (e) { ads.push({ name: a.name, error: e.message }); await noteMetaError(env, e); }
@@ -5170,7 +5197,7 @@ async function nightly(env) {
   out.sync = await syncPass(env).catch(e => ({ error: e.message }));
   out.discover = subCanAfford(costOf('sync', COST_SYNC_BRAND))
     ? await discoverAccounts(env).catch(e => ({ error: e.message }))
-    : { deferred: 'out of budget — runs tomorrow' };
+    : { deferred: 'out of budget - runs tomorrow' };
 
   await recordRun(env, 'lastRun', out);
   await alertScheduleTrouble(env, 'nightly sync', out);
@@ -5199,7 +5226,7 @@ export default {
         // ORDER MATTERS, AND IT IS NOT THE ORDER OF IMPORTANCE.
         // Everything below shares ONE subrequest budget. Before the budget was
         // counted, this ran briefs then reports, and the briefs ate the whole
-        // allowance — so on the first Monday reports existed at all, all six were
+        // allowance - so on the first Monday reports existed at all, all six were
         // generated with no narrative and posted to nobody, while recording
         // ok:true. Cheapest and most time-critical first, and every job below
         // stops on its own when the budget runs low rather than being killed.
@@ -5218,7 +5245,7 @@ export default {
           // that both stop politely, but a weekly report is the biggest single
           // unit of work here and it should not be the thing that gets deferred
           // six times because six briefs went first. Monday drafts last Mon–Sun,
-          // the 1st drafts last month. Internal drafts only — the Send-to-client
+          // the 1st drafts last month. Internal drafts only - the Send-to-client
           // button is still the only path to a client channel.
           if (hour >= bh + REPORT_HOUR_OFFSET) {
             ran.reports = await reportsPass(env).catch(e => ({ error: e.message }));
@@ -5240,8 +5267,8 @@ export default {
   },
 
   async fetch(request, env, ctx) {
-    /* Metered here too. Nothing in the request path GATES on the budget — a
-       dashboard call must answer or fail honestly, never half-answer — but the
+    /* Metered here too. Nothing in the request path GATES on the budget - a
+       dashboard call must answer or fail honestly, never half-answer - but the
        count is what makes an endpoint's real cost visible in /api/health
        instead of being discovered when a page starts failing for one client
        and not another. */
@@ -5259,8 +5286,8 @@ export default {
     }
 
     /* A playable mp4 for one ad. Two ways in, and no third:
-       - a signed-in team member (session/admin), for the Reports tab;
-       - `?report=<archive token>`, for the client's link, which only ever
+ - a signed-in team member (session/admin), for the Reports tab;
+ - `?report=<archive token>`, for the client's link, which only ever
          resolves an ad that IS in one of that client's sent reports.
        Returns the URL rather than streaming it, so the browser talks straight
        to the CDN and seeking/range requests work properly. */
@@ -5289,13 +5316,13 @@ export default {
         return json({ error: 'unauthorized' }, 401);
       }
       /* The old message here was one flat "no playable video for this ad" for
-         five different causes — no video, no page, no token, a stale token, a
-         refusal from Meta — which is why a card that plainly WAS a video read
+         five different causes - no video, no page, no token, a stale token, a
+         refusal from Meta - which is why a card that plainly WAS a video read
          as though the ad had none. `adVideoSource` now says which. */
       /* A PARTNERSHIP AD WILL NEVER YIELD AN MP4, SO STOP PAYING TO FIND OUT.
-         Resolving one costs four or five sequential Meta round trips — the
+         Resolving one costs four or five sequential Meta round trips - the
          creative, the page-token map, the video, a token refresh, then the
-         preview — and for a creator's page every one of them is doomed by
+         preview - and for a creator's page every one of them is doomed by
          construction. Cole's first click took seconds. The verdict is cached
          per ad and re-checked weekly; only the partnership case short-circuits,
          because an mp4 URL is signed and short-lived and must stay live. */
@@ -5311,7 +5338,7 @@ export default {
       const { src, reason, partnership, page_id } = await adVideoSource(env, adId, hint);
       if (!src) {
         /* AN AD WE CANNOT FETCH IS NOT AN AD YOU CANNOT SEE.
-           Meta's `/previews` iframe renders the real creative — video included —
+           Meta's `/previews` iframe renders the real creative - video included - 
            with NO login and NO page token, which is exactly the case a
            partnership ad falls into. It is what the client-facing reports have
            always used, so this is proven machinery rather than a new idea.
@@ -5349,8 +5376,8 @@ export default {
     }
 
     /* GIVE AN EXISTING DRAFT ITS BUTTONS, WITHOUT REWRITING IT.
-       Renders `briefCard` from the stored row — no Claude, no re-pull, not
-       one word or figure changes — and rewrites the message that is already
+       Renders `briefCard` from the stored row - no Claude, no re-pull, not
+       one word or figure changes - and rewrites the message that is already
        in the channel. `mode:'repost'` deletes and posts fresh instead, for a
        message chat.update refuses (Slack will not convert some old posts).
        `act:'all'` walks every active brand for that date, which is how a
@@ -5359,7 +5386,7 @@ export default {
       /* ADMIN, OR A ONE-TIME KEY. This is the same trick the Triple Whale field
          probe used: a random value dropped into the settings table by hand,
          spent once, then deleted. It exists so a job that has to run RIGHT NOW
-         can run without anyone reading out — or rotating — a live admin token.
+         can run without anyone reading out - or rotating - a live admin token.
          The key is checked before the body is even parsed, and it can only ever
          reach this one endpoint. */
       const key = url.searchParams.get('key');
@@ -5372,14 +5399,14 @@ export default {
          briefs. Same rule: rendered from the stored row, so nothing is written
          again and no number moves - only the message in Slack. */
       /* START FRESH FROM ONE DAY. Every unsent day keeps being carried into
-         the next brief — that is the catch-up working as designed, and it is
+         the next brief - that is the catch-up working as designed, and it is
          why 6 September opened "covering 9/4, 9/5 and 9/6" at 3,167 characters.
          Cole, 2026-09-07: "ignore the other ones I didn't send over the past few
          days, mark them not sent, and only do yesterday from now on."
 
          So: mark every older DRAFT as skipped (which is what tells the catch-up
          the day was dealt with), rebuild the target day so it covers that day
-         alone, and repost the card. Skipped is reversible — pressing Write it
+         alone, and repost the card. Skipped is reversible - pressing Write it
          again on any of those dates drafts it afresh. Nothing sent is touched. */
       if (b.kind === 'reset') {
         const accts = !b.act || b.act === 'all'
@@ -5521,7 +5548,7 @@ export default {
       return r.error ? json({ error: r.error }, r.status) : json(r);
     }
 
-    /* Read-only client share links — token in the URL is the auth. */
+    /* Read-only client share links - token in the URL is the auth. */
     let sm;
     if ((sm = path.match(/^\/api\/share\/([A-Za-z0-9-]{16,})$/)) && request.method === 'GET') {
       try {
@@ -5729,8 +5756,8 @@ export default {
         out.verdict = out.errors.length && !out.direct ? 'The Meta token is not working at all.'
           : need.length ? `The token is missing the ${need.join(' and ')} permission${need.length > 1 ? 's' : ''}, so it can only see ad accounts assigned to it one by one.`
           : !out.businesses.length ? 'No Business Manager could be reached, so only individually-assigned ad accounts are visible.'
-          : owned > out.direct ? `Reading your portfolio directly — ${owned} ad accounts against ${out.direct} assigned individually, so new ones appear on their own.`
-          : owned === 0 ? 'The portfolios reachable here are your CLIENTS’ own — their ad accounts are shared with you rather than owned by you, and Meta will not let a system user list another business’s assets. Set your own Business Portfolio ID below and Locus can read everything shared with you, including future clients.'
+          : owned > out.direct ? `Reading your portfolio directly - ${owned} ad accounts against ${out.direct} assigned individually, so new ones appear on their own.`
+          : owned === 0 ? 'The portfolios reachable here are your CLIENTS’ own - their ad accounts are shared with you rather than owned by you, and Meta will not let a system user list another business’s assets. Set your own Business Portfolio ID below and Locus can read everything shared with you, including future clients.'
           : `Reading your portfolio (${out.businesses.map(b => b.name).join(', ')}). Every ad account in it, now and in future, is picked up automatically.`;
         out.needsBusinessId = owned === 0;
         return json(out);
@@ -5806,8 +5833,8 @@ export default {
         const from = ymd(url.searchParams.get('from')) || addDays(to, -(days - 1));
         const t0 = Date.now();
         /* `mult` and `min_spend` come from the threshold control in the
-           Creative toolbar. mult=0 is a real value — "rank every ad that
-           spent" — so it is parsed with a null check, never a truthiness one. */
+           Creative toolbar. mult=0 is a real value - "rank every ad that
+           spent" - so it is parsed with a null check, never a truthiness one. */
         const numParam = k => {
           const v = url.searchParams.get(k);
           return v == null || v === '' || !isFinite(+v) ? null : Math.max(0, +v);
@@ -5939,10 +5966,10 @@ export default {
         return json({ channels: out });
       }
       if (path === '/api/slack-test' && request.method === 'POST') {
-        if (!env.SLACK_BOT_TOKEN) return json({ error: 'SLACK_BOT_TOKEN secret is not set — see worker README' }, 400);
+        if (!env.SLACK_BOT_TOKEN) return json({ error: 'SLACK_BOT_TOKEN secret is not set - see worker README' }, 400);
         const channel = await getSetting(env, 'slackChannel');
         if (!channel) return json({ error: 'Set a Slack channel ID first' }, 400);
-        await slackPost(env, channel, 'Account Health is wired up ✓ — nightly budget-pace alerts will post here.');
+        await slackPost(env, channel, 'Account Health is wired up ✓ - nightly budget-pace alerts will post here.');
         return json({ ok: true });
       }
 
@@ -6049,11 +6076,11 @@ export default {
         ).bind(acct.act_id, date).first().catch(() => null);
         // A sent brief is a record of what the client received. It does not get
         // quietly rewritten, however wrong the numbers turned out to be.
-        if (prior?.status === 'sent') return json({ error: 'that day was already sent to the client, so it cannot be rebuilt — say so in the channel instead' }, 400);
+        if (prior?.status === 'sent') return json({ error: 'that day was already sent to the client, so it cannot be rebuilt - say so in the channel instead' }, 400);
         const steer = typeof b.steer === 'string' && b.steer.trim() ? b.steer.trim() : null;
         const r = await makeBrief(env, acct, date, { steer });
         if (r.error) return json({ error: r.error }, 400);
-        // Silent: no NEW Slack post. This is a repair, not a new morning notice —
+        // Silent: no NEW Slack post. This is a repair, not a new morning notice - 
         // but the card already in the channel is rewritten, or it would keep
         // showing wording that no longer exists.
         await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer });
@@ -6098,7 +6125,7 @@ export default {
         const r = await sendBrief(env, acct, date, { useStored: b.regenerate !== true, ignoreHealth: b.ignore_health === true });
         return r.ok ? json(r) : json({ error: r.error || r.skipped, blocked: r.blocked === true }, 400);
       }
-      /* Save an edited draft. Only a draft is editable — once it is sent, the
+      /* Save an edited draft. Only a draft is editable - once it is sent, the
          client has that text and it must stay a record of what they received. */
       if (path === '/api/brief-text' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
@@ -6119,19 +6146,19 @@ export default {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
-        // A sent brief is a record of what the client received and is frozen —
+        // A sent brief is a record of what the client received and is frozen - 
         // the same rule the edit endpoint follows.
         const prior = await env.DB.prepare(
           `SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`,
         ).bind(acct.act_id, date).first().catch(() => null);
-        if (prior?.status === 'sent') return json({ error: 'this brief was already sent to the client — it cannot be un-sent' }, 400);
+        if (prior?.status === 'sent') return json({ error: 'this brief was already sent to the client - it cannot be un-sent' }, 400);
         const r = await env.DB.prepare(
           `UPDATE briefs SET status = 'skipped' WHERE act_id = ?1 AND date = ?2 AND status <> 'sent'`,
         ).bind(acct.act_id, date).run();
         if (!r.meta?.changes) {
-          // No draft for that day yet — record the skip anyway, so a day that
+          // No draft for that day yet - record the skip anyway, so a day that
           // was never drafted still stops the catch-up carrying it forward.
-          await upsertBrief(env, acct.act_id, date, 'skipped', null, 'Skipped — deliberately not sent to the client.', null);
+          await upsertBrief(env, acct.act_id, date, 'skipped', null, 'Skipped - deliberately not sent to the client.', null);
         }
         await slackSyncBrief(env, acct, date).catch(() => {});
         return json({ ok: true, date, skipped: true });
