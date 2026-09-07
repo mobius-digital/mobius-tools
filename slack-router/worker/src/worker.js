@@ -68,7 +68,7 @@ function ownerOf(payload) {
     if (/^led_/.test(x.action_id || '')) return true;
     const v = safeJson(x.selected_option?.value || x.value, null);
     return v && ((v.id !== undefined && v.tax !== undefined)
-                 || v.skip !== undefined || v.undo !== undefined);
+                 || v.skip !== undefined || v.undo !== undefined || v.file !== undefined);
   });
   if (ledger) return 'ledger';
   if (acts.some(x => LOCUS_ID.test(x.action_id || ''))) return 'locus';

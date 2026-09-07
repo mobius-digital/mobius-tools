@@ -485,7 +485,34 @@ async function processSlackReceipts(env) {
             .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)), ext.amount, rDate).all();
           target = results.find(t => ext.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0])) || results[0] || null;
         }
-        // 2) otherwise a readable receipt files itself as a new expense
+        /* 2) An EMAILED receipt that matches nothing is not filed. A photo is
+         * something Cole chose to take, so it is his by definition — but email
+         * arrives on its own, and plenty of it is a copy of somebody else's
+         * charge: Shopify billing a client's store, Triple Whale on a client's
+         * card. Inventing an expense from those would quietly inflate his costs.
+         * Now that the bank feed carries every real charge, "nothing matched"
+         * is a strong signal, so it asks instead of guessing. */
+        if (!target && isEmail && ext?.vendor && ext?.amount) {
+          const pendKey = `pend:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+          await env.RECEIPTS.put(pendKey, buf, { expirationTtl: 30 * 24 * 3600 });
+          await putSetting(env, pendKey, JSON.stringify({
+            vendor: String(ext.vendor).slice(0, 120), amount: round2(Number(ext.amount)),
+            date: rDate, month: rMonth, name: fname.slice(0, 120), type: mimetype,
+            note: ext.note ? String(ext.note).slice(0, 300) : null,
+            tax_cat: ext.tax_category || null,
+          }));
+          await reply(
+            `🔍 *${ext.vendor}* $${Number(ext.amount).toFixed(2)} — no matching charge on Novo or Amex, so nothing was filed.\n` +
+            `That usually means it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.`,
+            [{ type: 'section', text: { type: 'mrkdwn', text:
+                `🔍 *${ext.vendor}* $${Number(ext.amount).toFixed(2)} — no matching charge on Novo or Amex, so nothing was filed.\n` +
+                `That usually means it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.` } },
+              { type: 'actions', elements: [{ type: 'button', action_id: 'led_file',
+                  style: 'primary', text: { type: 'plain_text', text: 'It is mine — file it' },
+                  value: JSON.stringify({ file: pendKey }) }] }]);
+          handled++; continue;
+        }
+        // 3) otherwise a readable receipt files itself as a new expense
         if (!target && ext?.vendor && ext?.amount) {
           const date = rDate, month = rMonth;
           if ((await monthStatus(env, month)) === 'closed') {
@@ -1095,7 +1122,7 @@ export default {
         if (/^led_/.test(x.action_id || '')) return true;
         const v = safeJson(x.selected_option?.value || x.value, null);
         return v && ((v.id !== undefined && v.tax !== undefined)
-                     || v.skip !== undefined || v.undo !== undefined);
+                     || v.skip !== undefined || v.undo !== undefined || v.file !== undefined);
       });
       const LOCUS_ID = /^(brief|report)_|^noop_open$/;
       const locus = !mine && (
@@ -1131,6 +1158,41 @@ export default {
             respond({ replace_original: false, response_type: 'in_channel',
               text: `✓ *${cur.vendor}* $${Math.abs(cur.amount).toFixed(2)} — marked "no receipt". It won't be counted or chased again.` });
           }
+          return new Response('', { status: 200 });
+        }
+        // an emailed receipt we declined to guess at — he says it is his
+        if (val?.file) {
+          const meta = safeJson(await getSetting(env, val.file), null);
+          const blob = await env.RECEIPTS.get(val.file, 'arrayBuffer');
+          if (!meta || !blob) {
+            respond({ replace_original: false, text: '⚠️ That one has expired — drop the receipt in again.' });
+            return new Response('', { status: 200 });
+          }
+          if ((await monthStatus(env, meta.month)) === 'closed') {
+            respond({ replace_original: false, text: `🔒 ${moLabel(meta.month)} is closed — reopen it in the app first.` });
+            return new Response('', { status: 200 });
+          }
+          const row = await applyRule(env, {
+            date: meta.date, month: meta.month, type: 'out', vendor: meta.vendor,
+            amount: meta.amount, bucket: null, tax_cat: null, note: meta.note, status: 'ok',
+          });
+          if (row.status === 'review' && meta.tax_cat) {
+            row.tax_cat = meta.tax_cat; row.bucket = bucketFor(meta.tax_cat); row.status = 'ok';
+            await learnDefault(env, row.vendor, row.bucket, row.tax_cat);
+          }
+          const res = await env.DB.prepare(`INSERT INTO transactions
+            (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
+            VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
+            .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
+          const key = `rcpt:${res.meta.last_row_id}:${Date.now()}`;
+          await env.RECEIPTS.put(key, blob);
+          await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
+            .bind(res.meta.last_row_id, key, meta.name, meta.type).run();
+          await env.RECEIPTS.delete(val.file).catch(() => {});
+          await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
+          respond({ replace_original: true,
+            text: `✓ Filed *${meta.vendor}* $${meta.amount.toFixed(2)} into *${moLabel(meta.month)}*` +
+                  `${row.tax_cat ? ` as *${row.tax_cat}*` : ' — it needs a category in the app'}. Receipt attached.` });
           return new Response('', { status: 200 });
         }
         // matched-receipt reply: "Not a match ↩︎" → detach, receipt discarded
