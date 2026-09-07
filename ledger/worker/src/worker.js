@@ -779,25 +779,42 @@ export default {
       if (!ok) return json({ error: 'bad signature' }, 401);
       const payload = safeJson(new URLSearchParams(raw).get('payload'), {}) || {};
       /* One Slack app ("Mobius Digital") serves every Mobius tool, and Slack
-       * allows a single interactivity URL — this worker is it. A Ledger action
-       * carries a {id, tax} value; everything else belongs to Pulse and is
-       * handed over on the service binding with its signature intact. */
+       * allows a single interactivity URL — this worker is it. THREE tools now
+       * answer behind it, so the payload has to be classified rather than
+       * split in two:
+       *   Ledger — a block action whose value carries {id, tax}
+       *   Locus  — the Daily Brief / Reports cards: every action_id and every
+       *            modal callback_id is prefixed brief_ / report_ (plus the
+       *            noop_open link buttons Slack reports anyway). Modal
+       *            submissions carry NO actions array at all, which is why
+       *            this cannot stay a block_actions-only test.
+       *   Pulse  — everything else, which is what it was before.
+       * Forwarding keeps the raw body and both signature headers, so each
+       * worker verifies the signature itself against the same app secret. */
       const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
       const mine = acts.some(x => {
         const v = safeJson(x.selected_option?.value || x.value, null);
         return v && v.id !== undefined && v.tax !== undefined;
       });
+      const LOCUS_ID = /^(brief|report)_|^noop_open$/;
+      const locus = !mine && (
+        acts.some(x => LOCUS_ID.test(x.action_id || '')) ||
+        (payload.type === 'view_submission' && LOCUS_ID.test(payload.view?.callback_id || '')));
       if (!mine) {
-        if (env.PULSE) return env.PULSE.fetch(new Request(
-          'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact', {
+        const hand = (binding, target) => binding
+          ? binding.fetch(new Request(target, {
             method: 'POST',
             headers: {
               'Content-Type': request.headers.get('content-type') || 'application/x-www-form-urlencoded',
               'x-slack-request-timestamp': request.headers.get('x-slack-request-timestamp') || '',
               'x-slack-signature': request.headers.get('x-slack-signature') || '',
             },
-            body: raw }));
-        return new Response('', { status: 200 });
+            body: raw }))
+          // No binding is not an error worth showing a human: Slack renders any
+          // non-200 as a red banner over the card. Stay quiet and drop it.
+          : new Response('', { status: 200 });
+        if (locus) return hand(env.AUTH, 'https://mobius-account-health.mobius-digital.workers.dev/slack/actions');
+        return hand(env.PULSE, 'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact');
       }
       if (payload.type === 'block_actions') {
         const a = (payload.actions || [])[0] || {};

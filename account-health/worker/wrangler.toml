@@ -49,3 +49,9 @@ SUBREQUEST_LIMIT = "10000"
 #   npx wrangler secret put SESSION_SECRET    long random string; signs Google sessions (share the SAME
 #                                             value across all tool workers so one sign-in works everywhere)
 #   npx wrangler secret put SLACK_BOT_TOKEN   (Chat 2) same Slack app as Pulse / Restock
+#   npx wrangler secret put SLACK_SIGNING_SECRET  Basic Information -> Signing Secret, for the
+#                                             app whose Interactivity Request URL points at
+#                                             https://mobius-account-health.mobius-digital.workers.dev/slack/actions
+#                                             This is the ONLY credential on that endpoint: every
+#                                             button press is verified against it, and with the
+#                                             secret unset the endpoint refuses everything.

@@ -1531,6 +1531,42 @@ function helpModal(title, html, opts = {}) {
 /** Cole's rule: in-app modals only, never browser alert()/prompt(). */
 const noteModal = (title, html) => helpModal(title, html);
 
+/* REWRITE, WITH OR WITHOUT DIRECTION.
+   Resolves to null if cancelled, or to a string (possibly empty) to go ahead.
+   Empty means a straight rewrite. Whatever is typed is passed to Claude as
+   direction that outranks the standing prompt - it can change emphasis, order,
+   length and tone, but the worker forbids it inventing a number.
+   The identical box sits behind "Rewrite with AI" on the Slack card, so neither
+   surface can do something the other cannot. */
+function steerModal({ title, what, cta = 'Rewrite it', current = '' }) {
+  return new Promise(resolve => {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal" style="max-width:560px"><h3>${esc(title)}</h3>
+      <p class="hint">Claude writes ${esc(what)} again from the numbers and the Change Log. Any wording you have edited is replaced.</p>
+      <label class="tiny" style="display:block;margin:14px 0 5px;font-weight:600">Anything you want changed? <span style="font-weight:400;opacity:.7">Optional</span></label>
+      <textarea id="stTa" rows="3" placeholder="e.g. lead with the Google spend, and drop the hedging on Meta"
+        style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px;font:inherit;font-size:13.5px;line-height:1.5"></textarea>
+      <p class="tiny" style="margin:6px 0 0;opacity:.75">Leave it empty for a straight rewrite. It can change emphasis, order, length or tone \u2014 it cannot invent a number that is not in the data.</p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0">
+        <button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">${esc(cta)}</button></div></div>`;
+    document.body.appendChild(w);
+    const ta = w.querySelector('#stTa');
+    ta.value = current || '';
+    const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
+    const k = e => {
+      if (e.key === 'Escape') done(null);
+      // Cmd/Ctrl+Enter submits, so a one-line steer never needs the mouse.
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) done(ta.value.trim());
+    };
+    document.addEventListener('keydown', k);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
+    w.querySelector('[data-m="no"]').onclick = () => done(null);
+    w.querySelector('[data-m="yes"]').onclick = () => done(ta.value.trim());
+    setTimeout(() => ta.focus(), 30);
+  });
+}
+
 function confirmModal(title, hint, cta) {
   return new Promise(resolve => {
     const w = document.createElement('div');
@@ -4054,13 +4090,14 @@ async function renderBrief(first) {
         ? 'Sent to the client. This is a record of exactly what they received, so it cannot be edited.'
         : 'The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What&rsquo;s Next? from the numbers and the Change Log (~20s). Nothing reaches the client until you send it.'}</p>
       <div class="row" style="margin-bottom:8px">
-        ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite">${bfDraft ? '↻ Rewrite from scratch' : '✦ Write the brief for ' + esc(d.date)}</button>`}
+        ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(d.date)}</button>`}
         ${bfDraft ? '<button class="btn" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn" id="bfCancel" style="display:none">Cancel</button>' : ''}
         <button class="btn primary" id="bfPost" style="display:${bfDraft ? '' : 'none'}">Send to client</button>
         <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
         ${bfSent ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
         <span class="tiny" id="bfMsg"></span>
       </div>
+      ${bfDraft?.steer ? `<p class="tiny" style="margin:-2px 0 8px;opacity:.75">Last rewrite was steered: “${esc(String(bfDraft.steer).slice(0, 240))}”</p>` : ''}
       ${bfSent
         ? slackPreview(bfSent.text, { when: 'sent ' + (bfSent.posted_at ? fmtAgo(bfSent.posted_at) : '') })
         : bfDraft
@@ -4183,12 +4220,19 @@ async function renderBrief(first) {
   if (bfCancel) bfCancel.onclick = () => { if ($('#bfEdit')) $('#bfEdit').value = bfDraft?.text || ''; bfShowEdit(false); $('#bfMsg').textContent = ''; };
   const bfWrite = $('#bfWrite');
   if (bfWrite) bfWrite.onclick = async () => {
-    if (bfDraft && !(await confirmModal('Rewrite this draft?',
-      'Claude will write it again from the numbers and the Change Log. Any wording you have edited on this draft is replaced.', 'Rewrite it'))) return;
-    bfWrite.disabled = true; $('#bfMsg').textContent = 'Claude is writing… (~20s)';
+    /* A first write needs no dialog. A REWRITE is the one that throws wording
+       away, so that is where the steer box lives — the same box as the Slack
+       card's Rewrite button. null = cancelled; '' = go ahead, no direction. */
+    let steer = '';
+    if (bfDraft) {
+      steer = await steerModal({ title: 'Rewrite this draft?', what: `the brief for ${d.date}`, current: bfDraft.steer || '' });
+      if (steer === null) return;
+    }
+    bfWrite.disabled = true;
+    $('#bfMsg').textContent = steer ? 'Claude is rewriting to your direction… (~20s)' : 'Claude is writing… (~20s)';
     try {
       // Draft it properly (stored, editable, sendable) rather than a throwaway preview.
-      const r = await api('/api/brief-draft', { method: 'POST', body: JSON.stringify({ act: S.act, date: d.date }) });
+      const r = await api('/api/brief-draft', { method: 'POST', body: JSON.stringify({ act: S.act, date: d.date, ...(steer ? { steer } : {}) }) });
       $('#bfMsg').textContent = r.narrative_error ? `numbers only — narrative failed: ${r.narrative_error}` : '';
       await inPlace(() => renderBrief());
       return;
@@ -5154,7 +5198,7 @@ async function renderReports(first) {
   const sent = rep?.status === 'sent';
   const banner = rep ? (sent
     ? `<div class="notice good">✓ <div><b>Sent to the client</b>${rep.sent_at ? ` ${fmtAgo(rep.sent_at)}` : ''}. This report is frozen — it can't be regenerated or edited, so the numbers on the client's link never shift under them. <button class="btn" id="rpLink" style="margin-left:8px">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`
-    : `<div class="notice">📝 <div><b>Internal draft — the client has not seen this.</b> Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button> <button class="btn" id="rpRegen">↻ Regenerate</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
+    : `<div class="notice">📝 <div><b>Internal draft — the client has not seen this.</b> Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button> <button class="btn" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
 
   const body = rep
     ? `${banner}${warn}<h2 style="margin-top:6px">${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'} — ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
@@ -5184,17 +5228,19 @@ async function renderReports(first) {
   });
 
   /* generate — with a confirm-and-force path when days are missing */
-  const gen = async (period, btn, start, force) => {
+  const gen = async (period, btn, start, force, steer) => {
     btn.disabled = true;
-    $('#rpGenMsg').textContent = 'Generating — pulling Triple Whale and writing the summary (~30s)…';
+    $('#rpGenMsg').textContent = steer
+      ? 'Rewriting to your direction — pulling Triple Whale and writing the summary (~30s)…'
+      : 'Generating — pulling Triple Whale and writing the summary (~30s)…';
     try {
-      const r = await api('/api/report-generate', { method: 'POST', body: JSON.stringify({ act: S.act, period, ...(start ? { start } : {}), ...(force ? { force: true } : {}) }) });
+      const r = await api('/api/report-generate', { method: 'POST', body: JSON.stringify({ act: S.act, period, ...(start ? { start } : {}), ...(force ? { force: true } : {}), ...(steer ? { steer } : {}) }) });
       RP.period = period; RP.start = r.start;
       await inPlace(() => renderReports());
     } catch (e) {
       if (/missing/i.test(e.message) && !force) {
         const ok = await confirmModal('Some days have no data', e.message.replace(/ \(or generate anyway\)$/, '') + '. Generate anyway with the days that exist?', 'Generate anyway');
-        if (ok) return gen(period, btn, start, true);
+        if (ok) return gen(period, btn, start, true, steer);
       } else {
         noteModal('Could not generate', `<p>${esc(e.message)}</p>`);
       }
@@ -5205,7 +5251,11 @@ async function renderReports(first) {
   $('#rpGenW').onclick = e => gen('weekly', e.target);
   $('#rpGenM').onclick = e => gen('monthly', e.target);
   const rg = $('#rpRegen');
-  if (rg) rg.onclick = e => gen(rep.period, e.target, rep.period_start);
+  if (rg) rg.onclick = async e => {
+    const steer = await steerModal({ title: 'Regenerate this report?', what: 'the executive summary', current: rep.steer || '' });
+    if (steer === null) return;
+    return gen(rep.period, e.target, rep.period_start, false, steer);
+  };
 
   const sendBtn = $('#rpSend');
   if (sendBtn) sendBtn.onclick = async () => {
@@ -6333,6 +6383,9 @@ async function renderSettings() {
     <div class="card"><h3 style="margin-bottom:6px">Who client messages come from</h3>
       <p class="hint" style="margin-bottom:8px">Drafts and alerts in your <b>internal</b> channels post as the Mobius bot — they are machine output and should look like it. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.</p>
       <div id="slackWho"><span class="hint">Checking…</span></div></div>
+    <div class="card"><h3 style="margin-bottom:6px">Acting on a draft from inside Slack</h3>
+      <p class="hint" style="margin-bottom:8px">Every draft posted to an internal channel now carries the same buttons this app has — <b>Send to client</b>, <b>Edit the wording</b>, <b>Rewrite with AI</b>, <b>Don't send</b> — so a morning brief can be dealt with without opening Locus. Whichever surface you use, the other keeps up: send it here and the Slack card stops offering a Send button.</p>
+      <div id="slackInteract"><span class="hint">Checking…</span></div></div>
     <div class="card"><h3 style="margin-bottom:6px">Are the automatic jobs actually running?</h3>
       <p class="hint" style="margin-bottom:8px">The briefs, the reports and the Meta sync all run on a schedule you never see. When one of them fails there is nothing on any other page to say so — for four days in August the nightly sync was syncing one brand of six and every dashboard looked normal. This is that missing page.</p>
       <div id="schedHealth"><span class="hint">Checking…</span></div></div>
@@ -6711,6 +6764,40 @@ async function renderSettings() {
             <p class="tiny" style="margin:6px 0 0">You must be a member of the client's channel; a personal token cannot post where you are not. If a send fails with “not in channel”, join it in Slack and press send again.</p></div></div>`
         : `<div class="notice bad" style="margin:0">⚠️<div><b>The Slack user token is not working:</b> ${esc(r.error || 'unknown error')}. Client sends will fail until it is fixed — deliberately, rather than falling back to the bot.</div></div>`;
     } catch (e) { host.innerHTML = `<span class="hint">Couldn't check: ${esc(e.message)}</span>`; }
+  })();
+
+  /* ---- the Slack buttons: are they wired, and who may press Send? ----
+     The Send button posts under Cole's own name, which is why it is his alone
+     by default: handing it to a channel would let anyone message a client as
+     him without him ever seeing it. Editing, rewriting and "don't send" stay
+     open to whoever is in the internal channel - none of them leave the
+     building. */
+  (async () => {
+    const host = $('#slackInteract'); if (!host || !mApi) return;
+    const paint = st => {
+      const who = st.slackSendWho === 'anyone' ? 'anyone' : 'owner';
+      host.innerHTML = `
+        ${st.slackInteractive
+          ? `<div class="notice" style="margin:0 0 10px">✓<div>The buttons are wired up. Slack sends every press to Locus signed, and an unsigned one is refused.</div></div>`
+          : `<div class="notice warn" style="margin:0 0 10px">⚠️<div><b>The buttons will not work yet.</b> Add <code>SLACK_SIGNING_SECRET</code> in Cloudflare and point the Slack app's <b>Interactivity &amp; Shortcuts</b> Request URL at <code>https://mobius-account-health.mobius-digital.workers.dev/slack/actions</code>. Until then a press does nothing.</div></div>`}
+        <label class="tiny" style="display:block;margin-bottom:5px;font-weight:600">Who can send to clients from Slack?</label>
+        <select id="sendWho" style="padding:7px 9px;border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-size:13px">
+          <option value="owner"${who === 'owner' ? ' selected' : ''}>Only me</option>
+          <option value="anyone"${who === 'anyone' ? ' selected' : ''}>Anyone in the internal channel</option>
+        </select>
+        <span class="tiny" id="sendWhoMsg" style="margin-left:8px"></span>
+        <p class="tiny" style="margin:8px 0 0;opacity:.8">A client message goes out under <b>your</b> name, not the bot's — so by default only you can press <b>Send to client</b>. Everything else on the card (edit, rewrite, don't send) is open to the whole channel either way, because none of it reaches a client.</p>`;
+      $('#sendWho').onchange = async e => {
+        const v = e.target.value;
+        $('#sendWhoMsg').textContent = 'Saving…';
+        try {
+          await mApi('/api/settings', { method: 'PUT', body: JSON.stringify({ slackSendWho: v }) });
+          $('#sendWhoMsg').textContent = v === 'anyone' ? 'Saved ✓ — the whole channel can send' : 'Saved ✓ — only you can send';
+        } catch (err) { $('#sendWhoMsg').textContent = err.message; }
+      };
+    };
+    try { paint(await mApi('/api/settings')); }
+    catch (e) { host.innerHTML = `<span class="hint">Couldn't check: ${esc(e.message)}</span>`; }
   })();
 
   /* ---- are the scheduled jobs actually running? ----

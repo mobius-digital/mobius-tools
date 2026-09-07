@@ -13,6 +13,7 @@
  *   ADMIN_TOKEN   — master key for the dashboard (a dashboard password can also
  *                   be set in Settings; its hash lives in the settings table)
  *   SLACK_BOT_TOKEN — (Chat 2) same Slack app as Pulse / Restock
+ *   SLACK_SIGNING_SECRET — verifies the Slack button presses on /slack/actions
  *   ANTHROPIC_API_KEY — (Chat 1) Claude API key for POST /api/summarise
  *
  * Build plan lives in ../PRD.md. This file is Chat 0 (foundation); Chats 1–4
@@ -3421,13 +3422,20 @@ async function reportToken(env, actId) {
 async function postReportDraft(env, acct, r) {
   const channel = acct.slack_channel || await getSetting(env, 'reportChannel');
   if (!channel) return { skipped: 'no internal reports channel configured for this brand' };
-  const label = r.period === 'weekly' ? 'Weekly' : 'Monthly';
-  const link = `${DASHBOARD_URL}?open=reports&act=${encodeURIComponent(acct.act_id)}`;
-  await slackPost(env, channel,
-    `:clipboard: *${label} report drafted — ${acct.name}* (${prettyDate(r.start)} → ${prettyDate(r.end)})\n` +
-    `${reportHeadline(r.data)}\n` +
-    `_Internal draft — nothing has been sent to the client._ <${link}|Review and send it from Locus>`,
-    null, { username: 'Mobius Reports', icon: ':clipboard:' });
+  /* The card carries the summary and the buttons that act on it. It used to be
+     a headline and a link, which meant reviewing a report always cost a tab. */
+  const row = {
+    act_id: acct.act_id, period: r.period, period_start: r.start, period_end: r.end,
+    status: 'draft', summary: r.summary, data_json: JSON.stringify(r.data), steer: r.steer ?? null,
+  };
+  const card = reportCard(acct, row);
+  const posted = await slackPost(env, channel, card.text, card.blocks,
+    { username: 'Mobius Reports', icon: ':clipboard:' });
+  if (posted?.ts) {
+    await env.DB.prepare(
+      `UPDATE reports SET slack_ts = ?4, slack_channel = ?5 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+    ).bind(acct.act_id, r.period, r.start, posted.ts, posted.channel || channel).run().catch(() => {});
+  }
   return { ok: true, channel };
 }
 
@@ -3458,6 +3466,7 @@ async function sendReport(env, acct, period, start) {
     `UPDATE reports SET status = 'sent', sent_at = ?4, sent_channel = ?5
      WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
   ).bind(acct.act_id, period, start, new Date().toISOString(), channel).run();
+  await slackSyncReport(env, acct, period, start).catch(() => {});
   return { ok: true, channel, url };
 }
 
@@ -4200,6 +4209,435 @@ async function maySendFromSlack(env, userId) {
   return !owner || owner === userId;      // no owner resolved = do not lock everyone out
 }
 
+/* ---------------- Where a button sends you when you want the charts -------- */
+const LOCUS_BRIEF = (act, date) => `${DASHBOARD_URL}?open=brief&act=${encodeURIComponent(act)}&date=${date}`;
+const LOCUS_HEALTH = (act, date) => `${DASHBOARD_URL}?open=health&act=${encodeURIComponent(act)}&date=${date}`;
+const LOCUS_REPORTS = act => `${DASHBOARD_URL}?open=reports&act=${encodeURIComponent(act)}`;
+
+const shortTime = iso => {
+  try {
+    return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: BRIEF_TZ }).format(new Date(iso));
+  } catch { return ''; }
+};
+
+/** THE DAILY BRIEF CARD. Rendered from the stored row and nothing else, so the
+ *  same function draws it whether the last thing that happened was the 9am
+ *  cron, a button in this channel, or a click in Locus. `banner` is the
+ *  transient line ("Claude is rewriting this…") that only exists mid-action. */
+function briefCard(acct, date, row, banner) {
+  const status = row?.status || 'draft';
+  const health = (safeJson(row?.data_json, {}) || {}).health || null;
+  const bad = health?.verdict === 'broken' && status !== 'sent';
+  const v = JSON.stringify({ a: acct.act_id, d: date });
+  const blocks = [];
+
+  const head = status === 'sent'
+    ? `:white_check_mark: *Sent to the client — ${acct.name}, ${prettyDate(date)}*`
+    : status === 'skipped'
+      ? `:heavy_minus_sign: *Not sending — ${acct.name}, ${prettyDate(date)}*`
+      : `:memo: *Draft — ${acct.name}, ${prettyDate(date)}*  ·  _not sent to the client yet_`;
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
+  if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
+
+  /* The data warning goes ABOVE the brief and never inside it. The text is what
+     the client receives; this notice is ours. Without it the numbers look
+     ordinary — that is exactly how five brands under-reported spend by 70% for
+     three days in September 2026 with nobody noticing. */
+  if (bad) {
+    const fix = health.flagged?.[0]?.issues?.find(i => i.severity === 'broken')?.fix;
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text:
+      `:rotating_light: *Do not send — the numbers are wrong.* ${health.summary}` +
+      (fix ? `\n_${fix}_` : '') +
+      `\nSpend below has been rebuilt from the platforms' own reporting where possible.` } });
+  }
+
+  blocks.push({ type: 'divider' });
+  blocks.push(...mrkdwnSections(row?.text || '_Nothing written for this day yet._'));
+
+  const notes = [];
+  if (status === 'sent' && row?.channel) notes.push(`Posted to <#${row.channel}>${row.posted_at ? ` at ${shortTime(row.posted_at)} Central` : ''}. A sent brief is frozen.`);
+  if (status === 'skipped') notes.push('Marked handled — the client was not messaged, and this day stops being carried into later briefs.');
+  if (row?.steer && status !== 'sent') notes.push(`Last rewrite was steered: “${String(row.steer).slice(0, 220)}”`);
+  if (notes.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  ·  ') }] });
+
+  const els = [];
+  if (status === 'draft') {
+    if (bad) {
+      els.push(btn('Fix the numbers in Locus', 'noop_open', v, { url: LOCUS_HEALTH(acct.act_id, date) }));
+    } else {
+      els.push(btn('Send to client', 'brief_send', v, { style: 'primary', confirm: confirmDialog(
+        'Send this to the client?',
+        `This posts the brief for *${prettyDate(date)}* to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'}, exactly as written above and under your own name. Everyone in that channel sees it.`,
+        'Send it') }));
+    }
+    els.push(btn('Edit the wording', 'brief_edit', v));
+    els.push(btn('Rewrite with AI', 'brief_rewrite', v));
+    els.push(btn('Don’t send', 'brief_skip', v, { confirm: confirmDialog(
+      'Don’t send this one?',
+      'This marks the day *handled* without messaging the client, and stops it being carried into later briefs. The numbers stay everywhere else in Locus. Press *Write it again* to change your mind.',
+      'Don’t send it') }));
+    if (!bad) els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
+  } else if (status === 'skipped') {
+    els.push(btn('Write it again', 'brief_redraft', v));
+    els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
+  } else {
+    els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
+  }
+  blocks.push({ type: 'actions', elements: els });
+
+  const fallback = status === 'sent' ? `Sent to the client — ${acct.name}, ${prettyDate(date)}`
+    : status === 'skipped' ? `Not sending — ${acct.name}, ${prettyDate(date)}`
+      : `Draft — ${acct.name}, ${prettyDate(date)} (not sent to the client yet)`;
+  return { text: fallback, blocks };
+}
+
+/** THE REPORT CARD. Same rules as the brief card; the difference is that the
+ *  client receives a headline plus their archive link rather than the summary
+ *  itself, so the card says so instead of pretending the text is the message. */
+function reportCard(acct, row, banner) {
+  const data = safeJson(row?.data_json, null);
+  const label = row.period === 'weekly' ? 'Weekly' : 'Monthly';
+  const range = `${prettyDate(row.period_start)} → ${prettyDate(row.period_end)}`;
+  const v = JSON.stringify({ a: acct.act_id, p: row.period, s: row.period_start });
+  const blocks = [];
+
+  const head = row.status === 'sent'
+    ? `:white_check_mark: *${label} report sent to the client — ${acct.name}* (${range})`
+    : `:clipboard: *${label} report drafted — ${acct.name}* (${range})  ·  _nothing sent yet_`;
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
+  if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
+  if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: reportHeadline(data) } });
+  blocks.push({ type: 'divider' });
+  blocks.push(...mrkdwnSections(row?.summary || '_No summary written — regenerate it._'));
+
+  const notes = ['The client gets this headline and a link to their report archive, not the summary text.'];
+  if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
+  if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: “${String(row.steer).slice(0, 220)}”`);
+  if (data?.missing_days) notes.push(`${data.missing_days} day(s) in this period had no Triple Whale data.`);
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  ·  ') }] });
+
+  const els = [];
+  if (row.status !== 'sent') {
+    els.push(btn('Send to client', 'report_send', v, { style: 'primary', confirm: confirmDialog(
+      'Send this report to the client?',
+      `This posts the ${row.period} report (*${range}*) and its link to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'} under your own name, and *freezes the report permanently*.`,
+      'Send it') }));
+    els.push(btn('Edit the summary', 'report_edit', v));
+    els.push(btn('Rewrite with AI', 'report_rewrite', v));
+  }
+  els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
+  blocks.push({ type: 'actions', elements: els });
+
+  return { text: `${label} report ${row.status === 'sent' ? 'sent' : 'drafted'} — ${acct.name} (${range})`, blocks };
+}
+
+/* ---- Keep the card in step with the row, whichever surface moved it ---- */
+async function slackSyncBrief(env, acct, date, banner) {
+  const row = await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`)
+    .bind(acct.act_id, date).first().catch(() => null);
+  if (!row?.slack_ts || !row?.slack_channel) return;
+  const card = briefCard(acct, date, row, banner);
+  await slackUpdate(env, row.slack_channel, row.slack_ts, card.text, card.blocks);
+}
+async function slackSyncReport(env, acct, period, start, banner) {
+  const row = await env.DB.prepare(
+    `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
+  ).bind(acct.act_id, period, start).first().catch(() => null);
+  if (!row?.slack_ts || !row?.slack_channel) return;
+  const card = reportCard(acct, row, banner);
+  await slackUpdate(env, row.slack_channel, row.slack_ts, card.text, card.blocks);
+}
+
+/* ---------------- Modals ---------------- */
+
+const EDIT_TEXT_CAP = 2900;   // Slack's plain_text_input tops out at 3000
+
+function editModal({ callback_id, meta, title, label, hint, value, submit = 'Save' }) {
+  return {
+    type: 'modal', callback_id, private_metadata: JSON.stringify(meta),
+    title: { type: 'plain_text', text: title },
+    submit: { type: 'plain_text', text: submit },
+    close: { type: 'plain_text', text: 'Cancel' },
+    blocks: [{
+      type: 'input', block_id: 'body',
+      label: { type: 'plain_text', text: label },
+      hint: { type: 'plain_text', text: hint },
+      element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 3000, initial_value: value || '' },
+    }],
+  };
+}
+
+/* THE STEER BOX, AND WHY IT IS OPTIONAL.
+   Cole asked the open question himself: does "rewrite" just rewrite, or does it
+   take a suggestion? Both, in one control. Leave it empty and it is the old
+   behaviour; type a sentence and that sentence outranks the standing prompt.
+   The same box exists on the Rewrite button in Locus, so neither surface can do
+   something the other cannot. */
+function rewriteModal({ callback_id, meta, title, what, current }) {
+  return {
+    type: 'modal', callback_id, private_metadata: JSON.stringify(meta),
+    title: { type: 'plain_text', text: title },
+    submit: { type: 'plain_text', text: 'Rewrite it' },
+    close: { type: 'plain_text', text: 'Cancel' },
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text:
+        `Claude writes ${what} again from the numbers and the Change Log. *Any wording edited on this draft is replaced.* It takes about 20–30 seconds; the message in the channel updates itself when it is done.` } },
+      { type: 'input', block_id: 'steer', optional: true,
+        label: { type: 'plain_text', text: 'Anything you want changed?' },
+        hint: { type: 'plain_text', text: 'Optional — leave it empty for a straight rewrite. It can change emphasis, order, length or tone, but it cannot invent a number.' },
+        element: { type: 'plain_text_input', action_id: 'v', multiline: true, max_length: 1200,
+          initial_value: current ? String(current).slice(0, 1200) : undefined,
+          placeholder: { type: 'plain_text', text: 'e.g. lead with the Google spend, and drop the hedging on Meta' } } },
+    ],
+  };
+}
+
+const modalValue = (view, block) => view?.state?.values?.[block]?.v?.value ?? '';
+
+/* ---------------- The endpoint Slack calls ---------------- */
+
+/* Slack signs every interaction: HMAC of "v0:<timestamp>:<raw body>". Verifying
+   it is what makes this endpoint safe to leave outside the admin gate — without
+   it, anyone who learned the URL could send a client a brief. Fails closed when
+   no signing secret is set. Same shape as the Ledger worker's. */
+async function verifySlackSig(env, ts, rawBody, sig) {
+  if (!env.SLACK_SIGNING_SECRET || !ts || !sig) return false;
+  if (Math.abs(Date.now() / 1000 - +ts) > 300) return false;            // replay guard
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.SLACK_SIGNING_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`v0:${ts}:${rawBody}`));
+  const mine = 'v0=' + [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (mine.length !== sig.length) return false;
+  let diff = 0;
+  for (let i = 0; i < mine.length; i++) diff |= mine.charCodeAt(i) ^ sig.charCodeAt(i);
+  return diff === 0;
+}
+
+const ACK = () => new Response('', { status: 200 });
+
+/* SLACK GIVES YOU THREE SECONDS. Everything slow — a send, a 30-second Claude
+   rewrite — is acknowledged first and done in waitUntil, with the card redrawn
+   when it lands. The two things that must happen inside the three seconds are
+   the modal opens, because a trigger_id expires. */
+async function handleSlackInteract(request, env, ctx) {
+  const raw = await request.text();
+  const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'), raw,
+    request.headers.get('x-slack-signature'));
+  if (!ok) return new Response('bad signature', { status: 401 });
+  const form = new URLSearchParams(raw);
+  if (form.get('ssl_check')) return ACK();
+  const payload = safeJson(form.get('payload'), null);
+  if (!payload) return ACK();
+  try {
+    if (payload.type === 'block_actions') return await slackBlockAction(env, ctx, payload);
+    if (payload.type === 'view_submission') return await slackViewSubmit(env, ctx, payload);
+  } catch (e) {
+    // Never 500 at Slack: it renders a red banner over the card and tells the
+    // human nothing useful. Whisper the real reason instead.
+    await slackWhisper(env, payload?.container?.channel_id, payload?.user?.id,
+      `That did not work: ${e.message}`).catch(() => {});
+  }
+  return ACK();
+}
+
+const acctById = (env, id) => env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(id).first();
+
+async function slackBlockAction(env, ctx, p) {
+  const a = p.actions?.[0] || {};
+  const id = a.action_id || '';
+  if (id === 'noop_open') return ACK();                 // a link button; Slack still asks
+  const meta = safeJson(a.value, {}) || {};
+  const chan = p.container?.channel_id || p.channel?.id || null;
+  const mts = p.container?.message_ts || null;
+  const user = p.user?.id || null;
+  const acct = meta.a ? await acctById(env, meta.a) : null;
+  if (!acct) { ctx.waitUntil(slackWhisper(env, chan, user, 'That brand is no longer in Locus, so this card cannot do anything.')); return ACK(); }
+
+  /* A card posted before the buttons shipped has no pointer stored. Adopt the
+     message we were just clicked from, so every later redraw finds it. */
+  const adopt = id.startsWith('brief_')
+    ? env.DB.prepare(`UPDATE briefs SET slack_ts = COALESCE(slack_ts, ?3), slack_channel = COALESCE(slack_channel, ?4) WHERE act_id = ?1 AND date = ?2`)
+      .bind(acct.act_id, meta.d, mts, chan).run().catch(() => {})
+    : env.DB.prepare(`UPDATE reports SET slack_ts = COALESCE(slack_ts, ?4), slack_channel = COALESCE(slack_channel, ?5) WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`)
+      .bind(acct.act_id, meta.p, meta.s, mts, chan).run().catch(() => {});
+  await adopt;
+
+  /* ---- the two that must open a modal inside three seconds ---- */
+  if (id === 'brief_edit' || id === 'report_edit') {
+    const isBrief = id === 'brief_edit';
+    const row = isBrief
+      ? await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, meta.d).first()
+      : await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, meta.p, meta.s).first();
+    const body = isBrief ? row?.text : row?.summary;
+    if (!row || row.status === 'sent') {
+      await slackWhisper(env, chan, user, 'That one has already been sent to the client, so its wording is frozen — it is the record of what they received.');
+      return ACK();
+    }
+    if ((body || '').length > EDIT_TEXT_CAP) {
+      await slackWhisper(env, chan, user,
+        `This one is ${body.length} characters and Slack's edit box stops at ${EDIT_TEXT_CAP}. Edit it in Locus instead: ${isBrief ? LOCUS_BRIEF(acct.act_id, meta.d) : LOCUS_REPORTS(acct.act_id)}`);
+      return ACK();
+    }
+    await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: editModal({
+      callback_id: isBrief ? 'brief_edit_submit' : 'report_edit_submit',
+      meta, title: isBrief ? 'Edit the brief' : 'Edit the summary',
+      label: isBrief ? 'The brief, exactly as the client will read it' : 'The executive summary',
+      hint: isBrief
+        ? 'Slack bold is *single asterisks*. This is the text that gets posted — nothing is added to it.'
+        : 'The client sees the headline and their report link; this summary is what they read on the report page.',
+      value: body || '',
+    }) });
+    return ACK();
+  }
+
+  if (id === 'brief_rewrite' || id === 'report_rewrite') {
+    const isBrief = id === 'brief_rewrite';
+    const row = isBrief
+      ? await env.DB.prepare(`SELECT status, steer FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, meta.d).first()
+      : await env.DB.prepare(`SELECT status, steer FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, meta.p, meta.s).first();
+    if (row?.status === 'sent') {
+      await slackWhisper(env, chan, user, 'That was already sent to the client, so it cannot be rewritten — say so in the channel instead.');
+      return ACK();
+    }
+    await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: rewriteModal({
+      callback_id: isBrief ? 'brief_rewrite_submit' : 'report_rewrite_submit',
+      meta, title: 'Rewrite with AI',
+      what: isBrief ? `the brief for ${prettyDate(meta.d)}` : 'the summary',
+      current: row?.steer || '',
+    }) });
+    return ACK();
+  }
+
+  /* ---- everything else: ack now, work in the background ---- */
+  if (id === 'brief_send' || id === 'report_send') {
+    if (!(await maySendFromSlack(env, user))) {
+      await slackWhisper(env, chan, user,
+        'Only Cole can send to a client from Slack, because the message goes out under his name. Change that in Locus → Settings → “Who can send to clients from Slack”.');
+      return ACK();
+    }
+    ctx.waitUntil((async () => {
+      if (id === 'brief_send') {
+        await slackSyncBrief(env, acct, meta.d, ':hourglass_flowing_sand: _Sending…_');
+        const r = await sendBrief(env, acct, meta.d, { useStored: true }).catch(e => ({ error: e.message }));
+        await slackSyncBrief(env, acct, meta.d, r.ok ? null : `:warning: *Not sent.* ${r.error || r.skipped}`);
+        if (r.ok) await slackWhisper(env, chan, user, `Sent to <#${r.channel}> ✓`);
+      } else {
+        await slackSyncReport(env, acct, meta.p, meta.s, ':hourglass_flowing_sand: _Sending…_');
+        const r = await sendReport(env, acct, meta.p, meta.s).catch(e => ({ error: e.message }));
+        await slackSyncReport(env, acct, meta.p, meta.s, r.ok ? null : `:warning: *Not sent.* ${r.error}`);
+        if (r.ok) await slackWhisper(env, chan, user, `Sent to <#${r.channel}> ✓`);
+      }
+    })());
+    return ACK();
+  }
+
+  if (id === 'brief_skip') {
+    ctx.waitUntil((async () => {
+      const prior = await env.DB.prepare(`SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`)
+        .bind(acct.act_id, meta.d).first().catch(() => null);
+      if (prior?.status === 'sent') { await slackWhisper(env, chan, user, 'That brief already went to the client — it cannot be un-sent.'); return; }
+      const upd = await env.DB.prepare(`UPDATE briefs SET status = 'skipped' WHERE act_id = ?1 AND date = ?2 AND status <> 'sent'`)
+        .bind(acct.act_id, meta.d).run().catch(() => null);
+      if (!upd?.meta?.changes) await upsertBrief(env, acct.act_id, meta.d, 'skipped', null, 'Skipped — deliberately not sent to the client.', undefined);
+      await slackSyncBrief(env, acct, meta.d);
+    })());
+    return ACK();
+  }
+
+  if (id === 'brief_redraft') {
+    ctx.waitUntil((async () => {
+      await slackSyncBrief(env, acct, meta.d, ':hourglass_flowing_sand: _Claude is writing it… (~20s)_');
+      const r = await makeBrief(env, acct, meta.d).catch(e => ({ error: e.message }));
+      if (r.error) { await slackSyncBrief(env, acct, meta.d, `:warning: *Could not write it.* ${r.error}`); return; }
+      await upsertBrief(env, acct.act_id, meta.d, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: null });
+      await slackSyncBrief(env, acct, meta.d);
+    })());
+    return ACK();
+  }
+
+  return ACK();
+}
+
+async function slackViewSubmit(env, ctx, p) {
+  const cb = p.view?.callback_id || '';
+  const meta = safeJson(p.view?.private_metadata, {}) || {};
+  const user = p.user?.id || null;
+  const acct = meta.a ? await acctById(env, meta.a) : null;
+  if (!acct) return ACK();
+
+  if (cb === 'brief_edit_submit') {
+    const text = modalValue(p.view, 'body');
+    if (!text.trim()) {
+      return new Response(JSON.stringify({ response_action: 'errors', errors: { body: 'A brief cannot be empty.' } }),
+        { headers: { 'content-type': 'application/json' } });
+    }
+    ctx.waitUntil((async () => {
+      const r = await env.DB.prepare(`UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status = 'draft'`)
+        .bind(acct.act_id, meta.d, text).run().catch(() => null);
+      if (!r?.meta?.changes) return;                 // sent in the meantime; the card already says so
+      await slackSyncBrief(env, acct, meta.d);
+    })());
+    return ACK();
+  }
+
+  if (cb === 'report_edit_submit') {
+    const summary = modalValue(p.view, 'body');
+    ctx.waitUntil((async () => {
+      await env.DB.prepare(`UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'draft'`)
+        .bind(acct.act_id, meta.p, meta.s, summary).run().catch(() => {});
+      await slackSyncReport(env, acct, meta.p, meta.s);
+    })());
+    return ACK();
+  }
+
+  if (cb === 'brief_rewrite_submit') {
+    const steer = modalValue(p.view, 'steer').trim() || null;
+    ctx.waitUntil((async () => {
+      await slackSyncBrief(env, acct, meta.d, `:hourglass_flowing_sand: _Claude is rewriting this… (~20s)_${steer ? `\n_Steered: “${steer.slice(0, 200)}”_` : ''}`);
+      const r = await makeBrief(env, acct, meta.d, { steer }).catch(e => ({ error: e.message }));
+      if (r.error) { await slackSyncBrief(env, acct, meta.d, `:warning: *Could not rewrite it.* ${r.error}`); return; }
+      await upsertBrief(env, acct.act_id, meta.d, 'draft', null, r.text, r.data, { health: r.health ?? null, steer });
+      await slackSyncBrief(env, acct, meta.d,
+        r.narrative_error ? `:warning: _Numbers only — Claude failed: ${r.narrative_error}_` : null);
+    })());
+    return ACK();
+  }
+
+  if (cb === 'report_rewrite_submit') {
+    const steer = modalValue(p.view, 'steer').trim() || null;
+    ctx.waitUntil((async () => {
+      await slackSyncReport(env, acct, meta.p, meta.s, `:hourglass_flowing_sand: _Claude is rewriting this… (~30s)_${steer ? `\n_Steered: “${steer.slice(0, 200)}”_` : ''}`);
+      try {
+        await makeReport(env, acct, meta.p, meta.s, { force: true, steer });
+        await slackSyncReport(env, acct, meta.p, meta.s);
+      } catch (e) {
+        await slackSyncReport(env, acct, meta.p, meta.s, `:warning: *Could not rewrite it.* ${e.message}`);
+      }
+    })());
+    return ACK();
+  }
+
+  return ACK();
+}
+
+/* THE COLUMNS THE CARDS NEED, ON A DATABASE THAT PREDATES THEM.
+   D1 has no migration runner here, and telling Cole to paste ALTER statements is
+   how a deploy half-lands. This runs once, is guarded by a settings key, and
+   swallows the "duplicate column" error so a re-run is harmless. */
+const SCHEMA_VERSION = '2026-09-07-slack-cards';
+async function ensureSlackColumns(env) {
+  if ((await getSetting(env, 'schemaVersion')) === SCHEMA_VERSION) return;
+  for (const sql of [
+    `ALTER TABLE briefs ADD COLUMN slack_ts TEXT`,
+    `ALTER TABLE briefs ADD COLUMN slack_channel TEXT`,
+    `ALTER TABLE briefs ADD COLUMN steer TEXT`,
+    `ALTER TABLE reports ADD COLUMN slack_ts TEXT`,
+    `ALTER TABLE reports ADD COLUMN slack_channel TEXT`,
+    `ALTER TABLE reports ADD COLUMN steer TEXT`,
+  ]) await env.DB.prepare(sql).run().catch(() => {});      // already there = fine
+  await putSetting(env, 'schemaVersion', SCHEMA_VERSION).catch(() => {});
+}
+
 
 /* ------------------------------------------------------------------ */
 /*  Delivery alerts — the only scheduled Slack alert left.               */
@@ -4577,6 +5015,7 @@ async function nightly(env) {
 
 export default {
   async scheduled(event, env, ctx) {
+    ctx.waitUntil(ensureSlackColumns(meterEnv(env)).catch(() => {}));
     // Cloudflare cron expressions are fixed at deploy time and always UTC, so the
     // Daily Brief trigger runs EVERY hour and the worker decides whether this is
     // the configured hour in Central. That keeps the send time editable from the
@@ -4641,6 +5080,14 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+    /* BUTTONS ON THE SLACK CARD. Every action the Daily Brief and Reports tabs
+       offer, available where the draft already is. Unauthenticated by design:
+       Slack signs the request and verifySlackSig is what proves it. */
+    if (path === '/slack/actions' && request.method === 'POST') {
+      await ensureSlackColumns(env).catch(() => {});
+      return handleSlackInteract(request, env, ctx);
+    }
 
     /* A playable mp4 for one ad. Two ways in, and no third:
        - a signed-in team member (session/admin), for the Reports tab;
@@ -4722,33 +5169,7 @@ export default {
 
 
     if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
-
-
-    if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
-
-      /* Backfill attribution on demand - the nightly pass only covers 7 days,
-         and a new brand or a longer look-back needs more than that. */
-      /* Who will a client-facing send appear to come from? Reports the identity
-       behind SLACK_USER_TOKEN without exposing the token, so the answer is a
-       name rather than an assumption. Read-only and admin-gated. */
-    if (path === '/api/slack-identity' && request.method === 'GET') {
-      if (!env.SLACK_USER_TOKEN) return json({ configured: false });
-      const r = await xfetch('https://slack.com/api/auth.test', {
-        headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}` },
-      }).then(x => x.json()).catch(e => ({ ok: false, error: e.message }));
-      return json({ configured: true, ok: !!r.ok, user: r.user || null, team: r.team || null, error: r.error || null });
-    }
-
-    if (path === '/api/tw-attr-sync' && request.method === 'POST') {
-        const act = url.searchParams.get('act');
-        const days = Math.min(+url.searchParams.get('days') || 30, TW_ATTR_HISTORY_DAYS);
-        const list = act && act !== 'all'
-          ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
-          : await listAccounts(env, true);
-        const out = [];
-        for (const a of list) out.push(await syncTwAttribution(env, a, days).catch(e => ({ name: a.name, error: e.message })));
-        return json({ ok: true, results: out });
-      }
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       if (request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         const h = +b.hour;
@@ -4825,6 +5246,33 @@ export default {
        Gated on a random one-time key in the settings table rather than the admin
        token, so investigating this could never require rotating a live secret. */
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+
+    /* Who will a client-facing send appear to come from? Reports the identity
+       behind SLACK_USER_TOKEN without exposing the token, so the answer is a
+       name rather than an assumption. Read-only and admin-gated. */
+    if (path === '/api/slack-identity' && request.method === 'GET') {
+      if (!env.SLACK_USER_TOKEN) return json({ configured: false });
+      const r = await xfetch('https://slack.com/api/auth.test', {
+        headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}` },
+      }).then(x => x.json()).catch(e => ({ ok: false, error: e.message }));
+      // Cache the user id while we have it: the Slack buttons use it to decide
+      // who may put a message in front of a client.
+      if (r?.ok && r.user_id) await putSetting(env, 'slackOwnerId', r.user_id).catch(() => {});
+      return json({ configured: true, ok: !!r.ok, user: r.user || null, team: r.team || null, error: r.error || null });
+    }
+
+    /* Backfill attribution on demand - the nightly pass only covers 7 days,
+       and a new brand or a longer look-back needs more than that. */
+    if (path === '/api/tw-attr-sync' && request.method === 'POST') {
+      const act = url.searchParams.get('act');
+      const days = Math.min(+url.searchParams.get('days') || 30, TW_ATTR_HISTORY_DAYS);
+      const list = act && act !== 'all'
+        ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
+        : await listAccounts(env, true);
+      const out = [];
+      for (const a of list) out.push(await syncTwAttribution(env, a, days).catch(e => ({ name: a.name, error: e.message })));
+      return json({ ok: true, results: out });
+    }
 
     /* View-only accounts read everything and change nothing. GET-only is the
        entire rule - simple enough to hold in your head and to explain to the
@@ -5148,6 +5596,11 @@ export default {
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),
+          /* A client send goes out under Cole's own name, so by default only he
+             may press the Send button on a Slack card. A team that should have
+             it flips this to 'anyone'. */
+          slackSendWho: (await getSetting(env, 'slackSendWho')) === 'anyone' ? 'anyone' : 'owner',
+          slackInteractive: !!env.SLACK_SIGNING_SECRET,
           paceAlertPct: +(await getSetting(env, 'paceAlertPct')) || 0.15,
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
@@ -5156,6 +5609,7 @@ export default {
       if (path === '/api/settings' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         if ('slackChannel' in b) await putSetting(env, 'slackChannel', b.slackChannel || '');
+        if ('slackSendWho' in b) await putSetting(env, 'slackSendWho', b.slackSendWho === 'anyone' ? 'anyone' : 'owner');
         if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));
         return json({ ok: true });
       }
@@ -5290,11 +5744,15 @@ export default {
         // A sent brief is a record of what the client received. It does not get
         // quietly rewritten, however wrong the numbers turned out to be.
         if (prior?.status === 'sent') return json({ error: 'that day was already sent to the client, so it cannot be rebuilt — say so in the channel instead' }, 400);
-        const r = await makeBrief(env, acct, date);
+        const steer = typeof b.steer === 'string' && b.steer.trim() ? b.steer.trim() : null;
+        const r = await makeBrief(env, acct, date, { steer });
         if (r.error) return json({ error: r.error }, 400);
-        // Silent: no Slack post. This is a repair, not a new morning notice.
-        await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data);
-        return json({ ok: true, date, health: r.health, narrative_error: r.narrative_error ?? null });
+        // Silent: no NEW Slack post. This is a repair, not a new morning notice —
+        // but the card already in the channel is rewritten, or it would keep
+        // showing wording that no longer exists.
+        await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer });
+        await slackSyncBrief(env, acct, date).catch(() => {});
+        return json({ ok: true, date, health: r.health, narrative_error: r.narrative_error ?? null, steer });
       }
       if (path === '/api/goal-suggest' && request.method === 'GET') {
         const act = url.searchParams.get('act');
@@ -5309,7 +5767,7 @@ export default {
         const date = url.searchParams.get('date') || addDays(localDate(acct.tz), -1);
         const data = await briefData(env, acct, date);
         const hist = (await env.DB.prepare(
-          `SELECT date, posted_at, channel, status, text FROM briefs WHERE act_id = ?1 ORDER BY date DESC LIMIT 15`,
+          `SELECT date, posted_at, channel, status, text, steer FROM briefs WHERE act_id = ?1 ORDER BY date DESC LIMIT 15`,
         ).bind(act).all()).results;
         return json({ ...data, date, history: hist });
       }
@@ -5343,6 +5801,8 @@ export default {
           `UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status = 'draft'`,
         ).bind(b.act, b.date, b.text).run();
         if (!r.meta?.changes) return json({ error: 'no draft for that day (a sent brief cannot be edited)' }, 404);
+        const ea = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first().catch(() => null);
+        if (ea) await slackSyncBrief(env, ea, b.date).catch(() => {});
         return json({ ok: true });
       }
       /* "Don't send this one." Marks the day handled without messaging the
@@ -5367,6 +5827,7 @@ export default {
           // was never drafted still stops the catch-up carrying it forward.
           await upsertBrief(env, acct.act_id, date, 'skipped', null, 'Skipped — deliberately not sent to the client.', null);
         }
+        await slackSyncBrief(env, acct, date).catch(() => {});
         return json({ ok: true, date, skipped: true });
       }
       /* Build (or rebuild) today's draft by hand, for a brand set to review. */
@@ -5375,7 +5836,10 @@ export default {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
-        const r = await draftBrief(env, acct, date);
+        // The optional steer box on Locus's Rewrite button, and the same field
+        // in the Slack modal, both arrive here.
+        const steer = typeof b.steer === 'string' && b.steer.trim() ? b.steer.trim() : null;
+        const r = await draftBrief(env, acct, date, { steer });
         return r.ok ? json(r) : json({ error: r.error || r.skipped }, 400);
       }
       if (path === '/api/briefs' && request.method === 'GET') {
@@ -5423,8 +5887,10 @@ export default {
         }
         await syncTwDaily(env, acct, period === 'monthly' ? 100 : 70).catch(() => {});
         try {
-          const r = await makeReport(env, acct, period, start, { force: !!b.force });
-          return json({ ok: true, period, start: r.start, end: r.end,
+          const steer = typeof b.steer === 'string' && b.steer.trim() ? b.steer.trim() : null;
+          const r = await makeReport(env, acct, period, start, { force: !!b.force, steer });
+          await slackSyncReport(env, acct, period, r.start).catch(() => {});
+          return json({ ok: true, period, start: r.start, end: r.end, steer,
             narrative_error: r.narrative_error ?? null, missing_days: r.data.missing_days ?? 0 });
         } catch (e) { return json({ error: e.message }, 400); }
       }
@@ -5434,6 +5900,8 @@ export default {
           `UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'draft'`,
         ).bind(b.act, b.period, b.start, b.summary ?? '').run();
         if (!r.meta?.changes) return json({ error: 'no draft report for that period (a sent report is frozen)' }, 404);
+        const ra = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first().catch(() => null);
+        if (ra) await slackSyncReport(env, ra, b.period, b.start).catch(() => {});
         return json({ ok: true });
       }
       if (path === '/api/report-send' && request.method === 'POST') {

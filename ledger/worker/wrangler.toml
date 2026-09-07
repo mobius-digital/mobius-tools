@@ -36,6 +36,10 @@ id = "8f918b1da0084875b718a044d930c924"
 binding = "AUTH"
 service = "mobius-account-health"
 
+# The AUTH binding doubles as the Slack route to Locus: a Daily Brief or Reports
+# card action (action_id / callback_id prefixed brief_ / report_) is handed to
+# mobius-account-health at /slack/actions, signature headers intact.
+#
 # Slack interactivity router: the shared "Mobius Digital" Slack app allows ONE
 # interactivity Request URL, and this worker holds it. Button clicks that are
 # not Ledger category actions (i.e. Pulse's "Send to client channels") are

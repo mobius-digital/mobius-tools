@@ -73,6 +73,47 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
 `/api/report-generate`, `/api/report-summary`, `/api/report-send`,
 `/api/report-link` are proxied from the profit worker. Rules that matter:
 
+- **EVERY ACTION EXISTS IN BOTH PLACES — Slack and Locus — AND NEITHER MAY GROW
+  ONE THE OTHER LACKS.** Cole, 2026-09-07: "everything needs to be done from
+  either in the app or in Slack, I want both, so I don't have to switch around."
+  The draft cards `draftBrief` and `postReportDraft` post to the internal
+  channel carry Block Kit buttons for all four: *Send to client*, *Edit the
+  wording*, *Rewrite with AI*, *Don't send* (plus *Open in Locus*, and *Fix the
+  numbers in Locus* in place of Send when the health verdict is `broken`).
+  Adding an action to the Brief or Reports tab means adding it to `briefCard` /
+  `reportCard` in the same change.
+- **The D1 row is the truth; the Slack card is a VIEW of it.** `briefCard` and
+  `reportCard` render purely from the stored row, and every mutation on either
+  surface ends by calling `slackSyncBrief` / `slackSyncReport` (`briefs.slack_ts`
+  + `slack_channel` say which message to rewrite). That is what stops a live
+  *Send to client* button sitting in Slack under a brief that was already sent
+  from the app. Any new mutation must sync too, or it leaves a lying card.
+- **`/slack/actions` sits ABOVE the admin gate and its ONLY credential is the
+  HMAC.** `verifySlackSig` (5-minute replay window, constant-time compare) fails
+  closed with no `SLACK_SIGNING_SECRET`. Slack allows three seconds: buttons ack
+  immediately and work in `ctx.waitUntil`, EXCEPT `views.open` which must happen
+  inside the ack because a `trigger_id` expires.
+- **One Slack app, one interactivity URL, three tools.** The URL points at the
+  LEDGER worker, which classifies and forwards: `{id, tax}` values are Ledger's,
+  `brief_*` / `report_*` / `noop_open` action ids and modal callback ids come
+  here over its `AUTH` binding, everything else goes to Pulse. Raw body and both
+  signature headers are passed through, so each worker verifies for itself
+  against the same app secret — which must therefore be set on all three.
+- **A client send from Slack is Cole's alone by default** (`settings.slackSendWho`,
+  `owner` | `anyone`, editable in Locus → Settings) because it posts under his own
+  name via `SLACK_USER_TOKEN`. Edit / rewrite / don't-send stay open to the whole
+  internal channel — none of them reach a client.
+- **A rewrite can be STEERED, and the steer is optional on both surfaces.**
+  `steerBlock()` appends the direction LAST in the prompt so it outranks the
+  standing instructions, and explicitly forbids inventing a number. Stored on
+  `briefs.steer` / `reports.steer`; a straight rewrite clears it. `upsertBrief`
+  only touches `steer` when the caller passes the key, so a plain edit or a send
+  cannot wipe it.
+- **`ensureSlackColumns` is the migration**, guarded by `settings.schemaVersion`
+  and swallowing "duplicate column" so re-running is harmless. It runs from
+  `/slack/actions` and from `scheduled` — never tell Cole to paste ALTER
+  statements, that is how a deploy half-lands.
+
 - **Reports are FROZEN snapshots** in the `reports` table (`data_json`).
   Drafted by the hourly cron inside the same Central-hour gate as the brief:
   Monday = last Mon–Sun, the 1st = last month. A failed brand retries every
