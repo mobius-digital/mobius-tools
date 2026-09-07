@@ -1003,6 +1003,14 @@ async function renderClose(){
   const noRcpt = t.filter(x => x.type==='out' && !x.expected && !x.receipt_key && !x.receipt_skip);
   const hasRevenue = t.some(x => x.type==='in' && !x.expected);
   const hasFee = t.some(x => x.type==='fee');
+  /* The same spend counted twice — one row typed in or seeded, another for the
+     same amount arriving from the bank. It happened for real in August (the
+     2026 sheet covered a month the bank feed also covers) and nothing on this
+     page would have shown it: both rows looked perfectly normal on their own.
+     Same amount, same direction, one from the bank and one not. */
+  const dupes = t.filter(a => !a.plaid_id && !a.expected && a.type !== 'transfer'
+    && t.some(b => b.plaid_id && !b.expected && b.type === a.type
+      && Math.abs(b.amount - a.amount) < 0.01));
   const item = (ok, warn, title, sub, go, dis) => `
     <div class="cli ${ok?'ok':(warn?'warn':'info')}">
       <div class="ic">${ok?'✓':(warn?'!':'i')}</div>
@@ -1028,6 +1036,10 @@ async function renderClose(){
       ${item(hasFee, false, 'Merchant fee',
         hasFee ? `Actual fee recorded: ${fmt$(rep.report.fees)}.` : `No fee row yet — the report will estimate ${fmt$(rep.report.fees)} at ${S.boot.money.feePct}%. Add the real Stripe number for the exact figure.`,
         `addModal({type:'out'})`)}
+      ${item(dupes.length===0, true, 'Nothing counted twice',
+        dupes.length ? `${dupes.length} row(s) match a bank transaction for the same amount — ${dupes.slice(0,3).map(d=>esc(d.vendor)).join(', ')}${dupes.length>3?'…':''}. Check whether the same spend is in here twice, and delete the one that isn't from the bank.`
+          : 'No expense appears twice — every bank line is counted once.',
+        `S.q='';S.filter='all';show('txns')`)}
       ${item(noRcpt.length===0, false, 'Receipts attached',
         noRcpt.length ? `${noRcpt.length} expense(s) missing a receipt — fine to close, but the CPA pack will list them.` : 'Every expense carries its receipt.',
         `show('receipts')`)}

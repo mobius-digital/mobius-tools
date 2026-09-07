@@ -4,6 +4,17 @@
 -- drifting between Contractor and Payroll columns month to month).
 -- Backfilled rows carry date = 1st of month (the sheet records no day).
 -- npx wrangler d1 execute mobius-ledger --remote --file=seed.sql
+--
+-- DO NOT RE-RUN, and do not extend it forward. This file and the Plaid feed
+-- describe the same money from different sides, so any month both cover is
+-- counted twice. That happened: this seeded August, Plaid also starts
+-- 2026-08-01, and August's contractors appeared twice — expenses read $18,956
+-- instead of $10,688 until the nine August rows were deleted on 2026-09-07.
+-- The boundary is settings.plaidStart (2026-08-01): the sheet owns everything
+-- BEFORE it, the bank owns everything from it on. Moving plaidStart earlier
+-- re-creates the overlap. The month-close checklist now carries a "Nothing
+-- counted twice" check that compares bank rows against non-bank rows of the
+-- same amount, so a recurrence is visible before a month is closed.
 
 -- ============ settings ============
 INSERT OR REPLACE INTO settings (key, value) VALUES
