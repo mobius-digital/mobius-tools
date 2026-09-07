@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mobius Ledger</title>
-<meta name="description" content="Money in, money out, month close and the CPA pack — Mobius Digital's internal finance tool.">
+<meta name="description" content="Money in, money out, month close and the CPA pack · Mobius Digital's internal finance tool.">
 <link rel="icon" href="../icons/ledger-192.png" type="image/png">
 <link rel="apple-touch-icon" href="../icons/ledger-180.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -15,16 +15,63 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../mobius.css">
 <style>
+  /* ---- the merged design language (canvas sign-off 2026-09-08) ---- */
+  body{background:linear-gradient(180deg,#E3F1EA 0,#EBF2F4 260px,#EFF4F7 460px) no-repeat,#EFF4F7}
+  .hairline{height:3px;background:linear-gradient(90deg,#c6e2d5,#72c0e4,#bec5b9)}
+  .card{border-radius:10px;box-shadow:0 2px 8px rgba(12,22,29,.04)}
+  .serifh{font-family:var(--serif);font-weight:400;font-size:33px;color:#0C161D;letter-spacing:-.01em}
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:14px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:15px 19px;box-shadow:0 2px 8px rgba(12,22,29,.04)}
+  .stat .sv{font-size:27px;font-weight:700;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+  .stat .sd{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .stat.goodc{border-left:3px solid #5CC395;background:linear-gradient(180deg,#EDF9F2,#fff 70%)}
+  .stat.goodc .sv,.stat.goodc .sd{color:var(--good)}
+  .stat.warnc{border-left:3px solid #EBBF63;background:linear-gradient(180deg,#FBF4E4,#fff 70%)}
+  .stat.warnc .sv,.stat.warnc .sd{color:var(--warn)}
+  .stat.badc{border-left:3px solid #F09182;background:linear-gradient(180deg,#FBF1EF,#fff 70%)}
+  .stat.badc .sv,.stat.badc .sd{color:var(--bad)}
+  .pbar{height:6px;border-radius:99px;background:#E4EBF0;margin-top:9px;overflow:hidden}
+  .pbar i{display:block;height:6px;border-radius:99px;background:linear-gradient(90deg,#5CC395,#72c0e4)}
+  .rboard{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+  .rtile{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:linear-gradient(180deg,#F7FAFB,#fff 80%);cursor:default}
+  .rtile .rn{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rtile .rv{font-size:18px;font-weight:700;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+  .rtile .rs{font-size:11px;color:var(--muted);margin-top:3px}
+  .rtile.paid{border-left:3px solid #5CC395;background:linear-gradient(180deg,#EDF9F2,#fff 80%)}
+  .rtile.paid .rv,.rtile.paid .rs{color:var(--good)} .rtile.paid .rs{font-weight:700}
+  .rtile.paused{border-color:#E4EBF0;background:repeating-linear-gradient(45deg,#F3F7F9,#F3F7F9 6px,#EDF1F4 6px,#EDF1F4 12px)}
+  .rtile.paused .rn,.rtile.paused .rv,.rtile.paused .rs{color:#8B9AA6}
+  .rtile.total{border:none;background:linear-gradient(180deg,#16242E,#0C161D)}
+  .rtile.total .rn{color:#8195A2;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+  .rtile.total .rv{color:#fff} .rtile.total .rs{color:#8195A2}
+  .nbars{display:flex;align-items:flex-end;gap:12px;height:158px;margin-top:20px}
+  .nbars .nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;min-width:0}
+  .nbars .bar{width:100%;border-radius:5px;background:#DCE7EE;min-height:3px}
+  .nbars .nb.hi .bar{background:linear-gradient(180deg,#5FD292,#2E9E63);box-shadow:0 8px 18px rgba(46,158,99,.28)}
+  .nbars .nb .ml{font-size:11px;color:var(--muted);white-space:nowrap}
+  .nbars .nb.hi .ml,.nbars .nb.hi .mv{color:var(--good);font-weight:700}
+  .nbars .nb .mv{font-size:11px;white-space:nowrap}
+  .ct{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .txgrid{display:grid;grid-template-columns:2.1fr 1fr;gap:16px;align-items:start}
+  .src{font-size:11px;font-weight:600;color:#8B9AA6;letter-spacing:.02em}
+  .rrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .rrow:last-child{border-bottom:none}
+  .rrow .rrv{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .feed{display:flex;flex-direction:column;gap:8px;margin-top:10px;font-size:12.5px;color:#3A4B58}
+  .feed>div{display:flex;gap:8px}
+  .homegrid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:18px;align-items:start}
+  @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.rboard{grid-template-columns:repeat(2,1fr)}.txgrid,.homegrid{grid-template-columns:1fr}}
+
   /* ---- page furniture ---- */
   .hdr{background:var(--hd);color:var(--on-ink);position:sticky;top:0;z-index:20}
   .hdr .in{max-width:1140px;margin:0 auto;padding:0 18px;display:flex;align-items:center;gap:14px;height:54px}
   .hdr .wm{font-family:var(--serif);font-size:19px;color:#fff;white-space:nowrap}
-  .hdr .wm em{font-style:italic;color:var(--brand)}
+  .hdr .wm em{font-style:italic;color:#5FD292}
   .hdr nav{display:flex;gap:2px;margin-left:10px;overflow-x:auto;scrollbar-width:none}
   .hdr nav::-webkit-scrollbar{display:none}
   .hdr nav button{color:var(--on-ink-2);font-size:13px;font-weight:600;padding:7px 11px;border-radius:8px;white-space:nowrap;position:relative}
   .hdr nav button:hover{color:#fff}
-  .hdr nav button.on{color:#fff;background:var(--hd-line)}
+  .hdr nav button.on{color:#fff;background:none;border-radius:0;box-shadow:inset 0 -2px 0 #5FD292}
   .hdr nav button .bdg{display:inline-block;min-width:16px;text-align:center;background:var(--warn-on);color:var(--hd);font-size:10px;font-weight:700;border-radius:99px;padding:1px 4px;margin-left:5px;vertical-align:1px}
   .hdr .chip-conn{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--on-ink-2);border:1px solid var(--hd-line);border-radius:99px;padding:4px 10px;white-space:nowrap}
   .hdr .chip-conn[data-s=live]{color:var(--good-on);border-color:rgba(95,210,146,.4)}
@@ -67,7 +114,7 @@
   .mbox .mrow>div{flex:1;min-width:0}
   .mbox label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
   .mbox label .why{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px;margin-top:1px}
-  /* A checkbox row is a label too, but it is a sentence — not a field caption,
+  /* A checkbox row is a label too, but it is a sentence · not a field caption,
      so it must escape the uppercase/tracking the caption rule applies. */
   .mbox label.ck{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;
     color:var(--ink);margin:12px 0 0;line-height:1.5;align-items:flex-start;
@@ -98,7 +145,7 @@
   .txn-tbl td.pick,.txn-tbl th.pick{padding-right:0;width:34px}
   .txn-tbl td.pick input{width:15px;height:15px;cursor:pointer;margin:0}
   /* A real dropdown. The OPEN list of a native <select> is drawn by Windows and
-     cannot be styled by any stylesheet — which is why these looked like 1998
+     cannot be styled by any stylesheet · which is why these looked like 1998
      next to everything else. This replaces the control entirely: a button plus
      a panel rendered at body level, so the table's overflow cannot clip it. */
   .msel{position:relative;display:inline-block}
@@ -110,7 +157,8 @@
     background-repeat:no-repeat;background-position:right 10px center}
   .msel-btn:hover{border-color:var(--brand-ink)}
   .msel-btn.open{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  .msel-btn.unset{color:var(--bad);border-color:var(--bad);border-style:dashed}
+  /* one attention color: amber says "needs you"; red stays destructive-only */
+  .msel-btn.unset{color:#8F6412;border-color:#EBBF63;border-style:dashed}
   .msel-panel{position:fixed;z-index:70;background:var(--surface);border:1px solid var(--line-strong);
     border-radius:12px;box-shadow:0 18px 48px rgba(12,22,29,.26);padding:6px;
     max-height:min(52vh,420px);overflow:auto;min-width:220px}
@@ -120,7 +168,7 @@
   .msel-opt.sel{font-weight:700}
   .msel-opt.none{color:var(--muted)}
   .rowsel{display:inline-flex;gap:7px;flex-wrap:wrap;align-items:center}
-  /* Same control as every other Mobius app — mobius.css's select: its own
+  /* Same control as every other Mobius app · mobius.css's select: its own
      chevron (appearance:none removes the native one), 8px radius, and the
      house focus ring. Only the scale differs, because this one sits in a row. */
   .rowcat{font-size:12px;padding:5px 28px 5px 10px;border:1px solid var(--line-strong);border-radius:8px;
@@ -130,7 +178,7 @@
     background-repeat:no-repeat;background-position:right 10px center;transition:border-color .12s,box-shadow .12s}
   .rowcat:hover{border-color:var(--brand-ink)}
   .rowcat:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  .rowcat.unset{color:var(--bad);border-color:var(--bad);border-style:dashed}
+  .rowcat.unset{color:#8F6412;border-color:#EBBF63;border-style:dashed}
   /* Anything that responds to a click says so. Selects and checkboxes do not
      get a pointer from the browser, and this app is mostly selects. */
   select,input[type=checkbox],input[type=radio],label.ck,.chip,.sc,summary{cursor:pointer}
@@ -237,6 +285,7 @@
     <nav id="nav"></nav>
     <span class="chip-conn" id="connChip">…</span>
   </div>
+  <div class="hairline"></div>
 </header>
 
 <main id="main"></main>
@@ -244,7 +293,7 @@
 <div class="scrim" id="scrim"></div>
 <div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
 
-<footer class="no-print">Mobius Ledger · the sheet's own formulas: net = revenue − expenses − merchant fee; the app never moves money — it computes the split, you make the transfers.
+<footer class="no-print">Mobius Ledger · the sheet's own formulas: net = revenue − expenses − merchant fee; the app never moves money · it computes the split, you make the transfers.
   <span style="display:block;margin-top:6px"><a href="privacy/">Privacy policy</a> · <a href="security/">Security policy</a></span></footer>
 
 <script>
@@ -309,8 +358,8 @@ async function boot() {
     if (/unauthorized/i.test(e.message)) {
       const wasShared = S.tok && S.tok === sharedSession();
       S.tok=''; localStorage.removeItem(LS.tok);
-      if (wasShared) { ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); return renderGate('Your session expired — sign in again.'); }
-      return renderGate('Wrong password — try again.');
+      if (wasShared) { ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); return renderGate('Your session expired · sign in again.'); }
+      return renderGate('Wrong password · try again.');
     }
     setChip('Worker down', 'down');
     $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p>
@@ -346,13 +395,16 @@ function renderGate(err) {
 
 /* ================= nav ================= */
 const VIEWS = [
-  ['dash','Dashboard'], ['txns','Transactions'], ['receipts','Receipts'],
-  ['close','Close'], ['reports','Reports'], ['forecast','Forecast'], ['settings','Settings'],
+  ['dash','Home'], ['txns','Transactions'], ['reports','Reports'], ['settings','Settings'],
 ];
+/* Receipts, Close and Forecast still exist as screens · they just live inside
+   a parent tab now, so the nav highlights that parent while you're on them. */
+const PARENT = { receipts:'txns', close:'reports', forecast:'dash' };
 function navHTML(){
   const rv = Object.values(S.boot?.flags || {}).reduce((s,f)=>s+(+f.review||0),0);
+  const on = PARENT[S.view] || S.view;
   return VIEWS.map(([id,label]) =>
-    `<button class="${S.view===id?'on':''}" onclick="show('${id}')">${label}${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`).join('');
+    `<button class="${on===id?'on':''}" onclick="show('${id}')">${label}${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`).join('');
 }
 function show(view){
   S.view = view;
@@ -371,73 +423,130 @@ function monthNav(){
   </div>`;
 }
 
-/* ================= dashboard ================= */
+/* ================= home ================= */
 async function renderDash(){
   const m = $('#main');
   m.innerHTML = '<div class="sub">Loading…</div>';
   let sum;
-  try { sum = await api('/api/summary?month=' + S.month); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  try { sum = await api('/api/summary?month=' + S.month); await loadTxns(); }
+  catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
   S.summary = sum;
   const r = sum.report, a = sum.attention;
-  const needs = (+a.review||0) + (+a.expected||0);
   const st = moState(S.month);
-  const verdictCls = needs ? 'warn' : 'good';
-  const verdict = st === 'closed'
-    ? `${moName(S.month)} is closed — the report card is frozen. Net income came to <b>${fmt$(r.net)}</b> at a ${r.margin ?? '—'}% margin.`
-    : needs
-      ? `${needs} item${needs>1?'s':''} need${needs>1?'':'s'} you before ${moName(S.month)} can close — ${+a.expected||0} expected to confirm, ${+a.review||0} in review.`
-      : `Nothing needs you right now. When the month ends, Close takes about a minute.`;
+  const prevMo = addMonths(S.month, -1);
+  const prevClosed = moState(prevMo) === 'closed';
+  let prevRep = null;
+  try { prevRep = (await api('/api/report?month=' + prevMo)).report; } catch(e){}
 
+  /* greeting */
+  const now = new Date(), isCur = S.month === nowMonth();
+  const dayN = now.getDate(), daysIn = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const phrase = !isCur ? '' : dayN<=7 ? ', one week in.' : dayN<=14 ? ', two weeks in.' : dayN<=21 ? ', three weeks in.' : ', almost done.';
+  const dateLine = isCur ? `${now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})} · day ${dayN} of ${daysIn}` : moName(S.month);
+
+  /* retainer board · paid means a confirmed money-in row from that client this month */
+  const clients = S.boot.clients || [];
+  const inTx = (S.txns||[]).filter(t => t.type==='in' && !t.expected);
+  const paidOf = n => inTx.filter(t => t.vendor===n).reduce((s,t)=>s+t.amount,0);
+  const paidDate = n => inTx.find(t => t.vendor===n)?.date;
+  const expTotal = clients.filter(c=>c.active).reduce((s,c)=>s+clientMonthly(c),0);
+  const tiles = clients.map(c => {
+    if (!c.active) return `<div class="rtile paused"><div class="rn">${esc(c.name)}</div><div class="rv">—</div><div class="rs">Paused</div></div>`;
+    const got = paidOf(c.name);
+    if (got > 0) return `<div class="rtile paid"><div class="rn">${esc(c.name)}</div><div class="rv">${fmtK(got)}</div><div class="rs">Paid · ${fmtDate(paidDate(c.name))}</div></div>`;
+    return `<div class="rtile"><div class="rn">${esc(c.name)}</div><div class="rv">${fmtK(clientMonthly(c))}</div><div class="rs">Expected this month</div></div>`;
+  }).join('');
+
+  /* spent + its biggest line */
+  const outs = (S.txns||[]).filter(t => (t.type==='out'||t.type==='fee') && !t.expected);
+  const byV = {}; outs.forEach(t => byV[t.vendor] = (byV[t.vendor]||0) + t.amount);
+  const topOut = Object.entries(byV).sort((x,y)=>y[1]-x[1])[0];
+
+  /* what still needs him · this month and the close behind it */
+  const flagsPrev = (S.boot.flags||{})[prevMo] || {};
+  const blocking = (+flagsPrev.review||0) + (+flagsPrev.expected||0);
+  const needsRows = [
+    [+a.review||0, 'transactions to categorize', `S.filter='needs';show('txns')`],
+    [+a.noReceipt||0, 'expenses missing a receipt', `S.filter='needs';show('txns')`],
+  ];
+  const things = needsRows.filter(x=>x[0]).length + (blocking?1:0);
+  const arrow = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#647684" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>`;
+  const check = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2.2" stroke-linecap="round"><path d="M5 13l4 4 10-10"></path></svg>`;
+
+  /* net-by-month chart, best month called out */
   const yr = sum.year || [];
-  const maxV = Math.max(1, ...yr.map(x => Math.max(x.revenue, x.expenses + x.fees)));
-  const bars = yr.map(x => `
-    <div class="b" title="${moName(x.month)} — in ${fmt$(x.revenue)}, out ${fmt$(x.expenses + x.fees)}">
-      <div class="f" style="height:${Math.round(x.revenue/maxV*100)}%"></div>
-      <div class="f ex" style="height:${Math.max(2,Math.round((x.expenses+x.fees)/maxV*100))}%"></div>
-      <span class="m">${moShort(x.month)}</span>
-    </div>`).join('');
+  const nets = yr.map(x => ({ m:x.month, net:x.revenue - x.expenses - x.fees }));
+  const maxN = Math.max(1, ...nets.map(n=>n.net));
+  const ytd = nets.reduce((s,n)=>s+n.net,0);
+  const hiM = nets.length ? nets.reduce((b,n)=>n.net>b.net?n:b).m : '';
+  const bars = nets.map(n => {
+    const h = Math.max(3, Math.round(Math.max(0, n.net)/maxN*118));
+    const cur = n.m === nowMonth();
+    return `<div class="nb ${n.m===hiM?'hi':''}" title="${moName(n.m)} net ${fmt$(n.net)}">
+      ${n.m===hiM?`<span class="mv">${fmtK(n.net)}</span>`:''}
+      <div class="bar" style="height:${h}px${cur?';background:#F7FAFB;border:2px dashed #A9BAC6;box-shadow:none':''}"></div>
+      <span class="ml">${moShort(n.m)}</span></div>`;
+  }).join('');
 
-  const renew = (sum.renewals||[]).slice(0,8).map(v =>
-    `<tr><td>${esc(v.name)}</td><td class="num">${fmt$(v.expected_amount||0)}</td></tr>`).join('');
+  /* the split card · what moves when last month closes */
+  const splitLabels = { personal:'Personal', tax:'Tax reserve', ads:'Ads', savings:'Savings', other:'Other' };
+  const splitRows = prevRep ? Object.entries(prevRep.split).map(([k,v]) =>
+    `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#3A4B58">${splitLabels[k]||k} · ${prevRep.splitPct[k]}%</span><b style="font-variant-numeric:tabular-nums">${fmt$(v)}</b></div>`).join('') : '';
+
+  /* activity feed · the automation talking */
+  const feed = (S.txns||[]).filter(t=>!t.expected).sort((x,y)=>y.date.localeCompare(x.date)).slice(0,5).map(t => {
+    if (t.type==='in') return `<div><span style="color:var(--good);font-weight:700">✓</span><span>${esc(t.vendor)} ${fmt$(t.amount)} in${t.source==='stripe'?' via Stripe':t.plaid_id?' via the bank':''}</span></div>`;
+    if (t.type==='transfer') return `<div><span style="color:var(--muted);font-weight:700">⇄</span><span>${esc(t.vendor)} ${fmt$(t.amount)} · transfer, not counted</span></div>`;
+    return `<div><span style="color:var(--muted);font-weight:700">−</span><span>${esc(t.vendor)} ${fmt$(t.amount)}${t.receipt_key?' · receipt ✓':''}</span></div>`;
+  }).join('');
 
   m.innerHTML = `
-    <div class="ph"><div><h2>Where the money stands</h2>
-      <div class="sub" style="margin-bottom:0">Everything below covers <b>${moName(S.month)}</b>. Confirmed transactions only — expected rows wait until you confirm them.</div></div>
+    <div class="ph"><div><div class="serifh">${MONTHS[+S.month.slice(5,7)-1]}${phrase || '.'}</div>
+      <div class="sub" style="margin-bottom:0">${dateLine}</div></div>
       ${monthNav()}</div>
 
-    <div class="rollup">
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Money in</div><div class="fig-v lg-num">${fmtK(r.revenue)}</div></div>
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Money out</div><div class="fig-v lg-num">${fmtK(r.expenses + r.fees)}</div></div>
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Net income</div><div class="fig-v lg-num" style="color:${r.net>=0?'var(--good-on)':'var(--bad-on)'}">${fmtK(r.net)}</div></div>
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Margin</div><div class="fig-v lg-num">${r.margin != null ? r.margin + '%' : '—'}</div></div>
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Set aside for tax (${r.taxPct}%)</div><div class="fig-v lg-num">${fmtK(r.taxes)}</div></div>
+    <div class="stats">
+      <div class="stat"><div class="fig-l">Collected · ${moShort(S.month)}</div><div class="sv">${fmtK(r.revenue)}</div>
+        <div class="pbar"><i style="width:${expTotal?Math.min(100,Math.round(r.revenue/expTotal*100)):0}%"></i></div>
+        <div class="sd">of ${fmtK(expTotal)} expected</div></div>
+      <div class="stat"><div class="fig-l">Spent</div><div class="sv">${fmtK(r.expenses + r.fees)}</div>
+        <div class="sd" style="margin-top:23px">all expenses${topOut?` · biggest: ${esc(topOut[0])} ${fmtK(topOut[1])}`:''}</div></div>
+      <div class="stat ${prevRep && prevRep.net>=0?'goodc':''}"><div class="fig-l" style="${prevRep&&prevRep.net>=0?'color:var(--good)':''}">${moShort(prevMo)} net · ${prevClosed?'closed':'unclosed'}</div>
+        <div class="sv">${prevRep?fmtK(prevRep.net):'—'}</div>
+        <div class="sd" style="margin-top:23px;font-weight:700;cursor:pointer" onclick="${prevClosed?`S.reportMonth='${prevMo}';show('reports')`:`setMonth('${prevMo}');show('close')`}">${prevClosed?'Closed ✓ · view the report →':blocking?`${blocking} item${blocking>1?'s':''} before the close →`:'Nothing blocks the close →'}</div></div>
+      <div class="stat ${things?'warnc':''}"><div class="fig-l" style="${things?'color:var(--warn)':''}">Needs you</div><div class="sv">${things||'0'}</div>
+        <div class="sd" style="margin-top:23px${things?';font-weight:700':''}">${things?'the list is on the right →':'all clear · nothing waiting'}</div></div>
     </div>
 
-    <p class="verdict ${verdictCls}">${verdict}</p>
+    <div class="homegrid">
+      <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
+          <span class="ct">Retainers · ${moShort(S.month)}</span>
+          <span class="tiny">paused clients not counted in expected</span></div>
+        <div class="rboard">${tiles}
+          <div class="rtile total"><div class="rn">Month total</div><div class="rv">${fmtK(r.revenue)} <span style="font-size:12px;color:#8195A2;font-weight:500">/ ${fmtK(expTotal)}</span></div></div>
+        </div></div>
+      <div class="card"><span class="ct">Needs you · ${things} thing${things===1?'':'s'}</span>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;font-size:13.5px">
+          ${needsRows.map(([n,label,go]) => `<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="${go}">
+            <b style="width:20px;text-align:right;color:${n?'var(--warn)':'inherit'}">${n}</b>
+            <span style="flex:1;color:#3A4B58">${label}</span>${n?arrow:check}</div>`).join('')}
+          <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${prevMo}');show('close')"`:''}>
+            <b style="width:20px;text-align:right;color:${blocking?'var(--warn)':'inherit'}">${blocking}</b>
+            <span style="flex:1;${blocking?'color:#3A4B58':''}">blocking the ${moShort(prevMo)} close</span>${blocking?arrow:check}</div>
+        </div>
+        ${!prevClosed?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${prevMo}');show('close')">Close ${moShort(prevMo)} →</button>`:''}
+      </div>
 
-    <div class="grp"><span class="ct">Needs you</span><span class="ln"></span></div>
-    <div class="grid3">
-      <div class="sc ${+a.expected?'wn':'ok'}" onclick="S.filter='expected';show('txns')">
-        <div class="fig-l">Expected, unconfirmed</div><div class="fig-v lg-num">${+a.expected||0}</div>
-        <div class="fig-d">Recurring rows the engine pre-created — tap to confirm the amount landed.</div></div>
-      <div class="sc ${+a.review?'wn':'ok'}" onclick="S.filter='review';show('txns')">
-        <div class="fig-l">Review inbox</div><div class="fig-v lg-num">${+a.review||0}</div>
-        <div class="fig-d">New vendors waiting for a category — one tap makes it a permanent rule.</div></div>
-      <div class="sc ${+a.noReceipt?'wn':'ok'}" onclick="show('receipts')">
-        <div class="fig-l">Missing receipts</div><div class="fig-v lg-num">${+a.noReceipt||0}</div>
-        <div class="fig-d">Expenses this month without a receipt attached — the old yellow highlight.</div></div>
-      <div class="sc ${st==='closed'?'ok':''}" onclick="show('close')">
-        <div class="fig-l">Month close</div><div class="fig-v lg-num" style="font-size:20px">${st==='closed'?'Closed ✓':'Open'}</div>
-        <div class="fig-d">${st==='closed'?'Report card frozen — view it under Reports.':'The checklist checks itself — review the exceptions and close.'}</div></div>
-    </div>
-
-    <div class="grid2" style="margin-top:22px">
-      <div class="card"><h3>${S.month.slice(0,4)} by month</h3>
-        <div class="hint">Blue = money in · grey = money out (fees included)</div>
-        <div class="bars">${bars || '<div class="hint">No data yet this year.</div>'}</div></div>
-      <div class="card"><h3>Recurring commitments</h3>
-        <div class="hint">What the engine expects every month — edit under Settings.</div>
-        <div class="tbl-wrap"><table><tbody>${renew}</tbody></table></div></div>
+      <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
+          <span class="ct">Net income · ${S.month.slice(0,4)}</span>
+          <span class="tiny">YTD ${fmtK(ytd)} · <b style="cursor:pointer;color:var(--brand-ink)" onclick="show('forecast')">cash forecast →</b></span></div>
+        <div class="nbars">${bars || '<div class="hint">No data yet this year.</div>'}</div></div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card"><span class="ct">When ${moShort(prevMo)} closes, move</span>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${splitRows || '<div class="hint">No report yet.</div>'}</div></div>
+        <div class="card"><span class="ct">Happening on its own</span>
+          <div class="feed">${feed || '<div class="hint">Nothing yet this month.</div>'}</div></div>
+      </div>
     </div>`;
 }
 
@@ -449,15 +558,18 @@ async function loadTxns(){
   if (S.txnMonth !== S.month) S.sel.clear();
   S.txnMonth = S.month;
 }
-const FILTERS = [['all','All'],['in','Money in'],['out','Expenses'],['transfer','Transfers'],['expected','Expected'],['review','Review'],['norcpt','No receipt']];
+const FILTERS = [['all','All'],['in','Money in'],['out','Expenses'],['transfer','Transfers'],['expected','Expected'],['needs','Needs you']];
+/* "Needs you" is the one attention bucket: uncategorized OR missing a receipt.
+   Two amber problems, one place to clear them. */
+const needsYou = t => (t.status==='review' && !t.expected)
+  || (t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip);
 function txnRows(){
   return (S.txns||[]).filter(t => {
     if (S.filter==='in') return t.type==='in';
     if (S.filter==='transfer') return t.type==='transfer';
     if (S.filter==='out') return t.type==='out'||t.type==='fee';
     if (S.filter==='expected') return t.expected===1;
-    if (S.filter==='review') return t.status==='review' && !t.expected;
-    if (S.filter==='norcpt') return t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip;
+    if (S.filter==='needs' || S.filter==='review' || S.filter==='norcpt') return needsYou(t);
     return true;
   }).filter(t => {
     const q = (S.q||'').trim().toLowerCase();
@@ -538,7 +650,7 @@ function pickAll(on){
   renderTxns();
 }
 /* Once anything is ticked you are in selecting mode, and the whole row is the
-   target — hunting the 15px box to tick the next twelve is not a workflow. */
+   target · hunting the 15px box to tick the next twelve is not a workflow. */
 function rowClick(ev, id){
   if (S.sel.size) { togglePick(id, !S.sel.has(id)); return; }
   editTxn(id);
@@ -552,7 +664,7 @@ async function setRowField(id, field, value, el){
   try {
     await api('/api/transaction', { method:'PUT', body: JSON.stringify({ id, [field]: value || null }) });
     // Ask before touching rows he did not click. Same vendor, still
-    // uncategorized, this month's view — never anything already decided.
+    // uncategorized, this month's view · never anything already decided.
     let kin = [];
     if (field === 'tax_cat' && value && t) {
       kin = (S.txns||[]).filter(x => x.id !== id && x.vendor === t.vendor
@@ -564,8 +676,9 @@ async function setRowField(id, field, value, el){
       ok: `Yes, apply to all ${kin.length + 1}`, cancel: 'Just this one' })) {
       await api('/api/transactions/bulk', { method:'POST',
         body: JSON.stringify({ ids: kin.map(x=>x.id), tax_cat: value }) });
-      flash(`Categorized ${kin.length + 1} ${t.vendor} transactions.`);
-    }
+      flash(`Saved · categorized ${kin.length + 1} ${t.vendor} transactions.`);
+    } else if (field === 'tax_cat' && value) flash(`Saved · ${t?.vendor || 'transaction'} → ${value}.`);
+    else flash('Saved.');
     S.txns = null; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
   } catch(e){
@@ -609,31 +722,33 @@ async function bulkSkipReceipts(){
 }
 async function renderTxns(){
   const m = $('#main');
-  // Only flash "Loading" when there is genuinely nothing to draw — this
+  // Only flash "Loading" when there is genuinely nothing to draw · this
   // re-renders on every keystroke of the search box.
   if (!S.txns || S.txnMonth !== S.month) m.innerHTML = '<div class="sub">Loading…</div>';
   try { await loadTxns(); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
   const closed = moState(S.month) === 'closed';
   const rows = txnRows();
   const chips = FILTERS.map(([id,label]) => {
-    const n = id==='review' ? (S.txns||[]).filter(t=>t.status==='review'&&!t.expected).length
+    const n = id==='needs' ? (S.txns||[]).filter(needsYou).length
       : id==='expected' ? (S.txns||[]).filter(t=>t.expected===1).length : null;
-    return `<button class="ctl ${S.filter===id?'on':''}" onclick="S.filter='${id}';renderTxns()">${label}${n?` (${n})`:''}</button>`;
+    const on = S.filter===id || (id==='needs' && (S.filter==='review'||S.filter==='norcpt'));
+    return `<button class="ctl ${on?'on':''}" ${id==='needs'&&n?'style="color:var(--warn)"':''} onclick="S.filter='${id}';renderTxns()">${label}${n?` · ${n}`:''}</button>`;
   }).join('');
   const body = rows.map(t => {
     // Say WHY there is no receipt slot, rather than a bare dash that reads as
-    // "missing". Expected rows are expenses too — they just haven't happened.
+    // "missing". Expected rows are expenses too · they just haven't happened.
     const rc = t.type==='out' && !t.expected
       ? (t.receipt_key ? '<span class="rc has">✓ receipt</span>' : t.receipt_skip ? '<span class="rc">no receipt · ok</span>' : '<span class="rc miss">no receipt</span>')
-      : t.expected ? '<span class="rc na" title="This row is the recurring engine\'s prediction — it hasn\'t happened yet, so there is nothing to attach. Confirm it first.">not yet</span>'
-      : t.type==='fee' ? '<span class="rc na" title="Stripe\'s processing fee — taken automatically, no receipt exists">n/a</span>'
-      : t.type==='in' ? '<span class="rc na" title="Money coming in — receipts are for expenses">money in</span>'
-      : '<span class="rc na" title="A transfer between your own accounts — not a purchase, so no receipt">transfer</span>';
+      : t.expected ? '<span class="rc na" title="This row is the recurring engine\'s prediction · it hasn\'t happened yet, so there is nothing to attach. Confirm it first.">not yet</span>'
+      : t.type==='fee' ? '<span class="rc na" title="Stripe\'s processing fee · taken automatically, no receipt exists">n/a</span>'
+      : t.type==='in' ? '<span class="rc na" title="Money coming in · receipts are for expenses">money in</span>'
+      : '<span class="rc na" title="A transfer between your own accounts · not a purchase, so no receipt">transfer</span>';
+    /* one amber for attention; sources are quiet gray text, never colored pills */
     const flag = (t.expected ? '<span class="pill warn">expected</span>'
-      : t.status==='review' ? '<span class="pill bad">review</span>'
+      : t.status==='review' ? '<span class="pill warn">needs you</span>'
       : t.one_time ? '<span class="pill unk">one-time</span>' : '')
-      + (t.source==='stripe' ? ' <span class="pill good" title="Synced from Stripe — amount and fee are exact">stripe</span>' : '')
-      + (t.plaid_id ? ' <span class="pill good" title="Came straight from the bank or card feed">bank</span>' : '');
+      + (t.source==='stripe' ? ' <span class="src" title="Synced from Stripe · amount and fee are exact">stripe</span>' : '')
+      + (t.plaid_id ? ' <span class="src" title="Came straight from the bank or card feed">bank</span>' : '');
     // The category is editable in place: one dropdown, no modal, and the choice
     // becomes this vendor's default so the next import never asks again.
     // ONE choice. The dashboard grouping is derived from it server-side, so
@@ -642,8 +757,8 @@ async function renderTxns(){
     const catCell = closed
       ? `<span class="cat">${esc(t.tax_cat||'uncategorized')}</span>`
       : `<span class="rowsel" onclick="event.stopPropagation()">
-          ${mselHTML('cat' + t.id, t.tax_cat || '', [{ value:'', label:'— pick a category —' }, ...cats],
-            { placeholder: '— pick a category —', unset: true })}
+          ${mselHTML('cat' + t.id, t.tax_cat || '', [{ value:'', label:'pick a category…' }, ...cats],
+            { placeholder: 'pick a category…', unset: true })}
           ${t.bucket ? `<span class="cat">→ ${esc(t.bucket)}</span>` : ''}
         </span>`;
     return `<tr onclick="rowClick(event, ${t.id})" class="${S.sel.has(t.id)?'picked':''}">
@@ -653,7 +768,7 @@ async function renderTxns(){
       <td><b>${esc(t.vendor)}</b>${t.note?` <span class="tiny">· ${esc(t.note)}</span>`:''} ${flag}
         <div style="margin-top:5px">${catCell}</div></td>
       <td>${rc}</td>
-      <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}" ${t.type==='transfer'?'style="color:var(--muted)" title="Transfer — money moving between your own accounts, not counted in any report"':''}>${t.type==='transfer'?'⇄ ':t.type==='in'?'':'−'}${fmt$(Math.abs(t.amount)).replace('−','')}</td>
+      <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}" ${t.type==='transfer'?'style="color:var(--muted)" title="Transfer · money moving between your own accounts, not counted in any report"':''}>${t.type==='transfer'?'⇄ ':t.type==='in'?'':'−'}${fmt$(Math.abs(t.amount)).replace('−','')}</td>
     </tr>`;
   }).join('');
   m.innerHTML = `
@@ -668,7 +783,7 @@ async function renderTxns(){
       <button class="btn" onclick="importModal()" ${closed?'disabled title="Month is closed"':''}>⇪ Import CSV</button>
       <button class="btn primary" onclick="addModal()" ${closed?'disabled title="Month is closed"':''}>+ Add transaction</button>
     </div>
-    ${closed?'<div class="notice good">This month is closed — amounts and dates are frozen with its report card. You can still attach receipts. Reopen from the Close page if something must change.</div>':''}
+    ${closed?'<div class="notice good">This month is closed · amounts and dates are frozen with its report card. You can still attach receipts. Reopen from the Close page if something must change.</div>':''}
     ${S.sel.size ? `<div class="bulkbar">
       <b>${S.sel.size} selected</b>
       <span class="tiny">Click any row to add or remove it</span>
@@ -679,15 +794,24 @@ async function renderTxns(){
       <span style="flex:1"></span>
       <button class="btn" onclick="S.sel.clear();renderTxns()">Clear selection</button>
     </div>` : ''}
-    <div class="card" style="padding:0">
-      <div class="tbl-wrap"><table class="txn-tbl">
-        <thead><tr>
-          <th class="pick"><input type="checkbox" ${rows.length && rows.every(t=>S.sel.has(t.id))?'checked':''}
-            title="Select everything shown" onchange="pickAll(this.checked)"></th>
-          <th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
-        <tbody>${body || '<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
-      </table></div></div>
+    <div class="txgrid">
+      <div class="card" style="padding:0">
+        <div class="tbl-wrap"><table class="txn-tbl">
+          <thead><tr>
+            <th class="pick"><input type="checkbox" ${rows.length && rows.every(t=>S.sel.has(t.id))?'checked':''}
+              title="Select everything shown" onchange="pickAll(this.checked)"></th>
+            <th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
+          <tbody>${body || '<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
+        </table></div></div>
+      <div class="rail">${txnRail()}</div>
+    </div>
     ${S.sel.size ? '<div style="height:76px"></div>' : ''}`;   // room under the floating bar
+    const dz = $('#drop');
+    if (dz) {
+      dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); };
+      dz.ondragleave = () => dz.classList.remove('over');
+      dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handleDrop(f); };
+    }
     // the custom dropdowns report their picks here rather than via onchange
     for (const t of rows) {
       const cfg = MSEL['cat' + t.id];
@@ -697,14 +821,41 @@ async function renderTxns(){
     if (sb && S.q) { sb.focus(); sb.setSelectionRange(sb.value.length, sb.value.length); }
 }
 
+/* ---- the receipts rail (the old Receipts tab, folded in) ---- */
+function txnRail(){
+  const missing = (S.txns||[]).filter(t => t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip);
+  const urlOf = v => (S.boot.vendors||[]).find(x=>x.name===v)?.billing_url || '';
+  const rows = missing.slice(0,8).map(t => {
+    const u = urlOf(t.vendor);
+    return `<div class="rrow"><span class="rrv">${esc(t.vendor)}</span>
+      <b style="font-variant-numeric:tabular-nums">${fmt$(t.amount)}</b>
+      ${u ? `<a class="ctl" href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--brand-ink);font-weight:700">Billing ↗</a>`
+          : `<button class="ctl" onclick="setBillingUrl('${esc(t.vendor).replace(/'/g,"\\'")}')" title="Save the link to where this vendor's invoices live">+ Link</button>`}
+      <button class="ctl" onclick="attachFor(${t.id})" title="Attach a file">📎</button></div>`;
+  }).join('');
+  return `
+    <div class="drop" id="drop" onclick="dropPick()" style="padding:22px 16px">
+      <b>Drop a receipt here</b>or send it to #finance and it files itself
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between">
+        <span class="ct">Missing a receipt · ${missing.length}</span>
+        ${missing.length ? `<button class="ctl" onclick="nudgeSlack(this)" style="color:var(--brand-ink);font-weight:700">Send list to Slack</button>` : ''}
+      </div>
+      <div style="margin-top:6px">${rows || '<div class="hint" style="padding:6px 0">Every expense this month has its receipt. ✓</div>'}
+      ${missing.length > 8 ? `<div class="tiny" style="margin-top:6px">…and ${missing.length-8} more.</div>` : ''}</div>
+      <button class="ctl" style="margin-top:8px;color:var(--brand-ink);font-weight:700" onclick="show('receipts')">All receipts &amp; the vault →</button>
+    </div>`;
+}
+
 /* ---- add / edit modal ---- */
 /* One picker. The bucket the dashboard totals by is derived from the category,
    so it is shown as a consequence rather than offered as a second decision. */
 function catSelects(bucket, tax){
   return `<div class="mrow">
     <div><label>What was this? <span class="why">Sets your dashboard grouping and the CPA's P&amp;L line together</span></label>
-      ${mselHTML('tTax', tax || '', [{ value:'', label:'— pick one —' }, 'Client revenue', ...S.boot.taxCats],
-        { placeholder: '— pick one —', width: '100%' })}
+      ${mselHTML('tTax', tax || '', [{ value:'', label:'pick one…' }, 'Client revenue', ...S.boot.taxCats],
+        { placeholder: 'pick one…', width: '100%' })}
       <div class="tiny" style="margin-top:6px">${tax?`Groups under <b>${esc(bucket||'—')}</b> on your dashboard.`:'Pick one and the dashboard grouping follows automatically.'}</div></div>
   </div>`;
 }
@@ -750,7 +901,7 @@ function addModal(prefill = {}){
     <div class="seg" id="tType" style="margin-top:12px">
       <button data-v="out" class="${prefill.type!=='in'?'on':''}">Money out</button>
       <button data-v="in" class="${prefill.type==='in'?'on':''}">Money in</button>
-      <button data-v="transfer" title="Between your own accounts — never counted as income or expense">Transfer</button>
+      <button data-v="transfer" title="Between your own accounts · never counted as income or expense">Transfer</button>
     </div>
     ${vendorDatalist()}
     <div class="mrow">
@@ -784,7 +935,7 @@ function addModal(prefill = {}){
       date: $('#tDate').value, note: $('#tNote').value.trim(),
       // bucket is derived from the category server-side
       bucket: type==='in' ? 'Revenue' : type==='transfer' ? 'Transfer' : undefined,
-      tax_cat: type==='in' ? 'Client revenue' : type==='transfer' ? 'Transfer — not P&L' : (MSEL.tTax?.value || null),
+      tax_cat: type==='in' ? 'Client revenue' : type==='transfer' ? 'Transfer · not P&L' : (MSEL.tTax?.value || null),
       one_time: $('#tOne').checked,
     };
     if (!row.vendor || !row.amount || !row.date) { $('#tMsg').className='msg bad'; $('#tMsg').textContent='Vendor, amount and date are required.'; return; }
@@ -802,7 +953,7 @@ async function editTxn(id){
     <h3>${t.expected ? 'Confirm expected transaction' : 'Edit transaction'}</h3>
     <div class="hint">${t.expected
       ? 'The recurring engine pre-created this. Fix the amount if it differs, then confirm.'
-      : closed ? 'This month is closed — categories, notes and receipts can change; amounts and dates are frozen.' : esc(t.vendor)}</div>
+      : closed ? 'This month is closed · categories, notes and receipts can change; amounts and dates are frozen.' : esc(t.vendor)}</div>
     ${vendorDatalist()}
     <div class="mrow">
       <div><label>Vendor / client</label><input id="eVendor" list="dlV" value="${esc(t.vendor)}"></div>
@@ -813,11 +964,11 @@ async function editTxn(id){
       <div><label>Note</label><input id="eNote" value="${esc(t.note||'')}"></div>
     </div>
     ${t.type==='out' ? catSelects(t.bucket||'Other', t.tax_cat||'') : ''}
-    ${t.stripe_cus ? `<label class="ck"><input type="checkbox" id="eMap" ${t.status==='review'?'checked':''}><span>Remember: this Stripe customer is the client above<small>Every future payment from them auto-matches — set the vendor to the right client first.</small></span></label>`:''}
+    ${t.stripe_cus ? `<label class="ck"><input type="checkbox" id="eMap" ${t.status==='review'?'checked':''}><span>Remember: this Stripe customer is the client above<small>Every future payment from them auto-matches · set the vendor to the right client first.</small></span></label>`:''}
     ${t.type==='out' ? `<label class="ck"><input type="checkbox" id="eOne" ${t.one_time?'checked':''}><span>One-time purchase</span></label>`:''}
     ${!closed && (t.type==='out'||t.type==='in') ? `<label class="ck"><input type="checkbox" id="eSelf">
-      <span>This was money between my own accounts<small>Not income or a cost — an owner draw, a card payment, a move to savings. It stops counting in every report, and Ledger will treat “${esc(t.vendor)}” the same way from now on.</small></span></label>`:''}
-    ${t.type==='out' && !t.receipt_key ? `<label class="ck"><input type="checkbox" id="eSkip" ${t.receipt_skip?'checked':''}><span>No receipt exists for this one<small>Stops it counting as missing — no month-end chasing; the CPA pack simply lists it without a receipt.</small></span></label>`:''}
+      <span>This was money between my own accounts<small>Not income or a cost · an owner draw, a card payment, a move to savings. It stops counting in every report, and Ledger will treat “${esc(t.vendor)}” the same way from now on.</small></span></label>`:''}
+    ${t.type==='out' && !t.receipt_key ? `<label class="ck"><input type="checkbox" id="eSkip" ${t.receipt_skip?'checked':''}><span>No receipt exists for this one<small>Stops it counting as missing · no month-end chasing; the CPA pack simply lists it without a receipt.</small></span></label>`:''}
     <label>Receipt</label>
     <div class="row" style="margin-bottom:0">
       ${t.receipt_key
@@ -827,7 +978,7 @@ async function editTxn(id){
     </div>
     <div class="acts">
       ${!closed && !t.expected ? `<button class="btn" style="color:var(--bad)" onclick="delTxn(${t.id})">Delete</button>`:''}
-      ${t.expected ? `<button class="btn" style="color:var(--bad)" onclick="delTxn(${t.id})">Didn't happen — remove</button>`:''}
+      ${t.expected ? `<button class="btn" style="color:var(--bad)" onclick="delTxn(${t.id})">Didn't happen · remove</button>`:''}
       <span class="spacer"></span>
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn primary" id="eSave">${t.expected ? 'Confirm ✓' : 'Save'}</button></div>
@@ -961,16 +1112,16 @@ async function renderReceipts(){
   const have = (S.txns||[]).filter(t => t.receipt_key);
   m.innerHTML = `
     <div class="ph"><div><h2>Receipts</h2>
-      <div class="sub" style="margin-bottom:0">Drop or snap a receipt — Ledger reads it and matches it to the right transaction. This replaces the Drive folders and the yellow highlighting.</div></div>
+      <div class="sub" style="margin-bottom:0">Drop or snap a receipt · Ledger reads it and matches it to the right transaction. This replaces the Drive folders and the yellow highlighting.</div></div>
       ${monthNav()}</div>
     <div class="drop" id="drop" onclick="dropPick()">
-      <b>Drop a receipt here — or tap to choose / take a photo</b>
-      Images are read automatically${S.boot.extractAvailable?'':' (reading is off until the ANTHROPIC_API_KEY secret is set — files still attach fine)'}; PDFs attach directly.
+      <b>Drop a receipt here · or tap to choose / take a photo</b>
+      Images are read automatically${S.boot.extractAvailable?'':' (reading is off until the ANTHROPIC_API_KEY secret is set · files still attach fine)'}; PDFs attach directly.
     </div>
-    <div class="grp" style="margin-top:22px"><span class="ct">Missing a receipt — ${moName(S.month)}</span><span class="ln"></span>
+    <div class="grp" style="margin-top:22px"><span class="ct">Missing a receipt · ${moName(S.month)}</span><span class="ln"></span>
       ${missing.length ? `<button class="btn" onclick="nudgeSlack(this)" title="Posts this list into the finance channel, links and all">📣 Send to Slack</button>` : ''}</div>
     ${missing.length ? missingTables(missing) : '<div class="notice good">Every expense this month has its receipt. ✓</div>'}
-    <div class="grp" style="margin-top:22px"><span class="ct">Vault — ${moName(S.month)}</span><span class="ln"></span></div>
+    <div class="grp" style="margin-top:22px"><span class="ct">Vault · ${moName(S.month)}</span><span class="ln"></span></div>
     <div class="vault">${have.map(t=>`<div class="vitem" onclick="viewReceipt(${t.id})">
       <div class="vt">${esc(t.vendor)}</div><div class="vm">${fmtDate(t.date)} · ${fmt$(t.amount)}</div>
       <div class="vm">${esc(t.receipt_name||'file')}</div></div>`).join('') || '<div class="hint">No receipts stored for this month yet.</div>'}</div>`;
@@ -993,7 +1144,7 @@ function missingTables(missing){
         ${u?`<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">↗ Billing page</a>`
            :`<button class="btn" onclick="setBillingUrl('${esc(t.vendor).replace(/'/g,"\\'")}')" title="Save a link to where this vendor's invoices live">+ Add link</button>`}
         <button class="btn" onclick="attachFor(${t.id})">📎 Attach</button>
-        <button class="btn" onclick="skipRcpt(${t.id})" title="No receipt exists — stop counting it as missing">None exists</button></td></tr>`;
+        <button class="btn" onclick="skipRcpt(${t.id})" title="No receipt exists · stop counting it as missing">None exists</button></td></tr>`;
   }).join('');
   const withLink = missing.filter(t=>urlOf(t.vendor));
   const noLink = missing.filter(t=>!urlOf(t.vendor));
@@ -1001,13 +1152,13 @@ function missingTables(missing){
     <div class="grp" style="margin-top:14px"><span class="ct">${title}</span><span class="ln"></span></div>
     <div class="hint" style="margin-bottom:8px">${hint}</div>
     <div class="card" style="padding:0"><div class="tbl-wrap"><table class="txn-tbl"><tbody>${rows(list)}</tbody></table></div></div>`;
-  return tbl('Fetch these yourself', 'These vendors never email an invoice. The link opens their billing page — download it, then drop it in the finance channel or attach it here.', withLink)
+  return tbl('Fetch these yourself', 'These vendors never email an invoice. The link opens their billing page · download it, then drop it in the finance channel or attach it here.', withLink)
        + tbl(withLink.length ? 'Everything else' : 'Still missing', 'Forward the invoice email to the finance channel, or attach it here. If a receipt will never exist, say so and it stops being chased.', noLink);
 }
 async function setBillingUrl(vendor){
   const v = (S.boot.vendors||[]).find(x=>x.name===vendor);
   openModal(`<h3>Where do ${esc(vendor)}'s invoices live?</h3>
-    <div class="hint">Paste the link to their billing or invoice history page. At month end it appears next to the charge — here and in Slack — so you go straight there instead of hunting for it.</div>
+    <div class="hint">Paste the link to their billing or invoice history page. At month end it appears next to the charge · here and in Slack · so you go straight there instead of hunting for it.</div>
     <label>Billing page link</label>
     <input id="buUrl" placeholder="https://…" value="${esc(v?.billing_url||'')}">
     <div class="acts"><span class="spacer"></span>
@@ -1021,14 +1172,16 @@ async function setBillingUrl(vendor){
       $('#buMsg').className='msg bad'; $('#buMsg').textContent='Needs to start with https://'; return;
     }
     try {
-      // a vendor row may not exist yet for a one-off place — create it as
+      // a vendor row may not exist yet for a one-off place · create it as
       // non-recurring so saving a link never turns something into a monthly bill
       await api('/api/vendor', { method:'POST', body: JSON.stringify({
-        name: vendor, bucket: v?.bucket || 'Other', tax_cat: v?.tax_cat || 'Other — Ask CPA',
+        name: vendor, bucket: v?.bucket || 'Other', tax_cat: v?.tax_cat || 'Other · Ask CPA',
         recurring: !!v?.recurring, cadence: v?.cadence || 'monthly', renew_month: v?.renew_month,
         expected_amount: v?.expected_amount, active: v?.active === 0 ? false : true,
         billing_url: url || null }) });
-      closeModal(); S.boot = await api('/api/boot'); show('receipts');
+      closeModal(); S.boot = await api('/api/boot');
+      (S.view==='txns' ? renderTxns() : show('receipts'));
+      flash(`Saved · billing link for ${vendor}.`);
     } catch(e){ $('#buMsg').className='msg bad'; $('#buMsg').textContent = e.message; }
   };
 }
@@ -1043,11 +1196,11 @@ async function reportToSlack(btn){
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try { const r = await api(`/api/report-slack?force=1&period=${period}&month=${S.reportMonth||''}`, { method:'POST' });
-    btn.textContent = r.sent ? '✓ Posted to Slack' : ('Not sent — ' + (r.skipped || r.error || 'unknown'));
+    btn.textContent = r.sent ? '✓ Posted to Slack' : ('Not sent · ' + (r.skipped || r.error || 'unknown'));
   } catch(e){ btn.textContent = e.message; }
   setTimeout(()=>{ btn.disabled = false; btn.textContent = label; }, 4000);
 }
-/* The PDF comes back as bytes, so it needs the token in a header — a plain
+/* The PDF comes back as bytes, so it needs the token in a header · a plain
    link would arrive unauthorized. Fetch it, then hand the blob to the browser. */
 async function downloadStatement(btn){
   const period = $('#rptPeriod')?.value || 'month';
@@ -1069,7 +1222,7 @@ async function downloadStatement(btn){
 async function nudgeSlack(btn){
   btn.disabled = true; btn.textContent = 'Sending…';
   try { const r = await api('/api/receipt-nudge?force=1&month=' + S.month, { method:'POST' });
-    btn.textContent = r.sent ? '✓ Posted in #receipts' : ('Not sent — ' + (r.skipped || r.error || 'nothing missing'));
+    btn.textContent = r.sent ? '✓ Posted in #receipts' : ('Not sent · ' + (r.skipped || r.error || 'nothing missing'));
   } catch(e){ btn.textContent = e.message; }
 }
 function attachFor(id){
@@ -1078,7 +1231,9 @@ function attachFor(id){
     try {
       const { data, type } = await downscale(file);
       await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type, data }) });
-      S.txns=null; S.boot = await api('/api/boot'); renderReceipts();
+      S.txns=null; S.boot = await api('/api/boot');
+      await loadTxns(); (S.view==='txns' ? renderTxns : renderReceipts)();
+      flash('Saved · receipt attached.');
     } catch(e){ tell('Could not do that', e.message); }
   });
 }
@@ -1096,7 +1251,7 @@ async function handleDrop(file){
   matchModal(file, payload, ext);
 }
 function matchModal(file, payload, ext){
-  renderReceipts(); // reset the drop zone
+  (S.view==='txns' ? renderTxns : renderReceipts)(); // reset whichever drop zone was used
   const cand = (S.txns||[]).filter(t => t.type==='out' && !t.receipt_key)
     .map(t => ({ t, score: (ext?.amount && Math.abs(t.amount - ext.amount) < .01 ? 2 : 0) +
       (ext?.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0]) ? 1 : 0) }))
@@ -1120,7 +1275,9 @@ async function fileTo(id){
   const el = $('#fMsg'); el.className='msg'; el.textContent='Attaching…';
   try {
     await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type:payload.type, data:payload.data }) });
-    closeModal(); S.txns=null; S.boot = await api('/api/boot'); renderReceipts();
+    closeModal(); S.txns=null; S.boot = await api('/api/boot');
+    await loadTxns(); (S.view==='txns' ? renderTxns : renderReceipts)();
+    flash('Saved · receipt attached.');
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
 }
 function newFromReceipt(){
@@ -1144,7 +1301,7 @@ async function renderClose(){
   const noRcpt = t.filter(x => x.type==='out' && !x.expected && !x.receipt_key && !x.receipt_skip);
   const hasRevenue = t.some(x => x.type==='in' && !x.expected);
   const hasFee = t.some(x => x.type==='fee');
-  /* The same spend counted twice — one row typed in or seeded, another for the
+  /* The same spend counted twice · one row typed in or seeded, another for the
      same amount arriving from the bank. It happened for real in August (the
      2026 sheet covered a month the bank feed also covers) and nothing on this
      page would have shown it: both rows looked perfectly normal on their own.
@@ -1160,29 +1317,29 @@ async function renderClose(){
     </div>`;
   m.innerHTML = `
     <div class="ph"><div><h2>Close ${moName(S.month)}</h2>
-      <div class="sub" style="margin-bottom:0">The old nine-step Asana checklist, checking itself. Clear the exceptions, close, done — the report card freezes so the numbers never shift under you.</div></div>
+      <div class="sub" style="margin-bottom:0">The old nine-step Asana checklist, checking itself. Clear the exceptions, close, done · the report card freezes so the numbers never shift under you.</div></div>
       ${monthNav()}</div>
-    ${closed ? `<div class="notice good">This month is closed — its report card is frozen. <b style="cursor:pointer" onclick="S.reportMonth='${S.month}';show('reports')">View the report card →</b></div>
+    ${closed ? `<div class="notice good">This month is closed · its report card is frozen. <b style="cursor:pointer" onclick="S.reportMonth='${S.month}';show('reports')">View the report card →</b></div>
       <div class="row"><button class="btn" onclick="reopenMonth()">Reopen ${moName(S.month)}</button></div>` : `
     <div class="clx">
       ${item(hasRevenue, true, 'Revenue is in',
-        hasRevenue ? `${fmt$(rep.report.revenue)} across ${t.filter(x=>x.type==='in'&&!x.expected).length} payments.` : 'No confirmed money-in rows yet — add the client payments for this month.',
+        hasRevenue ? `${fmt$(rep.report.revenue)} across ${t.filter(x=>x.type==='in'&&!x.expected).length} payments.` : 'No confirmed money-in rows yet · add the client payments for this month.',
         `S.filter='in';show('txns')`)}
       ${item(expected.length===0, true, 'Expected rows confirmed',
-        expected.length ? `${expected.length} recurring row(s) still waiting — confirm each landed (or remove the ones that didn't).` : 'Every recurring row was confirmed.',
+        expected.length ? `${expected.length} recurring row(s) still waiting · confirm each landed (or remove the ones that didn't).` : 'Every recurring row was confirmed.',
         `S.filter='expected';show('txns')`)}
       ${item(review.length===0, true, 'Review inbox empty',
-        review.length ? `${review.length} transaction(s) still need categories.` : 'Everything is categorized — both layers.',
+        review.length ? `${review.length} transaction(s) still need categories.` : 'Everything is categorized · both layers.',
         `S.filter='review';show('txns')`)}
       ${item(hasFee, false, 'Merchant fee',
-        hasFee ? `${fmt$(rep.report.fees)} — the exact figure from Stripe.` : `No Stripe fees recorded for this month yet. They arrive with the nightly sync.`,
+        hasFee ? `${fmt$(rep.report.fees)} · the exact figure from Stripe.` : `No Stripe fees recorded for this month yet. They arrive with the nightly sync.`,
         `addModal({type:'out'})`)}
       ${item(dupes.length===0, true, 'Nothing counted twice',
-        dupes.length ? `${dupes.length} row(s) match a bank transaction for the same amount — ${dupes.slice(0,3).map(d=>esc(d.vendor)).join(', ')}${dupes.length>3?'…':''}. Check whether the same spend is in here twice, and delete the one that isn't from the bank.`
-          : 'No expense appears twice — every bank line is counted once.',
+        dupes.length ? `${dupes.length} row(s) match a bank transaction for the same amount · ${dupes.slice(0,3).map(d=>esc(d.vendor)).join(', ')}${dupes.length>3?'…':''}. Check whether the same spend is in here twice, and delete the one that isn't from the bank.`
+          : 'No expense appears twice · every bank line is counted once.',
         `S.q='';S.filter='all';show('txns')`)}
       ${item(noRcpt.length===0, false, 'Receipts attached',
-        noRcpt.length ? `${noRcpt.length} expense(s) missing a receipt — fine to close, but the CPA pack will list them.` : 'Every expense carries its receipt.',
+        noRcpt.length ? `${noRcpt.length} expense(s) missing a receipt · fine to close, but the CPA pack will list them.` : 'Every expense carries its receipt.',
         `show('receipts')`)}
     </div>
     <div class="row" style="margin-top:18px">
@@ -1204,7 +1361,7 @@ async function doClose(){
 }
 function confirmDrop(n){
   return ask({ title: 'Close with unconfirmed rows?',
-    body: `${n} expected row(s) were never confirmed. They were pre-created guesses — dropping them means they didn't happen this month.`,
+    body: `${n} expected row(s) were never confirmed. They were pre-created guesses · dropping them means they didn't happen this month.`,
     ok: 'Close and drop them' });
 }
 async function reopenMonth(){
@@ -1230,13 +1387,17 @@ async function renderReports(){
   }).join('');
   const bucketRows = Object.entries(r.byBucket).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('');
   const clientRows = Object.entries(r.byClient).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${fmt$(v)}</td></tr>`).join('');
-  // a month appears once it has begun or has data in it — future empty months
+  // a month appears once it has begun or has data in it · future empty months
   // would just be blank report cards (Oct–Dec show up when they arrive)
   const months = [...new Set([...(S.boot.months||[]).map(x=>x.month), ...Object.keys(S.boot.flags||{})])]
     .filter(x => x <= nowMonth() || (S.boot.flags||{})[x]).sort();
+  const rmOpen = moState(rm) !== 'closed';
   m.innerHTML = `
+    ${rmOpen ? `<div class="notice no-print" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
+      <span style="flex:1"><b>${moName(rm)} is still open</b> · these figures move until you close it. The checklist checks itself.</span>
+      <button class="btn primary" onclick="setMonth('${rm}');show('close')">Open the close checklist →</button></div>` : ''}
     <div class="ph no-print"><div><h2>Reports</h2>
-      <div class="sub" style="margin-bottom:0">The month's report card, print-ready — and the CPA pack below it. Months appear here as they arrive; the app rolls into 2027 and beyond on its own.</div></div>
+      <div class="sub" style="margin-bottom:0">The month's report card, print-ready · and the CPA pack below it. Months appear here as they arrive; the app rolls into 2027 and beyond on its own.</div></div>
       <div class="row rpt-picker" style="margin-bottom:0">
         <select onchange="S.reportMonth=this.value;renderReports()">${months.map(x=>`<option value="${x}" ${x===rm?'selected':''}>${moName(x)}</option>`).join('')}</select>
         <select id="rptPeriod" title="Statement period">
@@ -1249,8 +1410,8 @@ async function renderReports(){
       </div></div>
 
     <div class="rpt" id="rptCard">
-      <h1>Financial report card — ${moName(rm)}</h1>
-      <div class="rsub">Mobius Digital · ${data.frozen ? 'Closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · figures frozen' : data.status === 'closed' ? 'Closed · imported from the 2026 sheet' : 'Month still open — figures live'}${r.feeEstimated?' · merchant fee estimated at '+S.boot.money.feePct+'%':''}</div>
+      <h1>Financial report card · ${moName(rm)}</h1>
+      <div class="rsub">Mobius Digital · ${data.frozen ? 'Closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · figures frozen' : data.status === 'closed' ? 'Closed · imported from the 2026 sheet' : 'Month still open · figures live'}${r.feeEstimated?' · merchant fee estimated at '+S.boot.money.feePct+'%':''}</div>
       <div class="figs">
         <div class="fig"><div class="fig-l">Revenue</div><div class="fig-v lg-num">${fmt$(r.revenue)}</div>${d(r.revenue, prev?.revenue)}</div>
         <div class="fig"><div class="fig-l">Total expenses</div><div class="fig-v lg-num">${fmt$(r.expenses)}</div>${d(r.expenses, prev?.expenses)}</div>
@@ -1283,7 +1444,7 @@ async function renderReports(){
       <div class="grp"><span class="ct">CPA pack</span><span class="ln"></span></div>
       <div class="card">
         <h3>Everything your CPA needs, one click</h3>
-        <div class="hint">Most CPAs want both formats: the <b>PDF</b> to read (P&amp;L with monthly columns, 1099 totals, open questions) and the <b>ledger CSV</b> to pull into their software. Categories come from your vendor rules — Settings → Vendor rules is where to check or fix how anything (gas, meals, supplies…) is classified.</div>
+        <div class="hint">Most CPAs want both formats: the <b>PDF</b> to read (P&amp;L with monthly columns, 1099 totals, open questions) and the <b>ledger CSV</b> to pull into their software. Categories come from your vendor rules · Settings → Vendor rules is where to check or fix how anything (gas, meals, supplies…) is classified.</div>
         <div class="row" style="margin-top:12px">
           <button class="btn" onclick="loadPack('${rm}','${rm}')">This month</button>
           <button class="btn" onclick="loadPack('${qStart(rm)}','${rm}')">This quarter</button>
@@ -1294,7 +1455,7 @@ async function renderReports(){
 
       <div class="card" style="margin-top:14px">
         <h3>Receipt archive</h3>
-        <div class="hint">Every stored receipt as one ZIP, foldered by month and category and named so a human can read it —
+        <div class="hint">Every stored receipt as one ZIP, foldered by month and category and named so a human can read it:
           <code>${rm}/Meals (50%)/${rm}-14 Michaels Bar 139.20.jpg</code>.
           <b>Do this once a year at tax time</b> and drop it in Drive next to that year's return: it is your copy,
           off Cloudflare, that nobody has to maintain.</div>
@@ -1310,7 +1471,7 @@ async function renderReports(){
 const qStart = m => m.slice(0,4) + '-' + ['01','01','01','04','04','04','07','07','07','10','10','10'][+m.slice(5,7)-1];
 
 /* The zip is streamed from the worker, so a year of photos never has to fit
-   anywhere at once — but it does need the token, hence fetch-then-blob. */
+   anywhere at once · but it does need the token, hence fetch-then-blob. */
 async function downloadReceipts(from, to, btn){
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Building…';
@@ -1332,7 +1493,7 @@ async function downloadReceipts(from, to, btn){
 }
 
 /* The accountant's layout: tax categories down the side, months across,
- * totals on the right — the shape a P&L is read in, on screen and in print. */
+ * totals on the right · the shape a P&L is read in, on screen and in print. */
 function plTableHTML(p, { compactCap = 0 } = {}){
   const months = p.monthReports.map(r => r.month);
   const cats = [...new Set(p.transactions.filter(t=>t.type!=='in').map(t=>t.tax_cat||'Uncategorized'))];
@@ -1362,7 +1523,7 @@ function contractorTableHTML(p){
   return `<table class="kv">${rows.map(([k,v])=>`<tr><td>${esc(k)}${v>=600?' <span class="pill warn">1099 needed</span>':''}</td><td>${fmt$(v)}</td></tr>`).join('') || '<tr><td class="hint">None in range.</td><td></td></tr>'}</table>`;
 }
 function openQHTML(p, cap){
-  if (!p.openQuestions.length) return '<div class="tiny">None — nothing flagged personal or uncategorized. ✓</div>';
+  if (!p.openQuestions.length) return '<div class="tiny">None · nothing flagged personal or uncategorized. ✓</div>';
   const items = cap ? p.openQuestions.slice(0, cap) : p.openQuestions;
   return `<table class="kv">${items.map(t=>`<tr><td>${esc(t.vendor)} <span class="tiny">${fmtDate(t.date)} · ${esc(t.tax_cat||'uncategorized')}</span></td><td>${fmt$(t.amount)}</td></tr>`).join('')}</table>
     ${cap && p.openQuestions.length>cap ? `<div class="tiny" style="margin-top:6px">…and ${p.openQuestions.length-cap} more in the PDF and CSV.</div>`:''}`;
@@ -1400,14 +1561,14 @@ function printCpa(){
   const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
   const exp = p.transactions.filter(t=>t.type!=='in').reduce((s,t)=>s+t.amount,0);
   $('#cpaPrint').innerHTML = `<div class="rpt">
-    <h1>CPA pack — ${moName(p.from)}${p.from!==p.to?' → '+moName(p.to):''}</h1>
+    <h1>CPA pack · ${moName(p.from)}${p.from!==p.to?' → '+moName(p.to):''}</h1>
     <div class="rsub">Mobius Digital · prepared ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} · tax set-aside ${p.money.taxPct}% · every figure traces to the attached ledger CSV</div>
     <div class="figs">
       <div class="fig"><div class="fig-l">Revenue</div><div class="fig-v lg-num">${fmt$(rev)}</div></div>
       <div class="fig"><div class="fig-l">Expenses</div><div class="fig-v lg-num">${fmt$(exp)}</div></div>
       <div class="fig"><div class="fig-l">Net</div><div class="fig-v lg-num">${fmt$(rev-exp)}</div></div>
     </div>
-    <h4>Open questions — please rule on these first</h4>
+    <h4>Open questions · please rule on these first</h4>
     ${openQHTML(p, 0)}
     <h4 style="margin-top:24px">Profit &amp; loss, by tax category</h4>
     ${plTableHTML(p)}
@@ -1439,8 +1600,8 @@ function dlContractorCsv(){
 }
 
 /* ================= forecast ================= */
-/* A client's forecastable monthly revenue: fixed retainer, or — when they
- * carry a % of ad spend — their recent 3-month average (fallback: base). */
+/* A client's forecastable monthly revenue: fixed retainer, or · when they
+ * carry a % of ad spend · their recent 3-month average (fallback: base). */
 const clientMonthly = c => ((c.pct||0)>0 || c.billing==='percent') ? (c.recent_avg ?? c.retainer ?? 0) : (c.retainer||0);
 async function renderForecast(){
   const m = $('#main');
@@ -1459,7 +1620,7 @@ async function renderForecast(){
   const top = clients.slice().sort((a,b)=>clientMonthly(b)-clientMonthly(a))[0];
   m.innerHTML = `
     <div class="ph"><div><h2>Cash, 90 days out</h2>
-      <div class="sub" style="margin-bottom:0">Projected from the retainer book and the recurring commitments — both editable in Settings. One-time purchases are deliberately excluded.</div></div></div>
+      <div class="sub" style="margin-bottom:0">Projected from the retainer book and the recurring commitments · both editable in Settings. One-time purchases are deliberately excluded.</div></div></div>
     <div class="rollup">
       <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Retainers / month</div><div class="fig-v lg-num">${fmtK(inflow)}</div></div>
       <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Recurring out / month</div><div class="fig-v lg-num">${fmtK(outflow)}</div></div>
@@ -1469,14 +1630,14 @@ async function renderForecast(){
     <div class="grid2">
       <div class="card">
         <h3>Next three months, if nothing changes</h3>
-        <div class="hint">Baseline projection — actuals replace it as each month fills in.</div>
+        <div class="hint">Baseline projection · actuals replace it as each month fills in.</div>
         <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">In</th><th class="num">Out</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
           ${months3.map((mo,i)=>`<tr><td><b>${moName(mo)}</b></td><td class="num">${fmt$(inflow)}</td><td class="num">${fmt$(outflow+fee)}</td><td class="num">${fmt$(net)}</td><td class="num"><b>${fmt$(net*(i+1))}</b></td></tr>`).join('')}
         </tbody></table></div>
       </div>
       <div class="card">
         <h3>Client concentration</h3>
-        <div class="hint">${top ? `${esc(top.name)} is ${(100*clientMonthly(top)/total).toFixed(0)}% of expected monthly revenue — the number to watch. % clients counted at their recent average.` : 'Add clients in Settings.'}</div>
+        <div class="hint">${top ? `${esc(top.name)} is ${(100*clientMonthly(top)/total).toFixed(0)}% of expected monthly revenue · the number to watch. % clients counted at their recent average.` : 'Add clients in Settings.'}</div>
         <div class="conc" style="margin-top:12px">${conc}</div>
         <div class="leg">${leg}</div>
         <h3 style="margin-top:20px">What-if</h3>
@@ -1503,7 +1664,7 @@ function renderSettings(){
   const vendors = S.boot.vendors||[], clients = S.boot.clients||[];
   m.innerHTML = `
     <div class="ph"><div><h2>Settings</h2>
-      <div class="sub" style="margin-bottom:0">The money rules, the retainer book, and every vendor rule — the app runs on what's on this page.</div></div></div>
+      <div class="sub" style="margin-bottom:0">The money rules, the retainer book, and every vendor rule · the app runs on what's on this page.</div></div></div>
     <div class="grid2">
       <div class="card">
         <h3>Money rules</h3>
@@ -1511,9 +1672,9 @@ function renderSettings(){
         <div class="fields">
           <div class="fld"><label>Tax set-aside</label><div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
           <div class="fld"><label>Distributions</label><div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
-          <div class="fld"><label title="Forecasting only. Your reports always use the exact fees Stripe charged.">Fee % — forecast only</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
+          <div class="fld"><label title="Forecasting only. Your reports always use the exact fees Stripe charged.">Fee % · forecast only</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
         </div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:20px 0 0;padding-top:14px;border-top:1px solid var(--line)">Account split — where net income goes</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:20px 0 0;padding-top:14px;border-top:1px solid var(--line)">Account split · where net income goes</div>
         <div class="fields">
           ${[['personal','Personal'],['tax','Tax'],['ads','Ads / Marketing'],['savings','Savings'],['other','Other expenses']].map(([k,l])=>`
           <div class="fld"><label>${l}</label><div class="unit-in"><input id="sp_${k}" type="number" value="${mo.split[k]}"><span>%</span></div></div>`).join('')}
@@ -1522,10 +1683,10 @@ function renderSettings(){
       </div>
       <div class="card">
         <h3>Clients</h3>
-        <div class="hint">Base retainer + optional % of ad spend. A client with a % is treated as variable: each month their expected row prefills with their <b>recent 3-month average</b> and asks for the actual invoice total. Inactive clients keep their history but stop being expected; deleting removes only the list entry — transactions stay.</div>
+        <div class="hint">Base retainer + optional % of ad spend. A client with a % is treated as variable: each month their expected row prefills with their <b>recent 3-month average</b> and asks for the actual invoice total. Inactive clients keep their history but stop being expected; deleting removes only the list entry · transactions stay.</div>
         <div class="tbl-wrap"><table><thead><tr><th>Client</th><th class="num">Base retainer</th><th class="num">+ % of ad spend</th><th>Active</th><th></th></tr></thead><tbody>
           ${clients.map(c=>{ const variable = (c.pct||0)>0 || c.billing==='percent'; return `<tr>
-            <td><b>${esc(c.name)}</b>${variable && c.recent_avg ? `<div class="tiny">recent avg ${fmt$(c.recent_avg)}/mo — used for the prefill + forecast</div>`:''}</td>
+            <td><b>${esc(c.name)}</b>${variable && c.recent_avg ? `<div class="tiny">recent avg ${fmt$(c.recent_avg)}/mo · used for the prefill + forecast</div>`:''}</td>
             <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" onchange="saveClientField('${esc(c.name)}','retainer',this.value)"></div></td>
             <td class="num" style="width:90px"><div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" placeholder="—" title="Leave empty for fixed-retainer clients" onchange="saveClientField('${esc(c.name)}','pct',this.value)"><span>%</span></div></td>
             <td><div class="toggle ${c.active?'on':''}" onclick="saveClientField('${esc(c.name)}','active',${c.active?0:1})"></div></td>
@@ -1550,22 +1711,22 @@ function renderSettings(){
     <div class="card" style="margin-top:14px">
       <h3>Stripe</h3>
       ${S.boot.stripeConfigured
-        ? `<div class="hint">Connected ✓ — charges, refunds and exact fees sync every night (last 10 days re-pulled, so late-settling data self-corrects). A payment from a new Stripe customer lands in Review once; name the client and it auto-matches forever. Closed months are never touched.</div>
+        ? `<div class="hint">Connected ✓ · charges, refunds and exact fees sync every night (last 10 days re-pulled, so late-settling data self-corrects). A payment from a new Stripe customer lands in Review once; name the client and it auto-matches forever. Closed months are never touched.</div>
            <div class="row" style="margin-top:10px"><button class="btn" onclick="stripeSyncNow(this)">↻ Sync the last 60 days now</button><span class="msg" id="ssMsg"></span></div>`
-        : `<div class="hint">Not connected — paste a restricted key into <code>ledger/worker/.env</code> and push it, then this card lights up.</div>`}
+        : `<div class="hint">Not connected · paste a restricted key into <code>ledger/worker/.env</code> and push it, then this card lights up.</div>`}
     </div>
     <div class="card" style="margin-top:14px">
       <h3>Slack receipts</h3>
       ${S.boot.slackConfigured
-        ? `<div class="hint">Connected ✓ — drop a receipt photo or PDF into <b>#receipts</b> and Ledger reads it, matches it to the expense (or files a new one), attaches it, and replies in the thread with what it did. ${S.boot.slackInstant ? '<b>Instant:</b> receipts are handled the moment they land, with a 10-minute sweep as backup.' : 'Runs every 10 minutes — add the signing secret to make it instant.'}</div>
+        ? `<div class="hint">Connected ✓ · drop a receipt photo or PDF into <b>#receipts</b> and Ledger reads it, matches it to the expense (or files a new one), attaches it, and replies in the thread with what it did. ${S.boot.slackInstant ? '<b>Instant:</b> receipts are handled the moment they land, with a 10-minute sweep as backup.' : 'Runs every 10 minutes · add the signing secret to make it instant.'}</div>
            <div class="row" style="margin-top:10px"><button class="btn" onclick="slackPollNow(this)">↻ Check the channel now</button><span class="msg" id="spMsg"></span></div>`
-        : `<div class="hint">Not connected — paste the Slack bot token (xoxb-…) into <code>ledger/worker/.env</code> and have it pushed, then drop receipts into #receipts from your phone.</div>`}
+        : `<div class="hint">Not connected · paste the Slack bot token (xoxb-…) into <code>ledger/worker/.env</code> and have it pushed, then drop receipts into #receipts from your phone.</div>`}
     </div>
     <div class="card" style="margin-top:14px">
-      <h3>Bank feeds (Plaid) ${S.boot.plaidEnv==='sandbox' && S.boot.plaidConfigured ? '<span class="pill warn">sandbox — test mode</span>':''}</h3>
+      <h3>Bank feeds (Plaid) ${S.boot.plaidEnv==='sandbox' && S.boot.plaidConfigured ? '<span class="pill warn">sandbox · test mode</span>':''}</h3>
       ${!S.boot.plaidConfigured
-        ? `<div class="hint">Not connected — paste the Plaid client_id and sandbox secret into <code>ledger/worker/.env</code> (Dashboard → Developers → Keys) and have them pushed.</div>`
-        : `<div class="hint">Novo and Amex lines flow in nightly. Each bank line first tries to <b>confirm an expected row</b>, then to <b>adopt a matching manual entry</b>, and only then creates something new — so nothing double-counts. Amex payments, Stripe payouts and account moves are auto-tagged as transfers.</div>
+        ? `<div class="hint">Not connected · paste the Plaid client_id and sandbox secret into <code>ledger/worker/.env</code> (Dashboard → Developers → Keys) and have them pushed.</div>`
+        : `<div class="hint">Novo and Amex lines flow in nightly. Each bank line first tries to <b>confirm an expected row</b>, then to <b>adopt a matching manual entry</b>, and only then creates something new · so nothing double-counts. Amex payments, Stripe payouts and account moves are auto-tagged as transfers.</div>
            ${(S.boot.plaidItems||[]).map(i=>`<div class="row" style="margin:8px 0 0"><b>${esc(i.name)}</b><span class="tiny">${i.accounts.map(esc).join(' · ')}</span>
              <span style="flex:1"></span><button class="del-x" title="Disconnect ${esc(i.name)}" onclick="plaidRemove('${esc(i.item_id)}')">✕</button></div>`).join('')}
            <div class="row" style="margin-top:12px">
@@ -1578,7 +1739,7 @@ function renderSettings(){
       <h3>Import receipts from Google Drive</h3>
       <div class="hint">For the years already filed away in <code>Taxes / 2026 / …</code>. Ledger reads each PDF,
         works out the amount, and <b>attaches it to the matching transaction</b>. It never creates a transaction and
-        never touches Drive — read-only, and closed months refuse new rows anyway, so nothing can be double-counted.</div>
+        never touches Drive · read-only, and closed months refuse new rows anyway, so nothing can be double-counted.</div>
       <div id="driveBody" class="hint" style="margin-top:10px">Loading…</div>
     </div>
 
@@ -1601,7 +1762,7 @@ async function renderDrive(){
   catch(e){ el.innerHTML = `<span class="msg bad">${esc(e.message)}</span>`; return; }
 
   if (!s.configured) {
-    el.innerHTML = `Not set up yet — the Google client ID and secret need to go into
+    el.innerHTML = `Not set up yet · the Google client ID and secret need to go into
       <code>ledger/worker/.env</code> and be pushed to the worker. Ask Claude for the steps.`;
     return;
   }
@@ -1618,7 +1779,7 @@ async function renderDrive(){
       <button class="btn" onclick="driveScan(this)">Scan folder</button>
     </div>
     ${j ? `<div class="notice ${j.at>=j.total?'good':''}">
-        <b>${j.at} of ${j.total}</b> files processed — ${j.attached} attached, ${j.noMatch} no match, ${j.unreadable} unreadable.
+        <b>${j.at} of ${j.total}</b> files processed · ${j.attached} attached, ${j.noMatch} no match, ${j.unreadable} unreadable.
         ${j.at < j.total ? `<div class="row" style="margin-top:10px"><button class="btn primary" onclick="driveRun(this)">${j.at?'Resume':'Start'} import</button></div>` : ''}
       </div>
       <div class="row" style="margin-top:10px"><button class="btn" onclick="driveLog()">See what happened</button>
@@ -1644,7 +1805,7 @@ async function driveScan(btn){
     renderDrive();
   } catch(e){ $('#drvMsg').className='msg bad'; $('#drvMsg').textContent = e.message; btn.disabled = false; btn.textContent = 'Scan folder'; }
 }
-/* Batches of six, looped from here — each round trip is a handful of Drive
+/* Batches of six, looped from here · each round trip is a handful of Drive
    downloads and Claude reads, which is all one request can finish. */
 async function driveRun(btn){
   btn.disabled = true;
@@ -1652,13 +1813,13 @@ async function driveRun(btn){
   try {
     for (;;) {
       const r = await api('/api/drive-import', { method:'POST' });
-      msg.textContent = `${r.at} of ${r.total} — ${r.attached} attached, ${r.noMatch} no match, ${r.unreadable} unreadable`;
+      msg.textContent = `${r.at} of ${r.total} · ${r.attached} attached, ${r.noMatch} no match, ${r.unreadable} unreadable`;
       if (r.done) break;
     }
     S.txns = null; S.boot = await api('/api/boot');
     flash('Import finished.');
     renderDrive();
-  } catch(e){ msg.className='msg bad'; msg.textContent = e.message + ' — press Resume to carry on.'; btn.disabled = false; }
+  } catch(e){ msg.className='msg bad'; msg.textContent = e.message + ' · press Resume to carry on.'; btn.disabled = false; }
 }
 async function driveLog(){
   try {
@@ -1678,8 +1839,8 @@ async function driveClear(){
   catch(e){ tell('Could not clear it', e.message); }
 }
 /* Two lists, because they do two different jobs and one table conflated them:
- *   RECURRING  — money out that repeats. The only list that creates anything.
- *   REMEMBERED — categories Ledger has learned. Never creates a transaction;
+ *   RECURRING  · money out that repeats. The only list that creates anything.
+ *   REMEMBERED · categories Ledger has learned. Never creates a transaction;
  *                it only saves you re-categorizing. This is where a restaurant
  *                lands, and why it needs search rather than a monthly/yearly
  *                setting it will never use. */
@@ -1712,10 +1873,10 @@ function vendorCards(vendors){
     <td style="white-space:nowrap"><select onchange="saveVendorField('${esc(v.name)}','repeats',this.value)">
       <option value="monthly" ${v.cadence!=='yearly'?'selected':''}>Every month</option>
       <option value="yearly" ${v.cadence==='yearly'?'selected':''}>Once a year</option>
-      <option value="off">Stop — just remember it</option></select>
+      <option value="off">Stop · just remember it</option></select>
       ${v.cadence==='yearly'?` <select title="Renewal month" onchange="saveVendorField('${esc(v.name)}','renew_month',this.value)">${MONTHS.map((mn,i)=>`<option value="${i+1}" ${v.renew_month===i+1?'selected':''}>${mn.slice(0,3)}</option>`).join('')}</select>`:''}
     </td>
-    <td><button class="ctl" title="${v.active?'Pause — stop pre-creating it, keep the rule':'Resume'}" onclick="saveVendorField('${esc(v.name)}','active',${v.active?0:1})">${v.active?'Pause':'Resume'}</button></td>
+    <td><button class="ctl" title="${v.active?'Pause · stop pre-creating it, keep the rule':'Resume'}" onclick="saveVendorField('${esc(v.name)}','active',${v.active?0:1})">${v.active?'Pause':'Resume'}</button></td>
     <td><button class="del-x" title="Delete (transactions stay)" onclick="delVendor('${esc(v.name)}')">✕</button></td></tr>`; };
 
   return `
@@ -1729,7 +1890,7 @@ function vendorCards(vendors){
 
     <div class="card" style="margin-top:14px">
       <h3>Remembered vendors <span class="tiny" style="font-weight:400">${mem.length}</span></h3>
-      <div class="hint"><b>Fills itself — you never manage this list.</b> Every time a purchase gets categorized (by you, or by Ledger reading a receipt), the vendor's category is saved here as its default for next time. Defaults are suggestions, not laws: any single purchase can be flipped (Best Buy is usually supplies, but one trip can be product testing) and the newest choice becomes the new default. These rows <b>never create a transaction</b>. You only come here to fix a wrong default, or promote something to Recurring.</div>
+      <div class="hint"><b>Fills itself · you never manage this list.</b> Every time a purchase gets categorized (by you, or by Ledger reading a receipt), the vendor's category is saved here as its default for next time. Defaults are suggestions, not laws: any single purchase can be flipped (Best Buy is usually supplies, but one trip can be product testing) and the newest choice becomes the new default. These rows <b>never create a transaction</b>. You only come here to fix a wrong default, or promote something to Recurring.</div>
       <div class="row" style="margin-top:10px">
         <input id="vq" placeholder="Search vendors…" oninput="filterVendors(this.value)" style="flex:1;max-width:280px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px">
         <button class="btn" onclick="addVendorModal()">+ Add one manually</button>
@@ -1741,10 +1902,10 @@ function vendorCards(vendors){
           <td>${v.billing_url
             ? `<a class="ctl" href="${esc(v.billing_url)}" target="_blank" rel="noopener" title="${esc(v.billing_url)}">↗ Billing page</a> <button class="ctl" onclick="setBillingUrl('${esc(v.name).replace(/'/g,"\'")}')">edit</button>`
             : `<button class="ctl" title="They never email an invoice? Save the link to where it lives." onclick="setBillingUrl('${esc(v.name).replace(/'/g,"\'")}')">+ Add link</button>`}</td>
-          <td><button class="ctl" title="It bills every month — move it to Recurring" onclick="saveVendorField('${esc(v.name)}','repeats','monthly')">Make recurring →</button></td>
+          <td><button class="ctl" title="It bills every month · move it to Recurring" onclick="saveVendorField('${esc(v.name)}','repeats','monthly')">Make recurring →</button></td>
           <td><button class="del-x" title="Forget this vendor (transactions stay)" onclick="delVendor('${esc(v.name)}')">✕</button></td></tr>`; }).join('')}
       </tbody></table></div>`
-      : `<div class="tiny" style="margin-top:12px">Nothing remembered yet — vendors land here the first time you categorize one.</div>`}
+      : `<div class="tiny" style="margin-top:12px">Nothing remembered yet · vendors land here the first time you categorize one.</div>`}
     </div>`;
 }
 
@@ -1765,6 +1926,7 @@ async function saveClientField(name, field, value){
   body.billing = (body.pct||0) > 0 ? 'percent' : 'retainer'; // % set = variable client
   await api('/api/client', { method:'POST', body: JSON.stringify(body) });
   S.boot = await api('/api/boot'); renderSettings();
+  flash(`Saved · ${name} updated.`);
 }
 async function addTaxCat(){
   const el = $('#catMsg'); const cat = $('#newCat').value.trim();
@@ -1772,18 +1934,19 @@ async function addTaxCat(){
   try {
     await api('/api/settings', { method:'PUT', body: JSON.stringify({ taxCats: [...S.boot.taxCats, cat] }) });
     S.boot = await api('/api/boot'); renderSettings();
+    flash(`Saved · added "${cat}".`);
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
 }
 async function delTaxCat(cat){
   if (!await ask({ title: `Remove "${cat}"?`,
-    body: 'Transactions and vendor rules already using it keep the name — this only takes it out of the pickers.',
+    body: 'Transactions and vendor rules already using it keep the name · this only takes it out of the pickers.',
     ok: 'Remove', danger: true })) return;
   await api('/api/settings', { method:'PUT', body: JSON.stringify({ taxCats: S.boot.taxCats.filter(c=>c!==cat) }) });
   S.boot = await api('/api/boot'); renderSettings();
 }
 async function delClient(name){
   if (!await ask({ title: `Delete ${name} from the client list?`,
-    body: 'Their transactions and history stay — this only stops the app expecting money from them.',
+    body: 'Their transactions and history stay · this only stops the app expecting money from them.',
     ok: 'Delete client', danger: true })) return;
   await api('/api/client?name=' + encodeURIComponent(name), { method:'DELETE' });
   S.boot = await api('/api/boot'); renderSettings();
@@ -1808,7 +1971,7 @@ async function addClient(){
 }
 function addVendorModal(){
   openModal(`<h3>Add a vendor rule</h3>
-    <div class="hint">Usually you don't need this — adding a transaction for a new vendor creates its rule. This is for setting one up ahead of time.</div>
+    <div class="hint">Usually you don't need this · adding a transaction for a new vendor creates its rule. This is for setting one up ahead of time.</div>
     <label>Vendor name</label><input id="vName" placeholder="e.g. Figma">
     ${catSelects('Software','Software & subscriptions')}
     <div class="mrow">
@@ -1817,7 +1980,7 @@ function addVendorModal(){
     <label>Repeats <span class="why">Monthly pre-creates the row every month; Yearly only in its renewal month (domains, annual plans)</span></label>
     <div class="mrow" style="margin-top:0">
       <div><select id="vRep" onchange="$('#vRenWrap').style.display=this.value==='yearly'?'':'none'">
-        <option value="off">Off — one-off vendor</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div>
+        <option value="off">Off · one-off vendor</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div>
       <div id="vRenWrap" style="display:none;max-width:140px"><select id="vRen">${MONTHS.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join('')}</select></div>
     </div>
     <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button>
@@ -1836,7 +1999,7 @@ async function addVendor(){
 }
 async function delVendor(name){
   if (!await ask({ title: `Delete the rule for ${name}?`,
-    body: `Existing transactions keep their categories — but the next ${name} charge will land in Review again.`,
+    body: `Existing transactions keep their categories · but the next ${name} charge will land in Review again.`,
     ok: 'Delete rule', danger: true })) return;
   await api('/api/vendor?name=' + encodeURIComponent(name), { method:'DELETE' });
   S.boot = await api('/api/boot'); renderSettings();
@@ -1846,7 +2009,7 @@ async function saveVendorField(name, field, value){
   const body = { name, bucket:v.bucket, tax_cat:v.tax_cat, recurring:!!v.recurring,
     expected_amount:v.expected_amount, active:!!v.active,
     cadence:v.cadence||'monthly', renew_month:v.renew_month,
-    billing_url:v.billing_url || null };   // POST replaces the row — carry it or lose it
+    billing_url:v.billing_url || null };   // POST replaces the row · carry it or lose it
   if (field === 'repeats') {
     body.recurring = value !== 'off';
     body.cadence = value === 'yearly' ? 'yearly' : 'monthly';
@@ -1862,6 +2025,7 @@ async function saveVendorField(name, field, value){
     ok: 'Yes, update past ones', cancel: 'Future only' });
   await api('/api/vendor', { method:'POST', body: JSON.stringify(body) });
   S.boot = await api('/api/boot'); renderSettings();
+  flash(`Saved · ${name} updated.`);
 }
 async function stripeSyncNow(btn){
   const el = $('#ssMsg'); btn.disabled = true;
@@ -1871,7 +2035,7 @@ async function stripeSyncNow(btn){
     const from = new Date(Date.now()-60*86400e3).toISOString().slice(0,10);
     const r = await api('/api/stripe-sync', { method:'POST', body: JSON.stringify({ from, to }) });
     el.className='msg good';
-    el.textContent = `Done — ${r.added} new transaction(s)` + (r.review?`, ${r.review} need a client picked in Review`:'') + (r.skippedClosed?`, ${r.skippedClosed} skipped (closed months)`:'') + '.';
+    el.textContent = `Done · ${r.added} new transaction(s)` + (r.review?`, ${r.review} need a client picked in Review`:'') + (r.skippedClosed?`, ${r.skippedClosed} skipped (closed months)`:'') + '.';
     S.boot = await api('/api/boot'); S.txns = null;
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
   btn.disabled = false;
@@ -1882,7 +2046,7 @@ async function slackPollNow(btn){
   try {
     const r = await api('/api/slack-poll', { method:'POST', body: JSON.stringify({}) });
     el.className = r.error ? 'msg bad' : 'msg good';
-    el.textContent = r.error ? r.error : `Done — ${r.handled||0} new file(s) handled.`;
+    el.textContent = r.error ? r.error : `Done · ${r.handled||0} new file(s) handled.`;
     S.txns = null; S.boot = await api('/api/boot');
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
   btn.disabled = false;
@@ -1908,7 +2072,7 @@ async function plaidConnect(btn){
         el.textContent = 'Linking…';
         try {
           const r = await api('/api/plaid-exchange', { method:'POST', body: JSON.stringify({ public_token, institution: meta.institution?.name }) });
-          el.className='msg good'; el.textContent = `Connected ${r.name || 'account'} (${r.accounts} account${r.accounts>1?'s':''}) — syncing…`;
+          el.className='msg good'; el.textContent = `Connected ${r.name || 'account'} (${r.accounts} account${r.accounts>1?'s':''}) · syncing…`;
           await api('/api/plaid-sync', { method:'POST', body: JSON.stringify({}) });
           S.boot = await api('/api/boot'); S.txns = null; renderSettings();
         } catch(e){ el.className='msg bad'; el.textContent = e.message; }
@@ -1925,7 +2089,7 @@ async function plaidSyncNow(btn){
   try {
     const r = await api('/api/plaid-sync', { method:'POST', body: JSON.stringify({}) });
     const bits = Object.entries(r).filter(([k])=>k!=='ok').map(([k,v])=>`${v} ${k.replace(/-/g,' ')}`);
-    el.className='msg good'; el.textContent = 'Done — ' + (bits.join(', ') || 'nothing new') + '.';
+    el.className='msg good'; el.textContent = 'Done · ' + (bits.join(', ') || 'nothing new') + '.';
     S.boot = await api('/api/boot'); S.txns = null;
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
   btn.disabled = false;
