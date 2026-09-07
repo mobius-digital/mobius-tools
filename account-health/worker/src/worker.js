@@ -1661,14 +1661,40 @@ function buildBriefText(data, dates, narrative) {
     if (!day?.a) continue;
     const f = day.f || {}, a = day.a;
     L.push('', `*${prettyDate(d)}*`);
-    // CTC bold the ACTUAL line of each pair, so the eye lands on what happened and
-    // the forecast sits underneath it as context. Slack bold is *single asterisks*.
-    const pair = (label, fc, actual) => { L.push(`Forecasted ${label}: ${fc}`); L.push(`*Actual ${label}: ${actual}*`); };
-    if (cmOk) pair('Contribution Margin', fm(f.cm), fm(a.cm));
-    pair(a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', fm(f.sales), fm(a.sales));
-    pair('Total Spend', fm(f.spend), fm(a.spend));
-    pair('MER', fx(f.mer), fx(a.mer));
-    pair('aMER', fx(f.amer), fx(a.amer));
+    /* ONE LINE PER METRIC, not two. This used to print a `Forecasted X:` line and
+       a bold `Actual X:` line for every metric — ten lines for a single day, and
+       twenty on a catch-up brief covering two, before the reader reached a word
+       of narrative. Cole, 2026-09-07: the numbers block, not the writing, was
+       what made the brief feel like too much.
+       Two things change here beyond the length:
+         - the GAP is stated. Forecast $1,393 against actual $612 left the reader
+           to work out -56% themselves, which is the one figure they actually
+           want, so it was the one figure the block never showed.
+         - bold lands on the ACTUAL alone. Everything bold is what happened;
+           everything in the bracket is context. That is what makes a five-line
+           block scannable in a way ten alternating lines never were.
+       Parentheses rather than pipe separators, on Cole's call — `|` reads as a
+       data delimiter, and it is exactly the ad-naming convention the creative
+       split just moved away from.
+       Order is revenue first, margin last: the client reads top-down and the top
+       line should be the business, not the accounting. */
+    const rowFor = (label, aV, fV, fmtV) => {
+      if (aV == null && fV == null) return;
+      let tail = '';
+      if (aV != null && fV) {
+        // Round BEFORE signing, or a hair-under-parity value renders "-0%".
+        const r = Math.round((aV / fV - 1) * 100);
+        tail = ` (${r > 0 ? '+' : ''}${r}% vs ${fmtV(fV)} plan)`;
+      } else if (fV != null) {
+        tail = ` (${fmtV(fV)} planned)`;
+      }
+      L.push(`${label} — *${fmtV(aV)}*${tail}`);
+    };
+    rowFor(a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', a.sales, f.sales, fm);
+    rowFor('Ad Spend', a.spend, f.spend, fm);
+    rowFor('MER', a.mer, f.mer, fx);
+    rowFor('aMER', a.amer, f.amer, fx);
+    if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
   }
 
   /* NO "WEEK IN REVIEW" BLOCK. It used to print here on the Monday brief, and
