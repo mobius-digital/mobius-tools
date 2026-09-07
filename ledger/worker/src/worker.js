@@ -245,11 +245,27 @@ async function applyRule(env, row) {
 /* The tax category is the choice that matters; the bucket follows from it.
  * One tap (or one guess) sets both layers. Unknown/custom categories fall to
  * Other, which is also where the sheet always put the unclassifiable. */
+/* ONE choice, two audiences. The tax category is what Cole picks; the bucket is
+ * the plain-English group the dashboard and report card total by, derived from
+ * it. Only four categories used to map, so ten of fourteen collapsed into
+ * "Other" — which is exactly why the second dropdown felt pointless: it was.
+ * Every category now lands somewhere meaningful and the picker is gone. */
 const TAX2BUCKET = {
   'Software & subscriptions': 'Software',
   'Contract labor (1099)': 'Contractors',
   'Advertising & marketing': 'Ads/Marketing',
   'Bank & merchant fees': 'Merchant fee',
+  'Meals (50%)': 'Meals & entertainment',
+  'Entertainment — Ask CPA': 'Meals & entertainment',
+  'Office supplies & equipment': 'Office & equipment',
+  'Product testing': 'Product testing',
+  'Travel & gas': 'Travel',
+  'Utilities & phone': 'Utilities & phone',
+  'Dues & memberships': 'Dues & memberships',
+  'Taxes & licenses': 'Taxes & licenses',
+  'Personal — review': 'Personal (not a business cost)',
+  'Client revenue': 'Revenue',
+  'Other — Ask CPA': 'Other',
 };
 const bucketFor = tax => TAX2BUCKET[tax] || 'Other';
 
@@ -817,15 +833,35 @@ async function plaid(env, path, body = {}) {
 const plaidReady = env => !!(env.PLAID_CLIENT_ID && env.PLAID_SECRET);
 const getPlaidItems = async env => safeJson(await getSetting(env, 'plaidItems'), []) || [];
 
-/* Money moving between Cole's own accounts — the double-count guard.
- * The Amex payment out of Novo, Stripe payouts landing, savings/tax moves. */
+/* Money moving between Cole's OWN accounts — the double-count guard: the Amex
+ * payment out of Novo, Stripe payouts landing, the personal/savings draws.
+ *
+ * This must stay narrow. A transfer is excluded from every report, so calling
+ * something a transfer makes it VANISH — whereas mis-calling a transfer an
+ * expense merely puts a visible row in Review. Fail toward visible.
+ *
+ * The bug this replaces: trusting Plaid's primary category TRANSFER_OUT, which
+ * also covers Zelle/ACH to a person. Every contractor payment — Ahsan, Radhesh,
+ * Hamza, WorldRemit — was filed as a transfer and silently dropped out of the
+ * P&L: about $19K over two months, i.e. profit overstated by the same. Plaid's
+ * DETAILED category is the one that separates "my other account" from
+ * "somebody else". */
+const SELF_TRANSFER_DETAIL = new Set([
+  'TRANSFER_OUT_ACCOUNT_TRANSFER', 'TRANSFER_IN_ACCOUNT_TRANSFER',
+  'TRANSFER_OUT_SAVINGS', 'TRANSFER_IN_SAVINGS',
+  'TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS', 'TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS',
+]);
 function looksLikeTransfer(name, pfc) {
   const n = (name || '').toLowerCase();
   if (/(amex|american express)/.test(n) && /(pay|epay|autopay|pmt)/.test(n)) return true;
+  if (/autopay payment/.test(n)) return true;
   if (/stripe/.test(n)) return true;
   if (/^(transfer|xfer|online transfer|withdrawal to|deposit from)/.test(n)) return true;
-  const p = pfc?.primary || '';
-  return p === 'TRANSFER_IN' || p === 'TRANSFER_OUT' || p === 'LOAN_PAYMENTS';
+  // his own name on the other end of it is his own account
+  if (/cole wetzler/.test(n)) return true;
+  const p = pfc?.primary || '', d = pfc?.detailed || '';
+  if (p === 'LOAN_PAYMENTS') return true;          // paying a card balance
+  return SELF_TRANSFER_DETAIL.has(d);
 }
 
 /**
@@ -1169,7 +1205,9 @@ export default {
           if ((await monthStatus(env, month)) === 'closed') continue; // closed months are frozen
           const row = await applyRule(env, {
             date, month, type, vendor, amount: round2(amount),
-            bucket: r.bucket || null, tax_cat: r.tax_cat || null,
+            // the picker sends only a category; the dashboard group follows
+            bucket: r.bucket || (r.tax_cat ? bucketFor(r.tax_cat) : null),
+            tax_cat: r.tax_cat || null,
             note: r.note ? String(r.note).slice(0, 300) : null,
             one_time: r.one_time ? 1 : 0, expected: 0,
             status: r.status === 'review' ? 'review' : 'ok',
@@ -1225,28 +1263,14 @@ export default {
         }
         if (cur.type === 'out' && next.status !== 'review' && next.bucket && next.tax_cat)
           await learnDefault(env, next.vendor, next.bucket, next.tax_cat);
-        /* Categorizing one of eight identical Anthropic charges should settle
-         * all eight. Only rows still awaiting a category are touched — never
-         * one already decided — and only in months that are still open. */
-        let cascaded = 0;
-        if (b.cascadeVendor && next.tax_cat && cur.type === 'out') {
-          const { results: kin } = await env.DB.prepare(
-            `SELECT id, month FROM transactions
-             WHERE vendor = ?1 AND type = 'out' AND id <> ?2 AND expected = 0
-               AND (tax_cat IS NULL OR status = 'review')`).bind(next.vendor, id).all();
-          for (const k of kin) {
-            if ((await monthStatus(env, k.month)) === 'closed') continue;
-            await env.DB.prepare(
-              `UPDATE transactions SET tax_cat = ?2, bucket = ?3, status = 'ok' WHERE id = ?1`)
-              .bind(k.id, next.tax_cat, next.bucket).run();
-            cascaded++;
-          }
-        }
+        /* The app asks first and then calls the bulk route, so spreading a
+         * category across a vendor's other rows is always something Cole said
+         * yes to — never something that happened while he was looking away. */
         await env.DB.prepare(`UPDATE transactions SET date=?2, month=?3, vendor=?4, amount=?5, bucket=?6,
           tax_cat=?7, note=?8, one_time=?9, expected=?10, status=?11, receipt_skip=?12 WHERE id=?1`)
           .bind(id, next.date, next.month, next.vendor, next.amount, next.bucket,
                 next.tax_cat, next.note, next.one_time, next.expected, next.status, next.receipt_skip || 0).run();
-        return json({ ok: true, transaction: next, cascaded });
+        return json({ ok: true, transaction: next });
       }
 
       /* Bulk categorize. Thirty Anthropic charges in a row is one decision, not
@@ -1570,7 +1594,8 @@ export default {
       if (path === '/api/vendor' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
         const name = String(b.name || '').trim().slice(0, 120);
-        if (!name || !b.bucket || !b.tax_cat) return json({ error: 'name, bucket, tax_cat required' }, 400);
+        if (!name || !b.tax_cat) return json({ error: 'name and tax_cat required' }, 400);
+        b.bucket = b.bucket || bucketFor(b.tax_cat);   // one choice; the group follows
         const cadence = b.cadence === 'yearly' ? 'yearly' : 'monthly';
         const rmn = Number(b.renew_month);
         await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active, cadence, renew_month)

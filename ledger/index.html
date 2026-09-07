@@ -456,14 +456,27 @@ function rowClick(ev, id){
    identical Anthropic charges are one decision, not eight. */
 async function setRowField(id, field, value, el){
   const prev = el.value;
+  const t = (S.txns||[]).find(x=>x.id===id);
   el.disabled = true;
   try {
-    const body = { id, [field]: value || null };
-    if (field === 'tax_cat') body.cascadeVendor = true;
-    const r = await api('/api/transaction', { method:'PUT', body: JSON.stringify(body) });
+    await api('/api/transaction', { method:'PUT', body: JSON.stringify({ id, [field]: value || null }) });
+    // Ask before touching rows he did not click. Same vendor, still
+    // uncategorized, this month's view — never anything already decided.
+    let kin = [];
+    if (field === 'tax_cat' && value && t) {
+      kin = (S.txns||[]).filter(x => x.id !== id && x.vendor === t.vendor
+        && x.type === 'out' && !x.expected && (!x.tax_cat || x.status === 'review'));
+    }
+    if (kin.length && await ask({
+      title: `Apply to the other ${kin.length} from “${t.vendor}”?`,
+      body: `${kin.length} more transaction${kin.length>1?'s are':' is'} from this vendor and still uncategorized. Set ${kin.length>1?'them':'it'} to “${value}” as well?`,
+      ok: `Yes, apply to all ${kin.length + 1}`, cancel: 'Just this one' })) {
+      await api('/api/transactions/bulk', { method:'POST',
+        body: JSON.stringify({ ids: kin.map(x=>x.id), tax_cat: value }) });
+      flash(`Categorized ${kin.length + 1} ${t.vendor} transactions.`);
+    }
     S.txns = null; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
-    if (r.cascaded) flash(`Applied to ${r.cascaded} other row${r.cascaded>1?'s':''} from the same vendor.`);
   } catch(e){
     el.disabled = false; el.value = prev;
     tell('Could not save that', e.message);
@@ -478,15 +491,10 @@ function flash(text){
   flash._t = setTimeout(() => el.classList.remove('on'), 3800);
 }
 async function bulkApply(){
-  const tax = $('#bulkCat')?.value, bucket = $('#bulkBucket')?.value;
-  if (!tax && !bucket) {
-    tell('Pick something to apply', 'Choose a bucket, a tax category, or both — then press Apply.');
-    return;
-  }
+  const tax = $('#bulkCat')?.value;
+  if (!tax) { tell('Pick a category first', 'Choose one from the dropdown, then press Apply.'); return; }
   const ids = [...S.sel];
-  const body = { ids };
-  if (tax) body.tax_cat = tax;
-  if (bucket) body.bucket = bucket;
+  const body = { ids, tax_cat: tax };
   try {
     const r = await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify(body) });
     S.sel.clear(); S.txns = null; S.boot = await api('/api/boot');
@@ -536,24 +544,18 @@ async function renderTxns(){
       + (t.plaid_id ? ' <span class="pill good" title="Came straight from the bank or card feed">bank</span>' : '');
     // The category is editable in place: one dropdown, no modal, and the choice
     // becomes this vendor's default so the next import never asks again.
-    // BOTH layers, in place: the bucket that drives your dashboard, and the tax
-    // category the CPA files it under. Picking a tax category fills the bucket
-    // in, but either can be set on its own.
+    // ONE choice. The dashboard grouping is derived from it server-side, so
+    // there is nothing here that can disagree with itself.
     const cats = ['Client revenue', ...(S.boot.taxCats||[])];
-    const bks = ['Revenue','Merchant fee',...(S.boot.buckets||[])];
     const catCell = closed
-      ? `<span class="cat">${esc(t.bucket||'—')} · ${esc(t.tax_cat||'uncategorized')}</span>`
+      ? `<span class="cat">${esc(t.tax_cat||'uncategorized')}</span>`
       : `<span class="rowsel" onclick="event.stopPropagation()">
-          <select class="rowcat ${t.bucket?'':'unset'}" title="Your bucket — drives the dashboard and report card"
-            onchange="setRowField(${t.id}, 'bucket', this.value, this)">
-            <option value="">— bucket —</option>
-            ${bks.map(b=>`<option ${b===t.bucket?'selected':''}>${esc(b)}</option>`).join('')}
-          </select>
-          <select class="rowcat ${t.tax_cat?'':'unset'}" title="Tax category — the CPA's layer"
+          <select class="rowcat ${t.tax_cat?'':'unset'}" title="What this was — drives both your dashboard and the CPA's P&amp;L"
             onchange="setRowField(${t.id}, 'tax_cat', this.value, this)">
-            <option value="">— tax category —</option>
+            <option value="">— pick a category —</option>
             ${cats.map(c=>`<option ${c===t.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}
           </select>
+          ${t.bucket ? `<span class="cat" style="align-self:center">→ ${esc(t.bucket)}</span>` : ''}
         </span>`;
     return `<tr onclick="rowClick(event, ${t.id})" class="${S.sel.has(t.id)?'picked':''}">
       <td class="pick" onclick="event.stopPropagation()">
@@ -581,12 +583,8 @@ async function renderTxns(){
     ${S.sel.size ? `<div class="bulkbar">
       <b>${S.sel.size} selected</b>
       <span class="tiny">Click any row to add or remove it</span>
-      <select id="bulkBucket">
-        <option value="">Bucket…</option>
-        ${['Revenue','Merchant fee',...(S.boot.buckets||[])].map(b=>`<option>${esc(b)}</option>`).join('')}
-      </select>
       <select id="bulkCat">
-        <option value="">Tax category…</option>
+        <option value="">Set category…</option>
         ${['Client revenue', ...(S.boot.taxCats||[])].map(c=>`<option>${esc(c)}</option>`).join('')}
       </select>
       <button class="btn primary" onclick="bulkApply()">Apply to ${S.sel.size}</button>
@@ -607,13 +605,13 @@ async function renderTxns(){
 }
 
 /* ---- add / edit modal ---- */
+/* One picker. The bucket the dashboard totals by is derived from the category,
+   so it is shown as a consequence rather than offered as a second decision. */
 function catSelects(bucket, tax){
-  const bs = ['Revenue','Merchant fee',...(S.boot.buckets||[])];
   return `<div class="mrow">
-    <div><label>Your bucket <span class="why">Drives the dashboard + report card</span></label>
-      <select id="tBucket">${bs.map(b=>`<option ${b===bucket?'selected':''}>${b}</option>`).join('')}</select></div>
-    <div><label>Tax category <span class="why">The CPA's layer</span></label>
-      <select id="tTax"><option value="">— pick one —</option>${['Client revenue',...S.boot.taxCats].map(c=>`<option ${c===tax?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+    <div><label>What was this? <span class="why">Sets your dashboard grouping and the CPA's P&amp;L line together</span></label>
+      <select id="tTax"><option value="">— pick one —</option>${['Client revenue',...S.boot.taxCats].map(c=>`<option ${c===tax?'selected':''}>${esc(c)}</option>`).join('')}</select>
+      <div class="tiny" style="margin-top:6px">${tax?`Groups under <b>${esc(bucket||'—')}</b> on your dashboard.`:'Pick one and the dashboard grouping follows automatically.'}</div></div>
   </div>`;
 }
 function vendorDatalist(){
@@ -690,7 +688,8 @@ function addModal(prefill = {}){
     const row = {
       type, vendor: $('#tVendor').value.trim(), amount: +$('#tAmt').value,
       date: $('#tDate').value, note: $('#tNote').value.trim(),
-      bucket: type==='in' ? 'Revenue' : type==='transfer' ? 'Transfer' : $('#tBucket').value,
+      // bucket is derived from the category server-side
+      bucket: type==='in' ? 'Revenue' : type==='transfer' ? 'Transfer' : undefined,
       tax_cat: type==='in' ? 'Client revenue' : type==='transfer' ? 'Transfer — not P&L' : $('#tTax').value,
       one_time: $('#tOne').checked,
     };
@@ -741,9 +740,9 @@ async function editTxn(id){
     const b = { id, vendor: $('#eVendor').value.trim(), note: $('#eNote').value.trim() };
     if (!closed) { b.amount = +$('#eAmt').value; b.date = $('#eDate').value; }
     if (t.type==='out') {
-      b.bucket = $('#tBucket')?.value; b.tax_cat = $('#tTax')?.value || null;
+      b.tax_cat = $('#tTax')?.value || null;   // bucket follows, server-side
       b.one_time = $('#eOne')?.checked;
-      if (t.status==='review' && b.bucket && b.tax_cat) b.status='ok'; // learning is automatic server-side
+      if (t.status==='review' && b.tax_cat) b.status='ok'; // learning is automatic server-side
     }
     if (t.expected) b.confirm = true;
     if ($('#eSkip')) b.receipt_skip = $('#eSkip').checked;
@@ -1540,7 +1539,7 @@ async function addVendor(){
   try {
     const rep = $('#vRep').value;
     await api('/api/vendor', { method:'POST', body: JSON.stringify({
-      name: $('#vName').value.trim(), bucket: $('#tBucket').value, tax_cat: $('#tTax').value,
+      name: $('#vName').value.trim(), tax_cat: $('#tTax').value,
       recurring: rep !== 'off', cadence: rep === 'yearly' ? 'yearly' : 'monthly',
       renew_month: rep === 'yearly' ? +$('#vRen').value : null,
       expected_amount: +$('#vAmt').value||null }) });
