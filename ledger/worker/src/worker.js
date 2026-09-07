@@ -15,6 +15,8 @@
  */
 import { buildPnlPdf } from './pdf.js';
 import { zipStream, zipSafe } from './zip.js';
+import { driveReady, driveAuthUrl, driveExchangeCode, driveListReceipts,
+         driveDownload, driveFolderId } from './drive.js';
 
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 const RECEIPT_MAX = 4 * 1024 * 1024; // 4MB post-downscale ceiling per file
@@ -1169,6 +1171,30 @@ export default {
       return json({ ok: true });
     }
 
+    /* Google's OAuth redirect. Unauthenticated by necessity — a browser
+     * redirect carries no Authorization header — so it is the `state` nonce
+     * this worker issued moments earlier that proves the request is ours, and
+     * it is single-use. */
+    if (path === '/api/drive-callback' && request.method === 'GET') {
+      const page = (title, body) => new Response(
+        `<!doctype html><meta charset="utf-8"><title>${title}</title>` +
+        `<body style="font:16px/1.6 system-ui;max-width:34em;margin:16vh auto;padding:0 6vw;color:#12202b">` +
+        `<h2 style="font-weight:600">${title}</h2><p style="color:#4a5b68">${body}</p></body>`,
+        { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      const code = url.searchParams.get('code'), state = url.searchParams.get('state');
+      const want = safeJson(await getSetting(env, 'driveOauthState'), null);
+      if (!want || !state || state !== want.state || Date.now() > want.expires)
+        return page('That link has expired', 'Go back to Mobius Ledger and press Connect Google Drive again.');
+      await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind('driveOauthState').run();
+      try {
+        const refresh = await driveExchangeCode(env, code, want.redirectUri);
+        await putSetting(env, 'driveAuth', JSON.stringify({ refresh }));
+        return page('Google Drive connected', 'You can close this tab and go back to Mobius Ledger.');
+      } catch (e) {
+        return page('That did not work', String(e.message || e));
+      }
+    }
+
     /* Slack interactivity — button taps and menu picks from the receipt
      * threads. Same signature check as events; the body is form-encoded with
      * the interaction JSON in `payload`. Must answer inside 3 seconds. */
@@ -1683,6 +1709,117 @@ export default {
           /Ask CPA|Personal — review/.test(t.tax_cat || '') || t.status === 'review' || !t.tax_cat);
         return json({ from, to, money, transactions: txns, monthReports: reports,
           contractors, openQuestions });
+      }
+
+      /* ---- Google Drive import ---- */
+      if (path === '/api/drive-status') {
+        const auth = safeJson(await getSetting(env, 'driveAuth'), null);
+        const job = safeJson(await getSetting(env, 'driveJob'), null);
+        return json({ configured: driveReady(env), connected: !!auth?.refresh,
+          job: job ? { total: job.files.length, at: job.at, folder: job.folder,
+                       attached: job.attached, noMatch: job.noMatch, unreadable: job.unreadable } : null });
+      }
+
+      if (path === '/api/drive-connect' && request.method === 'POST') {
+        if (!driveReady(env)) return json({ error: 'Google client ID/secret are not set on the worker yet' }, 400);
+        const state = crypto.randomUUID();
+        const redirectUri = `${url.origin}/api/drive-callback`;
+        await putSetting(env, 'driveOauthState',
+          JSON.stringify({ state, redirectUri, expires: Date.now() + 15 * 60e3 }));
+        return json({ url: driveAuthUrl(env, redirectUri, state) });
+      }
+
+      /* Scanning is separated from importing so the slow part happens once: a
+       * few hundred files are listed, stored as a job, and then chewed through
+       * in small batches that each finish well inside a request. */
+      if (path === '/api/drive-scan' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const store = safeJson(await getSetting(env, 'driveAuth'), null);
+        if (!store?.refresh) return json({ error: 'Google Drive is not connected yet' }, 400);
+        const root = driveFolderId(b.folder);
+        if (!root) return json({ error: 'That does not look like a Drive folder link' }, 400);
+        const files = await driveListReceipts(env, store, root);
+        await putSetting(env, 'driveAuth', JSON.stringify(store));   // keep the fresh access token
+        if (!files.length) return json({ error: 'No PDFs or images found in that folder' }, 404);
+        const months = [...new Set(files.map(f => f.month).filter(Boolean))].sort();
+        await putSetting(env, 'driveJob', JSON.stringify({
+          folder: b.folder, files, at: 0, attached: 0, noMatch: 0, unreadable: 0, log: [],
+        }));
+        return json({ ok: true, total: files.length, months,
+          undated: files.filter(f => !f.month).length });
+      }
+
+      if (path === '/api/drive-import' && request.method === 'POST') {
+        const job = safeJson(await getSetting(env, 'driveJob'), null);
+        if (!job) return json({ error: 'Nothing scanned yet' }, 400);
+        const store = safeJson(await getSetting(env, 'driveAuth'), null);
+        if (!store?.refresh) return json({ error: 'Google Drive is not connected' }, 400);
+
+        // Small batches: each file is a Drive download plus a Claude read, and
+        // a request that tries to do two hundred of those will not finish.
+        const BATCH = 6;
+        const end = Math.min(job.at + BATCH, job.files.length);
+        for (; job.at < end; job.at++) {
+          const f = job.files[job.at];
+          try {
+            if (f.size > 8 * 1024 * 1024) { job.unreadable++; job.log.push(`${f.name}: over 8MB`); continue; }
+            const buf = await driveDownload(env, store, f.id);
+            const bytes = new Uint8Array(buf);
+            let b64 = '';
+            for (let i = 0; i < bytes.length; i += 0x8000)
+              b64 += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            b64 = btoa(b64);
+            const ext = bytes.length < 4.5 * 1024 * 1024
+              ? await claudeExtract(env, b64, f.mimeType) : null;
+            if (!ext?.amount) { job.unreadable++; job.log.push(`${f.name}: no amount found`); continue; }
+
+            /* Attach only — never create. The transactions for these months
+             * already came from the 2026 sheet, and those months are closed;
+             * inventing rows from receipts is exactly how August got counted
+             * twice. A receipt that matches nothing is reported, not filed. */
+            const amt = round2(Number(ext.amount));
+            const win = f.month
+              ? [monthOf(addMonthsYmd(f.month + '-01', -1)), monthOf(addMonthsYmd(f.month + '-01', 1))]
+              : ['2000-01', '2999-12'];
+            const { results } = await env.DB.prepare(
+              `SELECT id, vendor, month, date FROM transactions
+               WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
+                 AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01
+               ORDER BY (month = ?4) DESC, id`).bind(win[0], win[1], amt, f.month || '').all();
+            const first = String(ext.vendor || '').toLowerCase().split(' ')[0];
+            const hit = results.find(t => first && t.vendor.toLowerCase().includes(first)) || results[0];
+            if (!hit) {
+              job.noMatch++;
+              job.log.push(`${f.name}: $${amt.toFixed(2)}${f.month ? ' in ' + f.month : ''} — no unreceipted match`);
+              continue;
+            }
+            const key = `rcpt:${hit.id}:${Date.now()}`;
+            await receiptPut(env, key, buf);
+            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
+              .bind(hit.id, key, f.name.slice(0, 120), f.mimeType).run();
+            job.attached++;
+            job.log.push(`${f.name} → ${hit.vendor} $${amt.toFixed(2)} (${hit.date})`);
+          } catch (e) {
+            job.unreadable++;
+            job.log.push(`${f.name}: ${String(e.message || e).slice(0, 90)}`);
+          }
+        }
+        if (job.log.length > 400) job.log = job.log.slice(-400);
+        await putSetting(env, 'driveJob', JSON.stringify(job));
+        await putSetting(env, 'driveAuth', JSON.stringify(store));
+        return json({ done: job.at >= job.files.length, at: job.at, total: job.files.length,
+          attached: job.attached, noMatch: job.noMatch, unreadable: job.unreadable,
+          recent: job.log.slice(-BATCH) });
+      }
+
+      if (path === '/api/drive-job' && request.method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind('driveJob').run();
+        return json({ ok: true });
+      }
+
+      if (path === '/api/drive-log') {
+        const job = safeJson(await getSetting(env, 'driveJob'), null);
+        return json({ log: job?.log || [] });
       }
 
       /* Every receipt for a period, foldered by month and category — the

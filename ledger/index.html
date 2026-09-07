@@ -1480,6 +1480,14 @@ function renderSettings(){
              <span class="msg" id="plMsg"></span>
            </div>`}
     </div>
+    <div class="card" style="margin-top:14px" id="driveCard">
+      <h3>Import receipts from Google Drive</h3>
+      <div class="hint">For the years already filed away in <code>Taxes / 2026 / …</code>. Ledger reads each PDF,
+        works out the amount, and <b>attaches it to the matching transaction</b>. It never creates a transaction and
+        never touches Drive — read-only, and closed months refuse new rows anyway, so nothing can be double-counted.</div>
+      <div id="driveBody" class="hint" style="margin-top:10px">Loading…</div>
+    </div>
+
     <div class="card" style="margin-top:14px">
       <h3>Access</h3>
       <div class="hint">Google sign-in via Mobius HQ covers the team. A password is the backup way in.</div>
@@ -1488,6 +1496,92 @@ function renderSettings(){
         <button class="btn" onclick="savePw()">Set password</button><span class="msg" id="pwMsg"></span>
       </div>
     </div>`;
+  renderDrive();
+}
+
+/* ---- Drive import ---- */
+async function renderDrive(){
+  const el = $('#driveBody'); if (!el) return;
+  let s;
+  try { s = await api('/api/drive-status'); }
+  catch(e){ el.innerHTML = `<span class="msg bad">${esc(e.message)}</span>`; return; }
+
+  if (!s.configured) {
+    el.innerHTML = `Not set up yet — the Google client ID and secret need to go into
+      <code>ledger/worker/.env</code> and be pushed to the worker. Ask Claude for the steps.`;
+    return;
+  }
+  if (!s.connected) {
+    el.innerHTML = `<button class="btn primary" onclick="driveConnect(this)">Connect Google Drive</button>
+      <span class="tiny" style="margin-left:10px">Opens Google, asks for read-only access, comes straight back.</span>`;
+    return;
+  }
+  const j = s.job;
+  el.innerHTML = `
+    <div class="row" style="margin-bottom:10px">
+      <input id="drvFolder" placeholder="Paste the Drive folder link (e.g. the 2026 folder)"
+        value="${esc(j?.folder||'')}" style="flex:1;min-width:260px;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px">
+      <button class="btn" onclick="driveScan(this)">Scan folder</button>
+    </div>
+    ${j ? `<div class="notice ${j.at>=j.total?'good':''}">
+        <b>${j.at} of ${j.total}</b> files processed — ${j.attached} attached, ${j.noMatch} no match, ${j.unreadable} unreadable.
+        ${j.at < j.total ? `<div class="row" style="margin-top:10px"><button class="btn primary" onclick="driveRun(this)">${j.at?'Resume':'Start'} import</button></div>` : ''}
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="driveLog()">See what happened</button>
+        <button class="btn" onclick="driveClear()">Clear this job</button></div>` : ''}
+    <div id="drvMsg" class="msg"></div>`;
+}
+async function driveConnect(btn){
+  btn.disabled = true;
+  try {
+    const r = await api('/api/drive-connect', { method:'POST' });
+    window.open(r.url, '_blank', 'noopener');
+    tell('Finish in the new tab', 'Approve read-only access to Drive, then come back here and reopen Settings.');
+  } catch(e){ tell('Could not start', e.message); }
+  btn.disabled = false;
+}
+async function driveScan(btn){
+  const folder = $('#drvFolder').value.trim();
+  if (!folder) { tell('Paste a folder link first', 'Open the folder in Drive and copy the address bar.'); return; }
+  btn.disabled = true; btn.textContent = 'Scanning…';
+  try {
+    const r = await api('/api/drive-scan', { method:'POST', body: JSON.stringify({ folder }) });
+    flash(`Found ${r.total} receipts across ${r.months.length} month(s).`);
+    renderDrive();
+  } catch(e){ $('#drvMsg').className='msg bad'; $('#drvMsg').textContent = e.message; btn.disabled = false; btn.textContent = 'Scan folder'; }
+}
+/* Batches of six, looped from here — each round trip is a handful of Drive
+   downloads and Claude reads, which is all one request can finish. */
+async function driveRun(btn){
+  btn.disabled = true;
+  const msg = $('#drvMsg'); msg.className = 'msg';
+  try {
+    for (;;) {
+      const r = await api('/api/drive-import', { method:'POST' });
+      msg.textContent = `${r.at} of ${r.total} — ${r.attached} attached, ${r.noMatch} no match, ${r.unreadable} unreadable`;
+      if (r.done) break;
+    }
+    S.txns = null; S.boot = await api('/api/boot');
+    flash('Import finished.');
+    renderDrive();
+  } catch(e){ msg.className='msg bad'; msg.textContent = e.message + ' — press Resume to carry on.'; btn.disabled = false; }
+}
+async function driveLog(){
+  try {
+    const r = await api('/api/drive-log');
+    openModal(`<h3>Import log</h3>
+      <div class="hint">Newest last. "no unreceipted match" means the amount did not line up with a transaction still missing a receipt.</div>
+      <div style="max-height:52vh;overflow:auto;margin-top:10px;font-size:12px;line-height:1.7">
+        ${(r.log||[]).map(l=>`<div>${esc(l)}</div>`).join('') || '<div class="tiny">Nothing yet.</div>'}</div>
+      <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Close</button></div>`);
+  } catch(e){ tell('Could not load the log', e.message); }
+}
+async function driveClear(){
+  if (!await ask({ title: 'Clear this import job?',
+    body: 'Receipts already attached stay attached. This only forgets the scanned file list so you can start a different folder.',
+    ok: 'Clear' })) return;
+  try { await api('/api/drive-job', { method:'DELETE' }); renderDrive(); }
+  catch(e){ tell('Could not clear it', e.message); }
 }
 /* Two lists, because they do two different jobs and one table conflated them:
  *   RECURRING  — money out that repeats. The only list that creates anything.
