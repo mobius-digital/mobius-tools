@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   receipt_key TEXT,                      -- KV key of the attached receipt file
   receipt_name TEXT,
   receipt_type TEXT,                     -- MIME type of the stored file
+  receipt_skip INTEGER NOT NULL DEFAULT 0, -- acknowledged "no receipt exists" — stops the missing count/nudges
   source TEXT DEFAULT 'manual',          -- manual | recurring | import | backfill | stripe
   created_at TEXT DEFAULT (datetime('now')),
   stripe_id TEXT,                        -- Stripe charge/refund id — sync dedupe key

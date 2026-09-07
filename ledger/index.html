@@ -88,6 +88,7 @@
   .rc{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap}
   .rc.has{background:var(--good-bg);color:var(--good)}
   .rc.miss{background:var(--warn-bg);color:var(--warn)}
+  .rc:not(.has):not(.miss){background:var(--surface-2,var(--line));color:var(--muted)}
   .rc.na{background:var(--unk-bg);color:var(--unk)}
 
   /* ---- receipts ---- */
@@ -377,7 +378,7 @@ function txnRows(){
     if (S.filter==='out') return t.type==='out'||t.type==='fee';
     if (S.filter==='expected') return t.expected===1;
     if (S.filter==='review') return t.status==='review' && !t.expected;
-    if (S.filter==='norcpt') return t.type==='out' && !t.expected && !t.receipt_key;
+    if (S.filter==='norcpt') return t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip;
     return true;
   });
 }
@@ -394,7 +395,7 @@ async function renderTxns(){
   }).join('');
   const body = rows.map(t => {
     const rc = t.type==='out' && !t.expected
-      ? (t.receipt_key ? '<span class="rc has">✓ receipt</span>' : '<span class="rc miss">no receipt</span>')
+      ? (t.receipt_key ? '<span class="rc has">✓ receipt</span>' : t.receipt_skip ? '<span class="rc">no receipt · ok</span>' : '<span class="rc miss">no receipt</span>')
       : '<span class="rc na">—</span>';
     const flag = (t.expected ? '<span class="pill warn">expected</span>'
       : t.status==='review' ? '<span class="pill bad">review</span>'
@@ -517,6 +518,7 @@ async function editTxn(id){
     ${t.type==='out' ? catSelects(t.bucket||'Other', t.tax_cat||'') : ''}
     ${t.stripe_cus ? `<label class="ck"><input type="checkbox" id="eMap" ${t.status==='review'?'checked':''}><span>Remember: this Stripe customer is the client above<small>Every future payment from them auto-matches — set the vendor to the right client first.</small></span></label>`:''}
     ${t.type==='out' ? `<label class="ck"><input type="checkbox" id="eOne" ${t.one_time?'checked':''}><span>One-time purchase</span></label>`:''}
+    ${t.type==='out' && !t.receipt_key ? `<label class="ck"><input type="checkbox" id="eSkip" ${t.receipt_skip?'checked':''}><span>No receipt exists for this one<small>Stops it counting as missing — no month-end chasing; the CPA pack simply lists it without a receipt.</small></span></label>`:''}
     <label>Receipt</label>
     <div class="row" style="margin-bottom:0">
       ${t.receipt_key
@@ -540,6 +542,7 @@ async function editTxn(id){
       if (t.status==='review' && b.bucket && b.tax_cat) b.status='ok'; // learning is automatic server-side
     }
     if (t.expected) b.confirm = true;
+    if ($('#eSkip')) b.receipt_skip = $('#eSkip').checked;
     if (t.stripe_cus && $('#eMap')?.checked) { b.mapStripe = true; b.status = 'ok'; }
     try {
       await api('/api/transaction', { method:'PUT', body: JSON.stringify(b) });
@@ -654,7 +657,7 @@ async function renderReceipts(){
   const m = $('#main');
   m.innerHTML = '<div class="sub">Loading…</div>';
   try { await loadTxns(); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
-  const missing = (S.txns||[]).filter(t => t.type==='out' && !t.expected && !t.receipt_key);
+  const missing = (S.txns||[]).filter(t => t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip);
   const have = (S.txns||[]).filter(t => t.receipt_key);
   m.innerHTML = `
     <div class="ph"><div><h2>Receipts</h2>
@@ -664,12 +667,14 @@ async function renderReceipts(){
       <b>Drop a receipt here — or tap to choose / take a photo</b>
       Images are read automatically${S.boot.extractAvailable?'':' (reading is off until the ANTHROPIC_API_KEY secret is set — files still attach fine)'}; PDFs attach directly.
     </div>
-    <div class="grp" style="margin-top:22px"><span class="ct">Missing a receipt — ${moName(S.month)}</span><span class="ln"></span></div>
+    <div class="grp" style="margin-top:22px"><span class="ct">Missing a receipt — ${moName(S.month)}</span><span class="ln"></span>
+      ${missing.length ? `<button class="btn" onclick="nudgeSlack(this)" title="Posts this list into #receipts with one-tap buttons">📣 Send to Slack</button>` : ''}</div>
     ${missing.length ? `<div class="card" style="padding:0"><div class="tbl-wrap"><table class="txn-tbl"><tbody>
       ${missing.map(t=>`<tr><td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
         <td><b>${esc(t.vendor)}</b><div class="cat">${esc(t.bucket||'')}</div></td>
         <td class="amt">−${fmt$(t.amount).replace('−','')}</td>
-        <td style="text-align:right"><button class="btn" onclick="attachFor(${t.id})">📎 Attach</button></td></tr>`).join('')}
+        <td style="text-align:right;white-space:nowrap"><button class="btn" onclick="attachFor(${t.id})">📎 Attach</button>
+          <button class="btn" onclick="skipRcpt(${t.id})" title="No receipt exists — stop counting it as missing">None exists</button></td></tr>`).join('')}
     </tbody></table></div></div>` : '<div class="notice good">Every expense this month has its receipt. ✓</div>'}
     <div class="grp" style="margin-top:22px"><span class="ct">Vault — ${moName(S.month)}</span><span class="ln"></span></div>
     <div class="vault">${have.map(t=>`<div class="vitem" onclick="viewReceipt(${t.id})">
@@ -681,6 +686,17 @@ async function renderReceipts(){
   dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handleDrop(f); };
 }
 function dropPick(){ pickFile(handleDrop); }
+async function skipRcpt(id){
+  try { await api('/api/transaction', { method:'PUT', body: JSON.stringify({ id, receipt_skip: true }) });
+    S.txns=null; S.boot = await api('/api/boot'); show('receipts');
+  } catch(e){ $('#main').insertAdjacentHTML('afterbegin', `<div class="notice bad">${esc(e.message)}</div>`); }
+}
+async function nudgeSlack(btn){
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try { const r = await api('/api/receipt-nudge?force=1&month=' + S.month, { method:'POST' });
+    btn.textContent = r.sent ? '✓ Posted in #receipts' : ('Not sent — ' + (r.skipped || r.error || 'nothing missing'));
+  } catch(e){ btn.textContent = e.message; }
+}
 function attachFor(id){
   event.stopPropagation();
   pickFile(async file => {
@@ -750,7 +766,7 @@ async function renderClose(){
   const t = S.txns || [];
   const expected = t.filter(x => x.expected===1);
   const review = t.filter(x => x.status==='review' && !x.expected);
-  const noRcpt = t.filter(x => x.type==='out' && !x.expected && !x.receipt_key);
+  const noRcpt = t.filter(x => x.type==='out' && !x.expected && !x.receipt_key && !x.receipt_skip);
   const hasRevenue = t.some(x => x.type==='in' && !x.expected);
   const hasFee = t.some(x => x.type==='fee');
   const item = (ok, warn, title, sub, go, dis) => `

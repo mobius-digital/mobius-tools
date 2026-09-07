@@ -432,7 +432,13 @@ async function processSlackReceipts(env) {
               catControls(target.id, target.__cat, target.__alts),
             ]);
           } else {
-            await reply(`✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`);
+            const mt = `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`;
+            await reply(mt, [
+              { type: 'section', text: { type: 'mrkdwn', text: mt } },
+              { type: 'actions', elements: [{ type: 'button', action_id: 'unmatch',
+                  text: { type: 'plain_text', text: 'Not a match ↩︎' },
+                  value: JSON.stringify({ undo: target.id }) }] },
+            ]);
           }
         } else {
           await reply(`⚠️ Couldn't read a vendor + total off this one — add it from the app's Receipts tab instead.`);
@@ -446,6 +452,45 @@ async function processSlackReceipts(env) {
   cfg.lockUntil = 0;
   await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
   return { handled, channel: cfg.channelId };
+}
+
+/* Month-end receipt sweep: two Slack nudges per month cycle — the 28th about
+ * the closing month, the 2nd–4th about the one just ended — never daily spam.
+ * Each missing expense carries a "No receipt — that's fine" button, which sets
+ * receipt_skip so the item stops being counted and chased. */
+async function receiptNudge(env, force = false, moOverride = null) {
+  if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
+  const today = centralDate(Date.now() / 1000);
+  const day = +today.slice(8);
+  let mo = null, phase = null;
+  if (day >= 28) { mo = monthOf(today); phase = 'pre'; }
+  else if (day >= 2 && day <= 4) { mo = monthOf(addMonthsYmd(today, -1)); phase = 'post'; }
+  if (force) { mo = /^\d{4}-\d{2}$/.test(moOverride || '') ? moOverride : (mo || monthOf(today)); phase = 'forced'; }
+  if (!mo) return { skipped: 'not a nudge day' };
+  if ((await monthStatus(env, mo)) === 'closed') return { skipped: mo + ' already closed' };
+  const cfg = safeJson(await getSetting(env, 'receiptNudge'), {}) || {};
+  if (!force && cfg[mo + ':' + phase]) return { skipped: 'already sent' };
+  const { results } = await env.DB.prepare(`SELECT id, vendor, amount, date FROM transactions
+    WHERE month = ?1 AND type = 'out' AND expected = 0 AND receipt_key IS NULL AND receipt_skip = 0
+    ORDER BY ABS(amount) DESC`).bind(mo).all();
+  if (!results.length) return { skipped: 'nothing missing' };
+  const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
+  if (!sr.channelId) return { skipped: 'no #receipts channel yet' };
+  const blocks = [{ type: 'section', text: { type: 'mrkdwn',
+    text: `📎 *${moLabel(mo)}: ${results.length} expense${results.length > 1 ? 's' : ''} still missing a receipt.*\n` +
+          `Drop a photo or forward the invoice email here — it attaches itself. None exists? One tap and it stops counting.` } }];
+  for (const t of results.slice(0, 10)) blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: `*${t.vendor}* — $${Math.abs(t.amount).toFixed(2)}  ·  ${t.date}` },
+    accessory: { type: 'button', action_id: 'skip' + t.id,
+      text: { type: 'plain_text', text: "No receipt — that's fine" },
+      value: JSON.stringify({ skip: t.id }) } });
+  if (results.length > 10) blocks.push({ type: 'context',
+    elements: [{ type: 'mrkdwn', text: `…and ${results.length - 10} more — Receipts tab in the app has the full list.` }] });
+  const r = await slack(env, 'chat.postMessage',
+    { channel: sr.channelId, text: `${moLabel(mo)}: missing receipts`, blocks, unfurl_links: false }, true);
+  if (r.ok && !force) { cfg[mo + ':' + phase] = today; await putSetting(env, 'receiptNudge', JSON.stringify(cfg)); }
+  return { month: mo, missing: results.length, sent: !!r.ok, error: r.error };
 }
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -738,6 +783,7 @@ export default {
       if (env.STRIPE_KEY)
         ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
       ctx.waitUntil(syncPlaid(env).catch(e => console.log('plaid sync failed: ' + e.message)));
+      ctx.waitUntil(receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message)));
     } else {
       // every 10 minutes: anything new dropped in Slack #receipts
       ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message)));
@@ -782,7 +828,8 @@ export default {
        * allows a single interactivity URL — this worker is it. THREE tools now
        * answer behind it, so the payload has to be classified rather than
        * split in two:
-       *   Ledger — a block action whose value carries {id, tax}
+       *   Ledger — a block action whose value carries {id, tax}, {skip} (the
+       *            month-end "no receipt" button) or {undo} ("not a match")
        *   Locus  — the Daily Brief / Reports cards: every action_id and every
        *            modal callback_id is prefixed brief_ / report_ (plus the
        *            noop_open link buttons Slack reports anyway). Modal
@@ -794,7 +841,8 @@ export default {
       const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
       const mine = acts.some(x => {
         const v = safeJson(x.selected_option?.value || x.value, null);
-        return v && v.id !== undefined && v.tax !== undefined;
+        return v && ((v.id !== undefined && v.tax !== undefined)
+                     || v.skip !== undefined || v.undo !== undefined);
       });
       const LOCUS_ID = /^(brief|report)_|^noop_open$/;
       const locus = !mine && (
@@ -819,6 +867,31 @@ export default {
       if (payload.type === 'block_actions') {
         const a = (payload.actions || [])[0] || {};
         const val = safeJson(a.selected_option?.value || a.value, null);
+        const respond = body => payload.response_url && ctx.waitUntil(fetch(payload.response_url, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body) }).catch(() => {}));
+        // month-end digest: "No receipt — that's fine" → stop counting/chasing it
+        if (val?.skip) {
+          const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.skip)).first();
+          if (cur) {
+            await env.DB.prepare('UPDATE transactions SET receipt_skip = 1 WHERE id = ?1').bind(cur.id).run();
+            respond({ replace_original: false, response_type: 'in_channel',
+              text: `✓ *${cur.vendor}* $${Math.abs(cur.amount).toFixed(2)} — marked "no receipt". It won't be counted or chased again.` });
+          }
+          return new Response('', { status: 200 });
+        }
+        // matched-receipt reply: "Not a match ↩︎" → detach, receipt discarded
+        if (val?.undo) {
+          const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.undo)).first();
+          if (cur) {
+            if (cur.receipt_key) await env.RECEIPTS.delete(cur.receipt_key).catch(() => {});
+            await env.DB.prepare('UPDATE transactions SET receipt_key = NULL, receipt_name = NULL, receipt_type = NULL WHERE id = ?1')
+              .bind(cur.id).run();
+            respond({ replace_original: true,
+              text: `↩︎ Detached — *${cur.vendor}* $${Math.abs(cur.amount).toFixed(2)} is back to "no receipt". Fix the right row in the app first (amount/date), then drop the photo again and it'll land there.` });
+          }
+          return new Response('', { status: 200 });
+        }
         if (val?.id && val?.tax) {
           const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.id)).first();
           if (cur) {
@@ -853,7 +926,7 @@ export default {
           SELECT month,
             SUM(CASE WHEN status = 'review' THEN 1 ELSE 0 END) AS review,
             SUM(CASE WHEN expected = 1 THEN 1 ELSE 0 END) AS expected,
-            SUM(CASE WHEN type = 'out' AND expected = 0 AND receipt_key IS NULL THEN 1 ELSE 0 END) AS noReceipt
+            SUM(CASE WHEN type = 'out' AND expected = 0 AND receipt_key IS NULL AND receipt_skip = 0 THEN 1 ELSE 0 END) AS noReceipt
           FROM transactions GROUP BY month`).all();
         const avg = await recentRevenueAvg(env);
         return json({
@@ -937,6 +1010,7 @@ export default {
           if (b[k] !== undefined) next[k] = b[k] === null ? null : String(b[k]).slice(0, 300);
         }
         if (b.one_time !== undefined) next.one_time = b.one_time ? 1 : 0;
+        if (b.receipt_skip !== undefined) next.receipt_skip = b.receipt_skip ? 1 : 0;
         if (b.confirm) { next.expected = 0; next.status = 'ok'; }
         if (!closed) {
           if (b.date && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) { next.date = b.date; next.month = monthOf(b.date); }
@@ -954,9 +1028,9 @@ export default {
         if (cur.type === 'out' && next.status !== 'review' && next.bucket && next.tax_cat)
           await learnDefault(env, next.vendor, next.bucket, next.tax_cat);
         await env.DB.prepare(`UPDATE transactions SET date=?2, month=?3, vendor=?4, amount=?5, bucket=?6,
-          tax_cat=?7, note=?8, one_time=?9, expected=?10, status=?11 WHERE id=?1`)
+          tax_cat=?7, note=?8, one_time=?9, expected=?10, status=?11, receipt_skip=?12 WHERE id=?1`)
           .bind(id, next.date, next.month, next.vendor, next.amount, next.bucket,
-                next.tax_cat, next.note, next.one_time, next.expected, next.status).run();
+                next.tax_cat, next.note, next.one_time, next.expected, next.status, next.receipt_skip || 0).run();
         return json({ ok: true, transaction: next });
       }
 
@@ -1130,7 +1204,7 @@ export default {
         const attn = await env.DB.prepare(`SELECT
             SUM(CASE WHEN status='review' AND expected=0 THEN 1 ELSE 0 END) AS review,
             SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
-            SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL THEN 1 ELSE 0 END) AS noReceipt
+            SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noReceipt
           FROM transactions WHERE month = ?1`).bind(month).first();
         return json({ month, report, year: yearRows.results, renewals: renewals.results, attention: attn });
       }
@@ -1209,6 +1283,10 @@ export default {
         return json({ configured: true, ok: !ch.error, bot: auth.user, team: auth.team,
           channel: ch.id || null, isMember: ch.is_member ?? null, error: ch.error || null,
           instant: !!env.SLACK_SIGNING_SECRET });
+      }
+
+      if (path === '/api/receipt-nudge' && request.method === 'POST') {
+        return json(await receiptNudge(env, url.searchParams.get('force') === '1', url.searchParams.get('month')));
       }
 
       if (path === '/api/slack-poll' && request.method === 'POST') {
