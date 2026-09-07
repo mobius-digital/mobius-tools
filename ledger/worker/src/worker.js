@@ -651,23 +651,44 @@ async function receiptNudge(env, force = false, moOverride = null) {
   if ((await monthStatus(env, mo)) === 'closed') return { skipped: mo + ' already closed' };
   const cfg = safeJson(await getSetting(env, 'receiptNudge'), {}) || {};
   if (!force && cfg[mo + ':' + phase]) return { skipped: 'already sent' };
-  const { results } = await env.DB.prepare(`SELECT id, vendor, amount, date FROM transactions
-    WHERE month = ?1 AND type = 'out' AND expected = 0 AND receipt_key IS NULL AND receipt_skip = 0
-    ORDER BY ABS(amount) DESC`).bind(mo).all();
+  /* Carry each vendor's billing link along: the ones that never email an
+   * invoice are the ones that cost him a hunt, so the link travels with the
+   * nudge rather than living somewhere he has to go and look for it. */
+  const { results } = await env.DB.prepare(`SELECT t.id, t.vendor, t.amount, t.date, v.billing_url
+    FROM transactions t LEFT JOIN vendors v ON v.name = t.vendor
+    WHERE t.month = ?1 AND t.type = 'out' AND t.expected = 0
+      AND t.receipt_key IS NULL AND t.receipt_skip = 0
+    ORDER BY (v.billing_url IS NULL), ABS(t.amount) DESC`).bind(mo).all();
   if (!results.length) return { skipped: 'nothing missing' };
   const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
   if (!sr.channelId) return { skipped: 'no #receipts channel yet' };
+  const withLink = results.filter(t => t.billing_url);
+  const noLink = results.filter(t => !t.billing_url);
   const blocks = [{ type: 'section', text: { type: 'mrkdwn',
     text: `📎 *${moLabel(mo)}: ${results.length} expense${results.length > 1 ? 's' : ''} still missing a receipt.*\n` +
           `Drop a photo or forward the invoice email here — it attaches itself. None exists? One tap and it stops counting.` } }];
-  for (const t of results.slice(0, 10)) blocks.push({
+  const line = t => ({
     type: 'section',
-    text: { type: 'mrkdwn', text: `*${t.vendor}* — $${Math.abs(t.amount).toFixed(2)}  ·  ${t.date}` },
+    text: { type: 'mrkdwn', text: `*${t.vendor}* — $${Math.abs(t.amount).toFixed(2)}  ·  ${t.date}` +
+      (t.billing_url ? `\n<${t.billing_url}|Open billing page →>` : '') },
     accessory: { type: 'button', action_id: 'skip' + t.id,
       text: { type: 'plain_text', text: "No receipt — that's fine" },
       value: JSON.stringify({ skip: t.id }) } });
-  if (results.length > 10) blocks.push({ type: 'context',
-    elements: [{ type: 'mrkdwn', text: `…and ${results.length - 10} more — Receipts tab in the app has the full list.` }] });
+  if (withLink.length) {
+    blocks.push({ type: 'divider' });
+    blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
+      text: `*Download these yourself* — they never email an invoice. The link goes straight to their billing page.` }] });
+    for (const t of withLink.slice(0, 8)) blocks.push(line(t));
+  }
+  if (noLink.length) {
+    blocks.push({ type: 'divider' });
+    if (withLink.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
+      text: `*Everything else still missing a receipt*` }] });
+    for (const t of noLink.slice(0, 8)) blocks.push(line(t));
+  }
+  const shown = Math.min(withLink.length, 8) + Math.min(noLink.length, 8);
+  if (results.length > shown) blocks.push({ type: 'context',
+    elements: [{ type: 'mrkdwn', text: `…and ${results.length - shown} more — the Receipts tab in the app has the full list.` }] });
   const r = await slack(env, 'chat.postMessage',
     { channel: sr.channelId, text: `${moLabel(mo)}: missing receipts`, blocks, unfurl_links: false }, true);
   if (r.ok && !force) { cfg[mo + ':' + phase] = today; await putSetting(env, 'receiptNudge', JSON.stringify(cfg)); }
@@ -1615,12 +1636,19 @@ export default {
         b.bucket = b.bucket || bucketFor(b.tax_cat);   // one choice; the group follows
         const cadence = b.cadence === 'yearly' ? 'yearly' : 'monthly';
         const rmn = Number(b.renew_month);
-        await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active, cadence, renew_month)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`)
+        /* Where to go and fetch an invoice by hand. Some vendors simply never
+         * email one — the answer is not to nag for a receipt that will never
+         * arrive, but to keep the deep link to their billing page next to the
+         * charge, so month-end is a click instead of a hunt. */
+        const billingUrl = /^https?:\/\//i.test(String(b.billing_url || '').trim())
+          ? String(b.billing_url).trim().slice(0, 500) : null;
+        await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active, cadence, renew_month, billing_url)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
           .bind(name, String(b.bucket), String(b.tax_cat), b.recurring ? 1 : 0,
                 Number.isFinite(Number(b.expected_amount)) ? Number(b.expected_amount) : null,
                 b.active === false ? 0 : 1, cadence,
-                cadence === 'yearly' && rmn >= 1 && rmn <= 12 ? rmn : null).run();
+                cadence === 'yearly' && rmn >= 1 && rmn <= 12 ? rmn : null,
+                billingUrl).run();
         if (b.applyToExisting) {
           await env.DB.prepare(`UPDATE transactions SET bucket = ?2, tax_cat = ?3
             WHERE vendor = ?1 COLLATE NOCASE AND type = 'out'`).bind(name, String(b.bucket), String(b.tax_cat)).run();

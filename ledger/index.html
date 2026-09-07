@@ -874,14 +874,8 @@ async function renderReceipts(){
       Images are read automatically${S.boot.extractAvailable?'':' (reading is off until the ANTHROPIC_API_KEY secret is set — files still attach fine)'}; PDFs attach directly.
     </div>
     <div class="grp" style="margin-top:22px"><span class="ct">Missing a receipt — ${moName(S.month)}</span><span class="ln"></span>
-      ${missing.length ? `<button class="btn" onclick="nudgeSlack(this)" title="Posts this list into #receipts with one-tap buttons">📣 Send to Slack</button>` : ''}</div>
-    ${missing.length ? `<div class="card" style="padding:0"><div class="tbl-wrap"><table class="txn-tbl"><tbody>
-      ${missing.map(t=>`<tr><td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
-        <td><b>${esc(t.vendor)}</b><div class="cat">${esc(t.bucket||'')}</div></td>
-        <td class="amt">−${fmt$(t.amount).replace('−','')}</td>
-        <td style="text-align:right;white-space:nowrap"><button class="btn" onclick="attachFor(${t.id})">📎 Attach</button>
-          <button class="btn" onclick="skipRcpt(${t.id})" title="No receipt exists — stop counting it as missing">None exists</button></td></tr>`).join('')}
-    </tbody></table></div></div>` : '<div class="notice good">Every expense this month has its receipt. ✓</div>'}
+      ${missing.length ? `<button class="btn" onclick="nudgeSlack(this)" title="Posts this list into the finance channel, links and all">📣 Send to Slack</button>` : ''}</div>
+    ${missing.length ? missingTables(missing) : '<div class="notice good">Every expense this month has its receipt. ✓</div>'}
     <div class="grp" style="margin-top:22px"><span class="ct">Vault — ${moName(S.month)}</span><span class="ln"></span></div>
     <div class="vault">${have.map(t=>`<div class="vitem" onclick="viewReceipt(${t.id})">
       <div class="vt">${esc(t.vendor)}</div><div class="vm">${fmtDate(t.date)} · ${fmt$(t.amount)}</div>
@@ -890,6 +884,59 @@ async function renderReceipts(){
   dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); };
   dz.ondragleave = () => dz.classList.remove('over');
   dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handleDrop(f); };
+}
+/* Missing receipts, split by whether there is anywhere to go and get one.
+   Vendors that never email an invoice are the expensive ones at month end —
+   so their billing page sits right next to the charge, one click away. */
+function missingTables(missing){
+  const urlOf = v => (S.boot.vendors||[]).find(x=>x.name===v)?.billing_url || '';
+  const rows = list => list.map(t=>{
+    const u = urlOf(t.vendor);
+    return `<tr><td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
+      <td><b>${esc(t.vendor)}</b><div class="cat">${esc(t.tax_cat||'uncategorized')}</div></td>
+      <td class="amt">−${fmt$(t.amount).replace('−','')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        ${u?`<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">↗ Billing page</a>`
+           :`<button class="btn" onclick="setBillingUrl('${esc(t.vendor).replace(/'/g,"\\'")}')" title="Save a link to where this vendor's invoices live">+ Add link</button>`}
+        <button class="btn" onclick="attachFor(${t.id})">📎 Attach</button>
+        <button class="btn" onclick="skipRcpt(${t.id})" title="No receipt exists — stop counting it as missing">None exists</button></td></tr>`;
+  }).join('');
+  const withLink = missing.filter(t=>urlOf(t.vendor));
+  const noLink = missing.filter(t=>!urlOf(t.vendor));
+  const tbl = (title, hint, list) => !list.length ? '' : `
+    <div class="grp" style="margin-top:14px"><span class="ct">${title}</span><span class="ln"></span></div>
+    <div class="hint" style="margin-bottom:8px">${hint}</div>
+    <div class="card" style="padding:0"><div class="tbl-wrap"><table class="txn-tbl"><tbody>${rows(list)}</tbody></table></div></div>`;
+  return tbl('Fetch these yourself', 'These vendors never email an invoice. The link opens their billing page — download it, then drop it in the finance channel or attach it here.', withLink)
+       + tbl(withLink.length ? 'Everything else' : 'Still missing', 'Forward the invoice email to the finance channel, or attach it here. If a receipt will never exist, say so and it stops being chased.', noLink);
+}
+async function setBillingUrl(vendor){
+  const v = (S.boot.vendors||[]).find(x=>x.name===vendor);
+  openModal(`<h3>Where do ${esc(vendor)}'s invoices live?</h3>
+    <div class="hint">Paste the link to their billing or invoice history page. At month end it appears next to the charge — here and in Slack — so you go straight there instead of hunting for it.</div>
+    <label>Billing page link</label>
+    <input id="buUrl" placeholder="https://…" value="${esc(v?.billing_url||'')}">
+    <div class="acts"><span class="spacer"></span>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="buSave">Save</button></div>
+    <div class="msg" id="buMsg"></div>`);
+  $('#buUrl').focus();
+  $('#buSave').onclick = async () => {
+    const url = $('#buUrl').value.trim();
+    if (url && !/^https?:\/\//i.test(url)) {
+      $('#buMsg').className='msg bad'; $('#buMsg').textContent='Needs to start with https://'; return;
+    }
+    try {
+      // a vendor row may not exist yet for a one-off place — create it as
+      // non-recurring so saving a link never turns something into a monthly bill
+      await api('/api/vendor', { method:'POST', body: JSON.stringify({
+        name: vendor, bucket: v?.bucket || 'Other', tax_cat: v?.tax_cat || 'Other — Ask CPA',
+        recurring: !!v?.recurring, cadence: v?.cadence || 'monthly', renew_month: v?.renew_month,
+        expected_amount: v?.expected_amount, active: v?.active === 0 ? false : true,
+        billing_url: url || null }) });
+      closeModal(); S.boot = await api('/api/boot'); show('receipts');
+    } catch(e){ $('#buMsg').className='msg bad'; $('#buMsg').textContent = e.message; }
+  };
 }
 function dropPick(){ pickFile(handleDrop); }
 async function skipRcpt(id){
@@ -1465,9 +1512,12 @@ function vendorCards(vendors){
         <button class="btn" onclick="addVendorModal()">+ Add one manually</button>
       </div>
       <div class="tiny" id="memNone" hidden style="margin-top:12px"></div>
-      ${shown.length ? `<div class="tbl-wrap" style="margin-top:10px"><table id="memTbl"><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th></th><th></th></tr></thead><tbody>
+      ${shown.length ? `<div class="tbl-wrap" style="margin-top:10px"><table id="memTbl"><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th>Invoices</th><th></th><th></th></tr></thead><tbody>
         ${shown.map(v=>{ const c = catCell(v); return `<tr data-s="${esc((v.name+' '+(v.bucket||'')+' '+(v.tax_cat||'')).toLowerCase())}">
           <td><b>${esc(v.name)}</b></td><td>${c.bucket}</td><td>${c.tax}</td>
+          <td>${v.billing_url
+            ? `<a class="ctl" href="${esc(v.billing_url)}" target="_blank" rel="noopener" title="${esc(v.billing_url)}">↗ Billing page</a> <button class="ctl" onclick="setBillingUrl('${esc(v.name).replace(/'/g,"\'")}')">edit</button>`
+            : `<button class="ctl" title="They never email an invoice? Save the link to where it lives." onclick="setBillingUrl('${esc(v.name).replace(/'/g,"\'")}')">+ Add link</button>`}</td>
           <td><button class="ctl" title="It bills every month — move it to Recurring" onclick="saveVendorField('${esc(v.name)}','repeats','monthly')">Make recurring →</button></td>
           <td><button class="del-x" title="Forget this vendor (transactions stay)" onclick="delVendor('${esc(v.name)}')">✕</button></td></tr>`; }).join('')}
       </tbody></table></div>`
@@ -1572,7 +1622,8 @@ async function saveVendorField(name, field, value){
   const v = (S.boot.vendors||[]).find(x=>x.name===name); if (!v) return;
   const body = { name, bucket:v.bucket, tax_cat:v.tax_cat, recurring:!!v.recurring,
     expected_amount:v.expected_amount, active:!!v.active,
-    cadence:v.cadence||'monthly', renew_month:v.renew_month };
+    cadence:v.cadence||'monthly', renew_month:v.renew_month,
+    billing_url:v.billing_url || null };   // POST replaces the row — carry it or lose it
   if (field === 'repeats') {
     body.recurring = value !== 'off';
     body.cadence = value === 'yearly' ? 'yearly' : 'monthly';

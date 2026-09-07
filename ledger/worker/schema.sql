@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   receipt_name TEXT,
   receipt_type TEXT,                     -- MIME type of the stored file
   receipt_skip INTEGER NOT NULL DEFAULT 0, -- acknowledged "no receipt exists" — stops the missing count/nudges
+  -- (vendors.billing_url holds the deep link for vendors that never email one)
   source TEXT DEFAULT 'manual',          -- manual | recurring | import | backfill | stripe
   created_at TEXT DEFAULT (datetime('now')),
   stripe_id TEXT,                        -- Stripe charge/refund id — sync dedupe key
@@ -42,7 +43,11 @@ CREATE TABLE IF NOT EXISTS vendors (
   expected_amount REAL,
   active INTEGER DEFAULT 1,
   cadence TEXT DEFAULT 'monthly',
-  renew_month INTEGER
+  renew_month INTEGER,
+  -- Where to fetch an invoice by hand. Some vendors never email one; the link
+  -- to their billing page rides along with the month-end missing-receipt nudge
+  -- so collecting it is a click rather than a hunt.
+  billing_url TEXT
 );
 
 -- Clients. billing 'retainer' = fixed monthly amount; 'percent' = % of ad
