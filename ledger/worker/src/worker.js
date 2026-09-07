@@ -375,6 +375,33 @@ async function verifySlackSig(env, ts, rawBody, sig) {
 
 const SEEN_CAP = 300;
 
+/* ------------------------------------------------------------------ */
+/*  receipt files: R2 for keeps, KV for the short-lived ones           */
+/* ------------------------------------------------------------------ */
+/* Receipts used to live in KV because R2 was not enabled on the account. It is
+ * now, so every stored receipt goes to R2 — but reads still fall back to KV so
+ * the ones written before keep opening, with no migration and no flag day.
+ * "pend:" blobs (an emailed receipt awaiting a yes/no) stay in KV either way:
+ * they want an expiry, which KV has and R2 does not. */
+const isPending = key => String(key).startsWith('pend:');
+
+async function receiptPut(env, key, body, ttlSeconds) {
+  if (isPending(key) || !env.R2)
+    return void await env.RECEIPTS.put(key, body, ttlSeconds ? { expirationTtl: ttlSeconds } : undefined);
+  await env.R2.put(key, body);
+}
+async function receiptGet(env, key) {
+  if (!isPending(key) && env.R2) {
+    const obj = await env.R2.get(key);
+    if (obj) return await obj.arrayBuffer();
+  }
+  return await env.RECEIPTS.get(key, 'arrayBuffer');   // pre-R2 receipts
+}
+async function receiptDelete(env, key) {
+  if (env.R2) await env.R2.delete(key).catch(() => {});
+  await env.RECEIPTS.delete(key).catch(() => {});
+}
+
 /**
  * Poll #receipts: each new image/PDF is downloaded, read by Claude, then
  * matched to an unreceipted expense (this month or last, amount to the cent)
@@ -494,7 +521,7 @@ async function processSlackReceipts(env) {
          * is a strong signal, so it asks instead of guessing. */
         if (!target && isEmail && ext?.vendor && ext?.amount) {
           const pendKey = `pend:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-          await env.RECEIPTS.put(pendKey, buf, { expirationTtl: 30 * 24 * 3600 });
+          await receiptPut(env, pendKey, buf, 30 * 24 * 3600);
           await putSetting(env, pendKey, JSON.stringify({
             vendor: String(ext.vendor).slice(0, 120), amount: round2(Number(ext.amount)),
             date: rDate, month: rMonth, name: fname.slice(0, 120), type: mimetype,
@@ -542,7 +569,7 @@ async function processSlackReceipts(env) {
         }
         if (target) {
           const key = `rcpt:${target.id}:${Date.now()}`;
-          await env.RECEIPTS.put(key, buf);
+          await receiptPut(env, key, buf);
           await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
             .bind(target.id, key, fname.slice(0, 120), mimetype).run();
           // the month is always stated: a receipt filed into the wrong month is
@@ -1163,7 +1190,7 @@ export default {
         // an emailed receipt we declined to guess at — he says it is his
         if (val?.file) {
           const meta = safeJson(await getSetting(env, val.file), null);
-          const blob = await env.RECEIPTS.get(val.file, 'arrayBuffer');
+          const blob = await receiptGet(env, val.file);
           if (!meta || !blob) {
             respond({ replace_original: false, text: '⚠️ That one has expired — drop the receipt in again.' });
             return new Response('', { status: 200 });
@@ -1185,10 +1212,10 @@ export default {
             VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
             .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
           const key = `rcpt:${res.meta.last_row_id}:${Date.now()}`;
-          await env.RECEIPTS.put(key, blob);
+          await receiptPut(env, key, blob);
           await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
             .bind(res.meta.last_row_id, key, meta.name, meta.type).run();
-          await env.RECEIPTS.delete(val.file).catch(() => {});
+          await receiptDelete(env, val.file);
           await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
           respond({ replace_original: true,
             text: `✓ Filed *${meta.vendor}* $${meta.amount.toFixed(2)} into *${moLabel(meta.month)}*` +
@@ -1199,7 +1226,7 @@ export default {
         if (val?.undo) {
           const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.undo)).first();
           if (cur) {
-            if (cur.receipt_key) await env.RECEIPTS.delete(cur.receipt_key).catch(() => {});
+            if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
             await env.DB.prepare('UPDATE transactions SET receipt_key = NULL, receipt_name = NULL, receipt_type = NULL WHERE id = ?1')
               .bind(cur.id).run();
             respond({ replace_original: true,
@@ -1419,7 +1446,7 @@ export default {
         if (!cur) return json({ error: 'unknown transaction' }, 404);
         if ((await monthStatus(env, cur.month)) === 'closed')
           return json({ error: `${cur.month} is closed — reopen it first.` }, 400);
-        if (cur.receipt_key) await env.RECEIPTS.delete(cur.receipt_key);
+        if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
         await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(id).run();
         return json({ ok: true });
       }
@@ -1619,8 +1646,8 @@ export default {
         if (!bytes.length) return json({ error: 'empty file' }, 400);
         if (bytes.length > RECEIPT_MAX) return json({ error: 'file too large (4MB max after downscale)' }, 400);
         const key = `rcpt:${id}:${Date.now()}`;
-        await env.RECEIPTS.put(key, bytes.buffer);
-        if (cur.receipt_key) await env.RECEIPTS.delete(cur.receipt_key);
+        await receiptPut(env, key, bytes.buffer);
+        if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
         const name = String(b.name || 'receipt').slice(0, 120);
         const type = String(b.type || 'application/octet-stream').slice(0, 80);
         await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
@@ -1632,7 +1659,7 @@ export default {
         const id = Number(url.searchParams.get('id'));
         const cur = await env.DB.prepare('SELECT receipt_key, receipt_name, receipt_type FROM transactions WHERE id = ?1').bind(id).first();
         if (!cur?.receipt_key) return json({ error: 'no receipt' }, 404);
-        const body = await env.RECEIPTS.get(cur.receipt_key, 'arrayBuffer');
+        const body = await receiptGet(env, cur.receipt_key);
         if (!body) return json({ error: 'file missing from store' }, 404);
         return new Response(body, { headers: { 'Content-Type': cur.receipt_type || 'application/octet-stream',
           'Content-Disposition': `inline; filename="${(cur.receipt_name || 'receipt').replace(/[^\w.\- ]/g, '')}"`, ...CORS } });
@@ -1641,7 +1668,7 @@ export default {
       if (path === '/api/receipt' && request.method === 'DELETE') {
         const id = Number(url.searchParams.get('id'));
         const cur = await env.DB.prepare('SELECT receipt_key FROM transactions WHERE id = ?1').bind(id).first();
-        if (cur?.receipt_key) await env.RECEIPTS.delete(cur.receipt_key);
+        if (cur?.receipt_key) await receiptDelete(env, cur.receipt_key);
         await env.DB.prepare('UPDATE transactions SET receipt_key=NULL, receipt_name=NULL, receipt_type=NULL WHERE id=?1').bind(id).run();
         return json({ ok: true });
       }
