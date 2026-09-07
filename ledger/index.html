@@ -466,7 +466,6 @@ function addModal(prefill = {}){
     </div>
     <div id="tCats">${catSelects('Other','')}</div>
     <label class="ck"><input type="checkbox" id="tOne"><span>One-time purchase<small>Kept out of the recurring baseline and forecast.</small></span></label>
-    <label class="ck"><input type="checkbox" id="tRule"><span>Remember this vendor<small>Tick it for somewhere that bills you again, so next time it categorizes itself. Leave it off for one-off places.</small></span></label>
     <div class="acts"><span class="spacer"></span>
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn primary" id="tSave">Add it</button></div>
@@ -488,7 +487,7 @@ function addModal(prefill = {}){
       date: $('#tDate').value, note: $('#tNote').value.trim(),
       bucket: type==='in' ? 'Revenue' : type==='transfer' ? 'Transfer' : $('#tBucket').value,
       tax_cat: type==='in' ? 'Client revenue' : type==='transfer' ? 'Transfer — not P&L' : $('#tTax').value,
-      one_time: $('#tOne').checked, saveRule: $('#tRule').checked,
+      one_time: $('#tOne').checked,
     };
     if (!row.vendor || !row.amount || !row.date) { $('#tMsg').className='msg bad'; $('#tMsg').textContent='Vendor, amount and date are required.'; return; }
     try {
@@ -516,7 +515,6 @@ async function editTxn(id){
       <div><label>Note</label><input id="eNote" value="${esc(t.note||'')}"></div>
     </div>
     ${t.type==='out' ? catSelects(t.bucket||'Other', t.tax_cat||'') : ''}
-    ${t.type==='out' && t.status==='review' ? `<label class="ck"><input type="checkbox" id="eRule"><span>Remember this vendor<small>Only tick this for somewhere that bills you again — a restaurant you visit once doesn't need remembering, and leaving it off keeps the vendor list short.</small></span></label>`:''}
     ${t.stripe_cus ? `<label class="ck"><input type="checkbox" id="eMap" ${t.status==='review'?'checked':''}><span>Remember: this Stripe customer is the client above<small>Every future payment from them auto-matches — set the vendor to the right client first.</small></span></label>`:''}
     ${t.type==='out' ? `<label class="ck"><input type="checkbox" id="eOne" ${t.one_time?'checked':''}><span>One-time purchase</span></label>`:''}
     <label>Receipt</label>
@@ -539,7 +537,7 @@ async function editTxn(id){
     if (t.type==='out') {
       b.bucket = $('#tBucket')?.value; b.tax_cat = $('#tTax')?.value || null;
       b.one_time = $('#eOne')?.checked;
-      if (t.status==='review' && b.bucket && b.tax_cat) { b.status='ok'; b.saveRule = $('#eRule')?.checked; }
+      if (t.status==='review' && b.bucket && b.tax_cat) b.status='ok'; // learning is automatic server-side
     }
     if (t.expected) b.confirm = true;
     if (t.stripe_cus && $('#eMap')?.checked) { b.mapStripe = true; b.status = 'ok'; }
@@ -1190,7 +1188,7 @@ function vendorCards(vendors){
 
     <div class="card" style="margin-top:14px">
       <h3>Remembered vendors <span class="tiny" style="font-weight:400">${mem.length}</span></h3>
-      <div class="hint">Everywhere else Ledger has learned to categorize — restaurants, one-off purchases, anything you told it about once. These <b>never create a transaction</b>; they just save you categorizing the same place twice. Promote one to Recurring if it turns out to bill you every month.</div>
+      <div class="hint"><b>Fills itself — you never manage this list.</b> Every time a purchase gets categorized (by you, or by Ledger reading a receipt), the vendor's category is saved here as its default for next time. Defaults are suggestions, not laws: any single purchase can be flipped (Best Buy is usually supplies, but one trip can be product testing) and the newest choice becomes the new default. These rows <b>never create a transaction</b>. You only come here to fix a wrong default, or promote something to Recurring.</div>
       <div class="row" style="margin-top:10px">
         <input id="vq" placeholder="Search vendors…" oninput="filterVendors(this.value)" style="flex:1;max-width:280px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px">
         <button class="btn" onclick="addVendorModal()">+ Add one manually</button>

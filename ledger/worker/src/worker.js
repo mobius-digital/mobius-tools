@@ -165,9 +165,34 @@ async function applyRule(env, row) {
   return row;
 }
 
-/* Claude reads a receipt: vendor, total, date, short note — or null. */
+/* The tax category is the choice that matters; the bucket follows from it.
+ * One tap (or one guess) sets both layers. Unknown/custom categories fall to
+ * Other, which is also where the sheet always put the unclassifiable. */
+const TAX2BUCKET = {
+  'Software & subscriptions': 'Software',
+  'Contract labor (1099)': 'Contractors',
+  'Advertising & marketing': 'Ads/Marketing',
+  'Bank & merchant fees': 'Merchant fee',
+};
+const bucketFor = tax => TAX2BUCKET[tax] || 'Other';
+
+/* Every confirmed categorization becomes that vendor's default suggestion —
+ * automatically, so the "remembered vendors" list maintains itself. A vendor
+ * marked recurring keeps its rule: one odd Best Buy run must not rewrite how
+ * the monthly Slack bill files. */
+async function learnDefault(env, vendor, bucket, tax_cat) {
+  if (!vendor || !bucket || !tax_cat) return;
+  await env.DB.prepare(`INSERT INTO vendors (name, bucket, tax_cat, recurring, active)
+    VALUES (?1, ?2, ?3, 0, 1)
+    ON CONFLICT(name) DO UPDATE SET bucket = ?2, tax_cat = ?3 WHERE recurring = 0`)
+    .bind(String(vendor).slice(0, 120), bucket, tax_cat).run();
+}
+
+/* Claude reads a receipt: vendor, total, date, note — and proposes the tax
+ * category from the app's own list, with runner-up guesses for the buttons. */
 async function claudeExtract(env, b64, mediaType) {
   if (!env.ANTHROPIC_API_KEY) return null;
+  const cats = safeJson(await getSetting(env, 'taxCats'), []) || [];
   const block = mediaType === 'application/pdf'
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
@@ -175,14 +200,23 @@ async function claudeExtract(env, b64, mediaType) {
     method: 'POST',
     headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 300,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 400,
       messages: [{ role: 'user', content: [block, { type: 'text', text:
-        'This is a receipt or invoice. Reply with ONLY a JSON object: {"vendor": string, "amount": number (the total), "date": "YYYY-MM-DD" or null, "note": short string or null}. No other text.' }] }],
+        'This is a receipt or invoice for a small marketing agency\'s bookkeeping. Reply with ONLY a JSON object:\n' +
+        '{"vendor": string, "amount": number (the total), "date": "YYYY-MM-DD" or null, "note": short string or null,\n' +
+        ' "tax_category": the single best fit from this exact list, or null if genuinely unclear: ' + JSON.stringify(cats) + ',\n' +
+        ' "alternates": up to 2 other plausible categories from the same list (e.g. a restaurant could be "Meals (50%)" or "Entertainment — Ask CPA")}.\n' +
+        'Use the list values verbatim. No other text.' }] }],
     }),
   });
   const j = await r.json().catch(() => ({}));
   const m = (j?.content?.[0]?.text || '').match(/\{[\s\S]*\}/);
-  return m ? safeJson(m[0], null) : null;
+  const out = m ? safeJson(m[0], null) : null;
+  if (out) {
+    if (!cats.includes(out.tax_category)) out.tax_category = null;
+    out.alternates = (out.alternates || []).filter(c => cats.includes(c) && c !== out.tax_category).slice(0, 2);
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ */
@@ -258,6 +292,7 @@ async function processSlackReceipts(env) {
   cfg.lastError = null;
 
   const msgs = (hist.messages || []).slice().reverse();   // oldest first
+  const taxCats = safeJson(await getSetting(env, 'taxCats'), []) || [];
   let handled = 0;
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
@@ -266,8 +301,24 @@ async function processSlackReceipts(env) {
       if (!isPdf && !/^image\//.test(f.mimetype || '')) continue;
       if (cfg.seen.includes(f.id)) continue;
       cfg.seen.push(f.id); if (cfg.seen.length > SEEN_CAP) cfg.seen = cfg.seen.slice(-SEEN_CAP);
-      const reply = text => slack(env, 'chat.postMessage',
-        { channel: cfg.channelId, thread_ts: msg.ts, text, unfurl_links: false }, true);
+      const reply = (text, blocks) => slack(env, 'chat.postMessage',
+        { channel: cfg.channelId, thread_ts: msg.ts, text, unfurl_links: false,
+          ...(blocks ? { blocks } : {}) }, true);
+      /* The category controls live IN the thread, so a wrong guess is one tap
+       * to fix and the app never has to be opened for a receipt. */
+      const catControls = (txnId, current, alternates) => {
+        const short = c => c.length > 24 ? c.slice(0, 23) + '…' : c;
+        const els = alternates.map((c, i) => ({
+          type: 'button', action_id: 'cat' + i,
+          text: { type: 'plain_text', text: short(c) },
+          value: JSON.stringify({ id: txnId, tax: c }) }));
+        els.push({
+          type: 'static_select', action_id: 'cat_sel',
+          placeholder: { type: 'plain_text', text: 'Change category…' },
+          options: taxCats.map(c => ({ text: { type: 'plain_text', text: short(c) },
+            value: JSON.stringify({ id: txnId, tax: c }) })) });
+        return { type: 'actions', elements: els.slice(0, 5) };
+      };
       try {
         if ((f.size || 0) > 8 * 1024 * 1024) { await reply('⚠️ That file is over 8MB — attach it from the app instead.'); continue; }
         const dl = await fetch(f.url_private_download || f.url_private,
@@ -310,12 +361,21 @@ async function processSlackReceipts(env) {
             amount: round2(Number(ext.amount)), bucket: null, tax_cat: null,
             note: ext.note ? String(ext.note).slice(0, 300) : null, status: 'ok',
           });
+          // no rule for this vendor → Claude's read of the receipt decides,
+          // and the choice is learned as the vendor's default for next time
+          let guessed = false;
+          if (row.status === 'review' && ext.tax_category) {
+            row.tax_cat = ext.tax_category; row.bucket = bucketFor(ext.tax_category);
+            row.status = 'ok'; guessed = true;
+            await learnDefault(env, row.vendor, row.bucket, row.tax_cat);
+          }
           const res = await env.DB.prepare(`INSERT INTO transactions
             (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
             VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
             .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
           target = { id: res.meta.last_row_id, vendor: row.vendor, amount: row.amount, date: row.date,
-                     __new: true, __review: row.status === 'review' };
+                     __new: true, __review: row.status === 'review', __guessed: guessed,
+                     __cat: row.tax_cat, __alts: ext.alternates || [] };
         }
         if (target) {
           const key = `rcpt:${target.id}:${Date.now()}`;
@@ -324,9 +384,20 @@ async function processSlackReceipts(env) {
             .bind(target.id, key, (f.name || 'receipt').slice(0, 120), f.mimetype).run();
           // the month is always stated: a receipt filed into the wrong month is
           // the one mistake that would quietly move spend around behind him
-          await reply(target.__new
-            ? `🧾 Filed: *${target.vendor}* $${target.amount.toFixed(2)} — dated ${target.date}, so it lands in *${moLabel(monthOf(target.date))}*. Receipt attached.${target.__review ? ' New vendor, so it\'s waiting in Review for a category (one tap in the app).' : ' Categorized automatically.'}`
-            : `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`);
+          if (target.__new) {
+            const base = `🧾 Filed: *${target.vendor}* $${target.amount.toFixed(2)} — dated ${target.date}, lands in *${moLabel(monthOf(target.date))}*. Receipt attached.`;
+            const text = target.__review
+              ? base + `\n⚠️ I couldn't tell what this was — pick a category below and I'll remember it.`
+              : target.__guessed
+                ? base + `\nCategorized as *${target.__cat}* (my read of the receipt — tap below if it was something else, like client entertainment).`
+                : base + `\nCategorized as *${target.__cat}* (your usual for this vendor — tap below if this time was different).`;
+            await reply(text, [
+              { type: 'section', text: { type: 'mrkdwn', text } },
+              catControls(target.id, target.__cat, target.__alts),
+            ]);
+          } else {
+            await reply(`✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`);
+          }
         } else {
           await reply(`⚠️ Couldn't read a vendor + total off this one — add it from the app's Receipts tab instead.`);
         }
@@ -662,6 +733,36 @@ export default {
       return json({ ok: true });
     }
 
+    /* Slack interactivity — button taps and menu picks from the receipt
+     * threads. Same signature check as events; the body is form-encoded with
+     * the interaction JSON in `payload`. Must answer inside 3 seconds. */
+    if (path === '/api/slack-interact' && request.method === 'POST') {
+      const raw = await request.text();
+      const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'),
+        raw, request.headers.get('x-slack-signature'));
+      if (!ok) return json({ error: 'bad signature' }, 401);
+      const payload = safeJson(new URLSearchParams(raw).get('payload'), {}) || {};
+      if (payload.type === 'block_actions') {
+        const a = (payload.actions || [])[0] || {};
+        const val = safeJson(a.selected_option?.value || a.value, null);
+        if (val?.id && val?.tax) {
+          const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.id)).first();
+          if (cur) {
+            const bucket = bucketFor(val.tax);
+            await env.DB.prepare(`UPDATE transactions SET bucket = ?2, tax_cat = ?3, status = 'ok' WHERE id = ?1`)
+              .bind(cur.id, bucket, String(val.tax)).run();
+            if (cur.type === 'out') await learnDefault(env, cur.vendor, bucket, String(val.tax));
+            if (payload.response_url) ctx.waitUntil(fetch(payload.response_url, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ replace_original: true,
+                text: `✓ *${cur.vendor}* $${Math.abs(cur.amount).toFixed(2)} — *${val.tax}*. Remembered as this vendor's usual.` }),
+            }).catch(() => {}));
+          }
+        }
+      }
+      return new Response('', { status: 200 });
+    }
+
     if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
 
     try {
@@ -735,12 +836,10 @@ export default {
             status: r.status === 'review' ? 'review' : 'ok',
             source: ['manual', 'import'].includes(r.source) ? r.source : 'manual',
           });
-          // learning: categorizing a new vendor at entry creates the rule
-          if (r.saveRule && row.bucket && row.tax_cat && type === 'out') {
-            await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active)
-              VALUES (?1, ?2, ?3, COALESCE((SELECT recurring FROM vendors WHERE name = ?1), ?4), ?5, 1)`)
-              .bind(row.vendor, row.bucket, row.tax_cat, r.recurring ? 1 : 0, row.amount).run();
-          }
+          // every categorized purchase teaches the vendor's default — automatic,
+          // so the same place never has to be categorized twice
+          if (type === 'out' && row.bucket && row.tax_cat && row.status !== 'review')
+            await learnDefault(env, row.vendor, row.bucket, row.tax_cat);
           const res = await env.DB.prepare(`INSERT INTO transactions
             (date, month, type, vendor, amount, bucket, tax_cat, note, one_time, expected, status, source)
             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`)
@@ -778,11 +877,8 @@ export default {
           await putSetting(env, 'stripeMap', JSON.stringify(map));
           next.status = 'ok'; next.note = null;
         }
-        if (next.status === 'ok' && cur.status === 'review' && next.bucket && next.tax_cat && b.saveRule && cur.type === 'out') {
-          await env.DB.prepare(`INSERT OR REPLACE INTO vendors (name, bucket, tax_cat, recurring, expected_amount, active)
-            VALUES (?1, ?2, ?3, ?4, ?5, 1)`)
-            .bind(next.vendor, next.bucket, next.tax_cat, b.recurring ? 1 : 0, next.amount).run();
-        }
+        if (cur.type === 'out' && next.status !== 'review' && next.bucket && next.tax_cat)
+          await learnDefault(env, next.vendor, next.bucket, next.tax_cat);
         await env.DB.prepare(`UPDATE transactions SET date=?2, month=?3, vendor=?4, amount=?5, bucket=?6,
           tax_cat=?7, note=?8, one_time=?9, expected=?10, status=?11 WHERE id=?1`)
           .bind(id, next.date, next.month, next.vendor, next.amount, next.bucket,
