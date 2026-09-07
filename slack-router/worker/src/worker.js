@@ -47,8 +47,11 @@ async function verifySlackSig(env, ts, rawBody, sig) {
 const safeJson = (s, d) => { try { const v = JSON.parse(s); return v == null ? d : v; } catch { return d; } };
 
 /* WHO OWNS THIS PAYLOAD.
-   Ledger — a block action whose value carries {id, tax} (the receipt category
-            buttons and the category dropdown).
+   Ledger — a block action carrying one of its value shapes: {id, tax} (the
+            receipt category buttons and dropdown), {skip} (the month-end
+            "no receipt exists" button) or {undo} ("not a match"); or any
+            action_id prefixed led_, which are its link buttons — Slack
+            reports the click even though nothing needs doing.
    Locus  — the Daily Brief and Reports cards: every action_id and every modal
             callback_id is prefixed brief_ / report_, plus the noop_open link
             buttons Slack reports anyway. Modal submissions carry NO actions
@@ -62,8 +65,10 @@ const LOCUS_ID = /^(brief|report)_|^noop_open$/;
 function ownerOf(payload) {
   const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
   const ledger = acts.some(x => {
+    if (/^led_/.test(x.action_id || '')) return true;
     const v = safeJson(x.selected_option?.value || x.value, null);
-    return v && v.id !== undefined && v.tax !== undefined;
+    return v && ((v.id !== undefined && v.tax !== undefined)
+                 || v.skip !== undefined || v.undo !== undefined);
   });
   if (ledger) return 'ledger';
   if (acts.some(x => LOCUS_ID.test(x.action_id || ''))) return 'locus';
