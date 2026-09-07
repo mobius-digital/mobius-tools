@@ -9,9 +9,12 @@ compatibility_date = "2026-07-01"
 [triggers]
 crons = ["17 8 * * *", "*/10 * * * *"]
 
-# Plaid environment: "sandbox" until production approval, then "production".
+# Plaid environment. Production access approved 2026-09-07; the PLAID_SECRET
+# secret is environment-specific and holds the production value, while
+# PLAID_CLIENT_ID is the same everywhere. Flipping this back to "sandbox"
+# without also restoring the sandbox secret will fail every Plaid call.
 [vars]
-PLAID_ENV = "sandbox"
+PLAID_ENV = "production"
 
 # D1: the ledger itself (transactions, vendor rules, clients, months, settings).
 # Schema changes: npx wrangler d1 execute mobius-ledger --remote --file=schema.sql
