@@ -1671,12 +1671,18 @@ function buildBriefText(data, dates, narrative) {
     pair('aMER', fx(f.amer), fx(a.amer));
   }
 
-  const wk = data.week;
-  if (wk) {
-    L.push('', `*Week in review — ${prettyDate(wk.from)} to ${prettyDate(wk.to)}*`);
-    L.push(`Net Sales ${fm(wk.a.sales)} against ${fm(wk.f.sales)} planned · Spend ${fm(wk.a.spend)} of ${fm(wk.f.spend)}${cmOk ? ` · CM ${fm(wk.a.cm)}` : ''} · aMER ${fx(wk.a.amer)}`);
-    if (wk.best) L.push(`Best day ${prettyDate(wk.best.date)} at ${fm(wk.best.sales)}, slowest ${prettyDate(wk.worst.date)} at ${fm(wk.worst.sales)}`);
-  }
+  /* NO "WEEK IN REVIEW" BLOCK. It used to print here on the Monday brief, and
+     it was a straight duplicate: the weekly REPORT drafts on the same Monday
+     cron over the exact same Mon–Sun window and goes to the same client
+     channel, so the client received the week twice in one morning — once as
+     three lines of Slack and once as the actual deliverable.
+     Cole, 2026-09-07: "a weekly report already gets sent as a separate thing, so
+     I don't think the week in review should be put in there... it should just go
+     into the notes, the so what and the what's next."
+     `data.week` is still computed and still handed to Claude — the weekly shape
+     is exactly what makes Monday's So What? worth reading — it just reaches the
+     page as a sentence inside the narrative instead of as a second scoreboard.
+     See the `data.week` paragraph in writeBriefNarrative for the instruction. */
   /* The one forward-looking line in the brief: what it takes from here.
      Everything above describes the past; this is the sentence somebody can act on
      this morning. Tone escalates with the RAMP rather than the gap, because the
@@ -1743,7 +1749,7 @@ So What?
 2–4 sentences: the single interpretation that best explains the day — tie performance moves to the changes we made when the change log supports it, and say whether this reads as a demand problem, a platform problem, or our own levers.
 What's Next?
 • 1–3 bullets: concrete actions or watch-items with a trigger ("if X doesn't improve today, we do Y").
-Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. Google's conversions settle late too, and unevenly: hedge a recent Google read the same way, and NEVER report a Google ROAS the block marks n/a — say Google's conversions have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
+Rules: use ONLY the numbers provided — never invent or extrapolate figures. Money in the account's own currency, rounded to WHOLE units — write $612, never $611.51; the numbers block above rounds and a narrative quoting cents beside it reads as two different figures for the same thing. Write dates the way a person says them — "September 6", "the 8th" — never 2026-09-06 or 09-05. Meta-attributed conversions keep settling for ~72h — hedge recent Meta ROAS reads accordingly. Google's conversions settle late too, and unevenly: hedge a recent Google read the same way, and NEVER report a Google ROAS the block marks n/a — say Google's conversions have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with ROAS (which IS platform-attributed). Keep the whole narrative under 160 words — short, punchy bullets, not paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
 /* A REWRITE CAN BE STEERED. "Write it again" on its own produces a different
    brief, not a better one -- the model has no idea what was wrong with the last
@@ -1796,7 +1802,8 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
         : '') +
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
     (data.to_hit ? `Catch-up already stated in the numbers block above (do NOT restate the figures, but you may build on what they imply): ${JSON.stringify(data.to_hit)}\n\n` : '') +
-      (data.week ? `This brief also carries a week-in-review block (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)} — weigh the weekly picture in So What?/What's Next?, not just the single day.\n\n` : '') +
+      (data.week ? `THE WEEK THAT JUST CLOSED (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)}\n`
+        + `There is NO week-in-review block in the numbers section — the weekly report is a separate deliverable and this brief must not duplicate it as a second scoreboard. So the week reaches the reader ONLY through your narrative. Give it ONE bullet in Notes with the figures that matter (net sales against plan, spend, aMER, best and slowest day), weigh the weekly shape rather than just yesterday in So What?, and let it inform What's Next?. Do not list the week metric by metric.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}` +
       steerBlock(steer),
   });
@@ -3072,7 +3079,7 @@ async function reportData(env, acct, period, start, end) {
               -- rather than summed; summing would grow with the window length.
               CASE WHEN SUM(d.impressions) > 0
                    THEN SUM(d.video_avg_watch * d.impressions) / SUM(d.impressions) END AS avg_watch,
-              COALESCE(a.name, d.ad_id) AS name
+              COALESCE(a.name, d.ad_id) AS name, a.media_type
        FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
        WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
        GROUP BY d.ad_id HAVING SUM(d.spend) > 0 ORDER BY spend DESC LIMIT 500`,
@@ -3157,56 +3164,56 @@ async function reportData(env, acct, period, start, end) {
       prev_cpa: prevById[r.ad_id]?.purchases
         ? prevById[r.ad_id].spend / prevById[r.ad_id].purchases : null,
     });
-    // Format split from the account's own naming convention — "310 B | Still",
-    // "Cole - 3 | UGC". The segment after the last pipe is the format, so no
-    // tagging UI is needed. Computed over EVERY ad that spent, same
-    // 100%-accounting rule as the cards.
-    //
-    // The convention is real but not clean, and the guards below come from
-    // measuring it rather than assuming it. On Lucky's 2026-08-17 week the
-    // tags are UGC ($2,222), Still ($1,456) and `0616` ($504) — the last a
-    // shoot code, not a format — while 46 ads carrying $1,283 have no pipe at
-    // all. So: a tag must contain a LETTER (a pure number is a date or a job
-    // code, never a format), and a tag holding under 4% of ad spend is a
-    // one-off rather than a category. Everything rejected joins Untagged,
-    // which is always shown — disclosing the coverage beats gating on it.
-    const UNTAGGED = 'Untagged';
-    /* ONLY A KNOWN FORMAT WORD MAY BE A FORMAT HERE. This table goes to a
-       client as "how UGC did against Still", so a partner's name arriving in
-       the same slot of the ad name must never become a row in it. Labels fold
-       into Untagged, whose share is disclosed rather than hidden. */
-    const fmtOf = n => { const t = nameTag(n); return t && t.kind === 'format' ? t.tag : null; };
-    const totalAdSpend = adRows.reduce((a, r) => a + (r.spend || 0), 0);
-    const tally = (rows, keyOf) => {
-      const by = {};
-      for (const r of rows) {
-        const label = keyOf(r);
-        const f = by[label.toLowerCase()] ??= { label, count: 0, spend: 0, purchases: 0, revenue: 0 };
-        f.count++; f.spend += r.spend || 0; f.purchases += r.purchases || 0; f.revenue += r.revenue || 0;
-      }
-      return by;
+    /* FORMAT SPLIT COMES FROM META'S OWN CREATIVE TYPE, NOT FROM AD NAMES.
+       (Cole, 2026-09-07: "don't tag stuff based off what the naming is... it
+       should be split between stills and videos... there's carousels too. Only
+       actual Meta stuff should be put on there. There should be nothing that's
+       untagged.")
+
+       It used to read the segment after the last `|` in the ad name, which was
+       wrong in three separate ways and all three reached clients:
+         - it invented categories. "UGC" is not a format, it is a style — a UGC
+           ad IS a video — so the table compared UGC against Still as though
+           they were alternatives at the same level.
+         - it leaked whatever else lived in that slot. Partner and editor names
+           landed in the same position, which is why "UGC | SA" showed up.
+         - it could never reach 100%. Ads with no pipe, or a shoot code instead
+           of a word, fell into "Untagged", which on Lucky's flagship week was a
+           third of ad spend — a row a client cannot act on.
+
+       `ads.media_type` is resolved from the creative itself (carousel checked
+       before video, since a carousel of videos behaves as a carousel), so the
+       three rows are the three things that actually exist. It is only populated
+       for ads whose creative we have fetched, so the fallback reads the DELIVERY
+       data: an ad with video plays is a video, anything else is a still. That
+       covers every ad that spent, which is what removes Untagged entirely.
+       The one honest limitation, stated in the UI: a carousel we have not
+       fetched the creative for is counted by that fallback as video or still. */
+    const FORMAT_LABEL = { video: 'Video', image: 'Static image', carousel: 'Carousel' };
+    const formatOf = r => {
+      if (r.media_type && FORMAT_LABEL[r.media_type]) return r.media_type;
+      return (r.plays > 0 || r.v3 > 0 || r.vp25 > 0) ? 'video' : 'image';
     };
-    // First pass finds which tags carry material spend; the second pass folds
-    // the rest in, so their purchases and revenue land in Untagged too.
-    const firstPass = tally(adRows, r => fmtOf(r.name) || UNTAGGED);
-    const material = new Set(Object.values(firstPass)
-      .filter(f => f.label !== UNTAGGED && totalAdSpend && f.spend / totalAdSpend >= 0.04)
-      .map(f => f.label.toLowerCase()));
-    const byFmt = tally(adRows, r => {
-      const label = fmtOf(r.name);
-      return label && material.has(label.toLowerCase()) ? label : UNTAGGED;
-    });
+    const totalAdSpend = adRows.reduce((a, r) => a + (r.spend || 0), 0);
+    const byFmt = {};
+    let typedSpend = 0;                       // spend whose type came from Meta, not inferred
+    for (const r of adRows) {
+      const id = formatOf(r);
+      const f = byFmt[id] ??= { id, label: FORMAT_LABEL[id], count: 0, spend: 0, purchases: 0, revenue: 0 };
+      f.count++; f.spend += r.spend || 0; f.purchases += r.purchases || 0; f.revenue += r.revenue || 0;
+      if (r.media_type && FORMAT_LABEL[r.media_type]) typedSpend += r.spend || 0;
+    }
     const fin = f => ({
       ...f,
       share: totalAdSpend ? f.spend / totalAdSpend : null,
       cpa: f.purchases ? f.spend / f.purchases : null,
       roas: f.spend && f.revenue ? f.revenue / f.spend : null,
     });
-    // Untagged always sits last — it is the remainder, not a competitor.
-    const named = Object.values(byFmt).filter(f => f.label !== UNTAGGED).sort((a, b) => b.spend - a.spend).map(fin);
-    const untagged = byFmt[UNTAGGED.toLowerCase()] ? fin(byFmt[UNTAGGED.toLowerCase()]) : null;
-    const formats = untagged ? [...named, untagged] : named;
-    const taggedShare = totalAdSpend ? named.reduce((a, f) => a + f.spend, 0) / totalAdSpend : 0;
+    const named = Object.values(byFmt).sort((a, b) => b.spend - a.spend).map(fin);
+    const formats = named;
+    // What share of the split Meta itself confirmed, versus inferred from
+    // delivery. Disclosed rather than hidden, same rule as before.
+    const taggedShare = totalAdSpend ? typedSpend / totalAdSpend : 0;
     // Everything not listed, as one line, so the table accounts for 100% of
     // ad-level spend and the tail can be compared with the headline ads.
     const shownSet = new Set(shown.map(r => r.ad_id));
@@ -3218,12 +3225,15 @@ async function reportData(env, acct, period, start, end) {
       .sort((a, b) => (a.spend / a.purchases) - (b.spend / b.purchases))[0] || null;
     if (shown.length) ads = {
       floor, top: shown.map(row),
-      // Needs 2+ material formats and a majority of ad spend tagged; below that
-      // the split describes the naming convention rather than the creative.
-      // Lucky's flagship week runs 67% tagged, so a stricter bar would suppress
-      // exactly the case this was built for.
-      formats: named.length >= 2 && taggedShare >= 0.55 ? formats : null,
-      formats_tagged_share: named.length >= 2 && taggedShare >= 0.55 ? taggedShare : null,
+      /* The old 55%-tagged gate is gone with the naming convention it was
+         guarding: the split is now Meta's own creative type and always accounts
+         for 100% of ad-level spend, so there is no coverage left to fail on.
+         The only bar remaining is that a split needs something to split — one
+         row is a fact about the account, not a comparison. `formats_confirmed`
+         is how much of that spend Meta itself typed, versus inferred from
+         delivery data, and the page discloses it. */
+      formats: named.length >= 2 ? formats : null,
+      formats_confirmed: named.length >= 2 ? taggedShare : null,
       // This account's OWN typical hook and hold, so an ad can be judged against
       // what this brand actually achieves rather than a generic e-commerce
       // benchmark. Motion's 30%/60% vary enormously by vertical, placement and
@@ -3359,16 +3369,40 @@ const repMoney = (n, cur) => n == null ? '—' : new Intl.NumberFormat('en-US',
 const repPctVs = (a, b) => a != null && b ? `${a >= b ? '+' : ''}${Math.round((a / b - 1) * 100)}%` : null;
 
 /** The one-line summary used in both Slack messages. */
+/* ONE METRIC PER LINE, not a run-on. This string is the whole client-facing
+   Slack message for a report (plus a link), and as a single ` · `-joined line —
+   "Revenue $4,742 (-51% vs plan, -34% vs prior week) · Spend $2,532 · MER 1.87x
+   · CM $1,404" — it wrapped to two or three lines on a phone with the wrap
+   landing in the middle of a figure, so no number had a stable shape to scan
+   for. Cole, 2026-09-07: "is there any way this can be put into a format kind of
+   similar to a bullet point, just easy to digest."
+   Bullets also let each metric carry its own comparison instead of only revenue
+   getting one, which is the more useful change. Kept to four lines: this is the
+   notice, not the report — the report is the page behind the link. */
 function reportHeadline(data) {
   const cur = data.account.currency, t = data.totals;
   const tag = data.period === 'weekly' ? 'week' : 'month';
-  const vsPlan = repPctVs(t.sales, data.forecast?.sales);
-  const vsPrev = repPctVs(t.sales, data.previous?.sales);
-  const rev = `Revenue ${repMoney(t.sales, cur)}${vsPlan || vsPrev
-    ? ` (${[vsPlan && `${vsPlan} vs plan`, vsPrev && `${vsPrev} vs prior ${tag}`].filter(Boolean).join(', ')})` : ''}`;
-  const bits = [rev, `Spend ${repMoney(t.spend, cur)}`, `MER ${t.mer != null ? t.mer.toFixed(2) + 'x' : '—'}`];
-  if (t.cm != null) bits.push(`CM ${repMoney(t.cm, cur)}`);
-  return bits.join(' · ');
+  const f = data.forecast || {}, p = data.previous || {};
+  const money = n => repMoney(n, cur);
+  const x = n => n != null ? `${n.toFixed(2)}x` : '—';
+  /* "vs plan" and "vs prior week" as a parenthetical, omitted entirely when
+     there is nothing to compare against — an empty bracket reads as a bug. */
+  const vs = (a, plan, prev) => {
+    const bits = [];
+    const vp = repPctVs(a, plan), vq = repPctVs(a, prev);
+    if (vp) bits.push(`${vp} vs plan`);
+    if (vq) bits.push(`${vq} vs prior ${tag}`);
+    return bits.length ? `  (${bits.join(', ')})` : '';
+  };
+  const L = [
+    `• *Revenue* ${money(t.sales)}${vs(t.sales, f.sales, p.sales)}`,
+    // No comparison arithmetic on spend beyond the plain figures: whether spend
+    // moving is good or bad is what the MER line answers.
+    `• *Ad spend* ${money(t.spend)}${vs(t.spend, f.spend, p.spend)}`,
+    `• *MER* ${x(t.mer)}${vs(t.mer, f.mer, p.mer)}`,
+  ];
+  if (t.cm != null) L.push(`• *Contribution margin* ${money(t.cm)}${vs(t.cm, f.cm, p.cm)}`);
+  return L.join('\n');
 }
 
 /** Build (or rebuild) one report as a DRAFT. A sent report is frozen — the

@@ -916,6 +916,7 @@
   .ad-row .dlt{font-size:10.5px;font-weight:700;padding:1px 5px;border-radius:5px;white-space:nowrap}
   .ad-row .dlt.up{background:var(--good-bg);color:var(--good)}
   .ad-row .dlt.dn{background:var(--bad-bg);color:var(--bad)}
+  .ad-row .dlt.flat{background:var(--unk-bg);color:var(--unk)}
   /* The bar the number is judged against, stated on the row itself. Asked twice
      what "strong" meant, which means an ⓘ tooltip was not enough. */
   .ad-row .bm{font-style:normal;font-size:10.5px;color:var(--muted);opacity:.75;margin-left:4px}
@@ -1026,6 +1027,18 @@
   .ch-note{display:block;min-height:15px;margin-top:3px;font-size:11.5px;line-height:1.25;color:var(--warn)}
 
   /* Report KPI cards: keep the number readable when the grid drops to one column. */
+  /* THE SUMMARY. Rhythm is set here, once, rather than by whatever blank lines
+     happened to survive the model's output. A heading gets real space ABOVE it
+     and almost none below — that is what makes three sections read as three
+     sections — while bullets inside one section sit tight together, because
+     they are a list, not paragraphs. */
+  .rp-sum{font-size:14px;line-height:1.55}
+  .rp-sum-h{font-size:13px;font-weight:700;letter-spacing:.01em;margin:16px 0 4px}
+  .rp-sum > :first-child{margin-top:0}
+  .rp-sum-p{margin:0 0 6px}
+  .rp-sum-ul{margin:0;padding-left:17px;list-style:disc}
+  .rp-sum-ul li{margin:0 0 4px}
+  .rp-sum-ul li::marker{color:var(--muted)}
   .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px}
 
   footer{max-width:1240px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
@@ -4383,35 +4396,82 @@ function reportBodyHTML(d, summary, opts = {}) {
   const t = d.totals || {}, p = d.previous || {}, f = d.forecast || {};
   const prevTag = d.period === 'weekly' ? 'week' : 'month';
 
+  /* `lower` says which direction is GOOD: false = higher is better, true = lower
+     is better, and 'neutral' = neither, so the number is shown with no verdict
+     colour at all.
+     'neutral' exists for AD SPEND. Cole, 2026-09-07: "I don't think they should
+     have red or green when it comes to ad spend because you can't really tell if
+     something is good or bad when ad spend increases or decreases." He is right
+     and it was worse than cosmetic — spend was treated as lower-is-better, so a
+     week we deliberately scaled went out to the client in RED, and a week we
+     underspent (which is exactly why Grunk is 51% behind plan) went out in
+     GREEN. The colour was actively arguing the opposite of the summary next to
+     it. Spend is an input we chose; only the return on it can be good or bad. */
   const vsPill = (a, b, lower) => {
     if (a == null || b == null || !b) return '';
     const off = a / b - 1;
     if (!isFinite(off)) return '';
-    const good = lower ? off <= 0.05 : off >= -0.02;
-    const cls = good ? 'good' : Math.abs(off) <= 0.12 ? 'warn' : 'bad';
     // Round FIRST, then sign — fmtSigned on a hair-under-parity value renders "-0%".
     const r = Math.round(off * 100);
-    return `<span class="pill ${cls}">${r > 0 ? '+' : ''}${r}%</span>`;
+    const sign = `${r > 0 ? '+' : ''}${r}%`;
+    if (lower === 'neutral') return `<span class="pill unk">${sign}</span>`;
+    const good = lower ? off <= 0.05 : off >= -0.02;
+    const cls = good ? 'good' : Math.abs(off) <= 0.12 ? 'warn' : 'bad';
+    return `<span class="pill ${cls}">${sign}</span>`;
   };
   const kpi = (label, aV, fmt, fV, pV, lower, info) => `<div class="card" style="margin:0">
     <div class="av-label" style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px">${label}${info ? ` <span class="info-i" title="${esc(info)}">i</span>` : ''}</div>
     <div style="font-size:clamp(19px,2.1vw,26px);font-weight:700;margin:4px 0 5px">${fmt(aV)}</div>
-    <div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center">${fV != null ? `forecast ${fmt(fV)} ${vsPill(aV, fV, lower)}` : '<span>no forecast</span>'}</div>
-    <div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:2px">${pV != null ? `prior ${prevTag} ${fmt(pV)} ${vsPill(aV, pV, lower)}` : ''}</div>
+    ${fV != null ? `<div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center">forecast ${fmt(fV)} ${vsPill(aV, fV, lower)}</div>` : ''}
+    ${pV != null ? `<div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:2px">prior ${prevTag} ${fmt(pV)} ${vsPill(aV, pV, lower)}</div>` : ''}
   </div>`;
+  /* "no forecast" USED TO PRINT HERE on Orders, AOV and New-customer CPA, and it
+     read as a fault in the data. It is not: the monthly Plan sets revenue and
+     spend (plus an aMER assumption), and nothing else, so those three genuinely
+     have no agreed target to be measured against. Inventing one — orders from
+     revenue ÷ trailing AOV, say — would put a number in front of a client that
+     nobody ever agreed to, which is the one thing this report must not do.
+     So the line is simply absent, and the prior-period comparison underneath it
+     carries the card. If we ever want these forecast for real, they belong in
+     the Plan tab first. (Cole, 2026-09-07.) */
   const money = n => fmtMoney(n, cur);
 
-  const sumFmt = s => esc(s).split('\n').map(l =>
-    ['The period in brief', 'What mattered', "What's next"].includes(l.trim()) ? `<b>${l}</b>` : l).join('\n');
+  /* THE SUMMARY IS STRUCTURE, NOT A PRE-FORMATTED BLOB.
+     It used to render with `white-space:pre-wrap`, so every blank line Claude
+     wrote between bullets became a full empty line on the page — at line-height
+     1.65 that is ~23px of nothing between one-line bullets, which is what made
+     the card read as enormous (Cole, 2026-09-07: "the spacing between bullet
+     points is huge").
+     It also matched the section titles with `.includes()` AFTER the text had
+     been through `esc()` — so "What's next" had already become "What&#39;s next"
+     and could never match, which is why that one heading alone rendered
+     unbolded while the other two bolded fine. Match the RAW line, escape after.
+     Parsing into real headings and a real <ul> lets CSS own the rhythm. */
+  const SUM_HEADS = ['The period in brief', 'What mattered', "What's next"];
+  const sumFmt = s => {
+    const out = [];
+    let items = null;
+    const flush = () => { if (items) { out.push(`<ul class="rp-sum-ul">${items.join('')}</ul>`); items = null; } };
+    for (const raw of String(s).split('\n')) {
+      const l = raw.trim();
+      if (!l) continue;                                    // blank lines carry no meaning here
+      if (SUM_HEADS.includes(l)) { flush(); out.push(`<h5 class="rp-sum-h">${esc(l)}</h5>`); continue; }
+      const b = /^[•–*-]\s+(.*)$/.exec(l);        // a bullet, however it was typed
+      if (b) { (items ??= []).push(`<li>${esc(b[1])}</li>`); continue; }
+      flush(); out.push(`<p class="rp-sum-p">${esc(l)}</p>`);
+    }
+    flush();
+    return out.join('');
+  };
   const sumHtml = summary ? `<div class="card" style="border-left:3px solid var(--brand)">
       <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Summary</h3><span style="flex:1"></span>${opts.editable ? '<button class="btn" id="rpEditSum" style="font-size:12px;padding:5px 9px">✎ Edit</button>' : ''}</div>
-      <div id="rpSumBox" style="white-space:pre-wrap;font-size:14px;line-height:1.65">${sumFmt(summary)}</div></div>`
+      <div id="rpSumBox" class="rp-sum">${sumFmt(summary)}</div></div>`
     : opts.editable ? `<div class="card" style="border-left:3px solid var(--warn)"><h3 style="margin-bottom:4px">Summary</h3>
       <p class="hint">No narrative was written (the Claude call failed at generation time). Hit ↻ Regenerate to retry.</p></div>` : '';
 
   const kpis = [
     kpi('Revenue', t.sales, money, f.sales, p.sales, false, 'Shopify Total Sales minus sales tax — every channel (paid, organic, email, direct), after discounts and returns, including shipping charged to customers. Not any ad platform’s attributed number.'),
-    kpi('Ad spend', t.spend, money, f.spend, p.spend, true, 'Every platform combined — Meta, Google and anything else Triple Whale tracks.'),
+    kpi('Ad spend', t.spend, money, f.spend, p.spend, 'neutral', 'Every platform combined — Meta, Google and anything else Triple Whale tracks. Shown without a good/bad colour on purpose: spend is a decision, not a result — whether it was the right amount is what MER, aMER and CPA answer.'),
     kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'All store revenue ÷ all ad spend, blended on both sides. The honest “are the ads paying for themselves” number — the same thing as blended ROAS.'),
     kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it — this is what the ads actually bought.'),
     t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost — product, fulfilment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
@@ -4487,8 +4547,12 @@ function reportBodyHTML(d, summary, opts = {}) {
       if (now == null || then == null || !then) return '';
       const off = Math.round((now / then - 1) * 100);
       if (off === 0) return '';
+      const sign = `${off > 0 ? '+' : ''}${off}%`;
+      // Same rule as the scorecard: spend moving is a decision we made, so it is
+      // reported without a verdict colour. ROAS and CPA moving are results.
+      if (lower === 'neutral') return ` <span class="dlt flat">${sign}</span>`;
       const good = lower ? off < 0 : off > 0;
-      return ` <span class="dlt ${good ? 'up' : 'dn'}">${off > 0 ? '+' : ''}${off}%</span>`;
+      return ` <span class="dlt ${good ? 'up' : 'dn'}">${sign}</span>`;
     };
     // label … value delta — the value is what you scan down the column, the
     // change qualifies it, so the change reads after it.
@@ -4520,7 +4584,7 @@ function reportBodyHTML(d, summary, opts = {}) {
             ? `<a class="ad-name ad-link" href="${esc(a.preview)}" target="_blank" rel="noopener noreferrer" title="${esc(a.name)}">${esc(a.name)}<span class="ext">↗</span></a>`
             : `<span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>`}
           <div class="ad-stats">
-            ${row('Spend', money(a.spend), dlt(a.spend, a.prev_spend))}
+            ${row('Spend', money(a.spend), dlt(a.spend, a.prev_spend, 'neutral'))}
             ${row('ROAS', a.roas != null ? fmtX(a.roas) : '—', dlt(a.roas, a.prev_roas))}
             ${row('CPA', a.cpa != null ? money(a.cpa) : '—', dlt(a.cpa, a.prev_cpa, true))}
             ${row('Purchases', fmtInt(a.purchases))}
@@ -4562,12 +4626,22 @@ function reportBodyHTML(d, summary, opts = {}) {
       cpa: x.purchases ? x.spend / x.purchases : null, roas: x.spend && x.revenue ? x.revenue / x.spend : null });
 
     const formats = A.formats?.length ? (() => {
+      // `Untagged` can only appear on a report FROZEN before the split moved to
+      // Meta's creative type; new ones have no such row. Kept in the filter so
+      // an archived report still reads correctly.
       const real = A.formats.filter(f => f.label !== 'Untagged' && f.purchases > 0);
       const best = real.slice().sort((a, b) => (b.roas || 0) - (a.roas || 0));
       const verdict = best.length >= 2 && best[0].roas && best[best.length - 1].roas
         ? `<p style="font-size:13.5px;margin-top:10px"><b>${esc(best[0].label)}</b> returned ${fmtX(best[0].roas)} on ${money(best[0].spend)}, against <b>${fmtX(best[best.length - 1].roas)}</b> from ${esc(best[best.length - 1].label)} on ${money(best[best.length - 1].spend)}.</p>` : '';
+      // Old reports carry `formats_tagged_share` (naming convention); new ones
+      // carry `formats_confirmed` (Meta's own type). The sentence differs
+      // because the two mean genuinely different things.
+      const conf = A.formats_confirmed;
+      const legacy = conf == null && A.formats_tagged_share != null;
       return `<h4 style="font-size:13.5px;font-weight:700;margin:20px 0 2px">Which kinds of creative the money went to</h4>
-        <p class="hint" style="margin-bottom:8px">Split by the format tag in each ad's own name — the part after the last <code>|</code>. Every ad that spent this ${prevTag} is counted, not just the ones shown above.${A.formats_tagged_share != null ? ` <b>${fmtPct(A.formats_tagged_share)}</b> of ad spend carries a tag; the rest is grouped as Untagged, so the rows still add up to every ad that spent.` : ''}</p>
+        <p class="hint" style="margin-bottom:8px">${legacy
+          ? `Split by the format tag in each ad's own name — the part after the last <code>|</code>. Every ad that spent this ${prevTag} is counted, not just the ones shown above. <b>${fmtPct(A.formats_tagged_share)}</b> of ad spend carries a tag; the rest is grouped as Untagged, so the rows still add up to every ad that spent.`
+          : `Split by what the ad actually <b>is</b> in Meta — video, a static image, or a carousel — not by anything in its name. Every ad that spent this ${prevTag} is counted, so these rows add up to 100% of ad spend.${conf != null && conf < 0.995 ? ` Meta confirmed the creative type on <b>${fmtPct(conf)}</b> of that spend; for the rest we read it from delivery (an ad with video plays is a video), which correctly separates video from static but can count a carousel as one of those two.` : ''}`}</p>
         <div class="tbl-wrap"><table><thead><tr><th>Format</th><th class="num">Ads</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
         <tbody>${A.formats.map(f => `<tr><td><b>${esc(f.label)}</b></td><td class="num">${fmtInt(f.count)}</td>
           <td class="num"><b>${money(f.spend)}</b></td><td class="num">${fmtPct(f.share)}</td>
@@ -4604,7 +4678,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     const A = c.cur || {}, P = c.prev || {};
     let rows = '', note = '';
     if (['meta', 'google', 'tiktok', 'pinterest'].includes(c.id)) {
-      rows = chRow('Spend', A.spend, P.spend, money, true)
+      rows = chRow('Spend', A.spend, P.spend, money, 'neutral')   // an input, not a result — see vsPill
         + chRow('Attributed revenue', A.revenue, P.revenue, money)
         // A ROAS built on fewer than two conversions is one order's value over the
         // whole window's spend, so it is withheld rather than printed as a result.
@@ -4655,10 +4729,16 @@ function reportBodyHTML(d, summary, opts = {}) {
     ? Object.entries(chRoll).sort((a, b) => b[1] - a[1])
         .map(([k, v]) => `<b>${v}</b> ${esc(catLabel(k, v))}`).join(' · ')
     : '';
-  const changesHtml = opts.internal && (chList.length || rollLine) ? `<div class="card"><h3 style="margin-bottom:2px">What we changed during the period</h3>
-    <p class="hint" style="margin-bottom:10px">From the Change Log, ranked by what actually moves money — budget, bidding and structural changes are listed individually, along with any ad switched on or off that was spending${!Array.isArray(ch) && ch?.ad_floor ? ` more than ${money(ch.ad_floor)}` : ' real money'} this ${prevTag}. Routine creative and tuning work is counted below. Meta's own review-state churn and image-library edits are excluded. <b>Internal only</b> — the client's page never shows this list, though the summary above may reference the moves.${!Array.isArray(ch) && ch?.notable_total > chList.length ? ` Showing the first ${chList.length} of ${ch.notable_total} notable changes.` : ''}</p>
+  /* SAY WHICH PLATFORM. The Change Log is fed by Meta's ad-account activity
+     API and nothing else — there is no Google Ads change-history sync — so a
+     heading reading "what we changed" over a Meta-only list implies we did
+     nothing in Google that week, which for most brands is false. Naming Meta in
+     the heading costs nothing and stops the omission reading as a claim.
+     (Cole, 2026-09-07.) */
+  const changesHtml = opts.internal && (chList.length || rollLine) ? `<div class="card"><h3 style="margin-bottom:2px">What we changed in Meta during the period</h3>
+    <p class="hint" style="margin-bottom:10px">From the Change Log, ranked by what actually moves money — budget, bidding and structural changes are listed individually, along with any ad switched on or off that was spending${!Array.isArray(ch) && ch?.ad_floor ? ` more than ${money(ch.ad_floor)}` : ' real money'} this ${prevTag}. Routine creative and tuning work is counted below. Meta's own review-state churn and image-library edits are excluded. <b>Meta only</b> — this list is built from Meta's ad-account activity feed, so Google Ads changes are not in it and their absence here does not mean none were made. <b>Internal only</b> — the client's page never shows this list, though the summary above may reference the moves.${!Array.isArray(ch) && ch?.notable_total > chList.length ? ` Showing the first ${chList.length} of ${ch.notable_total} notable changes.` : ''}</p>
     ${chList.length ? `<div>${chList.map(e => `<div class="rp-change"><span class="d tiny">${esc(e.t)}</span><span class="cat">${esc(catLabel(e.category))}</span><span class="s">${esc(e.summary || '')}${e.spend != null ? ` <span class="tiny">· ${money(e.spend)} spent this ${prevTag}</span>` : ''}${e.reason ? ` <span class="tiny">· ${esc(e.reason)}</span>` : ''}</span></div>`).join('')}</div>`
-      : '<p style="font-size:13.5px">No budget, bidding or structural changes this ' + prevTag + '.</p>'}
+      : '<p style="font-size:13.5px">No budget, bidding or structural changes in Meta this ' + prevTag + '.</p>'}
     ${rollLine ? `<p class="tiny" style="margin-top:10px">Routine activity in the same period: ${rollLine}.</p>` : ''}</div>` : '';
 
   return `${sumHtml}

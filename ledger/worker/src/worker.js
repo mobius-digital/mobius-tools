@@ -1225,11 +1225,28 @@ export default {
         }
         if (cur.type === 'out' && next.status !== 'review' && next.bucket && next.tax_cat)
           await learnDefault(env, next.vendor, next.bucket, next.tax_cat);
+        /* Categorizing one of eight identical Anthropic charges should settle
+         * all eight. Only rows still awaiting a category are touched — never
+         * one already decided — and only in months that are still open. */
+        let cascaded = 0;
+        if (b.cascadeVendor && next.tax_cat && cur.type === 'out') {
+          const { results: kin } = await env.DB.prepare(
+            `SELECT id, month FROM transactions
+             WHERE vendor = ?1 AND type = 'out' AND id <> ?2 AND expected = 0
+               AND (tax_cat IS NULL OR status = 'review')`).bind(next.vendor, id).all();
+          for (const k of kin) {
+            if ((await monthStatus(env, k.month)) === 'closed') continue;
+            await env.DB.prepare(
+              `UPDATE transactions SET tax_cat = ?2, bucket = ?3, status = 'ok' WHERE id = ?1`)
+              .bind(k.id, next.tax_cat, next.bucket).run();
+            cascaded++;
+          }
+        }
         await env.DB.prepare(`UPDATE transactions SET date=?2, month=?3, vendor=?4, amount=?5, bucket=?6,
           tax_cat=?7, note=?8, one_time=?9, expected=?10, status=?11, receipt_skip=?12 WHERE id=?1`)
           .bind(id, next.date, next.month, next.vendor, next.amount, next.bucket,
                 next.tax_cat, next.note, next.one_time, next.expected, next.status, next.receipt_skip || 0).run();
-        return json({ ok: true, transaction: next });
+        return json({ ok: true, transaction: next, cascaded });
       }
 
       /* Bulk categorize. Thirty Anthropic charges in a row is one decision, not
@@ -1247,9 +1264,12 @@ export default {
         for (const cur of rows) {
           if ((await monthStatus(env, cur.month)) === 'closed') { skippedClosed++; continue; }
           const sets = [], binds = [];
-          if (b.tax_cat !== undefined) {
-            const tax = b.tax_cat === null ? null : String(b.tax_cat).slice(0, 300);
-            const bucket = cur.type === 'out' ? bucketFor(tax) : cur.bucket;
+          if (b.tax_cat !== undefined || b.bucket !== undefined) {
+            const tax = b.tax_cat === undefined ? cur.tax_cat
+              : b.tax_cat === null ? null : String(b.tax_cat).slice(0, 300);
+            // an explicit bucket wins; otherwise derive it from the tax category
+            const bucket = b.bucket !== undefined ? String(b.bucket).slice(0, 300)
+              : cur.type === 'out' ? bucketFor(tax) : cur.bucket;
             // push() returns the new length, which IS the 1-based placeholder
             sets.push(`tax_cat = ?${binds.push(tax)}`);
             sets.push(`bucket = ?${binds.push(bucket)}`);

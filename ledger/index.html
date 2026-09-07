@@ -69,9 +69,12 @@
   .mbox label .why{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px;margin-top:1px}
   /* A checkbox row is a label too, but it is a sentence — not a field caption,
      so it must escape the uppercase/tracking the caption rule applies. */
-  .mbox label.ck{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;
-    color:var(--ink);margin:14px 0 0;line-height:1.45}
-  .mbox label.ck small{margin-top:3px;line-height:1.5;font-weight:400}
+  .mbox label.ck{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;
+    color:var(--ink);margin:12px 0 0;line-height:1.5;gap:11px;align-items:flex-start;
+    padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+  .mbox label.ck:hover{border-color:var(--line-strong)}
+  .mbox label.ck input{margin-top:1px;width:15px;height:15px;flex:none}
+  .mbox label.ck small{margin-top:5px;line-height:1.55;font-weight:400;font-size:11.5px}
   .mbox input,.mbox select,.mbox textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;background:var(--surface)}
   .mbox .acts{display:flex;gap:10px;margin-top:20px;align-items:center}
   .mbox .acts .spacer{flex:1}
@@ -90,9 +93,21 @@
   .txn-tbl th:last-child,.txn-tbl td:last-child{padding-right:20px}
   .txn-tbl td.pick,.txn-tbl th.pick{padding-right:0;width:34px}
   .txn-tbl td.pick input{width:15px;height:15px;cursor:pointer;margin:0}
-  .rowcat{font-size:12px;padding:4px 7px;border:1px solid var(--line-strong);border-radius:7px;
-    background:var(--surface);color:var(--ink);max-width:210px}
-  .rowcat.unset{color:var(--bad);border-color:var(--bad)}
+  .rowsel{display:inline-flex;gap:7px;flex-wrap:wrap}
+  /* A select has to LOOK like one: its own chevron, since the native arrow is
+     hidden the moment appearance is normalised, plus a pointer and a hover. */
+  .rowcat{font-size:12px;padding:5px 26px 5px 9px;border:1px solid var(--line-strong);border-radius:7px;
+    background:var(--surface);color:var(--ink);max-width:220px;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23667' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 8px center;transition:border-color .12s,background-color .12s}
+  .rowcat:hover{border-color:var(--brand-ink);background-color:var(--brand-soft)}
+  .rowcat:focus{outline:2px solid var(--brand-ink);outline-offset:1px}
+  .rowcat.unset{color:var(--bad);border-color:var(--bad);border-style:dashed}
+  .txn-tbl tr.picked td{background:var(--brand-soft)}
+  #flash{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(14px);
+    background:var(--ink);color:#fff;font-size:13px;padding:11px 18px;border-radius:10px;
+    box-shadow:0 12px 34px rgba(12,22,29,.34);opacity:0;pointer-events:none;transition:.22s;z-index:60}
+  #flash.on{opacity:1;transform:translateX(-50%) translateY(0)}
   .bulkbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--brand-soft);
     border:1px solid var(--line-strong);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px}
   .bulkbar select{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line-strong);
@@ -421,30 +436,53 @@ function pickAll(on){
   on ? ids.forEach(i=>S.sel.add(i)) : ids.forEach(i=>S.sel.delete(i));
   renderTxns();
 }
-/* One row's category, saved the moment it changes — and the worker turns that
-   into this vendor's default, so the next import of it never reaches Review. */
-async function setRowCat(id, tax, el){
+/* Once anything is ticked you are in selecting mode, and the whole row is the
+   target — hunting the 15px box to tick the next twelve is not a workflow. */
+function rowClick(ev, id){
+  if (S.sel.size) { togglePick(id, !S.sel.has(id)); return; }
+  editTxn(id);
+}
+/* One row's bucket or tax category, saved the moment it changes. The worker
+   also applies it to that vendor's other still-uncategorized rows, so eight
+   identical Anthropic charges are one decision, not eight. */
+async function setRowField(id, field, value, el){
   const prev = el.value;
   el.disabled = true;
   try {
-    await api('/api/transaction', { method:'PUT', body: JSON.stringify({ id, tax_cat: tax || null }) });
-    const t = (S.txns||[]).find(x=>x.id===id);
-    if (t) { t.tax_cat = tax || null; if (tax) t.status = 'ok'; }
-    S.boot = await api('/api/boot');
-    renderTxns();
+    const body = { id, [field]: value || null };
+    if (field === 'tax_cat') body.cascadeVendor = true;
+    const r = await api('/api/transaction', { method:'PUT', body: JSON.stringify(body) });
+    S.txns = null; S.boot = await api('/api/boot');
+    await loadTxns(); renderTxns();
+    if (r.cascaded) flash(`Applied to ${r.cascaded} other row${r.cascaded>1?'s':''} from the same vendor.`);
   } catch(e){
     el.disabled = false; el.value = prev;
-    tell('Could not save that category', e.message);
+    tell('Could not save that', e.message);
   }
 }
+/* A quiet confirmation that does not need dismissing. */
+function flash(text){
+  let el = $('#flash');
+  if (!el) { el = document.createElement('div'); el.id = 'flash'; document.body.appendChild(el); }
+  el.textContent = text; el.classList.add('on');
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => el.classList.remove('on'), 3800);
+}
 async function bulkApply(){
-  const tax = $('#bulkCat')?.value;
-  if (!tax) { tell('Pick a category first', 'Choose one from the dropdown, then press Apply.'); return; }
+  const tax = $('#bulkCat')?.value, bucket = $('#bulkBucket')?.value;
+  if (!tax && !bucket) {
+    tell('Pick something to apply', 'Choose a bucket, a tax category, or both — then press Apply.');
+    return;
+  }
   const ids = [...S.sel];
+  const body = { ids };
+  if (tax) body.tax_cat = tax;
+  if (bucket) body.bucket = bucket;
   try {
-    const r = await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify({ ids, tax_cat: tax }) });
+    const r = await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify(body) });
     S.sel.clear(); S.txns = null; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
+    flash(`Updated ${r.updated} transaction${r.updated===1?'':'s'}.`);
     if (r.skippedClosed) tell('Some rows were skipped',
       `${r.updated} updated. ${r.skippedClosed} were in a closed month and left alone.`);
   } catch(e){ tell('Bulk update failed', e.message); }
@@ -474,9 +512,14 @@ async function renderTxns(){
     return `<button class="ctl ${S.filter===id?'on':''}" onclick="S.filter='${id}';renderTxns()">${label}${n?` (${n})`:''}</button>`;
   }).join('');
   const body = rows.map(t => {
+    // Say WHY there is no receipt slot, rather than a bare dash that reads as
+    // "missing". Expected rows are expenses too — they just haven't happened.
     const rc = t.type==='out' && !t.expected
       ? (t.receipt_key ? '<span class="rc has">✓ receipt</span>' : t.receipt_skip ? '<span class="rc">no receipt · ok</span>' : '<span class="rc miss">no receipt</span>')
-      : `<span class="rc na" title="Receipts only apply to expenses — this is ${t.type==='in'?'money coming in':t.type==='transfer'?'a transfer between your own accounts':'a pre-created expected row'}">—</span>`;
+      : t.expected ? '<span class="rc na" title="This row is the recurring engine\'s prediction — it hasn\'t happened yet, so there is nothing to attach. Confirm it first.">not yet</span>'
+      : t.type==='fee' ? '<span class="rc na" title="Stripe\'s processing fee — taken automatically, no receipt exists">n/a</span>'
+      : t.type==='in' ? '<span class="rc na" title="Money coming in — receipts are for expenses">money in</span>'
+      : '<span class="rc na" title="A transfer between your own accounts — not a purchase, so no receipt">transfer</span>';
     const flag = (t.expected ? '<span class="pill warn">expected</span>'
       : t.status==='review' ? '<span class="pill bad">review</span>'
       : t.one_time ? '<span class="pill unk">one-time</span>' : '')
@@ -484,14 +527,26 @@ async function renderTxns(){
       + (t.plaid_id ? ' <span class="pill good" title="Came straight from the bank or card feed">bank</span>' : '');
     // The category is editable in place: one dropdown, no modal, and the choice
     // becomes this vendor's default so the next import never asks again.
+    // BOTH layers, in place: the bucket that drives your dashboard, and the tax
+    // category the CPA files it under. Picking a tax category fills the bucket
+    // in, but either can be set on its own.
     const cats = ['Client revenue', ...(S.boot.taxCats||[])];
-    const catCell = closed ? `<span class="cat">${esc(t.tax_cat||'uncategorized')}</span>`
-      : `<select class="rowcat ${t.tax_cat?'':'unset'}" onclick="event.stopPropagation()"
-           onchange="setRowCat(${t.id}, this.value, this)">
-          <option value="">— pick a category —</option>
-          ${cats.map(c=>`<option ${c===t.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}
-         </select>`;
-    return `<tr onclick="editTxn(${t.id})">
+    const bks = ['Revenue','Merchant fee',...(S.boot.buckets||[])];
+    const catCell = closed
+      ? `<span class="cat">${esc(t.bucket||'—')} · ${esc(t.tax_cat||'uncategorized')}</span>`
+      : `<span class="rowsel" onclick="event.stopPropagation()">
+          <select class="rowcat ${t.bucket?'':'unset'}" title="Your bucket — drives the dashboard and report card"
+            onchange="setRowField(${t.id}, 'bucket', this.value, this)">
+            <option value="">— bucket —</option>
+            ${bks.map(b=>`<option ${b===t.bucket?'selected':''}>${esc(b)}</option>`).join('')}
+          </select>
+          <select class="rowcat ${t.tax_cat?'':'unset'}" title="Tax category — the CPA's layer"
+            onchange="setRowField(${t.id}, 'tax_cat', this.value, this)">
+            <option value="">— tax category —</option>
+            ${cats.map(c=>`<option ${c===t.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}
+          </select>
+        </span>`;
+    return `<tr onclick="rowClick(event, ${t.id})" class="${S.sel.has(t.id)?'picked':''}">
       <td class="pick" onclick="event.stopPropagation()">
         <input type="checkbox" ${S.sel.has(t.id)?'checked':''} onchange="togglePick(${t.id}, this.checked)"></td>
       <td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
@@ -516,11 +571,16 @@ async function renderTxns(){
     ${closed?'<div class="notice good">This month is closed — amounts and dates are frozen with its report card. You can still attach receipts. Reopen from the Close page if something must change.</div>':''}
     ${S.sel.size ? `<div class="bulkbar">
       <b>${S.sel.size} selected</b>
+      <span class="tiny">Click any row to add or remove it</span>
+      <select id="bulkBucket">
+        <option value="">Bucket…</option>
+        ${['Revenue','Merchant fee',...(S.boot.buckets||[])].map(b=>`<option>${esc(b)}</option>`).join('')}
+      </select>
       <select id="bulkCat">
-        <option value="">Set category for all ${S.sel.size}…</option>
+        <option value="">Tax category…</option>
         ${['Client revenue', ...(S.boot.taxCats||[])].map(c=>`<option>${esc(c)}</option>`).join('')}
       </select>
-      <button class="btn primary" onclick="bulkApply()">Apply</button>
+      <button class="btn primary" onclick="bulkApply()">Apply to ${S.sel.size}</button>
       <button class="btn" onclick="bulkSkipReceipts()" title="Marks them as having no receipt, so they stop being chased">No receipt needed</button>
       <span style="flex:1"></span>
       <button class="btn" onclick="S.sel.clear();renderTxns()">Clear selection</button>
