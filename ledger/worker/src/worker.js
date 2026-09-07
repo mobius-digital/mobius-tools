@@ -113,7 +113,7 @@ async function computeReport(env, month) {
     'SELECT * FROM transactions WHERE month = ?1 AND expected = 0 ORDER BY date, id'
   ).bind(month).all();
 
-  let revenue = 0, fees = 0, expenses = 0, transfers = 0;
+  let revenue = 0, fees = 0, expenses = 0, transfers = 0, personal = 0;
   const byBucket = {}, byTax = {}, byClient = {};
   for (const t of txns) {
     // transfers are money MOVING, not money made or spent: the Amex payment
@@ -122,6 +122,10 @@ async function computeReport(env, month) {
     if (t.type === 'transfer') { transfers += t.amount; continue; }
     if (t.type === 'in') { revenue += t.amount; byClient[t.vendor] = (byClient[t.vendor] || 0) + t.amount; }
     else if (t.type === 'fee') fees += t.amount;
+    // a personal purchase on a business card is an owner draw, not a business
+    // expense — kept in the ledger so it still ties to the bank statement,
+    // excluded from the P&L so it never inflates costs
+    else if (/^Personal/i.test(t.tax_cat || '')) personal += t.amount;
     else {
       expenses += t.amount;
       byBucket[t.bucket || 'Other'] = (byBucket[t.bucket || 'Other'] || 0) + t.amount;
@@ -144,7 +148,7 @@ async function computeReport(env, month) {
     revenue: round2(revenue), expenses: round2(expenses), fees: round2(fees), feeEstimated,
     net, taxes, distributions: dist, profit,
     margin: revenue > 0 ? round2(net / revenue * 100) : null,
-    transfers: round2(transfers),
+    transfers: round2(transfers), personal: round2(personal),
     opCost, split, splitPct: money.split, taxPct: money.taxPct, distPct: money.distPct,
     byBucket: mapRound(byBucket), byTax: mapRound(byTax), byClient: mapRound(byClient),
     txnCount: txns.length,
@@ -255,11 +259,13 @@ async function findReceiptsChannel(env) {
     const r = await slack(env, 'conversations.list',
       { types: 'public_channel,private_channel', exclude_archived: 'true', limit: '200', ...(cursor ? { cursor } : {}) });
     if (!r.ok) return { error: r.error };
-    const hit = (r.channels || []).find(c => c.name === 'receipts');
+    // #finance is the one financial channel; #receipts was its original name
+    const hit = (r.channels || []).find(c => c.name === 'finance')
+             || (r.channels || []).find(c => c.name === 'receipts');
     if (hit) return { id: hit.id, is_member: !!hit.is_member };
     cursor = r.response_metadata?.next_cursor || '';
   } while (cursor);
-  return { error: 'no #receipts channel found' };
+  return { error: 'no #finance (or #receipts) channel found' };
 }
 
 /* Slack signs every event: HMAC of "v0:<timestamp>:<raw body>". Verifying it is
@@ -452,6 +458,62 @@ async function processSlackReceipts(env) {
   cfg.lockUntil = 0;
   await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
   return { handled, channel: cfg.channelId };
+}
+
+/* The old first-of-month ritual, delivered instead of performed: on the 2nd
+ * (Stripe's last-day charges have long settled by then) the previous month's
+ * full report card lands in Slack — P&L, buckets, the 50/30/10/5/5 transfer
+ * amounts to move, and whatever still blocks the close. */
+async function monthlyReportSlack(env, force = false, moOverride = null) {
+  if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
+  const today = centralDate(Date.now() / 1000);
+  let mo = monthOf(addMonthsYmd(today, -1));
+  if (force) { if (/^\d{4}-\d{2}$/.test(moOverride || '')) mo = moOverride; }
+  else if (+today.slice(8) !== 2) return { skipped: 'not the 2nd' };
+  const cfg = safeJson(await getSetting(env, 'monthlyReportSent'), {}) || {};
+  if (!force && cfg[mo]) return { skipped: 'already sent' };
+  const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
+  if (!sr.channelId) return { skipped: 'no finance channel yet' };
+  const rep = await computeReport(env, mo);
+  const flags = await env.DB.prepare(`SELECT
+      SUM(CASE WHEN status='review' AND expected=0 THEN 1 ELSE 0 END) AS review,
+      SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
+      SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noRcpt
+    FROM transactions WHERE month=?1`).bind(mo).first() || {};
+  const $$ = n => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const closed = (await monthStatus(env, mo)) === 'closed';
+  const blockers = [
+    +flags.review ? `${flags.review} in Review` : null,
+    +flags.expected ? `${flags.expected} expected row(s) unconfirmed` : null,
+    +flags.noRcpt ? `${flags.noRcpt} missing receipt(s)` : null,
+  ].filter(Boolean);
+  const SPLIT_LABELS = { personal: 'Personal', tax: 'Tax reserve', ads: 'Ads / Marketing', savings: 'Savings', other: 'Other' };
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: `📊 ${moLabel(mo)} — Report Card` } },
+    { type: 'section', fields: [
+      { type: 'mrkdwn', text: `*Revenue*\n${$$(rep.revenue)}` },
+      { type: 'mrkdwn', text: `*Expenses*\n${$$(rep.expenses)}` },
+      { type: 'mrkdwn', text: `*Merchant fees*\n${$$(rep.fees)}${rep.feeEstimated ? ' _(est.)_' : ''}` },
+      { type: 'mrkdwn', text: `*Net income*\n${$$(rep.net)}${rep.margin != null ? `  ·  ${rep.margin}% margin` : ''}` },
+    ] },
+    { type: 'section', text: { type: 'mrkdwn', text: '*Where it went*\n' +
+      (Object.entries(rep.byBucket).map(([k, v]) => `${k} — ${$$(v)}`).join('\n') || '_No expenses recorded._') +
+      (rep.personal ? `\n_Personal on business cards (excluded from P&L): ${$$(rep.personal)}_` : '') } },
+    { type: 'section', text: { type: 'mrkdwn', text: '*Move the money* — from Novo, off ' + $$(rep.net) + ' net:\n' +
+      Object.entries(rep.split).map(([k, v]) => `${SPLIT_LABELS[k] || k} (${rep.splitPct[k]}%) — ${$$(v)}`).join('\n') } },
+    { type: 'section', text: { type: 'mrkdwn', text: closed
+      ? '✅ *The month is closed* — these figures are frozen.'
+      : blockers.length
+        ? `⚠️ *Before you close ${moLabel(mo)}:* ${blockers.join(' · ')}.`
+        : `✅ *Nothing blocks the close* — one click in the app freezes this card.` } },
+    { type: 'actions', elements: [{ type: 'button', action_id: 'led_open',
+      text: { type: 'plain_text', text: 'Open Mobius Ledger' },
+      url: 'https://tools.go-mobius-digital.com/ledger/' }] },
+  ];
+  const r = await slack(env, 'chat.postMessage',
+    { channel: sr.channelId, text: `${moLabel(mo)} report card — net ${$$(rep.net)}`, blocks, unfurl_links: false }, true);
+  if (r.ok && !force) { cfg[mo] = today; await putSetting(env, 'monthlyReportSent', JSON.stringify(cfg)); }
+  return { month: mo, sent: !!r.ok, error: r.error };
 }
 
 /* Month-end receipt sweep: two Slack nudges per month cycle — the 28th about
@@ -784,6 +846,7 @@ export default {
         ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
       ctx.waitUntil(syncPlaid(env).catch(e => console.log('plaid sync failed: ' + e.message)));
       ctx.waitUntil(receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message)));
+      ctx.waitUntil(monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message)));
     } else {
       // every 10 minutes: anything new dropped in Slack #receipts
       ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message)));
@@ -840,6 +903,9 @@ export default {
        * worker verifies the signature itself against the same app secret. */
       const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
       const mine = acts.some(x => {
+        // led_-prefixed ids are Ledger's link buttons — Slack reports the click
+        // but nothing needs doing; claiming them keeps them off Pulse's desk
+        if (/^led_/.test(x.action_id || '')) return true;
         const v = safeJson(x.selected_option?.value || x.value, null);
         return v && ((v.id !== undefined && v.tax !== undefined)
                      || v.skip !== undefined || v.undo !== undefined);
@@ -1283,6 +1349,10 @@ export default {
         return json({ configured: true, ok: !ch.error, bot: auth.user, team: auth.team,
           channel: ch.id || null, isMember: ch.is_member ?? null, error: ch.error || null,
           instant: !!env.SLACK_SIGNING_SECRET });
+      }
+
+      if (path === '/api/report-slack' && request.method === 'POST') {
+        return json(await monthlyReportSlack(env, url.searchParams.get('force') === '1', url.searchParams.get('month')));
       }
 
       if (path === '/api/receipt-nudge' && request.method === 'POST') {

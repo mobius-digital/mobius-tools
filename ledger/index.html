@@ -691,6 +691,12 @@ async function skipRcpt(id){
     S.txns=null; S.boot = await api('/api/boot'); show('receipts');
   } catch(e){ $('#main').insertAdjacentHTML('afterbegin', `<div class="notice bad">${esc(e.message)}</div>`); }
 }
+async function reportToSlack(btn){
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try { const r = await api('/api/report-slack?force=1&month=' + (S.reportMonth||''), { method:'POST' });
+    btn.textContent = r.sent ? '✓ Posted' : ('Not sent — ' + (r.skipped || r.error || 'unknown'));
+  } catch(e){ btn.textContent = e.message; }
+}
 async function nudgeSlack(btn){
   btn.disabled = true; btn.textContent = 'Sending…';
   try { const r = await api('/api/receipt-nudge?force=1&month=' + S.month, { method:'POST' });
@@ -850,6 +856,7 @@ async function renderReports(){
       <div class="row rpt-picker" style="margin-bottom:0">
         <select onchange="S.reportMonth=this.value;renderReports()">${months.map(x=>`<option value="${x}" ${x===rm?'selected':''}>${moName(x)}</option>`).join('')}</select>
         <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
+        <button class="btn" onclick="reportToSlack(this)" title="Posts this month's report card into the finance channel">📣 Send to Slack</button>
       </div></div>
 
     <div class="rpt" id="rptCard">
