@@ -134,8 +134,11 @@ async function computeReport(env, month) {
       byTax[t.tax_cat || 'Uncategorized'] = (byTax[t.tax_cat || 'Uncategorized'] || 0) + t.amount;
     }
   }
-  let feeEstimated = false;
-  if (!fees && revenue > 0) { fees = round2(revenue * money.feePct / 100); feeEstimated = true; }
+  /* Fees are whatever Stripe actually charged — never a percentage guess. The
+   * real number varies far too much to model anyway: August ran 1.1% because
+   * the two largest payments arrived by ACH at $5 flat instead of 2.9% on a
+   * card. A month with no fee row reports zero, which is the truth. */
+  const feeEstimated = false;
 
   const net = round2(revenue - expenses - fees);
   const taxes = round2(net * money.taxPct / 100);

@@ -1081,7 +1081,7 @@ async function renderClose(){
         review.length ? `${review.length} transaction(s) still need categories.` : 'Everything is categorized — both layers.',
         `S.filter='review';show('txns')`)}
       ${item(hasFee, false, 'Merchant fee',
-        hasFee ? `Actual fee recorded: ${fmt$(rep.report.fees)}.` : `No fee row yet — the report will estimate ${fmt$(rep.report.fees)} at ${S.boot.money.feePct}%. Add the real Stripe number for the exact figure.`,
+        hasFee ? `${fmt$(rep.report.fees)} — the exact figure from Stripe.` : `No Stripe fees recorded for this month yet. They arrive with the nightly sync.`,
         `addModal({type:'out'})`)}
       ${item(dupes.length===0, true, 'Nothing counted twice',
         dupes.length ? `${dupes.length} row(s) match a bank transaction for the same amount — ${dupes.slice(0,3).map(d=>esc(d.vendor)).join(', ')}${dupes.length>3?'…':''}. Check whether the same spend is in here twice, and delete the one that isn't from the bank.`
@@ -1417,7 +1417,7 @@ function renderSettings(){
         <div class="fields">
           <div class="fld"><label>Tax set-aside</label><div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
           <div class="fld"><label>Distributions</label><div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
-          <div class="fld"><label>Merchant fee est.</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
+          <div class="fld"><label title="Forecasting only. Your reports always use the exact fees Stripe charged.">Fee % — forecast only</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
         </div>
         <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:20px 0 0;padding-top:14px;border-top:1px solid var(--line)">Account split — where net income goes</div>
         <div class="fields">
