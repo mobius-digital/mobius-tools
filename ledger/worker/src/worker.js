@@ -13,6 +13,7 @@
  * deliberately has no copy — one secret, one owner). ADMIN_TOKEN and the
  * dashboard-set password work as fallbacks, same shape as Pulse/Restock.
  */
+import { buildPnlPdf } from './pdf.js';
 
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 const RECEIPT_MAX = 4 * 1024 * 1024; // 4MB post-downscale ceiling per file
@@ -155,6 +156,78 @@ async function computeReport(env, month) {
   };
 }
 const mapRound = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, round2(v)]).sort((a, b) => b[1] - a[1]));
+
+/* A quarter or a year is the months summed — same shape as one month's report,
+ * plus the per-month rows the statement prints underneath. */
+async function computeRange(env, fromMo, toMo) {
+  const money = await getMoney(env);
+  const months = [];
+  for (let m = fromMo; m <= toMo; m = monthOf(addMonthsYmd(m + '-01', 1))) months.push(m);
+  const parts = [];
+  for (const m of months) parts.push(await computeReport(env, m));
+  const add = (into, from) => { for (const [k, v] of Object.entries(from)) into[k] = round2((into[k] || 0) + v); };
+  const byBucket = {}, byTax = {}, byClient = {};
+  let revenue = 0, expenses = 0, fees = 0, personal = 0, transfers = 0, feeEstimated = false;
+  for (const p of parts) {
+    revenue += p.revenue; expenses += p.expenses; fees += p.fees;
+    personal += p.personal || 0; transfers += p.transfers;
+    feeEstimated = feeEstimated || p.feeEstimated;
+    add(byBucket, p.byBucket); add(byTax, p.byTax); add(byClient, p.byClient);
+  }
+  revenue = round2(revenue); expenses = round2(expenses); fees = round2(fees);
+  const net = round2(revenue - expenses - fees);
+  const split = {};
+  for (const [k, pct] of Object.entries(money.split)) split[k] = round2(net * pct / 100);
+  return {
+    from: fromMo, to: toMo, revenue, expenses, fees, feeEstimated,
+    net, personal: round2(personal), transfers: round2(transfers),
+    taxes: round2(net * money.taxPct / 100),
+    margin: revenue > 0 ? round2(net / revenue * 100) : null,
+    split, splitPct: money.split,
+    byBucket: mapRound(byBucket), byTax: mapRound(byTax), byClient: mapRound(byClient),
+    monthRows: parts.map(p => ({ month: p.month, label: moLabel(p.month),
+      revenue: p.revenue, expenses: round2(p.expenses + p.fees), net: p.net })),
+  };
+}
+
+/* Period → the report behind it, plus how the statement should be titled. */
+async function periodReport(env, period, anchor) {
+  if (period === 'quarter') {
+    const q = Math.floor((+anchor.slice(5, 7) - 1) / 3);
+    const from = `${anchor.slice(0, 4)}-${String(q * 3 + 1).padStart(2, '0')}`;
+    const to = `${anchor.slice(0, 4)}-${String(q * 3 + 3).padStart(2, '0')}`;
+    const r = await computeRange(env, from, to);
+    return { r, title: 'Profit & Loss', label: `Q${q + 1} ${anchor.slice(0, 4)}`,
+             file: `Mobius Digital P&L — Q${q + 1} ${anchor.slice(0, 4)}.pdf`, months: r.monthRows };
+  }
+  if (period === 'year') {
+    const y = anchor.slice(0, 4);
+    const r = await computeRange(env, `${y}-01`, `${y}-12`);
+    return { r, title: 'Profit & Loss', label: y,
+             file: `Mobius Digital P&L — ${y}.pdf`, months: r.monthRows };
+  }
+  const r = await computeReport(env, anchor);
+  return { r, title: 'Profit & Loss', label: moLabel(anchor),
+           file: `Mobius Digital P&L — ${moLabel(anchor)}.pdf`, months: null,
+           frozen: (await monthStatus(env, anchor)) === 'closed' };
+}
+
+/* Slack's external-upload dance: reserve a URL, PUT the bytes, then complete
+ * the upload into the channel. Needs the files:write scope. */
+async function slackUploadFile(env, channel, bytes, filename, comment) {
+  const res1 = await slack(env, 'files.getUploadURLExternal',
+    { filename, length: String(bytes.length) });
+  if (!res1.ok) return { ok: false, error: res1.error || 'getUploadURLExternal failed' };
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type: 'application/pdf' }), filename);
+  const up = await fetch(res1.upload_url, { method: 'POST', body: form });
+  if (!up.ok) return { ok: false, error: 'upload POST ' + up.status };
+  const res2 = await slack(env, 'files.completeUploadExternal', {
+    files: [{ id: res1.file_id, title: filename.replace(/\.pdf$/, '') }],
+    channel_id: channel, initial_comment: comment || undefined,
+  }, true);
+  return res2.ok ? { ok: true } : { ok: false, error: res2.error };
+}
 
 /* Applies the vendor rule to a row missing categories; unknown vendors land
  * in the Review inbox instead of being silently guessed. */
@@ -460,60 +533,85 @@ async function processSlackReceipts(env) {
   return { handled, channel: cfg.channelId };
 }
 
-/* The old first-of-month ritual, delivered instead of performed: on the 2nd
- * (Stripe's last-day charges have long settled by then) the previous month's
- * full report card lands in Slack — P&L, buckets, the 50/30/10/5/5 transfer
- * amounts to move, and whatever still blocks the close. */
-async function monthlyReportSlack(env, force = false, moOverride = null) {
+/* The old first-of-month ritual, delivered instead of performed: on the 1st
+ * the previous month's Profit & Loss lands in the finance channel as a real
+ * PDF, with the numbers and whatever still blocks the close in the message.
+ * Quarters follow on the 1st of Jan/Apr/Jul/Oct, the year on Jan 1. */
+async function sendStatement(env, period, anchor, opts = {}) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
-  const today = centralDate(Date.now() / 1000);
-  let mo = monthOf(addMonthsYmd(today, -1));
-  if (force) { if (/^\d{4}-\d{2}$/.test(moOverride || '')) mo = moOverride; }
-  else if (+today.slice(8) !== 2) return { skipped: 'not the 2nd' };
-  const cfg = safeJson(await getSetting(env, 'monthlyReportSent'), {}) || {};
-  if (!force && cfg[mo]) return { skipped: 'already sent' };
   const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
-  if (!sr.channelId) return { skipped: 'no finance channel yet' };
-  const rep = await computeReport(env, mo);
-  const flags = await env.DB.prepare(`SELECT
-      SUM(CASE WHEN status='review' AND expected=0 THEN 1 ELSE 0 END) AS review,
-      SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
-      SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noRcpt
-    FROM transactions WHERE month=?1`).bind(mo).first() || {};
+  if (!sr.channelId) {
+    const ch = await findReceiptsChannel(env);
+    if (ch.error) return { skipped: ch.error };
+    sr.channelId = ch.id;
+    await putSetting(env, 'slackReceipts', JSON.stringify(sr));
+  }
+  const { r, title, label, file, months, frozen } = await periodReport(env, period, anchor);
   const $$ = n => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const closed = (await monthStatus(env, mo)) === 'closed';
-  const blockers = [
-    +flags.review ? `${flags.review} in Review` : null,
-    +flags.expected ? `${flags.expected} expected row(s) unconfirmed` : null,
-    +flags.noRcpt ? `${flags.noRcpt} missing receipt(s)` : null,
-  ].filter(Boolean);
   const SPLIT_LABELS = { personal: 'Personal', tax: 'Tax reserve', ads: 'Ads / Marketing', savings: 'Savings', other: 'Other' };
-  const blocks = [
-    { type: 'header', text: { type: 'plain_text', text: `📊 ${moLabel(mo)} — Report Card` } },
-    { type: 'section', fields: [
-      { type: 'mrkdwn', text: `*Revenue*\n${$$(rep.revenue)}` },
-      { type: 'mrkdwn', text: `*Expenses*\n${$$(rep.expenses)}` },
-      { type: 'mrkdwn', text: `*Merchant fees*\n${$$(rep.fees)}${rep.feeEstimated ? ' _(est.)_' : ''}` },
-      { type: 'mrkdwn', text: `*Net income*\n${$$(rep.net)}${rep.margin != null ? `  ·  ${rep.margin}% margin` : ''}` },
-    ] },
-    { type: 'section', text: { type: 'mrkdwn', text: '*Where it went*\n' +
-      (Object.entries(rep.byBucket).map(([k, v]) => `${k} — ${$$(v)}`).join('\n') || '_No expenses recorded._') +
-      (rep.personal ? `\n_Personal on business cards (excluded from P&L): ${$$(rep.personal)}_` : '') } },
-    { type: 'section', text: { type: 'mrkdwn', text: '*Move the money* — from Novo, off ' + $$(rep.net) + ' net:\n' +
-      Object.entries(rep.split).map(([k, v]) => `${SPLIT_LABELS[k] || k} (${rep.splitPct[k]}%) — ${$$(v)}`).join('\n') } },
-    { type: 'section', text: { type: 'mrkdwn', text: closed
-      ? '✅ *The month is closed* — these figures are frozen.'
-      : blockers.length
-        ? `⚠️ *Before you close ${moLabel(mo)}:* ${blockers.join(' · ')}.`
-        : `✅ *Nothing blocks the close* — one click in the app freezes this card.` } },
-    { type: 'actions', elements: [{ type: 'button', action_id: 'led_open',
-      text: { type: 'plain_text', text: 'Open Mobius Ledger' },
-      url: 'https://tools.go-mobius-digital.com/ledger/' }] },
-  ];
-  const r = await slack(env, 'chat.postMessage',
-    { channel: sr.channelId, text: `${moLabel(mo)} report card — net ${$$(rep.net)}`, blocks, unfurl_links: false }, true);
-  if (r.ok && !force) { cfg[mo] = today; await putSetting(env, 'monthlyReportSent', JSON.stringify(cfg)); }
-  return { month: mo, sent: !!r.ok, error: r.error };
+
+  let blockers = [];
+  if (period === 'month') {
+    const f = await env.DB.prepare(`SELECT
+        SUM(CASE WHEN status='review' AND expected=0 THEN 1 ELSE 0 END) AS review,
+        SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
+        SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noRcpt
+      FROM transactions WHERE month=?1`).bind(anchor).first() || {};
+    blockers = [
+      +f.review ? `${f.review} in Review` : null,
+      +f.expected ? `${f.expected} expected row(s) unconfirmed` : null,
+      +f.noRcpt ? `${f.noRcpt} missing receipt(s)` : null,
+    ].filter(Boolean);
+  }
+  const heading = period === 'month' ? `📊 *${label} — Profit & Loss*`
+    : period === 'quarter' ? `📊 *${label} — Quarterly Profit & Loss*`
+    : `📊 *${label} — Annual Profit & Loss*`;
+  const comment = [
+    heading,
+    `Revenue ${$$(r.revenue)}  ·  Expenses ${$$(round2(r.expenses + r.fees))}  ·  *Net ${$$(r.net)}*` +
+      (r.margin != null ? `  ·  ${r.margin}% margin` : ''),
+    '',
+    '*Move the money* — from Novo:',
+    Object.entries(r.split).map(([k, v]) => `• ${SPLIT_LABELS[k] || k} (${r.splitPct[k]}%) — ${$$(v)}`).join('\n'),
+    '',
+    frozen ? '✅ The month is closed — these figures are frozen.'
+      : blockers.length ? `⚠️ Before you close ${label}: ${blockers.join(' · ')}.`
+      : period === 'month' ? '✅ Nothing blocks the close — one click in the app freezes this.' : '',
+    'Full statement attached · <https://tools.go-mobius-digital.com/ledger/|Open Mobius Ledger>',
+  ].filter(x => x !== '').join('\n');
+
+  const bytes = buildPnlPdf(r, {
+    title, period: label, months,
+    sub: period === 'month' ? 'Monthly statement' : period === 'quarter' ? 'Quarterly statement' : 'Annual statement',
+    frozen,
+  });
+  const up = await slackUploadFile(env, sr.channelId, bytes, file, comment);
+  return { period, anchor, label, bytes: bytes.length, sent: up.ok, error: up.error };
+}
+
+/* What the 1st of the month owes him: last month always, the quarter when one
+ * just ended, and the year every January — each sent once. */
+async function monthlyReportSlack(env, force = false, moOverride = null, periodOverride = null) {
+  const today = centralDate(Date.now() / 1000);
+  const prev = monthOf(addMonthsYmd(today, -1));
+  if (force) {
+    const anchor = /^\d{4}-\d{2}$/.test(moOverride || '') ? moOverride : prev;
+    return await sendStatement(env, periodOverride || 'month', anchor);
+  }
+  if (+today.slice(8) !== 1) return { skipped: 'not the 1st' };
+  const cfg = safeJson(await getSetting(env, 'monthlyReportSent'), {}) || {};
+  const out = [];
+  const once = async (key, period, anchor) => {
+    if (cfg[key]) return;
+    const res = await sendStatement(env, period, anchor);
+    out.push(res);
+    if (res.sent) { cfg[key] = today; await putSetting(env, 'monthlyReportSent', JSON.stringify(cfg)); }
+  };
+  await once(prev, 'month', prev);
+  // a quarter ends in Mar/Jun/Sep/Dec — the month that just finished
+  if ([3, 6, 9, 12].includes(+prev.slice(5, 7))) await once('q:' + prev, 'quarter', prev);
+  if (+prev.slice(5, 7) === 12) await once('y:' + prev.slice(0, 4), 'year', prev);
+  return out.length ? { sent: out } : { skipped: 'already sent' };
 }
 
 /* Month-end receipt sweep: two Slack nudges per month cycle — the 28th about
@@ -842,11 +940,16 @@ export default {
       // and stripe_id dedupe makes the overlap free
       const to = centralDate(Date.now() / 1000);
       const from = centralDate(Date.now() / 1000 - 10 * 86400);
-      if (env.STRIPE_KEY)
-        ctx.waitUntil(syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message)));
-      ctx.waitUntil(syncPlaid(env).catch(e => console.log('plaid sync failed: ' + e.message)));
-      ctx.waitUntil(receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message)));
-      ctx.waitUntil(monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message)));
+      // ORDER MATTERS on the 1st: the statement must be computed from a ledger
+      // the syncs have already finished writing, so these run in sequence, not
+      // as three concurrent waitUntils racing each other.
+      ctx.waitUntil((async () => {
+        if (env.STRIPE_KEY)
+          await syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message));
+        await syncPlaid(env).catch(e => console.log('plaid sync failed: ' + e.message));
+        await monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message));
+        await receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message));
+      })());
     } else {
       // every 10 minutes: anything new dropped in Slack #receipts
       ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message)));
@@ -1352,7 +1455,21 @@ export default {
       }
 
       if (path === '/api/report-slack' && request.method === 'POST') {
-        return json(await monthlyReportSlack(env, url.searchParams.get('force') === '1', url.searchParams.get('month')));
+        const period = url.searchParams.get('period') || 'month';
+        return json(await monthlyReportSlack(env, url.searchParams.get('force') === '1',
+          url.searchParams.get('month'), period));
+      }
+
+      /* The same statement as a download, straight from the app. */
+      if (path === '/api/statement.pdf') {
+        const period = url.searchParams.get('period') || 'month';
+        const anchor = url.searchParams.get('month');
+        if (!validMonth(anchor)) return json({ error: 'month=YYYY-MM required' }, 400);
+        const { r, title, label, file, months, frozen } = await periodReport(env, period, anchor);
+        const bytes = buildPnlPdf(r, { title, period: label, months, frozen,
+          sub: period === 'month' ? 'Monthly statement' : period === 'quarter' ? 'Quarterly statement' : 'Annual statement' });
+        return new Response(bytes, { headers: { ...CORS, 'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${file}"` } });
       }
 
       if (path === '/api/receipt-nudge' && request.method === 'POST') {

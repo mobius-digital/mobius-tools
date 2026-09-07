@@ -692,10 +692,32 @@ async function skipRcpt(id){
   } catch(e){ $('#main').insertAdjacentHTML('afterbegin', `<div class="notice bad">${esc(e.message)}</div>`); }
 }
 async function reportToSlack(btn){
+  const period = $('#rptPeriod')?.value || 'month';
+  const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
-  try { const r = await api('/api/report-slack?force=1&month=' + (S.reportMonth||''), { method:'POST' });
-    btn.textContent = r.sent ? '✓ Posted' : ('Not sent — ' + (r.skipped || r.error || 'unknown'));
+  try { const r = await api(`/api/report-slack?force=1&period=${period}&month=${S.reportMonth||''}`, { method:'POST' });
+    btn.textContent = r.sent ? '✓ Posted to Slack' : ('Not sent — ' + (r.skipped || r.error || 'unknown'));
   } catch(e){ btn.textContent = e.message; }
+  setTimeout(()=>{ btn.disabled = false; btn.textContent = label; }, 4000);
+}
+/* The PDF comes back as bytes, so it needs the token in a header — a plain
+   link would arrive unauthorized. Fetch it, then hand the blob to the browser. */
+async function downloadStatement(btn){
+  const period = $('#rptPeriod')?.value || 'month';
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Building…';
+  try {
+    const res = await fetch(`${S.url.replace(/\/+$/,'')}/api/statement.pdf?period=${period}&month=${S.reportMonth||''}`,
+      { headers: { 'Authorization': 'Bearer ' + S.tok } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const name = (res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1] || 'statement.pdf';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    btn.textContent = '✓ Downloaded';
+  } catch(e){ btn.textContent = e.message; }
+  setTimeout(()=>{ btn.disabled = false; btn.textContent = label; }, 4000);
 }
 async function nudgeSlack(btn){
   btn.disabled = true; btn.textContent = 'Sending…';
@@ -855,8 +877,13 @@ async function renderReports(){
       <div class="sub" style="margin-bottom:0">The month's report card, print-ready — and the CPA pack below it. Months appear here as they arrive; the app rolls into 2027 and beyond on its own.</div></div>
       <div class="row rpt-picker" style="margin-bottom:0">
         <select onchange="S.reportMonth=this.value;renderReports()">${months.map(x=>`<option value="${x}" ${x===rm?'selected':''}>${moName(x)}</option>`).join('')}</select>
-        <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
-        <button class="btn" onclick="reportToSlack(this)" title="Posts this month's report card into the finance channel">📣 Send to Slack</button>
+        <select id="rptPeriod" title="Statement period">
+          <option value="month">This month</option>
+          <option value="quarter">Its quarter</option>
+          <option value="year">Its year</option>
+        </select>
+        <button class="btn" onclick="downloadStatement(this)" title="The formatted P&amp;L statement, as a PDF">⬇ P&amp;L PDF</button>
+        <button class="btn" onclick="reportToSlack(this)" title="Posts the statement PDF into the finance channel">📣 Send to Slack</button>
       </div></div>
 
     <div class="rpt" id="rptCard">
