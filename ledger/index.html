@@ -67,6 +67,11 @@
   .mbox .mrow>div{flex:1;min-width:0}
   .mbox label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
   .mbox label .why{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px;margin-top:1px}
+  /* A checkbox row is a label too, but it is a sentence — not a field caption,
+     so it must escape the uppercase/tracking the caption rule applies. */
+  .mbox label.ck{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;
+    color:var(--ink);margin:14px 0 0;line-height:1.45}
+  .mbox label.ck small{margin-top:3px;line-height:1.5;font-weight:400}
   .mbox input,.mbox select,.mbox textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;background:var(--surface)}
   .mbox .acts{display:flex;gap:10px;margin-top:20px;align-items:center}
   .mbox .acts .spacer{flex:1}
@@ -78,7 +83,22 @@
   .ck small{display:block;color:var(--muted);font-size:11.5px}
 
   /* ---- transactions table ---- */
-  .txn-tbl td{white-space:normal}
+  .txn-tbl td{white-space:normal;padding-top:12px;padding-bottom:12px}
+  /* The table runs edge to edge inside a padding-less card, so the outer
+     columns need their own breathing room or the text sits on the border. */
+  .txn-tbl th:first-child,.txn-tbl td:first-child{padding-left:20px}
+  .txn-tbl th:last-child,.txn-tbl td:last-child{padding-right:20px}
+  .txn-tbl td.pick,.txn-tbl th.pick{padding-right:0;width:34px}
+  .txn-tbl td.pick input{width:15px;height:15px;cursor:pointer;margin:0}
+  .rowcat{font-size:12px;padding:4px 7px;border:1px solid var(--line-strong);border-radius:7px;
+    background:var(--surface);color:var(--ink);max-width:210px}
+  .rowcat.unset{color:var(--bad);border-color:var(--bad)}
+  .bulkbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--brand-soft);
+    border:1px solid var(--line-strong);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px}
+  .bulkbar select{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line-strong);
+    border-radius:8px;background:var(--surface);max-width:250px}
+  .srch{font:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line-strong);
+    border-radius:8px;background:var(--surface);min-width:190px}
   .txn-tbl .amt{font-family:var(--serif);font-size:17px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
   .txn-tbl .amt.in{color:var(--good)}
   .txn-tbl .amt.neg{color:var(--bad)}
@@ -195,6 +215,8 @@ let S = {
   month: localStorage.getItem(LS.month) || nowMonth(),
   boot: null, summary: null, txns: null, txnMonth: null,
   filter: 'all', packData: null, report: null, reportMonth: null,
+  sel: new Set(),   // transaction ids ticked for bulk editing
+  q: '',            // vendor / note search
 };
 
 async function api(path, opts = {}) {
@@ -368,6 +390,8 @@ async function renderDash(){
 async function loadTxns(){
   if (S.txns && S.txnMonth === S.month) return;
   S.txns = (await api('/api/transactions?month=' + S.month)).transactions;
+  // ids are month-scoped, so a stale selection would act on rows you can't see
+  if (S.txnMonth !== S.month) S.sel.clear();
   S.txnMonth = S.month;
 }
 const FILTERS = [['all','All'],['in','Money in'],['out','Expenses'],['transfer','Transfers'],['expected','Expected'],['review','Review'],['norcpt','No receipt']];
@@ -380,11 +404,67 @@ function txnRows(){
     if (S.filter==='review') return t.status==='review' && !t.expected;
     if (S.filter==='norcpt') return t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip;
     return true;
+  }).filter(t => {
+    const q = (S.q||'').trim().toLowerCase();
+    if (!q) return true;
+    return (t.vendor||'').toLowerCase().includes(q)
+        || (t.note||'').toLowerCase().includes(q)
+        || (t.tax_cat||'').toLowerCase().includes(q)
+        || (t.bucket||'').toLowerCase().includes(q);
   });
+}
+
+/* ---- selection + in-place editing ---- */
+function togglePick(id, on){ on ? S.sel.add(id) : S.sel.delete(id); renderTxns(); }
+function pickAll(on){
+  const ids = txnRows().map(t=>t.id);
+  on ? ids.forEach(i=>S.sel.add(i)) : ids.forEach(i=>S.sel.delete(i));
+  renderTxns();
+}
+/* One row's category, saved the moment it changes — and the worker turns that
+   into this vendor's default, so the next import of it never reaches Review. */
+async function setRowCat(id, tax, el){
+  const prev = el.value;
+  el.disabled = true;
+  try {
+    await api('/api/transaction', { method:'PUT', body: JSON.stringify({ id, tax_cat: tax || null }) });
+    const t = (S.txns||[]).find(x=>x.id===id);
+    if (t) { t.tax_cat = tax || null; if (tax) t.status = 'ok'; }
+    S.boot = await api('/api/boot');
+    renderTxns();
+  } catch(e){
+    el.disabled = false; el.value = prev;
+    tell('Could not save that category', e.message);
+  }
+}
+async function bulkApply(){
+  const tax = $('#bulkCat')?.value;
+  if (!tax) { tell('Pick a category first', 'Choose one from the dropdown, then press Apply.'); return; }
+  const ids = [...S.sel];
+  try {
+    const r = await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify({ ids, tax_cat: tax }) });
+    S.sel.clear(); S.txns = null; S.boot = await api('/api/boot');
+    await loadTxns(); renderTxns();
+    if (r.skippedClosed) tell('Some rows were skipped',
+      `${r.updated} updated. ${r.skippedClosed} were in a closed month and left alone.`);
+  } catch(e){ tell('Bulk update failed', e.message); }
+}
+async function bulkSkipReceipts(){
+  const ids = [...S.sel];
+  if (!await ask({ title: `Mark ${ids.length} as needing no receipt?`,
+    body: 'They stop counting as missing and are never chased at month end. The CPA pack still lists them.',
+    ok: 'Mark them' })) return;
+  try {
+    await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify({ ids, receipt_skip: true }) });
+    S.sel.clear(); S.txns = null; S.boot = await api('/api/boot');
+    await loadTxns(); renderTxns();
+  } catch(e){ tell('Could not update those', e.message); }
 }
 async function renderTxns(){
   const m = $('#main');
-  m.innerHTML = '<div class="sub">Loading…</div>';
+  // Only flash "Loading" when there is genuinely nothing to draw — this
+  // re-renders on every keystroke of the search box.
+  if (!S.txns || S.txnMonth !== S.month) m.innerHTML = '<div class="sub">Loading…</div>';
   try { await loadTxns(); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
   const closed = moState(S.month) === 'closed';
   const rows = txnRows();
@@ -396,15 +476,27 @@ async function renderTxns(){
   const body = rows.map(t => {
     const rc = t.type==='out' && !t.expected
       ? (t.receipt_key ? '<span class="rc has">✓ receipt</span>' : t.receipt_skip ? '<span class="rc">no receipt · ok</span>' : '<span class="rc miss">no receipt</span>')
-      : '<span class="rc na">—</span>';
+      : `<span class="rc na" title="Receipts only apply to expenses — this is ${t.type==='in'?'money coming in':t.type==='transfer'?'a transfer between your own accounts':'a pre-created expected row'}">—</span>`;
     const flag = (t.expected ? '<span class="pill warn">expected</span>'
       : t.status==='review' ? '<span class="pill bad">review</span>'
       : t.one_time ? '<span class="pill unk">one-time</span>' : '')
-      + (t.source==='stripe' ? ' <span class="pill good" title="Synced from Stripe — amount and fee are exact">stripe</span>' : '');
+      + (t.source==='stripe' ? ' <span class="pill good" title="Synced from Stripe — amount and fee are exact">stripe</span>' : '')
+      + (t.plaid_id ? ' <span class="pill good" title="Came straight from the bank or card feed">bank</span>' : '');
+    // The category is editable in place: one dropdown, no modal, and the choice
+    // becomes this vendor's default so the next import never asks again.
+    const cats = ['Client revenue', ...(S.boot.taxCats||[])];
+    const catCell = closed ? `<span class="cat">${esc(t.tax_cat||'uncategorized')}</span>`
+      : `<select class="rowcat ${t.tax_cat?'':'unset'}" onclick="event.stopPropagation()"
+           onchange="setRowCat(${t.id}, this.value, this)">
+          <option value="">— pick a category —</option>
+          ${cats.map(c=>`<option ${c===t.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}
+         </select>`;
     return `<tr onclick="editTxn(${t.id})">
+      <td class="pick" onclick="event.stopPropagation()">
+        <input type="checkbox" ${S.sel.has(t.id)?'checked':''} onchange="togglePick(${t.id}, this.checked)"></td>
       <td class="tiny" style="white-space:nowrap">${fmtDate(t.date)}</td>
       <td><b>${esc(t.vendor)}</b>${t.note?` <span class="tiny">· ${esc(t.note)}</span>`:''} ${flag}
-        <div class="cat">${esc(t.bucket||'—')} · ${esc(t.tax_cat||'uncategorized')}</div></td>
+        <div style="margin-top:5px">${catCell}</div></td>
       <td>${rc}</td>
       <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}" ${t.type==='transfer'?'style="color:var(--muted)" title="Transfer — money moving between your own accounts, not counted in any report"':''}>${t.type==='transfer'?'⇄ ':t.type==='in'?'':'−'}${fmt$(Math.abs(t.amount)).replace('−','')}</td>
     </tr>`;
@@ -416,15 +508,33 @@ async function renderTxns(){
     <div class="row">
       ${chips}
       <span style="flex:1"></span>
+      <input class="srch" id="txnSearch" placeholder="Search vendor or note…" value="${esc(S.q||'')}"
+        oninput="S.q=this.value;renderTxns()">
       <button class="btn" onclick="importModal()" ${closed?'disabled title="Month is closed"':''}>⇪ Import CSV</button>
       <button class="btn primary" onclick="addModal()" ${closed?'disabled title="Month is closed"':''}>+ Add transaction</button>
     </div>
     ${closed?'<div class="notice good">This month is closed — amounts and dates are frozen with its report card. You can still attach receipts. Reopen from the Close page if something must change.</div>':''}
+    ${S.sel.size ? `<div class="bulkbar">
+      <b>${S.sel.size} selected</b>
+      <select id="bulkCat">
+        <option value="">Set category for all ${S.sel.size}…</option>
+        ${['Client revenue', ...(S.boot.taxCats||[])].map(c=>`<option>${esc(c)}</option>`).join('')}
+      </select>
+      <button class="btn primary" onclick="bulkApply()">Apply</button>
+      <button class="btn" onclick="bulkSkipReceipts()" title="Marks them as having no receipt, so they stop being chased">No receipt needed</button>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="S.sel.clear();renderTxns()">Clear selection</button>
+    </div>` : ''}
     <div class="card" style="padding:0">
       <div class="tbl-wrap"><table class="txn-tbl">
-        <thead><tr><th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
-        <tbody>${body || '<tr><td colspan="4" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
+        <thead><tr>
+          <th class="pick"><input type="checkbox" ${rows.length && rows.every(t=>S.sel.has(t.id))?'checked':''}
+            title="Select everything shown" onchange="pickAll(this.checked)"></th>
+          <th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
+        <tbody>${body || '<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
       </table></div></div>`;
+    const sb = $('#txnSearch');
+    if (sb && S.q) { sb.focus(); sb.setSelectionRange(sb.value.length, sb.value.length); }
 }
 
 /* ---- add / edit modal ---- */

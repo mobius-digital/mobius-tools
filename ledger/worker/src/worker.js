@@ -1203,6 +1203,12 @@ export default {
         }
         if (b.one_time !== undefined) next.one_time = b.one_time ? 1 : 0;
         if (b.receipt_skip !== undefined) next.receipt_skip = b.receipt_skip ? 1 : 0;
+        // The row-level and Slack pickers send only a tax category — the bucket
+        // that drives the dashboard is derived, so there is one thing to choose
+        // rather than two that can disagree.
+        if (b.tax_cat !== undefined && b.bucket === undefined && next.type === 'out')
+          next.bucket = bucketFor(b.tax_cat);
+        if (b.tax_cat && next.status === 'review') next.status = 'ok';
         if (b.confirm) { next.expected = 0; next.status = 'ok'; }
         if (!closed) {
           if (b.date && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) { next.date = b.date; next.month = monthOf(b.date); }
@@ -1224,6 +1230,43 @@ export default {
           .bind(id, next.date, next.month, next.vendor, next.amount, next.bucket,
                 next.tax_cat, next.note, next.one_time, next.expected, next.status, next.receipt_skip || 0).run();
         return json({ ok: true, transaction: next });
+      }
+
+      /* Bulk categorize. Thirty Anthropic charges in a row is one decision, not
+       * thirty — and each one still teaches the vendor default, so the next
+       * import of that vendor never reaches Review at all. */
+      if (path === '/api/transactions/bulk' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter(Number.isFinite).slice(0, 500);
+        if (!ids.length) return json({ error: 'no transactions selected' }, 400);
+        const marks = new Array(ids.length).fill(0).map((_, i) => '?' + (i + 1)).join(',');
+        const { results: rows } = await env.DB.prepare(
+          `SELECT * FROM transactions WHERE id IN (${marks})`).bind(...ids).all();
+        let updated = 0, skippedClosed = 0;
+        const learned = new Set();
+        for (const cur of rows) {
+          if ((await monthStatus(env, cur.month)) === 'closed') { skippedClosed++; continue; }
+          const sets = [], binds = [];
+          if (b.tax_cat !== undefined) {
+            const tax = b.tax_cat === null ? null : String(b.tax_cat).slice(0, 300);
+            const bucket = cur.type === 'out' ? bucketFor(tax) : cur.bucket;
+            // push() returns the new length, which IS the 1-based placeholder
+            sets.push(`tax_cat = ?${binds.push(tax)}`);
+            sets.push(`bucket = ?${binds.push(bucket)}`);
+            if (tax) sets.push(`status = 'ok'`);
+            if (tax && cur.type === 'out' && !learned.has(cur.vendor)) {
+              await learnDefault(env, cur.vendor, bucket, tax);
+              learned.add(cur.vendor);
+            }
+          }
+          if (b.receipt_skip !== undefined) sets.push(`receipt_skip = ${b.receipt_skip ? 1 : 0}`);
+          if (b.one_time !== undefined) sets.push(`one_time = ${b.one_time ? 1 : 0}`);
+          if (!sets.length) continue;
+          await env.DB.prepare(`UPDATE transactions SET ${sets.join(', ')} WHERE id = ?${binds.length + 1}`)
+            .bind(...binds, cur.id).run();
+          updated++;
+        }
+        return json({ ok: true, updated, skippedClosed, learned: [...learned] });
       }
 
       if (path === '/api/transaction' && request.method === 'DELETE') {
