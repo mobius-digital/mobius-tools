@@ -903,6 +903,21 @@ const TW_ATTR_MODELS = ['firstClick', 'lastClick', 'fullFirstClick', 'fullLastCl
  *  else names a winner per platform and credits it the whole order. */
 const LINEAR_MODELS = new Set(['linear', 'linearAll']);
 
+/* Triple Whale's touchpoint `source`, reduced to the channel names this app
+   uses everywhere else. Values seen live on these shops: `facebook-ads`,
+   `google-ads`, `organic_and_social`, `Excluded`. Anything unrecognised is kept
+   verbatim rather than bucketed, so a new channel shows up as itself the first
+   time it appears instead of quietly joining another one's total. */
+function twPlatform(source) {
+  const s = String(source || '').toLowerCase();
+  if (!s) return null;
+  if (s.includes('facebook') || s.includes('instagram') || s.includes('meta')) return 'meta';
+  if (s.includes('google')) return 'google';
+  if (s.includes('tiktok')) return 'tiktok';
+  if (s.includes('pinterest')) return 'pinterest';
+  return s;
+}
+
 async function twJourneys(env, shopDomain, start, end, page) {
   const res = await xfetch('https://api.triplewhale.com/api/v2/attribution/get-orders-with-journeys-v2', {
     method: 'POST',
@@ -969,9 +984,17 @@ async function syncTwAttribution(env, acct, days = 7, range = null) {
            UI shows and as the blended MER on the other tabs exists to avoid. */
         const w = LINEAR_MODELS.has(model) ? 1 / tps.length : 1;
         for (const t of tps) {
+          /* PLATFORM COMES FROM THE TOUCHPOINT, and it is the piece that was
+             missing. tw_ad_attr always held Google ad ids alongside Meta's, but
+             nothing recorded WHICH, so the only way to tell them apart was to
+             join against Meta's own `ads` table and treat every miss as "not
+             Meta" - which cannot separate Google from TikTok, and silently drops
+             $419K of attributed revenue on these six brands. Storing the source
+             makes a per-channel rollup a GROUP BY instead of a guess. */
           const k = `${date}|${t.adId}|${model}`;
-          const cur = agg.get(k) || { rev: 0, ord: 0 };
+          const cur = agg.get(k) || { rev: 0, ord: 0, platform: null };
           cur.rev += rev * w; cur.ord += w;
+          cur.platform ??= twPlatform(t.source);
           agg.set(k, cur);
         }
       }
@@ -988,15 +1011,15 @@ async function syncTwAttribution(env, acct, days = 7, range = null) {
     .bind(acct.act_id, start, end).run();
 
   const rows = [...agg.entries()];
-  // D1 caps a statement at 100 bound parameters; 6 columns -> 16 rows a chunk.
-  for (let i = 0; i < rows.length; i += 16) {
-    const chunk = rows.slice(i, i + 16);
-    const sql = `INSERT INTO tw_ad_attr (act_id, date, ad_id, model, revenue, orders) VALUES `
-      + chunk.map((_, n) => `(?${n * 6 + 1},?${n * 6 + 2},?${n * 6 + 3},?${n * 6 + 4},?${n * 6 + 5},?${n * 6 + 6})`).join(',');
+  // D1 caps a statement at 100 bound parameters; 7 columns -> 14 rows a chunk.
+  for (let i = 0; i < rows.length; i += 14) {
+    const chunk = rows.slice(i, i + 14);
+    const sql = `INSERT INTO tw_ad_attr (act_id, date, ad_id, model, revenue, orders, platform) VALUES `
+      + chunk.map((_, n) => `(?${n * 7 + 1},?${n * 7 + 2},?${n * 7 + 3},?${n * 7 + 4},?${n * 7 + 5},?${n * 7 + 6},?${n * 7 + 7})`).join(',');
     const binds = [];
     for (const [k, v] of chunk) {
       const [date, ad, model] = k.split('|');
-      binds.push(acct.act_id, date, ad, model, v.rev, v.ord);
+      binds.push(acct.act_id, date, ad, model, v.rev, v.ord, v.platform ?? null);
     }
     await env.DB.prepare(sql).bind(...binds).run();
   }
@@ -3370,10 +3393,70 @@ async function reportData(env, acct, period, start, end) {
     ad_floor: bigAdIds.size ? Math.max(50, metaSpend * 0.03) : null,
   };
 
+  /* EVERY ATTRIBUTION MODEL IS FROZEN INTO THE REPORT, not just the one picked.
+
+     A report is a snapshot: the client already has these numbers, and a page
+     that re-queried live would change under them. But Cole wants one control at
+     the top of the page saying which attribution the whole page is on, and to
+     move it while he reads. Both are satisfiable at once because every model
+     arrives in the SAME Triple Whale response and is already stored - so
+     computing all of them here costs two queries instead of one, and the page
+     then switches instantly with nothing to fetch and nothing that can drift.
+
+     Only what is ATTRIBUTED moves. Spend, impressions, clicks, CPM, CTR, hook
+     and hold stay each platform's own under every model, because Triple Whale
+     does not measure delivery. The blended scorecard does not move at all: it
+     is real store revenue over real total spend with no model involved, which
+     is the whole reason it is the headline.
+
+     `models` is derived from what is actually in the data rather than from
+     TW_ATTR_MODELS, because two of the seven we request (firstClick, lastClick)
+     come back empty from Triple Whale on every one of these shops - offering
+     them would be offering a control that silently shows nothing. */
+  const attr = await (async () => {
+    const shownIds = (ads?.top || []).map(a => a.ad_id).filter(Boolean);
+    const byChannel = {}, byAd = {}, models = new Set();
+    try {
+      const { results: chRows } = await env.DB.prepare(
+        `SELECT model, platform, SUM(revenue) AS rev, SUM(orders) AS ord
+           FROM tw_ad_attr
+          WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 AND platform IS NOT NULL
+          GROUP BY model, platform`,
+      ).bind(acct.act_id, start, end).all();
+      for (const r of chRows) {
+        if (!(r.rev > 0 || r.ord > 0)) continue;
+        models.add(r.model);
+        (byChannel[r.model] ??= {})[r.platform] = { revenue: r.rev, orders: r.ord };
+      }
+      if (shownIds.length) {
+        const ph = shownIds.map((_, i) => `?${i + 4}`).join(',');
+        const { results: adAttr } = await env.DB.prepare(
+          `SELECT model, ad_id, SUM(revenue) AS rev, SUM(orders) AS ord
+             FROM tw_ad_attr
+            WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 AND ad_id IN (${ph})
+            GROUP BY model, ad_id`,
+        ).bind(acct.act_id, start, end, ...shownIds).all();
+        for (const r of adAttr) (byAd[r.model] ??= {})[r.ad_id] = { revenue: r.rev, orders: r.ord };
+      }
+    } catch { return null; }               // never let this block a report
+    if (!models.size) return null;
+    return {
+      models: [...models],
+      channels: byChannel,
+      ads: byAd,
+      /* An ad with no row under a model is a REAL ZERO, not missing data - the
+         model simply credited it nothing. The renderers must show 0, never fall
+         back to the Meta figure, or an unattributed ad quietly climbs a CPA
+         sort. Same rule the Meta tab's creative browser already follows. */
+      zero_is_real: true,
+    };
+  })();
+
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
     period, start, end, prev_start: prevStart, prev_end: prevEnd,
     totals: cur, previous: prev, forecast, pacing, weeks, channels, ads,
+    attr,
     changes, changes_total: evs.length,
     chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
     cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,

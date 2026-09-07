@@ -1057,6 +1057,14 @@
   .rp-sum-ul{margin:0;padding-left:17px;list-style:disc}
   .rp-sum-ul li{margin:0 0 4px}
   .rp-sum-ul li::marker{color:var(--muted)}
+  /* The attribution control. Labelled, with the chosen model explained beside
+     it rather than behind a tooltip - the whole point is that the reader can
+     tell at a glance which basis the page is on. */
+  .rp-attr-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .rp-attr-row label{font-size:13.5px;white-space:nowrap}
+  .rp-attr-row select{min-width:200px}
+  .rp-attr-why{color:var(--muted);flex:1 1 260px;min-width:0}
+  .rp-attr{border-left:3px solid var(--line-strong)}
   .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px}
 
   footer{max-width:1240px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
@@ -4436,10 +4444,62 @@ const repRangeLabel = r => r.period === 'monthly' ? monthLabel(r.start.slice(0, 
 /** The report page itself. Shared verbatim between the internal tab and the
  *  client link, so what you review is exactly what they open - the only
  *  differences are the edit button and the internal-only change log. */
+/* ONE ATTRIBUTION CONTROL FOR THE WHOLE PAGE.
+   Cole, 2026-09-07: "it's not on both, it's just something that needs to be
+   applied - I can apply it to the overall page, what attribution I'm using."
+   So this is a page-level switch, not a per-section one.
+
+   The labels are ours; the keys are Triple Whale's model names. `platform` is
+   the odd one out and is deliberately first-class rather than hidden: it means
+   "use each platform's own reported figure", which is what every report before
+   today showed and what Ads Manager will agree with.
+
+   firstClick and lastClick are NOT here. We request all seven models from
+   Triple Whale and those two come back empty on every one of these six shops,
+   measured across 120 days - so fullFirstClick and fullLastClick ARE first and
+   last click as far as this data is concerned. Offering the empty pair would be
+   offering a control that silently blanks the page.
+   There is also no view-through option: Triple Whale exposes no view-through
+   model on this endpoint at all. */
+const ATTR_MODELS = [
+  ['platform',          'Platform reported',   'Each platform’s own attributed figure, the way Meta and Google report it in their own dashboards. This is what the report showed before attribution became switchable.'],
+  ['lastPlatformClick', 'Triple Whale default','Triple Whale’s own default. Each platform is credited the whole order when it was the last click on that platform, which is what Triple Whale’s interface shows.'],
+  ['fullFirstClick',    'First click',         'The whole order goes to the first paid click in the journey. Flatters whatever introduces a customer.'],
+  ['fullLastClick',     'Last click',          'The whole order goes to the last paid click. Flatters whatever closes.'],
+  ['linear',            'Linear',              'The order is split evenly across every paid touch in the journey, so the platforms sum to the order rather than double-counting.'],
+  ['linearAll',         'Linear, all touches', 'As Linear, but every touch counts including the non-paid ones, so paid channels take a smaller share each.'],
+];
+const ATTR_LABEL = k => (ATTR_MODELS.find(m => m[0] === k) || [null, k])[1];
+/* THE CHOICE IS STORED ON THE BRAND, SERVER SIDE, not in this browser.
+   `reportBodyHTML` renders both the internal page and the client's archive link,
+   and the standing rule is that what you review is exactly what the client
+   opens. A model kept in localStorage would break that the moment it mattered:
+   Cole would review a report on Triple Whale attribution, hit Send, and the
+   client would open the same report showing Meta's figures instead.
+   So it rides in `accounts.report_config_json.attr` beside the channel
+   toggles - one value per brand, which is right anyway, since a model that
+   suits one account's journey length misreads another's. */
+const attrOf = cfg => (cfg && cfg.attr) || 'platform';
+
 function reportBodyHTML(d, summary, opts = {}) {
   const cur = d.account?.currency || opts.currency || 'USD';
   const t = d.totals || {}, p = d.previous || {}, f = d.forecast || {};
   const prevTag = d.period === 'weekly' ? 'week' : 'month';
+
+  /* WHICH MODEL THIS RENDER IS ON. `opts.attr` is what the control is set to;
+     it falls back to platform-reported, which is what every frozen report
+     generated before today can show. A report whose snapshot predates the
+     attribution payload has `d.attr == null` and simply never offers the
+     control - it cannot answer the question, and inventing an answer from
+     today's data would change numbers a client has already been sent. */
+  const A = d.attr || null;
+  const attrModel = A && opts.attr && opts.attr !== 'platform' && A.models.includes(opts.attr)
+    ? opts.attr : 'platform';
+  const attrOn = attrModel !== 'platform';
+  // Attributed revenue/orders for one channel under the chosen model. A model
+  // that credited a channel nothing returns a REAL zero, never null.
+  const attrCh = id => attrOn ? (A.channels?.[attrModel]?.[id] || { revenue: 0, orders: 0 }) : null;
+  const attrAd = id => attrOn ? (A.ads?.[attrModel]?.[id] || { revenue: 0, orders: 0 }) : null;
 
   /* `lower` says which direction is GOOD: false = higher is better, true = lower
      is better, and 'neutral' = neither, so the number is shown with no verdict
@@ -4614,7 +4674,20 @@ function reportBodyHTML(d, summary, opts = {}) {
     // only reinforces it.
     const GOOD = new Set(['strong', 'above']), OK = new Set(['average', 'typical']);
     const verdict = r => !r ? '' : `<span class="vtag ${GOOD.has(r.tag) ? 'good' : OK.has(r.tag) ? 'ok' : 'bad'}">${r.tag}</span>`;
-    const card = (a, i) => {
+    const card = (a0, i) => {
+      /* Same rule as the channel table: the attributed half follows the page's
+         model, the delivery half stays Meta's. An ad the model credited nothing
+         shows a real 0, never Meta's number - substituting would let an
+         unattributed ad climb a CPA sort on borrowed figures. */
+      const sw = attrAd(a0.ad_id);
+      const a = sw
+        ? { ...a0, revenue: sw.revenue, purchases: sw.orders ? Math.round(sw.orders) : 0,
+            roas: a0.spend ? sw.revenue / a0.spend : null,
+            cpa: sw.orders ? a0.spend / sw.orders : null,
+            // The prior-period deltas were computed from Meta's figures, so they
+            // would silently compare a TW number against a Meta one.
+            prev_roas: null, prev_cpa: null }
+        : a0;
       const hook = rate(a.hook, 0.20, 0.30, BM?.hook), hold = rate(a.hold, 0.40, 0.60, BM?.hold);
       const media = a.thumb
         ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">`
@@ -4654,7 +4727,9 @@ function reportBodyHTML(d, summary, opts = {}) {
           <div class="ad-open"><span>Details</span><span aria-hidden="true">→</span></div>
         </div></article>`;
     };
-    const metricInfo = 'Spend, purchases, CPA and ROAS are Meta-reported for this ad. '
+    const metricInfo = (attrOn
+        ? `Purchases, revenue, CPA and ROAS for this ad come from Triple Whale, using its ${ATTR_LABEL(attrModel)} model, because that is what the control at the top of this page is set to. Spend stays Meta's. `
+        : 'Spend, purchases, CPA and ROAS are Meta-reported for this ad. ')
       + 'Hook rate is 3-second video views divided by impressions - did the ad stop the scroll. '
       + 'Hold rate is ThruPlay views divided by 3-second views - of the people it stopped, how many stayed. '
       + 'CTR is link clicks divided by impressions. The words strong, average and low come from Motion’s published benchmarks across many accounts '
@@ -4666,12 +4741,32 @@ function reportBodyHTML(d, summary, opts = {}) {
       <td class="num"><b>${money(x.spend)}</b></td><td class="num">${fmtPct(x.share)}</td>
       <td class="num">${fmtInt(x.purchases)}</td><td class="num">${x.cpa != null ? money(x.cpa) : ' - '}</td>
       <td class="num">${x.roas != null ? fmtX(x.roas) : ' - '}</td></tr>`;
-    const shownTot = A.top.reduce((s, a) => ({
-      spend: s.spend + (a.spend || 0), purchases: s.purchases + (a.purchases || 0), revenue: s.revenue + (a.revenue || 0),
-    }), { spend: 0, purchases: 0, revenue: 0 });
+    /* THE RECONCILIATION TABLE HAS TO MOVE WITH THE CARDS, or the cards show one
+       source and the total under them shows another - which is exactly the kind
+       of quiet contradiction this table exists to prevent.
+       Spend never changes under a model, so that column is untouched. For the
+       attributed columns the SHOWN ads sum their own swapped figures, and the
+       TAIL is derived as the channel total minus the shown ads. That is exact
+       rather than estimated: the shown ads are all Meta ads, so they are a
+       subset of the Meta channel total the snapshot already carries, and the
+       subtraction cannot go negative. */
+    const metaAttr = attrCh('meta');
+    const shownTot = A.top.reduce((s, a) => {
+      const sw = attrAd(a.ad_id);
+      return {
+        spend: s.spend + (a.spend || 0),
+        purchases: s.purchases + (sw ? sw.orders : (a.purchases || 0)),
+        revenue: s.revenue + (sw ? sw.revenue : (a.revenue || 0)),
+      };
+    }, { spend: 0, purchases: 0, revenue: 0 });
+    const others = o && metaAttr
+      ? { ...o,
+          purchases: Math.max(0, metaAttr.orders - shownTot.purchases),
+          revenue: Math.max(0, metaAttr.revenue - shownTot.revenue) }
+      : o;
     const tot = {
-      spend: shownTot.spend + (o?.spend || 0), purchases: shownTot.purchases + (o?.purchases || 0),
-      revenue: shownTot.revenue + (o?.revenue || 0),
+      spend: shownTot.spend + (others?.spend || 0), purchases: shownTot.purchases + (others?.purchases || 0),
+      revenue: shownTot.revenue + (others?.revenue || 0),
     };
     const fin = x => ({ ...x, share: A.total_spend ? x.spend / A.total_spend : null,
       cpa: x.purchases ? x.spend / x.purchases : null, roas: x.spend && x.revenue ? x.revenue / x.spend : null });
@@ -4713,8 +4808,8 @@ function reportBodyHTML(d, summary, opts = {}) {
       <div class="ad-grid">${A.top.map(card).join('')}</div>
       <div class="tbl-wrap"><table><thead><tr><th>Adding up to every ad that spent</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Purchases</th><th class="num">CPA</th><th class="num">ROAS</th></tr></thead>
         <tbody>${recRow(`The ${A.top.length} ad${A.top.length === 1 ? '' : 's'} above`, fin(shownTot))}
-        ${o ? recRow(`${fmtInt(o.count)} smaller ads combined${o.biggest != null ? ` · biggest ${money(o.biggest)}` : ''}`, fin({ spend: o.spend, purchases: o.purchases || 0, revenue: o.revenue || 0 })) : ''}
-        ${o ? recRow(`All ${fmtInt(A.total_ads)} ads that spent`, fin(tot), true) : ''}</tbody></table></div>
+        ${others ? recRow(`${fmtInt(others.count)} smaller ads combined${others.biggest != null ? ` · biggest ${money(others.biggest)}` : ''}`, fin({ spend: others.spend, purchases: others.purchases || 0, revenue: others.revenue || 0 })) : ''}
+        ${others ? recRow(`All ${fmtInt(A.total_ads)} ads that spent`, fin(tot), true) : ''}</tbody></table></div>
       ${A.standout ? `<p style="font-size:13.5px;margin-top:10px">Most efficient of the ads with real spend: <b>${esc(A.standout.name)}</b> at a <b>${money(A.standout.cpa)}</b> CPA.</p>` : ''}
       <p class="tiny" style="margin-top:6px">Every ad that spent is accounted for above. There is deliberately no single "best ad": the biggest spender, the best CPA and the best ROAS are usually three different ads, so this shows where the money actually went and what each part of it returned.</p>
       ${formats}`;
@@ -4726,7 +4821,27 @@ function reportBodyHTML(d, summary, opts = {}) {
   const chRow = (label, a, pv, fmt, lower, peer) => (a == null && pv == null) ? '' :
     `<tr><td>${label}</td><td class="num"><b>${fmt(a)}</b></td><td class="num">${fmt(pv)}</td><td class="num">${a != null && pv ? vsPill(a, pv, lower) : '<span class="tiny"> - </span>'}</td><td class="num">${peer != null ? `<span class="tiny">${fmt(peer)}</span>` : ''}</td></tr>`;
   const chCard = c => {
-    const A = c.cur || {}, P = c.prev || {};
+    const A0 = c.cur || {}, P = c.prev || {};
+    /* THE ATTRIBUTED HALF SWAPS SOURCE; THE DELIVERY HALF NEVER DOES.
+       Revenue, ROAS, purchases and CPA come from whichever model the page is
+       on. Spend, CPM, CTR, impressions and clicks stay the platform's own under
+       every model, because Triple Whale does not measure delivery and does not
+       claim to. Spend is also what the swapped figures are divided BY, so it
+       has to stay the same number or the ratios stop meaning anything.
+       The prior-period column stays platform-reported and is labelled as such:
+       the snapshot only carries this period's attribution. */
+    const swap = attrCh(c.id);
+    const A = swap
+      ? { ...A0,
+          revenue: swap.revenue,
+          purchases: swap.orders ? Math.round(swap.orders) : 0,
+          roas: A0.spend ? swap.revenue / A0.spend : null,
+          cpa: swap.orders ? A0.spend / swap.orders : null,
+          // A withheld ratio is a statement about the PLATFORM's own conversion
+          // count. Under a Triple Whale model that count no longer applies.
+          low_signal: undefined,
+          source: `Triple Whale, ${ATTR_LABEL(attrModel)}` }
+      : A0;
     let rows = '', note = '';
     if (['meta', 'google', 'tiktok', 'pinterest'].includes(c.id)) {
       rows = chRow('Spend', A.spend, P.spend, money, 'neutral')   // an input, not a result - see vsPill
@@ -4742,7 +4857,9 @@ function reportBodyHTML(d, summary, opts = {}) {
         + chRow('CPA', A.cpa, P.cpa, money, true)
         + chRow('CPM', A.cpm, P.cpm, money, true, A.peer_cpm)
         + chRow('CTR', A.ctr, P.ctr, n => fmtPct(n, 2), false, A.peer_ctr);
-      note = `Revenue, ROAS and CPA here are <b>${esc(A.source || c.label + "-reported")}</b> - ${esc(c.label)}'s own attributed figures, passed through by Triple Whale rather than measured by it. They are directional, and deliberately not comparable to the blended scorecard above, which counts every sale once. Expect them to sit BELOW Triple Whale's own Blended ROAS headline, which divides the whole store's order revenue by every platform's spend at once.`
+      note = swap
+        ? `Revenue, ROAS, purchases and CPA here come from <b>Triple Whale</b>, using its <b>${esc(ATTR_LABEL(attrModel))}</b> model, not ${esc(c.label)}'s own figures, because that is what the control at the top of this page is set to. <b>Spend, CPM and CTR stay ${esc(c.label)}'s</b> under every model: Triple Whale measures attribution, not delivery. The <b>prior ${prevTag}</b> column is still ${esc(c.label)}-reported, so read the change column as directional only. Under the click models a single order can be credited to more than one platform in full, exactly as Triple Whale's own interface shows, which is why the platforms can add up to more than the store took.`
+        : `Revenue, ROAS and CPA here are <b>${esc(A.source || c.label + "-reported")}</b> - ${esc(c.label)}'s own attributed figures, passed through by Triple Whale rather than measured by it. They are directional, and deliberately not comparable to the blended scorecard above, which counts every sale once. Expect them to sit BELOW Triple Whale's own Blended ROAS headline, which divides the whole store's order revenue by every platform's spend at once.`
         + (A.low_signal ? ` <b>ROAS withheld:</b> ${esc(c.label)} recorded ${A.purchases === 0 ? 'no' : 'one'} conversion in this period. A ratio off that is one order, not a rate, so the spend is shown and the ratio is not.` : '')
         + (A.peer_cpm != null || A.peer_ctr != null ? ` <b>Peers</b> is Triple Whale's benchmark across comparable stores.` : '')
         + (A.awaiting_tw ? ` <b>Spend only:</b> Triple Whale has not synced this period yet, so this is Meta-reported spend with no attribution behind it.` : '');
@@ -4792,8 +4909,28 @@ function reportBodyHTML(d, summary, opts = {}) {
       : '<p style="font-size:13.5px">No budget, bidding or structural changes in Meta this ' + prevTag + '.</p>'}
     ${rollLine ? `<p class="tiny" style="margin-top:10px">Routine activity in the same period: ${rollLine}.</p>` : ''}</div>` : '';
 
+  /* The control sits ABOVE the scorecard and says plainly what it does and does
+     not touch, because the most likely misreading of it is that it changes the
+     headline revenue. It cannot: the scorecard is real store money over real
+     total spend, with no model in it anywhere.
+     Rendered only when the snapshot actually carries the models. A report
+     frozen before today has none, and the honest thing is to show no control
+     rather than one that cannot move. */
+  const attrHtml = A && !opts.client ? `<div class="card rp-attr">
+      <div class="rp-attr-row">
+        <label for="rpAttr"><b>Attribution</b></label>
+        <select id="rpAttr" ${opts.editable === false && !opts.internal ? 'disabled' : ''}>
+          ${ATTR_MODELS.filter(m => m[0] === 'platform' || A.models.includes(m[0]))
+            .map(([k, label]) => `<option value="${k}"${k === attrModel ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+        </select>
+        <span class="tiny rp-attr-why">${esc((ATTR_MODELS.find(m => m[0] === attrModel) || [])[2] || '')}</span>
+      </div>
+      <p class="hint" style="margin:8px 0 0">Applies to <b>every platform section on this page</b>: revenue, ROAS, purchases and CPA for Meta and Google, and for each creative below. <b>Spend, CPM, CTR, hook and hold never change</b> - Triple Whale measures attribution, not delivery. <b>The scorecard above never changes either</b>: it is real store revenue over real total ad spend with no attribution in it at all, which is why it is the headline.</p>
+    </div>` : '';
+
   return `${sumHtml}
     <div class="rp-kpis">${kpis}</div>
+    ${attrHtml}
     ${pacingHtml}${chartHtml}${splitHtml}
     ${(d.channels || []).map(chCard).join('')}
     ${weeksHtml}${changesHtml}
@@ -5334,7 +5471,7 @@ async function renderReports(first) {
   const body = rep
     ? `${banner}${warn}<h2 style="margin-top:6px">${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'} - ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
        <p class="sub">Generated ${rep.generated_at ? fmtAgo(rep.generated_at) : ''}.</p>
-       ${reportBodyHTML(d || {}, rep.summary, { internal: true, editable: !sent })}`
+       ${reportBodyHTML(d || {}, rep.summary, { internal: true, editable: !sent, attr: attrOf(cfg) })}`
     : `<div class="card"><h3 style="margin-bottom:4px">No reports yet</h3>
        <p class="hint">${repErr ? esc(repErr) + ' - ' : ''}Hit <b>Generate last week</b> to build the first one. From next Monday they draft themselves.</p></div>`;
 
@@ -5350,6 +5487,18 @@ async function renderReports(first) {
     ${body}`);
 
   if (d) { wireReportChart(d, acct?.currency, true); wireAdCards(d.ads, acct?.currency, d.period === 'weekly' ? 'week' : 'month'); }
+
+  /* The attribution control re-renders IN PLACE. Everything it changes is
+     already in the frozen snapshot, so there is nothing to fetch and no reason
+     to move the reader: switching model while looking at a creative card should
+     leave you looking at that same card with different numbers on it. */
+  const attrSel = $('#rpAttr');
+  if (attrSel) attrSel.onchange = async () => {
+    const v = attrSel.value;
+    attrSel.disabled = true;
+    try { await saveCfg({ attr: v }); await inPlace(() => renderReports()); }
+    catch (e) { attrSel.disabled = false; noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
+  };
 
   /* chip → open that report */
   document.querySelectorAll('#main [data-rp]').forEach(b => b.onclick = () => {
@@ -5493,7 +5642,7 @@ async function renderReportsShare(token, sel) {
   $('#main').innerHTML = `<h2>${r.period === 'weekly' ? 'Weekly report' : 'Monthly report'} - ${repRangeLabel({ period: r.period, start: r.start, end: r.end })}</h2>
     <p class="sub">Prepared by Mobius Digital${r.sent_at ? ` · published ${String(r.sent_at).slice(0, 10)}` : ''}. Every headline number is blended: real store revenue against real total ad spend, from every channel at once.</p>
     ${picker}
-    ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, {})}`;
+    ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, { attr: d.attr || 'platform', client: true })}`;
   wireReportChart(r.data || {}, cur, false);
   wireAdCards(r.data?.ads, cur, r.period === 'weekly' ? 'week' : 'month');
   const pk = $('#rsPick');

@@ -1415,8 +1415,15 @@ export default {
           `SELECT value FROM settings WHERE key = 'reportTokens'`).first())?.value, {});
         const t = tokens[rvm[1]];
         if (!t) return json({ error: 'This report link is no longer valid.' }, 404);
-        const acct = await env.DB.prepare(`SELECT name, currency FROM accounts WHERE act_id = ?1`).bind(t.act_id).first();
+        const acct = await env.DB.prepare(`SELECT name, currency, report_config_json FROM accounts WHERE act_id = ?1`).bind(t.act_id).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
+        /* The attribution basis the brand's reports are on. It has to travel to
+           the client page: reportBodyHTML renders both surfaces, and the rule is
+           that what Cole reviews is exactly what the client opens. Without it he
+           would review a report on Triple Whale attribution and the client would
+           open the same report showing Meta's figures. The client gets no control
+           over it - a report is a document, not a tool. */
+        const attr = safeJson(acct.report_config_json, {})?.attr || 'platform';
         const { results } = await env.DB.prepare(
           `SELECT period, period_start, period_end, sent_at FROM reports
            WHERE act_id = ?1 AND status = 'sent' ORDER BY period_start DESC, period LIMIT 60`,
@@ -1439,7 +1446,7 @@ export default {
               sent_at: row.sent_at, summary: row.summary, data };
           }
         }
-        return json({ share: true, account: { name: acct.name, currency: acct.currency }, reports: results, report });
+        return json({ share: true, account: { name: acct.name, currency: acct.currency }, attr, reports: results, report });
       } catch (e) { return json({ error: e.message }, 500); }
     }
 
