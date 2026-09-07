@@ -434,17 +434,25 @@ async function processSlackReceipts(env) {
 
   const msgs = (hist.messages || []).slice().reverse();   // oldest first
   const taxCats = safeJson(await getSetting(env, 'taxCats'), []) || [];
+  /* Skip OUR OWN posts only. The first version of this skipped every bot
+   * message, which silently swallowed the entire email intake: Slack delivers
+   * mail sent to a channel address as a post from SLACKBOT, so ten forwarded
+   * receipts arrived and none was ever read. Identify ourselves properly. */
+  let selfId = cfg.selfUserId;
+  if (!selfId) {
+    const who = await slack(env, 'auth.test');
+    if (who.ok) { selfId = cfg.selfUserId = who.user_id; }
+  }
   let handled = 0;
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
-    // Never read our own output. The monthly P&L is posted into this channel as
-    // a PDF, and without this the poller treats it as a receipt and replies to
-    // it — which it did, on the first statement ever sent. Receipts come from a
-    // person; anything a bot posted here is ours or another tool's.
-    if (msg.bot_id || msg.subtype === 'bot_message') continue;
+    if (selfId && msg.user === selfId) continue;              // our own P&L posts
     for (const f of msg.files || []) {
       const isPdf = f.mimetype === 'application/pdf';
-      const isEmail = f.filetype === 'email';   // forwarded to the channel's email address
+      // Slack's email-to-channel arrives as filetype 'email', and the forwarded
+      // body itself comes through as a text/html file. Both are receipts.
+      const isEmail = f.filetype === 'email' || f.mimetype === 'text/html'
+        || f.mimetype === 'message/rfc822';
       if (!isEmail && !isPdf && !/^image\//.test(f.mimetype || '')) continue;
       if (cfg.seen.includes(f.id)) continue;
       cfg.seen.push(f.id); if (cfg.seen.length > SEEN_CAP) cfg.seen = cfg.seen.slice(-SEEN_CAP);
@@ -470,20 +478,29 @@ async function processSlackReceipts(env) {
         let dlUrl = f.url_private_download || f.url_private;
         let mimetype = f.mimetype, fname = f.name || 'receipt', emailText = null;
         if (isEmail) {
-          // An emailed invoice: prefer a PDF/image attachment inside the email;
-          // with none, Claude reads the email body and the email itself is stored.
           const info = await slack(env, 'files.info', { file: f.id });
           const fi = info.file || f;
-          const att = (fi.attachments || []).find(a =>
+          /* Which attachment, when a vendor sends more than one? Prefer the
+           * word "receipt" — it is proof of payment, which is what a deduction
+           * needs; an invoice only proves it was asked for. Failing that take
+           * any PDF or image, and failing THAT keep the email itself, because
+           * plenty of vendors put the whole receipt in the body. */
+          const atts = (fi.attachments || []).filter(a =>
             a.mimetype === 'application/pdf' || /^image\//.test(a.mimetype || ''));
+          const named = re => atts.find(a => re.test(String(a.filename || a.name || '')));
+          const att = named(/receipt/i) || named(/invoice|statement|bill/i) || atts[0];
           if (att && (att.url || att.url_private)) {
             dlUrl = att.url || att.url_private; mimetype = att.mimetype;
             fname = att.filename || att.name || fname;
           } else {
+            // No usable attachment: read the email itself, and store it as the
+            // receipt so there is still a document behind the number.
             const from = Array.isArray(fi.from) && fi.from[0] ? (fi.from[0].address || fi.from[0].original || '') : '';
-            emailText = [fi.subject ? 'Subject: ' + fi.subject : '', from ? 'From: ' + from : '',
-                         fi.plain_text || fi.preview_plain_text || fi.preview || ''].filter(Boolean).join('\n');
-            fname = (fi.subject || 'email invoice').slice(0, 120);
+            const body = fi.plain_text || fi.preview_plain_text || fi.preview || '';
+            emailText = [fi.subject ? 'Subject: ' + fi.subject : '', from ? 'From: ' + from : '', body]
+              .filter(Boolean).join('\n');
+            fname = ((fi.subject || 'email receipt') + '.html').slice(0, 120);
+            mimetype = f.mimetype || 'text/html';
           }
         }
         const dl = await fetch(dlUrl, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
@@ -494,6 +511,23 @@ async function processSlackReceipts(env) {
         for (let i = 0; i < bytes.length; i += 0x8000)
           b64 += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
         b64 = btoa(b64);
+        /* Slack hands the forwarded mail over as an HTML file, and files.info
+         * often carries no plain_text for it — so the readable version has to
+         * come out of the markup itself. Strip script/style, drop the tags,
+         * unescape the handful of entities that matter, and let Claude read
+         * what a person would see. */
+        if (isEmail && (!emailText || emailText.length < 200) && /html|text\//.test(mimetype || '')) {
+          const html = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+          const text = html
+            .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;|&#8199;|&#847;|&zwnj;/gi, ' ')
+            .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (text.length > (emailText || '').length) emailText = text.slice(0, 12000);
+        }
         // Claude's image ceiling is ~5MB of data; oversize files still get stored
         const ext = emailText
           ? await claudeExtract(env, null, null, emailText)
@@ -599,7 +633,11 @@ async function processSlackReceipts(env) {
             ]);
           }
         } else {
-          await reply(`⚠️ Couldn't read a vendor + total off this one — add it from the app's Receipts tab instead.`);
+          await reply(isEmail
+            ? `⚠️ No amount anywhere in this email — some vendors only say "view your receipt" behind a link.\n` +
+              `Open it, download the actual receipt, and drop that here instead. If it is a vendor that never emails one, ` +
+              `save their billing page under Settings → Remembered vendors and month-end will hand you the link.`
+            : `⚠️ Couldn't read a vendor + total off this one — add it from the app's Receipts tab instead.`);
         }
         handled++;
       } catch (e) {
