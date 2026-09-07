@@ -4229,36 +4229,44 @@ function briefCard(acct, date, row, banner) {
   const health = (safeJson(row?.data_json, {}) || {}).health || null;
   const bad = health?.verdict === 'broken' && status !== 'sent';
   const v = JSON.stringify({ a: acct.act_id, d: date });
-  const blocks = [];
 
+  /* ONE MESSAGE, NOT A STACK OF PANELS.
+     The first version of this card put the header in its own block, then a
+     divider, then the brief, then a context line — five panels where there used
+     to be one continuous message, and the divider cut the page in half right
+     under the heading. Cole, 2026-09-07: "what happened to our specific
+     structure, it literally went down and said here's this, here was the
+     forecast". The structure was intact; the message had been chopped up around
+     it, which reads as the same thing.
+
+     So the header, the data warning and the brief are ONE string, exactly as
+     the plain-text notice used to be. Slack caps a block at 3000 characters and
+     a brief runs past that perhaps once a week, so `mrkdwnSections` splits at a
+     paragraph break when it must — but nothing else is ever added between. The
+     buttons are the only thing that is genuinely a separate element. */
   const head = status === 'sent'
     ? `:white_check_mark: *Sent to the client — ${acct.name}, ${prettyDate(date)}*`
+      + (row?.channel ? `  ·  _posted to <#${row.channel}>${row.posted_at ? ` at ${shortTime(row.posted_at)} Central` : ''}_` : '')
     : status === 'skipped'
-      ? `:heavy_minus_sign: *Not sending — ${acct.name}, ${prettyDate(date)}*`
+      ? `:heavy_minus_sign: *Not sending — ${acct.name}, ${prettyDate(date)}*  ·  _marked handled; the client was not messaged_`
       : `:memo: *Draft — ${acct.name}, ${prettyDate(date)}*  ·  _not sent to the client yet_`;
-  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
-  if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
 
   /* The data warning goes ABOVE the brief and never inside it. The text is what
      the client receives; this notice is ours. Without it the numbers look
      ordinary — that is exactly how five brands under-reported spend by 70% for
      three days in September 2026 with nobody noticing. */
-  if (bad) {
-    const fix = health.flagged?.[0]?.issues?.find(i => i.severity === 'broken')?.fix;
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text:
-      `:rotating_light: *Do not send — the numbers are wrong.* ${health.summary}` +
-      (fix ? `\n_${fix}_` : '') +
-      `\nSpend below has been rebuilt from the platforms' own reporting where possible.` } });
-  }
+  const fix = bad ? health.flagged?.[0]?.issues?.find(i => i.severity === 'broken')?.fix : null;
+  const warn = bad
+    ? `:rotating_light: *Do not send — the numbers are wrong.* ${health.summary}`
+      + (fix ? `\n_${fix}_` : '')
+      + `\nSpend below has been rebuilt from the platforms' own reporting where possible.`
+    : '';
+  const steer = row?.steer && status !== 'sent'
+    ? `\n\n_Last rewrite was steered: “${String(row.steer).slice(0, 200)}”_` : '';
 
-  blocks.push({ type: 'divider' });
-  blocks.push(...mrkdwnSections(row?.text || '_Nothing written for this day yet._'));
-
-  const notes = [];
-  if (status === 'sent' && row?.channel) notes.push(`Posted to <#${row.channel}>${row.posted_at ? ` at ${shortTime(row.posted_at)} Central` : ''}. A sent brief is frozen.`);
-  if (status === 'skipped') notes.push('Marked handled — the client was not messaged, and this day stops being carried into later briefs.');
-  if (row?.steer && status !== 'sent') notes.push(`Last rewrite was steered: “${String(row.steer).slice(0, 220)}”`);
-  if (notes.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  ·  ') }] });
+  const body = [head, banner, warn, row?.text || '_Nothing written for this day yet._']
+    .filter(Boolean).join('\n\n') + steer;
+  const blocks = mrkdwnSections(body);
 
   const els = [];
   if (status === 'draft') {
