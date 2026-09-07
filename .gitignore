@@ -9,4 +9,8 @@ marketing-calendar-handoff.zip
 
 # Local secrets — pasted keys, pushed to Cloudflare by push-secrets.ps1
 ledger/worker/.env
+account-health/worker/.env
+# Belt and braces: any .env anywhere in the tree is a pasted key, never source.
+.env
+**/.env
 .dev.vars

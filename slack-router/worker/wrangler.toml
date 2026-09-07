@@ -1,0 +1,37 @@
+# Mobius Slack router — the one address Slack talks to.
+#
+# Slack allows ONE interactivity Request URL per app, and the single
+# "Mobius Digital" app serves Ledger, Pulse and Locus. This worker is that URL,
+# named for the job rather than for whichever tool happened to hold it first.
+#
+# Paste into Slack:  Interactivity & Shortcuts -> Request URL
+#   https://mobius-slack.mobius-digital.workers.dev/slack
+#
+# Deploy:  npx wrangler deploy   (from this folder)
+name = "mobius-slack"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# No cron, no D1, no KV: this worker stores nothing and remembers nothing. It
+# verifies a signature, decides whose payload it is, and passes it along.
+
+# The three tools it fans out to. Service bindings rather than public fetches:
+# a worker-to-worker fetch over the public workers.dev URL fails silently from
+# inside a Worker (that shipped once elsewhere in this repo and cost a day).
+[[services]]
+binding = "LEDGER"
+service = "mobius-ledger"
+
+[[services]]
+binding = "AUTH"
+service = "mobius-account-health"
+
+[[services]]
+binding = "PULSE"
+service = "mobius-ad-status"
+
+# Secrets (set once, never committed):
+#   npx wrangler secret put SLACK_SIGNING_SECRET
+# The SAME value as the other three workers hold — it is one Slack app, so
+# there is one signing secret. This worker verifies it, and each tool verifies
+# it again on the forwarded request, so this can never be a way around anything.
