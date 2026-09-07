@@ -97,7 +97,29 @@
   .txn-tbl th:last-child,.txn-tbl td:last-child{padding-right:20px}
   .txn-tbl td.pick,.txn-tbl th.pick{padding-right:0;width:34px}
   .txn-tbl td.pick input{width:15px;height:15px;cursor:pointer;margin:0}
-  .rowsel{display:inline-flex;gap:7px;flex-wrap:wrap}
+  /* A real dropdown. The OPEN list of a native <select> is drawn by Windows and
+     cannot be styled by any stylesheet — which is why these looked like 1998
+     next to everything else. This replaces the control entirely: a button plus
+     a panel rendered at body level, so the table's overflow cannot clip it. */
+  .msel{position:relative;display:inline-block}
+  .msel-btn{font:inherit;font-size:12px;text-align:left;padding:5px 28px 5px 10px;
+    border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);
+    color:var(--ink);cursor:pointer;max-width:230px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;transition:border-color .12s,box-shadow .12s;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center}
+  .msel-btn:hover{border-color:var(--brand-ink)}
+  .msel-btn.open{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .msel-btn.unset{color:var(--bad);border-color:var(--bad);border-style:dashed}
+  .msel-panel{position:fixed;z-index:70;background:var(--surface);border:1px solid var(--line-strong);
+    border-radius:12px;box-shadow:0 18px 48px rgba(12,22,29,.26);padding:6px;
+    max-height:min(52vh,420px);overflow:auto;min-width:220px}
+  .msel-opt{padding:8px 11px;border-radius:8px;font-size:13px;cursor:pointer;line-height:1.35;
+    color:var(--ink);white-space:nowrap}
+  .msel-opt:hover,.msel-opt.on{background:var(--brand-soft)}
+  .msel-opt.sel{font-weight:700}
+  .msel-opt.none{color:var(--muted)}
+  .rowsel{display:inline-flex;gap:7px;flex-wrap:wrap;align-items:center}
   /* Same control as every other Mobius app — mobius.css's select: its own
      chevron (appearance:none removes the native one), 8px radius, and the
      house focus ring. Only the scale differs, because this one sits in a row. */
@@ -447,6 +469,67 @@ function txnRows(){
   });
 }
 
+/* ---- dropdown that matches the rest of the app ----
+   Native <select> popups are drawn by the operating system and ignore CSS
+   entirely, so anywhere the list is actually seen we use this instead: a
+   button, and a panel appended to <body> and positioned with fixed
+   coordinates, which keeps it out of reach of the table's overflow clipping. */
+const MSEL = { open: null };
+function mselHTML(id, value, options, { placeholder = 'Select…', unset = false, width = '' } = {}) {
+  const label = value || placeholder;
+  MSEL[id] = { value, options };
+  return `<span class="msel"><button type="button" id="${id}" class="msel-btn${unset && !value ? ' unset' : ''}"
+    ${width ? `style="min-width:${width}"` : ''} title="${esc(label)}"
+    onclick="mselOpen(event,'${id}')">${esc(label)}</button></span>`;
+}
+function mselClose(){
+  if (!MSEL.open) return;
+  MSEL.open.panel.remove();
+  MSEL.open.btn?.classList.remove('open');
+  MSEL.open = null;
+  document.removeEventListener('keydown', mselKey, true);
+}
+function mselKey(e){ if (e.key === 'Escape') { e.stopPropagation(); mselClose(); } }
+function mselOpen(ev, id){
+  ev.stopPropagation();
+  const btn = document.getElementById(id);
+  const wasMine = MSEL.open && MSEL.open.id === id;
+  mselClose();
+  if (wasMine) return;                       // clicking the button again closes
+  const cfg = MSEL[id]; if (!cfg) return;
+  const panel = document.createElement('div');
+  panel.className = 'msel-panel';
+  panel.innerHTML = cfg.options.map(o => {
+    const v = typeof o === 'string' ? o : o.value;
+    const t = typeof o === 'string' ? o : o.label;
+    return `<div class="msel-opt${v === cfg.value ? ' sel' : ''}${v === '' ? ' none' : ''}"
+      data-v="${esc(v)}">${esc(t)}</div>`;
+  }).join('');
+  document.body.appendChild(panel);
+  const r = btn.getBoundingClientRect();
+  panel.style.minWidth = Math.max(r.width, 220) + 'px';
+  // flip above the button when there is not room below
+  const h = panel.offsetHeight;
+  panel.style.top = (r.bottom + 6 + h > innerHeight && r.top - 6 - h > 0
+    ? r.top - 6 - h : Math.min(r.bottom + 6, innerHeight - h - 8)) + 'px';
+  panel.style.left = Math.max(8, Math.min(r.left, innerWidth - panel.offsetWidth - 8)) + 'px';
+  btn.classList.add('open');
+  MSEL.open = { id, btn, panel };
+  panel.onclick = e => {
+    const opt = e.target.closest('.msel-opt'); if (!opt) return;
+    e.stopPropagation();
+    const v = opt.dataset.v;
+    mselClose();
+    MSEL[id].value = v;
+    btn.textContent = v || 'Select…';
+    (MSEL[id].onPick || (()=>{}))(v, btn);
+  };
+  document.addEventListener('keydown', mselKey, true);
+}
+document.addEventListener('click', mselClose);
+addEventListener('resize', mselClose);
+addEventListener('scroll', mselClose, true);
+
 /* ---- selection + in-place editing ---- */
 function togglePick(id, on){ on ? S.sel.add(id) : S.sel.delete(id); renderTxns(); }
 function pickAll(on){
@@ -464,9 +547,8 @@ function rowClick(ev, id){
    also applies it to that vendor's other still-uncategorized rows, so eight
    identical Anthropic charges are one decision, not eight. */
 async function setRowField(id, field, value, el){
-  const prev = el.value;
   const t = (S.txns||[]).find(x=>x.id===id);
-  el.disabled = true;
+  if (el) el.disabled = true;
   try {
     await api('/api/transaction', { method:'PUT', body: JSON.stringify({ id, [field]: value || null }) });
     // Ask before touching rows he did not click. Same vendor, still
@@ -487,7 +569,8 @@ async function setRowField(id, field, value, el){
     S.txns = null; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
   } catch(e){
-    el.disabled = false; el.value = prev;
+    if (el) el.disabled = false;
+    renderTxns();                      // put the row back the way it was
     tell('Could not save that', e.message);
   }
 }
@@ -500,7 +583,7 @@ function flash(text){
   flash._t = setTimeout(() => el.classList.remove('on'), 3800);
 }
 async function bulkApply(){
-  const tax = $('#bulkCat')?.value;
+  const tax = MSEL.bulkCat?.value;
   if (!tax) { tell('Pick a category first', 'Choose one from the dropdown, then press Apply.'); return; }
   const ids = [...S.sel];
   const body = { ids, tax_cat: tax };
@@ -559,12 +642,9 @@ async function renderTxns(){
     const catCell = closed
       ? `<span class="cat">${esc(t.tax_cat||'uncategorized')}</span>`
       : `<span class="rowsel" onclick="event.stopPropagation()">
-          <select class="rowcat ${t.tax_cat?'':'unset'}" title="What this was — drives both your dashboard and the CPA's P&amp;L"
-            onchange="setRowField(${t.id}, 'tax_cat', this.value, this)">
-            <option value="">— pick a category —</option>
-            ${cats.map(c=>`<option ${c===t.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}
-          </select>
-          ${t.bucket ? `<span class="cat" style="align-self:center">→ ${esc(t.bucket)}</span>` : ''}
+          ${mselHTML('cat' + t.id, t.tax_cat || '', [{ value:'', label:'— pick a category —' }, ...cats],
+            { placeholder: '— pick a category —', unset: true })}
+          ${t.bucket ? `<span class="cat">→ ${esc(t.bucket)}</span>` : ''}
         </span>`;
     return `<tr onclick="rowClick(event, ${t.id})" class="${S.sel.has(t.id)?'picked':''}">
       <td class="pick" onclick="event.stopPropagation()">
@@ -592,10 +672,8 @@ async function renderTxns(){
     ${S.sel.size ? `<div class="bulkbar">
       <b>${S.sel.size} selected</b>
       <span class="tiny">Click any row to add or remove it</span>
-      <select id="bulkCat">
-        <option value="">Set category…</option>
-        ${['Client revenue', ...(S.boot.taxCats||[])].map(c=>`<option>${esc(c)}</option>`).join('')}
-      </select>
+      ${mselHTML('bulkCat', '', [{ value:'', label:'Set category…' }, 'Client revenue', ...(S.boot.taxCats||[])],
+        { placeholder: 'Set category…' })}
       <button class="btn primary" onclick="bulkApply()">Apply to ${S.sel.size}</button>
       <button class="btn" onclick="bulkSkipReceipts()" title="Marks them as having no receipt, so they stop being chased">No receipt needed</button>
       <span style="flex:1"></span>
@@ -610,6 +688,11 @@ async function renderTxns(){
         <tbody>${body || '<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
       </table></div></div>
     ${S.sel.size ? '<div style="height:76px"></div>' : ''}`;   // room under the floating bar
+    // the custom dropdowns report their picks here rather than via onchange
+    for (const t of rows) {
+      const cfg = MSEL['cat' + t.id];
+      if (cfg) cfg.onPick = (v, btn) => setRowField(t.id, 'tax_cat', v, btn);
+    }
     const sb = $('#txnSearch');
     if (sb && S.q) { sb.focus(); sb.setSelectionRange(sb.value.length, sb.value.length); }
 }
@@ -620,7 +703,8 @@ async function renderTxns(){
 function catSelects(bucket, tax){
   return `<div class="mrow">
     <div><label>What was this? <span class="why">Sets your dashboard grouping and the CPA's P&amp;L line together</span></label>
-      <select id="tTax"><option value="">— pick one —</option>${['Client revenue',...S.boot.taxCats].map(c=>`<option ${c===tax?'selected':''}>${esc(c)}</option>`).join('')}</select>
+      ${mselHTML('tTax', tax || '', [{ value:'', label:'— pick one —' }, 'Client revenue', ...S.boot.taxCats],
+        { placeholder: '— pick one —', width: '100%' })}
       <div class="tiny" style="margin-top:6px">${tax?`Groups under <b>${esc(bucket||'—')}</b> on your dashboard.`:'Pick one and the dashboard grouping follows automatically.'}</div></div>
   </div>`;
 }
@@ -700,7 +784,7 @@ function addModal(prefill = {}){
       date: $('#tDate').value, note: $('#tNote').value.trim(),
       // bucket is derived from the category server-side
       bucket: type==='in' ? 'Revenue' : type==='transfer' ? 'Transfer' : undefined,
-      tax_cat: type==='in' ? 'Client revenue' : type==='transfer' ? 'Transfer — not P&L' : $('#tTax').value,
+      tax_cat: type==='in' ? 'Client revenue' : type==='transfer' ? 'Transfer — not P&L' : (MSEL.tTax?.value || null),
       one_time: $('#tOne').checked,
     };
     if (!row.vendor || !row.amount || !row.date) { $('#tMsg').className='msg bad'; $('#tMsg').textContent='Vendor, amount and date are required.'; return; }
@@ -752,7 +836,7 @@ async function editTxn(id){
     const b = { id, vendor: $('#eVendor').value.trim(), note: $('#eNote').value.trim() };
     if (!closed) { b.amount = +$('#eAmt').value; b.date = $('#eDate').value; }
     if (t.type==='out') {
-      b.tax_cat = $('#tTax')?.value || null;   // bucket follows, server-side
+      b.tax_cat = MSEL.tTax?.value || null;   // bucket follows, server-side
       b.one_time = $('#eOne')?.checked;
       if (t.status==='review' && b.tax_cat) b.status='ok'; // learning is automatic server-side
     }
@@ -1743,7 +1827,7 @@ async function addVendor(){
   try {
     const rep = $('#vRep').value;
     await api('/api/vendor', { method:'POST', body: JSON.stringify({
-      name: $('#vName').value.trim(), tax_cat: $('#tTax').value,
+      name: $('#vName').value.trim(), tax_cat: MSEL.tTax?.value || '',
       recurring: rep !== 'off', cadence: rep === 'yearly' ? 'yearly' : 'monthly',
       renew_month: rep === 'yearly' ? +$('#vRen').value : null,
       expected_amount: +$('#vAmt').value||null }) });
