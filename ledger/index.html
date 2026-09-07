@@ -70,10 +70,14 @@
   /* A checkbox row is a label too, but it is a sentence — not a field caption,
      so it must escape the uppercase/tracking the caption rule applies. */
   .mbox label.ck{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;
-    color:var(--ink);margin:12px 0 0;line-height:1.5;gap:11px;align-items:flex-start;
-    padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+    color:var(--ink);margin:12px 0 0;line-height:1.5;align-items:flex-start;
+    padding:13px 15px;border:1px solid var(--line);border-radius:10px;background:var(--bg);
+    display:grid;grid-template-columns:16px 1fr;column-gap:13px}
   .mbox label.ck:hover{border-color:var(--line-strong)}
-  .mbox label.ck input{margin-top:1px;width:15px;height:15px;flex:none}
+  /* A grid column, not a flex gap: .mbox sets width:100% on every input, and a
+     checkbox stretched to the row was eating the space meant to separate it
+     from its own label. */
+  .mbox label.ck input{width:16px;height:16px;margin:1px 0 0;align-self:start}
   .mbox label.ck small{margin-top:5px;line-height:1.55;font-weight:400;font-size:11.5px}
   .mbox input,.mbox select,.mbox textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;background:var(--surface)}
   .mbox .acts{display:flex;gap:10px;margin-top:20px;align-items:center}
@@ -94,15 +98,20 @@
   .txn-tbl td.pick,.txn-tbl th.pick{padding-right:0;width:34px}
   .txn-tbl td.pick input{width:15px;height:15px;cursor:pointer;margin:0}
   .rowsel{display:inline-flex;gap:7px;flex-wrap:wrap}
-  /* A select has to LOOK like one: its own chevron, since the native arrow is
-     hidden the moment appearance is normalised, plus a pointer and a hover. */
-  .rowcat{font-size:12px;padding:5px 26px 5px 9px;border:1px solid var(--line-strong);border-radius:7px;
-    background:var(--surface);color:var(--ink);max-width:220px;cursor:pointer;appearance:none;
-    background-image:url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23667' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;background-position:right 8px center;transition:border-color .12s,background-color .12s}
-  .rowcat:hover{border-color:var(--brand-ink);background-color:var(--brand-soft)}
-  .rowcat:focus{outline:2px solid var(--brand-ink);outline-offset:1px}
+  /* Same control as every other Mobius app — mobius.css's select: its own
+     chevron (appearance:none removes the native one), 8px radius, and the
+     house focus ring. Only the scale differs, because this one sits in a row. */
+  .rowcat{font-size:12px;padding:5px 28px 5px 10px;border:1px solid var(--line-strong);border-radius:8px;
+    background:var(--surface);color:var(--ink);max-width:220px;cursor:pointer;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;transition:border-color .12s,box-shadow .12s}
+  .rowcat:hover{border-color:var(--brand-ink)}
+  .rowcat:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
   .rowcat.unset{color:var(--bad);border-color:var(--bad);border-style:dashed}
+  /* Anything that responds to a click says so. Selects and checkboxes do not
+     get a pointer from the browser, and this app is mostly selects. */
+  select,input[type=checkbox],input[type=radio],label.ck,.chip,.sc,summary{cursor:pointer}
   .txn-tbl tr.picked td{background:var(--brand-soft)}
   #flash{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(14px);
     background:var(--ink);color:#fff;font-size:13px;padding:11px 18px;border-radius:10px;
