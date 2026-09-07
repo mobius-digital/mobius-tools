@@ -5313,6 +5313,49 @@ export default {
       /* `kind:'report'` redraws the weekly/monthly notices instead of the daily
          briefs. Same rule: rendered from the stored row, so nothing is written
          again and no number moves - only the message in Slack. */
+      /* START FRESH FROM ONE DAY. Every unsent day keeps being carried into
+         the next brief — that is the catch-up working as designed, and it is
+         why 6 September opened "covering 9/4, 9/5 and 9/6" at 3,167 characters.
+         Cole, 2026-09-07: "ignore the other ones I didn't send over the past few
+         days, mark them not sent, and only do yesterday from now on."
+
+         So: mark every older DRAFT as skipped (which is what tells the catch-up
+         the day was dealt with), rebuild the target day so it covers that day
+         alone, and repost the card. Skipped is reversible — pressing Write it
+         again on any of those dates drafts it afresh. Nothing sent is touched. */
+      if (b.kind === 'reset') {
+        const accts = !b.act || b.act === 'all'
+          ? await listAccounts(env, true)
+          : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+        const out = [];
+        for (const acct of accts) {
+          const date = b.date || addDays(localDate(acct.tz), -1);
+          const sk = await env.DB.prepare(
+            `UPDATE briefs SET status = 'skipped' WHERE act_id = ?1 AND date < ?2 AND status = 'draft'`,
+          ).bind(acct.act_id, date).run().catch(() => null);
+          const r = await makeBrief(env, acct, date);
+          if (r.error) { out.push({ name: acct.name, date, error: r.error }); continue; }
+          const prior = await env.DB.prepare(`SELECT slack_ts, slack_channel, status FROM briefs WHERE act_id = ?1 AND date = ?2`)
+            .bind(acct.act_id, date).first().catch(() => null);
+          if (prior?.status === 'sent') { out.push({ name: acct.name, date, skipped: 'already sent to the client' }); continue; }
+          await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: null });
+          const row = await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`)
+            .bind(acct.act_id, date).first();
+          const card = briefCard(acct, date, row);
+          const ch = prior?.slack_channel || acct.slack_channel;
+          if (!ch) { out.push({ name: acct.name, date, skipped: 'no internal channel set' }); continue; }
+          if (prior?.slack_ts) await slackApi(env, 'chat.delete', { channel: ch, ts: prior.slack_ts }).catch(() => {});
+          const posted = await slackPost(env, ch, card.text, card.blocks, { username: 'Mobius Reports', icon: ':memo:' })
+            .catch(e => ({ error: e.message }));
+          if (posted?.ts) {
+            await env.DB.prepare(`UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`)
+              .bind(acct.act_id, date, posted.ts, posted.channel || ch).run().catch(() => {});
+          }
+          out.push({ name: acct.name, date, marked_not_sent: sk?.meta?.changes ?? 0,
+            length: r.text.length, reposted: !!posted?.ts, error: posted?.error });
+        }
+        return json({ ok: true, results: out });
+      }
       if (b.kind === 'report') {
         const accts = !b.act || b.act === 'all'
           ? await listAccounts(env, true)
