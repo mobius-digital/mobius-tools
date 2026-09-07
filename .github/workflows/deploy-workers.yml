@@ -30,7 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2          # enough to diff against the previous commit
+          # Full history: a shallow clone often does not contain the commit a
+          # push started from, and the diff then silently returns nothing — the
+          # job goes green having deployed exactly nothing, which is worse than
+          # failing. The repo is small; this costs a second.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -43,9 +47,17 @@ jobs:
             echo "dirs=${{ github.event.inputs.only }}/worker" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          dirs=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null \
-            | grep -oE '^[^/]+/worker' | sort -u | tr '\n' ' ')
+          before="${{ github.event.before }}"
+          if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            before=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+          if [ -z "$before" ]; then
+            dirs=$(ls -d */worker 2>/dev/null | tr '\n' ' ')     # first commit: all of them
+          else
+            dirs=$(git diff --name-only "$before" HEAD | grep -oE '^[^/]+/worker' | sort -u | tr '\n' ' ')
+          fi
           echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
+          echo "Diff base: ${before:-<none>}"
           echo "Changed worker folders: ${dirs:-none}"
 
       - name: Deploy
