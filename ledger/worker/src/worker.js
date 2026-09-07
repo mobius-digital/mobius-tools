@@ -14,6 +14,7 @@
  * dashboard-set password work as fallbacks, same shape as Pulse/Restock.
  */
 import { buildPnlPdf } from './pdf.js';
+import { zipStream, zipSafe } from './zip.js';
 
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 const RECEIPT_MAX = 4 * 1024 * 1024; // 4MB post-downscale ceiling per file
@@ -653,6 +654,14 @@ async function sendStatement(env, period, anchor, opts = {}) {
       : blockers.length ? `⚠️ Before you close ${label}: ${blockers.join(' · ')}.`
       : period === 'month' ? '✅ Nothing blocks the close — one click in the app freezes this.' : '',
     'Full statement attached · <https://tools.go-mobius-digital.com/ledger/|Open Mobius Ledger>',
+    /* The one manual step in the whole system, and it only comes round once:
+     * take the year's receipts somewhere that is not Cloudflare. Said here
+     * because a reminder nobody sees is not a backup policy. */
+    period === 'year'
+      ? '\n📦 *Once-a-year housekeeping:* Reports → Receipt archive → *All of ' + label +
+        '* downloads every receipt as one ZIP. Drop it in Drive beside this year\'s tax return — ' +
+        'that is your off-Cloudflare copy.'
+      : '',
   ].filter(x => x !== '').join('\n');
 
   const bytes = buildPnlPdf(r, {
@@ -1633,6 +1642,40 @@ export default {
           /Ask CPA|Personal — review/.test(t.tax_cat || '') || t.status === 'review' || !t.tax_cat);
         return json({ from, to, money, transactions: txns, monthReports: reports,
           contractors, openQuestions });
+      }
+
+      /* Every receipt for a period, foldered by month and category — the
+       * once-a-year copy that lives somewhere other than Cloudflare. Streamed
+       * rather than assembled: a year of photos is far more than a Worker can
+       * hold in memory at once. */
+      if (path === '/api/receipts.zip') {
+        const from = url.searchParams.get('from'), to = url.searchParams.get('to');
+        if (!validMonth(from) || !validMonth(to) || from > to)
+          return json({ error: 'from/to = YYYY-MM' }, 400);
+        const { results } = await env.DB.prepare(
+          `SELECT id, date, month, vendor, amount, tax_cat, receipt_key, receipt_name, receipt_type
+           FROM transactions WHERE month >= ?1 AND month <= ?2 AND receipt_key IS NOT NULL
+           ORDER BY month, date, id`).bind(from, to).all();
+        if (!results.length) return json({ error: `No receipts stored between ${from} and ${to}.` }, 404);
+        const seen = new Set();
+        async function* files() {
+          for (const t of results) {
+            const buf = await receiptGet(env, t.receipt_key);
+            if (!buf) continue;                       // deleted underneath us
+            const ext = (t.receipt_name || '').match(/\.([a-z0-9]{1,5})$/i)?.[1]
+              || (t.receipt_type === 'application/pdf' ? 'pdf' : 'jpg');
+            let name = `${t.month}/${zipSafe(t.tax_cat || 'Uncategorized')}/` +
+              `${t.date} ${zipSafe(t.vendor)} ${Math.abs(t.amount).toFixed(2)}.${ext.toLowerCase()}`;
+            // two identical charges on one day would otherwise collide
+            if (seen.has(name)) name = name.replace(/\.([a-z0-9]+)$/i, ` (${t.id}).$1`);
+            seen.add(name);
+            yield { name, bytes: new Uint8Array(buf), date: new Date(t.date + 'T12:00:00Z') };
+          }
+        }
+        const label = from === to ? from : `${from} to ${to}`;
+        return new Response(zipStream(files()), { headers: { ...CORS,
+          'Content-Type': 'application/zip',
+          'Content-Disposition': `attachment; filename="Mobius Digital receipts ${label}.zip"` } });
       }
 
       /* ---- receipts (KV) ---- */

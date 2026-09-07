@@ -1197,10 +1197,45 @@ async function renderReports(){
         </div>
         <div id="packOut"></div>
       </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Receipt archive</h3>
+        <div class="hint">Every stored receipt as one ZIP, foldered by month and category and named so a human can read it —
+          <code>${rm}/Meals (50%)/${rm}-14 Michaels Bar 139.20.jpg</code>.
+          <b>Do this once a year at tax time</b> and drop it in Drive next to that year's return: it is your copy,
+          off Cloudflare, that nobody has to maintain.</div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" onclick="downloadReceipts('${rm}','${rm}',this)">This month</button>
+          <button class="btn" onclick="downloadReceipts('${qStart(rm)}','${rm}',this)">This quarter</button>
+          <button class="btn primary" onclick="downloadReceipts('${rm.slice(0,4)}-01','${rm.slice(0,4)}-12',this)">All of ${rm.slice(0,4)}</button>
+        </div>
+      </div>
     </div>
     <div id="cpaPrint"></div>`;
 }
 const qStart = m => m.slice(0,4) + '-' + ['01','01','01','04','04','04','07','07','07','10','10','10'][+m.slice(5,7)-1];
+
+/* The zip is streamed from the worker, so a year of photos never has to fit
+   anywhere at once — but it does need the token, hence fetch-then-blob. */
+async function downloadReceipts(from, to, btn){
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Building…';
+  try {
+    const res = await fetch(`${S.url.replace(/\/+$/,'')}/api/receipts.zip?from=${from}&to=${to}`,
+      { headers: { 'Authorization': 'Bearer ' + S.tok } });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j.error || ('HTTP ' + res.status));
+    }
+    const blob = await res.blob();
+    const name = (res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1] || 'receipts.zip';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 8000);
+    btn.textContent = '✓ Downloaded';
+  } catch(e){ btn.textContent = e.message.slice(0, 60); }
+  setTimeout(()=>{ btn.disabled = false; btn.textContent = label; }, 5000);
+}
 
 /* The accountant's layout: tax categories down the side, months across,
  * totals on the right — the shape a P&L is read in, on screen and in print. */
