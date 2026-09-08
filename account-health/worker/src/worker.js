@@ -2813,12 +2813,28 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
   // anything not yet seen.
 
   // Ad-level facts for the detail view, in ONE batched call rather than per ad.
+  /* `?ids=a,b,c` IS DEPRECATED IN GRAPH v26+ and now just errors, so this call
+     had been failing silently for every card: the detail popout lost status,
+     created date, campaign and adset, and the empty catch meant nothing ever
+     said so. Found 2026-09-08 while building the media_type backfill, which
+     failed the same way and did report it.
+     The account's ads edge with an `ad.id IN` filter is the supported shape and
+     is still ONE call. */
   let metaById = {};
   try {
-    metaById = await meta(env, '', {
-      ids: adIds.slice(0, 10).join(','),
-      fields: 'created_time,effective_status,campaign{name},adset{name}',
-    }) || {};
+    const want = adIds.slice(0, 10);
+    /* The edge is per ACCOUNT and this function is only given ad ids, so the
+       account comes from the row we already store. One query, and it keeps the
+       three call sites unchanged. */
+    const actId = (await env.DB.prepare(`SELECT act_id FROM ads WHERE ad_id = ?1`).bind(want[0]).first())?.act_id;
+    if (actId) {
+      const r = await meta(env, `${actId}/ads`, {
+        fields: 'id,created_time,effective_status,campaign{name},adset{name}',
+        filtering: [{ field: 'ad.id', operator: 'IN', value: want }],
+        limit: want.length,
+      });
+      for (const a of (r?.data || [])) metaById[a.id] = a;
+    }
   } catch { /* the cards still work without status and dates */ }
   // Cards render ~255x319 CSS px, so a 2x screen wants ~640px on the long edge.
   // The SMALLEST frame that still covers that wins, and every other size is
@@ -5955,7 +5971,14 @@ export default {
           ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
           : await listAccounts(env, true);
         if (!accts.length) return json({ error: 'unknown account' }, 404);
-        const CREATIVE_FIELDS = 'creative{object_type,video_id,object_story_spec{page_id,video_data{video_id},link_data{child_attachments}},asset_feed_spec}';
+        /* NO NESTED SUBFIELD BRACES. Asking for
+           `object_story_spec{link_data{child_attachments}}` makes Meta reject the
+           whole call, and the first version of this endpoint did exactly that:
+           every chunk failed, the splitter walked each one down to single ads,
+           and it reported 200 "unresolvable" without a word about why. Request
+           the two specs WHOLE, the way the per-ad creative fetch above already
+           does, and read into them here. */
+        const CREATIVE_FIELDS = 'id,creative{object_type,video_id,object_story_spec,asset_feed_spec}';
         const typeOf = c => {
           const kids = c?.object_story_spec?.link_data?.child_attachments;
           const isCarousel = (Array.isArray(kids) && kids.length > 1)
@@ -5970,35 +5993,62 @@ export default {
         /* One deleted or permission-blocked ad fails the WHOLE batched call, so
            a failed chunk is split rather than abandoned. A single ad that still
            fails is skipped and counted, never retried forever. */
-        const resolve = async ids => {
-          if (!ids.length) return {};
-          try {
-            return await meta(env, '', { ids: ids.join(','), fields: CREATIVE_FIELDS }) || {};
-          } catch (e) {
-            if (ids.length === 1) return {};
-            const mid = Math.ceil(ids.length / 2);
-            const [a, b] = await Promise.all([resolve(ids.slice(0, mid)), resolve(ids.slice(mid))]);
-            return { ...a, ...b };
-          }
-        };
+        /* WALK THE ACCOUNT'S ads EDGE, do not ask for ads by id.
+           `?ids=a,b,c` is DEPRECATED IN GRAPH v26+ and simply errors, which is
+           what the first version of this did: every chunk failed, the splitter
+           walked each one down to a single ad, and it reported 200 ads
+           "unresolvable" without a word about why. The account edge returns the
+           creative alongside each ad and pages properly, so a whole account
+           costs a handful of calls rather than one per ad.
+           Keep the FIRST error: a silent 0-resolved run is indistinguishable
+           from "every ad was deleted", which is exactly how that bug survived a
+           full run without saying anything. */
+        let firstErr = null;
         const out = [];
         for (const acct of accts) {
           const { results } = await env.DB.prepare(
-            `SELECT ad_id FROM ads WHERE act_id = ?1 AND media_type IS NULL LIMIT ?2`,
-          ).bind(acct.act_id, cap).all();
-          const ids = (results || []).map(r => r.ad_id);
-          let wrote = 0, missed = 0;
-          for (let i = 0; i < ids.length; i += 50) {
-            const chunk = ids.slice(i, i + 50);
-            const got = await resolve(chunk);
+            `SELECT ad_id FROM ads WHERE act_id = ?1 AND media_type IS NULL`,
+          ).bind(acct.act_id).all();
+          const need = new Set((results || []).map(r => r.ad_id));
+          const target = need.size;
+          let wrote = 0, seen = 0, pages = 0, after = null;
+          /* PAGE SIZE IS ADAPTIVE because `asset_feed_spec` is unbounded: an
+             Advantage+ creative carries every text and image variant, so 100 ads
+             of it makes Meta answer "Please reduce the amount of data you're
+             asking for" (and sometimes just "An unknown error occurred"). That
+             is a RESPONSE SIZE limit, not a rate limit, so retrying the same
+             call forever cannot work and a fixed small page would triple the
+             calls on the accounts that do not need it. Start at 50, halve on
+             failure, and recover upward after a clean page. */
+          let size = 50;
+          const maxPages = Math.ceil(cap / 10) + 10;
+          while (need.size && pages < maxPages) {
+            let page;
+            try {
+              page = await meta(env, `${acct.act_id}/ads`, { fields: CREATIVE_FIELDS, limit: size, after });
+            } catch (e) {
+              if (size > 5) { size = Math.max(5, Math.floor(size / 2)); pages++; continue; }
+              if (!firstErr) firstErr = e.message || String(e);
+              break;
+            }
+            if (size < 50) size = Math.min(50, size * 2);
+            pages++;
+            const data = page?.data || [];
+            if (!data.length) break;
             const stmts = [];
-            for (const id of chunk) {
-              const c = got?.[id]?.creative;
-              if (!c) { missed++; continue; }
-              stmts.push(env.DB.prepare(`UPDATE ads SET media_type = ?2 WHERE ad_id = ?1`).bind(id, typeOf(c)));
+            for (const ad of data) {
+              seen++;
+              if (!ad?.id || !need.has(ad.id) || !ad.creative) continue;
+              stmts.push(env.DB.prepare(`UPDATE ads SET media_type = ?2 WHERE ad_id = ?1`).bind(ad.id, typeOf(ad.creative)));
+              need.delete(ad.id);
             }
             if (stmts.length) { await env.DB.batch(stmts); wrote += stmts.length; }
+            after = page?.paging?.cursors?.after || null;
+            if (!page?.paging?.next || !after) break;
           }
+          /* Anything still in `need` was never returned by the edge, which for a
+             live account means the ad is deleted. It keeps the fallback guess. */
+          const missed = target - wrote;
           const left = await env.DB.prepare(
             `SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND media_type IS NULL`,
           ).bind(acct.act_id).first();
@@ -6007,11 +6057,11 @@ export default {
           ).bind(acct.act_id).all();
           out.push({
             account: acct.name, act_id: acct.act_id,
-            resolved: wrote, unresolvable: missed, still_null: left?.n ?? null,
+            resolved: wrote, unresolvable: missed, pages, scanned: seen, still_null: left?.n ?? null,
             mix: Object.fromEntries((mix.results || []).map(r => [r.t, r.n])),
           });
         }
-        return json({ ok: true, accounts: out });
+        return json({ ok: true, accounts: out, error: firstErr });
       }
 
       if (path === '/api/ads') {
