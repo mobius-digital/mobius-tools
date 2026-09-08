@@ -2251,7 +2251,7 @@ async function renderCreativeBrowser(host, act, range) {
     return `<article class="ad-card cb-card" data-ad="${esc(a.ad_id)}">
       <div class="ad-media${a.thumb ? '' : ' none'}"${canPlay ? ` data-ad="${esc(a.ad_id)}"` : ''}>
         ${media}<span class="ad-rank">${i + 1}</span>
-        <span class="ad-type">${a.is_video ? 'Video' : 'Image'}</span>
+        <span class="ad-type">${a.media_type === 'carousel' ? 'Carousel' : (a.media_type === 'video' || a.is_video) ? 'Video' : 'Static'}</span>
         ${canPlay ? '<button class="ad-play" type="button" title="Play this video ad"><i>▶</i></button>' : ''}
       </div>
       <div class="ad-body">
@@ -2266,9 +2266,7 @@ async function renderCreativeBrowser(host, act, range) {
           ${stat('Link CTR', pct(a.ctr))}
           ${stat('CPM', money(a.cpm))}
         </div>
-        <div class="cb-foot">${a.partnership ? `<span class="catpill part" title="A partnership ad: the creative lives on the partner's own page, not ours. Meta will not release the video file for these, so pressing play opens Meta's preview of the post instead.">Partnership</span>` : ''}${a.format ? `<span class="catpill${a.format_kind === 'label' ? ' off' : ''}" title="${a.format_kind === 'label'
-            ? `A label from this ad's name, not a creative format - it is whatever follows the last | in &quot;${esc(a.name)}&quot;, here a partner, product or shoot name. Labels never appear as formats in a client report.`
-            : `The creative format, read from this ad's name (the part after the last |). Recognised format words only - anything else is shown as a label instead.`}">${esc(a.format)}</span>` : ''}
+        <div class="cb-foot">${a.partnership ? `<span class="catpill part" title="A partnership ad: the creative lives on the partner's own page, not ours. Meta will not release the video file for these, so pressing play opens Meta's preview of the post instead.">Partnership</span>` : ''}
           ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
           ${a.material_by === 'sales' ? `<span class="tiny" title="Too small to clear the spend bar, but it has made enough sales for the ratio to mean something - so it is ranked anyway">ranked on sales</span>`
             : a.material ? '' : '<span class="tiny" title="Below the spend bar and under 3 sales, so it is left out of the ratio sorts">low spend</span>'}
@@ -2283,7 +2281,15 @@ async function renderCreativeBrowser(host, act, range) {
      TYPES ARE THE THREE REAL ONES. The pipe-suffix tags in ad names (UGC,
      Still) were being offered here beside Video and Static and duplicated the
      identical split - UGC is video, Still is static. Only types actually
-     present in the window are listed, so a filter never returns nothing. */
+     present in the window are listed, so a filter never returns nothing.
+     2026-09-08: the same reasoning finished the job on the CARD. It still
+     printed that pipe-suffix as a pill, so a Lucky card read "UGC" (a style,
+     not a format) and other cards read a partner or shoot name, while the
+     reports had already moved to the real medium. The pill is gone; the badge
+     on the thumbnail now says Video / Static / Carousel from `media_type`,
+     which is what the reports say. The full ad name is still on the card and
+     still carries whatever the team wrote after the pipe.
+     The API keeps returning `format` / `format_kind`; nothing renders them. */
   const TYPE_LABEL = { video: 'Video', image: 'Static', carousel: 'Carousel' };
   const types = [['', 'All types']].concat((d.types || []).map(t => [t === 'image' ? 'static' : t, TYPE_LABEL[t]]));
   /* A native <select> can be styled SHUT but its open list is drawn by the
@@ -2686,7 +2692,7 @@ const PAGE_HELP = {
     <p><b>"Where the budget went"</b> sits inside the Meta section and is deliberately not "the best ad". A single crown is unjudgeable - best CPA, best ROAS and biggest spender are usually three different ads. Instead you get a card per ad that carried real spend (behind a materiality floor, so a $40 fluke can't headline), biggest first, showing the creative itself with its numbers underneath. <b>Press ▶ on any card to play the real ad in place</b> - it needs no Facebook login, so the client can play it too. Meta's preview links expire after a few months; on an older report the image always stays but play may not.</p>
     <p><b>Hook and hold rate</b> tell you whether a video worked as creative, separately from whether it sold. <b>Hook</b> is 3-second views ÷ impressions - did it stop the scroll. <b>Hold</b> is ThruPlay ÷ 3-second views - of the people it stopped, how many stayed. The strong / average / low words are Motion's published benchmarks across many accounts (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history. Image ads show neither, because there is nothing to watch. A high hook with a low ROAS is a scroll-stopper that doesn't sell; a low hook is a creative problem before it is a targeting one.</p>
     <p><b>The table under the cards adds up to 100%</b> of ad-level spend - the ads shown, everything smaller combined, and the total. The tail routinely performs differently from the headline ads, so it is shown rather than dropped.</p>
-    <p><b>"Which kinds of creative the money went to"</b> splits spend by the format tag in each ad's own name - the part after the last <code>|</code>, like <i>UGC</i> or <i>Still</i>. It needs no tagging work from anyone, and it only appears when the naming actually covers the spend (at least two formats and 70%+ of ad spend tagged), so a brand with loose naming gets no misleading split.</p>
+    <p><b>"Which kinds of creative the money went to"</b> splits spend three ways - <i>Video</i>, <i>Static image</i>, <i>Carousel</i> - read from the creative itself, not from how the ad was named. It needs no tagging work from anyone and it always accounts for 100% of ad spend, so there is no "Untagged" row. Style words some teams put in ad names, like UGC, are not formats: a UGC ad is a video, and it is counted as one.</p>
     <p><b>Platform sections</b> appear automatically for any platform with data - Meta, Google, TikTok, Amazon, Pinterest, Klaviyo email - and you can untick any of them per brand. Platform revenue/ROAS in those sections is the platform's <i>own attribution</i>, labeled as directional; the blended scorecard at the top is the honest headline.</p>
     <p><b>The summary</b> is written by Claude from the numbers plus the Change Log, in three parts: the period in brief, what mattered, what's next. Edit it freely before sending - it's your voice on the report.</p>`,
   plan: `
@@ -4158,7 +4164,7 @@ async function renderBrief(first) {
       <div class="row" style="margin-bottom:8px">
         ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(d.date)}</button>`}
         ${bfDraft ? '<button class="btn" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn" id="bfCancel" style="display:none">Cancel</button>' : ''}
-        <button class="btn primary" id="bfPost" style="display:${bfDraft ? '' : 'none'}">Send to client</button>
+        <button class="btn primary" id="bfPost" style="display:${bfDraft && acct?.brief_channel ? '' : 'none'}">Send to client</button>
         <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
         ${bfSent ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
         <span class="tiny" id="bfMsg"></span>
@@ -5466,7 +5472,9 @@ async function renderReports(first) {
   const sent = rep?.status === 'sent';
   const banner = rep ? (sent
     ? `<div class="notice good">✓ <div><b>Sent to the client</b>${rep.sent_at ? ` ${fmtAgo(rep.sent_at)}` : ''}. This report is frozen - it can't be regenerated or edited, so the numbers on the client's link never shift under them. <button class="btn" id="rpLink" style="margin-left:8px">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`
-    : `<div class="notice">📝 <div><b>Internal draft - the client has not seen this.</b> Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button> <button class="btn" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
+    : `<div class="notice">📝 <div><b>Internal draft - the client has not seen this.</b> ${acct?.brief_channel
+        ? `Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button>`
+        : `Review it and edit the summary freely. <b>${esc(acct?.name || 'This brand')} has no client channel set</b>, so there is nowhere to send it - pick one in Settings under <b>Reports · to client</b> and the Send button appears here. A send never falls back to an internal channel.`} <button class="btn" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
 
   const body = rep
     ? `${banner}${warn}<h2 style="margin-top:6px">${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'} - ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
