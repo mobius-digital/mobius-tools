@@ -338,6 +338,22 @@ async function claudeExtract(env, b64, mediaType, textContent = null) {
 /*  Slack #receipts intake (Phase 3)                                   */
 /* ------------------------------------------------------------------ */
 
+/* Cole is notified when an email lands in the channel, which is the one ping
+ * he does not want, and NOT notified of thread replies, which are the ones he
+ * does. Muting the channel fixes the first; an @mention is what still pierces
+ * a muted channel, so anything needing a decision addresses him by name. The
+ * id is looked up once from his email and then cached in settings. */
+async function ownerMention(env) {
+  const cached = await getSetting(env, 'ownerUserId');
+  if (cached) return `<@${cached}> `;
+  const email = (await getSetting(env, 'ownerEmail')) || env.OWNER_EMAIL;
+  if (!email) return '';
+  const r = await slack(env, 'users.lookupByEmail', { email }).catch(() => ({}));
+  if (!r?.ok || !r.user?.id) return '';
+  await putSetting(env, 'ownerUserId', r.user.id);
+  return `<@${r.user.id}> `;
+}
+
 async function slack(env, method, params = {}, post = false) {
   // The Slack app is the shared "Mobius Digital" one; posts should still read
   // as this tool. Needs chat:write.customize — falls back plain if not granted.
@@ -482,6 +498,15 @@ async function processSlackReceipts(env) {
        * needs Cole still replies in the thread, which does notify. */
       const react = name => slack(env, 'reactions.add',
         { channel: cfg.channelId, timestamp: msg.ts, name }, true).catch(() => {});
+      /* Only used where a decision is genuinely waiting, so the mention keeps
+       * meaning "this one needs you" rather than becoming background noise. */
+      const nudge = async (text, blocks) => {
+        const at = await ownerMention(env);
+        const withAt = at + text;
+        if (blocks && blocks[0]?.type === 'section' && blocks[0].text?.type === 'mrkdwn')
+          blocks = [{ ...blocks[0], text: { ...blocks[0].text, text: at + blocks[0].text.text } }, ...blocks.slice(1)];
+        return reply(withAt, blocks);
+      };
       /* Filed without incident: tick it, remember it, and say nothing until
        * the end of the run — one summary beats twenty replies. */
       const quiet = (t) => { if (t) filed.push(t); return react('white_check_mark'); };
@@ -531,7 +556,7 @@ async function processSlackReceipts(env) {
         }
         const dl = await fetch(dlUrl, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
         const buf = await dl.arrayBuffer();
-        if (buf.byteLength > 8 * 1024 * 1024) { await reply('⚠️ That file is over 8MB — attach it from the app instead.'); continue; }
+        if (buf.byteLength > 8 * 1024 * 1024) { await react('x'); needsYou++; await nudge('⚠️ That file is over 8MB — attach it from the app instead.'); continue; }
         const bytes = new Uint8Array(buf);
         let b64 = '';
         for (let i = 0; i < bytes.length; i += 0x8000)
@@ -598,7 +623,7 @@ async function processSlackReceipts(env) {
                 `⚠️ ${miss.length} more in there matched no charge: ${miss.map(p => `${p.vendor} $${Math.abs(p.amount).toFixed(2)}`).join(', ')}. ` +
                 `Either it has not posted to Novo or Amex yet, or it went on a different card.`;
               await react('warning'); needsYou++;
-              await reply(msg, [{ type: 'section', text: { type: 'mrkdwn', text: msg } },
+              await nudge(msg, [{ type: 'section', text: { type: 'mrkdwn', text: msg } },
                 { type: 'actions', elements: hit.slice(0, 5).map(t => ({ type: 'button', action_id: 'unmatch',
                     text: { type: 'plain_text', text: `Not ${String(t.vendor).slice(0, 18)} ↩︎` },
                     value: JSON.stringify({ undo: t.id }) })) }]);
@@ -643,32 +668,57 @@ async function processSlackReceipts(env) {
            * took (foreign VAT, a rounded conversion, a tip added after). So
            * before shrugging, look for a charge that is CLOSE on the same
            * vendor and offer it by name. Never auto-attached — offered. */
-          const tol = Math.max(1, Number(ext.amount) * 0.05);
-          const { results: near } = await env.DB.prepare(
-            `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
-             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) <= ?4
-             ORDER BY ABS(amount - ?3) LIMIT 3`)
-            .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)),
-                  Number(ext.amount), tol).all();
-          const firstWord = String(ext.vendor).toLowerCase().split(' ')[0];
-          const close = near.filter(t => t.vendor.toLowerCase().includes(firstWord)
-            || firstWord.includes(t.vendor.toLowerCase().split(' ')[0]));
-          const pick = (close.length ? close : near).slice(0, 3);
-          const head = `🔍 *${ext.vendor}* $${Number(ext.amount).toFixed(2)} — nothing on Novo or Amex matches that amount exactly.`;
-          const body = pick.length
-            ? `${head}\nThese are close, same window — tap one to attach it there:`
-            : `${head}\nThat usually means it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.`;
+          /* An invoice charges the exact amount, so the cent rule stays. When
+           * it still finds nothing, the useful thing is not a looser guess:
+           * it is saying WHICH of the filters rejected it. The same amount is
+           * looked up again with each restriction dropped in turn, and the
+           * first hit explains itself and offers the action that fits. */
+          const amt = Number(ext.amount);
+          const win = [monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1))];
+          const same = String(ext.vendor || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)[0] || '';
+          const q = async (sql, binds) => (await env.DB.prepare(sql).bind(...binds).all()).results;
+
+          // (a) the charge is there, but something already claimed the receipt
+          const taken = await q(
+            `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NOT NULL
+             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01 LIMIT 3`, [...win, amt]);
+          // (b) it is still only a prediction — the bank has not confirmed it
+          const pending = await q(
+            `SELECT * FROM transactions WHERE type='out' AND expected=1
+             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01 LIMIT 3`, [...win, amt]);
+          // (c) right amount, wrong month — the date on the receipt misled us
+          const elsewhere = await q(
+            `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
+             AND ABS(amount - ?1) < 0.01 ORDER BY date DESC LIMIT 3`, [amt]);
+          // (d) the vendor is known, so what DID it charge around then?
+          const byVendor = same ? await q(
+            `SELECT * FROM transactions WHERE type='out' AND expected=0
+             AND month >= ?1 AND month <= ?2 AND LOWER(vendor) LIKE ?3
+             ORDER BY date DESC LIMIT 3`, [...win, `%${same}%`]) : [];
+
+          const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)} — nothing on Novo or Amex matches that amount, so nothing was filed.`;
+          let why, btns = [];
+          if (taken.length) {
+            why = `That exact charge *is* there (${taken[0].vendor}, ${taken[0].date}) but it already has a receipt attached — so this is very likely the same receipt arriving twice. Nothing to do.`;
+          } else if (pending.length) {
+            why = `There is a matching *expected* row (${pending[0].vendor}, ${moLabel(pending[0].month)}) that the bank has not confirmed yet. Confirm it in the app and drop this receipt again, and it will attach.`;
+          } else if (elsewhere.length) {
+            why = `The amount exists but in *${moLabel(elsewhere[0].month)}* (${elsewhere[0].vendor}, ${elsewhere[0].date}), outside the window around this receipt's date. Tap it to attach it there:`;
+            btns = elsewhere.slice(0, 3).map(t => ({ type: 'button', action_id: 'led_attach',
+              text: { type: 'plain_text', text: `${String(t.vendor).slice(0, 14)} ${t.date}` },
+              value: JSON.stringify({ file: pendKey, to: t.id }) }));
+          } else if (byVendor.length) {
+            why = `*${byVendor[0].vendor}* did charge you in that window, but ${byVendor.map(t => '$' + t.amount.toFixed(2)).join(', ')} — not $${amt.toFixed(2)}. Either I misread the total, or this receipt covers a different card.`;
+          } else {
+            why = `Nothing at that amount anywhere. That usually means it went on a card Ledger does not see, it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.`;
+          }
+          const body = `${head}\n${why}`;
           await react('question'); needsYou++;
-          await reply(body, [
+          await nudge(body, [
             { type: 'section', text: { type: 'mrkdwn', text: body } },
-            ...(pick.length ? [{ type: 'section', fields: pick.map(t => ({ type: 'mrkdwn',
-                text: `*${t.vendor}*\n$${t.amount.toFixed(2)} · ${t.date}` })) }] : []),
-            { type: 'actions', elements: [
-              ...pick.map(t => ({ type: 'button', action_id: 'led_attach',
-                text: { type: 'plain_text', text: `${String(t.vendor).slice(0, 14)} $${t.amount.toFixed(2)}` },
-                value: JSON.stringify({ file: pendKey, to: t.id }) })),
+            { type: 'actions', elements: [...btns,
               { type: 'button', action_id: 'led_file',
-                style: 'primary', text: { type: 'plain_text', text: 'File as new' },
+                style: 'primary', text: { type: 'plain_text', text: 'File as a new expense' },
                 value: JSON.stringify({ file: pendKey }) },
             ].slice(0, 5) }]);
           handled++; continue;
@@ -677,8 +727,13 @@ async function processSlackReceipts(env) {
         if (!target && ext?.vendor && ext?.amount) {
           const date = rDate, month = rMonth;
           if ((await monthStatus(env, month)) === 'closed') {
+            /* Attaching to a closed month is fine and happens silently above.
+             * This is the other case: no charge matched, so filing it would
+             * mean CREATING a row in a month whose report is already frozen,
+             * which would change a number that has been reported. */
             await react('lock'); needsYou++;
-            await reply(`🔒 That looks like *${ext.vendor}* $${Number(ext.amount).toFixed(2)} from ${date} — but ${moLabel(month)} is closed and nothing there matches that amount. Reopen the month in the app if it really belongs there.`);
+            await nudge(`🔒 *${ext.vendor}* $${Number(ext.amount).toFixed(2)} from ${date} matches no charge in ${moLabel(month)}, and that month is closed — so I can't add it without changing a report you've already filed.\n` +
+              `Attaching receipts to a closed month is fine; it's only *new* rows that are frozen out. If this really belongs there, reopen ${moLabel(month)} in the app and drop it again.`);
             handled++; continue;
           }
           const row = await applyRule(env, {
@@ -719,7 +774,7 @@ async function processSlackReceipts(env) {
                 ? base + `\n⚠️ I couldn't tell what this was — pick a category below and I'll remember it.`
                 : base + `\nCategorized as *${target.__cat}* (my read of the receipt — tap below if it was something else, like client entertainment).`;
               await react(target.__review ? 'warning' : 'eyes'); needsYou++;
-              await reply(text, [
+              await nudge(text, [
                 { type: 'section', text: { type: 'mrkdwn', text } },
                 catControls(target.id, target.__cat, target.__alts),
               ]);
@@ -731,7 +786,7 @@ async function processSlackReceipts(env) {
           }
         } else {
           await react('question'); needsYou++;
-          await reply(isEmail
+          await nudge(isEmail
             ? `⚠️ No amount anywhere in this email — some vendors only say "view your receipt" behind a link.\n` +
               `Open it, download the actual receipt, and drop that here instead. If it is a vendor that never emails one, ` +
               `save their billing page under Settings → Remembered vendors and month-end will hand you the link.`
@@ -741,7 +796,7 @@ async function processSlackReceipts(env) {
       } catch (e) {
         await react('x').catch(() => {});
         needsYou++;
-        await reply(`⚠️ Something went wrong handling this file: ${String(e.message || e).slice(0, 140)}`).catch(() => {});
+        await nudge(`⚠️ Something went wrong handling this file: ${String(e.message || e).slice(0, 140)}`).catch(() => {});
       }
     }
   }

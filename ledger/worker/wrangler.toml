@@ -15,6 +15,12 @@ crons = ["17 8 * * *", "*/10 * * * *"]
 # without also restoring the sandbox secret will fail every Plaid call.
 [vars]
 PLAID_ENV = "production"
+# Who gets @-mentioned when a receipt needs a decision. The channel carries an
+# email post per forwarded receipt, which is the notification Cole does NOT
+# want; muting the channel kills those, and a mention is what still reaches him
+# through a mute. The Slack user id is looked up once from this address and
+# then cached in settings.ownerUserId. Needs the users:read.email scope.
+OWNER_EMAIL = "cole@go-mobius-digital.com"
 
 # D1: the ledger itself (transactions, vendor rules, clients, months, settings).
 # Schema changes: npx wrangler d1 execute mobius-ledger --remote --file=schema.sql
