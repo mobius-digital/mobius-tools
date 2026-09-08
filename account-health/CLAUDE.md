@@ -514,3 +514,35 @@ read low against the number Cole sees in Triple Whale.
   and it is precisely why blended MER exists on the other tabs.
 The wrongly-weighted click-model rows were deleted and the cursors reset so the
 nightly walk refills them; `linear`/`linearAll` were correct and were kept.
+
+## `?ids=` IS DEAD (2026-09-08) — and it failed silently for months
+
+Meta: **"The ids query parameter is deprecated in v26.0+."** Every
+`meta(env, '', { ids: 'a,b,c', ... })` call now errors. We are pinned to v23.0
+and it is rejected anyway, so pinning does not save it.
+
+- **Fetch many objects by paging the parent EDGE, not by id.**
+  `GET /act_<id>/ads?fields=id,creative{...}` returns each ad with its creative
+  and pages properly. To reach a KNOWN set of ads, use the same edge with
+  `filtering: [{field:'ad.id', operator:'IN', value:[...]}]` — still one call.
+- **`asset_feed_spec` is unbounded, so page size is a RESPONSE-SIZE limit, not a
+  rate limit.** 100 ads of it returns "Please reduce the amount of data you're
+  asking for", or sometimes just "An unknown error occurred". Retrying the same
+  call cannot help. `ads-type-backfill` starts at 50, halves on failure and
+  recovers after a clean page; copy that shape rather than hard-coding a small
+  page, which triples the calls on accounts that do not need it.
+- **Never ask for nested subfields inside a spec.**
+  `object_story_spec{link_data{child_attachments}}` is rejected outright. Ask for
+  `object_story_spec` and `asset_feed_spec` WHOLE and read into them in JS, the
+  way the per-ad creative fetch has always done.
+- **This is why `ads.media_type` was empty**, and why creative cards could not
+  say "Carousel": nothing was being written. The same deprecation had ALSO been
+  breaking `adThumbnails`' status/date/campaign/adset lookup inside an empty
+  catch, so every creative detail popout was quietly missing those fields.
+
+**THE RULE THAT WOULD HAVE CAUGHT BOTH: a batch helper must keep and return its
+FIRST error.** The backfill's first run resolved 0 of 200 and reported them as
+"unresolvable", which is indistinguishable from "every ad was deleted". Swallowing
+the error turned a one-line API deprecation into an invisible data hole. An empty
+`catch {}` around a Meta call is only acceptable when the caller can genuinely
+carry on AND something else will notice the absence.
