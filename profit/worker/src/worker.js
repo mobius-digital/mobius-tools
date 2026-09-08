@@ -1361,7 +1361,23 @@ export default {
         const today = localDate(acct.tz);
         const ym = monthOf(today);
         const monthStart = `${ym}-01`;
-        const { rows, margin_pct } = await seriesFor(env, acct, monthStart, addDays(today, -1));
+        const yday = addDays(today, -1);
+        /* AN EXPLICIT WINDOW TRAVELS IN THE LINK, NOT IN THE TOKEN.
+           The token is one stable URL per client and must stay that way, so a
+           range picked on the Profit tab rides along as ?from=&to= instead.
+           Without this the page always rendered month-to-date and quietly
+           ignored whatever range was on screen when the link was copied, which
+           is what Cole hit: he set a window, sent the link, and the client saw
+           a different one. No params still means live month-to-date. */
+        const qf = url.searchParams.get('from'), qt = url.searchParams.get('to');
+        const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+        let from = monthStart, to = yday, fixed = false;
+        if (isDate(qf) && isDate(qt)) {
+          to = qt > yday ? yday : qt;                    // never expose today, it is incomplete
+          from = qf > to ? to : qf;
+          fixed = true;
+        }
+        const { rows, margin_pct } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
         const planned = !!safeJson(acct.goals_json, {})[ym];
@@ -1379,6 +1395,7 @@ export default {
           share: true,
           account: { name: acct.name, currency: acct.currency },
           month: ym, days: rows.length, days_in_month: daysInMonth(ym),
+          range: { from, to, fixed },
           mtd: {
             sales: t.sales, spend: t.spend, mer: t.mer, amer: t.amer,
             new_share: t.new_share, new_rev: t.new_rev, ret_rev: t.ret_rev,
@@ -1395,8 +1412,11 @@ export default {
           rows: rows.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
           rhythm: rhythm && rhythm.enough ? rhythm : null,
           cm_ok: cmOk,
-          // Pro-rated to the days elapsed, exactly as the internal pages do it.
-          plan: planned && (g.sales != null || g.spend != null) ? planFor(acct, ym, rows) : null,
+          /* Pro-rated to the days elapsed, exactly as the internal pages do it.
+             A plan is a MONTH's agreement, so it is withheld entirely on a fixed
+             window: "last 30 days" can straddle two months, and pro-rating one
+             month's target across it would invent a comparison nobody agreed to. */
+          plan: !fixed && planned && (g.sales != null || g.spend != null) ? planFor(acct, ym, rows) : null,
           history,
         });
       } catch (e) { return json({ error: e.message }, 500); }

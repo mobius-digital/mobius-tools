@@ -1551,7 +1551,12 @@ async function renderPerfShare(token) {
   $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   let d;
   try {
-    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/profit/' + token);
+    /* Carry any window that was baked into the link through to the API. Absent,
+       the page is live month-to-date, which is what a bare token has always
+       meant and what forwarded links keep doing. */
+    const q = new URLSearchParams(location.search);
+    const win = (q.get('from') && q.get('to')) ? `?from=${encodeURIComponent(q.get('from'))}&to=${encodeURIComponent(q.get('to'))}` : '';
+    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/profit/' + token + win);
     d = await res.json();
     if (!res.ok) throw new Error(d.error || 'This link is no longer valid.');
   } catch (e) {
@@ -1559,7 +1564,13 @@ async function renderPerfShare(token) {
     return;
   }
   const cur = d.account.currency, m = d.mtd, pl = d.plan;
-  $('.hd-title').innerHTML = `${esc(d.account.name)} <em>${esc(monthLabel(d.month))}</em>`;
+  /* NAME THE WINDOW. A page that silently showed one range while the sender was
+     looking at another is the bug being fixed here, so the heading states the
+     window it actually covers rather than always saying the month. */
+  const rgL = d.range?.fixed
+    ? `${esc(prettyDate(d.range.from))} – ${esc(prettyDate(d.range.to, true))}`
+    : esc(monthLabel(d.month));
+  $('.hd-title').innerHTML = `${esc(d.account.name)} <em>${rgL}</em>`;
   const vs = (actual, planned, lowerIsBetter) => {
     if (actual == null || !planned) return '';
     const off = actual / planned - 1;
@@ -1598,7 +1609,8 @@ async function renderPerfShare(token) {
 
     ${(d.rows || []).length ? `<div class="card"><h3 style="margin-bottom:2px">Revenue and ad spend, day by day</h3>
       <p class="hint" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue - everything the store sold that day, from every channel. <span style="color:#C08A2E;font-weight:700">Amber</span> is ad spend across every platform. The gap between the lines is what was left after advertising, before product costs, fulfilment and payment fees come out of it.</p>
-      ${salesSpendSVG(d.rows, cur).svg}</div>` : ''}
+      <div id="csReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap any day for its exact figures…</div>
+      ${salesSpendSVG(d.rows, cur, 'csSvg').svg}</div>` : ''}
 
     ${m.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New customers vs returning</h3>
       <p style="font-size:14px;margin:4px 0"><b>${fmtMoney(m.new_rev, cur)}</b> came from customers buying for the first time (<b>${fmtPct(m.new_share)}</b> of revenue) and <b>${fmtMoney(m.ret_rev, cur)}</b> from people coming back.</p>
@@ -1617,6 +1629,16 @@ async function renderPerfShare(token) {
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
   ['#clientPick', '#periodBar', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
+  /* THE CLIENT'S CHART GETS THE SAME CROSSHAIR AS OURS. It was drawn and then
+     left inert: hovering a day showed nothing, on the one page we hand to the
+     client and cannot stand over their shoulder to explain. Same shared helper
+     the reports use, so the two cannot drift. */
+  wireSalesSpend('csSvg', 'csReadout', d.rows || [], r =>
+    `<b>${esc(prettyDate(r.date))}</b> &nbsp; <span style="color:#14608C;font-weight:700">revenue:</span> <b>${fmtMoney(r.sales, cur)}</b>`
+    + ` &nbsp; <span style="color:#C08A2E;font-weight:700">ad spend:</span> <b>${fmtMoney(r.spend, cur)}</b>`
+    // The client payload carries money only, never derived ratios, so MER is
+    // computed here rather than read off a field that does not exist.
+    + ` &nbsp; MER <b>${fmtX(r.spend ? r.sales / r.spend : null)}</b>`);
   clientFooter('This page shows one client and updates as the month runs.');
 }
 
@@ -3821,9 +3843,17 @@ async function renderProfit(first) {
   if (shareBtn) shareBtn.onclick = async () => {
     try {
       const r = await api('/api/profit-share', { method: 'POST', body: JSON.stringify({ act: S.act }) });
+      /* SEND THE WINDOW YOU ARE LOOKING AT. The token is one stable URL per
+         client, so the range rides in the query string rather than the token.
+         Month-to-date is the one preset that stays live, because that is what
+         the page has always meant when it carries no window at all. */
+      const rg = resolveRange();
+      const url = rg.preset === 'mtd' ? r.url
+        : `${r.url}&from=${encodeURIComponent(rg.from)}&to=${encodeURIComponent(rg.to)}`;
       // A blocked clipboard must not surface as an unhandled rejection - the URL is on screen regardless.
-      if (navigator.clipboard) navigator.clipboard.writeText(r.url).catch(() => {});
-      noteModal('Client link ready', `<p>A read-only page with <b>${esc(d.account.name)}</b>'s month so far: revenue, ad spend, MER and contribution margin against the plan.</p>
+      if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+      noteModal('Client link ready', `<p>A read-only page with <b>${esc(d.account.name)}</b>'s ${rg.preset === 'mtd' ? 'month so far' : `<b>${esc(prettyDate(rg.from))} to ${esc(prettyDate(rg.to))}</b>`}: revenue, ad spend, MER and contribution margin${rg.preset === 'mtd' ? ' against the plan' : ''}.</p>
+        ${rg.preset === 'mtd' ? '' : '<p class="tiny">This link is pinned to that window, so it shows the same figures whenever they open it. Comparison against the monthly plan is left off, because a plan is agreed per month and this window may not be one.</p>'}
         <p class="tiny">It shows this client only - no other account, and none of the cost diagnostics from the Costs tab. Contribution margin is left out automatically if the cost data would not pass our own trust check.</p>
         <p><code style="word-break:break-all">${esc(r.url)}</code></p><p class="tiny">Copied to your clipboard.</p>`);
     } catch (e) { noteModal('Could not create the link', `<p>${esc(e.message)}</p>`); }
@@ -6893,6 +6923,9 @@ async function renderSettings() {
     <div class="card"><h3 style="margin-bottom:6px">Are the automatic jobs actually running?</h3>
       <p class="hint" style="margin-bottom:8px">The briefs, the reports and the Meta sync all run on a schedule you never see. When one of them fails there is nothing on any other page to say so - for four days in August the nightly sync was syncing one brand of six and every dashboard looked normal. This is that missing page.</p>
       <div id="schedHealth"><span class="hint">Checking…</span></div></div>
+    <div class="card"><h3 style="margin-bottom:6px">Creative formats</h3>
+      <p class="hint" style="margin-bottom:8px">Every creative card shows what Meta says the ad actually is: <b>Video</b>, <b>Static</b> or <b>Carousel</b>. Nothing is read from ad names. That format is stored the first time an ad's creative is fetched, and until then a card falls back to guessing from delivery data, which can never produce a carousel. Run this once per account to fetch the real format for every ad that is still missing one.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="mtFix">Fetch missing formats</button><span class="tiny" id="mtMsg"></span></div></div>
     <div class="card"><h3 style="margin-bottom:6px">Guided tours</h3>
       <p class="hint" style="margin-bottom:10px">Every page has a short walkthrough, and you can replay any of them here as often as you like. Each one is on the page itself under <b>Show me</b>.</p>
       <div class="row" style="gap:6px;flex-wrap:wrap" id="tourList"></div></div>
@@ -7362,6 +7395,30 @@ async function renderSettings() {
       `<button class="btn" data-tour="${k}">${esc(t.name)}</button>`).join('')
       + '<span class="tiny" style="width:100%;margin-top:6px">The first one explains how the whole platform fits together - start there if you are showing someone else around.</span>';
   })();
+
+  /* ---- fetch missing creative formats ----
+     Calls the account-health worker directly, the same way the Meta tab does:
+     this route lives with the Meta sync and is not in PROXY_PATHS. Scoped to
+     the selected client, or every account when the picker says All. */
+  {
+    const b = $('#mtFix'), msg = $('#mtMsg');
+    if (b) b.onclick = async () => {
+      if (!mApi) { msg.textContent = 'The Meta section did not load, so this cannot run. Hard-refresh and try again.'; return; }
+      b.disabled = true; msg.textContent = 'Asking Meta what each ad is…';
+      try {
+        const r = await mApi(`/api/ads-type-backfill?act=${encodeURIComponent(S.act || 'all')}`);
+        const lines = (r.accounts || []).map(a => {
+          const m = a.mix || {};
+          const parts = ['video', 'image', 'carousel'].filter(k => m[k]).map(k => `${m[k]} ${k === 'image' ? 'static' : k}`);
+          return `<li><b>${esc(a.account)}</b>: ${a.resolved} resolved${a.still_null ? `, ${a.still_null} still unknown` : ''}${parts.length ? ` &nbsp;·&nbsp; now ${parts.join(', ')}` : ''}</li>`;
+        }).join('');
+        msg.textContent = 'Done ✓';
+        noteModal('Creative formats updated', `<p>Each ad below now carries the format Meta reports for it, so cards and the type filter show carousels where they exist.</p><ul style="margin:8px 0 0 18px">${lines}</ul>
+          <p class="tiny" style="margin-top:10px">"Still unknown" means Meta would not return that ad's creative, usually because it was deleted. Those keep falling back to the video-or-static guess.</p>`);
+      } catch (e) { msg.textContent = e.message; }
+      b.disabled = false;
+    };
+  }
 
   /* ---- global send time ---- */
   (async () => {

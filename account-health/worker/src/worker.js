@@ -5930,6 +5930,90 @@ export default {
         return json({ assets });
       }
 
+      /* BACKFILL `ads.media_type` FOR A WHOLE ACCOUNT.
+         The format shown on a creative card is meant to be simply what Meta
+         says the ad IS: video, static or carousel, no naming convention, no
+         inference. It was not, for most ads, and the reason was never the
+         display logic: `media_type` is only written as a side effect of
+         `adThumbnails`, which resolves TEN ads per page view because it also
+         downloads their images. Party Patch had 1,049 of 1,085 ads with the
+         column still NULL, so nearly every card fell back to the delivery-data
+         guess (video plays or not) and a CAROUSEL could never appear at all -
+         not on a card, and not in the type filter, which only lists types it
+         can actually see. Cole: "if it's a carousel then it puts carousel, it
+         doesn't need a naming convention, it just says what it is".
+
+         Type is cheap where images are not: it is one field on the creative, so
+         50 ads resolve in ONE call instead of 50. This walks the account in
+         chunks and writes the column properly. `?act=` one account, `?act=all`
+         every active one. It is a button, not a cron - the account is at the
+         free-plan trigger limit, and a full account is a handful of calls. */
+      if (path === '/api/ads-type-backfill') {
+        const act = url.searchParams.get('act');
+        const cap = Math.min(Math.max(+url.searchParams.get('limit') || 600, 50), 2000);
+        const accts = act && act !== 'all'
+          ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
+          : await listAccounts(env, true);
+        if (!accts.length) return json({ error: 'unknown account' }, 404);
+        const CREATIVE_FIELDS = 'creative{object_type,video_id,object_story_spec{page_id,video_data{video_id},link_data{child_attachments}},asset_feed_spec}';
+        const typeOf = c => {
+          const kids = c?.object_story_spec?.link_data?.child_attachments;
+          const isCarousel = (Array.isArray(kids) && kids.length > 1)
+            || c?.object_type === 'CAROUSEL'
+            || !!c?.asset_feed_spec?.additional_data?.multi_share_end_card;
+          if (isCarousel) return 'carousel';
+          const isVideo = !!(c?.video_id || c?.object_type === 'VIDEO'
+            || c?.object_story_spec?.video_data
+            || (Array.isArray(c?.asset_feed_spec?.videos) && c.asset_feed_spec.videos.length));
+          return isVideo ? 'video' : 'image';
+        };
+        /* One deleted or permission-blocked ad fails the WHOLE batched call, so
+           a failed chunk is split rather than abandoned. A single ad that still
+           fails is skipped and counted, never retried forever. */
+        const resolve = async ids => {
+          if (!ids.length) return {};
+          try {
+            return await meta(env, '', { ids: ids.join(','), fields: CREATIVE_FIELDS }) || {};
+          } catch (e) {
+            if (ids.length === 1) return {};
+            const mid = Math.ceil(ids.length / 2);
+            const [a, b] = await Promise.all([resolve(ids.slice(0, mid)), resolve(ids.slice(mid))]);
+            return { ...a, ...b };
+          }
+        };
+        const out = [];
+        for (const acct of accts) {
+          const { results } = await env.DB.prepare(
+            `SELECT ad_id FROM ads WHERE act_id = ?1 AND media_type IS NULL LIMIT ?2`,
+          ).bind(acct.act_id, cap).all();
+          const ids = (results || []).map(r => r.ad_id);
+          let wrote = 0, missed = 0;
+          for (let i = 0; i < ids.length; i += 50) {
+            const chunk = ids.slice(i, i + 50);
+            const got = await resolve(chunk);
+            const stmts = [];
+            for (const id of chunk) {
+              const c = got?.[id]?.creative;
+              if (!c) { missed++; continue; }
+              stmts.push(env.DB.prepare(`UPDATE ads SET media_type = ?2 WHERE ad_id = ?1`).bind(id, typeOf(c)));
+            }
+            if (stmts.length) { await env.DB.batch(stmts); wrote += stmts.length; }
+          }
+          const left = await env.DB.prepare(
+            `SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND media_type IS NULL`,
+          ).bind(acct.act_id).first();
+          const mix = await env.DB.prepare(
+            `SELECT media_type AS t, COUNT(*) AS n FROM ads WHERE act_id = ?1 AND media_type IS NOT NULL GROUP BY t`,
+          ).bind(acct.act_id).all();
+          out.push({
+            account: acct.name, act_id: acct.act_id,
+            resolved: wrote, unresolvable: missed, still_null: left?.n ?? null,
+            mix: Object.fromEntries((mix.results || []).map(r => [r.t, r.n])),
+          });
+        }
+        return json({ ok: true, accounts: out });
+      }
+
       if (path === '/api/ads') {
         const act = url.searchParams.get('act');
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
