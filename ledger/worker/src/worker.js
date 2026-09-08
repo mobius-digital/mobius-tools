@@ -459,7 +459,8 @@ async function processSlackReceipts(env) {
     const who = await slack(env, 'auth.test');
     if (who.ok) { selfId = cfg.selfUserId = who.user_id; }
   }
-  let handled = 0;
+  let handled = 0, needsYou = 0;
+  const filed = [];
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
     if (selfId && msg.user === selfId) continue;              // our own P&L posts
@@ -475,6 +476,15 @@ async function processSlackReceipts(env) {
       const reply = (text, blocks) => slack(env, 'chat.postMessage',
         { channel: cfg.channelId, thread_ts: msg.ts, text, unfurl_links: false,
           ...(blocks ? { blocks } : {}) }, true);
+      /* A reaction is the whole status report when nothing is wrong. It does
+       * not notify anyone, so twenty forwarded receipts stop being twenty
+       * pings: the tick just appears on each one. Anything that actually
+       * needs Cole still replies in the thread, which does notify. */
+      const react = name => slack(env, 'reactions.add',
+        { channel: cfg.channelId, timestamp: msg.ts, name }, true).catch(() => {});
+      /* Filed without incident: tick it, remember it, and say nothing until
+       * the end of the run — one summary beats twenty replies. */
+      const quiet = (t) => { if (t) filed.push(t); return react('white_check_mark'); };
       /* The category controls live IN the thread, so a wrong guess is one tap
        * to fix and the app never has to be opened for a receipt. */
       const catControls = (txnId, current, alternates) => {
@@ -582,13 +592,20 @@ async function processSlackReceipts(env) {
             hit.push(row);
           }
           if (hit.length) {
-            const lines = hit.map(t => `• *${t.vendor}* $${t.amount.toFixed(2)} — ${moLabel(monthOf(t.date))}`).join('\n');
-            const msg = `🧾 That covered *${hit.length} payment${hit.length > 1 ? 's' : ''}* — attached to each:\n${lines}` +
-              (miss.length ? `\n\n⚠️ ${miss.length} more in there matched no charge yet: ${miss.map(p => `${p.vendor} $${Math.abs(p.amount).toFixed(2)}`).join(', ')}.` : '');
-            await reply(msg, [{ type: 'section', text: { type: 'mrkdwn', text: msg } },
-              { type: 'actions', elements: hit.slice(0, 5).map(t => ({ type: 'button', action_id: 'unmatch',
-                  text: { type: 'plain_text', text: `Not ${String(t.vendor).slice(0, 18)} ↩︎` },
-                  value: JSON.stringify({ undo: t.id }) })) }]);
+            if (miss.length) {
+              const lines = hit.map(t => `• *${t.vendor}* $${t.amount.toFixed(2)} — ${moLabel(monthOf(t.date))}`).join('\n');
+              const msg = `🧾 Attached to *${hit.length} payment${hit.length > 1 ? 's' : ''}*:\n${lines}\n\n` +
+                `⚠️ ${miss.length} more in there matched no charge: ${miss.map(p => `${p.vendor} $${Math.abs(p.amount).toFixed(2)}`).join(', ')}. ` +
+                `Either it has not posted to Novo or Amex yet, or it went on a different card.`;
+              await react('warning'); needsYou++;
+              await reply(msg, [{ type: 'section', text: { type: 'mrkdwn', text: msg } },
+                { type: 'actions', elements: hit.slice(0, 5).map(t => ({ type: 'button', action_id: 'unmatch',
+                    text: { type: 'plain_text', text: `Not ${String(t.vendor).slice(0, 18)} ↩︎` },
+                    value: JSON.stringify({ undo: t.id }) })) }]);
+            } else {
+              for (const t of hit) filed.push(t);
+              await quiet(null);   // all of it landed: tick it, say nothing
+            }
             handled++; continue;
           }
           // nothing matched: fall through and treat it as one ordinary receipt
@@ -621,21 +638,46 @@ async function processSlackReceipts(env) {
             note: ext.note ? String(ext.note).slice(0, 300) : null,
             tax_cat: ext.tax_category || null,
           }));
-          await reply(
-            `🔍 *${ext.vendor}* $${Number(ext.amount).toFixed(2)} — no matching charge on Novo or Amex, so nothing was filed.\n` +
-            `That usually means it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.`,
-            [{ type: 'section', text: { type: 'mrkdwn', text:
-                `🔍 *${ext.vendor}* $${Number(ext.amount).toFixed(2)} — no matching charge on Novo or Amex, so nothing was filed.\n` +
-                `That usually means it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.` } },
-              { type: 'actions', elements: [{ type: 'button', action_id: 'led_file',
-                  style: 'primary', text: { type: 'plain_text', text: 'It is mine — file it' },
-                  value: JSON.stringify({ file: pendKey }) }] }]);
+          /* "No match" is usually true, but not always: the exact-cent rule
+           * misses a receipt whose total differs from what the card actually
+           * took (foreign VAT, a rounded conversion, a tip added after). So
+           * before shrugging, look for a charge that is CLOSE on the same
+           * vendor and offer it by name. Never auto-attached — offered. */
+          const tol = Math.max(1, Number(ext.amount) * 0.05);
+          const { results: near } = await env.DB.prepare(
+            `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
+             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) <= ?4
+             ORDER BY ABS(amount - ?3) LIMIT 3`)
+            .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)),
+                  Number(ext.amount), tol).all();
+          const firstWord = String(ext.vendor).toLowerCase().split(' ')[0];
+          const close = near.filter(t => t.vendor.toLowerCase().includes(firstWord)
+            || firstWord.includes(t.vendor.toLowerCase().split(' ')[0]));
+          const pick = (close.length ? close : near).slice(0, 3);
+          const head = `🔍 *${ext.vendor}* $${Number(ext.amount).toFixed(2)} — nothing on Novo or Amex matches that amount exactly.`;
+          const body = pick.length
+            ? `${head}\nThese are close, same window — tap one to attach it there:`
+            : `${head}\nThat usually means it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.`;
+          await react('question'); needsYou++;
+          await reply(body, [
+            { type: 'section', text: { type: 'mrkdwn', text: body } },
+            ...(pick.length ? [{ type: 'section', fields: pick.map(t => ({ type: 'mrkdwn',
+                text: `*${t.vendor}*\n$${t.amount.toFixed(2)} · ${t.date}` })) }] : []),
+            { type: 'actions', elements: [
+              ...pick.map(t => ({ type: 'button', action_id: 'led_attach',
+                text: { type: 'plain_text', text: `${String(t.vendor).slice(0, 14)} $${t.amount.toFixed(2)}` },
+                value: JSON.stringify({ file: pendKey, to: t.id }) })),
+              { type: 'button', action_id: 'led_file',
+                style: 'primary', text: { type: 'plain_text', text: 'File as new' },
+                value: JSON.stringify({ file: pendKey }) },
+            ].slice(0, 5) }]);
           handled++; continue;
         }
         // 3) otherwise a readable receipt files itself as a new expense
         if (!target && ext?.vendor && ext?.amount) {
           const date = rDate, month = rMonth;
           if ((await monthStatus(env, month)) === 'closed') {
+            await react('lock'); needsYou++;
             await reply(`🔒 That looks like *${ext.vendor}* $${Number(ext.amount).toFixed(2)} from ${date} — but ${moLabel(month)} is closed and nothing there matches that amount. Reopen the month in the app if it really belongs there.`);
             handled++; continue;
           }
@@ -669,25 +711,26 @@ async function processSlackReceipts(env) {
           // the one mistake that would quietly move spend around behind him
           if (target.__new) {
             const base = `🧾 Filed: *${target.vendor}* $${target.amount.toFixed(2)} — dated ${target.date}, lands in *${moLabel(monthOf(target.date))}*. Receipt attached.`;
-            const text = target.__review
-              ? base + `\n⚠️ I couldn't tell what this was — pick a category below and I'll remember it.`
-              : target.__guessed
-                ? base + `\nCategorized as *${target.__cat}* (my read of the receipt — tap below if it was something else, like client entertainment).`
-                : base + `\nCategorized as *${target.__cat}* (your usual for this vendor — tap below if this time was different).`;
-            await reply(text, [
-              { type: 'section', text: { type: 'mrkdwn', text } },
-              catControls(target.id, target.__cat, target.__alts),
-            ]);
+            /* A brand new row is money the bank feed did not have, so it is
+             * always worth a word — but only an uncertain category is worth
+             * a ping. A vendor with a known rule just gets its tick. */
+            if (target.__review || target.__guessed) {
+              const text = target.__review
+                ? base + `\n⚠️ I couldn't tell what this was — pick a category below and I'll remember it.`
+                : base + `\nCategorized as *${target.__cat}* (my read of the receipt — tap below if it was something else, like client entertainment).`;
+              await react(target.__review ? 'warning' : 'eyes'); needsYou++;
+              await reply(text, [
+                { type: 'section', text: { type: 'mrkdwn', text } },
+                catControls(target.id, target.__cat, target.__alts),
+              ]);
+            } else {
+              await quiet(target);
+            }
           } else {
-            const mt = `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`;
-            await reply(mt, [
-              { type: 'section', text: { type: 'mrkdwn', text: mt } },
-              { type: 'actions', elements: [{ type: 'button', action_id: 'unmatch',
-                  text: { type: 'plain_text', text: 'Not a match ↩︎' },
-                  value: JSON.stringify({ undo: target.id }) }] },
-            ]);
+            await quiet(target);   // matched an existing charge: nothing to decide
           }
         } else {
+          await react('question'); needsYou++;
           await reply(isEmail
             ? `⚠️ No amount anywhere in this email — some vendors only say "view your receipt" behind a link.\n` +
               `Open it, download the actual receipt, and drop that here instead. If it is a vendor that never emails one, ` +
@@ -696,13 +739,31 @@ async function processSlackReceipts(env) {
         }
         handled++;
       } catch (e) {
+        await react('x').catch(() => {});
+        needsYou++;
         await reply(`⚠️ Something went wrong handling this file: ${String(e.message || e).slice(0, 140)}`).catch(() => {});
       }
     }
   }
+  /* One line for the whole run. Each receipt already carries its own tick, so
+   * this exists to say the quiet ones happened — and to be the single place a
+   * bulk forward reports in, instead of a reply per email. */
+  if (filed.length) {
+    const lines = filed.slice(0, 12).map(t =>
+      `• *${t.vendor}* $${Math.abs(t.amount).toFixed(2)} — ${moLabel(monthOf(t.date))}`).join('\n');
+    const more = filed.length > 12 ? `\n_…and ${filed.length - 12} more._` : '';
+    const tail = needsYou
+      ? `\n\n⚠️ ${needsYou} other${needsYou > 1 ? 's' : ''} in this batch need${needsYou > 1 ? '' : 's'} you — they replied in their own thread.`
+      : `\n\nNothing needs you.`;
+    await slack(env, 'chat.postMessage', { channel: cfg.channelId, unfurl_links: false,
+      text: `🧾 Filed ${filed.length} receipt${filed.length > 1 ? 's' : ''}.`,
+      blocks: [{ type: 'section', text: { type: 'mrkdwn', text:
+        `🧾 *Filed ${filed.length} receipt${filed.length > 1 ? 's' : ''}* — each is ticked ✅ on its own message.\n${lines}${more}${tail}` } }],
+    }, true).catch(() => {});
+  }
   cfg.lockUntil = 0;
   await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
-  return { handled, channel: cfg.channelId };
+  return { handled, filed: filed.length, needsYou, channel: cfg.channelId };
 }
 
 /* The old first-of-month ritual, delivered instead of performed: on the 1st
@@ -1322,6 +1383,27 @@ export default {
           const blob = await receiptGet(env, val.file);
           if (!meta || !blob) {
             respond({ replace_original: false, text: '⚠️ That one has expired — drop the receipt in again.' });
+            return new Response('', { status: 200 });
+          }
+          /* "That one there" — the receipt's total did not match to the cent,
+           * so it was offered against a near charge and he picked it. Attach
+           * to that existing row; never create a second one beside it. */
+          if (val.to) {
+            const row = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.to)).first();
+            if (!row) {
+              respond({ replace_original: false, text: '⚠️ That charge is gone — open the app and attach it there.' });
+              return new Response('', { status: 200 });
+            }
+            const k = `rcpt:${row.id}:${Date.now()}`;
+            await receiptPut(env, k, blob);
+            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
+              .bind(row.id, k, meta.name, meta.type).run();
+            await receiptDelete(env, val.file);
+            await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
+            respond({ replace_original: true,
+              text: `✓ Attached to *${row.vendor}* $${row.amount.toFixed(2)} in *${moLabel(row.month)}*.` +
+                    (Math.abs(row.amount - meta.amount) > 0.001
+                      ? ` (Receipt said $${meta.amount.toFixed(2)} — the charge is what counts.)` : '') });
             return new Response('', { status: 200 });
           }
           if ((await monthStatus(env, meta.month)) === 'closed') {
