@@ -563,3 +563,40 @@ profit/
   `.unit-in input,.unit-in input[type=text],.unit-in input[type=number]`.
 - Windows: `npx.cmd wrangler deploy` from `profit/worker/`. PowerShell 5.1 uses
   `;` not `&&`. Cloudflare throws transient 7403 — retry.
+
+## Chrome: a SIDE RAIL, not a top bar (2026-09-08)
+
+- **`.app` is a two-column grid: `.side` (236px rail) + `.content`.** The rail is
+  `position:sticky; height:100vh` with its own overflow, so a short viewport
+  scrolls the tabs instead of clipping Settings off the bottom. Under 980px it
+  becomes a fixed off-canvas drawer toggled by `#navToggle`, with `#navScrim`
+  behind it; `body.nav-open` is the only state.
+- **The scroll-tuck is gone and must not come back.** It existed to reclaim the
+  ~110px the old sticky header cost. A rail costs zero vertical space, so there
+  is nothing to tuck, and a page that moves under the reader while they scroll is
+  a cost with no remaining benefit.
+- **Every tab selector is scoped to `button[data-t]`.** The Meta sub-tabs now sit
+  INSIDE `#tabs` (nested under the Meta button, which is what makes the hierarchy
+  readable without a second colour). A bare `#tabs button` would match them too
+  and call `show(undefined)`.
+- **`chrome(false)` / `chrome(true)`, never hand-rolled show/hide.** Six places
+  used to toggle the rail, picker, sub-tabs and sign-out individually in four
+  spellings, and each new share view copied whichever was nearest. `chrome()`
+  also sets `body.nochrome`, which collapses the grid to one column so a
+  signed-out visitor or a client on a share link never sees an empty dark rail.
+- **`main` and `footer` need `width:100%` as well as `margin:0 auto`.** They are
+  flex items of `.content` now, and an auto horizontal margin on a flex item
+  turns off stretch and falls back to shrink-to-fit. Without it main collapses to
+  the width of its widest line and sits centred. Any new full-width child of
+  `.content` needs the same pair.
+- **`.hd-title` and `.hd-right` live in `.topbar` and are load-bearing.** The
+  share views (client report link, client profit link, post-install landing)
+  write straight into both, and that row is the only chrome those readers get.
+  `.hd-title:empty{display:none}` keeps it out of the way in the signed-in app.
+- **The active tab is dark ink on the brand fill**, not white. White on #62BDEA
+  does not pass contrast.
+- **Testing note that keeps being true:** the Browser pane frequently does not
+  composite, and a stalled CSS transition then reports its START value forever.
+  A `transform` driven by a transition will read as `matrix(1,0,0,1,0,0)` and
+  look like a broken rule. Set `style.transition='none'` before measuring, or
+  measure a property nothing animates.
