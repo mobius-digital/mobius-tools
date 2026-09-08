@@ -423,11 +423,19 @@ function navHTML(){
 }
 function show(view){
   S.view = view;
+  S.rt = (S.rt || 0) + 1;   // every render carries a ticket; only the newest paints
   $('#nav').innerHTML = navHTML();
   ({dash:renderDash, txns:renderTxns, receipts:renderReceipts, close:renderClose,
     reports:renderReports, forecast:renderForecast, settings:renderSettings}[view])();
 }
-function setMonth(m){ S.month = m; localStorage.setItem(LS.month, m); S.txns=null; show(S.view); }
+/* A render that awaited the network while you moved on must not paint over
+   where you went. Checked immediately before each screen writes itself. */
+const stale = my => S.rt !== my;
+/* Changing the month and going somewhere is ONE render. Calling this and then
+   show() separately raced two async renders against each other, and the slower
+   one painted over the faster one — which is how "Close August" silently
+   dumped you back on the dashboard. */
+function setMonth(m, view){ S.month = m; localStorage.setItem(LS.month, m); S.txns=null; show(view || S.view); }
 function monthNav(){
   const st = moState(S.month);
   return `<div class="mo-nav no-print">
@@ -440,7 +448,7 @@ function monthNav(){
 
 /* ================= home ================= */
 async function renderDash(){
-  const m = $('#main');
+  const m = $('#main'), my = S.rt;
   m.innerHTML = '<div class="sub">Loading…</div>';
   let sum;
   try { sum = await api('/api/summary?month=' + S.month); await loadTxns(); }
@@ -515,6 +523,7 @@ async function renderDash(){
     return `<div><span style="color:var(--muted);font-weight:700">−</span><span>${esc(t.vendor)} ${fmt$(t.amount)}${t.receipt_key?' · receipt ✓':''}</span></div>`;
   }).join('');
 
+  if (stale(my)) return;
   m.innerHTML = `
     <div class="ph"><div><div class="serifh">${MONTHS[+S.month.slice(5,7)-1]}${phrase || '.'}</div>
       <div class="sub" style="margin-bottom:0">${dateLine}</div></div>
@@ -526,7 +535,7 @@ async function renderDash(){
         <div class="sd">of ${fmtK(expTotal)} expected</div></div>
       <div class="stat"><div class="fig-l">Spent</div><div class="sv">${fmtK(r.expenses + r.fees)}</div>
         <div class="sd" style="margin-top:23px">all expenses${topOut?` · biggest: ${esc(topOut[0].replace(/\s*\(.*$/,''))} ${fmtK(topOut[1])}`:''}</div></div>
-      <div class="stat ${prevRep && prevRep.net>=0?'goodc':''}" style="cursor:pointer" onclick="${prevClosed?`S.reportMonth='${prevMo}';show('reports')`:`setMonth('${prevMo}');show('close')`}"><div class="fig-l" style="${prevRep&&prevRep.net>=0?'color:var(--good)':''}">${moShort(prevMo)} net · ${prevClosed?'closed':'unclosed'}</div>
+      <div class="stat ${prevRep && prevRep.net>=0?'goodc':''}" style="cursor:pointer" onclick="${prevClosed?`S.reportMonth='${prevMo}';show('reports')`:`setMonth('${prevMo}','close')`}"><div class="fig-l" style="${prevRep&&prevRep.net>=0?'color:var(--good)':''}">${moShort(prevMo)} net · ${prevClosed?'closed':'unclosed'}</div>
         <div class="sv">${prevRep?fmtK(prevRep.net):'—'}</div>
         <div class="sd" style="margin-top:23px;font-weight:700">${prevClosed?'Closed ✓ · view the report →':blocking?`${blocking} item${blocking>1?'s':''} before the close →`:'Nothing blocks the close →'}</div></div>
       <div class="stat ${things?'warnc':''}" style="cursor:pointer" onclick="S.filter='needs';show('txns')"><div class="fig-l" style="${things?'color:var(--warn)':''}">Needs you</div><div class="sv">${things||'0'}</div>
@@ -552,11 +561,11 @@ async function renderDash(){
             ${needsRows.map(([n,label,go]) => `<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="${go}">
               <b style="width:20px;text-align:right;color:${n?'var(--warn)':'inherit'}">${n}</b>
               <span style="flex:1;color:#3A4B58">${label}</span>${n?arrow:check}</div>`).join('')}
-            <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${prevMo}');show('close')"`:''}>
+            <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${prevMo}','close')"`:''}>
               <b style="width:20px;text-align:right;color:${blocking?'var(--warn)':'inherit'}">${blocking}</b>
               <span style="flex:1;${blocking?'color:#3A4B58':''}">blocking the ${moShort(prevMo)} close</span>${blocking?arrow:check}</div>
           </div>
-          ${!prevClosed?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${prevMo}');show('close')">Close ${moShort(prevMo)} →</button>`:''}
+          ${!prevClosed?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${prevMo}','close')">Close ${moShort(prevMo)} →</button>`:''}
         </div>
         <div class="card"><span class="ct">When ${moShort(prevMo)} closes, move</span>
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${splitRows || '<div class="hint">No report yet.</div>'}</div></div>
@@ -1395,7 +1404,7 @@ function newFromReceipt(){
 
 /* ================= close ================= */
 async function renderClose(){
-  const m = $('#main');
+  const m = $('#main'), my = S.rt;
   m.innerHTML = '<div class="sub">Loading…</div>';
   let rep;
   try { await loadTxns(); rep = await api('/api/report?month=' + S.month); }
@@ -1501,7 +1510,7 @@ async function renderReports(){
   m.innerHTML = `
     ${rmOpen ? `<div class="notice no-print" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
       <span style="flex:1"><b>${moName(rm)} is still open</b> · these figures move until you close it. The checklist checks itself.</span>
-      <button class="btn primary" onclick="setMonth('${rm}');show('close')">Open the close checklist →</button></div>` : ''}
+      <button class="btn primary" onclick="setMonth('${rm}','close')">Open the close checklist →</button></div>` : ''}
     <div class="ph no-print"><div><h2>Reports</h2>
       <div class="sub" style="margin-bottom:0">The month's report card, print-ready · and the CPA pack below it. Months appear here as they arrive; the app rolls into 2027 and beyond on its own.</div></div>
       <div class="row rpt-picker" style="margin-bottom:0">
