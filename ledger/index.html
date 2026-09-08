@@ -52,6 +52,15 @@
   .nbars .nb.hi .ml,.nbars .nb.hi .mv{color:var(--good);font-weight:700}
   .nbars .nb .mv{font-size:11px;white-space:nowrap}
   .ct{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  #charttip{position:fixed;z-index:80;background:var(--ink);color:#fff;font-size:12px;font-weight:600;
+    padding:6px 10px;border-radius:7px;pointer-events:none;white-space:nowrap;
+    box-shadow:0 8px 22px rgba(12,22,29,.3);opacity:0;transition:opacity .06s}
+  #charttip.on{opacity:1}
+  /* corners, not pills — the app language everywhere controls appear */
+  main .ctl, main .chip{border-radius:8px}
+  /* $1,199.57 was getting clipped in the recurring table's amount boxes.
+     mobius.css zeroes min-width at higher specificity, hence the !important. */
+  .unit-in input{min-width:84px!important}
   .txgrid{display:grid;grid-template-columns:2.1fr 1fr;gap:16px;align-items:start}
   .src{font-size:11px;font-weight:600;color:#8B9AA6;letter-spacing:.02em}
   .rrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
@@ -160,8 +169,14 @@
   /* one attention color: amber says "needs you"; red stays destructive-only */
   .msel-btn.unset{color:#8F6412;border-color:#EBBF63;border-style:dashed}
   .msel-panel{position:fixed;z-index:70;background:var(--surface);border:1px solid var(--line-strong);
-    border-radius:12px;box-shadow:0 18px 48px rgba(12,22,29,.26);padding:6px;
-    max-height:min(52vh,420px);overflow:auto;min-width:220px}
+    border-radius:10px;box-shadow:0 18px 48px rgba(12,22,29,.26);padding:6px;
+    max-height:min(52vh,420px);overflow-y:auto;min-width:220px;
+    scrollbar-width:thin;scrollbar-color:#C4D2DB transparent}
+  /* the OS scrollbar was drawing a grey slab over the panel's right border */
+  .msel-panel::-webkit-scrollbar{width:10px}
+  .msel-panel::-webkit-scrollbar-thumb{background:#C4D2DB;border-radius:99px;border:3px solid var(--surface)}
+  .msel-panel::-webkit-scrollbar-thumb:hover{background:#9FB1BD}
+  .msel-panel::-webkit-scrollbar-track{background:transparent}
   .msel-opt{padding:8px 11px;border-radius:8px;font-size:13px;cursor:pointer;line-height:1.35;
     color:var(--ink);white-space:nowrap}
   .msel-opt:hover,.msel-opt.on{background:var(--brand-soft)}
@@ -238,7 +253,7 @@
 
   /* ---- report card ---- */
   .rpt{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px 30px;max-width:820px}
-  .rpt h1{font-family:var(--serif);font-weight:400;font-size:26px}
+  .rpt h1{font-weight:700;font-size:23px;letter-spacing:-.01em}
   .rpt .rsub{color:var(--muted);font-size:12.5px;margin-bottom:18px}
   .rpt .figs{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line);margin-bottom:18px}
   .rpt .figs .fig{flex:1 1 140px}
@@ -482,7 +497,7 @@ async function renderDash(){
   const bars = nets.map(n => {
     const h = Math.max(3, Math.round(Math.max(0, n.net)/maxN*118));
     const cur = n.m === nowMonth();
-    return `<div class="nb ${n.m===hiM?'hi':''}" title="${moName(n.m)} net ${fmt$(n.net)}">
+    return `<div class="nb ${n.m===hiM?'hi':''}" data-tip="${moName(n.m)} · net ${fmt$(n.net)}">
       ${n.m===hiM?`<span class="mv">${fmtK(n.net)}</span>`:''}
       <div class="bar" style="height:${h}px${cur?';background:#F7FAFB;border:2px dashed #A9BAC6;box-shadow:none':''}"></div>
       <span class="ml">${moShort(n.m)}</span></div>`;
@@ -510,44 +525,61 @@ async function renderDash(){
         <div class="pbar"><i style="width:${expTotal?Math.min(100,Math.round(r.revenue/expTotal*100)):0}%"></i></div>
         <div class="sd">of ${fmtK(expTotal)} expected</div></div>
       <div class="stat"><div class="fig-l">Spent</div><div class="sv">${fmtK(r.expenses + r.fees)}</div>
-        <div class="sd" style="margin-top:23px">all expenses${topOut?` · biggest: ${esc(topOut[0])} ${fmtK(topOut[1])}`:''}</div></div>
-      <div class="stat ${prevRep && prevRep.net>=0?'goodc':''}"><div class="fig-l" style="${prevRep&&prevRep.net>=0?'color:var(--good)':''}">${moShort(prevMo)} net · ${prevClosed?'closed':'unclosed'}</div>
+        <div class="sd" style="margin-top:23px">all expenses${topOut?` · biggest: ${esc(topOut[0].replace(/\s*\(.*$/,''))} ${fmtK(topOut[1])}`:''}</div></div>
+      <div class="stat ${prevRep && prevRep.net>=0?'goodc':''}" style="cursor:pointer" onclick="${prevClosed?`S.reportMonth='${prevMo}';show('reports')`:`setMonth('${prevMo}');show('close')`}"><div class="fig-l" style="${prevRep&&prevRep.net>=0?'color:var(--good)':''}">${moShort(prevMo)} net · ${prevClosed?'closed':'unclosed'}</div>
         <div class="sv">${prevRep?fmtK(prevRep.net):'—'}</div>
-        <div class="sd" style="margin-top:23px;font-weight:700;cursor:pointer" onclick="${prevClosed?`S.reportMonth='${prevMo}';show('reports')`:`setMonth('${prevMo}');show('close')`}">${prevClosed?'Closed ✓ · view the report →':blocking?`${blocking} item${blocking>1?'s':''} before the close →`:'Nothing blocks the close →'}</div></div>
-      <div class="stat ${things?'warnc':''}"><div class="fig-l" style="${things?'color:var(--warn)':''}">Needs you</div><div class="sv">${things||'0'}</div>
-        <div class="sd" style="margin-top:23px${things?';font-weight:700':''}">${things?'the list is on the right →':'all clear · nothing waiting'}</div></div>
+        <div class="sd" style="margin-top:23px;font-weight:700">${prevClosed?'Closed ✓ · view the report →':blocking?`${blocking} item${blocking>1?'s':''} before the close →`:'Nothing blocks the close →'}</div></div>
+      <div class="stat ${things?'warnc':''}" style="cursor:pointer" onclick="S.filter='needs';show('txns')"><div class="fig-l" style="${things?'color:var(--warn)':''}">Needs you</div><div class="sv">${things||'0'}</div>
+        <div class="sd" style="margin-top:23px${things?';font-weight:700':''}">${things?'open the list →':'all clear · nothing waiting'}</div></div>
     </div>
 
     <div class="homegrid">
-      <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
-          <span class="ct">Retainers · ${moShort(S.month)}</span>
-          <span class="tiny">paused clients not counted in expected</span></div>
-        <div class="rboard">${tiles}
-          <div class="rtile total"><div class="rn">Month total</div><div class="rv">${fmtK(r.revenue)} <span style="font-size:12px;color:#8195A2;font-weight:500">/ ${fmtK(expTotal)}</span></div></div>
-        </div></div>
-      <div class="card"><span class="ct">Needs you · ${things} thing${things===1?'':'s'}</span>
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;font-size:13.5px">
-          ${needsRows.map(([n,label,go]) => `<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="${go}">
-            <b style="width:20px;text-align:right;color:${n?'var(--warn)':'inherit'}">${n}</b>
-            <span style="flex:1;color:#3A4B58">${label}</span>${n?arrow:check}</div>`).join('')}
-          <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${prevMo}');show('close')"`:''}>
-            <b style="width:20px;text-align:right;color:${blocking?'var(--warn)':'inherit'}">${blocking}</b>
-            <span style="flex:1;${blocking?'color:#3A4B58':''}">blocking the ${moShort(prevMo)} close</span>${blocking?arrow:check}</div>
-        </div>
-        ${!prevClosed?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${prevMo}');show('close')">Close ${moShort(prevMo)} →</button>`:''}
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+        <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span class="ct">Retainers · ${moShort(S.month)}</span>
+            <span class="tiny">paused clients not counted in expected</span></div>
+          <div class="rboard">${tiles}
+            <div class="rtile total"><div class="rn">Month total</div><div class="rv">${fmtK(r.revenue)} <span style="font-size:12px;color:#8195A2;font-weight:500">/ ${fmtK(expTotal)}</span></div></div>
+          </div></div>
+        <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span class="ct">Net income · ${S.month.slice(0,4)}</span>
+            <span class="tiny">YTD ${fmtK(ytd)} · <b style="cursor:pointer;color:var(--brand-ink)" onclick="show('forecast')">cash forecast →</b></span></div>
+          <div class="nbars">${bars || '<div class="hint">No data yet this year.</div>'}</div></div>
       </div>
-
-      <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
-          <span class="ct">Net income · ${S.month.slice(0,4)}</span>
-          <span class="tiny">YTD ${fmtK(ytd)} · <b style="cursor:pointer;color:var(--brand-ink)" onclick="show('forecast')">cash forecast →</b></span></div>
-        <div class="nbars">${bars || '<div class="hint">No data yet this year.</div>'}</div></div>
-      <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+        <div class="card"><span class="ct">Needs you · ${things} thing${things===1?'':'s'}</span>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;font-size:13.5px">
+            ${needsRows.map(([n,label,go]) => `<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="${go}">
+              <b style="width:20px;text-align:right;color:${n?'var(--warn)':'inherit'}">${n}</b>
+              <span style="flex:1;color:#3A4B58">${label}</span>${n?arrow:check}</div>`).join('')}
+            <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${prevMo}');show('close')"`:''}>
+              <b style="width:20px;text-align:right;color:${blocking?'var(--warn)':'inherit'}">${blocking}</b>
+              <span style="flex:1;${blocking?'color:#3A4B58':''}">blocking the ${moShort(prevMo)} close</span>${blocking?arrow:check}</div>
+          </div>
+          ${!prevClosed?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${prevMo}');show('close')">Close ${moShort(prevMo)} →</button>`:''}
+        </div>
         <div class="card"><span class="ct">When ${moShort(prevMo)} closes, move</span>
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${splitRows || '<div class="hint">No report yet.</div>'}</div></div>
         <div class="card"><span class="ct">Happening on its own</span>
           <div class="feed">${feed || '<div class="hint">Nothing yet this month.</div>'}</div></div>
       </div>
     </div>`;
+  chartTips();
+}
+
+/* An instant, app-styled tooltip for the chart — the browser's native title
+   bubble takes a second to appear and looks like Windows, not like Ledger. */
+function chartTips(){
+  let tip = $('#charttip');
+  if (!tip){ tip = document.createElement('div'); tip.id = 'charttip'; document.body.appendChild(tip); }
+  document.querySelectorAll('.nbars .nb[data-tip]').forEach(el => {
+    el.onmouseenter = () => { tip.textContent = el.dataset.tip; tip.classList.add('on'); };
+    el.onmousemove = e => {
+      tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px';
+      tip.style.top = (e.clientY - 34) + 'px';
+    };
+    el.onmouseleave = () => tip.classList.remove('on');
+  });
 }
 
 /* ================= transactions ================= */
@@ -571,6 +603,14 @@ function txnRows(){
     if (S.filter==='expected') return t.expected===1;
     if (S.filter==='needs' || S.filter==='review' || S.filter==='norcpt') return needsYou(t);
     return true;
+  }).sort((a,b) => {
+    // in the attention view, the rows waiting on a category float to the top
+    if (S.filter==='needs' || S.filter==='review' || S.filter==='norcpt') {
+      const ar = a.status==='review' && !a.expected ? 0 : 1;
+      const br = b.status==='review' && !b.expected ? 0 : 1;
+      if (ar !== br) return ar - br;
+    }
+    return 0;
   }).filter(t => {
     const q = (S.q||'').trim().toLowerCase();
     if (!q) return true;
@@ -640,7 +680,12 @@ function mselOpen(ev, id){
 }
 document.addEventListener('click', mselClose);
 addEventListener('resize', mselClose);
-addEventListener('scroll', mselClose, true);
+/* Scrolling INSIDE the open panel is how you reach the lower options —
+   only a scroll of the page behind it should close the dropdown. */
+addEventListener('scroll', e => {
+  if (MSEL.open && MSEL.open.panel.contains(e.target)) return;
+  mselClose();
+}, true);
 
 /* ---- selection + in-place editing ---- */
 function togglePick(id, on){ on ? S.sel.add(id) : S.sel.delete(id); renderTxns(); }
@@ -679,7 +724,7 @@ async function setRowField(id, field, value, el){
       flash(`Saved · categorized ${kin.length + 1} ${t.vendor} transactions.`);
     } else if (field === 'tax_cat' && value) flash(`Saved · ${t?.vendor || 'transaction'} → ${value}.`);
     else flash('Saved.');
-    S.txns = null; S.boot = await api('/api/boot');
+    S.txns = null; window.__moCache={}; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
   } catch(e){
     if (el) el.disabled = false;
@@ -702,7 +747,7 @@ async function bulkApply(){
   const body = { ids, tax_cat: tax };
   try {
     const r = await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify(body) });
-    S.sel.clear(); S.txns = null; S.boot = await api('/api/boot');
+    S.sel.clear(); S.txns = null; window.__moCache={}; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
     flash(`Updated ${r.updated} transaction${r.updated===1?'':'s'}.`);
     if (r.skippedClosed) tell('Some rows were skipped',
@@ -716,7 +761,7 @@ async function bulkSkipReceipts(){
     ok: 'Mark them' })) return;
   try {
     await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify({ ids, receipt_skip: true }) });
-    S.sel.clear(); S.txns = null; S.boot = await api('/api/boot');
+    S.sel.clear(); S.txns = null; window.__moCache={}; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
   } catch(e){ tell('Could not update those', e.message); }
 }
@@ -810,7 +855,7 @@ async function renderTxns(){
     if (dz) {
       dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); };
       dz.ondragleave = () => dz.classList.remove('over');
-      dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handleDrop(f); };
+      dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); if (e.dataTransfer.files.length) handleDrop(e.dataTransfer.files); };
     }
     // the custom dropdowns report their picks here rather than via onchange
     for (const t of rows) {
@@ -835,7 +880,7 @@ function txnRail(){
   }).join('');
   return `
     <div class="drop" id="drop" onclick="dropPick()" style="padding:22px 16px">
-      <b>Drop a receipt here</b>or send it to #finance and it files itself
+      <b>Drop receipts here · a whole stack at once is fine</b>each one files itself against the month on the receipt
     </div>
     <div class="card" style="margin-top:14px">
       <div style="display:flex;align-items:baseline;justify-content:space-between">
@@ -941,7 +986,7 @@ function addModal(prefill = {}){
     if (!row.vendor || !row.amount || !row.date) { $('#tMsg').className='msg bad'; $('#tMsg').textContent='Vendor, amount and date are required.'; return; }
     try {
       await api('/api/transactions', { method:'POST', body: JSON.stringify(row) });
-      closeModal(); S.txns=null; S.boot = await api('/api/boot'); show(S.view);
+      closeModal(); S.txns=null; window.__moCache={}; S.boot = await api('/api/boot'); show(S.view);
     } catch(e){ $('#tMsg').className='msg bad'; $('#tMsg').textContent=e.message; }
   };
 }
@@ -997,7 +1042,7 @@ async function editTxn(id){
     if (t.stripe_cus && $('#eMap')?.checked) { b.mapStripe = true; b.status = 'ok'; }
     try {
       await api('/api/transaction', { method:'PUT', body: JSON.stringify(b) });
-      closeModal(); S.txns=null; S.boot = await api('/api/boot'); show(S.view);
+      closeModal(); S.txns=null; window.__moCache={}; S.boot = await api('/api/boot'); show(S.view);
     } catch(e){ $('#eMsg').className='msg bad'; $('#eMsg').textContent=e.message; }
   };
 }
@@ -1027,11 +1072,21 @@ function downscale(file){
     img.src = URL.createObjectURL(file);
   });
 }
-function pickFile(cb){
+function pickFile(cb, multi){
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*,application/pdf';
-  inp.onchange = () => inp.files[0] && cb(inp.files[0]);
+  inp.multiple = !!multi;
+  inp.onchange = () => inp.files[0] && cb(multi ? inp.files : inp.files[0]);
   inp.click();
+}
+/* Transactions for any month, cached — receipt matching follows the date ON
+   the receipt, which is very often not the month currently on screen. */
+async function txnsForMonth(month){
+  if (month === S.txnMonth && S.txns) return S.txns;
+  window.__moCache = window.__moCache || {};
+  if (!window.__moCache[month])
+    window.__moCache[month] = (await api('/api/transactions?month=' + month)).transactions;
+  return window.__moCache[month];
 }
 async function attachReceipt(id){
   pickFile(async file => {
@@ -1039,7 +1094,7 @@ async function attachReceipt(id){
     try {
       const { data, type } = await downscale(file);
       await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name: file.name, type, data }) });
-      closeModal(); S.txns=null; S.boot = await api('/api/boot'); show(S.view);
+      closeModal(); S.txns=null; window.__moCache={}; S.boot = await api('/api/boot'); show(S.view);
     } catch(e){ if (el){ el.className='msg bad'; el.textContent=e.message; } }
   });
 }
@@ -1098,7 +1153,7 @@ async function runImport(){
   try {
     const res = await api('/api/transactions', { method:'POST', body: JSON.stringify({ rows }) });
     el.className='msg good'; el.textContent=`Imported ${res.inserted.length} of ${rows.length} (skipped rows fell in closed months). Known vendors categorized themselves; the rest are in Review.`;
-    S.txns=null; S.boot = await api('/api/boot');
+    S.txns=null; window.__moCache={}; S.boot = await api('/api/boot');
     setTimeout(() => { closeModal(); show('txns'); }, 1600);
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
 }
@@ -1111,11 +1166,12 @@ async function renderReceipts(){
   const missing = (S.txns||[]).filter(t => t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip);
   const have = (S.txns||[]).filter(t => t.receipt_key);
   m.innerHTML = `
+    <div class="row no-print" style="margin-bottom:4px"><button class="ctl" onclick="show('txns')" style="color:var(--brand-ink);font-weight:700">← Back to Transactions</button></div>
     <div class="ph"><div><h2>Receipts</h2>
       <div class="sub" style="margin-bottom:0">Drop or snap a receipt · Ledger reads it and matches it to the right transaction. This replaces the Drive folders and the yellow highlighting.</div></div>
       ${monthNav()}</div>
     <div class="drop" id="drop" onclick="dropPick()">
-      <b>Drop a receipt here · or tap to choose / take a photo</b>
+      <b>Drop receipts here · a whole stack at once is fine</b>
       Images are read automatically${S.boot.extractAvailable?'':' (reading is off until the ANTHROPIC_API_KEY secret is set · files still attach fine)'}; PDFs attach directly.
     </div>
     <div class="grp" style="margin-top:22px"><span class="ct">Missing a receipt · ${moName(S.month)}</span><span class="ln"></span>
@@ -1128,7 +1184,7 @@ async function renderReceipts(){
   const dz = $('#drop');
   dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); };
   dz.ondragleave = () => dz.classList.remove('over');
-  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handleDrop(f); };
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); if (e.dataTransfer.files.length) handleDrop(e.dataTransfer.files); };
 }
 /* Missing receipts, split by whether there is anywhere to go and get one.
    Vendors that never email an invoice are the expensive ones at month end —
@@ -1185,10 +1241,10 @@ async function setBillingUrl(vendor){
     } catch(e){ $('#buMsg').className='msg bad'; $('#buMsg').textContent = e.message; }
   };
 }
-function dropPick(){ pickFile(handleDrop); }
+function dropPick(){ pickFile(handleDrop, true); }
 async function skipRcpt(id){
   try { await api('/api/transaction', { method:'PUT', body: JSON.stringify({ id, receipt_skip: true }) });
-    S.txns=null; S.boot = await api('/api/boot'); show('receipts');
+    S.txns=null; window.__moCache={}; S.boot = await api('/api/boot'); show('receipts');
   } catch(e){ $('#main').insertAdjacentHTML('afterbegin', `<div class="notice bad">${esc(e.message)}</div>`); }
 }
 async function reportToSlack(btn){
@@ -1231,15 +1287,36 @@ function attachFor(id){
     try {
       const { data, type } = await downscale(file);
       await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type, data }) });
-      S.txns=null; S.boot = await api('/api/boot');
+      S.txns=null; window.__moCache={}; S.boot = await api('/api/boot');
       await loadTxns(); (S.view==='txns' ? renderTxns : renderReceipts)();
       flash('Saved · receipt attached.');
     } catch(e){ tell('Could not do that', e.message); }
   });
 }
-async function handleDrop(file){
+/* Accepts one file or a whole stack. Each receipt is matched in the month
+   written ON the receipt (not the month on screen — that is exactly how the
+   July Fireflies receipt ended up on the September row). In a batch, a
+   receipt whose amount matches exactly one open expense files itself; the
+   ambiguous ones come to you one at a time. */
+async function handleDrop(files){
+  const list = files instanceof File ? [files] : [...files];
+  window.__rq = list.slice();
+  window.__rqStats = { auto:0, manual:0, skipped:0, total:list.length };
+  await processNextReceipt();
+}
+async function processNextReceipt(){
+  const q = window.__rq || [], st = window.__rqStats || { auto:0, manual:0, skipped:0, total:0 };
+  const file = q.shift();
+  if (!file){
+    window.__moCache = {}; S.txns = null; window.__moCache={}; S.boot = await api('/api/boot');
+    await loadTxns(); (S.view==='txns' ? renderTxns : renderReceipts)();
+    const did = st.auto + st.manual;
+    if (st.total > 1) flash(`Saved · ${st.auto} filed automatically, ${st.manual} filed by hand${st.skipped?`, ${st.skipped} skipped`:''}.`);
+    else if (did) flash('Saved · receipt attached.');
+    return;
+  }
   const dz = $('#drop');
-  dz.innerHTML = '<b>Reading receipt…</b>one moment';
+  if (dz) dz.innerHTML = `<b>Reading ${esc(file.name)}…</b>${st.total>1 ? `${st.total - q.length} of ${st.total}` : 'one moment'}`;
   let ext = null, payload = null;
   try {
     payload = await downscale(file);
@@ -1248,26 +1325,54 @@ async function handleDrop(file){
       ext = r.extracted;
     }
   } catch(e){ /* extraction is best-effort */ }
-  matchModal(file, payload, ext);
+  if (!payload){ st.skipped++; return processNextReceipt(); }
+  const rMonth = (ext?.date && /^\d{4}-\d{2}/.test(String(ext.date))) ? String(ext.date).slice(0,7) : S.month;
+  let pool = S.txns || [];
+  try {
+    pool = await txnsForMonth(rMonth);
+    if (rMonth !== S.month) pool = [...pool, ...(S.txns||[])];
+  } catch(e){}
+  if (st.total > 1 && ext?.amount != null){
+    const exact = pool.filter(t => t.type==='out' && !t.receipt_key && Math.abs(t.amount - (+ext.amount)) < .01);
+    if (exact.length === 1){
+      try {
+        await api('/api/receipt', { method:'POST', body: JSON.stringify({ id: exact[0].id, name: file.name, type: payload.type, data: payload.data }) });
+        st.auto++; return processNextReceipt();
+      } catch(e){ /* fall through to the modal */ }
+    }
+  }
+  matchModal(file, payload, ext, { pool, rMonth });
 }
-function matchModal(file, payload, ext){
+function matchModal(file, payload, ext, opts = {}){
   (S.view==='txns' ? renderTxns : renderReceipts)(); // reset whichever drop zone was used
-  const cand = (S.txns||[]).filter(t => t.type==='out' && !t.receipt_key)
-    .map(t => ({ t, score: (ext?.amount && Math.abs(t.amount - ext.amount) < .01 ? 2 : 0) +
+  const pool = opts.pool || (S.txns||[]);
+  const st = window.__rqStats || { total:1 }, q = window.__rq || [];
+  const cand = pool.filter(t => t.type==='out' && !t.receipt_key)
+    .map(t => ({ t, score: (ext?.amount != null && Math.abs(t.amount - ext.amount) < .01 ? 2 : 0) +
       (ext?.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0]) ? 1 : 0) }))
     .sort((a,b) => b.score - a.score).slice(0, 6);
+  /* same amount + vendor already carrying a receipt = probably this same file twice */
+  const dupe = ext?.amount != null ? pool.find(t => t.receipt_key && Math.abs(t.amount - ext.amount) < .01
+    && (!ext.vendor || t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0]))) : null;
   openModal(`
-    <h3>File this receipt</h3>
+    <h3>File this receipt${st.total>1 ? ` · ${st.total - q.length} of ${st.total}` : ''}</h3>
     <div class="hint">${ext ? `Read: <b>${esc(ext.vendor||'?')}</b> · <b>${ext.amount!=null?fmt$(+ext.amount):'?'}</b>${ext.date?` · ${esc(ext.date)}`:''}` : 'Pick the transaction this belongs to, or create a new one.'}</div>
-    <label>Match to an existing expense</label>
+    ${dupe ? `<div class="notice" style="margin:10px 0 0;background:var(--warn-bg);border-color:var(--warn);color:var(--warn)">
+      <b>${esc(dupe.vendor)} ${fmt$(dupe.amount)} on ${fmtDate(dupe.date)} already has a receipt</b> — this may be the same one twice. ${st.total>1?'Skip':'Cancel'} if so.</div>` : ''}
+    <label>Match to an expense${opts.rMonth && opts.rMonth !== S.month ? ` <span class="why">The receipt is dated ${moName(opts.rMonth)}, so that month's open expenses are shown too.</span>` : ''}</label>
     ${cand.map(({t,score}) => `<button class="btn" style="display:flex;width:100%;margin-top:6px;text-align:left;gap:10px" onclick="fileTo(${t.id})">
-      <span style="flex:1">${esc(t.vendor)} <span class="tiny">${fmtDate(t.date)}</span></span>
-      <b>${fmt$(t.amount)}</b>${score>=2?' <span class="pill good">match</span>':''}</button>`).join('') || '<div class="hint">No unreceipted expenses this month.</div>'}
+      <span style="flex:1">${esc(t.vendor)} <span class="tiny">${fmtDate(t.date)}${t.month !== S.month ? ` · ${moName(t.month)}` : ''}</span></span>
+      <b>${fmt$(t.amount)}</b>${score>=2?' <span class="pill good">match</span>':''}</button>`).join('') || '<div class="hint">No unreceipted expenses found for that month.</div>'}
     <div class="acts">
       <button class="btn" onclick='newFromReceipt()'>+ New transaction from this</button>
-      <span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button></div>
+      <span class="spacer"></span><button class="btn" onclick="skipReceiptFile()">${q.length ? 'Skip this one' : 'Cancel'}</button></div>
     <div class="msg" id="fMsg"></div>`);
   window.__pendingReceipt = { file, payload, ext };
+}
+function skipReceiptFile(){
+  closeModal();
+  if (window.__rqStats) window.__rqStats.skipped++;
+  if ((window.__rq||[]).length) processNextReceipt();
 }
 async function fileTo(id){
   const { file, payload } = window.__pendingReceipt || {};
@@ -1275,13 +1380,14 @@ async function fileTo(id){
   const el = $('#fMsg'); el.className='msg'; el.textContent='Attaching…';
   try {
     await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type:payload.type, data:payload.data }) });
-    closeModal(); S.txns=null; S.boot = await api('/api/boot');
-    await loadTxns(); (S.view==='txns' ? renderTxns : renderReceipts)();
-    flash('Saved · receipt attached.');
+    if (window.__rqStats) window.__rqStats.manual++;
+    closeModal();
+    return processNextReceipt();   // reloads + confirms when the queue is empty
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
 }
 function newFromReceipt(){
   const { ext } = window.__pendingReceipt || {};
+  window.__rq = [];   // hand-creating a transaction ends the batch cleanly
   closeModal();
   addModal({ vendor: ext?.vendor || '', amount: ext?.amount ?? '', date: ext?.date || '', note: ext?.note || '' });
   // after saving, the user can attach from the edit modal; simplest reliable path
@@ -1816,7 +1922,7 @@ async function driveRun(btn){
       msg.textContent = `${r.at} of ${r.total} · ${r.attached} attached, ${r.noMatch} no match, ${r.unreadable} unreadable`;
       if (r.done) break;
     }
-    S.txns = null; S.boot = await api('/api/boot');
+    S.txns = null; window.__moCache={}; S.boot = await api('/api/boot');
     flash('Import finished.');
     renderDrive();
   } catch(e){ msg.className='msg bad'; msg.textContent = e.message + ' · press Resume to carry on.'; btn.disabled = false; }
@@ -1869,7 +1975,7 @@ function vendorCards(vendors){
   const recRow = v => { const c = catCell(v); return `<tr${v.active?'':' style="opacity:.5"'}>
     <td><b>${esc(v.name)}</b>${v.active?'':' <span class="pill unk">paused</span>'}</td>
     <td>${c.bucket}</td><td>${c.tax}</td>
-    <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" step="0.01" value="${v.expected_amount??''}" onchange="saveVendorField('${esc(v.name)}','expected_amount',this.value)"></div></td>
+    <td class="num" style="width:150px"><div class="unit-in" style="min-width:130px"><span>$</span><input type="number" step="0.01" value="${v.expected_amount??''}" style="min-width:86px" onchange="saveVendorField('${esc(v.name)}','expected_amount',this.value)"></div></td>
     <td style="white-space:nowrap"><select onchange="saveVendorField('${esc(v.name)}','repeats',this.value)">
       <option value="monthly" ${v.cadence!=='yearly'?'selected':''}>Every month</option>
       <option value="yearly" ${v.cadence==='yearly'?'selected':''}>Once a year</option>
@@ -2047,7 +2153,7 @@ async function slackPollNow(btn){
     const r = await api('/api/slack-poll', { method:'POST', body: JSON.stringify({}) });
     el.className = r.error ? 'msg bad' : 'msg good';
     el.textContent = r.error ? r.error : `Done · ${r.handled||0} new file(s) handled.`;
-    S.txns = null; S.boot = await api('/api/boot');
+    S.txns = null; window.__moCache={}; S.boot = await api('/api/boot');
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
   btn.disabled = false;
 }
