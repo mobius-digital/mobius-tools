@@ -184,7 +184,7 @@
 
   /* ---- the content column ---- */
   .content{min-width:0;display:flex;flex-direction:column}
-  .topbar{display:flex;align-items:center;gap:12px;width:100%;max-width:1240px;margin:0 auto;padding:14px 26px 0}
+  .topbar{display:flex;align-items:center;gap:12px;width:100%;max-width:1240px;margin:0;padding:14px 26px 0}
   .hd-title{font-family:var(--serif);font-size:22px;color:var(--ink);line-height:1.15}
   .hd-title:empty{display:none}
   .hd-title em{font-style:italic;color:var(--brand-ink)}
@@ -198,6 +198,28 @@
   body.nochrome .app{grid-template-columns:minmax(0,1fr)}
   body.nochrome .nav-toggle{display:none !important}
 
+  /* CONTENT STARTS AT THE RAIL. `margin:0 auto` centred the column in whatever
+     was left of the window, which on a wide display opened a gap between the
+     rail and the first pixel of content and made the rail read as detached
+     furniture. With a side nav the reading start IS the rail's edge. The
+     max-width still caps line length; it just runs out on the right now. */
+
+  /* Mouse clicks should not leave a ring behind. Keyboard users still get one. */
+  nav.tabs button[data-t]:focus,nav.subtabs button:focus,.side-brand:focus{outline:none}
+  nav.tabs button[data-t]:focus-visible,nav.subtabs button:focus-visible,
+  .side-brand:focus-visible,.nav-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+  /* TABLET, rail still docked. 208px buys 28px back for the wide tables without
+     wrapping any label ("Data Health" is the longest and still fits). */
+  @media (min-width:981px) and (max-width:1180px){
+    :root{--side-w:208px}
+    nav.tabs button[data-t]{font-size:13px;gap:8px}
+    main{padding:8px 18px 60px}
+    .topbar{padding:12px 18px 0}
+    footer{padding:0 18px 36px}
+    .pbar .in{padding:10px 18px 0}
+  }
+
   @media (max-width:980px){
     .app{grid-template-columns:minmax(0,1fr)}
     .side{position:fixed;left:0;top:0;bottom:0;width:252px;height:100dvh;
@@ -205,7 +227,31 @@
     body.nav-open .side{transform:none}
     body.nav-open .nav-scrim{display:block}
     .nav-toggle{display:inline-flex}
-    .topbar{padding:12px 14px 0}
+    .topbar{padding:12px 16px 0}
+    main{padding:8px 16px 56px}
+    footer{padding:0 16px 32px}
+    .pbar .in{padding:10px 16px 0}
+    /* The drawer is over the page, so it must not scroll behind it. */
+    body.nav-open{overflow:hidden}
+  }
+
+  /* PHONE. Bigger tap targets in the drawer (44px is the floor), and the title
+     drops out of the top bar so the menu button and the period control fit one
+     row instead of wrapping into two. */
+  @media (max-width:600px){
+    .side{width:min(86vw,290px);padding:14px 12px}
+    /* 12px vertical puts the row at ~44px, which is the tap-target floor. On a
+       phone the rail is a menu you poke with a thumb, not a dense list you scan
+       with a cursor, so it gets the height back that the desktop budget spent. */
+    nav.tabs button[data-t]{padding:12px 10px;font-size:14px}
+    nav.subtabs button{padding:10px 10px;font-size:13px}
+    .side select{padding:9px 30px 9px 10px}
+    .hd-btn{padding:8px 12px}
+    .topbar{padding:10px 14px 0;gap:8px}
+    .hd-title{font-size:19px}
+    main{padding:8px 14px 52px}
+    footer{padding:0 14px 28px}
+    .pbar .in{padding:8px 14px 0}
   }
   @media (prefers-reduced-motion:reduce){ .side{transition:none} }
 
@@ -237,7 +283,7 @@
   .hd-per-note{margin:6px 10px 2px;font-size:11px;line-height:1.4;color:var(--muted)}
   /* A fixed-window screen states its window in one quiet line, not a strip. */
   .pbar{background:transparent;border:0}
-  .pbar .in{max-width:1240px;margin:0 auto;padding:12px 26px 0}
+  .pbar .in{max-width:1240px;margin:0;padding:12px 26px 0}
   .pb-fixed{font-size:12px;color:var(--muted)}
   @media (max-width:720px){ .pbar .in{padding:10px 14px 0} .hd-per-d{display:none} }
   /* The pbar now lives above <main>. Its own bottom edge is the gap before the
@@ -248,7 +294,7 @@
      shrink-to-fit, so main collapsed to the width of its widest line and sat
      centred in the column. It looked like a broken max-width; it was the
      centring itself. Same for footer. */
-  main{max-width:1240px;width:100%;margin:0 auto;padding:8px 26px 64px}
+  main{max-width:1240px;width:100%;margin:0;padding:8px 26px 64px}
   h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
   /* The per-page detail rides UNDER the purpose sentence, one step quieter, so
      the purpose is always the first thing read and never competes with it. */
@@ -1133,7 +1179,7 @@
   .rp-attr{border-left:3px solid var(--line-strong)}
   .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px}
 
-  footer{max-width:1240px;width:100%;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
+  footer{max-width:1240px;width:100%;margin:0;padding:0 26px 40px;color:var(--muted);font-size:12px}
   @media (max-width:900px){ .pc-stats{gap:18px 26px} }
   @media (max-width:720px){
     main{padding:16px 14px 60px} footer{padding:0 14px 40px} .feed .it{grid-template-columns:1fr}
