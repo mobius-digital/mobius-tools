@@ -4132,6 +4132,9 @@ async function renderBrief(first) {
   const bfRow = (d.history || []).find(hh => hh.date === d.date) || null;
   const bfDraft = bfRow && bfRow.status === 'draft' ? bfRow : null;
   const bfSent = bfRow && bfRow.status === 'sent' ? bfRow : null;
+  /* Same rule as the Reports tab: a channel that is set but archived is not a
+     place a brief can go, so the Send button must not offer it. */
+  const bfCanSend = await channelUsable(acct?.brief_channel);
   const hist = (d.history || []).map(hh => `
     <details style="margin:6px 0"><summary style="cursor:pointer;font-size:13px"><b>${esc(hh.date)}</b> · <span class="pill ${hh.status === 'sent' ? 'good' : hh.status === 'skipped' ? 'warn' : hh.status === 'error' ? 'bad' : 'unk'}">${esc(hh.status)}</span>${hh.posted_at ? ` <span class="tiny">${fmtAgo(hh.posted_at)}</span>` : ''}</summary>
     <div style="margin-top:6px">${slackPreview(hh.text, { when: hh.posted_at ? fmtAgo(hh.posted_at) : '' })}</div></details>`).join('');
@@ -4164,7 +4167,7 @@ async function renderBrief(first) {
       <div class="row" style="margin-bottom:8px">
         ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(d.date)}</button>`}
         ${bfDraft ? '<button class="btn" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn" id="bfCancel" style="display:none">Cancel</button>' : ''}
-        <button class="btn primary" id="bfPost" style="display:${bfDraft && acct?.brief_channel ? '' : 'none'}">Send to client</button>
+        <button class="btn primary" id="bfPost" style="display:${bfDraft && bfCanSend ? '' : 'none'}">Send to client</button>
         <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
         ${bfSent ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
         <span class="tiny" id="bfMsg"></span>
@@ -4956,6 +4959,23 @@ async function channelName(id) {
   return CHAN_CACHE[id] ? `#${CHAN_CACHE[id]}` : id;
 }
 
+/** Can we actually post to this channel today?
+ *  A channel id that is SET but no longer in the workspace list is an archived
+ *  or deleted channel, and that is worse than an empty field, because every
+ *  "is a client channel configured" check reads as yes. Lucky Golf's
+ *  brief_channel still pointed at #locus-test three days after Cole archived
+ *  it, so the Reports tab kept offering a Send button whose only possible
+ *  outcome was a failed post.
+ *  `/api/slack-channels` lists live channels only, so absence IS the signal.
+ *  Fails OPEN: if the list could not be fetched at all, assume usable, because
+ *  a transient API error must never hide a button that works. */
+async function channelUsable(id) {
+  if (!id) return false;
+  await channelName(id);
+  if (!CHAN_CACHE || !Object.keys(CHAN_CACHE).length) return true;
+  return !!CHAN_CACHE[id];
+}
+
 /** Attach the day-by-day crosshair. Called by BOTH report renderers after paint,
  *  so the client's page is as inspectable as ours. Shows the two lines and the
  *  gap between them, which is the thing the chart is actually about. */
@@ -5470,11 +5490,14 @@ async function renderReports(first) {
   }
 
   const sent = rep?.status === 'sent';
+  /* A set-but-dead channel must read as "not set", not as "ready to send". */
+  const clientChan = acct?.brief_channel;
+  const canSend = await channelUsable(clientChan);
   const banner = rep ? (sent
     ? `<div class="notice good">✓ <div><b>Sent to the client</b>${rep.sent_at ? ` ${fmtAgo(rep.sent_at)}` : ''}. This report is frozen - it can't be regenerated or edited, so the numbers on the client's link never shift under them. <button class="btn" id="rpLink" style="margin-left:8px">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`
-    : `<div class="notice">📝 <div><b>Internal draft - the client has not seen this.</b> ${acct?.brief_channel
+    : `<div class="notice">📝 <div><b>Internal draft - the client has not seen this.</b> ${canSend
         ? `Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button>`
-        : `Review it and edit the summary freely. <b>${esc(acct?.name || 'This brand')} has no client channel set</b>, so there is nowhere to send it - pick one in Settings under <b>Reports · to client</b> and the Send button appears here. A send never falls back to an internal channel.`} <button class="btn" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
+        : `Review it and edit the summary freely. <b>${esc(acct?.name || 'This brand')} ${clientChan ? 'points at a Slack channel that no longer exists' : 'has no client channel set'}</b>, so there is nowhere to send it${clientChan ? ` (the saved channel <code>${esc(clientChan)}</code> has been archived or deleted)` : ''} - pick one in Settings under <b>Client channel</b> and the Send button appears here. A send never falls back to an internal channel.`} <button class="btn" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
 
   const body = rep
     ? `${banner}${warn}<h2 style="margin-top:6px">${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'} - ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
@@ -6718,6 +6741,11 @@ async function renderSettings() {
     if (!m.tw_shop) bad.push('no Triple Whale shop');
     if (!a.slack_channel) bad.push('no internal channel');
     if (!a.brief_channel) bad.push('no client channel');
+    /* A saved id missing from the live channel list is an archived or deleted
+       channel. It has to be called out separately, because every other check
+       here sees a non-empty field and passes it. Only judged when the list
+       actually loaded, so an API failure does not accuse every brand at once. */
+    else if (Array.isArray(chList) && !chName(a.brief_channel)) bad.push('client channel was archived or deleted');
     else if (a.brief_channel === a.slack_channel) bad.push('client channel is your internal one');
     if (c.status === 'uninstalled') bad.push('Shopify removed by client');
     return bad.length
