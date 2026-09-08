@@ -625,3 +625,34 @@ profit/
   the scrolled area, with `block:'nearest'` so it never moves the page.
 - Contrast measured, not eyeballed: active pill 8.93:1, idle label 7.5:1,
   group caption 5.04:1.
+
+## Client-facing pages and creative formats (2026-09-08)
+
+- **`ads.media_type` is the ONLY source of a creative's format**, and it means
+  exactly what Meta reports: video / image (shown as "Static") / carousel.
+  Nothing is ever read from ad names. The `format` / `format_kind` fields the
+  API still returns come from the name tag and **nothing renders them** - a
+  card that printed "UGC" was printing a style, not a format, and a UGC ad IS a
+  video.
+- **The column fills in LAZILY and that is a trap.** It is written as a side
+  effect of `adThumbnails`, which resolves ten ads per page view because it also
+  downloads images, so a large account sits mostly NULL and every unresolved
+  card falls back to a delivery-data guess that can never produce a carousel.
+  `GET /api/ads-type-backfill?act=<id|all>` on the account-health worker fixes
+  an account properly: creative type is one field, so 50 ads resolve in ONE
+  batched call. A failed chunk is SPLIT, never abandoned, because one deleted ad
+  fails the whole batched call. Driven by the "Fetch missing formats" button in
+  Settings; it is not a cron because the account is at the 5-trigger limit.
+- **The client profit link takes its window from the QUERY STRING, never the
+  token.** `p_profit_share` is one stable URL per client and must stay that way,
+  so `?from=&to=` carries a picked range. No params means live month-to-date,
+  which is what a bare token has always meant, and forwarded links keep that.
+- **On a fixed window the plan comparison is WITHHELD, not pro-rated.** A plan
+  is agreed per month; "last 30 days" can straddle two, and pro-rating one
+  month's target across it invents a comparison nobody signed off. The heading
+  names the window it actually covers rather than always saying the month.
+- **Any chart on a client-facing page needs `wireSalesSpend`.** The client
+  profit chart shipped drawn but inert - no crosshair, no readout - on the one
+  page we hand over and cannot talk someone through. Use the shared helper so
+  the client view and the report view cannot drift. The client payload carries
+  money only and no ratios, so MER is derived in the formatter.
