@@ -507,9 +507,15 @@ async function processSlackReceipts(env) {
           blocks = [{ ...blocks[0], text: { ...blocks[0].text, text: at + blocks[0].text.text } }, ...blocks.slice(1)];
         return reply(withAt, blocks);
       };
-      /* Filed without incident: tick it, remember it, and say nothing until
-       * the end of the run — one summary beats twenty replies. */
-      const quiet = (t) => { if (t) filed.push(t); return react('white_check_mark'); };
+      /* Filed without incident: still say exactly what happened and where it
+       * went — a thread reply does not notify him, so a running record costs
+       * nothing. What it does NOT do is @mention him. The mention is reserved
+       * for the ones holding a decision, so a ping always means "you". */
+      const quiet = async (t, text, blocks) => {
+        if (t) filed.push(t);
+        await react('white_check_mark');
+        if (text) await reply(text, blocks);
+      };
       /* The category controls live IN the thread, so a wrong guess is one tap
        * to fix and the app never has to be opened for a receipt. */
       const catControls = (txnId, current, alternates) => {
@@ -628,8 +634,14 @@ async function processSlackReceipts(env) {
                     text: { type: 'plain_text', text: `Not ${String(t.vendor).slice(0, 18)} ↩︎` },
                     value: JSON.stringify({ undo: t.id }) })) }]);
             } else {
+              const lines = hit.map(t => `• *${t.vendor}* $${t.amount.toFixed(2)} — ${moLabel(monthOf(t.date))}`).join('\n');
+              const ok = `✅ Covered *${hit.length} payment${hit.length > 1 ? 's' : ''}* — receipt attached to each:\n${lines}`;
               for (const t of hit) filed.push(t);
-              await quiet(null);   // all of it landed: tick it, say nothing
+              await quiet(null, ok, [
+                { type: 'section', text: { type: 'mrkdwn', text: ok } },
+                { type: 'actions', elements: hit.slice(0, 5).map(t => ({ type: 'button', action_id: 'unmatch',
+                    text: { type: 'plain_text', text: `Not ${String(t.vendor).slice(0, 18)} ↩︎` },
+                    value: JSON.stringify({ undo: t.id }) })) }]);
             }
             handled++; continue;
           }
@@ -779,10 +791,19 @@ async function processSlackReceipts(env) {
                 catControls(target.id, target.__cat, target.__alts),
               ]);
             } else {
-              await quiet(target);
+              await quiet(target, base + `\nCategorized as *${target.__cat}* — your usual for this vendor.`, [
+                { type: 'section', text: { type: 'mrkdwn', text: base + `\nCategorized as *${target.__cat}* — your usual for this vendor.` } },
+                catControls(target.id, target.__cat, target.__alts),
+              ]);
             }
           } else {
-            await quiet(target);   // matched an existing charge: nothing to decide
+            const mt = `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`;
+            await quiet(target, mt, [
+              { type: 'section', text: { type: 'mrkdwn', text: mt } },
+              { type: 'actions', elements: [{ type: 'button', action_id: 'unmatch',
+                  text: { type: 'plain_text', text: 'Not a match ↩︎' },
+                  value: JSON.stringify({ undo: target.id }) }] },
+            ]);
           }
         } else {
           await react('question'); needsYou++;
@@ -800,22 +821,8 @@ async function processSlackReceipts(env) {
       }
     }
   }
-  /* One line for the whole run. Each receipt already carries its own tick, so
-   * this exists to say the quiet ones happened — and to be the single place a
-   * bulk forward reports in, instead of a reply per email. */
-  if (filed.length) {
-    const lines = filed.slice(0, 12).map(t =>
-      `• *${t.vendor}* $${Math.abs(t.amount).toFixed(2)} — ${moLabel(monthOf(t.date))}`).join('\n');
-    const more = filed.length > 12 ? `\n_…and ${filed.length - 12} more._` : '';
-    const tail = needsYou
-      ? `\n\n⚠️ ${needsYou} other${needsYou > 1 ? 's' : ''} in this batch need${needsYou > 1 ? '' : 's'} you — they replied in their own thread.`
-      : `\n\nNothing needs you.`;
-    await slack(env, 'chat.postMessage', { channel: cfg.channelId, unfurl_links: false,
-      text: `🧾 Filed ${filed.length} receipt${filed.length > 1 ? 's' : ''}.`,
-      blocks: [{ type: 'section', text: { type: 'mrkdwn', text:
-        `🧾 *Filed ${filed.length} receipt${filed.length > 1 ? 's' : ''}* — each is ticked ✅ on its own message.\n${lines}${more}${tail}` } }],
-    }, true).catch(() => {});
-  }
+  /* No end-of-run summary: every receipt now reports in its own thread, and a
+   * channel-level post is the one shape that WOULD ping him. */
   cfg.lockUntil = 0;
   await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
   return { handled, filed: filed.length, needsYou, channel: cfg.channelId };
