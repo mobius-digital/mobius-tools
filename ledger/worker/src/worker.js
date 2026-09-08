@@ -307,7 +307,14 @@ async function claudeExtract(env, b64, mediaType, textContent = null) {
         '{"vendor": string, "amount": number (the total), "date": "YYYY-MM-DD" or null, "note": short string or null,\n' +
         ' "tax_category": the single best fit from this exact list, or null if genuinely unclear: ' + JSON.stringify(cats) + ',\n' +
         ' "alternates": up to 2 other plausible categories from the same list (e.g. a restaurant could be "Meals (50%)" or "Entertainment — Ask CPA")}.\n' +
-        'Use the list values verbatim. No other text.' }] }],
+        'Use the list values verbatim.\n\n' +
+        'EXCEPTION — several payments in one document. Some documents are not one receipt: a bank confirmation ' +
+        'listing several direct deposits, or an email thread stacking separate notifications back to back. When the ' +
+        'document records TWO OR MORE payments to DIFFERENT recipients, add:\n' +
+        '"payments": [{"vendor": recipient name, "amount": number, "date": "YYYY-MM-DD" or null}, ...] listing every one.\n' +
+        'Only use "payments" for genuinely separate payments. One receipt with several line items, or a subtotal ' +
+        'plus tax plus total, is ONE payment — leave "payments" out entirely. Set the top-level fields from the ' +
+        'largest payment when you do use it. No other text.' }] }],
     }),
   });
   const j = await r.json().catch(() => ({}));
@@ -316,6 +323,13 @@ async function claudeExtract(env, b64, mediaType, textContent = null) {
   if (out) {
     if (!cats.includes(out.tax_category)) out.tax_category = null;
     out.alternates = (out.alternates || []).filter(c => cats.includes(c) && c !== out.tax_category).slice(0, 2);
+    out.payments = Array.isArray(out.payments)
+      ? out.payments
+          .map(p => ({ vendor: p && p.vendor ? String(p.vendor).slice(0, 120) : null,
+                       amount: Number(p && p.amount), date: p && p.date }))
+          .filter(p => p.vendor && Number.isFinite(p.amount) && p.amount !== 0)
+          .slice(0, 20)
+      : [];
   }
   return out;
 }
@@ -540,6 +554,45 @@ async function processSlackReceipts(env) {
         // "today" would silently move spend between months (and years).
         const rDate = /^\d{4}-\d{2}-\d{2}$/.test(ext?.date || '') && ext.date <= today ? ext.date : today;
         const rMonth = monthOf(rDate);
+
+        /* 0) ONE DOCUMENT, SEVERAL PAYMENTS. Cole pays his contractors in a
+         * single batch, so the bank sends back one confirmation covering four
+         * people at once. Read as a single receipt it would attach to whoever
+         * happened to be extracted first and leave the rest bare. Each payment
+         * gets matched on its own and the same file is attached to every row
+         * it settles. Strictly ATTACH-ONLY: the bank feed already carries these
+         * charges, so inventing rows from the confirmation would double-count. */
+        const many = (ext?.payments || []).length > 1 ? ext.payments : null;
+        if (many) {
+          const hit = [], miss = [];
+          for (const p of many) {
+            const pDate = /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') && p.date <= today ? p.date : rDate;
+            const { results } = await env.DB.prepare(
+              `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
+               AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01
+               ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
+              .bind(monthOf(addMonthsYmd(pDate, -1)), monthOf(addMonthsYmd(pDate, 1)), Math.abs(p.amount), pDate).all();
+            const first = String(p.vendor).toLowerCase().split(' ')[0];
+            const row = results.find(t => t.vendor.toLowerCase().includes(first)) || results[0] || null;
+            if (!row) { miss.push(p); continue; }
+            const key = `rcpt:${row.id}:${Date.now()}:${hit.length}`;
+            await receiptPut(env, key, buf);
+            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
+              .bind(row.id, key, fname.slice(0, 120), mimetype).run();
+            hit.push(row);
+          }
+          if (hit.length) {
+            const lines = hit.map(t => `• *${t.vendor}* $${t.amount.toFixed(2)} — ${moLabel(monthOf(t.date))}`).join('\n');
+            const msg = `🧾 That covered *${hit.length} payment${hit.length > 1 ? 's' : ''}* — attached to each:\n${lines}` +
+              (miss.length ? `\n\n⚠️ ${miss.length} more in there matched no charge yet: ${miss.map(p => `${p.vendor} $${Math.abs(p.amount).toFixed(2)}`).join(', ')}.` : '');
+            await reply(msg, [{ type: 'section', text: { type: 'mrkdwn', text: msg } },
+              { type: 'actions', elements: hit.slice(0, 5).map(t => ({ type: 'button', action_id: 'unmatch',
+                  text: { type: 'plain_text', text: `Not ${String(t.vendor).slice(0, 18)} ↩︎` },
+                  value: JSON.stringify({ undo: t.id }) })) }]);
+            handled++; continue;
+          }
+          // nothing matched: fall through and treat it as one ordinary receipt
+        }
 
         // 1) best case: it pays off an expense already in the ledger. Search the
         // receipt's own month ±1 (a card posts a day or two after the purchase);
