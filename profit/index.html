@@ -116,7 +116,7 @@
 
   /* One row, not two. The Mobius mark is the icon; Locus is the wordmark. */
   .side-brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:#fff;
-    padding:0 8px 10px;border-bottom:1px solid var(--hd-line)}
+    padding:0 9px 10px;border-bottom:1px solid var(--hd-line)}
   .side-brand img{height:26px;width:26px;border-radius:7px;display:block;flex:none}
   .side-brand .nm{font-family:var(--serif);font-size:20px;line-height:1;color:#fff}
   .side-brand .by{font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
@@ -125,7 +125,7 @@
 
   /* The picker carries a caption because an unlabelled dark box reading
      "Party Patch" does not say that it scopes the entire app. */
-  .side-client{padding:10px 8px;border-bottom:1px solid var(--hd-line);margin-bottom:9px}
+  .side-client{padding:10px 9px;border-bottom:1px solid var(--hd-line);margin-bottom:9px}
   .side-cap{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     color:#4B6072;display:block;margin-bottom:5px;user-select:none}
   .side-client select{width:100%}
@@ -136,7 +136,15 @@
   .side select:hover{border-color:#33506A}
 
   nav.tabs{display:flex;flex-direction:column;gap:10px;padding-bottom:4px}
-  nav.tabs .grp{display:flex;flex-direction:column}
+  /* `align-items:stretch` is NOT redundant. There is an unrelated `.grp` at
+     line ~459 (a section heading with a rule line) that sets
+     `align-items:center`, and this selector, while more specific, never
+     declared the property - so the rail's groups inherited centring, went
+     shrink-to-fit, and every tab sat at x=63 while the brand row, the client
+     picker and the footer all lined up at x=18. Cole: "menu tabs don't look
+     aligned correctly". A generic class name in a 7,000-line stylesheet is
+     shared whether you intended it or not. */
+  nav.tabs .grp{display:flex;flex-direction:column;align-items:stretch;gap:0;margin:0}
   nav.tabs .band{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     color:#43586A;padding:0 9px 3px;white-space:nowrap;user-select:none;pointer-events:none}
   nav.tabs .grp-btns{display:flex;flex-direction:column;gap:1px}
@@ -163,7 +171,11 @@
 
   /* Sub-tabs read as children of the row above: one guide line, one indent, and
      the SAME pill for the active one. */
-  nav.subtabs{margin:2px 0 2px 18px;padding-left:12px;border-left:1px solid #22364A}
+  /* Indent chosen so a sub-tab's LABEL lands on the same x as a parent tab's
+     label: 12 margin + 12 padding + 1 border + 9 button padding = 34, which is
+     the parent's 9 padding + 16 icon + 9 gap. The guide line then sits between
+     the icon column and the label column rather than at a third arbitrary x. */
+  nav.subtabs{margin:2px 0 2px 12px;padding-left:12px;border-left:1px solid #22364A}
   nav.subtabs .in{display:flex;flex-direction:column;gap:1px}
   nav.subtabs button{display:block;width:100%;text-align:left;padding:5px 9px;border-radius:7px;
     font-size:12.5px;font-weight:600;color:#7E93A5;white-space:nowrap;
@@ -172,7 +184,7 @@
   nav.subtabs button.on{background:var(--brand);color:#08131A}
 
   /* Session state, pinned to the bottom and out of the reading path. */
-  .side-foot{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--hd-line);
+  .side-foot{margin-top:auto;padding:12px 9px 0;border-top:1px solid var(--hd-line);
     display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .hd-chip{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
     border:1px solid var(--hd-line);border-radius:99px;padding:4px 9px;color:#8FA6B5;white-space:nowrap}
