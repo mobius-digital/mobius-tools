@@ -600,3 +600,28 @@ profit/
   A `transform` driven by a transition will read as `matrix(1,0,0,1,0,0)` and
   look like a broken rule. Set `style.transition='none'` before measuring, or
   measure a property nothing animates.
+
+### Rail, second pass (2026-09-08) — after "this side bar looks like shit"
+
+- **Only `.side-scroll` scrolls.** `.side` is `overflow:hidden` with the brand
+  row, the client picker and `.side-foot` pinned (`flex:none`) and the tab list
+  taking the overflow. The first version let the whole rail scroll, which pushed
+  Settings AND the Sign out button off a 720px viewport. Navigation you have to
+  scroll to reach is the exact failure a rail is supposed to fix.
+- **Icons are not decoration, they are the aim point.** Ten bare labels made
+  every selection a read. One 16px stroked `<symbol>` per tab in a sprite at the
+  top of `<body>`, referenced with `<use>`. Keep the stroke weight identical
+  across all ten or the column stops reading as one set.
+- **ONE active language, two levels.** The brand pill (`.on`) marks the page you
+  are looking at. Meta is never that: it is a section, so it takes the raised
+  `.sec` treatment and the pill goes to its open sub-tab. `show()` decides this
+  (`cur && tab !== 'meta'` vs `cur && tab === 'meta'`). Two pills meant neither
+  read as the answer.
+- **Row height is 30px and the vertical budget is real.** Ten tabs + five Meta
+  sub-tabs + four captions + header + picker + footer is ~700px. It fits a 720px
+  viewport with Meta closed and scrolls the middle when open, which is why the
+  numbers are tight. Anything added to the rail has to come out of that budget.
+- **`show()` scrolls the current tab into view** only when it is actually out of
+  the scrolled area, with `block:'nearest'` so it never moves the page.
+- Contrast measured, not eyeballed: active pill 8.93:1, idle label 7.5:1,
+  group caption 5.04:1.
