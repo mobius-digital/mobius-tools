@@ -63,6 +63,7 @@
     --bad:#9C3A2E;  --bad-bg:#F7E7E4;  --bad-on:#F09182;
     --unk:#647684;  --unk-bg:#EDF1F4;
     --radius:10px;
+    --side-w:236px;
     --sans:'Instrument Sans',system-ui,sans-serif;
     --serif:'Instrument Serif',Georgia,serif;
     --display:'Instrument Sans',system-ui,sans-serif;
@@ -75,92 +76,133 @@
   ::placeholder{color:#8195A2}
   a{color:var(--brand-ink)}
 
-  header{position:sticky;top:0;z-index:20;background:var(--hd);color:#DFEAF2}
-  /* THE BRAND ROW TUCKS AWAY WHILE YOU READ DOWN THE PAGE.
-     The header is sticky because the TABS are worth keeping - the logo, the
-     word "Locus" and the sign-out button are not, and on a laptop they were
-     holding ~50px of every screenful hostage on a page (Reports) that is mostly
-     long tables. Cole, 2026-09-07: "the floating header is just super big and
-     it's taking up a lot of room - even when you scroll down there's not much
-     room."
-     Tuck on scroll DOWN, restore on scroll UP, which is the pattern every reader
-     already knows and - crucially - keeps the client picker one flick away
-     rather than gone. Restoring also happens at the very top of the page, so the
-     header is always whole when you arrive. `overflow:hidden` + zero padding is
-     what actually collapses it; height alone leaves the padding behind. */
-  header .hd{transition:max-height .18s ease,padding .18s ease,opacity .14s ease;max-height:120px;overflow:hidden}
-  header.tuck .hd{max-height:0;padding-top:0;padding-bottom:0;opacity:0}
-  @media (prefers-reduced-motion:reduce){ header .hd{transition:none} }
-  .hd{display:flex;align-items:center;gap:16px;padding:9px 26px;flex-wrap:wrap;max-width:1240px;margin:0 auto}
-  .mark{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
-  .mark img{height:32px;width:32px;border-radius:8px;display:block}
-  .mark b{font-weight:700;letter-spacing:.06em;font-size:13px}
+  /* ==========================================================================
+     SIDE NAVIGATION (2026-09-08)
+     The nine tabs used to live in a sticky top bar with a brand row above them.
+     Together they took roughly 110px off the top of every screen, which on a
+     laptop is a fifth of the window spent on chrome, on pages that are mostly
+     long tables (Reports, Creative). Two workarounds had already been built to
+     claw that back: the brand row tucked itself away on scroll, and the group
+     captions were dropped below 1100px. The second one is the tell. The captions
+     were the only thing in the chrome that answered "when do I open this", and
+     they were being sacrificed exactly when space got tight.
+     A rail spends WIDTH instead, which is the axis a laptop has spare, and the
+     captions get permanent room. The tuck behaviour is gone with the top bar
+     that needed it. (Cole, 2026-09-08: "change this from top nav bar to side nav
+     bar so it opens it up more. Do a full redesign of it.")
+     ========================================================================== */
+  .app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:100vh}
+  /* Sticky, not fixed: it scrolls with its own overflow when the viewport is
+     short enough that nine tabs plus the client picker do not fit, instead of
+     clipping Settings off the bottom. */
+  .side{position:sticky;top:0;height:100vh;overflow-y:auto;overscroll-behavior:contain;
+    background:var(--hd);color:#DFEAF2;border-right:1px solid #060E13;
+    display:flex;flex-direction:column;padding:15px 12px 12px;z-index:40}
+  .side::-webkit-scrollbar{width:8px}
+  .side::-webkit-scrollbar-thumb{background:#22323F;border-radius:99px}
+  .mark{display:flex;align-items:center;gap:9px;text-decoration:none;color:#fff;padding:0 8px}
+  .mark img{height:28px;width:28px;border-radius:7px;display:block;flex:none}
+  .mark b{font-weight:700;letter-spacing:.06em;font-size:11.5px;line-height:1.2}
   .mark b span{color:var(--brand)}
-  .hd-sep{width:1px;height:28px;background:var(--hd-line)}
-  .hd-title{font-family:var(--serif);font-size:21px;color:#fff;white-space:nowrap}
-  .hd-title em{font-style:italic;color:var(--brand)}
-  .hd-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
-  .hd-chip{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--hd-line);border-radius:99px;padding:6px 12px;color:#9FB4C2;white-space:nowrap}
+  .side-app{font-family:var(--serif);font-size:23px;color:#fff;padding:9px 8px 12px;line-height:1}
+  .side-client{padding:0 8px 12px;margin-bottom:12px;border-bottom:1px solid var(--hd-line)}
+  .side-client select{width:100%}
+  .side select{background:#15232D;color:#DFEAF2;border:1px solid var(--hd-line);border-radius:8px;
+    padding:7px 30px 7px 11px;font-size:13px;appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239FB4C2' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 11px center}
+
+  /* Tab BANDS. Grouping by how often you open a tab is the only thing in the
+     chrome that answers "when do I use this". Vertically there is room for all
+     four captions at every width, so the 1100px breakpoint that used to delete
+     them is gone. */
+  nav.tabs{display:flex;flex-direction:column;gap:15px}
+  nav.tabs .grp{display:flex;flex-direction:column}
+  nav.tabs .band{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+    color:#4B6072;padding:0 9px 5px;white-space:nowrap;user-select:none;pointer-events:none}
+  nav.tabs .grp-btns{display:flex;flex-direction:column;gap:1px}
+  nav.tabs button[data-t]{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:8px;
+    font-size:13.5px;font-weight:600;color:#9FB4C2;white-space:nowrap;
+    transition:background .12s ease,color .12s ease}
+  nav.tabs button[data-t]:hover{background:#15232D;color:#D6E4EC}
+  /* The active tab is a filled brand pill with DARK ink on it. White on #62BDEA
+     is the obvious move and it does not pass contrast; the dark ink does, and it
+     gives the rail its one confident accent. */
+  nav.tabs button[data-t].on{background:var(--brand);color:#08131A}
+  nav.tabs button .soon{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#64788A;margin-left:6px}
+  nav.tabs .grp:has(button.on) .band{color:#7E97A8}
+
+  /* Meta sub-tabs, INDENTED UNDER the Meta button rather than in a bar of their
+     own. The nesting is the hierarchy, so they need no second colour to say it.
+     They sit outside #tabs in the DOM (see the markup comment) but read as
+     inside it. */
+  nav.subtabs{margin:2px 0 0 12px;padding-left:11px;border-left:1px solid var(--hd-line)}
+  nav.subtabs .in{display:flex;flex-direction:column;gap:1px}
+  nav.subtabs button{display:block;width:100%;text-align:left;padding:5px 9px;border-radius:7px;
+    font-size:12.5px;font-weight:600;color:#8CA2B2;white-space:nowrap}
+  nav.subtabs button:hover{background:#15232D;color:#D6E4EC}
+  nav.subtabs button.on{background:#15232D;color:#fff}
+
+  /* Session state sits at the BOTTOM of the rail, out of the reading path. It
+     is the thing you look for when something is wrong, not while working. */
+  .side-foot{margin-top:auto;padding:14px 8px 0;border-top:1px solid var(--hd-line);
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .hd-chip{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--hd-line);border-radius:99px;padding:5px 10px;color:#9FB4C2;white-space:nowrap}
   .hd-chip[data-s="live"]{color:#7BE0A3;border-color:rgba(123,224,163,.35)}
   .hd-chip[data-s="down"]{color:#F2938A;border-color:rgba(242,147,138,.4)}
-  .hd-btn{border:1px solid var(--hd-line);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:#BFD3E0;white-space:nowrap}
+  .hd-btn{border:1px solid var(--hd-line);border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;color:#BFD3E0;white-space:nowrap}
   .hd-btn:hover{border-color:var(--brand);color:#fff}
-  .hd select{background:#15232D;color:#DFEAF2;border:1px solid var(--hd-line);border-radius:8px;padding:7px 32px 7px 12px;font-size:13px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239FB4C2' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 
-  nav.tabs{background:var(--hd);border-top:1px solid var(--hd-line)}
-  nav.tabs .in{max-width:1240px;margin:0 auto;padding:0 26px;display:flex;gap:4px;overflow-x:auto}
-  nav.tabs button{padding:9px 13px 10px;font-size:13px;font-weight:600;color:#9FB4C2;border-bottom:2px solid transparent;white-space:nowrap}
-  nav.tabs button.on{color:#fff;border-bottom-color:var(--brand)}
-  nav.tabs button .soon{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#64788A;margin-left:6px}
-  /* Tab BANDS. The row used to be nine equal buttons in build order, so Costs -
-     opened twice a year - carried the same weight as Reports. Grouping them by
-     how often you open one is the only thing in the chrome that answers "when
-     do I use this", and it is the question that made the tool hard to explain.
-     The label sits ABOVE its group, not inline with the buttons: inline, at the
-     same baseline and the same row, it read as another tab and Cole tried to
-     click it. A caption over a group cannot be mistaken for one. */
-  nav.tabs .in{align-items:stretch;gap:0}
-  nav.tabs .grp{display:flex;flex-direction:column;justify-content:flex-end}
-  /* Grouping by PROXIMITY, not by rules. Vertical dividers plus captions plus
-     nine buttons was three separating devices doing one job and it read as
-     clutter; 28px between groups against 2px within says the same thing and
-     leaves the row quiet. */
-  nav.tabs .grp + .grp{margin-left:28px}
-  nav.tabs .band{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
-    color:#4B6072;padding:5px 13px 0;white-space:nowrap;user-select:none;pointer-events:none}
-  nav.tabs .grp-btns{display:flex;gap:2px}
-  /* The active tab reads as the brand, not just as lighter text. */
-  nav.tabs button{transition:color .12s ease}
-  nav.tabs button:hover{color:#D6E4EC}
-  nav.tabs .grp:has(button.on) .band{color:#7E97A8}
-  /* 1100, not 900: measured, the four labels add ~220px of width and the row
-     began scrolling at 1024 with them in. Below that the labels go entirely -
-     display:none, not font-size:0, so the row loses their height too and the
-     grouping survives as spacing. */
-  @media (max-width:1100px){
-    nav.tabs .band{display:none}
-    /* With the captions gone, proximity alone is too subtle at a glance, so the
-       hairline comes back here and only here - it costs 1px instead of ~220. */
-    nav.tabs .grp + .grp{margin-left:8px;padding-left:10px;border-left:1px solid #1D2C38}
+  /* ---- the content column ---- */
+  .content{min-width:0;display:flex;flex-direction:column}
+  /* One slim row for the period control and, on narrow screens, the menu button.
+     It is NOT sticky: the rail already keeps navigation permanently reachable,
+     which is the whole reason the old sticky header could go. */
+  .topbar{display:flex;align-items:center;gap:12px;width:100%;max-width:1240px;margin:0 auto;padding:14px 26px 0}
+  /* The title is written only by the share views, so it collapses to nothing on
+     the signed-in app rather than reserving a line it never uses. */
+  .hd-title{font-family:var(--serif);font-size:22px;color:var(--ink);line-height:1.15}
+  .hd-title:empty{display:none}
+  .hd-title em{font-style:italic;color:var(--brand-ink)}
+  .hd-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .nav-toggle{display:none;align-items:center;justify-content:center;width:38px;height:38px;flex:none;
+    border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink-2)}
+  .nav-toggle:hover{border-color:var(--brand);color:var(--brand-ink)}
+  .nav-scrim{display:none;position:fixed;inset:0;background:rgba(8,16,22,.55);z-index:35}
+
+  /* SIGNED OUT: no rail, no menu button, one column. The gate and the share
+     views set this, so a signed-out visitor never sees an empty dark column. */
+  body.nochrome .side{display:none}
+  body.nochrome .app{grid-template-columns:minmax(0,1fr)}
+  body.nochrome .nav-toggle{display:none !important}
+
+  /* Below 980 the rail becomes a drawer. 980 rather than 720 because the grid
+     is 236px of the viewport and the content column starts to squeeze the wide
+     tables well before phone widths. */
+  @media (max-width:980px){
+    .app{grid-template-columns:minmax(0,1fr)}
+    .side{position:fixed;left:0;top:0;bottom:0;width:252px;height:100dvh;
+      transform:translateX(-100%);transition:transform .2s ease;z-index:55}
+    body.nav-open .side{transform:none}
+    body.nav-open .nav-scrim{display:block}
+    .nav-toggle{display:inline-flex}
+    .topbar{padding:12px 14px 0}
   }
-  /* Meta sub-tabs: one step quieter than the main tabs so the hierarchy reads. */
-  nav.subtabs{background:#111E27;border-top:1px solid var(--hd-line)}
-  nav.subtabs .in{max-width:1240px;margin:0 auto;padding:0 26px;display:flex;gap:2px;overflow-x:auto}
-  nav.subtabs button{padding:8px 12px;font-size:12.5px;font-weight:600;color:#8CA2B2;border-bottom:2px solid transparent;white-space:nowrap}
-  nav.subtabs button.on{color:#fff;border-bottom-color:var(--brand)}
-  @media (max-width:720px){ nav.subtabs .in{padding:0 14px} }
+  @media (prefers-reduced-motion:reduce){ .side{transition:none} }
 
   /* PERIOD CONTROL. Was a full-width strip under the tabs; Cole found it "weird"
      and it cost ~50px of vertical space on every screen while showing one fact.
      Now a compact header dropdown, Triple-Whale style, with the resolved dates
      as its own second line so the window is still never a guess. */
   .hd-period{position:relative}
-  .hd-per-btn{display:flex;align-items:center;gap:9px;background:#15232D;border:1px solid var(--hd-line);
-    border-radius:8px;padding:5px 11px;color:#DFEAF2;cursor:pointer;text-align:left;line-height:1.25}
-  .hd-per-btn:hover{border-color:#3A5060}
+  /* Light now: this control moved out of the dark header and into the content
+     column, where the old #15232D fill read as a stray black chip. */
+  .hd-per-btn{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line-strong);
+    border-radius:9px;padding:6px 12px;color:var(--ink);cursor:pointer;text-align:left;line-height:1.25}
+  .hd-per-btn:hover{border-color:var(--brand);color:var(--brand-ink)}
   .hd-per-l{font-size:12.5px;font-weight:600;white-space:nowrap}
-  .hd-per-d{font-size:11px;color:#8FA6B5;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .hd-per-btn svg{color:#8FA6B5;flex:none}
+  .hd-per-d{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .hd-per-btn svg{color:var(--muted);flex:none}
   .hd-per-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:230px;
     background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:6px;
     box-shadow:0 16px 40px rgba(12,22,29,.28)}
@@ -182,7 +224,12 @@
   /* The pbar now lives above <main>. Its own bottom edge is the gap before the
      page title, so `main` carries no extra top padding of its own - see the
      `main{}` rule, which drops from 18px to 8px for exactly this reason. */
-  main{max-width:1240px;margin:0 auto;padding:8px 26px 64px}
+  /* `width:100%` is load-bearing now. `.content` is a flex column, and an auto
+     horizontal margin on a flex item turns off the stretch and falls back to
+     shrink-to-fit, so main collapsed to the width of its widest line and sat
+     centred in the column. It looked like a broken max-width; it was the
+     centring itself. Same for footer. */
+  main{max-width:1240px;width:100%;margin:0 auto;padding:8px 26px 64px}
   h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
   /* The per-page detail rides UNDER the purpose sentence, one step quieter, so
      the purpose is always the first thing read and never competes with it. */
@@ -1067,10 +1114,10 @@
   .rp-attr{border-left:3px solid var(--line-strong)}
   .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px}
 
-  footer{max-width:1240px;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
+  footer{max-width:1240px;width:100%;margin:0 auto;padding:0 26px 40px;color:var(--muted);font-size:12px}
   @media (max-width:900px){ .pc-stats{gap:18px 26px} }
   @media (max-width:720px){
-    .hd{padding:10px 14px} main{padding:16px 14px 60px} .feed .it{grid-template-columns:1fr}
+    main{padding:16px 14px 60px} footer{padding:0 14px 40px} .feed .it{grid-template-columns:1fr}
     .rp-change{grid-template-columns:1fr;gap:3px;padding:11px 0}
     .rp-change .d{color:var(--muted)}
     .rp-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -1080,52 +1127,79 @@
   }
   @media (max-width:420px){ .rp-kpis{grid-template-columns:1fr 1fr} }
 </style><body>
-<header>
-  <div class="hd">
+<div class="app">
+  <aside class="side" id="side">
     <a class="mark" href="../"><img src="../favicon.png" alt=""><b>MOBIUS <span>TOOLS</span></b></a>
-    <div class="hd-sep"></div>
-    <div class="hd-title">Locus</div>
-    <div class="hd-right">
-      <select id="clientPick" style="display:none"></select>
-      <div class="hd-period" id="hdPeriod" style="display:none"></div>
+    <div class="side-app">Locus</div>
+    <div class="side-client"><select id="clientPick" style="display:none"></select></div>
+    <nav class="tabs" id="tabs" style="display:none">
+      <div class="grp"><span class="band">Daily</span>
+        <div class="grp-btns">
+          <button data-t="overview">Overview</button>
+          <button data-t="profit">Profit</button>
+          <button data-t="meta">Meta</button>
+        </div>
+        <!-- Meta's sub-tabs are nested under the Meta button, which is what makes
+             the hierarchy legible without a second colour. They are still OUTSIDE
+             #main because meta.js owns that element entirely and would wipe a nav
+             rendered inside it. Being inside #tabs is safe only because every
+             selector that drives tab switching is scoped to `button[data-t]`;
+             a bare `#tabs button` would now match these too and call
+             show(undefined). -->
+        <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
+      </div>
+      <div class="grp"><span class="band">To the client</span>
+        <div class="grp-btns">
+          <button data-t="brief">Daily Brief</button>
+          <button data-t="reports">Reports</button>
+        </div>
+      </div>
+      <div class="grp"><span class="band">Monthly</span>
+        <div class="grp-btns">
+          <button data-t="plan">Plan</button>
+          <button data-t="customers">Customers</button>
+        </div>
+      </div>
+      <div class="grp"><span class="band">Setup</span>
+        <div class="grp-btns">
+          <button data-t="health">Data Health</button>
+          <button data-t="costs">Costs</button>
+          <button data-t="settings">Settings</button>
+        </div>
+      </div>
+    </nav>
+    <div class="side-foot">
       <span class="hd-chip" id="connChip">…</span>
       <button class="hd-btn" id="btnOut" style="display:none">Sign out</button>
     </div>
-  </div>
-  <nav class="tabs" id="tabs" style="display:none"><div class="in">
-    <div class="grp"><span class="band">Daily</span><div class="grp-btns">
-      <button data-t="overview">Overview</button>
-      <button data-t="profit">Profit</button>
-      <button data-t="meta">Meta</button></div></div>
-    <div class="grp"><span class="band">To the client</span><div class="grp-btns">
-      <button data-t="brief">Daily Brief</button>
-      <button data-t="reports">Reports</button></div></div>
-    <div class="grp"><span class="band">Monthly</span><div class="grp-btns">
-      <button data-t="plan">Plan</button>
-      <button data-t="customers">Customers</button></div></div>
-    <div class="grp"><span class="band">Setup</span><div class="grp-btns">
-      <button data-t="health">Data Health</button>
-      <button data-t="costs">Costs</button>
-      <button data-t="settings">Settings</button></div></div>
-  </div></nav>
-  <!-- Sub-tabs for the Meta section. Kept OUTSIDE #main because meta.js owns
-       that element entirely; a nav rendered inside it would be wiped on every
-       sub-tab switch. -->
-  <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
-</header>
-<!-- THE FIXED-WINDOW LINE SITS OUTSIDE THE STICKY HEADER, on purpose.
-     It is a FACT about the page ("one week or one month - pick the report on the
-     page"), not a control, so it has no claim on the ~25px of permanent screen
-     height that being inside <header> was costing on every scroll. Out here it
-     is read once at the top and then scrolls away like any other prose.
-     It must stay directly above <main> and keep its ids: renderPeriodBar()
-     writes into #pbIn and several screens toggle #periodBar. (Cole, 2026-09-07:
-     "the floating header is just super big and it's taking up a lot of room - 
-     even when you scroll down there's not much room.") -->
-<div class="pbar" id="periodBar" style="display:none"><div class="in" id="pbIn"></div></div>
+  </aside>
 
-<main id="main"></main>
-<footer id="foot"><b>Locus</b> by Mobius Digital · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms), plus the <b>Meta</b> tab for platform-reported numbers that match Ads Manager. Plan in <code>profit/PRD.md</code>.</footer>
+  <div class="content">
+    <!-- `.hd-title` and `.hd-right` moved here from the old top bar rather than
+         being retired with it. The SHARE views (a client opening a report or
+         profit link, a merchant landing after a Shopify install) have no rail
+         and no tabs, so this row is the only chrome they get: it carries the
+         brand name and period that used to sit in the header, and several
+         renderers still write straight into these two selectors. -->
+    <div class="topbar">
+      <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="side" aria-expanded="false">☰</button>
+      <div class="hd-title" id="hdTitle"></div>
+      <div class="hd-right">
+        <div class="hd-period" id="hdPeriod" style="display:none"></div>
+      </div>
+    </div>
+    <!-- The fixed-window line is a FACT about the page ("one week or one month,
+         pick the report on the page"), not a control, so it reads once at the top
+         and then scrolls away. It must stay directly above <main> and keep its
+         ids: renderPeriodBar() writes into #pbIn and several screens toggle
+         #periodBar. -->
+    <div class="pbar" id="periodBar" style="display:none"><div class="in" id="pbIn"></div></div>
+
+    <main id="main"></main>
+    <footer id="foot"><b>Locus</b> by Mobius Digital · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms), plus the <b>Meta</b> tab for platform-reported numbers that match Ads Manager. Plan in <code>profit/PRD.md</code>.</footer>
+  </div>
+</div>
+<div class="nav-scrim" id="navScrim" hidden></div>
 
 <script src="meta.js"></script>
 <script>
@@ -1135,23 +1209,51 @@ const LS = { url:'pf_worker', tok:'pf_token', act:'pf_act', tab:'pf_tab', days:'
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-/* Tuck the brand row away on the way down, bring it back on the way up.
-   `TUCK_AT` keeps it whole through the first screenful so a short page never
-   flickers, and `TUCK_HYST` stops a trackpad's one-pixel jitter toggling it. */
+/* THE SCROLL-TUCK IS GONE, and so is the header it hid.
+   It existed to claw back the ~110px the old top bar took from every screen.
+   A side rail costs zero vertical space, so there is nothing left to tuck and
+   the page no longer moves under the reader while they scroll.
+
+   NAV DRAWER, under 980px only. The rail is off-canvas there and this opens it.
+   Closing is deliberately over-served (scrim, Escape, picking a tab, and the
+   viewport growing past the breakpoint) because a drawer that traps you is the
+   one failure mode worse than no drawer. */
 (() => {
-  const TUCK_AT = 90, TUCK_HYST = 6;
-  let last = 0, queued = false;
-  const apply = () => {
-    queued = false;
-    const y = window.scrollY, hd = document.querySelector('header');
-    if (!hd) return;
-    if (y <= TUCK_AT) hd.classList.remove('tuck');
-    else if (y > last + TUCK_HYST) hd.classList.add('tuck');
-    else if (y < last - TUCK_HYST) hd.classList.remove('tuck');
-    last = y;
+  const B = document.body;
+  const setNav = open => {
+    B.classList.toggle('nav-open', open);
+    const t = document.getElementById('navToggle');
+    if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const s = document.getElementById('navScrim');
+    if (s) s.hidden = !open;
   };
-  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(apply); } }, { passive: true });
+  addEventListener('click', e => {
+    if (e.target.closest('#navToggle')) { setNav(!B.classList.contains('nav-open')); return; }
+    if (e.target.closest('#navScrim')) return setNav(false);
+    /* Picking a tab or a sub-tab means you are done with the menu. */
+    if (B.classList.contains('nav-open') && e.target.closest('#tabs button, #subtabs button')) setNav(false);
+  });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && B.classList.contains('nav-open')) setNav(false); });
+  /* Rotating a phone or widening a window must not leave the scrim stranded
+     over a rail that is now permanently visible. */
+  matchMedia('(min-width:981px)').addEventListener('change', e => { if (e.matches) setNav(false); });
 })();
+
+/* CHROME ON OR OFF, in one call.
+   Six places used to toggle the rail, the picker, the sub-tabs and the sign-out
+   button individually, in four different spellings, and every new share view
+   copied whichever one it was next to. With a rail there is one more thing to
+   get right - `nochrome` collapses the grid to a single column - and a view that
+   forgot it would render a client's report beside an empty dark column. */
+function chrome(on) {
+  document.body.classList.toggle('nochrome', !on);
+  const set = (sel, v) => { const el = document.querySelector(sel); if (el) el.style.display = v; };
+  set('#tabs', on ? '' : 'none');
+  set('#subtabs', 'none');            // never restored here; renderMeta owns it
+  set('#clientPick', on ? '' : 'none');
+  set('#btnOut', on ? '' : 'none');
+  if (!on) set('#periodBar', 'none');
+}
 
 /* Shared Mobius session (set by /hq Google sign-in; same origin, all tools). */
 function sharedSession() {
@@ -1242,7 +1344,7 @@ async function boot() {
     S.kind = r.kind || 'admin';
     applyKind();
     setChip('Live','live');
-    $('#btnOut').style.display=''; $('#tabs').style.display='';
+    chrome(true);
     renderPicker();
     show(S.tab);
   } catch (e) {
@@ -1263,9 +1365,7 @@ async function boot() {
 /** The page you send the client. Read-only, no sign-in, and it carries this one
  *  plan and nothing else - no other client, no internal cost diagnostics. */
 async function renderPlanShare(token) {
-  document.querySelector('.hd-right').style.display = 'none';
-  $('#tabs').style.display = 'none';
-  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
+  chrome(false);
   $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   let d;
   try {
@@ -1343,9 +1443,7 @@ async function renderPlanShare(token) {
  *  test store is exactly the case that matches nothing. It also has to be honest -
  *  showing an empty dashboard would be worse than saying plainly what happens next. */
 function renderConnected(shop) {
-  document.querySelector('.hd-right').style.display = 'none';
-  $('#tabs').style.display = 'none';
-  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
+  chrome(false);
   $('.hd-title').innerHTML = 'Store <em>connected</em>';
   clientFooter();
   $('#main').innerHTML = `<div class="gate" style="max-width:560px">
@@ -1364,9 +1462,7 @@ function renderConnected(shop) {
 /** The client-facing performance page. Read-only, no sign-in, one client, and
  *  deliberately no cost diagnostics - this URL gets forwarded around. */
 async function renderPerfShare(token) {
-  document.querySelector('.hd-right').style.display = 'none';
-  $('#tabs').style.display = 'none';
-  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
+  chrome(false);
   $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   let d;
   try {
@@ -1451,9 +1547,7 @@ function clientFooter(note) {
 
 function renderGate(err, offerRetry) {
   setChip('Signed out','off');
-  $('#tabs').style.display='none'; $('#clientPick').style.display='none';
-  $('#periodBar').style.display='none'; $('#btnOut').style.display='none';
-  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
+  chrome(false);
   $('#main').innerHTML = `
   <div class="gate">
     <h1>Locus</h1>
@@ -1488,7 +1582,7 @@ function renderPicker() {
   p.value = S.act;
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
 }
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => show(b.dataset.t));
+document.querySelectorAll('#tabs button[data-t]').forEach(b => b.onclick = () => show(b.dataset.t));
 
 /* ⓘ icons open their explanation on click/tap. */
 document.addEventListener('click', e => {
@@ -2093,9 +2187,7 @@ let AD_SHARE_TOKEN = null;
  *  of spend - those exist to keep US honest about what a ranking leaves out,
  *  and to a client "8 of 61 ads" only says that something is being withheld. */
 async function renderAdShare(token) {
-  ['#clientPick', '#periodBar', '#btnOut'].forEach(sel => { const el = $(sel); if (el) el.style.display = 'none'; });
-  const tabs = $('#tabs'); if (tabs) tabs.style.display = 'none';
-  const subs = $('#subtabs'); if (subs) subs.style.display = 'none';
+  chrome(false);
   setChip('Shared', 'ok');
   let d;
   try { d = await api(`/api/ad-share/${encodeURIComponent(token)}`); }
@@ -2932,7 +3024,7 @@ function show(tab) {
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   renderPeriodBar(tab);
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  document.querySelectorAll('#tabs button[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   const sn = $('#subtabs');
   if (sn) sn.style.display = tab === 'meta' ? '' : 'none';
   const m = $('#main');
@@ -5640,9 +5732,7 @@ async function renderReports(first) {
  *  renders what it is given. */
 async function renderReportsShare(token, sel) {
   RS.token = token;
-  document.querySelector('.hd-right').style.display = 'none';
-  $('#tabs').style.display = 'none';
-  { const sn = $('#subtabs'); if (sn) sn.style.display = 'none'; }
+  chrome(false);
   $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   let d;
   try {
