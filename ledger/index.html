@@ -929,7 +929,11 @@ async function renderTxns(){
             <th class="pick"><input type="checkbox" ${rows.length && rows.every(t=>S.sel.has(t.id))?'checked':''}
               title="Select everything shown" onchange="pickAll(this.checked)"></th>
             <th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
-          <tbody>${body || '<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.</td></tr>'}</tbody>
+          <tbody>${body || `<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.${
+            S.filter==='needs' ? Object.entries(S.boot?.flags||{})
+              .filter(([m,f]) => m !== S.month && ((+f.review||0) + (+f.noReceipt||0)) > 0)
+              .map(([m,f]) => ` <button class="ctl" style="color:var(--brand-ink);font-weight:700" onclick="setMonth('${m}')">${moName(m)} has ${(+f.review||0)+(+f.noReceipt||0)} →</button>`).join('')
+            : ''}</td></tr>`}</tbody>
         </table></div></div>
       <div class="rail">${txnRail()}</div>
     </div>
@@ -2333,6 +2337,30 @@ async function savePw(){
     el.className='msg good'; el.textContent='Password set.'; }
   catch(e){ el.className='msg bad'; el.textContent=e.message; }
 }
+
+/* ================= live refresh ================= */
+/* Slack buttons and the nightly syncs change the books while the app just
+   sits there; the badge lied until a manual reload. Counts refresh once a
+   minute and whenever the tab comes back to front - and a view redraws only
+   when nothing is mid-edit (no modal, no dropdown, not typing in search). */
+async function refreshBoot(){
+  if (!S.tok) return;
+  try {
+    const nb = await api('/api/boot');
+    const changed = JSON.stringify(nb.flags) !== JSON.stringify(S.boot?.flags);
+    S.boot = nb;
+    $('#nav').innerHTML = navHTML();
+    $('#tabbar').innerHTML = tabbarHTML();
+    const busy = document.querySelector('.modal.on') || MSEL.open
+      || document.activeElement === $('#txnSearch');
+    if (changed && !busy && (S.view === 'dash' || S.view === 'txns')) {
+      S.txns = null;
+      (S.view === 'dash' ? renderDash : renderTxns)();
+    }
+  } catch (e) { /* a blip must never log him out or blank a view */ }
+}
+setInterval(() => { if (!document.hidden) refreshBoot(); }, 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBoot(); });
 
 /* ================= go ================= */
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
