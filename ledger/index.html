@@ -289,37 +289,50 @@
     main{padding:0;max-width:none}
     .rpt{border:none;padding:0;max-width:none}
   }
-  /* ---- the statement: a real P&L document in the app's own materials.
-     One column, ruled totals, sections in small caps · and any line opens
-     into the charges behind it. ---- */
-  .stmt{max-width:760px;margin:0 auto}
-  .stmt .sh{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-    color:var(--muted);padding:22px 0 6px;border-bottom:1px solid var(--line-strong)}
-  .stmt .sh:first-child{padding-top:4px}
-  .rl{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+  /* ---- the statement. Set the way an accountant's page is set: flush left,
+     one money column hard right, generous line height, and the eye carried
+     down the left edge by indentation rather than by boxes. ---- */
+  #rptCard{padding:30px 34px 34px}
+  .stmt{max-width:none}
+  .stmt h1{font-family:var(--serif);font-weight:400;font-size:27px;letter-spacing:-.01em}
+  .stmt .rsub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .stmt .sh{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--muted);padding:26px 0 7px;border-bottom:1px solid var(--line-strong)}
+  .rl{display:flex;align-items:baseline;gap:16px;padding:10px 0;
+    border-bottom:1px solid var(--line);font-size:14px;line-height:1.45}
   .rl .rn{flex:1;min-width:0}
-  .rl .ra{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;min-width:96px}
+  .rl .ra{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;
+    width:132px;flex:none;font-weight:600}
   .rl.open-able{cursor:pointer}
   .rl.open-able:hover .rn{color:var(--brand-ink)}
-  .rl .tw{display:inline-block;width:12px;font-size:9px;color:var(--muted);transition:transform .12s}
+  .rl .tw{display:inline-block;width:14px;font-size:9px;color:var(--muted);transition:transform .12s}
   .rl.on .tw{transform:rotate(90deg)}
   .rl .cnt{font-size:12px;color:var(--muted);font-weight:400}
-  .rl .cap{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:1px}
-  .rl.tot{border-top:1px solid var(--line-strong);border-bottom:none;font-weight:700;margin-top:1px}
-  .rl.net{border-top:2px solid var(--ink);border-bottom:none;margin-top:2px;padding-top:12px;font-weight:700;font-size:17px}
+  .rl .cap{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:2px}
+  .rl.tot{border-top:1px solid var(--line-strong);border-bottom:none;font-weight:700;margin-top:1px;padding-top:11px}
+  .rl.net{border-top:2px solid var(--ink);border-bottom:none;margin-top:3px;
+    padding-top:13px;font-weight:700;font-size:17px}
+  .rl.net .ra{font-size:19px}
   .rsub2{display:none}
   .rsub2.shown{display:flex}
-  .rl.lv2{padding-left:20px;font-size:13.5px;color:#3A4B58}
-  .rl.lv3{padding-left:42px;font-size:12.5px;color:var(--muted)}
+  .rl.lv2{padding-left:26px;font-size:13.5px;color:#3A4B58;border-bottom-color:#EFF3F6}
+  .rl.lv3{padding-left:52px;font-size:12.5px;color:var(--muted);padding-top:7px;padding-bottom:7px;
+    border-bottom-color:#F2F5F8}
   .rl.lv3 .ra{font-weight:500}
-  .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin:2px 0 6px}
-  .hero .h{padding:2px 20px 2px 0}
-  .hero .h+.h{border-left:1px solid var(--line);padding-left:24px}
-  .hero .hv{font-family:var(--serif);font-size:31px;letter-spacing:-.01em;line-height:1.15;font-variant-numeric:tabular-nums}
+  .hero{display:flex;flex-wrap:wrap;gap:0;margin:18px 0 2px;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .hero .h{flex:1 1 150px;padding:14px 22px 14px 0}
+  .hero .h+.h{border-left:1px solid var(--line);padding-left:22px}
+  .hero .hv{font-family:var(--serif);font-size:29px;letter-spacing:-.01em;line-height:1.2;
+    font-variant-numeric:tabular-nums;margin-top:2px}
   .hero .hd{font-size:12px;color:var(--muted);margin-top:3px}
-  @media(max-width:720px){.hero{grid-template-columns:1fr}
-    .hero .h+.h{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:13px;margin-top:11px}
-    .hero .hv{font-size:27px}.rl .ra{min-width:0}}
+  @media(max-width:720px){
+    #rptCard{padding:20px 16px 24px}
+    .hero{display:block}
+    .hero .h{padding:12px 0}
+    .hero .h+.h{border-left:none;border-top:1px solid var(--line);padding-left:0}
+    .rl .ra{width:auto}
+    .rl.lv2{padding-left:16px}.rl.lv3{padding-left:32px}}
 
   /* ---- tablet: one column of full-width cards, top nav stays (iPad convention) ---- */
   @media(max-width:1024px){.txgrid,.homegrid{grid-template-columns:1fr}}
@@ -1795,7 +1808,7 @@ async function renderReports(){
         <h1 style="font-family:var(--serif);font-weight:400;font-size:26px">Profit &amp; loss</h1>
         <div class="rsub">Mobius Digital \u00b7 ${moName(rm)} \u00b7 ${data.frozen ? 'closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ', figures frozen' : 'month still open, figures live'}</div>
 
-        <div class="hero no-print">
+        <div class="hero">
           <div class="h"><div class="ct">Money in</div>
             <div class="hv">${fmt$(r.revenue)}</div><div class="hd">${vs(r.revenue, prev?.revenue)}</div></div>
           <div class="h"><div class="ct">Money out</div>
@@ -1826,7 +1839,7 @@ async function renderReports(){
         ${r.distPct ? `<div class="rl"><span class="rn">Distributions <span class="cnt">${r.distPct}%</span></span><span class="ra">${fmt$(r.distributions)}</span></div>` : ''}
         <div class="rl tot"><span class="rn">Yours, after tax</span><span class="ra">${fmt$(r.profit)}</span></div>
 
-        <div class="hint no-print" style="margin:16px 0 8px">Move it out of Novo like this:</div>
+        <div class="hint no-print" style="margin:20px 0 10px">Move it out of Novo like this:</div>
         <div class="grid3 no-print">
           ${Object.entries(r.split).map(([k,v]) => {
             const label = { personal:'Personal', tax:'Tax reserve', ads:'Ads / Marketing', savings:'Savings', other:'Other' }[k] || k;

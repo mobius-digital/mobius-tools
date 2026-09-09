@@ -388,6 +388,17 @@ async function slack(env, method, params = {}, post = false) {
   return j;
 }
 
+/* Anything the automation cannot recover from goes here: addressed to Cole
+ * by name, because silence about a broken sync is indistinguishable from a
+ * quiet month. */
+async function alertSlack(env, text) {
+  const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
+  if (!sr.channelId || !env.SLACK_BOT_TOKEN) return;
+  const at = await ownerMention(env);
+  await slack(env, 'chat.postMessage',
+    { channel: sr.channelId, text: at + text, unfurl_links: false }, true);
+}
+
 async function findReceiptsChannel(env) {
   let cursor = '';
   do {
@@ -1321,7 +1332,7 @@ async function retryHeldReceipts(env) {
     `SELECT key, value FROM settings WHERE key LIKE 'pend:%'`).all();
   if (!held.length) return { held: 0 };
   const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
-  let attached = 0;
+  let attached = 0, asked = 0;
   for (const row of held) {
     const meta = safeJson(row.value, null);
     if (!meta || !meta.amount) continue;
@@ -1341,7 +1352,32 @@ async function retryHeldReceipts(env) {
       return tv.includes(first) || rv.includes(tf);
     };
     const match = hit.results.find(agrees) || null;
-    if (!match) continue;
+    if (!match) {
+      /* Waiting is fine for a few days; waiting forever in silence is not.
+       * The key carries its own creation time, so after a week without the
+       * charge appearing this stops being "the feed is behind" and becomes
+       * something only Cole can answer · asked once, never on repeat. */
+      const bornMs = Number(String(row.key).split(':')[1]);
+      const days = Number.isFinite(bornMs) ? (Date.now() - bornMs) / 86400e3 : 0;
+      if (days >= 7 && !meta.asked && sr.channelId) {
+        meta.asked = 1;
+        await putSetting(env, row.key, JSON.stringify(meta));
+        const at = await ownerMention(env);
+        const txt = `${at}\u23f3 *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has been waiting ${Math.floor(days)} days and no matching charge has ever reached Novo or Amex.\n` +
+          `That usually means it went on a different card, or it is somebody else's charge. It stops waiting now · tell me which:`;
+        await slack(env, 'chat.postMessage', { channel: sr.channelId, text: txt, unfurl_links: false,
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: txt } },
+            { type: 'actions', elements: [
+              { type: 'button', action_id: 'led_file', style: 'primary',
+                text: { type: 'plain_text', text: 'It is mine · file it' },
+                value: JSON.stringify({ file: row.key }) },
+              { type: 'button', action_id: 'led_drop',
+                text: { type: 'plain_text', text: 'Not mine · discard' },
+                value: JSON.stringify({ drop: row.key }) }] }] }, true).catch(() => {});
+        asked++;
+      }
+      continue;
+    }
     const blob = await receiptGet(env, row.key);
     if (!blob) {   // the 30-day blob expired · drop the orphaned note
       await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
@@ -1357,7 +1393,7 @@ async function retryHeldReceipts(env) {
     if (sr.channelId) await slack(env, 'chat.postMessage', { channel: sr.channelId, unfurl_links: false,
       text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).` }, true).catch(() => {});
   }
-  return { held: held.length, attached };
+  return { held: held.length, attached, asked };
 }
 
 async function syncPlaid(env) {
@@ -1424,10 +1460,17 @@ export default {
       // the syncs have already finished writing, so these run in sequence, not
       // as three concurrent waitUntils racing each other.
       ctx.waitUntil((async () => {
+        /* A sync that quietly fails is the worst failure this app can have:
+         * the books look finished while money is missing from them. Every
+         * failure is announced in the channel, by name. */
+        const failed = [];
         if (env.STRIPE_KEY)
-          await syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message));
-        await syncPlaid(env).catch(e => console.log('plaid sync failed: ' + e.message));
-        await retryHeldReceipts(env).catch(e => console.log('held receipt retry failed: ' + e.message));
+          await syncStripe(env, from, to).catch(e => { failed.push('Stripe: ' + (e.message || e)); });
+        await syncPlaid(env).catch(e => { failed.push('Bank feed: ' + (e.message || e)); });
+        await retryHeldReceipts(env).catch(e => { failed.push('Held receipts: ' + (e.message || e)); });
+        if (failed.length) await alertSlack(env,
+          `\u26a0\ufe0f *Tonight's sync did not finish.* Your figures may be missing transactions until this is fixed.\n` +
+          failed.map(f => '\u2022 ' + f).join('\n')).catch(() => {});
         await monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message));
         await receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message));
       })());
@@ -1555,8 +1598,15 @@ export default {
           return new Response('', { status: 200 });
         }
         // an emailed receipt we declined to guess at — he says it is his
+        // "not mine" on a receipt that waited a week and never found its charge
+        if (val?.drop) {
+          await receiptDelete(env, val.drop).catch(() => {});
+          await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.drop).run();
+          respond({ replace_original: true, text: '\u2713 Discarded · that receipt will not be asked about again.' });
+          return new Response('', { status: 200 });
+        }
+        // an emailed receipt we declined to guess at · he says it is his
         if (val?.file) {
-          const meta = safeJson(await getSetting(env, val.file), null);
           const blob = await receiptGet(env, val.file);
           if (!meta || !blob) {
             respond({ replace_original: false, text: '⚠️ That one has expired — drop the receipt in again.' });
