@@ -1682,11 +1682,16 @@ async function downloadReceipts(from, to, btn){
 
 /* The accountant's layout: tax categories down the side, months across,
  * totals on the right · the shape a P&L is read in, on screen and in print. */
+/* What counts as a business expense in the CPA pack: transfers are money
+   moving between Cole's own accounts and personal rows are owner draws -- the
+   report card already excludes both, and the printed pack must agree with it.
+   (The ledger CSV still lists every row; that's the audit trail.) */
+const packExp = t => t.type !== 'in' && t.type !== 'transfer' && !/^Personal/i.test(t.tax_cat || '');
 function plTableHTML(p, { compactCap = 0 } = {}){
   const months = p.monthReports.map(r => r.month);
-  const cats = [...new Set(p.transactions.filter(t=>t.type!=='in').map(t=>t.tax_cat||'Uncategorized'))];
+  const cats = [...new Set(p.transactions.filter(packExp).map(t=>t.tax_cat||'Uncategorized'))];
   const cell = {};
-  for (const t of p.transactions) if (t.type!=='in')
+  for (const t of p.transactions) if (packExp(t))
     cell[(t.tax_cat||'Uncategorized')+'|'+t.month] = (cell[(t.tax_cat||'Uncategorized')+'|'+t.month]||0) + t.amount;
   const catTotal = c => months.reduce((s,m)=>s+(cell[c+'|'+m]||0),0);
   cats.sort((a,b)=>catTotal(b)-catTotal(a));
@@ -1723,7 +1728,7 @@ async function loadPack(from, to){
   try { p = await api(`/api/pack?from=${from}&to=${to}`); } catch(e){ out.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`; return; }
   S.packData = p;
   const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
-  const exp = p.transactions.filter(t=>t.type!=='in').reduce((s,t)=>s+t.amount,0);
+  const exp = p.transactions.filter(packExp).reduce((s,t)=>s+t.amount,0);
   out.innerHTML = `
     <div class="row" style="margin:16px 0 14px">
       <button class="btn primary" onclick="printCpa()">🖨 Print the pack (PDF)</button>
@@ -1747,7 +1752,7 @@ async function loadPack(from, to){
 function printCpa(){
   const p = S.packData; if (!p) return;
   const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
-  const exp = p.transactions.filter(t=>t.type!=='in').reduce((s,t)=>s+t.amount,0);
+  const exp = p.transactions.filter(packExp).reduce((s,t)=>s+t.amount,0);
   $('#cpaPrint').innerHTML = `<div class="rpt">
     <h1>CPA pack · ${moName(p.from)}${p.from!==p.to?' → '+moName(p.to):''}</h1>
     <div class="rsub">Mobius Digital · prepared ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} · tax set-aside ${p.money.taxPct}% · every figure traces to the attached ledger CSV</div>

@@ -1240,9 +1240,15 @@ async function processPlaidTxn(env, item, t) {
     // 1) confirm the recurring engine's expected row
     const { results: exp } = await env.DB.prepare(
       `SELECT * FROM transactions WHERE month = ?1 AND expected = 1 AND type = 'out' AND plaid_id IS NULL`).bind(month).all();
+    /* Name first. The amount-only fallback exists for bank gibberish like
+     * "SQSP* WORKSP" meeting an expected "Google Workspace" — but Cole runs
+     * three different $15 subscriptions, so amount alone is only trusted when
+     * exactly ONE expected row carries it. Ambiguous → insert normally and
+     * let the expected row wait for its real charge. */
+    const amtHits = exp.filter(x => Math.abs(x.amount - amount) < 0.01);
     const eHit = exp.find(x => x.vendor.toLowerCase().split(' ')[0] === first
         || x.vendor.toLowerCase().includes(first) || first.includes(x.vendor.toLowerCase().split(' ')[0]))
-      || exp.find(x => Math.abs(x.amount - amount) < 0.01);
+      || (amtHits.length === 1 ? amtHits[0] : null);
     if (eHit) {
       await env.DB.prepare(`UPDATE transactions SET amount=?2, date=?3, expected=0, status='ok', plaid_id=?4 WHERE id=?1`)
         .bind(eHit.id, amount, date, t.transaction_id).run();
@@ -1671,7 +1677,13 @@ export default {
         if (b.tax_cat && next.status === 'review') next.status = 'ok';
         if (b.confirm) { next.expected = 0; next.status = 'ok'; }
         if (!closed) {
-          if (b.date && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) { next.date = b.date; next.month = monthOf(b.date); }
+          if (b.date && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) {
+            const nm = monthOf(b.date);
+            // a date edit must not smuggle a row INTO a month whose report is frozen
+            if (nm !== cur.month && (await monthStatus(env, nm)) === 'closed')
+              return json({ error: `${nm} is closed — a transaction can't be moved into a frozen month. Reopen it first.` }, 400);
+            next.date = b.date; next.month = nm;
+          }
           if (b.amount !== undefined && Number.isFinite(Number(b.amount))) next.amount = round2(Number(b.amount));
         } else if (b.date !== undefined || b.amount !== undefined) {
           return json({ error: `${cur.month} is closed — reopen it to change amounts or dates.` }, 400);
@@ -1885,7 +1897,11 @@ export default {
         const month = url.searchParams.get('month');
         if (!validMonth(month)) return json({ error: 'month=YYYY-MM' }, 400);
         const row = await env.DB.prepare('SELECT status, closed_at, report_json FROM months WHERE month = ?1').bind(month).first();
-        if (row?.report_json) return json({ frozen: true, closedAt: row.closed_at, report: safeJson(row.report_json, null) });
+        /* Frozen means CLOSED and frozen. A reopened month keeps its old
+         * report_json around (until the next close overwrites it), and serving
+         * that would show numbers the ledger no longer contains. */
+        if (row?.status === 'closed' && row.report_json)
+          return json({ frozen: true, closedAt: row.closed_at, report: safeJson(row.report_json, null) });
         return json({ frozen: false, status: row?.status || 'open', report: await computeReport(env, month) });
       }
 
@@ -1898,7 +1914,10 @@ export default {
           computeReport(env, month),
           env.DB.prepare(`SELECT month,
               SUM(CASE WHEN type='in' AND expected=0 THEN amount ELSE 0 END) AS revenue,
-              SUM(CASE WHEN type='out' AND expected=0 THEN amount ELSE 0 END) AS expenses,
+              -- personal purchases are owner draws, not business costs — the
+              -- home chart must agree with the report card on that
+              SUM(CASE WHEN type='out' AND expected=0
+                   AND (tax_cat IS NULL OR tax_cat NOT LIKE 'Personal%') THEN amount ELSE 0 END) AS expenses,
               SUM(CASE WHEN type='fee' AND expected=0 THEN amount ELSE 0 END) AS fees
             FROM transactions WHERE month LIKE ?1 GROUP BY month ORDER BY month`).bind(year + '-%').all(),
           env.DB.prepare('SELECT name, expected_amount FROM vendors WHERE recurring = 1 AND active = 1 ORDER BY expected_amount DESC').all(),
