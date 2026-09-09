@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mobius Pulse — Live Ad Platform Status</title>
-<meta name="description" content="Mobius Pulse — live status of Meta Ads, Google Ads, Shopify and more. Free ad platform outage monitor by Mobius Digital.">
+<title>Mobius Pulse · Live Ad Platform Status</title>
+<meta name="description" content="Mobius Pulse · live status of Meta Ads, Google Ads, Shopify and more. Free ad platform outage monitor by Mobius Digital.">
 <link rel="icon" type="image/png" href="../icons/pulse-192.png">
 <link rel="apple-touch-icon" href="../icons/pulse-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -153,6 +153,34 @@
     .banner .again{margin-left:0;text-align:left}
     .toggles{grid-template-columns:1fr}
   }
+
+  /* ---- mobile: app polish ----
+     One status page, no tabs, so no tab bar: safe areas, thumb-sized targets
+     and a bottom-sheet settings modal. Kept at the VERY END of the stylesheet
+     on purpose - media queries add no specificity, so placed earlier they
+     silently lose to later base rules. */
+  header{padding-top:env(safe-area-inset-top)}
+  /* The settings sheet floats over the page; the page must not scroll under it. */
+  body:has(.overlay.open){overflow:hidden}
+  .overlay{overscroll-behavior:contain}
+  @media(max-width:720px){
+    .hd-btn{min-height:44px;display:inline-flex;align-items:center}
+    .hd-chip{display:inline-flex;align-items:center;min-height:32px}
+    main{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+    footer{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
+    /* Incident rows stack: the timestamp reads as a caption above the event
+       instead of squeezing the sentence into half the width. */
+    .inc{flex-direction:column;gap:2px}
+    .inc .when{min-width:0}
+    .svc .note{max-width:55%}
+    .promo .cta{margin-left:0;width:100%;min-height:48px}
+    .link-chip{min-height:40px}
+    /* The settings modal arrives as a bottom sheet. */
+    .overlay{align-items:flex-end;padding:0}
+    .modal{max-width:none;border-radius:16px 16px 0 0;max-height:92dvh;overflow-y:auto;
+      padding:22px 18px calc(22px + env(safe-area-inset-bottom))}
+    .btn{min-height:44px}
+  }
 </style>
 </head>
 <body>
@@ -197,7 +225,7 @@
 
   <section>
     <h2>More platforms</h2>
-    <div class="sub">No public machine-readable status feed yet — direct links to each platform.</div>
+    <div class="sub">No public machine-readable status feed yet · direct links to each platform.</div>
     <div class="links" id="links"></div>
   </section>
 
@@ -205,7 +233,7 @@
     <div class="promo">
       <div>
         <h3>Outage alerts, straight to Slack.</h3>
-        <p>When Meta, Google Ads or Shopify go down, the Mobius team knows within minutes — and can push the alert to every client channel with one click.</p>
+        <p>When Meta, Google Ads or Shopify go down, the Mobius team knows within minutes, and can push the alert to every client channel with one click.</p>
       </div>
       <button class="cta" id="promoBtn">Set up alerts →</button>
     </div>
@@ -247,7 +275,7 @@
       <div class="frow">
         <label>Client channels <span style="font-weight:400;color:var(--muted)">(the "Send to clients" button posts to all checked)</span></label>
         <div class="chan-list" id="clientChans"></div>
-        <div class="hint" style="margin:6px 0 0">Only channels the bot has been invited to can be selected — <code>/invite @Ad Status</code> in Slack first.</div>
+        <div class="hint" style="margin:6px 0 0">Only channels the bot has been invited to can be selected: <code>/invite @Ad Status</code> in Slack first.</div>
       </div>
 
       <div class="frow">
@@ -267,7 +295,7 @@
     <div class="hint" style="margin:0">
       Haven't deployed the worker yet? Follow the
       <a href="https://github.com/mobius-digital/mobius-tools/tree/main/pulse/worker" target="_blank" rel="noopener">setup guide</a>
-      — free Cloudflare Worker + Slack app, ~15 minutes.
+      · free Cloudflare Worker + Slack app, ~15 minutes.
     </div>
   </div>
 </div>
@@ -406,7 +434,7 @@ async function loadDirect(mode){
       const worst = services.reduce((w,s)=>RANK[s.state]>RANK[w]?s.state:w,'operational');
       return { ...p, worst, ok:true, services };
     }catch(e){
-      return { ...p, worst:'unknown', ok:false, services:[], error:'browser can’t reach this feed — worker covers it' };
+      return { ...p, worst:'unknown', ok:false, services:[], error:'browser can’t reach this feed; the worker covers it' };
     }
   }));
   lastData = { platforms: results, incidents:[], lastRun:new Date().toISOString(), direct:true };
@@ -420,8 +448,8 @@ function setMode(m){
   chip.dataset.s = m;
   chip.textContent = m==='live' ? '● Monitor live' : m==='down' ? '● Monitor down' : '● Limited mode';
   chip.title = m==='live' ? 'Cloudflare Worker is polling and posting Slack alerts.'
-    : m==='down' ? 'Worker unreachable or stale — showing what the browser can fetch directly.'
-    : 'No worker connected — the browser reads public feeds directly. Slack alerts need the worker.';
+    : m==='down' ? 'Worker unreachable or stale. Showing what the browser can fetch directly.'
+    : 'No worker connected. The browser reads public feeds directly. Slack alerts need the worker.';
 }
 
 function esc(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
@@ -471,7 +499,7 @@ function render(){
     feed.innerHTML = lastData.incidents.map(i=>`
       <div class="inc">
         <div class="when" title="${esc(i.ts)}">${ago(i.ts)}</div>
-        <div class="what"><b>${esc(i.platform)}</b> — ${esc(i.service)}
+        <div class="what"><b>${esc(i.platform)}</b> · ${esc(i.service)}
           <span class="tag" data-k="${i.kind}">${i.kind==='resolved'?'resolved':'issue'}</span>
           <div style="color:var(--muted);font-size:12.5px">${esc(i.from)} → ${esc(i.to)}${i.note&&i.kind!=='resolved'?` · ${esc(String(i.note).slice(0,140))}`:''}</div>
         </div>
@@ -479,7 +507,7 @@ function render(){
   } else {
     feed.innerHTML = `<div class="empty">${lastData.direct
       ? 'Incident history appears once the monitor worker is connected (Settings → Worker URL).'
-      : 'No status changes recorded yet — quiet is good. 🎉'}</div>`;
+      : 'No status changes recorded yet. Quiet is good. 🎉'}</div>`;
   }
 
   // link-only chips
@@ -538,18 +566,18 @@ $('connectBtn').addEventListener('click', async ()=>{
     nextAt=Date.now()+60000; load();
   }catch(e){
     $('adminArea').style.display='none';
-    st.textContent = `✗ ${e.message==='unauthorized'?'Wrong admin token':'Could not reach worker — '+e.message}`;
+    st.textContent = `✗ ${e.message==='unauthorized'?'Wrong admin token':'Could not reach worker: '+e.message}`;
   }
 });
 
 function renderAdmin(){
   const member = channels.filter(c=>c.is_member);
-  $('inInternal').innerHTML = `<option value="">— choose a channel —</option>` +
+  $('inInternal').innerHTML = `<option value="">Choose a channel…</option>` +
     member.map(c=>`<option value="${c.id}" ${settings.channels.internal===c.id?'selected':''}>#${esc(c.name)}${c.is_private?' 🔒':''}</option>`).join('');
   $('clientChans').innerHTML = member.map(c=>`
     <label class="tog"><input type="checkbox" value="${c.id}" ${settings.channels.clients.includes(c.id)?'checked':''}>
       #${esc(c.name)}${c.is_private?'<span class="pv">🔒 private</span>':''}</label>`).join('')
-    || `<div style="color:var(--muted);font-size:13px;padding:6px 0">The bot isn’t in any channels yet — <code>/invite @Ad Status</code> in Slack, then reconnect.</div>`;
+    || `<div style="color:var(--muted);font-size:13px;padding:6px 0">The bot isn’t in any channels yet: <code>/invite @Ad Status</code> in Slack, then reconnect.</div>`;
   $('platToggles').innerHTML = PLATFORMS.map(p=>`
     <label class="tog"><input type="checkbox" data-plat="${p.id}" ${settings.platforms?.[p.id]?.alerts!==false?'checked':''}>
       ${esc(p.name)}</label>`).join('');
@@ -570,7 +598,7 @@ $('saveBtn').addEventListener('click', async ()=>{
 
 $('testBtn').addEventListener('click', async ()=>{
   const st=$('saveStatus'); st.textContent='Sending test…';
-  try{ await api('/api/test',{method:'POST'}); st.textContent='✓ Test alert sent — check Slack'; }
+  try{ await api('/api/test',{method:'POST'}); st.textContent='✓ Test alert sent · check Slack'; }
   catch(e){ st.textContent='✗ '+e.message; }
 });
 
