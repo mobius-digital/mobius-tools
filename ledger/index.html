@@ -69,8 +69,6 @@
   .feed{display:flex;flex-direction:column;gap:8px;margin-top:10px;font-size:12.5px;color:#3A4B58}
   .feed>div{display:flex;gap:8px}
   .homegrid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:18px;align-items:start}
-  @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.rboard{grid-template-columns:repeat(2,1fr)}.txgrid,.homegrid{grid-template-columns:1fr}}
-
   /* ---- page furniture ---- */
   .hdr{background:var(--hd);color:var(--on-ink);position:sticky;top:0;z-index:20}
   .hdr .in{max-width:1140px;margin:0 auto;padding:0 18px;display:flex;align-items:center;gap:14px;height:54px}
@@ -290,6 +288,63 @@
     main{padding:0;max-width:none}
     .rpt{border:none;padding:0;max-width:none}
   }
+  /* ---- tablet: one column of full-width cards, top nav stays (iPad convention) ---- */
+  @media(max-width:1024px){.txgrid,.homegrid{grid-template-columns:1fr}}
+  @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.rboard{grid-template-columns:repeat(2,1fr)}}
+
+  /* ---- mobile: app chrome, not a shrunken website ----
+     The pattern every serious finance app ships (QuickBooks, the banks):
+     a labeled 4-item bottom tab bar in thumb reach, 44px+ targets, list
+     rows instead of tables, sheets instead of centered dialogs. */
+  #tabbar{display:none}
+  .hdr{padding-top:env(safe-area-inset-top)}
+  @media(max-width:720px){
+    .hdr nav{display:none}
+    .hdr .in{height:48px}
+    #tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;
+      background:var(--hd);border-top:1px solid rgba(129,149,162,.25);
+      padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+    #tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+      color:#8195A2;font-size:10.5px;font-weight:600;padding:4px 2px;min-height:48px;position:relative}
+    #tabbar button.on{color:#5FD292}
+    #tabbar svg{width:22px;height:22px}
+    #tabbar .tbdg{position:absolute;top:1px;right:calc(50% - 22px);background:#EBBF63;color:#0C161D;
+      font-size:9px;font-weight:700;border-radius:99px;padding:1px 5px}
+    main{padding:16px 14px calc(96px + env(safe-area-inset-bottom))}
+    footer{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+    .bulkbar{bottom:calc(80px + env(safe-area-inset-bottom));max-width:96vw;padding:10px 12px}
+    #flash{bottom:calc(84px + env(safe-area-inset-bottom))}
+    .serifh{font-size:25px}
+    .ph{flex-wrap:wrap;gap:10px}
+    .stat{padding:13px 15px} .stat .sv{font-size:23px}
+    .rboard{gap:8px} .rtile{padding:10px 12px}
+    .ctl,.chip{min-height:38px;display:inline-flex;align-items:center}
+    .mo-nav button{width:34px;height:34px}
+    .srch{min-width:0;flex:1}
+    .rpt{padding:18px 16px}
+    /* the transactions table becomes a list of row-cards */
+    .txn-tbl thead{display:none}
+    .txn-tbl,.txn-tbl tbody{display:block}
+    .txn-tbl tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;
+      grid-template-areas:"pick vendor amt" "pick meta rc";
+      gap:2px 8px;padding:12px 12px 12px 8px;border-bottom:1px solid var(--line);align-items:start}
+    .txn-tbl td{display:block;padding:0!important;border:none}
+    .txn-tbl td,.txn-tbl tbody tr:hover td,.txn-tbl tr.picked td{background:none}
+    .txn-tbl tr.picked{background:var(--brand-soft)}
+    .txn-tbl td.pick{grid-area:pick;width:auto;padding-top:4px!important}
+    .txn-tbl td.pick input{width:18px;height:18px}
+    .txn-tbl td.tiny{grid-area:meta;align-self:center}
+    .txn-tbl td:nth-child(3){grid-area:vendor;min-width:0}
+    .txn-tbl td:nth-child(4){grid-area:rc;justify-self:end;align-self:center}
+    .txn-tbl td.amt{grid-area:amt;text-align:right;font-size:16px;white-space:nowrap}
+    .txn-tbl .rowsel{margin-top:5px;max-width:100%}
+    .msel-btn{max-width:100%}
+    /* modals arrive as bottom sheets */
+    .modal{padding:0;align-items:flex-end}
+    .mbox{max-width:none;width:100%;border-radius:16px 16px 0 0;border-bottom:none;
+      max-height:92dvh;overflow-y:auto;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
+  }
+
 </style>
 </head>
 <body>
@@ -304,6 +359,8 @@
 </header>
 
 <main id="main"></main>
+
+<nav id="tabbar" class="no-print"></nav>
 
 <div class="scrim" id="scrim"></div>
 <div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
@@ -386,6 +443,7 @@ function setChip(t, s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; 
 function renderGate(err) {
   setChip('Signed out','off');
   $('#nav').innerHTML = '';
+  $('#tabbar').innerHTML = '';
   $('#main').innerHTML = `
   <div class="gate">
     <h1>Mobius Ledger</h1>
@@ -421,10 +479,25 @@ function navHTML(){
   return VIEWS.map(([id,label]) =>
     `<button class="${on===id?'on':''}" onclick="show('${id}')">${label}${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`).join('');
 }
+/* The phone's navigation: same four destinations, bottom of the screen where
+   thumbs live. CSS decides which of the two navs is visible. */
+const TAB_ICONS = {
+  dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
+  txns: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+  reports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 20v-8M11 20V5M17 20v-5M2.5 20h19"/></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h9M17.5 8H20M4 16h2.5M11 16h9"/><circle cx="15" cy="8" r="2.2"/><circle cx="8.5" cy="16" r="2.2"/></svg>',
+};
+function tabbarHTML(){
+  const rv = Object.values(S.boot?.flags || {}).reduce((s,f)=>s+(+f.review||0),0);
+  const on = PARENT[S.view] || S.view;
+  return VIEWS.map(([id,label]) =>
+    `<button class="${on===id?'on':''}" onclick="show('${id}')">${TAB_ICONS[id]}<span>${label}</span>${id==='txns'&&rv?`<span class="tbdg">${rv}</span>`:''}</button>`).join('');
+}
 function show(view){
   S.view = view;
   S.rt = (S.rt || 0) + 1;   // every render carries a ticket; only the newest paints
   $('#nav').innerHTML = navHTML();
+  $('#tabbar').innerHTML = tabbarHTML();
   ({dash:renderDash, txns:renderTxns, receipts:renderReceipts, close:renderClose,
     reports:renderReports, forecast:renderForecast, settings:renderSettings}[view])();
 }
