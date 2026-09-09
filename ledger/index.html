@@ -52,6 +52,7 @@
   .nbars .nb.hi .ml,.nbars .nb.hi .mv{color:var(--good);font-weight:700}
   .nbars .nb .mv{font-size:11px;white-space:nowrap}
   .ct{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .fm-c.on{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft);background:var(--brand-soft)}
   #charttip{position:fixed;z-index:80;background:var(--ink);color:#fff;font-size:12px;font-weight:600;
     padding:6px 10px;border-radius:7px;pointer-events:none;white-space:nowrap;
     box-shadow:0 8px 22px rgba(12,22,29,.3);opacity:0;transition:opacity .06s}
@@ -1421,36 +1422,58 @@ async function processNextReceipt(){
     if (exact.length === 1){
       try {
         await api('/api/receipt', { method:'POST', body: JSON.stringify({ id: exact[0].id, name: file.name, type: payload.type, data: payload.data }) });
+        markAttached(exact[0].id);
         st.auto++; return processNextReceipt();
       } catch(e){ /* fall through to the modal */ }
     }
   }
   matchModal(file, payload, ext, { pool, rMonth });
 }
+/* A file's caches don't know about attaches made seconds ago in this same
+   batch — mark the row in place so no later receipt is offered a taken row. */
+function markAttached(id){
+  const pools = [S.txns || [], ...Object.values(window.__moCache || {})];
+  for (const arr of pools) { const hit = arr.find(t => t.id === id); if (hit) hit.receipt_key = 'rcpt:fresh'; }
+}
 function matchModal(file, payload, ext, opts = {}){
   (S.view==='txns' ? renderTxns : renderReceipts)(); // reset whichever drop zone was used
   const pool = opts.pool || (S.txns||[]);
   const st = window.__rqStats || { total:1 }, q = window.__rq || [];
+  const batch = st.total > 1;
   const cand = pool.filter(t => t.type==='out' && !t.receipt_key)
     .map(t => ({ t, score: (ext?.amount != null && Math.abs(t.amount - ext.amount) < .005 ? 2 : 0) +
       (ext?.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0]) ? 1 : 0) }))
     .sort((a,b) => b.score - a.score).slice(0, 6);
-  /* same amount + vendor already carrying a receipt = probably this same file twice */
+  /* Deliberately looks at rows that DO have receipts: same amount + vendor
+   * already receipted is how a duplicate upload announces itself. */
   const dupe = ext?.amount != null ? pool.find(t => t.receipt_key && Math.abs(t.amount - ext.amount) < .005
     && (!ext.vendor || t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0]))) : null;
   openModal(`
-    <h3>File this receipt${st.total>1 ? ` · ${st.total - q.length} of ${st.total}` : ''}</h3>
+    <h3>File this receipt${batch ? ` · ${st.total - q.length} of ${st.total}` : ''}</h3>
     <div class="hint">${ext ? `Read: <b>${esc(ext.vendor||'?')}</b> · <b>${ext.amount!=null?fmt$(+ext.amount):'?'}</b>${ext.date?` · ${esc(ext.date)}`:''}` : 'Pick the transaction this belongs to, or create a new one.'}</div>
     ${dupe ? `<div class="notice" style="margin:10px 0 0;background:var(--warn-bg);border-color:var(--warn);color:var(--warn)">
-      <b>${esc(dupe.vendor)} ${fmt$(dupe.amount)} on ${fmtDate(dupe.date)} already has a receipt</b> — this may be the same one twice. ${st.total>1?'Skip':'Cancel'} if so.</div>` : ''}
-    <label>Match to an expense${opts.rMonth && opts.rMonth !== S.month ? ` <span class="why">The receipt is dated ${moName(opts.rMonth)}, so that month's open expenses are shown too.</span>` : ''}</label>
-    ${cand.map(({t,score}) => `<button class="btn" style="display:flex;width:100%;margin-top:6px;text-align:left;gap:10px" onclick="fileTo(${t.id})">
+      <b>${esc(dupe.vendor)} ${fmt$(dupe.amount)} on ${fmtDate(dupe.date)} already has a receipt</b> — this may be the same one twice. ${batch?'Skip':'Cancel'} if so.</div>` : ''}
+    <label>Tap the expense it belongs to, then press Attach${opts.rMonth && opts.rMonth !== S.month ? ` <span class="why">The receipt is dated ${moName(opts.rMonth)}, so that month's open expenses are shown too.</span>` : ''}</label>
+    <div id="fmList">
+    ${cand.map(({t,score}) => `<button type="button" class="btn fm-c" data-id="${t.id}" style="display:flex;width:100%;margin-top:6px;text-align:left;gap:10px">
       <span style="flex:1">${esc(t.vendor)} <span class="tiny">${fmtDate(t.date)}${t.month !== S.month ? ` · ${moName(t.month)}` : ''}</span></span>
-      <b>${fmt$(t.amount)}</b>${score>=2?' <span class="pill good">match</span>':''}</button>`).join('') || '<div class="hint">No unreceipted expenses found for that month.</div>'}
+      <b>${fmt$(t.amount)}</b>${score>=2?' <span class="pill good">match</span>':''}</button>`).join('') || '<div class="hint">No open expense matches this one — Skip it, or file it as a new expense.</div>'}
+    </div>
     <div class="acts">
-      <button class="btn" onclick='newFromReceipt()'>+ New transaction from this</button>
-      <span class="spacer"></span><button class="btn" onclick="skipReceiptFile()">${q.length ? 'Skip this one' : 'Cancel'}</button></div>
+      <button class="btn" onclick='newFromReceipt()'>+ New expense</button>
+      ${batch ? `<button class="btn" onclick="stopReceiptBatch()" title="Skips this and everything still waiting">Stop batch</button>` : ''}
+      <span class="spacer"></span>
+      <button class="btn" onclick="skipReceiptFile()">${batch ? 'Skip →' : 'Cancel'}</button>
+      <button class="btn primary" id="fmAttach" disabled>Attach</button></div>
     <div class="msg" id="fMsg"></div>`);
+  /* Nothing saves on a stray tap: picking highlights, Attach commits. */
+  let sel = null;
+  document.querySelectorAll('#fmList .fm-c').forEach(b => b.onclick = () => {
+    sel = +b.dataset.id === sel ? null : +b.dataset.id;
+    document.querySelectorAll('#fmList .fm-c').forEach(x => x.classList.toggle('on', +x.dataset.id === sel));
+    $('#fmAttach').disabled = sel === null;
+  });
+  $('#fmAttach').onclick = () => { if (sel != null) fileTo(sel); };
   window.__pendingReceipt = { file, payload, ext };
 }
 function skipReceiptFile(){
@@ -1458,12 +1481,20 @@ function skipReceiptFile(){
   if (window.__rqStats) window.__rqStats.skipped++;
   if ((window.__rq||[]).length) processNextReceipt();
 }
+function stopReceiptBatch(){
+  const st = window.__rqStats || {};
+  st.skipped = (st.skipped || 0) + (window.__rq || []).length + 1;
+  window.__rq = [];
+  closeModal();
+  processNextReceipt();   // empty queue → reload the view + summary
+}
 async function fileTo(id){
   const { file, payload } = window.__pendingReceipt || {};
   if (!payload) return;
   const el = $('#fMsg'); el.className='msg'; el.textContent='Attaching…';
   try {
     await api('/api/receipt', { method:'POST', body: JSON.stringify({ id, name:file.name, type:payload.type, data:payload.data }) });
+    markAttached(id);
     if (window.__rqStats) window.__rqStats.manual++;
     closeModal();
     return processNextReceipt();   // reloads + confirms when the queue is empty
