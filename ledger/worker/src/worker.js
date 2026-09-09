@@ -708,11 +708,20 @@ async function processSlackReceipts(env) {
              AND month >= ?1 AND month <= ?2 AND LOWER(vendor) LIKE ?3
              ORDER BY date DESC LIMIT 3`, [...win, `%${same}%`]) : [];
 
+          /* A duplicate is CLOSED, not open: the charge is covered, so there is
+           * no decision, no mention, and above all no "file as new" button —
+           * that button on a duplicate is a one-tap double count. The pending
+           * blob is deleted on the spot so nothing lingers to act on later. */
+          if (taken.length) {
+            await receiptDelete(env, pendKey).catch(() => {});
+            await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(pendKey).run();
+            await react('repeat');
+            await reply(`🔁 *${ext.vendor}* $${amt.toFixed(2)} — that charge (${taken[0].vendor}, ${taken[0].date}) already has its receipt. Same receipt twice; nothing filed, nothing needed.`);
+            handled++; continue;
+          }
           const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)} — nothing on Novo or Amex matches that amount, so nothing was filed.`;
           let why, btns = [];
-          if (taken.length) {
-            why = `That exact charge *is* there (${taken[0].vendor}, ${taken[0].date}) but it already has a receipt attached — so this is very likely the same receipt arriving twice. Nothing to do.`;
-          } else if (pending.length) {
+          if (pending.length) {
             why = `There is a matching *expected* row (${pending[0].vendor}, ${moLabel(pending[0].month)}) that the bank has not confirmed yet. Confirm it in the app and drop this receipt again, and it will attach.`;
           } else if (elsewhere.length) {
             why = `The amount exists but in *${moLabel(elsewhere[0].month)}* (${elsewhere[0].vendor}, ${elsewhere[0].date}), outside the window around this receipt's date. Tap it to attach it there:`;
@@ -821,6 +830,20 @@ async function processSlackReceipts(env) {
       }
     }
   }
+  /* Held receipts whose 30-day blob has already expired leave a settings row
+   * behind forever if the button is never pressed; sweep them here. The key
+   * embeds its own creation time, so age is a string comparison away. */
+  try {
+    const cutoff = Date.now() - 35 * 24 * 3600e3;
+    const { results: stale } = await env.DB.prepare(
+      `SELECT key FROM settings WHERE key LIKE 'pend:%'`).all();
+    for (const r of stale) {
+      const ts = Number(r.key.split(':')[1]);
+      if (Number.isFinite(ts) && ts < cutoff)
+        await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(r.key).run();
+    }
+  } catch (e) { /* housekeeping only — never let it break the poll */ }
+
   /* No end-of-run summary: every receipt now reports in its own thread, and a
    * channel-level post is the one shape that WOULD ping him. */
   cfg.lockUntil = 0;
