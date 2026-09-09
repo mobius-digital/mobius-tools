@@ -480,7 +480,15 @@ async function processSlackReceipts(env) {
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
     if (selfId && msg.user === selfId) continue;              // our own P&L posts
-    for (const f of msg.files || []) {
+    /* One forwarded email lands as TWO Slack files: the email container and
+     * a copy of its text/html body. Reading both filed the same payment twice,
+     * onto rows in two different months (the second copy could not use the row
+     * the first had just receipted, so it went hunting in the window). When an
+     * email container exists it is the only file worth reading. */
+    const flist = (msg.files || []).some(f => f.filetype === 'email')
+      ? (msg.files || []).filter(f => f.filetype === 'email')
+      : (msg.files || []);
+    for (const f of flist) {
       const isPdf = f.mimetype === 'application/pdf';
       // Slack's email-to-channel arrives as filetype 'email', and the forwarded
       // body itself comes through as a text/html file. Both are receipts.
@@ -610,7 +618,7 @@ async function processSlackReceipts(env) {
             const pDate = /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') && p.date <= today ? p.date : rDate;
             const { results } = await env.DB.prepare(
               `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
-               AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01
+               AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005
                ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
               .bind(monthOf(addMonthsYmd(pDate, -1)), monthOf(addMonthsYmd(pDate, 1)), Math.abs(p.amount), pDate).all();
             const first = String(p.vendor).toLowerCase().split(' ')[0];
@@ -655,7 +663,7 @@ async function processSlackReceipts(env) {
         if (ext?.amount) {
           const { results } = await env.DB.prepare(
             `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
-             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01 ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
+             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005 ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
             .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)), ext.amount, rDate).all();
           target = results.find(t => ext.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0])) || results[0] || null;
         }
@@ -693,15 +701,15 @@ async function processSlackReceipts(env) {
           // (a) the charge is there, but something already claimed the receipt
           const taken = await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NOT NULL
-             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01 LIMIT 3`, [...win, amt]);
+             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005 LIMIT 3`, [...win, amt]);
           // (b) it is still only a prediction — the bank has not confirmed it
           const pending = await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=1
-             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01 LIMIT 3`, [...win, amt]);
+             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005 LIMIT 3`, [...win, amt]);
           // (c) right amount, wrong month — the date on the receipt misled us
           const elsewhere = await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
-             AND ABS(amount - ?1) < 0.01 ORDER BY date DESC LIMIT 3`, [amt]);
+             AND ABS(amount - ?1) < 0.005 ORDER BY date DESC LIMIT 3`, [amt]);
           // (d) the vendor is known, so what DID it charge around then?
           const byVendor = same ? await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0
@@ -1245,7 +1253,7 @@ async function processPlaidTxn(env, item, t) {
      * three different $15 subscriptions, so amount alone is only trusted when
      * exactly ONE expected row carries it. Ambiguous → insert normally and
      * let the expected row wait for its real charge. */
-    const amtHits = exp.filter(x => Math.abs(x.amount - amount) < 0.01);
+    const amtHits = exp.filter(x => Math.abs(x.amount - amount) < 0.005);
     const eHit = exp.find(x => x.vendor.toLowerCase().split(' ')[0] === first
         || x.vendor.toLowerCase().includes(first) || first.includes(x.vendor.toLowerCase().split(' ')[0]))
       || (amtHits.length === 1 ? amtHits[0] : null);
@@ -1257,7 +1265,7 @@ async function processPlaidTxn(env, item, t) {
     // 2) adopt an existing manual row (same month, amount to the cent)
     const { results: cand } = await env.DB.prepare(
       `SELECT * FROM transactions WHERE month = ?1 AND type = 'out' AND expected = 0 AND plaid_id IS NULL
-       AND ABS(amount - ?2) < 0.01`).bind(month, amount).all();
+       AND ABS(amount - ?2) < 0.005`).bind(month, amount).all();
     const mHit = cand.find(x => x.vendor.toLowerCase().split(' ')[0] === first) || (cand.length === 1 ? cand[0] : null);
     if (mHit) {
       await env.DB.prepare(`UPDATE transactions SET plaid_id=?2 WHERE id=?1`).bind(mHit.id, t.transaction_id).run();
@@ -2023,10 +2031,13 @@ export default {
             const { results } = await env.DB.prepare(
               `SELECT id, vendor, month, date FROM transactions
                WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
-                 AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.01
+                 AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005
                ORDER BY (month = ?4) DESC, id`).bind(win[0], win[1], amt, f.month || '').all();
             const first = String(ext.vendor || '').toLowerCase().split(' ')[0];
-            const hit = results.find(t => first && t.vendor.toLowerCase().includes(first)) || results[0];
+            // dated files may fall back to the closest amount; an UNDATED file
+            // searched the whole ledger, so for those the vendor name must agree
+            const hit = results.find(t => first && t.vendor.toLowerCase().includes(first))
+              || (f.month ? results[0] : null);
             if (!hit) {
               job.noMatch++;
               job.log.push(`${f.name}: $${amt.toFixed(2)}${f.month ? ' in ' + f.month : ''} — no unreceipted match`);
