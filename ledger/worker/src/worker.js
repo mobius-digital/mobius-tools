@@ -36,6 +36,15 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
   status, headers: { 'Content-Type': 'application/json', ...CORS },
 });
 
+/* A receipt's fingerprint. Two dates can never prove "same receipt" - a card
+ * posts days after the purchase, and a subscription bills the identical
+ * amount every month - but the bytes can: the same file is the same file.
+ * Stored on attach so a re-forward is recognised with certainty, not a guess. */
+async function sha256bytes(buf) {
+  const d = await crypto.subtle.digest('SHA-256', buf instanceof ArrayBuffer ? buf : new Uint8Array(buf).buffer);
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function sha256hex(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -98,6 +107,7 @@ async function recentRevenueAvg(env) {
     [k, Math.round(a.reduce((s, v) => s + v, 0) / a.length * 100) / 100]));
 }
 
+const fmtMoney = n => '$' + Math.abs(Number(n) || 0).toFixed(2);
 const monthOf = date => String(date).slice(0, 7);
 const validMonth = m => /^\d{4}-\d{2}$/.test(m || '');
 const round2 = n => Math.round(n * 100) / 100;
@@ -626,8 +636,8 @@ async function processSlackReceipts(env) {
             if (!row) { miss.push(p); continue; }
             const key = `rcpt:${row.id}:${Date.now()}:${hit.length}`;
             await receiptPut(env, key, buf);
-            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
-              .bind(row.id, key, fname.slice(0, 120), mimetype).run();
+            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+              .bind(row.id, key, fname.slice(0, 120), mimetype, await sha256bytes(buf)).run();
             hit.push(row);
           }
           if (hit.length) {
@@ -704,7 +714,10 @@ async function processSlackReceipts(env) {
            * call September's Canva receipt a duplicate of August's. Ten days
            * covers a receipt arriving before or after its charge posts;
            * anything a month away is next month's bill, not this one twice. */
-          const taken = await q(
+          const fp = await sha256bytes(buf);
+          const sameFile = await q(
+            `SELECT * FROM transactions WHERE receipt_hash = ?1 LIMIT 3`, [fp]);
+          const taken = sameFile.length ? sameFile : await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NOT NULL
              AND ABS(amount - ?1) < 0.005 AND ABS(julianday(date) - julianday(?2)) <= 10
              ORDER BY ABS(julianday(date) - julianday(?2)) LIMIT 3`, [amt, rDate]);
@@ -730,7 +743,9 @@ async function processSlackReceipts(env) {
             await receiptDelete(env, pendKey).catch(() => {});
             await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(pendKey).run();
             await react('repeat');
-            await reply(`🔁 *${ext.vendor}* $${amt.toFixed(2)} — that charge (${taken[0].vendor}, ${taken[0].date}) already has its receipt. Same receipt twice; nothing filed, nothing needed.`);
+            await reply(sameFile.length
+              ? `🔁 *${ext.vendor}* $${amt.toFixed(2)} — this is the exact same file already attached to *${taken[0].vendor}* ${fmtMoney(taken[0].amount)} (${taken[0].date}). Nothing filed, nothing needed.`
+              : `🔁 *${ext.vendor}* $${amt.toFixed(2)} — that charge (${taken[0].vendor}, ${taken[0].date}) already has its receipt, dated within days of this one. Nothing filed; if this is a different charge, attach it from the app.`);
             handled++; continue;
           }
           const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)} — nothing on Novo or Amex matches that amount, so nothing was filed.`;
@@ -795,8 +810,8 @@ async function processSlackReceipts(env) {
         if (target) {
           const key = `rcpt:${target.id}:${Date.now()}`;
           await receiptPut(env, key, buf);
-          await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
-            .bind(target.id, key, fname.slice(0, 120), mimetype).run();
+          await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+            .bind(target.id, key, fname.slice(0, 120), mimetype, await sha256bytes(buf)).run();
           // the month is always stated: a receipt filed into the wrong month is
           // the one mistake that would quietly move spend around behind him
           if (target.__new) {
@@ -1501,8 +1516,8 @@ export default {
             }
             const k = `rcpt:${row.id}:${Date.now()}`;
             await receiptPut(env, k, blob);
-            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
-              .bind(row.id, k, meta.name, meta.type).run();
+            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+              .bind(row.id, k, meta.name, meta.type, await sha256bytes(blob)).run();
             await receiptDelete(env, val.file);
             await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
             respond({ replace_original: true,
@@ -1529,8 +1544,8 @@ export default {
             .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
           const key = `rcpt:${res.meta.last_row_id}:${Date.now()}`;
           await receiptPut(env, key, blob);
-          await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
-            .bind(res.meta.last_row_id, key, meta.name, meta.type).run();
+          await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+            .bind(res.meta.last_row_id, key, meta.name, meta.type, await sha256bytes(blob)).run();
           await receiptDelete(env, val.file);
           await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
           respond({ replace_original: true,
@@ -1543,7 +1558,7 @@ export default {
           const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.undo)).first();
           if (cur) {
             if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
-            await env.DB.prepare('UPDATE transactions SET receipt_key = NULL, receipt_name = NULL, receipt_type = NULL WHERE id = ?1')
+            await env.DB.prepare('UPDATE transactions SET receipt_key = NULL, receipt_name = NULL, receipt_type = NULL, receipt_hash = NULL WHERE id = ?1')
               .bind(cur.id).run();
             respond({ replace_original: true,
               text: `↩︎ Detached — *${cur.vendor}* $${Math.abs(cur.amount).toFixed(2)} is back to "no receipt". Fix the right row in the app first (amount/date), then drop the photo again and it'll land there.` });
@@ -2050,8 +2065,8 @@ export default {
             }
             const key = `rcpt:${hit.id}:${Date.now()}`;
             await receiptPut(env, key, buf);
-            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
-              .bind(hit.id, key, f.name.slice(0, 120), f.mimeType).run();
+            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+              .bind(hit.id, key, f.name.slice(0, 120), f.mimeType, await sha256bytes(buf)).run();
             job.attached++;
             job.log.push(`${f.name} → ${hit.vendor} $${amt.toFixed(2)} (${hit.date})`);
           } catch (e) {
@@ -2126,8 +2141,8 @@ export default {
         if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
         const name = String(b.name || 'receipt').slice(0, 120);
         const type = String(b.type || 'application/octet-stream').slice(0, 80);
-        await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4 WHERE id=?1')
-          .bind(id, key, name, type).run();
+        await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+          .bind(id, key, name, type, await sha256bytes(bytes.buffer)).run();
         return json({ ok: true, key });
       }
 
@@ -2145,7 +2160,7 @@ export default {
         const id = Number(url.searchParams.get('id'));
         const cur = await env.DB.prepare('SELECT receipt_key FROM transactions WHERE id = ?1').bind(id).first();
         if (cur?.receipt_key) await receiptDelete(env, cur.receipt_key);
-        await env.DB.prepare('UPDATE transactions SET receipt_key=NULL, receipt_name=NULL, receipt_type=NULL WHERE id=?1').bind(id).run();
+        await env.DB.prepare('UPDATE transactions SET receipt_key=NULL, receipt_name=NULL, receipt_type=NULL, receipt_hash=NULL WHERE id=?1').bind(id).run();
         return json({ ok: true });
       }
 

@@ -289,33 +289,30 @@
     main{padding:0;max-width:none}
     .rpt{border:none;padding:0;max-width:none}
   }
-  /* ---- P&L statement: the accountant's shape, with the detail folded inside.
-     Every category opens into its vendors, every vendor into its actual
-     charges · the summary and the evidence in one object, which is what
-     QuickBooks and Xero settled on years ago. ---- */
-  .pnl{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
-  .pnl th{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
-    text-align:right;padding:0 0 8px 14px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
-  .pnl th:first-child{text-align:left;padding-left:0}
-  .pnl td{padding:7px 0 7px 14px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-  .pnl td:first-child{text-align:left;white-space:normal;width:100%;padding-left:0}
-  .pnl tr.sec td{padding-top:20px;border-bottom:1px solid var(--line-strong);
-    font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-  .pnl tr.tot td{font-weight:700;border-top:1px solid var(--line-strong);border-bottom:none}
-  .pnl tr.net td{font-weight:700;font-size:17px;border-top:2px solid var(--ink);border-bottom:none;padding-top:11px}
-  .pnl tr.row td:first-child{cursor:pointer;user-select:none}
-  .pnl tr.row:hover td{background:var(--brand-soft)}
-  .pnl .tw{display:inline-block;width:13px;color:var(--muted);font-size:9px;transition:transform .12s}
-  .pnl tr.open>td .tw{transform:rotate(90deg)}
-  .pnl tr.l2 td:first-child{padding-left:25px}
-  .pnl tr.l2 td{color:#3A4B58}
-  .pnl tr.l3 td{color:var(--muted);font-size:12.5px}
-  .pnl tr.l3 td:first-child{padding-left:48px}
-  .pnl .pct{color:var(--muted);font-size:12px}
-  .pnl .dlt{font-size:12px;color:var(--muted)}
-  .pnl tr[data-p]{display:none}
-  .pnl tr[data-p].shown{display:table-row}
-  @media(max-width:720px){.pnl th.pct,.pnl td.pct{display:none}.pnl{font-size:13px}}
+  /* ---- the report, in the app's own language: big numbers, quiet rows,
+     open a line only if you want the charges behind it ---- */
+  .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:4px}
+  .hero .h{padding:4px 20px 4px 0}
+  .hero .h+.h{border-left:1px solid var(--line);padding-left:24px}
+  .hero .hv{font-family:var(--serif);font-size:32px;letter-spacing:-.01em;line-height:1.15;font-variant-numeric:tabular-nums}
+  .hero .hd{font-size:12px;color:var(--muted);margin-top:3px}
+  .rl{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .rl:last-child{border-bottom:none}
+  .rl .rn{flex:1;min-width:0}
+  .rl .ra{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rl.open-able{cursor:pointer}
+  .rl.open-able:hover{color:var(--brand-ink)}
+  .rl .tw{display:inline-block;width:12px;font-size:9px;color:var(--muted);transition:transform .12s}
+  .rl.on .tw{transform:rotate(90deg)}
+  .rl .cnt{font-size:12px;color:var(--muted);font-weight:400}
+  .rl.tot{border-top:1px solid var(--line-strong);border-bottom:none;font-weight:700;margin-top:2px}
+  .rsub2{display:none}
+  .rsub2.shown{display:flex}
+  .rl.lv2{padding-left:22px;font-size:13.5px;color:#3A4B58}
+  .rl.lv3{padding-left:44px;font-size:12.5px;color:var(--muted)}
+  @media(max-width:720px){.hero{grid-template-columns:1fr;gap:0}
+    .hero .h+.h{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:14px;margin-top:12px}
+    .hero .hv{font-size:28px}}
 
   /* ---- tablet: one column of full-width cards, top nav stays (iPad convention) ---- */
   @media(max-width:1024px){.txgrid,.homegrid{grid-template-columns:1fr}}
@@ -1661,21 +1658,22 @@ async function reopenMonth(){
 
 /* ================= reports ================= */
 const round2c = n => Math.round(n * 100) / 100;
-/* Opening a line reveals rows that are already on the page · no refetch, and
-   closing a category folds its vendors away with it so reopening is clean. */
-function rptToggle(el){
-  const key = el.dataset.k, open = !el.classList.contains('open');
-  el.classList.toggle('open', open);
-  document.querySelectorAll('.pnl tr[data-p]').forEach(tr => {
-    const p = tr.dataset.p;
-    if (p === key) tr.classList.toggle('shown', open);
-    else if (!open && p.startsWith(key + '|')) tr.classList.remove('shown');
-    if (!open && (p === key || p.startsWith(key + '|'))) tr.classList.remove('open');
+/* Opening a line reveals rows already on the page: instant, and the detail
+   can never drift from the total above it. Closing a category folds its
+   vendors away with it. */
+function rlToggle(el){
+  const k = el.dataset.k, open = !el.classList.contains('on');
+  el.classList.toggle('on', open);
+  document.querySelectorAll('.rl.rsub2').forEach(x => {
+    if (x.dataset.p === k) x.classList.toggle('shown', open);
+    else if (!open && String(x.dataset.p || '').startsWith(k)) { x.classList.remove('shown'); x.classList.remove('on'); }
   });
 }
-function rptAll(open){
-  document.querySelectorAll('.pnl tr[data-p]').forEach(tr => tr.classList.toggle('shown', open));
-  document.querySelectorAll('.pnl tr.row').forEach(tr => tr.classList.toggle('open', open));
+function rlAll(btn){
+  const open = btn.textContent.trim().startsWith('Expand');
+  document.querySelectorAll('.rl.rsub2').forEach(x => x.classList.toggle('shown', open));
+  document.querySelectorAll('.rl.open-able').forEach(x => x.classList.toggle('on', open));
+  btn.textContent = open ? 'Collapse all' : 'Expand all';
 }
 
 async function renderReports(){
@@ -1701,70 +1699,72 @@ async function renderReports(){
     .filter(x => x <= nowMonth() || (S.boot.flags||{})[x]).sort();
   const rmOpen = moState(rm) !== 'closed';
 
-  /* The statement's detail comes from the month's actual rows, so every
-     figure can be opened until an individual dated charge is looking back. */
+  /* The detail comes from the month's own rows, so any line can be opened
+     until the individual dated charges are looking back at you. */
   let rows = [];
   try { rows = (await txnsForMonth(rm)).filter(t => !t.expected); } catch(e){}
   const isPersonal = t => /^Personal/i.test(t.tax_cat || '');
-  const pct = n => r.revenue > 0 ? (Math.abs(n) / r.revenue * 100).toFixed(1) + '%' : '';
-  const dlt = (cur, pv) => pv == null ? '' :
-    Math.abs(cur - pv) < 0.005 ? '<span class="dlt">no change</span>'
-    : `<span class="dlt">${cur > pv ? '▲' : '▼'} ${fmtK(Math.abs(cur - pv))}</span>`;
   const groupSum = (list, key) => {
     const g = {};
     for (const t of list) (g[key(t)] ||= []).push(t);
     return Object.entries(g).map(([k, ts]) => ({ k, ts, sum: round2c(ts.reduce((a, t) => a + t.amount, 0)) }))
       .sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum));
   };
-  /* Three levels, all rendered up front and shown or hidden by class: opening
-     a category is instant and never refetches, and nothing can go stale. */
-  const tree = (list, prefix, prevMap) => groupSum(list, t => t.bucket || 'Other').map(b => {
-    const bk = `${prefix}:${b.k}`;
-    const vendors = groupSum(b.ts, t => t.vendor);
-    return `
-      <tr class="row" data-k="${esc(bk)}" onclick="rptToggle(this)">
-        <td><span class="tw">▶</span>${esc(b.k)} <span class="tiny">${b.ts.length}</span></td>
-        <td>${fmt$(b.sum)}</td><td class="pct">${pct(b.sum)}</td><td>${dlt(b.sum, prevMap?.[b.k])}</td></tr>
-      ${vendors.map(v => {
-        const vk = `${bk}|${v.k}`;
-        const many = v.ts.length > 1;
-        return `
-        <tr class="l2 ${many ? 'row' : ''}" data-p="${esc(bk)}" data-k="${esc(vk)}" ${many ? 'onclick="rptToggle(this)"' : ''}>
-          <td>${many ? '<span class="tw">▶</span>' : '<span class="tw"></span>'}${esc(v.k)}${many ? ` <span class="tiny">${v.ts.length}</span>` : ''}</td>
-          <td>${fmt$(v.sum)}</td><td class="pct">${pct(v.sum)}</td><td></td></tr>
-        ${many ? v.ts.map(t => `
-          <tr class="l3" data-p="${esc(vk)}">
-            <td>${fmtDate(t.date)}${t.note ? ' · ' + esc(String(t.note).slice(0, 40)) : ''}</td>
-            <td>${fmt$(t.amount)}</td><td class="pct"></td>
-            <td>${t.receipt_key ? '<span style="color:var(--good)">✓</span>' : t.receipt_skip ? '<span class="tiny">none</span>' : '<span style="color:var(--warn)">no receipt</span>'}</td></tr>`).join('') : ''}`;
-      }).join('')}`;
-  }).join('');
-
-  const revList = rows.filter(t => t.type === 'in');
-  const outList = rows.filter(t => t.type === 'out' && !isPersonal(t));
-  const feeList = rows.filter(t => t.type === 'fee');
+  const revList  = rows.filter(t => t.type === 'in');
+  const outList  = rows.filter(t => t.type === 'out' && !isPersonal(t));
+  const feeList  = rows.filter(t => t.type === 'fee');
   const persList = rows.filter(t => t.type === 'out' && isPersonal(t));
-  const revRows = groupSum(revList, t => t.vendor).map(c => {
-    const ck = `rev:${c.k}`;
-    const many = c.ts.length > 1;
-    return `
-      <tr class="${many ? 'row' : ''}" data-k="${esc(ck)}" ${many ? 'onclick="rptToggle(this)"' : ''}>
-        <td>${many ? '<span class="tw">▶</span>' : '<span class="tw"></span>'}${esc(c.k)}</td>
-        <td>${fmt$(c.sum)}</td><td class="pct">${pct(c.sum)}</td><td>${dlt(c.sum, prev?.byClient?.[c.k])}</td></tr>
-      ${many ? c.ts.map(t => `
-        <tr class="l3" data-p="${esc(ck)}"><td>${fmtDate(t.date)}${t.source === 'stripe' ? ' · Stripe' : ''}</td>
-          <td>${fmt$(t.amount)}</td><td class="pct"></td><td></td></tr>`).join('') : ''}`;
+  const moneyOut = round2c(r.expenses + r.fees);
+  const prevOut  = prev ? round2c(prev.expenses + prev.fees) : null;
+  const vs = (cur, pv) => pv == null || !pv ? ''
+    : Math.abs(cur - pv) < 0.005 ? `level with ${moShort(addMonths(rm,-1))}`
+    : `${cur > pv ? '\u25b2' : '\u25bc'} ${fmtK(Math.abs(cur - pv))} vs ${moShort(addMonths(rm,-1))}`;
+  const key = t => t.replace(/\W+/g, '').slice(0, 22);
+
+  /* One line per thing, and the charges underneath only if you ask for them:
+     a category opens into its vendors, a vendor into its dated charges. */
+  const outRows = groupSum(outList, t => t.bucket || 'Other').map(b => {
+    const bk = 'b' + key(b.k);
+    const kids = groupSum(b.ts, t => t.vendor).map(v => {
+      const vk = bk + 'v' + key(v.k);
+      const many = v.ts.length > 1;
+      const charges = many ? v.ts.map(t => `
+        <div class="rl lv3 rsub2" data-p="${vk}"><span class="rn">${fmtDate(t.date)}</span>
+          <span class="ra">${fmt$(t.amount)}${t.receipt_key ? ' <span style="color:var(--good)">\u2713</span>' : t.receipt_skip ? '' : ' <span style="color:var(--warn);font-weight:400;font-size:11.5px">no receipt</span>'}</span></div>`).join('') : '';
+      return `<div class="rl lv2 rsub2 ${many ? 'open-able' : ''}" data-p="${bk}" ${many ? `data-k="${vk}" onclick="rlToggle(this)"` : ''}>
+          <span class="rn">${many ? '<span class="tw">\u25b6</span>' : ''}${esc(v.k)}${many ? ` <span class="cnt">${v.ts.length}</span>` : ''}</span>
+          <span class="ra">${fmt$(v.sum)}</span></div>${charges}`;
+    }).join('');
+    return `<div class="rl open-able" data-k="${bk}" onclick="rlToggle(this)">
+        <span class="rn"><span class="tw">\u25b6</span>${esc(b.k)} <span class="cnt">${b.ts.length}</span></span>
+        <span class="ra">${fmt$(b.sum)}</span></div>${kids}`;
   }).join('');
 
-  const totalCosts = round2c(r.expenses + r.fees);
-  const prevCosts = prev ? round2c(prev.expenses + prev.fees) : null;
+  const inRows = groupSum(revList, t => t.vendor).map(c => {
+    const ck = 'c' + key(c.k);
+    const many = c.ts.length > 1;
+    const kids = many ? c.ts.map(t => `
+      <div class="rl lv3 rsub2" data-p="${ck}"><span class="rn">${fmtDate(t.date)}${t.source === 'stripe' ? ' \u00b7 Stripe' : ''}</span>
+        <span class="ra">${fmt$(t.amount)}</span></div>`).join('') : '';
+    return `<div class="rl ${many ? 'open-able' : ''}" ${many ? `data-k="${ck}" onclick="rlToggle(this)"` : ''}>
+        <span class="rn">${many ? '<span class="tw">\u25b6</span>' : ''}${esc(c.k)}${many ? ` <span class="cnt">${c.ts.length}</span>` : ''}</span>
+        <span class="ra">${fmt$(c.sum)}</span></div>${kids}`;
+  }).join('');
+
+  const feeRows = feeList.length ? `
+    <div class="rl open-able" data-k="fee" onclick="rlToggle(this)">
+      <span class="rn"><span class="tw">\u25b6</span>Card and Stripe fees <span class="cnt">${feeList.length}</span></span>
+      <span class="ra">${fmt$(r.fees)}</span></div>
+    ${feeList.map(t => `<div class="rl lv3 rsub2" data-p="fee"><span class="rn">${fmtDate(t.date)} \u00b7 ${esc(t.vendor)}</span>
+      <span class="ra">${fmt$(t.amount)}</span></div>`).join('')}` : '';
 
   m.innerHTML = `
     ${rmOpen ? `<div class="notice no-print" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
-      <span style="flex:1"><b>${moName(rm)} is still open</b> · these figures move until you close it. The checklist checks itself.</span>
-      <button class="btn primary" onclick="setMonth('${rm}','close')">Open the close checklist →</button></div>` : ''}
-    <div class="ph no-print"><div><h2>Reports</h2>
-      <div class="sub" style="margin-bottom:0">The statement, print-ready · open any line to see the charges behind it.</div></div>
+      <span style="flex:1"><b>${moName(rm)} is still open</b> \u00b7 these figures move until you close it.</span>
+      <button class="btn primary" onclick="setMonth('${rm}','close')">Close it \u2192</button></div>` : ''}
+
+    <div class="ph no-print"><div><div class="serifh">${moName(rm)}</div>
+      <div class="sub" style="margin-bottom:0">${data.frozen ? 'Closed \u00b7 these figures are frozen' : 'Open \u00b7 figures move until you close the month'}</div></div>
       <div class="row rpt-picker" style="margin-bottom:0">
         <select onchange="S.reportMonth=this.value;renderReports()">${months.map(x=>`<option value="${x}" ${x===rm?'selected':''}>${moName(x)}</option>`).join('')}</select>
         <select id="rptPeriod" title="Statement period">
@@ -1772,62 +1772,52 @@ async function renderReports(){
           <option value="quarter">Its quarter</option>
           <option value="year">Its year</option>
         </select>
-        <button class="btn" onclick="downloadStatement(this)" title="The formatted P&amp;L statement, as a PDF">⬇ P&amp;L PDF</button>
-        <button class="btn" onclick="reportToSlack(this)" title="Posts the statement PDF into the finance channel">📣 Send to Slack</button>
+        <button class="btn" onclick="downloadStatement(this)" title="The formatted P&amp;L statement, as a PDF">\u2b07 PDF</button>
+        <button class="btn" onclick="reportToSlack(this)" title="Posts the statement PDF into the finance channel">\ud83d\udce3 Slack</button>
       </div></div>
 
-    <div class="rpt" id="rptCard">
-      <h1>Profit &amp; loss · ${moName(rm)}</h1>
-      <div class="rsub">Mobius Digital · ${data.frozen ? 'Closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · figures frozen' : data.status === 'closed' ? 'Closed · imported from the 2026 sheet' : 'Month still open · figures live'}</div>
-      <div class="figs">
-        <div class="fig"><div class="fig-l">Revenue</div><div class="fig-v lg-num">${fmt$(r.revenue)}</div>${d(r.revenue, prev?.revenue)}</div>
-        <div class="fig"><div class="fig-l">Total costs</div><div class="fig-v lg-num">${fmt$(totalCosts)}</div>${d(totalCosts, prevCosts)}</div>
-        <div class="fig"><div class="fig-l">Net income</div><div class="fig-v lg-num" style="color:${r.net>=0?'var(--good)':'var(--bad)'}">${fmt$(r.net)}</div>${d(r.net, prev?.net)}</div>
-        <div class="fig"><div class="fig-l">Margin</div><div class="fig-v lg-num">${r.margin!=null?r.margin+'%':'—'}</div></div>
+    <div class="card" id="rptCard">
+      <div class="hero">
+        <div class="h"><div class="ct">Money in</div>
+          <div class="hv">${fmt$(r.revenue)}</div><div class="hd">${vs(r.revenue, prev?.revenue)}</div></div>
+        <div class="h"><div class="ct">Money out</div>
+          <div class="hv">${fmt$(moneyOut)}</div><div class="hd">${vs(moneyOut, prevOut)}</div></div>
+        <div class="h"><div class="ct">Net income</div>
+          <div class="hv" style="color:${r.net>=0?'var(--good)':'var(--bad)'}">${fmt$(r.net)}</div>
+          <div class="hd">${r.margin!=null?r.margin+'% margin':''}</div></div>
       </div>
+    </div>
 
-      <div class="row no-print" style="margin:22px 0 4px">
-        <span class="ct">The statement</span>
-        <span style="flex:1"></span>
-        <button class="ctl" onclick="rptAll(true)">Expand all</button>
-        <button class="ctl" onclick="rptAll(false)">Collapse all</button>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card">
+        <div class="row" style="margin-bottom:6px"><span class="ct">Where it came from</span></div>
+        ${inRows || '<div class="hint">No revenue recorded.</div>'}
+        <div class="rl tot"><span class="rn">Total in</span><span class="ra">${fmt$(r.revenue)}</span></div>
       </div>
-      <table class="pnl">
-        <thead><tr><th>Line</th><th>Amount</th><th class="pct">% of revenue</th><th>vs ${moShort(addMonths(rm,-1))}</th></tr></thead>
-        <tbody>
-          <tr class="sec"><td>Revenue</td><td></td><td class="pct"></td><td></td></tr>
-          ${revRows || '<tr><td class="hint">No revenue recorded.</td><td></td><td class="pct"></td><td></td></tr>'}
-          <tr class="tot"><td>Total revenue</td><td>${fmt$(r.revenue)}</td><td class="pct">100%</td><td>${dlt(r.revenue, prev?.revenue)}</td></tr>
+      <div class="card">
+        <div class="row" style="margin-bottom:6px"><span class="ct">Where it went</span>
+          <span style="flex:1"></span><button class="ctl no-print" onclick="rlAll(this)">Expand all</button></div>
+        ${outRows || '<div class="hint">No expenses.</div>'}
+        ${feeRows}
+        <div class="rl tot"><span class="rn">Total out</span><span class="ra">${fmt$(moneyOut)}</span></div>
+        ${persList.length ? `<div class="hint" style="margin-top:10px">${persList.length} personal purchase${persList.length>1?'s':''} (${fmt$(round2c(persList.reduce((a,t)=>a+t.amount,0)))}) and any account transfers are left out on purpose \u00b7 they are not business costs.</div>` : ''}
+      </div>
+    </div>
 
-          <tr class="sec"><td>Operating expenses</td><td></td><td class="pct"></td><td></td></tr>
-          ${tree(outList, 'exp', prev?.byBucket) || '<tr><td class="hint">No expenses.</td><td></td><td class="pct"></td><td></td></tr>'}
-          ${feeList.length ? `
-          <tr class="row" data-k="fees" onclick="rptToggle(this)">
-            <td><span class="tw">▶</span>Merchant fees <span class="tiny">${feeList.length}</span></td>
-            <td>${fmt$(r.fees)}</td><td class="pct">${pct(r.fees)}</td><td>${dlt(r.fees, prev?.fees)}</td></tr>
-          ${feeList.map(t => `<tr class="l3" data-p="fees"><td>${fmtDate(t.date)} · ${esc(t.vendor)}${t.note?' · '+esc(t.note):''}</td>
-            <td>${fmt$(t.amount)}</td><td class="pct"></td><td></td></tr>`).join('')}` : ''}
-          <tr class="tot"><td>Total costs</td><td>${fmt$(totalCosts)}</td><td class="pct">${pct(totalCosts)}</td><td>${dlt(totalCosts, prevCosts)}</td></tr>
-
-          <tr class="net"><td>Net income</td><td>${fmt$(r.net)}</td><td class="pct">${r.margin!=null?r.margin+'%':''}</td><td>${dlt(r.net, prev?.net)}</td></tr>
-        </tbody>
-      </table>
-      ${persList.length ? `<div class="hint" style="margin-top:12px">Kept out of the P&amp;L on purpose: ${persList.length} personal purchase${persList.length>1?'s':''} totalling ${fmt$(round2c(persList.reduce((a,t)=>a+t.amount,0)))} · an owner draw, not a business cost. Transfers between your own accounts are excluded the same way.</div>` : ''}
-
-      <div class="grid2" style="margin-top:26px">
-        <div>
-          <h4>After tax</h4>
-          <table class="kv">
-            <tr><td>Net income</td><td>${fmt$(r.net)}</td></tr>
-            <tr><td>Taxes (${r.taxPct}%)</td><td>${fmt$(r.taxes)}</td></tr>
-            ${r.distPct ? `<tr><td>Distributions (${r.distPct}%)</td><td>${fmt$(r.distributions)}</td></tr>` : ''}
-            <tr class="tot"><td>Business profit, after tax</td><td>${fmt$(r.profit)}</td></tr>
-          </table>
-        </div>
-        <div>
-          <h4>Move this money</h4>
-          <table class="kv split-tbl">${splitRows}</table>
-        </div>
+    <div class="card" style="margin-top:16px">
+      <div class="row" style="margin-bottom:6px"><span class="ct">What is left</span></div>
+      <div class="rl"><span class="rn">Net income</span><span class="ra">${fmt$(r.net)}</span></div>
+      <div class="rl"><span class="rn">Set aside for tax <span class="cnt">${r.taxPct}%</span></span><span class="ra">${fmt$(r.taxes)}</span></div>
+      ${r.distPct ? `<div class="rl"><span class="rn">Distributions <span class="cnt">${r.distPct}%</span></span><span class="ra">${fmt$(r.distributions)}</span></div>` : ''}
+      <div class="rl tot"><span class="rn">Yours, after tax</span><span class="ra">${fmt$(r.profit)}</span></div>
+      <div class="hint" style="margin:14px 0 8px">Move it out of Novo like this:</div>
+      <div class="grid3">
+        ${Object.entries(r.split).map(([k,v]) => {
+          const label = { personal:'Personal', tax:'Tax reserve', ads:'Ads / Marketing', savings:'Savings', other:'Other' }[k] || k;
+          return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+            <div class="ct" style="font-size:10px">${label} \u00b7 ${r.splitPct[k]}%</div>
+            <div style="font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;margin-top:2px">${fmt$(v)}</div></div>`;
+        }).join('')}
       </div>
     </div>
 

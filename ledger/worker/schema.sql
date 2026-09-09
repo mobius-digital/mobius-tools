@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   receipt_key TEXT,                      -- KV key of the attached receipt file
   receipt_name TEXT,
   receipt_type TEXT,                     -- MIME type of the stored file
+  receipt_hash TEXT,                     -- SHA-256 of the file: the only certain "same receipt twice" test
   receipt_skip INTEGER NOT NULL DEFAULT 0, -- acknowledged "no receipt exists" — stops the missing count/nudges
   -- (vendors.billing_url holds the deep link for vendors that never email one)
   source TEXT DEFAULT 'manual',          -- manual | recurring | import | backfill | stripe
