@@ -568,8 +568,15 @@ async function renderDash(){
   const topOut = Object.entries(byV).sort((x,y)=>y[1]-x[1])[0];
 
   /* what still needs him · this month and the close behind it */
-  const flagsPrev = (S.boot.flags||{})[prevMo] || {};
-  const blocking = (+flagsPrev.review||0) + (+flagsPrev.expected||0);
+  /* Which month is "the close"? If he is LOOKING at a past month that is
+     still open, that IS the closing workflow - the button must aim at the
+     month on screen, not the one before it. (Found live: viewing August, the
+     card talked about July and the Close button had vanished.) */
+  const viewedPastOpen = st !== 'closed' && S.month < nowMonth();
+  const closeMo = viewedPastOpen ? S.month : prevMo;
+  const closeOpen = viewedPastOpen ? true : !prevClosed;
+  const flagsC = (S.boot.flags||{})[closeMo] || {};
+  const blocking = (+flagsC.review||0) + (+flagsC.expected||0);
   const needsRows = [
     [+a.review||0, 'transactions to categorize', `S.filter='needs';show('txns')`],
     [+a.noReceipt||0, 'expenses missing a receipt', `S.filter='needs';show('txns')`],
@@ -643,11 +650,11 @@ async function renderDash(){
             ${needsRows.map(([n,label,go]) => `<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="${go}">
               <b style="width:20px;text-align:right;color:${n?'var(--warn)':'inherit'}">${n}</b>
               <span style="flex:1;color:#3A4B58">${label}</span>${n?arrow:check}</div>`).join('')}
-            <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${prevMo}','close')"`:''}>
+            <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${closeMo}','close')"`:''}>
               <b style="width:20px;text-align:right;color:${blocking?'var(--warn)':'inherit'}">${blocking}</b>
-              <span style="flex:1;${blocking?'color:#3A4B58':''}">blocking the ${moShort(prevMo)} close</span>${blocking?arrow:check}</div>
+              <span style="flex:1;${blocking?'color:#3A4B58':''}">blocking the ${moShort(closeMo)} close</span>${blocking?arrow:check}</div>
           </div>
-          ${!prevClosed?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${prevMo}','close')">Close ${moShort(prevMo)} →</button>`:''}
+          ${closeOpen?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${closeMo}','close')">Close ${moShort(closeMo)} →</button>`:''}
         </div>
         <div class="card"><span class="ct">When ${moShort(prevMo)} closes, move</span>
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${splitRows || '<div class="hint">No report yet.</div>'}</div></div>
