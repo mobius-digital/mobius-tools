@@ -298,8 +298,12 @@
   .stmt .rsub{color:var(--muted);font-size:12.5px;margin-top:2px}
   .stmt .sh{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
     color:var(--muted);padding:26px 0 7px;border-bottom:1px solid var(--line-strong)}
-  .rl{display:flex;align-items:baseline;gap:16px;padding:10px 0;
-    border-bottom:1px solid var(--line);font-size:14px;line-height:1.45}
+  /* No rule under every line. A statement is separated by air and by the
+     few rules that mean something · under a section heading, above a total.
+     A line for its own sake is just noise repeated forty times. */
+  .rl{display:flex;align-items:baseline;gap:16px;padding:9px 0;
+    border-bottom:none;font-size:14px;line-height:1.45}
+  .rl:hover{background:linear-gradient(90deg,var(--brand-soft),transparent 70%)}
   .rl .rn{flex:1;min-width:0}
   .rl .ra{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;
     width:132px;flex:none;font-weight:600}
@@ -309,16 +313,18 @@
   .rl.on .tw{transform:rotate(90deg)}
   .rl .cnt{font-size:12px;color:var(--muted);font-weight:400}
   .rl .cap{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:2px}
-  .rl.tot{border-top:1px solid var(--line-strong);border-bottom:none;font-weight:700;margin-top:1px;padding-top:11px}
-  .rl.net{border-top:2px solid var(--ink);border-bottom:none;margin-top:3px;
-    padding-top:13px;font-weight:700;font-size:17px}
+  .rl.tot{border-top:1px solid var(--line-strong);font-weight:700;margin-top:8px;padding-top:12px}
+  .rl.tot:hover{background:none}
+  .rl.net{border-top:2px solid var(--ink);margin-top:10px;
+    padding-top:14px;font-weight:700;font-size:17px}
+  .rl.net:hover{background:none}
   .rl.net .ra{font-size:19px}
   .rsub2{display:none}
   .rsub2.shown{display:flex}
   /* Nesting reads better as a rail down the side than as rows boxed in by
      horizontal rules · the eye follows the vertical, and a group inside a
      group stays legible because the rails simply stack. */
-  .rl.lv2, .rl.lv3{border-bottom:none;position:relative}
+  .rl.lv2, .rl.lv3{position:relative}
   .rl.lv2{margin-left:9px;padding-left:20px;font-size:13.5px;color:#3A4B58;
     border-left:2px solid var(--line);padding-top:8px;padding-bottom:8px}
   .rl.lv3{margin-left:31px;padding-left:20px;font-size:12.5px;color:var(--muted);
