@@ -329,6 +329,16 @@
   .rl .cap{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:2px}
   .rl.tot{border-top:1px solid var(--line-strong);font-weight:700;margin-top:8px;padding-top:12px}
   .rl.tot:hover{background:none}
+  .splt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;
+    border:1px solid var(--line);border-radius:9px;padding:11px 13px;background:var(--surface);
+    text-align:left;cursor:pointer;transition:border-color .12s,background .12s;position:relative}
+  .splt:hover{border-color:var(--brand-ink);background:#DCEAF5}
+  .splt .sv2{font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+  .splt .cpy{font-size:10.5px;color:var(--muted);letter-spacing:.02em}
+  .splt:hover .cpy{color:var(--brand-ink)}
+  .splt.copied{border-color:var(--good);background:var(--good-bg)}
+  .splt.copied .cpy::after{content:' \2713'}
+  .splt.copied .cpy{color:var(--good);font-weight:700}
   .rl.net{border-top:2px solid var(--ink);margin-top:10px;
     padding-top:14px;font-weight:700;font-size:17px}
   .rl.net:hover{background:none}
@@ -393,12 +403,26 @@
     .rboard{gap:8px} .rtile{padding:10px 12px}
     .ctl,.chip{min-height:38px;display:inline-flex;align-items:center}
     .mo-nav button{width:34px;height:34px}
-    .srch{min-width:0;flex:1}
+    /* Filters are a rail you swipe, not a paragraph that wraps · and the
+       search field gets a line of its own instead of being squeezed to "Se". */
+    .filt{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px 2px}
+    .filt::-webkit-scrollbar{display:none}
+    .filt > .ctl{flex:0 0 auto}
+    .tools{flex-wrap:wrap}
+    .tools .srch{flex:1 1 100%;min-width:0;height:40px}
+    .tools .btn{flex:1 1 46%}
+    .mo-nav{gap:6px}
+    .mo-sel{flex:1;min-width:0;height:34px;font-size:15px}
+    .mo-nav button{width:34px;height:34px;flex:none}
+    .ph{align-items:stretch}
+    .ph .mo-nav{width:100%}
     .rpt{padding:18px 16px}
     /* the transactions table becomes a list of row-cards */
     .txn-tbl thead{display:none}
     .txn-tbl,.txn-tbl tbody{display:block}
-    .txn-tbl tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;
+    .txn-tbl tr:has(td[colspan]){display:block;padding:18px 14px}
+    .txn-tbl tr:has(td[colspan]) td{display:block;width:auto}
+    .txn-tbl tr:not(:has(td[colspan])){display:grid;grid-template-columns:26px minmax(0,1fr) auto;
       grid-template-areas:"pick vendor amt" "pick meta rc";
       gap:2px 8px;padding:12px 12px 12px 8px;border-bottom:1px solid var(--line);align-items:start}
     .txn-tbl td{display:block;padding:0!important;border:none}
@@ -612,6 +636,22 @@ function monthPicker(cur, fn){
     <button onclick="${fn}('${addMonths(cur,1)}')" aria-label="Next month">›</button>`;
 }
 function setReportMonth(m){ S.reportMonth = m; renderReports(); }
+/* Plain digits, no dollar sign or comma · what a bank's amount field wants. */
+async function copyAmt(el, v){
+  const txt = Number(v).toFixed(2);
+  try { await navigator.clipboard.writeText(txt); }
+  catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    ta.remove();
+  }
+  el.classList.add('copied');
+  clearTimeout(el.__t);
+  el.__t = setTimeout(() => el.classList.remove('copied'), 1400);
+  flash('Copied ' + txt);
+}
 function monthNav(){
   const st = moState(S.month);
   return `<div class="mo-nav no-print">
@@ -1012,11 +1052,11 @@ async function renderTxns(){
     <div class="ph"><div><h2>Transactions</h2>
       <div class="sub" style="margin-bottom:0">Every dollar in or out of ${moName(S.month)}. Click a row to edit, confirm or attach a receipt.</div></div>
       ${monthNav()}</div>
-    <div class="row">
-      ${chips}
-      <span style="flex:1"></span>
+    <div class="row filt">${chips}</div>
+    <div class="row tools">
       <input class="srch" id="txnSearch" placeholder="Search vendor or note…" value="${esc(S.q||'')}"
         oninput="S.q=this.value;renderTxns()">
+      <span style="flex:1"></span>
       <button class="btn" onclick="importModal()" ${closed?'disabled title="Month is closed"':''}>⇪ Import CSV</button>
       <button class="btn primary" onclick="addModal()" ${closed?'disabled title="Month is closed"':''}>+ Add transaction</button>
     </div>
@@ -1111,7 +1151,13 @@ function vendorDatalist(){
 /* The page keeps its own scrollbar while a modal shows its own - two bars
    side by side. Lock the page while anything modal is up. */
 function openModal(html){ $('#mbox').innerHTML = html; $('#modal').classList.add('on'); $('#scrim').classList.add('on'); document.body.style.overflow = 'hidden'; }
-function closeModal(){ $('#modal').classList.remove('on'); $('#scrim').classList.remove('on'); document.body.style.overflow = ''; }
+/* On a phone the sheet covers the screen, so the scrim behind it never gets
+   the tap · dismissing meant hunting for Cancel. Anything outside the sheet
+   itself closes it, which is what every iOS sheet does. */
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target.id === 'modal') { const c = window.__askCancel; c ? c() : closeModal(); }
+});
+function closeModal(){ window.__askCancel = null; $('#modal').classList.remove('on'); $('#scrim').classList.remove('on'); document.body.style.overflow = ''; }
 $('#scrim').onclick = closeModal;
 
 /* In-app replacements for confirm() and alert(). The browser's own dialogs are
@@ -1121,7 +1167,7 @@ $('#scrim').onclick = closeModal;
 function ask({ title, body, ok = 'Confirm', cancel = 'Cancel', danger = false }){
   return new Promise(resolve => {
     let done = false;
-    const finish = v => { if (done) return; done = true; closeModal(); $('#scrim').onclick = closeModal; resolve(v); };
+    const finish = v => { if (done) return; done = true; window.__askCancel = null; closeModal(); $('#scrim').onclick = closeModal; resolve(v); };
     openModal(`
       <h3>${esc(title)}</h3>
       ${body ? `<div class="hint" style="white-space:pre-line">${esc(body)}</div>` : ''}
@@ -1135,6 +1181,7 @@ function ask({ title, body, ok = 'Confirm', cancel = 'Cancel', danger = false })
     $('#askYes').focus();
     // dismissing the modal any other way is a "no", never a silent hang
     $('#scrim').onclick = () => finish(false);
+    window.__askCancel = () => finish(false);
   });
 }
 function tell(title, body){ return ask({ title, body, ok: 'OK', cancel: 'Close' }); }
@@ -1890,9 +1937,11 @@ async function renderReports(){
         <div class="grid3 no-print">
           ${Object.entries(r.split).map(([k,v]) => {
             const label = { personal:'Personal', tax:'Tax reserve', ads:'Ads / Marketing', savings:'Savings', other:'Other' }[k] || k;
-            return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
-              <div class="ct" style="font-size:10px">${label} \u00b7 ${r.splitPct[k]}%</div>
-              <div style="font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;margin-top:2px">${fmt$(v)}</div></div>`;
+            /* These figures exist to be retyped into Novo, so don't make him retype them. */
+            return `<button class="splt" onclick="copyAmt(this, ${v})" title="Copy ${fmt$(v)}">
+              <span class="ct" style="font-size:10px">${label} \u00b7 ${r.splitPct[k]}%</span>
+              <span class="sv2">${fmt$(v)}</span>
+              <span class="cpy">Tap to copy</span></button>`;
           }).join('')}
         </div>
       </div>
