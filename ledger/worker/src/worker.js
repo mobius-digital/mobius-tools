@@ -1835,24 +1835,23 @@ export default {
         if (!month) return json({ error: 'month=YYYY-MM' }, 400);
         if ((await monthStatus(env, month)) === 'closed') return json({ error: 'month is closed' }, 400);
         await env.DB.prepare('INSERT OR IGNORE INTO months (month, status) VALUES (?1, \'open\')').bind(month).run();
-        const [vendors, clients, existing] = await Promise.all([
-          env.DB.prepare('SELECT * FROM vendors WHERE recurring = 1 AND active = 1').all(),
+        /* EXPECTED IS FOR REVENUE ONLY (Cole's call, 2026-09-09, and he is
+         * right). Expenses arrive on their own from the bank feed, so a
+         * pre-created expense row is a prediction of something automatic:
+         * pure noise, plus a confirm-or-drop decision at every close. What a
+         * missing charge deserves is a NOTE, not a phantom row - the close
+         * checklist lists recurring vendors that didn't bill. A client who
+         * doesn't pay, though, is exactly what he wants shoved in his face:
+         * client rows stay. Vendor rules themselves also stay - they still
+         * categorize the bank lines and feed the forecast and yearly-renewal
+         * reminders (the Amex membership fee just arrives as a bank line and
+         * files itself under its rule). */
+        const [clients, existing] = await Promise.all([
           env.DB.prepare(`SELECT * FROM clients WHERE active = 1 AND (retainer > 0 OR billing = 'percent')`).all(),
           env.DB.prepare('SELECT vendor FROM transactions WHERE month = ?1').bind(month).all(),
         ]);
         const have = new Set(existing.results.map(r => r.vendor.toLowerCase()));
-        const mm = +month.slice(5, 7);
         let created = 0;
-        for (const v of vendors.results) {
-          if (have.has(v.name.toLowerCase())) continue;
-          // yearly renewals (domains, Amex, annual plans) only land in their month
-          if (v.cadence === 'yearly' && v.renew_month !== mm) continue;
-          const note = v.cadence === 'yearly' ? 'Yearly renewal' : null;
-          await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, expected, source)
-            VALUES (?1, ?2, 'out', ?3, ?4, ?5, ?6, ?7, 1, 'recurring')`)
-            .bind(month + '-01', month, v.name, v.expected_amount || 0, v.bucket, v.tax_cat, note).run();
-          created++;
-        }
         const avg = await recentRevenueAvg(env);
         for (const c of clients.results) {
           if (have.has(c.name.toLowerCase())) continue;

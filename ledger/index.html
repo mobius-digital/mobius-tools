@@ -1558,9 +1558,25 @@ async function renderClose(){
       ${item(hasRevenue, true, 'Revenue is in',
         hasRevenue ? `${fmt$(rep.report.revenue)} across ${t.filter(x=>x.type==='in'&&!x.expected).length} payments.` : 'No confirmed money-in rows yet · add the client payments for this month.',
         `S.filter='in';show('txns')`)}
-      ${item(expected.length===0, true, 'Expected rows confirmed',
-        expected.length ? `${expected.length} recurring row(s) still waiting · confirm each landed (or remove the ones that didn't).` : 'Every recurring row was confirmed.',
+      ${item(expected.length===0, true, 'Client payments confirmed',
+        expected.length ? `${expected.length} expected payment(s) still waiting · confirm each landed (or remove the ones that didn't).` : 'Every expected payment was confirmed.',
         `S.filter='expected';show('txns')`)}
+      ${(() => {
+        /* Recurring bills arrive from the bank on their own now, so nothing is
+           pre-created for them · this line is the one thing predictions were
+           good for: noticing a subscription that DIDN'T bill. Informational,
+           never blocking; bank names differ from rule names, so a listing here
+           can just mean "named differently". */
+        const mm = +S.month.slice(5,7);
+        const rec = (S.boot.vendors||[]).filter(v => v.recurring && v.active
+          && (v.cadence !== 'yearly' || v.renew_month === mm));
+        const seen = t.map(x => x.vendor.toLowerCase());
+        const unbilled = rec.filter(v => { const f = v.name.toLowerCase().split(' ')[0];
+          return !seen.some(n => n.includes(f) || v.name.toLowerCase().includes(n.split(' ')[0])); });
+        return item(unbilled.length===0, false, 'Recurring bills all arrived',
+          unbilled.length ? `${unbilled.length} didn't bill this month: ${unbilled.slice(0,5).map(v=>esc(v.name)).join(', ')}${unbilled.length>5?'…':''}. Fine if cancelled, or the bank may just name it differently · nothing is counted either way.`
+            : 'Every recurring vendor billed as usual.');
+      })()}
       ${item(review.length===0, true, 'Review inbox empty',
         review.length ? `${review.length} transaction(s) still need categories.` : 'Everything is categorized · both layers.',
         `S.filter='review';show('txns')`)}
