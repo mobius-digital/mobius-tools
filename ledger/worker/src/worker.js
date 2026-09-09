@@ -1329,9 +1329,18 @@ async function retryHeldReceipts(env) {
       `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
        AND ABS(amount - ?1) < 0.005 AND ABS(julianday(date) - julianday(?2)) <= 12
        ORDER BY ABS(julianday(date) - julianday(?2)) LIMIT 2`).bind(meta.amount, meta.date).all();
-    const first = String(meta.vendor || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)[0] || '';
-    const match = hit.results.find(t => first && t.vendor.toLowerCase().includes(first))
-      || (hit.results.length === 1 ? hit.results[0] : null);
+    /* THE NAME MUST AGREE. Nobody is watching this sweep, so "there is only
+     * one charge at that amount" is not good enough: an Anthropic receipt for
+     * $90 met an OpenAI charge for $90 and filed itself there. A held receipt
+     * waits for its own vendor, however long that takes. */
+    const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const rv = norm(meta.vendor), first = rv.split(' ').filter(Boolean)[0] || '';
+    const agrees = t => {
+      const tv = norm(t.vendor); if (!first || !tv) return false;
+      const tf = tv.split(' ')[0];
+      return tv.includes(first) || rv.includes(tf);
+    };
+    const match = hit.results.find(agrees) || null;
     if (!match) continue;
     const blob = await receiptGet(env, row.key);
     if (!blob) {   // the 30-day blob expired · drop the orphaned note
