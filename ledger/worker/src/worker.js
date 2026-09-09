@@ -698,10 +698,16 @@ async function processSlackReceipts(env) {
           const same = String(ext.vendor || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)[0] || '';
           const q = async (sql, binds) => (await env.DB.prepare(sql).bind(...binds).all()).results;
 
-          // (a) the charge is there, but something already claimed the receipt
+          /* (a) the charge is there, but something already claimed the receipt.
+           * DATE-TIGHT on purpose: a subscription bills the same amount every
+           * single month, so the +/-1 month window used for MATCHING would
+           * call September's Canva receipt a duplicate of August's. Ten days
+           * covers a receipt arriving before or after its charge posts;
+           * anything a month away is next month's bill, not this one twice. */
           const taken = await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NOT NULL
-             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005 LIMIT 3`, [...win, amt]);
+             AND ABS(amount - ?1) < 0.005 AND ABS(julianday(date) - julianday(?2)) <= 10
+             ORDER BY ABS(julianday(date) - julianday(?2)) LIMIT 3`, [amt, rDate]);
           // (b) it is still only a prediction — the bank has not confirmed it
           const pending = await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=1
