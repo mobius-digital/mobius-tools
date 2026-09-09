@@ -938,9 +938,13 @@ async function renderTxns(){
               title="Select everything shown" onchange="pickAll(this.checked)"></th>
             <th>Date</th><th>Vendor / client</th><th>Receipt</th><th class="num">Amount</th></tr></thead>
           <tbody>${body || `<tr><td colspan="5" class="hint" style="padding:22px">Nothing here for this filter.${
-            S.filter==='needs' ? Object.entries(S.boot?.flags||{})
-              .filter(([m,f]) => m !== S.month && ((+f.review||0) + (+f.noReceipt||0)) > 0)
-              .map(([m,f]) => ` <button class="ctl" style="color:var(--brand-ink);font-weight:700" onclick="setMonth('${m}')">${moName(m)} has ${(+f.review||0)+(+f.noReceipt||0)} →</button>`).join('')
+            S.filter==='needs' ? (() => {
+              /* same rule as the badge: a closed month's missing receipts are
+                 history, not a to-do - only open months get advertised */
+              const closed = new Set((S.boot?.months||[]).filter(x=>x.status==='closed').map(x=>x.month));
+              return Object.entries(S.boot?.flags||{})
+              .filter(([m,f]) => m !== S.month && ((+f.review||0) + (closed.has(m)?0:(+f.noReceipt||0))) > 0); })()
+              .map(([m,f]) => ` <button class="ctl" style="color:var(--brand-ink);font-weight:700" onclick="setMonth('${m}')">${moName(m)} has ${(+f.review||0)+(((S.boot?.months||[]).find(x=>x.month===m)?.status==='closed')?0:(+f.noReceipt||0))} →</button>`).join('')
             : ''}</td></tr>`}</tbody>
         </table></div></div>
       <div class="rail">${txnRail()}</div>
