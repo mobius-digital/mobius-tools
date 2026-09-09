@@ -389,7 +389,7 @@ let S = {
   url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
   tok: localStorage.getItem(LS.tok) || sharedSession() || '',
   view: 'dash',
-  month: localStorage.getItem(LS.month) || nowMonth(),
+  month: nowMonth(),   // always open on the month it actually is
   boot: null, summary: null, txns: null, txnMonth: null,
   filter: 'all', packData: null, report: null, reportMonth: null,
   sel: new Set(),   // transaction ids ticked for bulk editing
@@ -474,8 +474,16 @@ const VIEWS = [
 /* Receipts, Close and Forecast still exist as screens · they just live inside
    a parent tab now, so the nav highlights that parent while you're on them. */
 const PARENT = { receipts:'txns', close:'reports', forecast:'dash' };
+/* The badge and the Needs-you list must agree: uncategorized rows anywhere,
+   plus missing receipts in OPEN months (a closed month's missing receipts
+   block nothing and would drown the number in history). */
+function needsCount(){
+  const closed = new Set((S.boot?.months||[]).filter(m=>m.status==='closed').map(m=>m.month));
+  return Object.entries(S.boot?.flags||{}).reduce((s,[m,f]) =>
+    s + (+f.review||0) + (closed.has(m) ? 0 : (+f.noReceipt||0)), 0);
+}
 function navHTML(){
-  const rv = Object.values(S.boot?.flags || {}).reduce((s,f)=>s+(+f.review||0),0);
+  const rv = needsCount();
   const on = PARENT[S.view] || S.view;
   return VIEWS.map(([id,label]) =>
     `<button class="${on===id?'on':''}" onclick="show('${id}')">${label}${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`).join('');
@@ -489,7 +497,7 @@ const TAB_ICONS = {
   settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h9M17.5 8H20M4 16h2.5M11 16h9"/><circle cx="15" cy="8" r="2.2"/><circle cx="8.5" cy="16" r="2.2"/></svg>',
 };
 function tabbarHTML(){
-  const rv = Object.values(S.boot?.flags || {}).reduce((s,f)=>s+(+f.review||0),0);
+  const rv = needsCount();
   const on = PARENT[S.view] || S.view;
   return VIEWS.map(([id,label]) =>
     `<button class="${on===id?'on':''}" onclick="show('${id}')">${TAB_ICONS[id]}<span>${label}</span>${id==='txns'&&rv?`<span class="tbdg">${rv}</span>`:''}</button>`).join('');
