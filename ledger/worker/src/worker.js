@@ -495,9 +495,9 @@ async function processSlackReceipts(env) {
      * onto rows in two different months (the second copy could not use the row
      * the first had just receipted, so it went hunting in the window). When an
      * email container exists it is the only file worth reading. */
-    const flist = (msg.files || []).some(f => f.filetype === 'email')
-      ? (msg.files || []).filter(f => f.filetype === 'email')
-      : (msg.files || []);
+    const mails = (msg.files || []).filter(f => f.filetype === 'email'
+      || f.mimetype === 'message/rfc822' || f.mimetype === 'text/html');
+    const flist = mails.length ? [mails[0]] : (msg.files || []);
     for (const f of flist) {
       const isPdf = f.mimetype === 'application/pdf';
       // Slack's email-to-channel arrives as filetype 'email', and the forwarded
@@ -748,8 +748,8 @@ async function processSlackReceipts(env) {
               : `🔁 *${ext.vendor}* $${amt.toFixed(2)} — that charge (${taken[0].vendor}, ${taken[0].date}) already has its receipt, dated within days of this one. Nothing filed; if this is a different charge, attach it from the app.`);
             handled++; continue;
           }
-          const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)} — nothing on Novo or Amex matches that amount, so nothing was filed.`;
-          let why, btns = [];
+          const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)} — no charge on Novo or Amex matches that amount yet.`;
+          let why, btns = [], fresh = false;
           if (pending.length) {
             why = `There is a matching *expected* row (${pending[0].vendor}, ${moLabel(pending[0].month)}) that the bank has not confirmed yet. Confirm it in the app and drop this receipt again, and it will attach.`;
           } else if (elsewhere.length) {
@@ -759,12 +759,19 @@ async function processSlackReceipts(env) {
               value: JSON.stringify({ file: pendKey, to: t.id }) }));
           } else if (byVendor.length) {
             why = `*${byVendor[0].vendor}* did charge you in that window, but ${byVendor.map(t => '$' + t.amount.toFixed(2)).join(', ')} — not $${amt.toFixed(2)}. Either I misread the total, or this receipt covers a different card.`;
+          } else if (rDate >= addMonthsYmd(today, 0) || (Date.parse(today) - Date.parse(rDate)) <= 4 * 86400e3) {
+            /* Days old and unmatched is the ordinary case, not a problem: the
+             * bank feed runs nightly, so a charge from today simply is not
+             * here yet. Held and retried automatically after every sync. */
+            fresh = true;
+            why = `The charge has almost certainly not reached Novo or Amex yet · the bank feed runs overnight. I am holding this receipt and will attach it automatically as soon as the charge lands. Nothing for you to do.`;
           } else {
-            why = `Nothing at that amount anywhere. That usually means it went on a card Ledger does not see, it is somebody else's card (a client's Shopify or ad tool), or the charge has not posted yet.`;
+            why = `Nothing at that amount anywhere, and this receipt is more than a few days old. That usually means it went on a card Ledger does not see, or it is somebody else's card (a client's Shopify or ad tool).`;
           }
           const body = `${head}\n${why}`;
-          await react('question'); needsYou++;
-          await nudge(body, [
+          await react(fresh ? 'hourglass_flowing_sand' : 'question');
+          if (!fresh) needsYou++;
+          await (fresh ? reply : nudge)(body, [
             { type: 'section', text: { type: 'mrkdwn', text: body } },
             { type: 'actions', elements: [...btns,
               { type: 'button', action_id: 'led_file',
@@ -1304,6 +1311,46 @@ async function processPlaidTxn(env, item, t) {
   return res.meta.changes ? (row.status === 'review' ? 'added-review' : 'added') : 'duplicate';
 }
 
+/* A receipt often arrives before its charge does · the bank feed runs
+ * overnight, so anything bought today is filed against nothing. Rather than
+ * making Cole answer a question the system will be able to answer itself
+ * tomorrow, those receipts are HELD, and this sweeps them after every sync:
+ * any that now match an unreceipted charge attach themselves and say so. */
+async function retryHeldReceipts(env) {
+  const { results: held } = await env.DB.prepare(
+    `SELECT key, value FROM settings WHERE key LIKE 'pend:%'`).all();
+  if (!held.length) return { held: 0 };
+  const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
+  let attached = 0;
+  for (const row of held) {
+    const meta = safeJson(row.value, null);
+    if (!meta || !meta.amount) continue;
+    const hit = await env.DB.prepare(
+      `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
+       AND ABS(amount - ?1) < 0.005 AND ABS(julianday(date) - julianday(?2)) <= 12
+       ORDER BY ABS(julianday(date) - julianday(?2)) LIMIT 2`).bind(meta.amount, meta.date).all();
+    const first = String(meta.vendor || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)[0] || '';
+    const match = hit.results.find(t => first && t.vendor.toLowerCase().includes(first))
+      || (hit.results.length === 1 ? hit.results[0] : null);
+    if (!match) continue;
+    const blob = await receiptGet(env, row.key);
+    if (!blob) {   // the 30-day blob expired · drop the orphaned note
+      await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
+      continue;
+    }
+    const k = `rcpt:${match.id}:${Date.now()}`;
+    await receiptPut(env, k, blob);
+    await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+      .bind(match.id, k, meta.name, meta.type, await sha256bytes(blob)).run();
+    await receiptDelete(env, row.key);
+    await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
+    attached++;
+    if (sr.channelId) await slack(env, 'chat.postMessage', { channel: sr.channelId, unfurl_links: false,
+      text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).` }, true).catch(() => {});
+  }
+  return { held: held.length, attached };
+}
+
 async function syncPlaid(env) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
@@ -1371,6 +1418,7 @@ export default {
         if (env.STRIPE_KEY)
           await syncStripe(env, from, to).catch(e => console.log('stripe sync failed: ' + e.message));
         await syncPlaid(env).catch(e => console.log('plaid sync failed: ' + e.message));
+        await retryHeldReceipts(env).catch(e => console.log('held receipt retry failed: ' + e.message));
         await monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message));
         await receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message));
       })());
@@ -1837,7 +1885,9 @@ export default {
       }
 
       if (path === '/api/plaid-sync' && request.method === 'POST') {
-        return json(await syncPlaid(env));
+        const out = await syncPlaid(env);
+        const retried = await retryHeldReceipts(env).catch(() => ({ attached: 0 }));
+        return json({ ...out, heldAttached: retried.attached || 0 });
       }
 
       if (path === '/api/plaid-item' && request.method === 'DELETE') {

@@ -289,30 +289,37 @@
     main{padding:0;max-width:none}
     .rpt{border:none;padding:0;max-width:none}
   }
-  /* ---- the report, in the app's own language: big numbers, quiet rows,
-     open a line only if you want the charges behind it ---- */
-  .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:4px}
-  .hero .h{padding:4px 20px 4px 0}
-  .hero .h+.h{border-left:1px solid var(--line);padding-left:24px}
-  .hero .hv{font-family:var(--serif);font-size:32px;letter-spacing:-.01em;line-height:1.15;font-variant-numeric:tabular-nums}
-  .hero .hd{font-size:12px;color:var(--muted);margin-top:3px}
-  .rl{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
-  .rl:last-child{border-bottom:none}
+  /* ---- the statement: a real P&L document in the app's own materials.
+     One column, ruled totals, sections in small caps · and any line opens
+     into the charges behind it. ---- */
+  .stmt{max-width:760px;margin:0 auto}
+  .stmt .sh{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);padding:22px 0 6px;border-bottom:1px solid var(--line-strong)}
+  .stmt .sh:first-child{padding-top:4px}
+  .rl{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
   .rl .rn{flex:1;min-width:0}
-  .rl .ra{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rl .ra{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;min-width:96px}
   .rl.open-able{cursor:pointer}
-  .rl.open-able:hover{color:var(--brand-ink)}
+  .rl.open-able:hover .rn{color:var(--brand-ink)}
   .rl .tw{display:inline-block;width:12px;font-size:9px;color:var(--muted);transition:transform .12s}
   .rl.on .tw{transform:rotate(90deg)}
   .rl .cnt{font-size:12px;color:var(--muted);font-weight:400}
-  .rl.tot{border-top:1px solid var(--line-strong);border-bottom:none;font-weight:700;margin-top:2px}
+  .rl .cap{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:1px}
+  .rl.tot{border-top:1px solid var(--line-strong);border-bottom:none;font-weight:700;margin-top:1px}
+  .rl.net{border-top:2px solid var(--ink);border-bottom:none;margin-top:2px;padding-top:12px;font-weight:700;font-size:17px}
   .rsub2{display:none}
   .rsub2.shown{display:flex}
-  .rl.lv2{padding-left:22px;font-size:13.5px;color:#3A4B58}
-  .rl.lv3{padding-left:44px;font-size:12.5px;color:var(--muted)}
-  @media(max-width:720px){.hero{grid-template-columns:1fr;gap:0}
-    .hero .h+.h{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:14px;margin-top:12px}
-    .hero .hv{font-size:28px}}
+  .rl.lv2{padding-left:20px;font-size:13.5px;color:#3A4B58}
+  .rl.lv3{padding-left:42px;font-size:12.5px;color:var(--muted)}
+  .rl.lv3 .ra{font-weight:500}
+  .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin:2px 0 6px}
+  .hero .h{padding:2px 20px 2px 0}
+  .hero .h+.h{border-left:1px solid var(--line);padding-left:24px}
+  .hero .hv{font-family:var(--serif);font-size:31px;letter-spacing:-.01em;line-height:1.15;font-variant-numeric:tabular-nums}
+  .hero .hd{font-size:12px;color:var(--muted);margin-top:3px}
+  @media(max-width:720px){.hero{grid-template-columns:1fr}
+    .hero .h+.h{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:13px;margin-top:11px}
+    .hero .hv{font-size:27px}.rl .ra{min-width:0}}
 
   /* ---- tablet: one column of full-width cards, top nav stays (iPad convention) ---- */
   @media(max-width:1024px){.txgrid,.homegrid{grid-template-columns:1fr}}
@@ -1711,60 +1718,67 @@ async function renderReports(){
       .sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum));
   };
   const revList  = rows.filter(t => t.type === 'in');
-  const outList  = rows.filter(t => t.type === 'out' && !isPersonal(t));
-  const feeList  = rows.filter(t => t.type === 'fee');
+  /* Fees are one idea and were showing as two lines: the Stripe fee row and
+     the card's own adjustment rows, which the bank files under the same
+     bucket. One "Card and Stripe fees" line, everything inside it. */
+  const isFee    = t => t.type === 'fee' || t.bucket === 'Merchant fee';
+  const outList  = rows.filter(t => t.type === 'out' && !isPersonal(t) && !isFee(t));
+  const feeList  = rows.filter(t => isFee(t) && t.type !== 'in');
   const persList = rows.filter(t => t.type === 'out' && isPersonal(t));
+  const feeTotal = round2c(feeList.reduce((a, t) => a + t.amount, 0));
   const moneyOut = round2c(r.expenses + r.fees);
   const prevOut  = prev ? round2c(prev.expenses + prev.fees) : null;
   const vs = (cur, pv) => pv == null || !pv ? ''
     : Math.abs(cur - pv) < 0.005 ? `level with ${moShort(addMonths(rm,-1))}`
     : `${cur > pv ? '\u25b2' : '\u25bc'} ${fmtK(Math.abs(cur - pv))} vs ${moShort(addMonths(rm,-1))}`;
   const key = t => t.replace(/\W+/g, '').slice(0, 22);
+  /* A purchase and its refund sum to nothing · say so, rather than printing a
+     bare $0.00 that reads like a bug. */
+  const cap = g => Math.abs(g.sum) < 0.005 && g.ts.length > 1
+    ? '<span class="cap">bought and refunded · cancels out</span>' : '';
+  const chargeLine = (t, pk) => `
+    <div class="rl lv3 rsub2" data-p="${pk}">
+      <span class="rn">${fmtDate(t.date)}${t.amount < 0 ? ' <span class="cnt">refund</span>' : ''}</span>
+      <span class="ra">${fmt$(t.amount)}${t.receipt_key ? ' <span style="color:var(--good)">\u2713</span>'
+        : t.amount < 0 || t.receipt_skip ? '' : ' <span style="color:var(--warn);font-weight:400;font-size:11.5px">no receipt</span>'}</span></div>`;
 
-  /* One line per thing, and the charges underneath only if you ask for them:
-     a category opens into its vendors, a vendor into its dated charges. */
   const outRows = groupSum(outList, t => t.bucket || 'Other').map(b => {
     const bk = 'b' + key(b.k);
     const kids = groupSum(b.ts, t => t.vendor).map(v => {
       const vk = bk + 'v' + key(v.k);
       const many = v.ts.length > 1;
-      const charges = many ? v.ts.map(t => `
-        <div class="rl lv3 rsub2" data-p="${vk}"><span class="rn">${fmtDate(t.date)}</span>
-          <span class="ra">${fmt$(t.amount)}${t.receipt_key ? ' <span style="color:var(--good)">\u2713</span>' : t.receipt_skip ? '' : ' <span style="color:var(--warn);font-weight:400;font-size:11.5px">no receipt</span>'}</span></div>`).join('') : '';
       return `<div class="rl lv2 rsub2 ${many ? 'open-able' : ''}" data-p="${bk}" ${many ? `data-k="${vk}" onclick="rlToggle(this)"` : ''}>
-          <span class="rn">${many ? '<span class="tw">\u25b6</span>' : ''}${esc(v.k)}${many ? ` <span class="cnt">${v.ts.length}</span>` : ''}</span>
-          <span class="ra">${fmt$(v.sum)}</span></div>${charges}`;
+          <span class="rn">${many ? '<span class="tw">\u25b6</span>' : ''}${esc(v.k)}${many ? ` <span class="cnt">${v.ts.length}</span>` : ''}${cap(v)}</span>
+          <span class="ra">${fmt$(v.sum)}</span></div>${many ? v.ts.map(t => chargeLine(t, vk)).join('') : ''}`;
     }).join('');
     return `<div class="rl open-able" data-k="${bk}" onclick="rlToggle(this)">
-        <span class="rn"><span class="tw">\u25b6</span>${esc(b.k)} <span class="cnt">${b.ts.length}</span></span>
+        <span class="rn"><span class="tw">\u25b6</span>${esc(b.k)} <span class="cnt">${b.ts.length}</span>${cap(b)}</span>
         <span class="ra">${fmt$(b.sum)}</span></div>${kids}`;
   }).join('');
 
   const inRows = groupSum(revList, t => t.vendor).map(c => {
     const ck = 'c' + key(c.k);
     const many = c.ts.length > 1;
-    const kids = many ? c.ts.map(t => `
-      <div class="rl lv3 rsub2" data-p="${ck}"><span class="rn">${fmtDate(t.date)}${t.source === 'stripe' ? ' \u00b7 Stripe' : ''}</span>
-        <span class="ra">${fmt$(t.amount)}</span></div>`).join('') : '';
     return `<div class="rl ${many ? 'open-able' : ''}" ${many ? `data-k="${ck}" onclick="rlToggle(this)"` : ''}>
-        <span class="rn">${many ? '<span class="tw">\u25b6</span>' : ''}${esc(c.k)}${many ? ` <span class="cnt">${c.ts.length}</span>` : ''}</span>
-        <span class="ra">${fmt$(c.sum)}</span></div>${kids}`;
+        <span class="rn">${many ? '<span class="tw">\u25b6</span>' : ''}${esc(c.k)}${many ? ` <span class="cnt">${c.ts.length} payments</span>` : ''}</span>
+        <span class="ra">${fmt$(c.sum)}</span></div>${many ? c.ts.map(t => `
+      <div class="rl lv3 rsub2" data-p="${ck}"><span class="rn">${fmtDate(t.date)}${t.source === 'stripe' ? ' \u00b7 Stripe' : ''}</span>
+        <span class="ra">${fmt$(t.amount)}</span></div>`).join('') : ''}`;
   }).join('');
 
   const feeRows = feeList.length ? `
     <div class="rl open-able" data-k="fee" onclick="rlToggle(this)">
       <span class="rn"><span class="tw">\u25b6</span>Card and Stripe fees <span class="cnt">${feeList.length}</span></span>
-      <span class="ra">${fmt$(r.fees)}</span></div>
-    ${feeList.map(t => `<div class="rl lv3 rsub2" data-p="fee"><span class="rn">${fmtDate(t.date)} \u00b7 ${esc(t.vendor)}</span>
-      <span class="ra">${fmt$(t.amount)}</span></div>`).join('')}` : '';
+      <span class="ra">${fmt$(feeTotal)}</span></div>
+    ${feeList.map(t => chargeLine(t, 'fee')).join('')}` : '';
 
   m.innerHTML = `
     ${rmOpen ? `<div class="notice no-print" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
       <span style="flex:1"><b>${moName(rm)} is still open</b> \u00b7 these figures move until you close it.</span>
       <button class="btn primary" onclick="setMonth('${rm}','close')">Close it \u2192</button></div>` : ''}
 
-    <div class="ph no-print"><div><div class="serifh">${moName(rm)}</div>
-      <div class="sub" style="margin-bottom:0">${data.frozen ? 'Closed \u00b7 these figures are frozen' : 'Open \u00b7 figures move until you close the month'}</div></div>
+    <div class="ph no-print"><div><div class="serifh">Reports</div>
+      <div class="sub" style="margin-bottom:0">Your statement, and the same thing as a PDF for your CPA.</div></div>
       <div class="row rpt-picker" style="margin-bottom:0">
         <select onchange="S.reportMonth=this.value;renderReports()">${months.map(x=>`<option value="${x}" ${x===rm?'selected':''}>${moName(x)}</option>`).join('')}</select>
         <select id="rptPeriod" title="Statement period">
@@ -1777,47 +1791,50 @@ async function renderReports(){
       </div></div>
 
     <div class="card" id="rptCard">
-      <div class="hero">
-        <div class="h"><div class="ct">Money in</div>
-          <div class="hv">${fmt$(r.revenue)}</div><div class="hd">${vs(r.revenue, prev?.revenue)}</div></div>
-        <div class="h"><div class="ct">Money out</div>
-          <div class="hv">${fmt$(moneyOut)}</div><div class="hd">${vs(moneyOut, prevOut)}</div></div>
-        <div class="h"><div class="ct">Net income</div>
-          <div class="hv" style="color:${r.net>=0?'var(--good)':'var(--bad)'}">${fmt$(r.net)}</div>
-          <div class="hd">${r.margin!=null?r.margin+'% margin':''}</div></div>
-      </div>
-    </div>
+      <div class="stmt">
+        <h1 style="font-family:var(--serif);font-weight:400;font-size:26px">Profit &amp; loss</h1>
+        <div class="rsub">Mobius Digital \u00b7 ${moName(rm)} \u00b7 ${data.frozen ? 'closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ', figures frozen' : 'month still open, figures live'}</div>
 
-    <div class="grid2" style="margin-top:16px">
-      <div class="card">
-        <div class="row" style="margin-bottom:6px"><span class="ct">Where it came from</span></div>
-        ${inRows || '<div class="hint">No revenue recorded.</div>'}
-        <div class="rl tot"><span class="rn">Total in</span><span class="ra">${fmt$(r.revenue)}</span></div>
-      </div>
-      <div class="card">
-        <div class="row" style="margin-bottom:6px"><span class="ct">Where it went</span>
-          <span style="flex:1"></span><button class="ctl no-print" onclick="rlAll(this)">Expand all</button></div>
-        ${outRows || '<div class="hint">No expenses.</div>'}
+        <div class="hero no-print">
+          <div class="h"><div class="ct">Money in</div>
+            <div class="hv">${fmt$(r.revenue)}</div><div class="hd">${vs(r.revenue, prev?.revenue)}</div></div>
+          <div class="h"><div class="ct">Money out</div>
+            <div class="hv">${fmt$(moneyOut)}</div><div class="hd">${vs(moneyOut, prevOut)}</div></div>
+          <div class="h"><div class="ct">Net income</div>
+            <div class="hv" style="color:${r.net>=0?'var(--good)':'var(--bad)'}">${fmt$(r.net)}</div>
+            <div class="hd">${r.margin!=null?r.margin+'% margin':''}</div></div>
+        </div>
+
+        <div class="row no-print" style="margin:16px 0 0"><span style="flex:1"></span>
+          <button class="ctl" onclick="rlAll(this)">Expand all</button></div>
+
+        <div class="sh">Revenue</div>
+        ${inRows || '<div class="rl"><span class="rn hint">No revenue recorded.</span><span class="ra"></span></div>'}
+        <div class="rl tot"><span class="rn">Total revenue</span><span class="ra">${fmt$(r.revenue)}</span></div>
+
+        <div class="sh">Expenses</div>
+        ${outRows || '<div class="rl"><span class="rn hint">No expenses.</span><span class="ra"></span></div>'}
         ${feeRows}
-        <div class="rl tot"><span class="rn">Total out</span><span class="ra">${fmt$(moneyOut)}</span></div>
-        ${persList.length ? `<div class="hint" style="margin-top:10px">${persList.length} personal purchase${persList.length>1?'s':''} (${fmt$(round2c(persList.reduce((a,t)=>a+t.amount,0)))}) and any account transfers are left out on purpose \u00b7 they are not business costs.</div>` : ''}
-      </div>
-    </div>
+        <div class="rl tot"><span class="rn">Total expenses</span><span class="ra">${fmt$(moneyOut)}</span></div>
 
-    <div class="card" style="margin-top:16px">
-      <div class="row" style="margin-bottom:6px"><span class="ct">What is left</span></div>
-      <div class="rl"><span class="rn">Net income</span><span class="ra">${fmt$(r.net)}</span></div>
-      <div class="rl"><span class="rn">Set aside for tax <span class="cnt">${r.taxPct}%</span></span><span class="ra">${fmt$(r.taxes)}</span></div>
-      ${r.distPct ? `<div class="rl"><span class="rn">Distributions <span class="cnt">${r.distPct}%</span></span><span class="ra">${fmt$(r.distributions)}</span></div>` : ''}
-      <div class="rl tot"><span class="rn">Yours, after tax</span><span class="ra">${fmt$(r.profit)}</span></div>
-      <div class="hint" style="margin:14px 0 8px">Move it out of Novo like this:</div>
-      <div class="grid3">
-        ${Object.entries(r.split).map(([k,v]) => {
-          const label = { personal:'Personal', tax:'Tax reserve', ads:'Ads / Marketing', savings:'Savings', other:'Other' }[k] || k;
-          return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
-            <div class="ct" style="font-size:10px">${label} \u00b7 ${r.splitPct[k]}%</div>
-            <div style="font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;margin-top:2px">${fmt$(v)}</div></div>`;
-        }).join('')}
+        <div class="rl net"><span class="rn">Net income</span><span class="ra">${fmt$(r.net)}</span></div>
+        ${persList.length ? `<div class="hint" style="margin-top:12px">Excluded on purpose: ${persList.length} personal purchase${persList.length>1?'s':''} (${fmt$(round2c(persList.reduce((a,t)=>a+t.amount,0)))}) and any transfers between your own accounts \u00b7 neither is a business cost.</div>` : ''}
+
+        <div class="sh">What is left</div>
+        <div class="rl"><span class="rn">Net income</span><span class="ra">${fmt$(r.net)}</span></div>
+        <div class="rl"><span class="rn">Set aside for tax <span class="cnt">${r.taxPct}%</span></span><span class="ra">${fmt$(r.taxes)}</span></div>
+        ${r.distPct ? `<div class="rl"><span class="rn">Distributions <span class="cnt">${r.distPct}%</span></span><span class="ra">${fmt$(r.distributions)}</span></div>` : ''}
+        <div class="rl tot"><span class="rn">Yours, after tax</span><span class="ra">${fmt$(r.profit)}</span></div>
+
+        <div class="hint no-print" style="margin:16px 0 8px">Move it out of Novo like this:</div>
+        <div class="grid3 no-print">
+          ${Object.entries(r.split).map(([k,v]) => {
+            const label = { personal:'Personal', tax:'Tax reserve', ads:'Ads / Marketing', savings:'Savings', other:'Other' }[k] || k;
+            return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+              <div class="ct" style="font-size:10px">${label} \u00b7 ${r.splitPct[k]}%</div>
+              <div style="font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;margin-top:2px">${fmt$(v)}</div></div>`;
+          }).join('')}
+        </div>
       </div>
     </div>
 
