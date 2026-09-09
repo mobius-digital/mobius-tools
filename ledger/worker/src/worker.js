@@ -703,6 +703,9 @@ async function processSlackReceipts(env) {
             date: rDate, month: rMonth, name: fname.slice(0, 120), type: mimetype,
             note: ext.note ? String(ext.note).slice(0, 300) : null,
             tax_cat: ext.tax_category || null,
+            // where it arrived · the week-later follow-up belongs in the same
+            // thread as the receipt, not shouted into the channel
+            ch: cfg.channelId, ts: msg.ts,
           }));
           /* "No match" is usually true, but not always: the exact-cent rule
            * misses a receipt whose total differs from what the card actually
@@ -1359,13 +1362,14 @@ async function retryHeldReceipts(env) {
        * something only Cole can answer · asked once, never on repeat. */
       const bornMs = Number(String(row.key).split(':')[1]);
       const days = Number.isFinite(bornMs) ? (Date.now() - bornMs) / 86400e3 : 0;
-      if (days >= 7 && !meta.asked && sr.channelId) {
+      if (days >= 5 && !meta.asked && (meta.ch || sr.channelId)) {
         meta.asked = 1;
         await putSetting(env, row.key, JSON.stringify(meta));
         const at = await ownerMention(env);
-        const txt = `${at}\u23f3 *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has been waiting ${Math.floor(days)} days and no matching charge has ever reached Novo or Amex.\n` +
+        const txt = `${at}\u23f3 *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has been waiting ${Math.floor(days)} days and still matches no charge on Novo or Amex.\n` +
           `That usually means it went on a different card, or it is somebody else's charge. It stops waiting now · tell me which:`;
-        await slack(env, 'chat.postMessage', { channel: sr.channelId, text: txt, unfurl_links: false,
+        await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
+          ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
           blocks: [{ type: 'section', text: { type: 'mrkdwn', text: txt } },
             { type: 'actions', elements: [
               { type: 'button', action_id: 'led_file', style: 'primary',
@@ -1390,7 +1394,8 @@ async function retryHeldReceipts(env) {
     await receiptDelete(env, row.key);
     await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
     attached++;
-    if (sr.channelId) await slack(env, 'chat.postMessage', { channel: sr.channelId, unfurl_links: false,
+    if (meta.ch || sr.channelId) await slack(env, 'chat.postMessage',
+      { channel: meta.ch || sr.channelId, ...(meta.ts ? { thread_ts: meta.ts } : {}), unfurl_links: false,
       text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).` }, true).catch(() => {});
   }
   return { held: held.length, attached, asked };

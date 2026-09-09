@@ -315,9 +315,16 @@
   .rl.net .ra{font-size:19px}
   .rsub2{display:none}
   .rsub2.shown{display:flex}
-  .rl.lv2{padding-left:26px;font-size:13.5px;color:#3A4B58;border-bottom-color:#EFF3F6}
-  .rl.lv3{padding-left:52px;font-size:12.5px;color:var(--muted);padding-top:7px;padding-bottom:7px;
-    border-bottom-color:#F2F5F8}
+  /* Nesting reads better as a rail down the side than as rows boxed in by
+     horizontal rules · the eye follows the vertical, and a group inside a
+     group stays legible because the rails simply stack. */
+  .rl.lv2, .rl.lv3{border-bottom:none;position:relative}
+  .rl.lv2{margin-left:9px;padding-left:20px;font-size:13.5px;color:#3A4B58;
+    border-left:2px solid var(--line);padding-top:8px;padding-bottom:8px}
+  .rl.lv3{margin-left:31px;padding-left:20px;font-size:12.5px;color:var(--muted);
+    border-left:2px solid #E9EEF2;padding-top:6px;padding-bottom:6px}
+  .rl.lv2.shown + .rl:not(.lv2):not(.lv3){margin-top:6px}
+  .rl.lv3.shown + .rl.lv2{margin-top:6px}
   .rl.lv3 .ra{font-weight:500}
   .hero{display:flex;flex-wrap:wrap;gap:0;margin:18px 0 2px;
     border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
@@ -1698,7 +1705,7 @@ function rlAll(btn){
 
 async function renderReports(){
   const m = $('#main');
-  const rm = S.reportMonth || addMonths(nowMonth(), -1);
+  const rm = S.reportMonth || nowMonth();   // the month you are in, not the one before it
   S.reportMonth = rm;
   m.innerHTML = '<div class="sub">Loading…</div>';
   let data;
