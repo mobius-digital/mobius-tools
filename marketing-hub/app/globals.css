@@ -4564,3 +4564,130 @@ a.switcher__item:hover {
     transform: none;
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Mobile: app chrome, not a shrunken website
+ *
+ * Phones get the labeled bottom tab bar every installed app ships: the three
+ * destinations plus Settings, in thumb reach, with the top nav links hidden.
+ * Tablets keep the top nav (iPad convention); the bar is phones only.
+ * This block stays at the VERY END of the stylesheet on purpose: media
+ * queries add no specificity, so placed earlier they silently lose to later
+ * base rules.
+ * ----------------------------------------------------------------------- */
+
+.tabbar {
+  display: none;
+}
+
+/* A dialog floats over the page; the page must not scroll under it. */
+body:has(.scrim) {
+  overflow: hidden;
+}
+
+.scrim {
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 720px) {
+  .nav__links .nav__link,
+  .nav__links .settings__trigger,
+  .nav__product {
+    display: none;
+  }
+
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: flex;
+    background: var(--color-surface);
+    border-top: 1px solid var(--border-subtle);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tabbar__item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 48px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: none;
+    font-size: 0.65rem;
+    font-weight: var(--font-weight-heading);
+    color: var(--color-text-muted);
+    text-decoration: none;
+  }
+
+  .tabbar__item svg {
+    width: 22px;
+    height: 22px;
+    flex: none;
+  }
+
+  .tabbar__item--active {
+    color: var(--color-accent-ink);
+  }
+
+  /* The bar must never cover the last row of the board. */
+  .main {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Dialogs arrive as bottom sheets. The editor keeps its own full-height
+     sheet (.scrim--right), which already works on a phone. */
+  .scrim:not(.scrim--right) {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .scrim:not(.scrim--right) .dialog {
+    max-width: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 92dvh;
+    overflow-y: auto;
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The settings window keeps its own height so its scrolling pane works. */
+  .scrim:not(.scrim--right) .dialog--settings {
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    height: calc(100dvh - var(--space-7));
+    max-height: none;
+    overflow-y: hidden;
+    padding-bottom: var(--space-4);
+  }
+
+  /* The editor's two-column field rows stack; side by side they squeeze
+     date inputs below their own intrinsic width. */
+  .field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Far-future rows: the date reads as a caption above the name instead of
+     squeezing the name into what is left of the row. */
+  .beyond__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "date type"
+      "name status";
+    row-gap: 2px;
+  }
+
+  .beyond__date { grid-area: date; }
+  .beyond__type { grid-area: type; justify-self: end; }
+  .beyond__name { grid-area: name; min-width: 0; }
+  .beyond__row .status-dot { grid-area: status; justify-self: end; align-self: center; }
+
+  /* Anything floating above the page bottom moves above the bar. */
+  .tour__tip {
+    margin-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+}
