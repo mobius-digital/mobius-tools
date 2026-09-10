@@ -2463,6 +2463,26 @@ export default {
         return json({ ...res, reopened });
       }
 
+      /* Receipts attached before receipt_hash existed carry no fingerprint, so
+       * nothing can recognise them. Re-reading the same email then looks like a
+       * brand new receipt for a charge that is already covered, which is how 26
+       * settled receipts turned back into 26 open questions. Hashing what is
+       * already stored closes that hole once. */
+      if (path === '/api/receipt-hashes' && request.method === 'POST') {
+        const { results: rows } = await env.DB.prepare(
+          `SELECT id, receipt_key FROM transactions
+            WHERE receipt_key IS NOT NULL AND receipt_hash IS NULL LIMIT 400`).all();
+        let done = 0, missing = 0;
+        for (const r of rows) {
+          const buf = await receiptGet(env, r.receipt_key).catch(() => null);
+          if (!buf) { missing++; continue; }
+          await env.DB.prepare('UPDATE transactions SET receipt_hash = ?2 WHERE id = ?1')
+            .bind(r.id, await sha256bytes(buf)).run();
+          done++;
+        }
+        return json({ ok: true, hashed: done, unreadable: missing, remaining: rows.length === 400 });
+      }
+
       /* Read-only: does the bank agree with the books? Writes NOTHING, so it
        * is safe on the hand-entered months a backfill must never touch. */
       if (path === '/api/plaid-compare' && request.method === 'POST') {
