@@ -754,14 +754,25 @@ async function processSlackReceipts(env) {
              AND month >= ?1 AND month <= ?2 AND amount >= ?3 AND amount <= ?4
              ORDER BY ABS(amount - ?5), ABS(julianday(date) - julianday(?6)) LIMIT 5`)
             .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)),
-                  Number(ext.amount) - 0.005, Number(ext.amount) * 1.35 + 0.005,
+                  Number(ext.amount) / 1.35 - 0.005, Number(ext.amount) * 1.35 + 0.005,
                   Number(ext.amount), rDate).all()).results;
-          target = (await look()).find(agrees) || null;
+          /* Exact first; then a charge LARGER than the slip, which is a tip
+           * added after printing; then a SMALLER one only if it is the only
+           * candidate from that vendor, because a smaller charge is usually a
+           * different purchase. */
+          const pick = rows => {
+            const n = rows.filter(agrees);
+            const small = n.filter(t => t.amount < Number(ext.amount) - 0.005);
+            return n.find(t => Math.abs(t.amount - Number(ext.amount)) < 0.005)
+                || n.find(t => t.amount > Number(ext.amount))
+                || (small.length === 1 ? small[0] : null);
+          };
+          target = pick(await look());
           /* Nothing yet, so go and ask the bank NOW instead of waiting for
            * tonight. Once per run, however many receipts arrived together. */
           if (!target) {
             if (!pulledBank) { pulledBank = true; await syncPlaid(env).catch(() => {}); }
-            target = (await look()).find(agrees) || null;
+            target = pick(await look());
           }
         }
         /* 2) An EMAILED receipt that matches nothing is not filed. A photo is
@@ -994,6 +1005,8 @@ async function processSlackReceipts(env) {
             const mt = `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`
               + (over > 0.005
                   ? ` The receipt says $${Number(ext.amount).toFixed(2)} and the card took $${over.toFixed(2)} more · a tip, most likely. The charge is what counts.`
+                  : over < -0.005
+                  ? ` The receipt says $${Number(ext.amount).toFixed(2)} and the card has only taken $${target.amount.toFixed(2)} so far · the tip usually lands a day later, and the ledger takes the correction on its own.`
                   : '');
             await quiet(target, mt, [
               { type: 'section', text: { type: 'mrkdwn', text: mt } },
@@ -1551,7 +1564,17 @@ async function retryHeldReceipts(env) {
      * smaller, and only when the vendor name agrees (checked below). A tip is
      * the only thing that moves a total UP after the fact; a smaller charge is
      * a different purchase, so that stays exact. */
-    const lo = Number(meta.amount) - 0.005;
+    /* THE TIP CUTS BOTH WAYS, and which way depends on what he photographed.
+     * A slip printed before the tip was written on it says $100 while the card
+     * ends up taking $120. A slip photographed AFTER he wrote the tip on it
+     * says $120 while the card has so far only taken $100, because the
+     * correction lands a day later.
+     *
+     * So the charge may be up to a third either side. Downward is the riskier
+     * direction · a smaller charge is usually a different purchase · so it is
+     * only accepted when exactly ONE charge from that vendor is in range,
+     * which is true of a meal and false of Anthropic's daily API charges. */
+    const lo = Number(meta.amount) / 1.35 - 0.005;
     const hi = Number(meta.amount) * 1.35 + 0.005;
     const hit = await env.DB.prepare(
       `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
@@ -1569,7 +1592,11 @@ async function retryHeldReceipts(env) {
       const tf = tv.split(' ')[0];
       return tv.includes(first) || rv.includes(tf);
     };
-    const match = hit.results.find(agrees) || null;
+    const near = hit.results.filter(agrees);
+    const exact = near.find(t => Math.abs(t.amount - Number(meta.amount)) < 0.005);
+    const bigger = near.find(t => t.amount > Number(meta.amount));
+    const smaller = near.filter(t => t.amount < Number(meta.amount) - 0.005);
+    const match = exact || bigger || (smaller.length === 1 ? smaller[0] : null);
     if (!match) {
       /* Waiting is fine for a few days; waiting forever in silence is not.
        * The key carries its own creation time, so after a week without the
@@ -1618,6 +1645,8 @@ async function retryHeldReceipts(env) {
       text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).`
         + (gap > 0.005
             ? ` The receipt says $${Number(meta.amount).toFixed(2)} and the card took $${gap.toFixed(2)} more · a tip, most likely. The charge is what counts.`
+            : gap < -0.005
+            ? ` The receipt says $${Number(meta.amount).toFixed(2)} and the card has only taken $${Math.abs(match.amount).toFixed(2)} so far · the tip usually lands a day later, and the ledger takes the correction on its own.`
             : '') }, true).catch(() => {});
   }
   return { held: held.length, attached, asked };
@@ -2064,7 +2093,18 @@ async function syncPlaid(env) {
         }
       }
       for (const t of page.modified) {
-        const cur = await env.DB.prepare('SELECT id, month, type FROM transactions WHERE plaid_id = ?1').bind(t.transaction_id).first();
+        const cur = await env.DB.prepare('SELECT id, month, type, vendor, amount FROM transactions WHERE plaid_id = ?1').bind(t.transaction_id).first();
+        /* A meal posts at the pre-tip figure and is CORRECTED a day later, so
+         * "modified" is not an edge case, it is how every restaurant works.
+         * Skipping it because the month is shut leaves the books saying $100
+         * where the statement says $120, and nobody is told. Named instead. */
+        if (cur && !t.pending && (await monthStatus(env, cur.month)) === 'closed'
+            && Math.abs(round2(t.amount) - (cur.type === 'out' ? cur.amount : Math.abs(cur.amount))) > 0.005) {
+          await alertSlack(env, `\u26a0\ufe0f *The bank corrected a charge in a month that is already closed:*\n` +
+            `\u2022 *${cur.vendor}* was ${fmtMoney(cur.amount)}, the statement now says ${fmtMoney(round2(t.amount))} \u00b7 ${t.date}\n` +
+            `Often a tip added after the receipt was printed. Reopen ${moLabel(cur.month)} and press Sync now to take the correction.`).catch(() => {});
+          totals.modifiedFrozen = (totals.modifiedFrozen || 0) + 1;
+        }
         if (cur && (await monthStatus(env, cur.month)) !== 'closed' && !t.pending) {
           // keep the row's own sign convention: out-rows carry Plaid's sign
           // (negative = card refund), everything else stores the magnitude
