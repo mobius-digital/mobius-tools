@@ -845,7 +845,8 @@ async function processSlackReceipts(env) {
           // (c) right amount, wrong month — the date on the receipt misled us
           const elsewhere = await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
-             AND ABS(amount - ?1) < 0.005 ORDER BY date DESC LIMIT 3`, [amt]);
+             AND ABS(amount - ?1) < 0.005 AND ABS(julianday(date) - julianday(?2)) <= 75
+             ORDER BY ABS(julianday(date) - julianday(?2)) LIMIT 3`, [amt, rDate]);
           // (d) the vendor is known, so what DID it charge around then?
           const byVendor = same ? await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0
@@ -1947,7 +1948,7 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
   const items = await getPlaidItems(env);
   if (!items.length) return { skipped: 'no connected accounts' };
 
-  const bank = [];
+  const bank = [], pendingLines = [];
   for (const item of items) {
     let offset = 0, total = 1;
     while (offset < total) {
@@ -1958,7 +1959,9 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
       total = page.total_transactions || 0;
       const got = page.transactions || [];
       for (const t of got) {
-        if (t.pending) continue;
+        if (t.pending) { pendingLines.push({ date: t.date, amount: round2(t.amount),
+          vendor: String(t.merchant_name || t.name || '?').slice(0, 60),
+          account: item.accounts?.[t.account_id]?.name || item.name || '' }); continue; }
         bank.push({ id: t.transaction_id, date: t.date, month: monthOf(t.date),
                     vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
                     amount: round2(t.amount),
@@ -2017,6 +2020,9 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
     /* The caller almost never wants 500 bank lines back · selfCheck does,
      * because it has to tell a retired id from a live one. */
     bank: full ? bank : undefined, _bank: bank,
+    /* Charges the card is holding but has not settled · the answer to "I can
+     * see it on Amex, why can't you". */
+    pending: pendingLines.length, pendingLines: full ? pendingLines : undefined,
   };
 }
 
