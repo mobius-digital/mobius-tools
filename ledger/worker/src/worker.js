@@ -494,6 +494,31 @@ async function receiptDelete(env, key) {
  * or filed as a new transaction — and the thread gets a reply saying which.
  * Dedupe: Slack file ids in settings.slackReceipts.seen; cursor on lastTs.
  */
+/* WHY WAIT UNTIL TONIGHT. A receipt arriving is the one moment we know a charge
+ * probably exists, so that is the moment to go and look, rather than filing the
+ * question away for a nightly job.
+ *
+ * What no amount of looking can fix: Amex sits on a purchase for a day or two
+ * as PENDING before it becomes real, and a pending line has no final amount or
+ * date, so it cannot be booked · but it CAN be seen. "I can see it on your
+ * Amex, still pending" is a different sentence from "no charge matches", and
+ * the difference is the whole reason the wait felt like a shrug. */
+async function bankPending(env, amount, sinceYmd) {
+  if (!plaidReady(env)) return null;
+  const items = await getPlaidItems(env);
+  for (const item of items) {
+    const page = await plaid(env, '/transactions/get', {
+      access_token: item.access_token, start_date: sinceYmd,
+      end_date: centralDate(Date.now() / 1000), options: { count: 250 },
+    }).catch(() => null);
+    const hit = (page?.transactions || []).find(t => t.pending
+      && Math.abs(Math.abs(round2(t.amount)) - Math.abs(amount)) < 0.005);
+    if (hit) return { vendor: String(hit.merchant_name || hit.name || 'the card').slice(0, 60),
+                      date: hit.date, account: item.accounts?.[hit.account_id]?.name || item.name || '' };
+  }
+  return null;
+}
+
 async function processSlackReceipts(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
   const cfg = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
@@ -525,7 +550,7 @@ async function processSlackReceipts(env) {
     const who = await slack(env, 'auth.test');
     if (who.ok) { selfId = cfg.selfUserId = who.user_id; }
   }
-  let handled = 0, needsYou = 0;
+  let handled = 0, needsYou = 0, pulledBank = false;
   const filed = [];
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
@@ -711,11 +736,27 @@ async function processSlackReceipts(env) {
         // attaching to a CLOSED month is allowed — only new rows are frozen out.
         let target = null;
         if (ext?.amount) {
-          const { results } = await env.DB.prepare(
+          const words = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+          /* The name has to agree. Two subscriptions at the same price in the
+           * same month is ordinary, and taking the nearest by date regardless
+           * of who it was paid to is how an Anthropic receipt ended up on an
+           * OpenAI charge. Where the names disagree nothing is attached · the
+           * candidates are offered as buttons below instead, and he decides. */
+          const agrees = t => {
+            const a = words(t.vendor), b = words(ext.vendor);
+            return a.length && b.length && (a[0] === b[0] || a.includes(b[0]) || b.includes(a[0]));
+          };
+          const look = async () => (await env.DB.prepare(
             `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
              AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005 ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
-            .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)), ext.amount, rDate).all();
-          target = results.find(t => ext.vendor && t.vendor.toLowerCase().includes(String(ext.vendor).toLowerCase().split(' ')[0])) || results[0] || null;
+            .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)), ext.amount, rDate).all()).results;
+          target = (await look()).find(agrees) || null;
+          /* Nothing yet, so go and ask the bank NOW instead of waiting for
+           * tonight. Once per run, however many receipts arrived together. */
+          if (!target) {
+            if (!pulledBank) { pulledBank = true; await syncPlaid(env).catch(() => {}); }
+            target = (await look()).find(agrees) || null;
+          }
         }
         /* 2) An EMAILED receipt that matches nothing is not filed. A photo is
          * something Cole chose to take, so it is his by definition — but email
@@ -834,8 +875,15 @@ async function processSlackReceipts(env) {
           const isFresh = rDate >= today || (Date.parse(today) - Date.parse(rDate)) <= 4 * 86400e3;
           if (isFresh) {
             fresh = true;
-            why = `The charge has almost certainly not reached Novo or Amex yet \u00b7 the bank feed runs overnight. `
-                + `I am holding this receipt and will attach it the moment the charge lands. Nothing for you to do.`;
+            /* The bank was asked a moment ago and had nothing settled. Look
+             * once more for a PENDING line, so the answer is what the card
+             * actually shows rather than a shrug. */
+            const pend = await bankPending(env, amt, addDaysYmd(rDate, -6)).catch(() => null);
+            why = pend
+              ? `I can see it on your *${pend.account || 'card'}* as *${pend.vendor}*, still pending \u00b7 a pending charge has no final amount yet, so it cannot be booked. `
+                + `Holding this receipt and attaching it the moment it settles. Nothing for you to do.`
+              : `I checked Novo and Amex just now and it has not posted yet \u00b7 cards usually take a day or two. `
+                + `Holding this receipt and attaching it the moment it lands. Nothing for you to do.`;
             /* One exception worth offering: an unreceipted charge for exactly
              * this amount already exists. Hold anyway, but let him take it. */
             if (elsewhere.length) {
