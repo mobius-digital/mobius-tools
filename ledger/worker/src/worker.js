@@ -1531,39 +1531,50 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
   const ids = new Set(statement.map(x => x.t.transaction_id));
   const first = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(' ')[0];
 
-  /* THE SAME CHARGE UNDER TWO NAMES. Migration turns a retired Item's id into
-   * the new one, but it cannot if the new id is already on a row of its own ·
-   * the unique index refuses, and the pair is left standing as two copies of
-   * one charge. That is money counted twice, which this app exists not to do,
-   * and it happened to ten charges the first time a bank was re-linked.
+  /* THE SAME CHARGE TWICE, ONCE PER BANK CONNECTION. Migration renames a row
+   * onto the id the bank uses now, and cannot when that id already sits on
+   * another row: the unique index refuses and the pair stands as two copies of
+   * one charge. That is money counted twice, which this app exists not to do.
    *
-   * A pair qualifies only when one side holds an id the bank no longer lists
-   * and the other holds one it does. Two genuine same-day charges both carry
-   * current ids, so they are never touched. The survivor is whichever row
-   * carries the receipt, and it takes the id the bank uses now. */
+   * What identifies a copy is NOT the merchant name · one connection says
+   * "Viktor" and the next says "VIKTOR.COM", one says "Noma (via WorldRemit)"
+   * and the next just "WorldRemit". It is the id: a row whose plaid_id is
+   * absent from the statement came from a connection the bank has retired, so
+   * that charge is no longer being reported under that name. Pair each retired
+   * row with one live row of the same day, amount and direction, and they are
+   * the same charge. Pairing is one to one, so two genuine same-day charges of
+   * the same amount survive as two.
+   *
+   * The survivor is the retired row · it is the one carrying the receipt and
+   * the categories somebody chose · and it takes the id the bank uses now. */
   const collapsed = [];
   {
     const { results: mine } = await env.DB.prepare(
-      `SELECT id, date, vendor, amount, plaid_id, receipt_key FROM transactions
+      `SELECT id, date, type, vendor, amount, plaid_id, receipt_key FROM transactions
         WHERE date >= ?1 AND date < ?2 AND plaid_id IS NOT NULL ORDER BY id`).bind(fromYmd, toYmd).all();
     const groups = new Map();
     for (const r of mine) {
-      const k = `${r.date}|${Math.abs(round2(r.amount)).toFixed(2)}|${first(r.vendor)}`;
+      const k = `${r.date}|${r.type}|${round2(r.amount).toFixed(2)}`;
       (groups.get(k) || groups.set(k, []).get(k)).push(r);
     }
     for (const g of groups.values()) {
       if (g.length < 2) continue;
       const stale = g.filter(r => !ids.has(r.plaid_id));
       const live = g.filter(r => ids.has(r.plaid_id));
-      if (!stale.length || !live.length) continue;      // not a re-link pair
-      const keep = g.find(r => r.receipt_key) || stale[0] || g[0];
-      const liveId = live[0].plaid_id;
-      for (const r of g) if (r.id !== keep.id) {
-        await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(r.id).run();
-        collapsed.push({ id: r.id, date: r.date, vendor: r.vendor, amount: r.amount, keptAs: keep.id });
+      const pairs = Math.min(stale.length, live.length);
+      for (let i = 0; i < pairs; i++) {
+        /* Keep whichever of the two actually holds a receipt, else the retired
+         * row, which is the older and better-annotated of the pair. */
+        const a = stale[i], b = live[i];
+        const keep = a.receipt_key ? a : (b.receipt_key ? b : a);
+        const drop = keep === a ? b : a;
+        const liveId = b.plaid_id;
+        await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(drop.id).run();
+        if (keep.plaid_id !== liveId)
+          await env.DB.prepare('UPDATE transactions SET plaid_id = ?2 WHERE id = ?1').bind(keep.id, liveId).run();
+        collapsed.push({ removed: drop.id, kept: keep.id, date: keep.date,
+                         vendor: keep.vendor, amount: keep.amount });
       }
-      if (keep.plaid_id !== liveId)
-        await env.DB.prepare('UPDATE transactions SET plaid_id = ?2 WHERE id = ?1').bind(keep.id, liveId).run();
     }
   }
 
