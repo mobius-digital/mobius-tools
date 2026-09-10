@@ -1265,7 +1265,9 @@ async function processPlaidTxn(env, item, t) {
   const date = t.date, month = monthOf(date);
   const start = await getSetting(env, 'plaidStart');
   if (start && date < start) return 'before-start';
-  if ((await monthStatus(env, month)) === 'closed') return 'closed';
+  if ((await monthStatus(env, month)) === 'closed')
+    return { skip: 'closed', month, date, vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
+             amount: round2(t.amount) };
 
   const acctType = item.accounts?.[t.account_id]?.type || 'depository';
   const rawName = t.merchant_name || t.name || 'Unknown';
@@ -1406,6 +1408,10 @@ async function syncPlaid(env) {
   const items = await getPlaidItems(env);
   if (!items.length) return { skipped: 'no connected accounts' };
   const totals = {};
+  /* Charges the bank reported for a month whose report is already frozen.
+   * Dropping these silently is how a closed month quietly stops being true,
+   * so every one of them is named and he decides. */
+  const dropped = [];
   for (const item of items) {
     let hasMore = true;
     while (hasMore) {
@@ -1417,7 +1423,8 @@ async function syncPlaid(env) {
         // and fails in the same place forever.
         try {
           const out = await processPlaidTxn(env, item, t);
-          totals[out] = (totals[out] || 0) + 1;
+          if (out && out.skip === 'closed') { dropped.push(out); totals.closed = (totals.closed || 0) + 1; }
+          else totals[out] = (totals[out] || 0) + 1;
         } catch (e) {
           totals.failed = (totals.failed || 0) + 1;
           totals.lastError = `${t.name || t.transaction_id}: ${String(e.message || e).slice(0, 120)}`;
@@ -1446,6 +1453,14 @@ async function syncPlaid(env) {
       hasMore = page.has_more;
       await putSetting(env, 'plaidItems', JSON.stringify(items)); // persist cursor per page
     }
+  }
+  if (dropped.length) {
+    const lines = dropped.slice(0, 8).map(d =>
+      `\u2022 *${d.vendor}* $${Math.abs(d.amount).toFixed(2)} \u00b7 ${d.date}`).join('\n');
+    await alertSlack(env,
+      `\u26a0\ufe0f *${dropped.length} charge${dropped.length > 1 ? 's' : ''} arrived for a month that is already closed*, so ${dropped.length > 1 ? 'they were' : 'it was'} not added:\n${lines}` +
+      (dropped.length > 8 ? `\n_\u2026and ${dropped.length - 8} more._` : '') +
+      `\n\nReopen ${moLabel(dropped[0].month)} in the app if ${dropped.length > 1 ? 'these belong' : 'this belongs'} in it, then press Sync now. Otherwise nothing to do.`).catch(() => {});
   }
   return { ok: true, ...totals };
 }
