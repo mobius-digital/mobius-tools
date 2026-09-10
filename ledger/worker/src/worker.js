@@ -934,8 +934,14 @@ async function processSlackReceipts(env) {
             why = pend
               ? `I can see it on your *${pend.account || 'card'}* as *${pend.vendor}*, still pending \u00b7 a pending charge has no final amount yet, so it cannot be booked. `
                 + `Holding this receipt and attaching it the moment it settles. Nothing for you to do.`
-              : `I asked Novo and Amex for an update just now and this one has not reached the feed yet \u00b7 `
-                + `a charge can sit on the card's own app for a few hours before it comes through here, and longer before it settles. `
+              /* Only claim to have asked when the bank actually let us. An
+               * on-demand refresh is a paid Plaid product this account is not
+               * signed up for, so the request comes back refused and the honest
+               * sentence is simply that the feed has not caught up. */
+              : (refreshed && refreshed.ok
+                  ? `I asked Novo and Amex for an update just now and this one has not reached the feed yet \u00b7 `
+                  : `This has not reached the bank feed yet \u00b7 `)
+                + `a charge can sit on the card's own app for a few hours before the feed carries it, and longer before it settles. `
                 + `Holding this receipt and attaching it the moment it lands. Nothing for you to do.`;
             /* One exception worth offering: an unreceipted charge for exactly
              * this amount already exists. Hold anyway, but let him take it. */
