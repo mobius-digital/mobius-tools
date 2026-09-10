@@ -503,6 +503,28 @@ async function receiptDelete(env, key) {
  * date, so it cannot be booked · but it CAN be seen. "I can see it on your
  * Amex, still pending" is a different sentence from "no charge matches", and
  * the difference is the whole reason the wait felt like a shrug. */
+/* GO AND ASK THE CARD, don't wait to be told. Plaid's copy of an account is
+ * refreshed on its own schedule, so a charge visible in the Amex app minutes
+ * after buying something is not visible here for hours · SIMPLI SODA $36.72 sat
+ * on his phone while this said "not posted yet", which reads as broken even
+ * though both were telling the truth about what they could see.
+ *
+ * /transactions/refresh asks the institution for an update right now. It
+ * returns as soon as the request is accepted rather than when the data lands,
+ * so a short wait follows and the caller looks again · which is why this is
+ * only ever done for a receipt somebody just sent, never on a schedule. */
+async function bankRefresh(env) {
+  if (!plaidReady(env)) return false;
+  let asked = false;
+  for (const item of await getPlaidItems(env)) {
+    const r = await plaid(env, '/transactions/refresh', { access_token: item.access_token })
+      .then(() => true).catch(() => false);
+    asked = asked || r;
+  }
+  if (asked) await new Promise(r => setTimeout(r, 4000));
+  return asked;
+}
+
 async function bankPending(env, amount, sinceYmd) {
   if (!plaidReady(env)) return null;
   const items = await getPlaidItems(env);
@@ -771,7 +793,13 @@ async function processSlackReceipts(env) {
           /* Nothing yet, so go and ask the bank NOW instead of waiting for
            * tonight. Once per run, however many receipts arrived together. */
           if (!target) {
-            if (!pulledBank) { pulledBank = true; await syncPlaid(env).catch(() => {}); }
+            if (!pulledBank) {
+              pulledBank = true;
+              /* Ask the card for an immediate update, give it a moment, then
+               * pull the feed. Once per run, however many receipts arrived. */
+              await bankRefresh(env).catch(() => {});
+              await syncPlaid(env).catch(() => {});
+            }
             target = pick(await look());
           }
         }
@@ -900,7 +928,8 @@ async function processSlackReceipts(env) {
             why = pend
               ? `I can see it on your *${pend.account || 'card'}* as *${pend.vendor}*, still pending \u00b7 a pending charge has no final amount yet, so it cannot be booked. `
                 + `Holding this receipt and attaching it the moment it settles. Nothing for you to do.`
-              : `I checked Novo and Amex just now and it has not posted yet \u00b7 cards usually take a day or two. `
+              : `I asked Novo and Amex for an update just now and this one has not reached the feed yet \u00b7 `
+                + `a charge can sit on the card's own app for a few hours before it comes through here, and longer before it settles. `
                 + `Holding this receipt and attaching it the moment it lands. Nothing for you to do.`;
             /* One exception worth offering: an unreceipted charge for exactly
              * this amount already exists. Hold anyway, but let him take it. */
