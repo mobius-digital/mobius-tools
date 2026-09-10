@@ -801,9 +801,34 @@ async function processSlackReceipts(env) {
             await reply(`🔁 *${ext.vendor}* $${amt.toFixed(2)} — this is the exact same file already attached to *${taken[0].vendor}* ${fmtMoney(taken[0].amount)} (${taken[0].date}). Nothing filed, nothing needed.`);
             handled++; continue;
           }
-          const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)} — no charge on Novo or Amex matches that amount yet.`;
+          const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)}`;
           let why, btns = [], fresh = false;
-          if (pending.length) {
+          /* AGE DECIDES FIRST, and it has to. A receipt forwarded the moment
+           * the money left is not a puzzle, it is early: the bank feed runs
+           * overnight, so the charge cannot be here yet and the only correct
+           * answer is to hold it.
+           *
+           * This test used to sit LAST, behind three checks that fire on any
+           * vendor billing more than once a month. Anthropic bills API usage
+           * several times a week, so "that vendor charged you, but $12.27 and
+           * $10.55, not $10.62" always won, and a receipt that needed nothing
+           * from Cole arrived as a question with a question mark on it. The
+           * hints those checks produce are worth keeping · they now ride along
+           * inside the hold instead of replacing it. */
+          const isFresh = rDate >= today || (Date.parse(today) - Date.parse(rDate)) <= 4 * 86400e3;
+          if (isFresh) {
+            fresh = true;
+            why = `The charge has almost certainly not reached Novo or Amex yet \u00b7 the bank feed runs overnight. `
+                + `I am holding this receipt and will attach it the moment the charge lands. Nothing for you to do.`;
+            /* One exception worth offering: an unreceipted charge for exactly
+             * this amount already exists. Hold anyway, but let him take it. */
+            if (elsewhere.length) {
+              why += `\n_If it is really this one, tap it:_`;
+              btns = elsewhere.slice(0, 3).map(t => ({ type: 'button', action_id: 'led_attach',
+                text: { type: 'plain_text', text: `${String(t.vendor).slice(0, 14)} ${t.date}` },
+                value: JSON.stringify({ file: pendKey, to: t.id }) }));
+            }
+          } else if (pending.length) {
             why = `There is a matching *expected* row (${pending[0].vendor}, ${moLabel(pending[0].month)}) that the bank has not confirmed yet. Confirm it in the app and drop this receipt again, and it will attach.`;
           } else if (elsewhere.length) {
             why = `The amount exists but in *${moLabel(elsewhere[0].month)}* (${elsewhere[0].vendor}, ${elsewhere[0].date}), outside the window around this receipt's date. Tap it to attach it there:`;
@@ -812,19 +837,13 @@ async function processSlackReceipts(env) {
               value: JSON.stringify({ file: pendKey, to: t.id }) }));
           } else if (byVendor.length) {
             why = `*${byVendor[0].vendor}* did charge you in that window, but ${byVendor.map(t => '$' + t.amount.toFixed(2)).join(', ')} — not $${amt.toFixed(2)}. Either I misread the total, or this receipt covers a different card.`;
-          } else if (rDate >= addMonthsYmd(today, 0) || (Date.parse(today) - Date.parse(rDate)) <= 4 * 86400e3) {
-            /* Days old and unmatched is the ordinary case, not a problem: the
-             * bank feed runs nightly, so a charge from today simply is not
-             * here yet. Held and retried automatically after every sync. */
-            fresh = true;
-            why = `The charge has almost certainly not reached Novo or Amex yet · the bank feed runs overnight. I am holding this receipt and will attach it automatically as soon as the charge lands. Nothing for you to do.`;
           } else {
             why = `Nothing at that amount anywhere, and this receipt is more than a few days old. That usually means it went on a card Ledger does not see, or it is somebody else's card (a client's Shopify or ad tool).`;
           }
           const near = similar.length
             ? `\n_Note: *${similar[0].vendor}* ${fmtMoney(similar[0].amount)} on ${similar[0].date} already has a receipt for the same amount. If this is that same one, ignore this._`
             : '';
-          const body = `${head}\n${why}${near}`;
+          const body = `${head} \u2014 ${fresh ? 'held' : 'no charge on Novo or Amex matches that amount yet'}.\n${why}${near}`;
           await react(fresh ? 'hourglass_flowing_sand' : 'question');
           if (!fresh) needsYou++;
           await (fresh ? reply : nudge)(body, [
