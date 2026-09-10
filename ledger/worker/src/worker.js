@@ -1326,7 +1326,12 @@ async function processPlaidTxn(env, item, t, opts = {}) {
        AND ABS(amount - ?2) < 0.005`).bind(month, amount).all();
     const mHit = cand.find(x => x.vendor.toLowerCase().split(' ')[0] === first) || (cand.length === 1 ? cand[0] : null);
     if (mHit) {
-      await env.DB.prepare(`UPDATE transactions SET plaid_id=?2 WHERE id=?1`).bind(mHit.id, t.transaction_id).run();
+      /* Take the bank's date too. The row being adopted was typed by hand and
+       * is usually dated the 1st; the statement knows the day it really was,
+       * and a CPA reads dates. Same month either way, so nothing moves out of
+       * a period by doing this. */
+      await env.DB.prepare(`UPDATE transactions SET plaid_id=?2, date=?3 WHERE id=?1`)
+        .bind(mHit.id, t.transaction_id, date).run();
       return 'matched-existing';
     }
   }
@@ -1526,6 +1531,31 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
   }
   await announceDropped(env, dropped);
 
+  /* THE COVERAGE LINE. A bank hands over a fixed window of history, so the
+   * earliest line it returned is the earliest line it HAS. A month that starts
+   * before that date is only partly known, and treating a partial month as the
+   * truth would delete the half the bank cannot see. Whole months only. */
+  const earliest = statement.reduce((a, x) => (!a || x.t.date < a) ? x.t.date : a, null);
+  const replaced = [];
+  if (opts.replace) {
+    for (let ym = monthOf(fromYmd); ym < monthOf(toYmd); ym = monthOf(addMonthsYmd(ym + '-01', 1))) {
+      if (ym + '-01' < earliest) continue;                       // partly known · leave it alone
+      if (!statement.some(x => monthOf(x.t.date) === ym)) continue; // the bank had nothing to say
+
+      /* Only hand-typed EXPENSES go. Revenue and merchant fees are booked
+       * gross per client while the bank only ever sees a net Stripe payout, so
+       * deleting those would destroy the one basis a CPA can use. */
+      const { results: gone } = await env.DB.prepare(
+        `SELECT id, date, vendor, amount FROM transactions
+          WHERE month = ?1 AND type = 'out' AND plaid_id IS NULL AND expected = 0`).bind(ym).all();
+      if (!gone.length) continue;
+      await env.DB.prepare(
+        `DELETE FROM transactions
+          WHERE month = ?1 AND type = 'out' AND plaid_id IS NULL AND expected = 0`).bind(ym).run();
+      for (const g of gone) replaced.push({ month: ym, ...g });
+    }
+  }
+
   /* What the books claim and the bank never mentioned. Deleting these would be
    * overreach · cash, an unlinked card and a hand-booked payout all look the
    * same from here · so they are named and left alone. */
@@ -1536,7 +1566,9 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
 
   return {
     ok: true, from: fromYmd, to: toYmd, bankCount: statement.length,
+    bankHistoryFrom: earliest,
     ...totals, migratedRows: migrated.slice(0, 50),
+    replacedCount: replaced.length, replacedRows: replaced.slice(0, 200),
     notOnBank: leftovers.length, notOnBankRows: leftovers.slice(0, 200),
   };
 }
@@ -2254,7 +2286,8 @@ export default {
             await env.DB.prepare(`UPDATE months SET status = 'open' WHERE month = ?1`).bind(ym).run();
             reopened.push(ym);
           }
-        const res = await importPlaidRange(env, from, to, { ignoreStart: true, allowClosed: true });
+        const res = await importPlaidRange(env, from, to,
+          { ignoreStart: true, allowClosed: true, replace: b.replace === true });
         return json({ ...res, reopened });
       }
 

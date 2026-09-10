@@ -2653,19 +2653,23 @@ async function plaidYear(btn){
   const el = $('#plMsg'); const label = btn.textContent;
   const yr = new Date().getFullYear();
   if (!await ask({ title: `Rebuild ${yr} from the bank?`,
-    body: `Reads every ${yr} transaction straight from Novo and Amex and makes the books agree with them. `
-        + `Charges the bank has and the ledger does not are added. Nothing is duplicated. `
-        + `Closed months are REOPENED and stay open until you close them again, so you can check the new numbers first.`,
+    body: `Reads every ${yr} transaction straight from Novo and Amex and makes the books agree with them.`
+        + `<br><br>In any month the bank covers <b>end to end</b>, typed-in expense rows are replaced by the real `
+        + `charges · so a single "Software $225" line becomes the two charges it was. Revenue and Stripe fees are `
+        + `never touched: those are booked per client and the bank only sees a net payout.`
+        + `<br><br>Months that start before the bank's history does are left exactly as they are. `
+        + `Closed months are <b>reopened</b> and stay open until you close them again, so you read the new numbers first.`,
     ok: 'Rebuild it' })) return;
   btn.disabled = true; btn.textContent = 'Reading the year\u2026';
   el.className='msg'; el.textContent='This reads thousands of lines · give it a minute.';
   try {
     const r = await api('/api/plaid-import', { method:'POST',
-      body: JSON.stringify({ from: yr + '-01-01', to: (yr+1) + '-01-01', reopen: true }) });
+      body: JSON.stringify({ from: yr + '-01-01', to: (yr+1) + '-01-01', reopen: true, replace: true }) });
     const added = (r.added||0) + (r['added-review']||0);
     el.className='msg good';
-    el.textContent = `Read ${r.bankCount||0} bank lines · ${added} added, ${r.migrated||0} re-linked, `
-      + `${r.notOnBank||0} ledger rows the bank never mentioned`
+    el.textContent = `Read ${r.bankCount||0} bank lines back to ${r.bankHistoryFrom||'?'} · ${added} added, `
+      + `${r.migrated||0} re-linked, ${r.replacedCount||0} typed rows replaced, `
+      + `${r.notOnBank||0} the bank never mentioned`
       + (r.reopened && r.reopened.length ? ` · reopened ${r.reopened.join(', ')}` : '') + '.';
     S.txns = null; window.__moCache = {}; S.boot = await api('/api/boot');
   } catch(e){ el.className='msg bad'; el.textContent = e.message; }
