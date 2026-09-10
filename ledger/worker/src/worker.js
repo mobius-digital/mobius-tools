@@ -514,15 +514,21 @@ async function receiptDelete(env, key) {
  * so a short wait follows and the caller looks again · which is why this is
  * only ever done for a receipt somebody just sent, never on a schedule. */
 async function bankRefresh(env) {
-  if (!plaidReady(env)) return false;
+  if (!plaidReady(env)) return { ok: false, why: 'no Plaid keys' };
+  const out = {};
   let asked = false;
   for (const item of await getPlaidItems(env)) {
+    /* Whether the institution honoured it matters · a call that is quietly
+     * refused looks exactly like a call that worked and found nothing, and
+     * that is the difference between "Amex is slow" and "we never asked". */
     const r = await plaid(env, '/transactions/refresh', { access_token: item.access_token })
-      .then(() => true).catch(() => false);
-    asked = asked || r;
+      .then(() => 'ok').catch(e => String(e.message || e).slice(0, 80));
+    out[item.name || 'bank'] = r;
+    asked = asked || r === 'ok';
   }
   if (asked) await new Promise(r => setTimeout(r, 4000));
-  return asked;
+  await putSetting(env, 'lastBankRefresh', JSON.stringify({ at: new Date().toISOString(), ...out }));
+  return { ok: asked, ...out };
 }
 
 async function bankPending(env, amount, sinceYmd) {
@@ -572,7 +578,7 @@ async function processSlackReceipts(env) {
     const who = await slack(env, 'auth.test');
     if (who.ok) { selfId = cfg.selfUserId = who.user_id; }
   }
-  let handled = 0, needsYou = 0, pulledBank = false;
+  let handled = 0, needsYou = 0, pulledBank = false, refreshed = null;
   const filed = [];
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
@@ -797,7 +803,7 @@ async function processSlackReceipts(env) {
               pulledBank = true;
               /* Ask the card for an immediate update, give it a moment, then
                * pull the feed. Once per run, however many receipts arrived. */
-              await bankRefresh(env).catch(() => {});
+              refreshed = await bankRefresh(env).catch(e => ({ ok: false, why: String(e.message || e) }));
               await syncPlaid(env).catch(() => {});
             }
             target = pick(await look());
@@ -1079,7 +1085,7 @@ async function processSlackReceipts(env) {
    * channel-level post is the one shape that WOULD ping him. */
   cfg.lockUntil = 0;
   await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
-  return { handled, filed: filed.length, needsYou, channel: cfg.channelId };
+  return { handled, filed: filed.length, needsYou, channel: cfg.channelId, refreshed };
 }
 
 /* The old first-of-month ritual, delivered instead of performed: on the 1st
