@@ -127,7 +127,7 @@ async function computeReport(env, month) {
     'SELECT * FROM transactions WHERE month = ?1 AND expected = 0 ORDER BY date, id'
   ).bind(month).all();
 
-  let revenue = 0, fees = 0, expenses = 0, transfers = 0, personal = 0;
+  let revenue = 0, fees = 0, expenses = 0, transfers = 0, personal = 0, incomeTax = 0;
   const byBucket = {}, byTax = {}, byClient = {};
   for (const t of txns) {
     // transfers are money MOVING, not money made or spent: the Amex payment
@@ -140,6 +140,9 @@ async function computeReport(env, month) {
     // expense — kept in the ledger so it still ties to the bank statement,
     // excluded from the P&L so it never inflates costs
     else if (/^Personal/i.test(t.tax_cat || '')) personal += t.amount;
+    /* Same treatment, different reason: a real payment, visible in the books,
+     * kept out of the deductible total because the IRS does not allow it. */
+    else if (/^Income tax/i.test(t.tax_cat || '')) incomeTax += t.amount;
     else {
       expenses += t.amount;
       byBucket[t.bucket || 'Other'] = (byBucket[t.bucket || 'Other'] || 0) + t.amount;
@@ -165,7 +168,7 @@ async function computeReport(env, month) {
     revenue: round2(revenue), expenses: round2(expenses), fees: round2(fees), feeEstimated,
     net, taxes, distributions: dist, profit,
     margin: revenue > 0 ? round2(net / revenue * 100) : null,
-    transfers: round2(transfers), personal: round2(personal),
+    transfers: round2(transfers), personal: round2(personal), incomeTax: round2(incomeTax),
     opCost, split, splitPct: money.split, taxPct: money.taxPct, distPct: money.distPct,
     byBucket: mapRound(byBucket), byTax: mapRound(byTax), byClient: mapRound(byClient),
     txnCount: txns.length,
@@ -183,10 +186,10 @@ async function computeRange(env, fromMo, toMo) {
   for (const m of months) parts.push(await computeReport(env, m));
   const add = (into, from) => { for (const [k, v] of Object.entries(from)) into[k] = round2((into[k] || 0) + v); };
   const byBucket = {}, byTax = {}, byClient = {};
-  let revenue = 0, expenses = 0, fees = 0, personal = 0, transfers = 0, feeEstimated = false;
+  let revenue = 0, expenses = 0, fees = 0, personal = 0, transfers = 0, incomeTax = 0, feeEstimated = false;
   for (const p of parts) {
     revenue += p.revenue; expenses += p.expenses; fees += p.fees;
-    personal += p.personal || 0; transfers += p.transfers;
+    personal += p.personal || 0; transfers += p.transfers; incomeTax += p.incomeTax || 0;
     feeEstimated = feeEstimated || p.feeEstimated;
     add(byBucket, p.byBucket); add(byTax, p.byTax); add(byClient, p.byClient);
   }
@@ -196,7 +199,7 @@ async function computeRange(env, fromMo, toMo) {
   for (const [k, pct] of Object.entries(money.split)) split[k] = round2(net * pct / 100);
   return {
     from: fromMo, to: toMo, revenue, expenses, fees, feeEstimated,
-    net, personal: round2(personal), transfers: round2(transfers),
+    net, personal: round2(personal), transfers: round2(transfers), incomeTax: round2(incomeTax),
     taxes: round2(net * money.taxPct / 100),
     margin: revenue > 0 ? round2(net / revenue * 100) : null,
     split, splitPct: money.split,
@@ -289,17 +292,25 @@ const TAX2BUCKET = {
   'Contract labor (1099)': 'Contractors',
   'Advertising & marketing': 'Ads/Marketing',
   'Bank & merchant fees': 'Merchant fee',
-  'Meals (50%)': 'Meals & entertainment',
-  'Entertainment — Ask CPA': 'Meals & entertainment',
+  'Meals': 'Meals & entertainment',
+  'Meals (50%)': 'Meals & entertainment',                 // the old name, still read
+  'Entertainment — Ask CPA': 'Ads/Marketing',             // ditto
   'Office supplies & equipment': 'Office & equipment',
   'Product testing': 'Product testing',
   'Travel & gas': 'Travel',
   'Utilities & phone': 'Utilities & phone',
   'Dues & memberships': 'Dues & memberships',
   'Taxes & licenses': 'Taxes & licenses',
-  'Personal — review': 'Personal (not a business cost)',
+  'Personal': 'Personal (not a business cost)',
+  'Personal — review': 'Personal (not a business cost)',   // the old name, still read
+  /* Income tax is not a business expense · an LLC pays none, the profit lands
+   * on Cole's own return and he pays it there. It is money leaving the business
+   * all the same, so it gets a line of its own rather than disappearing into
+   * "transfers", which is where it used to hide. */
+  'Income tax': 'Income tax',
   'Client revenue': 'Revenue',
-  'Other — Ask CPA': 'Other',
+  'Other': 'Other',
+  'Other — Ask CPA': 'Other',                             // the old name, still read
 };
 const bucketFor = tax => TAX2BUCKET[tax] || 'Other';
 
@@ -334,7 +345,7 @@ async function claudeExtract(env, b64, mediaType, textContent = null) {
         'This is a receipt or invoice for a small marketing agency\'s bookkeeping. Reply with ONLY a JSON object:\n' +
         '{"vendor": string, "amount": number (the total), "date": "YYYY-MM-DD" or null, "note": short string or null,\n' +
         ' "tax_category": the single best fit from this exact list, or null if genuinely unclear: ' + JSON.stringify(cats) + ',\n' +
-        ' "alternates": up to 2 other plausible categories from the same list (e.g. a restaurant could be "Meals (50%)" or "Entertainment — Ask CPA")}.\n' +
+        ' "alternates": up to 2 other plausible categories from the same list (e.g. a restaurant could be "Meals" or "Advertising & marketing")}.\n' +
         'Use the list values verbatim.\n\n' +
         'EXCEPTION — several payments in one document. Some documents are not one receipt: a bank confirmation ' +
         'listing several direct deposits, or an email thread stacking separate notifications back to back. When the ' +
@@ -749,7 +760,19 @@ async function processSlackReceipts(env) {
           const fp = await sha256bytes(buf);
           const sameFile = await q(
             `SELECT * FROM transactions WHERE receipt_hash = ?1 LIMIT 3`, [fp]);
-          const taken = sameFile.length ? sameFile : await q(
+          /* ONLY THE FILE ITSELF PROVES A DUPLICATE. "Same amount, within ten
+           * days, already has a receipt" proves nothing: Anthropic bills API
+           * usage several times a week and the amounts repeat, so a genuinely
+           * new $10.62 receipt was refused AND DELETED because a different
+           * $10.62 charge four days earlier was already covered.
+           *
+           * The two mistakes are not the same size. Refusing loses a real
+           * receipt the IRS may ask for. A second receipt sitting on a charge
+           * costs nothing, because a receipt is not money and cannot double
+           * count. So a near miss is now a note attached to the normal flow,
+           * never a reason to discard the file. */
+          const taken = sameFile;
+          const similar = sameFile.length ? [] : await q(
             `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NOT NULL
              AND ABS(amount - ?1) < 0.005 AND ABS(julianday(date) - julianday(?2)) <= 10
              ORDER BY ABS(julianday(date) - julianday(?2)) LIMIT 3`, [amt, rDate]);
@@ -775,9 +798,7 @@ async function processSlackReceipts(env) {
             await receiptDelete(env, pendKey).catch(() => {});
             await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(pendKey).run();
             await react('repeat');
-            await reply(sameFile.length
-              ? `🔁 *${ext.vendor}* $${amt.toFixed(2)} — this is the exact same file already attached to *${taken[0].vendor}* ${fmtMoney(taken[0].amount)} (${taken[0].date}). Nothing filed, nothing needed.`
-              : `🔁 *${ext.vendor}* $${amt.toFixed(2)} — that charge (${taken[0].vendor}, ${taken[0].date}) already has its receipt, dated within days of this one. Nothing filed; if this is a different charge, attach it from the app.`);
+            await reply(`🔁 *${ext.vendor}* $${amt.toFixed(2)} — this is the exact same file already attached to *${taken[0].vendor}* ${fmtMoney(taken[0].amount)} (${taken[0].date}). Nothing filed, nothing needed.`);
             handled++; continue;
           }
           const head = `🔍 *${ext.vendor}* $${amt.toFixed(2)} — no charge on Novo or Amex matches that amount yet.`;
@@ -800,7 +821,10 @@ async function processSlackReceipts(env) {
           } else {
             why = `Nothing at that amount anywhere, and this receipt is more than a few days old. That usually means it went on a card Ledger does not see, or it is somebody else's card (a client's Shopify or ad tool).`;
           }
-          const body = `${head}\n${why}`;
+          const near = similar.length
+            ? `\n_Note: *${similar[0].vendor}* ${fmtMoney(similar[0].amount)} on ${similar[0].date} already has a receipt for the same amount. If this is that same one, ignore this._`
+            : '';
+          const body = `${head}\n${why}${near}`;
           await react(fresh ? 'hourglass_flowing_sand' : 'question');
           if (!fresh) needsYou++;
           await (fresh ? reply : nudge)(body, [
@@ -2523,7 +2547,8 @@ export default {
               -- personal purchases are owner draws, not business costs — the
               -- home chart must agree with the report card on that
               SUM(CASE WHEN type='out' AND expected=0
-                   AND (tax_cat IS NULL OR tax_cat NOT LIKE 'Personal%') THEN amount ELSE 0 END) AS expenses,
+                   AND (tax_cat IS NULL OR (tax_cat NOT LIKE 'Personal%' AND tax_cat NOT LIKE 'Income tax%'))
+                   THEN amount ELSE 0 END) AS expenses,
               SUM(CASE WHEN type='fee' AND expected=0 THEN amount ELSE 0 END) AS fees
             FROM transactions WHERE month LIKE ?1 GROUP BY month ORDER BY month`).bind(year + '-%').all(),
           env.DB.prepare('SELECT name, expected_amount FROM vendors WHERE recurring = 1 AND active = 1 ORDER BY expected_amount DESC').all(),
@@ -2551,7 +2576,7 @@ export default {
         for (const t of txns) if (t.tax_cat === 'Contract labor (1099)')
           contractors[t.vendor] = round2((contractors[t.vendor] || 0) + t.amount);
         const openQuestions = txns.filter(t =>
-          /Ask CPA|Personal — review/.test(t.tax_cat || '') || t.status === 'review' || !t.tax_cat);
+          /Ask CPA|^Personal/.test(t.tax_cat || '') || t.status === 'review' || !t.tax_cat);
         return json({ from, to, money, transactions: txns, monthReports: reports,
           contractors, openQuestions });
       }

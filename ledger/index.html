@@ -1499,7 +1499,7 @@ async function setBillingUrl(vendor){
       // a vendor row may not exist yet for a one-off place · create it as
       // non-recurring so saving a link never turns something into a monthly bill
       await api('/api/vendor', { method:'POST', body: JSON.stringify({
-        name: vendor, bucket: v?.bucket || 'Other', tax_cat: v?.tax_cat || 'Other · Ask CPA',
+        name: vendor, bucket: v?.bucket || 'Other', tax_cat: v?.tax_cat || 'Other',
         recurring: !!v?.recurring, cadence: v?.cadence || 'monthly', renew_month: v?.renew_month,
         expected_amount: v?.expected_amount, active: v?.active === 0 ? false : true,
         billing_url: url || null }) });
@@ -1848,7 +1848,11 @@ async function renderReports(){
      the card's own adjustment rows, which the bank files under the same
      bucket. One "Card and Stripe fees" line, everything inside it. */
   const isFee    = t => t.type === 'fee' || t.bucket === 'Merchant fee';
-  const outList  = rows.filter(t => t.type === 'out' && !isPersonal(t) && !isFee(t));
+  /* Income tax leaves the business but is not a business cost, so it belongs
+     with the personal rows: named below the statement, never inside it. The
+     report's own expense figure already excludes it, and the two must agree. */
+  const isTax    = t => /^Income tax/i.test(t.tax_cat || '');
+  const outList  = rows.filter(t => t.type === 'out' && !isPersonal(t) && !isFee(t) && !isTax(t));
   const feeList  = rows.filter(t => isFee(t) && t.type !== 'in');
   const persList = rows.filter(t => t.type === 'out' && isPersonal(t));
   const feeTotal = round2c(feeList.reduce((a, t) => a + t.amount, 0));
@@ -1944,7 +1948,15 @@ async function renderReports(){
         <div class="rl tot"><span class="rn">Total expenses</span><span class="ra">${fmt$(moneyOut)}</span></div>
 
         <div class="rl net"><span class="rn">Net income</span><span class="ra">${fmt$(r.net)}</span></div>
-        ${persList.length ? `<div class="hint" style="margin-top:12px">Excluded on purpose: ${persList.length} personal purchase${persList.length>1?'s':''} (${fmt$(round2c(persList.reduce((a,t)=>a+t.amount,0)))}) and any transfers between your own accounts \u00b7 neither is a business cost.</div>` : ''}
+        ${(() => {
+          const bits = [];
+          if (persList.length) bits.push(`${persList.length} personal purchase${persList.length>1?'s':''} (${fmt$(round2c(persList.reduce((a,t)=>a+t.amount,0)))})`);
+          /* Income tax is the one exclusion that surprises people, so it is
+             named with its amount rather than lumped in with "transfers". */
+          if (r.incomeTax) bits.push(`income tax paid (${fmt$(r.incomeTax)}), which an LLC cannot deduct`);
+          bits.push('transfers between your own accounts');
+          return `<div class="hint" style="margin-top:12px">Excluded on purpose: ${bits.join(', ')} \u00b7 none of these is a business cost.</div>`;
+        })()}
 
         <div class="sh">What is left</div>
         <div class="rl"><span class="rn">Net income</span><span class="ra">${fmt$(r.net)}</span></div>
@@ -1982,7 +1994,7 @@ async function renderReports(){
       <div class="card" style="margin-top:14px">
         <h3>Receipt archive</h3>
         <div class="hint">Every stored receipt as one ZIP, foldered by month and category and named so a human can read it:
-          <code>${rm}/Meals (50%)/${rm}-14 Michaels Bar 139.20.jpg</code>.
+          <code>${rm}/Meals/${rm}-14 Michaels Bar 139.20.jpg</code>.
           <b>Do this once a year at tax time</b> and drop it in Drive next to that year's return: it is your copy,
           off Cloudflare, that nobody has to maintain.</div>
         <div class="row" style="margin-top:12px">
