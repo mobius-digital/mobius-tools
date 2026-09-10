@@ -1266,7 +1266,8 @@ async function processPlaidTxn(env, item, t) {
   const start = await getSetting(env, 'plaidStart');
   if (start && date < start) return 'before-start';
   if ((await monthStatus(env, month)) === 'closed')
-    return { skip: 'closed', month, date, vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
+    return { skip: 'closed', id: t.transaction_id, month, date,
+             vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
              amount: round2(t.amount) };
 
   const acctType = item.accounts?.[t.account_id]?.type || 'depository';
@@ -1413,6 +1414,23 @@ async function retryHeldReceipts(env) {
  * again. This re-reads a window and inserts anything the ledger does not
  * already hold (plaid_id is the unique key, so re-running is free), which
  * makes every month auditable against the bank rather than merely hopeful. */
+/* The bank is re-read every night now, so a charge that belongs to a closed
+ * month would otherwise be re-announced every night until he acts · a nightly
+ * repeat of the same warning is how a warning stops being read. Each one is
+ * named once, and the ids already named are remembered. */
+async function announceDropped(env, dropped) {
+  if (!dropped.length) return 0;
+  const seen = safeJson(await getSetting(env, 'droppedAnnounced'), []);
+  const fresh = dropped.filter(d => d.id && !seen.includes(d.id));
+  if (!fresh.length) return 0;
+  const lines = fresh.slice(0, 8).map(d => `\u2022 *${d.vendor}* $${Math.abs(d.amount).toFixed(2)} \u00b7 ${d.date}`).join('\n');
+  await alertSlack(env, `\u26a0\ufe0f *${fresh.length} charge${fresh.length > 1 ? 's belong' : ' belongs'} to a month that is already closed*, so ${fresh.length > 1 ? 'they were' : 'it was'} not added:\n${lines}` +
+    (fresh.length > 8 ? `\n_\u2026and ${fresh.length - 8} more._` : '') +
+    `\n\nReopen ${moLabel(fresh[0].month)} in the app, press Re-check the bank, then close it again.`).catch(() => {});
+  await putSetting(env, 'droppedAnnounced', JSON.stringify(seen.concat(fresh.map(d => d.id)).slice(-400)));
+  return fresh.length;
+}
+
 async function backfillPlaid(env, fromYmd, toYmd) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
@@ -1448,11 +1466,7 @@ async function backfillPlaid(env, fromYmd, toYmd) {
       (recovered.length > 10 ? `\n_\u2026and ${recovered.length - 10} more._` : '') +
       `\n\nThey are in the ledger now · anything uncategorised is waiting in Needs you.`).catch(() => {});
   }
-  if (dropped.length) {
-    const lines = dropped.slice(0, 8).map(d => `\u2022 *${d.vendor}* $${Math.abs(d.amount).toFixed(2)} \u00b7 ${d.date}`).join('\n');
-    await alertSlack(env, `\u26a0\ufe0f *${dropped.length} missing charge${dropped.length > 1 ? 's belong' : ' belongs'} to a closed month*, so ${dropped.length > 1 ? 'they were' : 'it was'} not added:\n${lines}` +
-      `\n\nReopen ${moLabel(dropped[0].month)} in the app, press Re-check the bank, then close it again.`).catch(() => {});
-  }
+  await announceDropped(env, dropped);
   return { ok: true, from: fromYmd, to: toYmd, recovered: recovered.length, closedSkipped: dropped.length, ...totals };
 }
 
@@ -1512,14 +1526,7 @@ async function syncPlaid(env) {
       await putSetting(env, 'plaidItems', JSON.stringify(items)); // persist cursor per page
     }
   }
-  if (dropped.length) {
-    const lines = dropped.slice(0, 8).map(d =>
-      `\u2022 *${d.vendor}* $${Math.abs(d.amount).toFixed(2)} \u00b7 ${d.date}`).join('\n');
-    await alertSlack(env,
-      `\u26a0\ufe0f *${dropped.length} charge${dropped.length > 1 ? 's' : ''} arrived for a month that is already closed*, so ${dropped.length > 1 ? 'they were' : 'it was'} not added:\n${lines}` +
-      (dropped.length > 8 ? `\n_\u2026and ${dropped.length - 8} more._` : '') +
-      `\n\nReopen ${moLabel(dropped[0].month)} in the app if ${dropped.length > 1 ? 'these belong' : 'this belongs'} in it, then press Sync now. Otherwise nothing to do.`).catch(() => {});
-  }
+  await announceDropped(env, dropped);
   return { ok: true, ...totals };
 }
 
@@ -1545,6 +1552,11 @@ export default {
         if (env.STRIPE_KEY)
           await syncStripe(env, from, to).catch(e => { failed.push('Stripe: ' + (e.message || e)); });
         await syncPlaid(env).catch(e => { failed.push('Bank feed: ' + (e.message || e)); });
+        /* The cursor feed can lose a charge permanently (a $60 haircut went
+         * that way). Re-reading the open books by date every night is the only
+         * thing that catches it, and plaid_id dedupe makes the overlap free. */
+        const bfFrom = addMonthsYmd(monthOf(to) + '-01', -1);
+        await backfillPlaid(env, bfFrom, to).catch(e => { failed.push('Bank re-check: ' + (e.message || e)); });
         await retryHeldReceipts(env).catch(e => { failed.push('Held receipts: ' + (e.message || e)); });
         if (failed.length) await alertSlack(env,
           `\u26a0\ufe0f *Tonight's sync did not finish.* Your figures may be missing transactions until this is fixed.\n` +
