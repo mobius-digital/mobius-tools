@@ -1875,6 +1875,25 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
 /** Which days should this brief cover? Normally just yesterday - but if a send was
  *  missed, pick up the days since the last one, the way CTC's own update covered
  *  "8/18 and 8/19". Capped at 4 days and never crosses out of the month. */
+/* INTERNAL-ONLY BRANDS ARE HANDLED THE MOMENT THEY ARE WRITTEN.
+   A brand with no client channel (Lucky Golf, The Golf Sock) has nowhere to
+   send anything, so a "draft" for it can never be finished: it sat in the
+   channel with a Send button that could only fail, showed up under "waiting on
+   you", and the catch-up carried every unsent day into the next brief until
+   someone pressed Don't-send by hand. Cole, 2026-09-10: "if they don't have an
+   external chat then there doesn't need to be any buttons for sending to a
+   client and they should be marked as auto handled all the time, that way
+   there's not stacking days on top of each other."
+   So: status `handled` instead of `draft`, written by the same code paths.
+   Handled counts as dealt with everywhere `sent` does; it is still editable and
+   rewritable, because the team still reads it. The rule is a property of the
+   channel config, not of a brand name - set a client channel and the brand
+   becomes reviewable like every other. (This reverses the 2026-08-27 stance
+   that no brand gets special treatment; the special treatment turned out to be
+   the buttons that could not work.) */
+const internalOnly = acct => !acct?.brief_channel;
+const draftStatus = acct => internalOnly(acct) ? 'handled' : 'draft';
+
 async function coverageDates(env, acct, date, data) {
   /* 'skipped' counts as DEALT WITH, exactly like 'sent'.
      Cole, 2026-09-01: Bonk Golf had stacked up days because catching up only
@@ -1885,7 +1904,7 @@ async function coverageDates(env, acct, date, data) {
      skipping is. The days are not lost: the numbers stay on the Profit and
      Brief pages, they just stop queueing for a client message. */
   const last = await env.DB.prepare(
-    `SELECT MAX(date) AS d FROM briefs WHERE act_id = ?1 AND status IN ('sent','skipped') AND date < ?2`,
+    `SELECT MAX(date) AS d FROM briefs WHERE act_id = ?1 AND status IN ('sent','skipped','handled') AND date < ?2`,
   ).bind(acct.act_id, date).first().catch(() => null);
   const monthStart = `${monthOf(date)}-01`;
   let from = last?.d ? addDays(last.d, 1) : date;
@@ -1970,7 +1989,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
     ).bind(acct.act_id, date).first().catch(() => null);
     // 'skipped' belongs here too - a day deliberately not sent must not be
     // rebuilt and re-announced by the next scheduled tick.
-    if (prior && ['draft', 'sent', 'skipped'].includes(prior.status)) {
+    if (prior && ['draft', 'sent', 'skipped', 'handled'].includes(prior.status)) {
       return { name: acct.name, already: prior.status, date };
     }
   }
@@ -1992,7 +2011,8 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
 
   const r = await makeBrief(env, acct, date, { steer });
   if (r.error) { await upsertBrief(env, acct.act_id, date, 'skipped', null, r.error, r.data); return { name: acct.name, skipped: r.error }; }
-  await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: steer ?? null });
+  // 'handled' for a brand with no client channel - see draftStatus.
+  await upsertBrief(env, acct.act_id, date, draftStatus(acct), null, r.text, r.data, { health: r.health ?? null, steer: steer ?? null });
 
   if (prior?.slack_ts && prior?.slack_channel) {
     // slackSyncBrief re-renders the card from the row we just wrote, so the
@@ -2020,7 +2040,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
        again, don't send it -- cost a tab switch. The buttons underneath do all
        four, and Locus keeps every one of them for when he wants the charts. */
     const card = briefCard(acct, date, {
-      status: 'draft', text: r.text, steer: steer ?? null,
+      status: draftStatus(acct), text: r.text, steer: steer ?? null,
       data_json: JSON.stringify({ health: r.health ?? null }),
     });
     const posted = await slackPost(env, ch, card.text, card.blocks,
@@ -2076,8 +2096,11 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     text = r.text;
   }
   // The client channel, with no fallback to the internal one - see sendReport.
+  // No channel is a refusal, not a state change: this used to overwrite the
+  // row as 'skipped' with the error in place of the brief's text, which for an
+  // internal-only brand would destroy a handled brief the team had just read.
   const channel = acct.brief_channel;
-  if (!channel) { await upsertBrief(env, acct.act_id, date, 'skipped', null, 'no client channel set for this brand - pick one in Settings', r?.data); return { name: acct.name, skipped: 'no client channel set' }; }
+  if (!channel) return { name: acct.name, error: 'no client channel set for this brand - it is handled internally; pick one in Settings if it should be sent', draft_intact: true };
   try {
     // Goes to the client, so it comes from Cole - not a bot wearing a name.
     await slackPost(env, channel, text, null, { asUser: true });
@@ -2218,10 +2241,12 @@ async function dailyBriefs(env) {
        go and the next tick re-posted a draft for all six brands, because the
        only statuses treated as finished were 'sent' and 'draft'. */
     if (prior?.status === 'skipped') { results.push({ name: a.name, skipped_by_hand: true, date }); continue; }
+    // Handled = written for an internal-only brand. Done, same as sent.
+    if (prior?.status === 'handled') { results.push({ name: a.name, handled: true, date }); continue; }
     // A brand awaiting review already has its draft. Without this the hourly
     // trigger would re-sync 45 days of Triple Whale and rebuild the same draft
     // every hour until someone pressed send.
-    if (a.review_first && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
+    if ((a.review_first || internalOnly(a)) && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
 
     // Stop BEFORE starting a brand we cannot finish. Half a brief is worse than
     // none: the old behaviour ran until Cloudflare killed it, which could land
@@ -2249,7 +2274,9 @@ async function dailyBriefs(env) {
         // a human; auto sends straight to the client. A daily deliverable can be
         // either, and forcing every brand through a morning approval is exactly
         // the button-pushing this tool exists to avoid.
-        if (a.review_first) return await draftBrief(env, a, date, { skipIfExists: true });
+        // An internal-only brand always takes the draft path: draftBrief writes
+        // it as 'handled' and posts the card, and there is no send to attempt.
+        if (a.review_first || internalOnly(a)) return await draftBrief(env, a, date, { skipIfExists: true });
         const sent = await sendBrief(env, a, date, { skipIfSent: true });
         /* An auto-send brand whose data is broken still gets a morning message - 
            internally, as a draft, saying why it was held. Silence is the worst
@@ -3597,13 +3624,14 @@ async function makeReport(env, acct, period, start, { force = false, steer } = {
   data.missing_days = missing;
   let summary = null, narrative_error = null;
   try { summary = await writeReportNarrative(env, acct, data, steer); } catch (e) { narrative_error = e.message; }
+  // 'handled' for a brand with no client channel - see draftStatus.
   await env.DB.prepare(
     `INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json, steer)
-     VALUES (?1,?2,?3,?4,'draft',?5,?6,?7,?8)
+     VALUES (?1,?2,?3,?4,?9,?5,?6,?7,?8)
      ON CONFLICT(act_id, period, period_start) DO UPDATE SET period_end = excluded.period_end,
-       status = 'draft', generated_at = excluded.generated_at, summary = excluded.summary,
+       status = excluded.status, generated_at = excluded.generated_at, summary = excluded.summary,
        data_json = excluded.data_json, steer = excluded.steer, sent_at = NULL, sent_channel = NULL`,
-  ).bind(acct.act_id, period, start, end, new Date().toISOString(), summary, JSON.stringify(data), steer || null).run();
+  ).bind(acct.act_id, period, start, end, new Date().toISOString(), summary, JSON.stringify(data), steer || null, draftStatus(acct)).run();
   return { period, start, end, summary, data, narrative_error, steer: steer || null };
 }
 
@@ -3632,7 +3660,7 @@ async function postReportDraft(env, acct, r) {
      a headline and a link, which meant reviewing a report always cost a tab. */
   const row = {
     act_id: acct.act_id, period: r.period, period_start: r.start, period_end: r.end,
-    status: 'draft', summary: r.summary, data_json: JSON.stringify(r.data), steer: r.steer ?? null,
+    status: draftStatus(acct), summary: r.summary, data_json: JSON.stringify(r.data), steer: r.steer ?? null,
   };
   const card = reportCard(acct, row);
   const posted = await slackPost(env, channel, card.text, card.blocks,
@@ -3723,7 +3751,9 @@ async function reportsPass(env) {
            On the first Monday reports ran, all six failed to reach Slack and
            all six were recorded as successes - which is why nobody knew for a
            week. The outcome is now whatever actually happened. */
-        const step = a.review_first
+        // Internal-only brands post the card and stop: makeReport already
+        // stored the report as 'handled', and sendReport would only refuse.
+        const step = (a.review_first || internalOnly(a))
           ? { posted: await postReportDraft(env, a, r).catch(e => ({ error: e.message })) }
           : { sent: await sendReport(env, a, j.period, j.start).catch(e => ({ error: e.message })) };
         const failure = (step.posted || step.sent)?.error || null;
@@ -4431,7 +4461,11 @@ const shortTime = iso => {
  *  cron, a button in this channel, or a click in Locus. `banner` is the
  *  transient line ("Claude is rewriting this…") that only exists mid-action. */
 function briefCard(acct, date, row, banner) {
-  const status = row?.status || 'draft';
+  /* A 'draft' row for a brand that has no client channel is drawn as handled
+     too: rows written before this rule existed, or a brand whose client
+     channel was cleared, must not keep offering a Send that can only fail. */
+  const raw = row?.status || 'draft';
+  const status = raw === 'draft' && internalOnly(acct) ? 'handled' : raw;
   const health = (safeJson(row?.data_json, {}) || {}).health || null;
   const bad = health?.verdict === 'broken' && status !== 'sent';
   const v = JSON.stringify({ a: acct.act_id, d: date });
@@ -4455,7 +4489,9 @@ function briefCard(acct, date, row, banner) {
       + (row?.channel ? `  ·  _posted to <#${row.channel}>${row.posted_at ? ` at ${shortTime(row.posted_at)} Central` : ''}_` : '')
     : status === 'skipped'
       ? `:heavy_minus_sign: *Not sending - ${acct.name}, ${prettyDate(date)}*  ·  _marked handled; the client was not messaged_`
-      : `:memo: *Draft - ${acct.name}, ${prettyDate(date)}*  ·  _not sent to the client yet_`;
+      : status === 'handled'
+        ? `:white_check_mark: *Daily Update - ${acct.name}, ${prettyDate(date)}*  ·  _internal only; this brand has no client channel, so nothing goes out_`
+        : `:memo: *Draft - ${acct.name}, ${prettyDate(date)}*  ·  _not sent to the client yet_`;
 
   /* The data warning goes ABOVE the brief and never inside it. The text is what
      the client receives; this notice is ours. Without it the numbers look
@@ -4491,6 +4527,13 @@ function briefCard(acct, date, row, banner) {
       'This marks the day *handled* without messaging the client, and stops it being carried into later briefs. The numbers stay everywhere else in Locus. Press *Write it again* to change your mind.',
       'Don’t send it') }));
     if (!bad) els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
+  } else if (status === 'handled') {
+    // Nothing to send and nothing to skip. The team still reads it, so the
+    // two buttons that change the words stay.
+    if (bad) els.push(btn('Fix the numbers in Locus', 'noop_open', v, { url: LOCUS_HEALTH(acct.act_id, date) }));
+    els.push(btn('Edit the wording', 'brief_edit', v));
+    els.push(btn('Rewrite with AI', 'brief_rewrite', v));
+    if (!bad) els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
   } else if (status === 'skipped') {
     els.push(btn('Write it again', 'brief_redraft', v));
     els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
@@ -4501,6 +4544,7 @@ function briefCard(acct, date, row, banner) {
 
   const fallback = status === 'sent' ? `Sent to the client - ${acct.name}, ${prettyDate(date)}`
     : status === 'skipped' ? `Not sending - ${acct.name}, ${prettyDate(date)}`
+    : status === 'handled' ? `Daily Update - ${acct.name}, ${prettyDate(date)} (internal only)`
       : `Draft - ${acct.name}, ${prettyDate(date)} (not sent to the client yet)`;
   return { text: fallback, blocks };
 }
@@ -4514,10 +4558,14 @@ function reportCard(acct, row, banner) {
   const range = `${prettyDate(row.period_start)} \u2192 ${prettyDate(row.period_end)}`;
   const v = JSON.stringify({ a: acct.act_id, p: row.period, s: row.period_start });
   const blocks = [];
+  // Same rule as briefCard: a draft for an internal-only brand is handled.
+  const handled = row.status === 'handled' || (row.status !== 'sent' && internalOnly(acct));
 
   const head = row.status === 'sent'
     ? `:white_check_mark: *${label} report sent to the client - ${acct.name}* (${range})`
-    : `:clipboard: *${label} report drafted - ${acct.name}* (${range})  \u00b7  _nothing sent yet_`;
+    : handled
+      ? `:white_check_mark: *${label} report - ${acct.name}* (${range})  \u00b7  _internal only; no client channel, so nothing goes out_`
+      : `:clipboard: *${label} report drafted - ${acct.name}* (${range})  \u00b7  _nothing sent yet_`;
   blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
   if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
   if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: reportHeadline(data) } });
@@ -4538,26 +4586,30 @@ function reportCard(acct, row, banner) {
      reporting template". He is right, and this is a straight revert to the
      compact notice - headline, link, done - with the buttons kept, which were
      the actual point of the change. */
-  const notes = ['Open it in Locus to read the full report. The client receives this headline and a link to their archive - never the summary text.'];
+  const notes = [handled
+    ? 'Open it in Locus to read the full report. Nothing is sent for this brand - it is handled the moment it is written.'
+    : 'Open it in Locus to read the full report. The client receives this headline and a link to their archive - never the summary text.'];
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
   if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: \u201c${String(row.steer).slice(0, 160)}\u201d`);
   if (data?.missing_days) notes.push(`${data.missing_days} day(s) in this period had no Triple Whale data.`);
-  if (!row.summary) notes.push(':warning: No summary was written - rewrite it before sending.');
+  if (!row.summary) notes.push(handled ? ':warning: No summary was written - rewrite it.' : ':warning: No summary was written - rewrite it before sending.');
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  \u00b7  ') }] });
 
   const els = [];
   if (row.status !== 'sent') {
-    els.push(btn('Send to client', 'report_send', v, { style: 'primary', confirm: confirmDialog(
-      'Send this report to the client?',
-      `This posts the ${row.period} report (*${range}*) and its link to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'} under your own name, and *freezes the report permanently*.`,
-      'Send it') }));
+    if (!handled) {
+      els.push(btn('Send to client', 'report_send', v, { style: 'primary', confirm: confirmDialog(
+        'Send this report to the client?',
+        `This posts the ${row.period} report (*${range}*) and its link to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'} under your own name, and *freezes the report permanently*.`,
+        'Send it') }));
+    }
     els.push(btn('Edit the summary', 'report_edit', v));
     els.push(btn('Rewrite with AI', 'report_rewrite', v));
   }
   els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
   blocks.push({ type: 'actions', elements: els });
 
-  return { text: `${label} report ${row.status === 'sent' ? 'sent' : 'drafted'} - ${acct.name} (${range})`, blocks };
+  return { text: `${label} report ${row.status === 'sent' ? 'sent' : handled ? 'ready (internal only)' : 'drafted'} - ${acct.name} (${range})`, blocks };
 }
 
 /* ---- Keep the card in step with the row, whichever surface moved it ---- */
@@ -4831,7 +4883,7 @@ async function slackBlockAction(env, ctx, p) {
       await slackSyncBrief(env, acct, meta.d, ':hourglass_flowing_sand: _Claude is writing it… (~20s)_');
       const r = await makeBrief(env, acct, meta.d).catch(e => ({ error: e.message }));
       if (r.error) { await slackSyncBrief(env, acct, meta.d, `:warning: *Could not write it.* ${r.error}`); return; }
-      await upsertBrief(env, acct.act_id, meta.d, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: null });
+      await upsertBrief(env, acct.act_id, meta.d, draftStatus(acct), null, r.text, r.data, { health: r.health ?? null, steer: null });
       await slackSyncBrief(env, acct, meta.d);
     })());
     return ACK();
@@ -4854,7 +4906,7 @@ async function slackViewSubmit(env, ctx, p) {
         { headers: { 'content-type': 'application/json' } });
     }
     ctx.waitUntil((async () => {
-      const r = await env.DB.prepare(`UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status = 'draft'`)
+      const r = await env.DB.prepare(`UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status IN ('draft','handled')`)
         .bind(acct.act_id, meta.d, text).run().catch(() => null);
       if (!r?.meta?.changes) return;                 // sent in the meantime; the card already says so
       await slackSyncBrief(env, acct, meta.d);
@@ -4865,7 +4917,7 @@ async function slackViewSubmit(env, ctx, p) {
   if (cb === 'report_edit_submit') {
     const summary = joinEdit(p.view, meta);
     ctx.waitUntil((async () => {
-      await env.DB.prepare(`UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'draft'`)
+      await env.DB.prepare(`UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status IN ('draft','handled')`)
         .bind(acct.act_id, meta.p, meta.s, summary).run().catch(() => {});
       await slackSyncReport(env, acct, meta.p, meta.s);
     })());
@@ -4878,7 +4930,7 @@ async function slackViewSubmit(env, ctx, p) {
       await slackSyncBrief(env, acct, meta.d, `:hourglass_flowing_sand: _Claude is rewriting this… (~20s)_${steer ? `\n_Steered: “${steer.slice(0, 200)}”_` : ''}`);
       const r = await makeBrief(env, acct, meta.d, { steer }).catch(e => ({ error: e.message }));
       if (r.error) { await slackSyncBrief(env, acct, meta.d, `:warning: *Could not rewrite it.* ${r.error}`); return; }
-      await upsertBrief(env, acct.act_id, meta.d, 'draft', null, r.text, r.data, { health: r.health ?? null, steer });
+      await upsertBrief(env, acct.act_id, meta.d, draftStatus(acct), null, r.text, r.data, { health: r.health ?? null, steer });
       await slackSyncBrief(env, acct, meta.d,
         r.narrative_error ? `:warning: _Numbers only - Claude failed: ${r.narrative_error}_` : null);
     })());
@@ -4936,6 +4988,37 @@ async function upgradeCardsOnce(env) {
         .bind(acct.act_id, date, found.ts, found.channel).run().catch(() => {});
       out.push({ name: acct.name, date, upgraded: true });
     }
+  }
+  return out;
+}
+
+/* ONE-TIME: the drafts that were already stacked up for internal-only brands.
+   Before 2026-09-10 Lucky Golf and The Golf Sock accumulated 'draft' rows that
+   could never be finished - no client channel, so no send - and each one kept
+   the catch-up carrying its day forward. Mark them handled, then redraw the
+   cards still in Slack so their Send buttons go away. Guarded by a settings
+   key, written first so a half-run cannot repeat. */
+const HANDLED_UPGRADE = '2026-09-10-internal-only';
+async function handledOnce(env) {
+  if ((await getSetting(env, 'handledUpgrade')) === HANDLED_UPGRADE) return null;
+  await putSetting(env, 'handledUpgrade', HANDLED_UPGRADE).catch(() => {});
+  const out = { briefs: 0, reports: 0, cards: 0, brands: [] };
+  for (const acct of (await listAccounts(env, true)).filter(internalOnly)) {
+    out.brands.push(acct.name);
+    const b = await env.DB.prepare(`UPDATE briefs SET status = 'handled' WHERE act_id = ?1 AND status = 'draft'`)
+      .bind(acct.act_id).run().catch(() => null);
+    out.briefs += b?.meta?.changes || 0;
+    const r = await env.DB.prepare(`UPDATE reports SET status = 'handled' WHERE act_id = ?1 AND status = 'draft'`)
+      .bind(acct.act_id).run().catch(() => null);
+    out.reports += r?.meta?.changes || 0;
+    const { results: bc } = await env.DB.prepare(
+      `SELECT date FROM briefs WHERE act_id = ?1 AND status = 'handled' AND slack_ts IS NOT NULL ORDER BY date DESC LIMIT 5`,
+    ).bind(acct.act_id).all().catch(() => ({ results: [] }));
+    for (const row of bc) { await slackSyncBrief(env, acct, row.date).catch(() => {}); out.cards++; }
+    const { results: rc } = await env.DB.prepare(
+      `SELECT period, period_start FROM reports WHERE act_id = ?1 AND status = 'handled' AND slack_ts IS NOT NULL ORDER BY period_start DESC LIMIT 4`,
+    ).bind(acct.act_id).all().catch(() => ({ results: [] }));
+    for (const row of rc) { await slackSyncReport(env, acct, row.period, row.period_start).catch(() => {}); out.cards++; }
   }
   return out;
 }
@@ -5363,6 +5446,8 @@ export default {
         await ensureSlackColumns(env).catch(() => {});
         const upgraded = await upgradeCardsOnce(env).catch(e => ({ error: e.message }));
         if (upgraded) ran.cardUpgrade = upgraded;
+        const handled = await handledOnce(env).catch(e => ({ error: e.message }));
+        if (handled) ran.handledUpgrade = handled;
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
@@ -5548,7 +5633,7 @@ export default {
           const prior = await env.DB.prepare(`SELECT slack_ts, slack_channel, status FROM briefs WHERE act_id = ?1 AND date = ?2`)
             .bind(acct.act_id, date).first().catch(() => null);
           if (prior?.status === 'sent') { out.push({ name: acct.name, date, skipped: 'already sent to the client' }); continue; }
-          await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer: null });
+          await upsertBrief(env, acct.act_id, date, draftStatus(acct), null, r.text, r.data, { health: r.health ?? null, steer: null });
           const row = await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`)
             .bind(acct.act_id, date).first();
           const card = briefCard(acct, date, row);
@@ -6326,7 +6411,7 @@ export default {
         // Silent: no NEW Slack post. This is a repair, not a new morning notice - 
         // but the card already in the channel is rewritten, or it would keep
         // showing wording that no longer exists.
-        await upsertBrief(env, acct.act_id, date, 'draft', null, r.text, r.data, { health: r.health ?? null, steer });
+        await upsertBrief(env, acct.act_id, date, draftStatus(acct), null, r.text, r.data, { health: r.health ?? null, steer });
         await slackSyncBrief(env, acct, date).catch(() => {});
         return json({ ok: true, date, health: r.health, narrative_error: r.narrative_error ?? null, steer });
       }
@@ -6374,7 +6459,7 @@ export default {
         const b = await request.json().catch(() => ({}));
         if (typeof b.text !== 'string' || !b.text.trim()) return json({ error: 'text is required' }, 400);
         const r = await env.DB.prepare(
-          `UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status = 'draft'`,
+          `UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status IN ('draft','handled')`,
         ).bind(b.act, b.date, b.text).run();
         if (!r.meta?.changes) return json({ error: 'no draft for that day (a sent brief cannot be edited)' }, 404);
         const ea = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first().catch(() => null);
@@ -6473,7 +6558,7 @@ export default {
       if (path === '/api/report-summary' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         const r = await env.DB.prepare(
-          `UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'draft'`,
+          `UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status IN ('draft','handled')`,
         ).bind(b.act, b.period, b.start, b.summary ?? '').run();
         if (!r.meta?.changes) return json({ error: 'no draft report for that period (a sent report is frozen)' }, 404);
         const ra = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first().catch(() => null);

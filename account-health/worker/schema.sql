@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS reports (
   period       TEXT NOT NULL,                    -- weekly | monthly
   period_start TEXT NOT NULL,                    -- YYYY-MM-DD (a Monday / the 1st)
   period_end   TEXT NOT NULL,
-  status       TEXT NOT NULL DEFAULT 'draft',    -- draft | sent
+  status       TEXT NOT NULL DEFAULT 'draft',    -- draft | sent | handled (internal-only brand: no client channel, nothing to send)
   generated_at TEXT,
   sent_at      TEXT,
   sent_channel TEXT,
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS briefs (
   date      TEXT NOT NULL,                       -- the day the brief covers (usually yesterday)
   posted_at TEXT,
   channel   TEXT,
-  status    TEXT NOT NULL DEFAULT 'draft',       -- draft | sent | skipped | error
+  status    TEXT NOT NULL DEFAULT 'draft',       -- draft | sent | skipped | handled (internal-only brand) | error
   text      TEXT,
   data_json TEXT,                                -- the forecast/actual numbers behind the text
   -- The internal review post in Slack. `channel` above records where the brief

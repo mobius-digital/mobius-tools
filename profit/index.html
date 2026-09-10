@@ -4041,11 +4041,14 @@ async function renderHealth(first) {
        copy of the data taken at a moment. */
     const drafts = b.drafts || [];
     const stale = drafts.filter(x => x.written_before_last_sync);
+    /* An internal-only brand's briefs are 'handled', not unsent - they still
+       list here because a rebuild is still useful when the numbers were wrong. */
+    const allHandled = drafts.length && drafts.every(x => x.status === 'handled');
     const draftBlock = drafts.length ? `<div class="hl-drafts">
-        <div class="tiny" style="margin-bottom:6px"><b>${drafts.length} unsent draft${drafts.length === 1 ? '' : 's'}</b>${stale.length ? ` · ${stale.length} written before the latest Triple Whale refresh, so ${stale.length === 1 ? 'it may be' : 'they may be'} carrying older numbers` : ' · all written since the latest refresh'}</div>
+        <div class="tiny" style="margin-bottom:6px"><b>${drafts.length} ${allHandled ? 'internal brief' : 'unsent draft'}${drafts.length === 1 ? '' : 's'}</b>${stale.length ? ` · ${stale.length} written before the latest Triple Whale refresh, so ${stale.length === 1 ? 'it may be' : 'they may be'} carrying older numbers` : ' · all written since the latest refresh'}</div>
         ${drafts.map(x => `<div class="hl-draft">
           <span>${prettyDay(x.date)}</span>
-          <span class="tiny">${x.status === 'skipped' ? 'marked don’t-send' : 'draft'}${x.posted_at ? ` · written ${esc(fmtAgo(x.posted_at))}` : ''}${x.written_before_last_sync ? ' · <b>older than the data</b>' : ''}</span>
+          <span class="tiny">${x.status === 'skipped' ? 'marked don’t-send' : x.status === 'handled' ? 'handled · internal only' : 'draft'}${x.posted_at ? ` · written ${esc(fmtAgo(x.posted_at))}` : ''}${x.written_before_last_sync ? ' · <b>older than the data</b>' : ''}</span>
           <button class="btn" data-hl="rebuildday" data-date="${esc(x.date)}">Rebuild</button>
         </div>`).join('')}
       </div>` : '';
@@ -4422,13 +4425,20 @@ async function renderBrief(first) {
   // Today's row decides what the compose card is: an editable draft, a sent
   // record, or nothing yet.
   const bfRow = (d.history || []).find(hh => hh.date === d.date) || null;
-  const bfDraft = bfRow && bfRow.status === 'draft' ? bfRow : null;
+  /* INTERNAL ONLY: no client channel means nothing is ever sent, so a brief
+     for this brand is handled the moment it is written (status 'handled', and
+     an older 'draft' is treated the same). It stays editable and rewritable;
+     it never shows Send or Don't-send. Cole, 2026-09-10. */
+  const internalOnly = !acct?.brief_channel;
+  const bfDraft = bfRow && (bfRow.status === 'draft' || bfRow.status === 'handled') ? bfRow : null;
   const bfSent = bfRow && bfRow.status === 'sent' ? bfRow : null;
   /* Same rule as the Reports tab: a channel that is set but archived is not a
      place a brief can go, so the Send button must not offer it. */
-  const bfCanSend = await channelUsable(acct?.brief_channel);
+  const bfCanSend = !internalOnly && await channelUsable(acct?.brief_channel);
+  const histPill = s => s === 'sent' || s === 'handled' ? 'good' : s === 'skipped' ? 'warn' : s === 'error' ? 'bad' : 'unk';
+  const histLabel = s => s === 'handled' ? 'handled · internal only' : s === 'draft' && internalOnly ? 'handled · internal only' : s;
   const hist = (d.history || []).map(hh => `
-    <details style="margin:6px 0"><summary style="cursor:pointer;font-size:13px"><b>${esc(hh.date)}</b> · <span class="pill ${hh.status === 'sent' ? 'good' : hh.status === 'skipped' ? 'warn' : hh.status === 'error' ? 'bad' : 'unk'}">${esc(hh.status)}</span>${hh.posted_at ? ` <span class="tiny">${fmtAgo(hh.posted_at)}</span>` : ''}</summary>
+    <details style="margin:6px 0"><summary style="cursor:pointer;font-size:13px"><b>${esc(hh.date)}</b> · <span class="pill ${histPill(hh.status)}">${esc(histLabel(hh.status))}</span>${hh.posted_at ? ` <span class="tiny">${fmtAgo(hh.posted_at)}</span>` : ''}</summary>
     <div style="margin-top:6px">${slackPreview(hh.text, { when: hh.posted_at ? fmtAgo(hh.posted_at) : '' })}</div></details>`).join('');
 
   $('#main').innerHTML = shell(`
@@ -4451,17 +4461,21 @@ async function renderBrief(first) {
          used to sit below the stat cards, the chart and the plan, so reviewing
          a brief meant scrolling past everything else first. -->
     <div class="card"><h3 style="margin-bottom:6px">The brief itself</h3>
-      <p class="hint" style="margin-bottom:8px">${bfDraft
+      <p class="hint" style="margin-bottom:8px">${bfDraft && internalOnly
+        ? '<b>Handled automatically.</b> ' + esc(acct?.name || 'This brand') + ' has no client channel, so this brief is for your team only - it posted to your internal channel and nothing goes out. Edit or rewrite it whenever you like.'
+        : bfDraft
         ? 'This is the draft for ' + esc(d.date) + '. <b>Edit it however you like</b> - it sends exactly as written, so nothing you change gets regenerated away.'
         : bfSent
         ? 'Sent to the client. This is a record of exactly what they received, so it cannot be edited.'
+        : internalOnly
+        ? 'The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What&rsquo;s Next? from the numbers and the Change Log (~20s). This brand has no client channel, so the brief is for your team only and is handled as soon as it is written.'
         : 'The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What&rsquo;s Next? from the numbers and the Change Log (~20s). Nothing reaches the client until you send it.'}</p>
       <div class="row" style="margin-bottom:8px">
         ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(d.date)}</button>`}
         ${bfDraft ? '<button class="btn" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn" id="bfCancel" style="display:none">Cancel</button>' : ''}
         <button class="btn primary" id="bfPost" style="display:${bfDraft && bfCanSend ? '' : 'none'}">Send to client</button>
         <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
-        ${bfSent ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
+        ${bfSent || internalOnly ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
         <span class="tiny" id="bfMsg"></span>
       </div>
       ${bfDraft?.steer ? `<p class="tiny" style="margin:-2px 0 8px;opacity:.75">Last rewrite was steered: “${esc(String(bfDraft.steer).slice(0, 240))}”</p>` : ''}
@@ -4507,18 +4521,23 @@ async function renderBrief(first) {
         <div class="toggle ${d.brief_enabled ? 'on' : ''}" id="bfAuto"></div>
         <span style="font-size:13.5px">Run the brief every morning<span id="bfTimeLbl"></span>, covering yesterday. Change the time on <b>Settings</b>.</span>
       </div>
-      <div class="row" style="margin-top:8px;align-items:flex-start">
+      ${internalOnly ? `<div class="row" style="margin-top:8px;align-items:flex-start">
+        <span style="font-size:13.5px;max-width:660px">
+          <b>Internal only - handled automatically.</b> ${esc(acct?.name || 'This brand')} has no client channel, so each morning's brief posts to your
+          <b>internal channel</b>${acct?.slack_channel ? '' : ' (<b>none set</b> - pick one in Settings)'} and is marked handled on the spot. There is nothing to review or send, and days never stack up waiting.
+          <span class="tiny" style="display:block;margin-top:3px">If this brand should ever receive a brief, set a <b>client channel</b> in Settings and the review-and-send flow switches on.</span>
+        </span>
+      </div>` : `<div class="row" style="margin-top:8px;align-items:flex-start">
         <div class="toggle ${acct?.review_first ? 'on' : ''}" id="bfReview"></div>
         <span style="font-size:13.5px;max-width:660px">
           <b>Review before it goes to the client.</b> On: each morning the brief is drafted and posted to this brand's
           <b>internal channel</b>${acct?.slack_channel ? '' : ' (<b>none set</b> - pick one in Settings)'} - you read it, reword anything, then press
-          <b>Send to client</b> below. Off: it posts straight to
-          ${acct?.brief_channel ? 'the client channel' : '<b>no client channel - set one in Settings</b>'} with no stop.
+          <b>Send to client</b> below. Off: it posts straight to the client channel with no stop.
           <span class="tiny" style="display:block;margin-top:3px">This switch is per client and covers the weekly and monthly reports too.</span>
           <span class="tiny" style="display:block;margin-top:3px">This replaces copy-pasting: same review, but Slack formatting survives and what you sent is recorded.</span>
         </span>
-      </div></div>
-    ${hist ? `<div class="card"><h3 style="margin-bottom:4px">Sent briefs</h3>${hist}</div>` : ''}
+      </div>`}</div>
+    ${hist ? `<div class="card"><h3 style="margin-bottom:4px">${internalOnly ? 'Past briefs' : 'Sent briefs'}</h3>${hist}</div>` : ''}
   `);
 
   /* chart crosshair - hover AND tap */
@@ -5639,7 +5658,11 @@ async function renderReportsAll(first) {
 
   const judged = S.accounts.map(a => {
     const wk = by[a.act_id]?.weekly, mo = by[a.act_id]?.monthly;
-    const drafts = [wk, mo].filter(x => x && x.status === 'draft');
+    /* INTERNAL ONLY: no client channel, so this brand's reports are handled
+       the moment they are drafted and can never be "waiting". An older
+       'draft' row for such a brand counts as handled too. Cole, 2026-09-10. */
+    const auto = !a.brief_channel;
+    const drafts = auto ? [] : [wk, mo].filter(x => x && x.status === 'draft');
     const skipped = [wk, mo].filter(x => x && x.status === 'skipped');
     const noChannel = !a.slack_channel;
     // Setup faults outrank waiting drafts: a brand whose drafts post nowhere
@@ -5647,9 +5670,9 @@ async function renderReportsAll(first) {
     // cannot see from this page.
     // A skipped report is not "all sent" - it was generated and deliberately
     // not sent, which is a state worth seeing rather than one to round off.
-    const g = noChannel ? 'bd' : drafts.length ? 'wn' : skipped.length ? 'un' : (wk || mo) ? 'ok' : 'un';
-    return { a, wk, mo, drafts, skipped, noChannel, g };
-  }).sort((x, y) => ({ bd: 0, wn: 1, ok: 2, un: 3 })[x.g] - ({ bd: 0, wn: 1, ok: 2, un: 3 })[y.g]
+    const g = noChannel ? 'bd' : drafts.length ? 'wn' : auto ? 'au' : skipped.length ? 'un' : (wk || mo) ? 'ok' : 'un';
+    return { a, wk, mo, drafts, skipped, noChannel, auto, g };
+  }).sort((x, y) => ({ bd: 0, wn: 1, ok: 2, au: 3, un: 4 })[x.g] - ({ bd: 0, wn: 1, ok: 2, au: 3, un: 4 })[y.g]
     || x.a.name.localeCompare(y.a.name));
 
   const waiting = judged.reduce((n, j) => n + j.drafts.length, 0);
@@ -5664,10 +5687,11 @@ async function renderReportsAll(first) {
      to be sent. Reading "draft" told you there was something to review when
      there was not. A status this page does not recognise says so rather than
      picking the nearest familiar word. */
-  const PILL = { sent: ['good', 'sent'], draft: ['warn', 'draft'], skipped: ['unk', 'skipped'] };
-  const state = row => {
+  const PILL = { sent: ['good', 'sent'], draft: ['warn', 'draft'], skipped: ['unk', 'skipped'], handled: ['good', 'handled'] };
+  const state = (row, auto) => {
     if (!row) return '<span class="tiny">none yet</span>';
-    const [cls, label] = PILL[row.status] || ['unk', row.status || 'unknown'];
+    const st = auto && row.status === 'draft' ? 'handled' : row.status;
+    const [cls, label] = PILL[st] || ['unk', st || 'unknown'];
     return `${repRangeLabel({ period: row.period, start: row.period_start, end: row.period_end })} <span class="pill ${cls}">${esc(label)}</span>`;
   };
 
@@ -5676,6 +5700,8 @@ async function renderReportsAll(first) {
       ? 'No internal channel, so drafts for this brand post <b>nowhere</b>. Set one in <b>Settings</b> before the next Monday run.'
       : j.drafts.length
       ? `${j.drafts.length === 2 ? 'Both reports are' : 'A report is'} drafted and waiting on you. Open it, read it, then send.`
+      : j.auto
+      ? `No client channel, so every report is <b>handled the moment it is written</b> - it posts to your internal channel and nothing goes out. Open it to read or rewrite it.`
       : j.skipped.length
       ? `${j.skipped.length === 2 ? 'Both reports were' : 'A report was'} generated in full and then marked <b>skipped</b>, so ${j.skipped.length === 2 ? 'neither' : 'it'} will be sent. Open it to read what was written.`
       : (j.wk || j.mo) ? 'Everything drafted so far has been sent. Nothing waiting.'
@@ -5684,19 +5710,19 @@ async function renderReportsAll(first) {
         aria-label="${esc(j.a.name)} reports">
       <div class="sc-h"><span class="sc-n">${esc(j.a.name)}</span>
         <span class="sc-s">${j.noChannel ? 'no channel' : j.drafts.length ? `${j.drafts.length} waiting`
-          : j.skipped.length ? `${j.skipped.length} skipped` : (j.wk || j.mo) ? 'all sent' : 'none yet'}</span></div>
+          : j.auto ? 'auto handled' : j.skipped.length ? `${j.skipped.length} skipped` : (j.wk || j.mo) ? 'all sent' : 'none yet'}</span></div>
       <div class="sc-foot">
         <div class="sc-g" style="grid-template-columns:1fr 1fr;border-top:none;padding-top:0">
-          <div><div class="sc-gl">Latest weekly</div><div class="tiny" style="line-height:1.5">${state(j.wk)}</div></div>
-          <div><div class="sc-gl">Latest monthly</div><div class="tiny" style="line-height:1.5">${state(j.mo)}</div></div>
+          <div><div class="sc-gl">Latest weekly</div><div class="tiny" style="line-height:1.5">${state(j.wk, j.auto)}</div></div>
+          <div><div class="sc-gl">Latest monthly</div><div class="tiny" style="line-height:1.5">${state(j.mo, j.auto)}</div></div>
         </div>
         <p class="sc-act">${act}</p>
       </div>
     </div>`;
   };
 
-  const LABEL = { bd: 'Cannot be delivered', wn: 'Waiting on you', ok: 'All sent', un: 'Generated but not going out' };
-  const groups = ['bd', 'wn', 'ok', 'un'].map(g => {
+  const LABEL = { bd: 'Cannot be delivered', wn: 'Waiting on you', ok: 'All sent', au: 'Handled automatically (no client channel)', un: 'Generated but not going out' };
+  const groups = ['bd', 'wn', 'ok', 'au', 'un'].map(g => {
     const list = judged.filter(j => j.g === g);
     if (!list.length) return '';
     return `<p class="grp"><span class="ct">${LABEL[g]}</span>
@@ -5719,7 +5745,7 @@ async function renderReportsAll(first) {
     </div>
     ${groups}
     <details class="footnote"><summary>How reports are drafted and sent</summary>
-      <div class="fn-body">A <b>draft</b> is internal &mdash; it posts to the brand's internal channel and the client has not seen it. <b>Sent</b> reports are frozen at the moment they go out and live on the client's archive link, so what they opened last month is exactly what they can still open today; nothing about a sent report can be edited afterwards.<br><br>
+      <div class="fn-body">A <b>draft</b> is internal &mdash; it posts to the brand's internal channel and the client has not seen it. <b>Sent</b> reports are frozen at the moment they go out and live on the client's archive link, so what they opened last month is exactly what they can still open today; nothing about a sent report can be edited afterwards. A brand with <b>no client channel</b> has nothing to send, so its reports are marked <b>handled</b> the moment they are written &mdash; still editable, never waiting.<br><br>
       Weekly reports draft automatically on Monday covering last Monday to Sunday; monthly ones draft on the 1st covering the month just finished. Both post to <b>report_channel</b>, which is deliberately internal with no fallback &mdash; a brand with no internal channel set gets a draft that reaches nobody rather than one that reaches the client by accident.</div></details>`);
 
   const open = id => {
@@ -5755,14 +5781,20 @@ async function renderReports(first) {
   }
   if (run !== RUN) return;
 
+  /* INTERNAL ONLY: no client channel, so a report for this brand is handled
+     the moment it is generated (status 'handled'; an older 'draft' reads the
+     same). Editable and rewritable, never sendable. Cole, 2026-09-10. */
+  const internalOnly = !acct?.brief_channel;
   const chips = rows.slice(0, 12).map(x =>
-    `<button class="chip ${x.period === RP.period && x.period_start === RP.start ? 'on' : ''}" data-rp="${x.period}|${x.period_start}">${x.period === 'weekly' ? 'Week' : 'Month'} · ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}${x.status === 'sent' ? ' ✓' : ''}</button>`).join('');
+    `<button class="chip ${x.period === RP.period && x.period_start === RP.start ? 'on' : ''}" data-rp="${x.period}|${x.period_start}">${x.period === 'weekly' ? 'Week' : 'Month'} · ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}${x.status === 'sent' || x.status === 'handled' ? ' ✓' : ''}</button>`).join('');
 
   const cfg = acct?.report_config || {};
   const hide = Array.isArray(cfg.hide) ? cfg.hide : [];
   const CHS = [['meta', 'Meta'], ['google', 'Google'], ['tiktok', 'TikTok'], ['amazon', 'Amazon'], ['pinterest', 'Pinterest'], ['email', 'Email (Klaviyo)']];
   const configCard = `<div class="card"><h3 style="margin-bottom:4px">What goes in ${esc(acct?.name || 'this brand')}'s reports</h3>
-    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data - untick one to leave it out of every future report for this brand (already-generated reports don't change). Drafts post to this brand's <b>internal channel</b>${acct?.slack_channel ? '' : ' - <b>none is set yet</b>, so drafts only appear here'}, and <b>Send to client</b> posts to its <b>client channel</b>${acct?.brief_channel ? '' : ' - <b>not set yet</b>, so a send would stop and tell you'}. Both are set in Settings.</p>
+    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data - untick one to leave it out of every future report for this brand (already-generated reports don't change). ${internalOnly
+      ? `Each report posts to this brand's <b>internal channel</b>${acct?.slack_channel ? '' : ' - <b>none is set yet</b>, so reports only appear here'} and is <b>handled automatically</b>: there is no client channel, so nothing is ever sent and there is no Send button. Set a client channel in Settings if that should change.`
+      : `Drafts post to this brand's <b>internal channel</b>${acct?.slack_channel ? '' : ' - <b>none is set yet</b>, so drafts only appear here'}, and <b>Send to client</b> posts to its <b>client channel</b>. Both are set in Settings.`}</p>
     <div class="row" style="gap:14px;margin-bottom:8px">
       ${CHS.map(([id, lb]) => `<label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" data-ch="${id}" ${hide.includes(id) ? '' : 'checked'}> ${lb}</label>`).join('')}
     </div>
@@ -5784,9 +5816,11 @@ async function renderReports(first) {
   const sent = rep?.status === 'sent';
   /* A set-but-dead channel must read as "not set", not as "ready to send". */
   const clientChan = acct?.brief_channel;
-  const canSend = await channelUsable(clientChan);
+  const canSend = !internalOnly && await channelUsable(clientChan);
   const banner = rep ? (sent
     ? `<div class="notice good">✓ <div><b>Sent to the client</b>${rep.sent_at ? ` ${fmtAgo(rep.sent_at)}` : ''}. This report is frozen - it can't be regenerated or edited, so the numbers on the client's link never shift under them. <button class="btn" id="rpLink" style="margin-left:8px">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`
+    : internalOnly
+    ? `<div class="notice good">✓ <div><b>Handled automatically - internal only.</b> ${esc(acct?.name || 'This brand')} has no client channel, so there is nothing to send and nothing waiting on you. Edit the summary or rewrite it whenever you like. <button class="btn" id="rpRegen" style="margin-left:8px" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <span class="tiny" id="rpMsg"></span></div></div>`
     : `<div class="notice">📝 <div><b>Internal draft - the client has not seen this.</b> ${canSend
         ? `Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button>`
         : `Review it and edit the summary freely. <b>${esc(acct?.name || 'This brand')} ${clientChan ? 'points at a Slack channel that no longer exists' : 'has no client channel set'}</b>, so there is nowhere to send it${clientChan ? ` (the saved channel <code>${esc(clientChan)}</code> has been archived or deleted)` : ''} - pick one in Settings under <b>Client channel</b> and the Send button appears here. A send never falls back to an internal channel.`} <button class="btn" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
@@ -7033,17 +7067,21 @@ async function renderSettings() {
     const bad = [];
     if (!m.tw_shop) bad.push('no Triple Whale shop');
     if (!a.slack_channel) bad.push('no internal channel');
-    if (!a.brief_channel) bad.push('no client channel');
+    /* No client channel is a CHOICE, not a fault (Cole, 2026-09-10): the
+       brand is internal-only and its briefs and reports are handled the moment
+       they are written. It is named on the OK line so it is never mistaken
+       for a brand that is fully client-facing. */
+    const internalOnly = !a.brief_channel;
     /* A saved id missing from the live channel list is an archived or deleted
        channel. It has to be called out separately, because every other check
        here sees a non-empty field and passes it. Only judged when the list
        actually loaded, so an API failure does not accuse every brand at once. */
-    else if (Array.isArray(chList) && !chName(a.brief_channel)) bad.push('client channel was archived or deleted');
-    else if (a.brief_channel === a.slack_channel) bad.push('client channel is your internal one');
+    if (!internalOnly && Array.isArray(chList) && !chName(a.brief_channel)) bad.push('client channel was archived or deleted');
+    else if (!internalOnly && a.brief_channel === a.slack_channel) bad.push('client channel is your internal one');
     if (c.status === 'uninstalled') bad.push('Shopify removed by client');
     return bad.length
       ? `<span class="brow-warn">⚠ ${esc(bad.join(' · '))}</span>`
-      : `<span class="brow-ok">Set up · ${a.brief_enabled ? 'brief on' : 'brief off'}${a.review_first ? ', reviewed first' : ''}${c.status === 'connected' ? ', Shopify connected' : ''}</span>`;
+      : `<span class="brow-ok">Set up · ${a.brief_enabled ? 'brief on' : 'brief off'}${internalOnly ? ', internal only (auto handled)' : a.review_first ? ', reviewed first' : ''}${c.status === 'connected' ? ', Shopify connected' : ''}</span>`;
   };
 
   /* Label and its explanation on the left, the control on the right, one row
@@ -7067,10 +7105,10 @@ async function renderSettings() {
         ${field('Triple Whale shop', '<b>Every money number depends on this</b> - revenue, MER, contribution margin, every report.',
           `<input type="text" data-k="tw_shop" value="${esc(m.tw_shop || '')}" placeholder="name.myshopify.com">${m.tw_shop ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ without this the brand has no revenue at all</span>'}`)}
         ${field('Internal Slack channel', 'Your team’s. Drafts waiting for review land here, along with delivery alerts. A client never sees it.', chSelect(a, 'slack_channel', ' - not set - '))}
-        ${field('Client Slack channel', 'Theirs. An approved brief or report is sent here and nothing else ever is.',
+        ${field('Client Slack channel', 'Theirs. An approved brief or report is sent here and nothing else ever is. Leave it empty for a brand with no client chat: every brief and report is then handled automatically, with no Send button and nothing waiting on you.',
           chSelect(a, 'brief_channel', ' - not set - ') + (a.brief_channel && a.brief_channel === a.slack_channel
             ? '<br><span class="tiny" style="color:var(--warn)">⚠ this is the same as the internal channel, so reviewing before sending achieves nothing</span>' : ''))}
-        ${field('Review before sending', 'On: the daily brief and both reports draft to your internal channel and wait for you. Off: each one posts straight to the client on its own.',
+        ${field('Review before sending', 'On: the daily brief and both reports draft to your internal channel and wait for you. Off: each one posts straight to the client on its own. Does nothing for a brand with no client channel - those are handled automatically.',
           `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.review_first ? 'on' : ''}" data-k="review_first"></div><span class="tiny">${a.review_first ? 'reviewed first' : 'sends itself'}</span></div>`)}
         ${field('Daily brief', 'The morning forecast-vs-actual update. Needs a channel and a plan before it can run.',
           `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled ? 'on' : ''}" data-k="brief_enabled"></div><span class="tiny">${a.brief_enabled ? 'running each morning' : 'off'}</span></div>`)}
@@ -7128,9 +7166,9 @@ async function renderSettings() {
           <div class="ru-d">${one ? 'filtered to this one brand' : 'reporting through Locus'}</div></div>
         <div class="ru"><div class="ru-l">Daily brief on</div><div class="ru-v">${briefs}</div>
           <div class="ru-d">${briefs === rows.length ? 'every brand posts each morning' : `${rows.length - briefs} not sending`}</div></div>
-        <div class="ru"><div class="ru-l">No client channel</div>
-          <div class="ru-v${noBrief ? ' warn' : ''}">${noBrief}</div>
-          <div class="ru-d">${noBrief ? 'briefs and reports have nowhere to go' : 'every brand has one set'}</div></div>
+        <div class="ru"><div class="ru-l">Internal only</div>
+          <div class="ru-v">${noBrief}</div>
+          <div class="ru-d">${noBrief ? 'no client channel &mdash; briefs and reports handled automatically' : 'every brand has a client channel'}</div></div>
         <div class="ru"><div class="ru-l">No Triple Whale shop</div>
           <div class="ru-v${noShop ? ' bad' : ''}">${noShop}</div>
           <div class="ru-d">${noShop ? 'nothing blended works without it' : 'every brand is connected'}</div></div>
