@@ -1053,6 +1053,16 @@ async function receiptNudge(env, force = false, moOverride = null) {
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const moLabel = m => `${MONTH_NAMES[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
 
+/* Plaid's end_date is INCLUSIVE, and every date range in this file is
+ * half-open (to = the first day NOT wanted). Without this the last day of a
+ * month is read twice, once at the end of the month and again at the start of
+ * the next · which is how a $60 haircut on July 1st appeared in both June's
+ * and July's statement. */
+const addDaysYmd = (ymd, n) => {
+  const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const plaidEnd = ymd => addDaysYmd(ymd, -1);
 const addMonthsYmd = (ymd, n) => {
   const d = new Date(ymd + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n);
   return d.toISOString().slice(0, 10);
@@ -1453,7 +1463,7 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
     let offset = 0, total = 1;
     while (offset < total) {
       const page = await plaid(env, '/transactions/get', {
-        access_token: item.access_token, start_date: fromYmd, end_date: toYmd,
+        access_token: item.access_token, start_date: fromYmd, end_date: plaidEnd(toYmd),
         options: { count: 500, offset },
       });
       total = page.total_transactions || 0;
@@ -1528,7 +1538,7 @@ async function backfillPlaid(env, fromYmd, toYmd) {
     let offset = 0, total = 1;
     while (offset < total) {
       const page = await plaid(env, '/transactions/get', {
-        access_token: item.access_token, start_date: fromYmd, end_date: toYmd,
+        access_token: item.access_token, start_date: fromYmd, end_date: plaidEnd(toYmd),
         options: { count: 500, offset },
       });
       total = page.total_transactions || 0;
@@ -1644,7 +1654,7 @@ export default {
          * that way). Re-reading the open books by date every night is the only
          * thing that catches it, and plaid_id dedupe makes the overlap free. */
         const bfFrom = addMonthsYmd(monthOf(to) + '-01', -1);
-        await backfillPlaid(env, bfFrom, to).catch(e => { failed.push('Bank re-check: ' + (e.message || e)); });
+        await backfillPlaid(env, bfFrom, addDaysYmd(to, 1)).catch(e => { failed.push('Bank re-check: ' + (e.message || e)); });
         await retryHeldReceipts(env).catch(e => { failed.push('Held receipts: ' + (e.message || e)); });
         if (failed.length) await alertSlack(env,
           `\u26a0\ufe0f *Tonight's sync did not finish.* Your figures may be missing transactions until this is fixed.\n` +
