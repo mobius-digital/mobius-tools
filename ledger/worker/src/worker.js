@@ -1414,7 +1414,23 @@ async function processPlaidTxn(env, item, t, opts = {}) {
     const { results: cand } = await env.DB.prepare(
       `SELECT * FROM transactions WHERE month = ?1 AND type = 'out' AND expected = 0 AND plaid_id IS NULL
        AND ABS(amount - ?2) < 0.005`).bind(month, amount).all();
-    const mHit = cand.find(x => x.vendor.toLowerCase().split(' ')[0] === first) || (cand.length === 1 ? cand[0] : null);
+    /* THE NAME HAS TO AGREE. "There is only one unreceipted row at that amount"
+     * is not evidence that it is the same charge: plenty of subscriptions cost
+     * the same $10 or $18 a month, and Cole runs several of them. The
+     * single-candidate fallback that used to sit here filed an Anthropic $10
+     * onto a row called PDF.co and a Cloudflare $5 onto one called FireFlies.
+     * Money stayed right by luck, because neither vendor had also charged that
+     * month; the day both do, one of the two charges disappears into the other.
+     *
+     * Failing the other way costs a duplicate row, which the nightly check sees
+     * and names. A wrong merge is silent, and silence is the thing to avoid. */
+    const nameAgrees = x => {
+      const a = String(x.vendor || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+      const b = vendor.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+      if (!a.length || !b.length) return false;
+      return a[0] === b[0] || a.includes(b[0]) || b.includes(a[0]);
+    };
+    const mHit = cand.find(nameAgrees) || null;
     if (mHit) {
       /* Take the bank's date too. The row being adopted was typed by hand and
        * is usually dated the 1st; the statement knows the day it really was,
@@ -1776,6 +1792,27 @@ async function selfCheck(env, fromYmd, toYmd) {
             SUM(CASE WHEN type='out' AND (tax_cat IS NULL OR tax_cat='') THEN 1 ELSE 0 END) AS uncat
        FROM transactions WHERE date >= ?1 AND date < ?2`).bind(fromYmd, toYmd).first();
   if (counts?.uncat) add(`${counts.uncat} expense${counts.uncat > 1 ? 's have' : ' has'} no category`, 'Needs you, in the app');
+
+  /* 3b. An expense the books carry that the bank never reported, in a month the
+   *     bank covers from end to end. Revenue and merchant fees live there
+   *     legitimately · the bank only ever sees a net payout · but an EXPENSE
+   *     with no bank line behind it is either a forecast that never happened or
+   *     a row that should have merged with a real charge and did not. */
+  if (cmp._bank && cmp._bank.length) {
+    const earliest = cmp._bank.reduce((a, b) => (!a || b.date < a) ? b.date : a, null);
+    const latest = cmp._bank.reduce((a, b) => (!a || b.date > a) ? b.date : a, null);
+    const { results: orphan } = await env.DB.prepare(
+      `SELECT id, date, vendor, amount FROM transactions
+        WHERE date >= ?1 AND date <= ?2 AND type = 'out' AND plaid_id IS NULL AND expected = 0
+        ORDER BY date`).bind(earliest, latest).all();
+    /* Only whole months the bank has fully seen, so a charge that simply has
+     * not posted yet is not reported as missing. */
+    const solid = orphan.filter(o => monthOf(o.date) + '-01' >= earliest
+      && addDaysYmd(addMonthsYmd(monthOf(o.date) + '-01', 1), -1) <= latest);
+    if (solid.length)
+      add(`${solid.length} expense${solid.length > 1 ? 's are' : ' is'} in the books with no matching bank charge`,
+          solid.slice(0, 5).map(o => `${o.vendor} ${fmtMoney(o.amount)} \u00b7 ${o.date}`).join(', '));
+  }
 
   /* 4. A receipt held for longer than a charge could plausibly take. */
   const { results: held } = await env.DB.prepare(
