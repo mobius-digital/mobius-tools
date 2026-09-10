@@ -436,6 +436,25 @@
     .txn-tbl td.amt{grid-area:amt;text-align:right;font-size:16px;white-space:nowrap}
     .txn-tbl .rowsel{margin-top:5px;max-width:100%}
     .msel-btn{max-width:100%}
+    /* Sheet internals. Two fields side by side is a desktop idea: at 375px
+       the date and the note were literally overlapping. Everything stacks,
+       every control is thumb-height, and inputs are 16px because anything
+       smaller makes iOS zoom the whole page the moment you tap one. */
+    .mbox .mrow{flex-direction:column;gap:0}
+    .mbox .mrow > div{max-width:none!important;width:100%}
+    .mbox input,.mbox select,.mbox textarea{font-size:16px;min-height:46px}
+    .mbox textarea{min-height:110px}
+    .mbox label{margin-top:16px}
+    .mbox .msel{display:block}
+    .mbox .msel-btn{width:100%;max-width:none;min-height:46px;font-size:15px}
+    .mbox .seg button{min-height:46px;font-size:14px}
+    .mbox .acts{flex-wrap:wrap;gap:8px;margin-top:24px}
+    .mbox .acts .spacer{display:none}
+    .mbox .acts .btn{flex:1 1 45%;min-height:48px;justify-content:center}
+    .mbox .acts .btn.primary{order:-1;flex-basis:100%}
+    .mbox label.ck{padding:15px 16px}
+    .msel-panel{max-height:60vh}
+    .msel-opt{padding:13px 14px;font-size:15px}
     /* modals arrive as bottom sheets */
     .modal{padding:0;align-items:flex-end}
     .mbox{max-width:none;width:100%;border-radius:16px 16px 0 0;border-bottom:none;
