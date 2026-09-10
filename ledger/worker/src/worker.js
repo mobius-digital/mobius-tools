@@ -746,10 +746,16 @@ async function processSlackReceipts(env) {
             const a = words(t.vendor), b = words(ext.vendor);
             return a.length && b.length && (a[0] === b[0] || a.includes(b[0]) || b.includes(a[0]));
           };
+          /* Same tip window as the held-receipt sweep: the card can settle up
+           * to a third above the printed slip and never below it. Safe only
+           * because `agrees` still has to hold. */
           const look = async () => (await env.DB.prepare(
             `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
-             AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005 ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
-            .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)), ext.amount, rDate).all()).results;
+             AND month >= ?1 AND month <= ?2 AND amount >= ?3 AND amount <= ?4
+             ORDER BY ABS(amount - ?5), ABS(julianday(date) - julianday(?6)) LIMIT 5`)
+            .bind(monthOf(addMonthsYmd(rDate, -1)), monthOf(addMonthsYmd(rDate, 1)),
+                  Number(ext.amount) - 0.005, Number(ext.amount) * 1.35 + 0.005,
+                  Number(ext.amount), rDate).all()).results;
           target = (await look()).find(agrees) || null;
           /* Nothing yet, so go and ask the bank NOW instead of waiting for
            * tonight. Once per run, however many receipts arrived together. */
@@ -981,7 +987,14 @@ async function processSlackReceipts(env) {
               ]);
             }
           } else {
-            const mt = `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`;
+            /* A restaurant slip is printed before the tip is written on it, so
+             * the card settles higher. Say so rather than leaving a gap between
+             * receipt and charge for someone to query later. */
+            const over = ext?.amount ? round2(target.amount - Number(ext.amount)) : 0;
+            const mt = `✅ Matched to *${target.vendor}* $${target.amount.toFixed(2)} in *${moLabel(monthOf(target.date))}* (${target.date}) — receipt attached.`
+              + (over > 0.005
+                  ? ` The receipt says $${Number(ext.amount).toFixed(2)} and the card took $${over.toFixed(2)} more · a tip, most likely. The charge is what counts.`
+                  : '');
             await quiet(target, mt, [
               { type: 'section', text: { type: 'mrkdwn', text: mt } },
               { type: 'actions', elements: [{ type: 'button', action_id: 'unmatch',
@@ -1528,10 +1541,23 @@ async function retryHeldReceipts(env) {
   for (const row of held) {
     const meta = safeJson(row.value, null);
     if (!meta || !meta.amount) continue;
+    /* A RESTAURANT RECEIPT NEVER MATCHES TO THE CENT. The slip is printed
+     * before the tip is written on it, so the card settles higher · $47.00 on
+     * the receipt, $56.40 on the statement. Demanding the exact cent meant
+     * every meal waited five days and then asked a question with an obvious
+     * answer.
+     *
+     * So the charge may be up to a third larger than the receipt, never
+     * smaller, and only when the vendor name agrees (checked below). A tip is
+     * the only thing that moves a total UP after the fact; a smaller charge is
+     * a different purchase, so that stays exact. */
+    const lo = Number(meta.amount) - 0.005;
+    const hi = Number(meta.amount) * 1.35 + 0.005;
     const hit = await env.DB.prepare(
       `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
-       AND ABS(amount - ?1) < 0.005 AND ABS(julianday(date) - julianday(?2)) <= 12
-       ORDER BY ABS(julianday(date) - julianday(?2)) LIMIT 2`).bind(meta.amount, meta.date).all();
+       AND amount >= ?1 AND amount <= ?2 AND ABS(julianday(date) - julianday(?3)) <= 12
+       ORDER BY ABS(amount - ?4), ABS(julianday(date) - julianday(?3)) LIMIT 4`)
+      .bind(lo, hi, meta.date, Number(meta.amount)).all();
     /* THE NAME MUST AGREE. Nobody is watching this sweep, so "there is only
      * one charge at that amount" is not good enough: an Anthropic receipt for
      * $90 met an OpenAI charge for $90 and filed itself there. A held receipt
@@ -1576,6 +1602,10 @@ async function retryHeldReceipts(env) {
       await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
       continue;
     }
+    /* When the settled charge is larger than the slip, say why in one line ·
+     * an unexplained gap between a receipt and a charge is exactly what a CPA
+     * queries, and "tip" is the answer nine times in ten. */
+    const gap = round2(match.amount - Number(meta.amount));
     const k = `rcpt:${match.id}:${Date.now()}`;
     await receiptPut(env, k, blob);
     await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
@@ -1585,7 +1615,10 @@ async function retryHeldReceipts(env) {
     attached++;
     if (meta.ch || sr.channelId) await slack(env, 'chat.postMessage',
       { channel: meta.ch || sr.channelId, ...(meta.ts ? { thread_ts: meta.ts } : {}), unfurl_links: false,
-      text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).` }, true).catch(() => {});
+      text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).`
+        + (gap > 0.005
+            ? ` The receipt says $${Number(meta.amount).toFixed(2)} and the card took $${gap.toFixed(2)} more · a tip, most likely. The charge is what counts.`
+            : '') }, true).catch(() => {});
   }
   return { held: held.length, attached, asked };
 }
