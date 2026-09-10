@@ -1731,6 +1731,70 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
   };
 }
 
+/* THE BOOKS CHECKING THEMSELVES. Every promise made about this ledger · nothing
+ * missing, nothing counted twice, nothing uncategorised · has been verified by
+ * hand, on a day someone thought to look. Each of those checks is a query, so
+ * they run every night instead, and say nothing at all unless something is
+ * actually wrong. A quiet channel then means the books are right, rather than
+ * meaning nobody checked. */
+async function selfCheck(env, fromYmd, toYmd) {
+  const problems = [];
+  const add = (what, detail) => problems.push({ what, detail });
+
+  /* 1. Every charge the bank reported is in the books. */
+  const cmp = await comparePlaid(env, fromYmd, toYmd).catch(e => ({ error: String(e.message || e) }));
+  if (cmp.error) add('Could not read the bank', cmp.error);
+  /* A check that cannot run is not a check that passed. */
+  else if (cmp.skipped) add('The bank could not be read', cmp.skipped);
+  else if (cmp.onBankNotInBooks > 0)
+    add(`${cmp.onBankNotInBooks} charge${cmp.onBankNotInBooks > 1 ? 's are' : ' is'} on the bank and not in the books`,
+        (cmp.missing || []).slice(0, 5).map(m => `${m.vendor} ${fmtMoney(m.amount)} · ${m.date}`).join(', '));
+
+  /* 2. Nothing counted twice. Two rows for one day and one amount are usually
+   *    innocent · two clients on the same retainer, two filings · so only a
+   *    pair where one side's bank id has been retired is reported, which is the
+   *    shape a re-linked bank leaves behind. */
+  const { results: dup } = await env.DB.prepare(
+    `SELECT date, type, amount, COUNT(*) n, GROUP_CONCAT(id) ids, GROUP_CONCAT(vendor, ' / ') v
+       FROM transactions WHERE date >= ?1 AND date < ?2 AND plaid_id IS NOT NULL
+      GROUP BY date, type, ROUND(amount, 2) HAVING n > 1`).bind(fromYmd, toYmd).all();
+  if (dup.length && cmp._bank) {
+    const live = new Set(cmp._bank.map(b => b.id));
+    const bad = [];
+    for (const g of dup) {
+      const { results: rows } = await env.DB.prepare(
+        `SELECT id, plaid_id, vendor, amount, date FROM transactions WHERE id IN (${g.ids})`).all();
+      if (rows.some(r => !live.has(r.plaid_id)) && rows.some(r => live.has(r.plaid_id)))
+        bad.push(`${rows[0].vendor} ${fmtMoney(rows[0].amount)} · ${rows[0].date}`);
+    }
+    if (bad.length) add(`${bad.length} charge${bad.length > 1 ? 's appear' : ' appears'} twice`, bad.slice(0, 5).join(', '));
+  }
+
+  /* 3. Nothing waiting to be told apart. */
+  const counts = await env.DB.prepare(
+    `SELECT SUM(CASE WHEN status='review' THEN 1 ELSE 0 END) AS review,
+            SUM(CASE WHEN type='out' AND (tax_cat IS NULL OR tax_cat='') THEN 1 ELSE 0 END) AS uncat
+       FROM transactions WHERE date >= ?1 AND date < ?2`).bind(fromYmd, toYmd).first();
+  if (counts?.uncat) add(`${counts.uncat} expense${counts.uncat > 1 ? 's have' : ' has'} no category`, 'Needs you, in the app');
+
+  /* 4. A receipt held for longer than a charge could plausibly take. */
+  const { results: held } = await env.DB.prepare(
+    `SELECT key, value FROM settings WHERE key LIKE 'pend:%'`).all();
+  const old = held.filter(r => {
+    const ts = Number(String(r.key).split(':')[1]);
+    return Number.isFinite(ts) && (Date.now() - ts) > 12 * 86400e3;
+  });
+  if (old.length) add(`${old.length} receipt${old.length > 1 ? 's have' : ' has'} waited over 12 days`,
+    old.slice(0, 4).map(r => { const m = safeJson(r.value, {}); return `${m.vendor} ${fmtMoney(m.amount || 0)}`; }).join(', '));
+
+  /* 5. The bank feed itself still answering · but only worth saying when the
+   *    call actually succeeded, otherwise it just repeats check 1. */
+  if (!cmp.error && !cmp.skipped && !cmp.bankCount)
+    add('The bank returned nothing at all', 'Three months with no transactions means the connection needs re-linking');
+
+  return { ok: problems.length === 0, from: fromYmd, to: toYmd, checked: cmp.bankCount || 0, problems };
+}
+
 async function comparePlaid(env, fromYmd, toYmd, full) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
@@ -1803,7 +1867,9 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
     missing: missing.slice(0, 100), extra: unmatchedRows.slice(0, 100),
     /* The statement itself, when the question is "what does the bank actually
      * say" rather than "where do we disagree". */
-    ...(full ? { bank } : {}),
+    /* The caller almost never wants 500 bank lines back · selfCheck does,
+     * because it has to tell a retired id from a live one. */
+    bank: full ? bank : undefined, _bank: bank,
   };
 }
 
@@ -1937,6 +2003,16 @@ export default {
         if (failed.length) await alertSlack(env,
           `\u26a0\ufe0f *Tonight's sync did not finish.* Your figures may be missing transactions until this is fixed.\n` +
           failed.map(f => '\u2022 ' + f).join('\n')).catch(() => {});
+        /* Last, once everything else has finished writing: check the result
+         * and speak only if it is wrong. Silence has to mean checked. */
+        await (async () => {
+          const to = addDaysYmd(centralDate(Date.now() / 1000), 1);
+          const chk = await selfCheck(env, addMonthsYmd(monthOf(to) + '-01', -3), to);
+          if (chk.ok) return;
+          await alertSlack(env, `\u26a0\ufe0f *The nightly check found ${chk.problems.length} thing${chk.problems.length > 1 ? 's' : ''} wrong with the books:*\n` +
+            chk.problems.map(p => `\u2022 *${p.what}*${p.detail ? ` \u00b7 ${p.detail}` : ''}`).join('\n') +
+            `\n\nNothing was changed. Settings \u2192 Re-check the bank fixes most of these.`);
+        })().catch(e => console.log('self check failed: ' + e.message));
         await monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message));
         await receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message));
       })());
@@ -2483,6 +2559,13 @@ export default {
         return json({ ok: true, hashed: done, unreadable: missing, remaining: rows.length === 400 });
       }
 
+      /* Everything this app promises, checked in one call. Read-only. */
+      if (path === '/api/selfcheck') {
+        const to = addDaysYmd(centralDate(Date.now() / 1000), 1);
+        const from = url.searchParams.get('from') || addMonthsYmd(monthOf(to) + '-01', -3);
+        return json(await selfCheck(env, from, to));
+      }
+
       /* Read-only: does the bank agree with the books? Writes NOTHING, so it
        * is safe on the hand-entered months a backfill must never touch. */
       if (path === '/api/plaid-compare' && request.method === 'POST') {
@@ -2491,7 +2574,9 @@ export default {
         if (validMonth(b.month)) { from = b.month + '-01'; to = monthOf(addMonthsYmd(b.month + '-01', 1)) + '-01'; }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
           return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
-        return json(await comparePlaid(env, from, to, !!b.full));
+        const cmp = await comparePlaid(env, from, to, !!b.full);
+        delete cmp._bank;                       // internal, and 500 lines long
+        return json(cmp);
       }
 
       /* Re-read a date range straight from the bank, independent of the sync
