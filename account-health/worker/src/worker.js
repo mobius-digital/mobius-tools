@@ -1344,9 +1344,18 @@ function dayIssues(piv, metaBy, date, sp) {
     if (base == null || base < DROPOUT_FLOOR) continue;
     const v = piv[metric]?.[date] ?? null;
     if (v == null || v < base * DROPOUT_RATIO) {
-      issues.push({ code: 'platform_dropout', severity: 'broken', label: `${label} spend has stopped arriving`,
+      /* A WARNING, NOT A BLOCK. Cole, 2026-09-10: "assume no TikTok spend if
+         it says none." Meta is skipped above because it HAS a second witness,
+         so a wrong Meta figure is provably wrong and still stops a send. Every
+         platform in this loop has no witness at all: a zero here is indis-
+         tinguishable from a paused campaign, and the check is inference off a
+         14-day median, not evidence. Blocking a client brief on inference cost
+         a real morning (Grunk, September 9: $62 of TikTok against $341 of
+         spend held the whole brief). Believe the zero, say so on the card and
+         on Data Health, and let the send go. */
+      issues.push({ code: 'platform_dropout', severity: 'warn', label: `${label} spend has stopped arriving`,
         what: `${label} spend reads ${v == null ? 'nothing' : fmtUsd(v)} against a 14-day typical of ${fmtUsd(base)}`,
-        fix: `Check the ${label} connection in Triple Whale → Settings → Integrations. If ${label} was genuinely paused, this clears itself in two weeks.` });
+        fix: `Treated as a real zero, so this does not hold the brief. If ${label} should have been running, check its connection in Triple Whale → Settings → Integrations. Either way this clears itself in two weeks.` });
     }
   }
   if (sales == null) {
