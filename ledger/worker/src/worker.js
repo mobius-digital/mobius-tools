@@ -1431,6 +1431,91 @@ async function announceDropped(env, dropped) {
   return fresh.length;
 }
 
+/* PROVE a range against the bank without touching it. backfillPlaid inserts
+ * what is missing, which is right for the months the feed owns (August on) and
+ * catastrophic for the months it does not: January to July were typed from
+ * statements before the bank was connected, so those ledger rows carry no
+ * plaid_id and nothing would dedupe against them · a backfill there would file
+ * a second copy of the whole year. plaidStart already refuses them, but the
+ * question "does the bank agree with what I typed?" still deserves an answer.
+ *
+ * So this reads and reports, and writes nothing at all. Matching is per MONTH
+ * and per amount, never per day, because the hand-entered rows were dated the
+ * 1st regardless of when the charge actually posted. Each bank charge consumes
+ * one ledger row, so two identical charges need two rows to match. */
+async function comparePlaid(env, fromYmd, toYmd) {
+  if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
+  const items = await getPlaidItems(env);
+  if (!items.length) return { skipped: 'no connected accounts' };
+
+  const bank = [];
+  for (const item of items) {
+    let offset = 0, total = 1;
+    while (offset < total) {
+      const page = await plaid(env, '/transactions/get', {
+        access_token: item.access_token, start_date: fromYmd, end_date: toYmd,
+        options: { count: 500, offset },
+      });
+      total = page.total_transactions || 0;
+      const got = page.transactions || [];
+      for (const t of got) {
+        if (t.pending) continue;
+        bank.push({ id: t.transaction_id, date: t.date, month: monthOf(t.date),
+                    vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
+                    amount: round2(t.amount),
+                    account: item.accounts?.[t.account_id]?.name || item.name || '' });
+      }
+      offset += got.length;
+      if (!got.length) break;
+    }
+  }
+
+  const rows = (await env.DB.prepare(
+    `SELECT id, date, month, type, vendor, amount, plaid_id
+       FROM transactions WHERE date >= ?1 AND date < ?2`).bind(fromYmd, toYmd).all()).results || [];
+
+  /* A ledger row can only answer for one bank charge. */
+  const used = new Set();
+  const claim = (mo, amt) => {
+    const hit = rows.find(r => !used.has(r.id) && r.month === mo &&
+      Math.abs(Math.abs(r.amount) - Math.abs(amt)) < 0.005);
+    if (hit) { used.add(hit.id); return hit; }
+    return null;
+  };
+
+  const byId = new Map(rows.filter(r => r.plaid_id).map(r => [r.plaid_id, r]));
+  const missing = [], byMonth = {};
+  for (const b of bank) {
+    const m = byMonth[b.month] || (byMonth[b.month] = { bank: 0, matched: 0, missing: 0 });
+    m.bank++;
+    const exact = byId.get(b.id);
+    if (exact && !used.has(exact.id)) { used.add(exact.id); m.matched++; continue; }
+    if (claim(b.month, b.amount)) { m.matched++; continue; }
+    m.missing++;
+    missing.push(b);
+  }
+
+  /* The other direction: rows he typed that the bank never reported. Some are
+   * legitimate (cash, a card that is not linked, a Stripe payout booked by
+   * hand) · this names them rather than judging them. */
+  const unmatchedRows = rows.filter(r => !used.has(r.id))
+    .map(r => ({ id: r.id, date: r.date, vendor: r.vendor, amount: r.amount, type: r.type }));
+
+  /* Months the bank returned nothing for are NOT months that agree · they are
+   * months the bank has no data for, which is a different answer entirely. */
+  const noData = [];
+  for (let ym = monthOf(fromYmd); ym < monthOf(toYmd); ym = monthOf(addMonthsYmd(ym + '-01', 1)))
+    if (!byMonth[ym]) noData.push(ym);
+
+  return {
+    ok: true, readOnly: true, from: fromYmd, to: toYmd,
+    bankCount: bank.length, ledgerCount: rows.length,
+    onBankNotInBooks: missing.length, inBooksNotOnBank: unmatchedRows.length,
+    noBankData: noData, byMonth,
+    missing: missing.slice(0, 100), extra: unmatchedRows.slice(0, 100),
+  };
+}
+
 async function backfillPlaid(env, fromYmd, toYmd) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
@@ -2031,6 +2116,17 @@ export default {
           await putSetting(env, 'plaidStart', (open?.m || new Date().toISOString().slice(0, 7)) + '-01');
         }
         return json({ ok: true, name: acc.item?.institution_name, accounts: acc.accounts.length });
+      }
+
+      /* Read-only: does the bank agree with the books? Writes NOTHING, so it
+       * is safe on the hand-entered months a backfill must never touch. */
+      if (path === '/api/plaid-compare' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        let from = b.from, to = b.to;
+        if (validMonth(b.month)) { from = b.month + '-01'; to = monthOf(addMonthsYmd(b.month + '-01', 1)) + '-01'; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
+          return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
+        return json(await comparePlaid(env, from, to));
       }
 
       /* Re-read a date range straight from the bank, independent of the sync
