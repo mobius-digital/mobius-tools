@@ -725,9 +725,14 @@ async function processSlackReceipts(env) {
          * Now that the bank feed carries every real charge, "nothing matched"
          * is a strong signal, so it asks instead of guessing. */
         if (!target && isEmail && ext?.vendor && ext?.amount) {
+          const fp = await sha256bytes(buf);
           const pendKey = `pend:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
           await receiptPut(env, pendKey, buf, 30 * 24 * 3600);
           await putSetting(env, pendKey, JSON.stringify({
+            /* The file's own fingerprint, so a hold can recognise itself. Two
+             * holds of one file is not a money error, but it is two follow-up
+             * questions and two week-later nags about a single receipt. */
+            fp,
             vendor: String(ext.vendor).slice(0, 120), amount: round2(Number(ext.amount)),
             date: rDate, month: rMonth, name: fname.slice(0, 120), type: mimetype,
             note: ext.note ? String(ext.note).slice(0, 300) : null,
@@ -757,7 +762,6 @@ async function processSlackReceipts(env) {
            * call September's Canva receipt a duplicate of August's. Ten days
            * covers a receipt arriving before or after its charge posts;
            * anything a month away is next month's bill, not this one twice. */
-          const fp = await sha256bytes(buf);
           const sameFile = await q(
             `SELECT * FROM transactions WHERE receipt_hash = ?1 LIMIT 3`, [fp]);
           /* ONLY THE FILE ITSELF PROVES A DUPLICATE. "Same amount, within ten
@@ -789,6 +793,18 @@ async function processSlackReceipts(env) {
             `SELECT * FROM transactions WHERE type='out' AND expected=0
              AND month >= ?1 AND month <= ?2 AND LOWER(vendor) LIKE ?3
              ORDER BY date DESC LIMIT 3`, [...win, `%${same}%`]) : [];
+
+          /* Already waiting for the same charge · say so once and stop. */
+          const heldSame = (await env.DB.prepare(
+            `SELECT key, value FROM settings WHERE key LIKE 'pend:%'`).all()).results
+            .filter(r => r.key !== pendKey && safeJson(r.value, {})?.fp === fp);
+          if (heldSame.length) {
+            await receiptDelete(env, pendKey).catch(() => {});
+            await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(pendKey).run();
+            await react('hourglass_flowing_sand');
+            await reply(`\u23f3 *${ext.vendor}* $${amt.toFixed(2)} \u2014 already holding this exact receipt, waiting for the charge to reach Novo or Amex. Nothing to do.`);
+            handled++; continue;
+          }
 
           /* A duplicate is CLOSED, not open: the charge is covered, so there is
            * no decision, no mention, and above all no "file as new" button —
@@ -1428,6 +1444,20 @@ async function processPlaidTxn(env, item, t, opts = {}) {
 async function retryHeldReceipts(env) {
   const { results: held } = await env.DB.prepare(
     `SELECT key, value FROM settings WHERE key LIKE 'pend:%'`).all();
+  if (!held.length) return { held: 0 };
+  /* Some of these are waiting for something that already happened: the same
+   * file is attached to a charge, usually because it was forwarded twice and
+   * the first copy landed. Waiting forever means nagging forever, so a hold
+   * whose fingerprint is already on a transaction is simply let go. */
+  for (const row of held.slice()) {
+    const fp = safeJson(row.value, {})?.fp;
+    if (!fp) continue;
+    const on = await env.DB.prepare('SELECT id FROM transactions WHERE receipt_hash = ?1').bind(fp).first();
+    if (!on) continue;
+    await receiptDelete(env, row.key).catch(() => {});
+    await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
+    held.splice(held.indexOf(row), 1);
+  }
   if (!held.length) return { held: 0 };
   const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
   let attached = 0, asked = 0;
