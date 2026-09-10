@@ -1443,7 +1443,7 @@ async function announceDropped(env, dropped) {
  * and per amount, never per day, because the hand-entered rows were dated the
  * 1st regardless of when the charge actually posted. Each bank charge consumes
  * one ledger row, so two identical charges need two rows to match. */
-async function comparePlaid(env, fromYmd, toYmd) {
+async function comparePlaid(env, fromYmd, toYmd, full) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
   if (!items.length) return { skipped: 'no connected accounts' };
@@ -1513,6 +1513,9 @@ async function comparePlaid(env, fromYmd, toYmd) {
     onBankNotInBooks: missing.length, inBooksNotOnBank: unmatchedRows.length,
     noBankData: noData, byMonth,
     missing: missing.slice(0, 100), extra: unmatchedRows.slice(0, 100),
+    /* The statement itself, when the question is "what does the bank actually
+     * say" rather than "where do we disagree". */
+    ...(full ? { bank } : {}),
   };
 }
 
@@ -2126,7 +2129,7 @@ export default {
         if (validMonth(b.month)) { from = b.month + '-01'; to = monthOf(addMonthsYmd(b.month + '-01', 1)) + '-01'; }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
           return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
-        return json(await comparePlaid(env, from, to));
+        return json(await comparePlaid(env, from, to, !!b.full));
       }
 
       /* Re-read a date range straight from the bank, independent of the sync
