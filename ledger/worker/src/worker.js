@@ -1614,10 +1614,16 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
    * before that date is only partly known, and treating a partial month as the
    * truth would delete the half the bank cannot see. Whole months only. */
   const earliest = statement.reduce((a, x) => (!a || x.t.date < a) ? x.t.date : a, null);
+  const latest   = statement.reduce((a, x) => (!a || x.t.date > a) ? x.t.date : a, null);
   const replaced = [];
   if (opts.replace) {
     for (let ym = monthOf(fromYmd); ym < monthOf(toYmd); ym = monthOf(addMonthsYmd(ym + '-01', 1))) {
-      if (ym + '-01' < earliest) continue;                       // partly known · leave it alone
+      if (ym + '-01' < earliest) continue;                       // starts before the bank remembers
+      /* AND it has to be OVER. In a month still running, the bank's silence
+       * about a charge means nothing · the charge may simply not have happened
+       * yet. Replacing the current month deleted a $295 card fee and a $500
+       * invoice that were perfectly real and merely still to come. */
+      if (addDaysYmd(addMonthsYmd(ym + '-01', 1), -1) > latest) continue;
       if (!statement.some(x => monthOf(x.t.date) === ym)) continue; // the bank had nothing to say
 
       /* Only hand-typed EXPENSES go. Revenue and merchant fees are booked
