@@ -1529,6 +1529,43 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
   if (!statement.length) return { ok: true, from: fromYmd, to: toYmd, bankCount: 0, note: 'the bank returned nothing for this range' };
 
   const ids = new Set(statement.map(x => x.t.transaction_id));
+  const first = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(' ')[0];
+
+  /* THE SAME CHARGE UNDER TWO NAMES. Migration turns a retired Item's id into
+   * the new one, but it cannot if the new id is already on a row of its own ·
+   * the unique index refuses, and the pair is left standing as two copies of
+   * one charge. That is money counted twice, which this app exists not to do,
+   * and it happened to ten charges the first time a bank was re-linked.
+   *
+   * A pair qualifies only when one side holds an id the bank no longer lists
+   * and the other holds one it does. Two genuine same-day charges both carry
+   * current ids, so they are never touched. The survivor is whichever row
+   * carries the receipt, and it takes the id the bank uses now. */
+  const collapsed = [];
+  {
+    const { results: mine } = await env.DB.prepare(
+      `SELECT id, date, vendor, amount, plaid_id, receipt_key FROM transactions
+        WHERE date >= ?1 AND date < ?2 AND plaid_id IS NOT NULL ORDER BY id`).bind(fromYmd, toYmd).all();
+    const groups = new Map();
+    for (const r of mine) {
+      const k = `${r.date}|${Math.abs(round2(r.amount)).toFixed(2)}|${first(r.vendor)}`;
+      (groups.get(k) || groups.set(k, []).get(k)).push(r);
+    }
+    for (const g of groups.values()) {
+      if (g.length < 2) continue;
+      const stale = g.filter(r => !ids.has(r.plaid_id));
+      const live = g.filter(r => ids.has(r.plaid_id));
+      if (!stale.length || !live.length) continue;      // not a re-link pair
+      const keep = g.find(r => r.receipt_key) || stale[0] || g[0];
+      const liveId = live[0].plaid_id;
+      for (const r of g) if (r.id !== keep.id) {
+        await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(r.id).run();
+        collapsed.push({ id: r.id, date: r.date, vendor: r.vendor, amount: r.amount, keptAs: keep.id });
+      }
+      if (keep.plaid_id !== liveId)
+        await env.DB.prepare('UPDATE transactions SET plaid_id = ?2 WHERE id = ?1').bind(keep.id, liveId).run();
+    }
+  }
 
   /* Rows the bank once told us about under a name it no longer uses. */
   const { results: orphans } = await env.DB.prepare(
@@ -1536,7 +1573,6 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
       WHERE date >= ?1 AND date < ?2 AND plaid_id IS NOT NULL`).bind(fromYmd, toYmd).all();
   const pool = orphans.filter(r => !ids.has(r.plaid_id));
 
-  const first = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(' ')[0];
   const totals = {}, migrated = [], dropped = [];
   for (const { item, t } of statement) {
     try {
@@ -1598,6 +1634,7 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
   return {
     ok: true, from: fromYmd, to: toYmd, bankCount: statement.length,
     bankHistoryFrom: earliest,
+    collapsedDuplicates: collapsed.length, collapsedRows: collapsed.slice(0, 50),
     ...totals, migratedRows: migrated.slice(0, 50),
     replacedCount: replaced.length, replacedRows: replaced.slice(0, 200),
     notOnBank: leftovers.length, notOnBankRows: leftovers.slice(0, 200),
