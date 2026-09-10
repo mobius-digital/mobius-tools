@@ -2262,7 +2262,21 @@ export default {
           const open = await env.DB.prepare(`SELECT MIN(month) AS m FROM months WHERE status = 'open'`).first();
           await putSetting(env, 'plaidStart', (open?.m || new Date().toISOString().slice(0, 7)) + '-01');
         }
-        return json({ ok: true, name: inst, accounts: acc.accounts.length, replaced });
+        /* RE-LINKING IS ONLY SAFE IF THIS RUNS FIRST. The replacement Item
+         * issues new transaction ids for charges the ledger already holds, and
+         * the next sync would happily insert every one of them again — the
+         * unique index cannot tell two ids for one charge apart. So the moment
+         * the new Item exists, before anything else is allowed to touch it,
+         * every row it recognises is migrated onto its new id. It is a matter
+         * of minutes between linking and the nightly job, so this cannot wait
+         * to be asked for. */
+        let migration = null;
+        if (replaced.length) {
+          const from = (await getSetting(env, 'plaidStart')) || (new Date().toISOString().slice(0, 7) + '-01');
+          migration = await importPlaidRange(env, from, addDaysYmd(centralDate(Date.now() / 1000), 1), {})
+            .catch(e => ({ error: String(e.message || e) }));
+        }
+        return json({ ok: true, name: inst, accounts: acc.accounts.length, replaced, migration });
       }
 
       /* Make a whole range agree with the bank. Reaches past plaidStart and
