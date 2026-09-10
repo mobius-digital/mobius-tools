@@ -247,12 +247,30 @@ async function slackUploadFile(env, channel, bytes, filename, comment) {
 
 /* Applies the vendor rule to a row missing categories; unknown vendors land
  * in the Review inbox instead of being silently guessed. */
+/* Banks do not send the same name twice. The card calls Squarespace
+ * "SQSP* WORKSP#2186907NEW" this month and "SQSP* WORKSP#2444996NEW" next, and
+ * Amazon arrives in half a dozen spellings · an exact-name rule catches none
+ * of them, so the same merchant lands in Review every month and the rules table
+ * never actually learns anything. A rule whose name appears anywhere in the
+ * bank's description counts, longest rule first so a specific rule always beats
+ * a general one. */
+async function findRule(env, vendor) {
+  const exact = await env.DB.prepare('SELECT * FROM vendors WHERE name = ?1 COLLATE NOCASE')
+    .bind(vendor).first();
+  if (exact) return exact;
+  const { results: all } = await env.DB.prepare(
+    'SELECT * FROM vendors WHERE active = 1 AND LENGTH(name) >= 4').all();
+  const v = String(vendor || '').toUpperCase();
+  return all.filter(r => v.includes(String(r.name).toUpperCase()))
+            .sort((a, b) => b.name.length - a.name.length)[0] || null;
+}
+
 async function applyRule(env, row) {
   if (row.type === 'in') { row.bucket = 'Revenue'; row.tax_cat = 'Client revenue'; return row; }
   if (row.type === 'fee') { row.bucket = 'Merchant fee'; row.tax_cat = 'Bank & merchant fees'; return row; }
   if (row.type === 'transfer') { row.bucket = 'Transfer'; row.tax_cat = 'Transfer — not P&L'; return row; }
   if (row.bucket && row.tax_cat) return row;
-  const rule = await env.DB.prepare('SELECT * FROM vendors WHERE name = ?1 COLLATE NOCASE').bind(row.vendor).first();
+  const rule = await findRule(env, row.vendor);
   if (rule) { row.bucket = row.bucket || rule.bucket; row.tax_cat = row.tax_cat || rule.tax_cat; }
   else row.status = 'review';
   return row;
@@ -1237,8 +1255,14 @@ const SELF_TRANSFER_DETAIL = new Set([
   'TRANSFER_OUT_SAVINGS', 'TRANSFER_IN_SAVINGS',
   'TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS', 'TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS',
 ]);
+/* Services whose entire purpose is sending money to ANOTHER PERSON. Plaid
+ * files them under the same TRANSFER_OUT detail as moving cash between your own
+ * accounts, and the difference is the whole ball game: a self-move is invisible
+ * to the P&L, a payment to a contractor is a deduction. Never self. */
+const NEVER_SELF = /(worldremit|western union|remitly|moneygram|xoom|payoneer|wise\b|transferwise)/;
 function looksLikeTransfer(name, pfc, selfAccounts = []) {
   const n = (name || '').toLowerCase();
+  if (NEVER_SELF.test(n)) return false;
   if (/(amex|american express)/.test(n) && /(pay|epay|autopay|pmt)/.test(n)) return true;
   if (/autopay payment/.test(n)) return true;
   if (/stripe/.test(n)) return true;
@@ -1289,8 +1313,15 @@ async function processPlaidTxn(env, item, t, opts = {}) {
   const amt = round2(t.amount); // Plaid: positive = money OUT, negative = money IN
 
   const selfAccounts = safeJson(await getSetting(env, 'selfAccounts'), []) || [];
+  /* A rule is a human saying what this merchant IS, and it outranks any guess
+   * about what it looks like. Without this, Plaid tagging an ACH to a
+   * contractor as TRANSFER_OUT_ACCOUNT_TRANSFER silently deletes that payment
+   * from the P&L, and a rule saying "Radhesh Gowd is contract labour" cannot
+   * save it, because the transfer branch decides before any rule is read. It
+   * happened once at $19K and again at $46K. */
+  const known = await findRule(env, vendor);
   let type, amount, status = 'ok', note = null;
-  if (looksLikeTransfer(rawName, t.personal_finance_category, selfAccounts)) {
+  if (!known && looksLikeTransfer(rawName, t.personal_finance_category, selfAccounts)) {
     type = 'transfer'; amount = Math.abs(amt);
   } else if (amt > 0) {
     type = 'out'; amount = amt;
