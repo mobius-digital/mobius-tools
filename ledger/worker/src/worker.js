@@ -1403,6 +1403,59 @@ async function retryHeldReceipts(env) {
   return { held: held.length, attached, asked };
 }
 
+/* THE SAFETY NET. /transactions/sync is a cursor: it hands over what changed
+ * since last time and then moves on forever. Anything that failed mid-page,
+ * or was refused while a month was closed, is never offered again · the money
+ * is simply gone from the books with nothing to show it was ever there. A
+ * $60 haircut on the Business Gold went missing exactly that way.
+ *
+ * /transactions/get takes a date range instead, so it can always be asked
+ * again. This re-reads a window and inserts anything the ledger does not
+ * already hold (plaid_id is the unique key, so re-running is free), which
+ * makes every month auditable against the bank rather than merely hopeful. */
+async function backfillPlaid(env, fromYmd, toYmd) {
+  if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
+  const items = await getPlaidItems(env);
+  if (!items.length) return { skipped: 'no connected accounts' };
+  const totals = {}, recovered = [], dropped = [];
+  for (const item of items) {
+    let offset = 0, total = 1;
+    while (offset < total) {
+      const page = await plaid(env, '/transactions/get', {
+        access_token: item.access_token, start_date: fromYmd, end_date: toYmd,
+        options: { count: 500, offset },
+      });
+      total = page.total_transactions || 0;
+      for (const t of page.transactions || []) {
+        try {
+          const out = await processPlaidTxn(env, item, t);
+          if (out && out.skip === 'closed') { dropped.push(out); totals.closed = (totals.closed || 0) + 1; continue; }
+          totals[out] = (totals[out] || 0) + 1;
+          if (out === 'added' || out === 'added-review')
+            recovered.push({ date: t.date, vendor: String(t.merchant_name || t.name || '?').slice(0, 60), amount: round2(t.amount) });
+        } catch (e) {
+          totals.failed = (totals.failed || 0) + 1;
+          totals.lastError = `${t.name || t.transaction_id}: ${String(e.message || e).slice(0, 120)}`;
+        }
+      }
+      offset += (page.transactions || []).length;
+      if (!(page.transactions || []).length) break;
+    }
+  }
+  if (recovered.length) {
+    const lines = recovered.slice(0, 10).map(r => `\u2022 *${r.vendor}* $${Math.abs(r.amount).toFixed(2)} \u00b7 ${r.date}`).join('\n');
+    await alertSlack(env, `\u2757 *Recovered ${recovered.length} charge${recovered.length > 1 ? 's' : ''} the bank feed had missed* (${fromYmd} to ${toYmd}):\n${lines}` +
+      (recovered.length > 10 ? `\n_\u2026and ${recovered.length - 10} more._` : '') +
+      `\n\nThey are in the ledger now · anything uncategorised is waiting in Needs you.`).catch(() => {});
+  }
+  if (dropped.length) {
+    const lines = dropped.slice(0, 8).map(d => `\u2022 *${d.vendor}* $${Math.abs(d.amount).toFixed(2)} \u00b7 ${d.date}`).join('\n');
+    await alertSlack(env, `\u26a0\ufe0f *${dropped.length} missing charge${dropped.length > 1 ? 's belong' : ' belongs'} to a closed month*, so ${dropped.length > 1 ? 'they were' : 'it was'} not added:\n${lines}` +
+      `\n\nReopen ${moLabel(dropped[0].month)} in the app, press Re-check the bank, then close it again.`).catch(() => {});
+  }
+  return { ok: true, from: fromYmd, to: toYmd, recovered: recovered.length, closedSkipped: dropped.length, ...totals };
+}
+
 async function syncPlaid(env) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
@@ -1426,9 +1479,14 @@ async function syncPlaid(env) {
           if (out && out.skip === 'closed') { dropped.push(out); totals.closed = (totals.closed || 0) + 1; }
           else totals[out] = (totals[out] || 0) + 1;
         } catch (e) {
+          /* The cursor moves on regardless, so this transaction will never be
+           * offered again · say so loudly, and name the fix. */
           totals.failed = (totals.failed || 0) + 1;
           totals.lastError = `${t.name || t.transaction_id}: ${String(e.message || e).slice(0, 120)}`;
           console.log('plaid txn failed: ' + totals.lastError);
+          await alertSlack(env, `\u26a0\ufe0f *A bank transaction could not be filed and the feed has moved past it:*\n` +
+            `\u2022 *${String(t.merchant_name || t.name || '?').slice(0, 60)}* $${Math.abs(round2(t.amount)).toFixed(2)} \u00b7 ${t.date}\n` +
+            `${String(e.message || e).slice(0, 140)}\n\nSettings \u2192 Re-check the bank for that month will pull it back in.`).catch(() => {});
         }
       }
       for (const t of page.modified) {
@@ -1961,6 +2019,17 @@ export default {
           await putSetting(env, 'plaidStart', (open?.m || new Date().toISOString().slice(0, 7)) + '-01');
         }
         return json({ ok: true, name: acc.item?.institution_name, accounts: acc.accounts.length });
+      }
+
+      /* Re-read a date range straight from the bank, independent of the sync
+       * cursor · the one way to prove a month against the statement. */
+      if (path === '/api/plaid-backfill' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        let from = b.from, to = b.to;
+        if (validMonth(b.month)) { from = b.month + '-01'; to = monthOf(addMonthsYmd(b.month + '-01', 1)) + '-01'; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
+          return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
+        return json(await backfillPlaid(env, from, to));
       }
 
       if (path === '/api/plaid-sync' && request.method === 'POST') {

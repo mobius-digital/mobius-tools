@@ -2262,7 +2262,8 @@ function renderSettings(){
              <span style="flex:1"></span><button class="del-x" title="Disconnect ${esc(i.name)}" onclick="plaidRemove('${esc(i.item_id)}')">✕</button></div>`).join('')}
            <div class="row" style="margin-top:12px">
              <button class="btn primary" onclick="plaidConnect(this)">+ Connect a bank or card</button>
-             ${(S.boot.plaidItems||[]).length?`<button class="btn" onclick="plaidSyncNow(this)">↻ Sync now</button>`:''}
+             ${(S.boot.plaidItems||[]).length?`<button class="btn" onclick="plaidSyncNow(this)">↻ Sync now</button>
+             <button class="btn" onclick="plaidBackfill(this)" title="Re-reads the month straight from the bank and adds anything the feed missed">🔎 Re-check ${moName(S.month)}</button>`:''}
              <span class="msg" id="plMsg"></span>
            </div>`}
     </div>
@@ -2613,6 +2614,27 @@ async function plaidConnect(btn){
     handler.open();
   } catch(e){ el.className='msg bad'; el.textContent = e.message; }
   btn.disabled = false;
+}
+/* The audit button. "Sync now" only asks for what changed since last time;
+   this re-reads the whole month from the bank, so a charge the feed dropped
+   can actually come back. */
+async function plaidBackfill(btn){
+  const el = $('#plMsg'); const label = btn.textContent;
+  if (!await ask({ title: `Re-check ${moName(S.month)} against the bank?`,
+    body: 'Reads every transaction that month straight from Novo and Amex and adds any the feed missed. Nothing is duplicated · anything already in the ledger is left alone.',
+    ok: 'Re-check it' })) return;
+  btn.disabled = true; btn.textContent = 'Reading the bank…';
+  el.className='msg'; el.textContent='This can take a moment.';
+  try {
+    const r = await api('/api/plaid-backfill', { method:'POST', body: JSON.stringify({ month: S.month }) });
+    el.className = r.recovered ? 'msg good' : 'msg';
+    el.textContent = r.recovered
+      ? `Recovered ${r.recovered} missing charge(s) · they are in ${moName(S.month)} now.`
+      : r.closedSkipped ? `${r.closedSkipped} missing charge(s) found, but ${moName(S.month)} is closed · reopen it and re-check.`
+      : `Nothing missing · the ledger matches the bank for ${moName(S.month)}.`;
+    S.txns = null; window.__moCache = {}; S.boot = await api('/api/boot');
+  } catch(e){ el.className='msg bad'; el.textContent = e.message; }
+  btn.disabled = false; btn.textContent = label;
 }
 async function plaidSyncNow(btn){
   const el = $('#plMsg'); btn.disabled = true;
