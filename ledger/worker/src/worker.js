@@ -1261,7 +1261,7 @@ function looksLikeTransfer(name, pfc, selfAccounts = []) {
  *      instead of duplicating;
  *   3. otherwise it inserts through the vendor rules (unknown → Review).
  */
-async function processPlaidTxn(env, item, t) {
+async function processPlaidTxn(env, item, t, opts = {}) {
   if (t.pending) return 'pending';
   /* Idempotency first. Plaid re-delivers a transaction whenever the cursor did
    * not advance — which is exactly what happens after any mid-page failure. On
@@ -1273,9 +1273,12 @@ async function processPlaidTxn(env, item, t) {
     .bind(t.transaction_id).first();
   if (seen) return 'duplicate';
   const date = t.date, month = monthOf(date);
-  const start = await getSetting(env, 'plaidStart');
+  /* plaidStart exists so a routine sync never reaches back into the months
+   * that were typed from statements. A deliberate whole-year import is the one
+   * caller allowed past it, because reaching back is the entire point. */
+  const start = opts.ignoreStart ? null : await getSetting(env, 'plaidStart');
   if (start && date < start) return 'before-start';
-  if ((await monthStatus(env, month)) === 'closed')
+  if (!opts.allowClosed && (await monthStatus(env, month)) === 'closed')
     return { skip: 'closed', id: t.transaction_id, month, date,
              vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
              amount: round2(t.amount) };
@@ -1453,6 +1456,91 @@ async function announceDropped(env, dropped) {
  * and per amount, never per day, because the hand-entered rows were dated the
  * 1st regardless of when the charge actually posted. Each bank charge consumes
  * one ledger row, so two identical charges need two rows to match. */
+/* Read a whole range from the bank ONCE and make the books agree with it.
+ *
+ * The nightly sync is deliberately narrow: it never looks before plaidStart and
+ * never writes into a closed month. Both rules are right for a nightly job and
+ * both are wrong for the job of making a tax year true, which is what this is.
+ *
+ * The trap it exists to avoid: Plaid fixes an Item's history window at LINK
+ * time, so widening it means linking again, and a new Item issues brand new
+ * transaction ids for charges the ledger already holds. Left alone, every
+ * August and September row would arrive a second time under a new id and the
+ * year would double. So before anything is inserted, any row whose plaid_id
+ * does NOT appear in the statement now in hand is treated as a row from the
+ * retired Item and MIGRATED onto its new id · same charge, same row, new name.
+ */
+async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
+  if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
+  const items = await getPlaidItems(env);
+  if (!items.length) return { skipped: 'no connected accounts' };
+
+  const statement = [];
+  for (const item of items) {
+    let offset = 0, total = 1;
+    while (offset < total) {
+      const page = await plaid(env, '/transactions/get', {
+        access_token: item.access_token, start_date: fromYmd, end_date: plaidEnd(toYmd),
+        options: { count: 500, offset },
+      });
+      total = page.total_transactions || 0;
+      const got = page.transactions || [];
+      for (const t of got) if (!t.pending) statement.push({ item, t });
+      offset += got.length;
+      if (!got.length) break;
+    }
+  }
+  if (!statement.length) return { ok: true, from: fromYmd, to: toYmd, bankCount: 0, note: 'the bank returned nothing for this range' };
+
+  const ids = new Set(statement.map(x => x.t.transaction_id));
+
+  /* Rows the bank once told us about under a name it no longer uses. */
+  const { results: orphans } = await env.DB.prepare(
+    `SELECT id, date, vendor, amount, plaid_id FROM transactions
+      WHERE date >= ?1 AND date < ?2 AND plaid_id IS NOT NULL`).bind(fromYmd, toYmd).all();
+  const pool = orphans.filter(r => !ids.has(r.plaid_id));
+
+  const first = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(' ')[0];
+  const totals = {}, migrated = [], dropped = [];
+  for (const { item, t } of statement) {
+    try {
+      const amt = Math.abs(round2(t.amount));
+      const name = first(t.merchant_name || t.name);
+      const i = pool.findIndex(r => r.date === t.date && Math.abs(Math.abs(r.amount) - amt) < 0.005
+                                    && first(r.vendor) === name);
+      if (i >= 0) {
+        const row = pool.splice(i, 1)[0];
+        await env.DB.prepare('UPDATE transactions SET plaid_id = ?2 WHERE id = ?1')
+          .bind(row.id, t.transaction_id).run();
+        totals.migrated = (totals.migrated || 0) + 1;
+        migrated.push({ id: row.id, date: row.date, vendor: row.vendor, amount: row.amount });
+        continue;
+      }
+      const out = await processPlaidTxn(env, item, t, opts);
+      if (out && out.skip === 'closed') { dropped.push(out); totals.closed = (totals.closed || 0) + 1; continue; }
+      totals[out] = (totals[out] || 0) + 1;
+    } catch (e) {
+      totals.failed = (totals.failed || 0) + 1;
+      totals.lastError = `${t.name || t.transaction_id}: ${String(e.message || e).slice(0, 140)}`;
+    }
+  }
+  await announceDropped(env, dropped);
+
+  /* What the books claim and the bank never mentioned. Deleting these would be
+   * overreach · cash, an unlinked card and a hand-booked payout all look the
+   * same from here · so they are named and left alone. */
+  const { results: leftovers } = await env.DB.prepare(
+    `SELECT id, date, type, vendor, amount, COALESCE(bucket,'') AS bucket
+       FROM transactions WHERE date >= ?1 AND date < ?2 AND plaid_id IS NULL AND expected = 0
+       ORDER BY date, vendor`).bind(fromYmd, toYmd).all();
+
+  return {
+    ok: true, from: fromYmd, to: toYmd, bankCount: statement.length,
+    ...totals, migratedRows: migrated.slice(0, 50),
+    notOnBank: leftovers.length, notOnBankRows: leftovers.slice(0, 200),
+  };
+}
+
 async function comparePlaid(env, fromYmd, toYmd, full) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
@@ -2103,9 +2191,15 @@ export default {
       /* ---- Plaid ---- */
       if (path === '/api/plaid-link-token' && request.method === 'POST') {
         if (!plaidReady(env)) return json({ error: 'Plaid keys are not set on the worker yet' }, 400);
+        /* Plaid gives an Item 90 days of history unless asked otherwise, AT LINK
+         * TIME and never afterwards · which is why the books could not be
+         * checked before June 9th however many times the bank was re-read. The
+         * window is a property of the Item, so the only way to widen it is to
+         * link again. 730 is Plaid's maximum and covers any tax year. */
         const r = await plaid(env, '/link/token/create', {
           user: { client_user_id: 'cole' }, client_name: 'Mobius Ledger',
           products: ['transactions'], country_codes: ['US'], language: 'en',
+          transactions: { days_requested: 730 },
         });
         return json({ link_token: r.link_token });
       }
@@ -2116,19 +2210,52 @@ export default {
         const ex = await plaid(env, '/item/public_token/exchange', { public_token: b.public_token });
         const acc = await plaid(env, '/accounts/get', { access_token: ex.access_token });
         const items = await getPlaidItems(env);
-        items.push({
+        /* Linking the same bank again REPLACES it rather than joining it.
+         * Two live Items for one bank means every charge arrives twice under
+         * two different transaction ids, and the unique index cannot see that
+         * they are the same charge · the books would simply double. Re-linking
+         * is the only way to widen the history window, so it has to be safe. */
+        const inst = acc.item?.institution_name || b.institution || 'Bank';
+        const replaced = items.filter(i => i.name === inst).map(i => i.item_id);
+        const kept = items.filter(i => i.name !== inst);
+        kept.push({
           item_id: ex.item_id, access_token: ex.access_token, cursor: null,
-          name: acc.item?.institution_name || b.institution || 'Bank',
+          name: inst,
           accounts: Object.fromEntries(acc.accounts.map(a => [a.account_id, { name: a.name, type: a.type }])),
         });
-        await putSetting(env, 'plaidItems', JSON.stringify(items));
+        await putSetting(env, 'plaidItems', JSON.stringify(kept));
         if (!(await getSetting(env, 'plaidStart'))) {
           // never import history older than the earliest OPEN month — the sheet
           // backfill and closed report cards already own everything before it
           const open = await env.DB.prepare(`SELECT MIN(month) AS m FROM months WHERE status = 'open'`).first();
           await putSetting(env, 'plaidStart', (open?.m || new Date().toISOString().slice(0, 7)) + '-01');
         }
-        return json({ ok: true, name: acc.item?.institution_name, accounts: acc.accounts.length });
+        return json({ ok: true, name: inst, accounts: acc.accounts.length, replaced });
+      }
+
+      /* Make a whole range agree with the bank. Reaches past plaidStart and
+       * into closed months ON PURPOSE, so it says so out loud: reopen must be
+       * asked for, and the months it touches are LEFT OPEN for review rather
+       * than silently re-frozen around numbers nobody has looked at. */
+      if (path === '/api/plaid-import' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        let from = b.from, to = b.to;
+        if (validMonth(b.month)) { from = b.month + '-01'; to = monthOf(addMonthsYmd(b.month + '-01', 1)) + '-01'; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
+          return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
+        if (b.reopen !== true) return json({ error: 'this rewrites closed months \u00b7 pass reopen:true' }, 400);
+        /* Unfreezing a month is the destructive half of this, so nothing is
+         * unfrozen until the bank has actually answered the door. */
+        if (!plaidReady(env)) return json({ error: 'Plaid keys are not set on the worker' }, 400);
+        if (!(await getPlaidItems(env)).length) return json({ error: 'no connected accounts' }, 400);
+        const reopened = [];
+        for (let ym = monthOf(from); ym < monthOf(to); ym = monthOf(addMonthsYmd(ym + '-01', 1)))
+          if ((await monthStatus(env, ym)) === 'closed') {
+            await env.DB.prepare(`UPDATE months SET status = 'open' WHERE month = ?1`).bind(ym).run();
+            reopened.push(ym);
+          }
+        const res = await importPlaidRange(env, from, to, { ignoreStart: true, allowClosed: true });
+        return json({ ...res, reopened });
       }
 
       /* Read-only: does the bank agree with the books? Writes NOTHING, so it
