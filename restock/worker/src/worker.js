@@ -34,7 +34,7 @@ const STORES = [
 
 const API_VERSION = '2026-01';
 const HISTORY_DAYS = 800;          // rolling window of daily history kept in KV (2+ years, for seasonality once read_all_orders is granted)
-const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/restock/';
+const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/supply/';
 
 /* Velocity blend: three windows, recency-weighted. */
 const WINDOWS = [
@@ -628,7 +628,7 @@ function digestMessage(store, report, settings) {
   if (!reds.length && !yellows.length) blocks.push({ type: 'section',
     text: { type: 'mrkdwn', text: '✅ All clear — nothing needs reordering today.' } });
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn',
-    text: `"need" = demand to hit the coverage target, not an order instruction · ⚡ spiking (damped) · 🆕 new product   ·   <${DASHBOARD_URL}|Open Restock dashboard →>` }] });
+    text: `"need" = demand to hit the coverage target, not an order instruction · ⚡ spiking (damped) · 🆕 new product   ·   <${DASHBOARD_URL}|Open Supply →>` }] });
 
   return {
     attachments: [{ color, fallback: `${store.name} inventory: ${issues} reorder, ${c.watch} watch`, blocks }],
@@ -653,7 +653,7 @@ function redAlertMessage(store, items) {
     { type: 'section', text: { type: 'mrkdwn',
       text: lines.slice(0, 12).join('\n').slice(0, 2900) } },
     { type: 'context', elements: [{ type: 'mrkdwn',
-      text: `At current sell-through these run out inside their manufacturer lead time.   ·   <${DASHBOARD_URL}|Open dashboard →>` }] },
+      text: `At current sell-through these run out inside their manufacturer lead time.   ·   <${DASHBOARD_URL}|Open Supply →>` }] },
   ];
   return {
     attachments: [{ color: '#D0342C',

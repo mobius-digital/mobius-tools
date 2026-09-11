@@ -246,6 +246,7 @@ window.renderSettings = function (m) {
   title('Settings', 'How this brand buys. Categories and lines, factories, lifecycle, rules, Slack, data.',
     `<div class="seg">${[['lines', 'Categories and lines'], ['factories', 'Factories'], ['lifecycle', 'Lifecycle'], ['rules', 'Rules'], ['slack', 'Slack and data']].map(([k, l]) => `<button class="${S.setTab === k ? 'on' : ''}" onclick="S.setTab='${k}';render()">${l}</button>`).join('')}</div>`);
   m.innerHTML = { lines: settingsLines, factories: settingsFactories, lifecycle: settingsLifecycle, rules: settingsRules, slack: settingsSlack }[S.setTab](s);
+  if (S.setTab === 'slack') loadSlack();
 };
 function settingsLines(s) {
   const unsorted = s.shopTypes.filter(t => !s.db.typeMap.some(tm => tm.shop_type === t));
@@ -336,7 +337,9 @@ function settingsRules(s) {
 }
 function settingsSlack(s) {
   return `<div class="two even">
-    <div class="card"><h3>Slack</h3><div class="hint">The morning digest is built from this screen's decisions (to order, landings, revenue at risk) and posted at ${s.settings.digest_hour ?? 6}:00 Central by the hourly Shopify check. The channel and the hour are set in the Restock worker's settings until that screen moves here.</div><div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="api('/api/digest',{method:'POST'}).then(r=>toast(r.ok?'Digest posted to Slack':(r.error||'Slack said no'),{kind:r.ok?'':'err'})).catch(e=>toast(e.message,{kind:'err'}))">Send the digest now</button><button class="btn" onclick="previewDigest()">Preview</button><a class="btn quiet" href="../restock/" target="_blank" rel="noopener">Channel and hour</a></div></div>
+    <div class="card"><h3>Slack</h3><div class="hint">The morning digest is built from this screen's decisions (to order, landings, revenue at risk) and posted by the hourly Shopify check at the hour below. Reorder alerts fire the moment a product crosses its order date.</div>
+      <div class="fields" style="margin-top:12px" id="slackFields"><div class="field"><label>Channel</label><select id="slChan"><option>loading…</option></select></div><div class="field"><label>Digest hour (Central)</label><select id="slHour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}">${h === 0 ? '12 am' : h < 12 ? h + ' am' : h === 12 ? '12 pm' : (h - 12) + ' pm'}</option>`).join('')}</select></div><div class="field"><label>Send the digest</label><select id="slMode"><option value="always">Every day</option><option value="issues">Only when something needs a decision</option></select></div></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="saveSlack()">Save</button><button class="btn" onclick="api('/api/digest',{method:'POST'}).then(r=>toast(r.ok?'Digest posted to Slack':(r.error||'Slack said no'),{kind:r.ok?'':'err'})).catch(e=>toast(e.message,{kind:'err'}))">Send the digest now</button><button class="btn quiet" onclick="previewDigest()">Preview</button></div><div class="msg" id="slackMsg"></div></div>
     <div class="card"><h3>Data</h3><div class="hint">Shopify is read every hour by the Restock worker. ${plural(s.historyDays, 'day')} of sales history since ${fmtDate(s.historyStart, { year: true })}. Seasonality needs a year; the read_all_orders scope on the Shopify app unlocks a two-year backfill.</div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="runSnapshot()">Run a snapshot now</button><button class="btn" onclick="backfill()">Backfill 2 years of sales</button><button class="btn quiet" onclick="showChangelog()">Changelog</button></div><div class="msg" id="dataMsg"></div></div>
     <div class="card"><h3>Brand</h3><div class="hint">${esc(s.brandName)} · ${esc(s.db.brand?.shop_domain || '')} · ${esc(s.tz)}. More brands are switched on in the worker (one row each), same Restock-style Shopify app per store.</div></div>
@@ -348,6 +351,26 @@ async function backfill() {
   $('#dataMsg').textContent = 'Working…';
   try { let r; do { r = await api('/api/shopify/backfill', { method: 'POST', body: { days: 730 } }); $('#dataMsg').textContent = `${r.ordersProcessed} orders so far…`; } while (!r.done); $('#dataMsg').textContent = `Done. History starts ${fmtDate(r.historyStart, { year: true })}.`; await load({ quiet: true }); }
   catch (e) { $('#dataMsg').textContent = e.message; }
+}
+/* Slack channel, digest hour and mode live in the Restock worker's settings (it
+   owns the Slack token and the cron); Supply reads and writes them through it. */
+async function loadSlack() {
+  try {
+    const [cfg, ch] = await Promise.all([api('/api/shopify/settings'), api('/api/shopify/channels').catch(() => ({ channels: [] }))]);
+    const cur = cfg.stores?.[S.brand]?.channel || '';
+    const sel = $('#slChan'); if (!sel) return;
+    sel.innerHTML = `<option value="">No channel (digest off)</option>` + (ch.channels || []).map(c => `<option value="${c.id}" ${c.id === cur ? 'selected' : ''}>#${esc(c.name)}${c.is_member ? '' : ' (invite the bot first)'}</option>`).join('');
+    if (cur && !(ch.channels || []).some(c => c.id === cur)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
+    $('#slHour').value = String(cfg.digestHourLocal ?? 6); $('#slMode').value = cfg.digestMode || 'always';
+  } catch (e) { const m = $('#slackMsg'); if (m) { m.textContent = e.message; m.className = 'msg err'; } }
+}
+async function saveSlack() {
+  const m = $('#slackMsg'); m.textContent = 'Saving…'; m.className = 'msg';
+  try {
+    await api('/api/shopify/settings', { method: 'PUT', body: { digestHourLocal: +$('#slHour').value, digestMode: $('#slMode').value, stores: { [S.brand]: { channel: $('#slChan').value } } } });
+    await save('/api/settings', { digest_hour: +$('#slHour').value }, 'PUT', null);
+    m.textContent = 'Saved.'; m.className = 'msg ok';
+  } catch (e) { m.textContent = e.message; m.className = 'msg err'; }
 }
 async function previewDigest() {
   const r = await api('/api/digest');
