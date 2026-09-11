@@ -101,7 +101,7 @@ function render() {
   document.body.classList.remove('gated');
   if (!S.state) {
     title('Supply');
-    m.innerHTML = S.err ? `<div class="gate"><h1>Cannot reach Supply</h1><p>${esc(S.err)}</p><button class="btn primary" onclick="load()">Try again</button> ${S.err.includes('snapshot') ? `<button class="btn" onclick="runSnapshot()">Run a Shopify snapshot</button>` : ''}</div>` : `<div class="empty">Loading the brand…</div>`;
+    m.innerHTML = S.err ? `<div class="card sc bd" style="max-width:520px;margin:40px auto"><h3>Cannot reach Supply</h3><div class="hint" style="margin-bottom:12px">${esc(S.err === 'Failed to fetch' ? 'The worker did not answer. Check your connection, then try again.' : S.err)}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="load()">Try again</button>${S.err.includes('snapshot') ? `<button class="btn" onclick="runSnapshot()">Run a Shopify snapshot</button>` : ''}<button class="btn quiet" onclick="signOut()">Sign out</button></div></div>` : `<div class="empty">Loading the brand…</div>`;
     return;
   }
   const s = st();
