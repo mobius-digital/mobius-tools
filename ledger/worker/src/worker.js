@@ -540,6 +540,18 @@ async function receiptDelete(env, key) {
  * only ever done for a receipt somebody just sent, never on a schedule. */
 async function bankRefresh(env) {
   if (!plaidReady(env)) return { ok: false, why: 'no Plaid keys' };
+  /* THIS ONE COSTS MONEY: $0.12 per successful call, per connected bank. It is
+   * refused on this account today, so the throttle guards a bill that does not
+   * exist yet · which is the only time to put a throttle in. Ten receipts on a
+   * busy morning, two banks each, is $2.40 before lunch, and every one of those
+   * calls is asking a question the free feed answers within the hour anyway.
+   *
+   * At most one refresh an hour, so the worst case is fixed and small whatever
+   * lands in the channel. */
+  const GATE = 'lastRefreshAt';
+  const last = Number(await getSetting(env, GATE)) || 0;
+  if (Date.now() - last < 3600e3) return { ok: false, why: 'refreshed within the hour' };
+  await putSetting(env, GATE, String(Date.now()));
   const out = {};
   let asked = false;
   for (const item of await getPlaidItems(env)) {
