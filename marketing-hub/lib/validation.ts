@@ -11,6 +11,7 @@ import {
   type EventInput,
   type EventStatus,
   type EventType,
+  type StageOption,
 } from "./types.ts";
 
 /**
@@ -81,6 +82,7 @@ export function validateEventInput(
   raw: unknown,
   allowedTypes?: readonly string[],
   channelOptions: readonly ChannelOption[] = DEFAULT_CHANNELS,
+  stageOptions?: readonly StageOption[],
 ): EventInput {
   const input = (raw ?? {}) as Record<string, unknown>;
   const errors: FieldErrors = {};
@@ -96,6 +98,13 @@ export function validateEventInput(
 
   const status = input.status as EventStatus;
   if (!EVENT_STATUSES.includes(status)) errors.status = "Choose a status.";
+
+  // Optional: an event nobody has sorted yet has no stage. When the board
+  // supplies its list a stage outside it is refused rather than stored blind;
+  // without a list (tests, and boards that have not configured one) any
+  // non-empty key is kept as given.
+  const stage = normalizeStage(input.stage, stageOptions);
+  if (stage === false) errors.stage = "Choose a stage from the list.";
 
   const owner = typeof input.owner === "string" ? input.owner.trim() : "";
   if (!owner) errors.owner = "Name who is accountable for this event.";
@@ -171,6 +180,7 @@ export function validateEventInput(
     name,
     type,
     status,
+    stage: stage || null,
     brief: typeof input.brief === "string" ? input.brief.trim() : "",
     launch_date,
     promo_end_date: optionalDates.promo_end_date,
@@ -185,6 +195,17 @@ export function validateEventInput(
         : null,
     assets_link: assets_link || null,
   };
+}
+
+/** A stage key, null for none, or `false` when it is not on the board. */
+export function normalizeStage(
+  raw: unknown,
+  stageOptions?: readonly StageOption[],
+): string | null | false {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const key = raw.trim();
+  if (stageOptions && !stageOptions.some((option) => option.key === key)) return false;
+  return key;
 }
 
 /**

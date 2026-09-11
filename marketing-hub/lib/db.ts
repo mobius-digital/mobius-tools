@@ -31,6 +31,7 @@ export function rowToEvent(row: D1Row): LaunchEvent {
     name: String(row.name),
     type: row.type as LaunchEvent["type"],
     status: row.status as LaunchEvent["status"],
+    stage: (row.stage as string | null) ?? null,
     brief: String(row.brief ?? ""),
     launch_date: String(row.launch_date),
     promo_end_date: (row.promo_end_date as string | null) ?? null,

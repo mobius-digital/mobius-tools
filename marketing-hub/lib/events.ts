@@ -1,11 +1,19 @@
 import { getDb, rowToEvent } from "./db";
 import { currentBrandId } from "./brandContext";
-import { NotFoundError, validateEventInput } from "./validation";
+import { NotFoundError, ValidationError, validateEventInput } from "./validation";
 import { listEventTypes } from "./eventTypes";
+import { listStages, stageLabeler } from "./stages";
 import { channelKeys, channelLabeler, hydrateChannels, listChannels } from "./channelOptions";
 import { describeCreation, describeDeletion, diffEvents } from "./changelog";
 import { queueChanged, queueCreated } from "./slackNotify";
-import { EVENT_STATUSES, type ChangelogEntry, type EventStatus, type LaunchEvent } from "./types";
+import {
+  DATE_FIELDS,
+  EVENT_STATUSES,
+  type ChangelogEntry,
+  type EventStatus,
+  type LaunchEvent,
+} from "./types";
+import { addDays } from "./dates";
 
 export {
   NotFoundError,
@@ -24,7 +32,7 @@ export {
  * happen.
  */
 
-const EVENT_COLUMNS = `id, name, type, status, brief, launch_date, promo_end_date,
+const EVENT_COLUMNS = `id, name, type, status, stage, brief, launch_date, promo_end_date,
   inventory_date, asset_deadline, teaser_start, channels, owner, notes, assets_link,
   created_at, updated_at, updated_by`;
 
@@ -88,8 +96,12 @@ async function allowedTypeKeys(): Promise<string[]> {
  * channel list from after it.
  */
 async function validateAgainstBoard(raw: unknown) {
-  const [types, channels] = await Promise.all([allowedTypeKeys(), listChannels()]);
-  return validateEventInput(raw, types, channels);
+  const [types, channels, stages] = await Promise.all([
+    allowedTypeKeys(),
+    listChannels(),
+    listStages(),
+  ]);
+  return validateEventInput(raw, types, channels, stages);
 }
 
 /**
@@ -144,10 +156,10 @@ export async function createEvent(raw: unknown, editor: string): Promise<LaunchE
 
   await getDb()
     .prepare(
-      `INSERT INTO events (id, brand_id, name, type, status, brief, launch_date, promo_end_date,
+      `INSERT INTO events (id, brand_id, name, type, status, stage, brief, launch_date, promo_end_date,
         inventory_date, asset_deadline, teaser_start, channels, owner, notes, assets_link,
         created_at, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -155,6 +167,7 @@ export async function createEvent(raw: unknown, editor: string): Promise<LaunchE
       input.name,
       input.type,
       input.status,
+      input.stage,
       input.brief,
       input.launch_date,
       input.promo_end_date,
@@ -189,7 +202,7 @@ export async function updateEvent(
 
   await getDb()
     .prepare(
-      `UPDATE events SET name = ?, type = ?, status = ?, brief = ?, launch_date = ?,
+      `UPDATE events SET name = ?, type = ?, status = ?, stage = ?, brief = ?, launch_date = ?,
         promo_end_date = ?, inventory_date = ?, asset_deadline = ?, teaser_start = ?,
         channels = ?, owner = ?, notes = ?, assets_link = ?, updated_at = ?, updated_by = ?
        WHERE brand_id = ? AND id = ?`,
@@ -198,6 +211,7 @@ export async function updateEvent(
       input.name,
       input.type,
       input.status,
+      input.stage,
       input.brief,
       input.launch_date,
       input.promo_end_date,
@@ -218,7 +232,7 @@ export async function updateEvent(
   const updated = (await getEvent(id)) as LaunchEvent;
   // Diffed against the pre-edit row, named with the post-edit name so a rename
   // reads under the name people will look for.
-  const changes = diffEvents(existing, updated, await channelLabeler());
+  const changes = diffEvents(existing, updated, await channelLabeler(), await stageLabeler());
   await recordChanges(updated, changes, editor);
   // Slack is told with the same words the history uses, from the same diff.
   await queueChanged(existing, updated, changes, editor);
@@ -246,10 +260,73 @@ export async function setEventStatus(
     .run();
 
   const updated = (await getEvent(id)) as LaunchEvent;
-  const changes = diffEvents(existing, updated, await channelLabeler());
+  const changes = diffEvents(existing, updated, await channelLabeler(), await stageLabeler());
   await recordChanges(updated, changes, editor);
   await queueChanged(existing, updated, changes, editor);
   return updated;
+}
+
+/**
+ * Partial stage change, for the Board and the stage menu on a card.
+ *
+ * Validated against the board's list the same way the editor is, and written
+ * through the same history and Slack path as any other edit.
+ */
+export async function setEventStage(
+  id: string,
+  stage: unknown,
+  editor: string,
+): Promise<LaunchEvent> {
+  const existing = await getEvent(id);
+  if (!existing) throw new NotFoundError();
+
+  const stages = await listStages();
+  const next = typeof stage === "string" && stage.trim() !== "" ? stage.trim() : null;
+  if (next !== null && !stages.some((option) => option.key === next)) {
+    throw new ValidationError({ stage: "Choose a stage from the list." });
+  }
+
+  await getDb()
+    .prepare(`UPDATE events SET stage = ?, updated_at = ?, updated_by = ? WHERE brand_id = ? AND id = ?`)
+    .bind(next, new Date().toISOString(), editor, await currentBrandId(), id)
+    .run();
+
+  const updated = (await getEvent(id)) as LaunchEvent;
+  const changes = diffEvents(existing, updated, await channelLabeler(), await stageLabeler());
+  await recordChanges(updated, changes, editor);
+  await queueChanged(existing, updated, changes, editor);
+  return updated;
+}
+
+/**
+ * Moves a whole launch by a number of days.
+ *
+ * Dragging a chip on the calendar means "this launch moves", not "launch day
+ * moves and the run-up stays put": assets are still due a week before, the
+ * teaser still starts three days out. So every date on the event shifts by
+ * the same amount, through the ordinary update path so validation, history
+ * and Slack all see it as the edit it is.
+ */
+export async function shiftEvent(
+  id: string,
+  days: unknown,
+  editor: string,
+): Promise<LaunchEvent> {
+  const delta = Number(days);
+  if (!Number.isInteger(delta) || Math.abs(delta) > 366) {
+    throw new ValidationError({ launch_date: "That is not a move the calendar can make." });
+  }
+
+  const existing = await getEvent(id);
+  if (!existing) throw new NotFoundError();
+  if (delta === 0) return existing;
+
+  const raw: Record<string, unknown> = { ...existing };
+  for (const field of DATE_FIELDS) {
+    const value = existing[field];
+    raw[field] = value ? addDays(value, delta) : null;
+  }
+  return updateEvent(id, raw, editor);
 }
 
 /** Soft delete: cancelling keeps the row so its history stays attached (PRD §7). */

@@ -88,8 +88,18 @@ export function diffEvents(
   before: LaunchEvent,
   after: EventInput | LaunchEvent,
   channelLabel: ChannelLabeler = fallbackChannelLabel,
+  stageLabel: (key: string) => string = (key) => key,
 ): string[] {
   const lines: string[] = [];
+
+  // Stage is what the Board moves; it is read on Monday as often as a date.
+  const stageBefore = before.stage ?? null;
+  const stageAfter = after.stage ?? null;
+  if (stageBefore !== stageAfter) {
+    if (!stageBefore && stageAfter) lines.push(`Stage set: ${stageLabel(stageAfter)}`);
+    else if (stageBefore && !stageAfter) lines.push(`Stage cleared (was ${stageLabel(stageBefore)})`);
+    else lines.push(`Stage: ${stageLabel(stageBefore!)} → ${stageLabel(stageAfter!)}`);
+  }
 
   if (before.name !== after.name) {
     lines.push(`Renamed "${before.name}" → "${after.name}"`);

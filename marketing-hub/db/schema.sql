@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS events (
   type           TEXT NOT NULL,
   status         TEXT NOT NULL DEFAULT 'tentative' CHECK (status IN (
                    'confirmed','tentative','at_risk','completed','cancelled')),
+  stage          TEXT,                  -- key from the board's stage list; NULL = unsorted
   brief          TEXT NOT NULL DEFAULT '',
   launch_date    TEXT NOT NULL,
   promo_end_date TEXT,

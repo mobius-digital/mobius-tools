@@ -20,6 +20,7 @@ function makeEvent(overrides: Partial<LaunchEvent> = {}): LaunchEvent {
     name: `Event ${counter}`,
     type: "product_launch",
     status: "confirmed",
+    stage: null,
     brief: "",
     launch_date: "2026-07-30",
     promo_end_date: null,

@@ -100,6 +100,8 @@ export type LaunchEvent = {
   name: string;
   type: EventType;
   status: EventStatus;
+  /** Where the launch is in its prep. A key from the board's stage list, or null. */
+  stage: string | null;
   brief: string;
   launch_date: IsoDate;
   promo_end_date: IsoDate | null;
@@ -121,6 +123,8 @@ export type EventInput = {
   name: string;
   type: EventType;
   status: EventStatus;
+  /** Where the launch is in its prep. A key from the board's stage list, or null. */
+  stage: string | null;
   brief: string;
   launch_date: IsoDate;
   promo_end_date: IsoDate | null;
@@ -197,3 +201,41 @@ export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
  * as though the toggle governed each of them.
  */
 export const HIDDEN_UNTIL_ASKED_FOR: EventStatus[] = ["completed"];
+
+/* ----------------------------------------------------------------------- *
+ * Stages — where a launch is in its preparation
+ *
+ * Status answers "is the date real"; stage answers "what are we waiting on".
+ * Boards define their own list (a golf brand wants "Waiting on photo shoot"),
+ * so like event types the key is free and stable while the label may change.
+ * Each stage carries one of a fixed set of colors, which is what the
+ * calendar chips and the Board columns are painted with.
+ * ----------------------------------------------------------------------- */
+
+export const STAGE_COLORS = [
+  "gray",
+  "blue",
+  "teal",
+  "green",
+  "amber",
+  "orange",
+  "rose",
+  "violet",
+] as const;
+
+export type StageColor = (typeof STAGE_COLORS)[number];
+
+export type StageOption = { key: string; label: string; color: StageColor };
+
+export const DEFAULT_STAGES: StageOption[] = [
+  { key: "planned", label: "Planned", color: "gray" },
+  { key: "briefed", label: "Briefed", color: "blue" },
+  { key: "waiting_on_assets", label: "Waiting on assets", color: "amber" },
+  { key: "assets_in", label: "Assets in", color: "violet" },
+  { key: "built", label: "Built", color: "teal" },
+  { key: "scheduled", label: "Scheduled", color: "green" },
+];
+
+export function isStageColor(value: unknown): value is StageColor {
+  return typeof value === "string" && (STAGE_COLORS as readonly string[]).includes(value);
+}

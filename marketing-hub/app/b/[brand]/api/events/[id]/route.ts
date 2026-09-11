@@ -4,7 +4,9 @@ import {
   ValidationError,
   cancelEvent,
   deleteEvent,
+  setEventStage,
   setEventStatus,
+  shiftEvent,
   updateEvent,
   validateEditorName,
 } from "@/lib/events";
@@ -36,6 +38,8 @@ export async function PATCH(request: Request, { params }: Context) {
     editor?: unknown;
     intent?: unknown;
     status?: unknown;
+    stage?: unknown;
+    days?: unknown;
   };
 
   try {
@@ -47,13 +51,19 @@ export async function PATCH(request: Request, { params }: Context) {
   try {
     const editor = validateEditorName(body.editor);
 
-    // Three shapes: a full form save, a one-click status change, and cancel
-    // (which is just a status change with its own wording in the changelog).
+    // Five shapes: a full form save, a one-click status change, a stage
+    // change from the Board, a drag on the calendar (every date shifts by
+    // the same number of days), and cancel (a status change with its own
+    // wording in the changelog).
     let event;
     if (body.intent === "cancel") {
       event = await cancelEvent(id, editor);
     } else if (body.intent === "status") {
       event = await setEventStatus(id, body.status, editor);
+    } else if (body.intent === "stage") {
+      event = await setEventStage(id, body.stage, editor);
+    } else if (body.intent === "shift") {
+      event = await shiftEvent(id, body.days, editor);
     } else {
       event = await updateEvent(id, body.event, editor);
     }

@@ -46,6 +46,7 @@ function makeEvent(overrides: Partial<LaunchEvent> = {}): LaunchEvent {
     name: "Retail Partner Drop",
     type: "product_launch",
     status: "confirmed",
+    stage: null,
     brief: "",
     launch_date: "2026-09-10",
     promo_end_date: null,
