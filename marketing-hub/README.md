@@ -36,10 +36,21 @@ the product is called Lineup — and that name lives in `hub.config.ts` alone.
 ## Commands
 
 ```bash
-npm test          # unit tests
+npm test              # unit tests
 npm run typecheck
-npm run deploy    # build + publish the hub worker
+npm run dev:local     # next dev with the build folder outside OneDrive
+npm run deploy:preview  # the next version at lineup-preview.mobius-digital.workers.dev
+npm run deploy        # build + publish the live hub worker
 ```
+
+On this machine OneDrive locks `.open-next` during a build, so deploy from
+a plain copy of the folder (see the Lineup overhaul note in memory): robocopy
+the project to a temp folder without node_modules, `npm ci` there, then run
+the deploy script.
+
+The views are Calendar (month, week, agenda), Board (one column per stage)
+and Changelog; `/all` is the agency calendar across every brand. See
+PRODUCT.md and DESIGN.md.
 
 Migrated from the live single-brand board 2026-08-25
 (`launch-calendar` D1 → brand `lucky-golf` here). The old per-brand
