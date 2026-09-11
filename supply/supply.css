@@ -59,7 +59,10 @@ nav.tabs button[data-t]:focus-visible,.side-brand:focus-visible,.nav-toggle:focu
 .hd-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:4px}
 .nav-toggle{display:none;align-items:center;justify-content:center;width:38px;height:38px;flex:none;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink-2)}
 .nav-scrim{display:none;position:fixed;inset:0;background:rgba(8,16,22,.55);z-index:35}
-main{padding:14px 26px 30px;display:flex;flex-direction:column;gap:18px;max-width:1240px;width:100%}
+main{padding:16px 26px 34px;display:flex;flex-direction:column;gap:22px;max-width:1240px;width:100%}
+.card.group+.card.group{margin-top:10px}
+.card.group td,.card.group th{padding-left:8px;padding-right:8px}
+.card.group td.wrap{min-width:200px;max-width:300px}
 footer#foot{padding:0 26px 28px;font-size:12px;color:var(--muted);max-width:1240px}
 
 /* ---- buttons, controls ---- */
@@ -72,7 +75,7 @@ footer#foot{padding:0 26px 28px;font-size:12px;color:var(--muted);max-width:1240
 .btn.danger{color:var(--bad);border-color:#EBC8C2}
 .btn.sm{padding:5px 10px;font-size:12.5px}
 .btn[disabled]{opacity:.5;cursor:default}
-.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{padding:7px 12px;font-size:13px;font-weight:600;color:var(--ink-2);border-left:1px solid var(--line);white-space:nowrap}
 .seg button:first-child{border-left:none}
 .seg button.on{background:#0C161D;color:#fff}
@@ -85,12 +88,18 @@ footer#foot{padding:0 26px 28px;font-size:12px;color:var(--muted);max-width:1240
 .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .toolbar .grow{flex:1}
 input,select,textarea{font:inherit;color:var(--ink)}
+select{appearance:none;-webkit-appearance:none;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;padding:8px 32px 8px 12px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer;max-width:100%;text-overflow:ellipsis}
+select:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px rgba(98,189,234,.25)}
+select.btn{padding-right:32px}
+.field select{font-weight:500}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px rgba(98,189,234,.25)}
 .field{display:flex;flex-direction:column;gap:5px;font-size:13px}
 .field label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select,.field textarea{border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;background:var(--surface);font-size:14px;width:100%}
 .field textarea{min-height:64px;resize:vertical}
 .field .help{font-size:12px;color:var(--muted)}
-.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px 16px;align-items:start}
+.field label{min-height:15px}
 .qty{width:84px;border:1px solid var(--line-strong);border-radius:6px;padding:5px 8px;text-align:right;font-weight:700;background:var(--surface)}
 .qty.zero{color:#8195A2;font-weight:400;border-color:var(--line)}
 
@@ -117,7 +126,7 @@ input,select,textarea{font:inherit;color:var(--ink)}
 .card.sc.un{border-top-color:var(--line-strong)}
 .card h3{font-size:15px;font-weight:700;margin-bottom:3px}
 .card .hint{color:var(--muted);font-size:13px}
-.card-hd{display:flex;align-items:center;gap:14px;padding:12px 18px;background:#F7FAFC;border-bottom:1px solid var(--line)}
+.card-hd{display:flex;align-items:center;gap:14px;padding:14px 18px;background:#F7FAFC;border-bottom:1px solid var(--line)}
 .card-hd b{font-size:15px}
 .decision{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center}
 .decision .btn{flex:none}
@@ -132,6 +141,12 @@ input,select,textarea{font:inherit;color:var(--ink)}
 .tbl-wrap{overflow-x:auto}
 .stack{display:flex;flex-direction:column;gap:12px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.catrow{padding:12px 0;border-top:1px solid #EDF1F4;cursor:pointer}
+.catrow:first-child{border-top:none}
+.catrow:hover b{color:var(--brand-ink)}
+.catrow-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.catrow-num{text-align:right}
+.catrow-num b{font-size:18px;letter-spacing:-.02em}
 .stat{display:flex;flex-direction:column;gap:4px;padding:16px 20px}
 .stat+.stat{border-left:1px solid var(--line)}
 .stat .l{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -186,6 +201,12 @@ tr.near td{background:#EAF5FB}
 .chart{width:100%;display:block;font-family:var(--sans)}
 .tip{position:fixed;z-index:60;pointer-events:none;background:#0C161D;color:#fff;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:7px;box-shadow:0 10px 24px -10px rgba(12,22,29,.6);white-space:nowrap;transform:translate(-50%,calc(-100% - 10px))}
 .tip small{display:block;font-weight:400;color:#8FA6B5}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:18px;height:4px;border-radius:2px;background:#0C161D;display:inline-block}
+.legend i.dash{background:repeating-linear-gradient(90deg,#8A96A3 0 5px,transparent 5px 9px)}
+.legend i.hatch{height:12px;border-radius:3px;background:repeating-linear-gradient(45deg,rgba(198,58,47,.35) 0 2px,transparent 2px 6px);border:1px solid rgba(198,58,47,.35)}
+.legend i.dia{width:9px;height:9px;border-radius:2px;transform:rotate(45deg);background:#0C161D}
 
 /* ---- board columns (lineup) ---- */
 .col{background:#E9EFF3;border-radius:10px;padding:10px}
@@ -204,7 +225,8 @@ tr.near td{background:#EAF5FB}
 .sh-nav button{width:32px;height:32px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink);display:grid;place-items:center}
 .sh-nav button .ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .sh-foot{position:sticky;bottom:0;margin:0 -24px -28px;padding:14px 24px;border-top:1px solid var(--line);background:#F7FAFC;display:flex;align-items:center;gap:12px}
-.sheet .panel{border-top:1px solid var(--line);padding-top:14px}
+.sheet .panel{border-top:1px solid var(--line);padding-top:18px}
+.sh-in{gap:20px}
 .sheet .panel h4{font-size:14px;font-weight:700;margin-bottom:6px}
 .sheet .panel .sub{font-size:12.5px;color:var(--muted);margin-bottom:8px;max-width:none}
 
@@ -293,6 +315,7 @@ body.gated main{padding:0;max-width:none;gap:0}
   .tabbar .ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   .actionbar{bottom:86px;flex-wrap:wrap}
   .card-hd{flex-direction:column;align-items:flex-start;gap:6px}
+  .seg{flex-wrap:wrap}
   .card-hd .pill,.card-hd .btn{margin-left:0 !important}
   .rollup .ru{flex-basis:100%}
   .toolbar .search{min-width:0;width:100%}

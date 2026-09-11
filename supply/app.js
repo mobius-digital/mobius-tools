@@ -77,9 +77,10 @@ const plural = (n, w, ws) => `${n} ${n === 1 ? w : (ws || w + 's')}`;
 
 const STATUS = {
   out: ['Out', 'bad'], order: ['Order now', 'bad'], gap: ['Stock gap', 'warn'], soon: ['Coming up', 'warn'], covered: ['On the way', 'good'], ok: ['Fine', 'good'],
-  unsorted: ['Unsorted', 'unk'], nofactory: ['No factory', 'unk'], nosales: ['No sales', 'unk'], drop: ['Limited drop', 'brand'], drop_done: ['Drop sold out', 'brand'], sunset: ['Selling down', 'unk'], dormant: ['No stock, no sales', 'unk'], off: ['Discontinued', 'unk'],
+  unsorted: ['Needs a line', 'unk'], nofactory: ['Needs a factory', 'unk'], nosales: ['Not selling', 'unk'], drop: ['Limited drop', 'brand'], drop_done: ['Drop sold out', 'brand'], sunset: ['Selling down', 'unk'], dormant: ['Empty, not selling', 'unk'], off: ['Discontinued', 'unk'],
 };
 const LIFECYCLE = { core: 'Core', seasonal: 'Seasonal', drop: 'Limited drop', winding_down: 'Winding down', discontinued: 'Discontinued' };
+const LIFECYCLE_HELP = { core: 'Always on the shelf. Forecast for reorder; empty means an emergency.', seasonal: 'Sold in a season. Forecast against that window.', drop: 'A one-off that sells out on purpose. Never asks for a reorder.', winding_down: 'Not reordered again; sells the rest down.', discontinued: 'Hidden everywhere except history.' };
 const ORDER_STAGES = [['sent', 'Sent'], ['confirmed', 'Confirmed'], ['production', 'In production'], ['shipped', 'Shipped'], ['landed', 'Landed']];
 const pill = (kind, text) => `<span class="pill ${kind}"><i></i>${esc(text)}</span>`;
 const statusPill = p => { const [t, k] = STATUS[p.status] || [p.status, 'unk']; return pill(k, p.overdue ? 'Overdue' : t); };
@@ -184,11 +185,14 @@ function renderToday(m) {
       <div class="stack">
         <div class="grph"><span>Landing soon</span><span class="ln"></span></div>
         <div class="card">${onTheWay.length ? onTheWay.slice(0, 4).map(o => landingRow(o)).join('<div style="height:1px;background:#EDF1F4;margin:12px 0"></div>') : `<div class="hint">No orders on the way. When you send one to a factory, <a href="#" onclick="newOrder();return false">log it</a> and it counts as incoming stock in every forecast.</div>`}</div>
-        <div class="grph" style="margin-top:6px"><span>Category health</span><span class="ln"></span></div>
-        <div class="card flush"><div class="tbl-wrap"><table>
-          <tr><th>Category</th><th class="num">Sold 30d</th><th>Weeks of cover</th><th></th></tr>
-          ${cats.map(x => `<tr class="click" onclick="S.cat='${x.c.id}';setTab('performance')"><td style="padding-left:18px"><b>${esc(x.c.name)}</b><div class="tiny">${plural(x.ps.length, 'product')} · ${fmtInt(x.onHand)} units</div></td><td class="num">${fmtInt(x.sold30)}</td><td style="width:140px"><div class="bar"><i class="${x.worst ? 'warn' : ''}" style="width:${x.wk == null ? 0 : Math.min(100, x.wk / 52 * 100)}%"></i></div><div class="tiny">${x.wk == null ? 'no sales' : x.wk + ' wk'}</div></td><td class="tiny wrap">${esc(x.note)}</td></tr>`).join('')}
-        </table></div></div>
+        <div class="grph" style="margin-top:6px"><span>Stock by category</span><span class="ln"></span></div>
+        <div class="card" style="padding:6px 18px 4px">
+          ${cats.map(x => `<div class="catrow" onclick="S.cat='${x.c.id}';setTab('performance')">
+            <div class="catrow-top"><div><b>${esc(x.c.name)}</b><div class="tiny">${plural(x.ps.length, 'product')} · ${fmtInt(x.onHand)} units on hand</div></div><div class="catrow-num"><b>${fmtInt(x.sold30)}</b><div class="tiny">sold, 30 days</div></div></div>
+            <div class="bar" style="margin-top:8px"><i class="${x.worst ? 'warn' : ''}" style="width:${x.wk == null ? 0 : Math.min(100, x.wk / 52 * 100)}%"></i></div>
+            <div class="tiny" style="margin-top:4px;display:flex;justify-content:space-between"><span>${x.wk == null ? 'no sales yet' : x.wk + ' weeks of stock'}</span><span>${esc(x.note)}</span></div>
+          </div>`).join('')}
+        </div>
       </div>
     </div>`;
 }
@@ -234,7 +238,7 @@ function reorderRows() {
 function renderReorder(m) {
   const s = st();
   const counts = { now: s.products.filter(p => ['out', 'order', 'gap'].includes(p.status)).length, decide: s.products.filter(p => ['out', 'order', 'gap', 'soon', 'covered'].includes(p.status)).length, all: s.products.filter(p => ORDERABLE.has(p.status) || p.status === 'unsorted').length };
-  title('Reorder', 'Sorted by the date you have to act. Grouped by who makes it.', `<button class="btn" onclick="exportReorder()">Export list</button>`);
+  title('Reorder', 'One group per factory. Tick what you want to send, adjust the quantities in the drawer, and Supply writes the order.', `<button class="btn" onclick="exportReorder()">Export list</button>`);
   const rows = reorderRows();
   const groups = new Map();
   for (const p of rows) { const k = p.factoryId || 'none'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
@@ -257,11 +261,11 @@ function groupsHTML(groups) {
     const f = factoryById(fid);
     const win = f ? `${fmtDate(f.nextWindow.from)} to ${fmtDate(f.nextWindow.to)}` : '';
     const inWin = f && f.nextWindow.from <= addDays(st().today, 14);
-    return `<div class="card flush">
+    return `<div class="card flush group">
       <div class="card-hd"><div><b>${esc(f ? f.name : 'No factory yet')}</b><div class="tiny">${f ? `${f.production_days} + ${f.shipping_days} day lead, ${st().settings.buffer_days} day buffer · order window every ${f.order_cycle_days} days${f.moq_default ? ` · minimum order (MOQ) ${f.moq_default}` : ''}` : 'Give these products a line and a factory in Settings.'}</div></div>
         ${f ? `<span class="pill ${inWin ? 'brand' : 'unk'}" style="margin-left:auto"><i></i>Next order window ${win}</span>` : ''}</div>
       <div class="tbl-wrap"><table>
-        <tr><th style="width:44px"></th><th>Product</th><th class="num">On hand</th><th class="num">Incoming</th><th class="num">Sells / wk</th><th>Runs out</th><th>Order by</th><th class="num">Suggested</th><th class="num">At cost</th><th>MOQ</th></tr>
+        <tr><th style="width:44px"></th><th>Product</th><th class="num">On hand</th><th class="num">On the way</th><th class="num">Sells a week</th><th>Runs out</th><th>Order by</th><th class="num">Suggested</th><th>Minimum</th></tr>
         ${ps.map(p => reorderRow(p)).join('')}
       </table></div></div>`;
   }).join('');
@@ -276,17 +280,16 @@ function reorderRow(p) {
   if (p.sizeGap.length) notes.push(`size gap: ${p.sizeGap.slice(0, 4).join(', ')}${p.sizeGap.length > 4 ? '…' : ''}`);
   if (p.coreCount < p.variants.length && p.variants.length > 1) notes.push(`${p.coreCount} of ${p.variants.length} ${p.axis === 'loft_hand' ? 'lofts' : 'sizes'} carry 80% of sales`);
   if (p.trend === 'rising' || p.trend === 'spiking') notes.push(`${p.trend} on the month`); else if (p.trend === 'falling') notes.push('falling on the month');
-  const flags = `${p.lifecycle !== 'core' ? ' ' + pill('brand', LIFECYCLE[p.lifecycle]) : ''}${p.thin ? ' ' + pill('unk', 'Thin data') : ''}${p.decision === 'cut' ? ' ' + pill('unk', 'Cut') : ''}`;
+  const flags = `${p.lifecycle !== 'core' ? ' ' + pill('brand', LIFECYCLE[p.lifecycle]) : ''}${p.thin ? ' ' + pill('unk', 'Little history') : ''}${p.decision === 'cut' ? ' ' + pill('unk', 'Cut') : ''}`;
   const sel = S.sel.has(p.id);
   return `<tr class="stripe ${k} click ${p.decision === 'cut' ? 'dim' : ''}" onclick="openProduct('${p.id}')">
     <td style="padding-left:18px" onclick="event.stopPropagation();toggleSel('${p.id}')"><span class="ck ${sel ? 'on' : ''}"></span></td>
-    <td><b>${esc(p.title)}</b>${flags}<div class="tiny wrap">${esc(notes.join(' · ') || (p.lineName || ''))}</div></td>
+    <td class="wrap" style="min-width:230px;max-width:340px"><b>${esc(p.title)}</b>${flags}<div class="tiny wrap">${esc(notes.join(' · ') || (p.lineName || ''))}</div></td>
     <td class="num">${p.oversold ? `<span style="color:var(--bad);font-weight:700">-${p.oversold}</span>` : fmtInt(p.onHand)}</td>
     <td class="num">${p.incoming ? fmtInt(p.incoming) : '0'}</td>
     <td class="num">${fmt1(p.perWeek)}</td>
     <td>${runOut}</td><td>${orderBy}</td>
-    <td class="num">${p.suggested ? `<b>${fmtInt(selQty(p))}</b>${p.variants.length > 1 ? `<div class="tiny">by ${p.axis === 'loft_hand' ? 'loft' : p.axis === 'none' ? 'variant' : 'size'}</div>` : ''}` : '—'}</td>
-    <td class="num">${p.suggested && p.cost != null ? money(selCost1(p)) : '—'}</td>
+    <td class="num">${p.suggested ? `<b>${fmtInt(selQty(p))}</b><div class="tiny">${p.cost != null ? money(selCost1(p)) + ' at cost' : ''}${p.variants.length > 1 ? `${p.cost != null ? ' · ' : ''}by ${p.axis === 'loft_hand' ? 'loft' : p.axis === 'none' ? 'variant' : 'size'}` : ''}</div>` : '—'}</td>
     <td>${p.moq ? (p.moqMet ? pill('good', 'Met') : pill('warn', `Under ${p.moq}`)) : ''}</td></tr>`;
 }
 function selQty(p) { return p.variants.reduce((a, v) => a + (S.qty[v.id] ?? v.suggested ?? 0), 0); }
@@ -472,8 +475,8 @@ function renderForecastRows() {
   if (q) ps = ps.filter(p => (p.title + ' ' + p.variants.map(v => v.sku).join(' ')).toLowerCase().includes(q));
   const el = $('#frows'); if (!el) return;
   el.innerHTML = ps.length ? `<div class="tbl-wrap"><table>
-      <tr><th>Product</th><th>Line</th><th class="num">On hand</th><th class="num">Incoming</th><th class="num">Sells / wk</th><th>Trend</th><th>Runs out</th><th>Order by</th><th>Status</th></tr>
-      ${ps.map(p => `<tr class="click" onclick="openProduct('${p.id}')"><td style="padding-left:18px"><b>${esc(p.title)}</b>${p.lifecycle !== 'core' ? ' ' + pill('brand', LIFECYCLE[p.lifecycle]) : ''}${p.thin ? ' ' + pill('unk', 'Thin data') : ''}<div class="tiny">${plural(p.variants.length, 'variant')}${p.sizeGap.length ? ` · size gap: ${esc(p.sizeGap.slice(0, 3).join(', '))}` : ''}</div></td><td class="tiny">${esc(p.lineName || 'unsorted')}</td><td class="num">${fmtInt(p.onHand)}</td><td class="num">${p.incoming || '0'}</td><td class="num">${fmt1(p.perWeek)}</td><td class="tiny">${esc(p.trend)}</td><td>${p.runOutDays == null ? '—' : `${fmtDays(p.runOutDays)}<div class="tiny">${fmtDate(p.runOutDate)}</div>`}</td><td>${p.overdue ? '<b style="color:var(--bad)">Overdue</b>' : p.orderByDate ? fmtDate(p.orderByDate) : '—'}</td><td>${statusPill(p)}</td></tr>`).join('')}
+      <tr><th>Product</th><th>Line</th><th class="num">On hand</th><th class="num">On the way</th><th class="num">Sells a week</th><th>Trend</th><th>Runs out</th><th>Order by</th><th>Status</th></tr>
+      ${ps.map(p => `<tr class="click" onclick="openProduct('${p.id}')"><td style="padding-left:18px"><b>${esc(p.title)}</b>${p.lifecycle !== 'core' ? ' ' + pill('brand', LIFECYCLE[p.lifecycle]) : ''}${p.thin ? ' ' + pill('unk', 'Little history') : ''}<div class="tiny">${plural(p.variants.length, 'variant')}${p.sizeGap.length ? ` · size gap: ${esc(p.sizeGap.slice(0, 3).join(', '))}` : ''}</div></td><td class="tiny">${esc(p.lineName || 'unsorted')}</td><td class="num">${fmtInt(p.onHand)}</td><td class="num">${p.incoming || '0'}</td><td class="num">${fmt1(p.perWeek)}</td><td class="tiny">${esc(p.trend)}</td><td>${p.runOutDays == null ? '—' : `${fmtDays(p.runOutDays)}<div class="tiny">${fmtDate(p.runOutDate)}</div>`}</td><td>${p.overdue ? '<b style="color:var(--bad)">Overdue</b>' : p.orderByDate ? fmtDate(p.orderByDate) : '—'}</td><td>${statusPill(p)}</td></tr>`).join('')}
     </table></div>` : `<div class="empty"><b>No products match</b>Clear the search or pick another line.</div>`;
 }
 
@@ -497,28 +500,28 @@ function openProduct(id, variantId = null) {
     ['Suggested', fmtInt(v ? v.suggested : p.suggested), 'units', `covers ${s.settings.cover_days} days after landing`, ''],
   ];
   openSheet(`
-    <div class="sh-top"><img src="${esc(p.image || '')}" onerror="this.style.visibility='hidden'" alt=""><div><h3>${esc(p.title)}${v ? ` <span style="color:var(--brand-ink)">· ${esc(v.axis || v.sku)}</span>` : ''}</h3><div class="sm">${esc(p.lineName || 'unsorted')} · ${esc(p.factoryName || 'no factory')} · ${LIFECYCLE[p.lifecycle]} · ${statusPill(p)}${p.thin ? ' ' + pill('unk', 'Thin data') : ''}</div></div>
+    <div class="sh-top"><img src="${esc(p.image || '')}" onerror="this.style.visibility='hidden'" alt=""><div><h3>${esc(p.title)}${v ? ` <span style="color:var(--brand-ink)">· ${esc(v.axis || v.sku)}</span>` : ''}</h3><div class="sm">${esc(p.lineName || 'unsorted')} · ${esc(p.factoryName || 'no factory')} · ${LIFECYCLE[p.lifecycle]} · ${statusPill(p)}${p.thin ? ' ' + pill('unk', 'Little history') : ''}</div></div>
       <div class="sh-nav">${v ? `<button onclick="openProduct('${p.id}')" title="All variants">${ic('back')}</button>` : ''}<button onclick="closeSheet()" title="Close">${ic('x')}</button></div></div>
     <div class="card flush statrow" style="padding:0">${stats.map(([l, val, u, sub, k]) => `<div class="stat ${k || ''}"><div class="l">${l}</div><div class="v">${val}${u ? ` <small>${u}</small>` : ''}</div><div class="s">${sub || '&nbsp;'}</div></div>`).join('')}</div>
     ${p.oversold ? `<div class="card sc bd"><h3>Oversold by ${p.oversold}</h3><div class="hint">Shopify shows negative stock on ${esc(p.variants.filter(x => x.onHand < 0).map(x => x.axis || x.sku).join(', '))}. Those units are owed to customers and come off the next delivery first.</div></div>` : ''}
-    <div class="panel"><h4>Stock from today</h4><div class="sub">Solid: what happens if you do nothing. Dashed: if you send ${fmtInt(what.qty)} on ${fmtDate(what.sent)}. Hover for the numbers.</div>${projectionSVG(p, subject, what, lands)}</div>
-    <div class="panel"><h4>What if</h4>
+    <div class="panel"><h4>What happens to the shelf</h4><div class="sub">Units on hand from today, six months out. Hover any point for the numbers. Change the order below and the blue line moves.</div>${projectionSVG(p, subject, what, lands)}</div>
+    <div class="panel"><h4>Try an order</h4><div class="sub">Pick a quantity and a send date; the chart and the four numbers below follow.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end"><div class="field"><label>Order</label><input type="number" id="wQty" value="${what.qty}" min="0"></div><div class="field"><label>Send on</label><input type="date" id="wSent" value="${what.sent}"></div><button class="btn" onclick="S.open.what={qty:+$('#wQty').value||0,sent:$('#wSent').value||st().today};openProduct('${p.id}'${v ? `,'${v.id}'` : ''})">Update</button></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px;font-size:13px">
         <div><div class="tiny">Lands</div><b>${lands ? fmtDate(lands) : '—'}</b></div><div><div class="tiny">Sold out for</div><b style="color:${gapDays ? 'var(--bad)' : 'var(--good)'}">${gapDays ? `${gapDays} days` : 'no gap'}</b></div><div><div class="tiny">Lasts until</div><b>${lands && lastsDays != null ? fmtDate(addDays(lands, lastsDays)) : '—'}</b></div><div><div class="tiny">Cost</div><b>${subject.cost != null || p.cost != null ? money(what.qty * (subject.cost ?? p.cost)) : '—'}</b></div></div>
       ${gapDays > 14 ? `<div class="card sc wn" style="margin-top:12px"><h3>Sell the gap on pre-order</h3><div class="hint">${gapDays} days sold out is locked in now. Switch the sold-out sizes to keep selling in Shopify with "${lands ? fmtDate(lands) : ''}" on the product page, then switch back when the order lands. Supply will do this from here in a later phase; today it is a reminder.</div></div>` : ''}
     </div>
     <div class="panel"><h4>Why ${fmt1(subject.velocity * 7)} a week</h4><div class="sub">${v ? whyVariant(v) : `Blend of three windows, weighted to the recent ones, ignoring days a size was sold out. ${p.coreCount < p.variants.length ? `${p.coreCount} of ${p.variants.length} variants carry 80% of sales and set the product's status; the rest are tail sizes.` : ''}`}</div>
-      ${v ? '' : `<div class="tbl-wrap"><table style="font-size:13px"><tr><th>${p.axis === 'loft_hand' ? 'Loft' : p.axis === 'none' ? 'Variant' : 'Size'}</th><th class="num">On hand</th><th class="num">14d</th><th class="num">30d</th><th class="num">90d</th><th class="num">Per week</th><th class="num">Runs out</th><th class="num">Need</th><th></th></tr>
+      ${v ? '' : `<div class="tbl-wrap"><table style="font-size:13px"><tr><th>${p.axis === 'loft_hand' ? 'Loft' : p.axis === 'none' ? 'Variant' : 'Size'}</th><th class="num">On hand</th><th class="num">Sold 14d</th><th class="num">30d</th><th class="num">90d</th><th class="num">A week</th><th class="num">Runs out</th><th class="num">Suggested</th><th></th></tr>
         ${p.variants.map(x => `<tr class="click" onclick="openProduct('${p.id}','${x.id}')"><td>${esc(x.axis || x.sku || x.title || '—')}${x.isCore ? '' : ' <span class="tiny">tail</span>'}${x.curveBased ? ' <span class="tiny" data-tip="Demand estimated from the line\'s size curve: this size was off the shelf most of the window">curve</span>' : x.capped ? ' <span class="tiny" data-tip="Raw rate was inflated by sold-out days and has been capped">capped</span>' : ''}</td><td class="num">${x.onHand < 0 ? `<span style="color:var(--bad)">${x.onHand}</span>` : x.onHand}</td><td class="num">${x.sold14}</td><td class="num">${x.sold30}</td><td class="num">${x.sold90}</td><td class="num"><b>${fmt1(x.velocity * 7)}</b></td><td class="num">${x.runOutDays == null ? '—' : x.onHand <= 0 ? '<span style="color:var(--bad)">out</span>' : fmtDays(x.runOutDays)}</td><td class="num">${x.suggested || '—'}</td><td class="tiny">${x.incoming ? `+${x.incoming} ${fmtDate(x.incomingLands)}` : ''}</td></tr>`).join('')}</table></div>`}
     </div>
     <div class="panel"><h4>Daily sales, last 90 days</h4><div class="sub">${v ? 'This variant.' : 'All variants.'} Darker bars are the last 14 days.</div>${salesSVG(v ? v.series : p.variants.reduce((acc, x) => acc.map((n, i) => n + x.series[i]), Array(90).fill(0)))}</div>
-    <div class="panel"><h4>Lifecycle and rules</h4><div class="sub">Lifecycle decides whether Supply forecasts this product for reorder.</div>
+    <div class="panel"><h4>How Supply treats this product</h4><div class="sub">Two things decide whether it gets forecast for reorder: what kind of product it is, and which line and factory it belongs to.</div>
       <div class="fields">
-        <div class="field"><label>Lifecycle</label><select onchange="setProduct('${p.id}',{lifecycle:this.value})">${Object.entries(LIFECYCLE).map(([k, l]) => `<option value="${k}" ${p.lifecycle === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-        <div class="field"><label>Product line</label><select onchange="setProduct('${p.id}',{line_id:this.value||null})"><option value="">Use the type map (${esc(p.type || 'no type')})</option>${s.lines.map(l => `<option value="${l.id}" ${p.lineId === l.id && st().db.products.find(x => x.product_id === p.id)?.line_id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>
-        <div class="field"><label>Minimum order</label><input type="number" min="0" value="${p.moq ?? ''}" placeholder="none" onchange="setProduct('${p.id}',{moq:+this.value||0})"><div class="help">Saved to Shopify as custom.moq too.</div></div>
-        <div class="field"><label>Lead time override (days)</label><input type="number" min="0" value="${p.leadParts?.source === 'product' ? p.leadParts.base : ''}" placeholder="${p.leadParts ? p.leadParts.base + ' from ' + p.leadParts.source : 'from factory'}" onchange="setProduct('${p.id}',{lead_override_days:+this.value||null})"></div>
+        <div class="field"><label>Kind of product</label><select onchange="setProduct('${p.id}',{lifecycle:this.value})">${Object.entries(LIFECYCLE).map(([k, l]) => `<option value="${k}" ${p.lifecycle === k ? 'selected' : ''}>${l}</option>`).join('')}</select><div class="help">${LIFECYCLE_HELP[p.lifecycle] || ''}</div></div>
+        <div class="field"><label>Line</label><select onchange="setProduct('${p.id}',{line_id:this.value||null})"><option value="">Automatic${p.lineName ? ': ' + esc(p.lineName) : ''}</option>${s.lines.map(l => `<option value="${l.id}" ${st().db.products.find(x => x.product_id === p.id)?.line_id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select><div class="help">Automatic follows the Shopify product type (${esc(p.type || 'no type')}). Pick a line to override it.</div></div>
+        <div class="field"><label>Minimum order</label><input type="number" min="0" value="${p.moq ?? ''}" placeholder="none" onchange="setProduct('${p.id}',{moq:+this.value||0})"><div class="help">Units the factory needs per order. Also saved to Shopify.</div></div>
+        <div class="field"><label>Lead time, days</label><input type="number" min="0" value="${p.leadParts?.source === 'product' ? p.leadParts.base : ''}" placeholder="${p.leadParts ? p.leadParts.base : ''}" onchange="setProduct('${p.id}',{lead_override_days:+this.value||null})"><div class="help">${p.leadParts ? (p.leadParts.source === 'product' ? 'Set on this product.' : `${p.leadParts.base} days from the ${p.leadParts.source === 'factory' ? 'factory' : p.leadParts.source === 'line' ? 'line' : 'Shopify field'}, plus ${p.leadParts.buffer} buffer.`) : 'No factory yet.'} Type a number to override.</div></div>
         <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea placeholder="Anything the next buyer should know" onchange="setProduct('${p.id}',{notes:this.value})">${esc(p.notes || '')}</textarea></div>
       </div></div>
     <div class="sh-foot"><button class="btn primary" onclick="S.sel.add('${p.id}');closeSheet();S.tab='reorder';location.hash='reorder';render();createOrder()">Add to an order ${ic('arrow')}</button><span style="flex:1"></span><a class="btn quiet" target="_blank" rel="noopener" href="https://admin.shopify.com/store/${esc((st().db.brand?.shop_domain || '').replace('.myshopify.com', ''))}/products/${p.id}">Open in Shopify</a></div>`, 'product');
@@ -529,40 +532,46 @@ async function setProduct(pid, patch) { await save(`/api/products/${pid}`, patch
 
 /* ---------- charts ---------- */
 function projectionSVG(p, subject, what, lands) {
-  const s = st(); const W = 760, H = 230, padL = 44, padB = 26, padT = 14;
+  const s = st(); const W = 760, H = 250, padL = 44, padR = 16, padB = 36, padT = 34;
   const vel = subject.velocity, onHand = Math.max(0, subject.onHand);
   const horizon = 180;
   const incoming = subject.incomingOrders ? subject.incomingOrders.filter(i => i.lands) : (subject.variants || []).flatMap(x => x.incomingOrders || []).filter(i => i.lands);
-  const maxY = Math.max(onHand, what.qty + (vel > 0 ? 0 : 0), ...incoming.map(i => i.qty), 10) * 1.15;
-  const x = d => padL + (Math.min(horizon, Math.max(0, d)) / horizon) * (W - padL - 10);
+  const maxY = Math.max(onHand, what.qty, ...incoming.map(i => i.qty), 10) * 1.12;
+  const x = d => padL + (Math.min(horizon, Math.max(0, d)) / horizon) * (W - padL - padR);
   const y = u => padT + (1 - Math.min(maxY, Math.max(0, u)) / maxY) * (H - padT - padB);
-  const path = (start, qtyAt) => { // qtyAt: [[day, qty]] step adds
-    const pts = []; let stock = start, d = 0; const adds = [...qtyAt].sort((a, b) => a[0] - b[0]); let i = 0;
-    while (d <= horizon) { while (i < adds.length && adds[i][0] <= d) { stock += adds[i][1]; i++; } pts.push([d, stock]); stock = Math.max(0, stock - vel); d++; }
-    return pts;
-  };
+  const path = (start, adds) => { const pts = []; let stock = start, d = 0, i = 0; const a = [...adds].sort((p, q) => p[0] - q[0]); while (d <= horizon) { while (i < a.length && a[i][0] <= d) { stock += a[i][1]; i++; } pts.push([d, stock]); stock = Math.max(0, stock - vel); d++; } return pts; };
   const base = path(onHand, incoming.map(i => [daysBetween(s.today, i.lands), i.qty]));
-  const scen = lands ? path(onHand, [...incoming.map(i => [daysBetween(s.today, i.lands), i.qty]), [daysBetween(s.today, lands), what.qty]]) : null;
-  const toD = pts => pts.map(([d, u], i) => `${i ? 'L' : 'M'}${x(d).toFixed(1)},${y(u).toFixed(1)}`).join(' ');
+  const landDay = lands ? daysBetween(s.today, lands) : null;
+  const scen = landDay != null && what.qty > 0 ? path(onHand, [...incoming.map(i => [daysBetween(s.today, i.lands), i.qty]), [landDay, what.qty]]) : null;
+  const toD = pts => pts.map(([d, u], i) => (i ? 'L' : 'M') + x(d).toFixed(1) + ',' + y(u).toFixed(1)).join(' ');
   const outAt = base.findIndex(([, u]) => u <= 0);
-  const backAt = outAt >= 0 ? base.findIndex(([d, u], i) => i > outAt && u > 0) : -1;
-  const gapEnd = outAt >= 0 ? (backAt >= 0 ? base[backAt][0] : (scen ? (scen.findIndex(([d, u], i) => i > outAt && u > 0) >= 0 ? scen[scen.findIndex(([d, u], i) => i > outAt && u > 0)][0] : horizon) : horizon)) : null;
+  const scenOutAt = scen ? scen.findIndex(([, u]) => u <= 0) : -1;
+  const scenBack = scen && scenOutAt >= 0 ? scen.findIndex(([, u], i) => i > scenOutAt && u > 0) : -1;
+  // the stretch with nothing to sell, in the scenario if there is one, else doing nothing
+  const gapStart = scen ? (scenOutAt >= 0 ? scen[scenOutAt][0] : null) : (outAt >= 0 ? base[outAt][0] : null);
+  const gapEnd = scen ? (scenOutAt >= 0 ? (scenBack >= 0 ? scen[scenBack][0] : horizon) : null) : (outAt >= 0 ? horizon : null);
+  const gapDays = gapStart != null ? gapEnd - gapStart : 0;
   const months = []; for (let d = 0; d <= horizon; d += 30) months.push(d);
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(maxY * f));
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
-    ${ticks.map(u => `<line x1="${padL}" x2="${W - 10}" y1="${y(u)}" y2="${y(u)}" stroke="#E6ECF0"/><text x="${padL - 8}" y="${y(u) + 4}" font-size="10.5" text-anchor="end" fill="#8195A2">${u}</text>`).join('')}
-    ${outAt >= 0 ? `<rect x="${x(base[outAt][0])}" y="${padT}" width="${Math.max(0, x(gapEnd) - x(base[outAt][0]))}" height="${H - padT - padB}" fill="#F7E7E4" opacity=".6"/>` : ''}
-    ${months.map(d => `<text x="${x(d)}" y="${H - 8}" font-size="10.5" fill="#8195A2">${fmtDate(addDays(s.today, d))}</text>`).join('')}
-    ${lands ? `<line x1="${x(daysBetween(s.today, lands))}" x2="${x(daysBetween(s.today, lands))}" y1="${padT}" y2="${H - padB}" stroke="#14608C" stroke-dasharray="2 3"/>` : ''}
-    <path d="${toD(base)}" fill="none" stroke="${outAt >= 0 ? '#9C3A2E' : '#1C7A46'}" stroke-width="2"/>
-    ${scen ? `<path d="${toD(scen)}" fill="none" stroke="#14608C" stroke-width="2" stroke-dasharray="5 4"/>` : ''}
-    <circle cx="${x(0)}" cy="${y(onHand)}" r="4" fill="#0C161D" stroke="#fff" stroke-width="2"/><text x="${x(0) + 8}" y="${y(onHand) - 8}" font-size="11" fill="#13202B">${fmtInt(onHand)} today</text>
-    ${outAt >= 0 ? `<circle cx="${x(base[outAt][0])}" cy="${y(0)}" r="4" fill="#9C3A2E" stroke="#fff" stroke-width="2"/><text x="${Math.min(x(base[outAt][0]) + 6, W - 120)}" y="${y(0) - 8}" font-size="11" font-weight="700" fill="#9C3A2E">Runs out ${fmtDate(addDays(s.today, base[outAt][0]))}</text>` : ''}
-    ${outAt >= 0 && gapEnd != null && gapEnd - base[outAt][0] > 10 ? `<text x="${(x(base[outAt][0]) + x(gapEnd)) / 2}" y="${y(maxY * 0.75)}" font-size="11" font-weight="700" fill="#9C3A2E" text-anchor="middle">${gapEnd - base[outAt][0]} days with nothing to sell</text><text x="${(x(base[outAt][0]) + x(gapEnd)) / 2}" y="${y(maxY * 0.75) + 14}" font-size="11" fill="#647684" text-anchor="middle">about ${Math.round((gapEnd - base[outAt][0]) * vel)} lost sales</text>` : ''}
-    ${lands ? `<text x="${Math.min(x(daysBetween(s.today, lands)) + 6, W - 130)}" y="${y(what.qty) - 6}" font-size="11" font-weight="700" fill="#14608C">${fmtInt(what.qty)} land ${fmtDate(lands)}</text>` : ''}
-    ${incoming.map(i => `<text x="${x(daysBetween(s.today, i.lands)) + 4}" y="${padT + 12}" font-size="10.5" font-weight="700" fill="#1C7A46">+${i.qty} ${fmtDate(i.lands)}</text>`).join('')}
-    ${base.filter((_, i) => i % 6 === 0).map(([d, u]) => `<rect x="${x(d) - 3}" y="${padT}" width="6" height="${H - padT - padB}" fill="transparent" data-tip="${fmtDate(addDays(s.today, d))}<small>${fmtInt(u)} on hand if nothing is ordered${scen ? ` · ${fmtInt(scen[d][1])} with the order` : ''}</small>"/>`).join('')}
-  </svg>`;
+  const ticks = [0.25, 0.5, 0.75, 1].map(f => Math.round(maxY * f));
+  const alreadyOut = onHand <= 0;
+  let g = '<defs><linearGradient id="pfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#62BDEA" stop-opacity=".35"/><stop offset="1" stop-color="#62BDEA" stop-opacity="0"/></linearGradient><pattern id="phatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#C63A2F" stroke-width="1.5" stroke-opacity=".35"/></pattern></defs>';
+  g += ticks.map(u => '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(u) + '" y2="' + y(u) + '" stroke="#E6ECF0"/><text x="' + (padL - 8) + '" y="' + (y(u) + 4) + '" font-size="10.5" text-anchor="end" fill="#8195A2">' + u + '</text>').join('');
+  g += months.map(d => '<text x="' + x(d) + '" y="' + (H - 6) + '" font-size="10.5" fill="#8195A2" text-anchor="' + (d === horizon ? 'end' : 'start') + '">' + fmtDate(addDays(s.today, d)) + '</text>').join('');
+  g += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="#C4D2DB"/>';
+  if (gapStart != null && gapDays > 0) g += '<rect x="' + x(gapStart) + '" y="' + padT + '" width="' + Math.max(2, x(gapEnd) - x(gapStart)) + '" height="' + (H - padT - padB) + '" fill="url(#phatch)"/>';
+  if (scen) g += '<path d="' + toD(scen) + ' L' + x(horizon) + ',' + y(0) + ' L' + x(0) + ',' + y(0) + ' Z" fill="url(#pfill)"/>';
+  g += '<path d="' + toD(base) + '" fill="none" stroke="' + (scen ? '#8A96A3' : '#0C161D') + '" stroke-width="2" ' + (scen ? 'stroke-dasharray="5 4"' : '') + ' stroke-linecap="round"/>';
+  if (scen) g += '<path d="' + toD(scen) + '" fill="none" stroke="#2E88B8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+  // labels: today at the start, run-out under the axis, landing at the top of the step
+  const ty = y(onHand);
+  g += '<circle cx="' + x(0) + '" cy="' + ty + '" r="4.5" fill="#0C161D" stroke="#fff" stroke-width="2"/><text x="' + (x(0) + 9) + '" y="' + (ty - 9 < padT + 8 ? ty + 16 : ty - 9) + '" font-size="11.5" font-weight="700" fill="#13202B">' + (alreadyOut ? 'Nothing on the shelf today' : fmtInt(onHand) + ' today') + '</text>';
+  if (outAt >= 0 && !alreadyOut) { const d = base[outAt][0]; g += '<circle cx="' + x(d) + '" cy="' + y(0) + '" r="4.5" fill="#C63A2F" stroke="#fff" stroke-width="2"/><text x="' + x(d) + '" y="' + (H - padB + 14) + '" font-size="11" font-weight="700" fill="#C63A2F" text-anchor="middle">runs out ' + fmtDate(addDays(s.today, d)) + '</text>'; }
+  if (scen && landDay != null) { const top = scen[Math.min(scen.length - 1, landDay)][1]; const lx = x(landDay), ly = y(top); const right = lx > W - 180; g += '<line x1="' + lx + '" x2="' + lx + '" y1="' + ly + '" y2="' + y(0) + '" stroke="#2E88B8" stroke-dasharray="2 3"/><circle cx="' + lx + '" cy="' + ly + '" r="5" fill="#1C7A46" stroke="#fff" stroke-width="2"/><text x="' + (right ? lx - 10 : lx + 10) + '" y="' + (ly - 10 < padT + 4 ? ly + 16 : ly - 10) + '" font-size="11.5" font-weight="700" fill="#1C7A46" text-anchor="' + (right ? 'end' : 'start') + '">' + fmtInt(what.qty) + ' land ' + fmtDate(lands) + '</text>'; }
+  if (gapStart != null && gapDays > 8) { const mx = Math.max(padL + 70, Math.min(W - padR - 70, (x(gapStart) + x(gapEnd)) / 2)); const my = y(maxY * 0.5); g += '<text x="' + mx + '" y="' + my + '" font-size="11" font-weight="700" fill="#C63A2F" text-anchor="middle">' + gapDays + ' days with nothing to sell</text><text x="' + mx + '" y="' + (my + 14) + '" font-size="10.5" fill="#647684" text-anchor="middle">about ' + Math.round(gapDays * vel) + ' sales missed</text>'; }
+  for (const i of incoming) g += '<text x="' + (x(daysBetween(s.today, i.lands)) + 4) + '" y="' + (y(0) - 6) + '" font-size="10.5" font-weight="700" fill="#1C7A46">+' + i.qty + ' on the way, ' + fmtDate(i.lands) + '</text>';
+  g += base.filter((_, i) => i % 5 === 0).map(([d, u]) => '<rect x="' + (x(d) - 3) + '" y="' + padT + '" width="7" height="' + (H - padT - padB) + '" fill="transparent" data-tip="' + fmtDate(addDays(s.today, d)) + '<small>' + fmtInt(u) + ' on hand if nothing is ordered' + (scen ? ' · ' + fmtInt(scen[d][1]) + ' with the order' : '') + '</small>"/>').join('');
+  const legend = '<div class="legend">' + (scen ? '<span><i style="background:#2E88B8"></i>If you send ' + fmtInt(what.qty) + ' on ' + fmtDate(what.sent) + '</span><span><i class="dash"></i>If you do nothing</span>' : '<span><i style="background:#0C161D"></i>What happens if you do nothing</span>') + '<span><i class="hatch"></i>Days with nothing to sell</span></div>';
+  return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>' + legend;
 }
 function salesSVG(series) {
   const W = 760, H = 96, max = Math.max(...series, 1), bw = W / series.length; const s = st();

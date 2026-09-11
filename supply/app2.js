@@ -20,14 +20,14 @@ window.renderPerformance = function (m) {
   m.innerHTML = `
     <div class="rollup">
       <div class="ru"><div class="l">Sold, 90 days</div><div class="v">${fmtInt(sold90)}<small>units</small></div><div class="s">${money(rev)} at retail · ${plural(ps.length, 'product')} in ${plural(lines.length, 'line')}</div></div>
-      <div class="ru" data-tip="Units sold over 90 days, divided by those units plus what is still on the shelf"><div class="l">Sell-through</div><div class="v">${sold90 + onHand ? Math.round(100 * sold90 / (sold90 + onHand)) : 0}%</div><div class="s">of what was available these 90 days</div></div>
-      <div class="ru"><div class="l">Weeks of cover</div><div class="v">${vel > 0.001 ? Math.round(onHand / (vel * 7)) : '—'}</div><div class="s">at the current rate · ${fmtInt(onHand)} on hand</div></div>
+      <div class="ru" data-tip="Units sold over 90 days, divided by those units plus what is still on the shelf"><div class="l">Sold through</div><div class="v">${sold90 + onHand ? Math.round(100 * sold90 / (sold90 + onHand)) : 0}%</div><div class="s">of what was available these 90 days</div></div>
+      <div class="ru"><div class="l">Weeks of stock</div><div class="v">${vel > 0.001 ? Math.round(onHand / (vel * 7)) : '—'}</div><div class="s">at the current rate · ${fmtInt(onHand)} on hand</div></div>
       <div class="ru ${dead.cost ? 'warn' : ''}"><div class="l">Dead stock</div><div class="v">${money(dead.cost)}<small>at cost</small></div><div class="s">${fmtInt(dead.units)} units with no sale in 90 days</div></div>
     </div>
     <div class="card flush">
       <div class="card-hd"><b>Product lines in ${esc(cat.name)}</b><span class="tiny">One row per line. A new Shopify product type appears here once it is sorted into a line in Settings.</span></div>
       <div class="tbl-wrap"><table>
-        <tr><th>Line</th><th class="num">Designs</th><th class="num">Sold 90d</th><th class="num">Sell-through</th><th class="num">Weeks of cover</th><th class="num">Dead stock</th><th>To order</th><th>Cut band</th><th></th></tr>
+        <tr><th>Line</th><th class="num">Designs</th><th class="num">Sold, 90 days</th><th class="num" data-tip="Units sold in 90 days, divided by those units plus what is still on the shelf">Sold through</th><th class="num">Weeks of stock</th><th class="num">Dead stock</th><th>To order</th><th>Cut zone</th><th></th></tr>
         ${lines.map(l => `<tr class="click ${l.id === line?.id ? 'near' : ''}" onclick="S.perfLine='${l.id}';render()"><td style="padding-left:18px"><b>${esc(l.name)}</b><div class="tiny">${axisLabel(l.axis)} · ${esc(l.factoryName || 'no factory')}</div></td><td class="num">${l.designs}</td><td class="num">${fmtInt(l.sold90)}</td><td class="num">${l.sellThrough == null ? '—' : l.sellThrough + '%'}</td><td class="num">${l.weeksOfCover ?? '—'}</td><td class="num">${l.dead.cost ? money(l.dead.cost) : '—'}</td><td>${l.toOrder ? pill('bad', plural(l.toOrder, 'product')) : pill('good', 'none')}</td><td>${l.cutCandidates ? pill('warn', plural(l.cutCandidates, 'design')) : l.cutRulePct ? '<span class="tiny">none</span>' : '<span class="tiny">manual</span>'}</td><td><span class="btn sm ${l.id === line?.id ? '' : 'quiet'}">${l.id === line?.id ? 'Viewing' : 'Open'}</span></td></tr>`).join('')}
       </table></div></div>
     ${line ? lineDetailHTML(line) : ''}`;
@@ -41,7 +41,7 @@ function lineDetailHTML(l) {
   const drops = productsOf(l).filter(p => p.lifecycle === 'drop');
   return `<div class="two">
     <div class="card">
-      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap"><h3>${esc(l.name)}, ranked</h3><span class="tiny">Units in 90 days${l.cutRulePct ? ` · shaded rows are the cut band (bottom ${l.cutRulePct}%)` : ' · no cut rule on this line'}</span></div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap"><h3>${esc(l.name)}, ranked</h3><span class="tiny">Units sold in 90 days${l.cutRulePct ? `. Shaded rows are the cut zone: the bottom ${l.cutRulePct}% of the line` : '. No cut rule on this line'}</span></div>
       <div class="stack" style="gap:6px">${ps.map((p, i) => `<div class="rank ${bandIds.has(p.id) ? 'band' : ''}" onclick="openProduct('${p.id}')"><span class="tiny">${i + 1}</span><span class="n">${esc(p.title)}${p.decision === 'cut' ? ' <span class="tiny">cut</span>' : ''}</span><div class="bar h10"><i class="${bandIds.has(p.id) ? 'warn' : ''}" style="width:${Math.round(p.sold90 / max * 100)}%"></i></div><span class="num">${p.sold90}</span><span class="tiny" style="text-align:right">${fmtInt(p.onHand)} left</span></div>`).join('') || '<div class="hint">No products in this line yet.</div>'}</div>
       ${drops.length ? `<div class="tiny" style="margin-top:12px">Limited drops, not ranked: ${drops.map(p => `${esc(p.title)} (${p.sold90} in 90d)`).join(', ')}.</div>` : ''}
     </div>
@@ -86,8 +86,8 @@ window.renderLineup = function (m) {
   m.innerHTML = `
     <div class="two wide">
       <div class="card flush"><div class="tbl-wrap"><table>
-        <tr><th style="width:36px"></th><th>Design</th><th class="num">Sold 90d</th><th class="num">On hand</th><th class="num">Weeks left</th><th>Decision</th></tr>
-        ${ranked.map(x => { const p = x.p; const cls = x.state === 'cut' ? 'band' : x.state === 'decide' ? 'near' : ''; const note = x.state === 'cut' ? (x.decided ? 'cut by you · stops reordering, sells down' : 'in the cut band · stops reordering, sells down') : x.state === 'decide' ? 'just above the cut line · your call' : x.decided ? 'kept by you' : ''; return `<tr class="${cls}"><td style="padding-left:18px" class="tiny">${x.rank}</td><td class="click" onclick="openProduct('${p.id}')"><b>${esc(p.title)}</b>${p.lifecycle === 'seasonal' ? ' ' + pill('brand', 'Seasonal') : ''}${note ? `<div class="tiny">${note}</div>` : ''}</td><td class="num">${p.sold90}</td><td class="num">${fmtInt(p.onHand)}</td><td class="num">${p.weeksOfCover ?? '—'}</td><td><span class="seg sm"><button class="${x.state === 'keep' ? 'on' : ''}" onclick="decide('${p.id}','keep')">Keep</button><button class="${x.state === 'cut' ? 'on' : ''}" onclick="decide('${p.id}','cut')">Cut</button></span>${x.decided ? ` <button class="btn quiet sm" data-tip="Back to the rule's verdict" onclick="decide('${p.id}',null)">Reset</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="6"><div class="empty">No designs in this line.</div></td></tr>`}
+        <tr><th style="width:36px"></th><th>Design</th><th class="num">Sold, 90 days</th><th class="num">On hand</th><th class="num">Weeks of stock</th><th>Decision</th></tr>
+        ${ranked.map(x => { const p = x.p; const cls = x.state === 'cut' ? 'band' : x.state === 'decide' ? 'near' : ''; const note = x.state === 'cut' ? (x.decided ? 'cut by you: no more reorders, sells down' : 'in the cut zone: no more reorders, sells down') : x.state === 'decide' ? 'just above the cut zone: your call' : x.decided ? 'kept by you' : ''; return `<tr class="${cls}"><td style="padding-left:18px" class="tiny">${x.rank}</td><td class="click" onclick="openProduct('${p.id}')"><b>${esc(p.title)}</b>${p.lifecycle === 'seasonal' ? ' ' + pill('brand', 'Seasonal') : ''}${note ? `<div class="tiny">${note}</div>` : ''}</td><td class="num">${p.sold90}</td><td class="num">${fmtInt(p.onHand)}</td><td class="num">${p.weeksOfCover ?? '—'}</td><td><span class="seg sm"><button class="${x.state === 'keep' ? 'on' : ''}" onclick="decide('${p.id}','keep')">Keep</button><button class="${x.state === 'cut' ? 'on' : ''}" onclick="decide('${p.id}','cut')">Cut</button></span>${x.decided ? ` <button class="btn quiet sm" data-tip="Back to the rule's verdict" onclick="decide('${p.id}',null)">Reset</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="6"><div class="empty">No designs in this line.</div></td></tr>`}
       </table></div></div>
       <div class="stack">
         <div class="card key"><h3>Where the plan stands</h3>
@@ -110,7 +110,7 @@ async function editLineTarget(lid) {
   const l = lineById(lid);
   const r = await modal({ title: `${l.name}: assortment target`, hint: 'How many designs this line should carry next season. The difference from what you keep becomes open slots.', fields: [
     { key: 'target', label: 'Target designs', type: 'number', value: l.target ?? '', min: 0 },
-    { key: 'cut', label: 'Cut band, bottom % by 90-day sales', type: 'number', value: l.cutRulePct ?? '', min: 0, help: 'Leave empty for manual cuts only.' }] });
+    { key: 'cut', label: 'Cut zone, bottom % by 90-day sales', type: 'number', value: l.cutRulePct ?? '', min: 0, help: 'Leave empty for manual cuts only.' }] });
   if (!r) return;
   const row = st().db.lines.find(x => x.id === lid);
   await save('/api/lines', { ...row, target_designs: r.target === '' ? null : +r.target, cut_rule_pct: r.cut === '' ? null : +r.cut });
@@ -160,7 +160,7 @@ window.renderTimeline = function (m) {
   const items = timelineItems(s);
   const from = s.today, to = addDays(s.today, 200);
   const filtered = items.filter(it => S.tlFilter === 'all' || it.kind === S.tlFilter);
-  title(`Timeline <em>· ${fmtDate(from)} to ${fmtDate(to, { year: true })}</em>`, 'Every order and every new design, worked backwards from the date stock has to be on the site.',
+  title(`Timeline <em>· ${fmtDate(from)} to ${fmtDate(to, { year: true })}</em>`, 'The next six months as bars: each order from the day it is sent to the day it lands, and each new design from brief to launch. Click a bar to open it.',
     `<div class="seg"><button class="${S.tlFilter === 'all' ? 'on' : ''}" onclick="S.tlFilter='all';render()">Everything</button><button class="${S.tlFilter === 'order' ? 'on' : ''}" onclick="S.tlFilter='order';render()">Orders</button><button class="${S.tlFilter === 'slot' ? 'on' : ''}" onclick="S.tlFilter='slot';render()">New designs</button></div>`);
   const deadlines = filtered.flatMap(it => it.marks.map(mk => ({ ...mk, item: it }))).filter(mk => mk.date >= addDays(from, -7)).sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 12);
   const closures = s.factories.flatMap(f => (f.closures || []).map(c => ({ ...c, factory: f.name })));
@@ -168,11 +168,11 @@ window.renderTimeline = function (m) {
   m.innerHTML = `<div class="two tl-grid">
     <div class="card" style="padding:14px 18px 10px">${filtered.length ? ganttSVG(filtered, from, to, closures) : `<div class="empty">${emptyMsg}</div>`}</div>
     <div class="stack">
-      <div class="card key" style="padding:8px 18px 6px"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0 4px"><h3>Deadlines</h3><span class="tiny">next 6 months</span></div>
+      <div class="card key" style="padding:8px 18px 6px"><div style="padding:8px 0 4px"><h3>Dates to hit</h3><div class="hint">The same bars as a list, soonest first. Red is already late.</div></div>
         ${deadlines.map(mk => `<div class="click" style="display:grid;grid-template-columns:76px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #EDF1F4;cursor:pointer" onclick="${mk.item.open}"><b style="font-size:13px;color:${mk.late ? 'var(--bad)' : 'var(--ink)'}">${fmtDate(mk.date)}</b><div><div style="font-size:13px;font-weight:600">${esc(mk.label)}</div><div class="tiny">${esc(mk.item.sub)}</div></div><span style="width:8px;height:8px;border-radius:50%;background:${mk.late ? 'var(--bad)' : mk.good ? 'var(--good)' : 'var(--brand-ink)'}"></span></div>`).join('') || '<div class="hint">No deadlines in the window.</div>'}
         ${closures.map(c => `<div style="display:grid;grid-template-columns:76px 1fr;gap:10px;padding:9px 0;border-top:1px solid #EDF1F4"><b style="font-size:13px">${fmtDate(c.from)}</b><div><div style="font-size:13px;font-weight:600">${esc(c.factory)} closed</div><div class="tiny">${esc(c.label || '')} · to ${fmtDate(c.to)}</div></div></div>`).join('')}
       </div>
-      <div class="card"><h3>How the dates are worked out</h3><div class="hint">On-site date, minus ${s.settings.site_prep_days} days to get it live, minus shipping, minus production, minus ${s.settings.buffer_days} days of buffer, gives the order-by date. Minus ${s.settings.slack_days} days of slack, ${s.settings.sample_days} days of sampling and ${s.settings.design_days} of design gives the brief date. Change a lead time in Settings and every bar moves.</div></div>
+      <div class="card"><h3>Where the dates come from</h3><div class="hint">On-site date, minus ${s.settings.site_prep_days} days to get it live, minus shipping, minus production, minus ${s.settings.buffer_days} days of buffer, gives the order-by date. Minus ${s.settings.slack_days} days of slack, ${s.settings.sample_days} days of sampling and ${s.settings.design_days} of design gives the brief date. Change a lead time in Settings and every bar moves.</div></div>
     </div></div>`;
 };
 function timelineItems(s) {
@@ -184,7 +184,7 @@ function timelineItems(s) {
       phases: prodEnd && prodEnd < lands ? [[sent, prodEnd, 'production', '#C9962A'], [prodEnd, lands, 'ship', '#7A8794']] : [[sent, lands, o.status === 'shipped' ? 'ship' : 'in progress', '#7A8794']],
       marks: [{ date: lands, label: `${o.productTitles[0] || o.id} lands`, good: true, late: !!o.overdue }] });
   }
-  for (const p of s.products.filter(p => ['out', 'order', 'gap', 'soon'].includes(p.status) && p.leadDays != null).slice(0, 12)) {
+  for (const p of s.products.filter(p => ['out', 'order', 'gap', 'soon'].includes(p.status) && p.leadDays != null).sort((a, b) => (a.orderByDate || '0') < (b.orderByDate || '0') ? -1 : 1).slice(0, 8)) {
     const f = factoryById(p.factoryId); const send = p.orderByDate && p.orderByDate > s.today ? p.orderByDate : s.today;
     const prod = f ? f.production_days : Math.round(p.leadDays * 0.6), ship = f ? f.shipping_days : Math.round(p.leadDays * 0.3);
     const prodEnd = addDays(send, prod), shipEnd = addDays(prodEnd, ship), lands = addDays(send, p.leadDays);
@@ -203,40 +203,43 @@ function timelineItems(s) {
   return items;
 }
 function ganttSVG(items, from, to, closures) {
-  const W = 900, LAB = 214, X0 = LAB, X1 = W - 12, PW = X1 - X0, RH = 46, GH = 30, TOP = 48;
+  const W = 900, LAB = 214, X0 = LAB, X1 = W - 96, PW = X1 - X0, RH = 44, GH = 30, TOP = 48;
   const N = daysBetween(from, to);
   const x = t => X0 + Math.max(0, Math.min(N, daysBetween(from, t))) / N * PW;
   const groups = [...new Set(items.map(i => i.group))].map(g => [g, items.filter(i => i.group === g)]);
   const H = TOP + groups.length * GH + items.length * RH + 10;
   let out = '';
-  let d = new Date(`${from}T12:00:00Z`); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + 1);
-  for (; d.toISOString().slice(0, 10) <= to; d.setUTCMonth(d.getUTCMonth() + 1)) { const t = d.toISOString().slice(0, 10); out += `<line x1="${x(t)}" x2="${x(t)}" y1="${TOP - 8}" y2="${H}" stroke="#E3EAEF"/><text x="${x(t) + 6}" y="${TOP - 14}" font-size="10.5" font-weight="700" fill="#8195A2" letter-spacing=".06em">${d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase()}</text>`; }
-  for (const c of closures) if (c.to >= from && c.from <= to) out += `<rect x="${x(c.from)}" y="${TOP - 8}" width="${Math.max(2, x(c.to) - x(c.from))}" height="${H - TOP + 8}" fill="#F1F4F7"/><text x="${(x(c.from) + x(c.to)) / 2}" y="${TOP - 14}" font-size="10" font-weight="700" fill="#647684" text-anchor="middle">closed</text>`;
+  let d = new Date(from + 'T12:00:00Z'); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + 1);
+  for (; d.toISOString().slice(0, 10) <= to; d.setUTCMonth(d.getUTCMonth() + 1)) { const t = d.toISOString().slice(0, 10); out += '<line x1="' + x(t) + '" x2="' + x(t) + '" y1="' + (TOP - 8) + '" y2="' + H + '" stroke="#E3EAEF"/><text x="' + (x(t) + 6) + '" y="' + (TOP - 14) + '" font-size="10.5" font-weight="700" fill="#8195A2" letter-spacing=".06em">' + d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase() + '</text>'; }
+  for (const c of closures) if (c.to >= from && c.from <= to) out += '<rect x="' + x(c.from) + '" y="' + (TOP - 8) + '" width="' + Math.max(2, x(c.to) - x(c.from)) + '" height="' + (H - TOP + 8) + '" fill="#EDF1F4"/><text x="' + (x(c.from) + x(c.to)) / 2 + '" y="' + (TOP - 14) + '" font-size="10" font-weight="700" fill="#647684" text-anchor="middle">factory closed</text>';
   let y = TOP;
   for (const [g, rs] of groups) {
-    out += `<text x="0" y="${y + 19}" font-size="11" font-weight="700" fill="#647684" letter-spacing=".1em">${esc(g.toUpperCase())}</text><line x1="0" x2="${W}" y1="${y + GH - 1}" y2="${y + GH - 1}" stroke="#DFE7EC"/>`;
+    out += '<text x="0" y="' + (y + 19) + '" font-size="11" font-weight="700" fill="#647684" letter-spacing=".1em">' + esc(g.toUpperCase()) + '</text><line x1="0" x2="' + W + '" y1="' + (y + GH - 1) + '" y2="' + (y + GH - 1) + '" stroke="#DFE7EC"/>';
     y += GH;
     for (const r of rs) {
-      out += `<g style="cursor:pointer" onclick="${r.open}"><rect x="0" y="${y}" width="${W}" height="${RH}" fill="transparent"/><text x="0" y="${y + 20}" font-size="13" font-weight="700" fill="#13202B">${esc(r.label.slice(0, 28))}</text><text x="0" y="${y + 35}" font-size="11.5" fill="#647684">${esc(r.sub.slice(0, 40))}</text>`;
+      out += '<g style="cursor:pointer" onclick="' + r.open + '"><rect x="0" y="' + y + '" width="' + W + '" height="' + RH + '" fill="transparent"/><text x="0" y="' + (y + 19) + '" font-size="13" font-weight="700" fill="#13202B">' + esc(r.label.slice(0, 26)) + '</text><text x="0" y="' + (y + 34) + '" font-size="11.5" fill="#647684">' + esc(r.sub.slice(0, 38)) + '</text>';
+      let barEnd = null;
       for (const [a, b, lab, col] of r.phases) {
-        if (b < from) continue; const xa = x(a), xb = x(b), w = Math.max(2, xb - xa);
-        out += `<rect x="${xa}" y="${y + 22}" width="${w}" height="18" rx="4" fill="${col}" data-tip="${esc(lab || 'buffer')}<small>${fmtDate(a)} to ${fmtDate(b)} · ${daysBetween(a, b)} days</small>"/>`;
-        if (lab && w > lab.length * 6.2 + 12) out += `<text x="${xa + 7}" y="${y + 35}" font-size="10.5" font-weight="700" fill="${['#62BDEA', '#DCE7EE', '#C3CED8'].includes(col) ? '#0C161D' : '#fff'}" pointer-events="none">${esc(lab)}</text>`;
+        if (b < from) continue; const xa = x(a), xb = x(b), w = Math.max(2, xb - xa); barEnd = xb;
+        out += '<rect x="' + xa + '" y="' + (y + 20) + '" width="' + w + '" height="16" rx="4" fill="' + col + '" data-tip="' + esc(lab || 'buffer') + '<small>' + fmtDate(a) + ' to ' + fmtDate(b) + ' · ' + daysBetween(a, b) + ' days</small>"/>';
+        if (lab && w > lab.length * 6.4 + 12) out += '<text x="' + (xa + 7) + '" y="' + (y + 32) + '" font-size="10.5" font-weight="700" fill="' + (['#62BDEA', '#DCE7EE', '#C3CED8'].includes(col) ? '#0C161D' : '#fff') + '" pointer-events="none">' + esc(lab) + '</text>';
       }
-      if (r.oos) out += `<rect x="${x(r.oos[0])}" y="${y + 8}" width="${Math.max(2, x(r.oos[1]) - x(r.oos[0]))}" height="10" rx="3" fill="#F7E7E4"/><text x="${x(r.oos[0]) + 5}" y="${y + 16}" font-size="9.5" font-weight="700" fill="#9C3A2E">${esc(r.oos[2])}</text>`;
-      for (const mk of r.marks) {
-        if (mk.date < from || mk.date > to) continue; const xm = x(mk.date);
-        out += `<path d="M${xm},${y + 25} l6,6 l-6,6 l-6,-6z" fill="${mk.late ? '#9C3A2E' : mk.good ? '#1C7A46' : '#0C161D'}" stroke="#fff" stroke-width="1.5"/>`;
-        const right = xm < X1 - 110; const short = mk.label.replace(r.label, '').replace(/^[:\s]+/, '').trim() || mk.label;
-        out += `<text x="${right ? xm + 10 : xm - 10}" y="${y + 15}" font-size="10.5" font-weight="700" fill="${mk.late ? '#9C3A2E' : mk.good ? '#1C7A46' : '#13202B'}" text-anchor="${right ? 'start' : 'end'}">${esc(short.slice(0, 26))}${mk.late ? ' · late' : ''}</text>`;
-      }
-      out += `</g><line x1="${X0}" x2="${X1}" y1="${y + RH - 1}" y2="${y + RH - 1}" stroke="#EDF1F4"/>`;
+      // the stretch with nothing to sell, drawn over the bar in red hatch, explained in the tip
+      if (r.oos) out += '<rect x="' + x(r.oos[0]) + '" y="' + (y + 20) + '" width="' + Math.max(2, x(r.oos[1]) - x(r.oos[0])) + '" height="16" rx="4" fill="url(#tlhatch)" data-tip="Nothing to sell<small>' + esc(r.oos[2]) + '</small>"/>';
+      // one label per row: the send date (or late), above the bar
+      const send = r.marks.find(mk => !mk.good);
+      if (send && send.date >= from && send.date <= to) { const xm = x(send.date); out += '<path d="M' + xm + ',' + (y + 22) + ' l6,6 l-6,6 l-6,-6z" fill="' + (send.late ? '#C63A2F' : '#0C161D') + '" stroke="#fff" stroke-width="1.5"/><text x="' + (xm + 10) + '" y="' + (y + 13) + '" font-size="10.5" font-weight="700" fill="' + (send.late ? '#C63A2F' : '#13202B') + '">' + (send.late ? 'Late: send now' : 'Send by ' + fmtDate(send.date)) + '</text>'; }
+      // the landing date, at the end of the bar in its own column
+      const land = r.marks.find(mk => mk.good);
+      if (land && barEnd != null) out += '<path d="M' + (Math.min(barEnd, X1) + 7) + ',' + (y + 22) + ' l6,6 l-6,6 l-6,-6z" fill="#1C7A46" stroke="#fff" stroke-width="1.5"/><text x="' + (X1 + 10) + '" y="' + (y + 32) + '" font-size="11" font-weight="700" fill="#1C7A46">' + (land.label.includes('on site') ? 'on site ' : 'lands ') + fmtDate(land.date) + '</text>';
+      out += '</g><line x1="' + X0 + '" x2="' + W + '" y1="' + (y + RH - 1) + '" y2="' + (y + RH - 1) + '" stroke="#EDF1F4"/>';
       y += RH;
     }
   }
   const xt = x(from);
-  out += `<line x1="${xt}" x2="${xt}" y1="${TOP - 8}" y2="${H}" stroke="#9C3A2E" stroke-width="1.5" stroke-dasharray="3 3"/><rect x="${xt - 22}" y="${TOP - 46}" width="44" height="16" rx="8" fill="#9C3A2E"/><text x="${xt}" y="${TOP - 35}" font-size="9.5" font-weight="700" fill="#fff" text-anchor="middle">TODAY</text>`;
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}">${out}</svg>`;
+  out += '<line x1="' + xt + '" x2="' + xt + '" y1="' + (TOP - 8) + '" y2="' + H + '" stroke="#C63A2F" stroke-width="1.5" stroke-dasharray="3 3"/><rect x="' + (xt - 22) + '" y="' + (TOP - 46) + '" width="44" height="16" rx="8" fill="#C63A2F"/><text x="' + xt + '" y="' + (TOP - 35) + '" font-size="9.5" font-weight="700" fill="#fff" text-anchor="middle">TODAY</text>';
+  return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '"><defs><pattern id="tlhatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#C63A2F" stroke-width="2" stroke-opacity=".55"/></pattern></defs>' + out + '</svg>' +
+    '<div class="legend"><span><i style="background:#C9962A"></i>Factory making it</span><span><i style="background:#7A8794"></i>On the water</span><span><i class="hatch"></i>Nothing to sell while you wait</span><span><i class="dia"></i>Send the order</span><span><i class="dia" style="background:#1C7A46"></i>Lands</span></div>';
 }
 
 /* ======================================================================
@@ -244,8 +247,8 @@ function ganttSVG(items, from, to, closures) {
    ====================================================================== */
 window.renderSettings = function (m) {
   const s = st(); S.setTab = S.setTab || 'lines';
-  title('Settings', 'How this brand buys. Categories and lines, factories, lifecycle, rules, Slack, data.',
-    `<div class="seg">${[['lines', 'Categories and lines'], ['factories', 'Factories'], ['lifecycle', 'Lifecycle'], ['rules', 'Rules'], ['slack', 'Slack and data']].map(([k, l]) => `<button class="${S.setTab === k ? 'on' : ''}" onclick="S.setTab='${k}';render()">${l}</button>`).join('')}</div>`);
+  title('Settings', 'How this brand buys. Categories and lines, factories, kinds of product, rules, Slack, data.',
+    `<div class="seg">${[['lines', 'Categories and lines'], ['factories', 'Factories'], ['lifecycle', 'Kinds of product'], ['rules', 'Rules'], ['slack', 'Slack and data']].map(([k, l]) => `<button class="${S.setTab === k ? 'on' : ''}" onclick="S.setTab='${k}';render()">${l}</button>`).join('')}</div>`);
   m.innerHTML = { lines: settingsLines, factories: settingsFactories, lifecycle: settingsLifecycle, rules: settingsRules, slack: settingsSlack }[S.setTab](s);
   if (S.setTab === 'slack') loadSlack();
 };
@@ -255,7 +258,7 @@ function settingsLines(s) {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start">
       ${s.categories.map(c => { const ls = s.lines.filter(l => l.categoryId === c.id); return `<div class="card flush">
         <div class="card-hd"><div><b>${esc(c.name)}</b><div class="tiny">${plural(ls.length, 'line')} · ${ls.reduce((a, l) => a + l.designs, 0)} products</div></div><span style="margin-left:auto;display:flex;gap:6px"><button class="btn quiet sm" onclick="editCategory('${c.id}')">Rename</button><button class="btn quiet sm" onclick="addLine('${c.id}')">${ic('plus')}Line</button></span></div>
-        ${ls.map(l => { const row = s.db.lines.find(x => x.id === l.id); const types = s.db.typeMap.filter(tm => tm.line_id === l.id).map(tm => tm.shop_type); return `<div class="click" style="padding:11px 16px;border-top:1px solid #EDF1F4;cursor:pointer" onclick="editLine('${l.id}')"><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:13.5px">${esc(l.name)}</b><span class="tiny">${plural(l.designs, 'product')}</span></div><div class="tiny">Variants mean: ${axisLabel(l.axis)} · ${esc(l.factoryName || 'no factory')}${row?.lead_override_days != null ? ` · lead ${row.lead_override_days} d` : ''}</div><div class="tiny">${l.moq ? `minimum ${l.moq} · ` : ''}${l.target ? `target ${l.target} · ` : ''}${l.cutRulePct ? `cut bottom ${l.cutRulePct}%` : 'manual cuts'} · Shopify types: ${types.length ? esc(types.join(', ')) : '<span style="color:var(--warn)">none</span>'}</div></div>`; }).join('')}
+        ${ls.map(l => { const row = s.db.lines.find(x => x.id === l.id); const types = s.db.typeMap.filter(tm => tm.line_id === l.id).map(tm => tm.shop_type); return `<div class="click" style="padding:11px 16px;border-top:1px solid #EDF1F4;cursor:pointer" onclick="editLine('${l.id}')"><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:13.5px">${esc(l.name)}</b><span class="tiny">${plural(l.designs, 'product')}</span></div><div class="tiny">Variants mean: ${axisLabel(l.axis)} · ${esc(l.factoryName || 'no factory')}${row?.lead_override_days != null ? ` · lead ${row.lead_override_days} d` : ''}</div><div class="tiny">${l.moq ? `minimum ${l.moq} · ` : ''}${l.target ? `target ${l.target} designs · ` : ''}${l.cutRulePct ? `cut zone bottom ${l.cutRulePct}%` : 'manual cuts'} · Shopify types: ${types.length ? esc(types.join(', ')) : '<span style="color:var(--warn)">none</span>'}</div></div>`; }).join('')}
       </div>`; }).join('')}
       <div class="card" style="border-style:dashed;background:transparent;box-shadow:none"><h3>Add a category</h3><div class="hint">Gear, Bags, whatever comes next. Lines go inside it.</div><div style="margin-top:10px"><button class="btn" onclick="addCategory()">${ic('plus')}Category</button></div></div>
     </div>
@@ -273,7 +276,7 @@ function lineFields(row, s) {
     { key: 'lead_override_days', label: 'Lead time override (days)', type: 'number', value: row?.lead_override_days ?? '', min: 0, help: 'Production plus shipping, when this line differs from its factory. Empty uses the factory.' },
     { key: 'moq', label: 'Minimum order per style', type: 'number', value: row?.moq ?? '', min: 0, help: 'Empty uses the factory default.' },
     { key: 'target_designs', label: 'Assortment target', type: 'number', value: row?.target_designs ?? '', min: 0, help: 'How many designs next season. Creates open slots.' },
-    { key: 'cut_rule_pct', label: 'Cut band, bottom %', type: 'number', value: row?.cut_rule_pct ?? '', min: 0, help: 'By 90-day sales. Empty means manual cuts only.' },
+    { key: 'cut_rule_pct', label: 'Cut zone, bottom %', type: 'number', value: row?.cut_rule_pct ?? '', min: 0, help: 'By 90-day sales. Empty means manual cuts only.' },
   ];
 }
 async function addLine(catId) { const s = st(); const r = await modal({ title: 'New product line', hint: 'Hoodies, Quarter zips, Beanies, Bags. Then sort its Shopify types into it.', fields: lineFields({ category_id: catId }, s), confirm: 'Create' }); if (!r?.name) return; await save('/api/lines', clean(r), 'PUT', 'Line created'); }
@@ -328,10 +331,10 @@ async function editFactory(id) {
 }
 function settingsLifecycle(s) {
   const groups = Object.keys(LIFECYCLE).map(k => [k, s.products.filter(p => p.lifecycle === k)]);
-  return `<div class="card"><h3>Lifecycle</h3><div class="hint">Every product has one. It decides whether Supply forecasts it for reorder. Change it here or on the product's forecast sheet.</div>
+  return `<div class="card"><h3>Kind of product</h3><div class="hint">Every product is one of these. It decides whether Supply forecasts it for reorder. Change it here or on the product's own sheet.</div>
     <table style="margin-top:10px;font-size:13px"><tr><th>Status</th><th class="num">Products</th><th>Means</th></tr>
       ${[['core', 'Always forecast. Zero stock is an emergency.'], ['seasonal', 'Forecast against its season.'], ['drop', 'Sells out on purpose. Never asks for a reorder.'], ['winding_down', 'No reorder; sells the rest down. The cut decision sets this too.'], ['discontinued', 'Hidden everywhere except history.']].map(([k, d]) => `<tr><td>${pill({ core: 'brand', seasonal: 'brand', drop: 'good', winding_down: 'warn', discontinued: 'unk' }[k], LIFECYCLE[k])}</td><td class="num">${groups.find(g => g[0] === k)[1].length}</td><td class="tiny wrap">${d}</td></tr>`).join('')}</table></div>
-    <div class="card flush"><div class="card-hd"><b>Every product</b><span class="tiny">Click a lifecycle to change it.</span></div><div class="tbl-wrap"><table><tr><th>Product</th><th>Line</th><th class="num">On hand</th><th class="num">Sold 90d</th><th>Status</th><th>Lifecycle</th></tr>
+    <div class="card flush"><div class="card-hd"><b>Every product</b><span class="tiny">Change the kind here; it saves at once.</span></div><div class="tbl-wrap"><table><tr><th>Product</th><th>Line</th><th class="num">On hand</th><th class="num">Sold 90d</th><th>Status</th><th>Kind</th></tr>
       ${s.products.map(p => `<tr><td style="padding-left:18px" class="click" onclick="openProduct('${p.id}')"><b>${esc(p.title)}</b></td><td class="tiny">${esc(p.lineName || 'unsorted')}</td><td class="num">${fmtInt(p.onHand)}</td><td class="num">${p.sold90}</td><td>${statusPill(p)}</td><td><select onchange="setProduct('${p.id}',{lifecycle:this.value})">${Object.entries(LIFECYCLE).map(([k, l]) => `<option value="${k}" ${p.lifecycle === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td></tr>`).join('')}
     </table></div></div>`;
 }
