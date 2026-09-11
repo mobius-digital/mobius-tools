@@ -21,14 +21,14 @@ const TOUR = [
 let tourStep = -1;
 function startTour(step = 0) {
   tourStep = step;
-  let el = document.querySelector('#tourLayer');
-  if (!el) { el = document.createElement('div'); el.id = 'tourLayer'; document.body.appendChild(el); }
+  if (!document.querySelector('#tourLayer')) { const el = document.createElement('div'); el.id = 'tourLayer'; el.innerHTML = '<div class="tour-scrim"></div>'; document.body.appendChild(el); }
+  if (!document.querySelector('#tourCard')) { const c = document.createElement('div'); c.id = 'tourCard'; c.className = 'tour-card'; document.body.appendChild(c); }
   closeSheet();
   showTourStep();
 }
 function endTour() {
   tourStep = -1;
-  const el = document.querySelector('#tourLayer'); if (el) el.remove();
+  for (const id of ['#tourLayer', '#tourCard']) { const el = document.querySelector(id); if (el) el.remove(); }
   document.querySelectorAll('.tour-spot').forEach(e => e.classList.remove('tour-spot'));
   try { localStorage.setItem('supply_tour_done', '1'); } catch { /* private mode */ }
 }
@@ -37,23 +37,26 @@ function showTourStep() {
   if (S.tab !== step.tab) { S.tab = step.tab; location.hash = step.tab; if (step.tab === 'performance') S.cat = S.cat || st().categories[0]?.id; render(); }
   document.querySelectorAll('.tour-spot').forEach(e => e.classList.remove('tour-spot'));
   const target = step.sel ? document.querySelector(step.sel) : null;
-  const layer = document.querySelector('#tourLayer');
   const last = tourStep === TOUR.length - 1;
-  layer.innerHTML = `<div class="tour-scrim"></div><div class="tour-card" id="tourCard">
+  const card = document.querySelector('#tourCard');
+  card.innerHTML = `
     <div class="tour-step">${tourStep + 1} of ${TOUR.length}</div>
     <h3>${esc(step.title)}</h3><p>${esc(step.text)}</p>
-    <div class="tour-actions"><button class="btn quiet" onclick="endTour()">${last ? 'Close' : 'Skip'}</button><span style="flex:1"></span>${tourStep > 0 ? '<button class="btn" onclick="tourStep--;showTourStep()">Back</button>' : ''}${last ? '' : '<button class="btn primary" onclick="tourStep++;showTourStep()">Next</button>'}</div></div>`;
-  const card = document.querySelector('#tourCard');
+    <div class="tour-actions"><button class="btn quiet" onclick="endTour()">${last ? 'Close' : 'Skip'}</button><span style="flex:1"></span>${tourStep > 0 ? '<button class="btn" onclick="tourStep--;showTourStep()">Back</button>' : ''}${last ? '' : '<button class="btn primary" onclick="tourStep++;showTourStep()">Next</button>'}</div>`;
+  card.style.transform = 'none'; card.style.right = ''; card.style.bottom = '';
   if (target) {
     target.classList.add('tour-spot');
-    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const tall = target.getBoundingClientRect().height > innerHeight * 0.55;
+    target.scrollIntoView({ block: tall ? 'start' : 'center', behavior: 'smooth' });
     setTimeout(() => {
-      const r = target.getBoundingClientRect();
-      const below = r.bottom + 16 + 220 < innerHeight;
-      card.style.top = (below ? r.bottom + 16 : Math.max(16, r.top - 16 - card.offsetHeight)) + 'px';
-      card.style.left = Math.max(16, Math.min(innerWidth - card.offsetWidth - 16, r.left)) + 'px';
-      card.style.transform = 'none';
-    }, 250);
+      const r = target.getBoundingClientRect(), ch = card.offsetHeight, cw = card.offsetWidth;
+      if (tall) { card.style.top = ''; card.style.left = ''; card.style.right = '24px'; card.style.bottom = '24px'; return; }
+      const below = r.bottom + 16 + ch < innerHeight;
+      let top = below ? r.bottom + 16 : r.top - 16 - ch;
+      top = Math.max(16, Math.min(innerHeight - ch - 16, top));
+      card.style.top = top + 'px';
+      card.style.left = Math.max(16, Math.min(innerWidth - cw - 16, r.left)) + 'px';
+    }, 300);
   } else {
     card.style.top = '50%'; card.style.left = '50%'; card.style.transform = 'translate(-50%,-50%)';
   }
