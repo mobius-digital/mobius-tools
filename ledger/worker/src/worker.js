@@ -2223,7 +2223,21 @@ export default {
       })());
     } else {
       // every 10 minutes: anything new dropped in Slack #receipts
-      ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message)));
+      ctx.waitUntil((async () => {
+        await processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message));
+        /* A receipt waiting on a charge should not wait until tomorrow morning
+         * to find out it arrived. The bank's own copy of the account only
+         * refreshes a few times a day, so checking every ten minutes does not
+         * make the charge appear sooner · but it does mean the gap between the
+         * charge appearing and the receipt landing on it is ten minutes rather
+         * than up to a day. Only run at all while something is actually
+         * waiting, so an empty queue costs nothing. */
+        const waiting = await env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'pend:%'`).first().catch(() => null);
+        if (!waiting?.n) return;
+        await syncPlaid(env).catch(e => console.log('10-min bank pull failed: ' + e.message));
+        await retryHeldReceipts(env).catch(e => console.log('10-min held retry failed: ' + e.message));
+      })());
     }
   },
 
