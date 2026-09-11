@@ -39,7 +39,6 @@ the product is called Lineup — and that name lives in `hub.config.ts` alone.
 npm test              # unit tests
 npm run typecheck
 npm run dev:local     # next dev with the build folder outside OneDrive
-npm run deploy:preview  # the next version at lineup-preview.mobius-digital.workers.dev
 npm run deploy        # build + publish the live hub worker
 ```
 
