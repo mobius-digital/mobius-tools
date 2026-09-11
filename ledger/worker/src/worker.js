@@ -2151,16 +2151,17 @@ async function syncPlaid(env) {
      * and the night's figures were simply not fetched. Every write here is
      * keyed on plaid_id, so starting again costs nothing but a second read. */
     const startCursor = item.cursor || undefined;
+    let cursor = startCursor;
     let attempt = 0;
     let hasMore = true;
     while (hasMore) {
       let page;
       try {
         page = await plaid(env, '/transactions/sync',
-          { access_token: item.access_token, cursor: item.cursor || undefined, count: 250 });
+          { access_token: item.access_token, cursor: cursor || undefined, count: 250 });
       } catch (e) {
         if (/MUTATION_DURING_PAGINATION/.test(String(e.message || e)) && ++attempt <= 3) {
-          item.cursor = startCursor;
+          cursor = startCursor;
           totals.restarted = (totals.restarted || 0) + 1;
           continue;
         }
@@ -2214,10 +2215,18 @@ async function syncPlaid(env) {
           totals.removed = (totals.removed || 0) + 1;
         }
       }
-      item.cursor = page.next_cursor;
+      /* THE CURSOR IS ONLY REAL ONCE THE SEQUENCE FINISHES. Saving each page's
+       * next_cursor as it arrived looked like resilience · a crash mid-way
+       * would resume rather than restart · but it is the thing Plaid tells you
+       * not to do, and it is why every sync was failing: a cursor saved
+       * half-way through a sequence that the account then changed under is a
+       * cursor Plaid will not accept again, and every later attempt restarted
+       * from that same poisoned point. Held in hand until the end instead. */
+      cursor = page.next_cursor;
       hasMore = page.has_more;
-      await putSetting(env, 'plaidItems', JSON.stringify(items)); // persist cursor per page
     }
+    item.cursor = cursor;
+    await putSetting(env, 'plaidItems', JSON.stringify(items));
   }
   await announceDropped(env, dropped);
   return { ok: true, ...totals };
