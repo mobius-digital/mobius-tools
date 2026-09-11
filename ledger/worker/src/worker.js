@@ -257,6 +257,31 @@ async function slackUploadFile(env, channel, bytes, filename, comment) {
  * never actually learns anything. A rule whose name appears anywhere in the
  * bank's description counts, longest rule first so a specific rule always beats
  * a general one. */
+/* COMPANIES THAT RENAMED, MERGED, OR BILL UNDER SOMEONE ELSE'S NAME. Requiring
+ * the vendor names to agree is what stops a receipt landing on the wrong
+ * charge, and it is right · but a Twitter receipt genuinely is an X Corp charge,
+ * and demanding they look alike asks a question nobody should have to answer.
+ * Each row is one company under every name it appears as, on a receipt or on a
+ * statement. Add to it as the world keeps renaming itself. */
+const VENDOR_ALIASES = [
+  ['twitter', 'x corp'],
+  ['anthropic', 'claude'],
+  ['artifex', 'pdfco'],          // Pdf.co & Artifex bill as one line
+  ['atlassian', 'loom'],         // Atlassian bought Loom
+  ['squarespace', 'sqsp'],
+  ['western union', 'wu'],
+  ['meta platforms', 'facebook', 'instagram'],
+];
+/* Same company, whatever the two names look like. Both must be found in the
+ * SAME row for this to say yes, so an unlisted vendor simply falls through to
+ * the ordinary name comparison. */
+function sameCompany(a, b) {
+  const flat = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
+  const x = flat(a), y = flat(b);
+  if (!x || !y) return false;
+  return VENDOR_ALIASES.some(row => row.some(n => x.includes(n)) && row.some(n => y.includes(n)));
+}
+
 async function findRule(env, vendor) {
   const exact = await env.DB.prepare('SELECT * FROM vendors WHERE name = ?1 COLLATE NOCASE')
     .bind(vendor).first();
@@ -771,6 +796,7 @@ async function processSlackReceipts(env) {
            * OpenAI charge. Where the names disagree nothing is attached · the
            * candidates are offered as buttons below instead, and he decides. */
           const agrees = t => {
+            if (sameCompany(t.vendor, ext.vendor)) return true;
             const a = words(t.vendor), b = words(ext.vendor);
             return a.length && b.length && (a[0] === b[0] || a.includes(b[0]) || b.includes(a[0]));
           };
@@ -1541,6 +1567,7 @@ async function processPlaidTxn(env, item, t, opts = {}) {
      * Failing the other way costs a duplicate row, which the nightly check sees
      * and names. A wrong merge is silent, and silence is the thing to avoid. */
     const nameAgrees = x => {
+      if (sameCompany(x.vendor, vendor)) return true;
       const a = String(x.vendor || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
       const b = vendor.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
       if (!a.length || !b.length) return false;
@@ -1630,6 +1657,7 @@ async function retryHeldReceipts(env) {
     const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const rv = norm(meta.vendor), first = rv.split(' ').filter(Boolean)[0] || '';
     const agrees = t => {
+      if (sameCompany(t.vendor, meta.vendor)) return true;
       const tv = norm(t.vendor); if (!first || !tv) return false;
       const tf = tv.split(' ')[0];
       return tv.includes(first) || rv.includes(tf);
