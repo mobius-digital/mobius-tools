@@ -7,6 +7,7 @@
    state cards, one ringed key card per screen. Subtle, never a hero gradient.
    ========================================================================== */
 :root{ --side-w:232px; --wash:rgba(98,189,234,.22); }
+[hidden]{display:none !important}
 html,body{height:100%}
 body{background:var(--bg)}
 .app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:100vh}
