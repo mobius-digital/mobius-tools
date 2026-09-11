@@ -12,7 +12,7 @@ const S = {
   brand: localStorage.getItem('supply_brand') || 'lucky',
   tab: 'today', state: null, loading: false, err: null,
   sel: new Set(), qty: {},            // Reorder selection + edited quantities (variantId -> qty)
-  q: '', filter: 'decide', lineFilter: '', cat: '', perfLine: '', planLine: '', tlFilter: 'all',
+  q: '', filter: 'decide', statusFilter: '', lineFilter: '', cat: '', perfLine: '', planLine: '', tlFilter: 'all',
   ordersFilter: 'open', open: null, sheetKind: null,
 };
 
@@ -156,8 +156,9 @@ function renderToday(m) {
   const s = st(), h = s.headline;
   const d = new Date(`${s.today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
   title(d, `Snapshot ${fmtTime(s.lastRun || s.generatedAt)} · ${plural(s.products.filter(p => p.status !== 'off').length, 'product')} · ${plural(s.historyDays, 'day')} of history${s.historyDays < 365 ? ' (seasonality needs a year)' : ''}`,
-    `<button class="btn quiet" onclick="howItWorks()">How Supply decides</button><button class="btn" onclick="newOrder()">${ic('plus')}Log an order</button>`);
+    `<button class="btn quiet" onclick="startTour()">Take the tour</button><button class="btn quiet" onclick="howItWorks()">How Supply decides</button><button class="btn" onclick="newOrder()">${ic('plus')}Log an order</button>`);
   const kinds = { bad: 'bd', warn: 'wn', brand: 'br', unk: 'un', good: 'ok' };
+  for (const dec of s.decisions) dec.body = dec.body.replace(' If this was a one-off, set its lifecycle to limited drop in Settings and it stops asking.', '').replace('Order now, or mark it as a drop.', 'Order now, or say it was a one-off.');
   const goTo = dec => dec.productId ? `openProduct('${dec.productId}')` : dec.orderId ? `openOrder('${dec.orderId}')` : dec.slotId ? `openSlot('${dec.slotId}')` : dec.lineId ? `S.planLine='${dec.lineId}';setTab('lineup')` : `setTab('${dec.screen}')`;
   const goLabel = dec => dec.productId ? 'Open the forecast' : dec.orderId ? 'Open the order' : dec.slotId ? 'Open the slot' : dec.screen === 'lineup' ? 'Open Lineup plan' : dec.screen === 'settings' ? 'Open Settings' : 'Open';
   const onTheWay = s.orders.filter(o => ['sent', 'confirmed', 'production', 'shipped', 'partial'].includes(o.status)).sort((a, b) => (a.expected_at || '9') < (b.expected_at || '9') ? -1 : 1);
@@ -169,6 +170,7 @@ function renderToday(m) {
     const worst = ps.filter(p => ['out', 'order', 'gap'].includes(p.status)).length;
     return { c, ps, onHand, sold30, wk, worst, note: worst ? `${plural(worst, 'product')} to order` : wk != null && wk > 78 ? 'heavy on stock' : 'steady' };
   });
+  const decBtns = dec => { const p = dec.productId ? productById(dec.productId) : null; return (p && p.status === 'out' && p.lifecycle === 'core' ? `<button class="btn" data-tip="It was a one-off. Supply stops asking for a reorder and keeps it in the history." onclick="setProduct('${p.id}',{lifecycle:'drop'})">It was a one-off</button>` : '') + `<button class="btn ${dec.kind === 'bad' ? 'primary' : ''}" onclick="${goTo(dec)}">${goLabel(dec)} ${ic('arrow')}</button>`; };
   m.innerHTML = `
     <div class="rollup">
       <div class="ru ${h.toOrder ? 'bad' : 'good'}" data-go onclick="setTab('reorder')"><div class="l">To order</div><div class="v">${h.toOrder}<small>products</small></div><div class="s">${h.overdue ? `<b>${h.overdue} overdue</b>${h.orderByLatest ? ` · rest by ${fmtDate(h.orderByLatest)}` : ''}` : h.orderByLatest ? `by <b>${fmtDate(h.orderByLatest)}</b>` : 'nothing due'}</div></div>
@@ -179,7 +181,7 @@ function renderToday(m) {
     <div class="two">
       <div class="stack">
         <div class="grph"><span>This week</span><span class="ln"></span><span class="ct">${plural(s.decisions.length, 'decision')}</span></div>
-        ${s.decisions.length ? s.decisions.map(dec => `<div class="card sc ${kinds[dec.kind] || 'un'} decision"><div><h3>${esc(dec.title)}</h3><div class="hint">${esc(dec.body)}</div></div><button class="btn ${dec.kind === 'bad' ? 'primary' : ''}" onclick="${goTo(dec)}">${goLabel(dec)} ${ic('arrow')}</button></div>`).join('')
+        ${s.decisions.length ? s.decisions.map(dec => `<div class="card sc ${kinds[dec.kind] || 'un'} decision"><div><h3>${esc(dec.title)}</h3><div class="hint">${esc(dec.body)}</div></div><div class="decision-btns">${decBtns(dec)}</div></div>`).join('')
           : `<div class="card sc ok"><h3>Nothing needs you this week.</h3><div class="hint">Every core product has enough stock to clear its lead time. Check Lineup plan when the season turns.</div></div>`}
       </div>
       <div class="stack">
@@ -227,17 +229,33 @@ function howItWorks() {
    REORDER + CREATE ORDER
    ====================================================================== */
 const ORDERABLE = new Set(['out', 'order', 'gap', 'soon', 'covered', 'ok', 'nosales', 'nofactory']);
+const CHIPS = [
+  ['decide', 'Needs a decision', p => ['out', 'order', 'gap', 'soon', 'covered'].includes(p.status)],
+  ['overdue', 'Overdue', p => p.overdue || p.status === 'out'],
+  ['out', 'Out now', p => p.status === 'out'],
+  ['order', 'Order now', p => p.status === 'order' && !p.overdue],
+  ['gap', 'Stock gap', p => p.status === 'gap'],
+  ['soon', 'Coming up', p => p.status === 'soon'],
+  ['covered', 'On the way', p => p.status === 'covered'],
+  ['ok', 'Fine', p => p.status === 'ok'],
+  ['other', 'Not selling or unsorted', p => ['nosales', 'dormant', 'unsorted', 'nofactory'].includes(p.status)],
+  ['all', 'Everything', () => true],
+];
 function reorderRows() {
   const s = st(); const q = S.q.trim().toLowerCase();
-  let ps = s.products.filter(p => ORDERABLE.has(p.status) || p.status === 'unsorted');
-  if (S.filter === 'now') ps = ps.filter(p => ['out', 'order', 'gap'].includes(p.status));
-  else if (S.filter === 'decide') ps = ps.filter(p => ['out', 'order', 'gap', 'soon', 'covered'].includes(p.status) || S.sel.has(p.id));
+  let ps = s.products.filter(p => ORDERABLE.has(p.status) || ['unsorted', 'dormant'].includes(p.status));
+  const chip = CHIPS.find(c => c[0] === S.filter) || CHIPS[0];
+  ps = ps.filter(p => chip[2](p) || S.sel.has(p.id));
+  if (S.lineFilter) ps = ps.filter(p => p.lineId === S.lineFilter);
   if (q) ps = ps.filter(p => (p.title + ' ' + p.variants.map(v => v.sku).join(' ') + ' ' + (p.lineName || '')).toLowerCase().includes(q));
   return ps;
 }
+function chipsHTML() {
+  const s = st(); const base = s.products.filter(p => ORDERABLE.has(p.status) || ['unsorted', 'dormant'].includes(p.status));
+  return `<div class="chips">${CHIPS.map(([k, l, f]) => { const n = base.filter(f).length; return n || k === 'all' || k === 'decide' ? `<button class="chip ${S.filter === k ? 'on' : ''} ${k}" onclick="S.filter='${k}';render()">${l}<small>${n}</small></button>` : ''; }).join('')}</div>`;
+}
 function renderReorder(m) {
   const s = st();
-  const counts = { now: s.products.filter(p => ['out', 'order', 'gap'].includes(p.status)).length, decide: s.products.filter(p => ['out', 'order', 'gap', 'soon', 'covered'].includes(p.status)).length, all: s.products.filter(p => ORDERABLE.has(p.status) || p.status === 'unsorted').length };
   title('Reorder', 'One group per factory. Tick what you want to send, adjust the quantities in the drawer, and Supply writes the order.', `<button class="btn" onclick="exportReorder()">Export list</button>`);
   const rows = reorderRows();
   const groups = new Map();
@@ -247,8 +265,11 @@ function renderReorder(m) {
   const landing = selected.length ? selected.map(p => p.leadDays).filter(x => x != null).reduce((a, b) => Math.max(a, b), 0) : null;
   m.innerHTML = `
     <div class="toolbar">
-      <div class="seg"><button class="${S.filter === 'decide' ? 'on' : ''}" onclick="S.filter='decide';render()">Needs a decision<small>${counts.decide}</small></button><button class="${S.filter === 'now' ? 'on' : ''}" onclick="S.filter='now';render()">Order now<small>${counts.now}</small></button><button class="${S.filter === 'all' ? 'on' : ''}" onclick="S.filter='all';render()">Everything<small>${counts.all}</small></button></div>
+      ${chipsHTML()}
+    </div>
+    <div class="toolbar">
       <div class="search">${ic('search')}<input id="rq" placeholder="Search products, SKUs, lines" value="${esc(S.q)}" oninput="S.q=this.value;renderRowsOnly()"></div>
+      <select onchange="S.lineFilter=this.value;render()"><option value="">All lines</option>${s.lines.map(l => `<option value="${l.id}" ${S.lineFilter === l.id ? 'selected' : ''}>${esc(l.categoryName)} · ${esc(l.name)}</option>`).join('')}</select>
       <span class="grow"></span><span class="tiny">Coverage after landing</span><button class="btn sm" onclick="editSetting('cover_days','Coverage after landing (days)','How many days of sales an order should cover once it lands. Longer means bigger, rarer orders.')">${s.settings.cover_days} days ${ic('chev')}</button>
     </div>
     <div id="rrows">${groupsHTML(groups)}</div>
@@ -399,8 +420,8 @@ function renderOrders(m) {
   m.innerHTML = `
     <div class="seg"><button class="${S.ordersFilter === 'open' ? 'on' : ''}" onclick="S.ordersFilter='open';render()">Open<small>${open.length}</small></button><button class="${S.ordersFilter === 'drafts' ? 'on' : ''}" onclick="S.ordersFilter='drafts';render()">Drafts<small>${drafts.length}</small></button><button class="${S.ordersFilter === 'landed' ? 'on' : ''}" onclick="S.ordersFilter='landed';render()">Landed<small>${landed.length}</small></button><button class="${S.ordersFilter === 'all' ? 'on' : ''}" onclick="S.ordersFilter='all';render()">All</button></div>
     <div class="card flush">${list.length ? `<div class="tbl-wrap"><table>
-      <tr><th>Order</th><th>Factory</th><th>Sent</th><th>Expected</th><th class="num">Units</th><th class="num">At cost</th><th style="width:440px">Stage</th></tr>
-      ${list.map(o => `<tr class="click ${o.status === 'draft' ? 'dim' : ''}" onclick="openOrder('${o.id}')"><td style="padding-left:18px"><b>${esc(o.id)}</b><div class="tiny wrap">${esc(o.productTitles.slice(0, 2).join(', '))}${o.productTitles.length > 2 ? ` +${o.productTitles.length - 2}` : ''}</div></td><td>${esc(o.factoryName || '—')}</td><td>${o.sent_at ? fmtDate(o.sent_at) : '<span class="tiny">not sent</span>'}</td><td>${o.expected_at ? `<b>${fmtDate(o.expected_at)}</b><div class="tiny">${o.daysToLanding != null ? (o.daysToLanding < 0 ? `${-o.daysToLanding} days late` : `${o.daysToLanding} days`) : ''}</div>` : '—'}</td><td class="num">${fmtInt(o.units)}${o.received ? `<div class="tiny">${fmtInt(o.received)} received</div>` : ''}</td><td class="num">${o.atCost ? money(o.atCost) : '—'}</td><td>${o.status === 'draft' ? '<span class="tiny">Drafts do not count as incoming stock.</span>' : o.status === 'cancelled' ? pill('unk', 'Cancelled') : stepper(o)}</td></tr>`).join('')}
+      <tr><th>Order</th><th>Factory</th><th>Sent</th><th>Expected</th><th class="num">Units</th><th class="num">At cost</th><th>Stage</th></tr>
+      ${list.map(o => `<tr class="click ${o.status === 'draft' ? 'dim' : ''}" onclick="openOrder('${o.id}')"><td style="padding-left:18px"><b>${esc(o.id)}</b><div class="tiny wrap">${esc(o.productTitles.slice(0, 2).join(', '))}${o.productTitles.length > 2 ? ` +${o.productTitles.length - 2}` : ''}</div></td><td>${esc(o.factoryName || '—')}</td><td>${o.sent_at ? fmtDate(o.sent_at) : '<span class="tiny">not sent</span>'}</td><td>${o.expected_at ? `<b>${fmtDate(o.expected_at)}</b><div class="tiny">${o.daysToLanding != null ? (o.daysToLanding < 0 ? `${-o.daysToLanding} days late` : `${o.daysToLanding} days`) : ''}</div>` : '—'}</td><td class="num">${fmtInt(o.units)}${o.received ? `<div class="tiny">${fmtInt(o.received)} received</div>` : ''}</td><td class="num">${o.atCost ? money(o.atCost) : '—'}</td><td>${o.status === 'draft' ? '<span class="tiny">Draft, not sent</span>' : orderPill(o)}</td></tr>`).join('')}
     </table></div>` : `<div class="empty"><b>${S.ordersFilter === 'open' ? 'Nothing on the way' : 'Nothing here'}</b>${S.ordersFilter === 'open' ? 'When you send an order to a factory, log it here and every forecast counts it as incoming.' : ''}</div>`}</div>`;
 }
 function stepper(o) {
@@ -463,7 +484,8 @@ function renderForecast(m) {
   m.innerHTML = `
     <div class="toolbar">
       <div class="search">${ic('search')}<input placeholder="Search products, SKUs" value="${esc(S.q)}" oninput="S.q=this.value;renderForecastRows()"></div>
-      <select class="btn" onchange="S.lineFilter=this.value;renderForecastRows()"><option value="">All lines</option>${s.lines.map(l => `<option value="${l.id}" ${S.lineFilter === l.id ? 'selected' : ''}>${esc(l.categoryName)} · ${esc(l.name)}</option>`).join('')}</select>
+      <select onchange="S.lineFilter=this.value;renderForecastRows()"><option value="">All lines</option>${s.lines.map(l => `<option value="${l.id}" ${S.lineFilter === l.id ? 'selected' : ''}>${esc(l.categoryName)} · ${esc(l.name)}</option>`).join('')}</select>
+      <select onchange="S.statusFilter=this.value;renderForecastRows()"><option value="">Any status</option>${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}" ${S.statusFilter === k ? 'selected' : ''}>${l}</option>`).join('')}<option value="overdue" ${S.statusFilter === 'overdue' ? 'selected' : ''}>Overdue</option></select>
     </div>
     <div class="card flush" id="frows"></div>`;
   renderForecastRows();
@@ -472,6 +494,7 @@ function renderForecastRows() {
   const s = st(); const q = S.q.trim().toLowerCase();
   let ps = s.products.filter(p => p.status !== 'off');
   if (S.lineFilter) ps = ps.filter(p => p.lineId === S.lineFilter);
+  if (S.statusFilter) ps = ps.filter(p => S.statusFilter === 'overdue' ? (p.overdue || p.status === 'out') : p.status === S.statusFilter);
   if (q) ps = ps.filter(p => (p.title + ' ' + p.variants.map(v => v.sku).join(' ')).toLowerCase().includes(q));
   const el = $('#frows'); if (!el) return;
   el.innerHTML = ps.length ? `<div class="tbl-wrap"><table>
@@ -512,8 +535,8 @@ function openProduct(id, variantId = null) {
       ${gapDays > 14 ? `<div class="card sc wn" style="margin-top:12px"><h3>Sell the gap on pre-order</h3><div class="hint">${gapDays} days sold out is locked in now. Switch the sold-out sizes to keep selling in Shopify with "${lands ? fmtDate(lands) : ''}" on the product page, then switch back when the order lands. Supply will do this from here in a later phase; today it is a reminder.</div></div>` : ''}
     </div>
     <div class="panel"><h4>Why ${fmt1(subject.velocity * 7)} a week</h4><div class="sub">${v ? whyVariant(v) : `Blend of three windows, weighted to the recent ones, ignoring days a size was sold out. ${p.coreCount < p.variants.length ? `${p.coreCount} of ${p.variants.length} variants carry 80% of sales and set the product's status; the rest are tail sizes.` : ''}`}</div>
-      ${v ? '' : `<div class="tbl-wrap"><table style="font-size:13px"><tr><th>${p.axis === 'loft_hand' ? 'Loft' : p.axis === 'none' ? 'Variant' : 'Size'}</th><th class="num">On hand</th><th class="num">Sold 14d</th><th class="num">30d</th><th class="num">90d</th><th class="num">A week</th><th class="num">Runs out</th><th class="num">Suggested</th><th></th></tr>
-        ${p.variants.map(x => `<tr class="click" onclick="openProduct('${p.id}','${x.id}')"><td>${esc(x.axis || x.sku || x.title || '—')}${x.isCore ? '' : ' <span class="tiny">tail</span>'}${x.curveBased ? ' <span class="tiny" data-tip="Demand estimated from the line\'s size curve: this size was off the shelf most of the window">curve</span>' : x.capped ? ' <span class="tiny" data-tip="Raw rate was inflated by sold-out days and has been capped">capped</span>' : ''}</td><td class="num">${x.onHand < 0 ? `<span style="color:var(--bad)">${x.onHand}</span>` : x.onHand}</td><td class="num">${x.sold14}</td><td class="num">${x.sold30}</td><td class="num">${x.sold90}</td><td class="num"><b>${fmt1(x.velocity * 7)}</b></td><td class="num">${x.runOutDays == null ? '—' : x.onHand <= 0 ? '<span style="color:var(--bad)">out</span>' : fmtDays(x.runOutDays)}</td><td class="num">${x.suggested || '—'}</td><td class="tiny">${x.incoming ? `+${x.incoming} ${fmtDate(x.incomingLands)}` : ''}</td></tr>`).join('')}</table></div>`}
+      ${v ? '' : `<div class="tbl-wrap"><table style="font-size:13px"><tr><th>${p.axis === 'loft_hand' ? 'Loft' : p.axis === 'none' ? 'Variant' : 'Size'}</th><th class="num">On hand</th><th class="num" data-tip="Units sold in the last 90 days">Sold, 90d</th><th class="num">A week</th><th class="num">Runs out</th><th class="num">Suggested</th></tr>
+        ${p.variants.map(x => `<tr class="click" onclick="openProduct('${p.id}','${x.id}')"><td>${esc(x.axis || x.sku || x.title || '—')}${x.isCore ? '' : ' <span class="tiny">tail</span>'}${x.curveBased ? ' <span class="tiny" data-tip="Demand estimated from the line\'s size curve: this size was off the shelf most of the window">curve</span>' : x.capped ? ' <span class="tiny" data-tip="Raw rate was inflated by sold-out days and has been capped">capped</span>' : ''}</td><td class="num">${x.onHand < 0 ? `<span style="color:var(--bad)">${x.onHand}</span>` : x.onHand}${x.incoming ? `<div class="tiny">+${x.incoming} ${fmtDate(x.incomingLands)}</div>` : ''}</td><td class="num" data-tip="${x.sold14} in 14 days · ${x.sold30} in 30 · ${x.sold90} in 90">${x.sold90}</td><td class="num"><b>${fmt1(x.velocity * 7)}</b></td><td class="num">${x.runOutDays == null ? '—' : x.onHand <= 0 ? '<span style="color:var(--bad)">out</span>' : fmtDays(x.runOutDays)}</td><td class="num">${x.suggested || '—'}</td></tr>`).join('')}</table></div>`}
     </div>
     <div class="panel"><h4>Daily sales, last 90 days</h4><div class="sub">${v ? 'This variant.' : 'All variants.'} Darker bars are the last 14 days.</div>${salesSVG(v ? v.series : p.variants.reduce((acc, x) => acc.map((n, i) => n + x.series[i]), Array(90).fill(0)))}</div>
     <div class="panel"><h4>How Supply treats this product</h4><div class="sub">Two things decide whether it gets forecast for reorder: what kind of product it is, and which line and factory it belongs to.</div>
@@ -592,6 +615,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const h = location.hash.replace('#', ''); if (TITLES[h]) S.tab = h;
   window.addEventListener('hashchange', () => { const t = location.hash.replace('#', ''); if (TITLES[t] && t !== S.tab) { S.tab = t; closeSheet(); render(); } });
   load();
+  let tourDone = '1'; try { tourDone = localStorage.getItem('supply_tour_done') || ''; } catch { /* ignore */ }
+  if (!tourDone || new URLSearchParams(location.search).get('tour')) { const wait = setInterval(() => { if (S.state) { clearInterval(wait); startTour(); } }, 400); setTimeout(() => clearInterval(wait), 20000); }
   setInterval(() => { if (S.state && !S.sheetKind && $('#modal').hidden && document.visibilityState === 'visible') load({ quiet: true }); }, 5 * 60 * 1000);
 });
 function openNav() { $('#side').classList.add('open'); $('#navScrim').hidden = false; $('#navScrim').dataset.open = '1'; $('#navToggle').setAttribute('aria-expanded', 'true'); }
