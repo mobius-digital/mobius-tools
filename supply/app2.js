@@ -70,9 +70,9 @@ function lineInsights(l, ps) {
    ====================================================================== */
 window.renderLineup = function (m) {
   const s = st();
-  const planned = s.lines.filter(l => l.target || l.cutRulePct);
+  const planned = s.lines.filter(l => l.planned);
   const line = planned.find(l => l.id === S.planLine) || planned[0];
-  if (!line) { title('Lineup plan', 'Decide what stays for next season, line by line.'); m.innerHTML = `<div class="card sc br"><h3>No line is planned yet</h3><div class="hint">Lineup plan is for lines where you carry many designs of the same thing and add or drop some each season: polos, hats, later hoodies. Clubs and grips are a handful of models, so they are not planned this way. Give a line a target in Settings, Categories and lines, and it appears here.</div><div style="margin-top:10px"><button class="btn primary" onclick="S.setTab='lines';setTab('settings')">Open Settings</button></div></div>`; return; }
+  if (!line) { title('Lineup plan', 'Decide what stays for next season, line by line.'); m.innerHTML = `<div class="card sc br"><h3>No line is planned yet</h3><div class="hint">Lineup plan switches itself on for any line with six or more designs. None has that many yet.</div><div style="margin-top:10px"><button class="btn primary" onclick="S.setTab='lines';setTab('settings')">Open Settings</button></div></div>`; return; }
   if (!line) { title('Lineup plan'); m.innerHTML = `<div class="card"><div class="empty"><b>No product lines yet</b>Set them up in Settings.</div></div>`; return; }
   const season = s.settings.season_name || nextSeason();
   const ps = productsOf(line).filter(p => p.lifecycle !== 'drop');
@@ -85,7 +85,7 @@ window.renderLineup = function (m) {
   title(`Lineup plan <em>· ${esc(line.categoryName || '')} · ${esc(line.name)}</em>`, `Decide what stays for ${esc(season)}. ${plural(ps.length, 'design')} today${line.target ? `, target ${line.target}` : ', no target yet'}${line.cutRulePct ? `, cut rule bottom ${line.cutRulePct}% by 90-day sales` : ', manual cuts'}.`,
     `<select onchange="S.planLine=this.value;render()">${planned.map(l => `<option value="${l.id}" ${l.id === line.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select><button class="btn" onclick="editLineTarget('${line.id}')">Target ${line.target ?? '—'} ${ic('chev')}</button>`);
   m.innerHTML = `
-    <div class="card sc br" style="padding:12px 18px"><div class="hint">This screen is for lines with many designs of the same thing, where some get dropped and new ones added each season. Right now that is ${planned.map(l => l.name).join(' and ')}. Clubs and grips are a handful of models and are not planned this way; to plan another line, give it a target in Settings.</div></div>
+    <div class="card sc br" style="padding:12px 18px"><div class="hint">Any line with six or more designs is planned here automatically: right now ${planned.map(l => l.name).join(', ')}. Lines with a handful of models (putters, wedges) are not. The target and the cut rule can be changed per line in Settings.</div></div>
     <div class="two wide">
       <div class="card flush"><div class="tbl-wrap"><table>
         <tr><th style="width:36px"></th><th>Design</th><th class="num">Sold, 90 days</th><th class="num">On hand</th><th class="num">Weeks of stock</th><th>Decision</th></tr>

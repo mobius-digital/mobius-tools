@@ -318,7 +318,13 @@ export function computeSupply(raw, db) {
     const ps = products.filter(p => p.lineId === line.id && p.lifecycle !== 'discontinued');
     const sold90 = sum(ps, p => p.sold90), sold30 = sum(ps, p => p.sold30), onHand = sum(ps, p => p.onHand), vel = sum(ps, p => p.velocity);
     const rankable = ps.filter(p => p.lifecycle !== 'drop').sort((a, b) => b.sold90 - a.sold90 || a.title.localeCompare(b.title));
-    const cutN = line.cut_rule_pct ? Math.floor(rankable.filter(p => (p.ageDays || 0) >= 60).length * line.cut_rule_pct / 100) : 0;
+    /* A line is planned (ranked, cut zone, target, open slots) automatically once it
+       carries six or more designs; nobody has to switch it on. Settings can still
+       override the target and the cut rule, or set the cut rule to 0 for manual. */
+    const autoPlanned = rankable.length >= num('plan_min_designs', 6);
+    const cutRule = line.cut_rule_pct != null ? line.cut_rule_pct : (autoPlanned ? num('cut_rule_default', 25) : null);
+    const targetDesigns = line.target_designs != null ? line.target_designs : (autoPlanned ? rankable.length : null);
+    const cutN = cutRule ? Math.floor(rankable.filter(p => (p.ageDays || 0) >= 60).length * cutRule / 100) : 0;
     const bandIds = new Set(cutN ? rankable.filter(p => (p.ageDays || 0) >= 60).slice(-cutN).map(p => p.id) : []);
     const decideIds = new Set(cutN ? rankable.filter(p => (p.ageDays || 0) >= 60 && !bandIds.has(p.id)).slice(-2).map(p => p.id) : []);
     const plan = rankable.map((p, i) => {
@@ -327,13 +333,13 @@ export function computeSupply(raw, db) {
       return { productId: p.id, rank: i + 1, band, near, state, decided: !!p.decision };
     });
     const keep = plan.filter(x => x.state === 'keep').length, decide = plan.filter(x => x.state === 'decide').length, cut = plan.filter(x => x.state === 'cut').length;
-    const target = line.target_designs || null;
+    const target = targetDesigns || null;
     const openSlots = target ? Math.max(0, target - keep - decide) : 0;
     const dead = ps.reduce((a, p) => ({ units: a.units + p.deadUnits, cost: a.cost + (p.deadCost || 0), retail: a.retail + (p.deadRetail || 0) }), { units: 0, cost: 0, retail: 0 });
     return {
       id: line.id, name: line.name, categoryId: line.category_id, categoryName: categories[line.category_id]?.name || null,
       axis: line.variant_axis, factoryId: line.factory_id, factoryName: line.factory_id ? factories[line.factory_id]?.name : null,
-      target, cutRulePct: line.cut_rule_pct || null, moq: line.moq || null,
+      target, cutRulePct: cutRule || null, planned: !!(target || cutRule), moq: line.moq || null,
       designs: ps.length, sold90, sold30, onHand, perWeek: r1(vel * 7),
       sellThrough: sold90 + onHand ? Math.round(100 * sold90 / (sold90 + onHand)) : null,
       weeksOfCover: vel > 0.001 ? Math.round(onHand / (vel * 7)) : null,
