@@ -4,19 +4,20 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useBrand } from "./BrandProvider";
 import { BrandLogo } from "@/components/BrandLogo";
+import { CheckIcon, ChevronDownIcon } from "@/components/Icons";
 
-type Entry = { slug: string; name: string; admin?: boolean };
+type Entry = { slug: string; name: string; admin?: boolean; all?: boolean };
 
 /**
- * The brand block in the nav — and, for someone with access to more than one
+ * The brand block in the bar, and, for someone with access to more than one
  * brand, the switcher.
  *
  * Access comes straight from memberships: /api/me answers with the brands the
  * signed-in Google identity may open (agency admins get all of them, plus the
- * Clients screen). Someone on exactly one brand — every client team — sees
- * the plain logo-and-name link they have always seen; the menu simply never
- * exists for them. Password-only sessions have no identity, so they see the
- * plain link too.
+ * Clients screen and the all-brands calendar). Someone on exactly one brand,
+ * which is every client team, sees the plain mark-and-name link; the menu
+ * never exists for them. Password-only sessions have no identity, so they
+ * see the plain link too.
  */
 export function BoardSwitcher() {
   const brand = useBrand();
@@ -30,12 +31,13 @@ export function BoardSwitcher() {
       .then((r) => (r.ok ? (r.json() as Promise<{ brands?: Entry[]; admin?: boolean }>) : null))
       .then((data) => {
         if (cancelled || !data?.brands) return;
-        const list: Entry[] = data.brands;
-        if (data.admin) list.push({ slug: "", name: "All clients", admin: true });
+        const list: Entry[] = [...data.brands];
+        if (list.length > 1) list.push({ slug: "", name: "All brands", all: true });
+        if (data.admin) list.push({ slug: "", name: "Clients", admin: true });
         setEntries(list);
       })
       .catch(() => {
-        // No menu, then — the nav still works as a plain brand link.
+        // No menu, then; the bar still works as a plain brand link.
       });
     return () => {
       cancelled = true;
@@ -60,49 +62,58 @@ export function BoardSwitcher() {
     };
   }, [open]);
 
-  const others = entries.filter((entry) => entry.admin || entry.slug !== brand.slug);
+  const others = entries.filter((entry) => entry.admin || entry.all || entry.slug !== brand.slug);
   if (others.length === 0) {
     return (
-      <Link href={brand.path("/")} className="nav__brand">
-        <BrandLogo className="nav__logo" />
-        <span className="nav__name">{brand.name}</span>
+      <Link href={brand.path("/")} className="brand">
+        <BrandLogo className="brand__logo" />
+        <span className="brand__name">{brand.name}</span>
       </Link>
     );
   }
 
+  const boards = others.filter((entry) => !entry.admin && !entry.all);
+  const extras = others.filter((entry) => entry.admin || entry.all);
+
   return (
-    <div className="switcher" ref={wrapRef}>
+    <div className="menu" ref={wrapRef}>
       <button
         type="button"
-        className="nav__brand switcher__trigger"
+        className="brand brand--menu"
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Switch brands"
       >
-        <BrandLogo className="nav__logo" />
-        <span className="nav__name">{brand.name}</span>
-        <span className="switcher__caret" aria-hidden>
-          ▾
-        </span>
+        <BrandLogo className="brand__logo" />
+        <span className="brand__name">{brand.name}</span>
+        <ChevronDownIcon className="brand__caret" />
       </button>
 
       {open && (
-        <div className="switcher__list" role="menu">
-          <div className="switcher__item switcher__item--current" aria-current="true">
-            <span className="switcher__label">{brand.name}</span>
-            <span className="switcher__check" aria-hidden>
-              ✓
-            </span>
+        <div className="menu__list menu__list--left" role="menu">
+          <div className="menu__heading">Boards</div>
+          <div className="menu__item menu__item--current" aria-current="true">
+            <span />
+            <span className="menu__label">{brand.name}</span>
+            <CheckIcon className="menu__check" />
           </div>
-          {others.map((entry) => (
+          {boards.map((entry) => (
+            <a key={entry.slug} href={`/b/${entry.slug}/`} role="menuitem" className="menu__item">
+              <span />
+              <span className="menu__label">{entry.name}</span>
+            </a>
+          ))}
+          {extras.length > 0 && <hr className="menu__rule" />}
+          {extras.map((entry) => (
             <a
-              key={entry.slug || "admin"}
-              href={entry.admin ? "/admin" : `/b/${entry.slug}/`}
+              key={entry.admin ? "admin" : "all"}
+              href={entry.admin ? "/admin" : "/all"}
               role="menuitem"
-              className={`switcher__item${entry.admin ? " switcher__item--admin" : ""}`}
+              className="menu__item"
             >
-              <span className="switcher__label">{entry.name}</span>
+              <span />
+              <span className="menu__label">{entry.name}</span>
             </a>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { brandCssVariables, googleFontUrl } from "@/lib/brand";
+import { brandCssVariables } from "@/lib/brand";
 import { loadBrand } from "@/lib/brandContext";
 import { hub } from "@/hub.config";
 import { Nav } from "@/components/Nav";
@@ -13,10 +13,10 @@ import { getPerson } from "@/lib/people";
 /**
  * One brand's world.
  *
- * Everything under /b/[brand] renders inside this: the brand row becomes CSS
- * variables (overriding the hub defaults from the root layout), its font is
- * requested, and the client side gets the brand through context — the same
- * values `brand.config.ts` used to bake in at build time, now per request.
+ * Everything under /b/[brand] renders inside this: the brand's accent becomes
+ * a CSS variable (overriding the hub's own from the root layout) and the
+ * client side gets the brand through context. Everything else about the look
+ * is Lineup's and comes from the stylesheet.
  */
 
 type Params = { params: Promise<{ brand: string }> };
@@ -28,11 +28,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
   return {
     title: `${hub.name} · ${brand.name}`,
-    description: `What's launching, when, and which channels need to care — ${brand.name}.`,
+    description: `What's launching, when, and which channels need to care: ${brand.name}.`,
     // The wrapper is the product, the contents are the client's: the tab icon
     // and the installed app wear Lineup so nobody has to supply a logo per
     // client, and anyone working across brands keeps one recognizable icon.
-    // The brand's own mark still leads the sign-in card and the nav inside.
     icons: { icon: "/lineup.svg", apple: "/icons/hub-180.png" },
     manifest: `/b/${slug}/manifest.webmanifest`,
     appleWebApp: {
@@ -43,14 +42,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   };
 }
 
-export async function generateViewport({ params }: Params): Promise<Viewport> {
-  const { brand: slug } = await params;
-  const brand = await loadBrand(slug);
-
+export async function generateViewport(): Promise<Viewport> {
   return {
     width: "device-width",
     initialScale: 1,
-    themeColor: brand?.colors.surface,
+    themeColor: "#ffffff",
     viewportFit: "cover",
   };
 }
@@ -72,14 +68,11 @@ export default async function BrandLayout({
   );
 
   // The cookie carries the name Google gave at sign-in; the stored one is the
-  // name this person actually chose, and it wins. Read per request rather
-  // than baked into the cookie, so a change takes effect on the next page
-  // load instead of at the next sign-in.
+  // name this person actually chose, and it wins.
   const person = identity ? await getPerson(identity.email) : null;
 
   return (
     <>
-      <link rel="stylesheet" href={googleFontUrl(brand)} />
       <style dangerouslySetInnerHTML={{ __html: brandCssVariables(brand) }} />
       <BrandProvider
         brand={{
@@ -91,11 +84,10 @@ export default async function BrandLayout({
       >
         <DisplayNameProvider
           identity={identity ? (person?.name ?? identity.name) : null}
-          /* Signed in, but never asked what they want to be called. */
           needsName={Boolean(identity) && person?.confirmed !== true}
         >
           {/* Mounted here, not in a page, so the tour survives moving between
-              Pipeline, Calendar and Changelog. */}
+              Calendar, Board and Changelog. */}
           <TourProvider>
             <div className="shell">
               <Nav />

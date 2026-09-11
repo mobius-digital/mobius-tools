@@ -1,51 +1,31 @@
 import { brand as defaultBrand, type Brand } from "@/brand.config";
 
 /**
- * Turns `brand.config.ts` into the CSS custom properties every component reads.
+ * What a brand contributes to the page: its accent, and nothing else.
  *
- * This is the only place brand values cross from TypeScript into CSS. Every
- * stylesheet rule references these variables via `var(--…)`; none of them may
- * restate a literal color or font.
+ * Lineup has one look. The ground, the type, the greys and the stage hues
+ * are the product's own (see app/globals.css), so every board reads as the
+ * same app and a person working across several brands never has to relearn
+ * it. The brand's color still leads: the primary button, today's date, the
+ * chips of anything not yet sorted into a stage, and its mark in the bar.
+ *
+ * `primaryText` is whatever sits legibly on the accent, worked out when the
+ * brand was created (lib/palette.ts).
  */
 export function brandCssVariables(brand: Brand = defaultBrand): string {
-  const { colors, font } = brand;
-
-  const declarations: Record<string, string> = {
-    "--color-background": colors.background,
-    "--color-surface": colors.surface,
-    "--color-primary": colors.primary,
-    "--color-primary-text": colors.primaryText,
-    "--color-text": colors.text,
-    "--color-text-muted": colors.textMuted,
-    "--color-danger": colors.danger,
-    "--color-tentative": colors.tentative,
-    "--color-scrim": colors.scrim,
-    "--font-family": `"${font.family}", system-ui, sans-serif`,
-    "--font-weight-heading": String(font.headingWeight),
-    "--font-weight-body": String(font.bodyWeight),
-  };
-
-  const body = Object.entries(declarations)
-    .map(([property, value]) => `  ${property}: ${value};`)
-    .join("\n");
-
-  return `:root {\n${body}\n}`;
+  return [
+    ":root {",
+    `  --accent: ${brand.colors.primary};`,
+    `  --accent-text: ${brand.colors.primaryText};`,
+    "}",
+  ].join("\n");
 }
 
-/**
- * Builds the Google Fonts stylesheet URL for the configured family and weights.
- *
- * `next/font/google` is deliberately not used here: it resolves the family name
- * at compile time from a string literal, which would mean a brand swap to a
- * different typeface required a code change. The PRD's promise is that a new
- * brand is config-plus-deploy only, so the font is requested at runtime from
- * whatever `brand.font.family` says.
- */
-export function googleFontUrl(brand: Brand = defaultBrand): string {
-  const family = brand.font.family.trim().replace(/\s+/g, "+");
-  const weights = Array.from(
-    new Set([brand.font.bodyWeight, brand.font.headingWeight]),
-  ).sort((a, b) => a - b);
+/** The one typeface, requested once from the root layout. */
+export const FONT_URL =
+  "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap";
 
-  return `https://fonts.googleapis.com/css2?family=${family}:wght@${weights.join(";")}&display=swap`;
+/** Kept for the callers that used to ask per brand; there is one answer now. */
+export function googleFontUrl(): string {
+  return FONT_URL;
 }

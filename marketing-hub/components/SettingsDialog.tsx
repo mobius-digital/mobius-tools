@@ -5,6 +5,7 @@ import { useDisplayName } from "./DisplayName";
 import { useTour } from "./Tour";
 import { UsersPanel } from "./UsersPanel";
 import { EventTypesPanel } from "./EventTypesPanel";
+import { StagesPanel } from "./StagesPanel";
 import { SlackPanel } from "./SlackPanel";
 import { ChannelsPanel } from "./ChannelsPanel";
 import { InstallPanel } from "./InstallPanel";
@@ -25,7 +26,7 @@ import { CloseButton, DirtyProvider, useCloseGuard, useDirtyTracker } from "./Un
  * until that section is opened.
  */
 
-type SectionId = "you" | "tour" | "install" | "types" | "channels" | "slack" | "users";
+type SectionId = "you" | "tour" | "install" | "stages" | "types" | "channels" | "slack" | "users";
 
 type Section = {
   id: SectionId;
@@ -60,6 +61,12 @@ const SECTIONS: Section[] = [
     label: "Add to your phone",
     hint: "An icon on your home screen",
     group: "You",
+  },
+  {
+    id: "stages",
+    label: "Stages",
+    hint: "The Board's columns and the chip colors",
+    group: "This board",
   },
   {
     id: "types",
@@ -207,6 +214,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               {active === "you" && <AccountPanel />}
               {active === "tour" && <WalkthroughPanel onClose={onClose} />}
               {active === "install" && <InstallPanel />}
+              {active === "stages" && <StagesPanel />}
               {active === "types" && <EventTypesPanel />}
               {active === "channels" && <ChannelsPanel />}
               {active === "slack" && <SlackPanel />}
@@ -260,8 +268,8 @@ function WalkthroughPanel({ onClose }: { onClose: () => void }) {
   return (
     <>
       <p className="dialog__body">
-        A two-minute tour of the board — the pipeline, the calendar, what makes
-        a date confirmed rather than tentative, the clash warnings, and the
+        A two-minute tour of the board: the calendar, the Board, what makes a
+        date confirmed rather than tentative, the clash warnings, and the
         changelog. It runs by itself the first time somebody opens this board,
         and it is remembered per board, so a team given their own still gets it.
       </p>

@@ -26,7 +26,7 @@ export const hub = {
   shortName: "Lineup",
 
   /** One line, under the name on the front door. */
-  tagline: "What's going live, when — and which channels need to care.",
+  tagline: "What's going live, when, and which channels need to care.",
 };
 
 export type Hub = typeof hub;

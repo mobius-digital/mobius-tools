@@ -7,6 +7,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,16 +15,20 @@ import { filterByChannel, isChannelFilter, type ChannelFilter } from "@/lib/chan
 import {
   DEFAULT_CHANNELS,
   DEFAULT_EVENT_TYPES,
-  type ChangelogEntry,
+  DEFAULT_STAGES,
   type ChannelOption,
   type EventStatus,
   type IsoDate,
   type LaunchEvent,
+  type StageOption,
 } from "@/lib/types";
 import type { EventTypeOption } from "@/lib/eventTypes";
-import { BOARD_CONFIG_CHANGED } from "@/lib/boardConfigEvents";
+import { BOARD_CONFIG_CHANGED, NEW_EVENT_REQUESTED } from "@/lib/boardConfigEvents";
+import { stageClass, stageOf } from "@/lib/board";
+import { formatShort } from "@/lib/dates";
 import { EventEditor } from "./EventEditor";
 import { useDisplayName } from "./DisplayName";
+import { CloseIcon } from "./Icons";
 
 const CHANNEL_STORAGE_KEY = "lc_channel_filter";
 
@@ -36,33 +41,36 @@ const CHANNEL_STORAGE_KEY = "lc_channel_filter";
  */
 const POLL_MS = 10_000;
 
-/**
- * A single shared empty array for callers that pass no history.
- *
- * A `= []` default in the parameter list allocates a fresh array on every
- * render, so the effect that syncs it into state sees a "new" value each time
- * and loops forever. That froze the Calendar route, which is the one page that
- * does not pass its own changelog.
- */
-const NO_CHANGES: ChangelogEntry[] = [];
+/** How long a confirmation stays up. Long enough to read and hit Undo. */
+const TOAST_MS = 6_000;
 
 export type ConnectionState = "connecting" | "live" | "offline";
+
+type Toast = {
+  id: number;
+  text: string;
+  tone?: "default" | "danger";
+  action?: { label: string; run: () => void };
+};
 
 type WorkspaceContextValue = {
   /** Every visible event, regardless of the channel lens. */
   events: LaunchEvent[];
-  /** Events under the current lens — what the views should render. */
+  /** Events under the current lens: what the views should render. */
   filteredEvents: LaunchEvent[];
   channel: ChannelFilter;
   setChannel: (channel: ChannelFilter) => void;
   connection: ConnectionState;
-  recentChanges: ChangelogEntry[];
   /** Pass an event to edit it, or nothing to create a new one. */
   openEditor: (event?: LaunchEvent) => void;
   /** Opens a blank editor with the launch date already set. */
   createEventOn: (launchDate: IsoDate) => void;
   /** One-click status change from a card or row. */
   setStatus: (event: LaunchEvent, status: EventStatus) => Promise<void>;
+  /** Moves an event between Board columns; null clears the stage. */
+  setStage: (event: LaunchEvent, stage: string | null) => Promise<void>;
+  /** Shifts every date on an event by `days`. A drag on the calendar. */
+  moveEvent: (event: LaunchEvent, days: number) => Promise<void>;
   /** The board's event types, in the order they should be offered. */
   eventTypes: EventTypeOption[];
   /** Label for a stored type key, falling back to the key if it was removed. */
@@ -71,6 +79,14 @@ type WorkspaceContextValue = {
   channelOptions: ChannelOption[];
   /** Label for a channel key, falling back to the key if it was removed. */
   channelLabel: (key: string) => string;
+  /** The board's stages, in Board-column order. */
+  stages: StageOption[];
+  /** The stage an event is in, or null. */
+  stageFor: (event: Pick<LaunchEvent, "stage">) => StageOption | null;
+  /** The CSS class that paints an element in the event's stage hue. */
+  stageClassFor: (event: Pick<LaunchEvent, "stage">) => string;
+  /** A one-line confirmation at the bottom of the screen. */
+  notify: (text: string, options?: Omit<Toast, "id" | "text">) => void;
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -89,34 +105,37 @@ function sortEvents(events: LaunchEvent[]): LaunchEvent[] {
 
 export function Workspace({
   initialEvents,
-  initialChangelog = NO_CHANGES,
   eventTypes: initialEventTypes = DEFAULT_EVENT_TYPES,
   channelOptions: initialChannelOptions = DEFAULT_CHANNELS,
+  stages: initialStages = DEFAULT_STAGES,
   children,
 }: {
   initialEvents: LaunchEvent[];
-  initialChangelog?: ChangelogEntry[];
   eventTypes?: EventTypeOption[];
   channelOptions?: ChannelOption[];
+  stages?: StageOption[];
   children: ReactNode;
 }) {
   const { path } = useBrand();
   const { ensureName } = useDisplayName();
 
-  // Both lists start from the server render and are then kept live: refreshed
+  // The lists start from the server render and are then kept live: refreshed
   // the instant a Settings dialog saves, and on the same poll as events so a
-  // channel a colleague adds shows up here too.
+  // stage a colleague adds shows up here too.
   const [eventTypes, setEventTypes] = useState<EventTypeOption[]>(initialEventTypes);
   const [channelOptions, setChannelOptions] = useState<ChannelOption[]>(initialChannelOptions);
+  const [stages, setStages] = useState<StageOption[]>(initialStages);
 
   useEffect(() => setEventTypes(initialEventTypes), [initialEventTypes]);
   useEffect(() => setChannelOptions(initialChannelOptions), [initialChannelOptions]);
+  useEffect(() => setStages(initialStages), [initialStages]);
 
   const refreshBoardConfig = useCallback(async () => {
     try {
-      const [typesRes, channelsRes] = await Promise.all([
+      const [typesRes, channelsRes, stagesRes] = await Promise.all([
         fetch(path("/api/settings/types"), { cache: "no-store" }),
         fetch(path("/api/settings/channels"), { cache: "no-store" }),
+        fetch(path("/api/settings/stages"), { cache: "no-store" }),
       ]);
       if (typesRes.ok) {
         const body = (await typesRes.json()) as { types?: EventTypeOption[] };
@@ -126,10 +145,14 @@ export function Workspace({
         const body = (await channelsRes.json()) as { channels?: ChannelOption[] };
         if (body.channels?.length) setChannelOptions(body.channels);
       }
+      if (stagesRes.ok) {
+        const body = (await stagesRes.json()) as { stages?: StageOption[] };
+        if (body.stages?.length) setStages(body.stages);
+      }
     } catch {
       // The lists we already have are still right until proven otherwise.
     }
-  }, []);
+  }, [path]);
 
   useEffect(() => {
     const onChange = () => void refreshBoardConfig();
@@ -138,25 +161,22 @@ export function Workspace({
   }, [refreshBoardConfig]);
 
   const [events, setEvents] = useState<LaunchEvent[]>(() => sortEvents(initialEvents));
-  const [recentChanges, setRecentChanges] = useState<ChangelogEntry[]>(initialChangelog);
   const [editing, setEditing] = useState<LaunchEvent | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draftLaunchDate, setDraftLaunchDate] = useState<IsoDate | null>(null);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [channel, setChannelState] = useState<ChannelFilter>("all");
   const [pendingEventId, setPendingEventId] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setEvents(sortEvents(initialEvents));
   }, [initialEvents]);
 
-  useEffect(() => {
-    setRecentChanges(initialChangelog);
-  }, [initialChangelog]);
-
   /**
    * The lens comes from the URL first so a filtered view can be pasted into
-   * Slack, and falls back to whatever this device chose last — a media buyer
+   * Slack, and falls back to whatever this device chose last: a media buyer
    * should not have to re-pick "paid" every morning.
    */
   useEffect(() => {
@@ -194,22 +214,18 @@ export function Workspace({
     });
   }, []);
 
-  /**
-   * Re-reads the history after an edit made in this tab.
-   *
-   * Realtime would push the new rows, but it is a convenience that can be down
-   * — and "Recent changes" going stale the moment you use it would undermine
-   * the one panel people are meant to trust.
-   */
-  const refreshChangelog = useCallback(async () => {
-    try {
-      const response = await fetch(path("/api/changelog?limit=20"));
-      if (!response.ok) return;
-      const body = (await response.json()) as { entries?: ChangelogEntry[] };
-      if (body.entries) setRecentChanges(body.entries);
-    } catch {
-      // A stale panel is not worth surfacing an error over.
-    }
+  const notify = useCallback((text: string, options: Omit<Toast, "id" | "text"> = {}) => {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    const id = Date.now();
+    setToast({ id, text, ...options });
+    toastTimer.current = window.setTimeout(() => {
+      setToast((current) => (current?.id === id ? null : current));
+    }, TOAST_MS);
+  }, []);
+
+  const dismissToast = useCallback(() => {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast(null);
   }, []);
 
   // Poll for other people's edits, and pause while the tab is hidden so a
@@ -221,10 +237,7 @@ export function Workspace({
       if (document.hidden) return;
 
       try {
-        const [eventsRes, logRes] = await Promise.all([
-          fetch(path("/api/events"), { cache: "no-store" }),
-          fetch(path("/api/changelog?limit=20"), { cache: "no-store" }),
-        ]);
+        const eventsRes = await fetch(path("/api/events"), { cache: "no-store" });
 
         if (cancelled || !eventsRes.ok) {
           if (!cancelled) setConnection("offline");
@@ -235,12 +248,6 @@ export function Workspace({
         if (body.events) setEvents(sortEvents(body.events));
 
         void refreshBoardConfig();
-
-        if (logRes.ok) {
-          const log = (await logRes.json()) as { entries?: ChangelogEntry[] };
-          if (log.entries) setRecentChanges(log.entries);
-        }
-
         setConnection("live");
       } catch {
         if (!cancelled) setConnection("offline");
@@ -256,7 +263,7 @@ export function Workspace({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [refreshBoardConfig]);
+  }, [path, refreshBoardConfig]);
 
   const openEditor = useCallback((event?: LaunchEvent) => {
     setEditing(event ?? null);
@@ -264,10 +271,18 @@ export function Workspace({
     setEditorOpen(true);
   }, []);
 
+  // The New event button and the phone's floating button live in the layout,
+  // outside this provider; they ask for the editor through a DOM event.
+  useEffect(() => {
+    const onRequest = () => openEditor();
+    window.addEventListener(NEW_EVENT_REQUESTED, onRequest);
+    return () => window.removeEventListener(NEW_EVENT_REQUESTED, onRequest);
+  }, [openEditor]);
+
   /**
    * `?event=<id>` opens that event straight away.
    *
-   * This is what a Slack notification links to — landing on the board and then
+   * This is what a Slack notification links to. Landing on the board and then
    * hunting for the launch the message was about would waste the notification.
    * The parameter is consumed on arrival so a refresh does not reopen the
    * editor somebody just closed.
@@ -310,29 +325,90 @@ export function Workspace({
     (event: LaunchEvent, deleted: boolean) => {
       applyChange(event, deleted);
       closeEditor();
-      void refreshChangelog();
     },
-    [applyChange, closeEditor, refreshChangelog],
+    [applyChange, closeEditor],
+  );
+
+  /** One partial PATCH, shared by the quick actions. Null when it failed. */
+  const patch = useCallback(
+    async (event: LaunchEvent, body: Record<string, unknown>): Promise<LaunchEvent | null> => {
+      const editor = await ensureName();
+      if (!editor) return null;
+
+      try {
+        const response = await fetch(path(`/api/events/${event.id}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, editor }),
+        });
+
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => ({}))) as { error?: string };
+          notify(failure.error ?? "That change could not be saved.", { tone: "danger" });
+          return null;
+        }
+
+        const result = (await response.json()) as { event?: LaunchEvent };
+        if (!result.event) return null;
+        applyChange(result.event, false);
+        return result.event;
+      } catch {
+        notify("No connection. Nothing was changed.", { tone: "danger" });
+        return null;
+      }
+    },
+    [applyChange, ensureName, notify, path],
   );
 
   const setStatus = useCallback(
     async (event: LaunchEvent, status: EventStatus) => {
-      const editor = await ensureName();
-      if (!editor) return;
-
-      const response = await fetch(path(`/api/events/${event.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent: "status", status, editor }),
-      });
-
-      if (!response.ok) return;
-
-      const body = (await response.json()) as { event?: LaunchEvent };
-      if (body.event) applyChange(body.event, false);
-      void refreshChangelog();
+      await patch(event, { intent: "status", status });
     },
-    [applyChange, ensureName, refreshChangelog],
+    [patch],
+  );
+
+  const stageFor = useCallback(
+    (event: Pick<LaunchEvent, "stage">) => stageOf(event, stages),
+    [stages],
+  );
+
+  const stageClassFor = useCallback(
+    (event: Pick<LaunchEvent, "stage">) => stageClass(event, stages),
+    [stages],
+  );
+
+  const setStage = useCallback(
+    async (event: LaunchEvent, stage: string | null) => {
+      if ((event.stage ?? null) === stage) return;
+      const before = event.stage ?? null;
+      const saved = await patch(event, { intent: "stage", stage });
+      if (!saved) return;
+
+      const label = stage ? (stages.find((s) => s.key === stage)?.label ?? stage) : "no stage";
+      notify(`${event.name}: ${label}`, {
+        action: {
+          label: "Undo",
+          run: () => void patch(saved, { intent: "stage", stage: before }),
+        },
+      });
+    },
+    [notify, patch, stages],
+  );
+
+  const moveEvent = useCallback(
+    async (event: LaunchEvent, days: number) => {
+      if (days === 0) return;
+      const saved = await patch(event, { intent: "shift", days });
+      if (!saved) return;
+
+      notify(`${event.name} moved to ${formatShort(saved.launch_date)}`, {
+        action: {
+          label: "Undo",
+          run: () => void patch(saved, { intent: "shift", days: -days }),
+        },
+      });
+    },
+    [notify, patch],
   );
 
   const filteredEvents = useMemo(
@@ -363,14 +439,19 @@ export function Workspace({
       channel,
       setChannel,
       connection,
-      recentChanges,
       openEditor,
       createEventOn,
       setStatus,
+      setStage,
+      moveEvent,
       eventTypes,
       typeLabel,
       channelOptions,
       channelLabel,
+      stages,
+      stageFor,
+      stageClassFor,
+      notify,
     }),
     [
       events,
@@ -378,14 +459,19 @@ export function Workspace({
       channel,
       setChannel,
       connection,
-      recentChanges,
       openEditor,
       createEventOn,
       setStatus,
+      setStage,
+      moveEvent,
       eventTypes,
       typeLabel,
       channelOptions,
       channelLabel,
+      stages,
+      stageFor,
+      stageClassFor,
+      notify,
     ],
   );
 
@@ -400,6 +486,36 @@ export function Workspace({
           onClose={closeEditor}
           onSaved={handleSaved}
         />
+      )}
+
+      {toast && (
+        <div
+          className={`toast${toast.tone === "danger" ? " toast--danger" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="toast__text">{toast.text}</span>
+          {toast.action && (
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() => {
+                toast.action?.run();
+                dismissToast();
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
+          <button
+            type="button"
+            className="toast__close"
+            onClick={dismissToast}
+            aria-label="Dismiss"
+          >
+            <CloseIcon />
+          </button>
+        </div>
       )}
     </WorkspaceContext.Provider>
   );

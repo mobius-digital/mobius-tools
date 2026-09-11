@@ -1,25 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { brand } from "@/brand.config";
 import { hub } from "@/hub.config";
-import { brandCssVariables, googleFontUrl } from "@/lib/brand";
+import { FONT_URL, brandCssVariables } from "@/lib/brand";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
 
 /**
- * The hub's outermost shell — shared by every page, brand or not.
+ * The hub's outermost shell, shared by every page, brand or not.
  *
- * Deliberately thin: the default palette painted here is what the front door,
- * the Clients screen and the offline page wear. Each brand's own layout under
- * /b/[brand] overrides the variables with that brand's palette, so a client
- * only ever sees their colors.
+ * The one typeface is requested here, once. The accent painted here is
+ * Mobius's own and dresses the front door, the Clients screen and the
+ * offline page; each brand's layout under /b/[brand] overrides it with that
+ * brand's color.
  */
 export const metadata: Metadata = {
   title: hub.name,
   description: hub.tagline,
   icons: { icon: "/lineup.svg", apple: "/icons/hub-180.png" },
   manifest: "/manifest.webmanifest",
-  // Installed from the front door, this is the agency's switcher app; a brand
-  // installed from its own board is a separate icon with the brand's name.
   appleWebApp: {
     capable: true,
     title: hub.shortName,
@@ -30,7 +27,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: brand.colors.surface,
+  themeColor: "#ffffff",
   viewportFit: "cover",
 };
 
@@ -40,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="stylesheet" href={googleFontUrl()} />
+        <link rel="stylesheet" href={FONT_URL} />
         <style dangerouslySetInnerHTML={{ __html: brandCssVariables() }} />
       </head>
       <body>

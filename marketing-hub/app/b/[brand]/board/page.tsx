@@ -4,13 +4,12 @@ import { Workspace } from "@/components/Workspace";
 import { listEventTypes } from "@/lib/eventTypes";
 import { listChannels } from "@/lib/channelOptions";
 import { listStages } from "@/lib/stages";
-import { Calendar } from "@/components/Calendar";
+import { Board } from "@/components/Board";
 import { LoadError } from "@/components/LoadError";
 
 export const dynamic = "force-dynamic";
 
-/** The board's home is its calendar. */
-export default async function CalendarPage() {
+export default async function BoardPage() {
   try {
     const [events, eventTypes, channelOptions, stages] = await Promise.all([
       listEvents(),
@@ -26,7 +25,7 @@ export default async function CalendarPage() {
         channelOptions={channelOptions}
         stages={stages}
       >
-        <Calendar serverToday={todayIso()} />
+        <Board serverToday={todayIso()} />
       </Workspace>
     );
   } catch (error) {

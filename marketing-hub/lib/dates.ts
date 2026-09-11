@@ -15,7 +15,7 @@ import type { IsoDate } from "./types";
 
 const MS_PER_DAY = 86_400_000;
 
-const MONTH_NAMES = [
+export const MONTH_NAMES = [
   "Jan",
   "Feb",
   "Mar",

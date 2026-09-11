@@ -19,8 +19,8 @@ import {
  * The first-run guided tour.
  *
  * Mounted once in the layout rather than inside a page, for two reasons the
- * previous version got wrong: it now survives navigating between Pipeline,
- * Calendar and Changelog — so the tour can actually show all three — and it
+ * previous version got wrong: it now survives navigating between Calendar,
+ * Board and Changelog, so the tour can actually show all three, and it
  * survives the board switching from its empty state to its populated one, which
  * used to remount the component and silently restart the tour the moment
  * somebody created their first event.
@@ -81,21 +81,21 @@ const STEPS: Step[] = [
     id: "welcome",
     goto: "/",
     title: "Welcome to {productName}",
-    body: "This is where your team sees what is launching, when, and which channels need to care. A few minutes and you will know your way around — including how to add your first launch.",
+    body: "This is where your team sees what is launching, when, where each launch is in its prep, and which channels need to care. A few minutes and you will know your way around, including how to add your first launch.",
   },
   {
     id: "views",
     goto: "/",
-    target: ".nav__links",
+    target: ".topbar__tabs, .tabbar",
     title: "Three screens",
-    body: "Pipeline is the board you will live in. Calendar is the same information laid out as a timeline. Changelog records every edit automatically. We will visit all three.",
+    body: "Calendar is when things go live. Board is where each launch is in its prep, one column per stage. Changelog records every edit automatically. We will visit all three.",
   },
   {
     id: "create",
     goto: "/",
-    target: ".page-header__actions .button--primary, .firstrun .button--primary",
+    target: ".topbar__right .button--primary, .fab, .hello .button",
     title: "Let's put something on the board",
-    body: "Everything starts here. Open it and we will go through the form together, field by field.",
+    body: "Everything starts here. Open it and we will go through the form together, field by field. On the calendar you can also click any day to start an event on that date.",
     action: "Open the editor to continue",
     done: (ctx) => ctx.editorOpen,
   },
@@ -105,159 +105,144 @@ const STEPS: Step[] = [
     id: "f-name",
     target: "#event-name",
     keepIfMissing: true,
-    title: "Name — what the team will call it",
-    body: "Use the name people already say out loud, not a campaign code. Good: “Spring Collection Restock”, “Father's Day Sale”, “LGW02 Wedge Launch”. Avoid: “Q2-P3-FINAL”.",
+    title: "Name: what the team will call it",
+    body: "Use the name people already say out loud, not a campaign code. Good: Spring Collection Restock, Father's Day Sale, LGW02 Wedge Launch. Avoid: Q2-P3-FINAL.",
   },
   {
     id: "f-brief",
     target: "#event-brief",
     keepIfMissing: true,
-    title: "Brief — the offer in one sentence",
-    body: "What a media buyer needs to know before writing an ad. Good: “25% off all wedges, sitewide, no code needed.” Or: “Three new putter colorways, limited to 200 units each.” One sentence is plenty.",
-  },
-  {
-    id: "f-launch",
-    target: "#event-launch_date",
-    keepIfMissing: true,
-    title: "Launch date — the anchor",
-    body: "The day it goes live. Everything else on this form is described in relation to this date, so set it even if it is still a rough guess — you can mark it Tentative further down to say so.",
-  },
-  {
-    id: "f-channels",
-    target: ".fieldset .channel-rows",
-    keepIfMissing: true,
-    title: "Channels — who has work to do",
-    body: "Tick every channel involved, then set how much it matters to each. Primary — this channel builds something; it is their main event. Supporting — they help, but it is not their headline. FYI — they just need to know it is happening. Say a wedge restock: Paid is Primary because it carries the launch, Email is Supporting with one send, Organic is FYI so social does not schedule something competing. Only Primary counts toward clash warnings, so use it honestly. Run a channel that is not listed here — Affiliate, Retail? Add it in Settings → Channels and it appears on this form.",
+    title: "Brief: the offer in one sentence",
+    body: "What a media buyer needs to know before writing an ad. Good: 25% off all wedges, sitewide, no code needed. One sentence is plenty.",
   },
   {
     id: "f-owner",
     target: "#event-owner",
     keepIfMissing: true,
-    title: "Owner — one name, not a team",
-    body: "The person to ask when a date looks wrong. One name, not a team — “Cole”, not “Marketing” — so nobody has to guess who to chase. It starts on you, because whoever adds an event usually owns it, and the list holds everyone on this board. Owner is somebody who never signs in here? Pick “Someone else” and type them.",
+    title: "Owner: one name, not a team",
+    body: "The person to ask when a date looks wrong. It starts on you, because whoever adds an event usually owns it, and the list holds everyone on this board. Owner is somebody who never signs in here? Pick Someone else and type them.",
   },
   {
-    id: "f-type",
-    target: "#event-type",
+    id: "f-launch",
+    target: "#event-launch_date",
     keepIfMissing: true,
-    title: "Type — what kind of thing this is",
-    body: "Product launch for something genuinely new. Promo for a discount or offer on what you already sell. Restock when stock returns. Content moment for a campaign with no direct offer behind it. Evergreen push for turning up spend on something always-on. It is there so the board can be read at a glance, not to drive any logic.",
+    title: "Launch date: the anchor",
+    body: "The day it goes live. Everything else on this form is described in relation to this date, so set it even if it is still a rough guess. You can mark it Tentative below to say so.",
+  },
+  {
+    id: "f-runup",
+    target: ".date-grid:not(.date-grid--single)",
+    keepIfMissing: true,
+    title: "Run-up dates: what makes this useful to everyone else",
+    body: "The deadlines behind the launch, and why other channels care. Assets due: when creative must be finished. Teasers start: when you begin hinting publicly. Inventory: when stock actually lands. Promo ends: when the offer stops. Fill in the ones you know. They show up on the calendar's agenda as their own lines.",
+  },
+  {
+    id: "f-stage",
+    target: "#event-stage",
+    keepIfMissing: true,
+    title: "Stage: what are we waiting on?",
+    body: "Briefed, waiting on assets, built, scheduled. This is the column the launch sits in on the Board and the color of its chip on the calendar. The list is yours to change in Settings, so a photo shoot or a client sign-off can be a stage of its own.",
   },
   {
     id: "f-status",
     target: "#event-status",
     keepIfMissing: true,
-    title: "Status — is this date real?",
-    body: "Confirmed — locked, build against it. Tentative — it could still move, so do not book media yet. At risk — it was locked and is now slipping; this is the one that earns a red flag. Completed — it shipped, and it drops off the board unless you tick “Show completed”. Cancelled — it is off, but the event and its history stay so nobody wonders what happened to it.",
+    title: "Status: is this date real?",
+    body: "Confirmed: locked, build against it. Tentative: it could still move, so do not book media yet. At risk: it was locked and is now slipping; this is the one that earns a red mark. Completed: it shipped, and it drops off the views unless you tick Show completed. Cancelled: it is off, but the event and its history stay.",
   },
   {
-    id: "f-runup",
-    // Not just ".date-grid": the launch date sits in one of those too, and it
-    // comes first, so the plain selector spotlighted the wrong field.
-    target: ".date-grid:not(.date-grid--single)",
+    id: "f-channels",
+    target: ".channel-rows",
     keepIfMissing: true,
-    title: "Run-up dates — what makes this useful to everyone else",
-    body: "These are the deadlines behind the launch, and they are why other channels care. Assets due: when creative must be finished — usually a week or two before. Teaser start: when you begin hinting publicly. Inventory: when stock actually lands. Promo end: when the offer stops. Fill in the ones you know; leave the rest blank.",
+    title: "Channels: who has work to do",
+    body: "Tick every channel involved, then set how much it matters to each. Primary builds something; it is their main event. Supporting helps, but it is not their headline. FYI just needs to know. Only Primary counts toward clash warnings, so use it honestly. A channel that is not listed? Add it in Settings.",
   },
   {
     id: "f-assets",
     target: "#event-assets-link",
     keepIfMissing: true,
-    title: "Assets link — one place for the finished files",
-    body: "Leave it empty until there is something to point at. When the photos, video or copy are ready, paste the folder link here — one link, a Drive or Dropbox folder holds the rest. The moment you save it, every channel on the event is told “assets are in” with a button straight to the folder, and the card grows a small Assets link. Nobody has to go looking.",
+    title: "Assets link: one place for the finished files",
+    body: "Leave it empty until there is something to point at. When the photos, video or copy are ready, paste the folder link here. The moment you save it, every channel on the event is told the assets are in, with a button straight to the folder.",
   },
   {
     id: "f-notes",
     target: "#event-notes",
     keepIfMissing: true,
-    title: "Notes — the caveats",
-    body: "Anything that would otherwise live in a DM. “Waiting on the factory to confirm shipping.” “Do not promote before the PR embargo lifts on the 12th.” This is the field that stops people asking the same question twice — and it rides along on every Slack message about the event, so when a date moves, the reason moves with it. Writing or changing a note is itself a Slack notification — “embargo lifted, go” is news even when no date moved.",
+    title: "Notes: the caveats",
+    body: "Anything that would otherwise live in a DM. Waiting on the factory to confirm shipping. Do not promote before the PR embargo lifts on the 12th. It rides along on every Slack message about the event, so when a date moves, the reason moves with it.",
   },
   {
     id: "save",
     target: ".sheet__footer",
     keepIfMissing: true,
     title: "Save it",
-    body: "Only the starred fields are required — the rest can be filled in later as things firm up. Every change you make from here on is recorded automatically with your name against it.",
+    body: "Only the starred fields are required. The rest can be filled in later as things firm up. Every change you make from here on is recorded automatically with your name against it.",
     action: "Save, or close the editor, to continue",
     done: (ctx) => !ctx.editorOpen,
   },
 
-  // ---- back on the board -------------------------------------------------
+  // ---- back on the calendar ----------------------------------------------
   {
-    id: "status-menu",
+    id: "chips",
     goto: "/",
-    target: ".card .status-menu, .entry-row .status-menu",
-    // Kept even if the card has not painted yet: the reader has just created an
-    // event, so skipping this would drop the step at exactly the moment it
-    // finally has something to point at.
+    target: ".evt, .arow",
     keepIfMissing: true,
-    title: "Change a status without opening anything",
-    body: "That little badge on the card is a menu. When a date firms up or starts to wobble, change it right here — no need to open the event.",
+    title: "A launch on the calendar",
+    body: "Each chip runs from teaser start to the end of the promo, hatched before launch day and solid from it on, in the color of its stage. Drag a chip to another day and the whole launch moves with it, run-up dates included. Tentative reads dashed; at risk carries a red dot.",
   },
   {
     id: "channel-filter",
     goto: "/",
     target: ".filters__chips",
     title: "Filter to your channel",
-    body: "Pick the channel you work in and the board narrows to only what involves you. Your choice is remembered per device, so you land here already filtered.",
+    body: "Pick the channel you work in and every view narrows to only what involves you. Your choice is remembered per device, so you land here already filtered.",
   },
   {
-    id: "week",
+    id: "views-switch",
     goto: "/",
-    target: ".tier--focus",
-    title: "This week, in full",
-    body: "The board gets quieter the further ahead it looks: this week in detail, next week as single lines, weeks three and four folded down. Launches and their deadlines are mixed together in the order they need doing — “assets due Wednesday” often matters more than a launch three weeks out.",
-  },
-  {
-    id: "recent",
-    goto: "/",
-    target: ".recent",
-    title: "What changed since Monday",
-    body: "Every date move, status change and rename lands here by itself. This is the panel to read at the top of a meeting.",
-  },
-  {
-    id: "legend",
-    goto: "/",
-    target: ".legend, .legend__reopen",
-    title: "The cheat sheet",
-    body: "Every symbol on the board is explained here, and it is always one click away if you forget what a flag means.",
+    target: ".segmented",
+    title: "Month, week, or agenda",
+    body: "Month shows the gaps across a quarter. Week shows what lands on which day. Agenda is the same calendar as a list, launches and their deadlines together, and it is what a phone opens on.",
   },
 
-  // ---- the other two screens --------------------------------------------
+  // ---- the board -----------------------------------------------------------
   {
-    id: "calendar",
-    goto: "/calendar",
-    target: ".cal",
-    title: "Calendar — the same launches as a timeline",
-    body: "Each launch stretches from its teaser start to the end of its promo, so you can see overlaps at a glance. Switch between month and week at the top.",
+    id: "board",
+    goto: "/board",
+    target: ".board, .empty-state",
+    keepIfMissing: true,
+    title: "Board: where each launch is in its prep",
+    body: "One column per stage. Drag a card into the column that says what it is waiting on now; the changelog and Slack are told like any other edit. On a phone, the stage menu on each card does the same.",
   },
   {
-    id: "calendar-add",
-    goto: "/calendar",
-    target: ".cal-day__number, .cal-day__add",
-    title: "Click any day to start an event on it",
-    body: "Quicker than opening the editor and typing the date. It also warns you when two launches that both matter land within a week of each other.",
+    id: "stage-menu",
+    goto: "/board",
+    target: ".bcard .pill-menu",
+    keepIfMissing: true,
+    title: "Change a stage without opening anything",
+    body: "That badge on the card is a menu. The status badge works the same way wherever you see one.",
   },
+
+  // ---- the other screens ---------------------------------------------------
   {
     id: "changelog",
     goto: "/changelog",
     target: ".log-day, .empty",
-    title: "Changelog — who changed what, and when",
+    title: "Changelog: who changed what, and when",
     body: "Written automatically on every edit, so nobody has to remember to record anything. If a date moved and you want to know who moved it and when, it is here.",
   },
   {
     id: "settings",
     goto: "/",
-    target: ".nav .settings",
-    title: "Settings — everything a team can change",
-    body: "One window, with the sections listed down the left. Your account — the name stamped on your edits. Walkthrough — replay this, any time. Add to your phone — the two taps that put the board on a phone or tablet home screen as its own full-screen app, no App Store. Event types — rename the options in that Type dropdown, or add your own. Channels — add a marketing channel the board does not have yet; it gets its own filter chip, its own row on every event and its own Slack channel to notify. Slack notifications — point each channel at a Slack channel and the board posts when a launch is added, moved, changes status or gets its assets, plus a reminder a week out; several edits to one event within 15 minutes arrive as one message. Users — invite people by email to sign in with Google, and change the shared team password, which signs everybody else out.",
+    target: ".topbar .iconbtn, .tabbar__item[aria-haspopup]",
+    title: "Settings: everything a team can change",
+    body: "One window, sections down the left. Your account: the name stamped on your edits. Walkthrough: replay this any time. Add to your phone: the two taps that put the board on a home screen. Stages: the Board's columns and chip colors. Event types and Channels: the words your team uses. Slack notifications: which channel hears about what. Users: who can open this board.",
   },
   {
     id: "done",
     goto: "/",
     title: "That's the whole thing",
-    body: "You can replay this any time from Settings → Walkthrough. Now go and put your next launch on the board.",
+    body: "You can replay this any time from Settings. Now go and put your next launch on the board.",
   },
 ];
 
@@ -364,9 +349,9 @@ function Walkthrough({
     (): TourContext => ({
       path: window.location.pathname,
       editorOpen: Boolean(document.querySelector(".sheet")),
-      statusMenuOpen: Boolean(document.querySelector(".status-menu__list")),
+      statusMenuOpen: Boolean(document.querySelector(".menu__list")),
       filtered: Boolean(document.querySelector(".chip-filter--active")),
-      hasCards: Boolean(document.querySelector(".card, .entry-row")),
+      hasCards: Boolean(document.querySelector(".bcard, .evt, .arow")),
     }),
     [],
   );
@@ -473,7 +458,7 @@ function Walkthrough({
       // Escape belongs to whatever is on top. While the editor, a dialog or a
       // status menu is open that keypress is meant for them — ending the tour
       // too would mean closing the editor mid-tour silently killed it.
-      if (document.querySelector(".sheet, .dialog, .status-menu__list")) return;
+      if (document.querySelector(".sheet, .dialog, .menu__list")) return;
       finish();
     };
 

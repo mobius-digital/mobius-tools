@@ -1,5 +1,5 @@
 import { diffDays, maxIso, minIso } from "./dates.ts";
-import { visibleEvents, type PipelineOptions } from "./pipeline.ts";
+import { visibleEvents, type VisibilityOptions as PipelineOptions } from "./agenda.ts";
 import type { IsoDate, LaunchEvent } from "./types.ts";
 
 /**

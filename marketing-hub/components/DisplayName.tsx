@@ -307,20 +307,29 @@ export function DisplayNameProvider({
   );
 }
 
-/** The "editing as …" affordance in the nav, which doubles as the way to change it. */
+/** Who is editing, as initials in a circle with the name beside them. */
 export function DisplayNameBadge() {
   const { name, promptForName, verified } = useDisplayName();
 
   // Rendered empty until localStorage has been read, to avoid a hydration flash.
-  if (name === null) return <span className="identity" aria-hidden />;
+  if (name === null) return <span className="who" aria-hidden />;
 
-  // Under Google sign-in the name is not editable, so it should not look like a
-  // button that does nothing when pressed.
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join("");
+
+  // Under Google sign-in the name is changed from Settings, so this should
+  // not look like a button that does nothing when pressed.
   if (verified) {
     return (
-      <span className="identity identity--static" title="Signed in with Google">
-        <span className="identity__label">Signed in as</span>
-        <span className="identity__name">{name}</span>
+      <span className="who" title={`Signed in as ${name}`}>
+        <span className="who__avatar" aria-hidden>
+          {initials}
+        </span>
+        <span className="who__name">{name}</span>
       </span>
     );
   }
@@ -328,18 +337,14 @@ export function DisplayNameBadge() {
   return (
     <button
       type="button"
-      className="identity"
+      className="who who--button"
       onClick={() => void promptForName()}
-      title={name ? "Change the name your edits are stamped with" : undefined}
+      title={name ? "Change the name your edits are stamped with" : "Set your name"}
     >
-      {name ? (
-        <>
-          <span className="identity__label">Editing as</span>
-          <span className="identity__name">{name}</span>
-        </>
-      ) : (
-        <span className="identity__label">Set your name</span>
-      )}
+      <span className="who__avatar" aria-hidden>
+        {initials || "?"}
+      </span>
+      <span className="who__name">{name || "Set your name"}</span>
     </button>
   );
 }
