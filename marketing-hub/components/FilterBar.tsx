@@ -39,7 +39,7 @@ export function FilterBar() {
 
       {channel !== "all" && (
         <p className="filters__note">
-          Showing {filteredEvents.length} of {events.length} — everything{" "}
+          Showing {filteredEvents.length} of {events.length}. Everything{" "}
           {labelFor(channel).toLowerCase()} is involved in. Its most important work
           is highlighted.
         </p>

@@ -171,7 +171,7 @@ export function validateEventInput(
 
   const assets_link = normalizeLink(input.assets_link);
   if (assets_link === false) {
-    errors.assets_link = "That does not look like a link — it should start with https://";
+    errors.assets_link = "That does not look like a link. It should start with https://";
   }
 
   if (Object.keys(errors).length > 0) throw new ValidationError(errors);

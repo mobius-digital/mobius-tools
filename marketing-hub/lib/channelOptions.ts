@@ -147,7 +147,7 @@ export async function renameChannel(key: unknown, rawLabel: unknown): Promise<Re
 export async function removeChannel(key: unknown): Promise<Result> {
   const channels = await listChannels();
   if (channels.length <= 1) {
-    return { ok: false, error: "Keep at least one channel — every event needs one." };
+    return { ok: false, error: "Keep at least one channel. Every event needs one." };
   }
   if (!channels.some((channel) => channel.key === key)) {
     return { ok: false, error: "That channel no longer exists." };

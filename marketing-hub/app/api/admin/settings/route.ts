@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              "That does not look like a Google client ID — it should end in .apps.googleusercontent.com",
+              "That does not look like a Google client ID. It should end in .apps.googleusercontent.com",
           },
           { status: 422 },
         );
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
       if (!value.startsWith("xoxb-")) {
         return NextResponse.json(
-          { error: "That is not a bot token — a bot token starts with xoxb-." },
+          { error: "That is not a bot token. A bot token starts with xoxb-." },
           { status: 422 },
         );
       }

@@ -69,7 +69,7 @@ export function EventTypesPanel() {
         announceBoardConfigChange();
         return true;
       } catch {
-        setError("Network error — check your connection and try again.");
+        setError("Network error. Check your connection and try again.");
         return false;
       } finally {
         setBusy(false);
@@ -101,7 +101,7 @@ export function EventTypesPanel() {
 
       <p className="dialog__body">
         These are the options in the Type dropdown. They are labels for reading
-        the board at a glance — nothing in the app behaves differently because
+        the board at a glance. Nothing in the app behaves differently because
         of them, so name them however your team talks.
       </p>
 
@@ -200,7 +200,7 @@ export function EventTypesPanel() {
           </form>
 
           <p className="dialog__body dialog__body--muted">
-            Renaming is safe — events already using a type follow the new name.
+            Renaming is safe. Events already using a type follow the new name.
             A type in use cannot be removed until those events are moved.
           </p>
         </>

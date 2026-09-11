@@ -15,11 +15,16 @@ Key invariants:
   client ID) — never a brand's.
 - Agency admins = memberships rows with brand_id '*'. There are no other
   roles; inside one brand, anyone past the gate can edit anything.
-- Brand look comes from the brands row at request time. brand.config.ts is
-  only the default palette (front door, admin, offline) and the Brand type.
+- Lineup has one look (app/globals.css, DESIGN.md). A brand contributes only
+  its accent, read from the brands row at request time (lib/brand.ts).
+  brand.config.ts is the hub's own accent (front door, admin, offline) and
+  the Brand type.
 - Dates are YYYY-MM-DD strings; never introduce Date round-trips.
 - The cron trigger in wrangler.jsonc stays commented out until this worker
   takes over the `launch-calendar` name at cutover (free-plan cron cap).
   worker-entry.js already loops every brand per tick.
+- Local dev: `npm run dev:local` (keeps the .next folder outside OneDrive
+  via a junction; plain `next dev` hits EBUSY). Seed the local D1 from
+  db/schema.sql first.
 - Deploy: `npm run deploy`. If the build fails with EPERM/EBUSY on .next,
   OneDrive is holding a file — `rm -rf .next` and retry.

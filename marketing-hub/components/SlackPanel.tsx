@@ -99,17 +99,17 @@ export function SlackPanel() {
         // already on screen, or every toggle would empty the pickers.
         absorb({ ...body, slackChannels: body.slackChannels ?? settings?.slackChannels ?? null });
         if (body.connected) setNote(body.connected);
-        if (body.sent) setNote("Sent — check the channel.");
+        if (body.sent) setNote("Sent. Check the channel.");
         if (typeof body.flushed === "number") {
           setNote(
             body.flushed === 0
               ? "Nothing was waiting."
-              : `Sent ${body.flushed} message${body.flushed === 1 ? "" : "s"} — check Slack.`,
+              : `Sent ${body.flushed} message${body.flushed === 1 ? "" : "s"}. Check Slack.`,
           );
         }
         return true;
       } catch {
-        setError("Network error — check your connection and try again.");
+        setError("Network error. Check your connection and try again.");
         return false;
       } finally {
         setBusy(false);
@@ -155,7 +155,7 @@ export function SlackPanel() {
           <p className="dialog__body">
             When an event is created, moves its launch date, changes status,
             gets its assets link or has its note written, every Slack channel
-            mapped to the marketing channels on that event hears about it —
+            mapped to the marketing channels on that event hears about it -
             one short message per event. Several edits to the same event within 15 minutes arrive as
             one message, not five.
           </p>
@@ -165,7 +165,7 @@ export function SlackPanel() {
               connected without being able to change or clear it. */}
           <p className="dialog__body dialog__body--muted">
             {settings.hasToken
-              ? "Slack is connected by Mobius — this board only chooses where its messages land."
+              ? "Slack is connected by Mobius. This board only chooses where its messages land."
               : "Slack is not connected yet. Ask Mobius to connect the workspace and this will light up."}
           </p>
 
@@ -184,7 +184,7 @@ export function SlackPanel() {
           ) : !settings.canChooseChannels ? (
             /* Where this board's notices go, and nothing about anyone else's.
                The names below are this board's own mapping, already stored
-               against it — the workspace list never reaches this screen. */
+               against it. The workspace list never reaches this screen. */
             <>
               <ul className="slack-map">
                 {settings.marketingChannels.map(({ key, label }) => {
@@ -235,13 +235,13 @@ export function SlackPanel() {
                     >
                       <option value="">Don't notify</option>
                       {/* A channel the bot is not in cannot be posted to, so
-                          it is offered but labeled rather than hidden — the
+                          it is offered but labeled rather than hidden. The
                           fix is one /invite away and worth naming. */}
                       {settings.slackChannels?.map((channel) => (
                         <option key={channel.id} value={channel.id}>
                           {channel.isPrivate ? "🔒" : "#"}
                           {channel.name}
-                          {channel.isMember ? "" : " — invite the bot first"}
+                          {channel.isMember ? "" : ". Invite the bot first"}
                         </option>
                       ))}
                     </select>
@@ -331,14 +331,14 @@ export function SlackPanel() {
           {!canEnable && !settings.enabled && (
             <p className="dialog__body dialog__body--muted">
               {!settings.hasToken
-                ? "Slack is not connected yet — ask Mobius to connect it."
+                ? "Slack is not connected yet. Ask Mobius to connect it."
                 : "Map at least one channel above first."}
             </p>
           )}
 
           {/* The queue. Changes wait up to 15 minutes so a flurry of edits is
               one message; this is the override for when something has to go
-              out now — and for testing without watching the clock. */}
+              out now. And for testing without watching the clock. */}
           {settings.enabled && (
             <p className="slack-queue">
               {settings.pending === 0

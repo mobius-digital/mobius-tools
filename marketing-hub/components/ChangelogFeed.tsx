@@ -26,15 +26,6 @@ export function ChangelogFeed({ entries }: { entries: ChangelogEntry[] }) {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1 className="page-header__title">Changelog</h1>
-          <p className="page-header__sub">
-            Every date, status, channel and name change, newest first.
-          </p>
-        </div>
-      </div>
-
       {days.length === 0 ? (
         <p className="empty">
           No changes recorded yet. Every edit from here on will be listed.

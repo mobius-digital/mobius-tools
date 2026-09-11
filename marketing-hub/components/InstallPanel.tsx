@@ -61,7 +61,7 @@ export function InstallPanel() {
       ) : (
         <>
           <p className="dialog__body">
-            Opens full-screen from its own icon, like any other app — no App
+            Opens full-screen from its own icon, like any other app. No App
             Store, and it updates itself.
           </p>
 
@@ -94,7 +94,7 @@ export function InstallPanel() {
               </p>
               <ol className="install__steps">
                 <li>
-                  Tap the <strong>Share</strong> button — the square with an
+                  Tap the <strong>Share</strong> button. The square with an
                   arrow, at the bottom of the screen on an iPhone and top
                   right on an iPad.
                 </li>

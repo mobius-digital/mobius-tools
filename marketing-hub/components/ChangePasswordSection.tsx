@@ -38,7 +38,7 @@ export function ChangePasswordSection() {
 
     const editor = await ensureName();
     if (!editor) {
-      setError("Set your name first — the change is recorded against it.");
+      setError("Set your name first. The change is recorded against it.");
       return;
     }
 
@@ -59,7 +59,7 @@ export function ChangePasswordSection() {
 
       setDone(true);
     } catch {
-      setError("Network error — the password was not changed.");
+      setError("Network error. The password was not changed.");
     } finally {
       setBusy(false);
     }
@@ -81,7 +81,7 @@ export function ChangePasswordSection() {
     <>
       <h3 className="dialog__section">Change the team password</h3>
       <p className="dialog__body">
-        Changing it signs everybody out — including you on your other devices.
+        Changing it signs everybody out. Including you on your other devices.
         If you do not know the current one, an agency admin can reset it from
         the Clients screen without it.
       </p>

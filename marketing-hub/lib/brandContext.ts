@@ -33,7 +33,7 @@ export function isValidSlug(value: string): boolean {
 export async function currentBrandId(): Promise<string> {
   const value = (await headers()).get(BRAND_HEADER);
   if (!value || !SLUG.test(value)) {
-    throw new Error("No brand on this request — route is outside /b/<brand>.");
+    throw new Error("No brand on this request. Route is outside /b/<brand>.");
   }
   return value;
 }

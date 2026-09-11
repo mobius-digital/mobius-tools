@@ -44,6 +44,12 @@ export default async function FrontDoor() {
                 <span className="door__name">{brand.name}</span>
               </a>
             ))}
+            {brands.length > 1 && (
+              <a className="door__card door__card--admin" href="/all">
+                <span className="door__swatch door__swatch--all" aria-hidden />
+                <span className="door__name">All brands</span>
+              </a>
+            )}
             {admin && (
               <a className="door__card door__card--admin" href="/admin">
                 <span className="door__swatch door__swatch--admin" aria-hidden />

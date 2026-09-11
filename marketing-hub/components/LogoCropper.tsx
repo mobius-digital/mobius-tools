@@ -197,7 +197,7 @@ export function LogoCropper({
                 onPointerMove={onPointerMove}
                 onPointerUp={endDrag}
                 onPointerCancel={endDrag}
-                aria-label="Logo preview — drag to reposition"
+                aria-label="Logo preview. Drag to reposition"
               />
             </div>
 
@@ -219,8 +219,8 @@ export function LogoCropper({
             </label>
 
             {/* Offered, not urged. A logo exported for a white page carries
-                the white with it, and on a board with pale surfaces — which is
-                most of them — that is invisible and nothing needs doing. It is
+                the white with it, and on a board with pale surfaces. Which is
+                most of them. That is invisible and nothing needs doing. It is
                 here for the board whose colors would show it up. */}
             {hasFlatBackground && (
               <label className="cropper__option">
@@ -233,7 +233,7 @@ export function LogoCropper({
                   {autoDropped ? "Background removed" : "Drop the flat background"}
                   <span className="cropper__option-hint">
                     {autoDropped
-                      ? "This file came on a white background, so it has been taken off for you — the chequerboard is what transparent looks like. Untick to keep it."
+                      ? "This file came on a white background, so it has been taken off for you. The chequerboard is what transparent looks like. Untick to keep it."
                       : "Clears the flat color from the edges inwards, leaving anything enclosed by the mark alone. Worth it if the board's own colors would show a square behind the mark."}
                   </span>
                 </span>

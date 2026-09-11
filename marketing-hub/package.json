@@ -14,7 +14,8 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "db:local": "wrangler d1 execute launch-calendar --local --file=./db/schema.sql",
     "db:remote": "wrangler d1 execute launch-calendar --remote --file=./db/schema.sql",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv",
+    "dev:local": "node scripts/dev-local.mjs"
   },
   "dependencies": {
     "next": "^15.5.23",

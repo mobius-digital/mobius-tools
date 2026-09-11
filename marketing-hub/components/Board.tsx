@@ -103,7 +103,7 @@ function Card({
                   className={`cdot cdot--${event.channels[option.key]?.priority ?? "fyi"}`}
                   title={`${channelLabel(option.key)}: ${event.channels[option.key]?.priority ?? "fyi"}`}
                 >
-                  {channelLabel(option.key).slice(0, 5)}
+                  {channelLabel(option.key)}
                 </span>
               ))}
             </span>

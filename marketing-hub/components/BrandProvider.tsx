@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 
 /**
  * The client side of the per-request brand.
@@ -31,10 +31,17 @@ export function BrandProvider({
   brand: ClientBrand;
   children: ReactNode;
 }) {
-  const value: BrandContextValue = {
-    ...brand,
-    path: (suffix: string) => `/b/${brand.slug}${suffix.startsWith("/") ? suffix : `/${suffix}`}`,
-  };
+  // Memoized so effects that depend on `path` (the board's polling, the
+  // settings refetch) keep one identity across renders instead of
+  // restarting every time this provider re-renders.
+  const value = useMemo<BrandContextValue>(
+    () => ({
+      ...brand,
+      path: (suffix: string) =>
+        `/b/${brand.slug}${suffix.startsWith("/") ? suffix : `/${suffix}`}`,
+    }),
+    [brand],
+  );
   return <BrandContext.Provider value={value}>{children}</BrandContext.Provider>;
 }
 

@@ -114,7 +114,7 @@ function barColor(event: LaunchEvent, options: MessageOptions): string {
 const ROLE_TEXT: Record<ChannelPriority, string> = {
   primary: "*You're primary on this*",
   supporting: "*You're supporting on this*",
-  fyi: "*FYI only* — nothing to build",
+  fyi: "*FYI only*: nothing to build",
 };
 
 function roleLine(event: LaunchEvent, channelKey: ChannelKey): string | null {
@@ -241,15 +241,15 @@ function titleFor(
   const name = escape(item.event.name);
 
   if (item.kind === "created") {
-    return `🚀 *New ${escape(asNoun(typeLabel(item.event.type)))} — ${name}*`;
+    return `🚀 *New ${escape(asNoun(typeLabel(item.event.type)))}: ${name}*`;
   }
   if (item.kind === "added") {
     return `📌 *${escape(channelLabel(channelKey))} is now on ${name}*`;
   }
-  if (item.kind === "assets") return `📎 *Assets are in — ${name}*`;
+  if (item.kind === "assets") return `📎 *Assets are in: ${name}*`;
 
   const { icon, label } = changeTitle(item.lines);
-  return `${icon} *${label} — ${name}*`;
+  return `${icon} *${label}: ${name}*`;
 }
 
 /**
@@ -355,7 +355,7 @@ function previewText(
   }
   if (item.kind === "added") return `${channelLabel(channelKey)} is now on ${item.event.name}`;
   if (item.kind === "assets") return `Assets are in: ${item.event.name}`;
-  return `${changeTitle(item.lines).label}: ${item.event.name} — ${item.lines[0] ?? "updated"}`;
+  return `${changeTitle(item.lines).label}: ${item.event.name} · ${item.lines[0] ?? "updated"}`;
 }
 
 /**
@@ -393,7 +393,7 @@ export function buildReminderMessage(
   const title = kind === "week" ? "⏰ *One week out*" : "🔔 *Live tomorrow*";
 
   const blocks: unknown[] = [
-    section(`${title} — *${escape(event.name)}*`),
+    section(`${title}: *${escape(event.name)}*`),
     context(detailLines(event, channelKey, typeLabel)),
   ];
 
@@ -427,7 +427,7 @@ export function buildTestMessage(boardUrl: string): SlackMessage {
         blocks: [
           section(`✅ *${escape(hub.name)} is connected to this channel.*`),
           context(
-            "New events, date moves, status changes and assets landing for the marketing channels mapped here will arrive here — one short message per event, at most once every 15 minutes.",
+            "New events, date moves, status changes and assets landing for the marketing channels mapped here will arrive here. One short message per event, at most once every 15 minutes.",
           ),
           ...(boardUrl ? [context(`<${boardUrl}|Open the board →>`)] : []),
         ],

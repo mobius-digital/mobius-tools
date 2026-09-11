@@ -79,7 +79,7 @@ async function recordChanges(
 export async function recordPasswordChange(editor: string): Promise<void> {
   await recordChanges(
     { id: null, name: "Team settings" },
-    ["Team password changed — everyone will need to sign in again"],
+    ["Team password changed. Everyone will need to sign in again"],
     editor,
   );
 }

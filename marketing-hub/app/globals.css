@@ -25,10 +25,10 @@
   /* ---- the brand's one color ------------------------------------------ */
   --accent: #14608c;
   --accent-text: #ffffff;
-  --accent-ink: color-mix(in oklch, var(--accent) 70%, var(--ink));
-  --accent-bg: color-mix(in oklch, var(--accent) 11%, var(--surface));
-  --accent-bg-2: color-mix(in oklch, var(--accent) 20%, var(--surface));
-  --accent-line: color-mix(in oklch, var(--accent) 45%, transparent);
+  --accent-ink: color-mix(in oklab, var(--accent) 70%, var(--ink));
+  --accent-bg: color-mix(in oklab, var(--accent) 11%, var(--surface));
+  --accent-bg-2: color-mix(in oklab, var(--accent) 20%, var(--surface));
+  --accent-line: color-mix(in oklab, var(--accent) 45%, transparent);
 
   /* ---- semantic ----------------------------------------------------- */
   --danger: oklch(56% 0.19 25);
@@ -72,7 +72,7 @@
   --shadow-2: 0 10px 28px -10px oklch(22% 0.016 255 / 0.28), 0 0 0 1px var(--line);
   --shadow-3: -16px 0 48px -24px oklch(22% 0.016 255 / 0.35);
   --scrim: oklch(22% 0.016 255 / 0.42);
-  --focus-ring: color-mix(in oklch, var(--accent) 70%, transparent);
+  --focus-ring: color-mix(in oklab, var(--accent) 70%, transparent);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -190,7 +190,7 @@ button {
 .textarea:focus-visible {
   outline: 0;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent);
 }
 
 ::selection {
@@ -221,9 +221,10 @@ button {
   gap: var(--space-4);
   height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
   padding: env(safe-area-inset-top, 0px) var(--space-5) 0;
-  background: color-mix(in oklch, var(--surface) 88%, transparent);
-  backdrop-filter: saturate(1.4) blur(10px);
-  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  /* Solid, not frosted: a backdrop-filter here would become the containing
+     block for the Settings window, which is rendered inside this bar and
+     positioned fixed. */
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 
@@ -283,6 +284,29 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The hub's own mark, for the pages that belong to no brand. */
+.brand__logo--hub {
+  display: inline-block;
+  background: currentColor;
+  -webkit-mask: url("/lineup.svg") center / contain no-repeat;
+  mask: url("/lineup.svg") center / contain no-repeat;
+}
+
+.door__swatch--all {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: conic-gradient(
+    from 90deg,
+    var(--stage-blue),
+    var(--stage-teal),
+    var(--stage-amber),
+    var(--stage-rose),
+    var(--stage-violet),
+    var(--stage-blue)
+  );
 }
 
 .brand__caret {
@@ -500,13 +524,13 @@ button {
 .button--primary {
   background: var(--accent);
   color: var(--accent-text);
-  border-color: color-mix(in oklch, var(--accent) 80%, var(--ink));
+  border-color: color-mix(in oklab, var(--accent) 80%, var(--ink));
   font-weight: 600;
 }
 
 .button--primary:hover:not(:disabled) {
-  background: color-mix(in oklch, var(--accent) 90%, var(--ink));
-  border-color: color-mix(in oklch, var(--accent) 70%, var(--ink));
+  background: color-mix(in oklab, var(--accent) 90%, var(--ink));
+  border-color: color-mix(in oklab, var(--accent) 70%, var(--ink));
 }
 
 .button--danger {
@@ -900,6 +924,8 @@ button {
   height: 28px;
   font-size: 0.8rem;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
 
@@ -1192,7 +1218,7 @@ button {
 .stale-flag {
   color: var(--warn-ink);
   background: var(--warn-bg);
-  border: 1px solid color-mix(in oklch, var(--warn-ink) 30%, transparent);
+  border: 1px solid color-mix(in oklab, var(--warn-ink) 30%, transparent);
 }
 
 .chips {
@@ -1358,7 +1384,7 @@ button {
 }
 
 .day--weekend {
-  background: color-mix(in oklch, var(--surface-2) 55%, transparent);
+  background: color-mix(in oklab, var(--surface-2) 55%, transparent);
 }
 
 .day:hover {
@@ -1453,7 +1479,7 @@ button {
   padding: 0 8px;
   height: 24px;
   border-radius: 6px;
-  border: 1px solid color-mix(in oklch, var(--stage-c) 45%, transparent);
+  border: 1px solid color-mix(in oklab, var(--stage-c) 45%, transparent);
   background: var(--stage-bg);
   color: var(--stage-ink);
   font-size: 0.78rem;
@@ -1485,7 +1511,7 @@ button {
     linear-gradient(to right, transparent var(--x), var(--stage-bg) var(--x)),
     repeating-linear-gradient(
       -45deg,
-      color-mix(in oklch, var(--stage-c) 18%, var(--surface)) 0 4px,
+      color-mix(in oklab, var(--stage-c) 18%, var(--surface)) 0 4px,
       var(--surface) 4px 8px
     );
 }
@@ -1493,7 +1519,7 @@ button {
 .evt--before {
   background: repeating-linear-gradient(
     -45deg,
-    color-mix(in oklch, var(--stage-c) 18%, var(--surface)) 0 4px,
+    color-mix(in oklab, var(--stage-c) 18%, var(--surface)) 0 4px,
     var(--surface) 4px 8px
   );
   color: var(--ink-2);
@@ -1576,8 +1602,24 @@ button {
   text-decoration: line-through;
 }
 
+/* A clash is a small red mark at the chip's end, not a ring: the banner
+   above already says it, and a ring on every chip in a busy month drowned
+   the stage colors the chips exist to show. */
+.evt--clash::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
 .evt--clash {
-  box-shadow: 0 0 0 2px color-mix(in oklch, var(--danger) 35%, transparent);
+  padding-right: 16px;
 }
 
 /* A chip too narrow for words keeps its color and dot. */
@@ -1861,8 +1903,8 @@ button {
 }
 
 .col {
-  flex: 0 0 17rem;
-  width: 17rem;
+  flex: 0 0 18.5rem;
+  width: 18.5rem;
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-lg);
@@ -2083,12 +2125,11 @@ button {
 
 .cdot {
   height: 18px;
-  padding: 0 6px;
+  padding: 0 7px;
   border-radius: 999px;
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line-2);
@@ -2437,7 +2478,7 @@ button {
 
 .toast__action {
   background: none;
-  border: 1px solid color-mix(in oklch, var(--surface) 30%, transparent);
+  border: 1px solid color-mix(in oklab, var(--surface) 30%, transparent);
   color: var(--surface);
   border-radius: 6px;
   height: 28px;
@@ -2448,13 +2489,13 @@ button {
 }
 
 .toast__action:hover {
-  background: color-mix(in oklch, var(--surface) 12%, transparent);
+  background: color-mix(in oklab, var(--surface) 12%, transparent);
 }
 
 .toast__close {
   background: none;
   border: 0;
-  color: color-mix(in oklch, var(--surface) 70%, transparent);
+  color: color-mix(in oklab, var(--surface) 70%, transparent);
   width: 28px;
   height: 28px;
   border-radius: 6px;
@@ -2466,7 +2507,7 @@ button {
 
 .toast__close:hover {
   color: var(--surface);
-  background: color-mix(in oklch, var(--surface) 12%, transparent);
+  background: color-mix(in oklab, var(--surface) 12%, transparent);
 }
 
 .toast--danger {
@@ -3073,6 +3114,10 @@ button {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Recent changes and full changelog
  * ----------------------------------------------------------------------- */
@@ -3155,6 +3200,10 @@ button {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * First run
  * ----------------------------------------------------------------------- */
@@ -3188,6 +3237,10 @@ button {
   margin: 0 0 var(--space-5);
   line-height: 1.6;
 }
+
+
+
+
 
 
 
@@ -3301,6 +3354,10 @@ button {
 .firstrun__tour:hover {
   color: var(--color-text);
 }
+
+
+
+
 
 
 
@@ -3533,6 +3590,10 @@ button {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Sign-in settings — mode choice, invite list, Google button on the gate
  * ----------------------------------------------------------------------- */
@@ -3693,6 +3754,10 @@ button {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Sign-in settings: blocked option, folded setup, banner error
  * ----------------------------------------------------------------------- */
@@ -3824,6 +3889,10 @@ button {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Squaring a logo up on upload
  * ----------------------------------------------------------------------- */
@@ -3883,6 +3952,10 @@ button {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
+
+
+
+
 
 
 
@@ -3993,6 +4066,10 @@ button {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Offline screen (served by the service worker when there is no connection)
  * ----------------------------------------------------------------------- */
@@ -4015,6 +4092,10 @@ button {
   color: var(--color-text-muted);
   margin: 0;
 }
+
+
+
+
 
 
 
@@ -4079,6 +4160,10 @@ button {
   font-size: 0.9rem;
   margin: 0 0 var(--space-4);
 }
+
+
+
+
 
 
 
@@ -4186,6 +4271,10 @@ a.switcher__item:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+
+
+
 
 
 
@@ -4483,6 +4572,10 @@ a.switcher__item:hover {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Clients screen, take two: roomier cards, real controls
  * ----------------------------------------------------------------------- */
@@ -4592,6 +4685,10 @@ a.switcher__item:hover {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Color picking
  * ----------------------------------------------------------------------- */
@@ -4673,6 +4770,10 @@ a.switcher__item:hover {
   font-size: 0.78rem;
   color: var(--color-text-muted);
 }
+
+
+
+
 
 
 
@@ -4770,6 +4871,10 @@ a.switcher__item:hover {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * The brand switcher should look like a control, not a title
  * ----------------------------------------------------------------------- */
@@ -4790,6 +4895,10 @@ a.switcher__item:hover {
   font-size: 0.65rem;
   margin-left: var(--space-2);
 }
+
+
+
+
 
 
 
@@ -4826,6 +4935,10 @@ a.switcher__item:hover {
   object-fit: contain;
   display: block;
 }
+
+
+
+
 
 
 
@@ -4896,6 +5009,10 @@ a.switcher__item:hover {
 
 
 
+
+
+
+
 /* --------------------------------------------------------------------------
  * Clients: cards as they were, with the client's own color leading the card
  * instead of a plain bar.
@@ -4933,6 +5050,10 @@ a.switcher__item:hover {
     transform: none;
   }
 }
+
+
+
+
 
 
 
@@ -5050,7 +5171,8 @@ a.switcher__item:hover {
   }
 
   .topbar__right .button--primary,
-  .topbar__right .conn {
+  .topbar__right .conn,
+  .conn--connecting {
     display: none;
   }
 
@@ -5065,9 +5187,7 @@ a.switcher__item:hover {
     bottom: 0;
     z-index: var(--z-fab);
     display: flex;
-    background: color-mix(in oklch, var(--surface) 92%, transparent);
-    backdrop-filter: saturate(1.4) blur(12px);
-    -webkit-backdrop-filter: saturate(1.4) blur(12px);
+    background: var(--surface);
     border-top: 1px solid var(--line);
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
   }
@@ -5114,7 +5234,7 @@ a.switcher__item:hover {
     border: 0;
     background: var(--accent);
     color: var(--accent-text);
-    box-shadow: 0 10px 24px -8px color-mix(in oklch, var(--accent) 70%, var(--ink));
+    box-shadow: 0 10px 24px -8px color-mix(in oklab, var(--accent) 70%, var(--ink));
     transition: transform var(--t-fast) var(--ease-out);
   }
 

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
   if (!configured) {
     return NextResponse.json(
-      { error: "This board has no team password — sign in with Google instead." },
+      { error: "This board has no team password. Sign in with Google instead." },
       { status: 403 },
     );
   }
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const token = await sessionToken();
   if (!token) {
     return NextResponse.json(
-      { error: "This board has no team password — sign in with Google instead." },
+      { error: "This board has no team password. Sign in with Google instead." },
       { status: 503 },
     );
   }

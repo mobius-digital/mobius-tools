@@ -5,7 +5,7 @@ import { TodayLabel } from "./TodayLabel";
 /**
  * The decorative half of the sign-in screen: the product in miniature.
  *
- * Rather than a stock illustration, this is an abstract Pipeline — four week
+ * Rather than a stock illustration, this is an abstract calendar: four week
  * rows, spans that run from teaser to promo end, status dots, a today marker —
  * drawn entirely with CSS from the brand tokens, so it re-skins itself with the
  * rest of the app. The chips underneath are this board's *real* channels and
@@ -124,7 +124,7 @@ export function GateScene({
         </div>
 
         <p className="scene__foot">
-          {productName} &middot; Pipeline &middot; Calendar &middot; Changelog &middot; Slack
+          {productName} &middot; Calendar &middot; Board &middot; Changelog &middot; Slack
         </p>
       </div>
     </aside>

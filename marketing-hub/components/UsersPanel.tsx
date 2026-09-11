@@ -73,7 +73,7 @@ export function UsersPanel() {
         setConfig(body);
         return true;
       } catch {
-        setError("Network error — check your connection and try again.");
+        setError("Network error. Check your connection and try again.");
         return false;
       } finally {
         setBusy(false);
@@ -107,7 +107,7 @@ export function UsersPanel() {
           <h3 className="dialog__section">Invited people</h3>
           <p className="dialog__body">
             These addresses can sign in with Google. Adding or removing takes
-            effect straight away — no redeploy, and somebody you remove is
+            effect straight away. No redeploy, and somebody you remove is
             signed out on their next page load.
           </p>
 
@@ -153,7 +153,7 @@ export function UsersPanel() {
           <p className="dialog__body dialog__body--muted">
             {config.passwordEnabled
               ? "This board also opens with its shared password, for anyone who has the link."
-              : "This board has no shared password — the invited people above are the only way in."}
+              : "This board has no shared password. The invited people above are the only way in."}
           </p>
 
           {!config.googleClientId && (

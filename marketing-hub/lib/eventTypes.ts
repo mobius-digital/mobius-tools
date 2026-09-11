@@ -129,7 +129,7 @@ export async function removeEventType(
 ): Promise<{ ok: true; types: EventTypeOption[] } | { ok: false; error: string }> {
   const types = await listEventTypes();
   if (types.length <= 1) {
-    return { ok: false, error: "Keep at least one type — every event needs one." };
+    return { ok: false, error: "Keep at least one type. Every event needs one." };
   }
   if (!types.some((type) => type.key === key)) {
     return { ok: false, error: "That type no longer exists." };

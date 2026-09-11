@@ -77,7 +77,7 @@ const MAX_BLOCKS = 4;
 test("a single change reads as a notice", () => {
   const message = buildEventMessage(item({ lines: ["Launch date moved Aug 12 → Aug 27"] }), OPTIONS);
 
-  assert.equal(message.text, "Date moved: Fall Apparel Drop — Launch date moved Aug 12 → Aug 27");
+  assert.equal(message.text, "Date moved: Fall Apparel Drop · Launch date moved Aug 12 → Aug 27");
   assert.ok(textOf(message).includes("Launch date moved Aug 12 → Aug 27"));
 });
 
@@ -87,12 +87,12 @@ test("the change lines sit directly under the title, in the same block", () => {
     OPTIONS,
   );
   const first = blocksOf(message)[0] as { text: { text: string } };
-  assert.ok(first.text.text.startsWith("📅 *Date moved — Fall Apparel Drop*"));
+  assert.ok(first.text.text.startsWith("📅 *Date moved: Fall Apparel Drop*"));
   assert.ok(first.text.text.includes("• Launch date moved Aug 12 → Aug 27"));
   assert.ok(first.text.text.includes("• Status changed: tentative → confirmed"));
 });
 
-test("no message — however full the event — can reach Slack's fold", () => {
+test("no message, however full the event, can reach Slack's fold", () => {
   // Everything set: brief, all four run-up dates, assets, three change lines,
   // other channels. This is the tallest a card can get.
   const full = makeEvent({
@@ -275,38 +275,38 @@ test("a new event is named by its type, not called a launch regardless", () => {
     ...OPTIONS,
     typeLabel: () => "Promo",
   });
-  assert.equal(titleOf(promo), "🚀 *New promo — Fall Apparel Drop*");
+  assert.equal(titleOf(promo), "🚀 *New promo: Fall Apparel Drop*");
   assert.equal(promo.text, "New promo: Fall Apparel Drop");
 
   const custom = buildEventMessage(item({ kind: "created", event: makeEvent({ type: "tour_drop" }) }), {
     ...OPTIONS,
     typeLabel: () => "Tour Drop",
   });
-  assert.equal(titleOf(custom), "🚀 *New tour drop — Fall Apparel Drop*");
+  assert.equal(titleOf(custom), "🚀 *New tour drop: Fall Apparel Drop*");
 
   const acronym = buildEventMessage(item({ kind: "created", event: makeEvent({ type: "sms_blast" }) }), {
     ...OPTIONS,
     typeLabel: () => "SMS Blast",
   });
-  assert.equal(titleOf(acronym), "🚀 *New SMS blast — Fall Apparel Drop*");
+  assert.equal(titleOf(acronym), "🚀 *New SMS blast: Fall Apparel Drop*");
 });
 
 test("every change message says what kind of change it is", () => {
   assert.equal(
     titleOf(buildEventMessage(item({ lines: ["Status changed: tentative → confirmed"] }), OPTIONS)),
-    "✏️ *Updated — Fall Apparel Drop*",
+    "✏️ *Updated: Fall Apparel Drop*",
   );
   assert.equal(
     titleOf(buildEventMessage(item({ lines: ["Launch date moved Aug 12 → Aug 27"] }), OPTIONS)),
-    "📅 *Date moved — Fall Apparel Drop*",
+    "📅 *Date moved: Fall Apparel Drop*",
   );
   assert.equal(
     titleOf(buildEventMessage(item({ lines: ["Status changed: confirmed → at risk"] }), OPTIONS)),
-    "⚠️ *At risk — Fall Apparel Drop*",
+    "⚠️ *At risk: Fall Apparel Drop*",
   );
   assert.equal(
     titleOf(buildEventMessage(item({ lines: ["Event cancelled"] }), OPTIONS)),
-    "🚫 *Cancelled — Fall Apparel Drop*",
+    "🚫 *Cancelled: Fall Apparel Drop*",
   );
 });
 
@@ -344,14 +344,14 @@ test("when several things changed, the title is the one that matters most", () =
     item({ lines: ["Launch date moved Aug 12 → Aug 27", "Event cancelled"] }),
     OPTIONS,
   );
-  assert.equal(titleOf(both), "🚫 *Cancelled — Fall Apparel Drop*");
+  assert.equal(titleOf(both), "🚫 *Cancelled: Fall Apparel Drop*");
 
   // At risk beats a date move.
   const risk = buildEventMessage(
     item({ lines: ["Launch date moved Aug 12 → Aug 27", "Status changed: confirmed → at risk"] }),
     OPTIONS,
   );
-  assert.equal(titleOf(risk), "⚠️ *At risk — Fall Apparel Drop*");
+  assert.equal(titleOf(risk), "⚠️ *At risk: Fall Apparel Drop*");
 });
 
 test("the product name on the link follows hub.config", () => {
@@ -364,14 +364,14 @@ test("the product name on the link follows hub.config", () => {
 /* ---------------------------------------------------------------- */
 
 test("the note rides along on every message about the event", () => {
-  const event = makeEvent({ notes: "Customs is slow — date may slip a week." });
+  const event = makeEvent({ notes: "Customs is slow, date may slip a week." });
 
   const change = buildEventMessage(item({ event, lines: ["Status changed: confirmed → tentative"] }), OPTIONS);
   const created = buildEventMessage(item({ kind: "created", event }), OPTIONS);
   const reminder = buildReminderMessage(event, "week", OPTIONS);
 
   for (const message of [change, created, reminder]) {
-    assert.ok(textOf(message).includes("Note: Customs is slow — date may slip a week."));
+    assert.ok(textOf(message).includes("Note: Customs is slow, date may slip a week."));
   }
 });
 
@@ -393,27 +393,27 @@ test("the note sits in the details block, not a block of its own", () => {
 
 test("a note-only change gets its own title; with a date move the date leads", () => {
   const noteOnly = buildEventMessage(
-    item({ event: makeEvent({ notes: "Embargo lifted — go." }), lines: ["Note updated"] }),
+    item({ event: makeEvent({ notes: "Embargo lifted, go." }), lines: ["Note updated"] }),
     OPTIONS,
   );
-  assert.equal(titleOf(noteOnly), "📝 *Note updated — Fall Apparel Drop*");
-  assert.ok(textOf(noteOnly).includes("Note updated: Embargo lifted — go."));
+  assert.equal(titleOf(noteOnly), "📝 *Note updated: Fall Apparel Drop*");
+  assert.ok(textOf(noteOnly).includes("Note updated: Embargo lifted, go."));
   // No bullet repeating what the title and the note line already say.
   assert.ok(!textOf(noteOnly).includes("• Note updated"));
 
   const firstNote = buildEventMessage(
-    item({ event: makeEvent({ notes: "Embargo lifted — go." }), lines: ["Note added"] }),
+    item({ event: makeEvent({ notes: "Embargo lifted, go." }), lines: ["Note added"] }),
     OPTIONS,
   );
-  assert.equal(titleOf(firstNote), "📝 *Note added — Fall Apparel Drop*");
-  assert.ok(textOf(firstNote).includes("New note: Embargo lifted — go."));
+  assert.equal(titleOf(firstNote), "📝 *Note added: Fall Apparel Drop*");
+  assert.ok(textOf(firstNote).includes("New note: Embargo lifted, go."));
   assert.ok(!textOf(firstNote).includes("• Note added"));
 
   const withDate = buildEventMessage(
     item({ event: makeEvent({ notes: "Customs is slow." }), lines: ["Launch date moved Aug 12 → Aug 27", "Note updated"] }),
     OPTIONS,
   );
-  assert.equal(titleOf(withDate), "📅 *Date moved — Fall Apparel Drop*");
+  assert.equal(titleOf(withDate), "📅 *Date moved: Fall Apparel Drop*");
   // The date is bulleted; the note change is shown on the note line instead.
   assert.ok(textOf(withDate).includes("• Launch date moved Aug 12 → Aug 27"));
   assert.ok(!textOf(withDate).includes("• Note updated"));
@@ -423,5 +423,5 @@ test("a note-only change gets its own title; with a date move the date leads", (
     item({ event: makeEvent({ notes: "Customs is slow." }), lines: ["Status changed: confirmed → tentative", "Note updated"] }),
     OPTIONS,
   );
-  assert.equal(titleOf(withStatus), "✏️ *Updated — Fall Apparel Drop*");
+  assert.equal(titleOf(withStatus), "✏️ *Updated: Fall Apparel Drop*");
 });

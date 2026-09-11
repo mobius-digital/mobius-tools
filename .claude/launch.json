@@ -4,14 +4,36 @@
     {
       "name": "tools-static",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8788"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8788"
+      ],
       "port": 8788
     },
     {
       "name": "ledger-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8791"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8791"
+      ],
       "port": 8791
+    },
+    {
+      "name": "hub",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "marketing-hub",
+        "run",
+        "dev:local",
+        "--",
+        "-p",
+        "3100"
+      ],
+      "port": 3100
     }
   ]
 }

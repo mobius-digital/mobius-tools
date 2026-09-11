@@ -93,7 +93,8 @@ its own channel mapping.
 
 They do not need any of the above. Their board has:
 
-- **Pipeline** — what is coming, grouped by week.
+- **Calendar** is the board's home: month, week, or an agenda list. Chips run from teaser start to promo end, colored by the launch's stage, and can be dragged to move a whole launch.
+- **Board** is one column per stage (briefed, waiting on assets, built, scheduled and so on). Drag a card between columns as the launch moves along; the stage list is yours to edit in Settings.
 - **Calendar** — the same thing as a month.
 - **Changelog** — who changed what, written automatically on every edit.
 
@@ -167,9 +168,9 @@ has the bot been invited to that Slack channel.
 *and* they do not have the team password, or the password has been changed since
 they last used it. Changing the team password signs everybody out, on purpose.
 
-**Something was cancelled by mistake.** Cancelled work leaves the Pipeline and
+**Something was cancelled by mistake.** Cancelled work leaves the Calendar and Board and
 Calendar and stops counting toward clash warnings, but it is not gone: open
-**Cancelled** at the foot of the Pipeline, click it, and either set its status
+the event in the Changelog, open it, and either set its status
 back to put it on the board or delete it for good under Admin. Deleting is the
 only thing here that cannot be undone.
 

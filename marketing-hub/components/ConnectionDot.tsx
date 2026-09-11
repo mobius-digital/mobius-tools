@@ -4,7 +4,7 @@ import { useWorkspace } from "./Workspace";
 
 const COPY = {
   connecting: "Checking for updates…",
-  live: "Up to date — the board re-checks every few seconds",
+  live: "Up to date. The board re-checks every few seconds",
   offline:
     "Can't reach the server. Your own edits still save; other people's will appear once the connection is back.",
 } as const;

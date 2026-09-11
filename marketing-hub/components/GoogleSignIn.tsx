@@ -64,7 +64,7 @@ export function GoogleSignIn({ clientId, from }: { clientId: string; from: strin
         router.replace(from);
         router.refresh();
       } catch {
-        setError("Network error — check your connection and try again.");
+        setError("Network error. Check your connection and try again.");
       } finally {
         setBusy(false);
       }

@@ -72,7 +72,7 @@ export function ChannelsPanel() {
         announceBoardConfigChange();
         return true;
       } catch {
-        setError("Network error — check your connection and try again.");
+        setError("Network error. Check your connection and try again.");
         return false;
       } finally {
         setBusy(false);
@@ -104,7 +104,7 @@ export function ChannelsPanel() {
       <p className="dialog__body">
         The marketing channels this board plans around. Each one gets a filter
         chip, a row on every event, and its own Slack channel to notify.
-        Priority — primary, supporting, FYI — stays the same for all of them.
+        Priority, primary, supporting, FYI, stays the same for all of them.
       </p>
 
       {!data ? (
@@ -202,7 +202,7 @@ export function ChannelsPanel() {
           </form>
 
           <p className="dialog__body dialog__body--muted">
-            Renaming is safe — events, the Slack mapping and saved filters all
+            Renaming is safe. Events, the Slack mapping and saved filters all
             follow the new name. A channel that events still involve cannot be
             removed until they are taken off it. Removing one also clears its
             Slack mapping.

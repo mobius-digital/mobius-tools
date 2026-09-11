@@ -33,8 +33,11 @@ type Client = {
 const MAX_LOGO_BYTES = 1_000_000;
 
 const ACCENTS = ["#2563eb", "#7c3aed", "#c9a227", "#059669", "#dc2626", "#ea580c", "#0891b2", "#111827"];
-const BACKGROUNDS = ["#f7f7f8", "#ffffff", "#f4f4f0", "#f8f7fc", "#f1f5f9", "#141414"];
-const TEXTS = ["#18181b", "#1a1a18", "#0f172a", "#1b1726", "#f5f5f5"];
+/* Lineup has one look; a brand supplies its accent and nothing else. The page
+   ground and text are fixed and sent along only so older rows keep a full
+   palette. */
+const BACKGROUND = "#f7f7f8";
+const TEXT = "#18181b";
 
 /**
  * What to say about a board's contents.
@@ -70,8 +73,8 @@ export default function AdminPage() {
 
   const [name, setName] = useState("");
   const [accent, setAccent] = useState("#2563eb");
-  const [background, setBackground] = useState("#f7f7f8");
-  const [text, setText] = useState("#18181b");
+  const background = BACKGROUND;
+  const text = TEXT;
   const [logoSvg, setLogoSvg] = useState("");
   const [logoName, setLogoName] = useState("");
   /** Kept apart from the page error, which renders behind this dialog. */
@@ -109,7 +112,7 @@ export default function AdminPage() {
       setClients(body.clients);
       return body as Record<string, unknown>;
     } catch {
-      setError("Network error — try again.");
+      setError("Network error. Try again.");
       return null;
     } finally {
       setBusy(false);
@@ -119,8 +122,6 @@ export default function AdminPage() {
   function openEdit(client: Client) {
     setName(client.name);
     setAccent(client.seeds.accent);
-    setBackground(client.seeds.background);
-    setText(client.seeds.text);
     setLogoSvg("");
     setLogoName("");
     setExistingLogo(client.logoSvg);
@@ -207,8 +208,6 @@ export default function AdminPage() {
     ? editing
       ? name !== editing.name ||
         accent !== editing.seeds.accent ||
-        background !== editing.seeds.background ||
-        text !== editing.seeds.text ||
         Boolean(logoSvg)
       : Boolean(name.trim() || logoSvg)
     : false;
@@ -289,8 +288,6 @@ export default function AdminPage() {
               setEditing(null);
               resetForm();
               setAccent("#2563eb");
-              setBackground("#f7f7f8");
-              setText("#18181b");
               setAdding(true);
             }}
           >
@@ -311,7 +308,7 @@ export default function AdminPage() {
         <p className="admin__empty">Loading…</p>
       ) : clients.length === 0 ? (
         <p className="admin__empty">
-          No clients yet. Add one and their board exists immediately — its own
+          No clients yet. Add one and their board exists immediately. Its own
           look, its own sign-in, its own corner of this site.
         </p>
       ) : (
@@ -337,7 +334,7 @@ export default function AdminPage() {
 
                 {passwords[client.slug] && (
                   <div className="client-card__pw">
-                    <span>Team password — copy it now, it is not shown again:</span>
+                    <span>Team password. Copy it now, it is not shown again:</span>
                     <code>{passwords[client.slug]}</code>
                     <button
                       type="button"
@@ -353,7 +350,7 @@ export default function AdminPage() {
                   <span className="client-card__label">Who can sign in with Google</span>
                   {client.members.length === 0 ? (
                     <p className="client-card__none">
-                      Nobody yet — this board opens with its team password only.
+                      Nobody yet. This board opens with its team password only.
                     </p>
                   ) : (
                     <div className="member-list">
@@ -480,7 +477,7 @@ export default function AdminPage() {
             <p className="dialog__body">
               {editing
                 ? "Changes show on their board straight away. Their address, events and who can sign in are untouched."
-                : "Their board exists the moment you save — its own look, its own address and its own team password, ready to send."}
+                : "Their board exists the moment you save. Its own look, its own address and its own team password, ready to send."}
             </p>
 
             <label className="field">
@@ -495,20 +492,13 @@ export default function AdminPage() {
             </label>
 
             <fieldset className="field-group">
-              <legend className="field__label">Brand colors</legend>
+              <legend className="field__label">Brand color</legend>
               <div className="colorfield__grid">
                 <ColorField label="Accent" value={accent} onChange={setAccent} presets={ACCENTS} />
-                <ColorField
-                  label="Page background"
-                  value={background}
-                  onChange={setBackground}
-                  presets={BACKGROUNDS}
-                />
-                <ColorField label="Text" value={text} onChange={setText} presets={TEXTS} />
               </div>
               <p className="field__hint">
-                Just these three — everything else in the calendar is worked out
-                to match.
+                The one color that is theirs: the primary button, today, their
+                mark in the bar. Everything else is Lineup's own look.
               </p>
             </fieldset>
 
@@ -537,7 +527,7 @@ export default function AdminPage() {
             <div className="field">
               <span className="field__label">Logo (optional)</span>
               {/* Shown, not just named. A file's own background comes with it
-                  — a logo drawn for a white page arrives with the white — and
+                 , a logo drawn for a white page arrives with the white, and
                   the only way to know that before it is on every client's
                   sign-in screen is to look at it. */}
               <div className="filepick">
@@ -559,7 +549,7 @@ export default function AdminPage() {
                     {logoName ||
                       (existingLogo
                         ? "Keeping the current logo"
-                        : "No file chosen — the calendar mark is used")}
+                        : "No file chosen. The calendar mark is used")}
                   </span>
                 </div>
                 {logoSvg && (
@@ -584,7 +574,7 @@ export default function AdminPage() {
                 onChange={(event) => void readLogoFile(event.target.files?.[0])}
               />
               <span className="field__hint">
-                Their mark — it leads their sign-in screen and sits beside the
+                Their mark. It leads their sign-in screen and sits beside the
                 name on their board. Drop the file in as it comes: you get to
                 position it in a square, and a white background is taken off for
                 you. <strong>SVG</strong> is the one upgrade worth having,
@@ -659,7 +649,7 @@ export default function AdminPage() {
             </p>
             {/* Not inside a .field__label: that is uppercased by the
                 stylesheet, so the name it asked for came out as TEST while the
-                row was Test — an instruction you could follow exactly and still
+                row was Test. An instruction you could follow exactly and still
                 be refused. The comparison ignores case for the same reason. */}
             <div className="field">
               <label className="confirm-name" htmlFor="delete-confirm">

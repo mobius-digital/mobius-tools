@@ -68,7 +68,7 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
       if (body.note) setNote(body.note);
       return true;
     } catch {
-      setError("Network error — check your connection and try again.");
+      setError("Network error. Check your connection and try again.");
       return false;
     } finally {
       setBusy(false);
@@ -104,7 +104,7 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
         </header>
         <p className="dialog__body">
           Mobius&apos;s own Google and Slack apps, shared by every client board.
-          Set once, here — no client ever sees these.
+          Set once, here. No client ever sees these.
         </p>
 
         {error && (
@@ -143,7 +143,7 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
               an authorized JavaScript origin.
             </p>
             <p className="dialog__body dialog__body--muted">
-              This one is not a secret — every site with a Google button
+              This one is not a secret. Every site with a Google button
               publishes its own in the page. The client <em>secret</em> is the
               sensitive one, and this app never asks for it.
             </p>
@@ -178,7 +178,7 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
             </h3>
             <p className="dialog__body">
               From the Slack app&apos;s <strong>OAuth &amp; Permissions</strong>{" "}
-              page — the <em>Bot User OAuth Token</em>, starting{" "}
+              page. The <em>Bot User OAuth Token</em>, starting{" "}
               <code>xoxb-</code>. It needs the <code>chat:write</code>,{" "}
               <code>channels:read</code> and <code>groups:read</code> scopes, and
               the bot has to be invited to each channel it should post in
@@ -209,7 +209,7 @@ export function ConnectionSettings({ onClose }: { onClose: () => void }) {
               <>
                 <p className="dialog__body dialog__body--muted">
                   A token is in place. Connecting a new one replaces it for
-                  every client at once — each board keeps its own channel
+                  every client at once. Each board keeps its own channel
                   mapping.
                 </p>
                 {/* Its own button rather than "save an empty box", because it

@@ -77,7 +77,7 @@ const SECTIONS: Section[] = [
   {
     id: "channels",
     label: "Channels",
-    hint: "Paid, Email, Organic — and any you add",
+    hint: "Paid, Email, Organic. And any you add",
     group: "This board",
   },
   {
@@ -240,7 +240,7 @@ function AccountPanel() {
         moved a launch.{" "}
         {verified
           ? "It is saved against your account, so it is the same on every device and every board you can open."
-          : "This board was opened with the shared password, so there is no account to keep it on — it is remembered on this device only."}
+          : "This board was opened with the shared password, so there is no account to keep it on. It is remembered on this device only."}
       </p>
       <div className="settings-fact">
         <span className="settings-fact__label">

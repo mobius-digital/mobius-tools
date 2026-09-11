@@ -1,7 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeEqual, sessionCookieName, sessionTokenForBrand } from "@/lib/auth";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
-import { BRAND_HEADER, emailMayOpen, isAdmin, isValidSlug, loadBrandRow } from "@/lib/brandContext";
+import {
+  BRAND_HEADER,
+  brandsFor,
+  emailMayOpen,
+  isAdmin,
+  isValidSlug,
+  loadBrandRow,
+} from "@/lib/brandContext";
 
 /**
  * The hub's gate. One deployment serves every brand, so this is where "who
@@ -38,6 +45,19 @@ export async function middleware(request: NextRequest) {
     }
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Admins only." }, { status: 403 });
+    }
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // ---- The all-brands calendar ------------------------------------------
+  // Every board a signed-in person can open, on one page. Password sessions
+  // belong to one brand and have no identity, so they never see it.
+  if (pathname === "/all" || pathname.startsWith("/all/") || pathname.startsWith("/api/all")) {
+    if (identity && (await brandsFor(identity.email)).length > 0) {
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Sign in first." }, { status: 401 });
     }
     return NextResponse.redirect(new URL("/", request.url));
   }

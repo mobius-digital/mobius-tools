@@ -137,7 +137,7 @@ export function DisplayNameProvider({
       }
       return body.name ?? chosen;
     } catch {
-      setError("No connection — your name was not saved.");
+      setError("No connection. Your name was not saved.");
       return null;
     } finally {
       setSaving(false);
@@ -204,7 +204,7 @@ export function DisplayNameProvider({
             <p className="dialog__body">
               This is the name on your edits, and the name others pick from
               when they say who owns a launch. <strong>First and last</strong>
-              — two people called Nick are one name in a list, and nobody can
+             . Two people called Nick are one name in a list, and nobody can
               tell whose launch is whose. We have started with the name on
               your Google account.
             </p>

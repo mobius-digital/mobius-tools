@@ -38,7 +38,7 @@ const ERROR_TEXT: Record<string, string> = {
   token_revoked: "That token has been revoked. Reinstall the Slack app and copy the new one.",
   not_authed: "No Slack token is set yet.",
   channel_not_found: "That Slack channel no longer exists, or the bot cannot see it.",
-  not_in_channel: "The bot is not in that channel yet — invite it with /invite @your-bot.",
+  not_in_channel: "The bot is not in that channel yet. Invite it with /invite @your-bot.",
   is_archived: "That Slack channel is archived.",
   missing_scope: "That token is missing a permission this needs. Check chat:write and channels:read.",
   ratelimited: "Slack is rate-limiting us. It will be retried.",

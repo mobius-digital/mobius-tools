@@ -313,7 +313,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
     <TourControls.Provider value={{ replay }}>
       {children}
       {/* Never over the sign-in screen. The provider wraps every route, and a
-          first-time visitor arrives there before anywhere else — the tour would
+          first-time visitor arrives there before anywhere else. The tour would
           sit on top of the password box and block the way in. */}
       {ready && open && !signedOut && !settlingName && (
         <Walkthrough index={index} setIndex={setIndex} finish={finish} />
