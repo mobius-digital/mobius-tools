@@ -249,6 +249,10 @@ tr.near td{background:#EAF5FB}
   .tabbar button.on{color:var(--brand-ink)}
   .tabbar .ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   .actionbar{bottom:86px;flex-wrap:wrap}
+  .card-hd{flex-direction:column;align-items:flex-start;gap:6px}
+  .card-hd .pill,.card-hd .btn{margin-left:0 !important}
+  .rollup .ru{flex-basis:100%}
+  .toolbar .search{min-width:0;width:100%}
   .sheet{width:100vw}
   .hd-title{font-size:21px}
   input,select,textarea{font-size:16px}
