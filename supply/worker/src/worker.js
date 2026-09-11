@@ -6,7 +6,7 @@
  * app renders every screen from. Mutations write D1 (and, for MOQ, write
  * through to Shopify via Restock). See ../wrangler.toml for the why.
  */
-import { computeSupply, addDays, localDate } from './brain.js';
+import { computeSupply, slotDates, addDays, localDate } from './brain.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -130,6 +130,77 @@ async function seed(env, brand, raw, actor) {
     q(`INSERT OR IGNORE INTO settings (brand_id, key, value) VALUES (?1, ?2, ?3)`, brand, k, JSON.stringify(v));
   for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
   await log(env, brand, actor, 'settings', null, 'seed', { types, mutedProducts: [...mutedProducts] });
+}
+
+/* ---------- Asana ----------
+   The design work for an open slot is an Asana task. Supply creates it (name,
+   brief-due date, the rest of the dates, a link back to the slot), remembers
+   the task and shows whether it is still open. ASANA_TOKEN is a personal
+   access token on this worker; the project it files into is a brand setting
+   (asana_project), chosen in Settings > Asana. */
+const ASANA_API = 'https://app.asana.com/api/1.0';
+const TASK_FIELDS = 'gid,name,completed,completed_at,due_on,permalink_url,assignee.name';
+
+async function asana(env, path, init = {}) {
+  if (!env.ASANA_TOKEN) throw Object.assign(new Error('Asana is not connected: this worker has no ASANA_TOKEN yet.'), { status: 400 });
+  const res = await fetch(`${ASANA_API}${path}`, {
+    method: init.method || 'GET',
+    headers: { 'Authorization': `Bearer ${env.ASANA_TOKEN}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: init.body ? JSON.stringify(init.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    /* Never pass Asana's 401 through: the app reads 401 as "your session died" and signs the person out. */
+    const msg = res.status === 401 ? 'Asana rejected the token. Put a fresh personal access token on the worker.' : (data.errors?.[0]?.message || `Asana ${res.status}`);
+    throw Object.assign(new Error(msg), { status: res.status === 401 || res.status === 403 ? 502 : res.status, asana: res.status });
+  }
+  return data.data;
+}
+
+const htmlEsc = v => String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const fmtLong = ymd => ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : 'not set';
+
+/** The task body: the dates the slot already knows, and the way back to it. */
+function taskNotes(sl, d, url) {
+  const where = [d.line?.name, sl.season].filter(Boolean).join(' · ');
+  const rows = [
+    ['Brief due', d.briefDue, "this task's due date"],
+    ['Sample due', d.sampleDue, ''],
+    ['Order by', d.orderBy, d.factory?.name || ''],
+    ['On the site', d.onSite, ''],
+  ];
+  const tail = 'Every date is worked back from the on-site date in Supply. Change it there and the slot moves; this task keeps the date it was made with.';
+  const plain = [where, '', ...rows.map(([l, v, n]) => `${l}: ${fmtLong(v)}${n ? ` (${n})` : ''}`), '', `The slot in Supply: ${url}`, '', tail].join('\n');
+  const html = `<body>${where ? `<strong>${htmlEsc(where)}</strong>\n` : ''}<ul>${rows.map(([l, v, n]) => `<li>${htmlEsc(l)}: <strong>${htmlEsc(fmtLong(v))}</strong>${n ? ` (${htmlEsc(n)})` : ''}</li>`).join('')}</ul>\n<a href="${htmlEsc(url)}">Open the slot in Supply</a>\n\n${htmlEsc(tail)}</body>`;
+  return { plain, html };
+}
+
+async function createSlotTask(env, sl, d, project) {
+  const url = `${DASHBOARD_URL}?slot=${encodeURIComponent(sl.id)}`;
+  const { plain, html } = taskNotes(sl, d, url);
+  const data = { name: sl.name, projects: [project], due_on: d.briefDue };
+  try { return await asana(env, `/tasks?opt_fields=${TASK_FIELDS}`, { method: 'POST', body: { data: { ...data, html_notes: html } } }); }
+  catch (e) {
+    if (e.asana !== 400) throw e;               // only the rich-text body is worth a plain retry
+    return await asana(env, `/tasks?opt_fields=${TASK_FIELDS}`, { method: 'POST', body: { data: { ...data, notes: plain } } });
+  }
+}
+
+const taskOut = t => t && ({ gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, due_on: t.due_on || null, assignee: t.assignee?.name || null });
+
+/** Ask Asana where the task stands and remember the answer on the slot. */
+async function refreshSlotTask(env, brand, sl) {
+  if (!sl.asana_gid) return { ok: true, task: null };
+  let t;
+  try { t = await asana(env, `/tasks/${sl.asana_gid}?opt_fields=${TASK_FIELDS}`); }
+  catch (e) {
+    if (e.asana !== 404) throw e;
+    await env.DB.prepare(`UPDATE slots SET asana_done = NULL, asana_checked = datetime('now') WHERE id = ?1 AND brand_id = ?2`).bind(sl.id, brand).run();
+    return { ok: true, task: null, gone: true };
+  }
+  await env.DB.prepare(`UPDATE slots SET asana_done = ?3, asana_task = COALESCE(?4, asana_task), asana_checked = datetime('now') WHERE id = ?1 AND brand_id = ?2`)
+    .bind(sl.id, brand, t.completed ? 1 : 0, t.permalink_url || null).run();
+  return { ok: true, task: taskOut(t) };
 }
 
 /* ---------- Slack digest ---------- */
@@ -367,14 +438,47 @@ export default {
           ON CONFLICT(id) DO UPDATE SET line_id = excluded.line_id, name = excluded.name, season = excluded.season, status = excluded.status, on_site_at = excluded.on_site_at,
             brief_due = excluded.brief_due, sample_due = excluded.sample_due, order_by = excluded.order_by, lands_at = excluded.lands_at, asana_task = excluded.asana_task, lineup_event = excluded.lineup_event, product_id = excluded.product_id, notes = excluded.notes, updated_at = datetime('now')`)
           .bind(id, brand, str(s.line_id, 80), str(s.name, 80), str(s.season, 40), status, s.on_site_at, ymd(s.brief_due), ymd(s.sample_due), ymd(s.order_by), ymd(s.lands_at), str(s.asana_task, 300), str(s.lineup_event, 80), s.product_id ? String(s.product_id).replace(/\D/g, '') : null, str(s.notes, 2000)).run();
+        /* a link cleared by hand means that task is not this slot's any more: forget its status too */
+        if (!str(s.asana_task, 300)) await env.DB.prepare(`UPDATE slots SET asana_gid = NULL, asana_done = NULL, asana_checked = NULL WHERE id = ?1 AND brand_id = ?2`).bind(id, brand).run();
         await log(env, brand, actor, 'slot', id, request.method === 'POST' ? 'create' : 'update', s);
         return json({ ok: true, id });
       }
+      /* the Asana hand-off for one slot: POST creates the task, GET re-reads its status */
+      const asanaSlot = /^\/api\/slots\/([^/]+)\/asana$/.exec(path);
+      if (asanaSlot) {
+        const id = decodeURIComponent(asanaSlot[1]);
+        const db = await loadDb(env, brand);
+        const sl = (db.slots || []).find(x => x.id === id);
+        if (!sl) return bad('slot not found', 404);
+        if (request.method !== 'POST' || sl.asana_gid) return json(await refreshSlotTask(env, brand, sl));
+        const project = String(db.settings.asana_project || '').replace(/\D/g, '');
+        if (!project) return bad('No Asana project chosen yet. Pick one in Settings, Asana.');
+        const t = await createSlotTask(env, sl, slotDates(sl, db), project);
+        await env.DB.prepare(`UPDATE slots SET asana_task = ?3, asana_gid = ?4, asana_done = 0, asana_checked = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND brand_id = ?2`)
+          .bind(id, brand, t.permalink_url || null, t.gid).run();
+        await log(env, brand, actor, 'slot', id, 'asana-create', { gid: t.gid, url: t.permalink_url, project });
+        return json({ ok: true, created: true, task: taskOut(t) });
+      }
+
       if (path.startsWith('/api/slots/') && request.method === 'DELETE') {
         const id = decodeURIComponent(path.slice('/api/slots/'.length));
         await env.DB.prepare(`DELETE FROM slots WHERE id = ?1 AND brand_id = ?2`).bind(id, brand).run();
         await log(env, brand, actor, 'slot', id, 'delete');
         return json({ ok: true });
+      }
+
+      /* which Asana this is, and the projects a design task can go in */
+      if (path === '/api/asana/projects') {
+        if (!env.ASANA_TOKEN) return json({ connected: false, projects: [] });
+        const me = await asana(env, '/users/me?opt_fields=name,email,workspaces.name');
+        const spaces = (me.workspaces || []).length ? me.workspaces : await asana(env, '/workspaces?limit=10');
+        const projects = [];
+        for (const w of spaces.slice(0, 3)) {
+          const ps = await asana(env, `/projects?workspace=${w.gid}&archived=false&limit=100&opt_fields=name`);
+          for (const p of ps) projects.push({ gid: p.gid, name: p.name, workspace: w.name || '' });
+        }
+        projects.sort((a, b) => a.name.localeCompare(b.name));
+        return json({ connected: true, me: { name: me.name, email: me.email }, projects });
       }
 
       /* pass-throughs to the Shopify side */

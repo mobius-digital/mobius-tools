@@ -120,7 +120,56 @@ async function editLineTarget(lid) {
 const SLOT_STATUS = { needs_brief: ['Needs a brief', 'unk'], in_design: ['In design', 'brand'], sampling: ['Sampling', 'brand'], approved: ['Approved', 'good'], ordered: ['Ordered', 'good'], live: ['Live', 'good'] };
 function slotRow(sl) {
   const [t, k] = SLOT_STATUS[sl.status] || [sl.status, 'unk'];
-  return `<div class="click" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #EDF1F4;cursor:pointer" onclick="openSlot('${sl.id}')"><div style="flex:1"><b style="font-size:13.5px">${esc(sl.name)}</b><div class="tiny">brief ${fmtDate(sl.dates.briefDue)} · sample ${fmtDate(sl.dates.sampleDue)} · order ${fmtDate(sl.dates.orderBy)} · on site ${fmtDate(sl.dates.onSite)}${sl.late ? ' · <span style="color:var(--bad);font-weight:700">late</span>' : ''}</div></div>${pill(sl.late && sl.status !== 'live' ? 'bad' : k, t)}</div>`;
+  return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #EDF1F4;flex-wrap:wrap">
+    <div class="click" style="flex:1;min-width:180px;cursor:pointer" onclick="openSlot('${sl.id}')"><b style="font-size:13.5px">${esc(sl.name)}</b><div class="tiny">brief ${fmtDate(sl.dates.briefDue)} · sample ${fmtDate(sl.dates.sampleDue)} · order ${fmtDate(sl.dates.orderBy)} · on site ${fmtDate(sl.dates.onSite)}${sl.late ? ' · <span style="color:var(--bad);font-weight:700">late</span>' : ''}</div></div>
+    ${asanaPill(sl)}${pill(sl.late && sl.status !== 'live' ? 'bad' : k, t)}${asanaButton(sl, 'sm')}</div>`;
+}
+
+/* ---------- the Asana hand-off ----------
+   An open slot is a placeholder; the design work itself is an Asana task.
+   Supply makes that task (name, brief-due date, every other date, a link back
+   here), then shows whether Asana still has it open. */
+const asanaState = sl => sl.asana_done === 1 ? ['good', 'Asana: done'] : sl.asana_done === 0 ? ['brand', 'Asana: open'] : sl.asana_task ? ['unk', 'Asana: linked'] : null;
+function asanaPill(sl) { const a = asanaState(sl); return a ? pill(a[0], a[1]) : ''; }
+function asanaButton(sl, size = '') {
+  const cls = `btn ${size}`.trim();
+  if (sl.asana_task) return `<a class="${cls} quiet" href="${esc(sl.asana_task)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open in Asana</a>`;
+  return `<button class="${cls}" onclick="event.stopPropagation();slotToAsana('${sl.id}')">Create in Asana</button>`;
+}
+/** Make the task. The project it lands in is a setting, so say so if it is missing. */
+async function slotToAsana(id) {
+  if (!st().settings.asana_project) {
+    const go = await modal({ title: 'Which Asana project?', hint: 'Supply files every design task in one project. Choose it once in Settings, under Asana, and this button works from then on.', fields: false, confirm: 'Open Settings' });
+    if (go) { S.setTab = 'asana'; setTab('settings'); }
+    return;
+  }
+  toast('Creating the task in Asana…');
+  try {
+    const r = await api(`/api/slots/${encodeURIComponent(id)}/asana`, { method: 'POST' });
+    await load({ quiet: true });
+    toast(r.created ? 'Task created in Asana' : 'This slot already had a task');
+    if (S.open?.slotId === id) openSlot(id);
+  } catch (e) { toast(e.message, { kind: 'err' }); }
+}
+/** Ask Asana where the task stands. Runs whenever a slot is opened. */
+async function refreshSlotAsana(id) {
+  const sl = st().slots.find(x => x.id === id);
+  if (!sl || !sl.asana_gid || DEV_STATE) return;
+  try {
+    const r = await api(`/api/slots/${encodeURIComponent(id)}/asana`);
+    sl.asana_done = r.task ? (r.task.completed ? 1 : 0) : null;
+    sl.asanaTask = r.task || null; sl.asanaGone = !!r.gone;
+    if (S.open?.slotId === id && S.sheetKind === 'slot') { const box = $('#slAsanaBox'); if (box) box.innerHTML = asanaSheetHTML(sl); }
+    else render();
+  } catch (e) { const box = $('#slAsanaBox'); if (box) box.insertAdjacentHTML('beforeend', `<div class="tiny" style="color:var(--bad)">Could not reach Asana: ${esc(e.message)}</div>`); }
+}
+function asanaSheetHTML(sl) {
+  const t = sl.asanaTask, a = asanaState(sl);
+  if (!sl.asana_task) return `<div class="hint">No task yet. Creating one puts the brief-due date, the other dates and a link back to this slot in your Asana project.</div><div style="margin-top:10px">${asanaButton(sl)}</div>`;
+  const detail = sl.asanaGone ? 'That task is no longer in Asana. It was deleted or you cannot see it.'
+    : t ? `${t.completed ? 'Marked done' : 'Still open'} in Asana${t.due_on ? `, due ${fmtDate(t.due_on, { year: true })}` : ''}${t.assignee ? `, with ${esc(t.assignee)}` : ''}.`
+    : sl.asana_gid ? 'Checking Asana…' : 'A link you pasted. Supply cannot read the status of a task it did not create.';
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${a ? pill(a[0], a[1]) : ''}${asanaButton(sl)}</div><div class="hint" style="margin-top:8px">${detail}</div>`;
 }
 async function createSlots(lineId, n) {
   const l = lineById(lineId); const s = st();
@@ -144,12 +193,15 @@ function openSlot(id) {
       <div class="field"><label>Name</label><input id="slName" value="${esc(sl.name)}"></div>
       <div class="field"><label>Status</label><select id="slStatus">${Object.entries(SLOT_STATUS).map(([k, [l]]) => `<option value="${k}" ${sl.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label>On the site by</label><input type="date" id="slSite" value="${sl.on_site_at}"><div class="help">The one date typed by hand. The rest derive from it.</div></div>
-      <div class="field"><label>Asana task</label><input id="slAsana" value="${esc(sl.asana_task || '')}" placeholder="Paste the task link"><div class="help">${sl.asana_task ? `<a href="${esc(sl.asana_task)}" target="_blank" rel="noopener">Open in Asana</a>` : 'The brief, mockups and samples live there.'}</div></div>
+      <div class="field"><label>Asana task</label><input id="slAsana" value="${esc(sl.asana_task || '')}" placeholder="Paste a task link, or use the button below"><div class="help">The brief, mockups and samples live there. Empty this field to unlink the task.</div></div>
       <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea id="slNotes">${esc(sl.notes || '')}</textarea></div>
     </div>
+    <div class="panel"><h4>Asana</h4><div class="sub">The design work itself. Supply tracks whether it is still open.</div>
+      <div id="slAsanaBox" style="margin-top:8px">${asanaSheetHTML(sl)}</div></div>
     <div class="panel"><h4>Dates, worked backwards</h4><div class="sub">Change a factory lead time or the on-site date and these move.</div>
       <table style="font-size:13px">${[['Design starts', d.designStart, false], ['Brief due', d.briefDue, sl.lateParts?.brief], ['Sample due', d.sampleDue, sl.lateParts?.sample], ['Order by', d.orderBy, sl.lateParts?.order], ['Production ends', d.productionEnd, false], ['Lands', d.lands, false], ['On the site', d.onSite, false]].map(([l, v, late]) => `<tr><td class="tiny">${l}</td><td><b style="${late ? 'color:var(--bad)' : ''}">${fmtDate(v, { year: true })}</b>${late ? ' <span class="tiny" style="color:var(--bad)">late</span>' : ''}</td></tr>`).join('')}</table></div>
     <div class="sh-foot"><button class="btn primary" onclick="saveSlot()">Save</button><span style="flex:1"></span><button class="btn quiet danger" onclick="deleteSlot()">Delete slot</button></div>`, 'slot');
+  refreshSlotAsana(id);
 }
 async function saveSlot() { const sl = st().slots.find(x => x.id === S.open.slotId); await save('/api/slots', { ...sl, name: $('#slName').value, status: $('#slStatus').value, on_site_at: $('#slSite').value, asana_task: $('#slAsana').value, notes: $('#slNotes').value, brief_due: null, sample_due: null, order_by: null, lands_at: null }); closeSheet(); }
 async function deleteSlot() { const ok = await modal({ title: 'Delete this slot?', fields: false, confirm: 'Delete', danger: true, hint: 'The Asana task, if any, is not touched.' }); if (!ok) return; await save(`/api/slots/${S.open.slotId}`, null, 'DELETE', 'Deleted'); closeSheet(); }
@@ -250,9 +302,10 @@ function ganttSVG(items, from, to, closures) {
 window.renderSettings = function (m) {
   const s = st(); S.setTab = S.setTab || 'lines';
   title('Settings', 'How this brand buys. Categories and lines, factories, kinds of product, rules, Slack, data.',
-    `<div class="seg">${[['lines', 'Categories and lines'], ['factories', 'Factories'], ['lifecycle', 'Kinds of product'], ['rules', 'Rules'], ['slack', 'Slack and data']].map(([k, l]) => `<button class="${S.setTab === k ? 'on' : ''}" onclick="S.setTab='${k}';render()">${l}</button>`).join('')}</div>`);
-  m.innerHTML = { lines: settingsLines, factories: settingsFactories, lifecycle: settingsLifecycle, rules: settingsRules, slack: settingsSlack }[S.setTab](s);
+    `<div class="seg">${[['lines', 'Categories and lines'], ['factories', 'Factories'], ['lifecycle', 'Kinds of product'], ['rules', 'Rules'], ['asana', 'Asana'], ['slack', 'Slack and data']].map(([k, l]) => `<button class="${S.setTab === k ? 'on' : ''}" onclick="S.setTab='${k}';render()">${l}</button>`).join('')}</div>`);
+  m.innerHTML = { lines: settingsLines, factories: settingsFactories, lifecycle: settingsLifecycle, rules: settingsRules, asana: settingsAsana, slack: settingsSlack }[S.setTab](s);
   if (S.setTab === 'slack') loadSlack();
+  if (S.setTab === 'asana') loadAsanaProjects();
 };
 function settingsLines(s) {
   const unsorted = s.shopTypes.filter(t => !s.db.typeMap.some(tm => tm.shop_type === t));
@@ -349,6 +402,32 @@ function settingsRules(s) {
       <div class="field"><label>Season on-site date</label><input type="date" value="${esc(s.settings.season_on_site || '')}" onchange="save('/api/settings',{season_on_site:this.value})"></div>
     </div></div>
     <div class="card"><h3>How a status is decided</h3><div class="hint">Core sizes are the ones carrying 80% of a product's sales. A product is <b>Out</b> when core sizes at zero carry half its sales; otherwise an empty size is a size gap. <b>Order now</b> when the order-by date (run-out minus lead time) is inside the factory's order window. <b>Coming up</b> within the window plus ${s.settings.watch_days} days. <b>Stock gap</b> when an order is on the way but lands after the run-out. <b>On the way</b> when it lands in time.</div></div>`;
+}
+function settingsAsana(s) {
+  const named = s.settings.asana_project_name;
+  return `<div class="two even">
+    <div class="card"><h3>Where design tasks go</h3><div class="hint">Every open slot on Lineup plan can become one Asana task: the slot's name, the brief-due date as the task's due date, the sample, order and on-site dates in the description, and a link back to the slot. Pick the project they land in.</div>
+      <div class="fields" style="margin-top:12px"><div class="field" style="grid-column:1/-1"><label>Asana project</label><select id="asProj"><option>loading…</option></select><div class="help" id="asWho">${named ? `Today: ${esc(named)}.` : 'Nothing chosen yet, so the Create in Asana buttons will ask for this first.'}</div></div></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="saveAsanaProject()">Save</button><button class="btn quiet" onclick="loadAsanaProjects()">Reload the list</button></div><div class="msg" id="asMsg"></div></div>
+    <div class="card"><h3>How the hand-off behaves</h3><div class="hint">Supply creates the task once. After that the button on the slot opens it instead, and the slot shows whether Asana still has it open or someone has ticked it off; that is re-read every time the slot is opened.<br><br>Moving the on-site date moves the slot's dates but not the dates on a task already made. Emptying the Asana field on a slot unlinks the task without touching it in Asana.<br><br>The token is a personal access token held by the worker, so tasks are created as whoever made that token.</div></div>
+  </div>`;
+}
+async function loadAsanaProjects() {
+  const sel = $('#asProj'); if (!sel) return;
+  const msg = $('#asMsg'); const cur = st().settings.asana_project || '';
+  try {
+    const r = await api('/api/asana/projects');
+    if (!r.connected) { sel.innerHTML = '<option value="">Asana is not connected</option>'; msg.className = 'msg err'; msg.textContent = 'This worker has no Asana token yet, so it cannot list projects or make tasks.'; return; }
+    sel.innerHTML = '<option value="">No project (the buttons stay off)</option>' + (r.projects || []).map(p => `<option value="${esc(p.gid)}" data-n="${esc(p.name)}" ${p.gid === String(cur) ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    if (r.me?.name) $('#asWho').textContent = `Tasks are created as ${r.me.name}. ${st().settings.asana_project_name ? `They go in ${st().settings.asana_project_name}.` : 'Choose the project.'}`;
+  } catch (e) { sel.innerHTML = '<option value="">Could not reach Asana</option>'; msg.className = 'msg err'; msg.textContent = e.message; }
+}
+async function saveAsanaProject() {
+  const sel = $('#asProj'), msg = $('#asMsg');
+  const name = sel.selectedOptions[0]?.dataset.n || '';
+  msg.className = 'msg'; msg.textContent = 'Saving…';
+  try { await save('/api/settings', { asana_project: sel.value, asana_project_name: name }, 'PUT', null); msg.className = 'msg ok'; msg.textContent = sel.value ? `Design tasks go in ${name}.` : 'No project set.'; }
+  catch (e) { msg.className = 'msg err'; msg.textContent = e.message; }
 }
 function settingsSlack(s) {
   return `<div class="two even">

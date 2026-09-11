@@ -20,6 +20,17 @@ const S = {
 /* Read-only preview: ?devstate=<url of a saved /api/state> renders the app from a
    file with no sign-in and no worker. Saves fail. Used to review screens. */
 const DEV_STATE = new URLSearchParams(location.search).get('devstate');
+/* ?slot=<id> lands on that design slot: the link an Asana task carries back here. */
+const DEEP_SLOT = new URLSearchParams(location.search).get('slot');
+let deepSlotDone = false;
+function openDeepSlot() {
+  if (deepSlotDone || !DEEP_SLOT || !S.state) return;
+  const sl = S.state.slots.find(x => x.id === DEEP_SLOT);
+  deepSlotDone = true;
+  if (!sl) { toast('That design slot is gone.', { kind: 'err' }); return; }
+  if (S.state.lines.some(l => l.id === sl.line_id && l.planned)) S.planLine = sl.line_id;
+  S.tab = 'lineup'; location.hash = 'lineup'; render(); openSlot(sl.id);
+}
 function token() {
   if (DEV_STATE) return 'dev';
   const t = localStorage.getItem('mobius_session'), exp = +localStorage.getItem('mobius_session_exp') || 0;
@@ -54,7 +65,7 @@ async function load({ quiet = false } = {}) {
     if (e.status === 401) { localStorage.removeItem('supply_token'); S.state = null; S.err = 'Sign in to continue.'; }
     else { S.err = e.message; $('#connChip').dataset.s = 'down'; $('#connChip').textContent = 'Worker down'; }
   }
-  S.loading = false; render();
+  S.loading = false; render(); openDeepSlot();
 }
 /** Mutate then reload the state in place. Every save refreshes what it invalidated. */
 async function save(path, body, method = 'PUT', okMsg = 'Saved') {

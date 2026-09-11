@@ -105,6 +105,26 @@ function sizeKey(variant, axis) {
 export const LIFECYCLES = ['core', 'seasonal', 'drop', 'winding_down', 'discontinued'];
 const forecastable = lc => lc === 'core' || lc === 'seasonal';
 
+/* ---------- design slots ---------- */
+/** Every date on a slot is worked back from the one date typed by hand, the
+ *  on-site date, through the line's factory lead time. computeSupply uses this
+ *  for the screens; the Asana hand-off uses it to fill in a task. */
+export function slotDates(sl, db) {
+  const S = Object.assign({ buffer_days: 10, site_prep_days: 14, sample_days: 35, design_days: 30, slack_days: 18 }, db.settings || {});
+  const num = (k, fb) => { const n = Number(S[k]); return Number.isFinite(n) ? n : fb; };
+  const line = (db.lines || []).find(l => l.id === sl.line_id) || null;
+  const factory = line && line.factory_id ? ((db.factories || []).find(f => f.id === line.factory_id) || null) : null;
+  const prod = line?.lead_override_days != null ? line.lead_override_days : (factory ? factory.production_days : 40);
+  const ship = line?.lead_override_days != null ? 0 : (factory ? factory.shipping_days : 20);
+  const lands = sl.lands_at || addDays(sl.on_site_at, -num('site_prep_days', 14));
+  const orderBy = sl.order_by || addDays(lands, -(num('buffer_days', 10) + ship + prod));
+  const sampleDue = sl.sample_due || addDays(orderBy, -num('slack_days', 18));
+  const briefDue = sl.brief_due || addDays(sampleDue, -num('sample_days', 35));
+  const designStart = addDays(briefDue, -num('design_days', 30));
+  const dates = { designStart, briefDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite: sl.on_site_at };
+  return { line, factory, dates, ...dates };
+}
+
 /* ---------- main ---------- */
 export function computeSupply(raw, db) {
   const { store, catalog, history, onOrder = {} } = raw;
@@ -351,19 +371,11 @@ export function computeSupply(raw, db) {
     };
   });
 
-  /* slots with derived dates */
-  const PREP = num('site_prep_days', 14), SAMPLE = num('sample_days', 35), DESIGN = num('design_days', 30), SLACK = num('slack_days', 18);
+  /* slots with derived dates (slotDates below: the Asana hand-off uses the same one) */
   const slots = (db.slots || []).map(sl => {
-    const line = lines[sl.line_id], factory = line?.factory_id ? factories[line.factory_id] : null;
-    const prod = line?.lead_override_days != null ? line.lead_override_days : (factory ? factory.production_days : 40);
-    const ship = line?.lead_override_days != null ? 0 : (factory ? factory.shipping_days : 20);
-    const lands = sl.lands_at || addDays(sl.on_site_at, -PREP);
-    const orderBy = sl.order_by || addDays(lands, -(BUFFER + ship + prod));
-    const sampleDue = sl.sample_due || addDays(orderBy, -SLACK);
-    const briefDue = sl.brief_due || addDays(sampleDue, -SAMPLE);
-    const designStart = addDays(briefDue, -DESIGN);
-    const late = { brief: sl.status === 'needs_brief' && briefDue < today, sample: ['needs_brief', 'in_design'].includes(sl.status) && sampleDue < today, order: !['ordered', 'live'].includes(sl.status) && orderBy < today };
-    return { ...sl, lineName: line?.name || null, factoryId: factory?.id || null, dates: { designStart, briefDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite: sl.on_site_at }, late: Object.values(late).some(Boolean), lateParts: late };
+    const d = slotDates(sl, db);
+    const late = { brief: sl.status === 'needs_brief' && d.briefDue < today, sample: ['needs_brief', 'in_design'].includes(sl.status) && d.sampleDue < today, order: !['ordered', 'live'].includes(sl.status) && d.orderBy < today };
+    return { ...sl, lineName: d.line?.name || null, factoryId: d.factory?.id || null, dates: d.dates, late: Object.values(late).some(Boolean), lateParts: late };
   });
 
   /* orders enriched */

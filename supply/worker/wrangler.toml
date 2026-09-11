@@ -24,6 +24,11 @@ database_id = "c9493164-dbae-4a21-98d4-5266238a68eb"
 binding = "RESTOCK"
 service = "mobius-restock"
 
-# No secrets. Auth is delegated: every call forwards the bearer token to the
-# Restock worker, which accepts the Mobius Google session, the dashboard
-# password, or ADMIN_TOKEN.
+# Auth is delegated: every call forwards the bearer token to the Restock worker,
+# which accepts the Mobius Google session, the dashboard password, or ADMIN_TOKEN.
+#
+# One secret of its own, for the Asana hand-off on Lineup plan (a personal
+# access token from asana.com/0/my-apps; tasks are created as whoever made it):
+#   npx wrangler secret put ASANA_TOKEN
+# The project those tasks land in is not a secret: it is the brand setting
+# asana_project, chosen in Settings > Asana.
