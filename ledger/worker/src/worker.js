@@ -2161,7 +2161,13 @@ async function syncPlaid(env) {
           { access_token: item.access_token, cursor: cursor || undefined, count: 250 });
       } catch (e) {
         if (/MUTATION_DURING_PAGINATION/.test(String(e.message || e)) && ++attempt <= 3) {
-          cursor = startCursor;
+          /* Twice from where we began, and if the account is still moving,
+           * once from nothing. A cursor can end up permanently unacceptable ·
+           * this one did · and then retrying the same cursor forever is just a
+           * feed that never runs again. Reading the whole history back is slow
+           * and completely safe: plaidStart refuses anything older than the
+           * books, and plaid_id refuses anything already in them. */
+          cursor = attempt <= 2 ? startCursor : undefined;
           totals.restarted = (totals.restarted || 0) + 1;
           continue;
         }
