@@ -2782,7 +2782,16 @@ export default {
          * they are the same charge · the books would simply double. Re-linking
          * is the only way to widen the history window, so it has to be safe. */
         const inst = acc.item?.institution_name || b.institution || 'Bank';
-        const replaced = items.filter(i => i.name === inst).map(i => i.item_id);
+        /* RELEASE THE OLD CONNECTION, don't just forget it. Dropping an item
+         * from our own list leaves it alive at Plaid, still counted and still
+         * billed at $0.30 a month, for a connection nothing will ever read
+         * again. The disconnect button has always done this; replacing a bank
+         * by re-linking it did not, which is the more common way to end up with
+         * one. Told first, so a failure here is visible before the token goes. */
+        const old = items.filter(i => i.name === inst);
+        for (const o of old)
+          await plaid(env, '/item/remove', { access_token: o.access_token }).catch(() => {});
+        const replaced = old.map(i => i.item_id);
         const kept = items.filter(i => i.name !== inst);
         kept.push({
           item_id: ex.item_id, access_token: ex.access_token, cursor: null,
