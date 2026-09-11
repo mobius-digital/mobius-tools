@@ -248,11 +248,9 @@ export function computeSupply(raw, db) {
       v.runOutDays = v.velocity > 0.001 ? Math.round(eff / v.velocity) : null;
       v.runOutDate = v.runOutDays != null ? addDays(today, v.runOutDays) : null;
       if (v.incoming && v.incomingLands) {
-        if (v.runOutDate == null || v.incomingLands <= v.runOutDate) {
-          v.runOutDaysAfter = v.velocity > 0.001 ? Math.round((eff + v.incoming) / v.velocity) : null;
-          v.gapDays = 0;
-        } else v.gapDays = daysBetween(v.runOutDate, v.incomingLands);
-      }
+        if (v.runOutDate == null || v.incomingLands <= v.runOutDate) v.gapDays = 0;
+        else v.gapDays = daysBetween(v.runOutDate, v.incomingLands);
+      } else if (v.incoming) v.gapDays = null; // landing date unknown: neither a gap nor cover
       v.suggested = (forecastable(p.lifecycle) && p.leadDays != null && v.velocity > 0.001)
         ? Math.max(0, Math.ceil(v.velocity * (COVER + p.leadDays) - eff - v.incoming)) : 0;
     }
@@ -269,8 +267,8 @@ export function computeSupply(raw, db) {
        zero. One empty size on a full shelf is a size gap, reported as a note. */
     const zeroCore = core.filter(v => v.onHand <= 0 && v.velocity > 0.001);
     const coreOut = zeroCore.length > 0 && (sold90 === 0 || sum(zeroCore, v => v.sold90) >= sold90 * num('out_share', 0.5));
-    const incomingCoversGap = core.every(v => !v.incoming || v.gapDays === 0);
-    const ageDays = Math.max(...vs.map(v => v.ageDays || 0));
+    const incomingCoversGap = core.every(v => !v.incoming || v.gapDays === 0 || v.gapDays == null);
+    const ageDays = Math.max(...vs.map(v => v.ageDays ?? 9999)); // no createdAt in the feed means old, not new
     const thin = historyDays < num('thin_days', 45) || ageDays < num('thin_days', 45);
 
     let status;
@@ -278,11 +276,12 @@ export function computeSupply(raw, db) {
     else if (p.lifecycle === 'winding_down') status = 'sunset';
     else if (p.lifecycle === 'drop') status = coreOut || onHand === 0 ? 'drop_done' : 'drop';
     else if (!p.lineId) status = 'unsorted';
+    else if (p.leadDays == null) status = 'nofactory';
     else if (velocity <= 0.001) status = onHand > 0 ? 'nosales' : 'dormant';
     else if (incoming && !coreOut && incomingCoversGap) status = 'covered';
     else if (incoming && (coreOut || !incomingCoversGap)) status = 'gap';
     else if (coreOut) status = 'out';
-    else if (p.leadDays == null) status = 'unsorted';
+    else if (orderByDays == null) status = 'ok';
     else if (orderByDays <= 0) status = 'order';
     else if (orderByDays <= cycle) status = 'order';
     else if (orderByDays <= cycle + WATCH) status = 'soon';
@@ -338,7 +337,7 @@ export function computeSupply(raw, db) {
       designs: ps.length, sold90, sold30, onHand, perWeek: r1(vel * 7),
       sellThrough: sold90 + onHand ? Math.round(100 * sold90 / (sold90 + onHand)) : null,
       weeksOfCover: vel > 0.001 ? Math.round(onHand / (vel * 7)) : null,
-      dead, cutCandidates: plan.filter(x => x.band && x.state === 'cut').length,
+      dead, cutCandidates: plan.filter(x => x.band && !x.decided).length,
       sizeCurve: lineCurves[line.id]?.used || {}, sizeCurveLearned: lineCurves[line.id]?.learned || {}, sizeCurveSample: lineCurves[line.id]?.sample || 0,
       plan, keep, decide, cut, openSlots,
       toOrder: ps.filter(p => p.status === 'order' || p.status === 'out').length,
@@ -449,7 +448,7 @@ export function computeSupply(raw, db) {
   };
 }
 
-const STATUS_RANK = { out: 0, order: 1, gap: 2, soon: 3, covered: 4, ok: 5, unsorted: 6, nosales: 7, drop: 8, drop_done: 9, sunset: 10, dormant: 11, off: 12 };
+const STATUS_RANK = { out: 0, order: 1, gap: 2, soon: 3, covered: 4, ok: 5, unsorted: 6, nofactory: 6.5, nosales: 7, drop: 8, drop_done: 9, sunset: 10, dormant: 11, off: 12 };
 const rank = p => STATUS_RANK[p.status] ?? 20;
 function trendOf(s14, s30, s90) {
   const r14 = s14 / 14, r90 = s90 / 90;

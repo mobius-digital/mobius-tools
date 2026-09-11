@@ -162,10 +162,11 @@ window.renderTimeline = function (m) {
   const filtered = items.filter(it => S.tlFilter === 'all' || it.kind === S.tlFilter);
   title(`Timeline <em>· ${fmtDate(from)} to ${fmtDate(to, { year: true })}</em>`, 'Every order and every new design, worked backwards from the date stock has to be on the site.',
     `<div class="seg"><button class="${S.tlFilter === 'all' ? 'on' : ''}" onclick="S.tlFilter='all';render()">Everything</button><button class="${S.tlFilter === 'order' ? 'on' : ''}" onclick="S.tlFilter='order';render()">Orders</button><button class="${S.tlFilter === 'slot' ? 'on' : ''}" onclick="S.tlFilter='slot';render()">New designs</button></div>`);
-  const deadlines = items.flatMap(it => it.marks.map(mk => ({ ...mk, item: it }))).filter(mk => mk.date >= addDays(from, -7)).sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 12);
+  const deadlines = filtered.flatMap(it => it.marks.map(mk => ({ ...mk, item: it }))).filter(mk => mk.date >= addDays(from, -7)).sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 12);
   const closures = s.factories.flatMap(f => (f.closures || []).map(c => ({ ...c, factory: f.name })));
-  m.innerHTML = `<div class="two wide" style="grid-template-columns:minmax(0,1fr) 320px">
-    <div class="card" style="padding:14px 18px 10px">${filtered.length ? ganttSVG(filtered, from, to, closures) : `<div class="empty"><b>Nothing to draw</b>Orders on the way and open slots appear here.</div>`}</div>
+  const emptyMsg = S.tlFilter === 'slot' ? `<b>No design slots yet</b>Set a target on a line in Lineup plan and create its slots; they appear here with their dates worked back from launch.` : S.tlFilter === 'order' ? `<b>Nothing to order or on the way</b>Orders you log and products inside their order window appear here.` : `<b>Nothing to draw</b>Orders on the way, products to order and design slots appear here.`;
+  m.innerHTML = `<div class="two tl-grid">
+    <div class="card" style="padding:14px 18px 10px">${filtered.length ? ganttSVG(filtered, from, to, closures) : `<div class="empty">${emptyMsg}</div>`}</div>
     <div class="stack">
       <div class="card key" style="padding:8px 18px 6px"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0 4px"><h3>Deadlines</h3><span class="tiny">next 6 months</span></div>
         ${deadlines.map(mk => `<div class="click" style="display:grid;grid-template-columns:76px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #EDF1F4;cursor:pointer" onclick="${mk.item.open}"><b style="font-size:13px;color:${mk.late ? 'var(--bad)' : 'var(--ink)'}">${fmtDate(mk.date)}</b><div><div style="font-size:13px;font-weight:600">${esc(mk.label)}</div><div class="tiny">${esc(mk.item.sub)}</div></div><span style="width:8px;height:8px;border-radius:50%;background:${mk.late ? 'var(--bad)' : mk.good ? 'var(--good)' : 'var(--brand-ink)'}"></span></div>`).join('') || '<div class="hint">No deadlines in the window.</div>'}
@@ -280,17 +281,26 @@ async function editLine(id) {
   const s = st(); const row = s.db.lines.find(x => x.id === id); const l = lineById(id);
   const types = s.shopTypes; const mapped = s.db.typeMap.filter(tm => tm.line_id === id).map(tm => tm.shop_type);
   const curveNow = row.size_curve ? (typeof row.size_curve === 'string' ? JSON.parse(row.size_curve) : row.size_curve) : null;
-  const r = await modal({ title: row.name, hint: 'Everything about this line. Shopify product types are sorted below.', fields: [...lineFields(row, s),
+  const p = modal({ title: row.name, hint: 'Everything about this line. Shopify product types are sorted below.', fields: [...lineFields(row, s),
     { key: 'types', label: 'Shopify product types in this line', value: mapped.join(', '), wide: true, help: `Comma separated. Known types: ${types.join(', ')}` },
     { key: 'curve', label: `${l.axis === 'loft_hand' ? 'Loft mix' : 'Size curve'} override`, value: curveNow ? Object.entries(curveNow).map(([k, v]) => `${k} ${v}`).join(', ') : '', wide: true, help: `Empty learns it from sales (now: ${Object.entries(l.sizeCurveLearned).filter(([k]) => k).map(([k, v]) => `${k} ${Math.round(v * 100)}`).join(', ') || 'no sales yet'}). To set by hand: "S 5, M 20, L 45, XL 25, XXL 5".` }], confirm: 'Save' , body: `<div style="display:flex;gap:8px;margin-bottom:4px"><button class="btn sm danger" id="mDel">Delete line</button></div>` });
-  $('#mDel')?.remove();
+  let wantsDelete = false;
+  $('#mDel').onclick = () => { wantsDelete = true; $('#mCancel').click(); };
+  const r = await p;
+  if (wantsDelete) {
+    const ok = await modal({ title: `Delete ${row.name}?`, hint: `${plural(l.designs, 'product')} lose their line and show as unsorted until you sort their Shopify types again. Orders and history are untouched.`, fields: false, confirm: 'Delete line', danger: true });
+    if (ok) await save(`/api/lines/${encodeURIComponent(id)}`, null, 'DELETE', 'Line deleted');
+    return;
+  }
   if (!r) return;
   const curve = {}; for (const part of (r.curve || '').split(',')) { const mm = /^\s*(.+?)\s+([\d.]+)\s*$/.exec(part); if (mm) curve[mm[1]] = +mm[2]; }
-  await api('/api/lines', { method: 'PUT', body: { ...clean(r), id, size_curve: Object.keys(curve).length ? curve : null } });
-  const want = (r.types || '').split(',').map(t => t.trim()).filter(Boolean);
-  const patch = {}; for (const t of mapped) if (!want.includes(t)) patch[t] = null; for (const t of want) patch[t] = id;
-  if (Object.keys(patch).length) await api('/api/type-map', { method: 'PUT', body: patch });
-  await load({ quiet: true }); toast('Saved');
+  try {
+    await api('/api/lines', { method: 'PUT', body: { ...clean(r), id, size_curve: Object.keys(curve).length ? curve : null } });
+    const want = (r.types || '').split(',').map(t => t.trim()).filter(Boolean);
+    const patch = {}; for (const t of mapped) if (!want.includes(t)) patch[t] = null; for (const t of want) patch[t] = id;
+    if (Object.keys(patch).length) await api('/api/type-map', { method: 'PUT', body: patch });
+    await load({ quiet: true }); toast('Saved');
+  } catch (e) { toast(e.message, { kind: 'err' }); }
 }
 function clean(r) { const o = { ...r }; for (const k of ['lead_override_days', 'moq', 'target_designs', 'cut_rule_pct', 'sort']) if (k in o) o[k] = o[k] === '' ? null : +o[k]; delete o.types; delete o.curve; if (o.factory_id === '') o.factory_id = null; return o; }
 async function sortTypes() {
@@ -380,5 +390,5 @@ async function previewDigest() {
 }
 async function showChangelog() {
   const r = await api('/api/changelog');
-  await modal({ title: 'Changelog', fields: false, confirm: 'Close', body: `<div style="max-height:50vh;overflow:auto;font-size:12.5px">${(r.entries || []).map(e => `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${esc(e.action)}</b> ${esc(e.entity)} ${esc(e.entity_id || '')} <span class="tiny">· ${esc(e.actor || '')} · ${new Date(e.at + 'Z').toLocaleString('en-US', { timeZone: 'America/Chicago' })}</span></div>`).join('') || '<div class="hint">Nothing yet.</div>'}</div>` });
+  await modal({ title: 'Changelog', fields: false, confirm: 'Close', body: `<div style="max-height:50vh;overflow:auto;font-size:12.5px">${(r.entries || []).map(e => `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${esc(e.action)}</b> ${esc(e.entity)} ${esc(e.entity_id || '')} <span class="tiny">· ${esc(e.actor || '')} · ${new Date(e.at.replace(' ', 'T') + 'Z').toLocaleString('en-US', { timeZone: 'America/Chicago' })}</span></div>`).join('') || '<div class="hint">Nothing yet.</div>'}</div>` });
 }

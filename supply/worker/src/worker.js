@@ -58,8 +58,13 @@ async function log(env, brand, actor, entity, entityId, action, detail) {
 
 const actorOf = request => request.headers.get('X-Actor') || null;
 const str = (v, max = 200) => v == null ? null : String(v).slice(0, max);
-const int = (v, lo = 0, hi = 1e9) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null; };
+const int = (v, lo = 0, hi = 1e9) => { if (v === null || v === undefined || v === '') return null; const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null; };
 const ymd = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null;
+function curveJson(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return null; } }
+  return v && typeof v === 'object' && Object.keys(v).length ? JSON.stringify(v) : null;
+}
 const slug = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 
 /* ---------- first run: seed from the legacy Restock settings ---------- */
@@ -224,12 +229,12 @@ export default {
         if (!l.name || !l.category_id) return bad('name and category required');
         const id = l.id || `${brand}:${slug(l.name)}`;
         await env.DB.prepare(`INSERT INTO lines (id, brand_id, category_id, name, variant_axis, factory_id, lead_override_days, moq, target_designs, cut_rule_pct, size_curve, sort)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, COALESCE(?12, 0))
           ON CONFLICT(id) DO UPDATE SET category_id = excluded.category_id, name = excluded.name, variant_axis = excluded.variant_axis, factory_id = excluded.factory_id,
-            lead_override_days = excluded.lead_override_days, moq = excluded.moq, target_designs = excluded.target_designs, cut_rule_pct = excluded.cut_rule_pct, size_curve = excluded.size_curve, sort = excluded.sort`)
+            lead_override_days = excluded.lead_override_days, moq = excluded.moq, target_designs = excluded.target_designs, cut_rule_pct = excluded.cut_rule_pct, size_curve = excluded.size_curve, sort = COALESCE(excluded.sort, lines.sort)`)
           .bind(id, brand, str(l.category_id, 80), str(l.name, 60), ['none', 'size', 'hand', 'loft_hand', 'hand_size'].includes(l.variant_axis) ? l.variant_axis : 'none',
             str(l.factory_id, 80), int(l.lead_override_days, 0, 730), int(l.moq, 0, 100000), int(l.target_designs, 0, 1000), int(l.cut_rule_pct, 0, 90),
-            l.size_curve && typeof l.size_curve === 'object' && Object.keys(l.size_curve).length ? JSON.stringify(l.size_curve) : null, int(l.sort) ?? 0).run();
+            curveJson(l.size_curve), int(l.sort)).run();
         await log(env, brand, actor, 'line', id, 'upsert', l);
         return json({ ok: true, id });
       }
@@ -305,15 +310,16 @@ export default {
       /* orders */
       if (path === '/api/orders' && request.method === 'POST') {
         const o = body || {};
-        const last = await env.DB.prepare(`SELECT id FROM orders WHERE brand_id = ?1 AND id LIKE 'PO-%' ORDER BY id DESC LIMIT 1`).bind(brand).first();
-        const n = last ? parseInt(String(last.id).slice(3), 10) + 1 : 1;
-        const id = `PO-${String(n).padStart(4, '0')}`;
+        const prefix = brand === 'lucky' ? 'PO-' : `${brand.toUpperCase()}-PO-`;
+        const last = await env.DB.prepare(`SELECT MAX(CAST(substr(id, ?2) AS INTEGER)) AS n FROM orders WHERE brand_id = ?1 AND id LIKE ?3`).bind(brand, prefix.length + 1, prefix + '%').first();
+        const n = (last?.n || 0) + 1;
+        const id = `${prefix}${String(n).padStart(4, '0')}`;
         const status = ['draft', 'sent'].includes(o.status) ? o.status : 'draft';
-        const lines = (Array.isArray(o.lines) ? o.lines : []).filter(l => l.variant_id && l.product_id && int(l.qty, 1) > 0).slice(0, 500);
+        const lines = (Array.isArray(o.lines) ? o.lines : []).filter(l => l.variant_id && l.product_id && Number(l.qty) > 0).slice(0, 500);
         if (!lines.length) return bad('an order needs at least one line');
         const stmts = [env.DB.prepare(`INSERT INTO orders (id, brand_id, factory_id, status, sent_at, expected_at, deposit, tracking, notes, created_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
           .bind(id, brand, str(o.factory_id, 80), status, status === 'sent' ? (ymd(o.sent_at) || localDate('America/Chicago')) : null, ymd(o.expected_at), str(o.deposit, 200), str(o.tracking, 200), str(o.notes, 2000), actor)];
-        for (const l of lines) stmts.push(env.DB.prepare(`INSERT INTO order_lines (order_id, variant_id, product_id, qty, unit_cost) VALUES (?1, ?2, ?3, ?4, ?5)`).bind(id, String(l.variant_id), String(l.product_id), int(l.qty, 1), l.unit_cost != null ? +l.unit_cost : null));
+        for (const l of lines) stmts.push(env.DB.prepare(`INSERT INTO order_lines (order_id, variant_id, product_id, qty, unit_cost) VALUES (?1, ?2, ?3, ?4, ?5)`).bind(id, String(l.variant_id), String(l.product_id), int(l.qty, 0), l.unit_cost != null ? +l.unit_cost : null));
         for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
         await log(env, brand, actor, 'order', id, 'create', { status, lines: lines.length });
         return json({ ok: true, id });
@@ -326,14 +332,14 @@ export default {
         const STATUSES = ['draft', 'sent', 'confirmed', 'production', 'shipped', 'partial', 'landed', 'cancelled'];
         const status = STATUSES.includes(o.status) ? o.status : cur.status;
         const sent_at = ymd(o.sent_at) || cur.sent_at || (status !== 'draft' && status !== 'cancelled' ? localDate('America/Chicago') : null);
-        const stmts = [env.DB.prepare(`UPDATE orders SET factory_id = COALESCE(?3, factory_id), status = ?4, sent_at = ?5, confirmed_at = COALESCE(?6, confirmed_at), expected_at = COALESCE(?7, expected_at),
+        const stmts = [env.DB.prepare(`UPDATE orders SET factory_id = COALESCE(?3, factory_id), status = ?4, sent_at = ?5, confirmed_at = COALESCE(?6, confirmed_at), expected_at = CASE WHEN ?12 THEN ?7 ELSE expected_at END,
             landed_at = ?8, deposit = COALESCE(?9, deposit), tracking = COALESCE(?10, tracking), notes = COALESCE(?11, notes), updated_at = datetime('now') WHERE id = ?1 AND brand_id = ?2`)
           .bind(id, brand, str(o.factory_id, 80), status, sent_at, ymd(o.confirmed_at) || (status === 'confirmed' && !cur.confirmed_at ? localDate('America/Chicago') : null), ymd(o.expected_at),
-            status === 'landed' ? (ymd(o.landed_at) || cur.landed_at || localDate('America/Chicago')) : cur.landed_at, str(o.deposit, 200), str(o.tracking, 200), str(o.notes, 2000))];
+            status === 'landed' ? (ymd(o.landed_at) || cur.landed_at || localDate('America/Chicago')) : cur.landed_at, str(o.deposit, 200), str(o.tracking, 200), str(o.notes, 2000), 'expected_at' in o ? 1 : 0)];
         if (Array.isArray(o.lines)) {
           stmts.push(env.DB.prepare(`DELETE FROM order_lines WHERE order_id = ?1`).bind(id));
-          for (const l of o.lines.filter(l => l.variant_id && l.product_id && int(l.qty, 1) > 0).slice(0, 500))
-            stmts.push(env.DB.prepare(`INSERT INTO order_lines (order_id, variant_id, product_id, qty, received, unit_cost) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(id, String(l.variant_id), String(l.product_id), int(l.qty, 1), int(l.received, 0) ?? 0, l.unit_cost != null ? +l.unit_cost : null));
+          for (const l of o.lines.filter(l => l.variant_id && l.product_id && Number(l.qty) > 0).slice(0, 500))
+            stmts.push(env.DB.prepare(`INSERT INTO order_lines (order_id, variant_id, product_id, qty, received, unit_cost) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(id, String(l.variant_id), String(l.product_id), int(l.qty, 0), int(l.received, 0) ?? 0, l.unit_cost != null ? +l.unit_cost : null));
         }
         if (o.received && typeof o.received === 'object') {
           for (const [vid, n] of Object.entries(o.received)) stmts.push(env.DB.prepare(`UPDATE order_lines SET received = ?3 WHERE order_id = ?1 AND variant_id = ?2`).bind(id, String(vid), int(n, 0) ?? 0));
