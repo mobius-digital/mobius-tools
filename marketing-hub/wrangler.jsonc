@@ -39,5 +39,30 @@
       "database_name": "marketing-hub",
       "database_id": "e8bd83a8-100e-44ed-a639-2c3415f90e41"
     }
-  ]
+  ],
+
+  /*
+   * A preview of the next version at its own address, on a copy of the data
+   * (Slack tokens stripped, no cron), for clicking through before it replaces
+   * the live worker. Deploy with:  npm run deploy:preview
+   * Google sign-in does not work there (the origin is not registered with
+   * Google); use a brand's team password.
+   */
+  "env": {
+    "preview": {
+      "name": "lineup-preview",
+      "triggers": { "crons": [] },
+      "assets": {
+        "directory": ".open-next/assets",
+        "binding": "ASSETS"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "marketing-hub-preview",
+          "database_id": "a2bcd43a-7999-4178-985b-f562bed358c9"
+        }
+      ]
+    }
+  }
 }
