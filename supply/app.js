@@ -97,7 +97,7 @@ function render() {
   $$('#tabs button[data-t], #tabbar button[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === S.tab));
   $('#btnOut').hidden = !token();
   const m = $('#main');
-  if (!token()) { title('Supply'); m.innerHTML = gateHTML(); wireGate(); return; }
+  if (!token()) { title('Supply'); $('#connChip').dataset.s = 'off'; $('#connChip').textContent = 'Signed out'; m.innerHTML = gateHTML(); wireGate(); return; }
   if (!S.state) {
     title('Supply');
     m.innerHTML = S.err ? `<div class="gate"><h1>Cannot reach Supply</h1><p>${esc(S.err)}</p><button class="btn primary" onclick="load()">Try again</button> ${S.err.includes('snapshot') ? `<button class="btn" onclick="runSnapshot()">Run a Shopify snapshot</button>` : ''}</div>` : `<div class="empty">Loading the brand…</div>`;
@@ -115,7 +115,7 @@ function gateHTML() {
     <div class="or">or</div>
     <input id="gTok" type="password" placeholder="Dashboard password" autocomplete="current-password">
     <button class="btn primary" id="gGo" style="margin-top:10px;width:100%;justify-content:center">Sign in</button>
-    <div class="err" id="gErr"></div></div>`;
+    <div class="err" id="gErr">${S.err && S.err !== 'Sign in to continue.' ? esc(S.err) : ''}</div></div>`;
 }
 function wireGate() {
   const go = async () => { const v = $('#gTok').value.trim(); if (!v) return; localStorage.setItem('supply_token', v); await load(); if (!S.state && S.err) { $('#gErr').textContent = S.err.includes('Sign in') ? 'That password is not right.' : S.err; } };
