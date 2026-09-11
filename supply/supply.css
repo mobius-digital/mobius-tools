@@ -140,7 +140,7 @@ select.btn{padding-right:32px}
 /* tour */
 #tourLayer{position:fixed;inset:0;z-index:80}
 .tour-scrim{position:absolute;inset:0;background:rgba(12,22,29,.42)}
-.tour-spot{position:relative;z-index:81;box-shadow:0 0 0 4px #62BDEA,0 0 0 9999px rgba(12,22,29,.42);border-radius:10px}
+.tour-spot{position:relative;z-index:81;outline:4px solid #62BDEA;outline-offset:3px;border-radius:10px;background:var(--surface)}
 .tour-card{position:fixed;z-index:82;width:min(420px,calc(100vw - 32px));background:var(--surface);border-radius:12px;padding:18px 20px;box-shadow:0 30px 60px -30px rgba(12,22,29,.7);display:flex;flex-direction:column;gap:8px;top:50%;left:50%;transform:translate(-50%,-50%)}
 .tour-step{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .tour-card h3{font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.1}
