@@ -110,7 +110,7 @@ const forecastable = lc => lc === 'core' || lc === 'seasonal';
  *  on-site date, through the line's factory lead time. computeSupply uses this
  *  for the screens; the Asana hand-off uses it to fill in a task. */
 export function slotDates(sl, db) {
-  const S = Object.assign({ buffer_days: 10, site_prep_days: 14, sample_days: 35, design_days: 30, slack_days: 18 }, db.settings || {});
+  const S = Object.assign({ buffer_days: 10, site_prep_days: 14, sample_days: 35, design_days: 30, slack_days: 18, tech_pack_days: 21 }, db.settings || {});
   const num = (k, fb) => { const n = Number(S[k]); return Number.isFinite(n) ? n : fb; };
   const line = (db.lines || []).find(l => l.id === sl.line_id) || null;
   const factory = line && line.factory_id ? ((db.factories || []).find(f => f.id === line.factory_id) || null) : null;
@@ -121,7 +121,9 @@ export function slotDates(sl, db) {
   const sampleDue = sl.sample_due || addDays(orderBy, -num('slack_days', 18));
   const briefDue = sl.brief_due || addDays(sampleDue, -num('sample_days', 35));
   const designStart = addDays(briefDue, -num('design_days', 30));
-  const dates = { designStart, briefDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite: sl.on_site_at };
+  /* the tech pack is what buys the sample: back it off the sample date, never before the brief */
+  const techPackDue = [addDays(sampleDue, -num('tech_pack_days', 21)), briefDue].sort()[1];
+  const dates = { designStart, briefDue, techPackDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite: sl.on_site_at };
   return { line, factory, dates, ...dates };
 }
 
@@ -374,7 +376,12 @@ export function computeSupply(raw, db) {
   /* slots with derived dates (slotDates below: the Asana hand-off uses the same one) */
   const slots = (db.slots || []).map(sl => {
     const d = slotDates(sl, db);
-    const late = { brief: sl.status === 'needs_brief' && d.briefDue < today, sample: ['needs_brief', 'in_design'].includes(sl.status) && d.sampleDue < today, order: !['ordered', 'live'].includes(sl.status) && d.orderBy < today };
+    const late = {
+      brief: sl.status === 'needs_brief' && d.briefDue < today,
+      techPack: ['needs_brief', 'in_design', 'tech_pack'].includes(sl.status) && d.techPackDue < today,
+      sample: ['needs_brief', 'in_design', 'tech_pack'].includes(sl.status) && d.sampleDue < today,
+      order: !['ordered', 'live'].includes(sl.status) && d.orderBy < today,
+    };
     return { ...sl, lineName: d.line?.name || null, factoryId: d.factory?.id || null, dates: d.dates, late: Object.values(late).some(Boolean), lateParts: late };
   });
 
@@ -451,7 +458,7 @@ export function computeSupply(raw, db) {
   for (const l of lineOut.filter(l => l.cutCandidates)) {
     decisionsOut.push({ kind: 'brand', lineId: l.id, screen: 'lineup', title: `${l.cutCandidates} ${l.name.toLowerCase()} sit in the cut band this quarter.`, body: `Bottom ${l.cutRulePct}% of the line by 90-day sales. Decide keep or cut before the next ${l.factoryName || 'factory'} order.` });
   }
-  for (const sl of slots.filter(s => s.late)) decisionsOut.push({ kind: 'bad', slotId: sl.id, screen: 'lineup', title: `${sl.name} is late.`, body: `${sl.lateParts.brief ? `Brief was due ${fmtDate(sl.dates.briefDue)}. ` : ''}${sl.lateParts.sample ? `Sample was due ${fmtDate(sl.dates.sampleDue)}. ` : ''}${sl.lateParts.order ? `Order date ${fmtDate(sl.dates.orderBy)} has passed.` : ''}` });
+  for (const sl of slots.filter(s => s.late)) decisionsOut.push({ kind: 'bad', slotId: sl.id, screen: 'lineup', title: `${sl.name} is late.`, body: `${sl.lateParts.brief ? `Brief was due ${fmtDate(sl.dates.briefDue)}. ` : ''}${sl.lateParts.techPack && !sl.lateParts.sample ? `Tech pack was due ${fmtDate(sl.dates.techPackDue)}. ` : ''}${sl.lateParts.sample ? `Sample was due ${fmtDate(sl.dates.sampleDue)}. ` : ''}${sl.lateParts.order ? `Order date ${fmtDate(sl.dates.orderBy)} has passed.` : ''}` });
   if (unsortedTypes.size) decisionsOut.push({ kind: 'unk', screen: 'settings', title: `${unsortedTypes.size} product type${unsortedTypes.size > 1 ? 's' : ''} not sorted into a line.`, body: `${[...unsortedTypes].join(', ')}. They cannot be forecast until they have a line.` });
 
   return {

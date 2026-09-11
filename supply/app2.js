@@ -117,11 +117,11 @@ async function editLineTarget(lid) {
   const row = st().db.lines.find(x => x.id === lid);
   await save('/api/lines', { ...row, target_designs: r.target === '' ? null : +r.target, cut_rule_pct: r.cut === '' ? null : +r.cut });
 }
-const SLOT_STATUS = { needs_brief: ['Needs a brief', 'unk'], in_design: ['In design', 'brand'], sampling: ['Sampling', 'brand'], approved: ['Approved', 'good'], ordered: ['Ordered', 'good'], live: ['Live', 'good'] };
+const SLOT_STATUS = { needs_brief: ['Needs a brief', 'unk'], in_design: ['In design', 'brand'], tech_pack: ['Tech pack', 'brand'], sampling: ['Sampling', 'brand'], approved: ['Approved', 'good'], ordered: ['Ordered', 'good'], live: ['Live', 'good'] };
 function slotRow(sl) {
   const [t, k] = SLOT_STATUS[sl.status] || [sl.status, 'unk'];
   return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #EDF1F4;flex-wrap:wrap">
-    <div class="click" style="flex:1;min-width:180px;cursor:pointer" onclick="openSlot('${sl.id}')"><b style="font-size:13.5px">${esc(sl.name)}</b><div class="tiny">brief ${fmtDate(sl.dates.briefDue)} · sample ${fmtDate(sl.dates.sampleDue)} · order ${fmtDate(sl.dates.orderBy)} · on site ${fmtDate(sl.dates.onSite)}${sl.late ? ' · <span style="color:var(--bad);font-weight:700">late</span>' : ''}</div></div>
+    <div class="click" style="flex:1;min-width:180px;cursor:pointer" onclick="openSlot('${sl.id}')"><b style="font-size:13.5px">${esc(sl.name)}</b><div class="tiny">brief ${fmtDate(sl.dates.briefDue)} · tech pack ${fmtDate(sl.dates.techPackDue)} · sample ${fmtDate(sl.dates.sampleDue)} · order ${fmtDate(sl.dates.orderBy)} · on site ${fmtDate(sl.dates.onSite)}${sl.late ? ' · <span style="color:var(--bad);font-weight:700">late</span>' : ''}</div></div>
     ${asanaPill(sl)}${pill(sl.late && sl.status !== 'live' ? 'bad' : k, t)}${asanaButton(sl, 'sm')}</div>`;
 }
 
@@ -167,7 +167,7 @@ function asanaSheetHTML(sl) {
   const t = sl.asanaTask, a = asanaState(sl);
   if (!sl.asana_task) return `<div class="hint">No task yet. Creating one puts the brief-due date, the other dates and a link back to this slot in your Asana project.</div><div style="margin-top:10px">${asanaButton(sl)}</div>`;
   const detail = sl.asanaGone ? 'That task is no longer in Asana. It was deleted or you cannot see it.'
-    : t ? `${t.completed ? 'Marked done' : 'Still open'} in Asana${t.due_on ? `, due ${fmtDate(t.due_on, { year: true })}` : ''}${t.assignee ? `, with ${esc(t.assignee)}` : ''}.`
+    : t ? `${t.completed ? 'Marked done' : 'Still open'} in Asana${t.section ? `, in ${esc(t.section)}` : ''}${t.due_on ? `, due ${fmtDate(t.due_on, { year: true })}` : ''}${t.assignee ? `, with ${esc(t.assignee)}` : ''}. The due date follows the stage you set here.`
     : sl.asana_gid ? 'Checking Asana…' : 'A link you pasted. Supply cannot read the status of a task it did not create.';
   return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${a ? pill(a[0], a[1]) : ''}${asanaButton(sl)}</div><div class="hint" style="margin-top:8px">${detail}</div>`;
 }
@@ -199,7 +199,7 @@ function openSlot(id) {
     <div class="panel"><h4>Asana</h4><div class="sub">The design work itself. Supply tracks whether it is still open.</div>
       <div id="slAsanaBox" style="margin-top:8px">${asanaSheetHTML(sl)}</div></div>
     <div class="panel"><h4>Dates, worked backwards</h4><div class="sub">Change a factory lead time or the on-site date and these move.</div>
-      <table style="font-size:13px">${[['Design starts', d.designStart, false], ['Brief due', d.briefDue, sl.lateParts?.brief], ['Sample due', d.sampleDue, sl.lateParts?.sample], ['Order by', d.orderBy, sl.lateParts?.order], ['Production ends', d.productionEnd, false], ['Lands', d.lands, false], ['On the site', d.onSite, false]].map(([l, v, late]) => `<tr><td class="tiny">${l}</td><td><b style="${late ? 'color:var(--bad)' : ''}">${fmtDate(v, { year: true })}</b>${late ? ' <span class="tiny" style="color:var(--bad)">late</span>' : ''}</td></tr>`).join('')}</table></div>
+      <table style="font-size:13px">${[['Design starts', d.designStart, false], ['Brief due', d.briefDue, sl.lateParts?.brief], ['Tech pack due', d.techPackDue, sl.lateParts?.techPack], ['Sample due', d.sampleDue, sl.lateParts?.sample], ['Order by', d.orderBy, sl.lateParts?.order], ['Production ends', d.productionEnd, false], ['Lands', d.lands, false], ['On the site', d.onSite, false]].map(([l, v, late]) => `<tr><td class="tiny">${l}</td><td><b style="${late ? 'color:var(--bad)' : ''}">${fmtDate(v, { year: true })}</b>${late ? ' <span class="tiny" style="color:var(--bad)">late</span>' : ''}</td></tr>`).join('')}</table></div>
     <div class="sh-foot"><button class="btn primary" onclick="saveSlot()">Save</button><span style="flex:1"></span><button class="btn quiet danger" onclick="deleteSlot()">Delete slot</button></div>`, 'slot');
   refreshSlotAsana(id);
 }
@@ -395,7 +395,7 @@ function settingsLifecycle(s) {
 }
 function settingsRules(s) {
   const R = [['buffer_days', 'Buffer days', 'Padding on every lead time for customs and surprises.'], ['cover_days', 'Coverage after landing (days)', 'How many days of sales an order should cover once it lands.'], ['watch_days', 'Coming-up window (days)', 'How far past the order window a product still shows as coming up.'],
-    ['reliable_days', 'Days on the shelf before a size has its own rate', 'Below this, a size\'s demand comes from the line\'s size curve.'], ['site_prep_days', 'Days from landing to on the site', 'Receiving, photography, listing.'], ['design_days', 'Design days', 'From brief to first sample request.'], ['sample_days', 'Sampling days', 'From sample request to approval.'], ['slack_days', 'Slack before the order date', 'Room for a second sample round.'], ['dead_days', 'Dead stock after (days without a sale)', '']];
+    ['reliable_days', 'Days on the shelf before a size has its own rate', 'Below this, a size\'s demand comes from the line\'s size curve.'], ['site_prep_days', 'Days from landing to on the site', 'Receiving, photography, listing.'], ['design_days', 'Design days', 'From brief to first sample request.'], ['sample_days', 'Sampling days', 'From sample request to approval.'], ['tech_pack_days', 'Tech pack to sample in hand (days)', 'What the factory needs from getting the tech pack to the sample arriving. Sets the tech pack date.'], ['slack_days', 'Slack before the order date', 'Room for a second sample round.'], ['dead_days', 'Dead stock after (days without a sale)', '']];
   return `<div class="card"><h3>Rules</h3><div class="hint">The numbers behind every date and suggestion. Change one and every screen follows.</div>
     <div class="fields" style="margin-top:12px">${R.map(([k, l, h]) => `<div class="field"><label>${l}</label><input type="number" min="0" value="${s.settings[k] ?? ''}" onchange="save('/api/settings',{${k}:+this.value})">${h ? `<div class="help">${h}</div>` : ''}</div>`).join('')}
       <div class="field"><label>Season name</label><input value="${esc(s.settings.season_name || '')}" placeholder="${nextSeason()}" onchange="save('/api/settings',{season_name:this.value})"></div>

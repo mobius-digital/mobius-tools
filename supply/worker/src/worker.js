@@ -139,7 +139,10 @@ async function seed(env, brand, raw, actor) {
    access token on this worker; the project it files into is a brand setting
    (asana_project), chosen in Settings > Asana. */
 const ASANA_API = 'https://app.asana.com/api/1.0';
-const TASK_FIELDS = 'gid,name,completed,completed_at,due_on,permalink_url,assignee.name';
+const TASK_FIELDS = 'gid,name,completed,completed_at,due_on,permalink_url,assignee.name,memberships.section.name';
+/* A slot's stage says what the task is working toward next, and that is its due date. */
+const STAGE_DUE = { needs_brief: 'briefDue', in_design: 'techPackDue', tech_pack: 'techPackDue', sampling: 'sampleDue', approved: 'orderBy', ordered: 'lands', live: 'onSite' };
+const stageDue = (status, d) => d[STAGE_DUE[status] || 'briefDue'] || d.briefDue;
 
 async function asana(env, path, init = {}) {
   const token = (env.ASANA_TOKEN || '').trim();   // pasted secrets pick up stray whitespace
@@ -166,12 +169,13 @@ const fmtLong = ymd => ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en
 function taskNotes(sl, d, url) {
   const where = [d.line?.name, sl.season].filter(Boolean).join(' · ');
   const rows = [
-    ['Brief due', d.briefDue, "this task's due date"],
+    ['Brief due', d.briefDue, ''],
+    ['Tech pack due', d.techPackDue, 'what the factory needs to make the sample'],
     ['Sample due', d.sampleDue, ''],
     ['Order by', d.orderBy, d.factory?.name || ''],
     ['On the site', d.onSite, ''],
   ];
-  const tail = 'Every date is worked back from the on-site date in Supply. Change it there and the slot moves; this task keeps the date it was made with.';
+  const tail = 'Every date is worked back from the on-site date in Supply, and this task is due on whichever one its stage is working toward. Move the stage on the slot and the due date follows.';
   const plain = [where, '', ...rows.map(([l, v, n]) => `${l}: ${fmtLong(v)}${n ? ` (${n})` : ''}`), '', `The slot in Supply: ${url}`, '', tail].join('\n');
   const html = `<body>${where ? `<strong>${htmlEsc(where)}</strong>\n` : ''}<ul>${rows.map(([l, v, n]) => `<li>${htmlEsc(l)}: <strong>${htmlEsc(fmtLong(v))}</strong>${n ? ` (${htmlEsc(n)})` : ''}</li>`).join('')}</ul>\n<a href="${htmlEsc(url)}">Open the slot in Supply</a>\n\n${htmlEsc(tail)}</body>`;
   return { plain, html };
@@ -180,7 +184,7 @@ function taskNotes(sl, d, url) {
 async function createSlotTask(env, sl, d, project) {
   const url = `${DASHBOARD_URL}?slot=${encodeURIComponent(sl.id)}`;
   const { plain, html } = taskNotes(sl, d, url);
-  const data = { name: sl.name, projects: [project], due_on: d.briefDue };
+  const data = { name: sl.name, projects: [project], due_on: stageDue(sl.status, d) };
   try { return await asana(env, `/tasks?opt_fields=${TASK_FIELDS}`, { method: 'POST', body: { data: { ...data, html_notes: html } } }); }
   catch (e) {
     if (e.asana !== 400) throw e;               // only the rich-text body is worth a plain retry
@@ -188,7 +192,15 @@ async function createSlotTask(env, sl, d, project) {
   }
 }
 
-const taskOut = t => t && ({ gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, due_on: t.due_on || null, assignee: t.assignee?.name || null });
+const taskOut = t => t && ({ gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, due_on: t.due_on || null, assignee: t.assignee?.name || null, section: t.memberships?.[0]?.section?.name || null });
+
+/** Keep the task due on what its stage is working toward. Asana being down never fails a save. */
+async function pushTaskDue(env, sl, db) {
+  if (!sl.asana_gid || !env.ASANA_TOKEN) return null;
+  const due = stageDue(sl.status, slotDates(sl, db));
+  try { await asana(env, `/tasks/${sl.asana_gid}`, { method: 'PUT', body: { data: { due_on: due } } }); return due; }
+  catch { return null; }
+}
 
 /** Ask Asana where the task stands and remember the answer on the slot. */
 async function refreshSlotTask(env, brand, sl) {
@@ -434,16 +446,21 @@ export default {
         const s = body || {};
         const id = s.id || `slot-${Date.now().toString(36)}`;
         if (!s.line_id || !s.name || !ymd(s.on_site_at)) return bad('line, name and on-site date required');
-        const status = ['needs_brief', 'in_design', 'sampling', 'approved', 'ordered', 'live'].includes(s.status) ? s.status : 'needs_brief';
+        const status = ['needs_brief', 'in_design', 'tech_pack', 'sampling', 'approved', 'ordered', 'live'].includes(s.status) ? s.status : 'needs_brief';
         await env.DB.prepare(`INSERT INTO slots (id, brand_id, line_id, name, season, status, on_site_at, brief_due, sample_due, order_by, lands_at, asana_task, lineup_event, product_id, notes, updated_at)
           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, datetime('now'))
           ON CONFLICT(id) DO UPDATE SET line_id = excluded.line_id, name = excluded.name, season = excluded.season, status = excluded.status, on_site_at = excluded.on_site_at,
-            brief_due = excluded.brief_due, sample_due = excluded.sample_due, order_by = excluded.order_by, lands_at = excluded.lands_at, asana_task = excluded.asana_task, lineup_event = excluded.lineup_event, product_id = excluded.product_id, notes = excluded.notes, updated_at = datetime('now')`)
+            brief_due = excluded.brief_due, sample_due = excluded.sample_due, order_by = excluded.order_by, lands_at = excluded.lands_at, asana_task = COALESCE(excluded.asana_task, asana_task), lineup_event = excluded.lineup_event, product_id = excluded.product_id, notes = excluded.notes, updated_at = datetime('now')`)
           .bind(id, brand, str(s.line_id, 80), str(s.name, 80), str(s.season, 40), status, s.on_site_at, ymd(s.brief_due), ymd(s.sample_due), ymd(s.order_by), ymd(s.lands_at), str(s.asana_task, 300), str(s.lineup_event, 80), s.product_id ? String(s.product_id).replace(/\D/g, '') : null, str(s.notes, 2000)).run();
-        /* a link cleared by hand means that task is not this slot's any more: forget its status too */
-        if (!str(s.asana_task, 300)) await env.DB.prepare(`UPDATE slots SET asana_gid = NULL, asana_done = NULL, asana_checked = NULL WHERE id = ?1 AND brand_id = ?2`).bind(id, brand).run();
+        /* a link cleared by hand means that task is not this slot's any more: forget its status too.
+           A save that simply does not mention the field (any partial write) leaves the link alone. */
+        if ('asana_task' in (body || {}) && !str(s.asana_task, 300))
+          await env.DB.prepare(`UPDATE slots SET asana_task = NULL, asana_gid = NULL, asana_done = NULL, asana_checked = NULL WHERE id = ?1 AND brand_id = ?2`).bind(id, brand).run();
         await log(env, brand, actor, 'slot', id, request.method === 'POST' ? 'create' : 'update', s);
-        return json({ ok: true, id });
+        /* the slot moved stage or moved its dates: the Asana task is due on the new one */
+        const row = await env.DB.prepare(`SELECT * FROM slots WHERE id = ?1 AND brand_id = ?2`).bind(id, brand).first();
+        const moved = row?.asana_gid ? await pushTaskDue(env, row, await loadDb(env, brand)) : null;
+        return json({ ok: true, id, asanaDue: moved });
       }
       /* the Asana hand-off for one slot: POST creates the task, GET re-reads its status */
       const asanaSlot = /^\/api\/slots\/([^/]+)\/asana$/.exec(path);
