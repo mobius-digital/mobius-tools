@@ -110,66 +110,7 @@ function render() {
   const fn = { today: renderToday, reorder: renderReorder, orders: renderOrders, forecast: renderForecast, performance: window.renderPerformance, lineup: window.renderLineup, timeline: window.renderTimeline, settings: window.renderSettings }[S.tab];
   if (fn) fn(m); else m.innerHTML = '';
 }
-/* The sign-in page: the product in miniature on one side (stock lines running
-   down to their run-out, the lead-time span and the order-by mark that Supply
-   exists to compute), the door on the other. Drawn from the same tokens as
-   the app; nothing here is data, so it renders before anyone is signed in. */
-function gateHTML() {
-  document.body.classList.add('gated');
-  const rows = [
-    ['Carver 01 Black', 0.78, 0.62, 0.30, 'order'],
-    ['Stryker LGH01', 0.32, 0.18, 0.00, 'late'],
-    ['Blackout Blade Polo', 0.55, 0.44, 0.16, 'order'],
-    ['Tour Glove', 0.90, 0.96, 0.60, 'ok'],
-    ['Tan Cursive Hat', 0.70, 0.98, 0.66, 'ok'],
-  ];
-  const W = 560, H = 300, L = 150, R = W - 16, T = 34, RH = 50;
-  const x = f => L + f * (R - L);
-  const todayX = x(0.12);
-  let svg = '';
-  for (let i = 0; i <= 5; i++) svg += `<line x1="${x(i / 5)}" x2="${x(i / 5)}" y1="${T - 10}" y2="${H - 6}" stroke="rgba(255,255,255,.07)"/>`;
-  svg += `<text x="${x(0)}" y="${T - 16}" class="g-ax">NOW</text><text x="${x(0.5)}" y="${T - 16}" class="g-ax">3 MONTHS</text><text x="${x(1)}" y="${T - 16}" class="g-ax" text-anchor="end">6 MONTHS</text>`;
-  rows.forEach(([name, stock, runOut, orderBy, tone], i) => {
-    const y = T + i * RH, base = y + 34, top = y + 8;
-    const c = tone === 'late' ? '#F09182' : tone === 'order' ? '#EBBF63' : '#5FD292';
-    svg += `<text x="0" y="${y + 24}" class="g-lab">${esc(name)}</text>`;
-    // lead-time span before the run-out
-    svg += `<rect x="${x(orderBy)}" y="${base - 4}" width="${Math.max(2, x(runOut) - x(orderBy))}" height="8" rx="4" fill="rgba(255,255,255,.08)"/>`;
-    // the stock line falling to zero
-    svg += `<path d="M${x(0)},${base - stock * (base - top)} L${x(runOut)},${base}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/>`;
-    svg += `<circle cx="${x(runOut)}" cy="${base}" r="4.5" fill="${c}" stroke="#0C161D" stroke-width="2"/>`;
-    // order-by mark
-    svg += `<path d="M${x(orderBy)},${base - 11} l6,6 l-6,6 l-6,-6z" fill="${tone === 'late' ? '#F09182' : '#fff'}" stroke="#0C161D" stroke-width="1.5"/>`;
-    if (tone === 'late') svg += `<text x="${x(orderBy) + 12}" y="${base - 12}" class="g-note" fill="#F09182">order was due</text>`;
-    else if (tone === 'order') svg += `<text x="${x(orderBy) + 12}" y="${base - 12}" class="g-note">order by</text>`;
-  });
-  svg += `<line x1="${todayX}" x2="${todayX}" y1="${T - 10}" y2="${H - 6}" stroke="#F09182" stroke-width="1.5" stroke-dasharray="3 3"/><rect x="${todayX - 22}" y="${H - 20}" width="44" height="16" rx="8" fill="#F09182"/><text x="${todayX}" y="${H - 9}" class="g-today" text-anchor="middle">TODAY</text>`;
-  return `
-  <div class="gate">
-    <section class="gate-scene" aria-hidden="true">
-      <div class="gs-in">
-        <div class="gs-rollup"><div><span class="gs-l">To order</span><span class="gs-v gs-bad">3</span></div><div><span class="gs-l">On the way</span><span class="gs-v gs-warn">2</span></div><div><span class="gs-l">Next lands</span><span class="gs-v">Oct 3</span></div></div>
-        <svg viewBox="0 0 ${W} ${H}" class="gs-chart">${svg}</svg>
-        <div class="gs-chips">${['Wedges', 'Putters', 'Polos', 'Hats', 'Grips', 'Gloves'].map(l => `<span>${l}</span>`).join('')}</div>
-        <p class="gs-cap">Every product, its run-out date, and the day the order has to go to the factory.</p>
-      </div>
-    </section>
-    <section class="gate-panel">
-      <div class="gate-card">
-        <div class="gate-brand"><span class="mk"></span><span>Mobius Digital</span></div>
-        <h1>Supply</h1>
-        <p class="gate-sub">The buying brain for Lucky Golf. What to order, how much, and by when; what is on its way; what sells; what the next lineup should be.</p>
-        <a class="gate-google" href="../hq/?next=/supply/"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5c-.3 1.5-1.1 2.7-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1C3.3 21.3 7.3 24 12 24z"/><path fill="#FBBC05" d="M5.3 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3V6.6H1.3C.5 8.2 0 10 0 12s.5 3.8 1.3 5.4l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4C18 1.2 15.2 0 12 0 7.3 0 3.3 2.7 1.3 6.6l4 3.1c.9-2.9 3.6-4.9 6.7-4.9z"/></svg>Continue with Google</a>
-        <details class="gate-alt"><summary>Use the dashboard password instead</summary>
-          <input id="gTok" type="password" placeholder="Dashboard password" autocomplete="current-password">
-          <button class="btn primary" id="gGo" style="margin-top:10px;width:100%;justify-content:center">Sign in</button>
-        </details>
-        <div class="err" id="gErr">${S.err && S.err !== 'Sign in to continue.' ? esc(S.err) : ''}</div>
-      </div>
-      <p class="gate-fine">Shopify is the source of truth for stock and sales. Supply decides what to buy. Every change is recorded with who made it.</p>
-    </section>
-  </div>`;
-}
+/* gateHTML() lives in gate.js (loaded before this file). */
 function wireGate() {
   const go = async () => { const v = $('#gTok').value.trim(); if (!v) return; localStorage.setItem('supply_token', v); await load(); if (!S.state && S.err) { $('#gErr').textContent = S.err.includes('Sign in') ? 'That password is not right.' : S.err; } };
   $('#gGo').onclick = go; $('#gTok').onkeydown = e => { if (e.key === 'Enter') go(); };
