@@ -2144,10 +2144,28 @@ async function syncPlaid(env) {
    * so every one of them is named and he decides. */
   const dropped = [];
   for (const item of items) {
+    /* Plaid refuses a page when the account changed underneath it mid-read
+     * (TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION) and says to start again.
+     * It is a normal thing to hit, more so now the feed is pulled every ten
+     * minutes, and it used to abort the entire sync · one busy moment at Amex
+     * and the night's figures were simply not fetched. Every write here is
+     * keyed on plaid_id, so starting again costs nothing but a second read. */
+    const startCursor = item.cursor || undefined;
+    let attempt = 0;
     let hasMore = true;
     while (hasMore) {
-      const page = await plaid(env, '/transactions/sync',
-        { access_token: item.access_token, cursor: item.cursor || undefined, count: 250 });
+      let page;
+      try {
+        page = await plaid(env, '/transactions/sync',
+          { access_token: item.access_token, cursor: item.cursor || undefined, count: 250 });
+      } catch (e) {
+        if (/MUTATION_DURING_PAGINATION/.test(String(e.message || e)) && ++attempt <= 3) {
+          item.cursor = startCursor;
+          totals.restarted = (totals.restarted || 0) + 1;
+          continue;
+        }
+        throw e;
+      }
       for (const t of page.added) {
         // One unhappy transaction must not cost us the whole page: throwing here
         // skips the cursor write below, so the next run re-fetches everything
