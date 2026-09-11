@@ -22,6 +22,18 @@
       "port": 8791
     },
     {
+      "name": "supply-design",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8792",
+        "--directory",
+        "C:/Users/wetzl/AppData/Local/Temp/claude/C--Users-wetzl-OneDrive-Apps-Desktop-Mobius-Digital-Mobius-Digital-Tools/4d7684e1-e8e6-40b7-b723-e28ebc847166/scratchpad/supply-design"
+      ],
+      "port": 8792
+    },
+    {
       "name": "hub",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

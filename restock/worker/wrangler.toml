@@ -9,6 +9,13 @@ compatibility_date = "2026-07-01"
 [triggers]
 crons = ["0 * * * *"]
 
+# Supply (the buying brain, D1) builds the morning digest from its own state;
+# this worker fetches it at the digest hour and posts it, because the cron and
+# the Slack token live here. Remove this binding and the legacy digest returns.
+[[services]]
+binding = "SUPPLY"
+service = "mobius-supply"
+
 # KV namespace for history / catalog / settings / state.
 # Create once with:  npx wrangler kv namespace create RESTOCK
 [[kv_namespaces]]

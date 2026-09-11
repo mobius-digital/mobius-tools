@@ -1,0 +1,29 @@
+# Mobius Supply - Cloudflare Worker config
+# Deploy:  npx wrangler deploy   (from this folder)
+#
+# Supply is the brain and the record of decisions. It does NOT talk to Shopify
+# itself: the Restock worker (mobius-restock) owns the Shopify app, the hourly
+# snapshot cron, the KV history and the Slack digest, and exposes them at
+# /api/raw. Supply reaches it over a service binding, forwarding the caller's
+# Authorization header, so Supply holds no secrets of its own and adds no cron
+# to an account that is already at its trigger limit.
+name = "mobius-supply"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# Decisions live here: brands, categories, lines, factories, per-product
+# lifecycle, orders, slots, settings, changelog. Schema: ../db/schema.sql
+#   npx wrangler d1 execute mobius-supply --remote --file=../db/schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "mobius-supply"
+database_id = "c9493164-dbae-4a21-98d4-5266238a68eb"
+
+# The Shopify side (catalog, history, on-order, mutations) - see above.
+[[services]]
+binding = "RESTOCK"
+service = "mobius-restock"
+
+# No secrets. Auth is delegated: every call forwards the bearer token to the
+# Restock worker, which accepts the Mobius Google session, the dashboard
+# password, or ADMIN_TOKEN.

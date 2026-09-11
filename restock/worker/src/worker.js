@@ -33,7 +33,7 @@ const STORES = [
 ];
 
 const API_VERSION = '2026-01';
-const HISTORY_DAYS = 200;          // rolling window of daily history kept in KV
+const HISTORY_DAYS = 800;          // rolling window of daily history kept in KV (2+ years, for seasonality once read_all_orders is granted)
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/restock/';
 
 /* Velocity blend: three windows, recency-weighted. */
@@ -167,8 +167,9 @@ query($after: String) {
       leadMeta: metafield(namespace: "custom", key: "lead_time_days") { value }
       moqMeta: metafield(namespace: "custom", key: "moq") { value }
       variants(first: 100) { edges { node {
-        id title sku inventoryQuantity createdAt
-        inventoryItem { tracked }
+        id title sku inventoryQuantity createdAt price
+        selectedOptions { name value }
+        inventoryItem { tracked unitCost { amount } }
       } } }
     } }
   }
@@ -198,6 +199,9 @@ async function fetchCatalog(env, store) {
           inv: v.inventoryQuantity ?? 0,
           createdAt: v.createdAt || null,
           tracked: !!v.inventoryItem?.tracked,
+          price: v.price != null ? +v.price : null,
+          cost: v.inventoryItem?.unitCost?.amount != null ? +v.inventoryItem.unitCost.amount : null,
+          options: (v.selectedOptions || []).map(o => ({ n: o.name, v: o.value })),
         })),
       });
     }
@@ -734,8 +738,21 @@ async function runSnapshot(env, store, { digest = false, forceDigest = false } =
       (digest && newState.lastDigestDate !== today &&
         (settings.digestMode === 'always' || issues > 0));
     if (wantDigest) {
+      // Since 2026-09-11 the digest is Supply's (decisions, landings, revenue at
+      // risk), fetched over the service binding. This worker still owns the
+      // schedule and the Slack token. Falls back to the legacy digest if Supply
+      // cannot answer, so the morning message never silently disappears.
+      let msg = null;
+      if (env.SUPPLY) {
+        try {
+          const res = await env.SUPPLY.fetch(new Request(`https://mobius-supply.internal/api/digest?brand=${store.id}`,
+            { headers: { 'Authorization': `Bearer ${env.ADMIN_TOKEN}` } }));
+          if (res.ok) msg = await res.json();
+          else console.log(`Supply digest ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        } catch (e) { console.log(`Supply digest failed: ${e.message}`); }
+      }
       await slackApi(env, 'chat.postMessage',
-        { channel, ...digestMessage(store, report, settings), unfurl_links: false });
+        { channel, ...(msg || digestMessage(store, report, settings)), unfurl_links: false });
       newState.lastDigestDate = today;
       digested = true;
     }
@@ -878,6 +895,36 @@ export default {
         ]);
         if (!catalog) return json({ error: 'no snapshot yet — run one from Settings' }, 404);
         return json(computeReport(store, catalog, history, settings, onOrder));
+      }
+
+      // Raw feed for the Supply worker (service binding): everything the brain
+      // needs, untouched. Supply owns its own forecast; this worker owns Shopify.
+      if (path === '/api/raw') {
+        const [catalog, history, settings, onOrder] = await Promise.all([
+          env.KV.get(`catalog:${store.id}`, 'json'),
+          getHistory(env, store),
+          getSettings(env),
+          getOnOrder(env, store),
+        ]);
+        return json({ store: { id: store.id, name: store.name, domain: store.domain, tz: store.tz },
+          catalog, history, settings, onOrder, lastRun: await env.KV.get('lastRun') });
+      }
+
+      // Post a prepared Slack message to this store's channel (Supply's digest
+      // "Send now"). Body: { attachments?, blocks?, text? }.
+      if (path === '/api/slack-post' && request.method === 'POST') {
+        const settings = await getSettings(env);
+        const channel = settings.stores[store.id]?.channel;
+        if (!channel) return json({ error: 'no Slack channel set for this store (Restock → Settings)' }, 400);
+        if (!env.SLACK_BOT_TOKEN) return json({ error: 'SLACK_BOT_TOKEN is not set' }, 400);
+        const body = await request.json().catch(() => ({}));
+        const msg = {};
+        if (Array.isArray(body.attachments)) msg.attachments = body.attachments;
+        if (Array.isArray(body.blocks)) msg.blocks = body.blocks;
+        if (typeof body.text === 'string') msg.text = body.text.slice(0, 3000);
+        if (!msg.attachments && !msg.blocks && !msg.text) return json({ error: 'nothing to post' }, 400);
+        const r = await slackApi(env, 'chat.postMessage', { channel, ...msg, unfurl_links: false });
+        return json({ ok: !!r.ok, error: r.error || undefined });
       }
 
       if (path === '/api/on-order' && request.method === 'POST') {
@@ -1074,7 +1121,7 @@ export default {
 
       if (path === '/api/backfill' && request.method === 'POST') {
         const body = await request.json().catch(() => ({}));
-        const days = Math.min(180, Math.max(7, Number(body.days) || 90));
+        const days = Math.min(HISTORY_DAYS, Math.max(7, Number(body.days) || 90));
         return json(await runBackfill(env, store, days));
       }
 
