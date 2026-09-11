@@ -142,16 +142,18 @@ const ASANA_API = 'https://app.asana.com/api/1.0';
 const TASK_FIELDS = 'gid,name,completed,completed_at,due_on,permalink_url,assignee.name';
 
 async function asana(env, path, init = {}) {
-  if (!env.ASANA_TOKEN) throw Object.assign(new Error('Asana is not connected: this worker has no ASANA_TOKEN yet.'), { status: 400 });
+  const token = (env.ASANA_TOKEN || '').trim();   // pasted secrets pick up stray whitespace
+  if (!token) throw Object.assign(new Error('Asana is not connected: this worker has no ASANA_TOKEN yet.'), { status: 400 });
   const res = await fetch(`${ASANA_API}${path}`, {
     method: init.method || 'GET',
-    headers: { 'Authorization': `Bearer ${env.ASANA_TOKEN}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     /* Never pass Asana's 401 through: the app reads 401 as "your session died" and signs the person out. */
-    const msg = res.status === 401 ? 'Asana rejected the token. Put a fresh personal access token on the worker.' : (data.errors?.[0]?.message || `Asana ${res.status}`);
+    const said = data.errors?.[0]?.message || (data.errors ? '' : JSON.stringify(data).slice(0, 200));
+    const msg = res.status === 401 ? 'Asana rejected the token. Put a fresh personal access token on the worker.' : `Asana ${res.status}${said ? `: ${said}` : ''} (${path.split('?')[0]})`;
     throw Object.assign(new Error(msg), { status: res.status === 401 || res.status === 403 ? 502 : res.status, asana: res.status });
   }
   return data.data;
