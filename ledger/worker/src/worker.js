@@ -2296,8 +2296,28 @@ export default {
         const waiting = await env.DB.prepare(
           `SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'pend:%'`).first().catch(() => null);
         if (!waiting?.n) return;
-        await syncPlaid(env).catch(e => console.log('10-min bank pull failed: ' + e.message));
-        await retryHeldReceipts(env).catch(e => console.log('10-min held retry failed: ' + e.message));
+
+        /* THE ONE THING A TEN-MINUTE JOB CAN DO THAT A NIGHTLY ONE CANNOT:
+         * overlap with itself. A slow pull, a retried page, a bank having a bad
+         * minute, and the next tick starts while this one is still going. Two
+         * syncs sharing one cursor is how a cursor gets written out of order,
+         * which is exactly the failure that had this feed dead for a day.
+         *
+         * So the pull takes a lease first. Whoever holds it works; anyone else
+         * waits for the next tick, which is ten minutes away and costs nothing.
+         * The lease expires on its own so a crash mid-run cannot wedge it shut
+         * forever. */
+        const LEASE = 'bankPullLease';
+        const now = Date.now();
+        const held = Number(await getSetting(env, LEASE)) || 0;
+        if (held > now) return;                       // someone else is mid-pull
+        await putSetting(env, LEASE, String(now + 5 * 60e3));
+        try {
+          await syncPlaid(env).catch(e => console.log('10-min bank pull failed: ' + e.message));
+          await retryHeldReceipts(env).catch(e => console.log('10-min held retry failed: ' + e.message));
+        } finally {
+          await putSetting(env, LEASE, '0').catch(() => {});
+        }
       })());
     }
   },
