@@ -75,7 +75,7 @@ window.renderLineup = function (m) {
   const line = planned.find(l => l.id === S.planLine) || planned[0];
   if (!line) { title('Lineup plan', 'Decide what stays, line by line.', planModeSeg()); m.innerHTML = `<div class="card sc br"><h3>No line is planned yet</h3><div class="hint">Lineup plan switches itself on for any line with six or more designs. None has that many yet.</div><div style="margin-top:10px"><button class="btn primary" onclick="S.setTab='lines';setTab('settings')">Open Settings</button></div></div>`; return; }
   if (!line) { title('Lineup plan'); m.innerHTML = `<div class="card"><div class="empty"><b>No product lines yet</b>Set them up in Settings.</div></div>`; return; }
-  const season = s.settings.season_name || nextSeason();
+
   const ps = productsOf(line).filter(p => p.lifecycle !== 'drop');
   const planById = Object.fromEntries(line.plan.map(x => [x.productId, x]));
   const ranked = line.plan.map(x => ({ ...x, p: productById(x.productId) })).filter(x => x.p);
@@ -84,7 +84,7 @@ window.renderLineup = function (m) {
   const missing = Math.max(0, line.openSlots - slots.length);
   const perDesign = line.moq || factoryById(line.factoryId)?.moq_default || 100;
   const unitCost = median(ps.map(p => p.cost).filter(x => x != null));
-  title(`Lineup plan <em>· ${esc(line.categoryName || '')} · ${esc(line.name)}</em>`, `Decide what stays for ${esc(season)}. ${plural(ps.length, 'design')} today${line.target ? `, target ${line.target}` : ', no target yet'}${line.cutRulePct ? `, cut rule bottom ${line.cutRulePct}% by 90-day sales` : ', manual cuts'}.`,
+  title(`Lineup plan <em>· ${esc(line.categoryName || '')} · ${esc(line.name)}</em>`, `Decide what stays and what goes. ${plural(ps.length, 'design')} today${line.target ? `, target ${line.target}` : ', no target yet'}${line.cutRulePct ? `, cut rule bottom ${line.cutRulePct}% by 90-day sales` : ', manual cuts'}.`,
     `${planModeSeg()}<select onchange="S.planLine=this.value;render()">${planned.map(l => `<option value="${l.id}" ${l.id === line.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select><button class="btn" onclick="editLineTarget('${line.id}')">Target ${line.target ?? '—'} ${ic('chev')}</button>`);
   m.innerHTML = `
     <div class="card sc br" style="padding:12px 18px"><div class="hint">Any line with six or more designs is planned here automatically: right now ${planned.map(l => l.name).join(', ')}. Lines with a handful of models (putters, wedges) are not. The target and the cut rule can be changed per line in Settings.</div></div>
@@ -98,10 +98,10 @@ window.renderLineup = function (m) {
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 6px">${[['Keep', line.keep, 'var(--good)'], ['Decide', line.decide, 'var(--brand-ink)'], ['Cut', line.cut, 'var(--warn)'], ['Open slots', line.openSlots, 'var(--ink)']].map(([l, v, c]) => `<div><div style="font-size:24px;font-weight:700;letter-spacing:-.028em;color:${c}">${v}</div><div class="tiny">${l}</div></div>`).join('')}</div>
           <div class="hint">${line.target ? `Target ${line.target} minus ${line.keep} kept and ${line.decide} undecided leaves ${line.openSlots} to make.${line.decide ? ` If you cut the undecided ${line.decide === 1 ? 'one' : 'ones'} it is ${line.openSlots + line.decide}.` : ''}` : 'Set a target to see how many new designs the season needs.'}</div></div>
         <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3>Open slots</h3><span class="tiny">${plural(slots.length, 'planned')}${missing ? ` · ${missing} still to create` : line.openSlots && slots.length > line.openSlots ? ` · target suggested ${line.openSlots}` : ''}</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3>Open slots</h3><span class="tiny">${slots.length} planned${missing ? ` · ${missing} still to create` : line.openSlots && slots.length > line.openSlots ? ` · target suggested ${line.openSlots}` : ''}</span></div>
           <div class="hint" style="margin-bottom:8px">A slot is a placeholder with dates. The design work itself is an Asana task; the slot tracks whether it is on time. Extra designs beyond the target are fine: seasonal one-offs and themed drops all live here.</div>
           ${slots.map(sl => slotRow(sl)).join('')}
-          ${missing ? `<div style="margin-top:10px"><button class="btn primary" onclick="createSlots('${line.id}',${missing})">${ic('plus')}Create ${plural(missing, 'slot')} for ${esc(season)}</button></div>` : `<div style="margin-top:10px"><button class="btn sm" onclick="createSlots('${line.id}',1)">${ic('plus')}Add a slot</button></div>`}
+          ${missing ? `<div style="margin-top:10px"><button class="btn primary" onclick="createSlots('${line.id}',${missing})">${ic('plus')}Plan ${plural(missing, 'more design')}</button></div>` : `<div style="margin-top:10px"><button class="btn sm" onclick="createSlots('${line.id}',1)">${ic('plus')}Add a design</button></div>`}
         </div>
         <div class="card sc br"><h3>What this does to the next order</h3><div class="hint">${line.keep + line.decide} kept designs and ${line.openSlots} new at ${perDesign} units each is ${fmtInt((line.keep + line.decide + line.openSlots) * perDesign)} ${esc(line.name.toLowerCase())}${unitCost != null ? `, about ${money((line.keep + line.decide + line.openSlots) * perDesign * unitCost)} at cost` : ''}. ${line.cut ? `The ${line.cut} cut${line.cut > 1 ? 's' : ''} stop reorders that would not have sold.` : ''}</div><div style="margin-top:10px"><button class="btn primary" onclick="setTab('timeline')">See it on the Timeline ${ic('arrow')}</button></div></div>
       </div>
