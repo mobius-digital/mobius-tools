@@ -471,6 +471,35 @@
   .grp .ln{flex:1;height:1px;background:var(--line)}
 
   /* ---- the state card ---- */
+  /* ---- Overview, Phase 1 (2026-09-12): one ranked table, three verdict cards.
+     The triage grouping is still computed by triage() and shows as a row stripe
+     and on the middle card; the table is what Cole asked for after the deck
+     mockups. .sc-grid below stays for Reports-all. ---- */
+  .ovt-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .ovt-hd h3{margin:0;white-space:nowrap}
+  .ovt-hd .hint{flex:1;min-width:220px}
+  .ovt{width:100%;border-collapse:collapse}
+  .ovt th{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);
+    text-align:right;padding:0 8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .ovt th:first-child,.ovt td:first-child{text-align:left;padding-left:0}
+  .ovt td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle;white-space:nowrap;font-size:13.5px}
+  .ovt tr:last-child td{border-bottom:none}
+  .ovt tr[data-id]{cursor:pointer}
+  .ovt tr[data-id]:hover td,.ovt tr[data-id]:focus-visible td{background:var(--brand-soft)}
+  .ovt tr[data-id]:focus{outline:none}
+  .ovt tr.stripe td:first-child{box-shadow:inset 3px 0 0 var(--bad);padding-left:10px}
+  .ovt tr.stripe.w td:first-child{box-shadow:inset 3px 0 0 var(--warn);padding-left:10px}
+  .ovt .bn{font-weight:700;font-size:14px;line-height:1.2}
+  .ovt .num{font-weight:700;letter-spacing:-.015em;font-variant-numeric:tabular-nums}
+  .ovt .num.good{color:var(--good)} .ovt .num.bad{color:var(--bad)}
+  .ovt .spark-td{width:96px;padding-top:6px;padding-bottom:6px}
+  .ovt .spark-td svg{width:88px;height:24px;display:block;margin:0 0 0 auto}
+  .ov-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:11px}
+  .ov-cards .card{margin-bottom:0}
+  .ov-cards .mini{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+  .ov-cards .big{font-size:24px;font-weight:700;letter-spacing:-.03em;line-height:1.15;margin:3px 0 4px}
+  .ov-cards .big .tiny{font-weight:600;letter-spacing:0}
+  @media (max-width:980px){.ov-cards{grid-template-columns:1fr}}
   .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));
     gap:12px;margin-bottom:26px}
   .sc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
@@ -3519,32 +3548,66 @@ async function renderOverview() {
   tot.mer = tot.sales != null && tot.spend ? tot.sales / tot.spend : null;
   tot.amer = tot.newRev != null && tot.spend ? tot.newRev / tot.spend : null;
   tot.cmPct = tot.cm != null && tot.sales ? tot.cm / tot.sales : null;
+  tot.newShare = tot.newRev != null && tot.sales ? tot.newRev / tot.sales : null;
   const untrusted = all.filter(a => !cmTrusted(a.cost_health));
 
-  const judged = all.map(a => ({ a, t: triage(a) }))
-    .sort((x, y) => TRIAGE[x.t.g].rank - TRIAGE[y.t.g].rank
-      || (x.t.off ?? 0) - (y.t.off ?? 0)
-      || (y.a.window?.sales ?? 0) - (x.a.window?.sales ?? 0));
-  const needs = judged.filter(j => j.t.g === 'bd').length;
+  /* MONTH TO DATE AGAINST THE PLAN, labelled MTD on screen. The headline
+     figures follow the period control and may be a 7- or 30-day window; the
+     plan is a monthly number pro-rated to today. Comparing the two unlabelled
+     was a real bug (2026-08-30), so the strip shows both and names each. Only
+     brands with a plan are summed here. */
+  const withPlan = all.filter(a => a.plan?.sales != null && a.mtd?.sales != null);
+  const psum = get => withPlan.reduce((t, a) => t + (get(a) ?? 0), 0);
+  const mtd = withPlan.length ? {
+    sales: psum(a => a.mtd.sales), pSales: psum(a => a.plan.sales),
+    spend: psum(a => a.mtd.spend), pSpend: psum(a => a.plan.spend),
+  } : null;
+  if (mtd) { mtd.mer = mtd.spend ? mtd.sales / mtd.spend : null; mtd.pMer = mtd.pSpend ? mtd.pSales / mtd.pSpend : null; }
+
+  /* Round first, then sign: a value a hair under parity must not print "-0%". */
+  const signedPct = d => { const p = Math.round(d * 100); return (p > 0 ? '+' : '') + p + '%'; };
+  const planPill = (actual, plan, kind) => {
+    if (actual == null || plan == null || !plan) return '';
+    const d = actual / plan - 1;
+    // Spend is judged on distance from plan in either direction; revenue and
+    // MER are judged on the side they land.
+    const tone = kind === 'spend' ? (Math.abs(d) <= 0.08 ? 'good' : 'warn')
+      : d >= 0 ? 'good' : d <= -0.08 ? 'bad' : 'warn';
+    const txt = kind === 'spend' && Math.abs(d) < 0.005 ? 'MTD on plan' : `MTD ${signedPct(d)} vs plan`;
+    return `<span class="pill ${tone}">${txt}</span>`;
+  };
+
+  const judged = all.map(a => ({ a, t: triage(a) }));
+  const needs = judged.filter(j => j.t.g === 'bd').sort((x, y) => (x.t.off ?? 0) - (y.t.off ?? 0));
+  const watch = judged.filter(j => j.t.g === 'wn').sort((x, y) => (x.t.off ?? 0) - (y.t.off ?? 0));
+  const fine = judged.filter(j => j.t.g === 'ok');
 
   const rollup = () => {
-    const cell = (l, v, d, cls) => `<div class="ru"><div class="ru-l">${l}</div>
-      <div class="ru-v${cls ? ' ' + cls : ''}">${v}</div><div class="ru-d">${d}</div></div>`;
+    const cell = (l, v, d, p, pill, cls) => `<div class="ru"><div class="ru-l">${l}</div>
+      <div class="ru-v${cls ? ' ' + cls : ''}">${v}</div><div class="ru-d">${d}</div>${p ? `<div class="ru-p">${p}</div>` : ''}${pill || ''}</div>`;
     if (!oneCur) {
       return `<div class="rollup"><div class="ru" style="flex-basis:100%">
         <div class="ru-l">${all.length} brands</div>
         <div class="ru-v" style="font-size:19px">${curs.join(' &middot; ')}</div>
-        <div class="ru-d">Your brands report in different currencies, so there is no combined total. The cards below are per brand.</div>
+        <div class="ru-d">Your brands report in different currencies, so there is no combined total. The table below is per brand.</div>
       </div></div>`;
     }
+    const planned = mtd ? `${withPlan.length} of ${all.length} planned` : 'no plans set';
     return `<div class="rollup">
-      ${cell('Revenue', fmtK(tot.sales, oneCur), `${all.length} brand${all.length === 1 ? '' : 's'} &middot; ${esc(rangeLabel())}`)}
-      ${cell('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended')}
-      ${cell('MER', fmtX(tot.mer), tot.amer != null ? `aMER ${fmtX(tot.amer)}` : 'revenue &divide; ad spend')}
-      ${cell('Contribution', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur),
+      ${cell('Revenue', fmtK(tot.sales, oneCur), `${all.length} brand${all.length === 1 ? '' : 's'} &middot; ${esc(rangeLabel())}`,
+        mtd ? `MTD ${fmtK(mtd.sales, oneCur)} of ${fmtK(mtd.pSales, oneCur)} planned by now &middot; ${planned}` : '',
+        mtd ? planPill(mtd.sales, mtd.pSales, 'sales') : '')}
+      ${cell('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended',
+        mtd && mtd.pSpend ? `MTD ${fmtK(mtd.spend, oneCur)} of ${fmtK(mtd.pSpend, oneCur)} planned by now` : '',
+        mtd ? planPill(mtd.spend, mtd.pSpend, 'spend') : '')}
+      ${cell('MER', fmtX(tot.mer), 'revenue &divide; ad spend, blended',
+        mtd && mtd.pMer ? `MTD ${fmtX(mtd.mer)} against ${fmtX(mtd.pMer)} planned` : '',
+        mtd ? planPill(mtd.mer, mtd.pMer, 'mer') : '')}
+      ${cell('New customer MER', fmtX(tot.amer), tot.newShare != null ? `${fmtPct(tot.newShare)} of revenue from new customers` : 'new-customer revenue &divide; ad spend')}
+      ${cell('Contribution margin', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur),
         untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'} excluded &mdash; cost data`
           : tot.cmPct != null ? `${fmtPct(tot.cmPct)} of revenue` : 'after every variable cost',
-        tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
+        '', '', tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
     </div>`;
   };
 
@@ -3555,66 +3618,105 @@ async function renderOverview() {
     if (pts.length < 4) return '';
     const hi = Math.max(...pts), lo = Math.min(...pts), rng = hi - lo || 1;
     const d = pts.map((v, i) => `${(i / (pts.length - 1) * 200).toFixed(1)},${(26 - (v - lo) / rng * 22).toFixed(1)}`).join(' ');
-    const rising = pts.slice(-Math.ceil(pts.length / 3)).reduce((s2, v) => s2 + v, 0) / Math.ceil(pts.length / 3)
-      >= pts.slice(0, Math.ceil(pts.length / 3)).reduce((s2, v) => s2 + v, 0) / Math.ceil(pts.length / 3);
-    return `<svg class="sc-spark" width="100%" height="28" viewBox="0 0 200 28" preserveAspectRatio="none"
+    const third = Math.ceil(pts.length / 3);
+    const rising = pts.slice(-third).reduce((s2, v) => s2 + v, 0) / third >= pts.slice(0, third).reduce((s2, v) => s2 + v, 0) / third;
+    return `<svg class="sc-spark" viewBox="0 0 200 28" preserveAspectRatio="none"
       role="img" aria-label="Daily revenue over the selected window, ${rising ? 'rising' : 'falling'}">
       <polyline points="${d}" fill="none" stroke="${rising ? 'var(--good)' : 'var(--bad)'}" stroke-width="2"
         stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   };
 
-  const card = ({ a, t }) => {
-    const w = a.window, trusted = cmTrusted(a.cost_health);
-    const cur = a.currency;
-    // The action line. Written per state, and never asserting something the
-    // data has not shown - "spend more" is only ever said where a plan exists.
-    const act = t.act || (() => {
-      if (t.g === 'bd') {
-        const gap = a.plan.sales - a.mtd.sales;
-        const deep = t.off <= -0.45;
-        return `<b>${fmtK(gap, cur)} short</b> of the pro-rated plan. ${deep
-          ? 'A gap this size rarely closes by spending &mdash; worth re-agreeing the number.'
-          : 'See <b>Plan</b> for the daily spend it would take from here.'}`;
-      }
-      if (t.g === 'wn' && !trusted) return 'Running close to plan, but cost data will not support a profit figure. Check <b>Costs</b>.';
-      if (t.g === 'wn') return 'Inside normal variance. Nothing to do unless the gap widens this week.';
-      if (t.off > 0.2) return `Running well ahead of plan${w.mer != null && a.plan?.mer ? ` at ${fmtX(w.mer)} against a ${fmtX(a.plan.mer)} target` : ''}. There may be headroom to spend &mdash; worth a conversation.`;
-      return 'Tracking its plan. No decision needed today.';
-    })();
-    const planned = a.plan?.sales != null && a.mtd?.sales != null;
-    return `<div class="sc ${t.g === 'un' ? '' : t.g}" data-id="${a.act_id}" tabindex="0" role="button"
-        aria-label="${esc(a.name)} &mdash; ${esc(t.state)}. Open its detail.">
-      <div class="sc-h"><span class="sc-n">${esc(a.name)}</span><span class="sc-s">${esc(t.state)}</span></div>
-      <div class="sc-big">${planned ? fmtK(a.mtd.sales, cur) : fmtK(w.sales, cur)}</div>
-      <div class="sc-cap">${planned
-        ? `month to date, against ${fmtK(a.plan.sales, cur)} planned by now`
-        : `${esc(rangeLabel())}`}</div>
-      ${spark(a)}
-      <div class="sc-foot">
-        <div class="sc-g">
-          <div><div class="sc-gl">MER</div><div class="sc-gv">${fmtX(w.mer)}</div></div>
-          <div><div class="sc-gl">${a.plan?.mer ? 'Plan' : 'aMER'}</div><div class="sc-gv">${a.plan?.mer ? fmtX(a.plan.mer) : fmtX(w.amer)}</div></div>
-          <div><div class="sc-gl">${trusted ? 'Margin' : 'Costs'}</div>
-            <div class="sc-gv${trusted ? (w.cm == null ? '' : w.cm >= 0 ? ' good' : ' bad') : ''}">${trusted ? fmtK(w.cm, cur) : '&mdash;'}</div></div>
-        </div>
-        <p class="sc-act">${act}</p>
-      </div>
-    </div>`;
+  /* The action line for the brand on the "needs a decision" card. Written per
+     state, and never asserting something the data has not shown - "spend
+     more" is only ever said where a plan exists. */
+  const actionFor = ({ a, t }) => {
+    if (t.act) return t.act;
+    const w = a.window, trusted = cmTrusted(a.cost_health), cur = a.currency;
+    if (t.g === 'bd') {
+      const gap = a.plan.sales - a.mtd.sales;
+      const deep = t.off <= -0.45;
+      return `<b>${fmtK(gap, cur)} short</b> of the pro-rated plan. ${deep
+        ? 'A gap this size rarely closes by spending &mdash; worth re-agreeing the number.'
+        : 'See <b>Plan</b> for the daily spend it would take from here.'}`;
+    }
+    if (t.g === 'wn' && !trusted) return 'Running close to plan, but cost data will not support a profit figure. Check <b>Costs</b>.';
+    if (t.g === 'wn') return 'Inside normal variance. Nothing to do unless the gap widens this week.';
+    if (t.off > 0.2) return `Running well ahead of plan${w.mer != null && a.plan?.mer ? ` at ${fmtX(w.mer)} against a ${fmtX(a.plan.mer)} target` : ''}. There may be headroom to spend.`;
+    return 'Tracking its plan. No decision needed today.';
   };
 
-  const groups = ['bd', 'wn', 'ok', 'un'].map(g => {
-    const list = judged.filter(j => j.t.g === g);
-    if (!list.length) return '';
-    return `<p class="grp"><span class="ct">${TRIAGE[g].label}</span>
-        <span>&middot; ${list.length} brand${list.length === 1 ? '' : 's'}</span><span class="ln"></span></p>
-      <div class="sc-grid">${list.map(card).join('')}</div>`;
-  }).join('');
+  /* Cost verdict, as the client would need to hear it. */
+  const costPill = h => {
+    const v = h?.verdict;
+    if (!v || v === 'good') return '<span class="pill good">Good</span>';
+    if (v === 'override') return '<span class="pill warn">Override</span>';
+    if (v === 'noisy') return '<span class="pill warn">Noisy</span>';
+    return '<span class="pill bad">Fix</span>';
+  };
+
+  /* ---- the ranked table ---- */
+  const sortKey = localStorage.getItem('pf_ov_sort') || 'cm';
+  const sorter = OV_SORT.find(x => x[0] === sortKey) || OV_SORT[0];
+  const ranked = judged.slice().sort((x, y) => sorter[2]
+    ? sorter[2](y.a) - sorter[2](x.a)
+    : x.a.name.localeCompare(y.a.name));
+  const row = ({ a, t }) => {
+    const w = a.window || {}, trusted = cmTrusted(a.cost_health), cur = a.currency;
+    const stripe = t.g === 'bd' ? ' class="stripe"' : t.g === 'wn' ? ' class="stripe w"' : '';
+    const newShare = w.new_rev != null && w.sales ? w.new_rev / w.sales : null;
+    const planCell = a.plan?.sales != null && a.mtd?.sales != null
+      ? planPill(a.mtd.sales, a.plan.sales, 'sales') : '<span class="pill unk">no plan</span>';
+    return `<tr${stripe} data-id="${a.act_id}" tabindex="0" role="button" aria-label="${esc(a.name)} &mdash; ${esc(t.state)}. Open its detail.">
+      <td><div class="bn">${esc(a.name)}</div><div class="tiny">${esc(t.state)}</div></td>
+      <td class="spark-td">${spark(a)}</td>
+      <td class="num">${fmtK(w.sales, cur)}</td>
+      <td>${planCell}</td>
+      <td class="num">${fmtK(w.spend, cur)}</td>
+      <td class="num">${fmtX(w.mer)}</td>
+      <td class="num">${fmtX(w.amer)}</td>
+      <td class="num">${newShare == null ? '&mdash;' : fmtPct(newShare)}</td>
+      <td class="num${trusted && w.cm != null ? (w.cm >= 0 ? ' good' : ' bad') : ''}">${trusted ? fmtK(w.cm, cur) : '&mdash;'}</td>
+      <td>${costPill(a.cost_health)}</td>
+    </tr>`;
+  };
+  const seg = `<div class="seg sm" id="ovSort" role="group" aria-label="Sort brands by">
+    ${OV_SORT.map(([k, l]) => `<button data-s="${k}" class="${k === sortKey ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  const table = all.length ? `<div class="card key" style="padding-bottom:4px">
+      <div class="ovt-hd"><h3>Where each brand stands</h3>
+        <span class="hint">Every figure is blended across ads, email, organic and direct over ${esc(rangeLabel())}. <b>MTD vs plan</b> compares month to date with this month&rsquo;s plan pro-rated to today.</span>
+        ${seg}</div>
+      <div class="tbl-wrap"><table class="ovt">
+        <thead><tr><th>Brand</th><th>Trend</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>aMER</th><th>New %</th><th>Contribution margin</th><th>Costs</th></tr></thead>
+        <tbody>${ranked.map(row).join('')}</tbody>
+      </table></div>
+    </div>` : `<p class="verdict">No brands yet. Add one in <b>Settings</b>.</p>`;
+
+  /* ---- three verdict cards: the triage, stated once ---- */
+  const names = list => list.map(j => esc(j.a.name)).join(', ');
+  const worst = needs[0] || watch[0] || null;
+  const decision = worst
+    ? { tone: needs.length ? 'bd' : 'wn', label: needs.length ? 'Needs a decision' : 'Watch',
+        big: esc(worst.a.name) + (needs.length > 1 ? ` <span class="tiny">+${needs.length - 1} more</span>` : ''),
+        hint: actionFor(worst) }
+    : { tone: 'ok', label: 'Off pace', big: 'Nobody', hint: 'Every brand with a plan is inside normal variance or ahead.' };
+  const cards = all.length ? `<div class="ov-cards">
+      <div class="card sc ${fine.length ? 'ok' : 'un'}"><div class="mini">Needs nothing today</div>
+        <div class="big">${fine.length} brand${fine.length === 1 ? '' : 's'}</div>
+        <p class="hint">${fine.length ? `Tracking or ahead of plan, with cost data we trust: ${names(fine)}.` : 'No brand is both on plan and on trusted cost data yet.'}</p></div>
+      <div class="card sc ${decision.tone}"><div class="mini">${decision.label}</div>
+        <div class="big">${decision.big}</div>
+        <p class="hint">${decision.hint}</p></div>
+      <div class="card sc ${untrusted.length ? 'wn' : 'ok'}"><div class="mini">Cost data to fix</div>
+        <div class="big">${untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'}` : 'None'}</div>
+        <p class="hint">${untrusted.length
+          ? `${untrusted.map(a => esc(a.name)).join(', ')}: profit is suppressed until the cost data passes the check on <b>Costs</b>.`
+          : 'Every brand&rsquo;s profit figure is measured, not estimated.'}</p></div>
+    </div>` : '';
 
   $('#main').innerHTML = `${pageHead('overview', 'Overview')}
     ${rollup()}
-    ${all.length
-      ? (needs ? '' : `<p class="verdict good" style="margin-bottom:22px">Nothing needs a decision today &mdash; every brand with a plan is tracking it.</p>`) + groups
-      : `<p class="verdict">No brands yet. Add one in <b>Settings</b>.</p>`}
+    ${table}
+    ${cards}
     <details class="footnote"><summary>How these numbers are defined, and how a brand is sorted</summary>
       <div class="fn-body"><b>The grouping</b> compares month-to-date revenue against this month's agreed goal, pro-rated to the days elapsed. More than 30% behind needs a decision; 8&ndash;30% behind is worth watching; anything closer is on track. A brand whose cost data will not support a profit figure is never shown as on track, and a brand with no plan for the month is listed separately rather than being called fine &mdash; there is nothing to measure it against.<br><br>
       <b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's &ldquo;Net Sales + Shipping&rdquo;. Every channel counts: paid, organic, email and direct, never a platform's attributed revenue.<br><br>
@@ -3625,9 +3727,14 @@ async function renderOverview() {
     const cp = $('#clientPick'); if (cp) cp.value = S.act;
     show('profit');
   };
-  $('#main').querySelectorAll('.sc[data-id]').forEach(c => {
+  $('#main').querySelectorAll('tr[data-id]').forEach(c => {
     c.onclick = () => open(c.dataset.id);
     c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.dataset.id); } };
+  });
+  // Re-render in place on a sort change; inPlace keeps the reader where they were.
+  $('#main').querySelectorAll('#ovSort button[data-s]').forEach(b => b.onclick = () => {
+    localStorage.setItem('pf_ov_sort', b.dataset.s);
+    inPlace(async () => renderOverview());
   });
 }
 
