@@ -151,7 +151,7 @@ function clDates() {
 
 async function renderChangeLog() {
   const [from, to] = clDates();
-  $('#main').innerHTML = `<h2>Change Log</h2>
+  $('#main').innerHTML = `${mcrumb('Change Log')}<h2>Change Log</h2>
     <p class="sub">Every change on the account - Meta's activity log plus manual entries - with why it was made. Tag a reason on the moves that matter and let Claude write the update. ✓ and ✗ are optional: ✓ locks in a change (and accepts an amber suggested reason), ✗ hides noise from summaries.</p>
     ${setupBanner()}
     <div class="row">
@@ -567,7 +567,7 @@ function buildMomentum(fullRows, todayRow, currency) {
 async function renderAverages() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
-  $('#main').innerHTML = `<h2>Averages</h2>
+  $('#main').innerHTML = `${mcrumb('Averages')}<h2>Averages</h2>
     <p class="sub">Each card answers one question: <b>are the last 7 days better than this account's own normal (its last 30 days)?</b> The word under each card is the verdict - green words are good, red are bad. <b>Click any card</b> for the full day-by-day chart with dates and the changes we made. Meta data only; averages end yesterday because the last ~3 days of conversions are still settling.</p>
     ${setupBanner()}
     <div class="row">
@@ -715,6 +715,35 @@ function crDual(weekly, currency) {
   </svg>`;
 }
 
+/** The freshness verdict as one tinted card: the share of spend on ads younger
+ *  than the definition, the bar, the launch-weeks read, and the three facts.
+ *  Tone follows the share, because the question the card answers is "are we
+ *  coasting on old ads". */
+function crState(d) {
+  const c = d.cards, cur = d.account.currency, ins = d.insight, share = c.freshShare;
+  const tone = share == null ? 'un' : share >= 0.4 ? 'ok' : share >= 0.2 ? 'wn' : 'bd';
+  const read = ins ? (() => {
+      const hi = fmtMoney(ins.topCpa, cur), lo = fmtMoney(ins.botCpa, cur);
+      if (ins.topCpa <= ins.botCpa * 0.95) return `<b>Launching more has been working for this account.</b> In weeks heavy on new ads, cost per purchase averaged ${hi}; in weeks light on new ads, ${lo}.`;
+      if (ins.topCpa >= ins.botCpa * 1.05) return `<b>Heavy launch weeks ran a little pricier here</b> - ${hi} against ${lo} in quiet weeks. Normal: new ads need a few days to settle, so judge them on week two.`;
+      return `<b>Launching more has not cost this account anything</b> - about the same cost per purchase in heavy launch weeks (${hi}) and quiet ones (${lo}).`;
+    })()
+    : share == null ? 'No ad-level data in this window yet.'
+    : share < 0.2 ? '<b>This account is leaning on proven creative.</b> Old ads wear out and cost per purchase creeps up; this is where the coasting shows before the spike.'
+    : '<b>This account is being fed new creative.</b>';
+  const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
+  return `<div class="card sc ${tone}" style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:0">
+    <div style="flex:none;min-width:200px">
+      <div class="mini">Spend on ads under ${d.fresh} days old</div>
+      <div class="big" style="font-size:26px">${share == null ? '&mdash;' : (share * 100).toFixed(1) + '%'}</div>
+      <div class="tiny">${dpp == null ? 'of Meta spend in this window' : `${dpp >= 0 ? '+' : ''}${dpp.toFixed(1)} pts against the period before`}</div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <div style="display:flex;height:9px;border-radius:99px;overflow:hidden;background:#DFE7EC;margin-bottom:8px"><div style="width:${Math.max(0, Math.min(100, (share || 0) * 100)).toFixed(1)}%;background:#1C7A46"></div><div style="flex:1;background:#C4D2DB"></div></div>
+      <p class="hint" style="margin:0">${read}${ins ? ` <span class="tiny">(the ${ins.n} heaviest launch weeks against the ${ins.n} lightest, last ~13 weeks)</span>` : ''}</p>
+      <p class="tiny" style="margin:8px 0 0">The ads behind the spend average <b>${c.swAge == null ? '-' : Math.round(c.swAge) + ' days'}</b> old &middot; cost per purchase on fresh ads <b>${fmtMoney(c.freshCpa, cur)}</b> &middot; on stale ads <b>${fmtMoney(c.staleCpa, cur)}</b></p>
+    </div></div>`;
+}
 function crCards(d) {
   const c = d.cards, cur = d.account.currency;
   const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
@@ -760,18 +789,18 @@ function crAds(d) {
 async function renderCreative() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
-  $('#main').innerHTML = `<h2>Creative</h2>
+  $('#main').innerHTML = `${mcrumb('Creative')}<h2>Creative</h2>
     <p class="sub"><b>Which ads are working, and are we feeding this account new ones?</b> The cards answer the first question - sort them however you are thinking. The freshness analysis below answers the second: old ads wear out and CPA creeps up, and this shows the coasting before the spike.</p>
-    ${single ? '<div id="cbHost"></div>' : '<div class="notice">ℹ️ <div>Pick a client in the top-right to browse its ads. The freshness comparison below works across all of them.</div></div>'}
-    <h3 style="font-family:var(--serif);font-weight:400;font-size:20px;margin:26px 0 2px">Are we coasting on old ads?</h3>
     ${setupBanner()}
-    <div class="row">
+    <div id="crTop"></div>
+    <div class="row" style="margin:6px 0 12px">
       <span class="tiny" style="font-weight:700" title="An ad younger than this counts as new. This is a DEFINITION, not a date range - the date range comes from the period control at the top.">An ad is “new” for its first:</span>
       ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">${v} days</button>`).join('')}
       <span class="tiny" style="margin-left:12px">Measured over <b>${esc(periodLabel())}</b> - change it at the top.</span>
       <span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="creative">? How to use</button>
     </div>
+    ${single ? '<div id="cbHost"></div>' : '<div class="notice">ℹ️ <div>Pick a client in the top-right to browse its ads. The freshness comparison below works across all of them.</div></div>'}
     <div id="crBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
   document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
     if (c.dataset.f) { CR.fresh = c.dataset.f; localStorage.setItem('ah_cr_fresh', CR.fresh); }
@@ -794,21 +823,15 @@ async function renderCreative() {
       const bf = d.backfill;
       const bfBanner = bf ? `<div class="notice warn">⏳ <div><b>Loading ad history for ${esc(targets[i].name)} - ${bf.error ? 'hit an error' : `${bf.daysDone ?? 0} of ${bf.daysTotal ?? 90} days in`}.</b> ${bf.error ? `<code>${esc(bf.error)}</code>` : 'Each refresh (and every nightly sync) pulls more; numbers firm up as it completes.'}</div></div>` : '';
       if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet - hit ↻ Sync now.</span></div>`}`;
-      const ins = d.insight;
-      return `${head}${bfBanner}${crCards(d)}
+      return `${head}${bfBanner}${single ? '' : crState(d)}
         ${single ? crAds(d) : ''}
-        ${ins ? `<div class="cr-quote">${(() => {
-          const cur2 = d.account.currency, hi = fmtMoney(ins.topCpa, cur2), lo = fmtMoney(ins.botCpa, cur2);
-          if (ins.topCpa <= ins.botCpa * 0.95) return `<b>Launching more has been working for this account.</b> In weeks heavy on new ads, CPA averaged ${hi}. In weeks light on new ads, ${lo}.`;
-          if (ins.topCpa >= ins.botCpa * 1.05) return `<b>Heavy launch weeks ran a little pricier here</b> - CPA ${hi} vs ${lo} in quiet weeks. Normal: new ads need a few days to settle, so judge them on week two.`;
-          return `<b>Launching more hasn't cost this account anything</b> - CPA was about the same in heavy launch weeks (${hi}) and quiet ones (${lo}). No reason to slow the launch pace.`;
-        })()} <span class="tiny">(comparing the ${ins.n} weeks with the highest new-ad share vs the ${ins.n} lowest, last ~13 weeks)</span></div>` : ''}
         ${single ? `<div class="card"><h3 style="margin-bottom:2px">Where each week's budget went, by ad age</h3><p class="hint" style="margin-bottom:6px">Each bar is one week of spend, split by how old the ads were. <b>Dark green at the bottom = brand-new ads.</b> If the dark green keeps shrinking week after week, the account is coasting on old creative. Hover or tap a week for its numbers.</p>
           <div class="tiny" id="crBarsRo" style="min-height:18px;font-weight:600"></div>${crBars(d.weekly)}
           <p class="tiny" style="margin-top:6px">${CR_LABELS.map((l, ci) => `<span style="color:${CR_COLORS[ci]}">■</span> ${l}`).join(' &nbsp; ')}</p></div>
         <div class="card"><h3 style="margin-bottom:2px">Does launching more new ads change what a purchase costs?</h3><p class="hint" style="margin-bottom:6px"><span style="color:#1C7A46;font-weight:700">Green line</span> = cost per purchase that week. <span style="color:#C9962B;font-weight:700">Amber line</span> = share of budget on new ads that week. The thing to look for: when amber goes up, does green come down? Hover or tap for exact weeks.</p>
           <div class="tiny" id="crDualRo" style="min-height:18px;font-weight:600"></div>${crDual(d.weekly, d.account.currency)}</div>` : ''}`;
     }).join('');
+    const top = $('#crTop'); if (top) top.innerHTML = single && res[0] && !res[0].empty ? crState(res[0]) : '';
     if (single && res[0] && !res[0].empty) wireCreativeCharts(res[0]);
   } catch (e) { $('#crBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
 }
@@ -854,7 +877,7 @@ function wireCreativeCharts(d) {
    What stays is the part that is genuinely Meta's - delivery and efficiency
    against this account's own recent form. */
 async function renderMetaOverview() {
-  $('#main').innerHTML = `<h2>Meta - Overview</h2>
+  $('#main').innerHTML = `${mcrumb('Overview')}<h2>Meta - Overview</h2>
     <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Meta-reported, so these match Ads Manager - they will not match the blended figures on the other tabs, and are not meant to.</p>
     <div class="row" style="margin-bottom:12px"><span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div>
@@ -908,7 +931,7 @@ function elapsedCell(p) {
    The one question Plan cannot answer: is the account delivering right now? */
 async function renderToday() {
   const single = S.act !== 'all';
-  $('#main').innerHTML = `<h2>Meta - Today</h2>
+  $('#main').innerHTML = `${mcrumb('Today')}<h2>Meta - Today</h2>
     <p class="sub">Is today running hot or cold against a normal day? Today's cumulative Meta spend against the average shape of the last 7 days, hour by hour.</p>
     ${setupBanner()}
     <div class="row"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="today">? How to use</button></div>
@@ -947,6 +970,8 @@ async function renderToday() {
 }
 
 /* ---------- router ---------- */
+/* The band / section / page crumb the host prints on its own pages. */
+const mcrumb = t => `<div class="ph-crumb">Daily &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${t}</b></div>`;
 const SUBS = [
   ['overview', 'Overview', renderMetaOverview],
   ['today', 'Today', renderToday],
