@@ -220,16 +220,11 @@ async function createSlotTask(env, sl, d, project) {
 /* The checklist Supply puts under a design task. Editable per brand in
    Settings > Asana (setting design_steps); a step is dated by the stage its
    wording points at, so renaming one keeps a sensible date. */
-const DEFAULT_STEPS = [
-  'Brief written and approved',
-  'Artwork approved',
-  'Tech pack built and sent to the factory',
-  'Sample requested',
-  'Sample reviewed and notes sent',
-  'Sample approved',
-  'Added to an order',
-  'Listed on the site',
-];
+/* Empty on purpose. The board's columns already are the process, so a checklist
+   of the same steps would mean ticking a box AND dragging a card for one event.
+   Fill this in Settings > Asana only for detail INSIDE a step, e.g. flat sketch,
+   colourways, mockup on a model. */
+const DEFAULT_STEPS = [];
 async function addSteps(env, parent, settings) {
   const raw = Array.isArray(settings.design_steps) ? settings.design_steps : DEFAULT_STEPS;
   const steps = raw.map(x => str(x, 200)).filter(Boolean).slice(0, 20);
@@ -245,6 +240,34 @@ async function addSteps(env, parent, settings) {
 }
 
 const taskOut = t => t && ({ gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, due_on: t.due_on || null, assignee: t.assignee?.name || null, section: t.memberships?.[0]?.section?.name || null, steps: t.num_subtasks ?? null });
+
+/* The column a card sits in is the stage. A designer drags it; Supply follows.
+   One call fetches the whole board, so this costs one subrequest per state read. */
+const STAGE_FROM_SECTION = Object.fromEntries(Object.entries(STAGE_LABEL).map(([k, v]) => [v, k]));
+async function syncStagesFromAsana(env, brand, db) {
+  const project = String(db.settings?.asana_project || '').replace(/\D/g, '');
+  const linked = (db.slots || []).filter(sl => sl.asana_gid);
+  if (!env.ASANA_TOKEN || !project || !linked.length) return db;
+  let tasks;
+  try { tasks = await asana(env, `/tasks?project=${project}&limit=100&opt_fields=gid,completed,memberships.section.name`); }
+  catch { return db; }                                   // Asana down: the app still works
+  const byGid = Object.fromEntries(tasks.map(t => [t.gid, t]));
+  const writes = [], moved = [];
+  for (const sl of linked) {
+    const t = byGid[sl.asana_gid];
+    if (!t) continue;
+    const stage = STAGE_FROM_SECTION[String(t.memberships?.[0]?.section?.name || '').trim().toLowerCase()];
+    const done = t.completed ? 1 : 0;
+    if (stage && stage !== sl.status) { sl.status = stage; moved.push(sl); }
+    if (stage || done !== sl.asana_done) {
+      sl.asana_done = done;
+      writes.push(env.DB.prepare(`UPDATE slots SET status = ?3, asana_done = ?4, asana_checked = datetime('now') WHERE id = ?1 AND brand_id = ?2`).bind(sl.id, brand, sl.status, done));
+    }
+  }
+  if (writes.length) await env.DB.batch(writes.slice(0, 50));
+  for (const sl of moved.slice(0, 10)) await pushTaskDue(env, sl, db);   // the new column owes a new date
+  return db;
+}
 
 /** Every linked task re-dated: for when a rule or a factory lead time moves under them. */
 async function pushAllTaskDues(env, brand) {
@@ -318,6 +341,7 @@ export default {
         if (!raw.catalog) return bad('no snapshot yet: run one from Settings', 404);
         let db = await loadDb(env, brand);
         if (!db.brand) { await seed(env, brand, raw, actor); db = await loadDb(env, brand); }
+        db = await syncStagesFromAsana(env, brand, db);
         const state = computeSupply(raw, db);
         return json({ ...state, db: { categories: db.categories, lines: db.lines, factories: db.factories, typeMap: db.typeMap, products: db.products, brand: db.brand }, shopTypes: [...new Set(raw.catalog.products.filter(p => p.variants.some(v => v.tracked)).map(p => p.type || ''))] });
       }

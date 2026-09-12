@@ -269,9 +269,9 @@ async function refreshSlotAsana(id) {
 function asanaSheetHTML(sl) {
   const t = sl.asanaTask, a = asanaState(sl);
   const steps = (st().settings.design_steps || DEFAULT_STEPS).length;
-  if (!sl.asana_task) return `<div class="hint">No task yet. Creating one puts the brief-due date, the other dates and a link back to this slot in your Asana project${steps ? `, with a ${steps}-step checklist under it` : ''}.</div><div style="margin-top:10px">${asanaButton(sl)}</div>`;
+  if (!sl.asana_task) return `<div class="hint">No task yet. Creating one puts it in the column for this stage, due on what that column owes, with a link back here${steps ? `, and a ${steps}-step checklist under it` : ''}.</div><div style="margin-top:10px">${asanaButton(sl)}</div>`;
   const detail = sl.asanaGone ? 'That task is no longer in Asana. It was deleted or you cannot see it.'
-    : t ? `${t.completed ? 'Marked done' : 'Still open'} in Asana${t.section ? `, in ${esc(t.section)}` : ''}${t.due_on ? `, due ${fmtDate(t.due_on, { year: true })}` : ''}${t.assignee ? `, with ${esc(t.assignee)}` : ''}${t.steps ? `, ${plural(t.steps, 'step')} on its checklist` : ''}. The due date follows the stage you set here.`
+    : t ? `${t.completed ? 'Marked done' : 'Still open'} in Asana${t.section ? `, in ${esc(t.section)}` : ''}${t.due_on ? `, due ${fmtDate(t.due_on, { year: true })}` : ''}${t.assignee ? `, with ${esc(t.assignee)}` : ''}${t.steps ? `, ${plural(t.steps, 'step')} on its checklist` : ''}. Its column sets the stage here, and its due date follows that column.`
     : sl.asana_gid ? 'Checking Asana…' : 'A link you pasted. Supply cannot read the status of a task it did not create.';
   return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${a ? pill(a[0], a[1]) : ''}${asanaButton(sl)}</div><div class="hint" style="margin-top:8px">${detail}</div>`;
 }
@@ -312,7 +312,9 @@ function openSlot(id) {
     <div class="sh-top"><div><h3>${esc(sl.name)}</h3><div class="sm">${esc(sl.lineName || '')} · ${esc(sl.collectionName || 'no drop')} · ${pill(SLOT_STATUS[sl.status]?.[1] || 'unk', SLOT_STATUS[sl.status]?.[0] || sl.status)}</div></div><div class="sh-nav"><button onclick="closeSheet()">${ic('x')}</button></div></div>
     <div class="fields">
       <div class="field"><label>Name</label><input id="slName" value="${esc(sl.name)}"></div>
-      <div class="field"><label>Status</label><select id="slStatus">${Object.entries(SLOT_STATUS).map(([k, [l]]) => `<option value="${k}" ${sl.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Stage</label>${sl.asana_gid
+        ? `<input value="${esc(SLOT_STATUS[sl.status]?.[0] || sl.status)}" disabled><input type="hidden" id="slStatus" value="${esc(sl.status)}"><div class="help">Asana owns this. Drag the card to another column and Supply follows within a few minutes.</div>`
+        : `<select id="slStatus">${Object.entries(SLOT_STATUS).map(([k, [l]]) => `<option value="${k}" ${sl.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select><div class="help">Once this design has an Asana task, its column sets the stage instead.</div>`}</div>
       <div class="field"><label>Drop</label><select id="slCol">${[['', 'Not in a drop'], ...(st().collections || []).map(c => [c.id, `${c.name} · ${fmtDate(c.drop_at, { year: true })}`])].map(([v, l]) => `<option value="${esc(v)}" ${String(sl.collection_id || '') === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><div class="help">${sl.collection_id ? 'The drop owns the date. Change it on the drop and every design in it moves.' : 'On its own, so it keeps the date below.'}</div></div>
       <div class="field"><label>On the site by</label><input type="date" id="slSite" value="${sl.on_site_at}" ${sl.collection_id ? 'disabled' : ''}><div class="help">${sl.collection_id ? `Comes from the drop: ${fmtDate(sl.dropAt, { year: true })}.` : 'Everything else is worked back from this.'}</div></div>
       <div class="field"><label>Asana task</label><input id="slAsana" value="${esc(sl.asana_task || '')}" placeholder="Paste a task link, or use the button below"><div class="help">The brief, mockups and samples live there. Empty this field to unlink the task.</div></div>
@@ -551,7 +553,7 @@ function settingsAsana(s) {
   return `<div class="two even">
     <div class="card"><h3>Where design tasks go</h3><div class="hint">Every open slot on Lineup plan can become one Asana task: the slot's name, the brief-due date as the task's due date, the sample, order and on-site dates in the description, and a link back to the slot. Pick the project they land in.</div>
       <div class="fields" style="margin-top:12px"><div class="field" style="grid-column:1/-1"><label>Asana project</label><select id="asProj"><option>loading…</option></select><div class="help" id="asWho">${named ? `Today: ${esc(named)}.` : 'Nothing chosen yet, so the Create in Asana buttons will ask for this first.'}</div></div>
-        <div class="field" style="grid-column:1/-1"><label>Checklist on every design task</label><textarea id="asSteps" rows="8" style="min-height:150px">${esc((s.settings.design_steps || DEFAULT_STEPS).join('\n'))}</textarea><div class="help">One step per line, created as subtasks under the task. A step that mentions the brief, the tech pack, the sample, the order or the site is dated from that. Leave it empty for no checklist.</div></div></div>
+        <div class="field" style="grid-column:1/-1"><label>Checklist on every design task</label><textarea id="asSteps" rows="5" style="min-height:96px" placeholder="Leave empty">${esc((s.settings.design_steps || DEFAULT_STEPS).join('\n'))}</textarea><div class="help">Empty by default, and that is usually right: the columns are already the process, so a checklist of the same steps means ticking a box and dragging a card for one event. Use it only for detail inside a step, like flat sketch, colourways, mockup on a model.</div></div></div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="saveAsanaProject()">Save</button><button class="btn quiet" onclick="loadAsanaProjects()">Reload the list</button></div><div class="msg" id="asMsg"></div></div>
     <div class="card"><h3>How the hand-off behaves</h3><div class="hint">Supply creates the task once. After that the button on the slot opens it instead, and the slot shows whether Asana still has it open or someone has ticked it off; that is re-read every time the slot is opened.<br><br>Moving the on-site date moves the slot's dates but not the dates on a task already made. Emptying the Asana field on a slot unlinks the task without touching it in Asana.<br><br>The token is a personal access token held by the worker, so tasks are created as whoever made that token.</div></div>
   </div>`;
@@ -566,7 +568,7 @@ async function loadAsanaProjects() {
     if (r.me?.name) $('#asWho').textContent = `Tasks are created as ${r.me.name}. ${st().settings.asana_project_name ? `They go in ${st().settings.asana_project_name}.` : 'Choose the project.'}`;
   } catch (e) { sel.innerHTML = '<option value="">Could not reach Asana</option>'; msg.className = 'msg err'; msg.textContent = e.message; }
 }
-const DEFAULT_STEPS = ['Brief written and approved', 'Artwork approved', 'Tech pack built and sent to the factory', 'Sample requested', 'Sample reviewed and notes sent', 'Sample approved', 'Added to an order', 'Listed on the site'];
+const DEFAULT_STEPS = [];
 async function saveAsanaProject() {
   const sel = $('#asProj'), msg = $('#asMsg');
   const name = sel.selectedOptions[0]?.dataset.n || '';
