@@ -1239,7 +1239,9 @@
   .rp-attr-why{color:var(--muted);flex:1 1 260px;min-width:0}
   .rp-attr{border-left:3px solid var(--line-strong)}
   /* Reports, Phase 3b: the scorecard is the dark strip; the report reads in two columns. */
-  .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;margin-bottom:14px}
+  .rp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-bottom:14px}
+  .rp-kpi:nth-child(5){border-left:none}
+  .rp-kpi:nth-child(n+5){border-top:1px solid var(--ink-panel-2)}
   .rp-kpi{padding:14px 18px;border-left:1px solid var(--ink-panel-2);min-width:0}
   .rp-kpi:first-child{border-left:none}
   .rp-kl{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--on-ink-2);display:flex;gap:5px;align-items:center}
@@ -1247,6 +1249,9 @@
   .rp-ks{font-size:11px;color:var(--on-ink-2);display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;line-height:1.5}
   .rp-kpi .info-i{border-color:var(--ink-panel-2);color:var(--on-ink-2)}
   .rp-two{gap:11px}
+  /* Customers, Phase 4. */
+  .cu-two{gap:11px}
+  .cu-two .card{margin-bottom:11px}
   .rp-two .card{margin-bottom:11px}
 
   footer{max-width:1240px;width:100%;margin:0;padding:0 26px 40px;color:var(--muted);font-size:12px}
@@ -7236,15 +7241,16 @@ async function renderCustomers(first) {
     <td class="num">${d.cm_ok && x.payback != null ? `<span class="pill ${x.payback >= 1 ? 'good' : x.payback >= 0.7 ? 'warn' : 'bad'}">${x.payback.toFixed(2)}x</span>` : ' - '}</td>
     <td class="num">${fmtPct(x.repeat_share)}</td></tr>`).join('');
 
+  /* The payback verdict as a tinted card: the same sentences as the notice,
+     minus its wrapper, plus a tone and a headline from the same branch. */
+  const payTone = !d.cm_ok ? 'wn' : pb == null ? 'un' : pb >= 1 ? 'ok' : 'wn';
+  const payWord = !d.cm_ok ? 'Payback not stated' : pb == null ? 'No payback figure yet'
+    : pb >= 1 ? `Pays back on order one, ${pb.toFixed(2)}x` : `Needs a second order, ${pb.toFixed(2)}x`;
+  const payInner = verdict.replace(/^<div class="notice[^"]*">[^<]*<div>/, '').replace(/<\/div><\/div>\s*$/, '');
+  const payCard = verdict ? `<div class="card sc ${payTone}"><div class="mini">Payback</div><div class="big" style="font-size:17px">${payWord}</div><p class="hint" style="color:var(--ink-2)">${payInner}</p></div>` : '';
+
   $('#main').innerHTML = shell(`
-    ${h.repeat_share != null ? `<p class="hint" style="margin:-4px 0 12px">${
-      h.repeat_share < 0.2
-        ? `<b>Growth here is expensive.</b> Only ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so roughly ${fmtPct(1 - h.repeat_share)} of every month has to be bought again with ad spend. Nothing carries over - if spend stops, revenue stops with it.`
-        : h.repeat_share >= 0.35
-        ? `<b>A real base is carrying this brand.</b> ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so a good chunk of each month arrives without ad spend behind it. That is what lets a brand survive a soft acquisition month.`
-        : `<b>Part-bought, part-carried.</b> ${fmtPct(h.repeat_share)} of orders come from previous customers, so most of each month still has to be bought with ad spend, but the base is doing real work.`}</p>` : ''}
     ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> CAC and payback swing hard on small numbers - widen the range picker, or read the month-by-month table below instead of the headline.</div></div>` : ''}
-    ${verdict}
     <div class="rollup">
       ${card('Cost to acquire', fmtMoney(h.cac, cur), `${h.new_orders} new customers`, 'All ad spend across every platform divided by the number of genuinely new customers. Blended, so it is not any single platform\u2019s reported cost per acquisition and will not match Ads Manager.')}
       ${card('First order value', fmtMoney(h.new_aov, cur), 'average, new customers', 'What a new customer spends on their first order, before any costs. Revenue from new customers divided by new-customer orders.')}
@@ -7258,6 +7264,24 @@ async function renderCustomers(first) {
         'The share of ORDERS placed by someone who had bought before - in other words, the orders you did not have to pay to acquire. It is not a returning-CUSTOMER rate: that would be a share of people, and Triple Whale gives us no per-customer history, so one shopper buying three times counts three times here. Why it matters: the rest of the orders have to be bought with ad spend, so a low number means growth is expensive and every extra order needs budget behind it. It is also the safety net under payback - if the first order does not cover the cost of acquiring the customer, this is the number that has to make up the difference.')}
       ${card('Returning order value', fmtMoney(h.returning_aov, cur), 'average, repeat customers', 'What a returning customer spends per order. Compare with the first-order value: if repeat orders are bigger, the customer gets more valuable over time.')}
     </div>
+    <div class="two cu-two">
+    <div>
+    ${cohortCard(co, cur)}
+
+    <div class="card"><h3 style="margin-bottom:8px">Month by month</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Month</th><th class="num">New customers</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="tiny" style="margin-top:8px">Whole months, so this stays put when you change the range picker above - it is the trend, not the current reading. The month in progress is faded because it is incomplete.</p></div>
+    </div>
+    <div>
+    ${payCard}
+    ${h.repeat_share != null ? `<div class="card"><div class="mini">Repeat buyers</div><p class="hint" style="margin-top:4px;color:var(--ink-2)">${
+      h.repeat_share < 0.2
+        ? `<b>Growth here is expensive.</b> Only ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so roughly ${fmtPct(1 - h.repeat_share)} of every month has to be bought again with ad spend. Nothing carries over - if spend stops, revenue stops with it.`
+        : h.repeat_share >= 0.35
+        ? `<b>A real base is carrying this brand.</b> ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so a good chunk of each month arrives without ad spend behind it. That is what lets a brand survive a soft acquisition month.`
+        : `<b>Part-bought, part-carried.</b> ${fmtPct(h.repeat_share)} of orders come from previous customers, so most of each month still has to be bought with ad spend, but the base is doing real work.`}</p></div>` : ''}
     ${h.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New vs returning, in revenue <span class="info-i" title="Repeat share above counts ORDERS; this counts MONEY. They differ when returning customers spend more or less per order than first-time buyers. A high returning share with weak new revenue means the ads have stopped acquiring and the list is carrying the store - MER holds up while aMER quietly falls.">i</span></h3>
       <p style="font-size:14px;margin:4px 0"><b>${fmtMoney(h.new_rev, cur)}</b> from new customers (<b>${fmtPct(h.new_rev_share)}</b> of revenue) · <b>${fmtMoney(h.returning_rev, cur)}</b> returning.
       ${h.new_rev_share != null && h.repeat_share != null ? `Returning customers placed <b>${fmtPct(h.repeat_share)}</b> of orders but produced <b>${fmtPct(1 - h.new_rev_share)}</b> of revenue - ${(1 - h.new_rev_share) > h.repeat_share + 0.02 ? 'they spend <b>more</b> per order than first-time buyers' : (1 - h.new_rev_share) < h.repeat_share - 0.02 ? 'they spend <b>less</b> per order than first-time buyers' : 'they spend about the same per order as first-time buyers'}.` : ''}</p>
@@ -7266,13 +7290,8 @@ async function renderCustomers(first) {
         <div style="flex:1;background:var(--line-strong)"></div></div>
       <p class="tiny" style="margin-top:8px">A high returning share with weak new revenue means the list is carrying the store - MER looks fine while aMER quietly collapses.</p></div>` : ''}
 
-    ${cohortCard(co, cur)}
-
-    <div class="card"><h3 style="margin-bottom:8px">Month by month</h3>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>Month</th><th class="num">New customers</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
-      <p class="tiny" style="margin-top:8px">Whole months, so this stays put when you change the range picker above - it is the trend, not the current reading. The month in progress is faded because it is incomplete.</p></div>
+    </div>
+    </div>
     <p class="tiny"><b>This is not cohort analysis.</b> Triple Whale provides no cohort table or per-customer history, so we cannot follow one month's customers through the year or state a true lifetime value. These are monthly averages. Where a real LTV would change a decision - a long payback business, a subscription - treat these as directional and go to the Shopify data.</p>`);
 }
 
