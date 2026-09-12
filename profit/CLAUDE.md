@@ -75,6 +75,18 @@ profit/
   every revenue, CM, MER and goal. `dayEconomics` now does `totalSales - tax`, and
   derives `net_sales = sales - shipRev` so the waterfall matches Shopify's own
   structure line for line. **Never add `totalShippingPrice` to `netSales`.**
+- **TRIPLE WHALE SUMMARY PERIODS ARRIVE ONE DAY EARLY (measured 2026-09-12).** A
+  bare-date `period {start, end}` to `summary-page/get-data` returns the day BEFORE
+  each date (bare dates read as UTC midnight, the previous evening in a US shop):
+  asking for 09-12..09-12 returned the day Meta dates 09-11, to the cent. The daily
+  sync inherits this harmlessly (chart x labels carry the right calendar day, so
+  `tw_daily` dates are correct; it simply never lands today). The live routes want
+  today, so `/api/tw-day` on the account-health worker asks for `date + 1`. NEVER
+  correct the shift inside `twSummary` or the sync starts writing a partial today
+  into `tw_daily`. Also: a SINGLE-DAY period returns charts keyed by HOUR (x = 0..23),
+  which is the only hourly view of blended revenue and spend in the stack; that is
+  what the Profit tab draws for Yesterday and Today. The Today preset is served live
+  from that route, stamped as_of, with the plan pro-rated to whole days only.
 - **`totalNetTaxes` must stay in `TW_KEEP`.** The sync filter is a regex over metric
   id + title; without `tax` in it the metric is dropped on the way in and revenue
   silently reverts to tax-inclusive. Tax defaults to 0 when absent, so a client that

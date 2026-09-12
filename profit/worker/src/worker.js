@@ -414,7 +414,10 @@ async function twDay(env, request, acct, date) {
 function liveRow(acct, day) {
   const piv = {};
   for (const [k, v] of Object.entries(day.map || {})) piv[k] = { [day.date]: v };
-  return dayEconomics(piv, {}, day.date, marginOverride(acct, monthOf(day.date)));
+  // Meta's own figure rides along so the strip can still say "Meta x . Google y".
+  const fb = day.map ? day.map.fb_ads_spend : null;
+  const meta = fb != null ? { [day.date]: { spend: fb } } : {};
+  return dayEconomics(piv, meta, day.date, marginOverride(acct, monthOf(day.date)));
 }
 /** Revenue and ad spend hour by hour, blended. Revenue is Total Sales less tax,
  *  the same line as the day; tax by hour is subtracted when TW carries it. */
