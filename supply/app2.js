@@ -130,11 +130,12 @@ function renderCollections(m) {
     <div class="two wide">
       <div class="stack">
         ${mine.length ? `<div class="card flush"><div class="tbl-wrap"><table>
-          <tr><th>Design</th><th>Line</th><th>Stage</th><th>Where it is</th><th>Asana</th><th></th></tr>
+          <tr><th>Design</th><th>Line</th><th>Stage</th><th>Owes next</th><th>Where it is</th><th>Asana</th><th></th></tr>
           ${mine.map(sl => `<tr>
             <td class="click" onclick="openSlot('${sl.id}')"><b>${esc(sl.name)}</b>${sl.late ? ` <span class="tiny" style="color:var(--bad);font-weight:700">late</span>` : ''}</td>
             <td class="tiny">${esc(sl.lineName || '')}</td>
             <td>${pill(SLOT_STATUS[sl.status]?.[1] || 'unk', SLOT_STATUS[sl.status]?.[0] || sl.status)}</td>
+            <td class="tiny">${sl.next ? `${esc(sl.next.what)}<br><b style="${sl.next.late ? 'color:var(--bad)' : ''}">${sl.next.late ? 'was due ' : ''}${fmtDate(sl.next.on)}</b>` : '—'}</td>
             <td>${wherePill(sl)}</td>
             <td>${asanaPill(sl) || '<span class="tiny">no task yet</span>'}</td>
             <td style="text-align:right">${asanaButton(sl, 'sm')}</td></tr>`).join('')}
@@ -223,7 +224,7 @@ const SLOT_STATUS = { needs_brief: ['Needs a brief', 'unk'], in_design: ['In des
 function slotRow(sl) {
   const [t, k] = SLOT_STATUS[sl.status] || [sl.status, 'unk'];
   return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #EDF1F4;flex-wrap:wrap">
-    <div class="click" style="flex:1;min-width:180px;cursor:pointer" onclick="openSlot('${sl.id}')"><b style="font-size:13.5px">${esc(sl.name)}</b><div class="tiny">brief ${fmtDate(sl.dates.briefDue)} · tech pack ${fmtDate(sl.dates.techPackDue)} · sample ${fmtDate(sl.dates.sampleDue)} · order ${fmtDate(sl.dates.orderBy)} · on site ${fmtDate(sl.dates.onSite)}${sl.late ? ' · <span style="color:var(--bad);font-weight:700">late</span>' : ''}</div></div>
+    <div class="click" style="flex:1;min-width:180px;cursor:pointer" onclick="openSlot('${sl.id}')"><b style="font-size:13.5px">${esc(sl.name)}</b><div class="tiny">${sl.next ? `${esc(sl.next.what.toLowerCase())} ${sl.next.late ? 'was due' : 'by'} ${fmtDate(sl.next.on)} · ` : ''}on the site ${fmtDate(sl.dates.onSite)}${sl.late ? ' · <span style="color:var(--bad);font-weight:700">late</span>' : ''}</div></div>
     ${sl.made || sl.sample ? wherePill(sl) : ''}${asanaPill(sl)}${pill(sl.late && sl.status !== 'live' ? 'bad' : k, t)}${asanaButton(sl, 'sm')}</div>`;
 }
 
@@ -317,6 +318,7 @@ function openSlot(id) {
       <div class="field"><label>Asana task</label><input id="slAsana" value="${esc(sl.asana_task || '')}" placeholder="Paste a task link, or use the button below"><div class="help">The brief, mockups and samples live there. Empty this field to unlink the task.</div></div>
       <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea id="slNotes">${esc(sl.notes || '')}</textarea></div>
     </div>
+    ${sl.next ? `<div class="panel ${sl.next.late ? 'bd' : ''}"><h4>Next: ${esc(sl.next.what)}</h4><div class="sub">${sl.next.late ? `Was due ${fmtDate(sl.next.on, { year: true })}.` : `Due ${fmtDate(sl.next.on, { year: true })}, ${fmtDays(sl.next.days)} from now.`} Everything below is counted back from the drop.</div></div>` : ''}
     <div class="panel"><h4>The sample</h4><div class="sub">Where the physical sample is. The stage above says who is working on it; this says where the thing is.</div>
       <div class="fields" style="margin-top:8px">
         <div class="field"><label>Asked for on</label><input type="date" id="slSampReq" value="${sl.sample_requested_at || ''}"></div>
@@ -331,7 +333,7 @@ function openSlot(id) {
     <div class="panel"><h4>Asana</h4><div class="sub">The design work itself. Supply tracks whether it is still open.</div>
       <div id="slAsanaBox" style="margin-top:8px">${asanaSheetHTML(sl)}</div></div>
     <div class="panel"><h4>What has to happen by when</h4><div class="sub">You set the last one. The rest are worked back from it. Change the drop date or a factory lead time and they all move.</div>
-      <table style="font-size:13px">${[['Brief written', d.briefDue, sl.lateParts?.brief], ['Tech pack at the factory', d.techPackDue, sl.lateParts?.techPack], ['Sample in your hands', d.sampleDue, sl.lateParts?.sample], ['Order placed', d.orderBy, sl.lateParts?.order], ['Stock lands', d.lands, false], ['On the site', d.onSite, false]].map(([l, v, late]) => `<tr><td class="tiny">${l}</td><td><b style="${late ? 'color:var(--bad)' : ''}">${fmtDate(v, { year: true })}</b>${late ? ' <span class="tiny" style="color:var(--bad)">late</span>' : ''}</td></tr>`).join('')}</table></div>
+      <table style="font-size:13px">${[['Brief', d.briefDue, sl.lateParts?.brief], ['Tech pack', d.techPackDue, sl.lateParts?.techPack], ['Sample approved', d.sampleDue, sl.lateParts?.sample], ['Order placed', d.orderBy, sl.lateParts?.order], ['Stock lands', d.lands, false], ['On the site', d.onSite, false]].map(([l, v, late]) => `<tr><td class="tiny">${l}</td><td><b style="${late ? 'color:var(--bad)' : ''}">${fmtDate(v, { year: true })}</b>${late ? ' <span class="tiny" style="color:var(--bad)">late</span>' : ''}</td></tr>`).join('')}</table></div>
     <div class="sh-foot"><button class="btn primary" onclick="saveSlot()">Save</button><span style="flex:1"></span><button class="btn quiet danger" onclick="deleteSlot()">Delete slot</button></div>`, 'slot');
   refreshSlotAsana(id);
 }
@@ -369,7 +371,7 @@ window.renderTimeline = function (m) {
         ${deadlines.map(mk => `<div class="click" style="display:grid;grid-template-columns:76px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #EDF1F4;cursor:pointer" onclick="${mk.item.open}"><b style="font-size:13px;color:${mk.late ? 'var(--bad)' : 'var(--ink)'}">${fmtDate(mk.date)}</b><div><div style="font-size:13px;font-weight:600">${esc(mk.label)}</div><div class="tiny">${esc(mk.item.sub)}</div></div><span style="width:8px;height:8px;border-radius:50%;background:${mk.late ? 'var(--bad)' : mk.good ? 'var(--good)' : 'var(--brand-ink)'}"></span></div>`).join('') || '<div class="hint">No deadlines in the window.</div>'}
         ${closures.map(c => `<div style="display:grid;grid-template-columns:76px 1fr;gap:10px;padding:9px 0;border-top:1px solid #EDF1F4"><b style="font-size:13px">${fmtDate(c.from)}</b><div><div style="font-size:13px;font-weight:600">${esc(c.factory)} closed</div><div class="tiny">${esc(c.label || '')} · to ${fmtDate(c.to)}</div></div></div>`).join('')}
       </div>
-      <div class="card"><h3>Where the dates come from</h3><div class="hint">The drop date is the only one typed by hand. Take off ${s.settings.site_prep_days} days to photograph and list it, then shipping, then production, then ${s.settings.buffer_days} days of buffer, and you have the day the order has to be placed. Take off ${s.settings.slack_days} days in case the first sample is wrong and you have the day the sample must be in your hands. Take off ${s.settings.tech_pack_days} days for the factory to make it and you have the day the tech pack has to reach them. Take off ${s.settings.sample_days} days and you have the day the brief has to be written.</div></div>
+      <div class="card"><h3>Where the dates come from</h3><div class="hint">The drop date is the only one typed by hand. Take off ${s.settings.site_prep_days} days to photograph and list it, then shipping, then production, then ${s.settings.buffer_days} days of buffer, and you have the day the order has to be placed. Take off ${s.settings.slack_days} spare days in case the first sample is wrong, and you have the day the sample has to be approved. Take off ${s.settings.sample_make_days} days for the factory to make and send it, and you have the day the tech pack is due. Take off ${s.settings.design_days} days of design, and you have the day the brief is due.</div></div>
     </div></div>`;
 };
 function timelineItems(s) {
@@ -538,7 +540,7 @@ function settingsLifecycle(s) {
 }
 function settingsRules(s) {
   const R = [['buffer_days', 'Buffer days', 'Padding on every lead time for customs and surprises.'], ['cover_days', 'Coverage after landing (days)', 'How many days of sales an order should cover once it lands.'], ['watch_days', 'Coming-up window (days)', 'How far past the order window a product still shows as coming up.'],
-    ['reliable_days', 'Days on the shelf before a size has its own rate', 'Below this, a size\'s demand comes from the line\'s size curve.'], ['site_prep_days', 'Days from landing to on the site', 'Receiving, photography, listing.'], ['sample_days', 'Brief to sample in hand (days)', 'Your whole side: writing the brief, the design, the tech pack, and the factory making the sample.'], ['tech_pack_days', 'Tech pack to sample in hand (days)', "The factory's part of that: from getting the tech pack to the sample arriving."], ['slack_days', 'Spare days before the order', 'In case the first sample comes back wrong.'], ['dead_days', 'Dead stock after (days without a sale)', '']];
+    ['reliable_days', 'Days on the shelf before a size has its own rate', 'Below this, a size\'s demand comes from the line\'s size curve.'], ['site_prep_days', 'Days from landing to on the site', 'Receiving, photography, listing.'], ['design_days', 'Brief to tech pack (days)', 'Your side: the designer draws it, you approve it, the specs get written.'], ['sample_make_days', 'Tech pack to sample in your hands (days)', 'The factory side: making the sample and shipping it to you.'], ['slack_days', 'Spare days before the order', 'In case the first sample comes back wrong.'], ['dead_days', 'Dead stock after (days without a sale)', '']];
   return `<div class="card"><h3>Rules</h3><div class="hint">The numbers behind every date and suggestion. Change one and every screen follows.</div>
     <div class="fields" style="margin-top:12px">${R.map(([k, l, h]) => `<div class="field"><label>${l}</label><input type="number" min="0" value="${s.settings[k] ?? ''}" onchange="save('/api/settings',{${k}:+this.value})">${h ? `<div class="help">${h}</div>` : ''}</div>`).join('')}
     </div></div>

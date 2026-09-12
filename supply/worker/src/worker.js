@@ -181,7 +181,9 @@ function taskNotes(sl, d, url) {
   const rows = [
     ['Drops', d.onSite, d.collection?.name ? `the ${d.collection.name} drop` : ''],
   ];
-  const tail = "This task is due on whatever its column is working toward: the brief, then the tech pack, then the sample in hand, then the order placed. Move the card and the date moves with it. Every one of those is worked back from the drop date through the factory lead time, and Supply keeps the live version, so open the slot rather than trusting a date written here.";
+  /* Stage-independent on purpose: a sentence about the column it is in today would
+     be wrong the moment somebody drags it. */
+  const tail = 'The due date is whatever this column owes: the brief, then the tech pack, then the sample approved, then the order placed. Drag the card and the date moves to the next one on its own. All of them are counted back from the drop date through the factory lead time, and Supply holds the live version.';
   const plain = [where, '', ...rows.map(([l, v, n]) => `${l}: ${fmtLong(v)}${n ? ` (${n})` : ''}`), '', `The slot in Supply: ${url}`, '', tail].join('\n');
   const html = `<body>${where ? `<strong>${htmlEsc(where)}</strong>\n` : ''}<ul>${rows.map(([l, v, n]) => `<li>${htmlEsc(l)}: <strong>${htmlEsc(fmtLong(v))}</strong>${n ? ` (${htmlEsc(n)})` : ''}</li>`).join('')}</ul>\n<a href="${htmlEsc(url)}">Open the slot in Supply</a>\n\n${htmlEsc(tail)}</body>`;
   return { plain, html };
