@@ -139,7 +139,7 @@ async function seed(env, brand, raw, actor) {
    access token on this worker; the project it files into is a brand setting
    (asana_project), chosen in Settings > Asana. */
 const ASANA_API = 'https://app.asana.com/api/1.0';
-const TASK_FIELDS = 'gid,name,completed,completed_at,due_on,permalink_url,assignee.name,memberships.section.name';
+const TASK_FIELDS = 'gid,name,completed,completed_at,due_on,permalink_url,assignee.name,memberships.section.name,num_subtasks';
 /* A slot's stage says what the task is working toward next, and that is its due date. */
 const STAGE_DUE = { needs_brief: 'briefDue', in_design: 'techPackDue', tech_pack: 'techPackDue', sampling: 'sampleDue', approved: 'orderBy', ordered: 'lands', live: 'onSite' };
 const stageDue = (status, d) => d[STAGE_DUE[status] || 'briefDue'] || d.briefDue;
@@ -192,7 +192,44 @@ async function createSlotTask(env, sl, d, project) {
   }
 }
 
-const taskOut = t => t && ({ gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, due_on: t.due_on || null, assignee: t.assignee?.name || null, section: t.memberships?.[0]?.section?.name || null });
+/* The checklist Supply puts under a design task. Editable per brand in
+   Settings > Asana (setting design_steps); a step is dated by the stage its
+   wording points at, so renaming one keeps a sensible date. */
+const DEFAULT_STEPS = [
+  'Brief written and approved',
+  'Artwork approved',
+  'Tech pack built and sent to the factory',
+  'Sample requested',
+  'Sample reviewed and notes sent',
+  'Sample approved',
+  'Added to an order',
+  'Listed on the site',
+];
+function stepDue(name, d) {
+  const n = String(name).toLowerCase();
+  if (n.includes('brief')) return d.briefDue;
+  if (n.includes('tech pack')) return d.techPackDue;
+  if (n.includes('artwork') || n.includes('design')) return d.techPackDue;
+  if (n.includes('sample')) return n.includes('request') ? d.techPackDue : d.sampleDue;
+  if (n.includes('order')) return d.orderBy;
+  if (n.includes('site') || n.includes('live') || n.includes('list')) return d.onSite;
+  return d.sampleDue;
+}
+async function addSteps(env, parent, d, settings) {
+  const raw = Array.isArray(settings.design_steps) ? settings.design_steps : DEFAULT_STEPS;
+  const steps = raw.map(x => str(x, 200)).filter(Boolean).slice(0, 20);
+  /* Asana puts each new subtask at the TOP of the list and ignores insert_after
+     when the subtask is created with a parent, so write the checklist backwards
+     and it reads in order. */
+  let made = 0;
+  for (const name of [...steps].reverse()) {
+    try { await asana(env, `/tasks/${parent}/subtasks`, { method: 'POST', body: { data: { name, due_on: stepDue(name, d) } } }); made++; }
+    catch { break; }   // the task itself already exists: a half-built checklist beats a failed create
+  }
+  return made;
+}
+
+const taskOut = t => t && ({ gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, due_on: t.due_on || null, assignee: t.assignee?.name || null, section: t.memberships?.[0]?.section?.name || null, steps: t.num_subtasks ?? null });
 
 /** Keep the task due on what its stage is working toward. Asana being down never fails a save. */
 async function pushTaskDue(env, sl, db) {
@@ -472,11 +509,13 @@ export default {
         if (request.method !== 'POST' || sl.asana_gid) return json(await refreshSlotTask(env, brand, sl));
         const project = String(db.settings.asana_project || '').replace(/\D/g, '');
         if (!project) return bad('No Asana project chosen yet. Pick one in Settings, Asana.');
-        const t = await createSlotTask(env, sl, slotDates(sl, db), project);
+        const d = slotDates(sl, db);
+        const t = await createSlotTask(env, sl, d, project);
+        const steps = await addSteps(env, t.gid, d, db.settings);
         await env.DB.prepare(`UPDATE slots SET asana_task = ?3, asana_gid = ?4, asana_done = 0, asana_checked = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND brand_id = ?2`)
           .bind(id, brand, t.permalink_url || null, t.gid).run();
-        await log(env, brand, actor, 'slot', id, 'asana-create', { gid: t.gid, url: t.permalink_url, project });
-        return json({ ok: true, created: true, task: taskOut(t) });
+        await log(env, brand, actor, 'slot', id, 'asana-create', { gid: t.gid, url: t.permalink_url, project, steps });
+        return json({ ok: true, created: true, steps, task: taskOut(t) });
       }
 
       if (path.startsWith('/api/slots/') && request.method === 'DELETE') {
