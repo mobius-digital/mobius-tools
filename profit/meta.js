@@ -732,7 +732,7 @@ function crState(d) {
     : share < 0.2 ? '<b>This account is leaning on proven creative.</b> Old ads wear out and cost per purchase creeps up; this is where the coasting shows before the spike.'
     : '<b>This account is being fed new creative.</b>';
   const dpp = c.freshShare != null && c.freshSharePrev != null ? (c.freshShare - c.freshSharePrev) * 100 : null;
-  return `<div class="card sc ${tone}" style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:0">
+  return `<div class="card sc ${tone}" style="display:flex;flex-direction:row;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:0">
     <div style="flex:none;min-width:200px">
       <div class="mini">Spend on ads under ${d.fresh} days old</div>
       <div class="big" style="font-size:26px">${share == null ? '&mdash;' : (share * 100).toFixed(1) + '%'}</div>
