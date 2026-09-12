@@ -180,12 +180,8 @@ function taskNotes(sl, d, url) {
   const where = [d.line?.name, d.collection?.name || sl.season].filter(Boolean).join(' · ');
   const rows = [
     ['Drops', d.onSite, d.collection?.name ? `the ${d.collection.name} drop` : ''],
-    ['Order by', d.orderBy, d.factory?.name || ''],
-    ['Sample in hand by', d.sampleDue, ''],
-    ['Tech pack by', d.techPackDue, 'what the factory needs to make the sample'],
-    ['Brief by', d.briefDue, ''],
   ];
-  const tail = 'The drop date is the one that matters. The rest are worked back from it through the factory lead time, and this task is due on whichever one its stage is working toward, so its date moves as the work moves.';
+  const tail = "This task is due on whatever its column is working toward: the brief, then the tech pack, then the sample in hand, then the order placed. Move the card and the date moves with it. Every one of those is worked back from the drop date through the factory lead time, and Supply keeps the live version, so open the slot rather than trusting a date written here.";
   const plain = [where, '', ...rows.map(([l, v, n]) => `${l}: ${fmtLong(v)}${n ? ` (${n})` : ''}`), '', `The slot in Supply: ${url}`, '', tail].join('\n');
   const html = `<body>${where ? `<strong>${htmlEsc(where)}</strong>\n` : ''}<ul>${rows.map(([l, v, n]) => `<li>${htmlEsc(l)}: <strong>${htmlEsc(fmtLong(v))}</strong>${n ? ` (${htmlEsc(n)})` : ''}</li>`).join('')}</ul>\n<a href="${htmlEsc(url)}">Open the slot in Supply</a>\n\n${htmlEsc(tail)}</body>`;
   return { plain, html };
@@ -247,6 +243,15 @@ async function addSteps(env, parent, settings) {
 }
 
 const taskOut = t => t && ({ gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, due_on: t.due_on || null, assignee: t.assignee?.name || null, section: t.memberships?.[0]?.section?.name || null, steps: t.num_subtasks ?? null });
+
+/** Every linked task re-dated: for when a rule or a factory lead time moves under them. */
+async function pushAllTaskDues(env, brand) {
+  if (!env.ASANA_TOKEN) return 0;
+  const db = await loadDb(env, brand);
+  const linked = (db.slots || []).filter(sl => sl.asana_gid).slice(0, 30);
+  for (const sl of linked) await pushTaskDue(env, sl, db);
+  return linked.length;
+}
 
 /** Keep the task due on what its stage is working toward. Asana being down never fails a save. */
 async function pushTaskDue(env, sl, db) {
@@ -338,7 +343,10 @@ export default {
         }
         if (stmts.length) await env.DB.batch(stmts);
         await log(env, brand, actor, 'settings', null, 'update', body);
-        return json({ ok: true });
+        /* a changed rule changes every derived date, so the tasks hanging off them follow */
+        const dateRule = Object.keys(body || {}).some(k => /_days$/.test(k));
+        const moved = dateRule ? await pushAllTaskDues(env, brand) : 0;
+        return json({ ok: true, tasksMoved: moved });
       }
 
       if (path === '/api/brand' && request.method === 'PUT') {
@@ -411,7 +419,7 @@ export default {
             int(f.moq_default, 0, 100000), f.moq_basis === 'variant' ? 'variant' : 'product', JSON.stringify(Array.isArray(f.closures) ? f.closures.filter(c => ymd(c.from) && ymd(c.to)).map(c => ({ from: c.from, to: c.to, label: str(c.label, 60) || '' })) : []),
             str(f.contact, 200), str(f.notes, 1000)).run();
         await log(env, brand, actor, 'factory', id, 'upsert', f);
-        return json({ ok: true, id });
+        return json({ ok: true, id, tasksMoved: await pushAllTaskDues(env, brand) });
       }
       if (path.startsWith('/api/factories/') && request.method === 'DELETE') {
         const id = decodeURIComponent(path.slice('/api/factories/'.length));
