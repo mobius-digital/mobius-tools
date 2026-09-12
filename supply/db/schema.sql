@@ -101,13 +101,27 @@ CREATE TABLE order_lines (
   PRIMARY KEY (order_id, variant_id)
 );
 
+-- A collection is a group of new designs that drop together, across lines: a
+-- themed drop ('Car Bomb') or a plain refresh ('Q1 polos'). One date, the day
+-- it goes on the site; every slot in it works backwards from that.
+CREATE TABLE collections (
+  id         TEXT PRIMARY KEY,
+  brand_id   TEXT NOT NULL REFERENCES brands(id),
+  name       TEXT NOT NULL,                  -- 'Car Bomb', 'Spring 2027'
+  drop_at    TEXT NOT NULL,                  -- on-site date for the whole drop
+  notes      TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Open slots on the lineup plan (Phase 4). A slot is dates + status + link.
 CREATE TABLE slots (
   id           TEXT PRIMARY KEY,
   brand_id     TEXT NOT NULL REFERENCES brands(id),
   line_id      TEXT NOT NULL REFERENCES lines(id),
   name         TEXT NOT NULL,                -- 'Spring design 3'
-  season       TEXT,                         -- 'Spring 2027'
+  collection_id TEXT REFERENCES collections(id),  -- the drop it belongs to; its date wins
+  season       TEXT,                         -- legacy free text, before collections
   status       TEXT NOT NULL DEFAULT 'needs_brief', -- needs_brief | in_design | sampling | approved | ordered | live
   on_site_at   TEXT NOT NULL,                -- the one date typed by hand; the rest derive
   brief_due    TEXT, sample_due TEXT, order_by TEXT, lands_at TEXT,

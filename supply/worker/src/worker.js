@@ -34,7 +34,7 @@ async function restock(env, request, path, init = {}) {
 /* ---------- D1 ---------- */
 async function loadDb(env, brand) {
   const q = (sql, ...args) => env.DB.prepare(sql).bind(...args);
-  const [brands, categories, lines, factories, typeMap, products, orders, orderLines, slots, settings] = (await env.DB.batch([
+  const [brands, categories, lines, factories, typeMap, products, orders, orderLines, slots, collections, settings] = (await env.DB.batch([
     q(`SELECT * FROM brands WHERE id = ?1`, brand),
     q(`SELECT * FROM categories WHERE brand_id = ?1 ORDER BY sort, name`, brand),
     q(`SELECT * FROM lines WHERE brand_id = ?1 ORDER BY sort, name`, brand),
@@ -44,11 +44,12 @@ async function loadDb(env, brand) {
     q(`SELECT * FROM orders WHERE brand_id = ?1 ORDER BY created_at DESC`, brand),
     q(`SELECT ol.* FROM order_lines ol JOIN orders o ON o.id = ol.order_id WHERE o.brand_id = ?1`, brand),
     q(`SELECT * FROM slots WHERE brand_id = ?1 ORDER BY on_site_at, name`, brand),
+    q(`SELECT * FROM collections WHERE brand_id = ?1 ORDER BY drop_at`, brand),
     q(`SELECT key, value FROM settings WHERE brand_id = ?1`, brand),
   ])).map(r => r.results || []);
   const s = {};
   for (const row of settings) { try { s[row.key] = JSON.parse(row.value); } catch { s[row.key] = row.value; } }
-  return { brand: brands[0] || null, categories, lines, factories, typeMap, products, orders, orderLines, slots, settings: s };
+  return { brand: brands[0] || null, categories, lines, factories, typeMap, products, orders, orderLines, slots, collections, settings: s };
 }
 
 async function log(env, brand, actor, entity, entityId, action, detail) {
@@ -66,6 +67,15 @@ function curveJson(v) {
   return v && typeof v === 'object' && Object.keys(v).length ? JSON.stringify(v) : null;
 }
 const slug = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+/* The task id inside any shape of Asana link: /0/<project>/<task>, /1/<ws>/project/<p>/task/<t>, /1/<ws>/task/<t>. */
+function taskGid(url) {
+  const u = String(url || '');
+  if (!/asana\.com/.test(u)) return null;
+  const explicit = /\/task\/(\d{6,})/.exec(u);
+  if (explicit) return explicit[1];
+  const nums = u.replace(/[?#].*$/, '').match(/\d{6,}/g);
+  return nums ? nums[nums.length - 1] : null;
+}
 
 /* ---------- first run: seed from the legacy Restock settings ---------- */
 const CATEGORY_GUESS = [
@@ -167,15 +177,15 @@ const fmtLong = ymd => ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en
 
 /** The task body: the dates the slot already knows, and the way back to it. */
 function taskNotes(sl, d, url) {
-  const where = [d.line?.name, sl.season].filter(Boolean).join(' · ');
+  const where = [d.line?.name, d.collection?.name || sl.season].filter(Boolean).join(' · ');
   const rows = [
-    ['Brief due', d.briefDue, ''],
-    ['Tech pack due', d.techPackDue, 'what the factory needs to make the sample'],
-    ['Sample due', d.sampleDue, ''],
+    ['Drops', d.onSite, d.collection?.name ? `the ${d.collection.name} drop` : ''],
     ['Order by', d.orderBy, d.factory?.name || ''],
-    ['On the site', d.onSite, ''],
+    ['Sample in hand by', d.sampleDue, ''],
+    ['Tech pack by', d.techPackDue, 'what the factory needs to make the sample'],
+    ['Brief by', d.briefDue, ''],
   ];
-  const tail = 'Every date is worked back from the on-site date in Supply, and this task is due on whichever one its stage is working toward. Move the stage on the slot and the due date follows.';
+  const tail = 'The drop date is the one that matters. The rest are worked back from it through the factory lead time, and this task is due on whichever one its stage is working toward, so its date moves as the work moves.';
   const plain = [where, '', ...rows.map(([l, v, n]) => `${l}: ${fmtLong(v)}${n ? ` (${n})` : ''}`), '', `The slot in Supply: ${url}`, '', tail].join('\n');
   const html = `<body>${where ? `<strong>${htmlEsc(where)}</strong>\n` : ''}<ul>${rows.map(([l, v, n]) => `<li>${htmlEsc(l)}: <strong>${htmlEsc(fmtLong(v))}</strong>${n ? ` (${htmlEsc(n)})` : ''}</li>`).join('')}</ul>\n<a href="${htmlEsc(url)}">Open the slot in Supply</a>\n\n${htmlEsc(tail)}</body>`;
   return { plain, html };
@@ -205,17 +215,7 @@ const DEFAULT_STEPS = [
   'Added to an order',
   'Listed on the site',
 ];
-function stepDue(name, d) {
-  const n = String(name).toLowerCase();
-  if (n.includes('brief')) return d.briefDue;
-  if (n.includes('tech pack')) return d.techPackDue;
-  if (n.includes('artwork') || n.includes('design')) return d.techPackDue;
-  if (n.includes('sample')) return n.includes('request') ? d.techPackDue : d.sampleDue;
-  if (n.includes('order')) return d.orderBy;
-  if (n.includes('site') || n.includes('live') || n.includes('list')) return d.onSite;
-  return d.sampleDue;
-}
-async function addSteps(env, parent, d, settings) {
+async function addSteps(env, parent, settings) {
   const raw = Array.isArray(settings.design_steps) ? settings.design_steps : DEFAULT_STEPS;
   const steps = raw.map(x => str(x, 200)).filter(Boolean).slice(0, 20);
   /* Asana puts each new subtask at the TOP of the list and ignores insert_after
@@ -223,7 +223,7 @@ async function addSteps(env, parent, d, settings) {
      and it reads in order. */
   let made = 0;
   for (const name of [...steps].reverse()) {
-    try { await asana(env, `/tasks/${parent}/subtasks`, { method: 'POST', body: { data: { name, due_on: stepDue(name, d) } } }); made++; }
+    try { await asana(env, `/tasks/${parent}/subtasks`, { method: 'POST', body: { data: { name } } }); made++; }
     catch { break; }   // the task itself already exists: a half-built checklist beats a failed create
   }
   return made;
@@ -478,17 +478,48 @@ export default {
         return json({ ok: true });
       }
 
+      /* collections: a drop is a name and one date, and the slots in it follow */
+      if (path === '/api/collections' && (request.method === 'POST' || request.method === 'PUT')) {
+        const c = body || {};
+        const id = c.id || `col-${Date.now().toString(36)}`;
+        if (!c.name || !ymd(c.drop_at)) return bad('a name and a drop date are required');
+        await env.DB.prepare(`INSERT INTO collections (id, brand_id, name, drop_at, notes) VALUES (?1, ?2, ?3, ?4, ?5)
+          ON CONFLICT(id) DO UPDATE SET name = excluded.name, drop_at = excluded.drop_at, notes = excluded.notes, updated_at = datetime('now')`)
+          .bind(id, brand, str(c.name, 80), c.drop_at, str(c.notes, 2000)).run();
+        await log(env, brand, actor, 'collection', id, request.method === 'POST' ? 'create' : 'update', c);
+        /* the drop date is the drop date: every task in it is due against the new one */
+        const after = await loadDb(env, brand);
+        const touched = (after.slots || []).filter(x => x.collection_id === id && x.asana_gid).slice(0, 30);
+        for (const sl of touched) await pushTaskDue(env, sl, after);
+        return json({ ok: true, id, tasksMoved: touched.length });
+      }
+      if (path.startsWith('/api/collections/') && request.method === 'DELETE') {
+        const id = decodeURIComponent(path.slice('/api/collections/'.length));
+        /* the slots outlive it: they keep the date they already had */
+        await env.DB.batch([
+          env.DB.prepare(`UPDATE slots SET collection_id = NULL WHERE collection_id = ?1 AND brand_id = ?2`).bind(id, brand),
+          env.DB.prepare(`DELETE FROM collections WHERE id = ?1 AND brand_id = ?2`).bind(id, brand),
+        ]);
+        await log(env, brand, actor, 'collection', id, 'delete');
+        return json({ ok: true });
+      }
+
       /* slots */
       if (path === '/api/slots' && (request.method === 'POST' || request.method === 'PUT')) {
         const s = body || {};
         const id = s.id || `slot-${Date.now().toString(36)}`;
-        if (!s.line_id || !s.name || !ymd(s.on_site_at)) return bad('line, name and on-site date required');
+        const col = s.collection_id ? await env.DB.prepare(`SELECT * FROM collections WHERE id = ?1 AND brand_id = ?2`).bind(str(s.collection_id, 80), brand).first() : null;
+        if (col && !ymd(s.on_site_at)) s.on_site_at = col.drop_at;   // the collection's date stands in
+        if (!s.line_id || !s.name || !ymd(s.on_site_at)) return bad('line, name and a date required');
         const status = ['needs_brief', 'in_design', 'tech_pack', 'sampling', 'approved', 'ordered', 'live'].includes(s.status) ? s.status : 'needs_brief';
-        await env.DB.prepare(`INSERT INTO slots (id, brand_id, line_id, name, season, status, on_site_at, brief_due, sample_due, order_by, lands_at, asana_task, lineup_event, product_id, notes, updated_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, datetime('now'))
-          ON CONFLICT(id) DO UPDATE SET line_id = excluded.line_id, name = excluded.name, season = excluded.season, status = excluded.status, on_site_at = excluded.on_site_at,
+        await env.DB.prepare(`INSERT INTO slots (id, brand_id, line_id, name, season, status, on_site_at, brief_due, sample_due, order_by, lands_at, asana_task, lineup_event, product_id, notes, collection_id, updated_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, datetime('now'))
+          ON CONFLICT(id) DO UPDATE SET line_id = excluded.line_id, name = excluded.name, season = excluded.season, status = excluded.status, on_site_at = excluded.on_site_at, collection_id = excluded.collection_id,
             brief_due = excluded.brief_due, sample_due = excluded.sample_due, order_by = excluded.order_by, lands_at = excluded.lands_at, asana_task = COALESCE(excluded.asana_task, asana_task), lineup_event = excluded.lineup_event, product_id = excluded.product_id, notes = excluded.notes, updated_at = datetime('now')`)
-          .bind(id, brand, str(s.line_id, 80), str(s.name, 80), str(s.season, 40), status, s.on_site_at, ymd(s.brief_due), ymd(s.sample_due), ymd(s.order_by), ymd(s.lands_at), str(s.asana_task, 300), str(s.lineup_event, 80), s.product_id ? String(s.product_id).replace(/\D/g, '') : null, str(s.notes, 2000)).run();
+          .bind(id, brand, str(s.line_id, 80), str(s.name, 80), str(s.season, 40), status, s.on_site_at, ymd(s.brief_due), ymd(s.sample_due), ymd(s.order_by), ymd(s.lands_at), str(s.asana_task, 300), str(s.lineup_event, 80), s.product_id ? String(s.product_id).replace(/\D/g, '') : null, str(s.notes, 2000), col ? col.id : null).run();
+        /* a task link typed or pasted by hand is as good as one Supply made: take its gid so the status shows */
+        const pasted = taskGid(s.asana_task);
+        if (pasted) await env.DB.prepare(`UPDATE slots SET asana_gid = ?3 WHERE id = ?1 AND brand_id = ?2 AND (asana_gid IS NULL OR asana_gid != ?3)`).bind(id, brand, pasted).run();
         /* a link cleared by hand means that task is not this slot's any more: forget its status too.
            A save that simply does not mention the field (any partial write) leaves the link alone. */
         if ('asana_task' in (body || {}) && !str(s.asana_task, 300))
@@ -511,7 +542,7 @@ export default {
         if (!project) return bad('No Asana project chosen yet. Pick one in Settings, Asana.');
         const d = slotDates(sl, db);
         const t = await createSlotTask(env, sl, d, project);
-        const steps = await addSteps(env, t.gid, d, db.settings);
+        const steps = await addSteps(env, t.gid, db.settings);
         await env.DB.prepare(`UPDATE slots SET asana_task = ?3, asana_gid = ?4, asana_done = 0, asana_checked = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND brand_id = ?2`)
           .bind(id, brand, t.permalink_url || null, t.gid).run();
         await log(env, brand, actor, 'slot', id, 'asana-create', { gid: t.gid, url: t.permalink_url, project, steps });

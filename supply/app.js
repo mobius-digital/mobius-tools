@@ -13,6 +13,7 @@ const S = {
   tab: 'today', state: null, loading: false, err: null,
   sel: new Set(), qty: {},            // Reorder selection + edited quantities (variantId -> qty)
   q: '', filter: 'decide', statusFilter: '', lineFilter: '', cat: '', perfLine: '', planLine: '', tlFilter: 'all',
+  planMode: 'lines', planCol: '',      // Lineup plan: by line, or by drop
   ordersFilter: 'open', open: null, sheetKind: null,
 };
 

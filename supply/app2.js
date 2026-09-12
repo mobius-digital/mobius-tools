@@ -69,10 +69,11 @@ function lineInsights(l, ps) {
    LINEUP PLAN: a ranked list with a decision on every row
    ====================================================================== */
 window.renderLineup = function (m) {
+  if ((S.planMode || 'lines') === 'collections') return renderCollections(m);
   const s = st();
   const planned = s.lines.filter(l => l.planned);
   const line = planned.find(l => l.id === S.planLine) || planned[0];
-  if (!line) { title('Lineup plan', 'Decide what stays for next season, line by line.'); m.innerHTML = `<div class="card sc br"><h3>No line is planned yet</h3><div class="hint">Lineup plan switches itself on for any line with six or more designs. None has that many yet.</div><div style="margin-top:10px"><button class="btn primary" onclick="S.setTab='lines';setTab('settings')">Open Settings</button></div></div>`; return; }
+  if (!line) { title('Lineup plan', 'Decide what stays, line by line.', planModeSeg()); m.innerHTML = `<div class="card sc br"><h3>No line is planned yet</h3><div class="hint">Lineup plan switches itself on for any line with six or more designs. None has that many yet.</div><div style="margin-top:10px"><button class="btn primary" onclick="S.setTab='lines';setTab('settings')">Open Settings</button></div></div>`; return; }
   if (!line) { title('Lineup plan'); m.innerHTML = `<div class="card"><div class="empty"><b>No product lines yet</b>Set them up in Settings.</div></div>`; return; }
   const season = s.settings.season_name || nextSeason();
   const ps = productsOf(line).filter(p => p.lifecycle !== 'drop');
@@ -83,7 +84,7 @@ window.renderLineup = function (m) {
   const perDesign = line.moq || factoryById(line.factoryId)?.moq_default || 100;
   const unitCost = median(ps.map(p => p.cost).filter(x => x != null));
   title(`Lineup plan <em>· ${esc(line.categoryName || '')} · ${esc(line.name)}</em>`, `Decide what stays for ${esc(season)}. ${plural(ps.length, 'design')} today${line.target ? `, target ${line.target}` : ', no target yet'}${line.cutRulePct ? `, cut rule bottom ${line.cutRulePct}% by 90-day sales` : ', manual cuts'}.`,
-    `<select onchange="S.planLine=this.value;render()">${planned.map(l => `<option value="${l.id}" ${l.id === line.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select><button class="btn" onclick="editLineTarget('${line.id}')">Target ${line.target ?? '—'} ${ic('chev')}</button>`);
+    `${planModeSeg()}<select onchange="S.planLine=this.value;render()">${planned.map(l => `<option value="${l.id}" ${l.id === line.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select><button class="btn" onclick="editLineTarget('${line.id}')">Target ${line.target ?? '—'} ${ic('chev')}</button>`);
   m.innerHTML = `
     <div class="card sc br" style="padding:12px 18px"><div class="hint">Any line with six or more designs is planned here automatically: right now ${planned.map(l => l.name).join(', ')}. Lines with a handful of models (putters, wedges) are not. The target and the cut rule can be changed per line in Settings.</div></div>
     <div class="two wide">
@@ -105,6 +106,99 @@ window.renderLineup = function (m) {
       </div>
     </div>`;
 };
+const planModeSeg = () => `<div class="seg">${[['lines', 'By line'], ['collections', 'By drop']].map(([k, l]) => `<button class="${(S.planMode || 'lines') === k ? 'on' : ''}" onclick="S.planMode='${k}';render()">${l}</button>`).join('')}</div>`;
+
+/* ======================================================================
+   DROPS: a collection is a group of new designs that go live together,
+   across lines, on one date. Everything else about a slot is worked back
+   from that date, so moving it moves the whole drop.
+   ====================================================================== */
+function renderCollections(m) {
+  const s = st();
+  const cols = s.collections || [];
+  const col = cols.find(c => c.id === S.planCol) || cols[0];
+  title(`Lineup plan <em>· drops</em>`, 'A drop is the designs that go live together, whatever line they are in. One date each.',
+    `${planModeSeg()}<button class="btn primary" onclick="editCollection()">${ic('plus')}New drop</button>`);
+  if (!cols.length) {
+    m.innerHTML = `<div class="card sc br" style="max-width:640px"><h3>No drops yet</h3><div class="hint">A drop is a set of new designs that go live on the same day: a themed collection like Car Bomb, or a plain refresh like Q1 polos. Give it a name and the day it goes on the site, then add the designs from any line.</div><div style="margin-top:12px"><button class="btn primary" onclick="editCollection()">${ic('plus')}Make the first drop</button></div></div>`;
+    return;
+  }
+  const mine = s.slots.filter(sl => sl.collection_id === col.id);
+  const loose = s.slots.filter(sl => !sl.collection_id);
+  m.innerHTML = `
+    <div class="two wide">
+      <div class="stack">
+        ${mine.length ? `<div class="card flush"><div class="tbl-wrap"><table>
+          <tr><th>Design</th><th>Line</th><th>Stage</th><th>Asana</th><th></th></tr>
+          ${mine.map(sl => `<tr>
+            <td class="click" onclick="openSlot('${sl.id}')"><b>${esc(sl.name)}</b>${sl.late ? ` <span class="tiny" style="color:var(--bad);font-weight:700">late</span>` : ''}</td>
+            <td class="tiny">${esc(sl.lineName || '')}</td>
+            <td>${pill(SLOT_STATUS[sl.status]?.[1] || 'unk', SLOT_STATUS[sl.status]?.[0] || sl.status)}</td>
+            <td>${asanaPill(sl) || '<span class="tiny">not made yet</span>'}</td>
+            <td style="text-align:right">${asanaButton(sl, 'sm')}</td></tr>`).join('')}
+        </table></div></div>` : `<div class="card"><div class="empty"><b>Nothing in this drop yet</b>Add designs from any line below.</div></div>`}
+        <div class="card"><h3>Add designs to ${esc(col.name)}</h3><div class="hint">Pick a line and how many. Each one becomes a slot in this drop, with its dates worked back from ${fmtDate(col.drop_at, { year: true })}.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${s.lines.filter(l => l.planned).map(l => `<button class="btn sm" onclick="addToCollection('${col.id}','${l.id}')">${ic('plus')}${esc(l.name)}</button>`).join('') || '<span class="hint">No lines are planned yet.</span>'}</div></div>
+        ${loose.length ? `<div class="card"><h3>Not in a drop</h3><div class="hint">${plural(loose.length, 'design')} made before drops existed, or made on their own. Open one to put it in a drop.</div>
+          ${loose.map(sl => slotRow(sl)).join('')}</div>` : ''}
+      </div>
+      <div class="stack">
+        <div class="grph"><span>Drops</span><span class="ln"></span></div>
+        ${cols.map(c => `<div class="card ${c.id === col.id ? 'key' : ''}" style="cursor:pointer;padding:14px 18px" onclick="S.planCol='${c.id}';render()">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><b>${esc(c.name)}</b><span class="tiny">${fmtDate(c.drop_at, { year: true })}</span></div>
+          <div class="tiny" style="margin-top:4px">${plural(c.designs, 'design')}${c.lines.length ? ` · ${c.lines.join(', ')}` : ''}${c.late ? ` · <span style="color:var(--bad);font-weight:700">${c.late} late</span>` : ''}</div>
+          <div class="tiny" style="margin-top:4px">${c.withTask} of ${c.designs} in Asana${c.orderBy ? ` · first order by ${fmtDate(c.orderBy)}` : ''}</div>
+        </div>`).join('')}
+        <div class="card sc br"><h3>${esc(col.name)}</h3><div class="hint">Goes on the site ${fmtDate(col.drop_at, { year: true })}.${col.orderBy ? ` To make that, the first order has to be placed by ${fmtDate(col.orderBy, { year: true })}.` : ''} Change the date and every design in the drop moves with it.</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="editCollection('${col.id}')">Edit the drop</button><button class="btn" onclick="tasksForCollection('${col.id}')">Create the Asana tasks</button><button class="btn quiet danger" onclick="deleteCollection('${col.id}')">Delete</button></div></div>
+      </div>
+    </div>`;
+}
+async function editCollection(id) {
+  const c = id ? (st().collections || []).find(x => x.id === id) : null;
+  const r = await modal({
+    title: c ? `Edit ${c.name}` : 'New drop',
+    hint: 'A name and the day it goes on the site. Brief, tech pack, sample and order dates are worked back from that day for every design in it.',
+    fields: [
+      { key: 'name', label: 'Name', value: c?.name || '', help: 'A theme like Car Bomb, or a plain one like Q1 polos.' },
+      { key: 'drop_at', label: 'On the site', type: 'date', value: c?.drop_at || defaultOnSite() },
+      { key: 'notes', label: 'Notes', type: 'textarea', value: c?.notes || '', wide: true }],
+    confirm: c ? 'Save' : 'Create',
+  });
+  if (!r || !r.name || !r.drop_at) return;
+  const res = await save('/api/collections', { id: c?.id, name: r.name, drop_at: r.drop_at, notes: r.notes }, c ? 'PUT' : 'POST', c ? 'Saved' : 'Drop created');
+  if (res?.id) S.planCol = res.id;
+  S.planMode = 'collections'; render();
+}
+async function deleteCollection(id) {
+  const c = (st().collections || []).find(x => x.id === id);
+  const ok = await modal({ title: `Delete ${c?.name}?`, fields: false, confirm: 'Delete', danger: true, hint: 'The designs in it are kept, they just stop belonging to a drop. Asana tasks are not touched.' });
+  if (!ok) return;
+  await save(`/api/collections/${id}`, null, 'DELETE', 'Deleted'); S.planCol = ''; render();
+}
+async function addToCollection(colId, lineId) {
+  const l = lineById(lineId), c = (st().collections || []).find(x => x.id === colId);
+  const r = await modal({ title: `Add ${l.name} to ${c.name}`, hint: 'How many new designs of this line the drop needs.', fields: [{ key: 'count', label: 'How many', type: 'number', value: 1, min: 1 }], confirm: 'Add' });
+  if (!r) return;
+  const existing = st().slots.filter(x => x.collection_id === colId && x.line_id === lineId).length;
+  const n = Math.min(20, Math.max(1, +r.count || 1));
+  for (let i = 0; i < n; i++)
+    await api('/api/slots', { method: 'POST', body: { line_id: lineId, collection_id: colId, name: `${c.name} ${l.name.toLowerCase().replace(/s$/, '')} ${existing + i + 1}`, status: 'needs_brief' } });
+  await load({ quiet: true }); toast(`${plural(n, 'design')} added to ${c.name}`);
+}
+/** Make the Asana task for every design in the drop that has not got one. */
+async function tasksForCollection(colId) {
+  const todo = st().slots.filter(sl => sl.collection_id === colId && !sl.asana_task);
+  if (!todo.length) { toast('Every design in this drop already has a task'); return; }
+  const ok = await modal({ title: `Create ${plural(todo.length, 'Asana task')}?`, fields: false, confirm: 'Create', hint: 'One task per design that has not got one, in your Asana project, each with its checklist.' });
+  if (!ok) return;
+  let made = 0;
+  for (const sl of todo) {
+    try { await api(`/api/slots/${encodeURIComponent(sl.id)}/asana`, { method: 'POST' }); made++; toast(`${made} of ${todo.length}…`); }
+    catch (e) { toast(e.message, { kind: 'err' }); break; }
+  }
+  await load({ quiet: true }); if (made) toast(`${plural(made, 'task')} created in Asana`);
+}
 function nextSeason() { const y = new Date().getFullYear(); const mth = new Date().getMonth(); return mth >= 6 ? `Spring ${y + 1}` : `Fall ${y}`; }
 function median(xs) { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; }
 async function decide(pid, decision) { await save(`/api/products/${pid}`, { decision }, 'PUT', decision === 'cut' ? 'Cut. It stops reordering and sells down.' : decision === 'keep' ? 'Kept' : 'Back to the rule'); }
@@ -174,14 +268,31 @@ function asanaSheetHTML(sl) {
 }
 async function createSlots(lineId, n) {
   const l = lineById(lineId); const s = st();
-  const r = await modal({ title: `New ${plural(n, 'design slot')} for ${l.name}`, hint: 'One date by hand: when the designs must be on the site. Supply works the brief, sample and order dates back from it using the factory lead time.', fields: [
-    { key: 'season', label: 'Season', value: s.settings.season_name || nextSeason() },
-    { key: 'on_site', label: 'On the site by', type: 'date', value: s.settings.season_on_site || defaultOnSite() },
-    { key: 'count', label: 'How many', type: 'number', value: n, min: 1 }], confirm: 'Create' });
+  const cols = s.collections || [];
+  const r = await modal({
+    title: `New ${plural(n, 'design')} for ${l.name}`,
+    hint: 'Designs go live in a drop. Pick the drop they belong to, or start a new one; its date is what every other date is worked back from.',
+    fields: [
+      { key: 'col', label: 'Drop', type: 'select', value: S.planCol || cols[0]?.id || 'new', options: [...cols.map(c => [c.id, `${c.name} · ${fmtDate(c.drop_at, { year: true })}`]), ['new', 'Start a new drop']] },
+      { key: 'count', label: 'How many', type: 'number', value: n, min: 1 },
+      { key: 'name', label: 'New drop name', value: nextSeason(), help: 'Only used if you chose to start a new one.' },
+      { key: 'drop_at', label: 'New drop goes live', type: 'date', value: defaultOnSite(), help: 'Only used if you chose to start a new one.' }],
+    confirm: 'Create',
+  });
   if (!r) return;
-  const existing = s.slots.filter(x => x.line_id === lineId).length;
-  for (let i = 0; i < Math.max(1, +r.count || 1); i++) await api('/api/slots', { method: 'POST', body: { line_id: lineId, name: `${r.season} design ${existing + i + 1}`, season: r.season, on_site_at: r.on_site, status: 'needs_brief' } });
-  await save('/api/settings', { season_name: r.season, season_on_site: r.on_site }, 'PUT', `${plural(+r.count || 1, 'slot')} created`);
+  let colId = r.col;
+  if (colId === 'new') {
+    if (!r.name || !r.drop_at) { toast('A new drop needs a name and a date', { kind: 'err' }); return; }
+    const made = await api('/api/collections', { method: 'POST', body: { name: r.name, drop_at: r.drop_at } });
+    colId = made.id;
+  }
+  const c = { id: colId, name: cols.find(x => x.id === colId)?.name || r.name };
+  const existing = s.slots.filter(x => x.collection_id === colId && x.line_id === lineId).length;
+  const count = Math.min(20, Math.max(1, +r.count || 1));
+  for (let i = 0; i < count; i++)
+    await api('/api/slots', { method: 'POST', body: { line_id: lineId, collection_id: colId, name: `${c.name} ${l.name.toLowerCase().replace(/s$/, '')} ${existing + i + 1}`, status: 'needs_brief' } });
+  S.planCol = colId;
+  await load({ quiet: true }); toast(`${plural(count, 'design')} added to ${c.name}`);
 }
 function defaultOnSite() { const y = new Date().getFullYear(); return new Date().getMonth() >= 6 ? `${y + 1}-03-01` : `${y}-09-01`; }
 function openSlot(id) {
@@ -189,22 +300,27 @@ function openSlot(id) {
   S.open = { slotId: id };
   const d = sl.dates;
   openSheet(`
-    <div class="sh-top"><div><h3>${esc(sl.name)}</h3><div class="sm">${esc(sl.lineName || '')} · ${esc(sl.season || '')} · ${pill(SLOT_STATUS[sl.status]?.[1] || 'unk', SLOT_STATUS[sl.status]?.[0] || sl.status)}</div></div><div class="sh-nav"><button onclick="closeSheet()">${ic('x')}</button></div></div>
+    <div class="sh-top"><div><h3>${esc(sl.name)}</h3><div class="sm">${esc(sl.lineName || '')} · ${esc(sl.collectionName || 'no drop')} · ${pill(SLOT_STATUS[sl.status]?.[1] || 'unk', SLOT_STATUS[sl.status]?.[0] || sl.status)}</div></div><div class="sh-nav"><button onclick="closeSheet()">${ic('x')}</button></div></div>
     <div class="fields">
       <div class="field"><label>Name</label><input id="slName" value="${esc(sl.name)}"></div>
       <div class="field"><label>Status</label><select id="slStatus">${Object.entries(SLOT_STATUS).map(([k, [l]]) => `<option value="${k}" ${sl.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <div class="field"><label>On the site by</label><input type="date" id="slSite" value="${sl.on_site_at}"><div class="help">The one date typed by hand. The rest derive from it.</div></div>
+      <div class="field"><label>Drop</label><select id="slCol">${[['', 'Not in a drop'], ...(st().collections || []).map(c => [c.id, `${c.name} · ${fmtDate(c.drop_at, { year: true })}`])].map(([v, l]) => `<option value="${esc(v)}" ${String(sl.collection_id || '') === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><div class="help">${sl.collection_id ? 'The drop owns the date. Change it on the drop and every design in it moves.' : 'On its own, so it keeps the date below.'}</div></div>
+      <div class="field"><label>On the site by</label><input type="date" id="slSite" value="${sl.on_site_at}" ${sl.collection_id ? 'disabled' : ''}><div class="help">${sl.collection_id ? `Comes from the drop: ${fmtDate(sl.dropAt, { year: true })}.` : 'Everything else is worked back from this.'}</div></div>
       <div class="field"><label>Asana task</label><input id="slAsana" value="${esc(sl.asana_task || '')}" placeholder="Paste a task link, or use the button below"><div class="help">The brief, mockups and samples live there. Empty this field to unlink the task.</div></div>
       <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea id="slNotes">${esc(sl.notes || '')}</textarea></div>
     </div>
     <div class="panel"><h4>Asana</h4><div class="sub">The design work itself. Supply tracks whether it is still open.</div>
       <div id="slAsanaBox" style="margin-top:8px">${asanaSheetHTML(sl)}</div></div>
-    <div class="panel"><h4>Dates, worked backwards</h4><div class="sub">Change a factory lead time or the on-site date and these move.</div>
+    <div class="panel"><h4>Dates, worked backwards</h4><div class="sub">Change the drop date or a factory lead time and these all move.</div>
       <table style="font-size:13px">${[['Design starts', d.designStart, false], ['Brief due', d.briefDue, sl.lateParts?.brief], ['Tech pack due', d.techPackDue, sl.lateParts?.techPack], ['Sample due', d.sampleDue, sl.lateParts?.sample], ['Order by', d.orderBy, sl.lateParts?.order], ['Production ends', d.productionEnd, false], ['Lands', d.lands, false], ['On the site', d.onSite, false]].map(([l, v, late]) => `<tr><td class="tiny">${l}</td><td><b style="${late ? 'color:var(--bad)' : ''}">${fmtDate(v, { year: true })}</b>${late ? ' <span class="tiny" style="color:var(--bad)">late</span>' : ''}</td></tr>`).join('')}</table></div>
     <div class="sh-foot"><button class="btn primary" onclick="saveSlot()">Save</button><span style="flex:1"></span><button class="btn quiet danger" onclick="deleteSlot()">Delete slot</button></div>`, 'slot');
   refreshSlotAsana(id);
 }
-async function saveSlot() { const sl = st().slots.find(x => x.id === S.open.slotId); await save('/api/slots', { ...sl, name: $('#slName').value, status: $('#slStatus').value, on_site_at: $('#slSite').value, asana_task: $('#slAsana').value, notes: $('#slNotes').value, brief_due: null, sample_due: null, order_by: null, lands_at: null }); closeSheet(); }
+async function saveSlot() {
+  const sl = st().slots.find(x => x.id === S.open.slotId);
+  await save('/api/slots', { ...sl, name: $('#slName').value, status: $('#slStatus').value, collection_id: $('#slCol').value || null, on_site_at: $('#slSite').value || sl.on_site_at, asana_task: $('#slAsana').value, notes: $('#slNotes').value, brief_due: null, sample_due: null, order_by: null, lands_at: null });
+  closeSheet();
+}
 async function deleteSlot() { const ok = await modal({ title: 'Delete this slot?', fields: false, confirm: 'Delete', danger: true, hint: 'The Asana task, if any, is not touched.' }); if (!ok) return; await save(`/api/slots/${S.open.slotId}`, null, 'DELETE', 'Deleted'); closeSheet(); }
 
 /* ======================================================================
@@ -251,7 +367,7 @@ function timelineItems(s) {
   }
   for (const sl of s.slots) {
     const d = sl.dates; const f = factoryById(sl.factoryId);
-    items.push({ kind: 'slot', group: sl.season || 'New designs', label: sl.name, sub: `${sl.lineName || ''} · ${SLOT_STATUS[sl.status]?.[0] || sl.status}`, open: `openSlot('${sl.id}')`,
+    items.push({ kind: 'slot', group: sl.collectionName || 'New designs', label: sl.name, sub: `${sl.lineName || ''} · ${SLOT_STATUS[sl.status]?.[0] || sl.status}`, open: `openSlot('${sl.id}')`,
       phases: [[d.designStart, d.briefDue, 'design', '#14608C'], [d.briefDue, d.sampleDue, 'sample', '#62BDEA'], [d.sampleDue, d.orderBy, '', '#DCE7EE'], [d.orderBy, d.productionEnd, f ? `production ${f.production_days} d` : 'production', '#C9962A'], [d.productionEnd, d.lands, 'ship', '#7A8794'], [d.lands, d.onSite, '', '#C3CED8']],
       marks: [{ date: d.briefDue, label: `${sl.name}: brief due`, late: sl.lateParts?.brief }, { date: d.sampleDue, label: `${sl.name}: sample due`, late: sl.lateParts?.sample }, { date: d.orderBy, label: `${sl.name}: order by`, late: sl.lateParts?.order }, { date: d.onSite, label: `${sl.name} on site`, good: true }] });
   }
@@ -399,8 +515,6 @@ function settingsRules(s) {
     ['reliable_days', 'Days on the shelf before a size has its own rate', 'Below this, a size\'s demand comes from the line\'s size curve.'], ['site_prep_days', 'Days from landing to on the site', 'Receiving, photography, listing.'], ['design_days', 'Design days', 'From brief to first sample request.'], ['sample_days', 'Sampling days', 'From sample request to approval.'], ['tech_pack_days', 'Tech pack to sample in hand (days)', 'What the factory needs from getting the tech pack to the sample arriving. Sets the tech pack date.'], ['slack_days', 'Slack before the order date', 'Room for a second sample round.'], ['dead_days', 'Dead stock after (days without a sale)', '']];
   return `<div class="card"><h3>Rules</h3><div class="hint">The numbers behind every date and suggestion. Change one and every screen follows.</div>
     <div class="fields" style="margin-top:12px">${R.map(([k, l, h]) => `<div class="field"><label>${l}</label><input type="number" min="0" value="${s.settings[k] ?? ''}" onchange="save('/api/settings',{${k}:+this.value})">${h ? `<div class="help">${h}</div>` : ''}</div>`).join('')}
-      <div class="field"><label>Season name</label><input value="${esc(s.settings.season_name || '')}" placeholder="${nextSeason()}" onchange="save('/api/settings',{season_name:this.value})"></div>
-      <div class="field"><label>Season on-site date</label><input type="date" value="${esc(s.settings.season_on_site || '')}" onchange="save('/api/settings',{season_on_site:this.value})"></div>
     </div></div>
     <div class="card"><h3>How a status is decided</h3><div class="hint">Core sizes are the ones carrying 80% of a product's sales. A product is <b>Out</b> when core sizes at zero carry half its sales; otherwise an empty size is a size gap. <b>Order now</b> when the order-by date (run-out minus lead time) is inside the factory's order window. <b>Coming up</b> within the window plus ${s.settings.watch_days} days. <b>Stock gap</b> when an order is on the way but lands after the run-out. <b>On the way</b> when it lands in time.</div></div>`;
 }

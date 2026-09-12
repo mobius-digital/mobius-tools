@@ -114,17 +114,20 @@ export function slotDates(sl, db) {
   const num = (k, fb) => { const n = Number(S[k]); return Number.isFinite(n) ? n : fb; };
   const line = (db.lines || []).find(l => l.id === sl.line_id) || null;
   const factory = line && line.factory_id ? ((db.factories || []).find(f => f.id === line.factory_id) || null) : null;
+  /* the collection owns the drop date: move it there and every slot in it moves */
+  const collection = sl.collection_id ? ((db.collections || []).find(c => c.id === sl.collection_id) || null) : null;
+  const onSite = collection?.drop_at || sl.on_site_at;
   const prod = line?.lead_override_days != null ? line.lead_override_days : (factory ? factory.production_days : 40);
   const ship = line?.lead_override_days != null ? 0 : (factory ? factory.shipping_days : 20);
-  const lands = sl.lands_at || addDays(sl.on_site_at, -num('site_prep_days', 14));
+  const lands = sl.lands_at || addDays(onSite, -num('site_prep_days', 14));
   const orderBy = sl.order_by || addDays(lands, -(num('buffer_days', 10) + ship + prod));
   const sampleDue = sl.sample_due || addDays(orderBy, -num('slack_days', 18));
   const briefDue = sl.brief_due || addDays(sampleDue, -num('sample_days', 35));
   const designStart = addDays(briefDue, -num('design_days', 30));
   /* the tech pack is what buys the sample: back it off the sample date, never before the brief */
   const techPackDue = [addDays(sampleDue, -num('tech_pack_days', 21)), briefDue].sort()[1];
-  const dates = { designStart, briefDue, techPackDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite: sl.on_site_at };
-  return { line, factory, dates, ...dates };
+  const dates = { designStart, briefDue, techPackDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite };
+  return { line, factory, collection, dates, ...dates };
 }
 
 /* ---------- main ---------- */
@@ -382,8 +385,20 @@ export function computeSupply(raw, db) {
       sample: ['needs_brief', 'in_design', 'tech_pack'].includes(sl.status) && d.sampleDue < today,
       order: !['ordered', 'live'].includes(sl.status) && d.orderBy < today,
     };
-    return { ...sl, lineName: d.line?.name || null, factoryId: d.factory?.id || null, dates: d.dates, late: Object.values(late).some(Boolean), lateParts: late };
+    return { ...sl, lineName: d.line?.name || null, factoryId: d.factory?.id || null, collectionName: d.collection?.name || sl.season || null, dropAt: d.onSite, dates: d.dates, late: Object.values(late).some(Boolean), lateParts: late };
   });
+
+  /* collections, with what is in them */
+  const collectionsOut = (db.collections || []).map(c => {
+    const mine = slots.filter(sl => sl.collection_id === c.id);
+    const lineNames = [...new Set(mine.map(sl => sl.lineName).filter(Boolean))];
+    return {
+      ...c, designs: mine.length, lines: lineNames, late: mine.filter(sl => sl.late).length,
+      byStatus: countBy(mine, sl => sl.status), withTask: mine.filter(sl => sl.asana_task).length,
+      done: mine.filter(sl => sl.status === 'live').length,
+      orderBy: mine.length ? mine.map(sl => sl.dates.orderBy).sort()[0] : null,
+    };
+  }).sort((a, b) => (a.drop_at < b.drop_at ? -1 : 1));
 
   /* orders enriched */
   const productById = Object.fromEntries(products.map(p => [p.id, p]));
@@ -467,7 +482,7 @@ export function computeSupply(raw, db) {
     headline: { toOrder: toOrder.length, overdue: overdueN, orderByLatest, onTheWay: landingSoon.length, nextLanding: landingSoon[0]?.expected_at || null, nextLandingUnits: landingSoon[0]?.units || null, revenueAtRisk, dead },
     decisions: decisionsOut.slice(0, 8),
     products: products.sort((a, b) => rank(a) - rank(b) || (a.orderByDays ?? 9e9) - (b.orderByDays ?? 9e9)),
-    lines: lineOut, categories: Object.values(categories), factories: factoryOut, orders, slots,
+    lines: lineOut, categories: Object.values(categories), factories: factoryOut, orders, slots, collections: collectionsOut,
     unsortedTypes: [...unsortedTypes],
     counts: countBy(products, p => p.status),
   };
