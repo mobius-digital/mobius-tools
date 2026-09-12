@@ -153,7 +153,7 @@ function renderCollections(m) {
           <div class="tiny" style="margin-top:4px">${c.withTask} of ${c.designs} in Asana${c.orderBy ? ` · first order by ${fmtDate(c.orderBy)}` : ''}</div>
         </div>`).join('')}
         <div class="card sc br"><h3>${esc(col.name)}</h3><div class="hint">Goes on the site ${fmtDate(col.drop_at, { year: true })}.${col.orderBy ? ` To make that, the first order has to be placed by ${fmtDate(col.orderBy, { year: true })}.` : ''} Change the date and every design in the drop moves with it.</div>
-          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="editCollection('${col.id}')">Edit the drop</button><button class="btn" onclick="tasksForCollection('${col.id}')">Create the Asana tasks</button><button class="btn quiet danger" onclick="deleteCollection('${col.id}')">Delete</button></div></div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="editCollection('${col.id}')">Edit the drop</button><button class="btn" onclick="tasksForCollection('${col.id}')">Catch up any missing Asana tasks</button><button class="btn quiet danger" onclick="deleteCollection('${col.id}')">Delete</button></div></div>
       </div>
     </div>`;
 }
@@ -181,7 +181,7 @@ async function deleteCollection(id) {
 }
 async function addToCollection(colId, lineId) {
   const l = lineById(lineId), c = (st().collections || []).find(x => x.id === colId);
-  const r = await modal({ title: `Add ${l.name} to ${c.name}`, hint: 'How many new designs of this line the drop needs.', fields: [{ key: 'count', label: 'How many', type: 'number', value: 1, min: 1 }], confirm: 'Add' });
+  const r = await modal({ title: `Add ${l.name} to ${c.name}`, hint: 'How many new designs of this line the drop needs. Each one gets its Asana task straight away, in the Needs a brief column.', fields: [{ key: 'count', label: 'How many', type: 'number', value: 1, min: 1 }], confirm: 'Add' });
   if (!r) return;
   const existing = st().slots.filter(x => x.collection_id === colId && x.line_id === lineId).length;
   const n = Math.min(20, Math.max(1, +r.count || 1));
@@ -193,7 +193,7 @@ async function addToCollection(colId, lineId) {
 async function tasksForCollection(colId) {
   const todo = st().slots.filter(sl => sl.collection_id === colId && !sl.asana_task);
   if (!todo.length) { toast('Every design in this drop already has a task'); return; }
-  const ok = await modal({ title: `Create ${plural(todo.length, 'Asana task')}?`, fields: false, confirm: 'Create', hint: 'One task per design that has not got one, in your Asana project, each with its checklist.' });
+  const ok = await modal({ title: `Create ${plural(todo.length, 'Asana task')}?`, fields: false, confirm: 'Create', hint: 'Supply makes these by itself when a design is added, so this is only for designs created before the project was chosen, or ones added while Asana was down.' });
   if (!ok) return;
   let made = 0;
   for (const sl of todo) {
@@ -269,7 +269,7 @@ async function refreshSlotAsana(id) {
 function asanaSheetHTML(sl) {
   const t = sl.asanaTask, a = asanaState(sl);
   const steps = (st().settings.design_steps || DEFAULT_STEPS).length;
-  if (!sl.asana_task) return `<div class="hint">No task yet. Creating one puts it in the column for this stage, due on what that column owes, with a link back here${steps ? `, and a ${steps}-step checklist under it` : ''}.</div><div style="margin-top:10px">${asanaButton(sl)}</div>`;
+  if (!sl.asana_task) return `<div class="hint">No task yet, which is unusual: Supply makes one as soon as a design is added. Asana may have been down, or this design is older than the project. Make it now and it lands in the column for this stage, due on what that column owes, with a link back here${steps ? `, and a ${steps}-step checklist under it` : ''}.</div><div style="margin-top:10px">${asanaButton(sl)}</div>`;
   const detail = sl.asanaGone ? 'That task is no longer in Asana. It was deleted or you cannot see it.'
     : t ? `${t.completed ? 'Marked done' : 'Still open'} in Asana${t.section ? `, in ${esc(t.section)}` : ''}${t.due_on ? `, due ${fmtDate(t.due_on, { year: true })}` : ''}${t.assignee ? `, with ${esc(t.assignee)}` : ''}${t.steps ? `, ${plural(t.steps, 'step')} on its checklist` : ''}. Its column sets the stage here, and its due date follows that column.`
     : sl.asana_gid ? 'Checking Asana…' : 'A link you pasted. Supply cannot read the status of a task it did not create.';
@@ -280,7 +280,7 @@ async function createSlots(lineId, n) {
   const cols = s.collections || [];
   const r = await modal({
     title: `New ${plural(n, 'design')} for ${l.name}`,
-    hint: 'Designs go live in a drop. Pick the drop they belong to, or start a new one; its date is what every other date is worked back from.',
+    hint: 'Designs go live in a drop. Pick the drop they belong to, or start a new one; its date is what every other date is worked back from. Each design gets its Asana task as soon as it exists.',
     fields: [
       { key: 'col', label: 'Drop', type: 'select', value: S.planCol || cols[0]?.id || 'new', options: [...cols.map(c => [c.id, `${c.name} · ${fmtDate(c.drop_at, { year: true })}`]), ['new', 'Start a new drop']] },
       { key: 'count', label: 'How many', type: 'number', value: n, min: 1 },
