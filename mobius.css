@@ -74,6 +74,7 @@
     --bad:#9C3A2E;  --bad-bg:#F7E7E4;  --bad-on:#F09182;
     --unk:#647684;  --unk-bg:#EDF1F4;
     --radius:10px;
+    --wash:rgba(98,189,234,.22);
     --sans:'Instrument Sans',system-ui,sans-serif;
     --serif:'Instrument Serif',Georgia,serif;
     --display:'Instrument Sans',system-ui,sans-serif;
@@ -91,7 +92,8 @@ h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .btn{border:1px solid var(--line-strong);border-radius:8px;padding:8px 13px;font-size:13px;font-weight:600;background:var(--surface)}
 .btn:hover{border-color:var(--brand-ink)}
-.btn.primary{background:var(--hd);color:#fff;border-color:var(--hd)}
+.btn.primary{background:linear-gradient(135deg,#1B2E3D,#0C161D);color:#fff;border-color:#0C161D;box-shadow:0 8px 16px -10px rgba(12,22,29,.6)}
+.btn.primary:hover{border-color:#0C161D;filter:brightness(1.12)}
 .btn[disabled]{opacity:.5;cursor:default}
 .gate{max-width:460px;margin:60px auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:34px}
 .gate h1{font-family:var(--serif);font-weight:400;font-size:28px;margin-bottom:6px}
@@ -105,7 +107,7 @@ h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
 .notice.bad{background:var(--bad-bg);border-color:#EBC8C2;color:var(--bad)}
 .notice.good{background:var(--good-bg);border-color:#BFDFC9;color:var(--good)}
 .notice code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:4px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px}
+.card{background:linear-gradient(180deg,#FFFFFF,#FBFDFE);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px;box-shadow:0 1px 2px rgba(19,32,43,.04),0 10px 24px -20px rgba(19,32,43,.25)}
 .card h3{font-size:15px;font-weight:700;margin-bottom:4px}
 .card .hint{color:var(--muted);font-size:13px}
 /* ONE FRAME PER THING (Cole, 2026-08-31: "boxes in boxes all over Locus").
@@ -118,7 +120,7 @@ h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
      from helpers like statCard() and slackPreview() that are also used
      un-nested, where the frame is right. The same markup has to read both
      ways, so the container decides, not the helper. */
-  .card .card{border:0;border-radius:0;background:transparent;padding:0;margin:0}
+  .card .card{border:0;border-radius:0;background:transparent;padding:0;margin:0;box-shadow:none}
 /* Notices keep their severity — that colour IS the signal — but carry it on a
      left rule rather than a full outline. Same device the Reports summary card
      already uses, so this is the existing vocabulary, not a new one. */
@@ -170,8 +172,9 @@ td b{font-weight:700}
      ============================================================ */
 
   /* ---- the dark roll-up ---- */
-  .rollup{display:flex;align-items:stretch;background:var(--ink-panel);color:var(--on-ink);
-    border-radius:var(--radius);overflow:hidden;margin-bottom:22px;flex-wrap:wrap}
+  .rollup{display:flex;align-items:stretch;color:var(--on-ink);border-radius:12px;overflow:hidden;margin-bottom:22px;flex-wrap:wrap;
+    background:radial-gradient(600px 200px at 0% 0%,var(--wash),transparent 70%),linear-gradient(135deg,#17293A,#0C161D 70%);
+    box-shadow:0 18px 36px -24px rgba(12,22,29,.6)}
 .ru{padding:15px 20px 16px;border-left:1px solid var(--ink-panel-2);flex:1 1 160px;min-width:0}
 .ru:first-child{border-left:none}
 /* ---- triage group heading ---- */
@@ -270,8 +273,12 @@ a.sc,.sc[data-id]{cursor:pointer}
 .toggle.on{background:var(--good)}
 .toggle.on::after{left:19px}
 /* Change Log (Chat 1) */
-  .chip{border:1px solid var(--line-strong);border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:600;background:var(--surface)}
-.chip.on{background:var(--hd);color:#fff;border-color:var(--hd)}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);border-radius:99px;padding:5px 11px;font-size:12.5px;font-weight:600;background:var(--surface);color:var(--ink-2)}
+.chip small{font-weight:700;color:#8195A2}
+.chip.on{background:#0C161D;color:#fff;border-color:#0C161D}
+.chip.on small{color:#8FA6B5}
+.chip:hover{border-color:var(--brand-ink)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
 /* Controls. `.modal` is in the list because modals are appended to <body>,
      OUTSIDE <main> - so a main-scoped rule never reaches them and every select
      and input inside a modal fell back to the raw OS widget. Cole spotted it on
@@ -327,3 +334,84 @@ a.ad-link:hover{color:var(--brand-ink);text-decoration:underline}
 a.ad-link .ext{color:var(--muted);font-size:10.5px;margin-left:5px;vertical-align:1px}
 a.ad-link:hover .ext{color:var(--brand-ink)}
 h2{font-size:21px}
+
+/* ============================================================
+   SHARED SHELL VISUALS  (promoted from Supply, 2026-09-12)
+   ------------------------------------------------------------
+   Cole, 2026-09-11, after seeing the Showroom app: Locus and Restock look
+   FLAT. Lean into subtle gradients, not overkill. First built in Supply;
+   now shared so every tool that uses the rail, the roll-up and the card
+   gets it from one place. Each tool keeps its own rail ANATOMY (sizes,
+   drawer behaviour) and must not set its own flat background on these.
+   ============================================================ */
+.side{border-right:1px solid #071018;
+  background:radial-gradient(520px 320px at -10% -8%,var(--wash),transparent 70%),radial-gradient(420px 380px at 110% 105%,rgba(20,96,140,.35),transparent 70%),linear-gradient(180deg,#0E1C26 0%,#0B151D 55%,#0A1A25 100%)}
+nav.tabs button[data-t].on{background:linear-gradient(135deg,#7CCBF2,#4FAEDF);color:#08131A;box-shadow:0 6px 16px -8px rgba(98,189,234,.7)}
+nav.subtabs button.on{background:linear-gradient(135deg,#7CCBF2,#4FAEDF);color:#08131A}
+nav.tabs button .ct{margin-left:auto;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:#4A2320;color:#F09182}
+nav.tabs button .ct.warn{background:#3E3115;color:#EBBF63}
+nav.tabs button.on .ct{background:#08131A;color:#62BDEA}
+.content{background:radial-gradient(900px 380px at 12% -8%,var(--wash),transparent 65%),radial-gradient(700px 300px at 95% 0%,rgba(28,122,70,.08),transparent 60%),linear-gradient(180deg,#E9F0F5 0,var(--bg) 420px) no-repeat,var(--bg)}
+
+/* Page head: a crumb above the title (band / tab) and a slot in the top bar
+   for the actions that belong to the page (Share with client, Save plan). */
+.ph-crumb{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em;margin-bottom:4px}
+.ph-crumb b{color:var(--ink-2);font-weight:600}
+.hd-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hd-actions:empty{display:none}
+
+/* Roll-up cell anatomy. Two spellings exist (.ru-l/.ru-v/.ru-d in Locus and
+   Ledger, .l/.v/.s in Supply); both are styled here so neither tool carries
+   a copy. New: .plan, the planned-by-now line, and on-ink pills for the
+   vs-plan verdict, so every headline figure can carry its comparison. */
+.ru .l{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8195A2;margin-bottom:6px}
+.ru .v{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:-.028em;line-height:1;color:#fff}
+.ru .v small{font-size:14px;font-weight:600;color:#8195A2;letter-spacing:0;margin-left:6px}
+.ru .s{font-size:12.5px;color:#B7C6D1;margin-top:7px}
+.ru .s b{color:#fff;font-weight:600}
+.ru.bad .v{color:var(--bad-on)}.ru.warn .v{color:var(--warn-on)}.ru.good .v{color:var(--good-on)}
+.ru .plan,.ru-p{font-size:11.5px;color:var(--on-ink-2);margin-top:3px;line-height:1.4}
+.rollup .pill{display:inline-block;margin-top:7px;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.02em}
+.rollup .pill.good{background:rgba(95,210,146,.16);color:var(--good-on)}
+.rollup .pill.bad{background:rgba(240,145,130,.16);color:var(--bad-on)}
+.rollup .pill.warn{background:rgba(235,191,99,.16);color:var(--warn-on)}
+.rollup .pill.unk{background:rgba(129,149,162,.18);color:#B7C6D1}
+
+/* Cards: one ringed key card per screen; tinted state cards. */
+.card.key{border-color:#8FD0EE;box-shadow:0 0 0 3px rgba(98,189,234,.18),0 10px 24px -18px rgba(20,96,140,.4)}
+.card.sc{border-top:3px solid var(--line-strong)}
+.card.sc.bd{border-top-color:var(--bad);background:linear-gradient(180deg,#FBF1EF,#fff 60px)}
+.card.sc.wn{border-top-color:var(--warn);background:linear-gradient(180deg,#FBF4E4,#fff 60px)}
+.card.sc.ok{border-top-color:var(--good);background:linear-gradient(180deg,#EDF9F2,#fff 60px)}
+.card.sc.br{border-top-color:var(--brand);background:linear-gradient(180deg,#EAF5FB,#fff 60px)}
+.card.sc.un{border-top-color:var(--line-strong)}
+
+/* Segmented control, two-column layout, stat strip, chart tooltip, legend. */
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{padding:7px 12px;font-size:13px;font-weight:600;color:var(--ink-2);border-left:1px solid var(--line);white-space:nowrap}
+.seg button:first-child{border-left:none}
+.seg button.on{background:#0C161D;color:#fff}
+.seg button small{font-weight:600;color:#8195A2;margin-left:5px}
+.seg button.on small{color:#8FA6B5}
+.seg.sm button{padding:4px 10px;font-size:12px}
+.two{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;align-items:start}
+.two.even{grid-template-columns:1fr 1fr}
+.two.wide{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.stat{display:flex;flex-direction:column;gap:4px;padding:16px 20px}
+.stat+.stat{border-left:1px solid var(--line)}
+.stat .l{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-size:26px;font-weight:700;letter-spacing:-.028em;line-height:1.05}
+.stat .v small{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:0}
+.stat .s{font-size:12.5px;color:var(--muted)}
+.stat.bd{background:linear-gradient(180deg,#FBF1EF,#fff)}
+.statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));padding:0}
+.tip{position:fixed;z-index:60;pointer-events:none;background:#0C161D;color:#fff;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:7px;box-shadow:0 10px 24px -10px rgba(12,22,29,.6);white-space:nowrap;transform:translate(-50%,calc(-100% - 10px))}
+.tip small{display:block;font-weight:400;color:#8FA6B5}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:18px;height:4px;border-radius:2px;background:#0C161D;display:inline-block}
+.legend i.dash{background:repeating-linear-gradient(90deg,#8A96A3 0 5px,transparent 5px 9px)}
+.legend i.hatch{height:12px;border-radius:3px;background:repeating-linear-gradient(45deg,rgba(198,58,47,.35) 0 2px,transparent 2px 6px);border:1px solid rgba(198,58,47,.35)}
+.legend i.dia{width:9px;height:9px;border-radius:2px;transform:rotate(45deg);background:#0C161D}
+@media (max-width:980px){.two,.two.even,.two.wide{grid-template-columns:1fr}}

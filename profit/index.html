@@ -106,7 +106,7 @@
      footer are now pinned and the middle takes the overflow, so the client
      picker and the session state are visible at every height. */
   .side{position:sticky;top:0;height:100vh;overflow:hidden;
-    background:var(--hd);color:#DFEAF2;border-right:1px solid #060E13;
+    color:#DFEAF2;
     display:flex;flex-direction:column;padding:12px 10px;z-index:40}
   .side-brand,.side-client,.side-foot{flex:none}
   .side-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
@@ -160,7 +160,7 @@
   nav.tabs button[data-t]:hover{background:#16242F;color:#DDE9F0}
   /* THE ONE ACTIVE LANGUAGE: brand fill, dark ink. White on #62BDEA fails
      contrast; #08131A on it does not. */
-  nav.tabs button[data-t].on{background:var(--brand);color:#08131A}
+  /* Active pill fill and the rail gradient come from /mobius.css (shared shell visuals). */
   nav.tabs button[data-t].on .ic{opacity:1;stroke-width:2}
   /* A parent whose section is open is RAISED, not filled. That distinguishes
      "the section you are in" from "the page you are looking at" without
@@ -181,7 +181,6 @@
     font-size:12.5px;font-weight:600;color:#7E93A5;white-space:nowrap;
     transition:background .12s ease,color .12s ease}
   nav.subtabs button:hover{background:#16242F;color:#DDE9F0}
-  nav.subtabs button.on{background:var(--brand);color:#08131A}
 
   /* Session state, pinned to the bottom and out of the reading path. */
   .side-foot{margin-top:auto;padding:12px 9px 0;border-top:1px solid var(--hd-line);
@@ -315,7 +314,6 @@
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
   .btn{border:1px solid var(--line-strong);border-radius:8px;padding:8px 13px;font-size:13px;font-weight:600;background:var(--surface)}
   .btn:hover{border-color:var(--brand-ink)}
-  .btn.primary{background:var(--hd);color:#fff;border-color:var(--hd)}
   .btn[disabled]{opacity:.5;cursor:default}
 
   .gate{max-width:460px;margin:60px auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:34px}
@@ -332,7 +330,7 @@
   .notice.good{background:var(--good-bg);border-color:#BFDFC9;color:var(--good)}
   .notice code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:4px}
 
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px}
+  .card{border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px}
   .card h3{font-size:15px;font-weight:700;margin-bottom:4px}
   .card .hint{color:var(--muted);font-size:13px}
 
@@ -449,13 +447,12 @@
      ============================================================ */
 
   /* ---- the dark roll-up ---- */
-  .rollup{display:flex;align-items:stretch;background:var(--ink-panel);color:var(--on-ink);
-    border-radius:var(--radius);overflow:hidden;margin-bottom:22px;flex-wrap:wrap}
+  .rollup{display:flex;align-items:stretch;color:var(--on-ink);overflow:hidden;margin-bottom:22px;flex-wrap:wrap}
   .ru{padding:15px 20px 16px;border-left:1px solid var(--ink-panel-2);flex:1 1 160px;min-width:0}
   .ru:first-child{border-left:none}
   .ru-l{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     color:var(--on-ink-2);margin-bottom:6px}
-  .ru-v{font-family:var(--display);font-weight:700;font-size:clamp(22px,2.4vw,27px);
+  .ru-v{font-family:var(--display);font-weight:700;font-size:clamp(24px,2.4vw,29px);
     letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;
     overflow-wrap:anywhere}
   .ru-v.good{color:var(--good-on)}
@@ -1316,6 +1313,7 @@
       <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="side" aria-expanded="false">☰</button>
       <div class="hd-title" id="hdTitle"></div>
       <div class="hd-right">
+        <div class="hd-actions" id="hdActions"></div>
         <div class="hd-period" id="hdPeriod" style="display:none"></div>
       </div>
     </div>
@@ -2117,10 +2115,25 @@ const TAB_PURPOSE = {
  * unchanged; `extra` now renders as the sub-line rather than a second
  * sentence competing with the first.
  */
+/* The crumb says which band a tab lives in (Daily / To the client / Monthly /
+   Setup) so the page names its own place in the week. Mirrors the rail. */
+const TAB_CRUMB = {
+  overview: ['Daily', 'Overview'], profit: ['Daily', 'Profit'], meta: ['Daily', 'Meta'],
+  brief: ['To the client', 'Daily Brief'], reports: ['To the client', 'Reports'],
+  plan: ['Monthly', 'Plan'], customers: ['Monthly', 'Customers'],
+  health: ['Setup', 'Data Health'], costs: ['Setup', 'Costs'], settings: ['Setup', 'Settings'],
+};
+const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>` : ''; };
+/** The page's own actions, in the top bar (Share with client, Save plan, Sync
+ *  now). Call with '' to clear. Renderers own it; show() clears it on switch. */
+function pageActions(html) { const h = $('#hdActions'); if (h) h.innerHTML = html || ''; }
+
 function pageHead(tab, title, extra) {
   const purpose = TAB_PURPOSE[tab] || '';
+  const crumb = crumbFor(tab);
   return `<div class="ph">
       <div>
+        ${crumb ? `<div class="ph-crumb">${crumb}</div>` : ''}
         <div class="ph-t">${title}</div>
         ${purpose ? `<p class="ph-sub">${purpose}</p>` : ''}
       </div>
@@ -3193,6 +3206,7 @@ function show(tab) {
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   renderPeriodBar(tab);
+  pageActions('');   // the outgoing tab's top-bar actions never outlive it
   /* ONE ACTIVE LANGUAGE, TWO LEVELS. The brand pill always marks the page you
      are actually looking at. Meta never is one: it is a section whose sub-tabs
      are the pages, so it takes the raised `sec` treatment instead and the pill
