@@ -79,7 +79,8 @@ window.renderLineup = function (m) {
   const ps = productsOf(line).filter(p => p.lifecycle !== 'drop');
   const planById = Object.fromEntries(line.plan.map(x => [x.productId, x]));
   const ranked = line.plan.map(x => ({ ...x, p: productById(x.productId) })).filter(x => x.p);
-  const slots = s.slots.filter(sl => sl.line_id === line.id);
+  /* a slot that is live is a product now: it belongs in Forecast, not on the plan */
+  const slots = s.slots.filter(sl => sl.line_id === line.id && sl.status !== 'live').sort((a, b) => (a.dropAt || '') < (b.dropAt || '') ? -1 : 1);
   const missing = Math.max(0, line.openSlots - slots.length);
   const perDesign = line.moq || factoryById(line.factoryId)?.moq_default || 100;
   const unitCost = median(ps.map(p => p.cost).filter(x => x != null));
@@ -97,8 +98,8 @@ window.renderLineup = function (m) {
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 6px">${[['Keep', line.keep, 'var(--good)'], ['Decide', line.decide, 'var(--brand-ink)'], ['Cut', line.cut, 'var(--warn)'], ['Open slots', line.openSlots, 'var(--ink)']].map(([l, v, c]) => `<div><div style="font-size:24px;font-weight:700;letter-spacing:-.028em;color:${c}">${v}</div><div class="tiny">${l}</div></div>`).join('')}</div>
           <div class="hint">${line.target ? `Target ${line.target} minus ${line.keep} kept and ${line.decide} undecided leaves ${line.openSlots} to make.${line.decide ? ` If you cut the undecided ${line.decide === 1 ? 'one' : 'ones'} it is ${line.openSlots + line.decide}.` : ''}` : 'Set a target to see how many new designs the season needs.'}</div></div>
         <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3>Open slots</h3><span class="tiny">${plural(slots.length, 'slot')}${missing ? ` · ${missing} still to create` : ''}</span></div>
-          <div class="hint" style="margin-bottom:8px">A slot is a placeholder with dates. The design work itself is an Asana task; the slot tracks whether it is on time.</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3>Open slots</h3><span class="tiny">${plural(slots.length, 'planned')}${missing ? ` · ${missing} still to create` : line.openSlots && slots.length > line.openSlots ? ` · target suggested ${line.openSlots}` : ''}</span></div>
+          <div class="hint" style="margin-bottom:8px">A slot is a placeholder with dates. The design work itself is an Asana task; the slot tracks whether it is on time. Extra designs beyond the target are fine: seasonal one-offs and themed drops all live here.</div>
           ${slots.map(sl => slotRow(sl)).join('')}
           ${missing ? `<div style="margin-top:10px"><button class="btn primary" onclick="createSlots('${line.id}',${missing})">${ic('plus')}Create ${plural(missing, 'slot')} for ${esc(season)}</button></div>` : `<div style="margin-top:10px"><button class="btn sm" onclick="createSlots('${line.id}',1)">${ic('plus')}Add a slot</button></div>`}
         </div>
@@ -184,7 +185,7 @@ async function addToCollection(colId, lineId) {
   const existing = st().slots.filter(x => x.collection_id === colId && x.line_id === lineId).length;
   const n = Math.min(20, Math.max(1, +r.count || 1));
   for (let i = 0; i < n; i++)
-    await api('/api/slots', { method: 'POST', body: { line_id: lineId, collection_id: colId, name: `${c.name} ${l.name.toLowerCase().replace(/s$/, '')} ${existing + i + 1}`, status: 'needs_brief' } });
+    await api('/api/slots', { method: 'POST', body: { line_id: lineId, collection_id: colId, name: `${c.name} · ${l.name.replace(/s$/, '')} ${existing + i + 1}`, status: 'needs_brief' } });
   await load({ quiet: true }); toast(`${plural(n, 'design')} added to ${c.name}`);
 }
 /** Make the Asana task for every design in the drop that has not got one. */
@@ -297,7 +298,7 @@ async function createSlots(lineId, n) {
   const existing = s.slots.filter(x => x.collection_id === colId && x.line_id === lineId).length;
   const count = Math.min(20, Math.max(1, +r.count || 1));
   for (let i = 0; i < count; i++)
-    await api('/api/slots', { method: 'POST', body: { line_id: lineId, collection_id: colId, name: `${c.name} ${l.name.toLowerCase().replace(/s$/, '')} ${existing + i + 1}`, status: 'needs_brief' } });
+    await api('/api/slots', { method: 'POST', body: { line_id: lineId, collection_id: colId, name: `${c.name} · ${l.name.replace(/s$/, '')} ${existing + i + 1}`, status: 'needs_brief' } });
   S.planCol = colId;
   await load({ quiet: true }); toast(`${plural(count, 'design')} added to ${c.name}`);
 }
