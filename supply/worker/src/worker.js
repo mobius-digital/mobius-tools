@@ -191,15 +191,32 @@ function taskNotes(sl, d, url) {
   return { plain, html };
 }
 
+/* The board's columns are the stages. A task is born in the column its slot is
+   already in, so Supply never has to move a card a person might be holding. */
+const STAGE_LABEL = { needs_brief: 'needs a brief', in_design: 'in design', tech_pack: 'tech pack', sampling: 'sampling', approved: 'approved', ordered: 'ordered', live: 'live' };
+async function sectionForStage(env, project, status) {
+  const want = STAGE_LABEL[status];
+  if (!want) return null;
+  try {
+    const sections = await asana(env, `/projects/${project}/sections?opt_fields=name&limit=100`);
+    return (sections.find(x => String(x.name).trim().toLowerCase() === want) || null)?.gid || null;
+  } catch { return null; }
+}
+
 async function createSlotTask(env, sl, d, project) {
   const url = `${DASHBOARD_URL}?slot=${encodeURIComponent(sl.id)}`;
   const { plain, html } = taskNotes(sl, d, url);
+  const section = await sectionForStage(env, project, sl.status);
   const data = { name: sl.name, projects: [project], due_on: stageDue(sl.status, d) };
-  try { return await asana(env, `/tasks?opt_fields=${TASK_FIELDS}`, { method: 'POST', body: { data: { ...data, html_notes: html } } }); }
+  let task;
+  try { task = await asana(env, `/tasks?opt_fields=${TASK_FIELDS}`, { method: 'POST', body: { data: { ...data, html_notes: html } } }); }
   catch (e) {
     if (e.asana !== 400) throw e;               // only the rich-text body is worth a plain retry
-    return await asana(env, `/tasks?opt_fields=${TASK_FIELDS}`, { method: 'POST', body: { data: { ...data, notes: plain } } });
+    task = await asana(env, `/tasks?opt_fields=${TASK_FIELDS}`, { method: 'POST', body: { data: { ...data, notes: plain } } });
   }
+  /* a task cannot be born in a section, so put it in the stage's column straight after */
+  if (section) { try { await asana(env, `/sections/${section}/addTask`, { method: 'POST', body: { data: { task: task.gid } } }); } catch { /* it stays in the first column */ } }
+  return task;
 }
 
 /* The checklist Supply puts under a design task. Editable per brand in
