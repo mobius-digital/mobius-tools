@@ -110,7 +110,7 @@ const forecastable = lc => lc === 'core' || lc === 'seasonal';
  *  on-site date, through the line's factory lead time. computeSupply uses this
  *  for the screens; the Asana hand-off uses it to fill in a task. */
 export function slotDates(sl, db) {
-  const S = Object.assign({ buffer_days: 10, site_prep_days: 14, sample_days: 35, design_days: 30, slack_days: 18, tech_pack_days: 21 }, db.settings || {});
+  const S = Object.assign({ buffer_days: 10, site_prep_days: 14, sample_days: 28, slack_days: 10, tech_pack_days: 21 }, db.settings || {});
   const num = (k, fb) => { const n = Number(S[k]); return Number.isFinite(n) ? n : fb; };
   const line = (db.lines || []).find(l => l.id === sl.line_id) || null;
   const factory = line && line.factory_id ? ((db.factories || []).find(f => f.id === line.factory_id) || null) : null;
@@ -121,12 +121,13 @@ export function slotDates(sl, db) {
   const ship = line?.lead_override_days != null ? 0 : (factory ? factory.shipping_days : 20);
   const lands = sl.lands_at || addDays(onSite, -num('site_prep_days', 14));
   const orderBy = sl.order_by || addDays(lands, -(num('buffer_days', 10) + ship + prod));
-  const sampleDue = sl.sample_due || addDays(orderBy, -num('slack_days', 18));
-  const briefDue = sl.brief_due || addDays(sampleDue, -num('sample_days', 35));
-  const designStart = addDays(briefDue, -num('design_days', 30));
+  const sampleDue = sl.sample_due || addDays(orderBy, -num('slack_days', 10));
+  const briefDue = sl.brief_due || addDays(sampleDue, -num('sample_days', 28));
+  /* No separate "design starts": the design IS the stretch between the brief and
+     the tech pack, so a date for it would be a third name for the same work. */
   /* the tech pack is what buys the sample: back it off the sample date, never before the brief */
   const techPackDue = [addDays(sampleDue, -num('tech_pack_days', 21)), briefDue].sort()[1];
-  const dates = { designStart, briefDue, techPackDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite };
+  const dates = { briefDue, techPackDue, sampleDue, orderBy, productionEnd: addDays(orderBy, prod), lands, onSite };
   return { line, factory, collection, dates, ...dates };
 }
 
@@ -140,7 +141,7 @@ export function computeSupply(raw, db) {
   const recon = reconstructInventory(history);
 
   const S = Object.assign({
-    buffer_days: 10, cover_days: 180, watch_days: 60, site_prep_days: 14, sample_days: 35, design_days: 30, slack_days: 18,
+    buffer_days: 10, cover_days: 180, watch_days: 60, site_prep_days: 14, sample_days: 28, slack_days: 10,
     thin_days: 45, core_share: 0.8, dead_days: 90,
   }, db.settings || {});
   const num = (k, fb) => { const n = Number(S[k]); return Number.isFinite(n) ? n : fb; };
