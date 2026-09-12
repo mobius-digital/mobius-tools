@@ -1238,7 +1238,16 @@
   .rp-attr-row select{min-width:200px}
   .rp-attr-why{color:var(--muted);flex:1 1 260px;min-width:0}
   .rp-attr{border-left:3px solid var(--line-strong)}
-  .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:14px}
+  /* Reports, Phase 3b: the scorecard is the dark strip; the report reads in two columns. */
+  .rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;margin-bottom:14px}
+  .rp-kpi{padding:14px 18px;border-left:1px solid var(--ink-panel-2);min-width:0}
+  .rp-kpi:first-child{border-left:none}
+  .rp-kl{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--on-ink-2);display:flex;gap:5px;align-items:center}
+  .rp-kv{font-size:clamp(20px,2vw,26px);font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:6px 0 5px;color:#fff;font-variant-numeric:tabular-nums}
+  .rp-ks{font-size:11px;color:var(--on-ink-2);display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;line-height:1.5}
+  .rp-kpi .info-i{border-color:var(--ink-panel-2);color:var(--on-ink-2)}
+  .rp-two{gap:11px}
+  .rp-two .card{margin-bottom:11px}
 
   footer{max-width:1240px;width:100%;margin:0;padding:0 26px 40px;color:var(--muted);font-size:12px}
   @media (max-width:900px){ .pc-stats{gap:18px 26px} }
@@ -1246,7 +1255,7 @@
     main{padding:16px 14px 60px} footer{padding:0 14px 40px} .feed .it{grid-template-columns:1fr}
     .rp-change{grid-template-columns:1fr;gap:3px;padding:11px 0}
     .rp-change .d{color:var(--muted)}
-    .rp-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+    .rp-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0}
     .pc-stats{gap:14px 22px}
     .pc-stats .st b{font-size:15px}
     h2{font-size:21px}
@@ -5108,11 +5117,11 @@ function reportBodyHTML(d, summary, opts = {}) {
     const cls = good ? 'good' : Math.abs(off) <= 0.12 ? 'warn' : 'bad';
     return `<span class="pill ${cls}">${sign}</span>`;
   };
-  const kpi = (label, aV, fmt, fV, pV, lower, info) => `<div class="card" style="margin:0">
-    <div class="av-label" style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px">${label}${info ? ` <span class="info-i" title="${esc(info)}">i</span>` : ''}</div>
-    <div style="font-size:clamp(19px,2.1vw,26px);font-weight:700;margin:4px 0 5px">${fmt(aV)}</div>
-    ${fV != null ? `<div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center">forecast ${fmt(fV)} ${vsPill(aV, fV, lower)}</div>` : ''}
-    ${pV != null ? `<div class="tiny" style="display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:2px">prior ${prevTag} ${fmt(pV)} ${vsPill(aV, pV, lower)}</div>` : ''}
+  const kpi = (label, aV, fmt, fV, pV, lower, info) => `<div class="rp-kpi">
+    <div class="rp-kl">${label}${info ? ` <span class="info-i" title="${esc(info)}">i</span>` : ''}</div>
+    <div class="rp-kv">${fmt(aV)}</div>
+    ${fV != null ? `<div class="rp-ks">forecast ${fmt(fV)} ${vsPill(aV, fV, lower)}</div>` : ''}
+    ${pV != null ? `<div class="rp-ks">prior ${prevTag} ${fmt(pV)} ${vsPill(aV, pV, lower)}</div>` : ''}
   </div>`;
   /* "no forecast" USED TO PRINT HERE on Orders, AOV and New-customer CPA, and it
      read as a fault in the data. It is not: the monthly Plan sets revenue and
@@ -5512,12 +5521,11 @@ function reportBodyHTML(d, summary, opts = {}) {
       <p class="hint" style="margin:8px 0 0">Applies to <b>every platform section on this page</b>: revenue, ROAS, purchases and CPA for Meta and Google, and for each creative below. <b>Spend, CPM, CTR, hook and hold never change</b> - Triple Whale measures attribution, not delivery. <b>The scorecard above never changes either</b>: it is real store revenue over real total ad spend with no attribution in it at all, which is why it is the headline.</p>
     </div>` : '';
 
-  return `${sumHtml}
-    <div class="rp-kpis">${kpis}</div>
-    ${attrHtml}
-    ${pacingHtml}${chartHtml}${splitHtml}
-    ${(d.channels || []).map(chCard).join('')}
-    ${weeksHtml}${changesHtml}
+  return `<div class="rollup rp-kpis">${kpis}</div>
+    <div class="two rp-two">
+      <div>${sumHtml}${pacingHtml}${chartHtml}${splitHtml}</div>
+      <div>${attrHtml}${(d.channels || []).map(chCard).join('')}${weeksHtml}${changesHtml}</div>
+    </div>
     <p class="tiny"><b>Revenue, MER, aMER${t.cm != null ? ', Contribution Margin' : ''} and New-customer CPA are blended</b> - real store revenue and real total ad spend, with no platform's attribution involved - which is why they will not match what Meta or Google report on their own dashboards. The platform sections show each platform's own attributed numbers, and those are directional.</p>`;
 }
 
@@ -6096,16 +6104,11 @@ async function renderReports(first) {
     : `<div class="card"><h3 style="margin-bottom:4px">No reports yet</h3>
        <p class="hint">${repErr ? esc(repErr) + ' - ' : ''}Hit <b>Generate last week</b> to build the first one. From next Monday they draft themselves.</p></div>`;
 
+  pageActions(`<button class="btn" id="rpGenW">Generate last week</button><button class="btn" id="rpGenM">Generate last month</button>`);
   $('#main').innerHTML = shell(`
-    <div class="row" style="margin-bottom:12px">
-      <button class="btn" id="rpGenW">Generate last week</button>
-      <button class="btn" id="rpGenM">Generate last month</button>
-      <span class="tiny" id="rpGenMsg"></span>
-      <span style="flex:1"></span>
-    </div>
-    ${chips ? `<div class="row" style="margin-bottom:12px">${chips}</div>` : ''}
-    ${configCard}
-    ${body}`);
+    ${chips ? `<div class="row" style="margin-bottom:12px">${chips}<span class="tiny" id="rpGenMsg"></span></div>` : `<p class="tiny" id="rpGenMsg" style="margin-bottom:10px"></p>`}
+    ${body}
+    ${configCard}`);
 
   if (d) { wireReportChart(d, acct?.currency, true); wireAdCards(d.ads, acct?.currency, d.period === 'weekly' ? 'week' : 'month'); }
 
