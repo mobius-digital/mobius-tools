@@ -6016,18 +6016,44 @@ export default {
           rows, events: await seriesEvents(env, act, from) });
       }
 
-      /* Today so far, live from Triple Whale. The daily sync deliberately ends
-         at yesterday (a partial day must never sit in tw_daily looking whole), so
-         Locus asks for it here on demand and stamps it "as of". Same summary call
-         the reports use, over a one-day period. */
-      if (path === '/api/tw-today') {
+      /* ONE LOCAL DAY, LIVE, WITH ITS HOURS. Two facts about the summary
+         endpoint, both measured on 2026-09-12 against Meta's own dated spend:
+           1. A bare-date period comes back shifted ONE DAY EARLY - asking for
+              09-12..09-12 returns the day Meta calls 09-11. (Bare dates read as
+              UTC midnight, which is the previous evening in every US shop.) The
+              daily sync inherits this harmlessly: its chart points carry the
+              right calendar day and it simply never lands today. Here we want
+              today, so we ask for date + 1. Do NOT "fix" this inside twSummary
+              or the sync would start writing a partial today into tw_daily.
+           2. A single-day period returns charts keyed by HOUR (x = 0..23), one
+              point per hour that had activity. That is the only hourly view of
+              blended revenue and spend anywhere in this stack.
+         The daily sync deliberately ends at yesterday, so Locus asks here for
+         today (and for any single day's hours) on demand and stamps as_of. */
+      if (path === '/api/tw-day') {
         const act = url.searchParams.get('act');
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         if (!acct.tw_shop) return json({ error: 'no Triple Whale shop set' }, 400);
         const today = localDate(acct.tz);
-        const { map } = await twSummary(env, acct.tw_shop, today, today);
-        return json({ date: today, as_of: new Date().toISOString(), map });
+        const want = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : today;
+        if (want > today) return json({ error: 'that day has not happened yet' }, 400);
+        const ask = addDays(want, 1);                    // see fact 1 above
+        const { map, raw } = await twSummary(env, acct.tw_shop, ask, ask);
+        const HOURLY = ['netSales', 'totalSales', 'totalNetTaxes', 'blendedAds', 'newCustomerSales', 'fb_ads_spend', 'ga_adCost', 'orders'];
+        const hours = {};
+        let maxX = -1;
+        if (Array.isArray(raw?.metrics)) for (const m of raw.metrics) {
+          const id = m.metricId ?? m.id;
+          if (!HOURLY.includes(id) || !Array.isArray(m.charts?.current)) continue;
+          const arr = Array(24).fill(0);
+          for (const p of m.charts.current) { const x = +p.x; if (x >= 0 && x <= 23) { arr[x] += +p.y || 0; if (x > maxX) maxX = x; } }
+          hours[id] = arr;
+        }
+        // A finished day is 24 hours; today is the hours that have happened.
+        const len = want === today ? Math.max(1, maxX + 1) : 24;
+        for (const k of Object.keys(hours)) hours[k] = hours[k].slice(0, len);
+        return json({ date: want, as_of: new Date().toISOString(), map, hours, hours_len: len });
       }
 
       if (path === '/api/pacing') {

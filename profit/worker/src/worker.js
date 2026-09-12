@@ -400,51 +400,33 @@ async function seriesFor(env, acct, from, to) {
   return { rows, margin_pct: marginPct, shipping: ship };
 }
 
-/** Today so far, live. tw_daily ends at yesterday on purpose, so a window that
- *  explicitly asks for today gets ONE synthetic row built from a live Triple
- *  Whale call, pushed through the SAME dayEconomics as every stored day, and
- *  stamped as_of. With `withMeta`, Meta's hourly cache is refreshed first so
- *  the day's spend fallback and the hourly chart are current. */
-async function liveToday(env, request, acct, withMeta) {
+/** One local day from Triple Whale, live, with its hourly shape. See the
+ *  account-health worker's /api/tw-day for the two facts this rests on. */
+async function twDay(env, request, acct, date) {
   if (!env.AUTH) throw new Error('AUTH binding missing');
-  const today = localDate(acct.tz);
   const auth = request.headers.get('Authorization') || '';
-  const hit = async p => {
-    const r = await env.AUTH.fetch(new Request(`${AUTH_WORKER}${p}`, { headers: { Authorization: auth } }));
-    if (!r.ok) throw new Error(`${p}: HTTP ${r.status}`);
-    return r.json();
-  };
-  const tw = await hit(`/api/tw-today?act=${encodeURIComponent(acct.act_id)}`);
+  const r = await env.AUTH.fetch(new Request(`${AUTH_WORKER}/api/tw-day?act=${encodeURIComponent(acct.act_id)}&date=${date}`, { headers: { Authorization: auth } }));
+  if (!r.ok) throw new Error(`tw-day: HTTP ${r.status}`);
+  return r.json();
+}
+/** Today so far as ONE synthetic row, through the same dayEconomics as every
+ *  stored day, so revenue means exactly what it means everywhere else. */
+function liveRow(acct, day) {
   const piv = {};
-  for (const [k, v] of Object.entries(tw.map || {})) piv[k] = { [today]: v };
-  const meta = {};
-  if (withMeta) {
-    try { const pace = await hit(`/api/pacing?act=${encodeURIComponent(acct.act_id)}`); if (pace.spent != null) meta[today] = { spend: pace.spent }; }
-    catch { /* Meta down: the blended Triple Whale figure still stands */ }
-  }
-  const row = dayEconomics(piv, meta, today, marginOverride(acct, monthOf(today)));
-  return { date: today, as_of: tw.as_of, row };
+  for (const [k, v] of Object.entries(day.map || {})) piv[k] = { [day.date]: v };
+  return dayEconomics(piv, {}, day.date, marginOverride(acct, monthOf(day.date)));
+}
+/** Revenue and ad spend hour by hour, blended. Revenue is Total Sales less tax,
+ *  the same line as the day; tax by hour is subtracted when TW carries it. */
+function hoursOf(day) {
+  const h = day.hours || {};
+  const sales = h.netSales || h.totalSales || [], tax = h.totalNetTaxes || [], spend = h.blendedAds || [];
+  const n = day.hours_len || Math.max(sales.length, spend.length);
+  if (!n) return [];
+  return Array.from({ length: n }, (_, i) => ({ hour: i, sales: Math.max(0, (sales[i] || 0) - (tax[i] || 0)), spend: spend[i] || 0 }));
 }
 
-/** Meta's own spend by hour for one day, from the cache /api/pacing fills
- *  (today plus the seven days before it). `refresh` re-pulls from Meta first. */
-async function hoursFor(env, request, acct, date, refresh) {
-  if (refresh && env.AUTH) {
-    try {
-      const auth = request.headers.get('Authorization') || '';
-      await env.AUTH.fetch(new Request(`${AUTH_WORKER}/api/pacing?act=${encodeURIComponent(acct.act_id)}`, { headers: { Authorization: auth } }));
-    } catch { /* stale hours beat no hours */ }
-  }
-  const { results } = await env.DB.prepare(
-    `SELECT hour, spend, purchases FROM hourly_insights WHERE act_id = ?1 AND date = ?2 ORDER BY hour`,
-  ).bind(acct.act_id, date).all();
-  if (!results.length) return [];
-  const last = Math.max(...results.map(r => r.hour));
-  const by = Object.fromEntries(results.map(r => [r.hour, r]));
-  return Array.from({ length: last + 1 }, (_, h) => ({ hour: h, spend: by[h]?.spend ?? 0, purchases: by[h]?.purchases ?? 0 }));
-}
-
-/** Does this client actually record what fulfilment costs them?
+/** Does this client actually record what fulfilment costs them?/** Does this client actually record what fulfilment costs them?
  *  DIAGNOSTIC ONLY. Shipping charged to customers is already inside Triple Whale's
  *  netSales, so it cannot be netted back out - a client who bills for shipping and
  *  records no cost against it genuinely has overstated profit, and the honest move
@@ -1709,8 +1691,8 @@ export default {
           const plan = planFor(a, ym, mtdRows);          // whole days only, see /api/client
           let live = null;
           if (to === today) {
-            live = await liveToday(env, request, a, false).catch(() => null);
-            if (live?.row) { rows.push(live.row); mtdRows.push(live.row); }
+            const day = await twDay(env, request, a, today).catch(() => null);
+            if (day) { const row = liveRow(a, day); if (row) { rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
           }
           out.push({
             ...pubAccount(a),
@@ -1754,17 +1736,20 @@ export default {
         // pro-rated, so "planned by now" means through yesterday on a Today window.
         const mtdRows = allRows.filter(r => r.date >= monthStart);
         const plan = planFor(acct, ym, mtdRows);
-        let live = null, hours = null;
-        if (to === today) {
-          live = await liveToday(env, request, acct, true);
-          if (live.row) { rows.push(live.row); mtdRows.push(live.row); }
+        // A single day gets its hourly shape; today additionally gets its live row.
+        let liveAsOf = null, hours = null;
+        if (from === to || to === today) {
+          const day = await twDay(env, request, acct, to).catch(() => null);
+          if (day) {
+            if (from === to) hours = hoursOf(day);
+            if (to === today) { const row = liveRow(acct, day); if (row) { rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
+          }
         }
-        if (from === to) hours = await hoursFor(env, request, acct, from, to !== today);
         return json({
           account: pubAccount(acct), days, from, to, margin_pct, rows, shipping,
           totals: totals(rows), mtd: totals(mtdRows),
           goals: goalsFor(acct, ym), plan,
-          live_as_of: live ? live.as_of : null, hours,
+          live_as_of: liveAsOf, hours,
         });
       }
 
