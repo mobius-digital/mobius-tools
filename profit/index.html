@@ -659,6 +659,18 @@
 
   /* --- The three plan boxes --- */
   .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+  /* Plan, Phase 2 (2026-09-12): the three levers read as Revenue = Spend x MER,
+     the calculated one tinted; below it two columns. */
+  .pf-grid.pf-eq{grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr) 34px minmax(0,1fr);gap:0;align-items:stretch;margin-bottom:12px}
+  .pf-eq .pf-card{padding:14px 16px;background:linear-gradient(180deg,#FFFFFF,#FBFDFE);box-shadow:0 1px 2px rgba(19,32,43,.04),0 10px 24px -20px rgba(19,32,43,.25)}
+  .pf-eq .pf-card.res{background:var(--brand-soft);border:1px solid #A6D7EF;box-shadow:none}
+  .pf-eq .pf-val{font-size:30px;letter-spacing:-.03em;line-height:1.1;margin:8px 0 4px;color:var(--brand-ink)}
+  .pf-eq .pf-in input{font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .pf-op{display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted);font-weight:600}
+  .pl-two{gap:11px}
+  .pl-two .card,.pl-two .cu{margin-bottom:11px}
+  .pl-two .asm-card{margin-bottom:0}
+  @media (max-width:980px){.pf-grid.pf-eq{grid-template-columns:1fr;gap:10px}.pf-op{display:none}}
   .pf-card{border:1px solid var(--line);border-radius:10px;padding:13px 14px;background:var(--surface);
     display:flex;flex-direction:column;min-height:132px}
   /* The calculated one is the BYPRODUCT of the two you set, so it must read as
@@ -6618,9 +6630,11 @@ async function renderPlan(first) {
     return fieldCard('sales', 'Revenue goal', PL.derive === 'sales' ? fmtMoney(x.sales, cur) : Math.round(x.sales).toLocaleString('en-US'),
         x.growth != null ? `${x.growth >= 0 ? '+' : ''}${Math.round(x.growth * 100)}% on ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}` : '',
         'The total you want the store to sell this month, from every source - ads, email, organic, direct. Save it and the Daily Brief measures each day against it.')
+      + '<div class="pf-op">=</div>'
       + fieldCard('spend', 'Ad spend', PL.derive === 'spend' ? fmtMoney(x.spend, cur) : Math.round(x.spend).toLocaleString('en-US'),
         `${fmtMoney(x.spend / p.ctx.days_in_month, cur)} a day`,
         'The total ad budget for the month, across every platform. This is the number you actually control.')
+      + '<div class="pf-op">&times;</div>'
       + fieldCard('mer', 'MER', PL.derive === 'mer' ? fmtX(x.mer) : (Math.round(x.mer * 100) / 100).toFixed(2),
         'revenue divided by ad spend',
         'How many dollars the store takes in for every dollar spent on ads. 2.5x means $2.50 back for every $1 spent.');
@@ -6666,7 +6680,7 @@ async function renderPlan(first) {
     return `<div class="pf-card${derived ? ' res' : ''}">
       <div class="pf-top">
         <span class="pf-lbl">${label} <span class="info-i" title="${esc(info)}">i</span></span>
-        ${derived ? '<span class="pf-tag">result</span>' : ''}
+        ${derived ? '<span class="pf-tag">calculated</span>' : ''}
       </div>
       ${derived
         ? `<div class="pf-val" id="pf_${key}">${value}</div>
@@ -6678,20 +6692,60 @@ async function renderPlan(first) {
     </div>`;
   };
 
+  /* The achievability verdict as a card: tone and word come from the same
+     calc() the sentence does, so the three can never disagree. */
+  const verdictTone = x => !x || !x.verdict ? 'un' : x.verdict === 'ok' ? 'ok' : x.verdict === 'stretch' ? 'wn' : 'bd';
+  const verdictWord = x => !x || !x.verdict ? 'Not enough data' : x.verdict === 'ok' ? 'Realistic' : x.verdict === 'stretch' ? 'A stretch' : 'Unrealistic';
+
+  pageActions(editable && c
+    ? `<button class="btn" id="plShare">↗ Client link</button><button class="btn primary" id="plSave">Save ${esc(monthLabel(p.month))} plan</button>`
+    : '');
+
   $('#main').innerHTML = `${pageHead('plan', `Plan &mdash; ${esc(p.account.name)}`, p.status === 'past'
       ? 'This month has already finished &mdash; what was planned, and what actually happened.'
       : 'Revenue = MER &times; spend, so you choose <b>two</b> and the third follows.')}
-    <div class="row" style="margin-bottom:14px;flex-wrap:wrap">
+    <div class="row" style="margin-bottom:12px;flex-wrap:wrap">
       ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
       <span id="plChip">${statusPill}</span>
       <span style="flex:1"></span>
+      ${editable && c ? `<span class="tiny">Growth on ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
+        ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}` : ''}
     </div>
 
     ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
 
-    <div id="plQuarter"></div>
-    <div id="plRhythm"></div>
-
+    ${editable && c ? `
+      ${staleBasis()}
+      <div id="plFields" class="pf-grid pf-eq">${fieldsHtml()}</div>
+      <div class="two even pl-two">
+        <div>
+          <div class="card sc ${verdictTone(c)}" id="plVerdictCard">
+            <div class="mini">Achievability</div>
+            <div class="big" id="plVerdictBig" style="font-size:22px">${verdictWord(c)}</div>
+            <div class="tiny" style="line-height:1.7;color:var(--ink-2)" id="plVerdict">${verdictHtml(c)}</div>
+          </div>
+          <div class="card key"><h3 style="margin-bottom:2px">What this plan leaves the business</h3>
+            <p class="hint" style="margin-bottom:10px">Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own; everything above that has to be bought with the ad spend.</p>
+            <div class="row" style="gap:22px;flex-wrap:wrap;align-items:flex-start;margin:0">
+              <div><div class="tiny">Expected contribution margin</div><div style="font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.15" id="plCm">${fmtMoney(c.cm, cur)}</div><div class="tiny" id="plCmSub">${c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : ''}</div></div>
+              <div style="flex:1;min-width:200px;line-height:1.6" class="tiny" id="plCmNote">${cmHtml(c)}</div>
+            </div>
+            <div id="plStruct">${structureHtml()}</div>
+          </div>
+          <div id="plCatchUp">${catchUpCard()}</div>
+          <div id="plAssump" style="margin-bottom:11px">${basisNote()}</div>
+        </div>
+        <div>
+          <div class="card sc ${saved && saved.agreed_at ? 'ok' : 'un'}">
+            <div class="mini">Agreement</div>
+            <div class="row" style="margin:6px 0 6px;gap:10px;align-items:center">
+              <div class="toggle ${saved && saved.agreed_at ? 'on' : ''}" id="plAgreed"></div>
+              <span style="font-weight:700;font-size:15px" id="plAgreedLbl">${saved && saved.agreed_at ? `Agreed ${esc(String(saved.agreed_at).slice(0, 10))}` : 'Not yet agreed'}</span>
+            </div>
+            <p class="hint"><b>Save</b> (top right) makes this the month&rsquo;s target; every daily update then measures against it. <b>Client link</b> is a read-only page with just this plan on it, to send or screen-share. <b>Agreed</b> records that they said yes, and the date; change the numbers later and it clears itself.</p>
+            <span class="tiny" id="plMsg"></span>
+          </div>
+          <div id="plQuarter"></div>
     <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
       <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> - the plan below is not an average of it.</p>
       <div class="tbl-wrap"><table>
@@ -6707,38 +6761,26 @@ async function renderPlan(first) {
           <td class="num">${fmtX(h.mer)}</td><td class="num">${fmtX(h.amer)}</td><td class="num">${fmtPct(h.margin)}</td></tr>`).join('')}
         </tbody></table></div>
       ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> - ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>
-
-    ${editable && c ? `<div class="card"><h3 style="margin-bottom:6px">The plan</h3>
-      <p class="hint" style="margin-bottom:10px">Set any <b>two</b>. The third is worked out for you - press <b>make this the result</b> to move which. Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own; everything above that has to be bought with the ad spend.</p>
-      ${staleBasis()}
-      <div id="plCatchUp">${catchUpCard()}</div>
-      <div id="plAssump" style="margin-bottom:14px">${basisNote()}</div>
-      <div class="row" style="gap:8px;margin-bottom:12px">
-        ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}
-        <span class="tiny">quick-fill the revenue goal from ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
-      </div>
-      <div id="plFields" class="pf-grid">${fieldsHtml()}
-      </div>
-      <div id="plStruct">${structureHtml()}</div>
-      <div class="tiny" style="margin-top:14px;line-height:1.7" id="plVerdict">${verdictHtml(c)}</div>
-      <div class="row" style="margin-top:14px;gap:22px;flex-wrap:wrap;align-items:flex-start">
-        <div><div class="tiny">Contribution margin</div><div style="font-size:19px;font-weight:700" id="plCm">${fmtMoney(c.cm, cur)}</div><div class="tiny" id="plCmSub">${c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : ''}</div></div>
-        <div style="flex:1;min-width:200px" class="tiny" id="plCmNote">${cmHtml(c)}</div>
-      </div>
-      <div class="row" style="margin-top:16px;align-items:flex-start">
-        <button class="btn primary" id="plSave">Save ${esc(monthLabel(p.month))} plan</button>
-        <button class="btn" id="plShare">↗ Client link</button>
-        <div class="row" style="margin:0;gap:8px">
-          <div class="toggle ${saved && saved.agreed_at ? 'on' : ''}" id="plAgreed"></div>
-          <span class="tiny" id="plAgreedLbl">${saved && saved.agreed_at ? `agreed ${esc(String(saved.agreed_at).slice(0, 10))}` : 'not yet agreed'}</span>
         </div>
-        <span class="tiny" id="plMsg"></span>
       </div>
-      <div class="tiny" style="margin-top:10px;color:var(--muted);line-height:1.6">
-        <b>Save</b> makes this the month's target - from then on every daily update measures against it.<br>
-        <b>Client link</b> is a read-only page with just this plan on it, to send or screen-share.<br>
-        <b>Agreed</b> records that they said yes, and the date. Change the numbers later and it clears itself.
-      </div></div>` : editable ? '<div class="card"><span class="hint">Not enough history to propose a number for this client yet.</span></div>' : ''}`;
+      <div id="plRhythm"></div>`
+    : editable ? '<div class="card"><span class="hint">Not enough history to propose a number for this client yet.</span></div><div id="plQuarter"></div><div id="plRhythm"></div>'
+    : `<div id="plQuarter"></div><div id="plRhythm"></div>
+    <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
+      <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> - the plan below is not an average of it.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Month</th>
+          <th class="num">Revenue <span class="info-i" title="Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel - paid, organic, email, direct - not any platform\’s attributed revenue. The same line used on every tab.">i</span></th>
+          <th class="num">Ad spend <span class="info-i" title="Every ad platform combined for the month, from Triple Whale - Meta plus Google plus anything else running. Not Meta alone.">i</span></th>
+          <th class="num">MER <span class="info-i" title="Marketing Efficiency Ratio = all store revenue divided by all ad spend. Blended on both sides, so it is not ROAS and it is not platform-attributed. 3.00x means three dollars came into the store for every dollar spent on ads.">i</span></th>
+          <th class="num">aMER <span class="info-i" title="Acquisition MER = NEW-customer revenue divided by that same total ad spend. Repeat buyers and email cannot flatter it, so it isolates whether the ads are actually buying customers.">i</span></th>
+          <th class="num">Margin <span class="info-i" title="Gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of revenue. This is not contribution margin - ad spend has not been taken off yet.">i</span></th></tr></thead>
+        <tbody>${hist.slice(-6).map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
+          <td><b>${esc(monthLabel(h.month))}</b>${h.partial ? ` <span class="tiny">(${h.days} of ${h.days_in_month} days)</span>` : ''}</td>
+          <td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td>
+          <td class="num">${fmtX(h.mer)}</td><td class="num">${fmtX(h.amer)}</td><td class="num">${fmtPct(h.margin)}</td></tr>`).join('')}
+        </tbody></table></div>
+      ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> - ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>`}`;
 
   const repaint = () => {
     c = calc();
@@ -6757,6 +6799,8 @@ async function renderPlan(first) {
       b.classList.toggle('on', c.growth != null && Math.abs(c.growth - +b.dataset.g) < 0.005));
     const sn = $('#plStruct'); if (sn) sn.innerHTML = structureHtml();
     const v = $('#plVerdict'); if (v) v.innerHTML = verdictHtml(c);
+    const vc = $('#plVerdictCard'); if (vc) vc.className = `card sc ${verdictTone(c)}`;
+    const vb = $('#plVerdictBig'); if (vb) vb.textContent = verdictWord(c);
     const n = $('#plCmNote'); if (n) n.innerHTML = cmHtml(c);
   };
 
