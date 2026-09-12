@@ -376,6 +376,21 @@ export function computeSupply(raw, db) {
     };
   });
 
+  /* Where a design physically is, taken from the orders Supply already has.
+     A slot only reaches this once its Shopify product exists and is attached. */
+  const MADE = { draft: 'On a draft order', sent: 'In production', confirmed: 'In production', production: 'In production', shipped: 'In transit', partial: 'Part landed', landed: 'Landed' };
+  const RANK = { draft: 0, sent: 1, confirmed: 2, production: 3, shipped: 4, partial: 5, landed: 6 };
+  const orderOfProduct = {};
+  for (const o of (db.orders || [])) {
+    if (o.status === 'cancelled') continue;
+    for (const l of (db.orderLines || []).filter(l => l.order_id === o.id)) {
+      const cur = orderOfProduct[l.product_id];
+      /* the one still moving beats the one already landed; otherwise the further along */
+      const better = !cur || (cur.status === 'landed' && o.status !== 'landed') || (cur.status !== 'landed' && o.status !== 'landed' && RANK[o.status] > RANK[cur.status]);
+      if (better) orderOfProduct[l.product_id] = o;
+    }
+  }
+
   /* slots with derived dates (slotDates below: the Asana hand-off uses the same one) */
   const slots = (db.slots || []).map(sl => {
     const d = slotDates(sl, db);
@@ -385,7 +400,12 @@ export function computeSupply(raw, db) {
       sample: ['needs_brief', 'in_design', 'tech_pack'].includes(sl.status) && d.sampleDue < today,
       order: !['ordered', 'live'].includes(sl.status) && d.orderBy < today,
     };
-    return { ...sl, lineName: d.line?.name || null, factoryId: d.factory?.id || null, collectionName: d.collection?.name || sl.season || null, dropAt: d.onSite, dates: d.dates, late: Object.values(late).some(Boolean), lateParts: late };
+    const o = sl.product_id ? orderOfProduct[sl.product_id] : null;
+    const made = o ? { orderId: o.id, status: o.status, label: MADE[o.status] || o.status, expected_at: o.expected_at || null } : null;
+    const sample = sl.sample_in_hand_at ? { state: 'in hand', label: `Sample in hand ${fmtDate(sl.sample_in_hand_at)}`, on: sl.sample_in_hand_at }
+      : sl.sample_expected_at ? { state: 'coming', label: `Sample due ${fmtDate(sl.sample_expected_at)}`, on: sl.sample_expected_at, late: sl.sample_expected_at < today }
+      : sl.sample_requested_at ? { state: 'requested', label: `Sample asked for ${fmtDate(sl.sample_requested_at)}`, on: sl.sample_requested_at } : null;
+    return { ...sl, lineName: d.line?.name || null, factoryId: d.factory?.id || null, collectionName: d.collection?.name || sl.season || null, dropAt: d.onSite, dates: d.dates, made, sample, late: Object.values(late).some(Boolean), lateParts: late };
   });
 
   /* collections, with what is in them */

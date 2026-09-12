@@ -512,11 +512,12 @@ export default {
         if (col && !ymd(s.on_site_at)) s.on_site_at = col.drop_at;   // the collection's date stands in
         if (!s.line_id || !s.name || !ymd(s.on_site_at)) return bad('line, name and a date required');
         const status = ['needs_brief', 'in_design', 'tech_pack', 'sampling', 'approved', 'ordered', 'live'].includes(s.status) ? s.status : 'needs_brief';
-        await env.DB.prepare(`INSERT INTO slots (id, brand_id, line_id, name, season, status, on_site_at, brief_due, sample_due, order_by, lands_at, asana_task, lineup_event, product_id, notes, collection_id, updated_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, datetime('now'))
+        await env.DB.prepare(`INSERT INTO slots (id, brand_id, line_id, name, season, status, on_site_at, brief_due, sample_due, order_by, lands_at, asana_task, lineup_event, product_id, notes, collection_id, sample_requested_at, sample_expected_at, sample_tracking, sample_in_hand_at, updated_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, datetime('now'))
           ON CONFLICT(id) DO UPDATE SET line_id = excluded.line_id, name = excluded.name, season = excluded.season, status = excluded.status, on_site_at = excluded.on_site_at, collection_id = excluded.collection_id,
-            brief_due = excluded.brief_due, sample_due = excluded.sample_due, order_by = excluded.order_by, lands_at = excluded.lands_at, asana_task = COALESCE(excluded.asana_task, asana_task), lineup_event = excluded.lineup_event, product_id = excluded.product_id, notes = excluded.notes, updated_at = datetime('now')`)
-          .bind(id, brand, str(s.line_id, 80), str(s.name, 80), str(s.season, 40), status, s.on_site_at, ymd(s.brief_due), ymd(s.sample_due), ymd(s.order_by), ymd(s.lands_at), str(s.asana_task, 300), str(s.lineup_event, 80), s.product_id ? String(s.product_id).replace(/\D/g, '') : null, str(s.notes, 2000), col ? col.id : null).run();
+            brief_due = excluded.brief_due, sample_due = excluded.sample_due, order_by = excluded.order_by, lands_at = excluded.lands_at, asana_task = COALESCE(excluded.asana_task, asana_task), lineup_event = excluded.lineup_event, product_id = excluded.product_id, notes = excluded.notes,
+            sample_requested_at = excluded.sample_requested_at, sample_expected_at = excluded.sample_expected_at, sample_tracking = excluded.sample_tracking, sample_in_hand_at = excluded.sample_in_hand_at, updated_at = datetime('now')`)
+          .bind(id, brand, str(s.line_id, 80), str(s.name, 80), str(s.season, 40), status, s.on_site_at, ymd(s.brief_due), ymd(s.sample_due), ymd(s.order_by), ymd(s.lands_at), str(s.asana_task, 300), str(s.lineup_event, 80), s.product_id ? String(s.product_id).replace(/\D/g, '') : null, str(s.notes, 2000), col ? col.id : null, ymd(s.sample_requested_at), ymd(s.sample_expected_at), str(s.sample_tracking, 120), ymd(s.sample_in_hand_at)).run();
         /* a task link typed or pasted by hand is as good as one Supply made: take its gid so the status shows */
         const pasted = taskGid(s.asana_task);
         if (pasted) await env.DB.prepare(`UPDATE slots SET asana_gid = ?3 WHERE id = ?1 AND brand_id = ?2 AND (asana_gid IS NULL OR asana_gid != ?3)`).bind(id, brand, pasted).run();

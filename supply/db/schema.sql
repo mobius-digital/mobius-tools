@@ -125,6 +125,8 @@ CREATE TABLE slots (
   status       TEXT NOT NULL DEFAULT 'needs_brief', -- needs_brief | in_design | sampling | approved | ordered | live
   on_site_at   TEXT NOT NULL,                -- the one date typed by hand; the rest derive
   brief_due    TEXT, sample_due TEXT, order_by TEXT, lands_at TEXT,
+  -- where the physical sample is. The stage says who is working; these say where the thing is.
+  sample_requested_at TEXT, sample_expected_at TEXT, sample_tracking TEXT, sample_in_hand_at TEXT,
   asana_task   TEXT,                         -- permalink of the Asana task
   asana_gid    TEXT,                         -- its gid, so its status can be re-read
   asana_done   INTEGER,                      -- last known: 1 done, 0 open, NULL unknown

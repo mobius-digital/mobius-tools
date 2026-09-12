@@ -129,12 +129,13 @@ function renderCollections(m) {
     <div class="two wide">
       <div class="stack">
         ${mine.length ? `<div class="card flush"><div class="tbl-wrap"><table>
-          <tr><th>Design</th><th>Line</th><th>Stage</th><th>Asana</th><th></th></tr>
+          <tr><th>Design</th><th>Line</th><th>Stage</th><th>Where it is</th><th>Asana</th><th></th></tr>
           ${mine.map(sl => `<tr>
             <td class="click" onclick="openSlot('${sl.id}')"><b>${esc(sl.name)}</b>${sl.late ? ` <span class="tiny" style="color:var(--bad);font-weight:700">late</span>` : ''}</td>
             <td class="tiny">${esc(sl.lineName || '')}</td>
             <td>${pill(SLOT_STATUS[sl.status]?.[1] || 'unk', SLOT_STATUS[sl.status]?.[0] || sl.status)}</td>
-            <td>${asanaPill(sl) || '<span class="tiny">not made yet</span>'}</td>
+            <td>${wherePill(sl)}</td>
+            <td>${asanaPill(sl) || '<span class="tiny">no task yet</span>'}</td>
             <td style="text-align:right">${asanaButton(sl, 'sm')}</td></tr>`).join('')}
         </table></div></div>` : `<div class="card"><div class="empty"><b>Nothing in this drop yet</b>Add designs from any line below.</div></div>`}
         <div class="card"><h3>Add designs to ${esc(col.name)}</h3><div class="hint">Pick a line and how many. Each one becomes a slot in this drop, with its dates worked back from ${fmtDate(col.drop_at, { year: true })}.</div>
@@ -211,12 +212,18 @@ async function editLineTarget(lid) {
   const row = st().db.lines.find(x => x.id === lid);
   await save('/api/lines', { ...row, target_designs: r.target === '' ? null : +r.target, cut_rule_pct: r.cut === '' ? null : +r.cut });
 }
+/** Where the physical thing is: the sample first, then the bulk order once it exists. */
+function wherePill(sl) {
+  if (sl.made) return pill(sl.made.status === 'landed' || sl.made.status === 'partial' ? 'good' : sl.made.status === 'shipped' ? 'brand' : 'warn', sl.made.label + (sl.made.expected_at && sl.made.status !== 'landed' ? `, ${fmtDate(sl.made.expected_at)}` : ''));
+  if (sl.sample) return pill(sl.sample.state === 'in hand' ? 'good' : sl.sample.late ? 'bad' : 'brand', sl.sample.label);
+  return '<span class="tiny">nothing made yet</span>';
+}
 const SLOT_STATUS = { needs_brief: ['Needs a brief', 'unk'], in_design: ['In design', 'brand'], tech_pack: ['Tech pack', 'brand'], sampling: ['Sampling', 'brand'], approved: ['Approved', 'good'], ordered: ['Ordered', 'good'], live: ['Live', 'good'] };
 function slotRow(sl) {
   const [t, k] = SLOT_STATUS[sl.status] || [sl.status, 'unk'];
   return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #EDF1F4;flex-wrap:wrap">
     <div class="click" style="flex:1;min-width:180px;cursor:pointer" onclick="openSlot('${sl.id}')"><b style="font-size:13.5px">${esc(sl.name)}</b><div class="tiny">brief ${fmtDate(sl.dates.briefDue)} · tech pack ${fmtDate(sl.dates.techPackDue)} · sample ${fmtDate(sl.dates.sampleDue)} · order ${fmtDate(sl.dates.orderBy)} · on site ${fmtDate(sl.dates.onSite)}${sl.late ? ' · <span style="color:var(--bad);font-weight:700">late</span>' : ''}</div></div>
-    ${asanaPill(sl)}${pill(sl.late && sl.status !== 'live' ? 'bad' : k, t)}${asanaButton(sl, 'sm')}</div>`;
+    ${sl.made || sl.sample ? wherePill(sl) : ''}${asanaPill(sl)}${pill(sl.late && sl.status !== 'live' ? 'bad' : k, t)}${asanaButton(sl, 'sm')}</div>`;
 }
 
 /* ---------- the Asana hand-off ----------
@@ -309,6 +316,17 @@ function openSlot(id) {
       <div class="field"><label>Asana task</label><input id="slAsana" value="${esc(sl.asana_task || '')}" placeholder="Paste a task link, or use the button below"><div class="help">The brief, mockups and samples live there. Empty this field to unlink the task.</div></div>
       <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea id="slNotes">${esc(sl.notes || '')}</textarea></div>
     </div>
+    <div class="panel"><h4>The sample</h4><div class="sub">Where the physical sample is. The stage above says who is working on it; this says where the thing is.</div>
+      <div class="fields" style="margin-top:8px">
+        <div class="field"><label>Asked for on</label><input type="date" id="slSampReq" value="${sl.sample_requested_at || ''}"></div>
+        <div class="field"><label>Expected</label><input type="date" id="slSampExp" value="${sl.sample_expected_at || ''}"></div>
+        <div class="field"><label>Tracking</label><input id="slSampTrk" value="${esc(sl.sample_tracking || '')}" placeholder="Courier and number"></div>
+        <div class="field"><label>In hand on</label><input type="date" id="slSampIn" value="${sl.sample_in_hand_at || ''}"><div class="help">Fill this and the sample stops chasing you.</div></div>
+      </div></div>
+    <div class="panel"><h4>Once it exists</h4><div class="sub">Attach the Shopify product this design became, and Supply follows it into production off your orders. No typing after that.</div>
+      <div class="fields" style="margin-top:8px"><div class="field" style="grid-column:1/-1"><label>Shopify product</label>
+        <select id="slProd"><option value="">Not made yet</option>${st().products.filter(p => p.lineId === sl.line_id).map(p => `<option value="${p.id}" ${String(sl.product_id || '') === String(p.id) ? 'selected' : ''}>${esc(p.title)}</option>`).join('')}</select>
+        <div class="help">${sl.made ? `On ${esc(sl.made.orderId)}: ${esc(sl.made.label.toLowerCase())}${sl.made.expected_at ? `, expected ${fmtDate(sl.made.expected_at, { year: true })}` : ''}.` : 'Nothing on order for it yet.'}</div></div></div></div>
     <div class="panel"><h4>Asana</h4><div class="sub">The design work itself. Supply tracks whether it is still open.</div>
       <div id="slAsanaBox" style="margin-top:8px">${asanaSheetHTML(sl)}</div></div>
     <div class="panel"><h4>Dates, worked backwards</h4><div class="sub">Change the drop date or a factory lead time and these all move.</div>
@@ -318,7 +336,14 @@ function openSlot(id) {
 }
 async function saveSlot() {
   const sl = st().slots.find(x => x.id === S.open.slotId);
-  await save('/api/slots', { ...sl, name: $('#slName').value, status: $('#slStatus').value, collection_id: $('#slCol').value || null, on_site_at: $('#slSite').value || sl.on_site_at, asana_task: $('#slAsana').value, notes: $('#slNotes').value, brief_due: null, sample_due: null, order_by: null, lands_at: null });
+  await save('/api/slots', {
+    ...sl, name: $('#slName').value, status: $('#slStatus').value, collection_id: $('#slCol').value || null,
+    on_site_at: $('#slSite').value || sl.on_site_at, asana_task: $('#slAsana').value, notes: $('#slNotes').value,
+    product_id: $('#slProd').value || null,
+    sample_requested_at: $('#slSampReq').value || null, sample_expected_at: $('#slSampExp').value || null,
+    sample_tracking: $('#slSampTrk').value || null, sample_in_hand_at: $('#slSampIn').value || null,
+    brief_due: null, sample_due: null, order_by: null, lands_at: null,
+  });
   closeSheet();
 }
 async function deleteSlot() { const ok = await modal({ title: 'Delete this slot?', fields: false, confirm: 'Delete', danger: true, hint: 'The Asana task, if any, is not touched.' }); if (!ok) return; await save(`/api/slots/${S.open.slotId}`, null, 'DELETE', 'Deleted'); closeSheet(); }
