@@ -6016,6 +6016,20 @@ export default {
           rows, events: await seriesEvents(env, act, from) });
       }
 
+      /* Today so far, live from Triple Whale. The daily sync deliberately ends
+         at yesterday (a partial day must never sit in tw_daily looking whole), so
+         Locus asks for it here on demand and stamps it "as of". Same summary call
+         the reports use, over a one-day period. */
+      if (path === '/api/tw-today') {
+        const act = url.searchParams.get('act');
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        if (!acct.tw_shop) return json({ error: 'no Triple Whale shop set' }, 400);
+        const today = localDate(acct.tz);
+        const { map } = await twSummary(env, acct.tw_shop, today, today);
+        return json({ date: today, as_of: new Date().toISOString(), map });
+      }
+
       if (path === '/api/pacing') {
         const act = url.searchParams.get('act');
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();

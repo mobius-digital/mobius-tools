@@ -400,6 +400,50 @@ async function seriesFor(env, acct, from, to) {
   return { rows, margin_pct: marginPct, shipping: ship };
 }
 
+/** Today so far, live. tw_daily ends at yesterday on purpose, so a window that
+ *  explicitly asks for today gets ONE synthetic row built from a live Triple
+ *  Whale call, pushed through the SAME dayEconomics as every stored day, and
+ *  stamped as_of. With `withMeta`, Meta's hourly cache is refreshed first so
+ *  the day's spend fallback and the hourly chart are current. */
+async function liveToday(env, request, acct, withMeta) {
+  if (!env.AUTH) throw new Error('AUTH binding missing');
+  const today = localDate(acct.tz);
+  const auth = request.headers.get('Authorization') || '';
+  const hit = async p => {
+    const r = await env.AUTH.fetch(new Request(`${AUTH_WORKER}${p}`, { headers: { Authorization: auth } }));
+    if (!r.ok) throw new Error(`${p}: HTTP ${r.status}`);
+    return r.json();
+  };
+  const tw = await hit(`/api/tw-today?act=${encodeURIComponent(acct.act_id)}`);
+  const piv = {};
+  for (const [k, v] of Object.entries(tw.map || {})) piv[k] = { [today]: v };
+  const meta = {};
+  if (withMeta) {
+    try { const pace = await hit(`/api/pacing?act=${encodeURIComponent(acct.act_id)}`); if (pace.spent != null) meta[today] = { spend: pace.spent }; }
+    catch { /* Meta down: the blended Triple Whale figure still stands */ }
+  }
+  const row = dayEconomics(piv, meta, today, marginOverride(acct, monthOf(today)));
+  return { date: today, as_of: tw.as_of, row };
+}
+
+/** Meta's own spend by hour for one day, from the cache /api/pacing fills
+ *  (today plus the seven days before it). `refresh` re-pulls from Meta first. */
+async function hoursFor(env, request, acct, date, refresh) {
+  if (refresh && env.AUTH) {
+    try {
+      const auth = request.headers.get('Authorization') || '';
+      await env.AUTH.fetch(new Request(`${AUTH_WORKER}/api/pacing?act=${encodeURIComponent(acct.act_id)}`, { headers: { Authorization: auth } }));
+    } catch { /* stale hours beat no hours */ }
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT hour, spend, purchases FROM hourly_insights WHERE act_id = ?1 AND date = ?2 ORDER BY hour`,
+  ).bind(acct.act_id, date).all();
+  if (!results.length) return [];
+  const last = Math.max(...results.map(r => r.hour));
+  const by = Object.fromEntries(results.map(r => [r.hour, r]));
+  return Array.from({ length: last + 1 }, (_, h) => ({ hour: h, spend: by[h]?.spend ?? 0, purchases: by[h]?.purchases ?? 0 }));
+}
+
 /** Does this client actually record what fulfilment costs them?
  *  DIAGNOSTIC ONLY. Shipping charged to customers is already inside Triple Whale's
  *  netSales, so it cannot be netted back out - a client who bills for shipping and
@@ -1633,7 +1677,8 @@ export default {
       /** The window for one account, honouring an explicit range over `days`. */
       const windowFor = (acct) => {
         const today = localDate(acct.tz), yday = addDays(today, -1);
-        const to = qTo && qTo < yday ? qTo : yday;
+        // Today is allowed ONLY when asked for by name; it is served live, never from tw_daily.
+        const to = qTo && qTo <= today ? qTo : yday;
         const from = qFrom || addDays(today, -days);
         return { today, from: from > to ? to : from, to };
       };
@@ -1661,6 +1706,12 @@ export default {
             ? { verdict: 'override', reason: `using a flat ${Math.round(margin_pct * 100)}% margin override`, blended: margin_pct }
             : judgeCosts(rows));
           const mtdRows = allRows.filter(r => r.date >= monthStart);
+          const plan = planFor(a, ym, mtdRows);          // whole days only, see /api/client
+          let live = null;
+          if (to === today) {
+            live = await liveToday(env, request, a, false).catch(() => null);
+            if (live?.row) { rows.push(live.row); mtdRows.push(live.row); }
+          }
           out.push({
             ...pubAccount(a),
             window: totals(rows),
@@ -1671,7 +1722,7 @@ export default {
             // does not push six of these through the payload at full resolution.
             spark: (rows.length > 60 ? rows.slice(-60) : rows).map(r => r.sales ?? null),
             goals: g.sales != null || g.spend != null ? g : null,
-            plan: planFor(a, ym, mtdRows),
+            plan, live_as_of: live ? live.as_of : null,
             margin_pct, cost_health: health, shipping,
             slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null,
             brief_enabled: !!a.brief_enabled,
@@ -1699,11 +1750,21 @@ export default {
         const rows = allRows.filter(r => r.date >= from && r.date <= to);
         // planFor spreads the month goal over the days ELAPSED, so it must see the
         // month-to-date rows - the whole window here once pro-rated a plan past 100%.
+        // It sees WHOLE days only: a live partial today is added after the plan is
+        // pro-rated, so "planned by now" means through yesterday on a Today window.
         const mtdRows = allRows.filter(r => r.date >= monthStart);
+        const plan = planFor(acct, ym, mtdRows);
+        let live = null, hours = null;
+        if (to === today) {
+          live = await liveToday(env, request, acct, true);
+          if (live.row) { rows.push(live.row); mtdRows.push(live.row); }
+        }
+        if (from === to) hours = await hoursFor(env, request, acct, from, to !== today);
         return json({
           account: pubAccount(acct), days, from, to, margin_pct, rows, shipping,
           totals: totals(rows), mtd: totals(mtdRows),
-          goals: goalsFor(acct, ym), plan: planFor(acct, ym, mtdRows),
+          goals: goalsFor(acct, ym), plan,
+          live_as_of: live ? live.as_of : null, hours,
         });
       }
 
