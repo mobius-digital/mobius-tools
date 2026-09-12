@@ -17,7 +17,7 @@ body{background:var(--bg)}
 .side-brand,.side-client,.side-foot{flex:none}
 .side-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
 .side-brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:#fff;padding:0 9px 10px;border-bottom:1px solid #1D2C38}
-.side-brand .mk{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#62BDEA,#2E88B8);flex:none;display:block;box-shadow:0 6px 14px -8px rgba(98,189,234,.8)}
+.side-brand .mk{width:26px;height:26px;border-radius:7px;flex:none;display:block;object-fit:cover}
 .side-brand .nm{font-family:var(--serif);font-size:20px;line-height:1;color:#fff}
 .side-brand .by{font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#5A7183;display:block;margin-top:3px}
 .side-brand:hover .nm{color:var(--brand)}
@@ -237,7 +237,7 @@ body.gated main{padding:0;max-width:none;gap:0}
 .gate-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:48px 32px;background:radial-gradient(60% 40% at 50% 0%,rgba(98,189,234,.14),transparent 70%),var(--bg)}
 .gate-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:30px 30px 26px;box-shadow:0 30px 60px -40px rgba(12,22,29,.5)}
 .gate-brand{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
-.gate-brand .mk{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#62BDEA,#2E88B8);display:inline-block}
+.gate-brand .mk{width:22px;height:22px;border-radius:6px;display:inline-block;object-fit:cover;vertical-align:middle}
 .gate-card h1{font-family:var(--serif);font-weight:400;font-size:38px;line-height:1;margin-bottom:10px}
 .gate-sub{color:var(--ink-2);font-size:14px;margin-bottom:22px;line-height:1.5}
 .gate-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;border:1px solid var(--line-strong);border-radius:10px;padding:12px;font-weight:700;font-size:14.5px;color:var(--ink);background:var(--surface);text-decoration:none}
