@@ -247,11 +247,15 @@ const STAGE_FROM_SECTION = Object.fromEntries(Object.entries(STAGE_LABEL).map(([
 async function syncStagesFromAsana(env, brand, db) {
   const project = String(db.settings?.asana_project || '').replace(/\D/g, '');
   const linked = (db.slots || []).filter(sl => sl.asana_gid);
-  if (!env.ASANA_TOKEN || !project || !linked.length) return db;
+  if (!env.ASANA_TOKEN || !project) return db;   // still worth reading: there may be cards nobody has claimed
   let tasks;
-  try { tasks = await asana(env, `/tasks?project=${project}&limit=100&opt_fields=gid,completed,memberships.section.name`); }
+  try { tasks = await asana(env, `/tasks?project=${project}&limit=100&opt_fields=gid,name,completed,due_on,permalink_url,memberships.section.name`); }
   catch { return db; }                                   // Asana down: the app still works
   const byGid = Object.fromEntries(tasks.map(t => [t.gid, t]));
+  /* cards nobody in Supply owns: someone started them straight in Asana */
+  const mine = new Set(linked.map(sl => String(sl.asana_gid)));
+  db.asanaLoose = tasks.filter(t => !mine.has(String(t.gid)) && !t.completed)
+    .map(t => ({ gid: t.gid, name: t.name, section: t.memberships?.[0]?.section?.name || null, due_on: t.due_on || null, url: t.permalink_url }));
   const writes = [], moved = [];
   for (const sl of linked) {
     const t = byGid[sl.asana_gid];
@@ -343,6 +347,7 @@ export default {
         if (!db.brand) { await seed(env, brand, raw, actor); db = await loadDb(env, brand); }
         db = await syncStagesFromAsana(env, brand, db);
         const state = computeSupply(raw, db);
+        state.asanaLoose = db.asanaLoose || [];
         return json({ ...state, db: { categories: db.categories, lines: db.lines, factories: db.factories, typeMap: db.typeMap, products: db.products, brand: db.brand }, shopTypes: [...new Set(raw.catalog.products.filter(p => p.variants.some(v => v.tracked)).map(p => p.type || ''))] });
       }
 

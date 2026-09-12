@@ -142,6 +142,12 @@ function renderCollections(m) {
         </table></div></div>` : `<div class="card"><div class="empty"><b>Nothing in this drop yet</b>Add designs from any line below.</div></div>`}
         <div class="card"><h3>Add designs to ${esc(col.name)}</h3><div class="hint">Pick a line and how many. Each one becomes a slot in this drop, with its dates worked back from ${fmtDate(col.drop_at, { year: true })}.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${s.lines.filter(l => l.planned).map(l => `<button class="btn sm" onclick="addToCollection('${col.id}','${l.id}')">${ic('plus')}${esc(l.name)}</button>`).join('') || '<span class="hint">No lines are planned yet.</span>'}</div></div>
+        ${(s.asanaLoose || []).length ? `<div class="card sc br"><h3>Started in Asana, not in the plan</h3>
+          <div class="hint">${plural(s.asanaLoose.length, 'card')} in your Asana project that no design here owns. If one of them is a design you mean to make, claim it: Supply gives it a line, a drop and every date, and keeps the card you already started.</div>
+          ${s.asanaLoose.map(t => `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #EDF1F4;flex-wrap:wrap">
+            <div style="flex:1;min-width:180px"><b style="font-size:13.5px">${esc(t.name)}</b><div class="tiny">${esc(t.section || 'no column')}${t.due_on ? ` · due ${fmtDate(t.due_on)}` : ''}</div></div>
+            <a class="btn sm quiet" href="${esc(t.url)}" target="_blank" rel="noopener">Open</a>
+            <button class="btn sm" onclick="claimAsanaCard('${t.gid}')">Make it a design</button></div>`).join('')}</div>` : ''}
         ${loose.length ? `<div class="card"><h3>Not in a drop</h3><div class="hint">${plural(loose.length, 'design')} made before drops existed, or made on their own. Open one to put it in a drop.</div>
           ${loose.map(sl => slotRow(sl)).join('')}</div>` : ''}
       </div>
@@ -189,6 +195,25 @@ async function addToCollection(colId, lineId) {
     await api('/api/slots', { method: 'POST', body: { line_id: lineId, collection_id: colId, name: `${c.name} · ${l.name.replace(/s$/, '')} ${existing + i + 1}`, status: 'needs_brief' } });
   await load({ quiet: true }); toast(`${plural(n, 'design')} added to ${c.name}`);
 }
+/** Adopt a card someone started straight in Asana: it becomes a design, keeping its task. */
+async function claimAsanaCard(gid) {
+  const s = st();
+  const t = (s.asanaLoose || []).find(x => String(x.gid) === String(gid));
+  if (!t) return;
+  const cols = s.collections || [], lines = s.lines.filter(l => l.planned);
+  const r = await modal({
+    title: `Make "${t.name}" a design`,
+    hint: 'Supply keeps this exact Asana card. It gains a line, a drop and every date worked back from that drop, and its column keeps setting the stage.',
+    fields: [
+      { key: 'line', label: 'Line', type: 'select', value: lines[0]?.id || '', options: lines.map(l => [l.id, l.name]) },
+      { key: 'col', label: 'Drop', type: 'select', value: S.planCol || cols[0]?.id || '', options: cols.map(c => [c.id, `${c.name} · ${fmtDate(c.drop_at, { year: true })}`]) }],
+    confirm: 'Make it a design',
+  });
+  if (!r || !r.line || !r.col) return;
+  await save('/api/slots', { line_id: r.line, collection_id: r.col, name: t.name, asana_task: t.url, status: 'needs_brief' }, 'POST', 'Claimed. It is a design now.');
+  S.planCol = r.col;
+}
+
 /** Make the Asana task for every design in the drop that has not got one. */
 async function tasksForCollection(colId) {
   const todo = st().slots.filter(sl => sl.collection_id === colId && !sl.asana_task);
