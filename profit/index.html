@@ -659,6 +659,9 @@
 
   /* --- The three plan boxes --- */
   .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+  /* Daily Brief, Phase 3a: strip first, brief left, verdict + chart + plan right. */
+  .brief-two{gap:11px;margin-top:2px}
+  .brief-two .card{margin-bottom:11px}
   /* Plan, Phase 2 (2026-09-12): the three levers read as Revenue = Spend x MER,
      the calculated one tinted; below it two columns. */
   .pf-grid.pf-eq{grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr) 34px minmax(0,1fr);gap:0;align-items:stretch;margin-bottom:12px}
@@ -4699,6 +4702,24 @@ async function renderBrief(first) {
       Spend below has been rebuilt from the platforms' own reporting where a second source exists.
       <button class="btn" id="bfToHealth" style="margin-left:6px">Open Data Health</button></div></div>` : ''}
     ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely - every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or set a flat <b>margin %</b> on the <b>Costs</b> tab instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> - ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab overrides it with a stable rate.</div></div>` : ''}
+    <div class="rollup">
+      ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
+      <div class="ru" style="opacity:.72">
+        <div class="ru-l">Contribution Margin <span class="info-i ru-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or set a flat margin % on the Costs tab.">i</span></div>
+        <div class="ru-v" style="font-size:19px">not reported</div>
+        <div class="ru-d">cost data unreliable - see the note above</div>
+      </div>` : statCard('Contribution Margin', a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a flat margin % set on the Costs tab.'))}
+      ${statCard('Net Sales + Shipping', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify Total Sales minus sales tax: every channel - paid, organic, email, direct - after discounts and returns, plus shipping charged to customers, less tax. Not ad-platform-attributed revenue - this is what actually hit the store, and it is the same line every tab uses.')}
+      ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
+      ${statCard('MER', a.mer, f.mer, fx, 'Marketing Efficiency Ratio = ALL store revenue ÷ ALL ad spend. Both sides blended: every sale the store made (paid, organic, email, direct - not ad-attributed) over every dollar spent across Meta, Google and any other platform. The single "are the ads paying for themselves" number. Plan = your net-sales goal ÷ your spend goal.')}
+      ${statCard('aMER', a.amer, f.amer, fx, 'Acquisition MER = NEW-customer revenue ÷ that same total ad spend. Same blended basis as MER, but only counts first-time buyers - so email and repeat customers can’t flatter the ads. This is the number CTC leads their reports with.')}
+    </div>
+    ${/* Was its own card restating the new/returning split that Profit and
+          Customers both already carry. One line under the stats instead - the
+          only part that is NOT elsewhere on this page is the channel split. */''}
+    <p class="tiny" style="margin:-4px 0 14px">${a.new_rev != null ? `<b>${fmtMoney(a.new_rev, cur)}</b> from new customers${a.new_share != null ? ` (${Math.round(a.new_share * 100)}%)` : ''} · <b>${fmtMoney(a.ret_rev, cur)}</b> returning` : 'No new-vs-returning split available'}${a.meta_spend != null ? ` &nbsp;·&nbsp; Meta ${fmtMoney(a.meta_spend, cur)}${a.meta_roas != null ? ` at ${fx(a.meta_roas)} <span class="info-i" title="Meta's OWN attributed ROAS, from the Meta API. Structurally lower than blended MER and it has no target here - conversions also keep settling for ~72h, so recent days read low.">i</span>` : ''}` : ''}${a.google_spend != null ? ` · Google ${fmtMoney(a.google_spend, cur)}` : ''}</p>
+    <div class="two brief-two">
+    <div>
     <!-- The draft is the job; the numbers underneath are context. This card
          used to sit below the stat cards, the chart and the plan, so reviewing
          a brief meant scrolling past everything else first. -->
@@ -4728,22 +4749,22 @@ async function renderBrief(first) {
            <textarea id="bfEdit" style="display:none;width:100%;min-height:360px;border:1px solid var(--line-strong);border-radius:8px;padding:12px;font:inherit;font-size:13px;line-height:1.6;background:var(--bg)">${esc(bfDraft.text || '')}</textarea>
            <p class="tiny" id="bfEditHint" style="display:none;margin-top:6px">Slack formatting: <code>*bold*</code>, <code>_italic_</code>, <code>:wave:</code> for emoji. Save to see it rendered.</p>`
         : `<div id="bfPreview"></div>`}</div>
-    <div class="rollup">
-      ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
-      <div class="ru" style="opacity:.72">
-        <div class="ru-l">Contribution Margin <span class="info-i ru-i" title="Switched off because this client's cost data in Triple Whale can't be trusted: ${esc(cq.reason)}. Set real COGS in Triple Whale, or set a flat margin % on the Costs tab.">i</span></div>
-        <div class="ru-v" style="font-size:19px">not reported</div>
-        <div class="ru-d">cost data unreliable - see the note above</div>
-      </div>` : statCard('Contribution Margin', a.cm, f.cm, n => fmtMoney(n, cur), 'Did the day actually make money? Net sales minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using your ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a flat margin % set on the Costs tab.'))}
-      ${statCard('Net Sales + Shipping', a.sales, f.sales, n => fmtMoney(n, cur), 'Shopify Total Sales minus sales tax: every channel - paid, organic, email, direct - after discounts and returns, plus shipping charged to customers, less tax. Not ad-platform-attributed revenue - this is what actually hit the store, and it is the same line every tab uses.')}
-      ${statCard('Total Spend', a.spend, f.spend, n => fmtMoney(n, cur), 'All ad platforms blended (Meta + Google), from Triple Whale. The plan line is your monthly spend goal spread evenly across the days.', true)}
-      ${statCard('MER', a.mer, f.mer, fx, 'Marketing Efficiency Ratio = ALL store revenue ÷ ALL ad spend. Both sides blended: every sale the store made (paid, organic, email, direct - not ad-attributed) over every dollar spent across Meta, Google and any other platform. The single "are the ads paying for themselves" number. Plan = your net-sales goal ÷ your spend goal.')}
-      ${statCard('aMER', a.amer, f.amer, fx, 'Acquisition MER = NEW-customer revenue ÷ that same total ad spend. Same blended basis as MER, but only counts first-time buyers - so email and repeat customers can’t flatter the ads. This is the number CTC leads their reports with.')}
+    ${hist ? `<div class="card"><h3 style="margin-bottom:4px">${internalOnly ? 'Past briefs' : 'Sent briefs'}</h3>${hist}</div>` : ''}
     </div>
-    ${/* Was its own card restating the new/returning split that Profit and
-          Customers both already carry. One line under the stats instead - the
-          only part that is NOT elsewhere on this page is the channel split. */''}
-    <p class="tiny" style="margin:-4px 0 14px">${a.new_rev != null ? `<b>${fmtMoney(a.new_rev, cur)}</b> from new customers${a.new_share != null ? ` (${Math.round(a.new_share * 100)}%)` : ''} · <b>${fmtMoney(a.ret_rev, cur)}</b> returning` : 'No new-vs-returning split available'}${a.meta_spend != null ? ` &nbsp;·&nbsp; Meta ${fmtMoney(a.meta_spend, cur)}${a.meta_roas != null ? ` at ${fx(a.meta_roas)} <span class="info-i" title="Meta's OWN attributed ROAS, from the Meta API. Structurally lower than blended MER and it has no target here - conversions also keep settling for ~72h, so recent days read low.">i</span>` : ''}` : ''}${a.google_spend != null ? ` · Google ${fmtMoney(a.google_spend, cur)}` : ''}</p>
+    <div>
+    ${(() => {
+      /* The verdict the send button already obeys, as a card the reader sees
+         first: what blocks a send, what merely needs a look, or a clean bill. */
+      const iss = d.health?.by_date?.[d.date] || [];
+      const bad = iss.find(i => i.severity === 'broken'), warn = iss.find(i => i.severity === 'warn');
+      const tone = !d.health ? 'un' : bad ? 'bd' : warn ? 'wn' : 'ok';
+      const big = !d.health ? 'Not checked' : bad ? 'Blocked' : warn ? 'Check before sending' : 'Safe to send';
+      const hint = !d.health ? 'No data check has run for this day yet.'
+        : bad ? `${esc(bad.what)}. ${esc(bad.fix || '')} A brief is refused while this stands.`
+        : warn ? `${esc(warn.what)}. The send still works; read the numbers first.`
+        : 'Every channel reported, Meta ties to its own API, and no cost line is missing.';
+      return `<div class="card sc ${tone}"><div class="mini">Data health &middot; ${esc(d.date)}</div><div class="big" style="font-size:17px">${big}</div><p class="hint">${hint}</p></div>`;
+    })()}
     <div class="card"><h3 style="margin-bottom:2px">The month vs the plan</h3>
       <p class="hint" style="margin-bottom:6px">Cumulative net sales: <span style="color:#14608C;font-weight:700">blue</span> = actual, <span style="color:#8195A2;font-weight:700">dashed gray</span> = the plan. Forecast weighting: ${esc(d.weights)}.${d.mtd.sales != null && d.mtd.sales_f ? ` So far: <b>${fmtK(d.mtd.sales, cur)}</b> vs <b>${fmtK(d.mtd.sales_f, cur)}</b> planned (${fmtPct(d.mtd.sales / d.mtd.sales_f - 1, 0)}).` : ''}</p>
       <div id="bfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart for exact values…</div>
@@ -4779,7 +4800,8 @@ async function renderBrief(first) {
           <span class="tiny" style="display:block;margin-top:3px">This replaces copy-pasting: same review, but Slack formatting survives and what you sent is recorded.</span>
         </span>
       </div>`}</div>
-    ${hist ? `<div class="card"><h3 style="margin-bottom:4px">${internalOnly ? 'Past briefs' : 'Sent briefs'}</h3>${hist}</div>` : ''}
+    </div>
+    </div>
   `);
 
   /* chart crosshair - hover AND tap */
