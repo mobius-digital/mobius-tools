@@ -577,8 +577,22 @@ export default {
         if ('asana_task' in (body || {}) && !str(s.asana_task, 300))
           await env.DB.prepare(`UPDATE slots SET asana_task = NULL, asana_gid = NULL, asana_done = NULL, asana_checked = NULL WHERE id = ?1 AND brand_id = ?2`).bind(id, brand).run();
         await log(env, brand, actor, 'slot', id, request.method === 'POST' ? 'create' : 'update', s);
-        /* the slot moved stage or moved its dates: the Asana task is due on the new one */
         const row = await env.DB.prepare(`SELECT * FROM slots WHERE id = ?1 AND brand_id = ?2`).bind(id, brand).first();
+        /* A new design is work the moment it exists, so it gets its Asana task
+           without being asked. An existing one just re-dates against its stage. */
+        if (row && !row.asana_gid && request.method === 'POST' && env.ASANA_TOKEN) {
+          const db = await loadDb(env, brand);
+          const project = String(db.settings.asana_project || '').replace(/\D/g, '');
+          if (project) {
+            try {
+              const t = await createSlotTask(env, row, slotDates(row, db), project);
+              await addSteps(env, t.gid, db.settings);
+              await env.DB.prepare(`UPDATE slots SET asana_task = ?3, asana_gid = ?4, asana_done = 0, asana_checked = datetime('now') WHERE id = ?1 AND brand_id = ?2`).bind(id, brand, t.permalink_url || null, t.gid).run();
+              await log(env, brand, actor, 'slot', id, 'asana-create', { gid: t.gid, url: t.permalink_url, auto: true });
+              return json({ ok: true, id, asanaTask: t.permalink_url });
+            } catch (e) { return json({ ok: true, id, asanaError: String(e.message || e) }); }
+          }
+        }
         const moved = row?.asana_gid ? await pushTaskDue(env, row, await loadDb(env, brand)) : null;
         return json({ ok: true, id, asanaDue: moved });
       }
