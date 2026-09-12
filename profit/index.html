@@ -494,6 +494,14 @@
   .ovt .num.good{color:var(--good)} .ovt .num.bad{color:var(--bad)}
   .ovt .spark-td{width:96px;padding-top:6px;padding-bottom:6px}
   .ovt .spark-td svg{width:88px;height:24px;display:block;margin:0 0 0 auto}
+  /* Profit, Phase 1b: two columns, the new/returning split as a bar. */
+  .pf-two{gap:11px}
+  .pf-two .card:last-child{margin-bottom:0}
+  .nr-bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:#DFE7EC;margin:9px 0 8px}
+  .nr-bar>div:first-child{background:#14608C}
+  .nr-bar>div+div{background:#9FC9DE}
+  .card .mini{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+  .card .big{font-size:24px;font-weight:700;letter-spacing:-.03em;line-height:1.15;margin:3px 0 4px}
   .ov-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:11px}
   .ov-cards .card{margin-bottom:0}
   .ov-cards .mini{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
@@ -3461,11 +3469,26 @@ function vsPlan(actual, planned) {
  * `tone` ('good' | 'bad' | 'warn') colours the figure where a verdict is
  * genuinely attached to it; most callers pass nothing.
  */
-function statCard(label, value, sub, info, tone) {
+/* Round first, then sign: a value a hair under parity must not print "-0%". */
+const signedPct = d => { const p = Math.round(d * 100); return (p > 0 ? '+' : '') + p + '%'; };
+/** The MTD-vs-plan pill every strip uses. Spend is judged on distance from
+ *  plan in either direction; revenue and MER on the side they land. Always
+ *  says MTD, because the figure above it may be a different window. */
+function mtdPill(actual, plan, kind) {
+  if (actual == null || plan == null || !plan) return '';
+  const d = actual / plan - 1;
+  const tone = kind === 'spend' ? (Math.abs(d) <= 0.08 ? 'good' : 'warn')
+    : d >= 0 ? 'good' : d <= -0.08 ? 'bad' : 'warn';
+  const txt = kind === 'spend' && Math.abs(d) < 0.005 ? 'MTD on plan' : `MTD ${signedPct(d)} vs plan`;
+  return `<span class="pill ${tone}">${txt}</span>`;
+}
+/** One roll-up cell. `plan` is the planned-by-now line, `pill` the verdict
+ *  chip; both optional so the twenty existing callers are unchanged. */
+function statCard(label, value, sub, info, tone, plan, pill) {
   return `<div class="ru">
     <div class="ru-l">${label}${info ? ` <span class="info-i ru-i" title="${esc(info)}">i</span>` : ''}</div>
     <div class="ru-v${tone ? ' ' + tone : ''}">${value}</div>
-    ${sub ? `<div class="ru-d">${sub}</div>` : ''}
+    ${sub ? `<div class="ru-d">${sub}</div>` : ''}${plan ? `<div class="ru-p">${plan}</div>` : ''}${pill || ''}
   </div>`;
 }
 
@@ -3564,18 +3587,7 @@ async function renderOverview() {
   } : null;
   if (mtd) { mtd.mer = mtd.spend ? mtd.sales / mtd.spend : null; mtd.pMer = mtd.pSpend ? mtd.pSales / mtd.pSpend : null; }
 
-  /* Round first, then sign: a value a hair under parity must not print "-0%". */
-  const signedPct = d => { const p = Math.round(d * 100); return (p > 0 ? '+' : '') + p + '%'; };
-  const planPill = (actual, plan, kind) => {
-    if (actual == null || plan == null || !plan) return '';
-    const d = actual / plan - 1;
-    // Spend is judged on distance from plan in either direction; revenue and
-    // MER are judged on the side they land.
-    const tone = kind === 'spend' ? (Math.abs(d) <= 0.08 ? 'good' : 'warn')
-      : d >= 0 ? 'good' : d <= -0.08 ? 'bad' : 'warn';
-    const txt = kind === 'spend' && Math.abs(d) < 0.005 ? 'MTD on plan' : `MTD ${signedPct(d)} vs plan`;
-    return `<span class="pill ${tone}">${txt}</span>`;
-  };
+  const planPill = mtdPill;
 
   const judged = all.map(a => ({ a, t: triage(a) }));
   const needs = judged.filter(j => j.t.g === 'bd').sort((x, y) => (x.t.off ?? 0) - (y.t.off ?? 0));
@@ -3991,19 +4003,45 @@ async function renderProfit(first) {
   const chart = salesSpendSVG(d.rows, cur);
   const step = (label, val, note, neg) => `<tr><td>${label}</td><td class="num" style="color:${neg?'var(--bad)':'inherit'}"><b>${neg?'−':''}${fmtMoney(Math.abs(val ?? 0), cur)}</b></td><td class="tiny">${note}</td></tr>`;
 
+  /* MONTH TO DATE AGAINST THE PLAN, from the same snapshot Overview reads, and
+     labelled MTD because the strip's headline figures follow the period control. */
+  const pm = acct?.plan, pmtd = acct?.mtd;
+  const mtdMer = pmtd?.sales != null && pmtd?.spend ? pmtd.sales / pmtd.spend : null;
+  const planMer = pm?.mer ?? (pm?.sales != null && pm?.spend ? pm.sales / pm.spend : null);
+  const planLine = (a, p, fmt) => a != null && p != null ? `MTD ${fmt(a)} of ${fmt(p)} planned by now` : '';
+  const K = v => fmtK(v, cur);
+
+  /* The cost-data verdict as one tinted card: what the profit figure on this
+     page rests on, in the words a client would need to hear. */
+  const vcard = (tone, big, hint) => `<div class="card sc ${tone}"><div class="mini">Cost data</div><div class="big" style="font-size:16px">${big}</div><p class="hint">${hint}</p></div>`;
+  const v = h?.verdict;
+  const costCard = d.margin_pct != null || v === 'override'
+    ? vcard('wn', 'Flat margin override', `Profit here is priced at a flat <b>${Math.round((d.margin_pct ?? h?.blended ?? 0) * 100)}%</b> margin, so it is estimated, not measured. Product, delivery, handling and fees are not read individually for this brand.`)
+    : !h || v === 'none' ? vcard('un', 'Not checked yet', 'No cost verdict has been recorded for this brand. Open <b>Costs</b> to run the check.')
+    : v === 'good' ? vcard('ok', 'Measured, and trusted', `${h.days ? h.days + ' days checked. ' : ''}Product, delivery, handling and fees all recorded, with no day where cost beat revenue. Profit on this page is measured, not estimated.`)
+    : v === 'noisy' ? vcard('wn', 'Measured, with noisy days', `${esc(h.reason || '')} The figures stand; the flagged days are listed on <b>Costs</b>.`)
+    : vcard('bd', 'Profit suppressed', `${esc(h.reason || 'cost data is unreliable')}. Revenue and efficiency are still right; only the cost-based rows are hidden until <b>Costs</b> passes.`);
+
+  pageActions(`${healthPill(h)}<button class="btn" id="pfShare">↗ Client link</button>`);
+
   $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, '<b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.')}
-    <div class="row" style="margin-bottom:12px">${healthPill(h)}<span style="flex:1"></span><button class="btn" id="pfShare">↗ Client link</button></div>
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate - only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
     <div class="rollup">
-      ${statCard('Net Sales + Shipping', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as "Net Sales + Shipping". It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure "Total Sales" and stores it as netSales; shipping is already inside it, so it is never added twice.')}
-      ${statCard('Ad Spend', fmtMoney(t.spend, cur), `${t.meta_spend!=null?`Meta ${fmtK(t.meta_spend,cur)}`:''}${t.google_spend!=null?` · Google ${fmtK(t.google_spend,cur)}`:''}`, 'Every ad platform combined, from Triple Whale. Falls back to Meta + Google spend if the blended figure is unavailable.')}
-      ${statCard('MER', fmtX(t.mer), `${fmtMoney(t.sales, cur)} ÷ ${fmtMoney(t.spend, cur)}`, 'Marketing Efficiency Ratio = all store revenue ÷ all ad spend. Blended on both sides, so no platform can double-count. The single "are the ads paying for themselves" number.')}
+      ${statCard('Net Sales + Shipping', fmtMoney(t.sales, cur), `${t.days} days · MTD ${fmtK(d.mtd.sales, cur)}`, 'Shopify Total Sales minus sales tax. Start from gross sales, take off discounts and returns, add what customers paid for shipping, then take off sales tax. That is the line CTC report as "Net Sales + Shipping". It is every channel - paid, organic, email, direct - and it is real Shopify money, never a platform’s attributed revenue. Triple Whale calls this figure "Total Sales" and stores it as netSales; shipping is already inside it, so it is never added twice.',
+        '', planLine(pmtd?.sales, pm?.sales, K), mtdPill(pmtd?.sales, pm?.sales, 'sales'))}
+      ${statCard('Ad Spend', fmtMoney(t.spend, cur), `${t.meta_spend!=null?`Meta ${fmtK(t.meta_spend,cur)}`:''}${t.google_spend!=null?` · Google ${fmtK(t.google_spend,cur)}`:''}`, 'Every ad platform combined, from Triple Whale. Falls back to Meta + Google spend if the blended figure is unavailable.',
+        '', planLine(pmtd?.spend, pm?.spend, K), mtdPill(pmtd?.spend, pm?.spend, 'spend'))}
+      ${statCard('MER', fmtX(t.mer), `${fmtMoney(t.sales, cur)} ÷ ${fmtMoney(t.spend, cur)}`, 'Marketing Efficiency Ratio = all store revenue ÷ all ad spend. Blended on both sides, so no platform can double-count. The single "are the ads paying for themselves" number.',
+        '', mtdMer != null && planMer != null ? `MTD ${fmtX(mtdMer)} against ${fmtX(planMer)} planned` : '', mtdPill(mtdMer, planMer, 'mer'))}
       ${statCard('aMER', fmtX(t.amer), `${fmtPct(t.new_share)} of revenue was new customers`, 'Acquisition MER = new-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it, so it isolates whether the ads are actually buying customers.')}
-      ${trusted ? statCard('Contribution Margin', fmtMoney(t.cm, cur), `margin ${fmtPct(t.margin)} before ad spend`, 'What’s left after product costs, payment fees and all ad spend. NOT net profit - it ignores fixed costs like rent, salaries and software. It answers: did the marketing make money on the margin?') : ''}
+      ${trusted ? statCard('Contribution Margin', fmtMoney(t.cm, cur), `margin ${fmtPct(t.margin)} before ad spend`, 'What’s left after product costs, payment fees and all ad spend. NOT net profit - it ignores fixed costs like rent, salaries and software. It answers: did the marketing make money on the margin?', t.cm == null ? '' : t.cm >= 0 ? 'good' : 'bad') : ''}
     </div>
-    ${trusted ? `<div class="card"><h3 style="margin-bottom:8px">Where the money went</h3>
+    <div class="two even pf-two">
+    <div>
+    ${trusted ? `<div class="card key"><h3 style="margin-bottom:2px">Where the money went</h3>
+      <p class="hint" style="margin-bottom:8px">Every variable cost, in the order it leaves the business.</p>
       <div class="tbl-wrap"><table><tbody>
         ${step('Net Sales', t.net_sales, 'products only, after discounts and returns - matches Shopify’s Net Sales')}
         ${t.ship_rev ? step('Shipping charged to customers', t.ship_rev, 'what customers paid for delivery') : ''}
@@ -4019,13 +4057,19 @@ async function renderProfit(first) {
       </tbody></table></div>
       <p class="tiny" style="margin-top:8px">This is CTC's definition: revenue minus <b>every variable cost</b> - product, fulfilment, handling, payment fees and ad spend. Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?"${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</p></div>` : ''}
     ${fc && fc.mtd ? forecastCard(fc, cur) : ''}
+    </div>
+    <div>
     <div class="card"><h3 style="margin-bottom:2px">Revenue vs ad spend, day by day</h3>
       <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue - everything the store sold that day, from every channel. <span style="color:#C08A2E;font-weight:700">Amber</span> is ad spend across every platform. The gap between the lines is what was left after advertising, before product costs, fulfilment and payment fees come out of it - so it is <b>not</b> gross profit, which subtracts those but not the ads. Hover or tap for exact values.</p>
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
       ${chart.svg}</div>
-
     <div class="card"><h3 style="margin-bottom:6px">New vs returning</h3>
-      <p class="hint" style="margin-bottom:0">${fmtMoney(t.new_rev, cur)} from new customers (<b>${fmtPct(t.new_share)}</b>) · ${fmtMoney(t.ret_rev, cur)} returning. What that customer <i>cost</i>, what their first order is worth and whether it pays back live on <b>Customers</b> - this page is about where the money went, that one is about who it came from.</p></div>`;
+      <p class="hint" style="margin-bottom:0"><b>${fmtMoney(t.new_rev, cur)}</b> came from customers buying for the first time (<b>${fmtPct(t.new_share)}</b> of revenue) and <b>${fmtMoney(t.ret_rev, cur)}</b> from people coming back.</p>
+      ${t.new_share != null ? `<div class="nr-bar"><div style="width:${Math.max(0, Math.min(100, t.new_share * 100)).toFixed(1)}%"></div><div style="flex:1"></div></div>` : ''}
+      <p class="hint" style="margin-bottom:0">A healthy month grows the first number without the second one shrinking. What that customer <i>cost</i>, what their first order is worth and whether it pays back live on <b>Customers</b>.</p></div>
+    ${costCard}
+    </div>
+    </div>`;
 
   const shareBtn = $('#pfShare');
   if (shareBtn) shareBtn.onclick = async () => {
