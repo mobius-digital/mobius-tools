@@ -283,6 +283,27 @@ function sameCompany(a, b) {
   return VENDOR_ALIASES.some(row => row.some(n => x.includes(n)) && row.some(n => y.includes(n)));
 }
 
+/* A card line and a receipt rarely spell a restaurant the same way. The slip
+ * says "Margarita Bar & Mexican Restaurant"; Amex says
+ * "SPO*OAXACAMARGARITABEDWARDSVILLE", all one word. First-word comparison
+ * cannot see that, so a photographed receipt and its charge became two
+ * expenses. This squashes both to letters and asks whether a distinctive word
+ * (4+ letters, not a generic trade word) of one sits inside the other. Only
+ * ever used together with an amount check, never on its own. */
+const GENERIC_WORDS = new Set(['restaurant', 'restaurants', 'mexican', 'grill', 'cafe', 'coffee', 'store', 'stores',
+  'shop', 'market', 'sporting', 'goods', 'company', 'services', 'service', 'online', 'payment', 'purchase',
+  'the', 'and', 'inc', 'llc', 'corp', 'bar', 'kitchen', 'pizza', 'bistro', 'tavern', 'cantina', 'group', 'center']);
+function looseNameMatch(a, b) {
+  if (sameCompany(a, b)) return true;
+  const words = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/)
+    .filter(w => w.length >= 4 && !GENERIC_WORDS.has(w) && !/^\d+$/.test(w));
+  const squash = v => String(v || '').toLowerCase().replace(/[^a-z]/g, '');
+  const sa = squash(a), sb = squash(b);
+  if (!sa || !sb) return false;
+  return words(a).some(w => sb.includes(w.replace(/[^a-z]/g, ''))) ||
+         words(b).some(w => sa.includes(w.replace(/[^a-z]/g, '')));
+}
+
 async function findRule(env, vendor) {
   const exact = await env.DB.prepare('SELECT * FROM vendors WHERE name = ?1 COLLATE NOCASE')
     .bind(vendor).first();
@@ -1586,7 +1607,37 @@ async function processPlaidTxn(env, item, t, opts = {}) {
       if (!a.length || !b.length) return false;
       return a[0] === b[0] || a.includes(b[0]) || b.includes(a[0]);
     };
-    const mHit = cand.find(nameAgrees) || null;
+    let mHit = cand.find(nameAgrees) || null;
+    /* 2b) A PHOTOGRAPHED receipt booked before the card posted. Two things the
+     * exact-cent, first-word rule above misses on exactly these rows: the card
+     * spells the merchant differently (looseNameMatch), and a restaurant charge
+     * settles with the tip added, up to a third above the printed slip and
+     * never below it. The receipt is the proof it is one purchase, so the row
+     * takes the bank's amount rather than a second row being made. Looks back
+     * across a month edge, within a week of the charge. Cole, 2026-09-13:
+     * Dick's and Oaxaca photographed in Slack, both on the Amex. */
+    let tipAdopt = null;
+    if (!mHit) {
+      const { results: photo } = await env.DB.prepare(
+        `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND plaid_id IS NULL
+         AND receipt_key IS NOT NULL AND source = 'manual'
+         AND date >= date(?1, '-7 days') AND date <= date(?1, '+2 days')
+         AND amount <= ?2 + 0.005 AND amount * 1.35 >= ?2 - 0.005
+         ORDER BY ABS(amount - ?2), ABS(julianday(date) - julianday(?1)) LIMIT 5`)
+        .bind(date, amount).all();
+      const pHit = photo.find(x => nameAgrees(x) || looseNameMatch(x.vendor, vendor)) || null;
+      if (pHit) {
+        /* The receipt's date stays: it is the day of the purchase, and the
+         * charge can post in the next month. */
+        if (Math.abs(pHit.amount - amount) >= 0.005) {
+          tipAdopt = `Card settled $${amount.toFixed(2)}; receipt printed $${pHit.amount.toFixed(2)} (tip added after).`;
+        }
+        await env.DB.prepare(`UPDATE transactions SET plaid_id=?2, amount=?3,
+            note = CASE WHEN ?4 IS NULL THEN note WHEN note IS NULL OR note = '' THEN ?4 ELSE note || ' · ' || ?4 END WHERE id=?1`)
+          .bind(pHit.id, t.transaction_id, amount, tipAdopt).run();
+        return 'matched-existing';
+      }
+    }
     if (mHit) {
       /* Take the bank's date too. The row being adopted was typed by hand and
        * is usually dated the 1st; the statement knows the day it really was,
