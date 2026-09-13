@@ -62,6 +62,13 @@
     --ink:#13202B; --ink-2:#3A4B58; --muted:#647684;
     --line:#DFE7EC; --line-strong:#C4D2DB;
     --brand:#62BDEA; --brand-ink:#14608C; --brand-soft:#E7F3FA;
+    /* The accent family. Locus's blue is the default; each other tool swaps
+       these for the colours of its own home-screen icon (see the per-app
+       blocks right after :root). Only chrome reads them - the rail, the
+       active tab, focus rings, the key card - never good/warn/bad. */
+    --brand-hi:#7CCBF2; --brand-lo:#4FAEDF; --on-brand:#08131A;
+    --brand-rgb:98,189,234; --brand-deep-rgb:20,96,140;
+    --brand-line:#8FD0EE; --brand-tint:#EAF5FB;
     --hd:#0C161D; --hd-line:#1D2C38;
     /* The roll-up is the SAME material as the nav header, deliberately: it
        reads as the header continuing down into the page rather than a black
@@ -74,11 +81,31 @@
     --bad:#9C3A2E;  --bad-bg:#F7E7E4;  --bad-on:#F09182;
     --unk:#647684;  --unk-bg:#EDF1F4;
     --radius:10px;
-    --wash:rgba(98,189,234,.22);
+    --wash:rgba(var(--brand-rgb),.22);
     --sans:'Instrument Sans',system-ui,sans-serif;
     --serif:'Instrument Serif',Georgia,serif;
     --display:'Instrument Sans',system-ui,sans-serif;
   }
+/* ONE SYSTEM, FOUR ACCENTS (Cole, 2026-09-13). Each tool's icon has its own
+   colour - green Ledger, blue Locus, amber Pulse, violet Supply - and the app
+   now carries that colour in its chrome so the tab and the page agree. The
+   layout, type, cards and the semantic good/warn/bad colours stay identical
+   everywhere; set <html data-app="..."> to pick a block. */
+:root[data-app="ledger"]{
+  --brand:#5CC395; --brand-ink:#1F6B50; --brand-soft:#E6F4EC;
+  --brand-hi:#8FDDB6; --brand-lo:#4BB083; --brand-rgb:92,195,149; --brand-deep-rgb:28,104,76;
+  --brand-line:#9ED9BC; --brand-tint:#EAF6EF;
+}
+:root[data-app="pulse"]{
+  --brand:#D4A443; --brand-ink:#7A5716; --brand-soft:#F8F0DE;
+  --brand-hi:#F0C978; --brand-lo:#C99A3A; --brand-rgb:212,164,67; --brand-deep-rgb:122,86,22;
+  --brand-line:#E6C98A; --brand-tint:#FAF3E4;
+}
+:root[data-app="supply"]{
+  --brand:#B27BC0; --brand-ink:#733C80; --brand-soft:#F3EAF5;
+  --brand-hi:#D3A8DC; --brand-lo:#A56BB3; --brand-rgb:178,123,192; --brand-deep-rgb:100,48,112;
+  --brand-line:#D9B8E0; --brand-tint:#F6EEF8;
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;font-feature-settings:"tnum" 1}
@@ -345,12 +372,12 @@ h2{font-size:21px}
    drawer behaviour) and must not set its own flat background on these.
    ============================================================ */
 .side{border-right:1px solid #071018;
-  background:radial-gradient(520px 320px at -10% -8%,var(--wash),transparent 70%),radial-gradient(420px 380px at 110% 105%,rgba(20,96,140,.35),transparent 70%),linear-gradient(180deg,#0E1C26 0%,#0B151D 55%,#0A1A25 100%)}
-nav.tabs button[data-t].on{background:linear-gradient(135deg,#7CCBF2,#4FAEDF);color:#08131A;box-shadow:0 6px 16px -8px rgba(98,189,234,.7)}
-nav.subtabs button.on{background:linear-gradient(135deg,#7CCBF2,#4FAEDF);color:#08131A}
+  background:radial-gradient(520px 320px at -10% -8%,var(--wash),transparent 70%),radial-gradient(420px 380px at 110% 105%,rgba(var(--brand-deep-rgb),.35),transparent 70%),linear-gradient(180deg,#0E1C26 0%,#0B151D 55%,#0A1A25 100%)}
+nav.tabs button[data-t].on{background:linear-gradient(135deg,var(--brand-hi),var(--brand-lo));color:var(--on-brand);box-shadow:0 6px 16px -8px rgba(var(--brand-rgb),.7)}
+nav.subtabs button.on{background:linear-gradient(135deg,var(--brand-hi),var(--brand-lo));color:var(--on-brand)}
 nav.tabs button .ct{margin-left:auto;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:#4A2320;color:#F09182}
 nav.tabs button .ct.warn{background:#3E3115;color:#EBBF63}
-nav.tabs button.on .ct{background:#08131A;color:#62BDEA}
+nav.tabs button.on .ct{background:var(--on-brand);color:var(--brand)}
 .content{background:radial-gradient(900px 380px at 12% -8%,var(--wash),transparent 65%),radial-gradient(700px 300px at 95% 0%,rgba(28,122,70,.08),transparent 60%),linear-gradient(180deg,#E9F0F5 0,var(--bg) 420px) no-repeat,var(--bg)}
 
 /* Page head: a crumb above the title (band / tab) and a slot in the top bar
@@ -378,12 +405,12 @@ nav.tabs button.on .ct{background:#08131A;color:#62BDEA}
 .rollup .pill.unk{background:rgba(129,149,162,.18);color:#B7C6D1}
 
 /* Cards: one ringed key card per screen; tinted state cards. */
-.card.key{border-color:#8FD0EE;box-shadow:0 0 0 3px rgba(98,189,234,.18),0 10px 24px -18px rgba(20,96,140,.4)}
+.card.key{border-color:var(--brand-line);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.18),0 10px 24px -18px rgba(var(--brand-deep-rgb),.4)}
 .card.sc{border-top:3px solid var(--line-strong)}
 .card.sc.bd{border-top-color:var(--bad);background:linear-gradient(180deg,#FBF1EF,#fff 60px)}
 .card.sc.wn{border-top-color:var(--warn);background:linear-gradient(180deg,#FBF4E4,#fff 60px)}
 .card.sc.ok{border-top-color:var(--good);background:linear-gradient(180deg,#EDF9F2,#fff 60px)}
-.card.sc.br{border-top-color:var(--brand);background:linear-gradient(180deg,#EAF5FB,#fff 60px)}
+.card.sc.br{border-top-color:var(--brand);background:linear-gradient(180deg,var(--brand-tint),#fff 60px)}
 .card.sc.un{border-top-color:var(--line-strong)}
 
 /* Segmented control, two-column layout, stat strip, chart tooltip, legend. */

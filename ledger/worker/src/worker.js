@@ -268,6 +268,7 @@ const VENDOR_ALIASES = [
   ['anthropic', 'claude'],
   ['artifex', 'pdfco'],          // Pdf.co & Artifex bill as one line
   ['atlassian', 'loom'],         // Atlassian bought Loom
+  ['amex gold', 'renewal membership fee'],  // Amex's statement line for the annual card fee
   ['squarespace', 'sqsp'],
   ['western union', 'wu'],
   ['meta platforms', 'facebook', 'instagram'],
