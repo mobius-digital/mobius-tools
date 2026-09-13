@@ -713,9 +713,57 @@ async function syncAdDaily(env, acct, { maxSlices = 2 } = {}) {
     return { rows: total, done, daysDone: Math.min(BACKFILL_DAYS, Math.max(0, ymdDiff(today, cursor))), daysTotal: BACKFILL_DAYS };
   } catch (e) {
     await env.DB.prepare(`UPDATE accounts SET last_error = ?2 WHERE act_id = ?1`).bind(acct.act_id, `ad sync: ${e.message}`).run().catch(() => {});
+    /* A RATE LIMIT IS A DELAY, NOT A FAULT. Meta's app quota refused Dartee's
+       ad-level pull on 2026-09-02, 09-06 and 09-12, and each time the brand
+       simply waited 24 hours for the next nightly while Slack said "failing".
+       Now the brand is queued and the hourly tick retries it once the backoff
+       clears; the alert only fires if the retries are still refused 12 hours
+       later (see adRetryPass). Every other error still alerts at once. */
+    if (await noteMetaError(env, e).catch(() => false)) {
+      await queueAdRetry(env, acct.act_id).catch(() => {});
+      return { deferred: 'Meta rate limit - retrying on the hourly tick', error_detail: e.message };
+    }
     await alertSyncFailure(env, acct, e.message).catch(() => {});
     return { error: e.message };
   }
+}
+
+/* The ad-level retry queue: { act_id: firstRefusedAtMs }. */
+async function queueAdRetry(env, actId) {
+  const q = safeJson(await getSetting(env, 'adRetry'), {}) || {};
+  if (!q[actId]) q[actId] = Date.now();
+  await putSetting(env, 'adRetry', JSON.stringify(q));
+}
+
+async function adRetryPass(env) {
+  const q = safeJson(await getSetting(env, 'adRetry'), {}) || {};
+  const ids = Object.keys(q);
+  if (!ids.length) return undefined;
+  if (await metaBackedOff(env)) return { waiting: ids.length, deferred: 'Meta rate limit - backing off' };
+  const accounts = (await listAccounts(env, true)).filter(a => q[a.act_id]);
+  const out = [];
+  for (const a of accounts) {
+    if (!subCanAfford(costOf('ads', COST_SYNC_BRAND))) { out.push({ name: a.name, deferred: 'out of budget' }); break; }
+    const r = await measured('ads', () => syncAdDaily(env, a, { maxSlices: 8 }));
+    const cur = safeJson(await getSetting(env, 'adRetry'), {}) || {};
+    if (!r.error && !r.deferred) {
+      delete cur[a.act_id];
+      await putSetting(env, 'adRetry', JSON.stringify(cur)).catch(() => {});
+      out.push({ name: a.name, recovered: true });
+    } else {
+      if (r.deferred && Date.now() - (cur[a.act_id] || Date.now()) > 12 * 3600e3) {
+        await alertSyncFailure(env, a, `${r.error_detail || 'Application request limit reached'} (still refused after 12 hours of hourly retries)`).catch(() => {});
+      }
+      out.push({ name: a.name, ...r });
+      if (r.deferred) break;   // Meta said stop; the rest wait for the next tick
+    }
+  }
+  // Brands no longer active drop out of the queue.
+  const live = new Set(accounts.map(a => a.act_id));
+  const cur = safeJson(await getSetting(env, 'adRetry'), {}) || {};
+  for (const id of Object.keys(cur)) if (!live.has(id)) delete cur[id];
+  await putSetting(env, 'adRetry', JSON.stringify(cur)).catch(() => {});
+  return out;
 }
 
 /** Full sync for one account. `days` overrides the insights window. */
@@ -5403,7 +5451,12 @@ async function nightly(env) {
      unhappy - `metaBackedOff` short-circuits the whole pass. */
   const ads = [];
   for (const a of accounts) {
-    if (await metaBackedOff(env)) { ads.push({ name: a.name, deferred: 'Meta rate limit - backing off' }); break; }
+    if (await metaBackedOff(env)) {
+      // Everyone left in the loop gets queued too, or they would wait a whole day.
+      for (const b of accounts.slice(accounts.indexOf(a))) await queueAdRetry(env, b.act_id).catch(() => {});
+      ads.push({ name: a.name, deferred: 'Meta rate limit - queued for the hourly retry' });
+      break;
+    }
     if (!subCanAfford(costOf('ads', COST_SYNC_BRAND))) { ads.push({ name: a.name, deferred: 'out of budget' }); break; }
     try { ads.push({ name: a.name, ...(await measured('ads', () => syncAdDaily(env, a, { maxSlices: 8 }))) }); }
     catch (e) { ads.push({ name: a.name, error: e.message }); await noteMetaError(env, e); }
@@ -5477,6 +5530,9 @@ export default {
         // an hour at a time across 24 ticks means a brand is never more than a few
         // hours old, and no single tick has to be big.
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
+        // Ad-level brands the nightly could not finish because Meta rate-limited it.
+        const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
+        if (adRetry) ran.adRetry = adRetry;
         await recordRun(env, 'lastHourly', ran);
       })());
     } else {
