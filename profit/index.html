@@ -1250,6 +1250,8 @@
   .rp-ks{font-size:11px;color:var(--on-ink-2);display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;line-height:1.5}
   .rp-kpi .info-i{border-color:var(--ink-panel-2);color:var(--on-ink-2)}
   .rp-two{gap:11px}
+  .rp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:11px;margin-bottom:11px;align-items:start}
+  .rp-grid .card{margin-bottom:0}
   /* Customers, Phase 4. */
   .cu-two{gap:11px}
   .cu-two .card{margin-bottom:11px}
@@ -5533,11 +5535,23 @@ function reportBodyHTML(d, summary, opts = {}) {
       <p class="hint" style="margin:8px 0 0">Applies to <b>every platform section on this page</b>: revenue, ROAS, purchases and CPA for Meta and Google, and for each creative below. <b>Spend, CPM, CTR, hook and hold never change</b> - Triple Whale measures attribution, not delivery. <b>The scorecard above never changes either</b>: it is real store revenue over real total ad spend with no attribution in it at all, which is why it is the headline.</p>
     </div>` : '';
 
+  /* LAYOUT. The page used to be two columns top to bottom, with the creative
+     cards stacked one per row in the narrow right column and the left column
+     empty under the chart (Cole, 2026-09-14: "super long with blank space").
+     Now: the story on the left (summary, day by day) with the month's
+     position on the right, then every platform at FULL WIDTH so the creative
+     grid gets four across, then the smaller channels side by side. */
+  const chans = (d.channels || []);
+  const metaHtml = chans.filter(c => c.id === 'meta').map(chCard).join('');
+  const otherHtml = chans.filter(c => c.id !== 'meta').map(chCard).filter(Boolean);
   return `<div class="rollup rp-kpis">${kpis}</div>
     <div class="two rp-two">
-      <div>${sumHtml}${pacingHtml}${chartHtml}${splitHtml}</div>
-      <div>${attrHtml}${(d.channels || []).map(chCard).join('')}${weeksHtml}${changesHtml}</div>
+      <div>${sumHtml}${chartHtml}</div>
+      <div>${pacingHtml}${splitHtml}${weeksHtml}</div>
     </div>
+    ${attrHtml}${metaHtml}
+    ${otherHtml.length ? `<div class="rp-grid">${otherHtml.join('')}</div>` : ''}
+    ${changesHtml}
     <p class="tiny"><b>Revenue, MER, aMER${t.cm != null ? ', Contribution Margin' : ''} and New-customer CPA are blended</b> - real store revenue and real total ad spend, with no platform's attribution involved - which is why they will not match what Meta or Google report on their own dashboards. The platform sections show each platform's own attributed numbers, and those are directional.</p>`;
 }
 
