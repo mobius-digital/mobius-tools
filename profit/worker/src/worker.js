@@ -1473,9 +1473,15 @@ export default {
            open the same report showing Meta's figures. The client gets no control
            over it - a report is a document, not a tool. */
         const attr = safeJson(acct.report_config_json, {})?.attr || 'platform';
+        /* PREVIEW FOR THE TEAM. The same link, opened by someone signed in to
+           Locus, also lists drafts, each flagged so the page can say so. A
+           client (no session) never sees anything but sent reports. Cole,
+           2026-09-14: "Copy client link ... doesn't have anything" - it did,
+           the only report was a draft. */
+        const preview = await isAdmin(request, env);
         const { results } = await env.DB.prepare(
-          `SELECT period, period_start, period_end, sent_at FROM reports
-           WHERE act_id = ?1 AND status = 'sent' ORDER BY period_start DESC, period LIMIT 60`,
+          `SELECT period, period_start, period_end, sent_at, status FROM reports
+           WHERE act_id = ?1 AND status ${preview ? "IN ('sent','draft','handled')" : "= 'sent'"} ORDER BY period_start DESC, period LIMIT 60`,
         ).bind(t.act_id).all();
         const wantP = url.searchParams.get('period'), wantS = url.searchParams.get('start');
         const pick = wantP && wantS
@@ -1484,7 +1490,7 @@ export default {
         let report = null;
         if (pick) {
           const row = await env.DB.prepare(
-            `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status = 'sent'`,
+            `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status ${preview ? "IN ('sent','draft','handled')" : "= 'sent'"}`,
           ).bind(t.act_id, pick.period, pick.period_start).first();
           if (row) {
             const data = safeJson(row.data_json, null);
@@ -1492,10 +1498,10 @@ export default {
             // object (name + currency) is all the page needs.
             if (data) for (const k of ['cogs_quality', 'margin_28d', 'cm_pct', 'changes', 'changes_total', 'account']) delete data[k];
             report = { period: row.period, start: row.period_start, end: row.period_end,
-              sent_at: row.sent_at, summary: row.summary, data };
+              sent_at: row.sent_at, summary: row.summary, data, preview: row.status !== 'sent' };
           }
         }
-        return json({ share: true, account: { name: acct.name, currency: acct.currency }, attr, reports: results, report });
+        return json({ share: true, preview, account: { name: acct.name, currency: acct.currency }, attr, reports: results, report });
       } catch (e) { return json({ error: e.message }, 500); }
     }
 

@@ -6281,13 +6281,13 @@ async function renderReportsShare(token, sel) {
     clientFooter('Each report is a fixed snapshot of the period it covers.');
   };
   if (!d.report) {
-    $('#main').innerHTML = `<div class="gate"><h1>No reports yet</h1><p>Your first report will appear here as soon as it is published - this link stays the same, so keep it handy.</p></div>`;
+    $('#main').innerHTML = `<div class="gate"><h1>No reports yet</h1><p>Your first report will appear here as soon as it is published - this link stays the same, so keep it handy.</p>${d.preview ? '<p class="tiny">You are signed in to Locus, so drafts would show here as a preview. There are none for this brand yet.</p>' : ''}</div>`;
     return finish();
   }
   const r = d.report;
   const picker = (d.reports || []).length > 1 ? `<div class="row" style="margin-bottom:12px"><label class="tiny">Earlier reports</label>
-    <select id="rsPick">${d.reports.map(x => `<option value="${x.period}|${x.period_start}" ${x.period === r.period && x.period_start === r.start ? 'selected' : ''}>${x.period === 'weekly' ? 'Weekly' : 'Monthly'} - ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}</option>`).join('')}</select></div>` : '';
-  $('#main').innerHTML = `<h2>${r.period === 'weekly' ? 'Weekly report' : 'Monthly report'} - ${repRangeLabel({ period: r.period, start: r.start, end: r.end })}</h2>
+    <select id="rsPick">${d.reports.map(x => `<option value="${x.period}|${x.period_start}" ${x.period === r.period && x.period_start === r.start ? 'selected' : ''}>${x.status && x.status !== 'sent' ? 'Draft, not sent: ' : ''}${x.period === 'weekly' ? 'Weekly' : 'Monthly'} - ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}</option>`).join('')}</select></div>` : '';
+  $('#main').innerHTML = `${r.preview ? '<div class="notice warn">👁 <div><b>Preview, only you can see this.</b> This report has not been sent. The client opens this same link and sees nothing until you press Send to client in Locus.</div></div>' : ''}<h2>${r.period === 'weekly' ? 'Weekly report' : 'Monthly report'} - ${repRangeLabel({ period: r.period, start: r.start, end: r.end })}</h2>
     <p class="sub">Prepared by Mobius Digital${r.sent_at ? ` · published ${String(r.sent_at).slice(0, 10)}` : ''}. Every headline number is blended: real store revenue against real total ad spend, from every channel at once.</p>
     ${picker}
     ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, { attr: d.attr || 'platform', client: true })}`;
