@@ -6264,7 +6264,7 @@ async function renderReportsShare(token, sel) {
   let d;
   try {
     const q = sel ? `?period=${encodeURIComponent(sel.period)}&start=${encodeURIComponent(sel.start)}` : '';
-    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/report-view/' + token + q);
+    const res = await fetch(S.url.replace(/\/+$/, '') + '/api/report-view/' + token + q, S.tok ? { headers: { 'Authorization': 'Bearer ' + S.tok } } : undefined); // a signed-in team member also gets drafts, flagged as a preview
     d = await res.json();
     if (!res.ok) throw new Error(d.error || 'This link is no longer valid.');
   } catch (e) {
