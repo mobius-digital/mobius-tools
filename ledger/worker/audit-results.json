@@ -1,0 +1,102 @@
+[
+  {
+    "name": "AUTH rejects nonmember",
+    "pass": true
+  },
+  {
+    "name": "PDF uses frozen report",
+    "pass": true
+  },
+  {
+    "name": "closed category edit rejected",
+    "pass": true
+  },
+  {
+    "name": "CPA excludes income tax",
+    "pass": true
+  },
+  {
+    "name": "database rejects closed financial updates from any writer",
+    "pass": true
+  },
+  {
+    "name": "database permits closed receipt metadata",
+    "pass": true
+  },
+  {
+    "name": "database rejects insert into closed period",
+    "pass": true
+  },
+  {
+    "name": "paid refresh defaults off",
+    "pass": true
+  },
+  {
+    "name": "frontend script parses",
+    "pass": true
+  },
+  {
+    "name": "CSV quoted commas, escaped quotes and signed refunds",
+    "pass": true
+  },
+  {
+    "name": "CSV replay does not duplicate money",
+    "pass": true
+  },
+  {
+    "name": "report and PDF share frozen totals",
+    "pass": true
+  },
+  {
+    "name": "close snapshots and rejects later writes",
+    "pass": true
+  },
+  {
+    "name": "lease exclusion and stale writer fencing",
+    "pass": true
+  },
+  {
+    "name": "late Stripe fees repair and zero corrections persist",
+    "pass": true
+  },
+  {
+    "name": "confirmed expected row becomes duplicate review, not doubled revenue",
+    "pass": true
+  },
+  {
+    "name": "closed bank correction persists and replays on reopen",
+    "pass": true
+  },
+  {
+    "name": "bank comparison rejects changed amounts and unrelated same amounts",
+    "pass": true
+  },
+  {
+    "name": "receipt preview cannot serve active HTML",
+    "pass": true
+  },
+  {
+    "name": "Slack drains pagination and retains failed file jobs",
+    "pass": true
+  },
+  {
+    "name": "signed Slack non-owner cannot file money",
+    "pass": true
+  },
+  {
+    "name": "Slack file action loads metadata and replay is idempotent",
+    "pass": true
+  },
+  {
+    "name": "vendor handler contains data, not executable user strings",
+    "pass": true
+  },
+  {
+    "name": "shared matcher rejects unrelated vendors and ambiguous payments",
+    "pass": true
+  },
+  {
+    "name": "fenced batches support atomic multi-statement writes",
+    "pass": true
+  }
+]

@@ -2,6 +2,7 @@
 <html lang="en" data-app="ledger">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mobius Ledger</title>
 <meta name="description" content="Money in, money out, month close and the CPA pack · Mobius Digital's internal finance tool.">
@@ -462,6 +463,7 @@
       max-height:92dvh;overflow-y:auto;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
   }
 
+@media (max-width: 700px) { button, .ctl, .chip, select { min-height:44px; min-width:44px; } input:not([type="checkbox"]):not([type="radio"]), textarea, label.ck { min-height:44px; } input, textarea, select { font-size:16px !important; } }
 </style>
 </head>
 <body>
@@ -567,8 +569,8 @@ function renderGate(err) {
     <p>Money in, money out, and the end-of-month report card. Sign in once at Mobius HQ and every internal tool opens.</p>
     <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/ledger/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
-    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
-      <label>Password</label><input id="gTok" type="password" placeholder="password">
+    <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use an administrator token</summary>
+      <label>Administrator token</label><input id="gTok" type="password" placeholder="administrator token">
       <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
       <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
     </details>
@@ -715,7 +717,7 @@ async function renderDash(){
   }).join('');
 
   /* spent + its biggest line */
-  const outs = (S.txns||[]).filter(t => (t.type==='out'||t.type==='fee') && !t.expected);
+  const outs = (S.summary.report.transactions || S.txns || []).filter(t => packExp(t) && !t.expected);
   const byV = {}; outs.forEach(t => byV[t.vendor] = (byV[t.vendor]||0) + t.amount);
   const topOut = Object.entries(byV).sort((x,y)=>y[1]-x[1])[0];
 
@@ -893,7 +895,14 @@ function mselClose(){
   MSEL.open = null;
   document.removeEventListener('keydown', mselKey, true);
 }
-function mselKey(e){ if (e.key === 'Escape') { e.stopPropagation(); mselClose(); } }
+function mselKey(e){
+  if(e.key==='Escape'){e.preventDefault();e.stopPropagation();MSEL.open?.btn?.focus();mselClose();return;}
+  const opts=[...(MSEL.open?.panel.querySelectorAll('.msel-opt')||[])]; if(!opts.length)return;
+  let i=opts.indexOf(document.activeElement);
+  if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)) {
+    e.preventDefault();i=e.key==='Home'?0:e.key==='End'?opts.length-1:(i+(e.key==='ArrowDown'?1:-1)+opts.length)%opts.length;opts[i].focus();
+  } else if((e.key==='Enter'||e.key===' ')&&i>=0){e.preventDefault();opts[i].click();}
+}
 function mselOpen(ev, id){
   ev.stopPropagation();
   const btn = document.getElementById(id);
@@ -902,12 +911,12 @@ function mselOpen(ev, id){
   if (wasMine) return;                       // clicking the button again closes
   const cfg = MSEL[id]; if (!cfg) return;
   const panel = document.createElement('div');
-  panel.className = 'msel-panel';
+  panel.className = 'msel-panel'; panel.setAttribute('role','listbox'); panel.setAttribute('aria-label',btn.title || 'Category');
   panel.innerHTML = cfg.options.map(o => {
     const v = typeof o === 'string' ? o : o.value;
     const t = typeof o === 'string' ? o : o.label;
     return `<div class="msel-opt${v === cfg.value ? ' sel' : ''}${v === '' ? ' none' : ''}"
-      data-v="${esc(v)}">${esc(t)}</div>`;
+      tabindex="-1" role="option" aria-selected="${v === cfg.value}" data-v="${esc(v)}">${esc(t)}</div>`;
   }).join('');
   document.body.appendChild(panel);
   const r = btn.getBoundingClientRect();
@@ -919,13 +928,14 @@ function mselOpen(ev, id){
   panel.style.left = Math.max(8, Math.min(r.left, innerWidth - panel.offsetWidth - 8)) + 'px';
   btn.classList.add('open');
   MSEL.open = { id, btn, panel };
+  (panel.querySelector('.sel') || panel.firstElementChild)?.focus();
   panel.onclick = e => {
     const opt = e.target.closest('.msel-opt'); if (!opt) return;
     e.stopPropagation();
     const v = opt.dataset.v;
     mselClose();
     MSEL[id].value = v;
-    btn.textContent = v || 'Select…';
+    btn.textContent = v || 'Select…'; btn.focus();
     (MSEL[id].onPick || (()=>{}))(v, btn);
   };
   document.addEventListener('keydown', mselKey, true);
@@ -1012,7 +1022,8 @@ async function bulkSkipReceipts(){
     body: 'They stop counting as missing and are never chased at month end. The CPA pack still lists them.',
     ok: 'Mark them' })) return;
   try {
-    await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify({ ids, receipt_skip: true }) });
+    const result=await api('/api/transactions/bulk', { method:'POST', body: JSON.stringify({ ids, receipt_skip: true }) });
+    flash(`Saved ${result.updated} rows${result.skippedClosed ? ' · '+result.skippedClosed+' closed rows skipped' : ''}.`);
     S.sel.clear(); S.txns = null; window.__moCache={}; S.boot = await api('/api/boot');
     await loadTxns(); renderTxns();
   } catch(e){ tell('Could not update those', e.message); }
@@ -1065,7 +1076,7 @@ async function renderTxns(){
       <td><b>${esc(t.vendor)}</b>${t.note?` <span class="tiny">· ${esc(t.note)}</span>`:''} ${flag}
         <div style="margin-top:5px">${catCell}</div></td>
       <td>${rc}</td>
-      <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}" ${t.type==='transfer'?'style="color:var(--muted)" title="Transfer · money moving between your own accounts, not counted in any report"':''}>${t.type==='transfer'?'⇄ ':t.type==='in'?'':'−'}${fmt$(Math.abs(t.amount)).replace('−','')}</td>
+      <td class="amt ${t.type==='in'?(t.amount<0?'neg':'in'):''}" ${t.type==='transfer'?'style="color:var(--muted)" title="Transfer · money moving between your own accounts, not counted in any report"':''}>${t.type==='transfer'?'⇄ ':t.type==='in'?(t.amount<0?'−':'+'):(t.amount<0?'+':'−')}${fmt$(Math.abs(t.amount)).replace('−','')}${t.amount<0?' <span class="tiny">Refund</span>':''}</td>
     </tr>`;
   }).join('');
   m.innerHTML = `
@@ -1135,7 +1146,7 @@ function txnRail(){
     return `<div class="rrow"><span class="rrv">${esc(t.vendor)}</span>
       <b style="font-variant-numeric:tabular-nums">${fmt$(t.amount)}</b>
       ${u ? `<a class="ctl" href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--brand-ink);font-weight:700">Billing ↗</a>`
-          : `<button class="ctl" onclick="setBillingUrl('${esc(t.vendor).replace(/'/g,"\\'")}')" title="Save the link to where this vendor's invoices live">+ Link</button>`}
+          : `<button class="ctl" data-ledger-event="click" data-ledger-action="setBillingUrl" data-name="${esc(t.vendor)}" title="Save the link to where this vendor's invoices live">+ Link</button>`}
       <button class="ctl" onclick="attachFor(${t.id})" title="Attach a file">📎</button></div>`;
   }).join('');
   return `
@@ -1254,8 +1265,16 @@ function addModal(prefill = {}){
     };
     if (!row.vendor || !row.amount || !row.date) { $('#tMsg').className='msg bad'; $('#tMsg').textContent='Vendor, amount and date are required.'; return; }
     try {
-      await api('/api/transactions', { method:'POST', body: JSON.stringify(row) });
-      closeModal(); S.txns=null; window.__moCache={}; S.boot = await api('/api/boot'); show(S.view);
+      const result = prefill.receiptId ? { inserted: [{ id: prefill.receiptId }] } : await api('/api/transactions', { method:'POST', body: JSON.stringify(row) });
+      if (!result.inserted?.length) throw new Error('Nothing was added. Check that the month is open.');
+      if (prefill.receipt) {
+        prefill.receiptId=result.inserted[0].id;
+        const {file,payload}=prefill.receipt;
+        await api('/api/receipt',{method:'POST',body:JSON.stringify({id:prefill.receiptId,name:file.name,type:payload.type,data:payload.data})});
+       if(window.__rqStats)window.__rqStats.manual++;
+        closeModal();return processNextReceipt();
+      }
+      closeModal(); S.txns=null; window.__moCache={}; S.boot = await api('/api/boot'); show(S.view); flash('Saved.');
     } catch(e){ $('#tMsg').className='msg bad'; $('#tMsg').textContent=e.message; }
   };
 }
@@ -1267,7 +1286,7 @@ async function editTxn(id){
     <h3>${t.expected ? 'Confirm expected transaction' : 'Edit transaction'}</h3>
     <div class="hint">${t.expected
       ? 'The recurring engine pre-created this. Fix the amount if it differs, then confirm.'
-      : closed ? 'This month is closed · categories, notes and receipts can change; amounts and dates are frozen.' : esc(t.vendor)}</div>
+      : closed ? 'This month is closed. Only receipt metadata can change; reopen it to edit financial details.' : esc(t.vendor)}</div>
     ${vendorDatalist()}
     <div class="mrow">
       <div><label>Vendor / client</label><input id="eVendor" list="dlV" value="${esc(t.vendor)}"></div>
@@ -1297,6 +1316,7 @@ async function editTxn(id){
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn primary" id="eSave">${t.expected ? 'Confirm ✓' : 'Save'}</button></div>
     <div class="msg" id="eMsg"></div>`);
+  if (closed) for (const id of ['eVendor','eNote','eOne','eMap','tTax','eSave']) { const el=$('#'+id); if(el)el.disabled=true; }
   $('#eSave').onclick = async () => {
     const b = { id, vendor: $('#eVendor').value.trim(), note: $('#eNote').value.trim() };
     if (!closed) { b.amount = +$('#eAmt').value; b.date = $('#eDate').value; }
@@ -1368,14 +1388,21 @@ async function attachReceipt(id){
   });
 }
 async function removeReceipt(id){
-  try { await api('/api/receipt?id=' + id, { method:'DELETE' }); closeModal(); S.txns=null; show(S.view); } catch(e){}
+  try { await api('/api/receipt?id=' + id, { method:'DELETE' }); closeModal(); S.txns=null; show(S.view); } catch(e){ tell('Could not remove receipt', e.message); }
 }
 async function viewReceipt(id){
   try {
     const res = await fetch(S.url + '/api/receipt?id=' + id, { headers: { Authorization: 'Bearer ' + S.tok } });
     if (!res.ok) throw new Error('could not load receipt');
     const blob = await res.blob();
-    window.open(URL.createObjectURL(blob), '_blank');
+    const safeType = /^(image\/(png|jpeg|gif|webp)|application\/pdf)$/.test(blob.type);
+    if (!safeType) {
+      openModal('<h3>Receipt text</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(await blob.text()) + '</pre>');
+      return;
+    }
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
   } catch(e){ tell('Could not do that', e.message); }
 }
 
@@ -1383,13 +1410,13 @@ async function viewReceipt(id){
 function importModal(){
   openModal(`
     <h3>Import a CSV</h3>
-    <div class="hint">A bank or card export works as-is if it has date, description and amount columns. Every row lands as an expense in Review unless the vendor is already known.</div>
-    <label>Paste CSV or choose a file</label>
+    <div class="hint">Use date, description and amount columns. Choose the account and sign convention; negative normalized amounts are expense refunds. Revenue imports require a separate mapping.</div>
+    <label>Account identifier</label><input id="csvAccount" placeholder="e.g. Mobius Amex ending 1234"><label>Amount convention</label><select id="csvSign"><option value="">Choose…</option><option value="positive-expense">Positive expenses, negative refunds</option><option value="negative-expense">Negative expenses, positive refunds</option></select><label>Paste CSV or choose a file</label>
     <textarea id="csvText" rows="6" placeholder="date,description,amount\n2026-09-03,SLACK T012345,52.50"></textarea>
     <div class="row" style="margin:10px 0 0"><button class="btn" onclick="pickCsv()">Choose file…</button></div>
     <div class="acts"><span class="spacer"></span>
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn primary" onclick="runImport()">Preview & import</button></div>
+      <button class="btn primary" id="csvSubmit" onclick="runImport()">Preview</button></div>
     <div class="msg" id="csvMsg"></div>`);
 }
 function pickCsv(){
@@ -1398,30 +1425,60 @@ function pickCsv(){
   inp.onchange = () => { const r = new FileReader(); r.onload = () => $('#csvText').value = r.result; r.readAsText(inp.files[0]); };
   inp.click();
 }
-function parseCsv(text){
-  const lines = text.trim().split(/\r?\n/).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g,'')));
-  if (lines.length < 2) return [];
-  const hd = lines[0].map(h => h.toLowerCase());
-  const di = hd.findIndex(h => /date/.test(h));
-  const vi = hd.findIndex(h => /desc|vendor|payee|name|merchant/.test(h));
-  const ai = hd.findIndex(h => /amount|amt|debit|charge/.test(h));
-  if (di < 0 || vi < 0 || ai < 0) return null;
-  return lines.slice(1).map(c => {
-    let d = c[di] || '';
-    const mdY = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-    if (mdY) d = `${mdY[3].length===2?'20'+mdY[3]:mdY[3]}-${mdY[1].padStart(2,'0')}-${mdY[2].padStart(2,'0')}`;
-    return { date: d, vendor: (c[vi]||'').slice(0,120), amount: Math.abs(parseFloat((c[ai]||'').replace(/[$,]/g,''))), type:'out', source:'import' };
-  }).filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && r.vendor && r.amount > 0);
+function csvRecords(text){
+  const rows=[]; let row=[], field='', quoted=false;
+  for(let i=0;i<text.length;i++) {
+    const c=text[i];
+    if(c==='"') { if(quoted && text[i+1]==='"') {field+='"';i++;} else quoted=!quoted; }
+    else if(c===',' && !quoted) {row.push(field);field='';}
+    else if((c==='\n'||c==='\r') && !quoted) {
+      if(c==='\r'&&text[i+1]==='\n')i++;
+      row.push(field); if(row.some(x=>x.trim()))rows.push(row); row=[];field='';
+    } else field+=c;
+  }
+  if(quoted)throw new Error('Unclosed quoted CSV field');
+  row.push(field);if(row.some(x=>x.trim()))rows.push(row);
+  return rows;
+}
+function parseCsv(text, sign='positive-expense'){
+  const lines=csvRecords(text); if(lines.length<2)return [];
+  const hd=lines[0].map(x=>x.trim().toLowerCase());
+  const di=hd.findIndex(h=>/date/.test(h)),vi=hd.findIndex(h=>/desc|vendor|payee|name|merchant/.test(h)),ai=hd.findIndex(h=>/amount|amt/.test(h));
+  if(di<0||vi<0||ai<0)return null;
+  return lines.slice(1).map((c,i)=>{
+    let date=(c[di]||'').trim();const m=date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if(m)date=(m[3].length===2?'20'+m[3]:m[3])+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');
+    let amount=Number((c[ai]||'').replace(/[$,]/g,'').trim());
+    if(sign==='negative-expense')amount=-amount;
+    const vendor=(c[vi]||'').trim();
+    if(c.length!==hd.length||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||!vendor||!Number.isFinite(amount)||!amount)
+      throw new Error('CSV row '+(i+2)+': invalid date, merchant, amount or column count');
+    return {date,vendor,amount,type:'out',source:'import',source_row:i+2};
+  });
 }
 async function runImport(){
   const el = $('#csvMsg');
-  const rows = parseCsv($('#csvText').value);
+  let rows;
+  const account=$('#csvAccount').value.trim(), sign=$('#csvSign').value, text=$('#csvText').value;
+  try {
+    if(!account || !sign)throw new Error('Choose an account and amount sign convention.');
+    rows=parseCsv(text,sign);
+  } catch(e){el.className='msg bad';el.textContent=e.message;return;}
   if (rows === null) { el.className='msg bad'; el.textContent='Could not find date / description / amount columns in the header row.'; return; }
   if (!rows.length) { el.className='msg bad'; el.textContent='No usable rows found.'; return; }
+  const previewKey=JSON.stringify([account,sign,text]);
+  if(window.__csvPreview !== previewKey) {
+    window.__csvPreview=previewKey;
+    el.className='msg'; el.textContent=rows.map(r=>r.date+' · '+r.vendor+' · '+(r.amount<0?'Refund ':'Expense ')+fmt$(Math.abs(r.amount))).join('\n')+'\nReview these rows, then press Import reviewed rows.';
+    el.style.whiteSpace='pre-wrap'; $('#csvSubmit').textContent='Import reviewed rows'; return;
+  }
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(previewKey));
+  const fileId=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+  rows=rows.map(r=>({...r,import_id:fileId+':'+r.source_row}));
   el.className='msg'; el.textContent=`Importing ${rows.length} rows…`;
   try {
     const res = await api('/api/transactions', { method:'POST', body: JSON.stringify({ rows }) });
-    el.className='msg good'; el.textContent=`Imported ${res.inserted.length} of ${rows.length} (skipped rows fell in closed months). Known vendors categorized themselves; the rest are in Review.`;
+    el.className='msg good'; el.textContent=`Imported ${res.inserted.length} of ${rows.length} (duplicates and closed-month rows skipped). Known vendors categorized themselves; the rest are in Review.`;
     S.txns=null; window.__moCache={}; S.boot = await api('/api/boot');
     setTimeout(() => { closeModal(); show('txns'); }, 1600);
   } catch(e){ el.className='msg bad'; el.textContent=e.message; }
@@ -1467,7 +1524,7 @@ function missingTables(missing){
       <td class="amt">−${fmt$(t.amount).replace('−','')}</td>
       <td style="text-align:right;white-space:nowrap">
         ${u?`<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">↗ Billing page</a>`
-           :`<button class="btn" onclick="setBillingUrl('${esc(t.vendor).replace(/'/g,"\\'")}')" title="Save a link to where this vendor's invoices live">+ Add link</button>`}
+           :`<button class="btn" data-ledger-event="click" data-ledger-action="setBillingUrl" data-name="${esc(t.vendor)}" title="Save a link to where this vendor's invoices live">+ Add link</button>`}
         <button class="btn" onclick="attachFor(${t.id})">📎 Attach</button>
         <button class="btn" onclick="skipRcpt(${t.id})" title="No receipt exists · stop counting it as missing">None exists</button></td></tr>`;
   }).join('');
@@ -1601,15 +1658,18 @@ async function processNextReceipt(){
     pool = await txnsForMonth(rMonth);
     if (rMonth !== S.month) pool = [...pool, ...(S.txns||[])];
   } catch(e){}
-  if (st.total > 1 && ext?.amount != null){
-    const exact = pool.filter(t => t.type==='out' && !t.receipt_key && Math.abs(t.amount - (+ext.amount)) < .005);
-    if (exact.length === 1){
-      try {
-        await api('/api/receipt', { method:'POST', body: JSON.stringify({ id: exact[0].id, name: file.name, type: payload.type, data: payload.data }) });
-        markAttached(exact[0].id);
-        st.auto++; return processNextReceipt();
-      } catch(e){ /* fall through to the modal */ }
-    }
+  if (ext?.amount != null) {
+    try {
+      const bytes=Uint8Array.from(atob(payload.data),c=>c.charCodeAt(0));
+      const hash=await crypto.subtle.digest('SHA-256',bytes);
+      const fingerprint=Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('');
+      const match=await api('/api/receipt-match',{method:'POST',body:JSON.stringify({fingerprint,vendor:ext.vendor,amount:ext.amount,date:ext.date || rMonth+'-01'})});
+      if(match.duplicate){st.skipped++;flash('Receipt already attached to transaction '+match.duplicate);return processNextReceipt();}
+      if(st.total>1 && match.match){
+        await api('/api/receipt',{method:'POST',body:JSON.stringify({id:match.match,name:file.name,type:payload.type,data:payload.data})});
+        markAttached(match.match);st.auto++;return processNextReceipt();
+      }
+    }catch(e){ /* Manual review remains available when matching cannot complete. */ }
   }
   matchModal(file, payload, ext, { pool, rMonth });
 }
@@ -1686,9 +1746,9 @@ async function fileTo(id){
 }
 function newFromReceipt(){
   const { ext } = window.__pendingReceipt || {};
-  window.__rq = [];   // hand-creating a transaction ends the batch cleanly
+  prefill.receiptId=null;
   closeModal();
-  addModal({ vendor: ext?.vendor || '', amount: ext?.amount ?? '', date: ext?.date || '', note: ext?.note || '' });
+  addModal({ vendor: ext?.vendor || '', amount: ext?.amount ?? '', date: ext?.date || '', note: ext?.note || '', receipt: window.__pendingReceipt });
   // after saving, the user can attach from the edit modal; simplest reliable path
 }
 
@@ -1836,7 +1896,7 @@ async function renderReports(){
   /* The detail comes from the month's own rows, so any line can be opened
      until the individual dated charges are looking back at you. */
   let rows = [];
-  try { rows = (await txnsForMonth(rm)).filter(t => !t.expected); } catch(e){}
+  try { rows = r.transactions || (data.frozen ? [] : (await txnsForMonth(rm)).filter(t => !t.expected)); } catch(e){}
   const isPersonal = t => /^Personal/i.test(t.tax_cat || '');
   const groupSum = (list, key) => {
     const g = {};
@@ -2037,17 +2097,18 @@ async function downloadReceipts(from, to, btn){
    moving between Cole's own accounts and personal rows are owner draws -- the
    report card already excludes both, and the printed pack must agree with it.
    (The ledger CSV still lists every row; that's the audit trail.) */
-const packExp = t => t.type !== 'in' && t.type !== 'transfer' && !/^Personal/i.test(t.tax_cat || '');
+const packExp = t => t.type !== 'in' && t.type !== 'transfer' && !/^(Personal|Income tax)/i.test(t.tax_cat || '');
 function plTableHTML(p, { compactCap = 0 } = {}){
   const months = p.monthReports.map(r => r.month);
-  const cats = [...new Set(p.transactions.filter(packExp).map(t=>t.tax_cat||'Uncategorized'))];
-  const cell = {};
-  for (const t of p.transactions) if (packExp(t))
-    cell[(t.tax_cat||'Uncategorized')+'|'+t.month] = (cell[(t.tax_cat||'Uncategorized')+'|'+t.month]||0) + t.amount;
-  const catTotal = c => months.reduce((s,m)=>s+(cell[c+'|'+m]||0),0);
+  const cell = {}, revBy = {}; let revTot = 0;
+  for (const r of p.monthReports) {
+    revBy[r.month] = r.revenue; revTot += r.revenue;
+    for (const [cat, amount] of Object.entries(r.byTax)) cell[cat+'|'+r.month] = amount;
+    cell['Bank & merchant fees|'+r.month] = (cell['Bank & merchant fees|'+r.month] || 0) + r.fees;
+  }
+  const cats = [...new Set(p.monthReports.flatMap(r=>Object.keys(r.byTax)).concat('Bank & merchant fees'))];
+  const catTotal = c => months.reduce((sum,m)=>sum+(cell[c+'|'+m]||0),0);
   cats.sort((a,b)=>catTotal(b)-catTotal(a));
-  const revBy = {}; let revTot = 0;
-  for (const t of p.transactions) if (t.type==='in'){ revBy[t.month]=(revBy[t.month]||0)+t.amount; revTot+=t.amount; }
   const money = n => n ? fmt$(n) : '—';
   const one = months.length === 1;
   const mCols = one ? '' : months.map(m=>`<th class="num">${moShort(m)}</th>`).join('');
@@ -2078,8 +2139,8 @@ async function loadPack(from, to){
   let p;
   try { p = await api(`/api/pack?from=${from}&to=${to}`); } catch(e){ out.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`; return; }
   S.packData = p;
-  const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
-  const exp = p.transactions.filter(packExp).reduce((s,t)=>s+t.amount,0);
+  const rev = p.monthReports.reduce((sum,r)=>sum+r.revenue,0);
+  const exp = p.monthReports.reduce((sum,r)=>sum+r.expenses+r.fees,0);
   out.innerHTML = `
     <div class="row" style="margin:16px 0 14px">
       <button class="btn primary" onclick="printCpa()">🖨 Print the pack (PDF)</button>
@@ -2098,12 +2159,12 @@ async function loadPack(from, to){
         ${openQHTML(p, 8)}
       </div>
     </div>
-    <div class="tiny" style="margin-top:14px">Receipts stay viewable per transaction; a bundled receipt ZIP ships with the connectors phase. Category assignments come from Settings → Vendor rules.</div>`;
+    <div class="tiny" style="margin-top:14px">Receipts stay viewable per transaction; a bundled receipt ZIP is available from Reports. Category assignments come from Settings → Vendor rules.</div>`;
 }
 function printCpa(){
   const p = S.packData; if (!p) return;
-  const rev = p.transactions.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
-  const exp = p.transactions.filter(packExp).reduce((s,t)=>s+t.amount,0);
+  const rev = p.monthReports.reduce((sum,r)=>sum+r.revenue,0);
+  const exp = p.monthReports.reduce((sum,r)=>sum+r.expenses+r.fees,0);
   $('#cpaPrint').innerHTML = `<div class="rpt">
     <h1>CPA pack · ${moName(p.from)}${p.from!==p.to?' → '+moName(p.to):''}</h1>
     <div class="rsub">Mobius Digital · prepared ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} · tax set-aside ${p.money.taxPct}% · every figure traces to the attached ledger CSV</div>
@@ -2129,7 +2190,7 @@ function dl(name, text){
   a.href = URL.createObjectURL(new Blob([text], { type:'text/csv' }));
   a.download = name; a.click();
 }
-const csvCell = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
+const csvCell = v => '"' + String(v ?? '').replace(/^[\s]*[=+@-]/, m => "'" + m).replace(/"/g,'""') + '"';
 function dlLedgerCsv(){
   const p = S.packData; if (!p) return;
   const rows = [['date','type','vendor','amount','bucket','tax_category','note','one_time','has_receipt','status'].join(',')];
@@ -2186,7 +2247,7 @@ async function renderForecast(){
         <div class="leg">${leg}</div>
         <h3 style="margin-top:20px">What-if</h3>
         <div class="hint">Tap a client to see the book without them:</div>
-        <div class="row" style="margin-top:8px">${clients.map(c=>`<button class="chip" onclick="whatIf('${esc(c.name)}')">${esc(c.name)}</button>`).join('')}</div>
+        <div class="row" style="margin-top:8px">${clients.map(c=>`<button class="chip" data-ledger-event="click" data-ledger-action="whatIf" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join('')}</div>
         <div class="msg" id="wiOut"></div>
       </div>
     </div>`;
@@ -2231,10 +2292,10 @@ function renderSettings(){
         <div class="tbl-wrap"><table><thead><tr><th>Client</th><th class="num">Base retainer</th><th class="num">+ % of ad spend</th><th>Active</th><th></th></tr></thead><tbody>
           ${clients.map(c=>{ const variable = (c.pct||0)>0 || c.billing==='percent'; return `<tr>
             <td><b>${esc(c.name)}</b>${variable && c.recent_avg ? `<div class="tiny">recent avg ${fmt$(c.recent_avg)}/mo · used for the prefill + forecast</div>`:''}</td>
-            <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" onchange="saveClientField('${esc(c.name)}','retainer',this.value)"></div></td>
-            <td class="num" style="width:90px"><div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" placeholder="—" title="Leave empty for fixed-retainer clients" onchange="saveClientField('${esc(c.name)}','pct',this.value)"><span>%</span></div></td>
-            <td><div class="toggle ${c.active?'on':''}" onclick="saveClientField('${esc(c.name)}','active',${c.active?0:1})"></div></td>
-            <td><button class="del-x" title="Delete ${esc(c.name)} from the client list" onclick="delClient('${esc(c.name)}')">✕</button></td>
+            <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" data-ledger-event="change" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="retainer" data-value="__input__"></div></td>
+            <td class="num" style="width:90px"><div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" placeholder="—" title="Leave empty for fixed-retainer clients" data-ledger-event="change" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="pct" data-value="__input__"><span>%</span></div></td>
+            <td><div class="toggle ${c.active?'on':''}" data-ledger-event="click" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="active" data-value="${c.active?0:1}"></div></td>
+            <td><button class="del-x" title="Delete ${esc(c.name)} from the client list" data-ledger-event="click" data-ledger-action="delClient" data-name="${esc(c.name)}">✕</button></td>
           </tr>`}).join('')}
         </tbody></table></div>
         <div class="row" style="margin-top:10px"><button class="btn" onclick="addClientModal()">+ Add client</button></div>
@@ -2244,7 +2305,7 @@ function renderSettings(){
       <h3>Tax categories</h3>
       <div class="hint">The CPA layer every expense maps to. Add one if something doesn't fit; removing one keeps it on transactions that already use it.</div>
       <div class="row" style="margin-top:10px;gap:8px">
-        ${S.boot.taxCats.map(c=>`<span class="chip" style="cursor:default">${esc(c)} <button class="del-x" style="padding:0 2px;font-size:12px" title="Remove ${esc(c)}" onclick="delTaxCat('${esc(c)}')">✕</button></span>`).join('')}
+        ${S.boot.taxCats.map(c=>`<span class="chip" style="cursor:default">${esc(c)} <button class="del-x" style="padding:0 2px;font-size:12px" title="Remove ${esc(c)}" data-ledger-event="click" data-ledger-action="delTaxCat" data-name="${esc(c)}">✕</button></span>`).join('')}
       </div>
       <div class="row" style="margin-top:10px">
         <input id="newCat" placeholder="e.g. Education & courses" style="max-width:240px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px">
@@ -2272,7 +2333,7 @@ function renderSettings(){
         ? `<div class="hint">Not connected · paste the Plaid client_id and sandbox secret into <code>ledger/worker/.env</code> (Dashboard → Developers → Keys) and have them pushed.</div>`
         : `<div class="hint">Novo and Amex lines flow in nightly. Each bank line first tries to <b>confirm an expected row</b>, then to <b>adopt a matching manual entry</b>, and only then creates something new · so nothing double-counts. Amex payments, Stripe payouts and account moves are auto-tagged as transfers.</div>
            ${(S.boot.plaidItems||[]).map(i=>`<div class="row" style="margin:8px 0 0"><b>${esc(i.name)}</b><span class="tiny">${i.accounts.map(esc).join(' · ')}</span>
-             <span style="flex:1"></span><button class="del-x" title="Disconnect ${esc(i.name)}" onclick="plaidRemove('${esc(i.item_id)}')">✕</button></div>`).join('')}
+             <span style="flex:1"></span><button class="del-x" title="Disconnect ${esc(i.name)}" data-ledger-event="click" data-ledger-action="plaidRemove" data-name="${esc(i.item_id)}">✕</button></div>`).join('')}
            <div class="row" style="margin-top:12px">
              <button class="btn primary" onclick="plaidConnect(this)">+ Connect a bank or card</button>
              ${(S.boot.plaidItems||[]).length?`<button class="btn" onclick="plaidSyncNow(this)">↻ Sync now</button>
@@ -2298,11 +2359,7 @@ function renderSettings(){
 
     <div class="card" style="margin-top:14px">
       <h3>Access</h3>
-      <div class="hint">Google sign-in via Mobius HQ covers the team. A password is the backup way in.</div>
-      <div class="row" style="margin-top:10px">
-        <input id="sPw" type="password" placeholder="new password (8+ chars)" style="max-width:240px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px">
-        <button class="btn" onclick="savePw()">Set password</button><span class="msg" id="pwMsg"></span>
-      </div>
+      <div class="hint">Only approved Mobius identities can sign in. Recovery uses the administrator token; password fallback is disabled.</div>
     </div>`;
   renderDrive();
 }
@@ -2398,8 +2455,8 @@ async function driveClear(){
  *                lands, and why it needs search rather than a monthly/yearly
  *                setting it will never use. */
 function catCell(v){
-  const bucket = `<select onchange="saveVendorField('${esc(v.name)}','bucket',this.value)">${(S.boot.buckets||[]).map(b=>`<option ${b===v.bucket?'selected':''}>${b}</option>`).join('')}<option ${v.bucket==='Merchant fee'?'selected':''}>Merchant fee</option></select>`;
-  const tax = `<select onchange="saveVendorField('${esc(v.name)}','tax_cat',this.value)">${S.boot.taxCats.map(c=>`<option ${c===v.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}${S.boot.taxCats.includes(v.tax_cat)||!v.tax_cat?'':`<option selected>${esc(v.tax_cat)}</option>`}<option ${v.tax_cat==='Bank & merchant fees'?'selected':''}>Bank &amp; merchant fees</option></select>`;
+  const bucket = esc(v.bucket || 'Other');
+  const tax = `<select data-ledger-event="change" data-ledger-action="saveVendorField" data-name="${esc(v.name)}" data-field="tax_cat" data-value="__input__">${S.boot.taxCats.map(c=>`<option ${c===v.tax_cat?'selected':''}>${esc(c)}</option>`).join('')}${S.boot.taxCats.includes(v.tax_cat)||!v.tax_cat?'':`<option selected>${esc(v.tax_cat)}</option>`}<option ${v.tax_cat==='Bank & merchant fees'?'selected':''}>Bank &amp; merchant fees</option></select>`;
   return { bucket, tax };
 }
 /* Filtering hides rows rather than re-rendering, so the field keeps focus. */
@@ -2422,20 +2479,20 @@ function vendorCards(vendors){
   const recRow = v => { const c = catCell(v); return `<tr${v.active?'':' style="opacity:.5"'}>
     <td><b>${esc(v.name)}</b>${v.active?'':' <span class="pill unk">paused</span>'}</td>
     <td>${c.bucket}</td><td>${c.tax}</td>
-    <td class="num" style="width:150px"><div class="unit-in" style="min-width:130px"><span>$</span><input type="number" step="0.01" value="${v.expected_amount??''}" style="min-width:86px" onchange="saveVendorField('${esc(v.name)}','expected_amount',this.value)"></div></td>
-    <td style="white-space:nowrap"><select onchange="saveVendorField('${esc(v.name)}','repeats',this.value)">
+    <td class="num" style="width:150px"><div class="unit-in" style="min-width:130px"><span>$</span><input type="number" step="0.01" value="${v.expected_amount??''}" style="min-width:86px" data-ledger-event="change" data-ledger-action="saveVendorField" data-name="${esc(v.name)}" data-field="expected_amount" data-value="__input__"></div></td>
+    <td style="white-space:nowrap"><select data-ledger-event="change" data-ledger-action="saveVendorField" data-name="${esc(v.name)}" data-field="repeats" data-value="__input__">
       <option value="monthly" ${v.cadence!=='yearly'?'selected':''}>Every month</option>
       <option value="yearly" ${v.cadence==='yearly'?'selected':''}>Once a year</option>
       <option value="off">Stop · just remember it</option></select>
-      ${v.cadence==='yearly'?` <select title="Renewal month" onchange="saveVendorField('${esc(v.name)}','renew_month',this.value)">${MONTHS.map((mn,i)=>`<option value="${i+1}" ${v.renew_month===i+1?'selected':''}>${mn.slice(0,3)}</option>`).join('')}</select>`:''}
+      ${v.cadence==='yearly'?` <select title="Renewal month" data-ledger-event="change" data-ledger-action="saveVendorField" data-name="${esc(v.name)}" data-field="renew_month" data-value="__input__">${MONTHS.map((mn,i)=>`<option value="${i+1}" ${v.renew_month===i+1?'selected':''}>${mn.slice(0,3)}</option>`).join('')}</select>`:''}
     </td>
-    <td><button class="ctl" title="${v.active?'Pause · stop pre-creating it, keep the rule':'Resume'}" onclick="saveVendorField('${esc(v.name)}','active',${v.active?0:1})">${v.active?'Pause':'Resume'}</button></td>
-    <td><button class="del-x" title="Delete (transactions stay)" onclick="delVendor('${esc(v.name)}')">✕</button></td></tr>`; };
+    <td><button class="ctl" title="${v.active?'Pause forecasts, keep the rule':'Resume'}" data-ledger-event="click" data-ledger-action="saveVendorField" data-name="${esc(v.name)}" data-field="active" data-value="${v.active?0:1}">${v.active?'Pause':'Resume'}</button></td>
+    <td><button class="del-x" title="Delete (transactions stay)" data-ledger-event="click" data-ledger-action="delVendor" data-name="${esc(v.name)}">✕</button></td></tr>`; };
 
   return `
     <div class="card" style="margin-top:14px">
       <h3>Recurring charges <span class="tiny" style="font-weight:400">${rec.length}</span></h3>
-      <div class="hint">Money <b>out</b> that repeats. This is the only list that creates anything: each month Ledger pre-fills these as <b>expected</b> rows so you just confirm the amount landed. Yearly ones appear only in their renewal month. Pause one and it keeps its categories but stops being pre-filled.</div>
+      <div class="hint">Money <b>out</b> that repeats. These rules support forecasts and renewal reminders. Expenses are booked when imported or entered. Pause a rule to stop forecasting it.</div>
       ${rec.length ? `<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Vendor</th><th>Bucket</th><th>Tax category</th><th class="num">Expected $</th><th>How often</th><th></th><th></th></tr></thead><tbody>
         ${monthly.map(recRow).join('')}${yearly.map(recRow).join('')}
       </tbody></table></div>` : '<div class="tiny" style="margin-top:10px">Nothing recurring yet.</div>'}
@@ -2453,10 +2510,10 @@ function vendorCards(vendors){
         ${shown.map(v=>{ const c = catCell(v); return `<tr data-s="${esc((v.name+' '+(v.bucket||'')+' '+(v.tax_cat||'')).toLowerCase())}">
           <td><b>${esc(v.name)}</b></td><td>${c.bucket}</td><td>${c.tax}</td>
           <td>${v.billing_url
-            ? `<a class="ctl" href="${esc(v.billing_url)}" target="_blank" rel="noopener" title="${esc(v.billing_url)}">↗ Billing page</a> <button class="ctl" onclick="setBillingUrl('${esc(v.name).replace(/'/g,"\'")}')">edit</button>`
-            : `<button class="ctl" title="They never email an invoice? Save the link to where it lives." onclick="setBillingUrl('${esc(v.name).replace(/'/g,"\'")}')">+ Add link</button>`}</td>
-          <td><button class="ctl" title="It bills every month · move it to Recurring" onclick="saveVendorField('${esc(v.name)}','repeats','monthly')">Make recurring →</button></td>
-          <td><button class="del-x" title="Forget this vendor (transactions stay)" onclick="delVendor('${esc(v.name)}')">✕</button></td></tr>`; }).join('')}
+            ? `<a class="ctl" href="${esc(v.billing_url)}" target="_blank" rel="noopener" title="${esc(v.billing_url)}">↗ Billing page</a> <button class="ctl" data-ledger-event="click" data-ledger-action="setBillingUrl" data-name="${esc(v.name)}">edit</button>`
+            : `<button class="ctl" title="They never email an invoice? Save the link to where it lives." data-ledger-event="click" data-ledger-action="setBillingUrl" data-name="${esc(v.name)}">+ Add link</button>`}</td>
+          <td><button class="ctl" title="It bills every month · move it to Recurring" data-ledger-event="click" data-ledger-action="saveVendorField" data-name="${esc(v.name)}" data-field="repeats" data-value="monthly">Make recurring →</button></td>
+          <td><button class="del-x" title="Forget this vendor (transactions stay)" data-ledger-event="click" data-ledger-action="delVendor" data-name="${esc(v.name)}">✕</button></td></tr>`; }).join('')}
       </tbody></table></div>`
       : `<div class="tiny" style="margin-top:12px">Nothing remembered yet · vendors land here the first time you categorize one.</div>`}
     </div>`;
@@ -2519,7 +2576,7 @@ async function addClient(){
   try {
     const pct = +$('#cPct').value || null;
     await api('/api/client', { method:'POST', body: JSON.stringify({ name: $('#cName').value.trim(), retainer:+$('#cRet').value||0, billing: pct ? 'percent':'retainer', pct }) });
-    closeModal(); S.boot = await api('/api/boot'); renderSettings();
+    closeModal(); S.boot = await api('/api/boot'); renderSettings(); flash('Saved.');
   } catch(e){ $('#cMsg').className='msg bad'; $('#cMsg').textContent=e.message; }
 }
 function addVendorModal(){
@@ -2530,7 +2587,7 @@ function addVendorModal(){
     <div class="mrow">
       <div><label>Expected $ / month <span class="why">Only matters if recurring</span></label><input id="vAmt" type="number" step="0.01" placeholder="15.00"></div>
     </div>
-    <label>Repeats <span class="why">Monthly pre-creates the row every month; Yearly only in its renewal month (domains, annual plans)</span></label>
+    <label>Repeats <span class="why">Used for forecasts and renewal reminders; expenses arrive through the bank feed.</span></label>
     <div class="mrow" style="margin-top:0">
       <div><select id="vRep" onchange="$('#vRenWrap').style.display=this.value==='yearly'?'':'none'">
         <option value="off">Off · one-off vendor</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div>
@@ -2547,7 +2604,7 @@ async function addVendor(){
       recurring: rep !== 'off', cadence: rep === 'yearly' ? 'yearly' : 'monthly',
       renew_month: rep === 'yearly' ? +$('#vRen').value : null,
       expected_amount: +$('#vAmt').value||null }) });
-    closeModal(); S.boot = await api('/api/boot'); renderSettings();
+    closeModal(); S.boot = await api('/api/boot'); renderSettings(); flash('Saved.');
   } catch(e){ $('#vMsg').className='msg bad'; $('#vMsg').textContent=e.message; }
 }
 async function delVendor(name){
@@ -2648,11 +2705,12 @@ async function plaidBackfill(btn){
   el.className='msg'; el.textContent='This can take a moment.';
   try {
     const r = await api('/api/plaid-backfill', { method:'POST', body: JSON.stringify({ month: S.month }) });
+    if (r.failed) throw new Error(`${r.failed} bank row(s) failed: ${r.lastError || 'Re-check required'}`);
     el.className = r.recovered ? 'msg good' : 'msg';
     el.textContent = r.recovered
       ? `Recovered ${r.recovered} missing charge(s) · they are in ${moName(S.month)} now.`
       : r.closedSkipped ? `${r.closedSkipped} missing charge(s) found, but ${moName(S.month)} is closed · reopen it and re-check.`
-      : `Nothing missing · the ledger matches the bank for ${moName(S.month)}.`;
+      : `No new charges imported for ${moName(S.month)}. Use bank comparison to review discrepancies.`;
     S.txns = null; window.__moCache = {}; S.boot = await api('/api/boot');
   } catch(e){ el.className='msg bad'; el.textContent = e.message; }
   btn.disabled = false; btn.textContent = label;
@@ -2665,20 +2723,14 @@ async function plaidBackfill(btn){
 async function plaidYear(btn){
   const el = $('#plMsg'); const label = btn.textContent;
   const yr = new Date().getFullYear();
-  if (!await ask({ title: `Rebuild ${yr} from the bank?`,
-    body: `Reads every ${yr} transaction straight from Novo and Amex and makes the books agree with them.`
-        + `<br><br>In any month the bank covers <b>end to end</b>, typed-in expense rows are replaced by the real `
-        + `charges · so a single "Software $225" line becomes the two charges it was. Revenue and Stripe fees are `
-        + `never touched: those are booked per client and the bank only sees a net payout.`
-        + `<br><br>Months that start before the bank's history does are left exactly as they are. `
-        + `Closed months are <b>reopened</b> and stay open until you close them again, so you read the new numbers first.`,
-    ok: 'Rebuild it' })) return;
+  if (!await ask({title:`Read ${yr} from the bank?`,body:'Import missing charges into open months. Closed months and existing unmatched records stay unchanged. Review discrepancies afterward.',ok:'Read the year'})) return;
   btn.disabled = true; btn.textContent = 'Reading the year\u2026';
   el.className='msg'; el.textContent='This reads thousands of lines · give it a minute.';
   try {
     const r = await api('/api/plaid-import', { method:'POST',
-      body: JSON.stringify({ from: yr + '-01-01', to: (yr+1) + '-01-01', reopen: true, replace: true }) });
+      body: JSON.stringify({ from: yr + '-01-01', to: (yr+1) + '-01-01', reopen: false, replace: false }) });
     const added = (r.added||0) + (r['added-review']||0);
+    if(r.failed || r.error || r.skipped) throw new Error(r.lastError || r.error || r.skipped || `${r.failed} bank rows failed`);
     el.className='msg good';
     el.textContent = `Read ${r.bankCount||0} bank lines back to ${r.bankHistoryFrom||'?'} · ${added} added, `
       + `${r.migrated||0} re-linked, ${r.replacedCount||0} typed rows replaced, `
@@ -2722,14 +2774,18 @@ async function refreshBoot(){
   if (!S.tok) return;
   try {
     const nb = await api('/api/boot');
-    const changed = JSON.stringify(nb.flags) !== JSON.stringify(S.boot?.flags);
+    const changed = nb.revision !== S.renderedRevision || JSON.stringify(nb.flags) !== JSON.stringify(S.boot?.flags);
     S.boot = nb;
+    let exceptions=$('#ledgerExceptions');
+    if(!exceptions){exceptions=document.createElement('div');exceptions.id='ledgerExceptions';exceptions.className='notice bad';$('#main').before(exceptions);}
+    exceptions.hidden=!nb.exceptions?.length;exceptions.textContent=(nb.exceptions||[]).map(x=>x.kind+': '+x.error).join(' · ');
     $('#nav').innerHTML = navHTML();
     $('#tabbar').innerHTML = tabbarHTML();
     const busy = document.querySelector('.modal.on') || MSEL.open
       || document.activeElement === $('#txnSearch');
     if (changed && !busy && (S.view === 'dash' || S.view === 'txns')) {
-      S.txns = null;
+      S.renderedRevision = nb.revision;
+      S.txns = null; window.__moCache = {};
       (S.view === 'dash' ? renderDash : renderTxns)();
     }
   } catch (e) { /* a blip must never log him out or blank a view */ }
@@ -2737,6 +2793,14 @@ async function refreshBoot(){
 setInterval(() => { if (!document.hidden) refreshBoot(); }, 60e3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBoot(); });
 
+const ledgerActions = { saveVendorField, saveClientField, delVendor, delClient, delTaxCat, whatIf, plaidRemove, setBillingUrl };
+for (const event of ['click', 'change']) document.addEventListener(event, e => {
+  const el = e.target.closest('[data-ledger-action]');
+  if (!el || el.dataset.ledgerEvent !== event) return;
+  const fn = ledgerActions[el.dataset.ledgerAction];
+  const value=el.dataset.value === '__input__' ? el.value : /^(0|1)$/.test(el.dataset.value || '') ? Number(el.dataset.value) : el.dataset.value;
+  if (fn) Promise.resolve(fn(el.dataset.name, el.dataset.field, value)).catch(e=>tell('Could not save',e.message));
+});
 /* ================= go ================= */
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 boot();

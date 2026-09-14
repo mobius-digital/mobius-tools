@@ -1,0 +1,2 @@
+CREATE TABLE ledger_leases(name TEXT PRIMARY KEY, owner TEXT NOT NULL, expires INTEGER NOT NULL);
+CREATE TABLE ledger_fence_guard(id INTEGER PRIMARY KEY CHECK(id=1), valid INTEGER NOT NULL CHECK(valid=1));

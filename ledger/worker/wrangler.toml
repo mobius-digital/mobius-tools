@@ -1,6 +1,7 @@
 # Mobius Ledger — Cloudflare Worker config
 # Deploy:  npx wrangler deploy   (from this folder — NEVER from repo root)
 name = "mobius-ledger"
+account_id = "9de398454c0670e665485f4e4426a630"
 main = "src/worker.js"
 compatibility_date = "2026-07-01"
 

@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Work out which workers changed
         id: changed
@@ -72,6 +72,12 @@ jobs:
           for d in ${{ steps.changed.outputs.dirs }}; do
             [ -f "$d/wrangler.toml" ] || { echo "skip $d (no wrangler.toml)"; continue; }
             echo "::group::deploying $d"
-            (cd "$d" && npx --yes wrangler@4 deploy)
+            if [ "$d" = "ledger/worker" ]; then
+              node ledger/worker/test-regressions.cjs
+              (cd "$d" && npx --yes wrangler@4.123.0 d1 migrations apply mobius-ledger --remote)
+              (cd "$d" && npx --yes wrangler@4.123.0 deploy)
+            else
+              (cd "$d" && npx --yes wrangler@4 deploy)
+            fi
             echo "::endgroup::"
           done

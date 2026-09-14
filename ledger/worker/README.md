@@ -1,3 +1,7 @@
+# Current release notes
+
+The September 14 audit repair is documented in [AUDIT-REPAIR.md](AUDIT-REPAIR.md). Apply the versioned migrations after the base schema and before deploying. The historical setup notes below do not supersede the audit repair, authorization allowlist, or closed-period controls. Never rerun seed.sql.
+
 # Mobius Ledger — worker
 
 Money in / money out, vendor rules, the recurring engine, receipts, month close

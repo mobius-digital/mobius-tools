@@ -54,8 +54,7 @@ function cat(parts) {
  * @returns ReadableStream of the .zip
  */
 export function zipStream(files) {
-  return new ReadableStream({
-    async start(ctrl) {
+  async function* chunks() {
       const central = [];
       let offset = 0;
       try {
@@ -70,8 +69,8 @@ export function zipStream(files) {
             u16(time), u16(date), u32(crc), u32(bytes.length), u32(bytes.length),
             u16(nameBytes.length), u16(0), nameBytes,
           ]);
-          ctrl.enqueue(local);
-          ctrl.enqueue(bytes);
+          yield local;
+          yield bytes;
           central.push(cat([
             u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0),
             u16(time), u16(date), u32(crc), u32(bytes.length), u32(bytes.length),
@@ -81,17 +80,20 @@ export function zipStream(files) {
           offset += local.length + bytes.length;
         }
         const dir = cat(central);
-        ctrl.enqueue(dir);
-        ctrl.enqueue(cat([
+        yield dir;
+        yield cat([
           u32(0x06054b50), u16(0), u16(0),
           u16(central.length), u16(central.length),
           u32(dir.length), u32(offset), u16(0),
-        ]));
-        ctrl.close();
+        ]);
       } catch (e) {
-        ctrl.error(e);
+        throw e;
       }
-    },
+  }
+  const iterator=chunks();
+  return new ReadableStream({
+    async pull(ctrl) { try {const next=await iterator.next();if(next.done)ctrl.close();else ctrl.enqueue(next.value);}catch(e){ctrl.error(e);} },
+    async cancel(){await iterator.return();}
   });
 }
 

@@ -58,16 +58,18 @@ async function sha256hex(s) {
 const sessCache = new Map();
 async function validSession(env, tok) {
   if (!/^mds\./.test(tok || '')) return false;
-  const hit = sessCache.get(tok);
+  const cacheKey = (env.LEDGER_ALLOWED_EMAILS || env.OWNER_EMAIL || '') + ':' + tok;
+  const hit = sessCache.get(cacheKey);
   if (hit && hit.until > Date.now()) return hit.ok;
   let ok = false;
   try {
     const req = new Request(AUTH_WORKER + '/api/me', { headers: { Authorization: 'Bearer ' + tok } });
     const r = env.AUTH ? await env.AUTH.fetch(req) : await fetch(req);
     const j = await r.json();
-    ok = !!j.email;
+    const allowed = String(env.LEDGER_ALLOWED_EMAILS || env.OWNER_EMAIL || '').toLowerCase().split(',').map(x => x.trim()).filter(Boolean);
+    ok = r.ok && typeof j.email === 'string' && allowed.includes(j.email.toLowerCase());
   } catch (e) { /* auth worker unreachable — fail closed */ }
-  sessCache.set(tok, { ok, until: Date.now() + (ok ? 10 * 60e3 : 60e3) });
+  sessCache.set(cacheKey, { ok, until: Date.now() + (ok ? 10 * 60e3 : 60e3) });
   return ok;
 }
 
@@ -77,9 +79,33 @@ async function isAdmin(request, env) {
   const tok = auth.slice(7);
   if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
   if (await validSession(env, tok)) return true;
-  const stored = await getSetting(env, 'passwordHash');
-  return !!stored && (await sha256hex(tok)) === stored;
+  return false; // Recovery uses ADMIN_TOKEN; legacy unsalted passwords are disabled.
 }
+
+// Every mutation in a leased job atomically checks its fencing token in the same D1 batch.
+async function withLedgerLease(env, name, fn) {
+  const base=env._ledgerRawDB || env.DB, owner=crypto.randomUUID(), ttl=10*60e3;
+  const lock=await base.prepare(`INSERT INTO ledger_leases(name,owner,expires) VALUES(?1,?2,?3)
+    ON CONFLICT(name) DO UPDATE SET owner=excluded.owner,expires=excluded.expires WHERE ledger_leases.expires < ?4`)
+    .bind(name,owner,Date.now()+ttl,Date.now()).run();
+  if (!lock.meta.changes) return { skipped: 'another ' + name + ' run in progress' };
+  const fence=()=>base.prepare(`INSERT OR REPLACE INTO ledger_fence_guard(id,valid)
+    SELECT 1,EXISTS(SELECT 1 FROM ledger_leases WHERE name=?1 AND owner=?2 AND expires>=?3)`).bind(name,owner,Date.now());
+  const guards=[...(env._ledgerFences || []),fence];
+  const db={ prepare(sql) {
+    let stmt=base.prepare(sql);
+    return { _ledgerStatement:()=>stmt, bind(...args){stmt=stmt.bind(...args);return this;}, first(...args){return stmt.first(...args);}, all(){return stmt.all();},
+      async run(){const r=await base.batch([...guards.map(f=>f()),stmt]);return r[r.length-1];} };
+  }, async batch(stmts){const r=await base.batch([...guards.map(f=>f()),...stmts.map(s=>s._ledgerStatement?s._ledgerStatement():s)]);return r.slice(guards.length);} };
+  try { return await fn({...env,DB:db,_ledgerRawDB:base,_ledgerFences:guards}); }
+  finally { await base.prepare('DELETE FROM ledger_leases WHERE name=?1 AND owner=?2').bind(name,owner).run(); }
+}
+async function saveJob(env,id,kind,payload,error=null) {
+  await env.DB.prepare(`INSERT INTO ledger_jobs(id,kind,payload,error) VALUES(?1,?2,?3,?4)
+    ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,error=excluded.error,status='pending',updated_at=CURRENT_TIMESTAMP`)
+    .bind(id,kind,JSON.stringify(payload),error).run();
+}
+async function finishJob(env,id) { await env.DB.prepare("UPDATE ledger_jobs SET status='done',error=NULL WHERE id=?1").bind(id).run(); }
 
 async function getSetting(env, key) {
   const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?1').bind(key).first();
@@ -171,19 +197,29 @@ async function computeReport(env, month) {
     transfers: round2(transfers), personal: round2(personal), incomeTax: round2(incomeTax),
     opCost, split, splitPct: money.split, taxPct: money.taxPct, distPct: money.distPct,
     byBucket: mapRound(byBucket), byTax: mapRound(byTax), byClient: mapRound(byClient),
-    txnCount: txns.length,
+    policyVersion: 1, transactions: txns, txnCount: txns.length,
   };
 }
 const mapRound = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, round2(v)]).sort((a, b) => b[1] - a[1]));
 
 /* A quarter or a year is the months summed — same shape as one month's report,
  * plus the per-month rows the statement prints underneath. */
+async function resolveReport(env, month) {
+  const row = await env.DB.prepare('SELECT status, report_json FROM months WHERE month = ?1').bind(month).first();
+  if (row?.status === 'closed') {
+    const report = safeJson(row.report_json, null);
+    if (!report) throw new Error('Invalid frozen report: ' + month);
+    return report;
+  }
+  return computeReport(env, month);
+}
+
 async function computeRange(env, fromMo, toMo) {
   const money = await getMoney(env);
   const months = [];
   for (let m = fromMo; m <= toMo; m = monthOf(addMonthsYmd(m + '-01', 1))) months.push(m);
   const parts = [];
-  for (const m of months) parts.push(await computeReport(env, m));
+  for (const m of months) parts.push(await resolveReport(env, m));
   const add = (into, from) => { for (const [k, v] of Object.entries(from)) into[k] = round2((into[k] || 0) + v); };
   const byBucket = {}, byTax = {}, byClient = {};
   let revenue = 0, expenses = 0, fees = 0, personal = 0, transfers = 0, incomeTax = 0, feeEstimated = false;
@@ -196,11 +232,13 @@ async function computeRange(env, fromMo, toMo) {
   revenue = round2(revenue); expenses = round2(expenses); fees = round2(fees);
   const net = round2(revenue - expenses - fees);
   const split = {};
-  for (const [k, pct] of Object.entries(money.split)) split[k] = round2(net * pct / 100);
+  for (const p of parts) add(split, p.split || {});
   return {
     from: fromMo, to: toMo, revenue, expenses, fees, feeEstimated,
     net, personal: round2(personal), transfers: round2(transfers), incomeTax: round2(incomeTax),
-    taxes: round2(net * money.taxPct / 100),
+    taxes: round2(parts.reduce((sum,p)=>sum+p.taxes,0)),
+    distributions: round2(parts.reduce((sum,p)=>sum+(p.distributions||0),0)),
+    profit: round2(parts.reduce((sum,p)=>sum+p.profit,0)),
     margin: revenue > 0 ? round2(net / revenue * 100) : null,
     split, splitPct: money.split,
     byBucket: mapRound(byBucket), byTax: mapRound(byTax), byClient: mapRound(byClient),
@@ -225,7 +263,7 @@ async function periodReport(env, period, anchor) {
     return { r, title: 'Profit & Loss', label: y,
              file: `Mobius Digital P&L — ${y}.pdf`, months: r.monthRows };
   }
-  const r = await computeReport(env, anchor);
+  const r = await resolveReport(env, anchor);
   return { r, title: 'Profit & Loss', label: moLabel(anchor),
            file: `Mobius Digital P&L — ${moLabel(anchor)}.pdf`, months: null,
            frozen: (await monthStatus(env, anchor)) === 'closed' };
@@ -468,11 +506,16 @@ async function slack(env, method, params = {}, post = false) {
  * by name, because silence about a broken sync is indistinguishable from a
  * quiet month. */
 async function alertSlack(env, text) {
+  const jobId='alert:'+await sha256hex(text);
+  await saveJob(env,jobId,'slack-alert',{text},'Awaiting Slack delivery');
   const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
-  if (!sr.channelId || !env.SLACK_BOT_TOKEN) return;
+  if (!sr.channelId || !env.SLACK_BOT_TOKEN) throw new Error('Slack notification unavailable');
   const at = await ownerMention(env);
-  await slack(env, 'chat.postMessage',
+  const sent = await slack(env, 'chat.postMessage',
     { channel: sr.channelId, text: at + text, unfurl_links: false }, true);
+  if (!sent.ok) throw new Error('Slack delivery failed: ' + sent.error);
+  await finishJob(env,jobId);
+  return sent;
 }
 
 async function findReceiptsChannel(env) {
@@ -561,33 +604,7 @@ async function receiptDelete(env, key) {
  * so a short wait follows and the caller looks again · which is why this is
  * only ever done for a receipt somebody just sent, never on a schedule. */
 async function bankRefresh(env) {
-  if (!plaidReady(env)) return { ok: false, why: 'no Plaid keys' };
-  /* THIS ONE COSTS MONEY: $0.12 per successful call, per connected bank. It is
-   * refused on this account today, so the throttle guards a bill that does not
-   * exist yet · which is the only time to put a throttle in. Ten receipts on a
-   * busy morning, two banks each, is $2.40 before lunch, and every one of those
-   * calls is asking a question the free feed answers within the hour anyway.
-   *
-   * At most one refresh an hour, so the worst case is fixed and small whatever
-   * lands in the channel. */
-  const GATE = 'lastRefreshAt';
-  const last = Number(await getSetting(env, GATE)) || 0;
-  if (Date.now() - last < 3600e3) return { ok: false, why: 'refreshed within the hour' };
-  await putSetting(env, GATE, String(Date.now()));
-  const out = {};
-  let asked = false;
-  for (const item of await getPlaidItems(env)) {
-    /* Whether the institution honoured it matters · a call that is quietly
-     * refused looks exactly like a call that worked and found nothing, and
-     * that is the difference between "Amex is slow" and "we never asked". */
-    const r = await plaid(env, '/transactions/refresh', { access_token: item.access_token })
-      .then(() => 'ok').catch(e => String(e.message || e).slice(0, 80));
-    out[item.name || 'bank'] = r;
-    asked = asked || r === 'ok';
-  }
-  if (asked) await new Promise(r => setTimeout(r, 4000));
-  await putSetting(env, 'lastBankRefresh', JSON.stringify({ at: new Date().toISOString(), ...out }));
-  return { ok: asked, ...out };
+  return { ok: false, why: 'Paid Plaid refresh disabled by Mobius policy' };
 }
 
 async function bankPending(env, amount, sinceYmd) {
@@ -606,27 +623,41 @@ async function bankPending(env, amount, sinceYmd) {
   return null;
 }
 
-async function processSlackReceipts(env) {
+function receiptMatch(rows, vendor, amount, date, allowTip=false) {
+  const eligible=rows.filter(t=>t.type==='out' && !t.expected && !t.receipt_key && (String(t.vendor).trim().toLowerCase() === String(vendor || '').trim().toLowerCase() || sameCompany(t.vendor,vendor))
+    && (!date || Math.abs(Date.parse(t.date)-Date.parse(date))<=12*86400e3));
+  const exact=eligible.filter(t=>Math.abs(t.amount-Number(amount))<0.005);
+  if(exact.length) return exact.length===1?exact[0]:null;
+  const tips=allowTip && Number(amount)>0 ? eligible.filter(t=>t.amount>=Number(amount)/1.35 && t.amount<=Number(amount)*1.35) : [];
+  return tips.length===1?tips[0]:null;
+}
+async function processSlackReceipts(env) { return withLedgerLease(env, 'receipts', env => processSlackReceiptsInner(env)); }
+async function processSlackReceiptsInner(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
   const cfg = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
   cfg.seen = cfg.seen || [];
   // An event and the cron can fire on the same file within seconds of each
   // other; both would read the same `seen` list and file the receipt twice.
   // A short lease makes the loser skip instead.
-  if (cfg.lockUntil && cfg.lockUntil > Date.now()) return { skipped: 'another run in progress' };
-  cfg.lockUntil = Date.now() + 60e3;
-  await putSetting(env, 'slackReceipts', JSON.stringify(cfg));
+  // Atomic fenced lease is acquired by processSlackReceipts.
   if (!cfg.channelId) {
     const ch = await findReceiptsChannel(env);
     if (ch.error) { cfg.lastError = ch.error; await putSetting(env, 'slackReceipts', JSON.stringify(cfg)); return { error: ch.error }; }
     cfg.channelId = ch.id;
   }
-  const hist = await slack(env, 'conversations.history',
-    { channel: cfg.channelId, limit: '30', ...(cfg.lastTs ? { oldest: cfg.lastTs } : {}) });
-  if (!hist.ok) { cfg.lastError = hist.error; await putSetting(env, 'slackReceipts', JSON.stringify(cfg)); return { error: hist.error }; }
-  cfg.lastError = null;
-
-  const msgs = (hist.messages || []).slice().reverse();   // oldest first
+  const messages=[], latest=String(Date.now()/1000); let cursor='';
+  do {
+    const hist=await slack(env,'conversations.history',{channel:cfg.channelId,limit:'100',latest,
+      ...(cfg.lastTs?{oldest:cfg.lastTs}:{}),...(cursor?{cursor}:{})});
+    if(!hist.ok) throw new Error('Slack history: '+hist.error);
+    messages.push(...(hist.messages||[])); cursor=hist.response_metadata?.next_cursor || '';
+  } while(cursor);
+  for(const msg of messages) for(const f of ((msg.files||[]).some(f=>f.filetype==='email'||['message/rfc822','text/html'].includes(f.mimetype)) ? [(msg.files||[]).find(f=>f.filetype==='email'||['message/rfc822','text/html'].includes(f.mimetype))] : (msg.files||[])))
+    await env.DB.prepare("INSERT OR IGNORE INTO ledger_jobs(id,kind,payload) VALUES(?1,'slack-file',?2)")
+      .bind('slack-file:'+f.id,JSON.stringify({...msg,files:[f]})).run();
+  const pending=await env.DB.prepare("SELECT payload FROM ledger_jobs WHERE kind='slack-file' AND status='pending'").all();
+  const msgs=pending.results.map(r=>JSON.parse(r.payload)).sort((a,b)=>Number(a.ts)-Number(b.ts));
+  cfg.lastError=null;
   const taxCats = safeJson(await getSetting(env, 'taxCats'), []) || [];
   /* Skip OUR OWN posts only. The first version of this skipped every bot
    * message, which silently swallowed the entire email intake: Slack delivers
@@ -641,7 +672,7 @@ async function processSlackReceipts(env) {
   const filed = [];
   for (const msg of msgs) {
     if (+msg.ts > +(cfg.lastTs || 0)) cfg.lastTs = msg.ts;
-    if (selfId && msg.user === selfId) continue;              // our own P&L posts
+    if (selfId && msg.user === selfId) { for(const file of msg.files || [])await finishJob(env,'slack-file:'+file.id); continue; }              // our own P&L posts
     /* One forwarded email lands as TWO Slack files: the email container and
      * a copy of its text/html body. Reading both filed the same payment twice,
      * onto rows in two different months (the second copy could not use the row
@@ -656,12 +687,12 @@ async function processSlackReceipts(env) {
       // body itself comes through as a text/html file. Both are receipts.
       const isEmail = f.filetype === 'email' || f.mimetype === 'text/html'
         || f.mimetype === 'message/rfc822';
-      if (!isEmail && !isPdf && !/^image\//.test(f.mimetype || '')) continue;
-      if (cfg.seen.includes(f.id)) continue;
-      cfg.seen.push(f.id); if (cfg.seen.length > SEEN_CAP) cfg.seen = cfg.seen.slice(-SEEN_CAP);
+      if (!isEmail && !isPdf && !/^image\//.test(f.mimetype || '')) {await finishJob(env,'slack-file:'+f.id);continue;}
+      if (cfg.seen.includes(f.id)) { await finishJob(env, 'slack-file:'+f.id); continue; }
+      let fileFailed = false;
       const reply = (text, blocks) => slack(env, 'chat.postMessage',
         { channel: cfg.channelId, thread_ts: msg.ts, text, unfurl_links: false,
-          ...(blocks ? { blocks } : {}) }, true);
+          ...(blocks ? { blocks } : {}) }, true).then(r=>{if(!r.ok)throw new Error('Slack delivery: '+r.error);return r;});
       /* A reaction is the whole status report when nothing is wrong. It does
        * not notify anyone, so twenty forwarded receipts stop being twenty
        * pings: the tick just appears on each one. Anything that actually
@@ -733,6 +764,8 @@ async function processSlackReceipts(env) {
         const dl = await fetch(dlUrl, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
         const buf = await dl.arrayBuffer();
         if (buf.byteLength > 8 * 1024 * 1024) { await react('x'); needsYou++; await nudge('⚠️ That file is over 8MB — attach it from the app instead.'); continue; }
+        const existingReceipt = await env.DB.prepare('SELECT id FROM transactions WHERE receipt_hash=?1').bind(await sha256bytes(buf)).first();
+
         const bytes = new Uint8Array(buf);
         let b64 = '';
         for (let i = 0; i < bytes.length; i += 0x8000)
@@ -774,9 +807,14 @@ async function processSlackReceipts(env) {
          * it settles. Strictly ATTACH-ONLY: the bank feed already carries these
          * charges, so inventing rows from the confirmation would double-count. */
         const many = (ext?.payments || []).length > 1 ? ext.payments : null;
+        if(existingReceipt && !many) { await quiet(null, 'This receipt is already attached to transaction '+existingReceipt.id+'.'); continue; }
         if (many) {
           const hit = [], miss = [];
-          for (const p of many) {
+          const documentHash=await sha256bytes(buf);
+          for (const [paymentIndex,p] of many.entries()) {
+            const paymentKey=await sha256hex(JSON.stringify([p.vendor,p.amount,p.date || rDate,paymentIndex]));
+            const allocation=await env.DB.prepare('SELECT transaction_id FROM receipt_allocations WHERE document_hash=?1 AND payment_key=?2').bind(documentHash,paymentKey).first();
+            if(allocation) { const prior=await env.DB.prepare('SELECT * FROM transactions WHERE id=?1').bind(allocation.transaction_id).first(); if(prior){hit.push(prior);continue;} }
             const pDate = /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') && p.date <= today ? p.date : rDate;
             const { results } = await env.DB.prepare(
               `SELECT * FROM transactions WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
@@ -784,12 +822,15 @@ async function processSlackReceipts(env) {
                ORDER BY ABS(julianday(date) - julianday(?4)) LIMIT 5`)
               .bind(monthOf(addMonthsYmd(pDate, -1)), monthOf(addMonthsYmd(pDate, 1)), Math.abs(p.amount), pDate).all();
             const first = String(p.vendor).toLowerCase().split(' ')[0];
-            const row = results.find(t => t.vendor.toLowerCase().includes(first)) || results[0] || null;
+            const row = receiptMatch(results,p.vendor,p.amount,pDate);
             if (!row) { miss.push(p); continue; }
             const key = `rcpt:${row.id}:${Date.now()}:${hit.length}`;
             await receiptPut(env, key, buf);
-            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
-              .bind(row.id, key, fname.slice(0, 120), mimetype, await sha256bytes(buf)).run();
+            await env.DB.batch([
+              env.DB.prepare('INSERT INTO receipt_allocations(document_hash,payment_key,transaction_id) VALUES(?1,?2,?3)').bind(documentHash,paymentKey,row.id),
+              env.DB.prepare('UPDATE transactions SET receipt_key=?2,receipt_name=?3,receipt_type=?4,receipt_hash=?5 WHERE id=?1')
+                .bind(row.id,key,fname.slice(0,120),mimetype,documentHash)
+            ]);
             hit.push(row);
           }
           if (hit.length) {
@@ -848,13 +889,7 @@ async function processSlackReceipts(env) {
            * added after printing; then a SMALLER one only if it is the only
            * candidate from that vendor, because a smaller charge is usually a
            * different purchase. */
-          const pick = rows => {
-            const n = rows.filter(agrees);
-            const small = n.filter(t => t.amount < Number(ext.amount) - 0.005);
-            return n.find(t => Math.abs(t.amount - Number(ext.amount)) < 0.005)
-                || n.find(t => t.amount > Number(ext.amount))
-                || (small.length === 1 ? small[0] : null);
-          };
+          const pick = rows => receiptMatch(rows,ext.vendor,ext.amount,rDate,true);
           target = pick(await look());
           /* Nothing yet, so go and ask the bank NOW instead of waiting for
            * tonight. Once per run, however many receipts arrived together. */
@@ -1064,11 +1099,12 @@ async function processSlackReceipts(env) {
             row.status = 'ok'; guessed = true;
             await learnDefault(env, row.vendor, row.bucket, row.tax_cat);
           }
-          const res = await env.DB.prepare(`INSERT INTO transactions
-            (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
-            VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
-            .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
-          target = { id: res.meta.last_row_id, vendor: row.vendor, amount: row.amount, date: row.date,
+          const res = await env.DB.prepare(`INSERT OR IGNORE INTO transactions
+            (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, import_id)
+            VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual',?9)`)
+            .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status,'slack-photo:'+f.id).run();
+          const saved=await env.DB.prepare('SELECT id FROM transactions WHERE import_id=?1').bind('slack-photo:'+f.id).first();
+          target = { id: saved.id, vendor: row.vendor, amount: row.amount, date: row.date,
                      __new: true, __review: row.status === 'review', __guessed: guessed,
                      __cat: row.tax_cat, __alts: ext.alternates || [] };
         }
@@ -1127,9 +1163,13 @@ async function processSlackReceipts(env) {
         }
         handled++;
       } catch (e) {
+        fileFailed = true;
+        await saveJob(env,'slack-file:'+f.id,'slack-file',{...msg,files:[f]},String(e.message || e));
         await react('x').catch(() => {});
         needsYou++;
         await nudge(`⚠️ Something went wrong handling this file: ${String(e.message || e).slice(0, 140)}`).catch(() => {});
+      } finally {
+        if (!fileFailed) { await finishJob(env,'slack-file:'+f.id); cfg.seen.push(f.id); cfg.seen=cfg.seen.slice(-SEEN_CAP); }
       }
     }
   }
@@ -1362,7 +1402,8 @@ function resolveClient(clients, map, cusId, texts) {
  * Idempotent: rows key on stripe_id; the monthly Stripe-fee row is recomputed
  * from SUM(fee) after every run. Closed months are never written into.
  */
-async function syncStripe(env, fromYmd, toYmd) {
+async function syncStripe(env, fromYmd, toYmd) { return withLedgerLease(env, 'stripe', env => syncStripeInner(env, fromYmd, toYmd)); }
+async function syncStripeInner(env, fromYmd, toYmd) {
   if (!env.STRIPE_KEY) throw new Error('STRIPE_KEY is not set on the worker');
   const [clientsQ, mapRaw, monthsQ] = await Promise.all([
     env.DB.prepare('SELECT name FROM clients').all(),
@@ -1392,10 +1433,11 @@ async function syncStripe(env, fromYmd, toYmd) {
     } while (after);
   };
 
-  await walk('charges', ['data.balance_transaction', 'data.customer'], async c => {
+  const handleCharge = async (c, replay=false) => {
     if (!c.paid || c.status !== 'succeeded') return;
     const date = centralDate(c.created), month = monthOf(date);
-    if (date < fromYmd || date > toYmd) return;
+    if (!replay && (date < fromYmd || date > toYmd)) return;
+    await saveJob(env,'stripe-charge:'+c.id,'stripe-charge',{id:c.id},'Charge or fee requires reconciliation');
     if (closed.has(month)) { skippedClosed++; return; }
     const cus = typeof c.customer === 'object' && c.customer ? c.customer : null;
     const cusId = cus?.id || (typeof c.customer === 'string' ? c.customer : null);
@@ -1403,20 +1445,38 @@ async function syncStripe(env, fromYmd, toYmd) {
       [cus?.name, cus?.email, cus?.description, c.description, c.calculated_statement_descriptor, c.billing_details?.name, c.billing_details?.email]);
     if (learned && cusId) { map[cusId] = client; mapDirty = true; }
     const vendor = client || (cus?.name || cus?.email || c.billing_details?.name || c.description || 'Stripe customer');
+    const prior=await env.DB.prepare('SELECT id FROM transactions WHERE stripe_id=?1').bind(c.id).first();
+    if (!prior) {
+      const candidates=await env.DB.prepare("SELECT id FROM transactions WHERE month=?1 AND vendor=?2 AND type='in' AND expected=0 AND stripe_id IS NULL AND source IN ('recurring','manual')")
+        .bind(month,vendor).all();
+      if(candidates.results.length) {
+        await saveJob(env,'stripe-duplicate:'+c.id,'stripe-duplicate',{charge:c.id,candidateIds:candidates.results.map(r=>r.id)},'Review payment provenance before import');
+        review++; return;
+      }
+    }
     const fee = c.balance_transaction && typeof c.balance_transaction === 'object' ? c.balance_transaction.fee / 100 : null;
     const res = await env.DB.prepare(`INSERT OR IGNORE INTO transactions
       (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, stripe_id, stripe_cus, fee)
-      VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', ?5, ?6, 'stripe', ?7, ?8, ?9)`)
+      VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', ?5, ?6, 'stripe', ?7, ?8, ?9)
+      ON CONFLICT(stripe_id) WHERE stripe_id IS NOT NULL DO UPDATE SET fee=COALESCE(excluded.fee, transactions.fee)`)
       .bind(date, month, vendor, round2(c.amount / 100),
             client ? null : 'New Stripe customer — pick the client and Ledger remembers it',
             client ? 'ok' : 'review', c.id, cusId, fee).run();
-    if (res.meta.changes) { added++; touched.add(month); if (!client) review++; }
-  });
+    if (res.meta.changes) { if(!prior)added++; touched.add(month); if (!client) review++; }
+    if(fee !== null) await finishJob(env,'stripe-charge:'+c.id);
+  };
+  const pendingCharges=await env.DB.prepare("SELECT payload FROM ledger_jobs WHERE kind='stripe-charge' AND status='pending'").all();
+  for(const job of pendingCharges.results) {
+    const charge=await stripeGet(env,'charges/'+encodeURIComponent(JSON.parse(job.payload).id),{'expand[]':['balance_transaction','customer']});
+    await handleCharge(charge,true);
+  }
+  await walk('charges',['data.balance_transaction','data.customer'],handleCharge);
 
-  await walk('refunds', ['data.charge'], async r => {
+  const handleRefund=async(r,replay=false)=>{
     if (r.status && r.status !== 'succeeded') return;
     const date = centralDate(r.created), month = monthOf(date);
-    if (date < fromYmd || date > toYmd) return;
+    if (!replay && (date < fromYmd || date > toYmd)) return;
+    await saveJob(env,'stripe-refund:'+r.id,'stripe-refund',{id:r.id},'Refund awaiting open period');
     if (closed.has(month)) { skippedClosed++; return; }
     const ch = typeof r.charge === 'object' && r.charge ? r.charge : null;
     const cusId = ch ? (typeof ch.customer === 'string' ? ch.customer : ch.customer?.id) : null;
@@ -1427,7 +1487,11 @@ async function syncStripe(env, fromYmd, toYmd) {
       .bind(date, month, client || ch?.description || 'Stripe refund', -round2(r.amount / 100),
             client ? 'ok' : 'review', r.id, cusId).run();
     if (res.meta.changes) { added++; touched.add(month); if (!client) review++; }
-  });
+    await finishJob(env,'stripe-refund:'+r.id);
+  };
+  const pendingRefunds=await env.DB.prepare("SELECT payload FROM ledger_jobs WHERE kind='stripe-refund' AND status='pending'").all();
+  for(const job of pendingRefunds.results) await handleRefund(await stripeGet(env,'refunds/'+encodeURIComponent(JSON.parse(job.payload).id),{'expand[]':['charge']}),true);
+  await walk('refunds',['data.charge'],handleRefund);
 
   if (mapDirty) await putSetting(env, 'stripeMap', JSON.stringify(map));
 
@@ -1442,7 +1506,7 @@ async function syncStripe(env, fromYmd, toYmd) {
     // one aggregated fee row per month, recomputed from the stored per-charge fees
     const f = await env.DB.prepare(`SELECT SUM(fee) AS fees FROM transactions WHERE month = ?1 AND source = 'stripe'`).bind(month).first();
     const fees = round2(f?.fees || 0);
-    if (fees > 0) {
+    {
       await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, source, stripe_id)
         VALUES (?1, ?2, 'fee', 'Stripe', ?3, 'Merchant fee', 'Bank & merchant fees', 'Exact fees from Stripe, per charge', 'stripe', ?4)
         ON CONFLICT(stripe_id) WHERE stripe_id IS NOT NULL DO UPDATE SET amount = ?3`)
@@ -1521,6 +1585,13 @@ function looksLikeTransfer(name, pfc, selfAccounts = []) {
  *   3. otherwise it inserts through the vendor rules (unknown → Review).
  */
 async function processPlaidTxn(env, item, t, opts = {}) {
+  const result = await processPlaidTxnInner(env, item, t, opts);
+  if (typeof result === 'string' && !['pending', 'before-start', 'duplicate'].includes(result))
+    await env.DB.prepare('UPDATE transactions SET bank_account_id=?2, bank_currency=?3, bank_amount=?4, bank_item_id=?5 WHERE plaid_id=?1')
+      .bind(t.transaction_id, t.account_id || null, t.iso_currency_code || t.unofficial_currency_code || null, round2(t.amount),item.item_id || null).run();
+  return result;
+}
+async function processPlaidTxnInner(env, item, t, opts = {}) {
   if (t.pending) return 'pending';
   /* Idempotency first. Plaid re-delivers a transaction whenever the cursor did
    * not advance — which is exactly what happens after any mid-page failure. On
@@ -1537,7 +1608,7 @@ async function processPlaidTxn(env, item, t, opts = {}) {
    * caller allowed past it, because reaching back is the entire point. */
   const start = opts.ignoreStart ? null : await getSetting(env, 'plaidStart');
   if (start && date < start) return 'before-start';
-  if (!opts.allowClosed && (await monthStatus(env, month)) === 'closed')
+  if ((await monthStatus(env, month)) === 'closed')
     return { skip: 'closed', id: t.transaction_id, month, date,
              vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
              amount: round2(t.amount) };
@@ -1627,6 +1698,7 @@ async function processPlaidTxn(env, item, t, opts = {}) {
         .bind(date, amount).all();
       const pHit = photo.find(x => nameAgrees(x) || looseNameMatch(x.vendor, vendor)) || null;
       if (pHit) {
+        if ((await monthStatus(env, pHit.month)) === 'closed') throw new Error('Receipt period closed; correction requires reopen');
         /* The receipt's date stays: it is the day of the purchase, and the
          * charge can post in the next month. */
         if (Math.abs(pHit.amount - amount) >= 0.005) {
@@ -1664,7 +1736,8 @@ async function processPlaidTxn(env, item, t, opts = {}) {
  * making Cole answer a question the system will be able to answer itself
  * tomorrow, those receipts are HELD, and this sweeps them after every sync:
  * any that now match an unreceipted charge attach themselves and say so. */
-async function retryHeldReceipts(env) {
+async function retryHeldReceipts(env) { return withLedgerLease(env,'receipts',env=>retryHeldReceiptsInner(env)); }
+async function retryHeldReceiptsInner(env) {
   const { results: held } = await env.DB.prepare(
     `SELECT key, value FROM settings WHERE key LIKE 'pend:%'`).all();
   if (!held.length) return { held: 0 };
@@ -1718,19 +1791,7 @@ async function retryHeldReceipts(env) {
      * one charge at that amount" is not good enough: an Anthropic receipt for
      * $90 met an OpenAI charge for $90 and filed itself there. A held receipt
      * waits for its own vendor, however long that takes. */
-    const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const rv = norm(meta.vendor), first = rv.split(' ').filter(Boolean)[0] || '';
-    const agrees = t => {
-      if (sameCompany(t.vendor, meta.vendor)) return true;
-      const tv = norm(t.vendor); if (!first || !tv) return false;
-      const tf = tv.split(' ')[0];
-      return tv.includes(first) || rv.includes(tf);
-    };
-    const near = hit.results.filter(agrees);
-    const exact = near.find(t => Math.abs(t.amount - Number(meta.amount)) < 0.005);
-    const bigger = near.find(t => t.amount > Number(meta.amount));
-    const smaller = near.filter(t => t.amount < Number(meta.amount) - 0.005);
-    const match = exact || bigger || (smaller.length === 1 ? smaller[0] : null);
+    const match = receiptMatch(hit.results,meta.vendor,meta.amount,meta.date,true);
     if (!match) {
       /* Waiting is fine for a few days; waiting forever in silence is not.
        * The key carries its own creation time, so after a week without the
@@ -1739,12 +1800,11 @@ async function retryHeldReceipts(env) {
       const bornMs = Number(String(row.key).split(':')[1]);
       const days = Number.isFinite(bornMs) ? (Date.now() - bornMs) / 86400e3 : 0;
       if (days >= 5 && !meta.asked && (meta.ch || sr.channelId)) {
-        meta.asked = 1;
-        await putSetting(env, row.key, JSON.stringify(meta));
+
         const at = await ownerMention(env);
         const txt = `${at}\u23f3 *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has been waiting ${Math.floor(days)} days and still matches no charge on Novo or Amex.\n` +
           `That usually means it went on a different card, or it is somebody else's charge. It stops waiting now · tell me which:`;
-        await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
+        const delivery = await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
           ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
           blocks: [{ type: 'section', text: { type: 'mrkdwn', text: txt } },
             { type: 'actions', elements: [
@@ -1753,7 +1813,9 @@ async function retryHeldReceipts(env) {
                 value: JSON.stringify({ file: row.key }) },
               { type: 'button', action_id: 'led_drop',
                 text: { type: 'plain_text', text: 'Not mine · discard' },
-                value: JSON.stringify({ drop: row.key }) }] }] }, true).catch(() => {});
+                value: JSON.stringify({ drop: row.key }) }] }] }, true);
+        if (!delivery.ok) throw new Error('Receipt decision could not be delivered: '+delivery.error);
+        meta.asked=1; await putSetting(env,row.key,JSON.stringify(meta));
         asked++;
       }
       continue;
@@ -1839,7 +1901,8 @@ async function announceDropped(env, dropped) {
  * does NOT appear in the statement now in hand is treated as a row from the
  * retired Item and MIGRATED onto its new id · same charge, same row, new name.
  */
-async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
+async function importPlaidRange(env, fromYmd, toYmd, opts = {}) { return withLedgerLease(env,'bank',env=>importPlaidRangeInner(env,fromYmd,toYmd,opts)); }
+async function importPlaidRangeInner(env, fromYmd, toYmd, opts = {}) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
   if (!items.length) return { skipped: 'no connected accounts' };
@@ -1861,77 +1924,10 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
   }
   if (!statement.length) return { ok: true, from: fromYmd, to: toYmd, bankCount: 0, note: 'the bank returned nothing for this range' };
 
-  const ids = new Set(statement.map(x => x.t.transaction_id));
-  const first = v => String(v || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(' ')[0];
-
-  /* THE SAME CHARGE TWICE, ONCE PER BANK CONNECTION. Migration renames a row
-   * onto the id the bank uses now, and cannot when that id already sits on
-   * another row: the unique index refuses and the pair stands as two copies of
-   * one charge. That is money counted twice, which this app exists not to do.
-   *
-   * What identifies a copy is NOT the merchant name · one connection says
-   * "Viktor" and the next says "VIKTOR.COM", one says "Noma (via WorldRemit)"
-   * and the next just "WorldRemit". It is the id: a row whose plaid_id is
-   * absent from the statement came from a connection the bank has retired, so
-   * that charge is no longer being reported under that name. Pair each retired
-   * row with one live row of the same day, amount and direction, and they are
-   * the same charge. Pairing is one to one, so two genuine same-day charges of
-   * the same amount survive as two.
-   *
-   * The survivor is the retired row · it is the one carrying the receipt and
-   * the categories somebody chose · and it takes the id the bank uses now. */
   const collapsed = [];
-  {
-    const { results: mine } = await env.DB.prepare(
-      `SELECT id, date, type, vendor, amount, plaid_id, receipt_key FROM transactions
-        WHERE date >= ?1 AND date < ?2 AND plaid_id IS NOT NULL ORDER BY id`).bind(fromYmd, toYmd).all();
-    const groups = new Map();
-    for (const r of mine) {
-      const k = `${r.date}|${r.type}|${round2(r.amount).toFixed(2)}`;
-      (groups.get(k) || groups.set(k, []).get(k)).push(r);
-    }
-    for (const g of groups.values()) {
-      if (g.length < 2) continue;
-      const stale = g.filter(r => !ids.has(r.plaid_id));
-      const live = g.filter(r => ids.has(r.plaid_id));
-      const pairs = Math.min(stale.length, live.length);
-      for (let i = 0; i < pairs; i++) {
-        /* Keep whichever of the two actually holds a receipt, else the retired
-         * row, which is the older and better-annotated of the pair. */
-        const a = stale[i], b = live[i];
-        const keep = a.receipt_key ? a : (b.receipt_key ? b : a);
-        const drop = keep === a ? b : a;
-        const liveId = b.plaid_id;
-        await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(drop.id).run();
-        if (keep.plaid_id !== liveId)
-          await env.DB.prepare('UPDATE transactions SET plaid_id = ?2 WHERE id = ?1').bind(keep.id, liveId).run();
-        collapsed.push({ removed: drop.id, kept: keep.id, date: keep.date,
-                         vendor: keep.vendor, amount: keep.amount });
-      }
-    }
-  }
-
-  /* Rows the bank once told us about under a name it no longer uses. */
-  const { results: orphans } = await env.DB.prepare(
-    `SELECT id, date, vendor, amount, plaid_id FROM transactions
-      WHERE date >= ?1 AND date < ?2 AND plaid_id IS NOT NULL`).bind(fromYmd, toYmd).all();
-  const pool = orphans.filter(r => !ids.has(r.plaid_id));
-
   const totals = {}, migrated = [], dropped = [];
   for (const { item, t } of statement) {
     try {
-      const amt = Math.abs(round2(t.amount));
-      const name = first(t.merchant_name || t.name);
-      const i = pool.findIndex(r => r.date === t.date && Math.abs(Math.abs(r.amount) - amt) < 0.005
-                                    && first(r.vendor) === name);
-      if (i >= 0) {
-        const row = pool.splice(i, 1)[0];
-        await env.DB.prepare('UPDATE transactions SET plaid_id = ?2 WHERE id = ?1')
-          .bind(row.id, t.transaction_id).run();
-        totals.migrated = (totals.migrated || 0) + 1;
-        migrated.push({ id: row.id, date: row.date, vendor: row.vendor, amount: row.amount });
-        continue;
-      }
       const out = await processPlaidTxn(env, item, t, opts);
       if (out && out.skip === 'closed') { dropped.push(out); totals.closed = (totals.closed || 0) + 1; continue; }
       totals[out] = (totals[out] || 0) + 1;
@@ -1949,33 +1945,7 @@ async function importPlaidRange(env, fromYmd, toYmd, opts = {}) {
   const earliest = statement.reduce((a, x) => (!a || x.t.date < a) ? x.t.date : a, null);
   const latest   = statement.reduce((a, x) => (!a || x.t.date > a) ? x.t.date : a, null);
   const replaced = [];
-  if (opts.replace) {
-    for (let ym = monthOf(fromYmd); ym < monthOf(toYmd); ym = monthOf(addMonthsYmd(ym + '-01', 1))) {
-      if (ym + '-01' < earliest) continue;                       // starts before the bank remembers
-      /* AND it has to be OVER. In a month still running, the bank's silence
-       * about a charge means nothing · the charge may simply not have happened
-       * yet. Replacing the current month deleted a $295 card fee and a $500
-       * invoice that were perfectly real and merely still to come. */
-      if (addDaysYmd(addMonthsYmd(ym + '-01', 1), -1) > latest) continue;
-      if (!statement.some(x => monthOf(x.t.date) === ym)) continue; // the bank had nothing to say
-
-      /* Only hand-typed EXPENSES go. Revenue and merchant fees are booked
-       * gross per client while the bank only ever sees a net Stripe payout, so
-       * deleting those would destroy the one basis a CPA can use. */
-      const { results: gone } = await env.DB.prepare(
-        `SELECT id, date, vendor, amount FROM transactions
-          WHERE month = ?1 AND type = 'out' AND plaid_id IS NULL AND expected = 0`).bind(ym).all();
-      if (!gone.length) continue;
-      await env.DB.prepare(
-        `DELETE FROM transactions
-          WHERE month = ?1 AND type = 'out' AND plaid_id IS NULL AND expected = 0`).bind(ym).run();
-      for (const g of gone) replaced.push({ month: ym, ...g });
-    }
-  }
-
-  /* What the books claim and the bank never mentioned. Deleting these would be
-   * overreach · cash, an unlinked card and a hand-booked payout all look the
-   * same from here · so they are named and left alone. */
+  // Unmatched manual rows are evidence, never delete them based on feed coverage.
   const { results: leftovers } = await env.DB.prepare(
     `SELECT id, date, type, vendor, amount, COALESCE(bucket,'') AS bucket
        FROM transactions WHERE date >= ?1 AND date < ?2 AND plaid_id IS NULL AND expected = 0
@@ -2097,7 +2067,7 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
           account: item.accounts?.[t.account_id]?.name || item.name || '' }); continue; }
         bank.push({ id: t.transaction_id, date: t.date, month: monthOf(t.date),
                     vendor: String(t.merchant_name || t.name || 'Unknown').slice(0, 60),
-                    amount: round2(t.amount),
+                    amount: round2(t.amount), item_id:item.item_id, account_id: t.account_id, currency: t.iso_currency_code || t.unofficial_currency_code || null,
                     account: item.accounts?.[t.account_id]?.name || item.name || '' });
       }
       offset += got.length;
@@ -2106,26 +2076,24 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
   }
 
   const rows = (await env.DB.prepare(
-    `SELECT id, date, month, type, vendor, amount, plaid_id
-       FROM transactions WHERE date >= ?1 AND date < ?2`).bind(fromYmd, toYmd).all()).results || [];
+    `SELECT id, date, month, type, vendor, amount, plaid_id, bank_item_id, bank_account_id, bank_currency, bank_amount
+       FROM transactions WHERE date >= ?1 AND date < ?2 AND expected=0`).bind(fromYmd, toYmd).all()).results || [];
 
   /* A ledger row can only answer for one bank charge. */
   const used = new Set();
-  const claim = (mo, amt) => {
-    const hit = rows.find(r => !used.has(r.id) && r.month === mo &&
-      Math.abs(Math.abs(r.amount) - Math.abs(amt)) < 0.005);
-    if (hit) { used.add(hit.id); return hit; }
-    return null;
-  };
-
   const byId = new Map(rows.filter(r => r.plaid_id).map(r => [r.plaid_id, r]));
-  const missing = [], byMonth = {};
+  const missing = [], discrepancies = [], byMonth = {};
   for (const b of bank) {
     const m = byMonth[b.month] || (byMonth[b.month] = { bank: 0, matched: 0, missing: 0 });
     m.bank++;
     const exact = byId.get(b.id);
-    if (exact && !used.has(exact.id)) { used.add(exact.id); m.matched++; continue; }
-    if (claim(b.month, b.amount)) { m.matched++; continue; }
+    if (exact && !used.has(exact.id) && exact.date === b.date
+        && exact.bank_item_id === b.item_id && exact.bank_account_id === b.account_id && exact.bank_currency === b.currency
+        && exact.bank_amount !== null && Math.abs(exact.bank_amount - b.amount) < 0.005
+        && Math.abs((exact.type === 'in' ? -exact.amount : exact.type === 'out' ? exact.amount : exact.bank_amount) - b.amount) < 0.005) {
+      used.add(exact.id); m.matched++; continue;
+    }
+    if(exact) discrepancies.push({bank:b,ledger:exact,reason:'Source amount, date, account, currency or direction differs'});
     m.missing++;
     missing.push(b);
   }
@@ -2147,7 +2115,7 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
     bankCount: bank.length, ledgerCount: rows.length,
     onBankNotInBooks: missing.length, inBooksNotOnBank: unmatchedRows.length,
     noBankData: noData, byMonth,
-    missing: missing.slice(0, 100), extra: unmatchedRows.slice(0, 100),
+    discrepancies, missing: missing.slice(0, 100), extra: unmatchedRows.slice(0, 100),
     /* The statement itself, when the question is "what does the bank actually
      * say" rather than "where do we disagree". */
     /* The caller almost never wants 500 bank lines back · selfCheck does,
@@ -2159,7 +2127,8 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
   };
 }
 
-async function backfillPlaid(env, fromYmd, toYmd) {
+async function backfillPlaid(env, fromYmd, toYmd) { return withLedgerLease(env,'bank',env=>backfillPlaidInner(env,fromYmd,toYmd)); }
+async function backfillPlaidInner(env, fromYmd, toYmd) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
   if (!items.length) return { skipped: 'no connected accounts' };
@@ -2198,7 +2167,34 @@ async function backfillPlaid(env, fromYmd, toYmd) {
   return { ok: true, from: fromYmd, to: toYmd, recovered: recovered.length, closedSkipped: dropped.length, ...totals };
 }
 
-async function syncPlaid(env) {
+async function applyBankJob(env, id, payload) {
+  const {event,item,t}=payload;
+  try {
+    if(event==='added') {
+      const result=await processPlaidTxn(env,item,t);
+      if(result?.skip==='closed') throw new Error('Closed period: reopen then sync to replay');
+    } else {
+      const cur=await env.DB.prepare('SELECT * FROM transactions WHERE plaid_id=?1').bind(t.transaction_id).first();
+      if(cur) {
+        if(await monthStatus(env,cur.month)==='closed' || (t.date && await monthStatus(env,monthOf(t.date))==='closed'))
+          throw new Error('Closed period: reopen then sync to replay');
+        if(event==='removed') await env.DB.prepare('DELETE FROM transactions WHERE id=?1').bind(cur.id).run();
+        else if(!t.pending) {
+          const amount=cur.type==='out'?round2(t.amount):round2(Math.abs(t.amount));
+          await env.DB.prepare('UPDATE transactions SET date=?2,month=?3,amount=?4,bank_amount=?5,bank_account_id=?6,bank_currency=?7 WHERE id=?1')
+            .bind(cur.id,t.date,monthOf(t.date),amount,round2(t.amount),t.account_id || null,t.iso_currency_code || t.unofficial_currency_code || null).run();
+        }
+      }
+    }
+    await finishJob(env,id); return true;
+  } catch(e) {
+    await saveJob(env,id,'bank-event',payload,String(e.message||e)); return false;
+  }
+}
+async function syncPlaid(env) { return withLedgerLease(env, 'bank', env => syncPlaidInner(env)); }
+async function syncPlaidInner(env) {
+  const replay=await env.DB.prepare("SELECT id,payload FROM ledger_jobs WHERE kind='bank-event' AND status='pending'").all();
+  for(const job of replay.results) await applyBankJob(env,job.id,JSON.parse(job.payload));
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
   if (!items.length) return { skipped: 'no connected accounts' };
@@ -2237,53 +2233,12 @@ async function syncPlaid(env) {
         }
         throw e;
       }
-      for (const t of page.added) {
-        // One unhappy transaction must not cost us the whole page: throwing here
-        // skips the cursor write below, so the next run re-fetches everything
-        // and fails in the same place forever.
-        try {
-          const out = await processPlaidTxn(env, item, t);
-          if (out && out.skip === 'closed') { dropped.push(out); totals.closed = (totals.closed || 0) + 1; }
-          else totals[out] = (totals[out] || 0) + 1;
-        } catch (e) {
-          /* The cursor moves on regardless, so this transaction will never be
-           * offered again · say so loudly, and name the fix. */
-          totals.failed = (totals.failed || 0) + 1;
-          totals.lastError = `${t.name || t.transaction_id}: ${String(e.message || e).slice(0, 120)}`;
-          console.log('plaid txn failed: ' + totals.lastError);
-          await alertSlack(env, `\u26a0\ufe0f *A bank transaction could not be filed and the feed has moved past it:*\n` +
-            `\u2022 *${String(t.merchant_name || t.name || '?').slice(0, 60)}* $${Math.abs(round2(t.amount)).toFixed(2)} \u00b7 ${t.date}\n` +
-            `${String(e.message || e).slice(0, 140)}\n\nSettings \u2192 Re-check the bank for that month will pull it back in.`).catch(() => {});
-        }
-      }
-      for (const t of page.modified) {
-        const cur = await env.DB.prepare('SELECT id, month, type, vendor, amount FROM transactions WHERE plaid_id = ?1').bind(t.transaction_id).first();
-        /* A meal posts at the pre-tip figure and is CORRECTED a day later, so
-         * "modified" is not an edge case, it is how every restaurant works.
-         * Skipping it because the month is shut leaves the books saying $100
-         * where the statement says $120, and nobody is told. Named instead. */
-        if (cur && !t.pending && (await monthStatus(env, cur.month)) === 'closed'
-            && Math.abs(round2(t.amount) - (cur.type === 'out' ? cur.amount : Math.abs(cur.amount))) > 0.005) {
-          await alertSlack(env, `\u26a0\ufe0f *The bank corrected a charge in a month that is already closed:*\n` +
-            `\u2022 *${cur.vendor}* was ${fmtMoney(cur.amount)}, the statement now says ${fmtMoney(round2(t.amount))} \u00b7 ${t.date}\n` +
-            `Often a tip added after the receipt was printed. Reopen ${moLabel(cur.month)} and press Sync now to take the correction.`).catch(() => {});
-          totals.modifiedFrozen = (totals.modifiedFrozen || 0) + 1;
-        }
-        if (cur && (await monthStatus(env, cur.month)) !== 'closed' && !t.pending) {
-          // keep the row's own sign convention: out-rows carry Plaid's sign
-          // (negative = card refund), everything else stores the magnitude
-          const amount = cur.type === 'out' ? round2(t.amount) : round2(Math.abs(t.amount));
-          await env.DB.prepare('UPDATE transactions SET amount = ?2, date = ?3, month = ?4 WHERE id = ?1')
-            .bind(cur.id, amount, t.date, monthOf(t.date)).run();
-          totals.modified = (totals.modified || 0) + 1;
-        }
-      }
-      for (const r of page.removed) {
-        const cur = await env.DB.prepare('SELECT id, month FROM transactions WHERE plaid_id = ?1').bind(r.transaction_id).first();
-        if (cur && (await monthStatus(env, cur.month)) !== 'closed') {
-          await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(cur.id).run();
-          totals.removed = (totals.removed || 0) + 1;
-        }
+      for(const event of ['added','modified','removed']) for(const t of page[event] || []) {
+        const id='bank:'+item.item_id+':'+t.transaction_id+':'+event;
+        const payload={event,item:{item_id:item.item_id,accounts:item.accounts,name:item.name},t};
+        await saveJob(env,id,'bank-event',payload);
+        if(await applyBankJob(env,id,payload)) totals[event]=(totals[event]||0)+1;
+        else totals.failed=(totals.failed||0)+1;
       }
       /* THE CURSOR IS ONLY REAL ONCE THE SEQUENCE FINISHES. Saving each page's
        * next_cursor as it arrived looked like resilience · a crash mid-way
@@ -2308,6 +2263,7 @@ async function syncPlaid(env) {
 
 export default {
   async scheduled(event, env, ctx) {
+    ctx.waitUntil((async()=>{const jobs=await env.DB.prepare("SELECT payload FROM ledger_jobs WHERE kind='slack-alert' AND status='pending' LIMIT 20").all();for(const job of jobs.results) await alertSlack(env,JSON.parse(job.payload).text);})().catch(e=>console.log('Notification retry failed: '+e.message)));
     if (event.cron === '17 8 * * *') {
       // nightly: re-pull the last 10 days — Stripe data settles late sometimes,
       // and stripe_id dedupe makes the overlap free
@@ -2422,16 +2378,18 @@ export default {
         `<h2 style="font-weight:600">${title}</h2><p style="color:#4a5b68">${body}</p></body>`,
         { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
       const code = url.searchParams.get('code'), state = url.searchParams.get('state');
-      const want = safeJson(await getSetting(env, 'driveOauthState'), null);
+      const stateRaw = await getSetting(env, 'driveOauthState');
+      const want = safeJson(stateRaw, null);
       if (!want || !state || state !== want.state || Date.now() > want.expires)
         return page('That link has expired', 'Go back to Mobius Ledger and press Connect Google Drive again.');
-      await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind('driveOauthState').run();
+      const consumed = await env.DB.prepare('DELETE FROM settings WHERE key = ?1 AND value = ?2').bind('driveOauthState', stateRaw).run();
+      if (!consumed.meta.changes) return page('That link has expired', 'Connect again from Ledger.');
       try {
         const refresh = await driveExchangeCode(env, code, want.redirectUri);
         await putSetting(env, 'driveAuth', JSON.stringify({ refresh }));
         return page('Google Drive connected', 'You can close this tab and go back to Mobius Ledger.');
       } catch (e) {
-        return page('That did not work', String(e.message || e));
+        return page('That did not work', String(e.message || e).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';'));
       }
     }
 
@@ -2487,6 +2445,11 @@ export default {
         if (locus) return hand(env.AUTH, 'https://mobius-account-health.mobius-digital.workers.dev/slack/actions');
         return hand(env.PULSE, 'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact');
       }
+      const handleAction = async () => {
+      const who = await slack(env, 'auth.test');
+      const owner = await slack(env, 'users.lookupByEmail', { email: env.OWNER_EMAIL });
+      if (!who.ok || !owner.ok || payload.team?.id !== who.team_id || payload.user?.id !== owner.user?.id)
+        return json({ error: 'Ledger owner authorization required' }, 403);
       if (payload.type === 'block_actions') {
         const a = (payload.actions || [])[0] || {};
         const val = safeJson(a.selected_option?.value || a.value, null);
@@ -2513,6 +2476,8 @@ export default {
         }
         // an emailed receipt we declined to guess at · he says it is his
         if (val?.file) {
+          const result=await withLedgerLease(env,'slack-file-action:'+val.file,async env=>{
+          const meta = safeJson(await getSetting(env, val.file), null);
           const blob = await receiptGet(env, val.file);
           if (!meta || !blob) {
             respond({ replace_original: false, text: '⚠️ That one has expired — drop the receipt in again.' });
@@ -2551,26 +2516,33 @@ export default {
             row.tax_cat = meta.tax_cat; row.bucket = bucketFor(meta.tax_cat); row.status = 'ok';
             await learnDefault(env, row.vendor, row.bucket, row.tax_cat);
           }
-          const res = await env.DB.prepare(`INSERT INTO transactions
-            (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
-            VALUES (?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual')`)
-            .bind(row.date, row.month, row.vendor, row.amount, row.bucket, row.tax_cat, row.note, row.status).run();
-          const key = `rcpt:${res.meta.last_row_id}:${Date.now()}`;
-          await receiptPut(env, key, blob);
-          await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
-            .bind(res.meta.last_row_id, key, meta.name, meta.type, await sha256bytes(blob)).run();
+          const fingerprint=await sha256bytes(blob);
+          const known=await env.DB.prepare('SELECT id FROM transactions WHERE receipt_hash=?1 OR import_id=?2').bind(fingerprint,'slack:'+val.file).first();
+          if(known) { respond({replace_original:false,text:'Already filed as transaction '+known.id+'.'}); return new Response('',{status:200}); }
+          const possible=await env.DB.prepare("SELECT id FROM transactions WHERE month=?1 AND vendor=?2 COLLATE NOCASE AND ABS(amount-?3)<=0.02 AND expected=0")
+            .bind(row.month,row.vendor,row.amount).all();
+          if(possible.results.length) { respond({replace_original:false,text:'A similar charge already exists. Use Attach this one or review in Ledger.'}); return new Response('',{status:200}); }
+          const key='rcpt:slack:'+await sha256hex(val.file);
+          await receiptPut(env,key,blob);
+          await env.DB.prepare(`INSERT OR IGNORE INTO transactions
+            (date,month,type,vendor,amount,bucket,tax_cat,note,status,source,import_id,receipt_key,receipt_name,receipt_type,receipt_hash)
+            VALUES(?1,?2,'out',?3,?4,?5,?6,?7,?8,'manual',?9,?10,?11,?12,?13)`)
+            .bind(row.date,row.month,row.vendor,row.amount,row.bucket,row.tax_cat,row.note,row.status,'slack:'+val.file,key,meta.name,meta.type,fingerprint).run();
           await receiptDelete(env, val.file);
           await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
           respond({ replace_original: true,
             text: `✓ Filed *${meta.vendor}* $${meta.amount.toFixed(2)} into *${moLabel(meta.month)}*` +
                   `${row.tax_cat ? ` as *${row.tax_cat}*` : ' — it needs a category in the app'}. Receipt attached.` });
           return new Response('', { status: 200 });
+
+          });
+          return result instanceof Response ? result : new Response('',{status:200});
         }
         // matched-receipt reply: "Not a match ↩︎" → detach, receipt discarded
         if (val?.undo) {
           const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.undo)).first();
           if (cur) {
-            if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
+            // Previous receipt versions are retained; commit the new pointer first.
             await env.DB.prepare('UPDATE transactions SET receipt_key = NULL, receipt_name = NULL, receipt_type = NULL, receipt_hash = NULL WHERE id = ?1')
               .bind(cur.id).run();
             respond({ replace_original: true,
@@ -2581,6 +2553,10 @@ export default {
         if (val?.id && val?.tax) {
           const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.id)).first();
           if (cur) {
+            if ((await monthStatus(env, cur.month)) === 'closed') {
+              respond({ replace_original: false, text: 'This month is closed. Reopen it in Ledger before categorizing.' });
+              return new Response('', { status: 200 });
+            }
             const bucket = bucketFor(val.tax);
             await env.DB.prepare(`UPDATE transactions SET bucket = ?2, tax_cat = ?3, status = 'ok' WHERE id = ?1`)
               .bind(cur.id, bucket, String(val.tax)).run();
@@ -2593,6 +2569,10 @@ export default {
           }
         }
       }
+      };
+      ctx.waitUntil(handleAction().catch(async e => {
+        await saveJob(env,'slack-action:'+await sha256hex(raw),'slack-action',{action:payload.actions?.[0]?.action_id},String(e.message || e));
+      }));
       return new Response('', { status: 200 });
     }
 
@@ -2616,9 +2596,11 @@ export default {
           FROM transactions GROUP BY month`).all();
         const avg = await recentRevenueAvg(env);
         return json({
-          money, taxCats: safeJson(taxCatsRaw, []),
+          money, taxCats: safeJson(taxCatsRaw, []) || [],
           clients: clients.results.map(c => ({ ...c, recent_avg: avg[c.name] ?? null })),
           vendors: vendors.results, months: months.results,
+          revision: await getSetting(env, 'ledgerRevision'),
+          exceptions: (await env.DB.prepare("SELECT id,kind,error FROM ledger_jobs WHERE status='pending' AND error IS NOT NULL ORDER BY updated_at DESC LIMIT 20").all()).results,
           flags: Object.fromEntries(flags.results.map(f => [f.month, f])),
           extractAvailable: !!env.ANTHROPIC_API_KEY,
           stripeConfigured: !!env.STRIPE_KEY,
@@ -2634,6 +2616,10 @@ export default {
         });
       }
 
+      if (path === '/api/exceptions' && request.method === 'GET') {
+        const rows=await env.DB.prepare("SELECT id,kind,error,updated_at FROM ledger_jobs WHERE status='pending' ORDER BY updated_at DESC LIMIT 200").all();
+        return json({ exceptions: rows.results });
+      }
       /* ---- transactions ---- */
       if (path === '/api/transactions' && request.method === 'GET') {
         const month = url.searchParams.get('month');
@@ -2659,6 +2645,7 @@ export default {
           const type = ['in', 'out', 'fee', 'transfer'].includes(r.type) ? r.type : null;
           const vendor = String(r.vendor || '').trim().slice(0, 120);
           if (!date || !vendor || !type || !Number.isFinite(amount) || amount === 0) continue;
+          if(r.source==='import' && !/^[a-f0-9]{64}:\d+$/.test(r.import_id || '')) return json({error:'Import identity required; use CSV preview'},400);
           const month = monthOf(date);
           if ((await monthStatus(env, month)) === 'closed') continue; // closed months are frozen
           const row = await applyRule(env, {
@@ -2675,12 +2662,12 @@ export default {
           // so the same place never has to be categorized twice
           if (type === 'out' && row.bucket && row.tax_cat && row.status !== 'review')
             await learnDefault(env, row.vendor, row.bucket, row.tax_cat);
-          const res = await env.DB.prepare(`INSERT INTO transactions
-            (date, month, type, vendor, amount, bucket, tax_cat, note, one_time, expected, status, source)
-            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`)
+          const res = await env.DB.prepare(`INSERT OR IGNORE INTO transactions
+            (date, month, type, vendor, amount, bucket, tax_cat, note, one_time, expected, status, source, import_id)
+            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`)
             .bind(row.date, row.month, row.type, row.vendor, row.amount, row.bucket, row.tax_cat,
-                  row.note, row.one_time, row.expected, row.status, row.source).run();
-          inserted.push({ id: res.meta.last_row_id, ...row });
+                  row.note, row.one_time, row.expected, row.status, row.source, row.source === 'import' ? String(r.import_id || '') : null).run();
+          if (res.meta.changes) inserted.push({ id: res.meta.last_row_id, ...row });
         }
         return json({ ok: true, inserted });
       }
@@ -2691,6 +2678,8 @@ export default {
         const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(id).first();
         if (!cur) return json({ error: 'unknown transaction' }, 404);
         const closed = (await monthStatus(env, cur.month)) === 'closed';
+        if (closed && Object.keys(b).some(k => !['id', 'receipt_skip'].includes(k)))
+          return json({ error: cur.month + ' is closed — reopen it to edit financial details.' }, 409);
         // On a closed month only receipt attach + categorization survive —
         // amounts/dates are frozen with the report the month produced.
         const next = { ...cur };
@@ -2796,7 +2785,7 @@ export default {
         if (!cur) return json({ error: 'unknown transaction' }, 404);
         if ((await monthStatus(env, cur.month)) === 'closed')
           return json({ error: `${cur.month} is closed — reopen it first.` }, 400);
-        if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
+        // Retain receipt objects for recovery.
         await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(id).run();
         return json({ ok: true });
       }
@@ -2853,6 +2842,10 @@ export default {
          * by re-linking it did not, which is the more common way to end up with
          * one. Told first, so a failure here is visible before the token goes. */
         const old = items.filter(i => i.name === inst);
+        if(old.length) {
+          await plaid(env,'/item/remove',{access_token:ex.access_token});
+          return json({error:'Existing bank connection retained. Re-link requires a verified account replacement mapping; automatic migration is disabled.'},409);
+        }
         for (const o of old)
           await plaid(env, '/item/remove', { access_token: o.access_token }).catch(() => {});
         const replaced = old.map(i => i.item_id);
@@ -2896,19 +2889,13 @@ export default {
         if (validMonth(b.month)) { from = b.month + '-01'; to = monthOf(addMonthsYmd(b.month + '-01', 1)) + '-01'; }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || ''))
           return json({ error: 'pass month=YYYY-MM or from/to=YYYY-MM-DD' }, 400);
-        if (b.reopen !== true) return json({ error: 'this rewrites closed months \u00b7 pass reopen:true' }, 400);
+
         /* Unfreezing a month is the destructive half of this, so nothing is
          * unfrozen until the bank has actually answered the door. */
         if (!plaidReady(env)) return json({ error: 'Plaid keys are not set on the worker' }, 400);
         if (!(await getPlaidItems(env)).length) return json({ error: 'no connected accounts' }, 400);
         const reopened = [];
-        for (let ym = monthOf(from); ym < monthOf(to); ym = monthOf(addMonthsYmd(ym + '-01', 1)))
-          if ((await monthStatus(env, ym)) === 'closed') {
-            await env.DB.prepare(`UPDATE months SET status = 'open' WHERE month = ?1`).bind(ym).run();
-            reopened.push(ym);
-          }
-        const res = await importPlaidRange(env, from, to,
-          { ignoreStart: true, allowClosed: true, replace: b.replace === true });
+        const res = await importPlaidRange(env, from, to, { ignoreStart: true });
         return json({ ...res, reopened });
       }
 
@@ -3036,9 +3023,15 @@ export default {
             return json({ error: `${open.expected} expected row(s) never confirmed.`, expected: open.expected }, 400);
           await env.DB.prepare('DELETE FROM transactions WHERE month = ?1 AND expected = 1').bind(month).run();
         }
+        const revision = await getSetting(env, 'ledgerRevision');
         const report = await computeReport(env, month);
-        await env.DB.prepare(`INSERT OR REPLACE INTO months (month, status, closed_at, report_json)
-          VALUES (?1, 'closed', ?2, ?3)`).bind(month, new Date().toISOString(), JSON.stringify(report)).run();
+        const closedResult = await env.DB.prepare(`INSERT INTO months (month,status,closed_at,report_json)
+          SELECT ?1,'closed',?2,?3 WHERE (SELECT value FROM settings WHERE key='ledgerRevision') = ?4
+          AND NOT EXISTS(SELECT 1 FROM transactions WHERE month=?1 AND expected=1)
+          AND (?5=1 OR NOT EXISTS(SELECT 1 FROM transactions WHERE month=?1 AND status='review' AND expected=0))
+          ON CONFLICT(month) DO UPDATE SET status=excluded.status,closed_at=excluded.closed_at,report_json=excluded.report_json
+          WHERE months.status != 'closed'`).bind(month,new Date().toISOString(),JSON.stringify(report),revision,b.force?1:0).run();
+        if (!closedResult.meta.changes) return json({ error: 'Books changed during close. Review and retry.' }, 409);
         return json({ ok: true, report });
       }
 
@@ -3059,7 +3052,7 @@ export default {
          * that would show numbers the ledger no longer contains. */
         if (row?.status === 'closed' && row.report_json)
           return json({ frozen: true, closedAt: row.closed_at, report: safeJson(row.report_json, null) });
-        return json({ frozen: false, status: row?.status || 'open', report: await computeReport(env, month) });
+        return json({ frozen: false, status: row?.status || 'open', report: await resolveReport(env, month) });
       }
 
       /* ---- dashboard summary ---- */
@@ -3068,7 +3061,7 @@ export default {
           ? url.searchParams.get('month') : new Date().toISOString().slice(0, 7);
         const year = month.slice(0, 4);
         const [report, yearRows, renewals] = await Promise.all([
-          computeReport(env, month),
+          resolveReport(env, month),
           env.DB.prepare(`SELECT month,
               SUM(CASE WHEN type='in' AND expected=0 THEN amount ELSE 0 END) AS revenue,
               -- personal purchases are owner draws, not business costs — the
@@ -3085,20 +3078,26 @@ export default {
             SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
             SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noReceipt
           FROM transactions WHERE month = ?1`).bind(month).first();
-        return json({ month, report, year: yearRows.results, renewals: renewals.results, attention: attn });
+        return json({ month, report, year: await Promise.all(yearRows.results.map(async x => ({ ...x, ...await resolveReport(env, x.month) }))), renewals: renewals.results, attention: attn });
       }
 
       /* ---- CPA pack ---- */
       if (path === '/api/pack') {
         const from = url.searchParams.get('from'), to = url.searchParams.get('to');
         if (!validMonth(from) || !validMonth(to) || from > to) return json({ error: 'from/to = YYYY-MM' }, 400);
-        const { results: txns } = await env.DB.prepare(
+        const { results: liveTxns } = await env.DB.prepare(
           `SELECT * FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 ORDER BY date, id`)
           .bind(from, to).all();
         const money = await getMoney(env);
-        const months = [...new Set(txns.map(t => t.month))].sort();
+        const months = [];
+        for (let m=from; m<=to; m=monthOf(addMonthsYmd(m+'-01',1))) months.push(m);
         const reports = [];
-        for (const m of months) reports.push(await computeReport(env, m));
+        for (const m of months) reports.push(await resolveReport(env, m));
+        const txns = reports.flatMap(r => {
+          if (r.transactions) return r.transactions;
+          // Legacy snapshots lack detail. Refuse a misleading CPA pack until reviewed and reclosed.
+          throw new Error('Legacy report has no frozen detail for ' + r.month + '. Review, reopen and close before exporting.');
+        });
         const contractors = {};
         for (const t of txns) if (t.tax_cat === 'Contract labor (1099)')
           contractors[t.vendor] = round2((contractors[t.vendor] || 0) + t.amount);
@@ -3161,6 +3160,7 @@ export default {
           try {
             if (f.size > 8 * 1024 * 1024) { job.unreadable++; job.log.push(`${f.name}: over 8MB`); continue; }
             const buf = await driveDownload(env, store, f.id);
+            if(await env.DB.prepare('SELECT id FROM transactions WHERE receipt_hash=?1').bind(await sha256bytes(buf)).first()){job.log.push(f.name+': already attached');continue;}
             const bytes = new Uint8Array(buf);
             let b64 = '';
             for (let i = 0; i < bytes.length; i += 0x8000)
@@ -3179,15 +3179,14 @@ export default {
               ? [monthOf(addMonthsYmd(f.month + '-01', -1)), monthOf(addMonthsYmd(f.month + '-01', 1))]
               : ['2000-01', '2999-12'];
             const { results } = await env.DB.prepare(
-              `SELECT id, vendor, month, date FROM transactions
+              `SELECT * FROM transactions
                WHERE type = 'out' AND expected = 0 AND receipt_key IS NULL
                  AND month >= ?1 AND month <= ?2 AND ABS(amount - ?3) < 0.005
                ORDER BY (month = ?4) DESC, id`).bind(win[0], win[1], amt, f.month || '').all();
             const first = String(ext.vendor || '').toLowerCase().split(' ')[0];
             // dated files may fall back to the closest amount; an UNDATED file
             // searched the whole ledger, so for those the vendor name must agree
-            const hit = results.find(t => first && t.vendor.toLowerCase().includes(first))
-              || (f.month ? results[0] : null);
+            const hit = receiptMatch(results,ext.vendor,amt,null);
             if (!hit) {
               job.noMatch++;
               job.log.push(`${f.name}: $${amt.toFixed(2)}${f.month ? ' in ' + f.month : ''} — no unreceipted match`);
@@ -3236,10 +3235,11 @@ export default {
            ORDER BY month, date, id`).bind(from, to).all();
         if (!results.length) return json({ error: `No receipts stored between ${from} and ${to}.` }, 404);
         const seen = new Set();
+        const manifest = { from, to, expected: results.length, included: 0, missing: [], files: [] };
         async function* files() {
           for (const t of results) {
             const buf = await receiptGet(env, t.receipt_key);
-            if (!buf) continue;                       // deleted underneath us
+            if (!buf) { manifest.missing.push({ id: t.id, key: t.receipt_key }); continue; }
             const ext = (t.receipt_name || '').match(/\.([a-z0-9]{1,5})$/i)?.[1]
               || (t.receipt_type === 'application/pdf' ? 'pdf' : 'jpg');
             let name = `${t.month}/${zipSafe(t.tax_cat || 'Uncategorized')}/` +
@@ -3247,15 +3247,29 @@ export default {
             // two identical charges on one day would otherwise collide
             if (seen.has(name)) name = name.replace(/\.([a-z0-9]+)$/i, ` (${t.id}).$1`);
             seen.add(name);
+            manifest.included++;
+            manifest.files.push({ id: t.id, key: t.receipt_key, name, sha256: await sha256bytes(buf) });
             yield { name, bytes: new Uint8Array(buf), date: new Date(t.date + 'T12:00:00Z') };
           }
         }
+        const originalFiles = files;
+        async function* archiveFiles() {
+          yield* originalFiles();
+          yield { name: 'manifest.json', bytes: new TextEncoder().encode(JSON.stringify(manifest, null, 2)), date: new Date() };
+        }
         const label = from === to ? from : `${from} to ${to}`;
-        return new Response(zipStream(files()), { headers: { ...CORS,
+        return new Response(zipStream(archiveFiles()), { headers: { ...CORS,
           'Content-Type': 'application/zip',
           'Content-Disposition': `attachment; filename="Mobius Digital receipts ${label}.zip"` } });
       }
 
+      if(path==='/api/receipt-match' && request.method==='POST') {
+        const b=await request.json();
+        const existing=await env.DB.prepare('SELECT id FROM transactions WHERE receipt_hash=?1').bind(String(b.fingerprint||'')).first();
+        if(existing)return json({duplicate:existing.id});
+        const rows=await env.DB.prepare("SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL AND ABS(julianday(date)-julianday(?1))<=12").bind(String(b.date||'')).all();
+        return json({match:receiptMatch(rows.results,b.vendor,b.amount,b.date,true)?.id || null});
+      }
       /* ---- receipts (KV) ---- */
       if (path === '/api/receipt' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
@@ -3266,9 +3280,12 @@ export default {
         const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
         if (!bytes.length) return json({ error: 'empty file' }, 400);
         if (bytes.length > RECEIPT_MAX) return json({ error: 'file too large (4MB max after downscale)' }, 400);
-        const key = `rcpt:${id}:${Date.now()}`;
+        const fingerprint=await sha256bytes(bytes.buffer);
+        const duplicate=await env.DB.prepare('SELECT id FROM transactions WHERE receipt_hash=?1 AND id != ?2').bind(fingerprint,id).first();
+        if(duplicate) return json({ error: 'Receipt already attached to transaction '+duplicate.id },409);
+        const key = `rcpt:${id}:${crypto.randomUUID()}`;
         await receiptPut(env, key, bytes.buffer);
-        if (cur.receipt_key) await receiptDelete(env, cur.receipt_key);
+        // Retain receipt objects for recovery.
         const name = String(b.name || 'receipt').slice(0, 120);
         const type = String(b.type || 'application/octet-stream').slice(0, 80);
         await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
@@ -3282,14 +3299,15 @@ export default {
         if (!cur?.receipt_key) return json({ error: 'no receipt' }, 404);
         const body = await receiptGet(env, cur.receipt_key);
         if (!body) return json({ error: 'file missing from store' }, 404);
-        return new Response(body, { headers: { 'Content-Type': cur.receipt_type || 'application/octet-stream',
+        return new Response(body, { headers: { 'Content-Type': /^(image\/(png|jpeg|gif|webp)|application\/pdf)$/.test(cur.receipt_type || '') ? cur.receipt_type : 'text/plain; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'",
           'Content-Disposition': `inline; filename="${(cur.receipt_name || 'receipt').replace(/[^\w.\- ]/g, '')}"`, ...CORS } });
       }
 
       if (path === '/api/receipt' && request.method === 'DELETE') {
         const id = Number(url.searchParams.get('id'));
         const cur = await env.DB.prepare('SELECT receipt_key FROM transactions WHERE id = ?1').bind(id).first();
-        if (cur?.receipt_key) await receiptDelete(env, cur.receipt_key);
+        // Retain the previous object for recovery.
         await env.DB.prepare('UPDATE transactions SET receipt_key=NULL, receipt_name=NULL, receipt_type=NULL, receipt_hash=NULL WHERE id=?1').bind(id).run();
         return json({ ok: true });
       }
@@ -3361,7 +3379,7 @@ export default {
                 billingUrl).run();
         if (b.applyToExisting) {
           await env.DB.prepare(`UPDATE transactions SET bucket = ?2, tax_cat = ?3
-            WHERE vendor = ?1 COLLATE NOCASE AND type = 'out'`).bind(name, String(b.bucket), String(b.tax_cat)).run();
+            WHERE vendor = ?1 COLLATE NOCASE AND type = 'out' AND month NOT IN (SELECT month FROM months WHERE status='closed')`).bind(name, String(b.bucket), String(b.tax_cat)).run();
         }
         return json({ ok: true });
       }
@@ -3410,11 +3428,8 @@ export default {
       }
 
       if (path === '/api/password' && request.method === 'POST') {
-        const b = await request.json().catch(() => ({}));
-        const pw = String(b.password || '');
-        if (pw.length < 8) return json({ error: 'password must be at least 8 characters' }, 400);
-        await putSetting(env, 'passwordHash', await sha256hex(pw));
-        return json({ ok: true });
+        return json({error:'Password recovery is disabled. Use Mobius sign-in or the administrator token.'},410);
+
       }
 
       return json({ error: 'not found' }, 404);
