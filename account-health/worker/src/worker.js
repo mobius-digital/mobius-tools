@@ -3719,7 +3719,7 @@ async function postReportDraft(env, acct, r) {
     act_id: acct.act_id, period: r.period, period_start: r.start, period_end: r.end,
     status: draftStatus(acct), summary: r.summary, data_json: JSON.stringify(r.data), steer: r.steer ?? null,
   };
-  const card = reportCard(acct, row);
+  const card = await reportCard(env, acct, row);
   const posted = await slackPost(env, channel, card.text, card.blocks,
     { username: 'Mobius Reports', icon: ':clipboard:' });
   if (posted?.ts) {
@@ -4609,8 +4609,14 @@ function briefCard(acct, date, row, banner) {
 /** THE REPORT CARD. Same rules as the brief card; the difference is that the
  *  client receives a headline plus their archive link rather than the summary
  *  itself, so the card says so instead of pretending the text is the message. */
-function reportCard(acct, row, banner) {
+async function reportCard(env, acct, row, banner) {
   const data = safeJson(row?.data_json, null);
+  /* Two links in the text itself, not only as buttons: buttons do not show in
+     notification previews or in some mobile views, and Cole read the notice
+     as having no link at all (2026-09-14). The client link is the same archive
+     link the client is sent; before the first send it opens empty. */
+  const locusUrl = LOCUS_REPORTS(acct.act_id);
+  const clientUrl = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const label = row.period === 'weekly' ? 'Weekly' : 'Monthly';
   const range = `${prettyDate(row.period_start)} \u2192 ${prettyDate(row.period_end)}`;
   const v = JSON.stringify({ a: acct.act_id, p: row.period, s: row.period_start });
@@ -4644,8 +4650,8 @@ function reportCard(acct, row, banner) {
      compact notice - headline, link, done - with the buttons kept, which were
      the actual point of the change. */
   const notes = [handled
-    ? 'Open it in Locus to read the full report. Nothing is sent for this brand - it is handled the moment it is written.'
-    : 'Open it in Locus to read the full report. The client receives this headline and a link to their archive - never the summary text.'];
+    ? `<${locusUrl}|Open the full report in Locus>. Nothing is sent for this brand - it is handled the moment it is written.`
+    : `<${locusUrl}|Open the full report in Locus>  ·  <${clientUrl}|What the client sees>. The client receives this headline and that link - never the summary text.`];
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
   if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: \u201c${String(row.steer).slice(0, 160)}\u201d`);
   if (data?.missing_days) notes.push(`${data.missing_days} day(s) in this period had no Triple Whale data.`);
@@ -4682,7 +4688,7 @@ async function slackSyncReport(env, acct, period, start, banner) {
     `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
   ).bind(acct.act_id, period, start).first().catch(() => null);
   if (!row?.slack_ts || !row?.slack_channel) return;
-  const card = reportCard(acct, row, banner);
+  const card = await reportCard(env, acct, row, banner);
   await slackUpdate(env, row.slack_channel, row.slack_ts, card.text, card.blocks);
 }
 
@@ -5727,7 +5733,7 @@ export default {
              ORDER BY period_start DESC LIMIT 1`,
           ).bind(acct.act_id).first().catch(() => null);
           if (!row) { out.push({ name: acct.name, skipped: 'no drafted report with a card' }); continue; }
-          const card = reportCard(acct, row);
+          const card = await reportCard(env, acct, row);
           if (b.mode === 'repost') {
             /* Delete and post again, rather than edit in place. An edited
                message keeps its original position in the channel, which is
