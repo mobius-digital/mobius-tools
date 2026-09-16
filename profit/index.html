@@ -1133,6 +1133,99 @@
      It gets its own wider shell - the shared 460px help modal squeezed the stat
      table until values were cut off mid-number. */
   .ad-modal-wrap{padding:5vh 16px 0}
+  /* ==========================================================================
+     THE CLIENT'S SHARED-ADS PAGE ("what is working"), redesigned 2026-09-16.
+     A dark hero with the whole-set figures, four highlight tiles, a sticky
+     glass control bar the client drives, and cards that lead with whichever
+     metric the list is sorted on. Everything is prefixed shp- so none of it
+     touches the internal browser's cards. */
+  .shp{max-width:1240px;margin:0 auto;padding:6px 0 40px}
+  .shp-hero{position:relative;overflow:hidden;border-radius:18px;padding:30px 34px 28px;color:var(--on-ink);
+    background:radial-gradient(900px 420px at 88% -20%,rgba(98,189,234,.34),transparent 60%),
+      radial-gradient(600px 300px at 0% 120%,rgba(98,189,234,.14),transparent 60%),
+      linear-gradient(160deg,#0C161D 0%,#152430 100%);
+    box-shadow:0 24px 60px rgba(12,22,29,.22)}
+  .shp-hero::after{content:'';position:absolute;inset:0;pointer-events:none;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:36px 36px;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.8),transparent 85%);mask-image:linear-gradient(180deg,rgba(0,0,0,.8),transparent 85%)}
+  .shp-hero>*{position:relative;z-index:1}
+  .shp-hero-top{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:11.5px;color:var(--on-ink-2);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+  .shp-brand{display:inline-flex;align-items:center;gap:8px;color:var(--on-ink)}
+  .shp-brand i{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px rgba(98,189,234,.22)}
+  .shp-title{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.6vw,46px);line-height:1.05;margin:22px 0 8px;letter-spacing:-.01em;color:#fff}
+  .shp-title em{display:block;font-style:italic;color:var(--brand);font-size:.62em;margin-top:6px}
+  .shp-sub{font-size:13.5px;color:var(--on-ink-2);margin:0 0 22px;max-width:none}
+  .shp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .shp-kpi{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.055);border-radius:12px;padding:12px 14px;min-width:0}
+  .shp-kpi span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--on-ink-2);font-weight:600}
+  .shp-kpi b{display:block;font-size:22px;font-weight:600;margin-top:4px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .shp-kpi small{display:block;font-size:11px;color:var(--on-ink-2);margin-top:2px}
+  .shp-high{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0 0}
+  .shp-hl{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:14px;padding:10px 12px;cursor:pointer;
+    box-shadow:0 1px 2px rgba(12,22,29,.06),0 8px 24px rgba(12,22,29,.06);transition:transform .15s,box-shadow .15s}
+  .shp-hl:hover,.shp-hl:focus-visible{transform:translateY(-2px);box-shadow:0 2px 4px rgba(12,22,29,.06),0 14px 34px rgba(12,22,29,.12);outline:none}
+  .shp-hl img,.shp-hl .ph{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--bg);flex:none;display:block}
+  .shp-hl div{min-width:0}
+  .shp-hl span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-ink);font-weight:700}
+  .shp-hl b{display:block;font-size:19px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+  .shp-hl small{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .shp-bar{position:sticky;top:10px;z-index:20;display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;margin:18px 0 14px;
+    padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.84);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.7);box-shadow:0 1px 2px rgba(12,22,29,.05),0 10px 30px rgba(12,22,29,.10)}
+  .shp-ctl{display:flex;align-items:center;gap:9px;min-width:0}
+  .shp-ctl-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;flex:none}
+  .shp-pills{display:flex;gap:3px;background:var(--bg);border-radius:10px;padding:3px;overflow-x:auto;scrollbar-width:none}
+  .shp-pills::-webkit-scrollbar{display:none}
+  .shp-pill{flex:none;font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:8px;color:var(--ink-2);white-space:nowrap;transition:background .12s,color .12s}
+  .shp-pill:hover{color:var(--ink)}
+  .shp-pill.on{background:var(--ink-panel);color:#fff;box-shadow:0 2px 6px rgba(12,22,29,.25)}
+  .shp-count{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .shp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+  .shp-card{background:var(--surface);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-width:0;cursor:pointer;
+    box-shadow:0 1px 2px rgba(12,22,29,.05),0 10px 28px rgba(12,22,29,.07);transition:transform .16s,box-shadow .16s}
+  .shp-card:hover{transform:translateY(-3px);box-shadow:0 2px 4px rgba(12,22,29,.06),0 18px 40px rgba(12,22,29,.14)}
+  /* 4:5, because most of these are shot for Reels; the square tile cropped the
+     top and bottom off the thing being judged. */
+  .ad-media.shp-media{aspect-ratio:4/5;border-bottom:0}
+  .ad-media.shp-media.playing{aspect-ratio:auto}
+  .shp-rank{position:absolute;top:10px;left:10px;min-width:26px;height:26px;padding:0 8px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    background:rgba(12,22,29,.78);color:#fff;font-size:12px;font-weight:700}
+  .shp-type{position:absolute;top:10px;right:10px;padding:3px 9px;border-radius:99px;background:rgba(255,255,255,.9);color:var(--ink);font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  .shp-body{padding:12px 14px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .shp-name{font-size:13px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .shp-lead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .shp-lead span{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-ink);font-weight:700}
+  .shp-lead b{font-size:24px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1}
+  .shp-fill{height:4px;border-radius:99px;background:var(--bg);overflow:hidden}
+  .shp-fill i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand-ink),var(--brand));transition:width .25s}
+  .shp-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;padding-top:8px;border-top:1px solid var(--line)}
+  .shp-stat{min-width:0}
+  .shp-stat span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+  .shp-stat b{display:block;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .shp-open{font-size:12px;font-weight:600;color:var(--muted);display:flex;justify-content:flex-end;gap:4px;margin-top:2px}
+  .shp-card:hover .shp-open{color:var(--brand-ink)}
+  .shp-note{font-size:12.5px;color:var(--muted);margin:14px 2px 0}
+  .shp-note b{color:var(--ink)}
+  .shp-empty{grid-column:1/-1;background:var(--surface);border-radius:14px;padding:28px;text-align:center;color:var(--muted);font-size:13.5px}
+  .shp-glossary{margin:18px 0 0;background:var(--surface);border-radius:14px;padding:4px 18px}
+  .shp-glossary summary{cursor:pointer;font-size:13px;font-weight:700;padding:12px 0;list-style:none;display:flex;justify-content:space-between}
+  .shp-glossary summary::-webkit-details-marker{display:none}
+  .shp-glossary summary::after{content:'+';color:var(--muted);font-weight:400}
+  .shp-glossary[open] summary::after{content:'–'}
+  .shp-glossary dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 24px;padding:0 0 16px}
+  .shp-glossary dt{font-size:12.5px;font-weight:700}
+  .shp-glossary dd{font-size:12.5px;color:var(--muted);line-height:1.5}
+  @media (max-width:640px){
+    .shp-hero{padding:22px 18px 20px;border-radius:14px}
+    .shp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .shp-kpi:last-child:nth-child(odd){grid-column:1/-1}
+    .shp-bar{position:static;padding:10px 12px;gap:8px 14px}
+    .shp-ctl{width:100%}
+    .shp-count{margin-left:0}
+    .shp-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+    .shp-lead b{font-size:20px}
+    .shp-stats{gap:5px 8px}
+  }
   .modal.wide{max-width:940px}
   .ad-modal-body{max-height:76vh;overflow-y:auto;font-size:13.5px;line-height:1.6}
   .adm{display:grid;grid-template-columns:minmax(0,330px) minmax(0,1fr);gap:22px}
@@ -2440,66 +2533,226 @@ let AD_SHARE_TOKEN = null;
 /** The client's view of a shared set of ads. Unauthenticated, read-only, and
  *  frozen: the rows and the cover images were stored when the link was made, so
  *  this says the same thing in a month as it did on the day it was sent.
- *  It deliberately carries NO totals, no materiality floor and no per-ad share
- *  of spend - those exist to keep US honest about what a ranking leaves out,
- *  and to a client "8 of 61 ads" only says that something is being withheld. */
+ *
+ *  REDESIGNED 2026-09-16 (Cole: "this could be laid out a lot better ... give
+ *  controls to the client"). The snapshot now holds up to 40 ads rather than
+ *  the eight on screen, and the client sorts, filters and sizes the list
+ *  THEMSELVES - within that frozen set, so nothing drifts after it was sent.
+ *  It opens on the view Cole was looking at when he made the link.
+ *
+ *  Ratio sorts (ROAS, CPA, hook, hold, CTR) only rank ads flagged `qualifies`
+ *  - the same evidence rule the internal browser uses, carried across as a
+ *  yes/no so the page never has to show the dollar floor behind it. Older
+ *  links carry no flag and rank everything, as they always did. */
 async function renderAdShare(token) {
   chrome(false);
   setChip('Shared', 'ok');
+  document.body.classList.add('shp-body');
   let d;
   try { d = await api(`/api/ad-share/${encodeURIComponent(token)}`); }
   catch (e) { $('#main').innerHTML = `<div class="card"><h2>Link not available</h2><p class="hint">${esc(e.message)}</p></div>`; return; }
 
   const cur = d.account.currency;
-  const money = n => n == null ? ' - ' : fmtMoney(n, cur);
-  const pct = n => n == null ? ' - ' : (n * 100).toFixed(1) + '%';
-  const stat = (l, v) => `<div class="cb-s"><span>${l}</span><b>${v}</b></div>`;
-  const card = (a, i) => `<article class="ad-card cb-card" data-ad="${esc(a.ad_id)}">
-    <div class="ad-media${a.thumb ? '' : ' none'}"${a.is_video && a.ad_id ? ` data-ad="${esc(a.ad_id)}"` : ''}>
-      ${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}">` : `<span aria-hidden="true">${a.is_video ? '▶' : '▢'}</span>`}
-      <span class="ad-rank">${i + 1}</span><span class="ad-type">${a.media_type === 'carousel' ? 'Carousel' : a.is_video ? 'Video' : 'Image'}</span>
-      ${a.is_video && a.ad_id ? '<button class="ad-play" type="button" title="Play this ad"><i>▶</i></button>' : ''}
-    </div>
-    <div class="ad-body"><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>
-      <div class="cb-stats">
-        ${stat('Spend', money(a.spend))}
-        ${stat('ROAS', a.roas != null ? fmtX(a.roas) : ' - ')}
-        ${stat('CPA', money(a.cpa))}
-        ${stat('Purchases', a.purchases ? Math.round(a.purchases) : ' - ')}
-        ${a.is_video ? stat('Hook', pct(a.hook)) : ''}
-        ${a.is_video ? stat('Hold', pct(a.hold)) : ''}
-        ${stat('Link CTR', pct(a.ctr))}
-      </div>
-      <div class="cb-foot"><span style="flex:1"></span><span class="ad-open tiny">Details →</span></div>
-      </div></article>`;
-
+  const typeOf = a => a.media_type || (a.is_video || a.video ? 'video' : 'image');
+  const all = (d.ads || []).map(a => ({ ...a, is_video: typeOf(a) === 'video', video: typeOf(a) === 'video' }));
+  const money = n => n == null ? '–' : fmtMoney(n, cur);
+  const pct = (n, dp = 1) => n == null ? '–' : (n * 100).toFixed(dp) + '%';
+  const x = n => n == null ? '–' : n.toFixed(2) + 'x';
+  const int = n => n == null ? '–' : Math.round(n).toLocaleString('en-US');
+  const fmtDay = (s, year = true) => { const t = new Date(String(s).slice(0, 10) + 'T12:00:00Z'); return isNaN(t) ? String(s) : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' }); };
   const range = d.range || {};
-  $('#main').innerHTML = `<h2>${esc(d.account.name)} - what is working</h2>
-    <p class="sub">${d.ads.length} ad${d.ads.length === 1 ? '' : 's'}${range.from ? ` from <b>${esc(prettyDate(range.from))} – ${esc(prettyDate(range.to, true))}</b>` : ''}.
-      <span class="sub-x">Prepared by Mobius Digital${d.created_at ? ` on ${esc(String(d.created_at).slice(0, 10))}` : ''}. These are Meta&rsquo;s own reported figures for these ads.</span></p>
-    <div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>
-    <p class="tiny" style="margin-top:10px">Spend, ROAS and CPA are as Meta reports them for each ad. <b>Hook rate</b> is the share of people shown the ad who watched three seconds - did it stop the scroll. <b>Hold rate</b> is how many of those stayed to the end. Image ads show neither, because there is nothing to watch.</p>`;
-  // clientFooter WRITES into #foot and returns nothing, so interpolating it into
-  // a template printed the string "undefined" onto a page a client opens.
+  const when = range.from ? `${fmtDay(range.from, false)} – ${fmtDay(range.to)}` : '';
+  const made = d.created_at ? fmtDay(String(d.created_at).slice(0, 10)) : '';
+  const TYPE_LABEL = { video: 'Video', image: 'Image', carousel: 'Carousel' };
+  const types = ['video', 'image', 'carousel'].filter(t => all.some(a => typeOf(a) === t));
+
+  /* What the client can sort on. `ratio` sorts need evidence; `video` sorts
+     only mean anything on a video; `dir` 1 means lower is better. */
+  const METRICS = {
+    spend:     { label: 'Spend',     fmt: a => money(a.spend), key: a => a.spend, dir: -1 },
+    roas:      { label: 'ROAS',      fmt: a => x(a.roas), key: a => a.roas, dir: -1, ratio: true },
+    cpa:       { label: 'CPA',       fmt: a => money(a.cpa), key: a => a.cpa, dir: 1, ratio: true },
+    purchases: { label: 'Purchases', fmt: a => int(a.purchases || 0), key: a => a.purchases || 0, dir: -1 },
+    hook:      { label: 'Hook rate', fmt: a => pct(a.hook), key: a => a.hook, dir: -1, ratio: true, video: true },
+    hold:      { label: 'Hold rate', fmt: a => pct(a.hold), key: a => a.hold, dir: -1, ratio: true, video: true },
+    ctr:       { label: 'Link CTR',  fmt: a => pct(a.ctr, 2), key: a => a.ctr, dir: -1, ratio: true },
+    newest:    { label: 'Newest',    fmt: a => a.created ? fmtDay(a.created) : '–', key: a => a.created ? Date.parse(a.created + 'T12:00:00Z') : null, dir: -1, nofill: true },
+  };
+
+  /* Opens on the view the link was made from; the hash overrides it so a
+     client can bookmark or send "top 12 videos by hook" as a link of their own. */
+  const dft = d.defaults || {};
+  const st = { sort: METRICS[dft.sort] ? dft.sort : 'spend',
+    fmt: dft.fmt === 'static' ? 'image' : (TYPE_LABEL[dft.fmt] ? dft.fmt : ''),
+    limit: [4, 8, 12, 0].includes(+dft.limit) ? +dft.limit : 8 };
+  try {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (METRICS[h.get('sort')]) st.sort = h.get('sort');
+    if (h.has('show')) st.fmt = TYPE_LABEL[h.get('show')] ? h.get('show') : '';
+    if (h.has('top')) { const n = h.get('top') === 'all' ? 0 : +h.get('top'); if ([4, 8, 12, 0].includes(n)) st.limit = n; }
+  } catch { /* a hash nobody wrote */ }
+  if (st.fmt && !types.includes(st.fmt)) st.fmt = '';
+  const writeHash = () => { try { history.replaceState(null, '', `#sort=${st.sort}&show=${st.fmt || 'all'}&top=${st.limit || 'all'}`); } catch { /* fine */ } };
+
+  const view = () => {
+    const m = METRICS[st.sort];
+    const pool = all.filter(a => !st.fmt || typeOf(a) === st.fmt).filter(a => !m.video || a.is_video);
+    const list = pool.filter(a => !m.ratio || a.qualifies !== false).slice().sort((a, b) => {
+      const av = m.key(a), bv = m.key(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av - bv) * m.dir;
+    });
+    return { m, pool, list, shown: st.limit ? list.slice(0, st.limit) : list };
+  };
+
+  /* Whole-set figures for the hero, so the headline never moves with a filter. */
+  const tot = all.reduce((t, a) => { t.spend += a.spend || 0; t.rev += a.revenue || 0; t.purch += a.purchases || 0; return t; }, { spend: 0, rev: 0, purch: 0 });
+  const mix = types.map(t => `${all.filter(a => typeOf(a) === t).length} ${TYPE_LABEL[t].toLowerCase()}`).join(' · ');
+  const kpi = (l, v, note) => `<div class="shp-kpi"><span>${l}</span><b>${v}</b>${note ? `<small>${note}</small>` : ''}</div>`;
+
+  /* Four things worth saying before any sorting: who spent most, who returned
+     most, who converted cheapest, which video stopped the most scrolls. */
+  const q = all.filter(a => a.qualifies !== false);
+  const best = (arr, k, low) => arr.filter(a => a[k] != null && (!low || a.purchases > 0)).sort((a, b) => low ? a[k] - b[k] : b[k] - a[k])[0];
+  const hls = [
+    ['Biggest spend', best(all, 'spend'), a => money(a.spend)],
+    ['Best ROAS', best(q, 'roas'), a => x(a.roas)],
+    ['Lowest CPA', best(q, 'cpa', true), a => money(a.cpa)],
+    ['Strongest hook', best(q.filter(a => a.is_video), 'hook'), a => pct(a.hook)],
+  ].filter(([, a]) => a);
+  const hl = ([l, a, f]) => `<div class="shp-hl" data-ad="${esc(a.ad_id)}" role="button" tabindex="0">
+    ${a.thumb ? `<img src="${a.thumb}" alt="">` : '<span class="ph"></span>'}
+    <div><span>${l}</span><b>${f(a)}</b><small title="${esc(a.name)}">${esc(a.name)}</small></div></div>`;
+
+  const pill = (g, v, label, on) => `<button type="button" class="shp-pill${on ? ' on' : ''}" data-g="${g}" data-v="${esc(String(v))}" aria-pressed="${on}">${esc(label)}</button>`;
+  const bar = () => `
+    <div class="shp-ctl"><span class="shp-ctl-l">Sort by</span><div class="shp-pills">${Object.entries(METRICS).map(([k, m]) => pill('sort', k, m.label, st.sort === k)).join('')}</div></div>
+    ${types.length > 1 ? `<div class="shp-ctl"><span class="shp-ctl-l">Show</span><div class="shp-pills">${pill('fmt', '', 'All', !st.fmt)}${types.map(t => pill('fmt', t, TYPE_LABEL[t], st.fmt === t)).join('')}</div></div>` : ''}
+    <div class="shp-ctl"><span class="shp-ctl-l">Top</span><div class="shp-pills">${[4, 8, 12, 0].map(n => pill('limit', n, n ? String(n) : 'All', st.limit === n)).join('')}</div></div>
+    <span class="shp-count" id="shpCount"></span>`;
+
+  const cell = (l, v) => `<div class="shp-stat"><span>${l}</span><b>${v}</b></div>`;
+  const card = (a, i, m, top) => {
+    const v = m.key(a);
+    const fill = !m.nofill && top != null && v != null && top > 0 && v > 0 ? (m.dir === -1 ? v / top : top / v) : null;
+    const rows = [
+      ['spend', 'Spend', money(a.spend)], ['roas', 'ROAS', x(a.roas)], ['cpa', 'CPA', money(a.cpa)],
+      ['purchases', 'Purchases', int(a.purchases || 0)],
+      ...(a.is_video ? [['hook', 'Hook', pct(a.hook)], ['hold', 'Hold', pct(a.hold)]] : []),
+      ['ctr', 'Link CTR', pct(a.ctr, 2)],
+      ...(a.created ? [['newest', 'Live since', fmtDay(a.created, false)]] : []),
+    ].filter(r => r[0] !== st.sort);
+    return `<article class="shp-card" data-ad="${esc(a.ad_id)}">
+      <div class="ad-media shp-media${a.thumb ? '' : ' none'}"${a.is_video && a.ad_id ? ` data-ad="${esc(a.ad_id)}"` : ''}>
+        ${a.thumb ? `<img src="${a.thumb}" alt="Creative for ${esc(a.name)}" loading="lazy">` : `<span class="ad-noimg">No preview<small>${TYPE_LABEL[typeOf(a)] || ''}</small></span>`}
+        <span class="shp-rank">${i + 1}</span><span class="shp-type">${TYPE_LABEL[typeOf(a)] || 'Ad'}</span>
+        ${a.is_video && a.ad_id ? '<button class="ad-play" type="button" title="Play this ad"><i>▶</i></button>' : ''}
+      </div>
+      <div class="shp-body">
+        <div class="shp-name" title="${esc(a.name)}">${esc(a.name)}</div>
+        <div class="shp-lead"><span>${esc(m.label)}</span><b>${m.fmt(a)}</b></div>
+        ${fill != null ? `<div class="shp-fill" aria-hidden="true"><i style="width:${(Math.max(0.04, Math.min(1, fill)) * 100).toFixed(1)}%"></i></div>` : ''}
+        <div class="shp-stats">${rows.map(r => cell(r[1], r[2])).join('')}</div>
+        <div class="shp-open">Details <span>→</span></div>
+      </div></article>`;
+  };
+
+  $('#main').innerHTML = `<div class="shp">
+    <header class="shp-hero">
+      <div class="shp-hero-top"><span class="shp-brand"><i></i>Mobius Digital</span><span class="shp-when">${made ? `Prepared ${esc(made)}` : ''}</span></div>
+      <h1 class="shp-title">${esc(d.account.name)}<em>What is working</em></h1>
+      <p class="shp-sub">${all.length} ad${all.length === 1 ? '' : 's'}${when ? ` · ${esc(when)}` : ''} · Meta&rsquo;s own reported figures, frozen when this page was made</p>
+      <div class="shp-kpis">
+        ${kpi('Ad spend', money(tot.spend), 'across these ads')}
+        ${kpi('Purchases', int(tot.purch))}
+        ${kpi('ROAS', tot.spend ? x(tot.rev / tot.spend) : '–', 'revenue ÷ spend')}
+        ${kpi('Cost per purchase', tot.purch ? money(tot.spend / tot.purch) : '–')}
+        ${kpi('Formats', `${types.length} ${types.length === 1 ? 'type' : 'types'}`, mix || '')}
+      </div>
+    </header>
+    ${hls.length ? `<div class="shp-high">${hls.map(hl).join('')}</div>` : ''}
+    <div class="shp-bar" id="shpBar">${bar()}</div>
+    <div class="shp-grid" id="shpGrid"></div>
+    <p class="shp-note" id="shpNote"></p>
+    <details class="shp-glossary"><summary>How to read these numbers</summary><dl>
+      <dt>Spend</dt><dd>What Meta charged for this ad in the window.</dd>
+      <dt>ROAS</dt><dd>Revenue Meta attributes to the ad, divided by its spend. 2.00x means two dollars back for one in.</dd>
+      <dt>CPA</dt><dd>Spend divided by purchases - what one sale cost. Lower is better.</dd>
+      <dt>Hook rate</dt><dd>Of everyone shown a video, the share who watched three seconds. Did it stop the scroll? 30%+ is strong.</dd>
+      <dt>Hold rate</dt><dd>Of those who watched three seconds, the share who stayed to the end. 60%+ is strong.</dd>
+      <dt>Link CTR</dt><dd>Link clicks divided by impressions. It runs well under 1% on most accounts - this is not the &ldquo;CTR (all)&rdquo; that counts likes and profile taps.</dd>
+      <dt>Why some ads are left out of a ROAS or CPA sort</dt><dd>A ratio on very little spend is noise, not a result - one lucky sale on $12 would top every list. Those sorts only rank ads with enough spend, or enough sales, to judge. Sort by spend, purchases or newest to see every ad.</dd>
+    </dl></details>
+  </div>`;
+
+  const grid = $('#shpGrid'), note = $('#shpNote'), barEl = $('#shpBar');
+  const paint = () => {
+    const { m, pool, list, shown } = view();
+    const top = shown.length ? m.key(shown[0]) : null;
+    grid.innerHTML = shown.length ? shown.map((a, i) => card(a, i, m, top)).join('')
+      : `<div class="shp-empty">No ${st.fmt ? TYPE_LABEL[st.fmt].toLowerCase() + ' ' : ''}ads to rank on ${m.label.toLowerCase()} here${m.ratio ? ' - try sorting by spend or purchases' : ''}.</div>`;
+    const left = pool.length - list.length;
+    const bits = [`Showing <b>${shown.length}</b> of ${list.length} ad${list.length === 1 ? '' : 's'}`];
+    if (m.video) bits.push('video only, since there is nothing to watch on an image');
+    if (m.ratio && left > 0) bits.push(`${left} ad${left === 1 ? '' : 's'} with too little spend to judge on ${m.label.toLowerCase()} left out`);
+    note.innerHTML = bits.join(' · ') + '.';
+    const cnt = $('#shpCount'); if (cnt) cnt.textContent = `${shown.length} of ${list.length}`;
+    grid.querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);
+  };
+  const repaintBar = () => { barEl.innerHTML = bar(); };
+
+  barEl.addEventListener('click', ev => {
+    const b = ev.target.closest('.shp-pill'); if (!b) return;
+    const g = b.dataset.g, v = b.dataset.v;
+    if (g === 'sort') st.sort = v;
+    else if (g === 'fmt') st.fmt = v;
+    else st.limit = +v;
+    writeHash(); repaintBar(); paint();
+  });
+  // The card opens the detail; the media on a video plays it. Same rule as
+  // the internal browser, same modal, so nothing the client sees is a lookalike.
+  const openDetail = id => { const hit = all.find(a => a.ad_id === id); if (hit) adDetailModal(hit, cur); };
+  grid.addEventListener('click', ev => {
+    if (ev.target.closest('.ad-media[data-ad]') || ev.target.closest('.ad-frame')) return;
+    const el = ev.target.closest('.shp-card'); if (el) openDetail(el.dataset.ad);
+  });
+  $('#main').querySelectorAll('.shp-hl').forEach(el => {
+    el.onclick = () => openDetail(el.dataset.ad);
+    el.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetail(el.dataset.ad); } };
+  });
+
   clientFooter('');
-  // Playback, on the client's link too. The share token authorises it the same
-  // way a report archive token does, so a client can press play on the ads you
-  // sent rather than looking at a still with a dead-looking badge.
+  // Playback on the client's link: the share token authorises the ads the
+  // snapshot contains, the same way a report archive token does.
   RS.token = null;
   AD_SHARE_TOKEN = token;
-  // This renderer paints into #main, not a passed-in host - the browser's own
-  // renderer takes one and I copied the line across without the context.
-  $('#main').querySelectorAll('.ad-media[data-ad]').forEach(attachPlay);
-  /* The detail popout on the client's link too. It was wired on the internal
-     browser only, so a card here looked clickable and did nothing - which is
-     worse than not looking clickable at all. Same modal, same one-rule-one-
-     exception: the card opens the detail, the media on a video plays it.
-     Nothing internal reaches it - the share route already stripped the
-     materiality floor, the totals and each ad's share of spend. */
-  $('#main').querySelectorAll('.cb-card').forEach(el => el.onclick = ev => {
-    if (ev.target.closest('.ad-media[data-ad]') || ev.target.closest('.ad-frame')) return;
-    const hit = (d.ads || []).find(x => x.ad_id === el.dataset.ad);
-    if (hit) adDetailModal(hit, cur);
+  writeHash();
+  paint();
+}
+
+/* A stored cover only has to fill a card, not a screen. The whole shared page
+   is ONE database row with a 2MB ceiling and a live cover can be 280KB, so
+   every image is re-encoded in the browser before the snapshot is sent. */
+function shrinkThumb(dataUrl, max = 720, q = 0.8) {
+  return new Promise((resolve, reject) => {
+    if (!/^data:image\//.test(dataUrl || '')) return resolve(dataUrl);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const s = Math.min(1, max / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+        if (s === 1 && dataUrl.length < 90_000) return resolve(dataUrl);
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round((img.naturalWidth || 1) * s));
+        c.height = Math.max(1, Math.round((img.naturalHeight || 1) * s));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const out = c.toDataURL('image/jpeg', q);
+        resolve(out.length < dataUrl.length ? out : dataUrl);
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => reject(new Error('could not decode the cover image'));
+    img.src = dataUrl;
   });
 }
 
@@ -2823,22 +3076,59 @@ async function renderCreativeBrowser(host, act, range) {
     <p>An ad with one lucky sale on $12 satisfies neither, which is the whole point: it would otherwise top every ROAS list.</p>
     <p><b>To see everything anyway:</b> set <b>Counts at → Any spend</b>, or sort by <b>Spend</b>, <b>Purchases</b> or <b>Newest</b> - those rank every ad that spent, because they are not ratios and cannot be flattered by a tiny denominator.</p>`);
 
-  /* Freeze what is on screen and mint a link for the client. FROZEN, like the
+  /* Freeze a set of ads and mint a link for the client. FROZEN, like the
      reports and for the same reason: "here is what is working" sent on Tuesday
-     must still say that on Friday, and a live page would not. */
+     must still say that on Friday, and a live page would not.
+     THE CLIENT GETS CONTROLS (2026-09-16), so the snapshot has to hold more
+     than the screen: up to 40 ads - the current view plus the account's
+     biggest spenders under the same threshold - each with its numbers, its
+     evidence flag and a cover image shrunk to card size. The client then
+     sorts, filters and sizes the list within that frozen set. */
   $('#cbShare').onclick = async () => {
     const b = $('#cbShare'), msg = $('#cbShareMsg');
-    b.disabled = true; msg.textContent = 'Preparing…';
+    b.disabled = true; msg.textContent = 'Gathering ads…';
     try {
+      const base = `act=${encodeURIComponent(act)}&from=${range.from}&to=${range.to}&attr=${encodeURIComponent(CB.attr)}`
+        + (CB.minSpend != null ? `&min_spend=${CB.minSpend}` : `&mult=${CB.mult}`);
+      const wide = await api(`/api/ads?${base}&sort=spend&limit=40`).catch(() => ({ ads: [] }));
+      const seen = new Set(), ads = [];
+      for (const a of [...d.ads, ...(wide.ads || [])]) {
+        if (seen.has(a.ad_id) || ads.length >= 40) continue;
+        seen.add(a.ad_id); ads.push({ ...a });
+      }
+      const need = ads.filter(a => !a.thumb).map(a => a.ad_id);
+      if (need.length) {
+        msg.textContent = `Fetching ${need.length} cover image${need.length === 1 ? '' : 's'}…`;
+        const r = await api('/api/ad-creatives?ads=' + encodeURIComponent(need.join(','))).catch(() => ({ assets: {} }));
+        for (const [id, v] of Object.entries(r.assets || {})) { const a = ads.find(x => x.ad_id === id); if (a) Object.assign(a, v); }
+      }
+      msg.textContent = 'Packing images…';
+      for (const a of ads) if (a.thumb) a.thumb = await shrinkThumb(a.thumb).catch(() => a.thumb);
+      // `qualifies` is the evidence flag the client page ranks ratio sorts on;
+      // the floor behind it stays here. `share` and `status` are ours.
+      for (const a of ads) { a.qualifies = !!a.material; delete a.share; delete a.material; delete a.status; }
+      const payload = {
+        ads, range, types: d.types, attr: d.attr,
+        min_purchases: d.min_purchases, sales_route: d.sales_route,
+        defaults: { sort: CB.sort, fmt: CB.fmt, limit: CB.limit },
+      };
+      /* One D1 row, 2MB ceiling. If the shrunk set still will not fit, the
+         lowest-spend ads lose their covers first - never their numbers. */
+      let dropped = 0;
+      for (let i = ads.length - 1; i >= 0 && JSON.stringify(payload).length > 1_850_000; i--) {
+        if (ads[i].thumb) { ads[i].thumb = null; dropped++; }
+      }
+      msg.textContent = 'Saving…';
+      const sortLabel = CB_SORTS.find(x => x[0] === CB.sort)?.[1] || 'Spend';
       const r = await api('/api/ad-share', { method: 'POST', body: JSON.stringify({
-        act, label: `${CB_SORTS.find(x => x[0] === CB.sort)?.[1] || ''} · ${prettyDate(range.from)}–${prettyDate(range.to, true)}`,
-        data: { ...d, range },
+        act, label: `${sortLabel} · ${prettyDate(range.from)}–${prettyDate(range.to, true)}`,
+        data: payload,
       }) });
       if (navigator.clipboard) await navigator.clipboard.writeText(r.url).catch(() => {});
       msg.textContent = '';
-      noteModal('Link ready to send', `<p>A read-only page with <b>just these ${d.ads.length} ads</b> and their numbers. No login, nothing else about the account, and it is frozen - what they open next week is what you are looking at now.</p>
+      noteModal('Link ready to send', `<p>A read-only page with <b>${ads.length} ads</b> and their numbers. It opens on the view you have now - <b>top ${CB.limit} by ${sortLabel.toLowerCase()}</b> - and the client can re-sort, switch video against static and choose how many to see, all within these ${ads.length} ads. Nothing on it changes after today.</p>
         <p style="margin-top:10px"><code style="font-size:12px;word-break:break-all">${esc(r.url)}</code></p>
-        <p class="hint" style="margin-top:10px">Copied to your clipboard. The cover images are stored with it, so they never expire. Video playback is not available on the shared page.</p>`);
+        <p class="hint" style="margin-top:10px">Copied to your clipboard. Cover images are stored with it${dropped ? ` (${dropped} left out to fit)` : ''}, and videos play on the page.</p>`);
     } catch (e) { msg.textContent = ''; noteModal('Could not create the link', `<p>${esc(e.message)}</p>`); }
     b.disabled = false;
   };
