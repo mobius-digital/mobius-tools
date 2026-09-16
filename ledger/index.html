@@ -14,477 +14,38 @@
 <meta name="apple-mobile-web-app-title" content="Ledger">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../mobius.css">
-<style>
-  /* ---- the merged design language (canvas sign-off 2026-09-08) ---- */
-  body{background:linear-gradient(180deg,#E3F1EA 0,#EBF2F4 260px,#EFF4F7 460px) no-repeat,#EFF4F7}
-  .hairline{height:3px;background:linear-gradient(90deg,#c6e2d5,#72c0e4,#bec5b9)}
-  .card{border-radius:10px;box-shadow:0 2px 8px rgba(12,22,29,.04)}
-  .serifh{font-family:var(--serif);font-weight:400;font-size:33px;color:#0C161D;letter-spacing:-.01em}
-  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:14px}
-  .stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:15px 19px;box-shadow:0 2px 8px rgba(12,22,29,.04)}
-  .stat .sv{font-size:27px;font-weight:700;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
-  .stat .sd{font-size:11.5px;color:var(--muted);margin-top:6px}
-  .stat.goodc{border-left:3px solid #5CC395;background:linear-gradient(180deg,#EDF9F2,#fff 70%)}
-  .stat.goodc .sv,.stat.goodc .sd{color:var(--good)}
-  .stat.warnc{border-left:3px solid #EBBF63;background:linear-gradient(180deg,#FBF4E4,#fff 70%)}
-  .stat.warnc .sv,.stat.warnc .sd{color:var(--warn)}
-  .stat.badc{border-left:3px solid #F09182;background:linear-gradient(180deg,#FBF1EF,#fff 70%)}
-  .stat.badc .sv,.stat.badc .sd{color:var(--bad)}
-  .pbar{height:6px;border-radius:99px;background:#E4EBF0;margin-top:9px;overflow:hidden}
-  .pbar i{display:block;height:6px;border-radius:99px;background:linear-gradient(90deg,#5CC395,#72c0e4)}
-  .rboard{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
-  .rtile{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:linear-gradient(180deg,#F7FAFB,#fff 80%);cursor:default}
-  .rtile .rn{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .rtile .rv{font-size:18px;font-weight:700;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
-  .rtile .rs{font-size:11px;color:var(--muted);margin-top:3px}
-  .rtile.paid{border-left:3px solid #5CC395;background:linear-gradient(180deg,#EDF9F2,#fff 80%)}
-  .rtile.paid .rv,.rtile.paid .rs{color:var(--good)} .rtile.paid .rs{font-weight:700}
-  .rtile.paused{border-color:#E4EBF0;background:repeating-linear-gradient(45deg,#F3F7F9,#F3F7F9 6px,#EDF1F4 6px,#EDF1F4 12px)}
-  .rtile.paused .rn,.rtile.paused .rv,.rtile.paused .rs{color:#8B9AA6}
-  .rtile.total{border:none;background:linear-gradient(180deg,#16242E,#0C161D)}
-  .rtile.total .rn{color:#8195A2;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-  .rtile.total .rv{color:#fff} .rtile.total .rs{color:#8195A2}
-  .nbars{display:flex;align-items:flex-end;gap:12px;height:158px;margin-top:20px}
-  .nbars .nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;min-width:0}
-  .nbars .bar{width:100%;border-radius:5px;background:#DCE7EE;min-height:3px}
-  .nbars .nb.hi .bar{background:linear-gradient(180deg,#5FD292,#2E9E63);box-shadow:0 8px 18px rgba(46,158,99,.28)}
-  .nbars .nb .ml{font-size:11px;color:var(--muted);white-space:nowrap}
-  .nbars .nb.hi .ml,.nbars .nb.hi .mv{color:var(--good);font-weight:700}
-  .nbars .nb .mv{font-size:11px;white-space:nowrap}
-  .ct{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .fm-c.on{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft);background:var(--brand-soft)}
-  #charttip{position:fixed;z-index:80;background:var(--ink);color:#fff;font-size:12px;font-weight:600;
-    padding:6px 10px;border-radius:7px;pointer-events:none;white-space:nowrap;
-    box-shadow:0 8px 22px rgba(12,22,29,.3);opacity:0;transition:opacity .06s}
-  #charttip.on{opacity:1}
-  /* corners, not pills — the app language everywhere controls appear */
-  main .ctl, main .chip{border-radius:8px}
-  /* $1,199.57 was getting clipped in the recurring table's amount boxes.
-     mobius.css zeroes min-width at higher specificity, hence the !important. */
-  .unit-in input{min-width:84px!important}
-  .txgrid{display:grid;grid-template-columns:2.1fr 1fr;gap:16px;align-items:start}
-  .src{font-size:11px;font-weight:600;color:#8B9AA6;letter-spacing:.02em}
-  .rrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
-  .rrow:last-child{border-bottom:none}
-  .rrow .rrv{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  .feed{display:flex;flex-direction:column;gap:8px;margin-top:10px;font-size:12.5px;color:#3A4B58}
-  .feed>div{display:flex;gap:8px}
-  .homegrid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:18px;align-items:start}
-  /* ---- page furniture ---- */
-  .hdr{background:var(--hd);color:var(--on-ink);position:sticky;top:0;z-index:20}
-  .hdr .in{max-width:1140px;margin:0 auto;padding:0 18px;display:flex;align-items:center;gap:14px;height:54px}
-  .hdr .wm{font-family:var(--serif);font-size:19px;color:#fff;white-space:nowrap}
-  .hdr .wm em{font-style:italic;color:#5FD292}
-  .hdr nav{display:flex;gap:2px;margin-left:10px;overflow-x:auto;scrollbar-width:none}
-  .hdr nav::-webkit-scrollbar{display:none}
-  .hdr nav button{color:var(--on-ink-2);font-size:13px;font-weight:600;padding:7px 11px;border-radius:8px;white-space:nowrap;position:relative}
-  .hdr nav button:hover{color:#fff}
-  .hdr nav button.on{color:#fff;background:none;border-radius:0;box-shadow:inset 0 -2px 0 #5FD292}
-  .hdr nav button .bdg{display:inline-block;min-width:16px;text-align:center;background:var(--warn-on);color:var(--hd);font-size:10px;font-weight:700;border-radius:99px;padding:1px 4px;margin-left:5px;vertical-align:1px}
-  .hdr .chip-conn{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--on-ink-2);border:1px solid var(--hd-line);border-radius:99px;padding:4px 10px;white-space:nowrap}
-  .hdr .chip-conn[data-s=live]{color:var(--good-on);border-color:rgba(95,210,146,.4)}
-  .hdr .chip-conn[data-s=down]{color:var(--bad-on)}
-  main{max-width:1140px;margin:0 auto;padding:22px 18px 90px}
-  /* mobius.css sets .lg-num to the ink color, which vanishes on the dark roll-up */
-  .rollup .lg-num{color:var(--on-ink)}
-  .toggle{cursor:pointer}
-  /* settings field groups: label sits ON its input, groups breathe */
-  .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 16px;margin-top:12px}
-  .fld label{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;white-space:nowrap}
-  .del-x{color:var(--muted);font-size:15px;line-height:1;padding:4px 7px;border-radius:6px}
-  .del-x:hover{color:var(--bad);background:var(--bad-bg)}
-  /* CPA pack: monthly P&L grid + its own print layout */
-  .pl-tbl th,.pl-tbl td{white-space:nowrap}
-  .pl-tbl td.num{font-variant-numeric:tabular-nums}
-  .pl-tbl tr.hd-row td{font-weight:700;border-top:2px solid var(--line-strong)}
-  #cpaPrint{display:none}
-  @media print{
-    body.print-cpa #rptCard,body.print-cpa .rpt-picker{display:none!important}
-    body.print-cpa #cpaPrint{display:block}
-    #cpaPrint .rpt{border:none;padding:0;max-width:none}
-    #cpaPrint table{page-break-inside:auto}
-  }
-  .mo-nav{display:flex;align-items:center;gap:8px}
-  .mo-nav b{font-size:14px;min-width:112px;text-align:center}
-  /* It sits between two buttons, so it has to look like one · a control with
-     an edge, not a word. Same border, height and hover as the arrows. */
-  .mo-sel{font:inherit;font-size:14px;font-weight:700;color:var(--ink);
-    border:1px solid var(--line-strong);border-radius:7px;background-color:var(--surface);
-    height:26px;padding:0 24px 0 10px;cursor:pointer;appearance:none;-webkit-appearance:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;background-position:right 8px center;text-align:left;
-    transition:border-color .12s,background-color .12s}
-  /* Loud enough to read at a glance without shouting: the whole control
-     fills, the edge goes dark, and it lifts a millimetre off the page. */
-  .mo-sel:hover{border-color:var(--brand-ink);background-color:var(--brand-soft);
-    box-shadow:0 1px 2px rgba(12,22,29,.08)}
-  .mo-nav button:hover{border-color:var(--brand-ink);background:var(--brand-soft)}
-  .mo-sel:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  .mo-nav button{border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);width:26px;height:26px;font-size:13px;line-height:1}
-  .mo-nav button:hover{border-color:var(--brand-ink)}
-  .mo-lock{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:99px;padding:2px 8px}
-  .mo-lock.closed{background:var(--good-bg);color:var(--good)}
-  .mo-lock.open{background:var(--warn-bg);color:var(--warn)}
-
-  /* ---- modal shell ---- */
-  .scrim{position:fixed;inset:0;background:rgba(12,22,29,.45);z-index:40;display:none}
-  .scrim.on{display:block}
-  .modal{position:fixed;inset:0;z-index:50;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 14px}
-  .modal.on{display:flex}
-  .mbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 24px;max-width:520px;width:100%;box-shadow:0 24px 70px rgba(12,22,29,.3)}
-  .mbox .mrow{display:flex;gap:10px;margin-top:10px}
-  .mbox .mrow>div{flex:1;min-width:0}
-  .mbox label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
-  .mbox label .why{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px;margin-top:1px}
-  /* A checkbox row is a label too, but it is a sentence · not a field caption,
-     so it must escape the uppercase/tracking the caption rule applies. */
-  .mbox label.ck{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;
-    color:var(--ink);margin:12px 0 0;line-height:1.5;align-items:flex-start;
-    padding:13px 15px;border:1px solid var(--line);border-radius:10px;background:var(--bg);
-    display:grid;grid-template-columns:16px 1fr;column-gap:13px}
-  .mbox label.ck:hover{border-color:var(--line-strong)}
-  /* A grid column, not a flex gap: .mbox sets width:100% on every input, and a
-     checkbox stretched to the row was eating the space meant to separate it
-     from its own label. */
-  .mbox label.ck input{width:16px;height:16px;margin:1px 0 0;align-self:start}
-  .mbox label.ck small{margin-top:5px;line-height:1.55;font-weight:400;font-size:11.5px}
-  .mbox input,.mbox select,.mbox textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;background:var(--surface)}
-  .mbox .acts{display:flex;gap:10px;margin-top:20px;align-items:center}
-  .mbox .acts .spacer{flex:1}
-  .seg{display:flex;border:1px solid var(--line-strong);border-radius:9px;overflow:hidden}
-  .seg button{flex:1;padding:8px;font-size:13px;font-weight:600;color:var(--muted)}
-  .seg button.on{background:var(--hd);color:#fff}
-  .ck{display:flex;gap:9px;align-items:flex-start;margin-top:12px;font-size:13px;cursor:pointer}
-  .ck input{width:auto;margin-top:2px}
-  .ck small{display:block;color:var(--muted);font-size:11.5px}
-
-  /* ---- transactions table ---- */
-  .txn-tbl td{white-space:normal;padding-top:12px;padding-bottom:12px}
-  /* The table runs edge to edge inside a padding-less card, so the outer
-     columns need their own breathing room or the text sits on the border. */
-  .txn-tbl th:first-child,.txn-tbl td:first-child{padding-left:20px}
-  .txn-tbl th:last-child,.txn-tbl td:last-child{padding-right:20px}
-  .txn-tbl td.pick,.txn-tbl th.pick{padding-right:0;width:34px}
-  .txn-tbl td.pick input{width:15px;height:15px;cursor:pointer;margin:0}
-  /* A real dropdown. The OPEN list of a native <select> is drawn by Windows and
-     cannot be styled by any stylesheet · which is why these looked like 1998
-     next to everything else. This replaces the control entirely: a button plus
-     a panel rendered at body level, so the table's overflow cannot clip it. */
-  .msel{position:relative;display:inline-block}
-  .msel-btn{font:inherit;font-size:12px;text-align:left;padding:5px 28px 5px 10px;
-    border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);
-    color:var(--ink);cursor:pointer;max-width:230px;white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis;transition:border-color .12s,box-shadow .12s;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;background-position:right 10px center}
-  .msel-btn:hover{border-color:var(--brand-ink)}
-  .msel-btn.open{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  /* one attention color: amber says "needs you"; red stays destructive-only */
-  .msel-btn.unset{color:#8F6412;border-color:#EBBF63;border-style:dashed}
-  .msel-panel{position:fixed;z-index:70;background:var(--surface);border:1px solid var(--line-strong);
-    border-radius:10px;box-shadow:0 18px 48px rgba(12,22,29,.26);padding:6px;
-    max-height:min(52vh,420px);overflow-y:auto;min-width:220px;
-    scrollbar-width:thin;scrollbar-color:#C4D2DB transparent}
-  /* the OS scrollbar was drawing a grey slab over the panel's right border */
-  .msel-panel::-webkit-scrollbar{width:10px}
-  .msel-panel::-webkit-scrollbar-thumb{background:#C4D2DB;border-radius:99px;border:3px solid var(--surface)}
-  .msel-panel::-webkit-scrollbar-thumb:hover{background:#9FB1BD}
-  .msel-panel::-webkit-scrollbar-track{background:transparent}
-  .msel-opt{padding:8px 11px;border-radius:8px;font-size:13px;cursor:pointer;line-height:1.35;
-    color:var(--ink);white-space:nowrap}
-  .msel-opt:hover,.msel-opt.on{background:var(--brand-soft)}
-  .msel-opt.sel{font-weight:700}
-  .msel-opt.none{color:var(--muted)}
-  .rowsel{display:inline-flex;gap:7px;flex-wrap:wrap;align-items:center}
-  /* Same control as every other Mobius app · mobius.css's select: its own
-     chevron (appearance:none removes the native one), 8px radius, and the
-     house focus ring. Only the scale differs, because this one sits in a row. */
-  .rowcat{font-size:12px;padding:5px 28px 5px 10px;border:1px solid var(--line-strong);border-radius:8px;
-    background:var(--surface);color:var(--ink);max-width:220px;cursor:pointer;
-    appearance:none;-webkit-appearance:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;background-position:right 10px center;transition:border-color .12s,box-shadow .12s}
-  .rowcat:hover{border-color:var(--brand-ink)}
-  .rowcat:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
-  .rowcat.unset{color:#8F6412;border-color:#EBBF63;border-style:dashed}
-  /* Anything that responds to a click says so. Selects and checkboxes do not
-     get a pointer from the browser, and this app is mostly selects. */
-  select,input[type=checkbox],input[type=radio],label.ck,.chip,.sc,summary{cursor:pointer}
-  .txn-tbl tr.picked td{background:var(--brand-soft)}
-  #flash{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(14px);
-    background:var(--ink);color:#fff;font-size:13px;padding:11px 18px;border-radius:10px;
-    box-shadow:0 12px 34px rgba(12,22,29,.34);opacity:0;pointer-events:none;transition:.22s;z-index:60}
-  #flash.on{opacity:1;transform:translateX(-50%) translateY(0)}
-  /* Floats over the page rather than sitting in it: appearing in the flow
-     shoved every row down the moment a box was ticked, so the thing you were
-     aiming at moved out from under the cursor. */
-  .bulkbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:40;
-    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-    background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;
-    padding:11px 14px;box-shadow:0 14px 40px rgba(12,22,29,.22);max-width:min(940px,94vw);
-    animation:bulkIn .16s ease-out}
-  @keyframes bulkIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}
-                    to{opacity:1;transform:translateX(-50%) translateY(0)}}
-  @media (prefers-reduced-motion:reduce){.bulkbar{animation:none}}
-  .bulkbar select{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line-strong);
-    border-radius:8px;background:var(--surface);max-width:250px}
-  .srch{font:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line-strong);
-    border-radius:8px;background:var(--surface);min-width:190px}
-  .txn-tbl .amt{font-family:var(--serif);font-size:17px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
-  .txn-tbl .amt.in{color:var(--good)}
-  .txn-tbl .amt.neg{color:var(--bad)}
-  .txn-tbl tbody tr{cursor:pointer}
-  .txn-tbl tbody tr:hover td{background:var(--brand-soft)}
-  .txn-tbl .cat{font-size:11.5px;color:var(--muted)}
-  .rc{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap}
-  .rc.has{background:var(--good-bg);color:var(--good)}
-  .rc.miss{background:var(--warn-bg);color:var(--warn)}
-  .rc:not(.has):not(.miss){background:var(--surface-2,var(--line));color:var(--muted)}
-  .rc.na{background:var(--unk-bg);color:var(--unk)}
-
-  /* ---- receipts ---- */
-  .drop{border:2px dashed var(--line-strong);border-radius:var(--radius);background:var(--surface);padding:34px 20px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
-  .drop:hover,.drop.over{border-color:var(--brand-ink);color:var(--brand-ink);background:var(--brand-soft)}
-  .drop b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
-  .vault{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-  .vitem{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:11.5px}
-  .vitem:hover{border-color:var(--brand-ink)}
-  .vitem .vt{font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .vitem .vm{color:var(--muted)}
-
-  /* ---- close checklist ---- */
-  .clx{display:flex;flex-direction:column;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .cli{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;border-bottom:1px solid var(--line)}
-  .cli:last-child{border-bottom:none}
-  .cli .ic{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px}
-  .cli.ok .ic{background:var(--good-bg);color:var(--good)}
-  .cli.warn .ic{background:var(--warn-bg);color:var(--warn)}
-  .cli.info .ic{background:var(--unk-bg);color:var(--unk)}
-  .cli b{font-size:14px}
-  .cli p{color:var(--muted);font-size:12.5px;margin-top:1px}
-  .cli .go{margin-left:auto;flex:none;font-size:12.5px;font-weight:700;color:var(--brand-ink);cursor:pointer;white-space:nowrap;padding:4px 0}
-
-  /* ---- report card ---- */
-  .rpt{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px 30px;max-width:820px}
-  .rpt h1{font-weight:700;font-size:23px;letter-spacing:-.01em}
-  .rpt .rsub{color:var(--muted);font-size:12.5px;margin-bottom:18px}
-  .rpt .figs{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line);margin-bottom:18px}
-  .rpt .figs .fig{flex:1 1 140px}
-  .rpt h4{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
-  .kv{width:100%;border-collapse:collapse;font-size:13.5px}
-  .kv td{padding:8px 0;border-bottom:1px solid var(--line);white-space:normal}
-  .kv td:last-child{text-align:right;font-family:var(--serif);font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .kv tr.tot td{font-weight:700;border-bottom:none}
-  .kv tr.tot td:last-child{font-size:18px}
-  .fig-l{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-  .fig-v{font-size:26px}
-  .fig-d{font-size:11.5px;color:var(--muted);margin-top:2px}
-  .split-tbl td:first-child small{display:block;color:var(--muted);font-size:11px}
-
-  /* ---- forecast / misc ---- */
-  .bars{display:flex;align-items:flex-end;gap:6px;height:130px;margin-top:8px}
-  .bars .b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;height:100%;text-align:center;min-width:0}
-  .bars .b .f{border-radius:3px 3px 0 0;background:var(--brand);min-height:2px}
-  .bars .b .f.ex{background:var(--line-strong)}
-  .bars .b .m{font-size:10px;color:var(--muted);white-space:nowrap}
-  .conc{display:flex;height:14px;border-radius:99px;overflow:hidden;border:1px solid var(--line)}
-  .leg{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11.5px;color:var(--muted)}
-  .leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
-  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
-  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-  .msg{font-size:13px;margin-top:10px}
-  .msg.bad{color:var(--bad)}
-  .msg.good{color:var(--good)}
-  footer{max-width:1140px;margin:0 auto;padding:0 18px 34px;color:var(--muted);font-size:12px}
-
-  @media print{
-    body{background:#fff}
-    .hdr,footer,.no-print{display:none!important}
-    main{padding:0;max-width:none}
-    .rpt{border:none;padding:0;max-width:none}
-  }
-  /* ---- the statement. Set the way an accountant's page is set: flush left,
-     one money column hard right, generous line height, and the eye carried
-     down the left edge by indentation rather than by boxes. ---- */
-  #rptCard{padding:30px 34px 34px}
-  .stmt{max-width:none}
-  .stmt h1{font-family:var(--serif);font-weight:400;font-size:27px;letter-spacing:-.01em}
-  .stmt .rsub{color:var(--muted);font-size:12.5px;margin-top:2px}
-  .stmt .sh{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
-    color:var(--muted);padding:26px 0 7px;border-bottom:1px solid var(--line-strong)}
-  /* No rule under every line. A statement is separated by air and by the
-     few rules that mean something · under a section heading, above a total.
-     A line for its own sake is just noise repeated forty times. */
-  .rl{display:flex;align-items:baseline;gap:16px;padding:9px 10px;margin:0 -10px;
-    border-radius:7px;border-bottom:none;font-size:14px;line-height:1.45}
-  .rl.open-able:hover{background:var(--brand-soft)}
-  .rl .rn{flex:1;min-width:0}
-  .rl .ra{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;
-    width:132px;flex:none;font-weight:600}
-  .rl.open-able{cursor:pointer}
-  .rl.open-able:hover .rn{color:var(--brand-ink)}
-  .rl .tw{display:inline-block;width:14px;font-size:9px;color:var(--muted);transition:transform .12s}
-  .rl.on .tw{transform:rotate(90deg)}
-  .rl .cnt{font-size:12px;color:var(--muted);font-weight:400}
-  .rl .cap{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:2px}
-  .rl.tot{border-top:1px solid var(--line-strong);font-weight:700;margin-top:8px;padding-top:12px}
-  .rl.tot:hover{background:none}
-  .splt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;
-    border:1px solid var(--line);border-radius:9px;padding:11px 13px;background:var(--surface);
-    text-align:left;cursor:pointer;transition:border-color .12s,background .12s;position:relative}
-  .splt:hover{border-color:var(--brand-ink);background:var(--brand-soft)}
-  .splt .sv2{font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
-  .splt .cpy{font-size:10.5px;color:var(--muted);letter-spacing:.02em}
-  .splt:hover .cpy{color:var(--brand-ink)}
-  .splt.copied{border-color:var(--good);background:var(--good-bg)}
-  .splt.copied .cpy::after{content:' \2713'}
-  .splt.copied .cpy{color:var(--good);font-weight:700}
-  .rl.net{border-top:2px solid var(--ink);margin-top:10px;
-    padding-top:14px;font-weight:700;font-size:17px}
-  .rl.net:hover{background:none}
-  .rl.net .ra{font-size:19px}
-  .rsub2{display:none}
-  .rsub2.shown{display:flex}
-  /* Nesting reads better as a rail down the side than as rows boxed in by
-     horizontal rules · the eye follows the vertical, and a group inside a
-     group stays legible because the rails simply stack. */
-  .rl.lv2, .rl.lv3{position:relative}
-  .rl.lv2{margin-left:9px;padding-left:22px;font-size:13.5px;color:#3A4B58;
-    border-left:2px solid var(--line);padding-top:8px;padding-bottom:8px}
-  .rl.lv3{margin-left:31px;padding-left:22px;font-size:12.5px;color:var(--muted);
-    border-left:2px solid #E9EEF2;padding-top:6px;padding-bottom:6px}
-  .rl.lv2.shown + .rl:not(.lv2):not(.lv3){margin-top:6px}
-  .rl.lv3.shown + .rl.lv2{margin-top:6px}
-  .rl.lv3 .ra{font-weight:500}
-  .hero{display:flex;flex-wrap:wrap;gap:0;margin:18px 0 2px;
-    border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .hero .h{flex:1 1 150px;padding:14px 22px 14px 0}
-  .hero .h+.h{border-left:1px solid var(--line);padding-left:22px}
-  .hero .hv{font-family:var(--serif);font-size:29px;letter-spacing:-.01em;line-height:1.2;
-    font-variant-numeric:tabular-nums;margin-top:2px}
-  .hero .hd{font-size:12px;color:var(--muted);margin-top:3px}
-  @media(max-width:720px){
-    #rptCard{padding:20px 16px 24px}
-    .hero{display:block}
-    .hero .h{padding:12px 0}
-    .hero .h+.h{border-left:none;border-top:1px solid var(--line);padding-left:0}
-    .rl .ra{width:auto}
-    .rl.lv2{padding-left:16px}.rl.lv3{padding-left:32px}}
-
-  /* ---- tablet: one column of full-width cards, top nav stays (iPad convention) ---- */
-  @media(max-width:1024px){.txgrid,.homegrid{grid-template-columns:1fr}}
-  @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.rboard{grid-template-columns:repeat(2,1fr)}}
-
-  /* ---- mobile: app chrome, not a shrunken website ----
-     The pattern every serious finance app ships (QuickBooks, the banks):
-     a labeled 4-item bottom tab bar in thumb reach, 44px+ targets, list
-     rows instead of tables, sheets instead of centered dialogs. */
-  #tabbar{display:none}
-  .hdr{padding-top:env(safe-area-inset-top)}
-  @media(max-width:720px){
-    .hdr nav{display:none}
-    .hdr .in{height:48px}
-    #tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;
-      background:var(--hd);border-top:1px solid rgba(129,149,162,.25);
-      padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
-    #tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-      color:#8195A2;font-size:10.5px;font-weight:600;padding:4px 2px;min-height:48px;position:relative}
-    #tabbar button.on{color:#5FD292}
-    #tabbar svg{width:22px;height:22px}
-    #tabbar .tbdg{position:absolute;top:1px;right:calc(50% - 22px);background:#EBBF63;color:#0C161D;
-      font-size:9px;font-weight:700;border-radius:99px;padding:1px 5px}
-    main{padding:16px 14px calc(96px + env(safe-area-inset-bottom))}
-    footer{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
-    .bulkbar{bottom:calc(80px + env(safe-area-inset-bottom));max-width:96vw;padding:10px 12px}
-    #flash{bottom:calc(84px + env(safe-area-inset-bottom))}
-    .serifh{font-size:25px}
-    .ph{flex-wrap:wrap;gap:10px}
-    .stat{padding:13px 15px} .stat .sv{font-size:23px}
-    .rboard{gap:8px} .rtile{padding:10px 12px}
-    .ctl,.chip{min-height:38px;display:inline-flex;align-items:center}
-    .mo-nav button{width:34px;height:34px}
-    /* Filters are a rail you swipe, not a paragraph that wraps · and the
-       search field gets a line of its own instead of being squeezed to "Se". */
-    .filt{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px 2px}
-    .filt::-webkit-scrollbar{display:none}
-    .filt > .ctl{flex:0 0 auto}
-    .tools{flex-wrap:wrap}
-    .tools .srch{flex:1 1 100%;min-width:0;height:40px}
-    .tools .btn{flex:1 1 46%}
-    .mo-nav{gap:6px}
-    .mo-sel{flex:1;min-width:0;height:34px;font-size:15px}
-    .mo-nav button{width:34px;height:34px;flex:none}
-    .ph{align-items:stretch}
-    .ph .mo-nav{width:100%}
-    .rpt{padding:18px 16px}
-    /* the transactions table becomes a list of row-cards */
-    .txn-tbl thead{display:none}
-    .txn-tbl,.txn-tbl tbody{display:block}
-    .txn-tbl tr:has(td[colspan]){display:block;padding:18px 14px}
-    .txn-tbl tr:has(td[colspan]) td{display:block;width:auto}
-    .txn-tbl tr:not(:has(td[colspan])){display:grid;grid-template-columns:26px minmax(0,1fr) auto;
-      grid-template-areas:"pick vendor amt" "pick meta rc";
-      gap:2px 8px;padding:12px 12px 12px 8px;border-bottom:1px solid var(--line);align-items:start}
-    .txn-tbl td{display:block;padding:0!important;border:none}
-    .txn-tbl td,.txn-tbl tbody tr:hover td,.txn-tbl tr.picked td{background:none}
-    .txn-tbl tr.picked{background:var(--brand-soft)}
-    .txn-tbl td.pick{grid-area:pick;width:auto;padding-top:4px!important}
-    .txn-tbl td.pick input{width:18px;height:18px}
-    .txn-tbl td.tiny{grid-area:meta;align-self:center}
-    .txn-tbl td:nth-child(3){grid-area:vendor;min-width:0}
-    .txn-tbl td:nth-child(4){grid-area:rc;justify-self:end;align-self:center}
-    .txn-tbl td.amt{grid-area:amt;text-align:right;font-size:16px;white-space:nowrap}
-    .txn-tbl .rowsel{margin-top:5px;max-width:100%}
-    .msel-btn{max-width:100%}
-    /* Sheet internals. Two fields side by side is a desktop idea: at 375px
-       the date and the note were literally overlapping. Everything stacks,
-       every control is thumb-height, and inputs are 16px because anything
-       smaller makes iOS zoom the whole page the moment you tap one. */
-    .mbox .mrow{flex-direction:column;gap:0}
-    .mbox .mrow > div{max-width:none!important;width:100%}
-    .mbox input,.mbox select,.mbox textarea{font-size:16px;min-height:46px}
-    .mbox textarea{min-height:110px}
-    .mbox label{margin-top:16px}
-    .mbox .msel{display:block}
-    .mbox .msel-btn{width:100%;max-width:none;min-height:46px;font-size:15px}
-    .mbox .seg button{min-height:46px;font-size:14px}
-    .mbox .acts{flex-wrap:wrap;gap:8px;margin-top:24px}
-    .mbox .acts .spacer{display:none}
-    .mbox .acts .btn{flex:1 1 45%;min-height:48px;justify-content:center}
-    .mbox .acts .btn.primary{order:-1;flex-basis:100%}
-    .mbox label.ck{padding:15px 16px}
-    .msel-panel{max-height:60vh}
-    .msel-opt{padding:13px 14px;font-size:15px}
-    /* modals arrive as bottom sheets */
-    .modal{padding:0;align-items:flex-end}
-    .mbox{max-width:none;width:100%;border-radius:16px 16px 0 0;border-bottom:none;
-      max-height:92dvh;overflow-y:auto;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
-  }
-
-@media (max-width: 700px) { button, .ctl, .chip, select { min-height:44px; min-width:44px; } input:not([type="checkbox"]):not([type="radio"]), textarea, label.ck { min-height:44px; } input, textarea, select { font-size:16px !important; } }
-</style>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ledger.css?v=1">
+<meta name="theme-color" content="#f3f5f6">
+<script data-theme-init>try{if(localStorage.getItem('ledger_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
 
-<header class="hdr no-print">
-  <div class="in">
-    <span class="wm">Mobius <em>Ledger</em></span>
-    <nav id="nav"></nav>
-    <span class="chip-conn" id="connChip">…</span>
+<aside class="side no-print" aria-label="Ledger">
+  <a class="brand" href="../hq/" title="Mobius HQ"><img src="../icons/ledger-round-192.png" alt=""><span><b>Ledger</b><small>Mobius Digital</small></span></a>
+  <nav id="nav"></nav>
+  <nav id="navPin" style="flex:none;padding:8px 12px"></nav>
+  <div class="foot">
+    <div class="who"><span class="av" id="whoAv">M</span><span class="meta" style="min-width:0"><span class="nm" id="whoName">Mobius</span>
+      <span class="st"><span class="dot" id="connChip" data-s="off"></span><span id="connText">Connecting</span></span></span></div>
+    <div class="foot-row"><button id="themeBtn" onclick="toggleTheme()" title="Switch light and dark"></button>
+      <button onclick="signOut()" title="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg><span class="lbl-t">Sign out</span></button></div>
   </div>
-  <div class="hairline"></div>
-</header>
+</aside>
+
+<div class="mtop no-print"><img src="../icons/ledger-round-192.png" alt=""><b>Ledger</b><span class="spacer"></span><span class="dot" id="connChipM" data-s="off"></span><span class="tiny" id="connTextM"></span></div>
 
 <main id="main"></main>
 
-<nav id="tabbar" class="no-print"></nav>
+<div id="cpaPrint"></div>
 
-<div class="scrim" id="scrim"></div>
+<nav id="tabbar" class="tabbar no-print" aria-label="Sections"></nav>
+<div class="sheet no-print" id="sheet" role="dialog" aria-label="More"><div class="grab"></div><div id="sheetBody"></div></div>
+
+<div class="scrim" id="scrim" onclick="closeSheet()"></div>
 <div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
 
-<footer class="no-print">Mobius Ledger · the sheet's own formulas: net = revenue − expenses − merchant fee; the app never moves money · it computes the split, you make the transfers.
+<footer class="no-print">Mobius Ledger · net income = revenue − expenses − Stripe fees. The app never moves money: it works out the split, you make the transfers.
   <span style="display:block;margin-top:6px"><a href="privacy/">Privacy policy</a> · <a href="security/">Security policy</a></span></footer>
 
 <script>
@@ -506,7 +67,7 @@ const nowMonth = () => new Date().toISOString().slice(0, 7);
 let S = {
   url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
   tok: localStorage.getItem(LS.tok) || sharedSession() || '',
-  view: 'dash',
+  view: 'overview',
   month: nowMonth(),   // always open on the month it actually is
   boot: null, summary: null, txns: null, txnMonth: null,
   filter: 'all', packData: null, report: null, reportMonth: null,
@@ -541,6 +102,7 @@ async function boot() {
   setChip('…', 'off');
   try {
     S.boot = await api('/api/boot');
+    S.renderedRevision = S.boot.revision;
     // idempotent: make sure this month's expected recurring rows exist
     if (moState(nowMonth()) !== 'closed') await api('/api/recurring', { method:'POST', body: JSON.stringify({ month: nowMonth() }) }).catch(()=>{});
     setChip('Live', 'live');
@@ -553,21 +115,22 @@ async function boot() {
       return renderGate('Wrong password · try again.');
     }
     setChip('Worker down', 'down');
-    $('#main').innerHTML = `<div class="gate"><h1>Can't reach the worker</h1><p>${esc(e.message)}</p>
+    $('#main').innerHTML = `<div class="gate"><h1>Can't reach the books</h1><p>${esc(e.message)}</p>
       <button class="cta" onclick="boot()">Retry</button></div>`;
   }
 }
-function setChip(t, s){ const c=$('#connChip'); c.textContent=t; c.dataset.s=s; }
+function setChip(t, s){
+  for (const [d, x] of [['#connChip','#connText'],['#connChipM','#connTextM']]) { $(d).dataset.s = s; $(x).textContent = t; }
+  document.body.classList.toggle('signed-out', t === 'Signed out');
+}
 
 function renderGate(err) {
   setChip('Signed out','off');
-  $('#nav').innerHTML = '';
-  $('#tabbar').innerHTML = '';
   $('#main').innerHTML = `
-  <div class="gate">
+  <div class="gate card">
     <h1>Mobius Ledger</h1>
     <p>Money in, money out, and the end-of-month report card. Sign in once at Mobius HQ and every internal tool opens.</p>
-    <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/ledger/">Continue with Google</a>
+    <a class="cta" href="../hq/?next=/ledger/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use an administrator token</summary>
       <label>Administrator token</label><input id="gTok" type="password" placeholder="administrator token">
@@ -586,12 +149,18 @@ function renderGate(err) {
 }
 
 /* ================= nav ================= */
+/* A left rail on desktop, an icon rail on tablets, a thumb bar on phones.
+   Grouped the way the month actually runs: see it, work it, read it, close it. */
 const VIEWS = [
-  ['dash','Home'], ['txns','Transactions'], ['reports','Reports'], ['settings','Settings'],
+  ['overview', 'Overview', ''],
+  ['txns', 'Transactions', 'Money'],
+  ['receipts', 'Receipts', 'Money'],
+  ['dashboards', 'Dashboards', 'Insights'],
+  ['reports', 'Reports', 'Insights'],
+  ['close', 'Close month', 'Books'],
 ];
-/* Receipts, Close and Forecast still exist as screens · they just live inside
-   a parent tab now, so the nav highlights that parent while you're on them. */
-const PARENT = { receipts:'txns', close:'reports', forecast:'dash' };
+/* Old names still route: the Home tab became Overview, Forecast lives in Reports. */
+const PARENT = { dash:'overview', forecast:'reports' };
 /* The badge and the Needs-you list must agree: uncategorized rows anywhere,
    plus missing receipts in OPEN months (a closed month's missing receipts
    block nothing and would drown the number in history). */
@@ -600,40 +169,109 @@ function needsCount(){
   return Object.entries(S.boot?.flags||{}).reduce((s,[m,f]) =>
     s + (+f.review||0) + (closed.has(m) ? 0 : (+f.noReceipt||0)), 0);
 }
-function navHTML(){
+const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const TAB_ICONS = {
+  overview: svg('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'),
+  txns: svg('<path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8"/>'),
+  receipts: svg('<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M9 8h6M9 12h6M9 16h3"/>'),
+  dashboards: svg('<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>'),
+  reports: svg('<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M9 17v-3M12 17v-6M15 17v-4"/>'),
+  close: svg('<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>'),
+  settings: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+  more: svg('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>'),
+  sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+  out: svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>'),
+  plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  upload: svg('<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>'),
+  alert: svg('<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'),
+  check: svg('<path d="m5 13 4 4L19 7"/>'),
+  tag: svg('<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'),
+  clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  bank: svg('<path d="M3 10h18L12 4z"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>'),
+  users: svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>'),
+  sliders: svg('<path d="M4 8h9M17.5 8H20M4 16h2.5M11 16h9"/><circle cx="15" cy="8" r="2.2"/><circle cx="8.5" cy="16" r="2.2"/>'),
+  plug: svg('<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>'),
+  bell: svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'),
+  shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  store: svg('<path d="M4 7h16l-1 13H5z"/><path d="M9 7a3 3 0 0 1 6 0"/>'),
+};
+function whoName(){
+  const e = localStorage.getItem('mobius_session_email');
+  return e ? e.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Administrator';
+}
+function sideHTML(){
   const rv = needsCount();
   const on = PARENT[S.view] || S.view;
-  return VIEWS.map(([id,label]) =>
-    `<button class="${on===id?'on':''}" onclick="show('${id}')">${label}${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`).join('');
+  let lastGroup = null, out = '';
+  for (const [id, label, group] of VIEWS) {
+    if (group !== lastGroup) {
+      if (group) out += `<div class="grp-h lbl">${group}</div><div class="grp-sep"></div>`;
+      lastGroup = group;
+    }
+    out += `<button class="nv ${on===id?'on':''}" onclick="show('${id}')" ${on===id?'aria-current="page"':''}>${TAB_ICONS[id]}<span>${label}</span>${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`;
+  }
+  return out;
 }
-/* The phone's navigation: same four destinations, bottom of the screen where
-   thumbs live. CSS decides which of the two navs is visible. */
-const TAB_ICONS = {
-  dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
-  txns: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
-  reports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 20v-8M11 20V5M17 20v-5M2.5 20h19"/></svg>',
-  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h9M17.5 8H20M4 16h2.5M11 16h9"/><circle cx="15" cy="8" r="2.2"/><circle cx="8.5" cy="16" r="2.2"/></svg>',
-};
+function paintNav(){
+  const on = PARENT[S.view] || S.view;
+  $('#nav').innerHTML = sideHTML();
+  $('#navPin').innerHTML = `<button class="nv ${on==='settings'?'on':''}" onclick="show('settings')">${TAB_ICONS.settings}<span>Settings</span></button>`;
+  $('#tabbar').innerHTML = tabbarHTML();
+  $('#sheetBody').innerHTML = sheetHTML();
+  const dark = document.documentElement.dataset.theme === 'dark';
+  $('#themeBtn').innerHTML = `${dark ? TAB_ICONS.sun : TAB_ICONS.moon}<span class="lbl-t">${dark ? 'Light' : 'Dark'}</span>`;
+  $('#whoName').textContent = whoName();
+  $('#whoAv').textContent = whoName().slice(0,1);
+}
+/* The phone bar is chosen by thumb: the four screens used daily, the rest behind More. */
+const PHONE_TABS = ['overview','txns','dashboards','reports'];
 function tabbarHTML(){
   const rv = needsCount();
   const on = PARENT[S.view] || S.view;
-  return VIEWS.map(([id,label]) =>
-    `<button class="${on===id?'on':''}" onclick="show('${id}')">${TAB_ICONS[id]}<span>${label}</span>${id==='txns'&&rv?`<span class="tbdg">${rv}</span>`:''}</button>`).join('');
+  const lab = { overview:'Overview', txns:'Money', dashboards:'Dashboards', reports:'Reports' };
+  return PHONE_TABS.map(id =>
+    `<button class="${on===id?'on':''}" onclick="show('${id}')">${TAB_ICONS[id]}<span>${lab[id]}</span>${id==='txns'&&rv?`<span class="bdg">${rv}</span>`:''}</button>`).join('')
+    + `<button class="${PHONE_TABS.includes(on)?'':'on'}" onclick="openSheet()">${TAB_ICONS.more}<span>More</span></button>`;
+}
+function sheetHTML(){
+  const on = PARENT[S.view] || S.view;
+  const dark = document.documentElement.dataset.theme === 'dark';
+  return [['receipts','Receipts'],['close','Close month'],['settings','Settings']].map(([id,l]) =>
+    `<button class="${on===id?'on':''}" onclick="show('${id}')">${TAB_ICONS[id]}${l}</button>`).join('')
+    + `<button onclick="toggleTheme();openSheet()">${dark?TAB_ICONS.sun:TAB_ICONS.moon}${dark?'Light mode':'Dark mode'}</button>`
+    + `<button onclick="signOut()">${TAB_ICONS.out}Sign out</button>`;
+}
+function openSheet(){ $('#sheetBody').innerHTML = sheetHTML(); $('#sheet').classList.add('on'); $('#scrim').classList.add('on'); }
+function closeSheet(){ const s = $('#sheet'); if (s?.classList.contains('on')) { s.classList.remove('on'); if (!$('#modal').classList.contains('on')) $('#scrim').classList.remove('on'); } }
+function toggleTheme(){
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('ledger_theme', next); } catch(e){}
+  paintNav();
+  if (S.boot && ['overview','dashboards','reports'].includes(S.view)) show(S.view);   // charts read the palette when drawn
+}
+function signOut(){
+  [LS.tok,'mobius_session','mobius_session_email','mobius_session_exp'].forEach(k => localStorage.removeItem(k));
+  S.tok = ''; location.reload();
 }
 function show(view){
+  if (view === 'dash') view = 'overview';
+  if (view === 'forecast') { RP.tab = 'cash'; view = 'reports'; }
   S.view = view;
   S.rt = (S.rt || 0) + 1;   // every render carries a ticket; only the newest paints
-  $('#nav').innerHTML = navHTML();
-  $('#tabbar').innerHTML = tabbarHTML();
-  ({dash:renderDash, txns:renderTxns, receipts:renderReceipts, close:renderClose,
-    reports:renderReports, forecast:renderForecast, settings:renderSettings}[view])();
+  closeSheet(); killCharts();
+  paintNav();
+  window.scrollTo(0, 0);
+  ({overview:renderOverview, txns:renderTxns, receipts:renderReceipts, close:renderClose,
+    dashboards:renderDashboards, reports:renderReports, settings:renderSettings}[view] || renderOverview)();
 }
 /* A render that awaited the network while you moved on must not paint over
    where you went. Checked immediately before each screen writes itself. */
 const stale = my => S.rt !== my;
 /* Changing the month and going somewhere is ONE render. Calling this and then
    show() separately raced two async renders against each other, and the slower
-   one painted over the faster one — which is how "Close August" silently
+   one painted over the faster one, which is how "Close August" silently
    dumped you back on the dashboard. */
 function setMonth(m, view){ S.month = m; localStorage.setItem(LS.month, m); S.txns=null; show(view || S.view); }
 /* Every month a month could be picked in · whatever has data, plus every
@@ -682,158 +320,306 @@ function monthNav(){
   </div>`;
 }
 
-/* ================= home ================= */
-async function renderDash(){
-  const m = $('#main'), my = S.rt;
-  m.innerHTML = '<div class="sub">Loading…</div>';
-  let sum;
-  try { sum = await api('/api/summary?month=' + S.month); await loadTxns(); }
-  catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
-  S.summary = sum;
-  const r = sum.report, a = sum.attention;
-  const st = moState(S.month);
-  const prevMo = addMonths(S.month, -1);
-  const prevClosed = moState(prevMo) === 'closed';
-  let prevRep = null;
-  try { prevRep = (await api('/api/report?month=' + prevMo)).report; } catch(e){}
+/* ================= shared: readouts, help, charts ================= */
+const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch(e){ return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch(e){} };
+const money0 = n => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n || 0)).toLocaleString('en-US');
+const pctOf = (a, b) => b ? Math.round(a / b * 100) + '%' : '·';
+const sumOf = (list, f) => list.reduce((s, x) => s + (typeof f === 'function' ? f(x) : (x[f] || 0)), 0);
+const moLab = (m, many) => moShort(m) + (many ? ' ’' + m.slice(2, 4) : '');
+/* A "?" beside a title: one sentence on what the card is for. Opens on hover
+   and on tap, because a hover-only tip reads as broken on a phone. */
+const hq = t => `<span class="hq" tabindex="0" role="button" aria-label="What is this?" data-help="${esc(t)}">?</span>`;
+document.addEventListener('click', e => {
+  const h = e.target.closest('.hq');
+  document.querySelectorAll('.hq.open').forEach(x => { if (x !== h) x.classList.remove('open'); });
+  if (h) { e.stopPropagation(); h.classList.toggle('open'); }
+}, true);
+const cardH = (title, q = '', right = '', help = '') =>
+  `<div class="ch"><div><h3>${title}${help ? hq(help) : ''}</h3>${q ? `<div class="q">${q}</div>` : ''}</div>${right ? `<div class="chr">${right}</div>` : ''}</div>`;
+/* Change against a comparison. For a cost, going up is the bad direction. */
+function deltaHTML(cur, prev, label = '', cost = false){
+  if (prev == null || !isFinite(prev)) return label ? `<span>${label}</span>` : '';
+  const d = cur - prev;
+  if (Math.abs(d) < 0.5) return `<span class="delta flat">level</span> <span>${label}</span>`;
+  const p = Math.abs(prev) >= 100 ? ` (${Math.round(Math.abs(d) / Math.abs(prev) * 100)}%)` : '';
+  return `<span class="delta ${d > 0 ? 'up' : 'down'}${cost ? ' cost' : ''}">${d > 0 ? '▲' : '▼'} ${money0(Math.abs(d))}${p}</span> <span>${label}</span>`;
+}
+const monthsBetween = (a, b) => (+b.slice(0,4) - +a.slice(0,4)) * 12 + (+b.slice(5,7) - +a.slice(5,7)) + 1;
+const monthList = (a, b) => { const out = []; for (let m = a; m <= b; m = addMonths(m, 1)) out.push(m); return out; };
+/* The first month the books hold anything: where "All time" starts. */
+const firstMonth = () => [...(S.boot?.months||[]).map(x=>x.month), ...Object.keys(S.boot?.flags||{})].sort()[0] || nowMonth().slice(0,4) + '-01';
+const expOf = r => (r.expenses || 0) + (r.fees || 0);
+const qOf = m => Math.floor((+m.slice(5,7) - 1) / 3) + 1;
 
-  /* greeting */
-  const now = new Date(), isCur = S.month === nowMonth();
-  const dayN = now.getDate(), daysIn = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-  const phrase = !isCur ? '' : dayN<=7 ? ', one week in.' : dayN<=14 ? ', two weeks in.' : dayN<=21 ? ', three weeks in.' : ', almost done.';
-  const dateLine = isCur ? `${now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})} · day ${dayN} of ${daysIn}` : moName(S.month);
-
-  /* retainer board · paid means a confirmed money-in row from that client this month */
-  const clients = S.boot.clients || [];
-  const inTx = (S.txns||[]).filter(t => t.type==='in' && !t.expected);
-  const paidOf = n => inTx.filter(t => t.vendor===n).reduce((s,t)=>s+t.amount,0);
-  const paidDate = n => inTx.find(t => t.vendor===n)?.date;
-  const expTotal = clients.filter(c=>c.active).reduce((s,c)=>s+clientMonthly(c),0);
-  const tiles = clients.map(c => {
-    if (!c.active) return `<div class="rtile paused"><div class="rn">${esc(c.name)}</div><div class="rv">—</div><div class="rs">Paused</div></div>`;
-    const got = paidOf(c.name);
-    if (got > 0) return `<div class="rtile paid"><div class="rn">${esc(c.name)}</div><div class="rv">${fmtK(got)}</div><div class="rs">Paid · ${fmtDate(paidDate(c.name))}</div></div>`;
-    return `<div class="rtile"><div class="rn">${esc(c.name)}</div><div class="rv">${fmtK(clientMonthly(c))}</div><div class="rs">Expected this month</div></div>`;
-  }).join('');
-
-  /* spent + its biggest line */
-  const outs = (S.summary.report.transactions || S.txns || []).filter(t => packExp(t) && !t.expected);
-  const byV = {}; outs.forEach(t => byV[t.vendor] = (byV[t.vendor]||0) + t.amount);
-  const topOut = Object.entries(byV).sort((x,y)=>y[1]-x[1])[0];
-
-  /* what still needs him · this month and the close behind it */
-  /* Which month is "the close"? If he is LOOKING at a past month that is
-     still open, that IS the closing workflow - the button must aim at the
-     month on screen, not the one before it. (Found live: viewing August, the
-     card talked about July and the Close button had vanished.) */
-  const viewedPastOpen = st !== 'closed' && S.month < nowMonth();
-  const closeMo = viewedPastOpen ? S.month : prevMo;
-  const closeOpen = viewedPastOpen ? true : !prevClosed;
-  const flagsC = (S.boot.flags||{})[closeMo] || {};
-  const closeClosed = viewedPastOpen ? false : prevClosed;
-  const closeNet = viewedPastOpen ? r.net : (prevRep ? prevRep.net : null);
-  const blocking = (+flagsC.review||0) + (+flagsC.expected||0);
-  const needsRows = [
-    [+a.review||0, 'transactions to categorize', `S.filter='needs';show('txns')`],
-    [+a.noReceipt||0, 'expenses missing a receipt', `S.filter='needs';show('txns')`],
-  ];
-  const things = needsRows.filter(x=>x[0]).length + (blocking?1:0);
-  const arrow = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#647684" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>`;
-  const check = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2.2" stroke-linecap="round"><path d="M5 13l4 4 10-10"></path></svg>`;
-
-  /* net-by-month chart, best month called out */
-  const yr = sum.year || [];
-  const nets = yr.map(x => ({ m:x.month, net:x.revenue - x.expenses - x.fees }));
-  const maxN = Math.max(1, ...nets.map(n=>n.net));
-  const ytd = nets.reduce((s,n)=>s+n.net,0);
-  const hiM = nets.length ? nets.reduce((b,n)=>n.net>b.net?n:b).m : '';
-  const bars = nets.map(n => {
-    const h = Math.max(3, Math.round(Math.max(0, n.net)/maxN*118));
-    const cur = n.m === nowMonth();
-    return `<div class="nb ${n.m===hiM?'hi':''}" data-tip="${moName(n.m)} · net ${fmt$(n.net)}">
-      ${n.m===hiM?`<span class="mv">${fmtK(n.net)}</span>`:''}
-      <div class="bar" style="height:${h}px${cur?';background:#F7FAFB;border:2px dashed #A9BAC6;box-shadow:none':''}"></div>
-      <span class="ml">${moShort(n.m)}</span></div>`;
-  }).join('');
-
-  /* the split card · what moves when last month closes */
-  const splitLabels = { personal:'Personal', tax:'Tax reserve', ads:'Ads', savings:'Savings', other:'Other' };
-  const splitRows = prevRep ? Object.entries(prevRep.split).map(([k,v]) =>
-    `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#3A4B58">${splitLabels[k]||k} · ${prevRep.splitPct[k]}%</span><b style="font-variant-numeric:tabular-nums">${fmt$(v)}</b></div>`).join('') : '';
-
-  /* activity feed · the automation talking */
-  const feed = (S.txns||[]).filter(t=>!t.expected).sort((x,y)=>y.date.localeCompare(x.date)).slice(0,5).map(t => {
-    if (t.type==='in') return `<div><span style="color:var(--good);font-weight:700">✓</span><span>${esc(t.vendor)} ${fmt$(t.amount)} in${t.source==='stripe'?' via Stripe':t.plaid_id?' via the bank':''}</span></div>`;
-    if (t.type==='transfer') return `<div><span style="color:var(--muted);font-weight:700">⇄</span><span>${esc(t.vendor)} ${fmt$(t.amount)} · transfer, not counted</span></div>`;
-    return `<div><span style="color:var(--muted);font-weight:700">−</span><span>${esc(t.vendor)} ${fmt$(t.amount)}${t.receipt_key?' · receipt ✓':''}</span></div>`;
-  }).join('');
-
-  if (stale(my)) return;
-  m.innerHTML = `
-    <div class="ph"><div><div class="serifh">${MONTHS[+S.month.slice(5,7)-1]}${phrase || '.'}</div>
-      <div class="sub" style="margin-bottom:0">${dateLine}</div></div>
-      ${monthNav()}</div>
-
-    <div class="stats">
-      <div class="stat"><div class="fig-l">Collected · ${moShort(S.month)}</div><div class="sv">${fmtK(r.revenue)}</div>
-        <div class="pbar"><i style="width:${expTotal?Math.min(100,Math.round(r.revenue/expTotal*100)):0}%"></i></div>
-        <div class="sd">of ${fmtK(expTotal)} expected</div></div>
-      <div class="stat"><div class="fig-l">Spent</div><div class="sv">${fmtK(r.expenses + r.fees)}</div>
-        <div class="sd" style="margin-top:23px">all expenses${topOut?` · biggest: ${esc(topOut[0].replace(/\s*\(.*$/,''))} ${fmtK(topOut[1])}`:''}</div></div>
-      <div class="stat ${closeNet!=null && closeNet>=0?'goodc':''}" style="cursor:pointer" onclick="${closeClosed?`S.reportMonth='${closeMo}';show('reports')`:`setMonth('${closeMo}','close')`}"><div class="fig-l" style="${closeNet!=null&&closeNet>=0?'color:var(--good)':''}">${moShort(closeMo)} net · ${closeClosed?'closed':'unclosed'}</div>
-        <div class="sv">${closeNet!=null?fmtK(closeNet):'—'}</div>
-        <div class="sd" style="margin-top:23px;font-weight:700">${closeClosed?'Closed ✓ · view the report →':blocking?`${blocking} item${blocking>1?'s':''} before the close →`:'Nothing blocks the close →'}</div></div>
-      <div class="stat ${things?'warnc':''}" style="cursor:pointer" onclick="S.filter='needs';show('txns')"><div class="fig-l" style="${things?'color:var(--warn)':''}">Needs you</div><div class="sv">${things||'0'}</div>
-        <div class="sd" style="margin-top:23px${things?';font-weight:700':''}">${things?'open the list →':'all clear · nothing waiting'}</div></div>
-    </div>
-
-    <div class="homegrid">
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-        <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
-            <span class="ct">Retainers · ${moShort(S.month)}</span>
-            <span class="tiny">paused clients not counted in expected</span></div>
-          <div class="rboard">${tiles}
-            <div class="rtile total"><div class="rn">Month total</div><div class="rv">${fmtK(r.revenue)} <span style="font-size:12px;color:#8195A2;font-weight:500">/ ${fmtK(expTotal)}</span></div></div>
-          </div></div>
-        <div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between">
-            <span class="ct">Net income · ${S.month.slice(0,4)}</span>
-            <span class="tiny">YTD ${fmtK(ytd)} · <b style="cursor:pointer;color:var(--brand-ink)" onclick="show('forecast')">cash forecast →</b></span></div>
-          <div class="nbars">${bars || '<div class="hint">No data yet this year.</div>'}</div></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-        <div class="card"><span class="ct">Needs you · ${things} thing${things===1?'':'s'}</span>
-          <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;font-size:13.5px">
-            ${needsRows.map(([n,label,go]) => `<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="${go}">
-              <b style="width:20px;text-align:right;color:${n?'var(--warn)':'inherit'}">${n}</b>
-              <span style="flex:1;color:#3A4B58">${label}</span>${n?arrow:check}</div>`).join('')}
-            <div style="display:flex;align-items:center;gap:10px;${blocking?'cursor:pointer':'font-weight:600;color:var(--good)'}" ${blocking?`onclick="setMonth('${closeMo}','close')"`:''}>
-              <b style="width:20px;text-align:right;color:${blocking?'var(--warn)':'inherit'}">${blocking}</b>
-              <span style="flex:1;${blocking?'color:#3A4B58':''}">blocking the ${moShort(closeMo)} close</span>${blocking?arrow:check}</div>
-          </div>
-          ${closeOpen?`<button class="btn primary" style="margin-top:14px" onclick="setMonth('${closeMo}','close')">Close ${moShort(closeMo)} →</button>`:''}
-        </div>
-        <div class="card"><span class="ct">When ${moShort(prevMo)} closes, move</span>
-          <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${splitRows || '<div class="hint">No report yet.</div>'}</div></div>
-        <div class="card"><span class="ct">Happening on its own</span>
-          <div class="feed">${feed || '<div class="hint">Nothing yet this month.</div>'}</div></div>
-      </div>
-    </div>`;
-  chartTips();
+/* The series behind every chart: each month exactly as its report says.
+   Cached per range until the books change. */
+const SER = { rev: null, cache: {} };
+async function getSeries(from, to){
+  if (SER.rev !== (S.boot?.revision ?? null)) { SER.cache = {}; SER.rev = S.boot?.revision ?? null; }
+  const k = from + '|' + to;
+  return SER.cache[k] ||= api(`/api/series?from=${from}&to=${to}`).catch(e => { delete SER.cache[k]; throw e; });
 }
 
-/* An instant, app-styled tooltip for the chart — the browser's native title
-   bubble takes a second to appear and looks like Windows, not like Ledger. */
-function chartTips(){
-  let tip = $('#charttip');
-  if (!tip){ tip = document.createElement('div'); tip.id = 'charttip'; document.body.appendChild(tip); }
-  document.querySelectorAll('.nbars .nb[data-tip]').forEach(el => {
-    el.onmouseenter = () => { tip.textContent = el.dataset.tip; tip.classList.add('on'); };
-    el.onmousemove = e => {
-      tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px';
-      tip.style.top = (e.clientY - 34) + 'px';
-    };
-    el.onmouseleave = () => tip.classList.remove('on');
+/* Chart.js, fetched the first time a screen needs it. */
+let chartLib = null;
+function loadChart(){
+  return chartLib ||= new Promise((res, rej) => {
+    if (window.Chart) return res();
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+    s.onload = res; s.onerror = () => { chartLib = null; rej(new Error('Charts could not load')); };
+    document.head.appendChild(s);
   });
+}
+const CH = {};
+function killCharts(){ for (const k of Object.keys(CH)) { try { CH[k].destroy(); } catch(e){} delete CH[k]; } }
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+/* Series colours in the validated order. Colour follows the entity, never its rank. */
+const SERIES = () => ['--c1','--c2','--c3','--c4','--c5','--c6','--c7','--c8'].map(cssv);
+const axisMoney = v => Math.abs(v) >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : Math.abs(v) >= 1e3 ? '$' + Math.round(v/1e3) + 'K' : '$' + v;
+function chartOpts({ stacked = false, pct = false, legend = false } = {}){
+  const grid = cssv('--grid');
+  Chart.defaults.font = { family: cssv('--sans'), size: 11.5 };
+  Chart.defaults.color = cssv('--axis');
+  return {
+    responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      x: { stacked, grid: { display: false }, border: { color: grid }, ticks: { maxRotation: 0, autoSkipPadding: 12 } },
+      y: { stacked, grid: { color: grid }, border: { display: false }, ticks: { callback: pct ? v => v + '%' : axisMoney, maxTicksLimit: 6 } },
+    },
+    plugins: {
+      legend: { display: legend },
+      tooltip: { backgroundColor: cssv('--ink'), titleColor: cssv('--paper'), bodyColor: cssv('--paper'), padding: 10, cornerRadius: 8,
+        boxPadding: 4, usePointStyle: true,
+        callbacks: { label: c => ` ${c.dataset.label}: ${pct ? (c.raw == null ? '·' : c.raw + '%') : money0(c.raw)}` } },
+    },
+  };
+}
+const barDS = (label, data, color, extra = {}) => ({ label, data, backgroundColor: color, borderRadius: 4, borderSkipped: 'start',
+  barPercentage: .72, categoryPercentage: .72, maxBarThickness: 34, ...extra });
+const lineDS = (label, data, color, extra = {}) => ({ label, data, type: 'line', borderColor: color, backgroundColor: color,
+  borderWidth: 2, tension: .3, pointRadius: 0, pointHoverRadius: 5, pointHitRadius: 12, ...extra });
+const legendHTML = items => `<div class="legend">${items.map(([l, c, dash]) =>
+  `<span><i style="background:${c}${dash ? ';height:2px;border-radius:1px' : ''}"></i>${esc(l)}</span>`).join('')}</div>`;
+function draw(key, id, cfg){
+  const el = document.getElementById(id);
+  if (!el || !window.Chart) return;
+  if (CH[key]) { try { CH[key].destroy(); } catch(e){} }
+  CH[key] = new Chart(el, cfg);
+}
+/* Estimated-tax calendar (federal): the date each quarter's payment is due. */
+const EST_DUE = y => [[`${y}-01`,`${y}-03`,`Apr 15, ${y}`],[`${y}-04`,`${y}-05`,`Jun 15, ${y}`],[`${y}-06`,`${y}-08`,`Sep 15, ${y}`],[`${y}-09`,`${y}-12`,`Jan 15, ${+y+1}`]];
+function nextEstimate(){
+  const today = new Date().toISOString().slice(0,10), y = +today.slice(0,4);
+  const dates = [[`${y}-04-15`,`Apr 15`],[`${y}-06-15`,`Jun 15`],[`${y}-09-15`,`Sep 15`],[`${y+1}-01-15`,`Jan 15`]];
+  return (dates.find(([d]) => d >= today) || dates[3])[1];
+}
+/* A client's forecastable monthly revenue: fixed retainer, or · when they
+ * carry a % of ad spend · their recent 3-month average (fallback: base). */
+const clientMonthly = c => ((c.pct||0)>0 || c.billing==='percent') ? (c.recent_avg ?? c.retainer ?? 0) : (c.retainer||0);
+const recurringMonthly = () => (S.boot.vendors||[]).filter(v => v.recurring && v.active)
+  .reduce((s, v) => s + (v.expected_amount || 0) / (v.cadence === 'yearly' ? 12 : 1), 0);
+
+/* ================= overview ================= */
+/* Everything at once: where the money is, what the month is doing, what
+   needs a decision, and what is coming. The one screen to open each morning. */
+async function refreshBalances(btn){
+  btn.disabled = true;
+  try { await api('/api/balances?fresh=1'); flash('Balances refreshed'); show('overview'); }
+  catch(e){ tell('Could not refresh', e.message); btn.disabled = false; }
+}
+async function renderOverview(){
+  const m = $('#main'), my = S.rt;
+  m.innerHTML = '<div class="sub">Loading…</div>';
+  const mo = S.month, cur = nowMonth(), y = mo.slice(0,4), prevMo = addMonths(mo, -1);
+  let sum, bal, ser;
+  try {
+    [sum, bal, ser] = await Promise.all([
+      api('/api/summary?month=' + mo),
+      api('/api/balances').catch(() => ({ connected: false })),
+      getSeries(addMonths(mo, -11), mo).catch(() => null),
+      loadTxns(),
+    ]);
+  } catch(e){ if (!stale(my)) m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  await loadChart().catch(() => {});
+  if (stale(my)) return;
+  S.summary = sum;
+  const r = sum.report, a = sum.attention || {};
+  const months = (ser?.months || []).filter(x => x.month >= firstMonth());
+  const byM = Object.fromEntries(months.map(x => [x.month, x]));
+  const prevRep = byM[prevMo] || null;
+  const ytdRows = months.filter(x => x.month >= y + '-01' && x.month <= mo);
+  const ytd = { revenue: sumOf(ytdRows, 'revenue'), net: sumOf(ytdRows, 'net'), taxes: sumOf(ytdRows, 'taxes'), exp: sumOf(ytdRows, expOf) };
+  const complete = ytdRows.filter(x => x.month < cur);
+  const avgRev = complete.length ? sumOf(complete, 'revenue') / complete.length : null;
+  const last3 = months.filter(x => x.month < cur).slice(-3);
+  const avgSpend = last3.length ? sumOf(last3, expOf) / last3.length : 0;
+  const st = moState(mo);
+  const isCur = mo === cur;
+
+  /* greeting */
+  const now = new Date(), dayN = now.getDate(), daysIn = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const phrase = !isCur ? `${moName(mo)}.` : `${MONTHS[now.getMonth()]}, ${dayN<=7?'one week in':dayN<=14?'two weeks in':dayN<=21?'three weeks in':'almost done'}.`;
+  const dateLine = isCur ? `${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · day ${dayN} of ${daysIn}` : `Looking back at ${moName(mo)} · ${st === 'closed' ? 'closed' : 'still open'}`;
+
+  /* retainers: paid means a confirmed money-in row from that client this month */
+  const clients = S.boot.clients || [];
+  const inTx = (S.txns||[]).filter(t => t.type==='in' && !t.expected);
+  const paidOf = n => sumOf(inTx.filter(t => t.vendor===n), 'amount');
+  const paidDate = n => inTx.find(t => t.vendor===n)?.date;
+  const active = clients.filter(c => c.active);
+  const expTotal = sumOf(active, clientMonthly);
+  const paidCount = active.filter(c => paidOf(c.name) > 0).length;
+  const tiles = clients.map(c => {
+    if (!c.active) return `<div class="rtile paused"><div class="rn">${esc(c.name)}</div><div class="rv">Paused</div><div class="rs">not expected</div></div>`;
+    const got = paidOf(c.name);
+    if (got > 0) return `<div class="rtile paid"><div class="rn">${esc(c.name)}</div><div class="rv">${money0(got)}</div><div class="rs">✓ Paid ${fmtDate(paidDate(c.name))}</div></div>`;
+    return `<div class="rtile"><div class="rn">${esc(c.name)}</div><div class="rv">${money0(clientMonthly(c))}</div><div class="rs"><span class="dot"></span>Expected</div></div>`;
+  }).join('');
+
+  /* where this month's money went */
+  const buckets = Object.entries(r.byBucket || {}).filter(([,v]) => v > 0);
+  if (r.fees) buckets.push(['Stripe fees', r.fees]);
+  buckets.sort((x, z) => z[1] - x[1]);
+  const spent = expOf(r);
+  const topOut = buckets[0];
+
+  /* what still needs him: this month, and the close behind it */
+  const prevClosed = moState(prevMo) === 'closed';
+  const viewedPastOpen = st !== 'closed' && mo < cur;
+  const closeMo = viewedPastOpen ? mo : prevMo;
+  const closeOpen = viewedPastOpen || !prevClosed;
+  const flagsC = (S.boot.flags||{})[closeMo] || {};
+  const blocking = (+flagsC.review||0) + (+flagsC.expected||0);
+  const closedSet = new Set((S.boot.months||[]).filter(x=>x.status==='closed').map(x=>x.month));
+  const otherMonths = Object.entries(S.boot.flags||{}).filter(([k, f]) => k !== mo && ((+f.review||0) + (closedSet.has(k) ? 0 : (+f.noReceipt||0))) > 0).map(([k]) => k).sort();
+  const todo = (n, title, sub, go, icon, label) => `<a class="${n ? '' : 'ok'}" onclick="${go}">
+      <span class="ic">${n ? TAB_ICONS[icon] : TAB_ICONS.check}</span>
+      <span class="t">${title}<small>${sub}</small></span><span class="n">${label || n || 'Done'}</span></a>`;
+  const things = [+a.review, +a.noReceipt, +a.expected, closeOpen ? 1 : 0].filter(Boolean).length;
+
+  /* coming up: yearly renewals in the next two months, monthly bills not seen yet */
+  const mm = +cur.slice(5,7);
+  const renewals = (S.boot.vendors||[]).filter(v => v.recurring && v.active && v.cadence === 'yearly' && v.renew_month)
+    .map(v => ({ v, gap: (v.renew_month - mm + 12) % 12 })).filter(x => x.gap <= 2).sort((p, q) => p.gap - q.gap);
+  const seen = (S.txns||[]).map(x => x.vendor.toLowerCase());
+  const unbilled = !isCur ? [] : (S.boot.vendors||[]).filter(v => v.recurring && v.active && v.cadence !== 'yearly')
+    .filter(v => { const f = v.name.toLowerCase().split(' ')[0]; return !seen.some(n => n.includes(f) || v.name.toLowerCase().includes(n.split(' ')[0])); });
+  const coming = [
+    ...renewals.map(({ v, gap }) => `<div class="ln"><span class="n">${esc(v.name)}<small>yearly renewal · ${gap ? MONTHS[v.renew_month-1] : 'this month'}</small></span><span class="a">${v.expected_amount ? money0(v.expected_amount) : '·'}</span></div>`),
+    ...unbilled.slice(0, 5).map(v => `<div class="ln"><span class="n">${esc(v.name)}<small>monthly · not billed yet this month</small></span><span class="a">${v.expected_amount ? money0(v.expected_amount) : '·'}</span></div>`),
+  ].join('');
+
+  /* the split card: what moves when last month closes */
+  const splitLabels = { personal:'Personal', tax:'Tax reserve', ads:'Ads', savings:'Savings', other:'Other' };
+  const splitSrc = prevRep && prevRep.split ? prevRep : null;
+  const splitRows = splitSrc ? Object.entries(splitSrc.split).map(([k,v]) =>
+    `<div class="ln"><span class="n">${splitLabels[k]||k}<small>${splitSrc.splitPct?.[k] ?? ''}% of net</small></span><span class="a">${fmt$(v)}</span></div>`).join('') : '';
+
+  /* activity: the automation talking */
+  const feed = (S.txns||[]).filter(t => !t.expected).sort((p, q) => q.date.localeCompare(p.date) || q.id - p.id).slice(0, 7).map(t => {
+    const d = `<span class="fd">${fmtDate(t.date)}</span>`;
+    if (t.type==='in') return `<div><span class="fi in">+</span><span>${esc(t.vendor)} paid ${fmt$(t.amount)}${t.source==='stripe'?' via Stripe':''}</span>${d}</div>`;
+    if (t.type==='transfer') return `<div><span class="fi">⇄</span><span>${esc(t.vendor)} ${fmt$(t.amount)} · transfer, not counted</span>${d}</div>`;
+    return `<div><span class="fi">−</span><span>${esc(t.vendor)} ${fmt$(t.amount)}${t.receipt_key?' · receipt ✓':''}</span>${d}</div>`;
+  }).join('');
+
+  /* cash */
+  const accts = (bal.accounts || []).filter(x => !x.error);
+  const cashAfter = (bal.cash || 0) - (bal.cards || 0);
+  const runway = avgSpend > 0 ? cashAfter / avgSpend : null;
+  const asOf = bal.at ? new Date(bal.at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '';
+  const cashCard = bal.connected ? `
+    <div class="card hero-card">
+      ${cardH('Cash', 'What the business has right now', `<button class="btn sm ghost" onclick="refreshBalances(this)" title="Ask the bank again">↻ ${asOf}</button>`, 'From the connected bank and card. "After the card" is checking minus what the Amex owes today. Refreshed every few hours; ↻ asks again.')}
+      ${accts.map(x => `<div class="ln"><span class="n">${esc(x.name)}${x.mask?` ··${esc(x.mask)}`:''}<small>${x.type==='credit'?'owed on the card':'in the bank'}</small></span><span class="a ${x.type==='credit'?'bad-t':''}">${x.type==='credit'?'−':''}${money0(x.current)}</span></div>`).join('')}
+      <div class="ln tot"><span class="n">After the card is paid</span><span class="a">${money0(cashAfter)}</span></div>
+      ${runway != null ? `<div class="verdict ${runway >= 3 ? 'good' : runway >= 1.5 ? 'warn' : 'bad'}">Covers <b>${runway.toFixed(1)} months</b> of spending at the last three months' pace (${money0(avgSpend)} a month).</div>` : ''}
+    </div>` : `
+    <div class="card">${cardH('Cash', 'Connect the bank to see balances here')}
+      <div class="hint">Balances come from the bank feed. Settings → Connections.</div>
+      <button class="btn" style="margin-top:12px" onclick="SET.sec='connections';show('settings')">Open Connections</button></div>`;
+
+  m.innerHTML = `
+    <div class="ph">
+      <div><span class="eyebrow">${dateLine}</span><h2>${phrase}</h2></div>
+      <div class="row" style="margin:0">
+        ${monthNav()}
+        <button class="btn" onclick="dropPick()">${TAB_ICONS.upload} Receipt</button>
+        <button class="btn primary" onclick="addModal()" ${st==='closed'?'disabled title="Month is closed"':''}>${TAB_ICONS.plus} Transaction</button>
+      </div>
+    </div>
+
+    <div class="g g21" style="margin-top:0">
+      <div class="readout">
+        <div class="lbl">Net income · ${isCur ? MONTHS[+mo.slice(5,7)-1] + ' so far' : moName(mo)} ${hq('Money in minus every business expense and Stripe fee this month. Personal purchases, income tax and transfers are left out.')}</div>
+        <div class="v ${r.net < 0 ? 'bad-t' : ''}">${money0(r.net)}</div>
+        <div class="s">${prevRep ? `${moShort(prevMo)} finished at <b>${money0(prevRep.net)}</b>` : ''}${r.margin != null ? ` · ${Math.round(r.margin)}% margin so far` : ''}</div>
+        <div class="kpis" style="margin-top:20px">
+          <div><div class="lbl">Collected</div><div style="font-size:22px;font-weight:800;font-variation-settings:'wdth' 112;margin-top:4px">${money0(r.revenue)}</div>
+            <div class="bar"><i style="width:${expTotal ? Math.min(100, Math.round(r.revenue / expTotal * 100)) : 0}%"></i></div>
+            <div class="tiny" style="margin-top:5px">${paidCount} of ${active.length} clients · ${money0(expTotal)} expected</div></div>
+          <div><div class="lbl">Spent</div><div style="font-size:22px;font-weight:800;font-variation-settings:'wdth' 112;margin-top:4px">${money0(spent)}</div>
+            <div class="tiny" style="margin-top:12px">${topOut ? `biggest: ${esc(topOut[0])} ${money0(topOut[1])}` : 'nothing yet'}</div></div>
+          <div><div class="lbl">Left to collect</div><div style="font-size:22px;font-weight:800;font-variation-settings:'wdth' 112;margin-top:4px">${money0(Math.max(0, expTotal - r.revenue))}</div>
+            <div class="tiny" style="margin-top:12px">${active.length - paidCount} client${active.length - paidCount === 1 ? '' : 's'} still to pay</div></div>
+        </div>
+      </div>
+      ${cashCard}
+    </div>
+
+    <div class="kpis" style="margin-top:14px">
+      <div class="kpi click" onclick="RP.tab='pnl';RP.preset='ytd';show('reports')"><div class="lbl">Revenue · ${y} to date</div><div class="v">${money0(ytd.revenue)}</div>
+        <div class="s">${avgRev != null ? `about <b>${money0(avgRev)}</b> a month` : ''}</div></div>
+      <div class="kpi click ${ytd.net >= 0 ? 'good' : 'bad'}" onclick="RP.tab='pnl';RP.preset='ytd';show('reports')"><div class="lbl">Net income · ${y} to date</div><div class="v">${money0(ytd.net)}</div>
+        <div class="s"><b>${pctOf(ytd.net, ytd.revenue)}</b> of revenue kept</div></div>
+      <div class="kpi click" onclick="RP.tab='taxes';show('reports')"><div class="lbl">Set aside for tax · ${y}</div><div class="v">${money0(ytd.taxes)}</div>
+        <div class="s">${S.boot.money.taxPct}% of net · next estimate due <b>${nextEstimate()}</b></div></div>
+      <div class="kpi click" onclick="SET.sec='vendors';show('settings')"><div class="lbl">Recurring bills</div><div class="v">${money0(recurringMonthly())}</div>
+        <div class="s">a month, across ${(S.boot.vendors||[]).filter(v=>v.recurring&&v.active).length} subscriptions</div></div>
+    </div>
+
+    <div class="g g21">
+      <div class="card">${cardH(`Retainers · ${moName(mo)}`, 'Who has paid this month', `<span>${paidCount}/${active.length} paid</span>`, 'Green: a confirmed payment from that client this month. Paused clients are not counted in expected.')}
+        <div class="rboard">${tiles || '<div class="hint">Add clients in Settings → Clients.</div>'}</div></div>
+      <div class="card">${cardH('Needs you', things ? `${things} thing${things===1?'':'s'} before the books are true` : 'All clear')}
+        <div class="todo">
+          ${todo(+a.review||0, 'Categorize transactions', `${moName(mo)}`, `S.filter='needs';show('txns')`, 'tag')}
+          ${todo(+a.noReceipt||0, 'Attach missing receipts', 'or mark that none exists', `show('receipts')`, 'receipts')}
+          ${todo(+a.expected||0, 'Confirm expected payments', 'client money that has not landed', `S.filter='expected';show('txns')`, 'clock')}
+          ${todo(closeOpen ? (blocking || 1) : 0, closeOpen ? `Close ${moName(closeMo)}` : `${moName(closeMo)} is closed`, closeOpen ? (blocking ? `${blocking} item${blocking>1?'s':''} block it` : 'nothing blocks it') : 'numbers frozen', `setMonth('${closeMo}','close')`, 'close', closeOpen && !blocking ? 'Ready →' : '')}
+          ${otherMonths.length ? `<div class="also">Also waiting in ${otherMonths.map(k => `<button class="btn sm" onclick="S.filter='needs';setMonth('${k}','txns')">${moShort(k)} ${k.slice(0,4)}</button>`).join('')}</div>` : ''}
+        </div></div>
+    </div>
+
+    <div class="g g21">
+      <div class="card">${cardH('Net income by month', 'Is the business making money every month?', `<a class="linky" onclick="DB.tab='performance';show('dashboards')">Dashboards →</a>`, 'Revenue minus expenses, each of the last twelve months. Red is a loss. The current month is lighter because it is not finished.')}
+        <div class="chart sm"><canvas id="cNet"></canvas></div>
+        ${legendHTML([['Profit', cssv('--pos')], ['Loss', cssv('--neg')]])}</div>
+      <div class="stack">
+        <div class="card">${cardH(`When ${moShort(prevMo)} closes, move`, 'Copy these into Novo', '', 'The account split in Settings, applied to last month\'s net income.')}
+          ${splitRows || '<div class="hint">No report for last month yet.</div>'}</div>
+        <div class="card">${cardH('Coming up', 'Renewals and bills not seen yet')}
+          ${coming || '<div class="hint">Nothing due in the next two months.</div>'}</div>
+      </div>
+    </div>
+
+    <div class="g g2">
+      <div class="card">${cardH(`Where ${moShort(mo)}'s money went`, `${money0(spent)} so far`, `<a class="linky" onclick="RP.tab='statement';S.reportMonth='${mo}';show('reports')">Statement →</a>`)}
+        ${buckets.length ? buckets.map(([k, v]) => `<div class="ln"><span class="n">${esc(k)}<div class="bar"><i style="width:${Math.round(v / buckets[0][1] * 100)}%;background:var(--c2)"></i></div></span><span class="a">${money0(v)}<small class="tiny" style="display:block;font-weight:400">${pctOf(v, spent)}</small></span></div>`).join('') : '<div class="hint">No spending yet.</div>'}</div>
+      <div class="card">${cardH('Happening on its own', 'The bank, Stripe and Slack, working')}
+        <div class="feed">${feed || '<div class="hint">Nothing yet this month.</div>'}</div></div>
+    </div>`;
+
+  if (!window.Chart) return;
+  const ms = months.length ? months : [];
+  const pos = cssv('--pos'), neg = cssv('--neg');
+  draw('net', 'cNet', { type: 'bar',
+    data: { labels: ms.map(x => moLab(x.month, ms[0]?.month.slice(0,4) !== ms[ms.length-1]?.month.slice(0,4))),
+      datasets: [barDS('Net income', ms.map(x => x.net), ms.map(x => (x.net >= 0 ? pos : neg) + (x.month === cur ? '70' : '')))] },
+    options: chartOpts() });
 }
 
 /* ================= transactions ================= */
@@ -942,7 +728,7 @@ function mselOpen(ev, id){
 }
 document.addEventListener('click', mselClose);
 addEventListener('resize', mselClose);
-/* Scrolling INSIDE the open panel is how you reach the lower options —
+/* Scrolling INSIDE the open panel is how you reach the lower options,
    only a scroll of the page behind it should close the dropdown. */
 addEventListener('scroll', e => {
   if (MSEL.open && MSEL.open.panel.contains(e.target)) return;
@@ -1080,7 +866,7 @@ async function renderTxns(){
     </tr>`;
   }).join('');
   m.innerHTML = `
-    <div class="ph"><div><h2>Transactions</h2>
+    <div class="ph"><div><span class="eyebrow">Money</span><h2>Transactions</h2>
       <div class="sub" style="margin-bottom:0">Every dollar in or out of ${moName(S.month)}. Click a row to edit, confirm or attach a receipt.</div></div>
       ${monthNav()}</div>
     <div class="row filt">${chips}</div>
@@ -1116,7 +902,7 @@ async function renderTxns(){
               const closed = new Set((S.boot?.months||[]).filter(x=>x.status==='closed').map(x=>x.month));
               return Object.entries(S.boot?.flags||{})
               .filter(([m,f]) => m !== S.month && ((+f.review||0) + (closed.has(m)?0:(+f.noReceipt||0))) > 0); })()
-              .map(([m,f]) => ` <button class="ctl" style="color:var(--brand-ink);font-weight:700" onclick="setMonth('${m}')">${moName(m)} has ${(+f.review||0)+(((S.boot?.months||[]).find(x=>x.month===m)?.status==='closed')?0:(+f.noReceipt||0))} →</button>`).join('')
+              .map(([m,f]) => ` <button class="ctl" style="color:var(--accent-ink);font-weight:700" onclick="setMonth('${m}')">${moName(m)} has ${(+f.review||0)+(((S.boot?.months||[]).find(x=>x.month===m)?.status==='closed')?0:(+f.noReceipt||0))} →</button>`).join('')
             : ''}</td></tr>`}</tbody>
         </table></div></div>
       <div class="rail">${txnRail()}</div>
@@ -1145,7 +931,7 @@ function txnRail(){
     const u = urlOf(t.vendor);
     return `<div class="rrow"><span class="rrv">${esc(t.vendor)}</span>
       <b style="font-variant-numeric:tabular-nums">${fmt$(t.amount)}</b>
-      ${u ? `<a class="ctl" href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--brand-ink);font-weight:700">Billing ↗</a>`
+      ${u ? `<a class="ctl" href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--accent-ink);font-weight:700">Billing ↗</a>`
           : `<button class="ctl" data-ledger-event="click" data-ledger-action="setBillingUrl" data-name="${esc(t.vendor)}" title="Save the link to where this vendor's invoices live">+ Link</button>`}
       <button class="ctl" onclick="attachFor(${t.id})" title="Attach a file">📎</button></div>`;
   }).join('');
@@ -1156,11 +942,11 @@ function txnRail(){
     <div class="card" style="margin-top:14px">
       <div style="display:flex;align-items:baseline;justify-content:space-between">
         <span class="ct">Missing a receipt · ${missing.length}</span>
-        ${missing.length ? `<button class="ctl" onclick="nudgeSlack(this)" style="color:var(--brand-ink);font-weight:700">Send list to Slack</button>` : ''}
+        ${missing.length ? `<button class="ctl" onclick="nudgeSlack(this)" style="color:var(--accent-ink);font-weight:700">Send list to Slack</button>` : ''}
       </div>
       <div style="margin-top:6px">${rows || '<div class="hint" style="padding:6px 0">Every expense this month has its receipt. ✓</div>'}
       ${missing.length > 8 ? `<div class="tiny" style="margin-top:6px">…and ${missing.length-8} more.</div>` : ''}</div>
-      <button class="ctl" style="margin-top:8px;color:var(--brand-ink);font-weight:700" onclick="show('receipts')">All receipts &amp; the vault →</button>
+      <button class="ctl" style="margin-top:8px;color:var(--accent-ink);font-weight:700" onclick="show('receipts')">All receipts &amp; the vault →</button>
     </div>`;
 }
 
@@ -1192,7 +978,7 @@ function closeModal(){ window.__askCancel = null; $('#modal').classList.remove('
 $('#scrim').onclick = closeModal;
 
 /* In-app replacements for confirm() and alert(). The browser's own dialogs are
-   chrome-grey boxes stamped with the domain name at the top of the window —
+   chrome-grey boxes stamped with the domain name at the top of the window,
    they break the app the moment anything needs a yes/no. These resolve a
    promise instead, so callers read the same: `if (!await ask(…)) return;` */
 function ask({ title, body, ok = 'Confirm', cancel = 'Cancel', danger = false }){
@@ -1368,7 +1154,7 @@ function pickFile(cb, multi){
   inp.onchange = () => inp.files[0] && cb(multi ? inp.files : inp.files[0]);
   inp.click();
 }
-/* Transactions for any month, cached — receipt matching follows the date ON
+/* Transactions for any month, cached, receipt matching follows the date ON
    the receipt, which is very often not the month currently on screen. */
 async function txnsForMonth(month){
   if (month === S.txnMonth && S.txns) return S.txns;
@@ -1492,8 +1278,7 @@ async function renderReceipts(){
   const missing = (S.txns||[]).filter(t => t.type==='out' && !t.expected && !t.receipt_key && !t.receipt_skip);
   const have = (S.txns||[]).filter(t => t.receipt_key);
   m.innerHTML = `
-    <div class="row no-print" style="margin-bottom:4px"><button class="ctl" onclick="show('txns')" style="color:var(--brand-ink);font-weight:700">← Back to Transactions</button></div>
-    <div class="ph"><div><h2>Receipts</h2>
+    <div class="ph"><div><span class="eyebrow">Money</span><h2>Receipts</h2>
       <div class="sub" style="margin-bottom:0">Drop or snap a receipt · Ledger reads it and matches it to the right transaction. This replaces the Drive folders and the yellow highlighting.</div></div>
       ${monthNav()}</div>
     <div class="drop" id="drop" onclick="dropPick()">
@@ -1513,7 +1298,7 @@ async function renderReceipts(){
   dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); if (e.dataTransfer.files.length) handleDrop(e.dataTransfer.files); };
 }
 /* Missing receipts, split by whether there is anywhere to go and get one.
-   Vendors that never email an invoice are the expensive ones at month end —
+   Vendors that never email an invoice are the expensive ones at month end,
    so their billing page sits right next to the charge, one click away. */
 function missingTables(missing){
   const urlOf = v => (S.boot.vendors||[]).find(x=>x.name===v)?.billing_url || '';
@@ -1620,7 +1405,7 @@ function attachFor(id){
   });
 }
 /* Accepts one file or a whole stack. Each receipt is matched in the month
-   written ON the receipt (not the month on screen — that is exactly how the
+   written ON the receipt (not the month on screen, that is exactly how the
    July Fireflies receipt ended up on the September row). In a batch, a
    receipt whose amount matches exactly one open expense files itself; the
    ambiguous ones come to you one at a time. */
@@ -1674,7 +1459,7 @@ async function processNextReceipt(){
   matchModal(file, payload, ext, { pool, rMonth });
 }
 /* A file's caches don't know about attaches made seconds ago in this same
-   batch — mark the row in place so no later receipt is offered a taken row. */
+   batch, mark the row in place so no later receipt is offered a taken row. */
 function markAttached(id){
   const pools = [S.txns || [], ...Object.values(window.__moCache || {})];
   for (const arr of pools) { const hit = arr.find(t => t.id === id); if (hit) hit.receipt_key = 'rcpt:fresh'; }
@@ -1695,13 +1480,13 @@ function matchModal(file, payload, ext, opts = {}){
   openModal(`
     <h3>File this receipt${batch ? ` · ${st.total - q.length} of ${st.total}` : ''}</h3>
     <div class="hint">${ext ? `Read: <b>${esc(ext.vendor||'?')}</b> · <b>${ext.amount!=null?fmt$(+ext.amount):'?'}</b>${ext.date?` · ${esc(ext.date)}`:''}` : 'Pick the transaction this belongs to, or create a new one.'}</div>
-    ${dupe ? `<div class="notice" style="margin:10px 0 0;background:var(--warn-bg);border-color:var(--warn);color:var(--warn)">
-      <b>${esc(dupe.vendor)} ${fmt$(dupe.amount)} on ${fmtDate(dupe.date)} already has a receipt</b> — this may be the same one twice. ${batch?'Skip':'Cancel'} if so.</div>` : ''}
+    ${dupe ? `<div class="notice" style="margin:10px 0 0;background:var(--warn-soft);border-color:var(--warn);color:var(--warn)">
+      <b>${esc(dupe.vendor)} ${fmt$(dupe.amount)} on ${fmtDate(dupe.date)} already has a receipt</b>. This may be the same one twice. ${batch?'Skip':'Cancel'} if so.</div>` : ''}
     <label>Tap the expense it belongs to, then press Attach${opts.rMonth && opts.rMonth !== S.month ? ` <span class="why">The receipt is dated ${moName(opts.rMonth)}, so that month's open expenses are shown too.</span>` : ''}</label>
     <div id="fmList">
     ${cand.map(({t,score}) => `<button type="button" class="btn fm-c" data-id="${t.id}" style="display:flex;width:100%;margin-top:6px;text-align:left;gap:10px">
       <span style="flex:1">${esc(t.vendor)} <span class="tiny">${fmtDate(t.date)}${t.month !== S.month ? ` · ${moName(t.month)}` : ''}</span></span>
-      <b>${fmt$(t.amount)}</b>${score>=2?' <span class="pill good">match</span>':''}</button>`).join('') || '<div class="hint">No open expense matches this one — Skip it, or file it as a new expense.</div>'}
+      <b>${fmt$(t.amount)}</b>${score>=2?' <span class="pill good">match</span>':''}</button>`).join('') || '<div class="hint">No open expense matches this one. Skip it, or file it as a new expense.</div>'}
     </div>
     <div class="acts">
       <button class="btn" onclick='newFromReceipt()'>+ New expense</button>
@@ -1781,8 +1566,8 @@ async function renderClose(){
       ${go && !ok ? `<span class="go" onclick="${go}">Fix →</span>`:''}
     </div>`;
   m.innerHTML = `
-    <div class="ph"><div><h2>Close ${moName(S.month)}</h2>
-      <div class="sub" style="margin-bottom:0">The old nine-step Asana checklist, checking itself. Clear the exceptions, close, done · the report card freezes so the numbers never shift under you.</div></div>
+    <div class="ph"><div><span class="eyebrow">Books</span><h2>Close ${moName(S.month)}</h2>
+      <div class="sub" style="margin-bottom:0">Clear what is flagged, then close. Closing freezes the month's numbers so a statement you sent never changes under you.</div></div>
       ${monthNav()}</div>
     ${closed ? `<div class="notice good">This month is closed · its report card is frozen. <b style="cursor:pointer" onclick="S.reportMonth='${S.month}';show('reports')">View the report card →</b></div>
       <div class="row"><button class="btn" onclick="reopenMonth()">Reopen ${moName(S.month)}</button></div>` : `
@@ -1870,13 +1655,304 @@ function rlAll(btn){
   btn.textContent = open ? 'Collapse all' : 'Expand all';
 }
 
+/* ================= reports ================= */
+/* One place for every document: the P&L for any period, the monthly
+   statement, the cash forecast, taxes, and the CPA exports. */
+const RP = { tab: lsGet('ledger_rp_tab', 'pnl'), preset: lsGet('ledger_rp_preset', 'ytd'), from: '', to: '',
+  layout: lsGet('ledger_rp_layout', 'summary'), compare: lsGet('ledger_rp_cmp', 'prev'), taxYear: nowMonth().slice(0,4) };
+function rpSet(k, v){
+  RP[k] = v;
+  const keys = { tab:'ledger_rp_tab', preset:'ledger_rp_preset', layout:'ledger_rp_layout', compare:'ledger_rp_cmp' };
+  if (keys[k]) lsSet(keys[k], v);
+  renderReports();
+}
+const REPORT_TABS = [['pnl','Profit & loss'],['statement','Monthly statement'],['cash','Cash forecast'],['taxes','Taxes'],['exports','CPA pack & exports']];
 async function renderReports(){
-  const m = $('#main');
+  const m = $('#main'), my = S.rt;
+  if (!REPORT_TABS.some(t => t[0] === RP.tab)) RP.tab = 'pnl';
+  const subs = { pnl:'Did the business make money, for any stretch of time you pick.', statement:'One month, line by line, down to each charge. The PDF your CPA gets.',
+    cash:'Where cash is heading over the next six months if nothing changes.', taxes:'What to set aside, what was paid, and what is due.',
+    exports:'Everything a CPA or a lender asks for, one click each.' };
+  m.innerHTML = `
+    <div class="ph"><div><span class="eyebrow">Insights</span><h2>Reports</h2><div class="sub">${subs[RP.tab]}</div></div><div id="rctl" class="pbar-ctl" style="margin:0"></div></div>
+    <div class="tabs" role="tablist">${REPORT_TABS.map(([id, l]) => `<button role="tab" class="${RP.tab===id?'on':''}" onclick="rpSet('tab','${id}')">${l}</button>`).join('')}</div>
+    <div id="rbody"><div class="sub">Loading…</div></div>`;
+  try {
+    await ({ pnl: reportPnl, statement: reportStatement, cash: reportCash, taxes: reportTaxes, exports: reportExports })[RP.tab](my);
+  } catch(e){ if (!stale(my)) $('#rbody').innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; }
+}
+
+/* ---- profit & loss for any period ---- */
+function compareRange([a, b], mode){
+  const n = monthsBetween(a, b);
+  if (mode === 'year') return [addMonths(a, -12), addMonths(b, -12)];
+  if (mode === 'prev') return [addMonths(a, -n), addMonths(b, -n)];
+  return null;
+}
+/* A statement period the PDF endpoint can print: one month, a calendar quarter, or a year. */
+function pdfPeriod([a, b]){
+  if (a === b) return { period: 'month', month: a };
+  if (a.slice(0,4) === b.slice(0,4) && a.slice(5) === '01' && (b.slice(5) === '12' || b === nowMonth())) return { period: 'year', month: b };
+  const q = qOf(a);
+  if (a.slice(0,4) === b.slice(0,4) && +a.slice(5) === (q-1)*3+1 && qOf(b) === q && (+b.slice(5) === q*3 || b === nowMonth())) return { period: 'quarter', month: b };
+  return null;
+}
+async function reportPnl(my){
+  const range = presetRange(RP.preset, RP);
+  const wanted = RP.layout === 'summary' ? compareRange(range, RP.compare) : null;
+  /* A comparison that reaches back before the books began would compare against half a period. */
+  const cmp = wanted && wanted[0] >= firstMonth() ? wanted : null;
+  const [a, b] = await Promise.all([getSeries(range[0], range[1]), cmp ? getSeries(cmp[0], cmp[1]).catch(() => null) : null]);
+  if (stale(my)) return;
+  $('#rctl').innerHTML = `${periodSelect(RP, 'rpSet')}
+    <div class="seg"><button class="${RP.layout==='summary'?'on':''}" onclick="rpSet('layout','summary')">Summary</button><button class="${RP.layout==='month'?'on':''}" onclick="rpSet('layout','month')">By month</button><button class="${RP.layout==='quarter'?'on':''}" onclick="rpSet('layout','quarter')">By quarter</button></div>
+    ${RP.layout === 'summary' ? `<label>Compare <select onchange="rpSet('compare',this.value)"><option value="prev" ${RP.compare==='prev'?'selected':''}>with the period before</option><option value="year" ${RP.compare==='year'?'selected':''}>with the same period last year</option><option value="none" ${RP.compare==='none'?'selected':''}>with nothing</option></select></label>` : ''}`;
+  const A = addUp(a.months);
+  const hasB = b && b.months.some(x => x.revenue || x.expenses);
+  const B = hasB ? addUp(b.months) : null;
+  const cols = RP.layout === 'summary' ? null : groupRows(a.months, RP.layout);
+  const keysOf = f => [...new Set([...Object.keys(A[f]), ...(B ? Object.keys(B[f]) : [])])]
+    .filter(k => Math.abs(A[f][k] || 0) >= 0.005 || Math.abs(B?.[f]?.[k] || 0) >= 0.005)
+    .sort((p, q) => (A[f][q] || 0) - (A[f][p] || 0));
+  const clientsK = keysOf('byClient'), catsK = keysOf('byTax');
+  const money = v => v == null ? '<span class="pc">·</span>' : fmt$(v);
+  const chg = (v, p) => p == null ? '' : `<td class="${v - p < 0 ? 'neg' : ''}">${Math.abs(v - p) < 0.005 ? '<span class="pc">·</span>' : (v - p > 0 ? '+' : '−') + fmt$(Math.abs(v - p)).replace('−','')}</td>`;
+  const row = (name, getA, getB, cls = '', ofRev = true) => {
+    if (cols) {
+      const m0 = v => Math.abs(v || 0) < 0.5 ? '<span class="pc">·</span>' : money0(v);   // whole dollars, so a year of columns stays readable
+      return `<tr class="${cls}"><td>${esc(name)}</td>${cols.map(c => `<td>${m0(getA(c))}</td>`).join('')}<td><b>${m0(getA(A))}</b></td></tr>`;
+    }
+    const va = getA(A), vb = B ? getB(B) : null;
+    return `<tr class="${cls}"><td>${esc(name)}</td><td>${money(va)}</td>${B ? `<td>${money(vb)}</td>${chg(va, vb)}` : ''}<td class="pc">${ofRev && A.revenue ? pctOf(va, A.revenue) : ''}</td></tr>`;
+  };
+  const span = cols ? cols.length + 2 : (B ? 5 : 3);
+  const sec = t => `<tr class="sec"><td colspan="${span}">${t}</td></tr>`;
+  const head = cols
+    ? `<th>Line</th>${cols.map(c => `<th>${c.label}</th>`).join('')}<th>Total</th>`
+    : `<th>Line</th><th>${esc(rangeLabel(range))}</th>${B ? `<th>${esc(rangeLabel(cmp))}</th><th>Change</th>` : ''}<th>% of revenue</th>`;
+  const pdf = pdfPeriod(range);
+  window.__pnl = { range, cols, A, clientsK, catsK };
+  $('#rbody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Revenue</div><div class="v">${money0(A.revenue)}</div><div class="s">${B ? deltaHTML(A.revenue, B.revenue, 'vs ' + esc(rangeLabel(cmp))) : esc(rangeLabel(range))}</div></div>
+      <div class="kpi"><div class="lbl">Expenses</div><div class="v">${money0(A.spend)}</div><div class="s">${B ? deltaHTML(A.spend, B.spend, 'vs ' + esc(rangeLabel(cmp)), true) : `${pctOf(A.spend, A.revenue)} of revenue`}</div></div>
+      <div class="kpi ${A.net>=0?'good':'bad'}"><div class="lbl">Net income</div><div class="v">${money0(A.net)}</div><div class="s">${B ? deltaHTML(A.net, B.net, 'vs ' + esc(rangeLabel(cmp))) : ''}</div></div>
+      <div class="kpi"><div class="lbl">Margin</div><div class="v">${pctOf(A.net, A.revenue)}</div><div class="s">${B ? `was <b>${pctOf(B.net, B.revenue)}</b>` : 'of revenue kept'}</div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      ${cardH(`Profit &amp; loss · ${esc(rangeLabel(range))}`, `Mobius Digital · ${a.months.filter(x => x.status === 'closed').length} of ${a.months.length} months closed and frozen`,
+        `<button class="btn sm" onclick="exportPnl()">⬇ CSV</button>${pdf ? `<button class="btn sm" onclick="downloadStatementPeriod('${pdf.period}','${pdf.month}',this)">⬇ PDF</button>` : ''}<button class="btn sm" onclick="window.print()">Print</button>`)}
+      <div class="tbl-wrap"><table class="st ${cols ? 'cols' : ''}"><thead><tr>${head}</tr></thead><tbody>
+        ${sec('Revenue')}
+        ${clientsK.map(k => row(k, x => x.byClient?.[k] || 0, x => x.byClient?.[k] || 0, 'sub')).join('')}
+        ${row('Total revenue', x => x.revenue, x => x.revenue, 'tot')}
+        ${sec('Expenses')}
+        ${catsK.map(k => row(k, x => x.byTax?.[k] || 0, x => x.byTax?.[k] || 0, 'sub')).join('')}
+        ${A.fees || B?.fees ? row('Stripe processing fees', x => x.fees || 0, x => x.fees || 0, 'sub') : ''}
+        ${row('Total expenses', x => (x.expenses || 0) + (x.fees || 0), x => (x.expenses || 0) + (x.fees || 0), 'tot')}
+        ${row('Net income', x => x.net, x => x.net, 'net')}
+        ${sec('After net income')}
+        ${row(`Set aside for tax (${S.boot.money.taxPct}%)`, x => x.taxes || 0, x => x.taxes || 0, 'sub dim')}
+        ${A.distributions ? row('Distributions', x => x.distributions || 0, x => x.distributions || 0, 'sub dim') : ''}
+        ${sec('Kept out on purpose')}
+        ${row('Personal purchases', x => x.personal || 0, x => x.personal || 0, 'sub dim', false)}
+        ${row('Income tax paid', x => x.incomeTax || 0, x => x.incomeTax || 0, 'sub dim', false)}
+        ${row('Transfers between your accounts', x => x.transfers || 0, x => x.transfers || 0, 'sub dim', false)}
+      </tbody></table></div>
+      <div class="hint" style="margin-top:12px">${wanted && !cmp ? `No comparison: the books start in ${moName(firstMonth())}, so ${esc(rangeLabel(wanted))} is not fully in them. ` : ''}Revenue counts in the month the invoice was paid. Personal purchases, income tax and transfers are real money but not business costs, so they are listed and not subtracted.${pdf ? '' : ' The PDF prints a single month, a quarter or a year; pick one of those to download it.'}</div>
+    </div>`;
+}
+function exportPnl(){
+  const p = window.__pnl; if (!p) return;
+  const periods = p.cols || [{ label: rangeLabel(p.range), ...p.A }];
+  const rows = [['Line', ...periods.map(c => c.label), ...(p.cols ? ['Total'] : [])]];
+  const add = (n, f) => rows.push([n, ...periods.map(c => (f(c) || 0).toFixed(2)), ...(p.cols ? [(f(p.A) || 0).toFixed(2)] : [])]);
+  p.clientsK.forEach(k => add('Revenue: ' + k, x => x.byClient?.[k]));
+  add('Total revenue', x => x.revenue);
+  p.catsK.forEach(k => add('Expense: ' + k, x => x.byTax?.[k]));
+  add('Stripe processing fees', x => x.fees);
+  add('Total expenses', x => (x.expenses || 0) + (x.fees || 0));
+  add('Net income', x => x.net);
+  add('Set aside for tax', x => x.taxes);
+  add('Personal purchases (excluded)', x => x.personal);
+  add('Income tax paid (excluded)', x => x.incomeTax);
+  dl(`mobius-pnl_${p.range[0]}_${p.range[1]}.csv`, rows.map(r => r.map(csvCell).join(',')).join('\n'));
+}
+async function downloadStatementPeriod(period, month, btn){
+  const label = btn.textContent; btn.disabled = true; btn.textContent = 'Building…';
+  try {
+    const res = await fetch(`${S.url.replace(/\/+$/,'')}/api/statement.pdf?period=${period}&month=${month}`, { headers: { Authorization: 'Bearer ' + S.tok } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not build the PDF'); }
+    const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = (res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1] || 'statement.pdf'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+  } catch(e){ tell('Could not download', e.message); }
+  btn.disabled = false; btn.textContent = label;
+}
+
+/* ---- cash forecast ---- */
+const CF = { without: new Set(), basis: lsGet('ledger_cf_basis', 'average'), events: [] };
+function cfSet(k, v){ if (k === 'basis') { CF.basis = v; lsSet('ledger_cf_basis', v); } renderReports(); }
+function whatIf(name){ CF.without.has(name) ? CF.without.delete(name) : CF.without.add(name); renderReports(); }
+function cfAddEvent(){
+  const amt = +$('#evAmt').value, mo = $('#evMo').value;
+  if (!amt || !mo) { tell('Add an amount and a month', 'Both are needed to place it on the chart.'); return; }
+  CF.events.push({ name: $('#evName').value.trim() || 'One-off', amount: amt, month: mo, dir: $('#evDir').value });
+  renderReports();
+}
+function cfDropEvent(i){ CF.events.splice(i, 1); renderReports(); }
+async function reportCash(my){
+  const cur = nowMonth();
+  const [ser, bal] = await Promise.all([getSeries(addMonths(cur, -6), cur), api('/api/balances').catch(() => ({ connected: false })), loadChart().catch(() => {})]);
+  if (stale(my)) return;
+  const full = ser.months.filter(x => x.month < cur && x.month >= firstMonth()).slice(-3);
+  const clients = (S.boot.clients||[]).filter(c => c.active);
+  const kept = clients.filter(c => !CF.without.has(c.name));
+  const book = sumOf(kept, clientMonthly);
+  const lostShare = sumOf(clients, clientMonthly) ? 1 - book / sumOf(clients, clientMonthly) : 0;
+  const avgRev = full.length ? sumOf(full, 'revenue') / full.length : book;
+  const avgOut = full.length ? sumOf(full, expOf) / full.length : 0;
+  const recur = recurringMonthly();
+  const feePct = S.boot.money.feePct || 0;
+  const inflow = CF.basis === 'book' ? book : avgRev * (1 - lostShare);
+  const outflow = CF.basis === 'book' ? recur + book * feePct / 100 : avgOut;
+  const taxPct = S.boot.money.taxPct || 0;
+  const start = bal.connected ? (bal.cash || 0) - (bal.cards || 0) : 0;
+  const months = [1,2,3,4,5,6].map(i => addMonths(cur, i));
+  let cash = start, cashTax = start;
+  const rows = months.map(mo => {
+    const ev = CF.events.filter(e => e.month === mo);
+    const evIn = sumOf(ev.filter(e => e.dir === 'in'), 'amount'), evOut = sumOf(ev.filter(e => e.dir === 'out'), 'amount');
+    const net = inflow - outflow + evIn - evOut;
+    const tax = Math.max(0, inflow - outflow) * taxPct / 100;
+    cash += net; cashTax += net - tax;
+    return { mo, in: inflow + evIn, out: outflow + evOut, net, tax, cash, cashTax, ev };
+  });
+  const low = rows.reduce((p, r) => r.cashTax < p.cashTax ? r : p, rows[0]);
+  const total = sumOf(clients, clientMonthly) || 1;
+  const c = SERIES();
+  const top = clients.slice().sort((p, q) => clientMonthly(q) - clientMonthly(p))[0];
+  $('#rctl').innerHTML = `<div class="seg" title="What the projection is built from">
+    <button class="${CF.basis==='average'?'on':''}" onclick="cfSet('basis','average')">Recent average</button>
+    <button class="${CF.basis==='book'?'on':''}" onclick="cfSet('basis','book')">Retainers only</button></div>`;
+  $('#rbody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Cash today</div><div class="v">${bal.connected ? money0(start) : '·'}</div><div class="s">${bal.connected ? 'checking, minus what the card owes' : 'connect a bank to start from real cash'}</div></div>
+      <div class="kpi"><div class="lbl">In, per month</div><div class="v">${money0(inflow)}</div><div class="s">${CF.basis === 'book' ? `retainer book of ${kept.length} client${kept.length===1?'':'s'}` : `last ${full.length} months' average${CF.without.size ? ', minus the clients switched off' : ''}`}</div></div>
+      <div class="kpi"><div class="lbl">Out, per month</div><div class="v">${money0(outflow)}</div><div class="s">${CF.basis === 'book' ? `recurring bills ${money0(recur)} + Stripe fees` : 'every expense, averaged'}</div></div>
+      <div class="kpi ${low.cashTax < 0 ? 'bad' : low.cashTax < outflow ? 'warn' : 'good'}"><div class="lbl">Lowest point, after tax</div><div class="v">${money0(low.cashTax)}</div><div class="s">end of ${moName(low.mo)}</div></div>
+    </div>
+    <div class="g g21">
+      <div class="card">${cardH('Six months ahead', 'Cash at the end of each month', '', 'Starts from today\'s cash after the card. The dashed line also takes the tax set-aside out each month, which is money that is not yours to spend. One-off purchases you add below land on both lines.')}
+        <div class="chart lg"><canvas id="cCash"></canvas></div>
+        ${legendHTML([['Cash', c[0]], ['Cash after setting tax aside', c[1], 1]])}
+        <div class="tbl-wrap" style="margin-top:14px"><table class="st"><thead><tr><th>Month</th><th>In</th><th>Out</th><th>Net</th><th>Tax to set aside</th><th>Cash at end</th></tr></thead><tbody>
+          ${rows.map(r => `<tr><td>${moName(r.mo)}${r.ev.length ? ` <span class="pc">${r.ev.map(e => esc(e.name)).join(', ')}</span>` : ''}</td><td>${money0(r.in)}</td><td>${money0(r.out)}</td><td class="${r.net<0?'neg':''}">${money0(r.net)}</td><td class="pc">${money0(r.tax)}</td><td class="${r.cash<0?'neg':''}"><b>${money0(r.cash)}</b></td></tr>`).join('')}
+        </tbody></table></div></div>
+      <div class="stack">
+        <div class="card">${cardH('What if a client left?', 'Tap to switch a client off', '', 'Turns the client off in this projection only. Nothing is saved.')}
+          <div class="conc" style="margin-bottom:10px">${clients.map((x, i) => `<div style="flex:${clientMonthly(x)};background:${c[i % 8]};opacity:${CF.without.has(x.name) ? .2 : 1}"></div>`).join('')}</div>
+          <div class="row" style="margin:0;gap:6px">${clients.map(x => `<button class="chip ${CF.without.has(x.name) ? '' : 'on'}" data-ledger-event="click" data-ledger-action="whatIf" data-name="${esc(x.name)}">${esc(x.name)} · ${pctOf(clientMonthly(x), total)}</button>`).join('')}</div>
+          ${top ? `<div class="verdict ${clientMonthly(top) / total > .4 ? 'bad' : clientMonthly(top) / total > .25 ? 'warn' : 'good'}"><b>${esc(top.name)}</b> is ${pctOf(clientMonthly(top), total)} of the retainer book.${CF.without.size ? ` Without ${[...CF.without].map(esc).join(' and ')}, net is <b>${money0(inflow - outflow)}</b> a month.` : ''}</div>` : '<div class="hint">Add clients in Settings.</div>'}
+        </div>
+        <div class="card">${cardH('Can I afford it?', 'Put a purchase or a payment on the chart', '', 'Shows the months with it included. It stays until you leave this screen; nothing is saved to the books.')}
+          <div class="fields" style="grid-template-columns:1fr 1fr;margin-top:0">
+            <div class="fld" style="grid-column:1/-1"><label>What</label><input id="evName" placeholder="New laptop, a hire, a big invoice"></div>
+            <div class="fld"><label>Amount</label><div class="unit-in"><span>$</span><input id="evAmt" type="number" inputmode="decimal" placeholder="2500"></div></div>
+            <div class="fld"><label>Month</label><select id="evMo">${months.map(mo => `<option value="${mo}">${moName(mo)}</option>`).join('')}</select></div>
+            <div class="fld" style="grid-column:1/-1"><label>Direction</label><select id="evDir"><option value="out">Money out</option><option value="in">Money in</option></select></div>
+          </div>
+          <div class="row" style="margin:12px 0 0"><button class="btn primary" onclick="cfAddEvent()">Add to the forecast</button></div>
+          ${CF.events.map((e, i) => `<div class="ln"><span class="n">${esc(e.name)}<small>${moName(e.month)} · ${e.dir === 'in' ? 'money in' : 'money out'}</small></span><span class="a">${e.dir === 'in' ? '+' : '−'}${money0(e.amount)} <button class="del-x" onclick="cfDropEvent(${i})" title="Remove">✕</button></span></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  const labels = ['Today', ...rows.map(r => moShort(r.mo))];
+  draw('cash', 'cCash', { type: 'line', data: { labels, datasets: [
+    lineDS('Cash', [start, ...rows.map(r => r.cash)], c[0], { pointRadius: 3, fill: { target: 'origin' }, backgroundColor: c[0] + '14' }),
+    lineDS('Cash after setting tax aside', [start, ...rows.map(r => r.cashTax)], c[1], { borderDash: [6, 4], pointRadius: 2 }) ] }, options: chartOpts() });
+}
+
+/* ---- taxes ---- */
+function rtSet(y){ RP.taxYear = y; renderReports(); }
+async function reportTaxes(my){
+  const y = RP.taxYear, cur = nowMonth();
+  const to = y === cur.slice(0,4) ? cur : `${y}-12`;
+  const ser = await getSeries(`${y}-01`, to);
+  if (stale(my)) return;
+  const years = [...new Set(monthList(firstMonth(), cur).map(m => m.slice(0,4)))].reverse();
+  $('#rctl').innerHTML = `<label>Tax year <select onchange="rtSet(this.value)">${years.map(v => `<option ${v===y?'selected':''}>${v}</option>`).join('')}</select></label>`;
+  const T = addUp(ser.months);
+  const pct = S.boot.money.taxPct;
+  const quarters = EST_DUE(y).map(([a, b, due]) => {
+    const ms = ser.months.filter(x => x.month >= a && x.month <= b);
+    const q = addUp(ms);
+    return { a, b, due, net: q.net, aside: Math.max(0, q.net) * pct / 100, paid: q.incomeTax, started: a <= cur, done: b < cur };
+  });
+  const aside = Math.max(0, T.net) * pct / 100;
+  const gap = aside - T.incomeTax;
+  const con = ser.contractors || [];
+  $('#rbody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Net income · ${y}</div><div class="v">${money0(T.net)}</div><div class="s">what income tax is figured on</div></div>
+      <div class="kpi"><div class="lbl">Should be set aside</div><div class="v">${money0(aside)}</div><div class="s">${pct}% of net · the rate in Settings</div></div>
+      <div class="kpi"><div class="lbl">Income tax paid</div><div class="v">${money0(T.incomeTax)}</div><div class="s">IRS and state payments in the books</div></div>
+      <div class="kpi ${gap > 0 ? 'warn' : 'good'}"><div class="lbl">${gap > 0 ? 'Still owed on paper' : 'Ahead of the set-aside'}</div><div class="v">${money0(Math.abs(gap))}</div><div class="s">set aside minus paid</div></div>
+    </div>
+    <div class="g g21">
+      <div class="card">${cardH('Quarterly estimates', `Next payment due ${nextEstimate()}`, '', 'Each estimate covers the months shown and is due on the federal date beside it. The amount is the set-aside rate on that stretch\'s net income: a planning number, not a tax calculation. The CPA sets the real one.')}
+        <div class="tbl-wrap"><table class="st"><thead><tr><th>Covers</th><th>Net income</th><th>Set aside</th><th>Paid in those months</th><th>Due</th></tr></thead><tbody>
+          ${quarters.map((q, i) => `<tr class="${!q.done && q.started ? 'hl' : ''}"><td>Q${i+1} · ${moShort(q.a)}${q.a !== q.b ? ' to ' + moShort(q.b) : ''}${!q.started ? ' <span class="pc">not started</span>' : !q.done ? ' <span class="pc">in progress</span>' : ''}</td>
+            <td>${q.started ? money0(q.net) : '·'}</td><td>${q.started ? money0(q.aside) : '·'}</td><td>${q.paid ? money0(q.paid) : '<span class="pc">·</span>'}</td><td><b>${q.due}</b></td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="hint" style="margin-top:10px">Income tax paid is booked as "Income tax", which keeps it out of expenses. Payments made in one quarter often cover the one before, so read the paid column as a running check, not a match.</div></div>
+      <div class="card">${cardH('1099 contractors', `${con.filter(v => v.amount >= 600).length} paid $600 or more`, '', 'US contractors paid $600 or more in the year need a 1099-NEC by January 31. Overseas contractors need a W-8BEN on file instead.')}
+        ${con.length ? con.map(v => `<div class="ln"><span class="n">${esc(v.vendor)}<small>${v.n} payment${v.n===1?'':'s'}</small></span><span class="a">${money0(v.amount)} ${v.amount >= 600 ? '<span class="pill warn">1099</span>' : ''}</span></div>`).join('') : '<div class="hint">No contract labor this year.</div>'}
+        <div class="ln tot"><span class="n">Total contract labor</span><span class="a">${money0(sumOf(con, 'amount'))}</span></div>
+        <div class="hint" style="margin-top:8px">Due January 31, ${+y + 1}.</div></div>
+    </div>`;
+}
+
+/* ---- exports ---- */
+async function reportExports(my){
+  const rm = S.reportMonth || nowMonth();
+  const y = rm.slice(0,4);
+  $('#rctl').innerHTML = `<span class="mo-nav">${monthPicker(rm, 'setExportMonth')}</span>`;
+  $('#rbody').innerHTML = `
+    <div class="g g2" style="margin-top:0">
+      <div class="card">${cardH('Statement PDFs', 'The formatted P&amp;L, ready to send')}
+        <div class="row" style="margin:6px 0 0">
+          <button class="btn" onclick="downloadStatementPeriod('month','${rm}',this)">⬇ ${moName(rm)}</button>
+          <button class="btn" onclick="downloadStatementPeriod('quarter','${rm}',this)">⬇ Q${qOf(rm)} ${y}</button>
+          <button class="btn" onclick="downloadStatementPeriod('year','${rm}',this)">⬇ ${y}</button>
+          <button class="btn" onclick="S.reportMonth='${rm}';reportToSlack(this)" title="Posts the month's statement PDF into the finance channel">Post ${moShort(rm)} to Slack</button>
+        </div></div>
+      <div class="card">${cardH('Receipt archive', 'Every stored receipt as one ZIP')}
+        <div class="hint">Foldered by month and category, named so a person can read it. Do this once a year at tax time and keep it next to that year's return.</div>
+        <div class="row" style="margin:12px 0 0">
+          <button class="btn" onclick="downloadReceipts('${rm}','${rm}',this)">${moName(rm)}</button>
+          <button class="btn" onclick="downloadReceipts('${qStart(rm)}','${rm}',this)">This quarter</button>
+          <button class="btn primary" onclick="downloadReceipts('${y}-01','${y}-12',this)">All of ${y}</button>
+        </div></div>
+    </div>
+    <div class="card" style="margin-top:14px">${cardH('CPA pack', 'Everything your CPA needs, one click', '', 'The PDF to read (P&amp;L with monthly columns, 1099 totals, open questions) and the ledger CSV to pull into their software.')}
+      <div class="row" style="margin:6px 0 0">
+        <button class="btn" onclick="loadPack('${rm}','${rm}')">${moName(rm)}</button>
+        <button class="btn" onclick="loadPack('${qStart(rm)}','${rm}')">This quarter</button>
+        <button class="btn primary" onclick="loadPack('${y}-01','${rm}')">${y} to date</button>
+      </div>
+      <div id="packOut"></div></div>`;
+}
+function setExportMonth(m){ S.reportMonth = m; renderReports(); }
+
+async function reportStatement(my){
+  const m = $('#rbody');
   const rm = S.reportMonth || nowMonth();   // the month you are in, not the one before it
   S.reportMonth = rm;
   m.innerHTML = '<div class="sub">Loading…</div>';
   let data;
   try { data = await api('/api/report?month=' + rm); } catch(e){ m.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  if (stale(my)) return;
   let prev = null;
   try { prev = (await api('/api/report?month=' + addMonths(rm,-1))).report; } catch(e){}
   const r = data.report;
@@ -1963,30 +2039,22 @@ async function renderReports(){
       <span class="ra">${fmt$(feeTotal)}</span></div>
     ${feeList.map(t => chargeLine(t, 'fee')).join('')}` : '';
 
+  if (stale(my)) return;
+  $('#rctl').innerHTML = `<span class="mo-nav">${monthPicker(rm, 'setReportMonth')}</span>
+    <select id="rptPeriod" title="Which period the PDF covers"><option value="month">PDF: this month</option><option value="quarter">PDF: its quarter</option><option value="year">PDF: its year</option></select>
+    <button class="btn" onclick="downloadStatement(this)">⬇ PDF</button>
+    <button class="btn" onclick="reportToSlack(this)" title="Posts the statement PDF into the finance channel">Post to Slack</button>`;
   m.innerHTML = `
     ${rmOpen ? `<div class="notice no-print" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
       <span style="flex:1"><b>${moName(rm)} is still open</b> \u00b7 these figures move until you close it.</span>
       <button class="btn primary" onclick="setMonth('${rm}','close')">Close it \u2192</button></div>` : ''}
 
-    <div class="ph no-print"><div><div class="serifh">Reports</div>
-      <div class="sub" style="margin-bottom:0">Your statement, and the same thing as a PDF for your CPA.</div></div>
-      <div class="row rpt-picker" style="margin-bottom:0">
-        <span class="mo-nav">${monthPicker(rm, 'setReportMonth')}</span>
-        <select id="rptPeriod" title="Statement period">
-          <option value="month">This month</option>
-          <option value="quarter">Its quarter</option>
-          <option value="year">Its year</option>
-        </select>
-        <button class="btn" onclick="downloadStatement(this)" title="The formatted P&amp;L statement, as a PDF">\u2b07 PDF</button>
-        <button class="btn" onclick="reportToSlack(this)" title="Posts the statement PDF into the finance channel">\ud83d\udce3 Slack</button>
-      </div></div>
-
     <div class="card" id="rptCard">
       <div class="stmt">
-        <h1 style="font-family:var(--serif);font-weight:400;font-size:26px">Profit &amp; loss</h1>
+        <h1>Profit &amp; loss</h1>
         <div class="rsub">Mobius Digital \u00b7 ${moName(rm)} \u00b7 ${data.frozen ? 'closed ' + new Date(data.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ', figures frozen' : 'month still open, figures live'}</div>
 
-        <div class="hero">
+        <div class="shero">
           <div class="h"><div class="ct">Money in</div>
             <div class="hv">${fmt$(r.revenue)}</div><div class="hd">${vs(r.revenue, prev?.revenue)}</div></div>
           <div class="h"><div class="ct">Money out</div>
@@ -2039,33 +2107,7 @@ async function renderReports(){
       </div>
     </div>
 
-    <div class="no-print" style="margin-top:30px">
-      <div class="grp"><span class="ct">CPA pack</span><span class="ln"></span></div>
-      <div class="card">
-        <h3>Everything your CPA needs, one click</h3>
-        <div class="hint">Most CPAs want both formats: the <b>PDF</b> to read (P&amp;L with monthly columns, 1099 totals, open questions) and the <b>ledger CSV</b> to pull into their software. Categories come from your vendor rules · Settings → Vendor rules is where to check or fix how anything (gas, meals, supplies…) is classified.</div>
-        <div class="row" style="margin-top:12px">
-          <button class="btn" onclick="loadPack('${rm}','${rm}')">This month</button>
-          <button class="btn" onclick="loadPack('${qStart(rm)}','${rm}')">This quarter</button>
-          <button class="btn" onclick="loadPack('${rm.slice(0,4)}-01','${rm}')">${rm.slice(0,4)} year-to-date</button>
-        </div>
-        <div id="packOut"></div>
-      </div>
-
-      <div class="card" style="margin-top:14px">
-        <h3>Receipt archive</h3>
-        <div class="hint">Every stored receipt as one ZIP, foldered by month and category and named so a human can read it:
-          <code>${rm}/Meals/${rm}-14 Michaels Bar 139.20.jpg</code>.
-          <b>Do this once a year at tax time</b> and drop it in Drive next to that year's return: it is your copy,
-          off Cloudflare, that nobody has to maintain.</div>
-        <div class="row" style="margin-top:12px">
-          <button class="btn" onclick="downloadReceipts('${rm}','${rm}',this)">This month</button>
-          <button class="btn" onclick="downloadReceipts('${qStart(rm)}','${rm}',this)">This quarter</button>
-          <button class="btn primary" onclick="downloadReceipts('${rm.slice(0,4)}-01','${rm.slice(0,4)}-12',this)">All of ${rm.slice(0,4)}</button>
-        </div>
-      </div>
-    </div>
-    <div id="cpaPrint"></div>`;
+`;
 }
 const qStart = m => m.slice(0,4) + '-' + ['01','01','01','04','04','04','07','07','07','10','10','10'][+m.slice(5,7)-1];
 
@@ -2204,165 +2246,434 @@ function dlContractorCsv(){
   dl(`mobius-1099-summary_${p.from}_${p.to}.csv`, rows.join('\n'));
 }
 
-/* ================= forecast ================= */
-/* A client's forecastable monthly revenue: fixed retainer, or · when they
- * carry a % of ad spend · their recent 3-month average (fallback: base). */
-const clientMonthly = c => ((c.pct||0)>0 || c.billing==='percent') ? (c.recent_avg ?? c.retainer ?? 0) : (c.retainer||0);
-async function renderForecast(){
-  const m = $('#main');
-  const clients = (S.boot.clients||[]).filter(c=>c.active);
-  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active && v.cadence!=='yearly');
-  const inflow = clients.reduce((s,c)=>s+clientMonthly(c),0);
-  const outflow = vendors.reduce((s,v)=>s+(v.expected_amount||0),0);
-  const feePct = S.boot.money.feePct;
-  const fee = inflow * feePct / 100;
-  const net = inflow - outflow - fee;
-  const months3 = [1,2,3].map(i => addMonths(nowMonth(), i));
-  const total = inflow || 1;
-  const palette = ['#62BDEA','#14608C','#1C7A46','#EBBF63','#9C3A2E','#647684','#8F6412','#5FD292','#F09182'];
-  const conc = clients.map((c,i)=>`<div style="flex:${clientMonthly(c)};background:${palette[i%palette.length]}" title="${esc(c.name)} ${fmt$(clientMonthly(c))}"></div>`).join('');
-  const leg = clients.map((c,i)=>`<span><i style="background:${palette[i%palette.length]}"></i>${esc(c.name)} ${(100*clientMonthly(c)/total).toFixed(0)}%</span>`).join('');
-  const top = clients.slice().sort((a,b)=>clientMonthly(b)-clientMonthly(a))[0];
+/* ================= dashboards ================= */
+/* Four questions, one tab each. Every chart answers something a service
+   business owner, a CPA or a lender actually asks. */
+const DB = { tab: lsGet('ledger_db_tab', 'performance'), preset: lsGet('ledger_db_preset', 'ytd'), from: '', to: '', group: lsGet('ledger_db_group', 'month') };
+function dbSet(k, v){ DB[k] = v; if (['tab','preset','group'].includes(k)) lsSet('ledger_db_' + k, v); renderDashboards(); }
+/* Ranges shared by Dashboards and the P&L. */
+const PRESETS = [['month','This month'],['lastmonth','Last month'],['quarter','This quarter'],['lastquarter','Last quarter'],
+  ['ytd','This year to date'],['lastyear','Last year'],['12m','Last 12 months'],['6m','Last 6 months'],['all','All time'],['custom','Custom range']];
+function presetRange(p, st){
+  const now = nowMonth(), y = +now.slice(0,4), q = qOf(now);
+  const qr = (yy, qq) => [`${yy}-${String((qq-1)*3+1).padStart(2,'0')}`, `${yy}-${String(qq*3).padStart(2,'0')}`];
+  const clamp = ([a, b]) => [a, b > now ? now : b];
+  if (p === 'month') return [now, now];
+  if (p === 'lastmonth') { const m = addMonths(now, -1); return [m, m]; }
+  if (p === 'quarter') return clamp(qr(y, q));
+  if (p === 'lastquarter') return q === 1 ? qr(y-1, 4) : qr(y, q-1);
+  if (p === 'lastyear') return [`${y-1}-01`, `${y-1}-12`];
+  if (p === '12m') return [addMonths(now, -11), now];
+  if (p === '6m') return [addMonths(now, -5), now];
+  if (p === 'all') return [firstMonth(), now];
+  if (/^\d{4}$/.test(p)) return clamp([`${p}-01`, `${p}-12`]);
+  if (/^\d{4}-Q\d$/.test(p)) return clamp(qr(+p.slice(0,4), +p.slice(6)));
+  if (p === 'custom') { const a = st.from || `${y}-01`, b = st.to || now; return a <= b ? [a, b] : [b, a]; }
+  return [`${y}-01`, now];
+}
+const rangeLabel = ([a, b]) => a === b ? moName(a)
+  : (a.slice(5) === '01' && b.slice(0,4) === a.slice(0,4) && (b.slice(5) === '12' || b === nowMonth())) ? (b.slice(5) === '12' ? a.slice(0,4) : `${a.slice(0,4)} to date`)
+  : `${moShort(a)} ${a.slice(0,4)} to ${moShort(b)} ${b.slice(0,4)}`;
+function periodSelect(st, setter){
+  const years = [...new Set(monthList(firstMonth(), nowMonth()).map(m => m.slice(0,4)))].reverse();
+  const extra = years.map(yy => [yy, yy]);
+  const qs = years.flatMap(yy => [4,3,2,1].map(qq => [`${yy}-Q${qq}`, `Q${qq} ${yy}`])).filter(([k]) => presetRange(k, st)[0] <= nowMonth());
+  const opt = ([v, l]) => `<option value="${v}" ${st.preset===v?'selected':''}>${l}</option>`;
+  return `<label>Period <select onchange="${setter}('preset',this.value)">${PRESETS.map(opt).join('')}
+      <optgroup label="Years">${extra.map(opt).join('')}</optgroup><optgroup label="Quarters">${qs.map(opt).join('')}</optgroup></select></label>
+    ${st.preset === 'custom' ? `<label>From <input type="month" value="${presetRange('custom', st)[0]}" onchange="${setter}('from',this.value)"></label>
+      <label>to <input type="month" value="${presetRange('custom', st)[1]}" max="${nowMonth()}" onchange="${setter}('to',this.value)"></label>` : ''}`;
+}
+/* Roll months into quarters when asked; a partial quarter says so. */
+function groupRows(months, group){
+  if (group !== 'quarter') return months.map(x => ({ ...x, key: x.month, label: moLab(x.month, months[0].month.slice(0,4) !== months[months.length-1].month.slice(0,4)), n: 1 }));
+  const g = {};
+  for (const x of months) {
+    const k = `${x.month.slice(0,4)}-Q${qOf(x.month)}`;
+    const t = g[k] ||= { key: k, label: `Q${qOf(x.month)} ’${x.month.slice(2,4)}`, n: 0, revenue: 0, expenses: 0, fees: 0, net: 0, taxes: 0, byClient: {}, byTax: {}, byBucket: {} };
+    t.n++; for (const f of ['revenue','expenses','fees','net','taxes']) t[f] += x[f] || 0;
+    for (const f of ['byClient','byTax','byBucket']) for (const [c, v] of Object.entries(x[f] || {})) t[f][c] = (t[f][c] || 0) + v;
+  }
+  return Object.values(g);
+}
+function addUp(months){
+  const t = { revenue: 0, expenses: 0, fees: 0, net: 0, taxes: 0, distributions: 0, profit: 0, personal: 0, incomeTax: 0, transfers: 0, byClient: {}, byTax: {}, byBucket: {} };
+  for (const x of months) {
+    for (const f of ['revenue','expenses','fees','net','taxes','distributions','profit','personal','incomeTax','transfers']) t[f] += x[f] || 0;
+    for (const f of ['byClient','byTax','byBucket']) for (const [c, v] of Object.entries(x[f] || {})) t[f][c] = (t[f][c] || 0) + v;
+  }
+  t.spend = t.expenses + t.fees;
+  return t;
+}
+/* Top N names by total, the rest folded into "Everything else". */
+function topN(obj, n){
+  const e = Object.entries(obj).filter(([, v]) => Math.abs(v) >= 0.5).sort((p, q) => q[1] - p[1]);
+  const keep = e.slice(0, n).map(([k]) => k);
+  return { keep, rest: e.length > n };
+}
+
+async function renderDashboards(){
+  const m = $('#main'), my = S.rt;
+  const tabs = [['performance','Performance'],['clients','Clients'],['spending','Spending'],['health','Business health']];
+  if (!tabs.some(t => t[0] === DB.tab)) DB.tab = 'performance';
+  const health = DB.tab === 'health';
+  const range = health ? presetRange('12m', DB) : presetRange(DB.preset, DB);
   m.innerHTML = `
-    <div class="ph"><div><h2>Cash, 90 days out</h2>
-      <div class="sub" style="margin-bottom:0">Projected from the retainer book and the recurring commitments · both editable in Settings. One-time purchases are deliberately excluded.</div></div></div>
-    <div class="rollup">
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Retainers / month</div><div class="fig-v lg-num">${fmtK(inflow)}</div></div>
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Recurring out / month</div><div class="fig-v lg-num">${fmtK(outflow)}</div></div>
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Est. merchant fee</div><div class="fig-v lg-num">${fmtK(fee)}</div></div>
-      <div class="ru"><div class="fig-l" style="color:var(--on-ink-2)">Projected net / month</div><div class="fig-v lg-num" style="color:${net>=0?'var(--good-on)':'var(--bad-on)'}">${fmtK(net)}</div></div>
+    <div class="ph"><div><span class="eyebrow">Insights</span><h2>Dashboards</h2>
+      <div class="sub">How the business is trending. Every figure matches the monthly statements.</div></div>
+      <div class="pbar-ctl" style="margin:0">${health ? '<span class="tiny">Last 12 months</span>' : periodSelect(DB, 'dbSet')}
+        ${DB.tab === 'performance' ? `<div class="seg"><button class="${DB.group==='month'?'on':''}" onclick="dbSet('group','month')">Months</button><button class="${DB.group==='quarter'?'on':''}" onclick="dbSet('group','quarter')">Quarters</button></div>` : ''}</div>
     </div>
-    <div class="grid2">
-      <div class="card">
-        <h3>Next three months, if nothing changes</h3>
-        <div class="hint">Baseline projection · actuals replace it as each month fills in.</div>
-        <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">In</th><th class="num">Out</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
-          ${months3.map((mo,i)=>`<tr><td><b>${moName(mo)}</b></td><td class="num">${fmt$(inflow)}</td><td class="num">${fmt$(outflow+fee)}</td><td class="num">${fmt$(net)}</td><td class="num"><b>${fmt$(net*(i+1))}</b></td></tr>`).join('')}
-        </tbody></table></div>
-      </div>
-      <div class="card">
-        <h3>Client concentration</h3>
-        <div class="hint">${top ? `${esc(top.name)} is ${(100*clientMonthly(top)/total).toFixed(0)}% of expected monthly revenue · the number to watch. % clients counted at their recent average.` : 'Add clients in Settings.'}</div>
-        <div class="conc" style="margin-top:12px">${conc}</div>
-        <div class="leg">${leg}</div>
-        <h3 style="margin-top:20px">What-if</h3>
-        <div class="hint">Tap a client to see the book without them:</div>
-        <div class="row" style="margin-top:8px">${clients.map(c=>`<button class="chip" data-ledger-event="click" data-ledger-action="whatIf" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join('')}</div>
-        <div class="msg" id="wiOut"></div>
+    <div class="tabs" role="tablist">${tabs.map(([id, l]) => `<button role="tab" class="${DB.tab===id?'on':''}" onclick="dbSet('tab','${id}')">${l}</button>`).join('')}</div>
+    <div id="dbody"><div class="sub">Loading…</div></div>`;
+  let ser, bal = null;
+  try {
+    [ser, bal] = await Promise.all([getSeries(range[0], range[1]),
+      health ? api('/api/balances').catch(() => null) : null, loadChart()]);
+  } catch(e){ if (!stale(my)) $('#dbody').innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  if (stale(my)) return;
+  const months = ser.months.filter(x => x.month >= firstMonth());   // no empty months from before the books began
+  if (!months.length) { $('#dbody').innerHTML = '<div class="notice">No months in that range.</div>'; return; }
+  ({ performance: dbPerformance, clients: dbClients, spending: dbSpending, health: dbHealth })[DB.tab](months, range, ser, bal);
+}
+
+function dbPerformance(months, range){
+  const T = addUp(months);
+  const rows = groupRows(months, DB.group);
+  const cur = nowMonth();
+  const full = months.filter(x => x.month < cur);
+  const best = full.length ? full.reduce((b, x) => x.net > b.net ? x : b) : null;
+  const worst = full.length ? full.reduce((b, x) => x.net < b.net ? x : b) : null;
+  const avgNet = full.length ? sumOf(full, 'net') / full.length : null;
+  const c = SERIES();
+  let run = 0, runNet = 0;
+  const cum = months.map(x => (run += x.revenue, runNet += x.net, { m: x.month, rev: run, net: runNet }));
+  $('#dbody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Revenue</div><div class="v">${money0(T.revenue)}</div><div class="s">${esc(rangeLabel(range))}</div></div>
+      <div class="kpi"><div class="lbl">Expenses</div><div class="v">${money0(T.spend)}</div><div class="s">incl. ${money0(T.fees)} Stripe fees</div></div>
+      <div class="kpi ${T.net>=0?'good':'bad'}"><div class="lbl">Net income</div><div class="v">${money0(T.net)}</div><div class="s"><b>${pctOf(T.net, T.revenue)}</b> margin</div></div>
+      <div class="kpi"><div class="lbl">Average month</div><div class="v">${avgNet != null ? money0(avgNet) : '·'}</div>
+        <div class="s">${best ? `best <b>${moShort(best.month)}</b> ${money0(best.net)} · weakest <b>${moShort(worst.month)}</b> ${money0(worst.net)}` : 'no finished months yet'}</div></div>
+    </div>
+    <div class="card" style="margin-top:14px">${cardH('Money in vs money out', 'Is revenue staying ahead of costs?', '', 'Bars: revenue and expenses (Stripe fees included) for each period. Line: net income, the gap between them.')}
+      <div class="chart lg"><canvas id="cPerf"></canvas></div>
+      ${legendHTML([['Revenue', c[0]], ['Expenses', c[1]], ['Net income', c[2], 1]])}</div>
+    <div class="g g2">
+      <div class="card">${cardH('Profit margin', 'How much of each dollar the business keeps', '', 'Net income divided by revenue for each period. A falling line with flat revenue means costs are creeping up.')}
+        <div class="chart sm"><canvas id="cMargin"></canvas></div></div>
+      <div class="card">${cardH('Running total', 'Where the period is heading', '', 'Revenue and net income added up month by month across the period.')}
+        <div class="chart sm"><canvas id="cCum"></canvas></div>
+        ${legendHTML([['Revenue so far', c[0]], ['Net income so far', c[2]]])}</div>
+    </div>
+    <div class="card" style="margin-top:14px">${cardH('The numbers behind the charts', `${DB.group === 'quarter' ? 'By quarter' : 'By month'}`, `<a class="linky" onclick="RP.tab='pnl';RP.preset='${DB.preset}';RP.from='${range[0]}';RP.to='${range[1]}';show('reports')">Full P&amp;L →</a>`)}
+      <div class="tbl-wrap"><table class="st"><thead><tr><th>Period</th><th>Revenue</th><th>Expenses</th><th>Net income</th><th>Margin</th><th>Change in net</th></tr></thead><tbody>
+        ${rows.map((x, i) => { const p = rows[i-1]; const sp = x.expenses + x.fees; return `<tr><td>${x.label}${x.key === cur || (DB.group==='quarter' && x.n < 3) ? ' <span class="pc">in progress</span>' : ''}</td><td>${money0(x.revenue)}</td><td>${money0(sp)}</td>
+          <td class="${x.net<0?'neg':''}"><b>${money0(x.net)}</b></td><td>${pctOf(x.net, x.revenue)}</td><td>${p ? deltaHTML(x.net, p.net) : '<span class="pc">·</span>'}</td></tr>`; }).join('')}
+        <tr class="tot"><td>Total</td><td>${money0(T.revenue)}</td><td>${money0(T.spend)}</td><td>${money0(T.net)}</td><td>${pctOf(T.net, T.revenue)}</td><td></td></tr>
+      </tbody></table></div></div>`;
+  const labels = rows.map(x => x.label);
+  draw('perf', 'cPerf', { type: 'bar', data: { labels, datasets: [
+    barDS('Revenue', rows.map(x => x.revenue), c[0]), barDS('Expenses', rows.map(x => x.expenses + x.fees), c[1]),
+    lineDS('Net income', rows.map(x => x.net), c[2], { pointRadius: 3, pointBackgroundColor: c[2] }) ] }, options: chartOpts() });
+  draw('margin', 'cMargin', { type: 'line', data: { labels, datasets: [
+    lineDS('Margin', rows.map(x => x.revenue > 0 ? Math.round(x.net / x.revenue * 100) : null), c[0], { pointRadius: 3, fill: false }) ] }, options: chartOpts({ pct: true }) });
+  const cl = cum.map(x => moLab(x.m, cum[0].m.slice(0,4) !== cum[cum.length-1].m.slice(0,4)));
+  draw('cum', 'cCum', { type: 'line', data: { labels: cl, datasets: [
+    lineDS('Revenue so far', cum.map(x => x.rev), c[0], { fill: { target: 'origin' }, backgroundColor: c[0] + '18' }),
+    lineDS('Net income so far', cum.map(x => x.net), c[2], { fill: { target: 'origin' }, backgroundColor: c[2] + '18' }) ] }, options: chartOpts() });
+}
+
+function dbClients(months, range){
+  const T = addUp(months);
+  const { keep, rest } = topN(T.byClient, 6);
+  const c = SERIES();
+  const colorOf = Object.fromEntries(keep.map((k, i) => [k, c[i]]));
+  const other = cssv('--faint');
+  const total = T.revenue || 1;
+  const ranked = Object.entries(T.byClient).filter(([, v]) => Math.abs(v) >= 0.5).sort((p, q) => q[1] - p[1]);
+  const top = ranked[0];
+  const topShare = top ? top[1] / total * 100 : 0;
+  const top3 = sumOf(ranked.slice(0, 3), x => x[1]) / total * 100;
+  const n = months.length;
+  const paidMonths = name => months.filter(x => (x.byClient?.[name] || 0) > 0);
+  const book = S.boot.clients || [];
+  const activeN = book.filter(x => x.active).length;
+  const verdict = !top ? '' : topShare > 40
+    ? `<div class="verdict bad"><b>${esc(top[0])} is ${Math.round(topShare)}% of revenue.</b> Losing them would cut revenue by that much overnight. Lenders read anything over about a quarter as concentration risk.</div>`
+    : topShare > 25 ? `<div class="verdict warn"><b>${esc(top[0])} is ${Math.round(topShare)}% of revenue.</b> Worth watching: past about a quarter, one client leaving is a real hit.</div>`
+    : `<div class="verdict good"><b>No client is more than ${Math.ceil(topShare)}% of revenue.</b> Revenue is spread out, which is what a lender wants to see.</div>`;
+  $('#dbody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Revenue</div><div class="v">${money0(T.revenue)}</div><div class="s">from ${ranked.length} client${ranked.length===1?'':'s'} · ${esc(rangeLabel(range))}</div></div>
+      <div class="kpi ${topShare>40?'bad':topShare>25?'warn':'good'}"><div class="lbl">Biggest client</div><div class="v">${Math.round(topShare)}%</div><div class="s">${top ? `<b>${esc(top[0])}</b> · top three are ${Math.round(top3)}%` : '·'}</div></div>
+      <div class="kpi"><div class="lbl">Per client, per month</div><div class="v">${ranked.length ? money0(T.revenue / n / ranked.length) : '·'}</div><div class="s">average across paying clients</div></div>
+      <div class="kpi"><div class="lbl">Retainer book</div><div class="v">${money0(sumOf(book.filter(x=>x.active), clientMonthly))}</div><div class="s">a month from ${activeN} active client${activeN===1?'':'s'}</div></div>
+    </div>
+    <div class="g g21">
+      <div class="card">${cardH('Who pays the bills', 'Revenue by client, each month', '', 'Each bar is one month of revenue split by client. The six biggest clients in the period keep their colour; the rest are grey.')}
+        <div class="chart lg"><canvas id="cCli"></canvas></div>
+        ${legendHTML([...keep.map(k => [k, colorOf[k]]), ...(rest ? [['Everyone else', other]] : [])])}</div>
+      <div class="card">${cardH('How concentrated', 'Share of revenue in the period', '', 'The bigger one slice, the more the business depends on one relationship.')}
+        <div class="chart sm"><canvas id="cConc"></canvas></div>
+        <div class="legend col">${ranked.slice(0, 6).map(([k, v]) => `<div><i style="background:${colorOf[k]}"></i><span>${esc(k)}</span><span class="p">${pctOf(v, total)}</span><span class="a">${money0(v)}</span></div>`).join('')}
+          ${rest ? `<div><i style="background:${other}"></i><span>Everyone else</span><span class="p">${pctOf(sumOf(ranked.slice(6), x => x[1]), total)}</span><span class="a">${money0(sumOf(ranked.slice(6), x => x[1]))}</span></div>` : ''}</div>
+        ${verdict}</div>
+    </div>
+    <div class="card" style="margin-top:14px">${cardH('Every client', 'Totals, consistency and what the book expects')}
+      <div class="tbl-wrap"><table class="st"><thead><tr><th>Client</th><th>Revenue</th><th>Share</th><th>Months paid</th><th>Average paid month</th><th>Last paid</th><th>Retainer on file</th></tr></thead><tbody>
+        ${ranked.map(([k, v]) => { const pm = paidMonths(k); const bk = book.find(x => x.name === k); return `<tr>
+          <td><b>${esc(k)}</b>${bk && !bk.active ? ' <span class="pill">paused</span>' : ''}</td><td>${money0(v)}</td><td>${pctOf(v, total)}</td>
+          <td>${pm.length} of ${n}</td><td>${pm.length ? money0(v / pm.length) : '·'}</td><td>${pm.length ? moName(pm[pm.length-1].month) : '·'}</td>
+          <td class="pc">${bk ? money0(clientMonthly(bk)) + (bk.pct ? ` + ${bk.pct}%` : '') : 'not in the book'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="hint">No revenue in this period.</td></tr>'}
+      </tbody></table></div></div>`;
+  const labels = months.map(x => moLab(x.month, range[0].slice(0,4) !== range[1].slice(0,4)));
+  const ds = keep.map(k => barDS(k, months.map(x => x.byClient?.[k] || 0), colorOf[k], { borderSkipped: false, borderRadius: 0, borderColor: cssv('--card'), borderWidth: { top: 2 } }));
+  if (rest) ds.push(barDS('Everyone else', months.map(x => sumOf(Object.entries(x.byClient || {}).filter(([k]) => !keep.includes(k)), e => e[1])), other, { borderSkipped: false, borderRadius: 0, borderColor: cssv('--card'), borderWidth: { top: 2 } }));
+  draw('cli', 'cCli', { type: 'bar', data: { labels, datasets: ds }, options: chartOpts({ stacked: true }) });
+  const donut = [...ranked.slice(0, 6), ...(rest ? [['Everyone else', sumOf(ranked.slice(6), x => x[1])]] : [])];
+  draw('conc', 'cConc', { type: 'doughnut', data: { labels: donut.map(x => x[0]), datasets: [{ data: donut.map(x => Math.max(0, x[1])),
+      backgroundColor: donut.map(x => colorOf[x[0]] || other), borderColor: cssv('--card'), borderWidth: 2, hoverOffset: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '66%', plugins: { legend: { display: false },
+      tooltip: { backgroundColor: cssv('--ink'), callbacks: { label: x => ` ${x.label}: ${money0(x.raw)} (${pctOf(x.raw, total)})` } } } } });
+}
+
+function dbSpending(months, range, ser){
+  const T = addUp(months);
+  const cats = { ...T.byTax };
+  if (T.fees) cats['Stripe processing fees'] = (cats['Stripe processing fees'] || 0) + T.fees;
+  const { keep, rest } = topN(cats, 6);
+  const c = SERIES(), other = cssv('--faint');
+  const colorOf = Object.fromEntries(keep.map((k, i) => [k, c[i]]));
+  const ranked = Object.entries(cats).filter(([, v]) => v >= 0.5).sort((p, q) => q[1] - p[1]);
+  const n = months.length;
+  const top = ranked[0];
+  const labor = cats['Contract labor (1099)'] || 0;
+  const recur = recurringMonthly();
+  const catOfMonth = (x, k) => k === 'Stripe processing fees' ? (x.fees || 0) + (x.byTax?.[k] || 0) : (x.byTax?.[k] || 0);
+  const vend = ser.topVendors || [];
+  $('#dbody').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Total spend</div><div class="v">${money0(T.spend)}</div><div class="s">${pctOf(T.spend, T.revenue)} of revenue · ${esc(rangeLabel(range))}</div></div>
+      <div class="kpi"><div class="lbl">Per month</div><div class="v">${money0(T.spend / n)}</div><div class="s">average over ${n} month${n===1?'':'s'}</div></div>
+      <div class="kpi"><div class="lbl">Biggest category</div><div class="v">${top ? pctOf(top[1], T.spend) : '·'}</div><div class="s">${top ? `<b>${esc(top[0])}</b> · ${money0(top[1])}` : ''}</div></div>
+      <div class="kpi"><div class="lbl">Contract labor</div><div class="v">${pctOf(labor, T.revenue)}</div><div class="s">of revenue goes to the team · ${money0(labor)}</div></div>
+    </div>
+    <div class="g g12">
+      <div class="card">${cardH('Where the money goes', 'Share of spending by category', '', 'Every business expense in the period by tax category, plus Stripe fees. Personal purchases and income tax are not business costs and are left out.')}
+        <div class="chart sm"><canvas id="cSpendPie"></canvas></div>
+        <div class="legend col">${ranked.slice(0, 6).map(([k, v]) => `<div><i style="background:${colorOf[k]}"></i><span>${esc(k)}</span><span class="p">${pctOf(v, T.spend)}</span><span class="a">${money0(v)}</span></div>`).join('')}
+          ${rest ? `<div><i style="background:${other}"></i><span>Everything else</span><span class="p">${pctOf(sumOf(ranked.slice(6), x => x[1]), T.spend)}</span><span class="a">${money0(sumOf(ranked.slice(6), x => x[1]))}</span></div>` : ''}</div></div>
+      <div class="card">${cardH('Spending by month', 'Which costs are growing?', '', 'Each bar is a month of spending split by the same categories as the ring.')}
+        <div class="chart lg"><canvas id="cSpendM"></canvas></div>
+        ${legendHTML([...keep.map(k => [k, colorOf[k]]), ...(rest ? [['Everything else', other]] : [])])}</div>
+    </div>
+    <div class="g g2">
+      <div class="card">${cardH('Biggest vendors', 'Who the money is paid to')}
+        ${vend.length ? vend.slice(0, 10).map(v => `<div class="ln"><span class="n">${esc(v.vendor)}<small>${esc(v.tax_cat || v.bucket || '')} · ${v.n} charge${v.n===1?'':'s'}</small>
+          <div class="bar"><i style="width:${Math.round(v.amount / vend[0].amount * 100)}%;background:var(--c2)"></i></div></span><span class="a">${money0(v.amount)}</span></div>`).join('') : '<div class="hint">No spending in this period.</div>'}</div>
+      <div class="card">${cardH('Subscriptions', `${money0(recur)} a month on autopilot`, `<a class="linky" onclick="SET.sec='vendors';show('settings')">Manage →</a>`, 'Every recurring charge in Settings, yearly ones spread across twelve months. The first place to look when costs creep.')}
+        ${(S.boot.vendors||[]).filter(v => v.recurring && v.active).sort((p, q) => (q.expected_amount||0)/(q.cadence==='yearly'?12:1) - (p.expected_amount||0)/(p.cadence==='yearly'?12:1)).slice(0, 10)
+          .map(v => `<div class="ln"><span class="n">${esc(v.name)}<small>${v.cadence==='yearly' ? `yearly · renews ${MONTHS[(v.renew_month||1)-1]}` : 'monthly'}</small></span><span class="a">${v.expected_amount ? money0(v.expected_amount) : '·'}</span></div>`).join('') || '<div class="hint">No recurring charges set up.</div>'}</div>
+    </div>`;
+  const labels = months.map(x => moLab(x.month, range[0].slice(0,4) !== range[1].slice(0,4)));
+  const seg = { borderSkipped: false, borderRadius: 0, borderColor: cssv('--card'), borderWidth: { top: 2 } };
+  const ds = keep.map(k => barDS(k, months.map(x => catOfMonth(x, k)), colorOf[k], seg));
+  if (rest) ds.push(barDS('Everything else', months.map(x => expOf(x) - sumOf(keep, k => catOfMonth(x, k))), other, seg));
+  draw('spm', 'cSpendM', { type: 'bar', data: { labels, datasets: ds }, options: chartOpts({ stacked: true }) });
+  const donut = [...ranked.slice(0, 6), ...(rest ? [['Everything else', sumOf(ranked.slice(6), x => x[1])]] : [])];
+  draw('spp', 'cSpendPie', { type: 'doughnut', data: { labels: donut.map(x => x[0]), datasets: [{ data: donut.map(x => x[1]),
+      backgroundColor: donut.map(x => colorOf[x[0]] || other), borderColor: cssv('--card'), borderWidth: 2, hoverOffset: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '66%', plugins: { legend: { display: false },
+      tooltip: { backgroundColor: cssv('--ink'), callbacks: { label: x => ` ${x.label}: ${money0(x.raw)} (${pctOf(x.raw, T.spend)})` } } } } });
+}
+
+/* The lender and CPA view: always the trailing twelve months, scored. */
+function dbHealth(months, range, ser, bal){
+  const cur = nowMonth();
+  const full = months.filter(x => x.month < cur);
+  const T = addUp(months);
+  const F = addUp(full);
+  const n = full.length || 1;
+  const revs = full.map(x => x.revenue);
+  const mean = revs.length ? sumOf(revs, v => v) / revs.length : 0;
+  const cv = mean ? Math.sqrt(sumOf(revs, v => (v - mean) ** 2) / revs.length) / mean : 0;
+  const profitable = full.filter(x => x.net > 0).length;
+  const last3 = full.slice(-3), prev3 = full.slice(-6, -3);
+  const growth = prev3.length === 3 && sumOf(prev3, 'revenue') ? (sumOf(last3, 'revenue') / sumOf(prev3, 'revenue') - 1) * 100 : null;
+  const ranked = Object.entries(F.byClient).sort((p, q) => q[1] - p[1]);
+  const topShare = ranked[0] && F.revenue ? ranked[0][1] / F.revenue * 100 : 0;
+  const labor = (F.byTax['Contract labor (1099)'] || 0) / (F.revenue || 1) * 100;
+  const margin = F.revenue ? F.net / F.revenue * 100 : 0;
+  const avgSpend = full.slice(-3).length ? sumOf(full.slice(-3), expOf) / full.slice(-3).length : 0;
+  const cash = bal?.connected ? (bal.cash || 0) - (bal.cards || 0) : null;
+  const runway = cash != null && avgSpend ? cash / avgSpend : null;
+  const score = (lvl, title, value, text) => `<div class="ln"><span class="n"><b>${title}</b><small>${text}</small></span>
+    <span class="a" style="display:flex;flex-direction:column;align-items:flex-end;gap:3px"><span style="font-size:17px;font-weight:800">${value}</span><span class="flag ${lvl}">${{ good:'Healthy', warn:'Watch', bad:'Weak' }[lvl]}</span></span></div>`;
+  const cards = [
+    score(margin >= 25 ? 'good' : margin >= 10 ? 'warn' : 'bad', 'Profit margin', `${Math.round(margin)}%`, 'Net income as a share of revenue over the last twelve finished months. Service businesses that keep 20% or more have room to absorb a bad month.'),
+    score(profitable >= n * .8 ? 'good' : profitable >= n * .6 ? 'warn' : 'bad', 'Profitable months', `${profitable} of ${full.length}`, 'How often the business made money. Lenders like to see it most months, not just on average.'),
+    score(cv <= .2 ? 'good' : cv <= .35 ? 'warn' : 'bad', 'Revenue consistency', cv <= .2 ? 'Steady' : cv <= .35 ? 'Uneven' : 'Lumpy', `Monthly revenue moves about ${Math.round(cv * 100)}% around its average of ${money0(mean)}. Retainers make this steady.`),
+    score(topShare <= 25 ? 'good' : topShare <= 40 ? 'warn' : 'bad', 'Client concentration', `${Math.round(topShare)}%`, `${ranked[0] ? esc(ranked[0][0]) : 'The top client'} is this share of revenue. Past about 25%, a lender sees one relationship as a risk.`),
+    score(labor <= 45 ? 'good' : labor <= 60 ? 'warn' : 'bad', 'Team cost', `${Math.round(labor)}%`, 'Contract labor as a share of revenue. Agencies usually aim to keep delivery labor under about half of revenue.'),
+    growth == null ? '' : score(growth >= 0 ? 'good' : growth >= -10 ? 'warn' : 'bad', 'Recent growth', `${growth >= 0 ? '+' : ''}${Math.round(growth)}%`, 'Revenue in the last three finished months against the three before.'),
+    runway == null ? '' : score(runway >= 3 ? 'good' : runway >= 1.5 ? 'warn' : 'bad', 'Cash cushion', `${runway.toFixed(1)} mo`, `Cash after the card is paid (${money0(cash)}) covers this many months of spending. Three or more is comfortable.`),
+  ].join('');
+  const c = SERIES();
+  const avg3 = months.map((x, i) => { const w = months.slice(Math.max(0, i - 2), i + 1); return w.length < 3 ? null : Math.round(sumOf(w, 'revenue') / 3); });
+  $('#dbody').innerHTML = `
+    <div class="notice" style="margin-bottom:14px"><span>The last twelve months, ${esc(rangeLabel([months[0].month, months[months.length-1].month]))}. The view a bank or a CPA reads first.</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Revenue, last 12 months</div><div class="v">${money0(T.revenue)}</div><div class="s">about <b>${money0(mean)}</b> a finished month</div></div>
+      <div class="kpi ${T.net>=0?'good':'bad'}"><div class="lbl">Net income, last 12 months</div><div class="v">${money0(T.net)}</div><div class="s">what the business earned for its owner, before income tax</div></div>
+      <div class="kpi"><div class="lbl">Owner earnings a month</div><div class="v">${money0(F.net / n)}</div><div class="s">average net across finished months</div></div>
+      <div class="kpi"><div class="lbl">Cash after the card</div><div class="v">${cash != null ? money0(cash) : '·'}</div><div class="s">${cash != null ? 'from the bank feed' : 'connect a bank to see this'}</div></div>
+    </div>
+    <div class="g g2">
+      <div class="card">${cardH('Scorecard', 'How the business reads to someone deciding to lend', '', 'Each line is scored against common rules of thumb for small service businesses. They are guides, not verdicts.')}${cards}</div>
+      <div class="stack">
+        <div class="card">${cardH('Revenue trend', 'Monthly revenue and its three-month average', '', 'The line smooths out timing: a client paying late or early moves a bar, not the line.')}
+          <div class="chart"><canvas id="cTrend"></canvas></div>
+          ${legendHTML([['Monthly revenue', c[0]], ['Three-month average', c[1], 1]])}</div>
+        <div class="card">${cardH('What a lender will ask for', 'Everything below comes out of Ledger')}
+          <div class="ln click" onclick="RP.tab='pnl';RP.preset='lastyear';show('reports')"><span class="n">Profit and loss, last full year<small>Reports → Profit &amp; loss → Last year</small></span><span class="a linky">Open →</span></div>
+          <div class="ln click" onclick="RP.tab='pnl';RP.preset='ytd';show('reports')"><span class="n">Profit and loss, this year to date<small>with the same period last year beside it</small></span><span class="a linky">Open →</span></div>
+          <div class="ln click" onclick="RP.tab='exports';show('reports')"><span class="n">Full ledger and receipts<small>CSV and ZIP for the CPA or the underwriter</small></span><span class="a linky">Open →</span></div>
+          <div class="ln"><span class="n">Business tax returns and bank statements<small>not in Ledger: from the CPA and the bank</small></span><span class="a muted">outside</span></div>
+        </div>
       </div>
     </div>`;
-}
-function whatIf(name){
-  const clients = (S.boot.clients||[]).filter(c=>c.active);
-  const vendors = (S.boot.vendors||[]).filter(v=>v.recurring && v.active && v.cadence!=='yearly');
-  const c = clients.find(x=>x.name===name); if (!c) return;
-  const inflow = clients.reduce((s,x)=>s+clientMonthly(x),0) - clientMonthly(c);
-  const out = vendors.reduce((s,v)=>s+(v.expected_amount||0),0) + inflow * S.boot.money.feePct/100;
-  const el = $('#wiOut');
-  el.className = 'msg'; el.innerHTML = `Without <b>${esc(name)}</b>: ${fmt$(inflow)} in, ${fmt$(out)} out → net <b style="color:${inflow-out>=0?'var(--good)':'var(--bad)'}">${fmt$(inflow-out)}</b> per month.`;
+  const labels = months.map(x => moLab(x.month, true));
+  draw('trend', 'cTrend', { type: 'bar', data: { labels, datasets: [
+    barDS('Monthly revenue', months.map(x => x.revenue), months.map(x => c[0] + (x.month === cur ? '70' : ''))),
+    lineDS('Three-month average', avg3, c[1], { spanGaps: true }) ] }, options: chartOpts() });
 }
 
 /* ================= settings ================= */
+/* One section at a time, picked from a list: the app runs on what is here,
+   and nobody should scroll past bank plumbing to change a tax rate. */
+const SET = { sec: lsGet('ledger_set', 'general') };
+const SET_SECS = [
+  ['general', 'Money rules', 'sliders', 'Tax set-aside and where net income goes'],
+  ['clients', 'Clients', 'users', 'The retainer book the forecast runs on'],
+  ['categories', 'Categories', 'tag', 'The CPA lines every expense maps to'],
+  ['vendors', 'Vendors & subscriptions', 'store', 'Recurring charges and remembered vendors'],
+  ['connections', 'Connections', 'plug', 'Bank, card, Stripe, Slack and Drive'],
+  ['notifications', 'Notifications', 'bell', 'How Slack reaches you'],
+  ['access', 'Appearance & access', 'shield', 'Theme, sign-in and sign out'],
+];
+function setSec(k){ SET.sec = k; lsSet('ledger_set', k); renderSettings(); }
 function renderSettings(){
   const m = $('#main');
-  const mo = S.boot.money;
-  const vendors = S.boot.vendors||[], clients = S.boot.clients||[];
+  if (!SET_SECS.some(s => s[0] === SET.sec)) SET.sec = 'general';
+  const b = S.boot, vendors = b.vendors || [], clients = b.clients || [];
+  const connOn = [b.plaidConfigured && (b.plaidItems||[]).length, b.stripeConfigured, b.slackConfigured].filter(Boolean).length;
+  const count = { clients: clients.filter(c => c.active).length, categories: (b.taxCats||[]).length, vendors: vendors.length, connections: `${connOn}/3` };
+  const [, title, , purpose] = SET_SECS.find(s => s[0] === SET.sec);
   m.innerHTML = `
-    <div class="ph"><div><h2>Settings</h2>
-      <div class="sub" style="margin-bottom:0">The money rules, the retainer book, and every vendor rule · the app runs on what's on this page.</div></div></div>
-    <div class="grid2">
-      <div class="card">
-        <h3>Money rules</h3>
-        <div class="hint">Used by every report card and the close math. All percentages of net income.</div>
-        <div class="fields">
-          <div class="fld"><label>Tax set-aside</label><div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
-          <div class="fld"><label>Distributions</label><div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
-          <div class="fld"><label title="Forecasting only. Your reports always use the exact fees Stripe charged.">Fee % · forecast only</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
-        </div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:20px 0 0;padding-top:14px;border-top:1px solid var(--line)">Account split · where net income goes</div>
-        <div class="fields">
-          ${[['personal','Personal'],['tax','Tax'],['ads','Ads / Marketing'],['savings','Savings'],['other','Other expenses']].map(([k,l])=>`
-          <div class="fld"><label>${l}</label><div class="unit-in"><input id="sp_${k}" type="number" value="${mo.split[k]}"><span>%</span></div></div>`).join('')}
-        </div>
-        <div class="row" style="margin-top:16px"><button class="btn primary" onclick="saveMoney()">Save money rules</button><span class="msg" id="sMsg"></span></div>
-      </div>
-      <div class="card">
-        <h3>Clients</h3>
-        <div class="hint">Base retainer + optional % of ad spend. A client with a % is treated as variable: each month their expected row prefills with their <b>recent 3-month average</b> and asks for the actual invoice total. Inactive clients keep their history but stop being expected; deleting removes only the list entry · transactions stay.</div>
-        <div class="tbl-wrap"><table><thead><tr><th>Client</th><th class="num">Base retainer</th><th class="num">+ % of ad spend</th><th>Active</th><th></th></tr></thead><tbody>
-          ${clients.map(c=>{ const variable = (c.pct||0)>0 || c.billing==='percent'; return `<tr>
-            <td><b>${esc(c.name)}</b>${variable && c.recent_avg ? `<div class="tiny">recent avg ${fmt$(c.recent_avg)}/mo · used for the prefill + forecast</div>`:''}</td>
-            <td class="num" style="width:110px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" data-ledger-event="change" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="retainer" data-value="__input__"></div></td>
-            <td class="num" style="width:90px"><div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" placeholder="—" title="Leave empty for fixed-retainer clients" data-ledger-event="change" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="pct" data-value="__input__"><span>%</span></div></td>
-            <td><div class="toggle ${c.active?'on':''}" data-ledger-event="click" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="active" data-value="${c.active?0:1}"></div></td>
-            <td><button class="del-x" title="Delete ${esc(c.name)} from the client list" data-ledger-event="click" data-ledger-action="delClient" data-name="${esc(c.name)}">✕</button></td>
-          </tr>`}).join('')}
-        </tbody></table></div>
-        <div class="row" style="margin-top:10px"><button class="btn" onclick="addClientModal()">+ Add client</button></div>
-      </div>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <h3>Tax categories</h3>
-      <div class="hint">The CPA layer every expense maps to. Add one if something doesn't fit; removing one keeps it on transactions that already use it.</div>
-      <div class="row" style="margin-top:10px;gap:8px">
-        ${S.boot.taxCats.map(c=>`<span class="chip" style="cursor:default">${esc(c)} <button class="del-x" style="padding:0 2px;font-size:12px" title="Remove ${esc(c)}" data-ledger-event="click" data-ledger-action="delTaxCat" data-name="${esc(c)}">✕</button></span>`).join('')}
-      </div>
-      <div class="row" style="margin-top:10px">
-        <input id="newCat" placeholder="e.g. Education & courses" style="max-width:240px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px">
-        <button class="btn" onclick="addTaxCat()">+ Add category</button><span class="msg" id="catMsg"></span>
-      </div>
-    </div>
-    ${vendorCards(vendors)}
-    <div class="card" style="margin-top:14px">
-      <h3>Stripe</h3>
-      ${S.boot.stripeConfigured
-        ? `<div class="hint">Connected ✓ · charges, refunds and exact fees sync every night (last 10 days re-pulled, so late-settling data self-corrects). A payment from a new Stripe customer lands in Review once; name the client and it auto-matches forever. Closed months are never touched.</div>
-           <div class="row" style="margin-top:10px"><button class="btn" onclick="stripeSyncNow(this)">↻ Sync the last 60 days now</button><span class="msg" id="ssMsg"></span></div>`
-        : `<div class="hint">Not connected · paste a restricted key into <code>ledger/worker/.env</code> and push it, then this card lights up.</div>`}
-    </div>
-    <div class="card" style="margin-top:14px">
-      <h3>Slack receipts</h3>
-      ${S.boot.slackConfigured
-        ? `<div class="hint">Connected ✓ · drop a receipt photo or PDF into <b>#receipts</b> and Ledger reads it, matches it to the expense (or files a new one), attaches it, and replies in the thread with what it did. ${S.boot.slackInstant ? '<b>Instant:</b> receipts are handled the moment they land, with a 10-minute sweep as backup.' : 'Runs every 10 minutes · add the signing secret to make it instant.'}</div>
-           <div class="row" style="margin-top:10px"><button class="btn" onclick="slackPollNow(this)">↻ Check the channel now</button><span class="msg" id="spMsg"></span></div>`
-        : `<div class="hint">Not connected · paste the Slack bot token (xoxb-…) into <code>ledger/worker/.env</code> and have it pushed, then drop receipts into #receipts from your phone.</div>`}
-    </div>
-    ${S.boot.slackConfigured ? notifyCard() : ''}
-    <div class="card" style="margin-top:14px">
-      <h3>Bank feeds (Plaid) ${S.boot.plaidEnv==='sandbox' && S.boot.plaidConfigured ? '<span class="pill warn">sandbox · test mode</span>':''}</h3>
-      ${!S.boot.plaidConfigured
-        ? `<div class="hint">Not connected · paste the Plaid client_id and sandbox secret into <code>ledger/worker/.env</code> (Dashboard → Developers → Keys) and have them pushed.</div>`
-        : `<div class="hint">Novo and Amex lines flow in nightly. Each bank line first tries to <b>confirm an expected row</b>, then to <b>adopt a matching manual entry</b>, and only then creates something new · so nothing double-counts. Amex payments, Stripe payouts and account moves are auto-tagged as transfers.</div>
-           ${(S.boot.plaidItems||[]).map(i=>`<div class="row" style="margin:8px 0 0"><b>${esc(i.name)}</b><span class="tiny">${i.accounts.map(esc).join(' · ')}</span>
-             <span style="flex:1"></span><button class="del-x" title="Disconnect ${esc(i.name)}" data-ledger-event="click" data-ledger-action="plaidRemove" data-name="${esc(i.item_id)}">✕</button></div>`).join('')}
-           <div class="row" style="margin-top:12px">
-             <button class="btn primary" onclick="plaidConnect(this)">+ Connect a bank or card</button>
-             ${(S.boot.plaidItems||[]).length?`<button class="btn" onclick="plaidSyncNow(this)">↻ Sync now</button>
-             <button class="btn" onclick="plaidBackfill(this)" title="Re-reads the month straight from the bank and adds anything the feed missed">🔎 Re-check ${moName(S.month)}</button>
-             <button class="btn" onclick="plaidYear(this)" title="Reads the whole year from the bank and makes every month agree with it">🧾 Rebuild ${new Date().getFullYear()} from the bank</button>`:''}
-             <span class="msg" id="plMsg"></span>
-           </div>
-           <div class="hint" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
-             <b>How far back the bank remembers.</b> A bank hands over a fixed window of history at the moment
-             you connect it, and it never widens on its own · re-reading the same connection cannot reach
-             further back than the day it was made. Connecting the same bank again starts a fresh window of up
-             to <b>two years</b>, and replaces the old connection rather than adding a second one, so nothing
-             arrives twice. Do that first if a month before the connection date looks thin.
-           </div>`}
-    </div>
-    <div class="card" style="margin-top:14px" id="driveCard">
-      <h3>Import receipts from Google Drive</h3>
-      <div class="hint">For the years already filed away in <code>Taxes / 2026 / …</code>. Ledger reads each PDF,
-        works out the amount, and <b>attaches it to the matching transaction</b>. It never creates a transaction and
-        never touches Drive · read-only, and closed months refuse new rows anyway, so nothing can be double-counted.</div>
-      <div id="driveBody" class="hint" style="margin-top:10px">Loading…</div>
-    </div>
-
-    <div class="card" style="margin-top:14px">
-      <h3>Access</h3>
-      <div class="hint">Only approved Mobius identities can sign in. Recovery uses the administrator token; password fallback is disabled.</div>
+    <div class="ph"><div><span class="eyebrow">Settings</span><h2>${title}</h2><div class="sub">${purpose}.</div></div></div>
+    <div class="setwrap">
+      <nav class="setnav" aria-label="Settings sections">${SET_SECS.map(([k, l, ic]) =>
+        `<button class="${SET.sec===k?'on':''}" onclick="setSec('${k}')">${TAB_ICONS[ic]}${l}${count[k] != null ? `<small>${count[k]}</small>` : ''}</button>`).join('')}</nav>
+      <div class="setpane">${({ general: setGeneral, clients: setClients, categories: setCategories, vendors: () => vendorCards(vendors),
+        connections: setConnections, notifications: () => b.slackConfigured ? notifyCard() : '<div class="card"><div class="hint">Connect Slack first (Connections).</div></div>', access: setAccess })[SET.sec]()}</div>
     </div>`;
-  renderDrive();
+  if (SET.sec === 'connections') renderDrive();
+}
+function setGeneral(){
+  const mo = S.boot.money;
+  const split = [['personal','Personal'],['tax','Tax'],['ads','Ads / Marketing'],['savings','Savings'],['other','Other expenses']];
+  const total = split.reduce((s, [k]) => s + (+mo.split[k] || 0), 0);
+  return `
+    <div class="card">${cardH('Tax and distributions', 'Percentages of net income, used by every statement')}
+      <div class="fields">
+        <div class="fld"><label>Tax set-aside</label><div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
+        <div class="fld"><label>Distributions</label><div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
+        <div class="fld"><label>Stripe fee · forecast only</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
+      </div>
+      <div class="hint" style="margin-top:10px">The fee rate only feeds the cash forecast. Statements always use the exact fee Stripe charged.</div></div>
+    <div class="card">${cardH('Account split', 'Where net income moves when a month closes', `<span class="${total === 100 ? 'good-t' : 'warn-t'}">adds to ${total}%</span>`)}
+      <div class="fields">${split.map(([k, l]) => `
+        <div class="fld"><label>${l}</label><div class="unit-in"><input id="sp_${k}" type="number" value="${mo.split[k]}"><span>%</span></div></div>`).join('')}</div>
+      <div class="row" style="margin:18px 0 0"><button class="btn primary" onclick="saveMoney()">Save money rules</button><span class="msg" id="sMsg" style="margin:0"></span></div></div>`;
+}
+function setClients(){
+  const clients = S.boot.clients || [];
+  return `<div class="card">${cardH('Clients', `${clients.filter(c => c.active).length} active · ${money0(sumOf(clients.filter(c => c.active), clientMonthly))} a month`, '<button class="btn primary sm" onclick="addClientModal()">+ Add client</button>',
+      'Base retainer plus an optional % of ad spend. A client with a % is variable: their expected payment uses the last three months\' average. Pausing keeps history and stops the app expecting money; deleting removes only the list entry.')}
+    <div class="tbl-wrap"><table><thead><tr><th>Client</th><th class="num">Base retainer</th><th class="num">+ % of ad spend</th><th>Active</th><th></th></tr></thead><tbody>
+      ${clients.map(c => { const variable = (c.pct||0) > 0 || c.billing === 'percent'; return `<tr>
+        <td><b>${esc(c.name)}</b>${variable && c.recent_avg ? `<div class="tiny">recent average ${fmt$(c.recent_avg)} a month</div>` : ''}</td>
+        <td class="num" style="width:140px"><div class="unit-in"><span>$</span><input type="number" value="${c.retainer||0}" data-ledger-event="change" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="retainer" data-value="__input__"></div></td>
+        <td class="num" style="width:120px"><div class="unit-in"><input type="number" step="0.1" value="${c.pct??''}" placeholder="none" title="Leave empty for fixed-retainer clients" data-ledger-event="change" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="pct" data-value="__input__"><span>%</span></div></td>
+        <td><div class="toggle ${c.active?'on':''}" role="switch" aria-checked="${!!c.active}" title="${c.active ? 'Active: expected every month' : 'Paused'}" data-ledger-event="click" data-ledger-action="saveClientField" data-name="${esc(c.name)}" data-field="active" data-value="${c.active?0:1}"></div></td>
+        <td><button class="del-x" title="Delete ${esc(c.name)} from the client list" data-ledger-event="click" data-ledger-action="delClient" data-name="${esc(c.name)}">✕</button></td>
+      </tr>`; }).join('') || '<tr><td colspan="5" class="hint">No clients yet.</td></tr>'}
+    </tbody></table></div></div>`;
+}
+function setCategories(){
+  return `<div class="card">${cardH('Tax categories', 'The line each expense lands on in the P&amp;L and the CPA pack', '', 'Add one if something does not fit. Removing one keeps it on transactions that already use it.')}
+      <div class="row" style="gap:8px;margin:4px 0 0">
+        ${S.boot.taxCats.map(c => `<span class="chip" style="cursor:default">${esc(c)} <button class="del-x" style="padding:0 2px;font-size:12px;min-height:0" title="Remove ${esc(c)}" data-ledger-event="click" data-ledger-action="delTaxCat" data-name="${esc(c)}">✕</button></span>`).join('')}
+      </div>
+      <div class="row" style="margin:16px 0 0">
+        <input id="newCat" placeholder="e.g. Education & courses" style="max-width:260px">
+        <button class="btn" onclick="addTaxCat()">+ Add category</button><span class="msg" id="catMsg" style="margin:0"></span>
+      </div></div>`;
+}
+function setConnections(){
+  const b = S.boot, items = b.plaidItems || [];
+  const st = (on, label) => `<span class="pill ${on ? 'good' : 'warn'}">${on ? '● ' : ''}${label}</span>`;
+  return `
+    <div class="card">${cardH('At a glance', 'What feeds the books')}
+      <div class="conn"><span class="ci">${TAB_ICONS.bank}</span><span class="cn"><b>Bank and card</b><small>${items.length ? items.map(i => esc(i.name)).join(' · ') : 'no accounts linked'}</small></span>${st(b.plaidConfigured && items.length, items.length ? `${items.length} linked` : 'Not linked')}</div>
+      <div class="conn"><span class="ci">S</span><span class="cn"><b>Stripe</b><small>client payments and exact fees, nightly</small></span>${st(b.stripeConfigured, b.stripeConfigured ? 'Connected' : 'Not connected')}</div>
+      <div class="conn"><span class="ci">#</span><span class="cn"><b>Slack</b><small>receipts in, statements and alerts out</small></span>${st(b.slackConfigured, b.slackConfigured ? (b.slackInstant ? 'Instant' : 'Every 10 min') : 'Not connected')}</div>
+      <div class="conn"><span class="ci">D</span><span class="cn"><b>Google Drive</b><small>one-time import of filed receipts</small></span><span id="driveGlance" class="pill">checking</span></div>
+    </div>
+    <div class="card">
+      ${cardH(`Bank feeds ${b.plaidEnv==='sandbox' && b.plaidConfigured ? '<span class="pill warn">sandbox</span>' : ''}`, 'Novo and Amex, every night', b.plaidConfigured ? '<button class="btn primary sm" onclick="plaidConnect(this)">+ Connect a bank or card</button>' : '')}
+      ${!b.plaidConfigured
+        ? `<div class="hint">Not connected · the Plaid keys go into <code>ledger/worker/.env</code> and get pushed to the worker.</div>`
+        : `<div class="hint">Each bank line first tries to confirm an expected row, then to adopt a matching manual entry, and only then creates something new, so nothing counts twice. Card payments, Stripe payouts and account moves are tagged as transfers.</div>
+           ${items.map(i => `<div class="ln"><span class="n"><b>${esc(i.name)}</b><small>${i.accounts.map(esc).join(' · ')}</small></span>
+             <span class="a"><button class="del-x" title="Disconnect ${esc(i.name)}" data-ledger-event="click" data-ledger-action="plaidRemove" data-name="${esc(i.item_id)}">✕</button></span></div>`).join('')}
+           ${items.length ? `<div class="row" style="margin:14px 0 0">
+             <button class="btn" onclick="plaidSyncNow(this)">↻ Sync now</button>
+             <button class="btn" onclick="plaidBackfill(this)" title="Re-reads the month straight from the bank and adds anything the feed missed">Re-check ${moName(S.month)}</button>
+             <button class="btn" onclick="plaidYear(this)" title="Reads the whole year from the bank and makes every month agree with it">Rebuild ${new Date().getFullYear()} from the bank</button>
+           </div>` : ''}
+           <div class="msg" id="plMsg"></div>
+           <details style="margin-top:12px"><summary class="hint">How far back the bank remembers</summary>
+             <div class="hint" style="margin-top:8px">A bank hands over a fixed window of history when you connect it, and it never widens on its own. Connecting the same bank again starts a fresh window of up to two years and replaces the old connection, so nothing arrives twice.</div></details>`}
+    </div>
+    <div class="card">${cardH('Stripe', b.stripeConfigured ? 'Connected' : 'Not connected', b.stripeConfigured ? '<button class="btn sm" onclick="stripeSyncNow(this)">↻ Sync last 60 days</button>' : '')}
+      <div class="hint">${b.stripeConfigured
+        ? 'Charges, refunds and exact fees sync every night, re-pulling the last 10 days so late data corrects itself. A payment from a new Stripe customer lands in review once; name the client and it matches forever. Closed months are never touched.'
+        : 'Paste a restricted key into <code>ledger/worker/.env</code> and push it.'}</div>
+      <span class="msg" id="ssMsg"></span></div>
+    <div class="card">${cardH('Slack receipts', b.slackConfigured ? 'Connected' : 'Not connected', b.slackConfigured ? '<button class="btn sm" onclick="slackPollNow(this)">↻ Check the channel</button>' : '')}
+      <div class="hint">${b.slackConfigured
+        ? `Drop a receipt photo or PDF into the finance channel and Ledger reads it, matches it to the expense (or files a new one), attaches it and replies in the thread. ${b.slackInstant ? 'Receipts are handled the moment they land, with a 10-minute sweep as backup.' : 'Runs every 10 minutes; add the signing secret to make it instant.'}`
+        : 'Paste the Slack bot token into <code>ledger/worker/.env</code> and have it pushed.'}</div>
+      <span class="msg" id="spMsg"></span></div>
+    <div class="card" id="driveCard">${cardH('Import receipts from Google Drive', 'For years already filed in Taxes / 2026 / …')}
+      <div class="hint">Ledger reads each PDF, works out the amount and attaches it to the matching transaction. It never creates a transaction and never changes Drive.</div>
+      <div id="driveBody" class="hint" style="margin-top:12px">Loading…</div></div>`;
+}
+function setAccess(){
+  const dark = document.documentElement.dataset.theme === 'dark';
+  return `
+    <div class="card">${cardH('Appearance', 'Saved on this device')}
+      <div class="seg" role="radiogroup" aria-label="Theme">
+        <button role="radio" aria-checked="${!dark}" class="${!dark?'on':''}" onclick="document.documentElement.dataset.theme==='dark'&&toggleTheme()">${TAB_ICONS.sun} Light</button>
+        <button role="radio" aria-checked="${dark}" class="${dark?'on':''}" onclick="document.documentElement.dataset.theme!=='dark'&&toggleTheme()">${TAB_ICONS.moon} Dark</button>
+      </div></div>
+    <div class="card">${cardH('Sign-in', whoName())}
+      <div class="hint">Only approved Mobius identities can sign in, through Mobius HQ with Google. Recovery uses the administrator token.</div>
+      <div class="row" style="margin:14px 0 0"><button class="btn" onclick="signOut()">${TAB_ICONS.out} Sign out</button></div></div>
+    <div class="card">${cardH('Worker', 'Where the app reads the books from')}
+      <div class="hint"><code>${esc(S.url)}</code> · revision ${esc(String(S.boot.revision ?? '·'))}</div></div>`;
 }
 
 /* ---- Drive import ---- */
@@ -2371,6 +2682,8 @@ async function renderDrive(){
   let s;
   try { s = await api('/api/drive-status'); }
   catch(e){ el.innerHTML = `<span class="msg bad">${esc(e.message)}</span>`; return; }
+  const gl = $('#driveGlance');
+  if (gl) { gl.className = 'pill ' + (s.connected ? 'good' : ''); gl.textContent = s.connected ? '● Connected' : s.configured ? 'Not connected' : 'Not set up'; }
 
   if (!s.configured) {
     el.innerHTML = `Not set up yet · the Google client ID and secret need to go into
@@ -2826,14 +3139,13 @@ async function refreshBoot(){
     let exceptions=$('#ledgerExceptions');
     if(!exceptions){exceptions=document.createElement('div');exceptions.id='ledgerExceptions';exceptions.className='notice bad';$('#main').before(exceptions);}
     exceptions.hidden=!nb.exceptions?.length;exceptions.textContent=(nb.exceptions||[]).map(x=>x.kind+': '+x.error).join(' · ');
-    $('#nav').innerHTML = navHTML();
-    $('#tabbar').innerHTML = tabbarHTML();
+    paintNav();
     const busy = document.querySelector('.modal.on') || MSEL.open
       || document.activeElement === $('#txnSearch');
-    if (changed && !busy && (S.view === 'dash' || S.view === 'txns')) {
+    if (changed && !busy && (S.view === 'overview' || S.view === 'txns')) {
       S.renderedRevision = nb.revision;
       S.txns = null; window.__moCache = {};
-      (S.view === 'dash' ? renderDash : renderTxns)();
+      if (S.view === 'overview') { S.rt = (S.rt || 0) + 1; renderOverview(); } else renderTxns();
     }
   } catch (e) { /* a blip must never log him out or blank a view */ }
 }

@@ -40,8 +40,9 @@ async function main() {
             const response=await mf.dispatchFetch(url.href,{method:req.method,headers:req.headers,...(chunks.length?{body:Buffer.concat(chunks)}:{})});
             res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));return;
           }
-          const routes={'/ledger/':['../index.html','text/html'],'/mobius.css':['../../mobius.css','text/css']};
-          const file=routes[url.pathname];if(!file){res.writeHead(404);res.end();return;}
+          const routes={'/ledger/':['../index.html','text/html'],'/ledger/ledger.css':['../ledger.css','text/css'],'/ledger/manifest.webmanifest':['../manifest.webmanifest','application/manifest+json']};
+          const icon=url.pathname.match(/^\/icons\/([\w.-]+\.png)$/);
+          const file=routes[url.pathname]||(icon&&['../../icons/'+icon[1],'image/png']);if(!file){res.writeHead(404);res.end();return;}
           const contents=fs.readFileSync(path.resolve(__dirname,file[0]));res.setHeader('Content-Type',file[1]);res.end(contents);
         }catch(e){res.writeHead(500);res.end(e.message);}
       });

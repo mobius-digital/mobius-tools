@@ -3309,6 +3309,57 @@ export default {
         return json({ frozen: false, status: row?.status || 'open', report: await resolveReport(env, month) });
       }
 
+      /* ---- multi-month series for Dashboards and the P&L ----
+       * Each month is exactly what its report says (frozen when closed), minus
+       * the transaction detail, so a chart can never disagree with a statement.
+       * Top vendors come from the live rows: closed months cannot change them. */
+      if (path === '/api/series') {
+        const from = url.searchParams.get('from'), to = url.searchParams.get('to');
+        if (!validMonth(from) || !validMonth(to) || from > to) return json({ error: 'from/to = YYYY-MM' }, 400);
+        const months = [];
+        for (let m = from; m <= to && months.length < 60; m = monthOf(addMonthsYmd(m + '-01', 1))) months.push(m);
+        const status = Object.fromEntries((await env.DB.prepare(
+          'SELECT month, status FROM months WHERE month >= ?1 AND month <= ?2').bind(from, to).all()).results.map(r => [r.month, r.status]));
+        const out = [];
+        for (const m of months) {
+          const r = await resolveReport(env, m);
+          const { transactions, ...rest } = r;
+          out.push({ ...rest, month: m, status: status[m] || 'open' });
+        }
+        const { results: vend } = await env.DB.prepare(`SELECT vendor, bucket, tax_cat, SUM(amount) AS amount, COUNT(*) AS n
+          FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out'
+            AND (tax_cat IS NULL OR (tax_cat NOT LIKE 'Personal%' AND tax_cat NOT LIKE 'Income tax%'))
+          GROUP BY vendor ORDER BY amount DESC LIMIT 15`).bind(from, to).all();
+        const { results: con } = await env.DB.prepare(`SELECT vendor, SUM(amount) AS amount, COUNT(*) AS n
+          FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out'
+            AND tax_cat LIKE 'Contract labor%' GROUP BY vendor ORDER BY amount DESC`).bind(from, to).all();
+        return json({ from, to, months: out, money: await getMoney(env),
+          topVendors: vend.map(v => ({ ...v, amount: round2(v.amount) })),
+          contractors: con.map(v => ({ ...v, amount: round2(v.amount) })) });
+      }
+
+      /* ---- bank balances for the Overview ----
+       * /accounts/get serves Plaid's cached balances and is not the metered
+       * Balance product. Cached here for three hours on top of that. */
+      if (path === '/api/balances') {
+        const items = await getPlaidItems(env);
+        if (!plaidReady(env) || !items.length) return json({ connected: false });
+        const cached = safeJson(await getSetting(env, 'balancesCache'), null);
+        if (cached && cached.at > Date.now() - 3 * 3600e3 && url.searchParams.get('fresh') !== '1') return json({ connected: true, ...cached });
+        const accounts = [];
+        for (const it of items) {
+          try {
+            const r = await plaid(env, '/accounts/get', { access_token: it.access_token });
+            for (const a of r.accounts || []) accounts.push({ item: it.name, name: a.name, mask: a.mask, type: a.type,
+              current: a.balances?.current ?? null, available: a.balances?.available ?? null, limit: a.balances?.limit ?? null });
+          } catch (e) { accounts.push({ item: it.name, error: String(e.message || e).slice(0, 160) }); }
+        }
+        const sum = t => round2(accounts.filter(a => a.type === t).reduce((s, a) => s + (a.current || 0), 0));
+        const out = { at: Date.now(), accounts, cash: sum('depository'), cards: sum('credit') };
+        if (accounts.some(a => !a.error)) await putSetting(env, 'balancesCache', JSON.stringify(out));
+        return json({ connected: true, ...out });
+      }
+
       /* ---- dashboard summary ---- */
       if (path === '/api/summary') {
         const month = validMonth(url.searchParams.get('month'))

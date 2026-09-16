@@ -46,6 +46,16 @@
         "3100"
       ],
       "port": 3100
+    },
+    {
+      "name": "ledger-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "ledger/worker/test-runtime.cjs",
+        "--serve"
+      ],
+      "port": 8796,
+      "url": "http://127.0.0.1:8796"
     }
   ]
 }
