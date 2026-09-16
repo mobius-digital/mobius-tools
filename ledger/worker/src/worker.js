@@ -479,6 +479,23 @@ async function ownerMention(env) {
   return `<@${r.user.id}> `;
 }
 
+/* How each kind of Slack message reaches Cole, set in Settings.
+ *   ping    : @mention, so the phone buzzes (default)
+ *   channel : shown in the main channel as well as the thread, no buzz
+ *   quiet   : a thread reply only
+ * Kinds: landed (a held receipt went through), decisions (a receipt needs
+ * a tap), problems (the nightly check or a sync found something wrong). */
+const NOTIFY_KINDS = ['landed', 'decisions', 'problems'];
+const NOTIFY_MODES = ['ping', 'channel', 'quiet'];
+async function getNotify(env) {
+  const saved = safeJson(await getSetting(env, 'notify'), {}) || {};
+  return Object.fromEntries(NOTIFY_KINDS.map(k => [k, NOTIFY_MODES.includes(saved[k]) ? saved[k] : 'ping']));
+}
+async function notifyStyle(env, kind) {
+  const mode = (await getNotify(env))[kind];
+  return { at: mode === 'ping' ? await ownerMention(env) : '', broadcast: mode === 'channel' };
+}
+
 async function slack(env, method, params = {}, post = false) {
   // The Slack app is the shared "Mobius Digital" one; posts should still read
   // as this tool. Needs chat:write.customize — falls back plain if not granted.
@@ -511,7 +528,7 @@ async function alertSlack(env, text) {
   await saveJob(env,jobId,'slack-alert',{text},'Awaiting Slack delivery');
   const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
   if (!sr.channelId || !env.SLACK_BOT_TOKEN) throw new Error('Slack notification unavailable');
-  const at = await ownerMention(env);
+  const { at } = await notifyStyle(env, 'problems');
   const sent = await slack(env, 'chat.postMessage',
     { channel: sr.channelId, text: at + text, unfurl_links: false }, true);
   if (!sent.ok) throw new Error('Slack delivery failed: ' + sent.error);
@@ -755,8 +772,9 @@ async function processSlackReceiptsInner(env) {
       if (!isEmail && !isPdf && !/^image\//.test(f.mimetype || '')) {await finishJob(env,'slack-file:'+f.id);continue;}
       if (cfg.seen.includes(f.id)) { await finishJob(env, 'slack-file:'+f.id); continue; }
       let fileFailed = false;
-      const reply = (text, blocks) => slack(env, 'chat.postMessage',
+      const reply = (text, blocks, broadcast = false) => slack(env, 'chat.postMessage',
         { channel: cfg.channelId, thread_ts: msg.ts, text, unfurl_links: false,
+          ...(broadcast ? { reply_broadcast: true } : {}),
           ...(blocks ? { blocks } : {}) }, true).then(r=>{if(!r.ok)throw new Error('Slack delivery: '+r.error);return r;});
       /* A reaction is the whole status report when nothing is wrong. It does
        * not notify anyone, so twenty forwarded receipts stop being twenty
@@ -767,11 +785,11 @@ async function processSlackReceiptsInner(env) {
       /* Only used where a decision is genuinely waiting, so the mention keeps
        * meaning "this one needs you" rather than becoming background noise. */
       const nudge = async (text, blocks) => {
-        const at = await ownerMention(env);
+        const { at, broadcast } = await notifyStyle(env, 'decisions');
         const withAt = at + text;
         if (blocks && blocks[0]?.type === 'section' && blocks[0].text?.type === 'mrkdwn')
           blocks = [{ ...blocks[0], text: { ...blocks[0].text, text: at + blocks[0].text.text } }, ...blocks.slice(1)];
-        return reply(withAt, blocks);
+        return reply(withAt, blocks, broadcast);
       };
       /* Filed without incident: still say exactly what happened and where it
        * went — a thread reply does not notify him, so a running record costs
@@ -1878,10 +1896,11 @@ async function retryHeldReceiptsInner(env) {
       const lastAsk = !firstAsk && age >= 25 && !meta.reminded;
       if ((firstAsk || lastAsk) && (meta.ch || sr.channelId)) {
         const diff = round2(t.amount - Number(meta.amount));
-        const txt = `${await ownerMention(env)}⏳ ${lastAsk ? `Last call, the file is deleted in ${Math.max(1, Math.ceil(30 - age))} days. ` : ''}Is this the one? The *${meta.vendor}* receipt ($${Number(meta.amount).toFixed(2)}, ${meta.date}) looks like *${t.vendor}* $${t.amount.toFixed(2)} on ${t.date}.\n` +
+        const ns = await notifyStyle(env, 'decisions');
+        const txt = `${ns.at}⏳ ${lastAsk ? `Last call, the file is deleted in ${Math.max(1, Math.ceil(30 - age))} days. ` : ''}Is this the one? The *${meta.vendor}* receipt ($${Number(meta.amount).toFixed(2)}, ${meta.date}) looks like *${t.vendor}* $${t.amount.toFixed(2)} on ${t.date}.\n` +
           `The card spells the name differently and the amount is ${diff > 0 ? '$' + diff.toFixed(2) + ' higher (a tip, most likely)' : '$' + Math.abs(diff).toFixed(2) + ' lower'}, so I want a yes before attaching it.`;
         const delivery = await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
-          ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
+          ...(meta.ts ? { thread_ts: meta.ts, ...(ns.broadcast ? { reply_broadcast: true } : {}) } : {}), text: txt, unfurl_links: false,
           blocks: [{ type: 'section', text: { type: 'mrkdwn', text: txt } },
             { type: 'actions', elements: [
               { type: 'button', action_id: 'led_attach', style: 'primary',
@@ -1909,14 +1928,14 @@ async function retryHeldReceiptsInner(env) {
       const first = days >= 5 && !meta.asked;
       const last = days >= 25 && meta.asked && !meta.reminded;
       if ((first || last) && (meta.ch || sr.channelId)) {
-        const at = await ownerMention(env);
+        const { at, broadcast } = await notifyStyle(env, 'decisions');
         const txt = first
           ? `${at}\u23f3 *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has been waiting ${Math.floor(days)} days and still matches no charge on Novo or Amex.\n` +
             `That usually means it went on a different card, or it is somebody else's charge. I will keep watching in case it shows up, but tell me which:`
           : `${at}\u23f3 Last call: *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has waited ${Math.floor(days)} days with no matching charge. ` +
             `The file is deleted in ${Math.max(1, Math.ceil(30 - days))} days unless you pick one:`;
         const delivery = await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
-          ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
+          ...(meta.ts ? { thread_ts: meta.ts, ...(broadcast ? { reply_broadcast: true } : {}) } : {}), text: txt, unfurl_links: false,
           blocks: [{ type: 'section', text: { type: 'mrkdwn', text: txt } },
             { type: 'actions', elements: [
               { type: 'button', action_id: 'led_file', style: 'primary',
@@ -1954,9 +1973,11 @@ async function retryHeldReceiptsInner(env) {
     await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
     attached++;
     await markReceiptMessage(env, meta.ch || sr.channelId, meta.ts);
+    const landed = await notifyStyle(env, 'landed');
     if (meta.ch || sr.channelId) await slack(env, 'chat.postMessage',
-      { channel: meta.ch || sr.channelId, ...(meta.ts ? { thread_ts: meta.ts } : {}), unfurl_links: false,
-      text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).`
+      { channel: meta.ch || sr.channelId, unfurl_links: false,
+        ...(meta.ts ? { thread_ts: meta.ts, ...(landed.broadcast ? { reply_broadcast: true } : {}) } : {}),
+      text: `${landed.at}\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).`
         + (gap > 0.005
             ? ` The receipt says $${Number(meta.amount).toFixed(2)} and the card took $${gap.toFixed(2)} more · a tip, most likely. The charge is what counts.`
             : gap < -0.005
@@ -2837,6 +2858,7 @@ export default {
           extractAvailable: !!env.ANTHROPIC_API_KEY,
           stripeConfigured: !!env.STRIPE_KEY,
           slackConfigured: !!env.SLACK_BOT_TOKEN,
+          notify: await getNotify(env),
           slackInstant: !!env.SLACK_SIGNING_SECRET,
           plaidConfigured: plaidReady(env),
           plaidEnv: env.PLAID_ENV || 'sandbox',
@@ -3652,11 +3674,16 @@ export default {
             split,
           }));
         }
+        if (b.notify && typeof b.notify === 'object') {
+          const cur = await getNotify(env);
+          for (const k of NOTIFY_KINDS) if (NOTIFY_MODES.includes(b.notify[k])) cur[k] = b.notify[k];
+          await putSetting(env, 'notify', JSON.stringify(cur));
+        }
         if (Array.isArray(b.taxCats)) {
           const cats = [...new Set(b.taxCats.map(c => String(c).trim().slice(0, 60)).filter(Boolean))].slice(0, 40);
           if (cats.length) await putSetting(env, 'taxCats', JSON.stringify(cats));
         }
-        return json({ money: await getMoney(env), taxCats: safeJson(await getSetting(env, 'taxCats'), []) });
+        return json({ money: await getMoney(env), taxCats: safeJson(await getSetting(env, 'taxCats'), []), notify: await getNotify(env) });
       }
 
       if (path === '/api/password' && request.method === 'POST') {

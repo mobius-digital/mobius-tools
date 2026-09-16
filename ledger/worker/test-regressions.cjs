@@ -319,6 +319,30 @@ async function main(){
       assert.ok(posts.every(t=>t.startsWith('<@')));
       db.exec("DELETE FROM settings WHERE key LIKE 'pend:%:old'");
     });
+    await check('notification settings: ping by default, quiet and channel respected, junk refused',async()=>{
+      const request=async(path,method='GET',body)=>context.api.worker.fetch(new Request('https://local'+path,{method,headers:{Authorization:'Bearer local-test-only','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),env,{waitUntil(){}});
+      db.exec("DELETE FROM settings WHERE key='notify'");
+      const posts=[];const prev=context.slackMock;
+      context.slackMock=async(e,method,params)=>{if(method==='chat.postMessage')posts.push(params);return prev(e,method,params);};
+      vm.runInContext('slack = slackMock',context);
+      const land=async(tag)=>{
+        db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,source) VALUES('2026-09-25','2026-09','out',?,17,'plaid')").run('Land '+tag);
+        const k='pend:'+Date.now()+':'+tag;
+        await env.RECEIPTS.put(k,new TextEncoder().encode('land '+tag).buffer);
+        db.prepare('INSERT INTO settings VALUES(?,?)').run(k,JSON.stringify({name:'l.jpg',type:'image/jpeg',date:'2026-09-25',vendor:'Land '+tag,amount:17,ch:'C_TEST',ts:'9.'+tag}));
+        await context.api.retryHeldReceipts(env);
+        return posts.filter(p=>/charge landed/.test(p.text)&&p.thread_ts==='9.'+tag)[0];
+      };
+      const a=await land('a');assert.match(a.text,/^<@OWNER>/);assert.equal(a.reply_broadcast,undefined);
+      let r=await request('/api/settings','PUT',{notify:{landed:'quiet',problems:'nonsense'}});
+      assert.deepEqual((await r.json()).notify,{landed:'quiet',decisions:'ping',problems:'ping'});
+      const b=await land('b');assert.doesNotMatch(b.text,/<@/);assert.equal(b.reply_broadcast,undefined);
+      await request('/api/settings','PUT',{notify:{landed:'channel'}});
+      const c=await land('c');assert.doesNotMatch(c.text,/<@/);assert.equal(c.reply_broadcast,true);
+      assert.equal((await (await request('/api/boot')).json()).notify.landed,'channel');
+      context.slackMock=prev;vm.runInContext('slack = slackMock',context);
+      db.exec("DELETE FROM settings WHERE key='notify'");
+    });
     await check('fenced batches support atomic multi-statement writes',async()=>{
       await context.api.withLedgerLease(env,'batch-test',async leased=>{
         await leased.DB.batch([leased.DB.prepare("INSERT INTO settings VALUES('batch-a','1')"),leased.DB.prepare("INSERT INTO settings VALUES('batch-b','2')")]);

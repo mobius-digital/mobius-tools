@@ -2327,6 +2327,7 @@ function renderSettings(){
            <div class="row" style="margin-top:10px"><button class="btn" onclick="slackPollNow(this)">↻ Check the channel now</button><span class="msg" id="spMsg"></span></div>`
         : `<div class="hint">Not connected · paste the Slack bot token (xoxb-…) into <code>ledger/worker/.env</code> and have it pushed, then drop receipts into #receipts from your phone.</div>`}
     </div>
+    ${S.boot.slackConfigured ? notifyCard() : ''}
     <div class="card" style="margin-top:14px">
       <h3>Bank feeds (Plaid) ${S.boot.plaidEnv==='sandbox' && S.boot.plaidConfigured ? '<span class="pill warn">sandbox · test mode</span>':''}</h3>
       ${!S.boot.plaidConfigured
@@ -2517,6 +2518,52 @@ function vendorCards(vendors){
       </tbody></table></div>`
       : `<div class="tiny" style="margin-top:12px">Nothing remembered yet · vendors land here the first time you categorize one.</div>`}
     </div>`;
+}
+
+/* How each kind of Slack message reaches Cole. Saved on tap, no Save button. */
+const NOTIFY_ROWS = [
+  { k:'landed', title:'A waiting receipt went through',
+    ex:'Example: the ⏳ Vimeo receipt finally matched its charge. The ⏳ becomes ✅ either way; this is the "✅ it\'s in now" message.' },
+  { k:'decisions', title:'A receipt needs you to tap something',
+    ex:'Example: "Is this the one?", or a receipt still unmatched after 5 days (and the last call at 25).' },
+  { k:'problems', title:'Something is wrong with the books',
+    ex:'Example: the nightly check found a charge missing from the books, or a bank sync failed.' },
+];
+const NOTIFY_MODES = [
+  ['ping', 'Ping me', 'Your phone buzzes'],
+  ['channel', 'Show in channel', 'Visible in the channel, no buzz'],
+  ['quiet', 'Quiet', 'Only inside the receipt\'s thread'],
+];
+function notifyCard(){
+  const cur = S.boot.notify || {};
+  return `<div class="card" style="margin-top:14px">
+    <h3>Slack notifications</h3>
+    <div class="hint">Choose how each kind of message reaches you in the finance channel. Changes save as soon as you tap.</div>
+    ${NOTIFY_ROWS.map(r => `<div style="margin-top:16px">
+      <div style="font-weight:600;font-size:13.5px">${r.title}</div>
+      <div class="tiny" style="margin:3px 0 8px;line-height:1.5">${esc(r.ex)}</div>
+      <div class="seg" role="radiogroup" aria-label="${esc(r.title)}" style="max-width:520px">
+        ${NOTIFY_MODES.map(([v, label, sub]) => `<button type="button" role="radio" aria-checked="${(cur[r.k]||'ping')===v}"
+          class="${(cur[r.k]||'ping')===v ? 'on' : ''}" title="${esc(sub)}"
+          onclick="saveNotify('${r.k}','${v}',this)">${label}<br><span style="font-weight:400;font-size:11px;opacity:.8">${sub}</span></button>`).join('')}
+      </div>
+    </div>`).join('')}
+    <span class="msg" id="ntMsg"></span>
+  </div>`;
+}
+async function saveNotify(kind, mode, btn){
+  const el = $('#ntMsg');
+  const group = btn.parentElement;
+  const before = [...group.children].find(b => b.classList.contains('on'));
+  [...group.children].forEach(b => { const on = b === btn; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  try {
+    const r = await api('/api/settings', { method:'PUT', body: JSON.stringify({ notify: { [kind]: mode } }) });
+    S.boot.notify = r.notify;
+    el.className = 'msg good'; el.textContent = 'Saved.';
+  } catch(e) {
+    [...group.children].forEach(b => { const on = b === before; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+    el.className = 'msg bad'; el.textContent = 'Not saved: ' + e.message;
+  }
 }
 
 async function saveMoney(){
