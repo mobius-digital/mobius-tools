@@ -1139,7 +1139,15 @@
      glass control bar the client drives, and cards that lead with whichever
      metric the list is sorted on. Everything is prefixed shp- so none of it
      touches the internal browser's cards. */
-  .shp{max-width:1240px;margin:0 auto;padding:6px 0 40px}
+  /* The share page owns its canvas: a full-bleed ground with one soft glow so
+     nothing from the app shell (topbar strip, 1240px left-pinned column) shows
+     through, and the content centres in a wider column that fills a laptop
+     and sits balanced on a big monitor. */
+  body.shp-body{background:#EAF0F4;background-image:radial-gradient(1200px 640px at 100% -10%,rgba(98,189,234,.20),transparent 65%),radial-gradient(900px 500px at -10% 100%,rgba(98,189,234,.10),transparent 60%);background-attachment:fixed}
+  body.shp-body .topbar,body.shp-body .pbar{display:none}
+  body.shp-body main{max-width:none;padding:14px clamp(16px,3vw,44px) 56px}
+  body.shp-body footer{max-width:none;padding:0 clamp(16px,3vw,44px) 36px;text-align:center}
+  .shp{max-width:1480px;margin:0 auto;padding:6px 0 24px}
   .shp-hero{position:relative;overflow:hidden;border-radius:18px;padding:30px 34px 28px;color:var(--on-ink);
     background:radial-gradient(900px 420px at 88% -20%,rgba(98,189,234,.34),transparent 60%),
       radial-gradient(600px 300px at 0% 120%,rgba(98,189,234,.14),transparent 60%),
@@ -1181,7 +1189,7 @@
   .shp-pill.on{background:var(--ink-panel);color:#fff;box-shadow:0 2px 6px rgba(12,22,29,.25)}
   .shp-fixed{font-size:13px;font-weight:600}
   .shp-count{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .shp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+  .shp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
   .shp-card{background:var(--surface);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-width:0;cursor:pointer;
     box-shadow:0 1px 2px rgba(12,22,29,.05),0 10px 28px rgba(12,22,29,.07);transition:transform .16s,box-shadow .16s}
   .shp-card:hover{transform:translateY(-3px);box-shadow:0 2px 4px rgba(12,22,29,.06),0 18px 40px rgba(12,22,29,.14)}
