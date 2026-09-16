@@ -221,21 +221,22 @@ async function main(){
       assert.ok(await env.RECEIPTS.get('pend:3:race'));
       db.exec("DELETE FROM settings WHERE key='pend:3:race'");
     });
-    await check('held sweep asks once, with one button, when name and amount both differ',async()=>{
+    await check('held sweep asks once, yes or discard, when name and amount both differ',async()=>{
+      const tipKey='pend:'+Date.now()+':tip';
       const posts=[];const prev=context.slackMock;
       context.slackMock=async(e,method,params)=>{if(method==='chat.postMessage')posts.push(params);return prev(e,method,params);};
       vm.runInContext('slack = slackMock',context);
       const target=Number(db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,source) VALUES('2026-09-23','2026-09','out','SPO*OAXACAMARGARITABEDWARDSVILLE',60.36,'plaid')").run().lastInsertRowid);
-      await env.RECEIPTS.put('pend:2:tip',new TextEncoder().encode('tip receipt').buffer);
-      db.prepare('INSERT INTO settings VALUES(?,?)').run('pend:2:tip',JSON.stringify({name:'t.jpg',type:'image/jpeg',date:'2026-09-22',vendor:'Oaxaca Margarita Bar',amount:50.30,ch:'C_TEST'}));
+      await env.RECEIPTS.put(tipKey,new TextEncoder().encode('tip receipt').buffer);
+      db.prepare('INSERT INTO settings VALUES(?,?)').run(tipKey,JSON.stringify({name:'t.jpg',type:'image/jpeg',date:'2026-09-22',vendor:'Oaxaca Margarita Bar',amount:50.30,ch:'C_TEST'}));
       await context.api.retryHeldReceipts(env);await context.api.retryHeldReceipts(env);
       context.slackMock=prev;vm.runInContext('slack = slackMock',context);
       const asks=posts.filter(p=>/Is this the one/.test(p.text));
       assert.equal(asks.length,1);
-      const btn=asks[0].blocks[1].elements;assert.equal(btn.length,1);assert.equal(btn[0].action_id,'led_attach');
-      assert.deepEqual(JSON.parse(btn[0].value),{file:'pend:2:tip',to:target});
+      const btn=asks[0].blocks[1].elements;assert.equal(btn.length,2);assert.equal(btn[1].action_id,'led_drop');assert.equal(btn[0].action_id,'led_attach');
+      assert.deepEqual(JSON.parse(btn[0].value),{file:tipKey,to:target});
       assert.equal(db.prepare('SELECT receipt_key FROM transactions WHERE id=?').get(target).receipt_key,null);
-      db.exec("DELETE FROM settings WHERE key='pend:2:tip'");
+      db.exec("DELETE FROM settings WHERE key='"+tipKey+"'");
     });
     await check('nightly check separates missing, disagreeing and unrecorded charges, and records only verified ones',async()=>{
       db.exec("DELETE FROM transactions WHERE plaid_id IS NOT NULL AND month='2026-07'");

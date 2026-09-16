@@ -1870,9 +1870,15 @@ async function retryHeldReceiptsInner(env) {
      * asks once with a single button and keeps waiting in the meantime. */
     if (decision?.confirm) {
       const t = decision.row;
-      if (meta.proposed !== t.id && (meta.ch || sr.channelId)) {
+      const born = Number(String(row.key).split(':')[1]);
+      const age = Number.isFinite(born) ? (Date.now() - born) / 86400e3 : 0;
+      const firstAsk = meta.proposed !== t.id;
+      /* Unanswered, this would expire at 30 days like any held receipt, so
+       * it gets the same last call at 25. */
+      const lastAsk = !firstAsk && age >= 25 && !meta.reminded;
+      if ((firstAsk || lastAsk) && (meta.ch || sr.channelId)) {
         const diff = round2(t.amount - Number(meta.amount));
-        const txt = `${await ownerMention(env)}⏳ Is this the one? The *${meta.vendor}* receipt ($${Number(meta.amount).toFixed(2)}, ${meta.date}) looks like *${t.vendor}* $${t.amount.toFixed(2)} on ${t.date}.\n` +
+        const txt = `${await ownerMention(env)}⏳ ${lastAsk ? `Last call, the file is deleted in ${Math.max(1, Math.ceil(30 - age))} days. ` : ''}Is this the one? The *${meta.vendor}* receipt ($${Number(meta.amount).toFixed(2)}, ${meta.date}) looks like *${t.vendor}* $${t.amount.toFixed(2)} on ${t.date}.\n` +
           `The card spells the name differently and the amount is ${diff > 0 ? '$' + diff.toFixed(2) + ' higher (a tip, most likely)' : '$' + Math.abs(diff).toFixed(2) + ' lower'}, so I want a yes before attaching it.`;
         const delivery = await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
           ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
@@ -1880,9 +1886,13 @@ async function retryHeldReceiptsInner(env) {
             { type: 'actions', elements: [
               { type: 'button', action_id: 'led_attach', style: 'primary',
                 text: { type: 'plain_text', text: "Yes, that's it" },
-                value: JSON.stringify({ file: row.key, to: t.id }) }] }] }, true);
+                value: JSON.stringify({ file: row.key, to: t.id }) },
+              { type: 'button', action_id: 'led_drop',
+                text: { type: 'plain_text', text: 'Not mine · discard' },
+                value: JSON.stringify({ drop: row.key }) }] }] }, true);
         if (!delivery.ok) throw new Error('Receipt question could not be delivered: ' + delivery.error);
-        meta.proposed = t.id; await putSetting(env, row.key, JSON.stringify(meta));
+        if (firstAsk) meta.proposed = t.id; else meta.reminded = 1;
+        await putSetting(env, row.key, JSON.stringify(meta));
         asked++;
       }
       continue;
