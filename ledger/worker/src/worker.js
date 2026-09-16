@@ -310,6 +310,7 @@ const VENDOR_ALIASES = [
   ['squarespace', 'sqsp'],
   ['western union', 'wu'],
   ['meta platforms', 'facebook', 'instagram'],
+  ['seller systems', 'datadive'],  // DataDive's receipts come from its parent company
 ];
 /* Same company, whatever the two names look like. Both must be found in the
  * SAME row for this to say yes, so an unlisted vendor simply falls through to

@@ -263,6 +263,10 @@ async function main(){
       assert.equal(again.problems.filter(p=>/bank/.test(p.what)).length,2);
       assert.equal(db.prepare("SELECT amount FROM transactions WHERE plaid_id='legacy-bad'").get().amount,30);
     });
+    await check('DataDive receipt from its parent company attaches',()=>{
+      const d=context.api.heldReceiptMatch([{id:826,type:'out',vendor:'Datadive.tools',amount:39,date:'2026-09-14'}],'Seller Systems Software LLC',39,'2026-09-14');
+      assert.equal(d.row.id,826);assert.equal(d.confirm,false);
+    });
     await check('fenced batches support atomic multi-statement writes',async()=>{
       await context.api.withLedgerLease(env,'batch-test',async leased=>{
         await leased.DB.batch([leased.DB.prepare("INSERT INTO settings VALUES('batch-a','1')"),leased.DB.prepare("INSERT INTO settings VALUES('batch-b','2')")]);
