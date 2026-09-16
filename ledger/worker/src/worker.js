@@ -631,6 +631,31 @@ function receiptMatch(rows, vendor, amount, date, allowTip=false) {
   const tips=allowTip && Number(amount)>0 ? eligible.filter(t=>t.amount>=Number(amount)/1.35 && t.amount<=Number(amount)*1.35) : [];
   return tips.length===1?tips[0]:null;
 }
+/* The held-receipt sweep's matcher, in order of trust:
+ *   1. same name (or a listed alias), exact amount       -> attach
+ *   2. card spelling differs, exact amount, within a week -> attach
+ *   3. same name, amount within the tip band             -> attach
+ *   4. card spelling differs AND amount differs          -> ask first
+ * Every step needs exactly one candidate; two plausible charges is a question
+ * for Cole, never a guess. Returns { row, confirm } or null. */
+function heldReceiptMatch(rows, vendor, amount, date) {
+  const amt = Number(amount);
+  const days = t => Math.abs(Date.parse(t.date) - Date.parse(date)) / 86400e3;
+  const open = rows.filter(t => t.type === 'out' && !t.expected && !t.receipt_key && days(t) <= 12);
+  const strictName = t => String(t.vendor).trim().toLowerCase() === String(vendor || '').trim().toLowerCase() || sameCompany(t.vendor, vendor);
+  const strict = open.filter(strictName);
+  const loose = open.filter(t => !strictName(t) && days(t) <= 7 && looseNameMatch(t.vendor, vendor));
+  const exactAmt = t => Math.abs(t.amount - amt) < 0.005;
+  const inTipBand = t => amt > 0 && t.amount >= amt / 1.35 && t.amount <= amt * 1.35;
+  const one = (list, confirm) => list.length === 1 ? { row: list[0], confirm } : null;
+
+  const strictExact = strict.filter(exactAmt), looseExact = loose.filter(exactAmt);
+  if (strictExact.length) return strictExact.length === 1 && !looseExact.length ? one(strictExact, false) : null;
+  const strictTip = strict.filter(inTipBand);
+  if (looseExact.length) return !strictTip.length ? one(looseExact, false) : null;
+  if (strictTip.length) return one(strictTip, false);
+  return one(loose.filter(inTipBand), true);
+}
 async function processSlackReceipts(env) { return withLedgerLease(env, 'receipts', env => processSlackReceiptsInner(env)); }
 async function processSlackReceiptsInner(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
@@ -1586,9 +1611,14 @@ function looksLikeTransfer(name, pfc, selfAccounts = []) {
  */
 async function processPlaidTxn(env, item, t, opts = {}) {
   const result = await processPlaidTxnInner(env, item, t, opts);
-  if (typeof result === 'string' && !['pending', 'before-start', 'duplicate'].includes(result))
+  if (typeof result === 'string' && !['pending', 'before-start', 'duplicate'].includes(result)) {
+    const currency = t.iso_currency_code || t.unofficial_currency_code || null;
     await env.DB.prepare('UPDATE transactions SET bank_account_id=?2, bank_currency=?3, bank_amount=?4, bank_item_id=?5 WHERE plaid_id=?1')
-      .bind(t.transaction_id, t.account_id || null, t.iso_currency_code || t.unofficial_currency_code || null, round2(t.amount),item.item_id || null).run();
+      .bind(t.transaction_id, t.account_id || null, currency, round2(t.amount),item.item_id || null).run();
+    await env.DB.prepare(`INSERT OR IGNORE INTO bank_provenance(plaid_id,item_id,account_id,currency,amount,date,origin)
+      VALUES(?1,?2,?3,?4,?5,?6,'ingest')`)
+      .bind(t.transaction_id, item.item_id || null, t.account_id || null, currency, round2(t.amount), t.date).run();
+  }
   return result;
 }
 async function processPlaidTxnInner(env, item, t, opts = {}) {
@@ -1785,13 +1815,38 @@ async function retryHeldReceiptsInner(env) {
     const hit = await env.DB.prepare(
       `SELECT * FROM transactions WHERE type='out' AND expected=0 AND receipt_key IS NULL
        AND amount >= ?1 AND amount <= ?2 AND ABS(julianday(date) - julianday(?3)) <= 12
-       ORDER BY ABS(amount - ?4), ABS(julianday(date) - julianday(?3)) LIMIT 4`)
+       ORDER BY ABS(amount - ?4), ABS(julianday(date) - julianday(?3))`)
       .bind(lo, hi, meta.date, Number(meta.amount)).all();
     /* THE NAME MUST AGREE. Nobody is watching this sweep, so "there is only
      * one charge at that amount" is not good enough: an Anthropic receipt for
      * $90 met an OpenAI charge for $90 and filed itself there. A held receipt
-     * waits for its own vendor, however long that takes. */
-    const match = receiptMatch(hit.results,meta.vendor,meta.amount,meta.date,true);
+     * waits for its own vendor, however long that takes. Every candidate in
+     * the window is read (no LIMIT): "exactly one" means nothing if the
+     * others were never looked at. */
+    const decision = heldReceiptMatch(hit.results, meta.vendor, meta.amount, meta.date);
+    const match = decision && !decision.confirm ? decision.row : null;
+    /* Card spelling AND amount both differ · a tipped meal on Amex, usually.
+     * Right often enough to suggest, not safe enough to file unwatched, so it
+     * asks once with a single button and keeps waiting in the meantime. */
+    if (decision?.confirm) {
+      const t = decision.row;
+      if (meta.proposed !== t.id && (meta.ch || sr.channelId)) {
+        const diff = round2(t.amount - Number(meta.amount));
+        const txt = `⏳ Is this the one? The *${meta.vendor}* receipt ($${Number(meta.amount).toFixed(2)}, ${meta.date}) looks like *${t.vendor}* $${t.amount.toFixed(2)} on ${t.date}.\n` +
+          `The card spells the name differently and the amount is ${diff > 0 ? '$' + diff.toFixed(2) + ' higher (a tip, most likely)' : '$' + Math.abs(diff).toFixed(2) + ' lower'}, so I want a yes before attaching it.`;
+        const delivery = await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
+          ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: txt } },
+            { type: 'actions', elements: [
+              { type: 'button', action_id: 'led_attach', style: 'primary',
+                text: { type: 'plain_text', text: "Yes, that's it" },
+                value: JSON.stringify({ file: row.key, to: t.id }) }] }] }, true);
+        if (!delivery.ok) throw new Error('Receipt question could not be delivered: ' + delivery.error);
+        meta.proposed = t.id; await putSetting(env, row.key, JSON.stringify(meta));
+        asked++;
+      }
+      continue;
+    }
     if (!match) {
       /* Waiting is fine for a few days; waiting forever in silence is not.
        * The key carries its own creation time, so after a week without the
@@ -1831,8 +1886,13 @@ async function retryHeldReceiptsInner(env) {
     const gap = round2(match.amount - Number(meta.amount));
     const k = `rcpt:${match.id}:${Date.now()}`;
     await receiptPut(env, k, blob);
-    await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+    /* The row was unreceipted when it was read, which is not the same as now:
+     * the app or a Slack button may have attached something in between. Only
+     * claim it if it is still empty, and keep holding if it is not. */
+    const took = await env.DB.prepare(`UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5
+      WHERE id=?1 AND receipt_key IS NULL AND expected=0`)
       .bind(match.id, k, meta.name, meta.type, await sha256bytes(blob)).run();
+    if (!took.meta.changes) { await receiptDelete(env, k).catch(() => {}); continue; }
     await receiptDelete(env, row.key);
     await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
     attached++;
@@ -1972,13 +2032,26 @@ async function selfCheck(env, fromYmd, toYmd) {
   const add = (what, detail) => problems.push({ what, detail });
 
   /* 1. Every charge the bank reported is in the books. */
-  const cmp = await comparePlaid(env, fromYmd, toYmd).catch(e => ({ error: String(e.message || e) }));
+  const cmp = await comparePlaid(env, fromYmd, toYmd, false, { repair: true }).catch(e => ({ error: String(e.message || e) }));
+  const line = b => `${b.vendor} ${fmtMoney(b.amount)} · ${b.date}`;
   if (cmp.error) add('Could not read the bank', cmp.error);
   /* A check that cannot run is not a check that passed. */
   else if (cmp.skipped) add('The bank could not be read', cmp.skipped);
-  else if (cmp.onBankNotInBooks > 0)
-    add(`${cmp.onBankNotInBooks} charge${cmp.onBankNotInBooks > 1 ? 's are' : ' is'} on the bank and not in the books`,
-        (cmp.missing || []).slice(0, 5).map(m => `${m.vendor} ${fmtMoney(m.amount)} · ${m.date}`).join(', '));
+  else {
+    if (cmp.onBankNotInBooks > 0)
+      add(`${cmp.onBankNotInBooks} charge${cmp.onBankNotInBooks > 1 ? 's are' : ' is'} on the bank and not in the books`,
+          (cmp.missing || []).slice(0, 5).map(line).join(', ')
+          + '. Settings → Bank feeds → Re-check (that month) adds them if the month is open; a closed month has to be reopened first.');
+    if (cmp.discrepancyCount > 0)
+      add(`${cmp.discrepancyCount} booked charge${cmp.discrepancyCount > 1 ? 's disagree' : ' disagrees'} with the bank`,
+          (cmp.discrepancies || []).slice(0, 5).map(d => `${line(d.bank)} (${d.reason})`).join(', ')
+          + '. Check each one in Ledger; nothing is changed automatically.');
+    /* The repair above records these whenever the row agrees with the bank,
+     * so any left over mean the repair could not run tonight. */
+    if (cmp.unverifiedCount > 0)
+      add(`${cmp.unverifiedCount} booked charge${cmp.unverifiedCount > 1 ? 's have' : ' has'} no bank record yet`,
+          'The amounts and dates agree, so no money is wrong. The nightly repair fills these in; if this repeats, the repair is not running.');
+  }
 
   /* 2. Nothing counted twice. Two rows for one day and one amount are usually
    *    innocent · two clients on the same retainer, two filings · so only a
@@ -2046,7 +2119,62 @@ async function selfCheck(env, fromYmd, toYmd) {
   return { ok: problems.length === 0, from: fromYmd, to: toYmd, checked: cmp.bankCount || 0, problems };
 }
 
-async function comparePlaid(env, fromYmd, toYmd, full) {
+/* Where a booked charge came from: the row's own columns when the feed wrote
+ * them, otherwise the append-only record. Null means nobody has checked yet. */
+function provenanceOf(r) {
+  if (r.bank_item_id != null || r.bank_account_id != null)
+    return { item_id: r.bank_item_id, account_id: r.bank_account_id, currency: r.bank_currency };
+  if (r.p_item_id != null || r.p_account_id != null)
+    return { item_id: r.p_item_id, account_id: r.p_account_id, currency: r.p_currency };
+  return null;
+}
+
+/* Why a booked row does not agree with its bank line, or null when it does.
+ * Money is compared signed for income and expenses; a transfer is stored as a
+ * positive amount whichever way it went, so only its size can be compared. */
+function bankDisagrees(r, b) {
+  const signed = r.type === 'in' ? -r.amount : r.type === 'out' ? r.amount : null;
+  const amountOk = signed === null
+    ? Math.abs(Math.abs(r.amount) - Math.abs(b.amount)) < 0.005
+    : Math.abs(signed - b.amount) < 0.005;
+  if (!amountOk) return `Amount differs: books ${fmtMoney(r.amount)}, bank ${fmtMoney(b.amount)}`;
+  /* A photographed receipt keeps its purchase date when the charge posts
+   * later (processPlaidTxn step 2b), so that one shape may run up to a week
+   * ahead of the bank. Anything else must be the bank's own day. */
+  const lag = (Date.parse(b.date) - Date.parse(r.date)) / 86400e3;
+  const dateOk = r.date === b.date || (r.source === 'manual' && lag > 0 && lag <= 7);
+  if (!dateOk) return `Date differs: books ${r.date}, bank ${b.date}`;
+  if (r.bank_amount != null && Math.abs(r.bank_amount - b.amount) >= 0.005)
+    return `Recorded bank amount ${fmtMoney(r.bank_amount)} no longer matches the bank's ${fmtMoney(b.amount)}`;
+  const p = provenanceOf(r);
+  if (p && ((p.item_id != null && b.item_id != null && p.item_id !== b.item_id)
+         || (p.account_id != null && p.account_id !== b.account_id)
+         || (p.currency != null && p.currency !== b.currency)))
+    return 'Booked from a different bank account or currency than the bank now reports';
+  return null;
+}
+
+/* ONE-TIME-PER-CHARGE REPAIR for rows booked before provenance existed. The
+ * only key is Plaid's own transaction id, and the row must already agree with
+ * the bank on amount and date. Nothing about the transaction itself is
+ * touched · the record goes in the append-only table, so closed months stay
+ * exactly as they were frozen. A row that disagrees is left alone and shows
+ * up as a discrepancy for Cole instead. */
+async function repairBankProvenance(env, bank, rows) {
+  const byId = new Map(rows.filter(r => r.plaid_id).map(r => [r.plaid_id, r]));
+  const fixed = new Map();
+  for (const b of bank) {
+    const r = byId.get(b.id);
+    if (!r || provenanceOf(r) || bankDisagrees(r, b)) continue;
+    if (!b.item_id || !b.account_id || !b.currency) continue;   // nothing trustworthy to record
+    const res = await env.DB.prepare(`INSERT OR IGNORE INTO bank_provenance(plaid_id,item_id,account_id,currency,amount,date,origin)
+      VALUES(?1,?2,?3,?4,?5,?6,'repair')`).bind(b.id, b.item_id, b.account_id, b.currency, b.amount, b.date).run();
+    if (res.meta.changes) fixed.set(b.id, { item_id: b.item_id, account_id: b.account_id, currency: b.currency });
+  }
+  return fixed;
+}
+
+async function comparePlaid(env, fromYmd, toYmd, full, opts = {}) {
   if (!plaidReady(env)) return { skipped: 'no Plaid keys' };
   const items = await getPlaidItems(env);
   if (!items.length) return { skipped: 'no connected accounts' };
@@ -2075,33 +2203,49 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
     }
   }
 
+  /* A week of slack on the early side: a photographed receipt keeps the day of
+   * purchase while its card charge posts a few days later, so the row that
+   * answers for a charge can sit just before the window. */
   const rows = (await env.DB.prepare(
-    `SELECT id, date, month, type, vendor, amount, plaid_id, bank_item_id, bank_account_id, bank_currency, bank_amount
-       FROM transactions WHERE date >= ?1 AND date < ?2 AND expected=0`).bind(fromYmd, toYmd).all()).results || [];
+    `SELECT t.id, t.date, t.month, t.type, t.vendor, t.amount, t.source, t.plaid_id,
+            t.bank_item_id, t.bank_account_id, t.bank_currency, t.bank_amount,
+            p.item_id AS p_item_id, p.account_id AS p_account_id, p.currency AS p_currency
+       FROM transactions t LEFT JOIN bank_provenance p ON p.plaid_id = t.plaid_id
+      WHERE t.date >= date(?1, '-7 days') AND t.date < ?2 AND t.expected=0`).bind(fromYmd, toYmd).all()).results || [];
 
-  /* A ledger row can only answer for one bank charge. */
+  if (opts.repair) {
+    const fixed = await withLedgerLease(env, 'bank', env => repairBankProvenance(env, bank, rows));
+    if (!fixed?.skipped) for (const r of rows) {
+      const p = fixed.get(r.plaid_id);
+      if (p) Object.assign(r, { p_item_id: p.item_id, p_account_id: p.account_id, p_currency: p.currency });
+    }
+  }
+
+  /* Three different answers, kept apart because they need different things
+   * from Cole. MISSING: the bank has a charge the books do not. DISCREPANCY:
+   * the books hold that charge but disagree about it. UNVERIFIED: the books
+   * agree, but the row predates the provenance record and has not been
+   * checked against the bank yet · a bookkeeping gap, not a money one. */
   const used = new Set();
   const byId = new Map(rows.filter(r => r.plaid_id).map(r => [r.plaid_id, r]));
-  const missing = [], discrepancies = [], byMonth = {};
+  const missing = [], discrepancies = [], unverified = [], byMonth = {};
   for (const b of bank) {
-    const m = byMonth[b.month] || (byMonth[b.month] = { bank: 0, matched: 0, missing: 0 });
+    const m = byMonth[b.month] || (byMonth[b.month] = { bank: 0, matched: 0, missing: 0, discrepancies: 0, unverified: 0 });
     m.bank++;
-    const exact = byId.get(b.id);
-    if (exact && !used.has(exact.id) && exact.date === b.date
-        && exact.bank_item_id === b.item_id && exact.bank_account_id === b.account_id && exact.bank_currency === b.currency
-        && exact.bank_amount !== null && Math.abs(exact.bank_amount - b.amount) < 0.005
-        && Math.abs((exact.type === 'in' ? -exact.amount : exact.type === 'out' ? exact.amount : exact.bank_amount) - b.amount) < 0.005) {
-      used.add(exact.id); m.matched++; continue;
-    }
-    if(exact) discrepancies.push({bank:b,ledger:exact,reason:'Source amount, date, account, currency or direction differs'});
-    m.missing++;
-    missing.push(b);
+    const row = byId.get(b.id);
+    if (!row || used.has(row.id)) { m.missing++; missing.push(b); continue; }
+    /* A ledger row can only answer for one bank charge. */
+    used.add(row.id);
+    const why = bankDisagrees(row, b);
+    if (why) { m.discrepancies++; discrepancies.push({ bank: b, ledger: row, reason: why }); continue; }
+    if (!provenanceOf(row)) { m.unverified++; unverified.push(b); continue; }
+    m.matched++;
   }
 
   /* The other direction: rows he typed that the bank never reported. Some are
    * legitimate (cash, a card that is not linked, a Stripe payout booked by
    * hand) · this names them rather than judging them. */
-  const unmatchedRows = rows.filter(r => !used.has(r.id))
+  const unmatchedRows = rows.filter(r => !used.has(r.id) && r.date >= fromYmd)
     .map(r => ({ id: r.id, date: r.date, vendor: r.vendor, amount: r.amount, type: r.type }));
 
   /* Months the bank returned nothing for are NOT months that agree · they are
@@ -2114,8 +2258,10 @@ async function comparePlaid(env, fromYmd, toYmd, full) {
     ok: true, readOnly: true, from: fromYmd, to: toYmd,
     bankCount: bank.length, ledgerCount: rows.length,
     onBankNotInBooks: missing.length, inBooksNotOnBank: unmatchedRows.length,
+    discrepancyCount: discrepancies.length, unverifiedCount: unverified.length,
     noBankData: noData, byMonth,
-    discrepancies, missing: missing.slice(0, 100), extra: unmatchedRows.slice(0, 100),
+    discrepancies: discrepancies.slice(0, 100), unverified: unverified.slice(0, 100),
+    missing: missing.slice(0, 100), extra: unmatchedRows.slice(0, 100),
     /* The statement itself, when the question is "what does the bank actually
      * say" rather than "where do we disagree". */
     /* The caller almost never wants 500 bank lines back · selfCheck does,
@@ -2297,7 +2443,7 @@ export default {
           if (chk.ok) return;
           await alertSlack(env, `\u26a0\ufe0f *The nightly check found ${chk.problems.length} thing${chk.problems.length > 1 ? 's' : ''} wrong with the books:*\n` +
             chk.problems.map(p => `\u2022 *${p.what}*${p.detail ? ` \u00b7 ${p.detail}` : ''}`).join('\n') +
-            `\n\nNothing was changed. Settings \u2192 Re-check the bank fixes most of these.`);
+            `\n\nNothing about the money was changed.`);
         })().catch(e => console.log('self check failed: ' + e.message));
         await monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message));
         await receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message));
@@ -2334,7 +2480,15 @@ export default {
         await putSetting(env, LEASE, String(now + 5 * 60e3));
         try {
           await syncPlaid(env).catch(e => console.log('10-min bank pull failed: ' + e.message));
-          await retryHeldReceipts(env).catch(e => console.log('10-min held retry failed: ' + e.message));
+          /* A log line nobody reads is how held receipts sat for a day with
+           * nothing said. Failures go to the channel, at most every 6 hours. */
+          await retryHeldReceipts(env).catch(async e => {
+            console.log('10-min held retry failed: ' + e.message);
+            const last = Number(await getSetting(env, 'heldRetryAlertAt').catch(() => 0)) || 0;
+            if (Date.now() - last < 6 * 3600e3) return;
+            await putSetting(env, 'heldRetryAlertAt', String(Date.now()));
+            await alertSlack(env, `⚠️ *Held receipts could not be checked.* They stay held and nothing was filed. Error: ${String(e.message || e).slice(0, 200)}`);
+          }).catch(e => console.log('held retry alert failed: ' + e.message));
         } finally {
           await putSetting(env, LEASE, '0').catch(() => {});
         }
@@ -2494,8 +2648,16 @@ export default {
             }
             const k = `rcpt:${row.id}:${Date.now()}`;
             await receiptPut(env, k, blob);
-            await env.DB.prepare('UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5 WHERE id=?1')
+            /* Only onto a charge that is still empty: the button can be tapped
+             * hours after it was sent, and a receipt may have landed since. */
+            const took = await env.DB.prepare(`UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5
+              WHERE id=?1 AND receipt_key IS NULL`)
               .bind(row.id, k, meta.name, meta.type, await sha256bytes(blob)).run();
+            if (!took.meta.changes) {
+              await receiptDelete(env, k).catch(() => {});
+              respond({ replace_original: false, text: `⚠️ *${row.vendor}* $${Math.abs(row.amount).toFixed(2)} already has a receipt now, so this one was not attached. It is still waiting; open the app if it belongs somewhere else.` });
+              return new Response('', { status: 200 });
+            }
             await receiptDelete(env, val.file);
             await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
             respond({ replace_original: true,

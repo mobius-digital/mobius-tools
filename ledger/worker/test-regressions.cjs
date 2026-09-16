@@ -18,7 +18,7 @@ const DB = { prepare(sql) {
 }, async batch(stmts) { db.exec('BEGIN'); try { const r=[]; for(const s of stmts) r.push(await s.run()); db.exec('COMMIT'); return r; } catch(e) { db.exec('ROLLBACK'); throw e; } } };
 const source=fs.readFileSync(path.join(__dirname,'src/worker.js'),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default {','const worker = {');
 const context=vm.createContext({ console, crypto:require('node:crypto').webcrypto, Request,Response,Headers,URL,URLSearchParams,TextEncoder,TextDecoder,Buffer,atob,btoa,Blob,FormData,fetch:async()=>{throw Error('Offline tests prohibit network');} });
-vm.runInContext(source+'\nglobalThis.api={worker,computeReport,periodReport,validSession,bankRefresh,syncStripe,comparePlaid,applyBankJob,saveJob,withLedgerLease,processSlackReceipts,importPlaidRange,receiptMatch};',context);
+vm.runInContext(source+'\nglobalThis.api={worker,computeReport,periodReport,validSession,bankRefresh,syncStripe,comparePlaid,applyBankJob,saveJob,withLedgerLease,processSlackReceipts,importPlaidRange,receiptMatch,heldReceiptMatch,retryHeldReceipts,selfCheck};',context);
 const env={DB,ADMIN_TOKEN:'local-test-only',OWNER_EMAIL:'owner@mobius.test',AUTH:{fetch:async()=>Response.json({email:'intruder@example.test'})}};
 async function main(){
   db.exec("INSERT INTO transactions(date,month,type,vendor,amount,tax_cat) VALUES('2026-08-01','2026-08','out','Meal',100,'Meals')");
@@ -106,7 +106,7 @@ async function main(){
       env.PLAID_CLIENT_ID='offline';env.PLAID_SECRET='offline';
       db.prepare("INSERT OR REPLACE INTO settings VALUES('plaidItems',?)").run(JSON.stringify([{access_token:'fake',accounts:{acct:{name:'Mobius test'}}}]));
       context.fetch=async()=>Response.json({total_transactions:2,transactions:[{transaction_id:'bank-test',account_id:'acct',date:'2026-08-20',amount:125,iso_currency_code:'USD'},{transaction_id:'missing',account_id:'acct',date:'2026-09-10',amount:100,iso_currency_code:'USD'}]});
-      const r=await context.api.comparePlaid(env,'2026-08-01','2026-10-01');assert.equal(r.onBankNotInBooks,2);
+      const r=await context.api.comparePlaid(env,'2026-08-01','2026-10-01');assert.equal(r.onBankNotInBooks,1);assert.equal(r.discrepancyCount,1);assert.match(r.discrepancies[0].reason,/Amount differs/);
     });
     await check('receipt preview cannot serve active HTML',async()=>{
       const row=db.prepare("SELECT id FROM transactions WHERE vendor='Imported'").get();
@@ -164,6 +164,104 @@ async function main(){
       assert.equal(context.api.receiptMatch(rows,'Anthropic',90,'2026-09-01'),null);
       assert.equal(context.api.receiptMatch([...rows,{...rows[0],id:2}],'OpenAI',90,'2026-09-01'),null);
       assert.equal(context.api.receiptMatch(rows,'OpenAI',75,'2026-09-01',true).id,1);
+    });
+    await check('held matcher: card spelling differs but amount exact attaches',()=>{
+      const rows=[{id:1,type:'out',vendor:'SPO*OAXACAMARGARITABEDWARDSVILLE',amount:50.30,date:'2026-09-14'}];
+      const d=context.api.heldReceiptMatch(rows,'Oaxaca Margarita Bar & Mexican Restaurant',50.30,'2026-09-12');
+      assert.equal(d.row.id,1);assert.equal(d.confirm,false);
+    });
+    await check('held matcher: card spelling AND amount differ asks first',()=>{
+      const rows=[{id:1,type:'out',vendor:'SPO*OAXACAMARGARITABEDWARDSVILLE',amount:60.36,date:'2026-09-14'}];
+      const d=context.api.heldReceiptMatch(rows,'Oaxaca Margarita Bar',50.30,'2026-09-12');
+      assert.equal(d.row.id,1);assert.equal(d.confirm,true);
+    });
+    await check('held matcher: same name with a tip still attaches',()=>{
+      const d=context.api.heldReceiptMatch([{id:3,type:'out',vendor:'Oaxaca',amount:60,date:'2026-09-13'}],'Oaxaca',50,'2026-09-12');
+      assert.equal(d.row.id,3);assert.equal(d.confirm,false);
+    });
+    await check('held matcher: two plausible charges is never a guess',()=>{
+      const rows=[{id:1,type:'out',vendor:'SPO*OAXACA EDWARDSVILLE',amount:50.30,date:'2026-09-13'},{id:2,type:'out',vendor:'TST*OAXACA GRILL',amount:50.30,date:'2026-09-14'}];
+      assert.equal(context.api.heldReceiptMatch(rows,'Oaxaca',50.30,'2026-09-12'),null);
+      assert.equal(context.api.heldReceiptMatch([{id:4,type:'out',vendor:'Anthropic',amount:90,date:'2026-09-12'},{id:5,type:'out',vendor:'Anthropic',amount:95,date:'2026-09-12'}],'Anthropic',88,'2026-09-12'),null);
+    });
+    await check('held matcher: unrelated vendor and fuzzy name past a week are refused',()=>{
+      assert.equal(context.api.heldReceiptMatch([{id:1,type:'out',vendor:'OpenAI',amount:90,date:'2026-09-12'}],'Anthropic',90,'2026-09-12'),null);
+      assert.equal(context.api.heldReceiptMatch([{id:1,type:'out',vendor:'SPO*OAXACAEDWARDSVILLE',amount:50.30,date:'2026-09-22'}],'Oaxaca',50.30,'2026-09-12'),null);
+    });
+    await check('held sweep finds the right charge past many same-amount decoys, and never overwrites a receipt',async()=>{
+      db.exec("DELETE FROM settings WHERE key LIKE 'pend:%'; UPDATE months SET status='open'");
+      for(let i=0;i<6;i++) db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,source) VALUES('2026-09-20','2026-09','out',?,40,'plaid')").run('Decoy '+i);
+      const target=Number(db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,source) VALUES('2026-09-21','2026-09','out','SQ *HEARTLAND BREWING',40,'plaid')").run().lastInsertRowid);
+      await env.RECEIPTS.put('pend:1:held',new TextEncoder().encode('held receipt').buffer);
+      db.prepare('INSERT INTO settings VALUES(?,?)').run('pend:1:held',JSON.stringify({name:'r.jpg',type:'image/jpeg',date:'2026-09-20',vendor:'Heartland Brewing Co',amount:40}));
+      // something else attaches first: the sweep must leave it alone and keep holding
+      db.prepare("UPDATE transactions SET receipt_key='other' WHERE id=?").run(target);
+      await context.api.retryHeldReceipts(env);
+      assert.equal(db.prepare('SELECT receipt_key FROM transactions WHERE id=?').get(target).receipt_key,'other');
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key='pend:1:held'").get().n,1);
+      db.prepare("UPDATE transactions SET receipt_key=NULL WHERE id=?").run(target);
+      const out=await context.api.retryHeldReceipts(env);
+      assert.equal(out.attached,1);
+      assert.match(db.prepare('SELECT receipt_key FROM transactions WHERE id=?').get(target).receipt_key,/^rcpt:/);
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM transactions WHERE vendor LIKE 'Decoy%' AND receipt_key IS NOT NULL").get().n,0);
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key='pend:1:held'").get().n,0);
+    });
+    await check('conditional attach loses the race cleanly',async()=>{
+      const target=Number(db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,source) VALUES('2026-09-21','2026-09','out','Race Vendor',33,'plaid')").run().lastInsertRowid);
+      await env.RECEIPTS.put('pend:3:race',new TextEncoder().encode('race receipt').buffer);
+      db.prepare('INSERT INTO settings VALUES(?,?)').run('pend:3:race',JSON.stringify({name:'x.jpg',type:'image/jpeg',date:'2026-09-21',vendor:'Race Vendor',amount:33}));
+      // the row is read as empty, then filled by another writer before the sweep's write lands
+      const realGet=env.RECEIPTS.get;
+      env.RECEIPTS.get=async k=>{if(k==='pend:3:race')db.prepare("UPDATE transactions SET receipt_key='winner' WHERE id=?").run(target);return realGet(k);};
+      const out=await context.api.retryHeldReceipts(env);
+      env.RECEIPTS.get=realGet;
+      assert.equal(out.attached,0);
+      assert.equal(db.prepare('SELECT receipt_key FROM transactions WHERE id=?').get(target).receipt_key,'winner');
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key='pend:3:race'").get().n,1);
+      assert.ok(await env.RECEIPTS.get('pend:3:race'));
+      db.exec("DELETE FROM settings WHERE key='pend:3:race'");
+    });
+    await check('held sweep asks once, with one button, when name and amount both differ',async()=>{
+      const posts=[];const prev=context.slackMock;
+      context.slackMock=async(e,method,params)=>{if(method==='chat.postMessage')posts.push(params);return prev(e,method,params);};
+      vm.runInContext('slack = slackMock',context);
+      const target=Number(db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,source) VALUES('2026-09-23','2026-09','out','SPO*OAXACAMARGARITABEDWARDSVILLE',60.36,'plaid')").run().lastInsertRowid);
+      await env.RECEIPTS.put('pend:2:tip',new TextEncoder().encode('tip receipt').buffer);
+      db.prepare('INSERT INTO settings VALUES(?,?)').run('pend:2:tip',JSON.stringify({name:'t.jpg',type:'image/jpeg',date:'2026-09-22',vendor:'Oaxaca Margarita Bar',amount:50.30,ch:'C_TEST'}));
+      await context.api.retryHeldReceipts(env);await context.api.retryHeldReceipts(env);
+      context.slackMock=prev;vm.runInContext('slack = slackMock',context);
+      const asks=posts.filter(p=>/Is this the one/.test(p.text));
+      assert.equal(asks.length,1);
+      const btn=asks[0].blocks[1].elements;assert.equal(btn.length,1);assert.equal(btn[0].action_id,'led_attach');
+      assert.deepEqual(JSON.parse(btn[0].value),{file:'pend:2:tip',to:target});
+      assert.equal(db.prepare('SELECT receipt_key FROM transactions WHERE id=?').get(target).receipt_key,null);
+      db.exec("DELETE FROM settings WHERE key='pend:2:tip'");
+    });
+    await check('nightly check separates missing, disagreeing and unrecorded charges, and records only verified ones',async()=>{
+      db.exec("DELETE FROM transactions WHERE plaid_id IS NOT NULL AND month='2026-07'");
+      db.exec("INSERT INTO transactions(date,month,type,vendor,amount,plaid_id,source) VALUES('2026-07-05','2026-07','out','Legacy ok',25,'legacy-ok','plaid'),('2026-07-06','2026-07','out','Legacy wrong',30,'legacy-bad','plaid'),('2026-07-07','2026-07','in','Client deposit',100,'legacy-in','plaid')");
+      db.exec("INSERT INTO months(month,status) VALUES('2026-07','closed') ON CONFLICT(month) DO UPDATE SET status='closed'");
+      db.prepare("INSERT OR REPLACE INTO settings VALUES('plaidItems',?)").run(JSON.stringify([{item_id:'item1',access_token:'fake',accounts:{acct:{name:'Novo'}}}]));
+      const lines=[
+        {transaction_id:'legacy-ok',account_id:'acct',date:'2026-07-05',amount:25,iso_currency_code:'USD',name:'Legacy ok'},
+        {transaction_id:'legacy-bad',account_id:'acct',date:'2026-07-06',amount:35,iso_currency_code:'USD',name:'Legacy wrong'},
+        {transaction_id:'legacy-in',account_id:'acct',date:'2026-07-07',amount:-100,iso_currency_code:'USD',name:'Client deposit'},
+        {transaction_id:'not-booked',account_id:'acct',date:'2026-07-08',amount:12,iso_currency_code:'USD',name:'Never booked'}];
+      context.fetch=async()=>Response.json({total_transactions:lines.length,transactions:lines});
+      const chk=await context.api.selfCheck(env,'2026-07-01','2026-08-01');
+      const what=chk.problems.map(p=>p.what).join(' | ');
+      assert.match(what,/1 charge is on the bank and not in the books/);
+      assert.match(what,/1 booked charge disagrees with the bank/);
+      assert.doesNotMatch(what,/no bank record/);
+      const prov=db.prepare("SELECT plaid_id,origin FROM bank_provenance WHERE plaid_id LIKE 'legacy%' ORDER BY plaid_id").all().map(r=>r.plaid_id+':'+r.origin);
+      assert.deepEqual(prov,['legacy-in:repair','legacy-ok:repair']);
+      // the closed rows themselves are untouched, and the record cannot be rewritten
+      assert.equal(db.prepare("SELECT bank_item_id FROM transactions WHERE plaid_id='legacy-ok'").get().bank_item_id,null);
+      assert.throws(()=>db.exec("UPDATE bank_provenance SET amount=1 WHERE plaid_id='legacy-ok'"),/append-only/);
+      assert.throws(()=>db.exec("DELETE FROM bank_provenance WHERE plaid_id='legacy-ok'"),/append-only/);
+      const again=await context.api.selfCheck(env,'2026-07-01','2026-08-01');
+      assert.equal(again.problems.filter(p=>/bank/.test(p.what)).length,2);
+      assert.equal(db.prepare("SELECT amount FROM transactions WHERE plaid_id='legacy-bad'").get().amount,30);
     });
     await check('fenced batches support atomic multi-statement writes',async()=>{
       await context.api.withLedgerLease(env,'batch-test',async leased=>{
