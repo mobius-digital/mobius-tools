@@ -300,6 +300,24 @@ async function main(){
       assert.ok(!r.some(x=>x.startsWith('3.0')));
       db.exec("DELETE FROM settings WHERE key='pend:5:wait'");
     });
+    await check('unanswered held receipt: asked at 5 days, last call at 25, then quiet',async()=>{
+      const posts=[];const prev=context.slackMock;
+      context.slackMock=async(e,method,params)=>{if(method==='chat.postMessage')posts.push(params.text);return prev(e,method,params);};
+      vm.runInContext('slack = slackMock',context);
+      const key=d=>'pend:'+(Date.now()-d*86400e3)+':old';
+      await env.RECEIPTS.put(key(6),new TextEncoder().encode('x').buffer);
+      db.prepare('INSERT INTO settings VALUES(?,?)').run(key(6),JSON.stringify({name:'o.jpg',type:'image/jpeg',date:'2026-08-01',vendor:'Nowhere Inc',amount:77,ch:'C_TEST'}));
+      await context.api.retryHeldReceipts(env);await context.api.retryHeldReceipts(env);
+      assert.equal(posts.filter(t=>/waiting 6 days/.test(t)).length,1);
+      const row=db.prepare("SELECT key,value FROM settings WHERE key LIKE 'pend:%:old'").get();
+      db.prepare('DELETE FROM settings WHERE key=?').run(row.key);
+      db.prepare('INSERT INTO settings VALUES(?,?)').run(key(26),row.value);
+      await context.api.retryHeldReceipts(env);await context.api.retryHeldReceipts(env);
+      context.slackMock=prev;vm.runInContext('slack = slackMock',context);
+      assert.equal(posts.filter(t=>/Last call/.test(t)).length,1);
+      assert.ok(posts.every(t=>t.startsWith('<@')));
+      db.exec("DELETE FROM settings WHERE key LIKE 'pend:%:old'");
+    });
     await check('fenced batches support atomic multi-statement writes',async()=>{
       await context.api.withLedgerLease(env,'batch-test',async leased=>{
         await leased.DB.batch([leased.DB.prepare("INSERT INTO settings VALUES('batch-a','1')"),leased.DB.prepare("INSERT INTO settings VALUES('batch-b','2')")]);

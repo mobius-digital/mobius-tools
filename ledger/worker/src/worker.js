@@ -1872,7 +1872,7 @@ async function retryHeldReceiptsInner(env) {
       const t = decision.row;
       if (meta.proposed !== t.id && (meta.ch || sr.channelId)) {
         const diff = round2(t.amount - Number(meta.amount));
-        const txt = `⏳ Is this the one? The *${meta.vendor}* receipt ($${Number(meta.amount).toFixed(2)}, ${meta.date}) looks like *${t.vendor}* $${t.amount.toFixed(2)} on ${t.date}.\n` +
+        const txt = `${await ownerMention(env)}⏳ Is this the one? The *${meta.vendor}* receipt ($${Number(meta.amount).toFixed(2)}, ${meta.date}) looks like *${t.vendor}* $${t.amount.toFixed(2)} on ${t.date}.\n` +
           `The card spells the name differently and the amount is ${diff > 0 ? '$' + diff.toFixed(2) + ' higher (a tip, most likely)' : '$' + Math.abs(diff).toFixed(2) + ' lower'}, so I want a yes before attaching it.`;
         const delivery = await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
           ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
@@ -1894,11 +1894,17 @@ async function retryHeldReceiptsInner(env) {
        * something only Cole can answer · asked once, never on repeat. */
       const bornMs = Number(String(row.key).split(':')[1]);
       const days = Number.isFinite(bornMs) ? (Date.now() - bornMs) / 86400e3 : 0;
-      if (days >= 5 && !meta.asked && (meta.ch || sr.channelId)) {
-
+      /* Asked at 5 days, and once more at 25: the held file expires at 30,
+       * and a receipt should never vanish without a last word. */
+      const first = days >= 5 && !meta.asked;
+      const last = days >= 25 && meta.asked && !meta.reminded;
+      if ((first || last) && (meta.ch || sr.channelId)) {
         const at = await ownerMention(env);
-        const txt = `${at}\u23f3 *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has been waiting ${Math.floor(days)} days and still matches no charge on Novo or Amex.\n` +
-          `That usually means it went on a different card, or it is somebody else's charge. It stops waiting now · tell me which:`;
+        const txt = first
+          ? `${at}\u23f3 *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has been waiting ${Math.floor(days)} days and still matches no charge on Novo or Amex.\n` +
+            `That usually means it went on a different card, or it is somebody else's charge. I will keep watching in case it shows up, but tell me which:`
+          : `${at}\u23f3 Last call: *${meta.vendor}* $${Number(meta.amount).toFixed(2)} from ${meta.date} has waited ${Math.floor(days)} days with no matching charge. ` +
+            `The file is deleted in ${Math.max(1, Math.ceil(30 - days))} days unless you pick one:`;
         const delivery = await slack(env, 'chat.postMessage', { channel: meta.ch || sr.channelId,
           ...(meta.ts ? { thread_ts: meta.ts } : {}), text: txt, unfurl_links: false,
           blocks: [{ type: 'section', text: { type: 'mrkdwn', text: txt } },
@@ -1910,7 +1916,8 @@ async function retryHeldReceiptsInner(env) {
                 text: { type: 'plain_text', text: 'Not mine · discard' },
                 value: JSON.stringify({ drop: row.key }) }] }] }, true);
         if (!delivery.ok) throw new Error('Receipt decision could not be delivered: '+delivery.error);
-        meta.asked=1; await putSetting(env,row.key,JSON.stringify(meta));
+        if (first) meta.asked = 1; else meta.reminded = 1;
+        await putSetting(env, row.key, JSON.stringify(meta));
         asked++;
       }
       continue;
