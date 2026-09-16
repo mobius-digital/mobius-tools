@@ -1179,6 +1179,7 @@
   .shp-pill{flex:none;font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:8px;color:var(--ink-2);white-space:nowrap;transition:background .12s,color .12s}
   .shp-pill:hover{color:var(--ink)}
   .shp-pill.on{background:var(--ink-panel);color:#fff;box-shadow:0 2px 6px rgba(12,22,29,.25)}
+  .shp-fixed{font-size:13px;font-weight:600}
   .shp-count{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
   .shp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
   .shp-card{background:var(--surface);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-width:0;cursor:pointer;
@@ -2079,6 +2080,30 @@ function confirmModal(title, hint, cta) {
   });
 }
 
+/* The one choice before a client link is minted: whether the client can
+   re-sort and filter within it, or sees exactly this view. Resolves
+   { locked } or null on cancel. */
+function shareOptionsModal(viewText) {
+  return new Promise(resolve => {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal"><h3>Share with client</h3>
+      <p class="hint">The link opens on <b>${esc(viewText)}</b>, frozen as it is now. Nothing you change in Locus afterwards touches it.</p>
+      <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;cursor:pointer;margin:4px 0 0">
+        <input type="checkbox" id="shLock" style="width:auto;margin-top:3px">
+        <span><b>Lock this view</b><br><span class="tiny">The client sees exactly this - no re-sorting, no filters. Leave it off and they can explore the same ads their own way.</span></span></label>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:16px 0 0">
+        <button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">Create link</button></div></div>`;
+    document.body.appendChild(w);
+    const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
+    const k = e => { if (e.key === 'Escape') done(null); };
+    document.addEventListener('keydown', k);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
+    w.querySelector('[data-m="no"]').onclick = () => done(null);
+    w.querySelector('[data-m="yes"]').onclick = () => done({ locked: w.querySelector('#shLock').checked });
+  });
+}
+
 /* ---------- Searchable picker ----------
    `items` = [{value, label, sub}]. Renders into `host`, returns { value() }.
    Type to filter, ↑/↓/Enter/Escape, click outside to close. `onPick` fires with
@@ -2591,14 +2616,15 @@ async function renderAdShare(token) {
   const st = { sort: METRICS[dft.sort] ? dft.sort : 'spend',
     fmt: dft.fmt === 'static' ? 'image' : (TYPE_LABEL[dft.fmt] ? dft.fmt : ''),
     limit: [4, 8, 12, 0].includes(+dft.limit) ? +dft.limit : 8 };
-  try {
+  const locked = !!d.locked;
+  if (!locked) try {
     const h = new URLSearchParams(location.hash.slice(1));
     if (METRICS[h.get('sort')]) st.sort = h.get('sort');
     if (h.has('show')) st.fmt = TYPE_LABEL[h.get('show')] ? h.get('show') : '';
     if (h.has('top')) { const n = h.get('top') === 'all' ? 0 : +h.get('top'); if ([4, 8, 12, 0].includes(n)) st.limit = n; }
   } catch { /* a hash nobody wrote */ }
   if (st.fmt && !types.includes(st.fmt)) st.fmt = '';
-  const writeHash = () => { try { history.replaceState(null, '', `#sort=${st.sort}&show=${st.fmt || 'all'}&top=${st.limit || 'all'}`); } catch { /* fine */ } };
+  const writeHash = () => { if (locked) return; try { history.replaceState(null, '', `#sort=${st.sort}&show=${st.fmt || 'all'}&top=${st.limit || 'all'}`); } catch { /* fine */ } };
 
   const view = () => {
     const m = METRICS[st.sort];
@@ -2633,7 +2659,9 @@ async function renderAdShare(token) {
     <div><span>${l}</span><b>${f(a)}</b><small title="${esc(a.name)}">${esc(a.name)}</small></div></div>`;
 
   const pill = (g, v, label, on) => `<button type="button" class="shp-pill${on ? ' on' : ''}" data-g="${g}" data-v="${esc(String(v))}" aria-pressed="${on}">${esc(label)}</button>`;
-  const bar = () => `
+  const bar = () => locked ? `
+    <div class="shp-ctl"><span class="shp-ctl-l">View</span><span class="shp-fixed">Top ${st.limit || 'all'} by ${METRICS[st.sort].label.toLowerCase()}${st.fmt ? ` · ${TYPE_LABEL[st.fmt].toLowerCase()} only` : ''}</span></div>
+    <span class="shp-count" id="shpCount"></span>` : `
     <div class="shp-ctl"><span class="shp-ctl-l">Sort by</span><div class="shp-pills">${Object.entries(METRICS).map(([k, m]) => pill('sort', k, m.label, st.sort === k)).join('')}</div></div>
     ${types.length > 1 ? `<div class="shp-ctl"><span class="shp-ctl-l">Show</span><div class="shp-pills">${pill('fmt', '', 'All', !st.fmt)}${types.map(t => pill('fmt', t, TYPE_LABEL[t], st.fmt === t)).join('')}</div></div>` : ''}
     <div class="shp-ctl"><span class="shp-ctl-l">Top</span><div class="shp-pills">${[4, 8, 12, 0].map(n => pill('limit', n, n ? String(n) : 'All', st.limit === n)).join('')}</div></div>
@@ -3092,6 +3120,10 @@ async function renderCreativeBrowser(host, act, range) {
      sorts, filters and sizes the list within that frozen set. */
   $('#cbShare').onclick = async () => {
     const b = $('#cbShare'), msg = $('#cbShareMsg');
+    const sortLabel = CB_SORTS.find(x => x[0] === CB.sort)?.[1] || 'Spend';
+    const viewText = `top ${CB.limit} by ${sortLabel.toLowerCase()}${CB.fmt ? ` · ${CB.fmt === 'static' ? 'image' : CB.fmt} only` : ''}${RATIO_SORTS.has(CB.sort) && d.floor > 0 ? ` · ads over ${fmtMoney(d.floor, cur)}` : ''}`;
+    const opt = await shareOptionsModal(viewText);
+    if (!opt) return;
     b.disabled = true; msg.textContent = 'Gathering ads…';
     try {
       const base = `act=${encodeURIComponent(act)}&from=${range.from}&to=${range.to}&attr=${encodeURIComponent(CB.attr)}`
@@ -3117,6 +3149,7 @@ async function renderCreativeBrowser(host, act, range) {
         ads, range, types: d.types, attr: d.attr,
         min_purchases: d.min_purchases, sales_route: d.sales_route,
         defaults: { sort: CB.sort, fmt: CB.fmt, limit: CB.limit },
+        locked: !!opt.locked,
       };
       /* One D1 row, 2MB ceiling. If the shrunk set still will not fit, the
          lowest-spend ads lose their covers first - never their numbers. */
@@ -3125,14 +3158,13 @@ async function renderCreativeBrowser(host, act, range) {
         if (ads[i].thumb) { ads[i].thumb = null; dropped++; }
       }
       msg.textContent = 'Saving…';
-      const sortLabel = CB_SORTS.find(x => x[0] === CB.sort)?.[1] || 'Spend';
       const r = await api('/api/ad-share', { method: 'POST', body: JSON.stringify({
-        act, label: `${sortLabel} · ${prettyDate(range.from)}–${prettyDate(range.to, true)}`,
+        act, label: `${sortLabel} · ${prettyDate(range.from)}–${prettyDate(range.to, true)}${opt.locked ? ' · locked' : ''}`,
         data: payload,
       }) });
       if (navigator.clipboard) await navigator.clipboard.writeText(r.url).catch(() => {});
       msg.textContent = '';
-      noteModal('Link ready to send', `<p>A read-only page with <b>${ads.length} ads</b> and their numbers. It opens on the view you have now - <b>top ${CB.limit} by ${sortLabel.toLowerCase()}</b> - and the client can re-sort, switch video against static and choose how many to see, all within these ${ads.length} ads. Nothing on it changes after today.</p>
+      noteModal('Link ready to send', `<p>A read-only page with <b>${ads.length} ads</b> and their numbers. It opens on <b>${esc(viewText)}</b>${opt.locked ? ' and is <b>locked</b> - the client sees exactly that, with no re-sorting or filters.' : ', and the client can re-sort, switch video against static and choose how many to see, all within these ' + ads.length + ' ads.'} Nothing on it changes after today.</p>
         <p style="margin-top:10px"><code style="font-size:12px;word-break:break-all">${esc(r.url)}</code></p>
         <p class="hint" style="margin-top:10px">Copied to your clipboard. Cover images are stored with it${dropped ? ` (${dropped} left out to fit)` : ''}, and videos play on the page.</p>`);
     } catch (e) { msg.textContent = ''; noteModal('Could not create the link', `<p>${esc(e.message)}</p>`); }
