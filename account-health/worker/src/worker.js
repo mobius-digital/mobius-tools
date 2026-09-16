@@ -4016,6 +4016,12 @@ async function adRows(env, acct, from, to, opts = {}) {
     // Nothing sold in the window, so there is no CPA of any kind to build on.
     floor = Math.max(50, totalSpend * 0.03); floorBasis = 'share';
   }
+  /* A TYPED FIGURE IS A HARD FLOOR. The sales route below exists so a new
+     winner can appear before it has spent an automatic, CPA-derived bar. When
+     someone types "$100" they have said what qualifies, and a $12 ad with three
+     sales sitting on top of that list reads as the control doing nothing
+     (Cole, 2026-09-16). Under a custom threshold, spend is the only test. */
+  const salesRoute = floorBasis !== 'custom';
 
   const rows = results.map(r => {
     const imp = r.impressions || 0;
@@ -4099,8 +4105,8 @@ async function adRows(env, acct, from, to, opts = {}) {
              weeks.
          Either one earns a ranking; 357-12 ($2, one sale, 39x) satisfies
          neither, which is exactly the noise a floor exists for. */
-      material: r.spend >= floor || purchases >= MIN_RANK_PURCHASES,
-      material_by: r.spend >= floor ? 'spend' : purchases >= MIN_RANK_PURCHASES ? 'sales' : null,
+      material: r.spend >= floor || (salesRoute && purchases >= MIN_RANK_PURCHASES),
+      material_by: r.spend >= floor ? 'spend' : salesRoute && purchases >= MIN_RANK_PURCHASES ? 'sales' : null,
       share: totalSpend ? r.spend / totalSpend : 0,
     };
   });
@@ -4147,6 +4153,8 @@ async function adRows(env, acct, from, to, opts = {}) {
     shown_spend: top.reduce((n, r) => n + r.spend, 0),
     floor, floor_basis: floorBasis, floor_mult: floorMult,
     min_purchases: MIN_RANK_PURCHASES, acct_cpa: acctCpa, target_cpa: targetCpa, sort,
+    // false under a custom threshold: sales are not a second way in there.
+    sales_route: salesRoute,
     // How much of the account this ranking actually saw. "Showing 8 of 12" is
     // a very different sentence when there are 256 ads behind it.
     ads_with_spend: rows.length,

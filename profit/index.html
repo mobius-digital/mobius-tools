@@ -2529,8 +2529,11 @@ const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb
      everyone who has never touched the control, which is the opposite of the
      intent. Check for the key before coercing it. */
   mult: (() => { const raw = localStorage.getItem('pf_cb_mult'); const v = raw == null ? NaN : +raw; return isFinite(v) && v >= 0 ? v : 3; })(),
-  minSpend: null };
-const CB_MULTS = [['0', 'Any spend'], ['1', '1×'], ['2', '2×'], ['3', '3×'], ['5', '5×'], ['custom', 'Custom $…']];
+  /* A typed threshold survives a reload like the multiple does; otherwise the
+     control looked like it forgot you every time the tab came back. */
+  minSpend: (() => { const raw = localStorage.getItem('pf_cb_min_spend'); const v = raw == null ? NaN : +raw; return isFinite(v) && v >= 0 ? v : null; })() };
+/* Plain "Custom": the old "Custom $…" read as a label cut off mid-word. */
+const CB_MULTS = [['0', 'Any spend'], ['1', '1×'], ['2', '2×'], ['3', '3×'], ['5', '5×'], ['custom', 'Custom']];
 /* ATTRIBUTION SOURCE. Cole's rule is Triple Whale for anything attribution-
    shaped, Meta only where TW cannot measure it - and TW returns ALL of these
    models in the SAME response, so there was never a reason to pick one in code
@@ -2663,7 +2666,7 @@ async function renderCreativeBrowser(host, act, range) {
       <label class="cb-l">Revenue from ${sel('attr', CB_ATTR, CB.attr)}</label>
       <label class="cb-l" title="What we WANT this account's cost per purchase to be. The qualifying threshold is a multiple of it, and it is saved on the brand, so everyone judging these ads uses the same line.">Goal CPA
         <span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbGoalCpa" type="text" inputmode="decimal" value="${d.target_cpa != null ? Math.round(d.target_cpa) : ''}" placeholder="${d.acct_cpa != null ? Math.round(d.acct_cpa) : 'set'}"></span></label>
-      <label class="cb-l" title="An ad has to clear this before a ratio sort will rank it - or make 3 sales, whichever comes first.">Counts at ${sel('mult', CB_MULTS, CB.minSpend != null ? 'custom' : String(CB.mult))}
+      <label class="cb-l" title="An ad has to clear this before a ratio sort will rank it - or make 3 sales, whichever comes first. Type your own figure under Custom and spend is the only test: below it, an ad never ranks, however many sales it made.">Counts at ${sel('mult', CB_MULTS, CB.minSpend != null ? 'custom' : String(CB.mult))}
         ${CB.minSpend != null ? `<span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbMinSpend" type="text" inputmode="decimal" value="${Math.round(CB.minSpend)}"></span>`
           : `<b class="cb-thresh">${CB.mult ? fmtMoney(d.floor, cur) : 'any'}</b>`}</label>
       <span style="flex:1"></span>
@@ -2681,9 +2684,13 @@ async function renderCreativeBrowser(host, act, range) {
         : d.floor_basis === 'custom' ? 'your own threshold'
         : 'a fallback: nothing sold in this window, so there is no CPA to build on';
       const ranked = `<b>${d.matched}</b> of ${d.ads_with_spend ?? d.matched} ads that spent`;
+      // Under a custom threshold the worker closes the sales route, and the
+      // sentence has to say so or the number typed looks ignored.
+      const salesOr = d.sales_route === false ? '' : ` <b>or</b> made <b>${d.min_purchases ?? 3} sales</b>`;
+      const salesOr2 = d.sales_route === false ? '' : ` or <b>${d.min_purchases ?? 3} sales</b>`;
       return `<p class="cb-rule">${RATIO_SORTS.has(CB.sort)
-        ? `<b>Counts:</b> an ad is ranked once it has spent <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'anything'}</b> ${d.floor > 0 ? `(${basis})` : ''} <b>or</b> made <b>${d.min_purchases ?? 3} sales</b>. ${ranked} qualify.`
-        : `<b>Counts:</b> every ad that spent is ranked on this sort. On a ratio sort (ROAS, CPA, hook…) an ad needs <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'any spend'}</b> ${d.floor > 0 ? `(${basis})` : ''} or <b>${d.min_purchases ?? 3} sales</b> - ${ranked} would qualify.`}
+        ? `<b>Counts:</b> an ad is ranked once it has spent <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'anything'}</b> ${d.floor > 0 ? `(${basis})` : ''}${salesOr}. ${ranked} qualify.`
+        : `<b>Counts:</b> every ad that spent is ranked on this sort. On a ratio sort (ROAS, CPA, hook…) an ad needs <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'any spend'}</b> ${d.floor > 0 ? `(${basis})` : ''}${salesOr2} - ${ranked} would qualify.`}
         <button class="lnk" id="cbWhy" type="button">Why isn’t my ad here?</button></p>`;
     })()}
     ${d.attr_missing ? `<div class="notice bad" style="margin:0 0 12px">⚠️<div>
@@ -2752,8 +2759,10 @@ async function renderCreativeBrowser(host, act, range) {
           // Seed the box with the threshold currently in force, so "custom"
           // starts from where you are rather than from zero.
           CB.minSpend = Math.round(d.floor || 0);
+          localStorage.setItem('pf_cb_min_spend', String(CB.minSpend));
         } else {
           CB.minSpend = null; CB.mult = +b.dataset.v;
+          localStorage.removeItem('pf_cb_min_spend');
           localStorage.setItem('pf_cb_mult', String(CB.mult));
         }
       }
@@ -2794,6 +2803,7 @@ async function renderCreativeBrowser(host, act, range) {
     const commit = () => {
       const v = +minIn.value.replace(/[^0-9.]/g, '');
       CB.minSpend = isFinite(v) && v >= 0 ? v : 0;
+      localStorage.setItem('pf_cb_min_spend', String(CB.minSpend));
       renderCreativeBrowser(host, act, range);
     };
     minIn.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); minIn.blur(); } };
@@ -2807,7 +2817,9 @@ async function renderCreativeBrowser(host, act, range) {
       : d.floor_basis === 'actual_cpa'
       ? `That is ${CB.mult}× this account's actual CPA of ${fmtMoney(d.acct_cpa, cur)}. <b>Set a goal CPA</b> in the bar above and the line moves to what you are aiming for instead of what you happen to be getting - a bar built on actual CPA rises as performance gets worse, which is exactly backwards.`
       : 'You set that number yourself in the bar above.'}</p>
-    <p>· <b>Or it made ${d.min_purchases ?? 3} sales.</b> Sales are the other kind of evidence, and this is how a brand-new winner appears before it has spent much. Dartee's 357-13 took $79 against a $180 bar and returned 19x off 15 sales - a spend test alone would have hidden it for weeks.</p>
+    ${d.sales_route === false
+      ? `<p>· <b>Sales do not count while you have your own threshold set.</b> A typed figure is a hard floor: an ad under it does not rank, however many sales it made. Pick a multiple under <b>Counts at</b> and the sales route comes back.</p>`
+      : `<p>· <b>Or it made ${d.min_purchases ?? 3} sales.</b> Sales are the other kind of evidence, and this is how a brand-new winner appears before it has spent much. Dartee's 357-13 took $79 against a $180 bar and returned 19x off 15 sales - a spend test alone would have hidden it for weeks.</p>`}
     <p>An ad with one lucky sale on $12 satisfies neither, which is the whole point: it would otherwise top every ROAS list.</p>
     <p><b>To see everything anyway:</b> set <b>Counts at → Any spend</b>, or sort by <b>Spend</b>, <b>Purchases</b> or <b>Newest</b> - those rank every ad that spent, because they are not ratios and cannot be flattered by a tiny denominator.</p>`);
 
