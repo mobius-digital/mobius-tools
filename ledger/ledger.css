@@ -693,3 +693,140 @@ body.signed-out main,body.signed-out footer{margin-left:0}
   .msel-opt{padding:13px 14px;font-size:15px}
   .conn{flex-wrap:wrap}
 }
+
+/* ================= phone-first layer (2026-09-16 round 3) =================
+   Not the desktop squeezed down: the phone gets its own order, its own
+   controls and its own table shape, all in thumb reach. Kept LAST in the
+   file so it wins every tie. */
+.fab{display:none}
+.misst .amt{font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+
+/* iPad portrait and small laptops: the icon rail is already on; give the
+   period bar and tables room without going to phone cards. */
+@media (min-width:768px) and (max-width:1100px){
+  .ph{align-items:flex-start}
+  .ph .pbar-ctl{width:100%}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .readout .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .chart.lg{height:280px}
+  table.st:not(.cols) th,table.st:not(.cols) td{padding-left:7px;padding-right:7px;white-space:normal}
+  table.st:not(.cols) th{letter-spacing:.06em;font-size:10px}
+}
+
+@media (max-width:767px){
+  /* the add button, bottom right, above the tab bar */
+  .fab{display:none;position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:31;width:56px;height:56px;border-radius:18px;
+    background:var(--ink);color:var(--paper);box-shadow:var(--shadow-float);align-items:center;justify-content:center}
+  :root[data-theme="dark"] .fab{background:var(--accent);color:var(--on-accent)}
+  .fab svg{width:24px;height:24px}
+  body[data-view="overview"] .fab,body[data-view="txns"] .fab,body[data-view="receipts"] .fab{display:flex}
+  body.signed-out .fab{display:none!important}
+  .desk{display:none!important}
+  #flash{bottom:calc(146px + env(safe-area-inset-bottom))}
+  .sheet button:disabled{opacity:.4}
+
+  /* page head: title, then one full-width row of controls */
+  .ph{gap:12px}
+  .ph>.row{width:100%}
+  .ph .eyebrow{font-size:10px}
+  .mo-nav{width:100%}
+  .mo-nav .msel-btn.dsel{flex:1}
+  .mo-nav>button{width:44px;height:44px;flex:none}
+
+  /* period bar: a two-column grid of full-width controls */
+  .pbar-ctl{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin:0}
+  .pbar-ctl>label{display:flex;flex-direction:column;align-items:stretch;gap:5px;font-size:11px;min-width:0}
+  .pbar-ctl>label{grid-column:1/-1}
+  .pbar-ctl>label:has(.cal-btn){grid-column:auto}
+  .pbar-ctl .msel-btn.dsel{width:100%;min-height:44px}
+  .pbar-ctl>.seg,.pbar-ctl>.pill,.pbar-ctl>.mo-nav,.pbar-ctl>.tiny{grid-column:1/-1}
+  .pbar-ctl>.seg{display:flex}
+  .pbar-ctl>.seg button{flex:1}
+  .pbar-ctl>.btn{width:100%}
+  .pbar-ctl>.pill{white-space:normal;line-height:1.4;padding:6px 9px}
+
+  /* sub tabs: a swipeable strip that stays put */
+  .tabs{position:sticky;top:calc(48px + env(safe-area-inset-top));z-index:20;background:var(--paper);margin-bottom:16px}
+  .tabs button{padding:12px 12px 13px}
+
+  /* overview: the cards in the order a thumb wants them */
+  #main.ov{display:flex;flex-direction:column;gap:12px}
+  #main.ov>.g,#main.ov .stack{display:contents}
+  #main.ov>*{margin-top:0!important}
+  #main.ov .ph{order:0;margin-bottom:0}
+  #main.ov .o-read{order:1}
+  #main.ov .o-needs{order:2}
+  #main.ov .o-cash{order:3}
+  #main.ov .o-ret{order:4}
+  #main.ov .o-kpis{order:5}
+  #main.ov .o-net{order:6}
+  #main.ov .o-coming{order:7}
+  #main.ov .o-split{order:8}
+  #main.ov .o-where{order:9}
+  #main.ov .o-feed{order:10}
+  .readout{padding:18px}
+  .readout .kpis{grid-template-columns:1fr 1fr;gap:14px 12px;margin-top:16px!important}
+  .readout .kpis>div:last-child{grid-column:1/-1}
+  .rboard{grid-template-columns:1fr 1fr;gap:8px}
+  .rtile{padding:10px 12px}
+  .rtile .rv{font-size:17px}
+  .todo a{min-height:56px}
+  .kpi .v{font-size:22px}
+  .kpi .s{font-size:12px}
+
+  /* charts sized for a phone */
+  .chart{height:210px}
+  .chart.lg{height:240px}
+  .chart.sm{height:180px}
+  .legend{gap:6px 12px;font-size:12px}
+  .ch{margin-bottom:10px}
+  .ch .chr{width:100%;justify-content:flex-start}
+
+  /* wide tables become cards: name and figure on top, the rest underneath */
+  table.rt thead{display:none}
+  table.rt,table.rt tbody{display:block}
+  table.rt tr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  table.rt tr::before{content:"";order:2;flex-basis:100%;height:0}
+  table.rt td{display:block;border:0!important;padding:0!important;white-space:normal;text-align:left!important;background:none!important;order:1}
+  table.rt td:first-child{flex:1 1 50%;min-width:0;font-weight:600;position:static!important}
+  table.rt td:nth-child(2){margin-left:auto;text-align:right!important;font-weight:700}
+  table.rt td:nth-child(n+3){order:3;font-size:12px;color:var(--muted)}
+  table.rt td[data-l]:nth-child(n+3)::before{content:attr(data-l) " ";color:var(--faint);font-weight:500}
+  table.rt td:empty{display:none}
+  table.rt tr.sec{padding:18px 4px 4px;border-bottom:0}
+  table.rt tr.sec td{flex-basis:100%}
+  table.rt tr.sub td:first-child{padding-left:0!important;font-weight:500}
+  table.rt tr.tot{border-top:1px solid var(--line-strong)}
+  table.rt tr.net{border-top:2px solid var(--ink);font-size:15px}
+  table.rt tr.hl{background:var(--chip);border-radius:10px}
+  table.rt .unit-in{min-width:110px}
+  table.rt .msel-btn{max-width:100%}
+  table.rt td:nth-child(n+3):has(.unit-in,.msel-btn,.toggle,button)::before{display:block;margin-bottom:4px}
+  /* settings rows keep their controls reachable */
+  table.rt td:has(.del-x){margin-left:auto}
+  .misst td:nth-child(1){flex-basis:100%!important;order:0!important;font-weight:400!important}
+  .misst td:nth-child(4){display:flex!important;gap:6px;flex-wrap:wrap}
+  .misst td:nth-child(4) .btn{flex:1 1 auto}
+
+  /* by-month P&L stays a table you slide, with a narrower pinned name */
+  table.st.cols td:first-child,table.st.cols th:first-child{min-width:128px;max-width:128px}
+  .card .tbl-wrap{margin:0 -4px}
+
+  /* settings: sections as a swipeable strip */
+  .setnav{position:sticky;top:calc(48px + env(safe-area-inset-top));z-index:20}
+  .setnav button{min-height:40px}
+  .fields{grid-template-columns:1fr 1fr}
+  .conn .pill{margin-left:50px}
+
+  /* statement */
+  .shero .hv{font-size:22px}
+  .splt .sv2{font-size:16px}
+  .grid3{grid-template-columns:1fr 1fr}
+
+  /* thumb-sized targets, everywhere */
+  .msel-btn,.btn.sm,.also .btn{min-height:40px}
+  .txn-tbl .msel-btn{min-height:40px;font-size:13px}
+  a.linky,button.linky{display:inline-flex;align-items:center;min-height:40px;padding:0 4px}
+  .chip .del-x{min-width:32px;min-height:32px!important}
+  .ch .chr .btn{flex:1}
+}
