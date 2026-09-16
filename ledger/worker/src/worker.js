@@ -13,7 +13,7 @@
  * deliberately has no copy — one secret, one owner). ADMIN_TOKEN and the
  * dashboard-set password work as fallbacks, same shape as Pulse/Restock.
  */
-import { buildPnlPdf } from './pdf.js';
+import { buildPnlPdf, buildPnlColumnsPdf } from './pdf.js';
 import { zipStream, zipSafe } from './zip.js';
 import { driveReady, driveAuthUrl, driveExchangeCode, driveListReceipts,
          driveDownload, driveFolderId } from './drive.js';
@@ -31,6 +31,8 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  // the app names downloads from this; without it the browser hides the header
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
   status, headers: { 'Content-Type': 'application/json', ...CORS },
@@ -244,6 +246,7 @@ async function computeRange(env, fromMo, toMo) {
     byBucket: mapRound(byBucket), byTax: mapRound(byTax), byClient: mapRound(byClient),
     monthRows: parts.map(p => ({ month: p.month, label: moLabel(p.month),
       revenue: p.revenue, expenses: round2(p.expenses + p.fees), net: p.net })),
+    monthParts: parts.map(({ transactions, ...p }) => p),
   };
 }
 
@@ -255,17 +258,17 @@ async function periodReport(env, period, anchor) {
     const to = `${anchor.slice(0, 4)}-${String(q * 3 + 3).padStart(2, '0')}`;
     const r = await computeRange(env, from, to);
     return { r, title: 'Profit & Loss', label: `Q${q + 1} ${anchor.slice(0, 4)}`,
-             file: `Mobius Digital P&L — Q${q + 1} ${anchor.slice(0, 4)}.pdf`, months: r.monthRows };
+             file: `Mobius Digital P&L Q${q + 1} ${anchor.slice(0, 4)}.pdf`, months: r.monthRows };
   }
   if (period === 'year') {
     const y = anchor.slice(0, 4);
     const r = await computeRange(env, `${y}-01`, `${y}-12`);
     return { r, title: 'Profit & Loss', label: y,
-             file: `Mobius Digital P&L — ${y}.pdf`, months: r.monthRows };
+             file: `Mobius Digital P&L ${y}.pdf`, months: r.monthRows };
   }
   const r = await resolveReport(env, anchor);
   return { r, title: 'Profit & Loss', label: moLabel(anchor),
-           file: `Mobius Digital P&L — ${moLabel(anchor)}.pdf`, months: null,
+           file: `Mobius Digital P&L ${moLabel(anchor)}.pdf`, months: null,
            frozen: (await monthStatus(env, anchor)) === 'closed' };
 }
 
@@ -1428,6 +1431,16 @@ async function receiptNudge(env, force = false, moOverride = null) {
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const moLabel = m => `${MONTH_NAMES[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
+/* How a range is named on a document and its file: "September 2026",
+ * "Q3 2026", "2026", "Jan to Aug 2026", "Oct 2025 to Mar 2026". */
+function rangeLabelW(from, to) {
+  if (from === to) return moLabel(from);
+  const y1 = from.slice(0, 4), y2 = to.slice(0, 4), m1 = +from.slice(5, 7), m2 = +to.slice(5, 7);
+  const short = m => MONTH_NAMES[m - 1].slice(0, 3);
+  if (y1 === y2 && m1 === 1 && m2 === 12) return y1;
+  if (y1 === y2 && (m1 - 1) % 3 === 0 && m2 === m1 + 2) return `Q${(m1 - 1) / 3 + 1} ${y1}`;
+  return y1 === y2 ? `${short(m1)} to ${short(m2)} ${y1}` : `${short(m1)} ${y1} to ${short(m2)} ${y2}`;
+}
 
 /* Plaid's end_date is INCLUSIVE, and every date range in this file is
  * half-open (to = the first day NOT wanted). Without this the last day of a
@@ -3333,7 +3346,9 @@ export default {
         const { results: con } = await env.DB.prepare(`SELECT vendor, SUM(amount) AS amount, COUNT(*) AS n
           FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out'
             AND tax_cat LIKE 'Contract labor%' GROUP BY vendor ORDER BY amount DESC`).bind(from, to).all();
-        return json({ from, to, months: out, money: await getMoney(env),
+        const { results: taxp } = await env.DB.prepare(`SELECT date, vendor, amount FROM transactions
+          WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND tax_cat LIKE 'Income tax%' ORDER BY date`).bind(from, to).all();
+        return json({ from, to, months: out, money: await getMoney(env), taxPayments: taxp,
           topVendors: vend.map(v => ({ ...v, amount: round2(v.amount) })),
           contractors: con.map(v => ({ ...v, amount: round2(v.amount) })) });
       }
@@ -3642,13 +3657,68 @@ export default {
       }
 
       /* The same statement as a download, straight from the app. */
-      if (path === '/api/statement.pdf') {
-        const period = url.searchParams.get('period') || 'month';
-        const anchor = url.searchParams.get('month');
-        if (!validMonth(anchor)) return json({ error: 'month=YYYY-MM required' }, 400);
-        const { r, title, label, file, months, frozen } = await periodReport(env, period, anchor);
-        const bytes = buildPnlPdf(r, { title, period: label, months, frozen,
-          sub: period === 'month' ? 'Monthly statement' : period === 'quarter' ? 'Quarterly statement' : 'Annual statement' });
+      /* The P&L as a document: a month, quarter or year (period+month), or any
+       * range (from+to). layout=month|quarter prints periods across a landscape
+       * page; cmpFrom+cmpTo adds a comparison column. pack.pdf is the CPA pack:
+       * the wide P&L plus contractor totals and open questions. */
+      if (path === '/api/statement.pdf' || path === '/api/pack.pdf') {
+        const qp = k => url.searchParams.get(k);
+        const pack = path === '/api/pack.pdf';
+        let r, label, months = null, frozen = false, file;
+        if (validMonth(qp('from')) && validMonth(qp('to')) && qp('from') <= qp('to')) {
+          r = await computeRange(env, qp('from'), qp('to'));
+          label = rangeLabelW(qp('from'), qp('to')); months = r.monthRows;
+          frozen = (await env.DB.prepare(
+            "SELECT COUNT(*) n FROM months WHERE month >= ?1 AND month <= ?2 AND status = 'closed'").bind(qp('from'), qp('to')).first()).n === r.monthParts.length;
+        } else {
+          const anchor = qp('month');
+          if (!validMonth(anchor)) return json({ error: 'month=YYYY-MM or from/to required' }, 400);
+          const pr = await periodReport(env, qp('period') || 'month', anchor);
+          ({ r, label, months, frozen } = pr);
+          if (!r.monthParts) r = { ...r, monthParts: [r] };
+        }
+        let layout = pack ? 'month' : qp('layout');
+        let bytes, kind = '';
+        if (layout === 'month' || layout === 'quarter') {
+          let parts = r.monthParts.map(p => ({ ...p, label: moLabel(p.month).replace(/^(\w{3})\w*/, '$1') }));
+          if (layout === 'quarter' || parts.length > 13) {
+            const g = {};
+            for (const p of parts) {
+              const k = `Q${Math.floor((+p.month.slice(5, 7) - 1) / 3) + 1} ${p.month.slice(0, 4)}`;
+              const t = g[k] ||= { label: k, revenue: 0, expenses: 0, fees: 0, net: 0, byClient: {}, byTax: {} };
+              for (const f of ['revenue', 'expenses', 'fees', 'net']) t[f] = round2(t[f] + (p[f] || 0));
+              for (const f of ['byClient', 'byTax']) for (const [c, v] of Object.entries(p[f] || {})) t[f][c] = round2((t[f][c] || 0) + v);
+            }
+            parts = Object.values(g); layout = 'quarter';
+          }
+          const extra = {};
+          if (pack) {
+            const from = r.monthParts[0].month, to = r.monthParts[r.monthParts.length - 1].month;
+            const { results: con } = await env.DB.prepare(`SELECT vendor, SUM(amount) AS amount FROM transactions
+              WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out' AND tax_cat LIKE 'Contract labor%'
+              GROUP BY vendor ORDER BY amount DESC`).bind(from, to).all();
+            const { results: qs } = await env.DB.prepare(`SELECT date, vendor, amount, tax_cat FROM transactions
+              WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type != 'transfer'
+                AND (status = 'review' OR tax_cat IS NULL OR tax_cat LIKE 'Personal%' OR tax_cat LIKE '%Ask CPA%')
+              ORDER BY date`).bind(from, to).all();
+            extra.contractors = con.map(c => [c.vendor, round2(c.amount)]);
+            extra.questions = qs;
+          }
+          bytes = buildPnlColumnsPdf(r, { title: pack ? 'CPA Pack' : 'Profit & Loss', period: label,
+            sub: pack ? 'Profit and loss by month, contractor totals and open questions' : `Profit and loss by ${layout}`,
+            cols: parts, note: frozen ? 'every month closed, figures frozen' : 'includes open months, figures still live', ...extra });
+          kind = pack ? '' : ` by ${layout}`;
+        } else {
+          let compare = null;
+          if (validMonth(qp('cmpFrom')) && validMonth(qp('cmpTo')) && qp('cmpFrom') <= qp('cmpTo')) {
+            compare = { r: await computeRange(env, qp('cmpFrom'), qp('cmpTo')), label: rangeLabelW(qp('cmpFrom'), qp('cmpTo')) };
+            kind = ` vs ${compare.label}`;
+          }
+          const single = r.monthParts.length === 1;
+          bytes = buildPnlPdf(r, { title: 'Profit & Loss', period: label, months: single ? null : months, frozen, compare,
+            sub: single ? 'Monthly statement' : 'Statement for the period' });
+        }
+        file = `Mobius Digital ${pack ? 'CPA Pack' : 'P&L'} ${label}${kind}.pdf`.replace(/[\/:*?"<>|]/g, '');
         return new Response(bytes, { headers: { ...CORS, 'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="${file}"` } });
       }

@@ -121,6 +121,10 @@ footer a{color:var(--muted)}
 .ph{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
 .ph h2{font-size:26px;margin-bottom:4px}
 .ph .sub{margin:0}
+.balline{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:8px;font-size:13px;color:var(--ink-2)}
+.balline span{display:inline-flex;align-items:center;gap:6px}
+.balline b{font-variant-numeric:tabular-nums}
+.dot[data-s=card]{background:var(--c2)}
 .ph .eyebrow{margin-bottom:6px;display:block}
 
 /* sub navigation (Reports, Dashboards, Settings) */
@@ -297,7 +301,8 @@ input[type=checkbox]{accent-color:var(--accent-ink)}
 .toggle.on{background:var(--accent)}
 .toggle.on::after{left:20px}
 .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px 16px;margin-top:14px}
-.fld label{display:block;margin-bottom:6px}
+.fld label{display:block;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fld .fh{font-size:12px;color:var(--muted);margin-top:5px}
 .fld label,.mbox label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-variation-settings:"wdth" 110}
 .del-x{color:var(--faint);font-size:14px;line-height:1;padding:6px 8px;border-radius:7px}
 .del-x:hover{color:var(--bad);background:var(--bad-soft)}
@@ -320,16 +325,19 @@ td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle;white-
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .tbl-wrap{overflow-x:auto;max-width:100%}
 table.st td,table.st th{text-align:right}
-table.st td:first-child,table.st th:first-child{text-align:left;padding-left:0;white-space:normal}
+table.st td:first-child,table.st th:first-child{text-align:left;padding-left:12px;white-space:normal}
+table.st td:last-child,table.st th:last-child{padding-right:12px}
 table.st td{font-variant-numeric:tabular-nums}
-table.st tr.sec td{border-bottom:0;padding-top:20px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
-table.st tr.sub td:first-child{padding-left:14px;color:var(--ink-2)}
+table.st tr.sec td{border-bottom:0;background:none!important;padding-top:20px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+table.st tr.sub td:first-child{padding-left:24px;color:var(--ink-2)}
 table.st tr.tot td{font-weight:700;border-top:1px solid var(--line-strong)}
 table.st tr.net td{font-weight:800;font-size:15.5px;border-top:2px solid var(--ink);border-bottom:0;padding-top:13px}
 table.st tr.dim td{color:var(--muted)}
 table.st td.neg{color:var(--bad)}
 table.st .pc{color:var(--faint);font-size:12px;font-weight:400}
 table.st tbody tr:hover td{background:var(--chip)}
+table.st tbody tr:hover td:first-child{border-radius:8px 0 0 8px}
+table.st tbody tr:hover td:last-child{border-radius:0 8px 8px 0}
 table.st.cols th,table.st.cols td{padding-left:14px}
 table.st.cols td:first-child,table.st.cols th:first-child{position:sticky;left:0;background:var(--card);z-index:1;min-width:190px}
 table.st.cols tr.hl td{background:var(--chip)}
@@ -446,6 +454,28 @@ body.signed-out main,body.signed-out footer{margin-left:0}
 .msel-opt:hover,.msel-opt:focus,.msel-opt.on{background:var(--chip);outline:none}
 .msel-opt.sel{font-weight:700;color:var(--accent-ink)}
 .msel-opt.none{color:var(--muted)}
+.msel-btn.dsel{font-size:13px;padding:7px 34px 7px 12px;min-height:36px;border-radius:var(--r);max-width:none;background-position:right 12px center}
+.msel-btn.dsel.mo-sel{font-weight:700;min-width:130px}
+.msel-btn.cal-btn{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a939b' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");background-size:14px;min-width:150px}
+.mbox .msel-btn.dsel,.fld .msel-btn.dsel{width:100%}
+.msel-grp{padding:10px 11px 4px;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.msel-opt.dis{opacity:.4;cursor:not-allowed}
+.msel-panel.cal{padding:10px;min-width:264px!important;width:264px}
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-h b{font-size:14px}
+.cal-n{width:32px;height:32px;border-radius:8px;font-size:17px;color:var(--muted)}
+.cal-n:hover{background:var(--chip);color:var(--ink)}
+.cal-g{display:grid;gap:3px}
+.cal-g.m{grid-template-columns:repeat(3,1fr)}
+.cal-g.d{grid-template-columns:repeat(7,1fr)}
+.cal-d{font-size:10.5px;font-weight:700;color:var(--faint);text-align:center;padding:2px 0 4px}
+.cal-c{height:34px;border-radius:8px;font-size:13px;font-weight:550;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.cal-g.m .cal-c{height:40px}
+.cal-c:hover:not(:disabled){background:var(--chip);color:var(--ink)}
+.cal-c.now{box-shadow:inset 0 0 0 1px var(--line-strong)}
+.cal-c.sel{background:var(--ink);color:var(--paper);font-weight:700}
+.cal-c:disabled{opacity:.3}
+.cal-f{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .rowcat{font-size:12px;padding:5px 28px 5px 10px;max-width:220px;min-height:30px}
 
 /* receipts */
@@ -518,7 +548,6 @@ body.signed-out main,body.signed-out footer{margin-left:0}
 .rpt .figs .fig{flex:1 1 140px;padding:13px 18px 14px 0}
 .rpt h4{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
 .fig-v{font-size:24px}
-#cpaPrint{display:none}
 
 /* settings layout */
 .setwrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;align-items:start}
@@ -544,8 +573,9 @@ body.signed-out main,body.signed-out footer{margin-left:0}
   .side,.tabbar,.sheet,footer,.no-print,.mtop{display:none!important}
   main{margin:0;padding:0;max-width:none}
   .rpt{border:none;padding:0;max-width:none}
-  body.print-cpa main{display:none!important}
-  body.print-cpa #cpaPrint{display:block}
+  .ph .pbar-ctl,.tabs,.ch .chr,.kpis{display:none!important}
+  .card{border:0;box-shadow:none}
+  tr{break-inside:avoid}
 }
 
 /* ---------- tablet: icon rail ---------- */

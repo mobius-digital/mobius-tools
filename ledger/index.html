@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ledger.css?v=1">
+<link rel="stylesheet" href="ledger.css?v=2">
 <meta name="theme-color" content="#f3f5f6">
 <script data-theme-init>try{if(localStorage.getItem('ledger_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
@@ -37,7 +37,6 @@
 
 <main id="main"></main>
 
-<div id="cpaPrint"></div>
 
 <nav id="tabbar" class="tabbar no-print" aria-label="Sections"></nav>
 <div class="sheet no-print" id="sheet" role="dialog" aria-label="More"><div class="grab"></div><div id="sheetBody"></div></div>
@@ -427,7 +426,7 @@ const recurringMonthly = () => (S.boot.vendors||[]).filter(v => v.recurring && v
    needs a decision, and what is coming. The one screen to open each morning. */
 async function refreshBalances(btn){
   btn.disabled = true;
-  try { await api('/api/balances?fresh=1'); flash('Balances refreshed'); show('overview'); }
+  try { await getBalances(true); flash('Balances refreshed'); show('overview'); }
   catch(e){ tell('Could not refresh', e.message); btn.disabled = false; }
 }
 async function renderOverview(){
@@ -438,7 +437,7 @@ async function renderOverview(){
   try {
     [sum, bal, ser] = await Promise.all([
       api('/api/summary?month=' + mo),
-      api('/api/balances').catch(() => ({ connected: false })),
+      getBalances(),
       getSeries(addMonths(mo, -11), mo).catch(() => null),
       loadTxns(),
     ]);
@@ -536,6 +535,7 @@ async function renderOverview(){
       ${cardH('Cash', 'What the business has right now', `<button class="btn sm ghost" onclick="refreshBalances(this)" title="Ask the bank again">↻ ${asOf}</button>`, 'From the connected bank and card. "After the card" is checking minus what the Amex owes today. Refreshed every few hours; ↻ asks again.')}
       ${accts.map(x => `<div class="ln"><span class="n">${esc(x.name)}${x.mask?` ··${esc(x.mask)}`:''}<small>${x.type==='credit'?'owed on the card':'in the bank'}</small></span><span class="a ${x.type==='credit'?'bad-t':''}">${x.type==='credit'?'−':''}${money0(x.current)}</span></div>`).join('')}
       <div class="ln tot"><span class="n">After the card is paid</span><span class="a">${money0(cashAfter)}</span></div>
+      ${bal.accounts?.some(x => x.error) ? `<div class="verdict warn">The bank did not answer for ${bal.accounts.filter(x => x.error).map(x => esc(x.item)).join(', ')}: ${esc(bal.accounts.find(x => x.error).error)}</div>` : ''}
       ${runway != null ? `<div class="verdict ${runway >= 3 ? 'good' : runway >= 1.5 ? 'warn' : 'bad'}">Covers <b>${runway.toFixed(1)} months</b> of spending at the last three months' pace (${money0(avgSpend)} a month).</div>` : ''}
     </div>` : `
     <div class="card">${cardH('Cash', 'Connect the bank to see balances here')}
@@ -735,6 +735,142 @@ addEventListener('scroll', e => {
   mselClose();
 }, true);
 
+/* ---- every native picker, replaced ----
+   A <select>, <input type=month> or <input type=date> anywhere in the app gets
+   an app-drawn button and panel. The original element stays in the page,
+   hidden, so its id, value and onchange keep working: a pick sets its value
+   and fires a real change event. The OS-drawn list and calendar never show. */
+const ENH = new WeakSet();
+function panelAt(btn, panel){
+  document.body.appendChild(panel);
+  const r = btn.getBoundingClientRect();
+  panel.style.minWidth = Math.max(r.width, 200) + 'px';
+  const h = panel.offsetHeight;
+  panel.style.top = (r.bottom + 6 + h > innerHeight && r.top - 6 - h > 0 ? r.top - 6 - h : Math.min(r.bottom + 6, innerHeight - h - 8)) + 'px';
+  panel.style.left = Math.max(8, Math.min(r.left, innerWidth - panel.offsetWidth - 8)) + 'px';
+  btn.classList.add('open');
+  MSEL.open = { id: null, btn, panel };
+  document.addEventListener('keydown', mselKey, true);
+}
+function fire(el){ el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+function selLabel(sel){ const o = sel.options[sel.selectedIndex]; return o ? o.textContent : 'Select…'; }
+function enhanceSelect(sel){
+  if (ENH.has(sel) || sel.multiple) return;
+  ENH.add(sel);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'msel-btn dsel ' + (sel.className || '');
+  btn.style.cssText = sel.style.cssText;
+  btn.title = sel.title || '';
+  btn.setAttribute('aria-haspopup', 'listbox');
+  btn.textContent = selLabel(sel);
+  btn.disabled = sel.disabled;
+  sel.hidden = true;
+  sel.after(btn);
+  sel.__btn = btn;
+  btn.onclick = ev => {
+    ev.stopPropagation();
+    const mine = MSEL.open && MSEL.open.btn === btn;
+    mselClose(); if (mine) return;
+    const panel = document.createElement('div');
+    panel.className = 'msel-panel'; panel.setAttribute('role', 'listbox');
+    const opt = o => `<div class="msel-opt${o.selected ? ' sel' : ''}${o.disabled ? ' dis' : ''}" tabindex="-1" role="option" aria-selected="${o.selected}" data-i="${o.index}">${esc(o.textContent)}</div>`;
+    panel.innerHTML = [...sel.children].map(c => c.tagName === 'OPTGROUP'
+      ? `<div class="msel-grp">${esc(c.label)}</div>${[...c.children].map(opt).join('')}` : opt(c)).join('');
+    panelAt(btn, panel);
+    (panel.querySelector('.sel') || panel.querySelector('.msel-opt'))?.focus();
+    panel.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
+    panel.onclick = e => {
+      e.stopPropagation();
+      const o = e.target.closest('.msel-opt'); if (!o || o.classList.contains('dis')) return;
+      mselClose();
+      if (sel.selectedIndex !== +o.dataset.i) { sel.selectedIndex = +o.dataset.i; btn.textContent = selLabel(sel); fire(sel); }
+      btn.focus();
+    };
+  };
+}
+/* Keep the button honest when code sets a select's value directly. */
+const _selDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+Object.defineProperty(HTMLSelectElement.prototype, 'value', { configurable: true,
+  get(){ return _selDesc.get.call(this); },
+  set(v){ _selDesc.set.call(this, v); if (this.__btn) this.__btn.textContent = selLabel(this); } });
+
+const MON3 = MONTHS.map(m => m.slice(0, 3));
+function dateLabel(inp){
+  const v = inp.value;
+  if (!v) return inp.type === 'month' ? 'Pick a month' : 'Pick a date';
+  if (inp.type === 'month') return moName(v);
+  return new Date(v + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function enhanceDate(inp){
+  if (ENH.has(inp)) return;
+  ENH.add(inp);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'msel-btn dsel cal-btn';
+  btn.innerHTML = `<span></span>`;
+  btn.firstChild.textContent = dateLabel(inp);
+  inp.hidden = true;
+  inp.after(btn);
+  const sync = () => { btn.firstChild.textContent = dateLabel(inp); };
+  inp.addEventListener('change', sync);
+  btn.onclick = ev => {
+    ev.stopPropagation();
+    const mine = MSEL.open && MSEL.open.btn === btn;
+    mselClose(); if (mine) return;
+    const month = inp.type === 'month';
+    const today = new Date().toISOString().slice(0, 10);
+    let view = (inp.value || today).slice(0, month ? 4 : 7);   // year for months, year-month for dates
+    const panel = document.createElement('div');
+    panel.className = 'msel-panel cal';
+    const within = v => (!inp.min || v >= inp.min) && (!inp.max || v <= inp.max);
+    const paint = () => {
+      let head, grid;
+      if (month) {
+        head = view;
+        grid = MON3.map((n, i) => { const v = `${view}-${String(i+1).padStart(2,'0')}`;
+          return `<button type="button" class="cal-c${v === inp.value ? ' sel' : ''}${v === today.slice(0,7) ? ' now' : ''}" data-v="${v}" ${within(v) ? '' : 'disabled'}>${n}</button>`; }).join('');
+      } else {
+        const [y, m] = view.split('-').map(Number);
+        head = `${MONTHS[m-1]} ${y}`;
+        const first = new Date(Date.UTC(y, m-1, 1)).getUTCDay(), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        grid = ['S','M','T','W','T','F','S'].map(d => `<span class="cal-d">${d}</span>`).join('')
+          + '<span></span>'.repeat(first)
+          + Array.from({ length: days }, (_, i) => { const v = `${view}-${String(i+1).padStart(2,'0')}`;
+            return `<button type="button" class="cal-c${v === inp.value ? ' sel' : ''}${v === today ? ' now' : ''}" data-v="${v}" ${within(v) ? '' : 'disabled'}>${i+1}</button>`; }).join('');
+      }
+      panel.innerHTML = `<div class="cal-h"><button type="button" class="cal-n" data-step="-1" aria-label="Previous">‹</button><b>${head}</b><button type="button" class="cal-n" data-step="1" aria-label="Next">›</button></div>
+        <div class="cal-g ${month ? 'm' : 'd'}">${grid}</div>
+        <div class="cal-f"><button type="button" class="linky" data-v="${month ? today.slice(0,7) : today}">${month ? 'This month' : 'Today'}</button>${inp.required ? '' : '<button type="button" class="linky muted" data-v="">Clear</button>'}</div>`;
+    };
+    paint();
+    panelAt(btn, panel);
+    panel.onclick = e => {
+      e.stopPropagation();
+      const step = e.target.closest('[data-step]');
+      if (step) {
+        const n = +step.dataset.step;
+        view = month ? String(+view + n) : addMonths(view, n);
+        paint(); return;
+      }
+      const pick = e.target.closest('[data-v]');
+      if (!pick || pick.disabled) return;
+      mselClose();
+      inp.value = pick.dataset.v; sync(); fire(inp);
+      btn.focus();
+    };
+  };
+}
+function enhance(root){
+  if (!root || root.nodeType !== 1) return;
+  if (root.matches('select')) enhanceSelect(root);
+  else if (root.matches('input[type=month],input[type=date]')) enhanceDate(root);
+  root.querySelectorAll('select').forEach(enhanceSelect);
+  root.querySelectorAll('input[type=month],input[type=date]').forEach(enhanceDate);
+}
+new MutationObserver(list => { for (const m of list) m.addedNodes.forEach(enhance); })
+  .observe(document.body, { childList: true, subtree: true });
+
 /* ---- selection + in-place editing ---- */
 function togglePick(id, on){ on ? S.sel.add(id) : S.sel.delete(id); renderTxns(); }
 function pickAll(on){
@@ -814,6 +950,16 @@ async function bulkSkipReceipts(){
     await loadTxns(); renderTxns();
   } catch(e){ tell('Could not update those', e.message); }
 }
+/* Today's balances in one line, from the bank feed. */
+function balLine(){
+  const b = S.bal;
+  if (!b) { getBalances().then(() => { const el = $('#txBal'); if (el) el.innerHTML = balLine(); }); return ''; }
+  if (!b.connected) return '';
+  const acc = (b.accounts || []).filter(x => !x.error);
+  const when = b.at ? new Date(b.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  return acc.map(x => `<span><i class="dot" data-s="${x.type === 'credit' ? 'card' : 'live'}"></i>${esc(x.name)} <b>${x.type === 'credit' ? '−' : ''}${money0(x.current)}</b></span>`).join('')
+    + (acc.length ? `<span class="tiny">as of ${when}</span>` : '');
+}
 async function renderTxns(){
   const m = $('#main');
   // Only flash "Loading" when there is genuinely nothing to draw · this
@@ -867,7 +1013,8 @@ async function renderTxns(){
   }).join('');
   m.innerHTML = `
     <div class="ph"><div><span class="eyebrow">Money</span><h2>Transactions</h2>
-      <div class="sub" style="margin-bottom:0">Every dollar in or out of ${moName(S.month)}. Click a row to edit, confirm or attach a receipt.</div></div>
+      <div class="sub" style="margin-bottom:0">Every dollar in or out of ${moName(S.month)}. Click a row to edit, confirm or attach a receipt.</div>
+      <div class="balline" id="txBal">${balLine()}</div></div>
       ${monthNav()}</div>
     <div class="row filt">${chips}</div>
     <div class="row tools">
@@ -1358,31 +1505,12 @@ async function skipRcpt(id){
     S.txns=null; window.__moCache={}; S.boot = await api('/api/boot'); show('receipts');
   } catch(e){ $('#main').insertAdjacentHTML('afterbegin', `<div class="notice bad">${esc(e.message)}</div>`); }
 }
-async function reportToSlack(btn){
-  const period = $('#rptPeriod')?.value || 'month';
+async function reportToSlack(btn, forced){
+  const period = forced || $('#rptPeriod')?.value || 'month';
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   try { const r = await api(`/api/report-slack?force=1&period=${period}&month=${S.reportMonth||''}`, { method:'POST' });
     btn.textContent = r.sent ? '✓ Posted to Slack' : ('Not sent · ' + (r.skipped || r.error || 'unknown'));
-  } catch(e){ btn.textContent = e.message; }
-  setTimeout(()=>{ btn.disabled = false; btn.textContent = label; }, 4000);
-}
-/* The PDF comes back as bytes, so it needs the token in a header · a plain
-   link would arrive unauthorized. Fetch it, then hand the blob to the browser. */
-async function downloadStatement(btn){
-  const period = $('#rptPeriod')?.value || 'month';
-  const label = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Building…';
-  try {
-    const res = await fetch(`${S.url.replace(/\/+$/,'')}/api/statement.pdf?period=${period}&month=${S.reportMonth||''}`,
-      { headers: { 'Authorization': 'Bearer ' + S.tok } });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const blob = await res.blob();
-    const name = (res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1] || 'statement.pdf';
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = name; a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
-    btn.textContent = '✓ Downloaded';
   } catch(e){ btn.textContent = e.message; }
   setTimeout(()=>{ btn.disabled = false; btn.textContent = label; }, 4000);
 }
@@ -1706,7 +1834,8 @@ async function reportPnl(my){
   if (stale(my)) return;
   $('#rctl').innerHTML = `${periodSelect(RP, 'rpSet')}
     <div class="seg"><button class="${RP.layout==='summary'?'on':''}" onclick="rpSet('layout','summary')">Summary</button><button class="${RP.layout==='month'?'on':''}" onclick="rpSet('layout','month')">By month</button><button class="${RP.layout==='quarter'?'on':''}" onclick="rpSet('layout','quarter')">By quarter</button></div>
-    ${RP.layout === 'summary' ? `<label>Compare <select onchange="rpSet('compare',this.value)"><option value="prev" ${RP.compare==='prev'?'selected':''}>with the period before</option><option value="year" ${RP.compare==='year'?'selected':''}>with the same period last year</option><option value="none" ${RP.compare==='none'?'selected':''}>with nothing</option></select></label>` : ''}`;
+    ${RP.layout === 'summary' ? `<label>Compare <select onchange="rpSet('compare',this.value)"><option value="prev" ${RP.compare==='prev'?'selected':''}>with the period before</option><option value="year" ${RP.compare==='year'?'selected':''}>with the same period last year</option><option value="none" ${RP.compare==='none'?'selected':''}>with nothing</option></select></label>
+      ${wanted && !cmp ? `<span class="pill warn" title="The books start in ${moName(firstMonth())}">Nothing to compare: ${esc(rangeLabel(wanted))} is before the books start</span>` : ''}` : ''}`;
   const A = addUp(a.months);
   const hasB = b && b.months.some(x => x.revenue || x.expenses);
   const B = hasB ? addUp(b.months) : null;
@@ -1730,8 +1859,8 @@ async function reportPnl(my){
   const head = cols
     ? `<th>Line</th>${cols.map(c => `<th>${c.label}</th>`).join('')}<th>Total</th>`
     : `<th>Line</th><th>${esc(rangeLabel(range))}</th>${B ? `<th>${esc(rangeLabel(cmp))}</th><th>Change</th>` : ''}<th>% of revenue</th>`;
-  const pdf = pdfPeriod(range);
-  window.__pnl = { range, cols, A, clientsK, catsK };
+  window.__pnl = { range, cols, A, clientsK, catsK,
+    pdfq: { from: range[0], to: range[1], layout: cols ? RP.layout : '', cmpFrom: B ? cmp[0] : '', cmpTo: B ? cmp[1] : '' } };
   $('#rbody').innerHTML = `
     <div class="kpis">
       <div class="kpi"><div class="lbl">Revenue</div><div class="v">${money0(A.revenue)}</div><div class="s">${B ? deltaHTML(A.revenue, B.revenue, 'vs ' + esc(rangeLabel(cmp))) : esc(rangeLabel(range))}</div></div>
@@ -1741,7 +1870,7 @@ async function reportPnl(my){
     </div>
     <div class="card" style="margin-top:14px">
       ${cardH(`Profit &amp; loss · ${esc(rangeLabel(range))}`, `Mobius Digital · ${a.months.filter(x => x.status === 'closed').length} of ${a.months.length} months closed and frozen`,
-        `<button class="btn sm" onclick="exportPnl()">⬇ CSV</button>${pdf ? `<button class="btn sm" onclick="downloadStatementPeriod('${pdf.period}','${pdf.month}',this)">⬇ PDF</button>` : ''}<button class="btn sm" onclick="window.print()">Print</button>`)}
+        `<button class="btn sm" onclick="exportPnl()">⬇ CSV</button><button class="btn sm primary" onclick="downloadPdf(window.__pnl.pdfq,this)">⬇ PDF</button>`)}
       <div class="tbl-wrap"><table class="st ${cols ? 'cols' : ''}"><thead><tr>${head}</tr></thead><tbody>
         ${sec('Revenue')}
         ${clientsK.map(k => row(k, x => x.byClient?.[k] || 0, x => x.byClient?.[k] || 0, 'sub')).join('')}
@@ -1759,7 +1888,7 @@ async function reportPnl(my){
         ${row('Income tax paid', x => x.incomeTax || 0, x => x.incomeTax || 0, 'sub dim', false)}
         ${row('Transfers between your accounts', x => x.transfers || 0, x => x.transfers || 0, 'sub dim', false)}
       </tbody></table></div>
-      <div class="hint" style="margin-top:12px">${wanted && !cmp ? `No comparison: the books start in ${moName(firstMonth())}, so ${esc(rangeLabel(wanted))} is not fully in them. ` : ''}Revenue counts in the month the invoice was paid. Personal purchases, income tax and transfers are real money but not business costs, so they are listed and not subtracted.${pdf ? '' : ' The PDF prints a single month, a quarter or a year; pick one of those to download it.'}</div>
+      <div class="hint" style="margin-top:12px">Revenue counts in the month the invoice was paid. Personal purchases, income tax and transfers are real money but not business costs, so they are listed and not subtracted. The PDF matches the screen: period, layout and comparison.</div>
     </div>`;
 }
 function exportPnl(){
@@ -1778,38 +1907,35 @@ function exportPnl(){
   add('Income tax paid (excluded)', x => x.incomeTax);
   dl(`mobius-pnl_${p.range[0]}_${p.range[1]}.csv`, rows.map(r => r.map(csvCell).join(',')).join('\n'));
 }
-async function downloadStatementPeriod(period, month, btn){
-  const label = btn.textContent; btn.disabled = true; btn.textContent = 'Building…';
-  try {
-    const res = await fetch(`${S.url.replace(/\/+$/,'')}/api/statement.pdf?period=${period}&month=${month}`, { headers: { Authorization: 'Bearer ' + S.tok } });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not build the PDF'); }
-    const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = (res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1] || 'statement.pdf'; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
-  } catch(e){ tell('Could not download', e.message); }
-  btn.disabled = false; btn.textContent = label;
+/* ---- cash forecast ----
+   Built once, then repainted in place: switching a client off or adding a
+   purchase never reloads the screen or moves the page. */
+const CF = { without: new Set(), basis: lsGet('ledger_cf_basis', 'average'), events: [], ctx: null };
+function cfSet(k, v){
+  if (k !== 'basis') return;
+  CF.basis = v; lsSet('ledger_cf_basis', v);
+  document.querySelectorAll('#cfBasis button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  cfPaint();
 }
-
-/* ---- cash forecast ---- */
-const CF = { without: new Set(), basis: lsGet('ledger_cf_basis', 'average'), events: [] };
-function cfSet(k, v){ if (k === 'basis') { CF.basis = v; lsSet('ledger_cf_basis', v); } renderReports(); }
-function whatIf(name){ CF.without.has(name) ? CF.without.delete(name) : CF.without.add(name); renderReports(); }
+function whatIf(name){ CF.without.has(name) ? CF.without.delete(name) : CF.without.add(name); cfPaint(); }
 function cfAddEvent(){
   const amt = +$('#evAmt').value, mo = $('#evMo').value;
   if (!amt || !mo) { tell('Add an amount and a month', 'Both are needed to place it on the chart.'); return; }
-  CF.events.push({ name: $('#evName').value.trim() || 'One-off', amount: amt, month: mo, dir: $('#evDir').value });
-  renderReports();
+  const name = $('#evName').value.trim() || 'One-off';
+  CF.events.push({ name, amount: amt, month: mo, dir: $('#evDir').value });
+  $('#evName').value = ''; $('#evAmt').value = '';
+  cfPaint();
+  flash(`Added · ${name} ${money0(amt)} in ${moName(mo)}`);
 }
-function cfDropEvent(i){ CF.events.splice(i, 1); renderReports(); }
-async function reportCash(my){
+function cfDropEvent(i){ CF.events.splice(i, 1); cfPaint(); }
+function cfCalc(){
+  const { ser, bal } = CF.ctx;
   const cur = nowMonth();
-  const [ser, bal] = await Promise.all([getSeries(addMonths(cur, -6), cur), api('/api/balances').catch(() => ({ connected: false })), loadChart().catch(() => {})]);
-  if (stale(my)) return;
   const full = ser.months.filter(x => x.month < cur && x.month >= firstMonth()).slice(-3);
   const clients = (S.boot.clients||[]).filter(c => c.active);
   const kept = clients.filter(c => !CF.without.has(c.name));
-  const book = sumOf(kept, clientMonthly);
-  const lostShare = sumOf(clients, clientMonthly) ? 1 - book / sumOf(clients, clientMonthly) : 0;
+  const bookAll = sumOf(clients, clientMonthly), book = sumOf(kept, clientMonthly);
+  const lostShare = bookAll ? 1 - book / bookAll : 0;
   const avgRev = full.length ? sumOf(full, 'revenue') / full.length : book;
   const avgOut = full.length ? sumOf(full, expOf) / full.length : 0;
   const recur = recurringMonthly();
@@ -1821,7 +1947,7 @@ async function reportCash(my){
   const months = [1,2,3,4,5,6].map(i => addMonths(cur, i));
   let cash = start, cashTax = start;
   const rows = months.map(mo => {
-    const ev = CF.events.filter(e => e.month === mo);
+    const ev = CF.events.map((e, i) => ({ ...e, i })).filter(e => e.month === mo);
     const evIn = sumOf(ev.filter(e => e.dir === 'in'), 'amount'), evOut = sumOf(ev.filter(e => e.dir === 'out'), 'amount');
     const net = inflow - outflow + evIn - evOut;
     const tax = Math.max(0, inflow - outflow) * taxPct / 100;
@@ -1829,121 +1955,184 @@ async function reportCash(my){
     return { mo, in: inflow + evIn, out: outflow + evOut, net, tax, cash, cashTax, ev };
   });
   const low = rows.reduce((p, r) => r.cashTax < p.cashTax ? r : p, rows[0]);
-  const total = sumOf(clients, clientMonthly) || 1;
-  const c = SERIES();
+  return { full, clients, kept, bookAll, book, inflow, outflow, recur, start, rows, low, bal, months };
+}
+function cfPaint(){
+  if (!CF.ctx || !$('#cfKpis')) return;
+  const x = cfCalc(), c = SERIES();
+  const { clients, bookAll, inflow, outflow, rows, low, bal } = x;
   const top = clients.slice().sort((p, q) => clientMonthly(q) - clientMonthly(p))[0];
-  $('#rctl').innerHTML = `<div class="seg" title="What the projection is built from">
-    <button class="${CF.basis==='average'?'on':''}" onclick="cfSet('basis','average')">Recent average</button>
-    <button class="${CF.basis==='book'?'on':''}" onclick="cfSet('basis','book')">Retainers only</button></div>`;
+  const total = bookAll || 1;
+  $('#cfKpis').innerHTML = `
+    <div class="kpi"><div class="lbl">Cash today</div><div class="v">${bal.connected ? money0(x.start) : '·'}</div><div class="s">${bal.connected ? 'checking, minus what the card owes' : 'connect a bank to start from real cash'}</div></div>
+    <div class="kpi"><div class="lbl">In, per month</div><div class="v">${money0(inflow)}</div><div class="s">${CF.basis === 'book' ? `retainer book of ${x.kept.length} client${x.kept.length===1?'':'s'}` : `last ${x.full.length} months' average${CF.without.size ? ', minus the clients switched off' : ''}`}</div></div>
+    <div class="kpi"><div class="lbl">Out, per month</div><div class="v">${money0(outflow)}</div><div class="s">${CF.basis === 'book' ? `recurring bills ${money0(x.recur)} + Stripe fees` : 'every expense, averaged'}</div></div>
+    <div class="kpi ${low.cashTax < 0 ? 'bad' : low.cashTax < outflow ? 'warn' : 'good'}"><div class="lbl">Lowest point, after tax</div><div class="v">${money0(low.cashTax)}</div><div class="s">end of ${moName(low.mo)}</div></div>`;
+  $('#cfTable').innerHTML = rows.map(r => `<tr><td>${moName(r.mo)}${r.ev.length ? ` <span class="pc">${r.ev.map(e => esc(e.name)).join(', ')}</span>` : ''}</td><td>${money0(r.in)}</td><td>${money0(r.out)}</td><td class="${r.net<0?'neg':''}">${money0(r.net)}</td><td class="pc">${money0(r.tax)}</td><td class="${r.cash<0?'neg':''}"><b>${money0(r.cash)}</b></td></tr>`).join('');
+  $('#cfWhat').innerHTML = `
+    <div class="conc" style="margin-bottom:10px">${clients.map((k, i) => `<div style="flex:${clientMonthly(k)};background:${c[i % 8]};opacity:${CF.without.has(k.name) ? .2 : 1}"></div>`).join('')}</div>
+    <div class="row" style="margin:0;gap:6px">${clients.map(k => `<button class="chip ${CF.without.has(k.name) ? '' : 'on'}" aria-pressed="${!CF.without.has(k.name)}" data-ledger-event="click" data-ledger-action="whatIf" data-name="${esc(k.name)}">${esc(k.name)} · ${pctOf(clientMonthly(k), total)}</button>`).join('')}</div>
+    ${top ? `<div class="verdict ${clientMonthly(top) / total > .4 ? 'bad' : clientMonthly(top) / total > .25 ? 'warn' : 'good'}"><b>${esc(top.name)}</b> is ${pctOf(clientMonthly(top), total)} of the retainer book.${CF.without.size ? ` Without ${[...CF.without].map(esc).join(' and ')}, net is <b>${money0(inflow - outflow)}</b> a month.` : ''}</div>` : '<div class="hint">Add clients in Settings.</div>'}`;
+  $('#cfEvents').innerHTML = CF.events.map((e, i) => `<div class="ln"><span class="n">${esc(e.name)}<small>${moName(e.month)} · ${e.dir === 'in' ? 'money in' : 'money out'}</small></span><span class="a">${e.dir === 'in' ? '+' : '−'}${money0(e.amount)} <button class="del-x" onclick="cfDropEvent(${i})" title="Remove">✕</button></span></div>`).join('');
+  const a = [x.start, ...rows.map(r => r.cash)], b = [x.start, ...rows.map(r => r.cashTax)];
+  if (CH.cash) { CH.cash.data.datasets[0].data = a; CH.cash.data.datasets[1].data = b; CH.cash.update(); return; }
+  draw('cash', 'cCash', { type: 'line', data: { labels: ['Today', ...rows.map(r => moShort(r.mo))], datasets: [
+    lineDS('Cash', a, c[0], { pointRadius: 3, fill: { target: 'origin' }, backgroundColor: c[0] + '14' }),
+    lineDS('Cash after setting tax aside', b, c[1], { borderDash: [6, 4], pointRadius: 2 }) ] }, options: chartOpts() });
+}
+async function reportCash(my){
+  const cur = nowMonth();
+  const [ser, bal] = await Promise.all([getSeries(addMonths(cur, -6), cur), getBalances(), loadChart().catch(() => {})]);
+  if (stale(my)) return;
+  CF.ctx = { ser, bal };
+  const c = SERIES();
+  const months = [1,2,3,4,5,6].map(i => addMonths(cur, i));
+  $('#rctl').innerHTML = `<div class="seg" id="cfBasis" title="What the projection is built from">
+    <button data-v="average" class="${CF.basis==='average'?'on':''}" onclick="cfSet('basis','average')">Recent average</button>
+    <button data-v="book" class="${CF.basis==='book'?'on':''}" onclick="cfSet('basis','book')">Retainers only</button></div>`;
   $('#rbody').innerHTML = `
-    <div class="kpis">
-      <div class="kpi"><div class="lbl">Cash today</div><div class="v">${bal.connected ? money0(start) : '·'}</div><div class="s">${bal.connected ? 'checking, minus what the card owes' : 'connect a bank to start from real cash'}</div></div>
-      <div class="kpi"><div class="lbl">In, per month</div><div class="v">${money0(inflow)}</div><div class="s">${CF.basis === 'book' ? `retainer book of ${kept.length} client${kept.length===1?'':'s'}` : `last ${full.length} months' average${CF.without.size ? ', minus the clients switched off' : ''}`}</div></div>
-      <div class="kpi"><div class="lbl">Out, per month</div><div class="v">${money0(outflow)}</div><div class="s">${CF.basis === 'book' ? `recurring bills ${money0(recur)} + Stripe fees` : 'every expense, averaged'}</div></div>
-      <div class="kpi ${low.cashTax < 0 ? 'bad' : low.cashTax < outflow ? 'warn' : 'good'}"><div class="lbl">Lowest point, after tax</div><div class="v">${money0(low.cashTax)}</div><div class="s">end of ${moName(low.mo)}</div></div>
-    </div>
+    <div class="kpis" id="cfKpis"></div>
     <div class="g g21">
-      <div class="card">${cardH('Six months ahead', 'Cash at the end of each month', '', 'Starts from today\'s cash after the card. The dashed line also takes the tax set-aside out each month, which is money that is not yours to spend. One-off purchases you add below land on both lines.')}
+      <div class="card">${cardH('Six months ahead', 'Cash at the end of each month', '', 'Starts from today\'s cash after the card. The dashed line also takes the tax set-aside out each month, which is money that is not yours to spend. One-off purchases you add land on both lines.')}
         <div class="chart lg"><canvas id="cCash"></canvas></div>
         ${legendHTML([['Cash', c[0]], ['Cash after setting tax aside', c[1], 1]])}
-        <div class="tbl-wrap" style="margin-top:14px"><table class="st"><thead><tr><th>Month</th><th>In</th><th>Out</th><th>Net</th><th>Tax to set aside</th><th>Cash at end</th></tr></thead><tbody>
-          ${rows.map(r => `<tr><td>${moName(r.mo)}${r.ev.length ? ` <span class="pc">${r.ev.map(e => esc(e.name)).join(', ')}</span>` : ''}</td><td>${money0(r.in)}</td><td>${money0(r.out)}</td><td class="${r.net<0?'neg':''}">${money0(r.net)}</td><td class="pc">${money0(r.tax)}</td><td class="${r.cash<0?'neg':''}"><b>${money0(r.cash)}</b></td></tr>`).join('')}
-        </tbody></table></div></div>
+        <div class="tbl-wrap" style="margin-top:14px"><table class="st"><thead><tr><th>Month</th><th>In</th><th>Out</th><th>Net</th><th>Tax to set aside</th><th>Cash at end</th></tr></thead><tbody id="cfTable"></tbody></table></div></div>
       <div class="stack">
-        <div class="card">${cardH('What if a client left?', 'Tap to switch a client off', '', 'Turns the client off in this projection only. Nothing is saved.')}
-          <div class="conc" style="margin-bottom:10px">${clients.map((x, i) => `<div style="flex:${clientMonthly(x)};background:${c[i % 8]};opacity:${CF.without.has(x.name) ? .2 : 1}"></div>`).join('')}</div>
-          <div class="row" style="margin:0;gap:6px">${clients.map(x => `<button class="chip ${CF.without.has(x.name) ? '' : 'on'}" data-ledger-event="click" data-ledger-action="whatIf" data-name="${esc(x.name)}">${esc(x.name)} · ${pctOf(clientMonthly(x), total)}</button>`).join('')}</div>
-          ${top ? `<div class="verdict ${clientMonthly(top) / total > .4 ? 'bad' : clientMonthly(top) / total > .25 ? 'warn' : 'good'}"><b>${esc(top.name)}</b> is ${pctOf(clientMonthly(top), total)} of the retainer book.${CF.without.size ? ` Without ${[...CF.without].map(esc).join(' and ')}, net is <b>${money0(inflow - outflow)}</b> a month.` : ''}</div>` : '<div class="hint">Add clients in Settings.</div>'}
-        </div>
-        <div class="card">${cardH('Can I afford it?', 'Put a purchase or a payment on the chart', '', 'Shows the months with it included. It stays until you leave this screen; nothing is saved to the books.')}
+        <div class="card">${cardH('What if a client left?', 'Tap to switch a client off', '', 'Turns the client off in this projection only. Nothing is saved.')}<div id="cfWhat"></div></div>
+        <div class="card">${cardH('Can I afford it?', 'Put a purchase or a payment on the chart', '', 'Shows the months with it included. It stays until you leave Ledger; nothing is saved to the books.')}
           <div class="fields" style="grid-template-columns:1fr 1fr;margin-top:0">
-            <div class="fld" style="grid-column:1/-1"><label>What</label><input id="evName" placeholder="New laptop, a hire, a big invoice"></div>
-            <div class="fld"><label>Amount</label><div class="unit-in"><span>$</span><input id="evAmt" type="number" inputmode="decimal" placeholder="2500"></div></div>
+            <div class="fld" style="grid-column:1/-1"><label>What</label><input id="evName" placeholder="New laptop, a hire, a big invoice" onkeydown="if(event.key==='Enter')cfAddEvent()"></div>
+            <div class="fld"><label>Amount</label><div class="unit-in"><span>$</span><input id="evAmt" type="number" inputmode="decimal" placeholder="2500" onkeydown="if(event.key==='Enter')cfAddEvent()"></div></div>
             <div class="fld"><label>Month</label><select id="evMo">${months.map(mo => `<option value="${mo}">${moName(mo)}</option>`).join('')}</select></div>
             <div class="fld" style="grid-column:1/-1"><label>Direction</label><select id="evDir"><option value="out">Money out</option><option value="in">Money in</option></select></div>
           </div>
           <div class="row" style="margin:12px 0 0"><button class="btn primary" onclick="cfAddEvent()">Add to the forecast</button></div>
-          ${CF.events.map((e, i) => `<div class="ln"><span class="n">${esc(e.name)}<small>${moName(e.month)} · ${e.dir === 'in' ? 'money in' : 'money out'}</small></span><span class="a">${e.dir === 'in' ? '+' : '−'}${money0(e.amount)} <button class="del-x" onclick="cfDropEvent(${i})" title="Remove">✕</button></span></div>`).join('')}
+          <div id="cfEvents"></div>
         </div>
       </div>
     </div>`;
-  const labels = ['Today', ...rows.map(r => moShort(r.mo))];
-  draw('cash', 'cCash', { type: 'line', data: { labels, datasets: [
-    lineDS('Cash', [start, ...rows.map(r => r.cash)], c[0], { pointRadius: 3, fill: { target: 'origin' }, backgroundColor: c[0] + '14' }),
-    lineDS('Cash after setting tax aside', [start, ...rows.map(r => r.cashTax)], c[1], { borderDash: [6, 4], pointRadius: 2 }) ] }, options: chartOpts() });
+  cfPaint();
 }
 
-/* ---- taxes ---- */
+/* ---- taxes ----
+   A payment made January 1 to April 15 settles LAST year (the return and the
+   final estimate); anything after counts toward the year it was paid in. */
 function rtSet(y){ RP.taxYear = y; renderReports(); }
+const taxYearOf = p => p.date.slice(5) <= '04-15' ? +p.date.slice(0,4) - 1 : +p.date.slice(0,4);
 async function reportTaxes(my){
   const y = RP.taxYear, cur = nowMonth();
   const to = y === cur.slice(0,4) ? cur : `${y}-12`;
-  const ser = await getSeries(`${y}-01`, to);
+  const nextFrom = `${+y + 1}-01`;
+  const [ser, nxt] = await Promise.all([getSeries(`${y}-01`, to),
+    nextFrom <= cur ? getSeries(nextFrom, cur < `${+y + 1}-04` ? cur : `${+y + 1}-04`).catch(() => null) : null]);
   if (stale(my)) return;
   const years = [...new Set(monthList(firstMonth(), cur).map(m => m.slice(0,4)))].reverse();
   $('#rctl').innerHTML = `<label>Tax year <select onchange="rtSet(this.value)">${years.map(v => `<option ${v===y?'selected':''}>${v}</option>`).join('')}</select></label>`;
   const T = addUp(ser.months);
   const pct = S.boot.money.taxPct;
-  const quarters = EST_DUE(y).map(([a, b, due]) => {
-    const ms = ser.months.filter(x => x.month >= a && x.month <= b);
-    const q = addUp(ms);
-    return { a, b, due, net: q.net, aside: Math.max(0, q.net) * pct / 100, paid: q.incomeTax, started: a <= cur, done: b < cur };
-  });
+  const pays = [...(ser.taxPayments || []), ...(nxt?.taxPayments || [])].filter((p, i, a) => a.findIndex(q => q.date === p.date && q.vendor === p.vendor && q.amount === p.amount) === i);
+  const forYear = pays.filter(p => taxYearOf(p) === +y);
+  const inYearForOther = pays.filter(p => p.date.startsWith(y) && taxYearOf(p) !== +y);
+  const paid = sumOf(forYear, 'amount');
   const aside = Math.max(0, T.net) * pct / 100;
-  const gap = aside - T.incomeTax;
+  const owed = aside - paid;
+  const quarters = EST_DUE(y).map(([a, b, due]) => {
+    const q = addUp(ser.months.filter(x => x.month >= a && x.month <= b));
+    return { a, b, due, net: q.net, aside: Math.max(0, q.net) * pct / 100, started: a <= cur, done: b < cur };
+  });
   const con = ser.contractors || [];
+  const payRow = p => `<div class="ln"><span class="n">${esc(p.vendor)}<small>${fmtDate(p.date)} ${p.date.slice(0,4)} · counts toward ${taxYearOf(p)}${taxYearOf(p) < +p.date.slice(0,4) ? ' (last year\'s return)' : ' (estimate)'}</small></span><span class="a">${money0(p.amount)}</span></div>`;
   $('#rbody').innerHTML = `
     <div class="kpis">
-      <div class="kpi"><div class="lbl">Net income · ${y}</div><div class="v">${money0(T.net)}</div><div class="s">what income tax is figured on</div></div>
-      <div class="kpi"><div class="lbl">Should be set aside</div><div class="v">${money0(aside)}</div><div class="s">${pct}% of net · the rate in Settings</div></div>
-      <div class="kpi"><div class="lbl">Income tax paid</div><div class="v">${money0(T.incomeTax)}</div><div class="s">IRS and state payments in the books</div></div>
-      <div class="kpi ${gap > 0 ? 'warn' : 'good'}"><div class="lbl">${gap > 0 ? 'Still owed on paper' : 'Ahead of the set-aside'}</div><div class="v">${money0(Math.abs(gap))}</div><div class="s">set aside minus paid</div></div>
+      <div class="kpi"><div class="lbl">Net income · ${y}</div><div class="v">${money0(T.net)}</div><div class="s">what ${y} income tax is figured on</div></div>
+      <div class="kpi"><div class="lbl">Set aside for ${y}</div><div class="v">${money0(aside)}</div><div class="s">${pct}% of net · the rate in Settings</div></div>
+      <div class="kpi"><div class="lbl">Paid toward ${y}</div><div class="v">${money0(paid)}</div><div class="s">${forYear.length ? `${forYear.length} estimate payment${forYear.length===1?'':'s'}` : 'no estimates paid yet'}</div></div>
+      <div class="kpi ${owed > 0 ? 'warn' : 'good'}"><div class="lbl">${owed > 0 ? 'Still to pay for ' + y : 'Covered for ' + y}</div><div class="v">${money0(Math.abs(owed))}</div><div class="s">set aside minus paid toward ${y}</div></div>
     </div>
     <div class="g g21">
       <div class="card">${cardH('Quarterly estimates', `Next payment due ${nextEstimate()}`, '', 'Each estimate covers the months shown and is due on the federal date beside it. The amount is the set-aside rate on that stretch\'s net income: a planning number, not a tax calculation. The CPA sets the real one.')}
-        <div class="tbl-wrap"><table class="st"><thead><tr><th>Covers</th><th>Net income</th><th>Set aside</th><th>Paid in those months</th><th>Due</th></tr></thead><tbody>
+        <div class="tbl-wrap"><table class="st"><thead><tr><th>Covers</th><th>Net income</th><th>Set aside</th><th>Due</th></tr></thead><tbody>
           ${quarters.map((q, i) => `<tr class="${!q.done && q.started ? 'hl' : ''}"><td>Q${i+1} · ${moShort(q.a)}${q.a !== q.b ? ' to ' + moShort(q.b) : ''}${!q.started ? ' <span class="pc">not started</span>' : !q.done ? ' <span class="pc">in progress</span>' : ''}</td>
-            <td>${q.started ? money0(q.net) : '·'}</td><td>${q.started ? money0(q.aside) : '·'}</td><td>${q.paid ? money0(q.paid) : '<span class="pc">·</span>'}</td><td><b>${q.due}</b></td></tr>`).join('')}
-        </tbody></table></div>
-        <div class="hint" style="margin-top:10px">Income tax paid is booked as "Income tax", which keeps it out of expenses. Payments made in one quarter often cover the one before, so read the paid column as a running check, not a match.</div></div>
-      <div class="card">${cardH('1099 contractors', `${con.filter(v => v.amount >= 600).length} paid $600 or more`, '', 'US contractors paid $600 or more in the year need a 1099-NEC by January 31. Overseas contractors need a W-8BEN on file instead.')}
-        ${con.length ? con.map(v => `<div class="ln"><span class="n">${esc(v.vendor)}<small>${v.n} payment${v.n===1?'':'s'}</small></span><span class="a">${money0(v.amount)} ${v.amount >= 600 ? '<span class="pill warn">1099</span>' : ''}</span></div>`).join('') : '<div class="hint">No contract labor this year.</div>'}
-        <div class="ln tot"><span class="n">Total contract labor</span><span class="a">${money0(sumOf(con, 'amount'))}</span></div>
-        <div class="hint" style="margin-top:8px">Due January 31, ${+y + 1}.</div></div>
+            <td>${q.started ? money0(q.net) : '·'}</td><td>${q.started ? money0(q.aside) : '·'}</td><td><b>${q.due}</b></td></tr>`).join('')}
+        </tbody></table></div></div>
+      <div class="stack">
+        <div class="card">${cardH('Income tax payments', `${money0(sumOf(pays.filter(p => p.date.startsWith(y)), 'amount'))} paid during ${y}`, '', 'Payments booked as "Income tax". One made January 1 to April 15 settles the year before (the return and the last estimate); after that it counts toward the year it was paid in.')}
+          ${forYear.length ? forYear.map(payRow).join('') : `<div class="hint">No payments toward ${y} yet.</div>`}
+          ${inYearForOther.length ? `<div class="lbl" style="margin-top:14px">Paid in ${y} for an earlier year</div>${inYearForOther.map(payRow).join('')}` : ''}
+        </div>
+        <div class="card">${cardH('1099 contractors', `${con.filter(v => v.amount >= 600).length} paid $600 or more`, '', 'US contractors paid $600 or more in the year need a 1099-NEC by January 31. Overseas contractors need a W-8BEN on file instead.')}
+          ${con.length ? con.map(v => `<div class="ln"><span class="n">${esc(v.vendor)}<small>${v.n} payment${v.n===1?'':'s'}</small></span><span class="a">${money0(v.amount)} ${v.amount >= 600 ? '<span class="pill warn">1099</span>' : ''}</span></div>`).join('') : '<div class="hint">No contract labor this year.</div>'}
+          <div class="ln tot"><span class="n">Total contract labor</span><span class="a">${money0(sumOf(con, 'amount'))}</span></div>
+          <div class="hint" style="margin-top:8px">Due January 31, ${+y + 1}.</div></div>
+      </div>
     </div>`;
 }
 
-/* ---- exports ---- */
+/* ---- exports: the same period as the P&L ---- */
 async function reportExports(my){
-  const rm = S.reportMonth || nowMonth();
-  const y = rm.slice(0,4);
-  $('#rctl').innerHTML = `<span class="mo-nav">${monthPicker(rm, 'setExportMonth')}</span>`;
+  const range = presetRange(RP.preset, RP);
+  const [a, b] = range;
+  const pdf = pdfPeriod(range);
+  const cmp = compareRange(range, RP.compare);
+  const cmpOk = cmp && cmp[0] >= firstMonth();
+  const lab = esc(rangeLabel(range));
+  $('#rctl').innerHTML = periodSelect(RP, 'rpSet');
   $('#rbody').innerHTML = `
+    <div class="notice" style="margin-bottom:14px"><span>Everything below covers <b>${lab}</b>, the same period as the Profit &amp; loss tab. Change it above.</span></div>
     <div class="g g2" style="margin-top:0">
-      <div class="card">${cardH('Statement PDFs', 'The formatted P&amp;L, ready to send')}
+      <div class="card">${cardH('Profit &amp; loss PDF', 'The formatted statement, ready to send')}
         <div class="row" style="margin:6px 0 0">
-          <button class="btn" onclick="downloadStatementPeriod('month','${rm}',this)">⬇ ${moName(rm)}</button>
-          <button class="btn" onclick="downloadStatementPeriod('quarter','${rm}',this)">⬇ Q${qOf(rm)} ${y}</button>
-          <button class="btn" onclick="downloadStatementPeriod('year','${rm}',this)">⬇ ${y}</button>
-          <button class="btn" onclick="S.reportMonth='${rm}';reportToSlack(this)" title="Posts the month's statement PDF into the finance channel">Post ${moShort(rm)} to Slack</button>
-        </div></div>
-      <div class="card">${cardH('Receipt archive', 'Every stored receipt as one ZIP')}
-        <div class="hint">Foldered by month and category, named so a person can read it. Do this once a year at tax time and keep it next to that year's return.</div>
-        <div class="row" style="margin:12px 0 0">
-          <button class="btn" onclick="downloadReceipts('${rm}','${rm}',this)">${moName(rm)}</button>
-          <button class="btn" onclick="downloadReceipts('${qStart(rm)}','${rm}',this)">This quarter</button>
-          <button class="btn primary" onclick="downloadReceipts('${y}-01','${y}-12',this)">All of ${y}</button>
-        </div></div>
+          <button class="btn primary" onclick="downloadPdf({from:'${a}',to:'${b}'},this)">⬇ Summary</button>
+          ${a !== b ? `<button class="btn" onclick="downloadPdf({from:'${a}',to:'${b}',layout:'month'},this)">⬇ By month</button>
+          <button class="btn" onclick="downloadPdf({from:'${a}',to:'${b}',layout:'quarter'},this)">⬇ By quarter</button>` : ''}
+          ${cmpOk ? `<button class="btn" onclick="downloadPdf({from:'${a}',to:'${b}',cmpFrom:'${cmp[0]}',cmpTo:'${cmp[1]}'},this)">⬇ vs ${esc(rangeLabel(cmp))}</button>` : ''}
+        </div>
+        ${pdf ? `<div class="row" style="margin:12px 0 0"><button class="btn ghost" onclick="S.reportMonth='${pdf.month}';reportToSlack(this,'${pdf.period}')">Post it to the finance channel</button></div>` : ''}</div>
+      <div class="card">${cardH('Receipt archive', 'Every stored receipt for the period, as one ZIP')}
+        <div class="hint">Foldered by month and category, named so a person can read it. Once a year at tax time, keep it next to that year's return.</div>
+        <div class="row" style="margin:12px 0 0"><button class="btn primary" onclick="downloadReceipts('${a}','${b}',this)">⬇ Receipts ZIP</button></div></div>
     </div>
-    <div class="card" style="margin-top:14px">${cardH('CPA pack', 'Everything your CPA needs, one click', '', 'The PDF to read (P&amp;L with monthly columns, 1099 totals, open questions) and the ledger CSV to pull into their software.')}
+    <div class="card" style="margin-top:14px">${cardH('CPA pack', 'Everything the CPA needs for the period', '', 'The PDF to read (profit and loss by month, 1099 totals, open questions) and the ledger CSV to pull into their software.')}
       <div class="row" style="margin:6px 0 0">
-        <button class="btn" onclick="loadPack('${rm}','${rm}')">${moName(rm)}</button>
-        <button class="btn" onclick="loadPack('${qStart(rm)}','${rm}')">This quarter</button>
-        <button class="btn primary" onclick="loadPack('${y}-01','${rm}')">${y} to date</button>
+        <button class="btn primary" onclick="downloadPdf({from:'${a}',to:'${b}'},this,'/api/pack.pdf')">⬇ CPA pack PDF</button>
+        <button class="btn" onclick="loadPack('${a}','${b}')">Preview it here, with the CSV files</button>
       </div>
       <div id="packOut"></div></div>`;
 }
-function setExportMonth(m){ S.reportMonth = m; renderReports(); }
+
+/* One way to fetch a PDF: the token rides in a header, the worker names the file. */
+function pdfName(q, pack){
+  const label = q.from ? rangeLabel([q.from, q.to]) : q.period === 'year' ? q.month.slice(0,4) : q.period === 'quarter' ? `Q${qOf(q.month)} ${q.month.slice(0,4)}` : moName(q.month);
+  return `Mobius Digital ${pack ? 'CPA Pack' : 'P&L'} ${label}${q.layout ? ' by ' + q.layout : ''}.pdf`;
+}
+async function downloadPdf(q, btn, path = '/api/statement.pdf'){
+  const label = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Building…';
+  try {
+    const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v)).toString();
+    const res = await fetch(`${S.url.replace(/\/+$/,'')}${path}?${qs}`, { headers: { Authorization: 'Bearer ' + S.tok } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not build the PDF'); }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1] || pdfName(q, path.includes('pack'));
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    flash('Downloaded · ' + a.download);
+  } catch(e){ tell('Could not download', e.message); }
+  btn.disabled = false; btn.innerHTML = label;
+}
+function downloadStatementPeriod(period, month, btn){ return downloadPdf({ period, month }, btn); }
+function downloadStatement(btn){ return downloadPdf({ period: $('#rptPeriod')?.value || 'month', month: S.reportMonth || nowMonth() }, btn); }
+
+/* Bank balances, asked for at most every ten minutes from this screen. */
+async function getBalances(fresh){
+  if (!fresh && S.bal && Date.now() - S.balAt < 600e3) return S.bal;
+  try { S.bal = await api('/api/balances' + (fresh ? '?fresh=1' : '')); }
+  catch(e){ S.bal = { connected: false, error: e.message }; }
+  S.balAt = Date.now();
+  return S.bal;
+}
 
 async function reportStatement(my){
   const m = $('#rbody');
@@ -2185,7 +2374,7 @@ async function loadPack(from, to){
   const exp = p.monthReports.reduce((sum,r)=>sum+r.expenses+r.fees,0);
   out.innerHTML = `
     <div class="row" style="margin:16px 0 14px">
-      <button class="btn primary" onclick="printCpa()">🖨 Print the pack (PDF)</button>
+      <button class="btn primary" onclick="downloadPdf({from:'${from}',to:'${to}'},this,'/api/pack.pdf')">⬇ CPA pack PDF</button>
       <button class="btn" onclick="dlLedgerCsv()">⬇ Ledger (CSV)</button>
       <button class="btn" onclick="dlContractorCsv()">⬇ 1099 summary (CSV)</button>
     </div>
@@ -2202,30 +2391,6 @@ async function loadPack(from, to){
       </div>
     </div>
     <div class="tiny" style="margin-top:14px">Receipts stay viewable per transaction; a bundled receipt ZIP is available from Reports. Category assignments come from Settings → Vendor rules.</div>`;
-}
-function printCpa(){
-  const p = S.packData; if (!p) return;
-  const rev = p.monthReports.reduce((sum,r)=>sum+r.revenue,0);
-  const exp = p.monthReports.reduce((sum,r)=>sum+r.expenses+r.fees,0);
-  $('#cpaPrint').innerHTML = `<div class="rpt">
-    <h1>CPA pack · ${moName(p.from)}${p.from!==p.to?' → '+moName(p.to):''}</h1>
-    <div class="rsub">Mobius Digital · prepared ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} · tax set-aside ${p.money.taxPct}% · every figure traces to the attached ledger CSV</div>
-    <div class="figs">
-      <div class="fig"><div class="fig-l">Revenue</div><div class="fig-v lg-num">${fmt$(rev)}</div></div>
-      <div class="fig"><div class="fig-l">Expenses</div><div class="fig-v lg-num">${fmt$(exp)}</div></div>
-      <div class="fig"><div class="fig-l">Net</div><div class="fig-v lg-num">${fmt$(rev-exp)}</div></div>
-    </div>
-    <h4>Open questions · please rule on these first</h4>
-    ${openQHTML(p, 0)}
-    <h4 style="margin-top:24px">Profit &amp; loss, by tax category</h4>
-    ${plTableHTML(p)}
-    <h4 style="margin-top:24px">Contractor totals (1099 check)</h4>
-    ${contractorTableHTML(p)}
-  </div>`;
-  document.body.classList.add('print-cpa');
-  const done = () => { document.body.classList.remove('print-cpa'); window.removeEventListener('afterprint', done); };
-  window.addEventListener('afterprint', done);
-  window.print();
 }
 function dl(name, text){
   const a = document.createElement('a');
@@ -2281,8 +2446,8 @@ function periodSelect(st, setter){
   const opt = ([v, l]) => `<option value="${v}" ${st.preset===v?'selected':''}>${l}</option>`;
   return `<label>Period <select onchange="${setter}('preset',this.value)">${PRESETS.map(opt).join('')}
       <optgroup label="Years">${extra.map(opt).join('')}</optgroup><optgroup label="Quarters">${qs.map(opt).join('')}</optgroup></select></label>
-    ${st.preset === 'custom' ? `<label>From <input type="month" value="${presetRange('custom', st)[0]}" onchange="${setter}('from',this.value)"></label>
-      <label>to <input type="month" value="${presetRange('custom', st)[1]}" max="${nowMonth()}" onchange="${setter}('to',this.value)"></label>` : ''}`;
+    ${st.preset === 'custom' ? `<label>From <input type="month" required value="${presetRange('custom', st)[0]}" onchange="${setter}('from',this.value)"></label>
+      <label>to <input type="month" required value="${presetRange('custom', st)[1]}" max="${nowMonth()}" onchange="${setter}('to',this.value)"></label>` : ''}`;
 }
 /* Roll months into quarters when asked; a partial quarter says so. */
 function groupRows(months, group){
@@ -2589,9 +2754,9 @@ function setGeneral(){
       <div class="fields">
         <div class="fld"><label>Tax set-aside</label><div class="unit-in"><input id="sTax" type="number" value="${mo.taxPct}"><span>%</span></div></div>
         <div class="fld"><label>Distributions</label><div class="unit-in"><input id="sDist" type="number" value="${mo.distPct}"><span>%</span></div></div>
-        <div class="fld"><label>Stripe fee · forecast only</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
+        <div class="fld"><label>Stripe fee</label><div class="unit-in"><input id="sFee" type="number" step="0.01" value="${mo.feePct}"><span>%</span></div></div>
       </div>
-      <div class="hint" style="margin-top:10px">The fee rate only feeds the cash forecast. Statements always use the exact fee Stripe charged.</div></div>
+      <div class="hint" style="margin-top:10px">The Stripe fee rate only feeds the cash forecast. Statements always use the exact fee Stripe charged.</div></div>
     <div class="card">${cardH('Account split', 'Where net income moves when a month closes', `<span class="${total === 100 ? 'good-t' : 'warn-t'}">adds to ${total}%</span>`)}
       <div class="fields">${split.map(([k, l]) => `
         <div class="fld"><label>${l}</label><div class="unit-in"><input id="sp_${k}" type="number" value="${mo.split[k]}"><span>%</span></div></div>`).join('')}</div>
