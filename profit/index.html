@@ -2581,7 +2581,13 @@ async function renderAdShare(token) {
 
   /* Opens on the view the link was made from; the hash overrides it so a
      client can bookmark or send "top 12 videos by hook" as a link of their own. */
-  const dft = d.defaults || {};
+  /* Links minted before defaults were stored still carry the sort in their
+     label ("ROAS · Jun 18–Sep 15"), so they open on it rather than on spend. */
+  const dft = d.defaults || (() => {
+    const word = String(d.label || '').split('·')[0].trim().toLowerCase();
+    const hit = Object.entries(METRICS).find(([, m]) => m.label.toLowerCase() === word);
+    return hit ? { sort: hit[0] } : {};
+  })();
   const st = { sort: METRICS[dft.sort] ? dft.sort : 'spend',
     fmt: dft.fmt === 'static' ? 'image' : (TYPE_LABEL[dft.fmt] ? dft.fmt : ''),
     limit: [4, 8, 12, 0].includes(+dft.limit) ? +dft.limit : 8 };
