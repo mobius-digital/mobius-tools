@@ -5574,6 +5574,26 @@ export default {
       return handleSlackInteract(request, env, ctx);
     }
 
+    /* COVER IMAGES ON A CLIENT LINK. A shared ad set is minted WITHOUT its
+       images now - downloading up to forty covers from Meta before the link
+       could be copied was the whole of the wait Cole felt - so the client's
+       page asks for them here by share token, and only for ads that snapshot
+       contains. They cache in ad_creative on first view; every later open is
+       instant. Same rule as ad-video below: the token authorises its own ads
+       and nothing else. */
+    if (path === '/api/ad-creatives' && url.searchParams.get('share')) {
+      const tok = url.searchParams.get('share');
+      if (!/^[a-f0-9]{16,}$/.test(tok)) return json({ error: 'bad token' }, 400);
+      const row = await env.DB.prepare(`SELECT data_json FROM p_ad_share WHERE token = ?1`).bind(tok).first();
+      if (!row) return json({ error: 'this link is no longer valid' }, 404);
+      const allowed = new Set((safeJson(row.data_json, {}).ads || []).map(a => a.ad_id));
+      const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(id => allowed.has(id)).slice(0, 40);
+      if (!ids.length) return json({ assets: {} });
+      let assets = {};
+      try { assets = await adThumbnails(env, ids, LIVE_THUMBS); } catch (e) { return json({ assets: {}, error: e.message }); }
+      return json({ assets });
+    }
+
     /* A playable mp4 for one ad. Two ways in, and no third:
  - a signed-in team member (session/admin), for the Reports tab;
  - `?report=<archive token>`, for the client's link, which only ever

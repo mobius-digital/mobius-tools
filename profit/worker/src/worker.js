@@ -1640,6 +1640,16 @@ export default {
       return new Response(await res.text(), { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
+    /* Cover images for a client's shared ad set - same arrangement as the
+       video above: forwarded here, before the auth gate, when it carries a
+       share token; account-health validates the token against the snapshot. */
+    if (path === '/api/ad-creatives' && request.method === 'GET' && url.searchParams.get('share')) {
+      const target = `${AUTH_WORKER}${path}${url.search}`;
+      const init = { method: 'GET', headers: {} };
+      const res = env.AUTH ? await env.AUTH.fetch(new Request(target, init)) : await fetch(target, init);
+      return new Response(await res.text(), { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
+    }
+
     const kind = await authKind(request, env);
     if (!kind) return json({ error: 'unauthorized' }, 401);
     const isDemo = kind === 'demo';

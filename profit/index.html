@@ -974,6 +974,8 @@
   .cb-in{width:88px}
   .cb-in input,.cb-in input[type=text]{width:100%;font-weight:600}
   .cb-thresh{color:var(--ink);font-weight:700}
+  .cb-lock{cursor:pointer;font-weight:600}
+  .cb-lock input[type=checkbox]{width:auto;margin:0;accent-color:var(--brand-ink);cursor:pointer}
   /* The rule, stated above the grid. Quiet, but never hidden. */
   .cb-rule{font-size:12.5px;color:var(--muted);background:var(--surface);
     border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 12px}
@@ -2088,30 +2090,6 @@ function confirmModal(title, hint, cta) {
   });
 }
 
-/* The one choice before a client link is minted: whether the client can
-   re-sort and filter within it, or sees exactly this view. Resolves
-   { locked } or null on cancel. */
-function shareOptionsModal(viewText) {
-  return new Promise(resolve => {
-    const w = document.createElement('div');
-    w.className = 'modal-wrap';
-    w.innerHTML = `<div class="modal"><h3>Share with client</h3>
-      <p class="hint">The link opens on <b>${esc(viewText)}</b>, frozen as it is now. Nothing you change in Locus afterwards touches it.</p>
-      <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;cursor:pointer;margin:4px 0 0">
-        <input type="checkbox" id="shLock" style="width:auto;margin-top:3px">
-        <span><b>Lock this view</b><br><span class="tiny">The client sees exactly this - no re-sorting, no filters. Leave it off and they can explore the same ads their own way.</span></span></label>
-      <div class="row" style="justify-content:flex-end;gap:8px;margin:16px 0 0">
-        <button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">Create link</button></div></div>`;
-    document.body.appendChild(w);
-    const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
-    const k = e => { if (e.key === 'Escape') done(null); };
-    document.addEventListener('keydown', k);
-    w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
-    w.querySelector('[data-m="no"]').onclick = () => done(null);
-    w.querySelector('[data-m="yes"]').onclick = () => done({ locked: w.querySelector('#shLock').checked });
-  });
-}
-
 /* ---------- Searchable picker ----------
    `items` = [{value, label, sub}]. Renders into `host`, returns { value() }.
    Type to filter, ↑/↓/Enter/Escape, click outside to close. `onPick` fires with
@@ -2772,30 +2750,36 @@ async function renderAdShare(token) {
   AD_SHARE_TOKEN = token;
   writeHash();
   paint();
-}
 
-/* A stored cover only has to fill a card, not a screen. The whole shared page
-   is ONE database row with a 2MB ceiling and a live cover can be 280KB, so
-   every image is re-encoded in the browser before the snapshot is sent. */
-function shrinkThumb(dataUrl, max = 720, q = 0.8) {
-  return new Promise((resolve, reject) => {
-    if (!/^data:image\//.test(dataUrl || '')) return resolve(dataUrl);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const s = Math.min(1, max / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
-        if (s === 1 && dataUrl.length < 90_000) return resolve(dataUrl);
-        const c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round((img.naturalWidth || 1) * s));
-        c.height = Math.max(1, Math.round((img.naturalHeight || 1) * s));
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        const out = c.toDataURL('image/jpeg', q);
-        resolve(out.length < dataUrl.length ? out : dataUrl);
-      } catch (e) { reject(e); }
-    };
-    img.onerror = () => reject(new Error('could not decode the cover image'));
-    img.src = dataUrl;
-  });
+  /* COVERS ARRIVE AFTER THE NUMBERS. Links are minted without images now, so
+     the page asks for them by share token - the ads on screen first, then the
+     rest - and patches each card and highlight tile as its cover lands. */
+  const missing = all.filter(a => !a.thumb).map(a => a.ad_id);
+  if (missing.length) {
+    const order = [...new Set([...view().shown.map(a => a.ad_id), ...missing])].filter(id => missing.includes(id));
+    const chunks = []; for (let i = 0; i < order.length; i += 12) chunks.push(order.slice(i, i + 12));
+    (async () => {
+      for (const ids of chunks) {
+        let r;
+        try { r = await api(`/api/ad-creatives?ads=${encodeURIComponent(ids.join(','))}&share=${encodeURIComponent(token)}`); } catch { continue; }
+        for (const [id, v] of Object.entries(r.assets || {})) {
+          const a = all.find(x => x.ad_id === id); if (!a || !v) continue;
+          for (const k of ['headline', 'body', 'description', 'cta', 'preview', 'duration', 'partnership']) if (v[k] != null && a[k] == null) a[k] = v[k];
+          if (!v.thumb) continue;
+          a.thumb = v.thumb;
+          $('#main').querySelectorAll(`[data-ad="${CSS.escape(id)}"]`).forEach(el => {
+            if (el.classList.contains('shp-hl')) { const ph = el.querySelector('.ph'); if (ph) ph.outerHTML = `<img src="${v.thumb}" alt="">`; }
+            else if (el.classList.contains('shp-card')) {
+              const m = el.querySelector('.shp-media'); if (!m || m.querySelector('img')) return;
+              m.classList.remove('none');
+              const ph = m.querySelector('.ad-noimg'); if (ph) ph.remove();
+              m.insertAdjacentHTML('afterbegin', `<img src="${v.thumb}" alt="Creative for ${esc(a.name)}">`);
+            }
+          });
+        }
+      }
+    })();
+  }
 }
 
 /* ---------- Creative browser ----------
@@ -2826,6 +2810,7 @@ const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb
   mult: (() => { const raw = localStorage.getItem('pf_cb_mult'); const v = raw == null ? NaN : +raw; return isFinite(v) && v >= 0 ? v : 3; })(),
   /* A typed threshold survives a reload like the multiple does; otherwise the
      control looked like it forgot you every time the tab came back. */
+  lock: false,
   minSpend: (() => { const raw = localStorage.getItem('pf_cb_min_spend'); const v = raw == null ? NaN : +raw; return isFinite(v) && v >= 0 ? v : null; })() };
 /* Plain "Custom": the old "Custom $…" read as a label cut off mid-word. */
 const CB_MULTS = [['0', 'Any spend'], ['1', '1×'], ['2', '2×'], ['3', '3×'], ['5', '5×'], ['custom', 'Custom']];
@@ -2965,7 +2950,8 @@ async function renderCreativeBrowser(host, act, range) {
         ${CB.minSpend != null ? `<span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbMinSpend" type="text" inputmode="decimal" value="${Math.round(CB.minSpend)}"></span>`
           : `<b class="cb-thresh">${CB.mult ? fmtMoney(d.floor, cur) : 'any'}</b>`}</label>
       <span style="flex:1"></span>
-      <button class="btn" id="cbShare">↗ Share with client</button><span class="tiny" id="cbShareMsg"></span>
+      <label class="cb-l cb-lock" title="Locked: the client sees exactly this view, no re-sorting or filters. Off: they can explore the same ads their own way."><input type="checkbox" id="cbLock"${CB.lock ? ' checked' : ''}> Lock view</label>
+      <button class="btn" id="cbShare" title="Freezes this view as a read-only page and copies its link">Copy client link</button><span class="tiny" id="cbShareMsg"></span>
     </div>
     ${(() => {
       /* THE RULE, STATED WHERE THE ADS ARE.
@@ -3118,64 +3104,47 @@ async function renderCreativeBrowser(host, act, range) {
     <p>An ad with one lucky sale on $12 satisfies neither, which is the whole point: it would otherwise top every ROAS list.</p>
     <p><b>To see everything anyway:</b> set <b>Counts at → Any spend</b>, or sort by <b>Spend</b>, <b>Purchases</b> or <b>Newest</b> - those rank every ad that spent, because they are not ratios and cannot be flattered by a tiny denominator.</p>`);
 
-  /* Freeze a set of ads and mint a link for the client. FROZEN, like the
-     reports and for the same reason: "here is what is working" sent on Tuesday
-     must still say that on Friday, and a live page would not.
-     THE CLIENT GETS CONTROLS (2026-09-16), so the snapshot has to hold more
-     than the screen: up to 40 ads - the current view plus the account's
-     biggest spenders under the same threshold - each with its numbers, its
-     evidence flag and a cover image shrunk to card size. The client then
-     sorts, filters and sizes the list within that frozen set. */
+  /* COPY CLIENT LINK - instant (Cole, 2026-09-16). The snapshot is the numbers:
+     up to 40 ads, the current view plus the biggest spenders under the same
+     threshold, each with its evidence flag. Cover images used to be pulled
+     from Meta and packed in here before anything could be copied, and that
+     was the whole wait; the client's page now fetches them itself by share
+     token, and they cache after the first view. Still FROZEN: nothing changed
+     here afterwards touches a link already sent. No popup - the button copies
+     and says so beside itself. */
+  const lockIn = $('#cbLock');
+  if (lockIn) lockIn.onchange = () => { CB.lock = lockIn.checked; };
   $('#cbShare').onclick = async () => {
     const b = $('#cbShare'), msg = $('#cbShareMsg');
-    const sortLabel = CB_SORTS.find(x => x[0] === CB.sort)?.[1] || 'Spend';
-    const viewText = `top ${CB.limit} by ${sortLabel.toLowerCase()}${CB.fmt ? ` · ${CB.fmt === 'static' ? 'image' : CB.fmt} only` : ''}${RATIO_SORTS.has(CB.sort) && d.floor > 0 ? ` · ads over ${fmtMoney(d.floor, cur)}` : ''}`;
-    const opt = await shareOptionsModal(viewText);
-    if (!opt) return;
-    b.disabled = true; msg.textContent = 'Gathering ads…';
+    const flash = (t, ok) => { msg.textContent = t; msg.style.color = ok ? 'var(--good)' : 'var(--bad)'; msg.style.fontWeight = '700';
+      clearTimeout(flash.t); flash.t = setTimeout(() => { msg.textContent = ''; msg.style.color = ''; msg.style.fontWeight = ''; }, 4000); };
+    b.disabled = true; msg.textContent = 'Creating…';
     try {
+      const sortLabel = CB_SORTS.find(x => x[0] === CB.sort)?.[1] || 'Spend';
       const base = `act=${encodeURIComponent(act)}&from=${range.from}&to=${range.to}&attr=${encodeURIComponent(CB.attr)}`
         + (CB.minSpend != null ? `&min_spend=${CB.minSpend}` : `&mult=${CB.mult}`);
       const wide = await api(`/api/ads?${base}&sort=spend&limit=40`).catch(() => ({ ads: [] }));
       const seen = new Set(), ads = [];
       for (const a of [...d.ads, ...(wide.ads || [])]) {
         if (seen.has(a.ad_id) || ads.length >= 40) continue;
-        seen.add(a.ad_id); ads.push({ ...a });
+        seen.add(a.ad_id);
+        // `qualifies` is the evidence flag the client page ranks ratio sorts on;
+        // the floor behind it stays here. Images travel separately.
+        const c = { ...a, qualifies: !!a.material };
+        delete c.share; delete c.material; delete c.status; delete c.thumb;
+        ads.push(c);
       }
-      const need = ads.filter(a => !a.thumb).map(a => a.ad_id);
-      if (need.length) {
-        msg.textContent = `Fetching ${need.length} cover image${need.length === 1 ? '' : 's'}…`;
-        const r = await api('/api/ad-creatives?ads=' + encodeURIComponent(need.join(','))).catch(() => ({ assets: {} }));
-        for (const [id, v] of Object.entries(r.assets || {})) { const a = ads.find(x => x.ad_id === id); if (a) Object.assign(a, v); }
-      }
-      msg.textContent = 'Packing images…';
-      for (const a of ads) if (a.thumb) a.thumb = await shrinkThumb(a.thumb).catch(() => a.thumb);
-      // `qualifies` is the evidence flag the client page ranks ratio sorts on;
-      // the floor behind it stays here. `share` and `status` are ours.
-      for (const a of ads) { a.qualifies = !!a.material; delete a.share; delete a.material; delete a.status; }
-      const payload = {
-        ads, range, types: d.types, attr: d.attr,
-        min_purchases: d.min_purchases, sales_route: d.sales_route,
-        defaults: { sort: CB.sort, fmt: CB.fmt, limit: CB.limit },
-        locked: !!opt.locked,
-      };
-      /* One D1 row, 2MB ceiling. If the shrunk set still will not fit, the
-         lowest-spend ads lose their covers first - never their numbers. */
-      let dropped = 0;
-      for (let i = ads.length - 1; i >= 0 && JSON.stringify(payload).length > 1_850_000; i--) {
-        if (ads[i].thumb) { ads[i].thumb = null; dropped++; }
-      }
-      msg.textContent = 'Saving…';
+      const locked = !!CB.lock;
       const r = await api('/api/ad-share', { method: 'POST', body: JSON.stringify({
-        act, label: `${sortLabel} · ${prettyDate(range.from)}–${prettyDate(range.to, true)}${opt.locked ? ' · locked' : ''}`,
-        data: payload,
+        act, label: `${sortLabel} · ${prettyDate(range.from)}–${prettyDate(range.to, true)}${locked ? ' · locked' : ''}`,
+        data: { ads, range, types: d.types, attr: d.attr, min_purchases: d.min_purchases, sales_route: d.sales_route,
+          defaults: { sort: CB.sort, fmt: CB.fmt, limit: CB.limit }, locked, lazy_thumbs: true },
       }) });
-      if (navigator.clipboard) await navigator.clipboard.writeText(r.url).catch(() => {});
-      msg.textContent = '';
-      noteModal('Link ready to send', `<p>A read-only page with <b>${ads.length} ads</b> and their numbers. It opens on <b>${esc(viewText)}</b>${opt.locked ? ' and is <b>locked</b> - the client sees exactly that, with no re-sorting or filters.' : ', and the client can re-sort, switch video against static and choose how many to see, all within these ' + ads.length + ' ads.'} Nothing on it changes after today.</p>
-        <p style="margin-top:10px"><code style="font-size:12px;word-break:break-all">${esc(r.url)}</code></p>
-        <p class="hint" style="margin-top:10px">Copied to your clipboard. Cover images are stored with it${dropped ? ` (${dropped} left out to fit)` : ''}, and videos play on the page.</p>`);
-    } catch (e) { msg.textContent = ''; noteModal('Could not create the link', `<p>${esc(e.message)}</p>`); }
+      let copied = false;
+      try { await navigator.clipboard.writeText(r.url); copied = true; } catch { /* clipboard refused; show it instead */ }
+      if (copied) flash(`Link copied${locked ? ' · locked view' : ''}`, true);
+      else { msg.style.color = ''; msg.innerHTML = `Copy this: <code style="user-select:all;font-size:11px">${esc(r.url)}</code>`; }
+    } catch (e) { flash(e.message, false); }
     b.disabled = false;
   };
   // Playback reuses the SAME attachPlay the reports use, so a video behaves
