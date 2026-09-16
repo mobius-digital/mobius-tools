@@ -632,6 +632,45 @@ function receiptMatch(rows, vendor, amount, date, allowTip=false) {
   const tips=allowTip && Number(amount)>0 ? eligible.filter(t=>t.amount>=Number(amount)/1.35 && t.amount<=Number(amount)*1.35) : [];
   return tips.length===1?tips[0]:null;
 }
+/* The ⏳ on a receipt message is its status, so it has to change when the
+ * status does. Without this the hourglass stayed forever and a finished
+ * receipt looked exactly like a stuck one. Reactions never notify anyone. */
+async function markReceiptMessage(env, channel, ts, done = 'white_check_mark') {
+  if (!channel || !ts || !env.SLACK_BOT_TOKEN) return;
+  for (const name of ['hourglass_flowing_sand', 'question'])
+    await slack(env, 'reactions.remove', { channel, timestamp: ts, name }, true).catch(() => {});
+  if (done) await slack(env, 'reactions.add', { channel, timestamp: ts, name: done }, true).catch(() => {});
+}
+
+/* Clears hourglasses left by receipts that are no longer waiting, including
+ * every one from before markReceiptMessage existed. A tick goes on only when
+ * the thread shows the receipt was attached or filed. */
+async function tidyHourglasses(env) {
+  const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
+  if (!sr.channelId || !env.SLACK_BOT_TOKEN) return { skipped: 'Slack not connected' };
+  const held = new Set((await env.DB.prepare(`SELECT value FROM settings WHERE key LIKE 'pend:%'`).all())
+    .results.map(r => safeJson(r.value, {})?.ts).filter(Boolean));
+  const oldest = String(Math.floor(Date.now() / 1000 - 60 * 86400));
+  let cursor = '', cleared = 0;
+  do {
+    const h = await slack(env, 'conversations.history',
+      { channel: sr.channelId, oldest, limit: '200', ...(cursor ? { cursor } : {}) });
+    if (!h.ok) throw new Error('Slack history: ' + h.error);
+    for (const m of h.messages || []) {
+      const hg = (m.reactions || []).find(r => r.name === 'hourglass_flowing_sand'
+        && (!sr.selfUserId || (r.users || []).includes(sr.selfUserId)));
+      if (!hg || held.has(m.ts)) continue;
+      const rep = await slack(env, 'conversations.replies', { channel: sr.channelId, ts: m.ts, limit: '50' });
+      const done = (rep.messages || []).some(x => x.ts !== m.ts
+        && /^(:white_check_mark:|:heavy_check_mark:|✅|✓|✔)/.test(x.text || '') && !/Discarded/.test(x.text || ''));
+      await markReceiptMessage(env, sr.channelId, m.ts, done ? 'white_check_mark' : null);
+      cleared++;
+    }
+    cursor = h.response_metadata?.next_cursor || '';
+  } while (cursor);
+  return { cleared };
+}
+
 /* The held-receipt sweep's matcher, in order of trust:
  *   1. same name (or a listed alias), exact amount       -> attach
  *   2. card spelling differs, exact amount, within a week -> attach
@@ -1015,8 +1054,8 @@ async function processSlackReceiptsInner(env) {
           if (heldSame.length) {
             await receiptDelete(env, pendKey).catch(() => {});
             await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(pendKey).run();
-            await react('hourglass_flowing_sand');
-            await reply(`\u23f3 *${ext.vendor}* $${amt.toFixed(2)} \u2014 already holding this exact receipt, waiting for the charge to reach Novo or Amex. Nothing to do.`);
+            await react('repeat');
+            await reply(`\u23f3 *${ext.vendor}* $${amt.toFixed(2)} \u00b7 already holding this exact receipt, waiting for the charge to reach Novo or Amex. Nothing to do.`);
             handled++; continue;
           }
 
@@ -1087,7 +1126,7 @@ async function processSlackReceiptsInner(env) {
           const near = similar.length
             ? `\n_Note: *${similar[0].vendor}* ${fmtMoney(similar[0].amount)} on ${similar[0].date} already has a receipt for the same amount. If this is that same one, ignore this._`
             : '';
-          const body = `${head} \u2014 ${fresh ? 'held' : 'no charge on Novo or Amex matches that amount yet'}.\n${why}${near}`;
+          const body = `${head} \u00b7 ${fresh ? 'held' : 'no charge on Novo or Amex matches that amount yet'}.\n${why}${near}`;
           await react(fresh ? 'hourglass_flowing_sand' : 'question');
           if (!fresh) needsYou++;
           await (fresh ? reply : nudge)(body, [
@@ -1897,6 +1936,7 @@ async function retryHeldReceiptsInner(env) {
     await receiptDelete(env, row.key);
     await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(row.key).run();
     attached++;
+    await markReceiptMessage(env, meta.ch || sr.channelId, meta.ts);
     if (meta.ch || sr.channelId) await slack(env, 'chat.postMessage',
       { channel: meta.ch || sr.channelId, ...(meta.ts ? { thread_ts: meta.ts } : {}), unfurl_links: false,
       text: `\u2705 The ${meta.vendor} charge landed · that receipt you sent is attached to *${match.vendor}* $${Math.abs(match.amount).toFixed(2)} (${match.date}).`
@@ -2460,6 +2500,14 @@ export default {
          * charge appearing and the receipt landing on it is ten minutes rather
          * than up to a day. Only run at all while something is actually
          * waiting, so an empty queue costs nothing. */
+        /* Hourglasses on receipts that stopped waiting, cleared a few times a
+         * day. Cheap, and it also cleans up everything from before the
+         * reactions were kept current. */
+        const tidiedAt = Number(await getSetting(env, 'hourglassTidyAt').catch(() => 0)) || 0;
+        if (Date.now() - tidiedAt > 6 * 3600e3) {
+          await putSetting(env, 'hourglassTidyAt', String(Date.now())).catch(() => {});
+          await tidyHourglasses(env).catch(e => console.log('hourglass tidy failed: ' + e.message));
+        }
         const waiting = await env.DB.prepare(
           `SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'pend:%'`).first().catch(() => null);
         if (!waiting?.n) return;
@@ -2624,8 +2672,10 @@ export default {
         // an emailed receipt we declined to guess at — he says it is his
         // "not mine" on a receipt that waited a week and never found its charge
         if (val?.drop) {
+          const dropped = safeJson(await getSetting(env, val.drop), null);
           await receiptDelete(env, val.drop).catch(() => {});
           await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.drop).run();
+          if (dropped) await markReceiptMessage(env, dropped.ch, dropped.ts, null);
           respond({ replace_original: true, text: '\u2713 Discarded · that receipt will not be asked about again.' });
           return new Response('', { status: 200 });
         }
@@ -2661,10 +2711,11 @@ export default {
             }
             await receiptDelete(env, val.file);
             await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
+            await markReceiptMessage(env, meta.ch, meta.ts);
             respond({ replace_original: true,
               text: `✓ Attached to *${row.vendor}* $${row.amount.toFixed(2)} in *${moLabel(row.month)}*.` +
                     (Math.abs(row.amount - meta.amount) > 0.001
-                      ? ` (Receipt said $${meta.amount.toFixed(2)} — the charge is what counts.)` : '') });
+                      ? ` (Receipt said $${meta.amount.toFixed(2)}; the charge is what counts.)` : '') });
             return new Response('', { status: 200 });
           }
           if ((await monthStatus(env, meta.month)) === 'closed') {
@@ -2693,9 +2744,10 @@ export default {
             .bind(row.date,row.month,row.vendor,row.amount,row.bucket,row.tax_cat,row.note,row.status,'slack:'+val.file,key,meta.name,meta.type,fingerprint).run();
           await receiptDelete(env, val.file);
           await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind(val.file).run();
+          await markReceiptMessage(env, meta.ch, meta.ts);
           respond({ replace_original: true,
             text: `✓ Filed *${meta.vendor}* $${meta.amount.toFixed(2)} into *${moLabel(meta.month)}*` +
-                  `${row.tax_cat ? ` as *${row.tax_cat}*` : ' — it needs a category in the app'}. Receipt attached.` });
+                  `${row.tax_cat ? ` as *${row.tax_cat}*` : ', it needs a category in the app'}. Receipt attached.` });
           return new Response('', { status: 200 });
 
           });

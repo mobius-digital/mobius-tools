@@ -18,7 +18,7 @@ const DB = { prepare(sql) {
 }, async batch(stmts) { db.exec('BEGIN'); try { const r=[]; for(const s of stmts) r.push(await s.run()); db.exec('COMMIT'); return r; } catch(e) { db.exec('ROLLBACK'); throw e; } } };
 const source=fs.readFileSync(path.join(__dirname,'src/worker.js'),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default {','const worker = {');
 const context=vm.createContext({ console, crypto:require('node:crypto').webcrypto, Request,Response,Headers,URL,URLSearchParams,TextEncoder,TextDecoder,Buffer,atob,btoa,Blob,FormData,fetch:async()=>{throw Error('Offline tests prohibit network');} });
-vm.runInContext(source+'\nglobalThis.api={worker,computeReport,periodReport,validSession,bankRefresh,syncStripe,comparePlaid,applyBankJob,saveJob,withLedgerLease,processSlackReceipts,importPlaidRange,receiptMatch,heldReceiptMatch,retryHeldReceipts,selfCheck};',context);
+vm.runInContext(source+'\nglobalThis.api={worker,computeReport,periodReport,validSession,bankRefresh,syncStripe,comparePlaid,applyBankJob,saveJob,withLedgerLease,processSlackReceipts,importPlaidRange,receiptMatch,heldReceiptMatch,retryHeldReceipts,selfCheck,tidyHourglasses};',context);
 const env={DB,ADMIN_TOKEN:'local-test-only',OWNER_EMAIL:'owner@mobius.test',AUTH:{fetch:async()=>Response.json({email:'intruder@example.test'})}};
 async function main(){
   db.exec("INSERT INTO transactions(date,month,type,vendor,amount,tax_cat) VALUES('2026-08-01','2026-08','out','Meal',100,'Meals')");
@@ -266,6 +266,39 @@ async function main(){
     await check('DataDive receipt from its parent company attaches',()=>{
       const d=context.api.heldReceiptMatch([{id:826,type:'out',vendor:'Datadive.tools',amount:39,date:'2026-09-14'}],'Seller Systems Software LLC',39,'2026-09-14');
       assert.equal(d.row.id,826);assert.equal(d.confirm,false);
+    });
+    await check('attached receipt swaps its hourglass for a tick',async()=>{
+      const calls=[];const prev=context.slackMock;
+      context.slackMock=async(e,method,params)=>{calls.push([method,params]);return prev(e,method,params);};
+      vm.runInContext('slack = slackMock',context);
+      db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,source) VALUES('2026-09-24','2026-09','out','Tick Vendor',21,'plaid')").run();
+      await env.RECEIPTS.put('pend:4:tick',new TextEncoder().encode('tick receipt').buffer);
+      db.prepare('INSERT INTO settings VALUES(?,?)').run('pend:4:tick',JSON.stringify({name:'k.jpg',type:'image/jpeg',date:'2026-09-24',vendor:'Tick Vendor',amount:21,ch:'C_TEST',ts:'111.222'}));
+      await context.api.retryHeldReceipts(env);
+      context.slackMock=prev;vm.runInContext('slack = slackMock',context);
+      const r=calls.filter(([m,p])=>m.startsWith('reactions.')&&p.timestamp==='111.222').map(([m,p])=>m+':'+p.name);
+      assert.ok(r.includes('reactions.remove:hourglass_flowing_sand'));assert.ok(r.includes('reactions.add:white_check_mark'));
+    });
+    await check('hourglass tidy clears finished receipts and leaves waiting ones',async()=>{
+      const calls=[];const prev=context.slackMock;
+      db.prepare('INSERT INTO settings VALUES(?,?)').run('pend:5:wait',JSON.stringify({name:'w.jpg',type:'image/jpeg',date:'2026-09-24',vendor:'Still Waiting',amount:9,ch:'C_TEST',ts:'3.0'}));
+      const hg=[{name:'hourglass_flowing_sand',users:['BOT'],count:1}];
+      context.slackMock=async(e,method,params)=>{
+        calls.push([method,params]);
+        if(method==='conversations.history')return {ok:true,messages:[{ts:'1.0',reactions:hg},{ts:'2.0',reactions:hg},{ts:'3.0',reactions:hg},{ts:'4.0',reactions:[{name:'white_check_mark',users:['BOT']}]}]};
+        if(method==='conversations.replies')return {ok:true,messages:params.ts==='1.0'?[{ts:'1.0'},{ts:'1.1',text:':white_check_mark: The X charge landed'}]:[{ts:'2.0'},{ts:'2.1',text:'✓ Discarded · that receipt will not be asked about again.'}]};
+        return prev(e,method,params);
+      };
+      vm.runInContext('slack = slackMock',context);
+      const out=await context.api.tidyHourglasses(env);
+      context.slackMock=prev;vm.runInContext('slack = slackMock',context);
+      assert.equal(out.cleared,2);
+      const r=calls.filter(([m])=>m.startsWith('reactions.')).map(([m,p])=>p.timestamp+' '+m+':'+p.name);
+      assert.ok(r.includes('1.0 reactions.add:white_check_mark'));
+      assert.ok(r.includes('2.0 reactions.remove:hourglass_flowing_sand'));
+      assert.ok(!r.includes('2.0 reactions.add:white_check_mark'));
+      assert.ok(!r.some(x=>x.startsWith('3.0')));
+      db.exec("DELETE FROM settings WHERE key='pend:5:wait'");
     });
     await check('fenced batches support atomic multi-statement writes',async()=>{
       await context.api.withLedgerLease(env,'batch-test',async leased=>{
