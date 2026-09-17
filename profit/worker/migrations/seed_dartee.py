@@ -42,7 +42,7 @@ CUSTOM = {1: 14, 2: 14, 3: 19, 4: 22, 5: 32, 6: 32, 7: 28, 8: 28, 9: 28, 10: 36,
           46: 40, 47: 48, 48: 100, 49: 85, 50: 76, 51: 72, 52: 45, 53: 16}
 
 brand = dict(
-    slug='dartee', live=0, display_name='Dartee Golf', accent='#0E7C5A', logo_url=None,
+    slug='dartee', live=0, display_name='Dartee Golf', accent='#0F7F73', logo_url='https://darteegolf.com/cdn/shop/files/logo-primary.webp?v=1784015313&width=600',
     intro=("Dartee makes the golf belt that holds your ball marker, tees and glove, so your pockets stay empty. "
            "We want videos that look like a real round with your buddies: the first tee, the green, the cart, the 19th hole. "
            "Pick an idea below, film it your way, and submit it on TRYBE like always."),
@@ -88,7 +88,7 @@ brand = dict(
               "We are pushing the new Muni woven belts right now. Film your gift videos this month so they are ready "
               "for Black Friday."),
         next='Black Friday and Christmas gifting, from Nov 24',
-        highlight=['09-15', '11-23'], show_chart=True, color='#0E7C5A', cap=None,
+        highlight=['09-15', '11-23'], show_chart=True, color='#0F7F73', cap=None,
         mode='custom', custom={str(k): v for k, v in CUSTOM.items()},
     ),
     pdf=dict(

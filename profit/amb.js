@@ -774,7 +774,8 @@ function paintLink(body) {
   <div class="card am-brief">
     <div class="am-brief-l">
         <div class="am-pdf"><div class="pg grid">
-          <b style="color:#0A0B0D;font-size:11px">${esc(b.display_name)}</b>
+          ${b.logo_url ? `<img src="${esc(b.logo_url)}" alt="" style="height:18px;width:auto;max-width:90px;object-fit:contain;align-self:flex-start">` : ''}
+          <b style="color:${b.logo_url ? '#5F6472' : '#0A0B0D'};font-size:${b.logo_url ? 8 : 11}px">${esc(b.display_name)}${b.logo_url ? ' creator brief' : ''}</b>
           <b style="color:#0A0B0D;font-size:17px;line-height:1.1;margin-top:10px">${esc(pdfText(b).line1)}<br><span style="color:${esc(b.accent || '#3B82F6')}">${esc(pdfText(b).line2)}</span></b>
           <div class="ln"></div><div class="ln" style="width:75%"></div>
           <div style="display:flex;gap:8px;align-items:center;padding:8px;border-radius:7px;background:#fff;border:1px solid #DFE3E9;margin-top:4px"><span id="lQr" style="width:46px;height:46px;background:#fff;border-radius:4px;display:block;flex:none"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ln" style="width:60%"></div><div style="height:12px;border-radius:4px;background:${esc(b.accent || '#3B82F6')}"></div></div></div>
@@ -848,7 +849,7 @@ function paintLink(body) {
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <h3>How the page looks and reads</h3>
         <div class="am-g2">
-          <label class="am-f">Logo link <small>optional, a PNG or SVG on https. Empty shows the name.</small><input class="am-in" id="lLogo" value="${esc(b.logo_url || '')}" placeholder="https://cdn.shopify.com/.../logo.png"></label>
+          <label class="am-f">Logo link <small>optional. A PNG or WebP on https, dark on a clear background (the store's header logo works). Shows on the link and the PDF. Empty shows the name.</small><input class="am-in" id="lLogo" value="${esc(b.logo_url || '')}" placeholder="https://cdn.shopify.com/.../logo.png"></label>
           <div class="am-f">Brand colour<div class="am-swatches" id="lSw">${['#D6336C', '#1D4ED8', '#0F766E', '#15803D', '#7C3AED', '#C2410C', '#13202B'].map(c => `<button type="button" class="am-swatch ${(b.accent || '').toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}<input type="color" class="am-color" id="lAcc" value="${esc(b.accent || '#13202B')}" aria-label="Any colour"></div></div>
         </div>
         <label class="am-f">Intro <small>top of the page and the PDF. Two or three lines.</small><textarea class="am-in" id="lIntro">${esc(b.intro || '')}</textarea></label>
@@ -1096,6 +1097,38 @@ function briefText(b) {
   ].join('\n');
 }
 
+// A logo URL as a PNG data URI via canvas (jsPDF cannot read WebP or SVG). The host must
+// allow cross-origin reads (Shopify's /cdn/shop/files does); anything else returns null.
+function logoData(src) {
+  if (!src) return Promise.resolve(null);
+  return new Promise(res => {
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    const done = v => { clearTimeout(t); res(v); };
+    const t = setTimeout(() => done(null), 8000);
+    im.onload = () => {
+      try {
+        const k = Math.min(1, 600 / im.naturalWidth);
+        const w = Math.round(im.naturalWidth * k) || 600, h = Math.round(im.naturalHeight * k) || 200;
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const g = c.getContext('2d'); g.drawImage(im, 0, 0, w, h);
+        // Trim clear margins so the mark, not its padding, sets the size.
+        const px = g.getImageData(0, 0, w, h).data;
+        let x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+          if (px[(yy * w + xx) * 4 + 3] > 16) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy; }
+        }
+        if (x1 < 0) return done(null);
+        const tw = x1 - x0 + 1, th = y1 - y0 + 1;
+        const o = document.createElement('canvas'); o.width = tw; o.height = th;
+        o.getContext('2d').drawImage(c, x0, y0, tw, th, 0, 0, tw, th);
+        done({ data: o.toDataURL('image/png'), w: tw, h: th });
+      } catch { done(null); }
+    };
+    im.onerror = () => done(null);
+    im.src = src;
+  });
+}
 async function makePdf() {
   await loadScript(JSPDF_URL);
   const b = S.data.brand;
@@ -1119,11 +1152,21 @@ async function makePdf() {
   [170, 120, 70].forEach((r, i) => { op(0.04 + i * 0.03); doc.circle(W - 30, 30, r, 'F'); });
   op(1);
 
-  // 1. Headline (the first words TRYBE shows).
+  // 1. Logo (an image, so TRYBE never sees it), then the name line: that text is
+  //    still the first words TRYBE shows. No logo, or one that will not load: name only.
   let y = M + 6;
+  const logo = await logoData(b.logo_url);
+  if (logo) {
+    // Wide wordmarks run long and short, compact marks run taller: about the same presence.
+    const ar = logo.w / logo.h;
+    let lw = Math.min(200, Math.max(110, 46 * ar)), lhh = lw / ar;
+    if (lhh > 56) { lhh = 56; lw = lhh * ar; }
+    doc.addImage(logo.data, 'PNG', M, M - 18, lw, lhh, undefined, 'FAST');
+    y = M - 18 + lhh + 20;
+  }
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...SUB);
   doc.text(`${b.display_name} creator brief`, M, y);
-  y += 80;
+  y += logo ? 62 : 80;
   let hs = 44;
   while (hs > 26 && Math.max(doc.setFontSize(hs).getTextWidth(T.line1), doc.getTextWidth(T.line2)) > W - 2 * M) hs -= 2;
   doc.setFontSize(hs); doc.setTextColor(...TXT);

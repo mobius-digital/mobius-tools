@@ -701,6 +701,12 @@ profit/
   pypdf `extract_text()` after any layout change. PDF wording is per brand
   (`p_amb_brand.pdf_json`, edited on Link and brief); `briefText()` is the same copy
   as plain text for the Copy brief text button.
+- **Logos (2026-09-17).** `logo_url` shows in the link header and at the top of the PDF.
+  `logoData()` redraws it through a canvas as PNG (jsPDF cannot read WebP or SVG) and trims
+  clear margins; the page trims the same way on load (`LOGO_TRIM`). The host must allow
+  cross-origin reads (Shopify `/cdn/shop/files` does); if not, the PDF shows the name only
+  and the page shows the untrimmed image. The "<brand> creator brief" text line stays under
+  the logo so TRYBE still reads the name first. Logos set in `migrations/amb-logos.sql`.
 - **Season chart can be drawn** (`season.mode = 'custom'`, `season.custom` = 0-100 per ISO
   week, 25 = normal). A drawn chart is titled "When to film" and never shows numbers.
 - **The season chart is relative.** `seasonShape()` = last year's weekly `netSales`

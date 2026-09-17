@@ -101,6 +101,31 @@ function wireFilm() {
 }
 
 /* ---------- top bar + footer ---------- */
+// Store logos often carry wide clear margins, which make the mark tiny at header height.
+// Trim them once per URL (Shopify's CDN allows the cross-origin read); on any failure the
+// original image stays as it is.
+const LOGO_TRIM = {};
+document.addEventListener('load', e => {
+  const im = e.target;
+  if (!(im instanceof HTMLImageElement) || !im.dataset.logo || LOGO_TRIM[im.dataset.logo]) return;
+  try {
+    const w = im.naturalWidth, h = im.naturalHeight;
+    if (!w || !h) return;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+    const px = g.getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (px[(y * w + x) * 4 + 3] > 16) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    if (x1 < 0 || (x1 - x0 + 1 > w * 0.95 && y1 - y0 + 1 > h * 0.95)) { LOGO_TRIM[im.dataset.logo] = im.dataset.logo; return; }
+    const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+    o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+    LOGO_TRIM[im.dataset.logo] = o.toDataURL('image/png');
+    document.querySelectorAll('img[data-logo]').forEach(n => { if (n.dataset.logo === im.dataset.logo) n.src = LOGO_TRIM[im.dataset.logo]; });
+  } catch { LOGO_TRIM[im.dataset.logo] = im.dataset.logo; }
+}, true);
+
 function topbar() {
   const b = D.brand;
   // Stored in UTC ("2026-09-17 01:10"); shown in the viewer's own time zone.
@@ -108,7 +133,7 @@ function topbar() {
   const pv = D.preview ? `<div class="pv-bar" role="status"><div class="wrap"><b>Preview.</b> This link is switched off, so creators see "being set up". Only signed-in Mobius staff can see this page.</div></div>` : '';
   return `${pv}<header class="topbar"><div class="wrap">
     <a class="brand" href="#" data-home aria-label="${esc(b.display_name)} creator angles">
-      ${b.logo_url ? `<img src="${esc(b.logo_url)}" alt="${esc(b.display_name)}">` : `<span class="nm">${esc(b.display_name)}</span>`}
+      ${b.logo_url ? `<img src="${esc(LOGO_TRIM[b.logo_url] || b.logo_url)}" alt="${esc(b.display_name)}" crossorigin="anonymous" data-logo="${esc(b.logo_url)}">` : `<span class="nm">${esc(b.display_name)}</span>`}
       <span class="lbl">Creators</span>
     </a>
     <div class="tb-r">${upd ? `<span class="upd"><i></i>${upd}</span>` : ''}${b.submit_url ? filmBtn(null, 'btn-hero tb-film') : ''}</div>
