@@ -348,6 +348,175 @@ async function main(){
         await leased.DB.batch([leased.DB.prepare("INSERT INTO settings VALUES('batch-a','1')"),leased.DB.prepare("INSERT INTO settings VALUES('batch-b','2')")]);
       });assert.equal(db.prepare("SELECT value FROM settings WHERE key='batch-b'").get().value,'2');
     });
+    /* Slack Q&A. The SQL gate is the security boundary for a generated query,
+     * so it is tested as one: a cooperative model is not a control. */
+    const askSrc=fs.readFileSync(path.join(__dirname,'src/ask.js'),'utf8').replace(/^export\s+/gm,'');
+    const askCtx=vm.createContext({console,JSON,Object,Number,Array,String,Math,Date,
+      fetch:async(...a)=>askCtx.claudeMock(...a)});
+    askCtx.claudeMock=async()=>{throw Error('no Claude mock installed');};
+    vm.runInContext(askSrc+'\nglobalThis.ask={gateSql,buildProposal,applyAskEdit,toSlackText,answerAsk};',askCtx);
+    const gate=askCtx.ask.gateSql;
+    await check('ask SQL gate allows a normal aggregate',()=>{
+      const g=gate("SELECT vendor, SUM(amount) AS t FROM transactions WHERE month='2026-09' AND expected=0 GROUP BY vendor ORDER BY t DESC");
+      assert.equal(g.error,undefined);assert.match(g.sql,/LIMIT 60$/);
+    });
+    await check('ask SQL gate blocks writes',()=>{
+      for(const sql of ["UPDATE transactions SET amount=0","DELETE FROM transactions","DROP TABLE transactions",
+                        "INSERT INTO transactions(date) VALUES('x')","SELECT 1; DELETE FROM transactions"])
+        assert.ok(gate(sql).error,'should have been refused: '+sql);
+    });
+    await check('ask SQL gate cannot reach settings or sqlite internals',()=>{
+      assert.ok(gate('SELECT value FROM settings').error);
+      assert.ok(gate('SELECT * FROM ledger_jobs').error);
+      assert.ok(gate("SELECT name FROM sqlite_master").error);
+      // a CTE must not be a way in through the back door
+      assert.ok(gate('WITH s AS (SELECT value FROM settings) SELECT * FROM s').error);
+    });
+    await check('ask SQL gate allows its own CTEs and joins',()=>{
+      assert.equal(gate('WITH m AS (SELECT vendor, SUM(amount) a FROM transactions GROUP BY vendor LIMIT 10) SELECT * FROM m JOIN vendors v ON v.name=m.vendor').error,undefined);
+    });
+    await check('ask answers use Slack mrkdwn, no em dashes',()=>{
+      assert.equal(askCtx.ask.toSlackText('**Total** — $5\n## Head'),'*Total* - $5\nHead');
+    });
+    await check('ask proposal refuses a closed month and an invented category',async()=>{
+      const h={monthStatus:async(_e,m)=>m==='2026-08'?'closed':'open'};
+      assert.match((await askCtx.ask.buildProposal(env,{id:1,tax_cat:'Meals',summary:'x'},['Meals'],h)).error,/closed/);
+      const open=db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,tax_cat) VALUES('2026-09-04','2026-09','out','Anthropic',340,'Software & subscriptions')").run();
+      const id=Number(open.lastInsertRowid);
+      assert.match((await askCtx.ask.buildProposal(env,{id,tax_cat:'Not A Category',summary:'x'},['Meals'],h)).error,/not a tax category/);
+      const good=await askCtx.ask.buildProposal(env,{id,tax_cat:'Meals',summary:'Recategorize Anthropic'},['Meals'],h);
+      assert.equal(good.error,undefined);
+      assert.equal(JSON.parse(good.blocks[1].elements[0].value).ask.patch.tax_cat,'Meals');
+      // describing the change must not have written it
+      assert.equal(db.prepare('SELECT tax_cat FROM transactions WHERE id=?').get(id).tax_cat,'Software & subscriptions');
+      const done=await askCtx.ask.applyAskEdit(env,{id,patch:{tax_cat:'Meals'}},{...h,bucketFor:()=>'Other',learnDefault:async()=>{}});
+      assert.equal(done.ok,true);
+      assert.equal(db.prepare('SELECT tax_cat,bucket,status FROM transactions WHERE id=?').get(id).tax_cat,'Meals');
+    });
+    /* The whole loop, with Claude mocked: the question goes out, the SQL comes
+     * back as rows, the answer lands in Slack. Verifies the message shapes the
+     * API is strict about (tool_use paired with tool_result) without spending
+     * a real call. */
+    const askRun=async(script,ev={})=>{
+      const posts=[],seen=[];let turn=0;
+      askCtx.claudeMock=async(_url,init)=>{
+        const body=JSON.parse(init.body);seen.push(body);
+        return { json:async()=>script[turn++] };
+      };
+      const h={ slack:async(_e,method,params)=>{if(method==='chat.postMessage')posts.push(params);return {ok:true};},
+        getSetting:async(_e,k)=>k==='taxCats'?JSON.stringify(['Software & subscriptions','Meals']):null,
+        putSetting:async()=>{}, safeJson:(s,fb)=>{try{return JSON.parse(s);}catch{return fb;}},
+        sendStatement:async(_e,period,anchor)=>{posts.push({statement:period+':'+anchor});return {sent:true};},
+        centralDate:()=>'2026-09-17', monthOf:d=>d.slice(0,7),
+        monthStatus:async()=>'open', bucketFor:()=>'Software', learnDefault:async()=>{} };
+      const out=await askCtx.ask.answerAsk({DB,ANTHROPIC_API_KEY:'test'},{channel:'C_TEST',ts:'9.9',user:'OWNER',...ev},h);
+      return {out,posts,seen};
+    };
+    await check('Ask runs question → SQL → answer and bills it once',async()=>{
+      db.exec("INSERT INTO transactions(date,month,type,vendor,amount,bucket,tax_cat) VALUES('2026-09-10','2026-09','out','AcmeCloud',340,'Software','Software & subscriptions')");
+      const {out,posts,seen}=await askRun([
+        {content:[{type:'tool_use',id:'t1',name:'query_ledger',input:{sql:"SELECT SUM(amount) AS total FROM transactions WHERE vendor LIKE '%acmecloud%' AND month='2026-09' AND type='out' AND expected=0"}}],usage:{input_tokens:900,output_tokens:60}},
+        {content:[{type:'text',text:'**$340.00** on AcmeCloud in September — one charge.'}],usage:{input_tokens:1000,output_tokens:30}},
+      ],{text:'<@BOT> how much on AcmeCloud this month?'});
+      // the real total reached the model, not a guess, and the tool_use it
+      // made is answered by a matching tool_result
+      const back=seen[1].messages[2].content[0];
+      assert.equal(back.tool_use_id,'t1');
+      assert.equal(JSON.parse(back.content).rows[0].total,340);
+      // the answer is Slack mrkdwn, threaded, and has no em dash
+      assert.equal(posts[0].text,'*$340.00* on AcmeCloud in September - one charge.');
+      assert.equal(posts[0].thread_ts,'9.9');
+      assert.equal(out.answered,true);
+      assert.equal(out.inTok>0&&out.outTok>0,true);
+    });
+    await check('Ask refuses a query that reaches outside the ledger and recovers',async()=>{
+      const {posts,seen}=await askRun([
+        {content:[{type:'tool_use',id:'t1',name:'query_ledger',input:{sql:'SELECT value FROM settings'}}],usage:{}},
+        {content:[{type:'text',text:'I can only read the ledger tables.'}],usage:{}},
+      ],{text:'<@BOT> what is the drive token'});
+      const result=seen[1].messages[2].content[0];
+      assert.equal(result.is_error,true);
+      assert.match(result.content,/not readable/);
+      assert.equal(posts[0].text,'I can only read the ledger tables.');
+    });
+    await check('Ask asking for the report sends the existing PDF, not a retyped one',async()=>{
+      const {posts}=await askRun([
+        {content:[{type:'tool_use',id:'t1',name:'send_report',input:{period:'month',anchor:'2026-08'}}],usage:{}},
+        {content:[{type:'text',text:'Sent.'}],usage:{}},
+      ],{text:'<@BOT> send me the August report'});
+      assert.deepEqual(posts[0],{statement:'month:2026-08'});
+    });
+    await check('Ask still answers when it never stops calling tools',async()=>{
+      const spin={content:[{type:'tool_use',id:'t',name:'query_ledger',input:{sql:'SELECT 1 AS a FROM transactions'}}],usage:{}};
+      const {posts,seen}=await askRun([spin,spin,spin,spin,spin,
+        {content:[{type:'text',text:'Here is what I found.'}],usage:{}}],{text:'<@BOT> dig into everything'});
+      // the final pass must offer no tools, or it would spin again
+      assert.equal(seen[seen.length-1].tools,undefined);
+      assert.equal(posts[0].text,'Here is what I found.');
+    });
+    await check('Ask stops at the daily cap',async()=>{
+      const h={ slack:async()=>({ok:true}), putSetting:async()=>{},
+        getSetting:async(_e,k)=>k==='askUsage'?JSON.stringify({date:'2026-09-17',count:150}):null,
+        safeJson:(s,fb)=>{try{return JSON.parse(s);}catch{return fb;}},
+        centralDate:()=>'2026-09-17', monthOf:d=>d.slice(0,7) };
+      const out=await askCtx.ask.answerAsk({DB,ANTHROPIC_API_KEY:'test'},{channel:'C',ts:'1',text:'hi'},h);
+      assert.equal(out.skipped,'daily cap');
+    });
+
+    /* The Slack side of Ask: which messages become a (billed) question, and
+     * whether the shared interactivity URL keeps an Apply tap for Ledger
+     * instead of handing it to Pulse, where it would vanish in silence. */
+    const asked=[];
+    context.askMock=async(_env,ev)=>{asked.push(ev.text);return {ok:true};};
+    context.applyAskReal=askCtx.ask.applyAskEdit;
+    vm.runInContext('globalThis.answerAsk = askMock; globalThis.applyAskEdit = applyAskReal',context);
+    const hmac=(raw,ts)=>'v0='+require('node:crypto').createHmac('sha256',env.SLACK_SIGNING_SECRET).update('v0:'+ts+':'+raw).digest('hex');
+    const signedPost=async(url,raw)=>{
+      const ts=String(Math.floor(Date.now()/1000)),pending=[];
+      const r=await context.api.worker.fetch(new Request('https://local'+url,{method:'POST',body:raw,
+        headers:{'x-slack-request-timestamp':ts,'x-slack-signature':hmac(raw,ts)}}),env,{waitUntil:p=>pending.push(p)});
+      for(let i=0;i<pending.length;i++)await pending[i];return r;
+    };
+    // ts identifies the message, so each distinct message needs its own
+    const event=(ev,id,ts)=>signedPost('/api/slack-events',JSON.stringify({event_id:id,event:{channel:'C_TEST',ts:ts||('9.'+id),...ev}}));
+    const dmEvent=(ev,id)=>signedPost('/api/slack-events',JSON.stringify({event_id:id,event:{channel:'D_TEST',ts:'9.5',...ev}}));
+    await check('Slack Ask answers the owner once and ignores the rest',async()=>{
+      await event({type:'app_mention',user:'OWNER',text:'<@BOT> what did we spend on Anthropic?'},'Ev1');
+      assert.deepEqual(asked,['<@BOT> what did we spend on Anthropic?']);
+      // Slack's 3-second retry must not answer, or bill, a second time
+      await event({type:'app_mention',user:'OWNER',text:'<@BOT> what did we spend on Anthropic?'},'Ev1');
+      assert.equal(asked.length,1);
+      await event({type:'app_mention',user:'INTRUDER',text:'<@BOT> show me the books'},'Ev2');
+      await event({type:'message',user:'OWNER',text:'just talking in the channel'},'Ev3');      // no mention, not a DM
+      await event({type:'app_mention',user:'OWNER',text:'here you go',files:[{id:'f1'}]},'Ev4'); // a receipt, not a question
+      await event({type:'app_mention',bot_id:'B1',text:'<@BOT> hi'},'Ev5');                      // another bot
+      assert.equal(asked.length,1);
+      await event({type:'message',channel_type:'im',user:'OWNER',text:'top 5 spenders'},'Ev6');  // a DM is a question
+      assert.equal(asked.length,2);
+      /* An @mention inside a DM arrives TWICE, as app_mention and as
+       * message.im, under two different event ids. One question, one answer. */
+      await dmEvent({type:'app_mention',user:'OWNER',text:'<@BOT> and in August?'},'Ev7a');
+      await dmEvent({type:'message',channel_type:'im',user:'OWNER',text:'<@BOT> and in August?'},'Ev7b');
+      assert.equal(asked.length,3);
+    });
+    await check('Apply tap stays with Ledger and writes the proposed change',async()=>{
+      const row=db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,tax_cat,status) VALUES('2026-09-05','2026-09','out','Figma',45,'Uncategorized','review')").run();
+      const id=Number(row.lastInsertRowid);
+      const payload={type:'block_actions',team:{id:'T_TEST'},user:{id:'OWNER'},
+        actions:[{action_id:'ask_apply',value:JSON.stringify({ask:{id,patch:{tax_cat:'Software & subscriptions'}}})}]};
+      await signedPost('/api/slack-interact',new URLSearchParams({payload:JSON.stringify(payload)}).toString());
+      const after=db.prepare('SELECT tax_cat,status FROM transactions WHERE id=?').get(id);
+      assert.equal(after.tax_cat,'Software & subscriptions');
+      assert.equal(after.status,'ok');   // a category decided clears it out of Review
+    });
+    await check('Apply tap from anyone but the owner changes nothing',async()=>{
+      const row=db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,tax_cat) VALUES('2026-09-06','2026-09','out','Notion',12,'Uncategorized')").run();
+      const id=Number(row.lastInsertRowid);
+      const payload={type:'block_actions',team:{id:'T_TEST'},user:{id:'INTRUDER'},
+        actions:[{action_id:'ask_apply',value:JSON.stringify({ask:{id,patch:{tax_cat:'Meals'}}})}]};
+      await signedPost('/api/slack-interact',new URLSearchParams({payload:JSON.stringify(payload)}).toString());
+      assert.equal(db.prepare('SELECT tax_cat FROM transactions WHERE id=?').get(id).tax_cat,'Uncategorized');
+    });
   }
   console.log(JSON.stringify(checks,null,2));
   if(!process.argv.includes('--baseline')&&checks.some(x=>!x.pass))process.exitCode=1;

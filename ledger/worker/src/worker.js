@@ -15,6 +15,7 @@
  */
 import { buildPnlPdf, buildPnlColumnsPdf } from './pdf.js';
 import { zipStream, zipSafe } from './zip.js';
+import { answerAsk, applyAskEdit } from './ask.js';
 import { driveReady, driveAuthUrl, driveExchangeCode, driveListReceipts,
          driveDownload, driveFolderId } from './drive.js';
 
@@ -471,15 +472,19 @@ async function claudeExtract(env, b64, mediaType, textContent = null) {
  * does. Muting the channel fixes the first; an @mention is what still pierces
  * a muted channel, so anything needing a decision addresses him by name. The
  * id is looked up once from his email and then cached in settings. */
-async function ownerMention(env) {
+async function ownerUserId(env) {
   const cached = await getSetting(env, 'ownerUserId');
-  if (cached) return `<@${cached}> `;
+  if (cached) return cached;
   const email = (await getSetting(env, 'ownerEmail')) || env.OWNER_EMAIL;
-  if (!email) return '';
+  if (!email) return null;
   const r = await slack(env, 'users.lookupByEmail', { email }).catch(() => ({}));
-  if (!r?.ok || !r.user?.id) return '';
+  if (!r?.ok || !r.user?.id) return null;
   await putSetting(env, 'ownerUserId', r.user.id);
-  return `<@${r.user.id}> `;
+  return r.user.id;
+}
+async function ownerMention(env) {
+  const id = await ownerUserId(env);
+  return id ? `<@${id}> ` : '';
 }
 
 /* How each kind of Slack message reaches Cole, set in Settings.
@@ -716,6 +721,41 @@ function heldReceiptMatch(rows, vendor, amount, date) {
   if (strictTip.length) return one(strictTip, false);
   return one(loose.filter(inTipBand), true);
 }
+/* ------------------------------------------------------------------ */
+/*  Ask the ledger (see ask.js)                                        */
+/* ------------------------------------------------------------------ */
+
+/* ask.js is a leaf module: it gets the Slack and D1 plumbing handed to it
+ * rather than importing back into this file. */
+const askHelpers = () => ({ slack, getSetting, putSetting, safeJson, sendStatement,
+                            centralDate, monthOf, monthStatus, bucketFor, learnDefault });
+
+async function askGate(env, body, ev) {
+  /* Slack retries any event it did not get a 200 for inside 3 seconds, and an
+   * AI answer takes longer than that — we always ack instantly, so a retry
+   * here is a duplicate. An @mention inside a DM is delivered twice as well,
+   * once as app_mention and once as message.im, under two different event ids.
+   * Claiming the MESSAGE (channel + ts) rather than the event id covers both,
+   * so a question is answered, and billed, once. */
+  const claim = await env.DB.prepare(
+    "INSERT OR IGNORE INTO ledger_jobs(id,kind,payload,status) VALUES(?1,'slack-ask',?2,'done')")
+    .bind(`ask:${ev.channel}:${ev.ts}`,
+          JSON.stringify({ channel: ev.channel, ts: ev.ts, event: body.event_id || null })).run();
+  if (!claim.meta.changes) return { skipped: 'duplicate event' };
+
+  /* The books answer to Cole. Anyone else in the channel is ignored in
+   * silence — a refusal posted every time a colleague says something would be
+   * worse than saying nothing. */
+  const owner = await ownerUserId(env);
+  if (!owner) {
+    await slack(env, 'chat.postMessage', { channel: ev.channel, thread_ts: ev.thread_ts || ev.ts,
+      text: `I can't tell who owns this ledger, so I won't answer. Check that the Slack app has the users:read.email scope and that ${env.OWNER_EMAIL || 'the owner email'} is on the workspace.` }, true);
+    return { skipped: 'owner unknown' };
+  }
+  if (ev.user !== owner) return { skipped: 'not the owner' };
+  return answerAsk(env, ev, askHelpers());
+}
+
 async function processSlackReceipts(env) { return withLedgerLease(env, 'receipts', env => processSlackReceiptsInner(env)); }
 async function processSlackReceiptsInner(env) {
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN' };
@@ -2618,6 +2658,14 @@ export default {
       const ev = body.event || {};
       if ((ev.files || []).length || ev.subtype === 'file_share')
         ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack event: ' + e.message)));
+      /* Ask the ledger. A question is a plain text message: either an @mention
+       * in the receipts channel or a DM to the bot. Anything carrying files is
+       * a receipt and belongs to the branch above, edits and joins carry a
+       * subtype, and bot posts (including our own answers) are skipped — so
+       * normal channel chatter never reaches the API and never costs a cent. */
+      const isAsk = !ev.bot_id && !ev.subtype && !(ev.files || []).length && !!ev.user
+        && (ev.type === 'app_mention' || (ev.type === 'message' && ev.channel_type === 'im'));
+      if (isAsk) ctx.waitUntil(askGate(env, body, ev).catch(e => console.log('ask: ' + e.message)));
       return json({ ok: true });
     }
 
@@ -2674,10 +2722,11 @@ export default {
       const mine = acts.some(x => {
         // led_-prefixed ids are Ledger's link buttons — Slack reports the click
         // but nothing needs doing; claiming them keeps them off Pulse's desk
-        if (/^led_/.test(x.action_id || '')) return true;
+        if (/^(led_|ask_)/.test(x.action_id || '')) return true;
         const v = safeJson(x.selected_option?.value || x.value, null);
         return v && ((v.id !== undefined && v.tax !== undefined)
-                     || v.skip !== undefined || v.undo !== undefined || v.file !== undefined);
+                     || v.skip !== undefined || v.undo !== undefined || v.file !== undefined
+                     || v.ask !== undefined);
       });
       const LOCUS_ID = /^(brief|report)_|^noop_open$/;
       const locus = !mine && (
@@ -2710,6 +2759,19 @@ export default {
         const respond = body => payload.response_url && ctx.waitUntil(fetch(payload.response_url, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body) }).catch(() => {}));
+        /* An edit the Slack Q&A proposed. It only ever described the change;
+         * this tap is the first and only thing that writes it. */
+        if (val?.ask) {
+          if (val.ask.cancel) {
+            respond({ replace_original: true, text: '✓ Left as it was.' });
+            return new Response('', { status: 200 });
+          }
+          const res = await applyAskEdit(env, val.ask, askHelpers()).catch(e => ({ error: String(e.message || e) }));
+          respond({ replace_original: true, text: res.error
+            ? '⚠️ ' + res.error
+            : `✓ *${res.vendor}* $${Math.abs(res.amount).toFixed(2)} updated.` });
+          return new Response('', { status: 200 });
+        }
         // month-end digest: "No receipt — that's fine" → stop counting/chasing it
         if (val?.skip) {
           const cur = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(val.skip)).first();
