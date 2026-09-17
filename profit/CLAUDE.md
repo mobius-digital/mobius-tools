@@ -724,6 +724,9 @@ profit/
   locally and load for real sessions.
 - **Grunk Dolfer** was seeded from `migrations/seed_grunk_dolfer.py` (research and angle list
   in `docs/angles-grunk-dolfer.md`), left OFF for Cole's review. Do NOT re-run it either.
+- **Dartee Golf** was seeded from `migrations/seed_dartee.py` (research and angle list in
+  `docs/angles-dartee.md`), left OFF for Cole's review. It replaced a blank row made on the tab
+  (slug `dartee-golf`) and kept its TRYBE link. Do NOT re-run it.
 - **Party Patch** was seeded from `migrations/seed_party_patch.py` (Chris's Sept-Dec
   emails, the account's best ads, the Mobius angle framework). Do NOT re-run it: it
   replaces the brand's sections, angles and proof.
