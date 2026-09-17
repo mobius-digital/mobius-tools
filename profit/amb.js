@@ -124,6 +124,8 @@ function injectCss() {
 .am-g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .am-g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .am-split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+.am-side{display:flex;flex-direction:column;gap:12px;position:sticky;top:16px}
+@media (max-width:1000px){.am-side{position:static}}
 .am-swatches{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:38px}
 .am-swatch{width:26px;height:26px;border-radius:7px;border:2px solid #fff;box-shadow:0 0 0 1px var(--line-strong)}
 .am-swatch.on{box-shadow:0 0 0 2px var(--ink)}
@@ -160,13 +162,19 @@ function injectCss() {
 .am-msg{font-size:12.5px;color:var(--muted)}
 .am-msg.ok{color:var(--good)}.am-msg.bad{color:var(--bad)}
 .am-modal{max-width:640px !important}
-.am-pdf{border:1px solid var(--line);border-radius:10px;background:#F6F8FA;padding:16px}
-.am-pdf .pg{background:#fff;border-radius:4px;box-shadow:0 6px 20px -10px rgba(19,32,43,.35);padding:18px;aspect-ratio:8.5/11;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.am-pdfcard{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.am-pdfinfo{display:flex;flex-direction:column;gap:10px;min-width:0}
+.am-pdfbtns{display:flex;gap:8px;flex-wrap:wrap}
+.am-pdfbtns .primary{flex:1}
+.am-pdf{flex:none;border:1px solid var(--line);border-radius:10px;background:#F6F8FA;padding:14px;display:flex;justify-content:center}
+.am-pdf .pg{width:100%;max-width:230px;height:auto;flex:none;background:#fff;border-radius:4px;box-shadow:0 6px 20px -10px rgba(19,32,43,.35);padding:14px;aspect-ratio:8.5/11;display:flex;flex-direction:column;gap:7px;overflow:hidden}
 .am-pdf .ln{height:5px;border-radius:3px;background:#E4EBF0}
-.am-pdf .pg.dark{background:#0A0B0D;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:14px 14px}
-.am-pdf .pg.dark .ln{background:#2A2E36}
-@media (max-width:1000px){.am-split{grid-template-columns:1fr}.am-g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:720px){.am-g2,.am-g3,.am-g4{grid-template-columns:1fr}.am-score{display:none}.am-list-edit .am-li{grid-template-columns:1fr}}
+.am-seg{display:inline-flex;gap:2px;background:#EDF1F4;border-radius:10px;padding:3px;margin-top:5px}
+.am-seg button{min-height:34px;padding:0 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted)}
+.am-seg button.on{background:#fff;color:var(--ink);box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(0,0,0,.06)}
+.am-pdf .pg.grid{background:#F7F8FA;background-image:linear-gradient(rgba(10,11,13,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(10,11,13,.05) 1px,transparent 1px);background-size:14px 14px}
+@media (max-width:1000px){.am-split{grid-template-columns:1fr}.am-pdfcard{flex-direction:row;align-items:center}.am-pdf{width:200px}.am-pdfinfo{flex:1}.am-g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:720px){.am-pdfcard{flex-direction:column;align-items:stretch}.am-pdf{width:auto}.am-g2,.am-g3,.am-g4{grid-template-columns:1fr}.am-score{display:none}.am-list-edit .am-li{grid-template-columns:1fr}}
 `;
   document.head.appendChild(st);
 }
@@ -361,12 +369,19 @@ function paintAngles(body) {
 
   body.innerHTML = `
   <div class="am-split">
+    <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
     <div class="card" style="padding:16px 18px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><div><h3>Sections</h3><p class="hint" style="margin:0">The link shows these top to bottom. Switch one off and creators stop seeing it. Its angles are kept.</p></div>
       <button class="btn" id="amAddSec">${ic('plus', 14)} Add a section</button></div>
       <div data-drop="sections" style="margin-top:8px">${secs.map(secRow).join('')}</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:12px">
+  <div class="card" style="padding:16px 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3>Angles</h3><p class="hint" style="margin:0">Scores come from the Meta ads tagged to each angle. Typed examples never count. Drag a row onto another section to move it.</p></div>
+      <button class="btn primary" id="amNew">${ic('plus', 14)} New angle</button></div>
+    <div style="margin-top:6px">${groups.join('')}</div>
+  </div>
+    </div>
+    <div class="am-side">
       <div class="card am-dark" style="padding:18px 20px">
         <p class="am-lbl">Staff only</p>
         <div class="am-kv">
@@ -380,11 +395,6 @@ function paintAngles(body) {
       ${top ? `<div class="card" style="padding:14px 16px"><p class="am-lbl">Best angle so far</p><p style="margin-top:6px"><b>${esc(top.title)}</b>: ${money(top.score.revenue)} across ${top.score.ads} ad${top.score.ads === 1 ? '' : 's'} at ${x2(top.score.roas)}.</p></div>` : ''}
       <div class="card" style="padding:14px 16px" id="amWinners"><p class="am-lbl">Past winners not tagged yet</p><p class="tiny" style="margin-top:4px">Loading…</p></div>
     </div>
-  </div>
-  <div class="card" style="padding:16px 18px">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3>Angles</h3><p class="hint" style="margin:0">Scores come from the Meta ads tagged to each angle. Typed examples never count. Drag a row onto another section to move it.</p></div>
-      <button class="btn primary" id="amNew">${ic('plus', 14)} New angle</button></div>
-    <div style="margin-top:6px">${groups.join('')}</div>
   </div>`;
 
   $('#amNew').onclick = () => { S.edit = 'new'; paint(); scrollTo(0, 0); };
@@ -789,7 +799,7 @@ function paintLink(body) {
       </div>
 
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-        <div><h3>The season card</h3><p class="hint" style="margin:0">What is in season right now. The chart underneath is last year's store sales for the weeks ahead, compared with a normal week, with no dollar amounts. Clear the title to hide the card.</p></div>
+        <div><h3>The season card</h3><p class="hint" style="margin:0">What is in season right now. The chart shows either last year's real store sales (no dollar amounts) or a shape you draw to tell creators when to film. Clear the title to hide the card.</p></div>
         <div class="am-g3">
           <label class="am-f">Title<input class="am-in" id="sTitle" value="${esc(se.title || '')}" placeholder="Halloween party season"></label>
           <label class="am-f">Until<input class="am-in" id="sUntil" value="${esc(se.until || '')}" placeholder="Oct 31"></label>
@@ -806,6 +816,11 @@ function paintLink(body) {
           <label class="am-f">Tallest bar <small>trim big spikes so the season stands out</small>
             <select class="am-in" id="sCap">${[['', 'Show every spike in full'], ['4', 'Trim above 4x a normal week'], ['3', 'Trim above 3x'], ['2.5', 'Trim above 2.5x'], ['2', 'Trim above 2x'], ['1.6', 'Trim above 1.6x']].map(([v, t]) => `<option value="${v}" ${String(se.cap || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         </div>
+        <div class="am-f">Chart shape
+          <div class="am-seg" id="sMode" role="group" aria-label="Chart shape">
+            <button type="button" data-m="sales">Last year's real sales</button>
+            <button type="button" data-m="custom">Draw it yourself</button>
+          </div></div>
         <div id="sPrev"><p class="tiny">Loading last year's shape…</p></div>
       </div>
 
@@ -815,18 +830,19 @@ function paintLink(body) {
     </div>
 
     <div style="display:flex;flex-direction:column;gap:14px">
-      <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-        <div><h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3><p class="hint" style="margin:0">One page: the link as a button and a QR code. It never lists angles, so the copy on TRYBE never goes out of date. Rebuild it only if the logo, colour or intro changes.</p></div>
-        <div class="am-pdf"><div class="pg dark">
-          <b style="color:#F0F2F5;font-size:12px">${esc(b.display_name)}</b>
-          <b style="color:#F0F2F5;font-size:22px;line-height:1.05;margin-top:14px">Every angle.<br><span style="color:${esc(b.accent || '#3B82F6')}">One link.</span></b>
+      <div class="card am-pdfcard">
+        <div class="am-pdf"><div class="pg grid">
+          <b style="color:#0A0B0D;font-size:11px">${esc(b.display_name)}</b>
+          <b style="color:#0A0B0D;font-size:19px;line-height:1.05;margin-top:10px">Every angle.<br><span style="color:${esc(b.accent || '#3B82F6')}">One link.</span></b>
           <div class="ln"></div><div class="ln" style="width:75%"></div>
-          <div style="display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;background:#14161B;border:1px solid #262A32;margin-top:6px"><span id="lQr" style="width:54px;height:54px;background:#fff;border-radius:5px;display:block;flex:none"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ln" style="width:60%"></div><div style="height:14px;border-radius:4px;background:${esc(b.accent || '#3B82F6')}"></div></div></div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px">${'<div style="height:22px;border-radius:4px;background:#14161B;border:1px solid #262A32"></div>'.repeat(4)}</div>
-        </div></div></div>
-          <div class="ln" style="margin-top:6px"></div><div class="ln" style="width:90%"></div><div class="ln" style="width:60%"></div>
+          <div style="display:flex;gap:8px;align-items:center;padding:8px;border-radius:7px;background:#fff;border:1px solid #DFE3E9;margin-top:4px"><span id="lQr" style="width:46px;height:46px;background:#fff;border-radius:4px;display:block;flex:none"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ln" style="width:60%"></div><div style="height:12px;border-radius:4px;background:${esc(b.accent || '#3B82F6')}"></div></div></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:4px">${'<div style="height:18px;border-radius:4px;background:#fff;border:1px solid #DFE3E9"></div>'.repeat(4)}</div>
         </div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="lPdf" style="flex:1">${ic('file-down', 14)} Download PDF</button><button class="btn" id="lQrDl">${ic('qr-code', 14)} QR code</button></div>
+        <div class="am-pdfinfo">
+          <h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3>
+          <p class="hint" style="margin:0">One page with the link as a button and a QR code. It never lists angles, so the copy on ${esc(b.submit_platform || 'TRYBE')} never goes out of date. Rebuild it only if the logo, colour or intro changes.</p>
+          <div class="am-pdfbtns"><button class="btn primary" id="lPdf">${ic('file-down', 14)} Download PDF</button><button class="btn" id="lQrDl">${ic('qr-code', 14)} QR code</button></div>
+        </div>
       </div>
       <div class="card" style="padding:14px 16px"><p class="am-lbl">On ${esc(b.submit_platform || 'TRYBE')}</p><p style="margin-top:6px;font-size:13.5px">Upload the PDF as the campaign brief, and paste the link in the campaign description too, so creators on phones can tap it.</p></div>
     </div>
@@ -844,30 +860,121 @@ function paintLink(body) {
   $('#lPdf').onclick = () => makePdf().catch(err => helpModal('Could not build the PDF', `<p>${esc(err.message)}</p>`));
   qrInto($('#lQr')).catch(() => {});
 
+  const isoWeek = ymd => {
+    const d = new Date(`${ymd}T12:00:00Z`);
+    const day = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - day + 3);
+    const first = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((d - first) / 86400000 - 3 + ((first.getUTCDay() + 6) % 7)) / 7);
+  };
+  const addD = (d, n) => { const t = new Date(d + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+  body._mode = se.mode === 'custom' ? 'custom' : 'sales';
+  body._custom = { ...(se.custom || {}) };
+  /* Q4 ramp: quiet summer, a climb through October with a Halloween spike,
+     Black Friday week near the top, December at the peak. 25 = a normal week. */
+  const ramp = ymd => {
+    const m = +ymd.slice(5, 7), d = +ymd.slice(8, 10);
+    if (m === 10) return d >= 22 ? 85 : Math.round(45 + (d / 31) * 30);
+    if (m === 11) return d >= 20 ? 95 : 58;
+    if (m === 12) return d <= 6 ? 88 : d <= 21 ? 100 : 70;
+    if (m === 9) return d >= 20 ? 40 : 30;
+    if (m === 1) return d <= 14 ? 45 : 35;
+    if (m === 2) return 35;
+    return 25;
+  };
   const drawSeason = async () => {
     try {
-      if (!body._chart) body._chart = (await api(`/api/amb/season?act=${encodeURIComponent(S.act)}`)).chart;
+      if (body._chart === undefined) body._chart = (await api(`/api/amb/season?act=${encodeURIComponent(S.act)}`)).chart;
       const ch = body._chart;
-      if (!ch) { $('#sPrev').innerHTML = '<p class="tiny">Not enough sales history for a chart yet. The card still shows without it.</p>'; return; }
+      const mode = body._mode;
+      body.querySelectorAll('#sMode button').forEach(b => b.classList.toggle('on', b.dataset.m === mode));
+      const capRow = $('#sCap')?.closest('.am-f');
+      if (capRow) capRow.style.display = mode === 'custom' ? 'none' : '';
       const color = body._sColor ? body._sColor() : (se.color || '#7C3AED');
-      const xs = ch.weeks.map(w => w.x).filter(v => v != null);
-      const peak = Math.max(...xs);
-      const cap = +$('#sCap').value || 0;
-      const top = Math.max(cap ? Math.min(cap, peak) : peak, 1.2);
       const h0 = $('#sH0').value.trim(), h1 = $('#sH1').value.trim();
-      const add = (d, n) => { const t = new Date(d + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
-      const hi = w => { if (!h0 || !h1) return false; const a = w.week_of.slice(5), e = add(w.week_of, 6).slice(5); return h0 <= h1 ? (e >= h0 && a <= h1) : (e >= h0 || a <= h1); };
-      const n = ch.weeks.length, base = 110;
-      const bars = ch.weeks.map((w, k) => {
-        const h = w.x == null ? 3 : Math.max(3, Math.min(w.x, top) / top * (base - 16));
-        return `<rect x="${k * 10 + 1.5}" y="${base - h}" width="7" height="${h}" rx="1.5" fill="${w.x == null ? '#E6E9EE' : hi(w) ? color : '#CBD2DC'}"><title>${esc(w.week_of)}: ${w.x == null ? 'no data' : w.x.toFixed(1) + 'x a normal week'}</title></rect>${w.x > top ? `<rect x="${k * 10 + 1.5}" y="${base - h}" width="7" height="3" fill="#0a0b0d" opacity=".5"/>` : ''}`;
+      const hi = w => { if (!h0 || !h1) return false; const a = w.week_of.slice(5), e = addD(w.week_of, 6).slice(5); return h0 <= h1 ? (e >= h0 && a <= h1) : (e >= h0 || a <= h1); };
+      // The same 52 weeks either way: 13 behind this week, 38 ahead.
+      const start = addD(new Date().toISOString().slice(0, 10), -91);
+      const weeks = ch ? ch.weeks : Array.from({ length: 52 }, (_, k) => ({ week_of: addD(start, k * 7), x: null }));
+      const n = weeks.length, base = 120;
+      const nowI = ch?.now_index ?? 13;
+      const nx = nowI * 10 + 5;
+      const nowLine = `<line x1="${nx}" y1="6" x2="${nx}" y2="${base}" stroke="#0a0b0d" stroke-width="1.4" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
+      const months = (() => { let last = '', lastI = -9, out = ''; weeks.forEach((w, k) => { const m = new Date(w.week_of + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }); if (m !== last) { if (k - lastI >= 3) { out += `<span style="position:absolute;left:${k / n * 100}%;font-size:10px;color:var(--muted)">${m}</span>`; lastI = k; } last = m; } }); return `<div style="position:relative;height:14px;margin-top:3px">${out}</div>`; })();
+
+      if (mode === 'sales') {
+        if (!ch) { $('#sPrev').innerHTML = '<p class="tiny">Not enough sales history for a chart yet. Switch to Draw it yourself, or the card shows without a chart.</p>'; return; }
+        const xs = ch.weeks.map(w => w.x).filter(v => v != null);
+        const peak = Math.max(...xs);
+        const cap = +$('#sCap').value || 0;
+        const top = Math.max(cap ? Math.min(cap, peak) : peak, 1.2);
+        const bars = ch.weeks.map((w, k) => {
+          const h = w.x == null ? 3 : Math.max(3, Math.min(w.x, top) / top * (base - 14));
+          return `<rect x="${k * 10 + 1.5}" y="${base - h}" width="7" height="${h}" rx="1.5" fill="${w.x == null ? '#E6E9EE' : hi(w) ? color : '#CBD2DC'}"><title>${esc(w.week_of)}: ${w.x == null ? 'no data' : w.x.toFixed(1) + 'x a normal week'}</title></rect>${w.x > top ? `<rect x="${k * 10 + 1.5}" y="${base - h}" width="7" height="3" fill="#0a0b0d" opacity=".5"/>` : ''}`;
+        }).join('');
+        $('#sPrev').innerHTML = `<p class="am-lbl" style="margin-bottom:6px">What creators see · titled "Last year, week by week"</p>
+          <svg viewBox="0 0 ${n * 10} ${base}" preserveAspectRatio="none" style="width:100%;height:120px;display:block">${bars}${nowLine}</svg>${months}
+          <p class="tiny" style="margin-top:6px">Real store sales from last year. Busiest week: ${peak.toFixed(1)}x a normal week.${cap && peak > top ? ' Bars above the limit are trimmed and marked.' : ''} The dashed line is this week. Want a bigger Q4 spike? Switch to Draw it yourself.</p>`;
+        return;
+      }
+
+      // Draw it yourself: drag bars up or down.
+      const val = w => { const v = body._custom[isoWeek(w.week_of)]; return v == null ? 25 : v; };
+      const barsHtml = () => weeks.map((w, k) => {
+        const v = val(w), h = Math.max(3, v / 100 * (base - 8));
+        const fill = hi(w) ? color : v >= 55 ? color : '#CBD2DC';
+        return `<rect x="${k * 10 + 1.5}" y="${base - h}" width="7" height="${h}" rx="1.5" fill="${fill}" ${!hi(w) && v >= 55 ? 'fill-opacity=".5"' : ''}/>`;
       }).join('');
-      const nx = (ch.now_index ?? 0) * 10 + 5;
-      $('#sPrev').innerHTML = `<p class="am-lbl" style="margin-bottom:6px">What creators see</p>
-        <svg viewBox="0 0 ${n * 10} ${base}" preserveAspectRatio="none" style="width:100%;height:110px;display:block">${bars}<line x1="${nx}" y1="8" x2="${nx}" y2="${base}" stroke="#0a0b0d" stroke-width="1.4" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/></svg>
-        <p class="tiny" style="margin-top:6px">Busiest week last year: ${peak.toFixed(1)}x a normal week.${cap && peak > top ? ' Bars above the limit are trimmed and marked.' : ''} The dashed line is this week.</p>`;
+      $('#sPrev').innerHTML = `<p class="am-lbl" style="margin-bottom:6px">What creators see · titled "When to film"</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+          <button type="button" class="btn" data-pre="ramp">Q4 ramp</button>
+          <button type="button" class="btn" data-pre="sales" ${ch ? '' : 'disabled'}>Copy last year's sales</button>
+          <button type="button" class="btn" data-pre="boost">Push the season higher</button>
+          <button type="button" class="btn" data-pre="flat">Start flat</button>
+        </div>
+        <div style="position:relative;border:1px dashed var(--line-strong);border-radius:10px;padding:8px 8px 4px;background:#fff">
+          <svg id="sEd" viewBox="0 0 ${n * 10} ${base}" preserveAspectRatio="none" style="width:100%;height:170px;display:block;touch-action:none;cursor:ns-resize">
+            <line x1="0" y1="${base - 25 / 100 * (base - 8)}" x2="${n * 10}" y2="${base - 25 / 100 * (base - 8)}" stroke="#94A3B8" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
+            <g id="sEdBars">${barsHtml()}</g>${nowLine}
+          </svg>${months}
+          <span id="sEdTip" class="tiny" style="position:absolute;top:6px;right:10px;background:#0a0b0d;color:#fff;border-radius:6px;padding:2px 8px;display:none"></span>
+        </div>
+        <p class="tiny" style="margin-top:6px">Click or drag across the bars to set how busy each week is. The dotted line is a normal week. Bars you raise past busy show in the season colour. Creators see Quiet, Normal, Busy or Peak, never a number. It repeats on the same weeks next year.</p>`;
+      const svg = $('#sEd'), tipEl = $('#sEdTip');
+      let down = false;
+      const setAt = e => {
+        const r = svg.getBoundingClientRect();
+        const k = Math.max(0, Math.min(n - 1, Math.floor((e.clientX - r.left) / r.width * n)));
+        const v = Math.max(0, Math.min(100, Math.round((1 - (e.clientY - r.top) / r.height) * 105 / 5) * 5));
+        body._custom[isoWeek(weeks[k].week_of)] = v;
+        $('#sEdBars').innerHTML = barsHtml();
+        tipEl.style.display = '';
+        tipEl.textContent = `Week of ${weeks[k].week_of.slice(5)}: ${v >= 80 ? 'Peak' : v >= 55 ? 'Busy' : v >= 30 ? 'Normal' : 'Quiet'} (${v})`;
+      };
+      svg.addEventListener('pointerdown', e => { down = true; svg.setPointerCapture(e.pointerId); setAt(e); });
+      svg.addEventListener('pointermove', e => { if (down) setAt(e); });
+      svg.addEventListener('pointerup', () => { down = false; });
+      body.querySelectorAll('[data-pre]').forEach(b => b.onclick = () => {
+        const k = b.dataset.pre;
+        weeks.forEach(w => {
+          const wk = isoWeek(w.week_of);
+          if (k === 'ramp') body._custom[wk] = ramp(w.week_of);
+          else if (k === 'flat') body._custom[wk] = 25;
+          else if (k === 'sales' && ch) body._custom[wk] = w.x == null ? 25 : Math.min(100, Math.round(w.x * 25));
+          else if (k === 'boost' && hi(w)) body._custom[wk] = Math.min(100, Math.round(val(w) * 1.5 + 10));
+        });
+        drawSeason();
+      });
     } catch (e) { $('#sPrev').innerHTML = `<p class="tiny">${esc(e.message)}</p>`; }
   };
+  body.querySelectorAll('#sMode button').forEach(b => b.onclick = () => {
+    body._mode = b.dataset.m;
+    if (body._mode === 'custom' && !Object.keys(body._custom).length) {
+      const start = addD(new Date().toISOString().slice(0, 10), -91);
+      for (let k = 0; k < 52; k++) { const d = addD(start, k * 7); body._custom[isoWeek(d)] = ramp(d); }
+    }
+    drawSeason();
+  });
   let sColor = se.color || '#7C3AED';
   const syncS = () => body.querySelectorAll('#sSw .am-swatch').forEach(x => x.classList.toggle('on', x.dataset.c.toLowerCase() === sColor.toLowerCase()));
   body.querySelectorAll('#sSw .am-swatch').forEach(x => x.onclick = () => { sColor = x.dataset.c; $('#sCol').value = sColor; syncS(); drawSeason(); });
@@ -885,7 +992,7 @@ function paintLink(body) {
       submit_platform: $('#lPlat').value.trim() || 'TRYBE', submit_url: $('#lSubmit').value.trim(), submit_label: $('#lBtn').value.trim(),
       logo_url: $('#lLogo').value.trim(), accent, intro: $('#lIntro').value.trim(), about: $('#lAbout').value.trim(), audience: $('#lAud').value.trim(),
       avoid: avoidOut, rules: rulesOut, show_inspo: $('#lInspo').checked,
-      season: title ? { title, until: $('#sUntil').value.trim(), next: $('#sNext').value.trim(), line: $('#sLine').value.trim(), highlight: [$('#sH0').value.trim(), $('#sH1').value.trim()], show_chart: $('#sChart').checked, color: body._sColor ? body._sColor() : null, cap: +$('#sCap').value || null } : null,
+      season: title ? { title, until: $('#sUntil').value.trim(), next: $('#sNext').value.trim(), line: $('#sLine').value.trim(), highlight: [$('#sH0').value.trim(), $('#sH1').value.trim()], show_chart: $('#sChart').checked, color: body._sColor ? body._sColor() : null, cap: +$('#sCap').value || null, mode: body._mode, custom: body._custom } : null,
     };
     if (payload.slug !== b.slug && !(await confirmModal('Change the link address?', 'Any PDF or message that already has the old link will stop working.', 'Change it'))) return;
     try { S.data = await post('/api/amb/brand', payload, 'PUT'); paint(); flashMsg($('#lMsg'), 'Saved. The link is updated.'); }
@@ -927,16 +1034,16 @@ async function makePdf() {
   const short = url.replace('https://', '');
   const plat = b.submit_platform || 'TRYBE';
   const acc = hexRgb(b.accent || '#3B82F6');
-  const BG = [10, 11, 13], PANEL = [20, 22, 27], EDGE = [38, 42, 50], TXT = [240, 242, 245], SUB = [150, 156, 168], DIM = [96, 102, 114];
+  const BG = [247, 248, 250], PANEL = [255, 255, 255], EDGE = [223, 227, 233], TXT = [10, 11, 13], SUB = [95, 100, 114], DIM = [139, 144, 156];
   const op = o => doc.setGState(new doc.GState({ opacity: o, 'stroke-opacity': o }));
 
-  // Ground: near-black, a faint grid, one soft glow in the brand colour.
+  // Ground: light paper, a faint grid, one soft glow in the brand colour.
   doc.setFillColor(...BG); doc.rect(0, 0, W, H, 'F');
-  op(0.05); doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.4);
+  op(0.06); doc.setDrawColor(10, 11, 13); doc.setLineWidth(0.4);
   for (let x = 0; x <= W; x += 36) doc.line(x, 0, x, H);
   for (let y = 0; y <= H; y += 36) doc.line(0, y, W, y);
   op(0.16); doc.setFillColor(...acc);
-  [150, 110, 70].forEach((r, i) => { op(0.05 + i * 0.04); doc.circle(W - 40, 40, r, 'F'); });
+  [170, 120, 70].forEach((r, i) => { op(0.04 + i * 0.03); doc.circle(W - 30, 30, r, 'F'); });
   op(1);
 
   // Header
@@ -964,7 +1071,7 @@ async function makePdf() {
   doc.setFillColor(...PANEL); doc.setDrawColor(...EDGE); doc.setLineWidth(1);
   doc.roundedRect(M, y, W - 2 * M, ph, 14, 14, 'FD');
   const qs = 140;
-  doc.setFillColor(255, 255, 255); doc.roundedRect(M + 24, y + 28, qs, qs, 10, 10, 'F');
+  doc.setFillColor(255, 255, 255); doc.setDrawColor(...EDGE); doc.roundedRect(M + 24, y + 28, qs, qs, 10, 10, 'FD');
   doc.addImage(await qrData(6), 'GIF', M + 32, y + 36, qs - 16, qs - 16);
   doc.link(M + 24, y + 28, qs, qs, { url });
   const tx = M + 24 + qs + 28, tw = W - M - 24 - tx;

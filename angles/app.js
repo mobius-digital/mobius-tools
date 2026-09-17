@@ -88,7 +88,8 @@ function wireFilm() {
 /* ---------- top bar + footer ---------- */
 function topbar() {
   const b = D.brand;
-  const upd = b.updated_at ? `Updated ${fmtDay(b.updated_at.slice(0, 10))}` : '';
+  // Stored in UTC ("2026-09-17 01:10"); shown in the viewer's own time zone.
+  const upd = b.updated_at ? `Updated ${new Date(b.updated_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '';
   return `<header class="topbar"><div class="wrap">
     <a class="brand" href="#" data-home aria-label="${esc(b.display_name)} creator angles">
       ${b.logo_url ? `<img src="${esc(b.logo_url)}" alt="${esc(b.display_name)}">` : `<span class="nm">${esc(b.display_name)}</span>`}
@@ -111,7 +112,8 @@ function seasonCard() {
     const xs = ch.weeks.map(w => w.x).filter(x => x != null);
     const peak = Math.max(...xs);
     const peakWeek = ch.weeks.find(w => w.x === peak);
-    const top = Math.max(se.cap ? Math.min(se.cap, peak) : peak, 1.2);
+    const drawn = !!ch.custom;
+    const top = drawn ? 4 : Math.max(se.cap ? Math.min(se.cap, peak) : peak, 1.2);
     const [h0, h1] = (se.highlight || []).map(x => (x || '').trim());
     const inHi = w => { if (!h0 || !h1) return false; const d = w.week_of.slice(5), e = addDays(w.week_of, 6).slice(5); return h0 <= h1 ? (e >= h0 && d <= h1) : (e >= h0 || d <= h1); };
     const now = ch.now_index ?? 0;
@@ -121,8 +123,10 @@ function seasonCard() {
       const x = i * 10;
       const clipped = w.x != null && w.x > top;
       const h = w.x == null ? 3 : Math.max(3, (Math.min(w.x, top) / top) * (base - 24));
-      const fill = w.x == null ? '#E6E9EE' : inHi(w) ? color : '#CBD2DC';
-      bars += `<rect x="${x + 1.5}" y="${base - h}" width="7" height="${h}" rx="1.5" fill="${fill}"/>`;
+      const busy = drawn && w.level >= 55;
+      const fill = w.x == null ? '#E6E9EE' : inHi(w) ? color : busy ? color : '#CBD2DC';
+      const alpha = drawn && !inHi(w) && busy ? ' fill-opacity=".5"' : '';
+      bars += `<rect x="${x + 1.5}" y="${base - h}" width="7" height="${h}" rx="1.5" fill="${fill}"${alpha}/>`;
       if (clipped) bars += `<rect x="${x + 1.5}" y="${base - h}" width="7" height="3" rx="1" fill="#0a0b0d" opacity=".5"/>`;
       hits += `<rect class="hit" x="${x}" y="0" width="10" height="${base}" data-w="${i}"/>`;
       const m = fmtMon(w.week_of);
@@ -131,15 +135,17 @@ function seasonCard() {
     const nx = now * 10 + 5;
     const nowMark = `<line x1="${nx}" y1="20" x2="${nx}" y2="${base}" stroke="#0a0b0d" stroke-width="1.4" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
     chart = `<div class="chart" data-chart>
-      <div class="chart-h"><p class="lbl">Last year, week by week</p>
-        <div class="legend">${h0 ? `<span><i style="background:${esc(color)}"></i>${esc(se.title)}</span>` : ''}<span><i></i>Other weeks</span></div></div>
+      <div class="chart-h"><p class="lbl">${drawn ? 'When to film' : 'Last year, week by week'}</p>
+        <div class="legend">${h0 ? `<span><i style="background:${esc(color)}"></i>${esc(se.title)}</span>` : ''}${drawn ? `<span><i style="background:${esc(color)};opacity:.5"></i>Busy weeks</span>` : ''}<span><i></i>${drawn ? 'Quieter' : 'Other weeks'}</span></div></div>
       <div class="svgbox">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Last year's sales week by week, with ${esc(se.title)} highlighted and this week marked.">${bars}${nowMark}${hits}</svg>
         <span class="nowpill" style="left:${(nx / W) * 100}%">This week</span>
         <div class="tip" data-tip></div>
       </div>
       <div class="ticks">${ticks}</div>
-      <p class="chart-note">Busiest week last year: <b>${peakWeek ? fmtDay(peakWeek.week_of) : ''}</b>, ${peak.toFixed(1)}x a normal week.${se.cap && peak > top ? ' Tall spikes are trimmed.' : ''} <span class="muted">Tap a bar for any week.</span></p>
+      <p class="chart-note">${drawn
+        ? `Peak: <b>week of ${peakWeek ? fmtDay(peakWeek.week_of) : ''}</b>. Film two to three weeks before a spike so your video is live in time. <span class="muted">Tap a bar for any week.</span>`
+        : `Busiest week last year: <b>${peakWeek ? fmtDay(peakWeek.week_of) : ''}</b>, ${peak.toFixed(1)}x a normal week.${se.cap && peak > top ? ' Tall spikes are trimmed.' : ''} <span class="muted">Tap a bar for any week.</span>`}</p>
     </div>`;
   }
   return `<section class="card season">
@@ -161,7 +167,7 @@ function wireChart() {
   const now = D.season_chart.now_index ?? 0;
   const show = (i, el) => {
     const w = weeks[i];
-    const vs = w.x == null ? 'No sales data' : w.x >= 1.05 ? `${w.x.toFixed(1)}x a normal week` : w.x <= .95 ? `${w.x.toFixed(1)}x, a quieter week` : 'About a normal week';
+    const vs = D.season_chart.custom ? (w.level >= 80 ? 'Peak week, film for this' : w.level >= 55 ? 'Busy week' : w.level >= 30 ? 'Normal week' : 'Quiet week') : w.x == null ? 'No sales data' : w.x >= 1.05 ? `${w.x.toFixed(1)}x a normal week` : w.x <= .95 ? `${w.x.toFixed(1)}x, a quieter week` : 'About a normal week';
     tip.innerHTML = `<b>${i === now ? 'This week' : 'Week of ' + fmtDay(w.week_of)}</b><span>${esc(vs)}</span>`;
     const br = box.getBoundingClientRect(), r = el.getBoundingClientRect();
     tip.style.left = Math.min(Math.max(r.left + r.width / 2 - br.left, 70), br.width - 70) + 'px';

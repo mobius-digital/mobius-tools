@@ -104,6 +104,28 @@ async function seasonShape(env, actId, weeks = 52, back = 13) {
   return { weeks: out, now_index: back, basis: 'last year, week by week, compared with a normal week' };
 }
 
+/** ISO week number, so a drawn chart repeats on the same weeks every year. */
+const isoWeek = ymd => {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  const day = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - day + 3);
+  const first = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((d - first) / 86400000 - 3 + ((first.getUTCDay() + 6) % 7)) / 7);
+};
+/** A chart the team drew by hand: 0-100 per ISO week, 25 is a normal week.
+ *  Same window as the sales chart. The payload says it is drawn, so the page
+ *  never labels it as sales. */
+function customShape(custom, weeks = 52, back = 13) {
+  const start = addDays(today(), -back * 7);
+  const out = [];
+  for (let i = 0; i < weeks; i++) {
+    const week_of = addDays(start, i * 7);
+    const v = Number(custom?.[isoWeek(week_of)]);
+    out.push({ week_of, x: Math.round(((Number.isFinite(v) ? v : 25) / 25) * 100) / 100, level: Number.isFinite(v) ? v : 25 });
+  }
+  return { weeks: out, now_index: back, custom: true };
+}
+
 /* ---------------- public ---------------- */
 
 async function publicPayload(env, slug) {
@@ -136,7 +158,8 @@ async function publicPayload(env, slug) {
   const out = {
     live: true,
     brand: (() => { const x = shapeBrand(b, acct); delete x.act_id; delete x.live; return x; })(),
-    season_chart: await seasonShape(env, b.act_id).catch(() => null),
+    season_chart: (() => { const se = safeJson(b.season_json, null); return se?.mode === 'custom' ? customShape(se.custom) : null; })()
+      || await seasonShape(env, b.act_id).catch(() => null),
     hot: pinned ? { id: pinned.id, name: pinned.name, line: pinned.line, icon_svg: pinned.icon_svg, color: pinned.color, angles: hot } : null,
     sections: onSecs.filter(s => !s.pinned).map(s => ({
       id: s.id, name: s.name, line: s.line, icon_svg: s.icon_svg, color: s.color,
@@ -307,6 +330,10 @@ export async function handleStaff(request, env, url, path, json) {
           show_chart: body.season.show_chart !== false,
           color: HEX_RE.test(body.season.color || '') ? body.season.color : null,
           cap: body.season.cap ? Math.min(Math.max(+body.season.cap || 0, 1.2), 10) : null,
+          mode: body.season.mode === 'custom' ? 'custom' : 'sales',
+          custom: body.season.custom && typeof body.season.custom === 'object'
+            ? Object.fromEntries(Object.entries(body.season.custom).filter(([k]) => /^\d{1,2}$/.test(k) && +k >= 1 && +k <= 53).slice(0, 53).map(([k, v]) => [k, Math.max(0, Math.min(100, Math.round(+v) || 0))]))
+            : null,
         }) : null) : cur.season_json,
         has('show_inspo') ? (body.show_inspo ? 1 : 0) : cur.show_inspo,
       ).run();
