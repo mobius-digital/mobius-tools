@@ -243,3 +243,19 @@ Men 28 to 50 who play most weekends, care how they look on the course, and alrea
 - BOGO has ended. No offer on camera; the buddy angle stays without it.
 - Creators may say "#1 belt in golf", "patented buckle" and a review count (which count: see open question).
 - Hot right now pushes Muni, the new woven line ($79.99).
+- No review count on camera (does not sound natural in a video). Pacemaker question dropped.
+
+## Phase 2 draft: sections and angle titles (waiting for Cole's OK)
+
+Hot right now = the 4 Muni angles + "Where'd you get that belt?"
+
+1. **The Muni** (new woven, $79.99): Built for the muni (public course POV) · The belt that swings with you (slow-mo swing test) · One Muni for every polo (outfit transitions) · I bought a belt called Skid Mark (buddy reaction)
+2. **Fall golf and buddy trips** (until Nov 23): Where'd you get that belt? (the group notices, all round) · One belt, four rounds (trip packing flat lay) · One for you, one for your homie (two friends, 2-belt bundle) · Scramble day, you have the marker (on-green POV)
+3. **Gifts and Black Friday** (Nov 1 to Dec 20): The gift he won't buy himself (partner voiceover) · Clueless wife, perfect gift (female creator talking head + b-roll) · No waist size needed (cut-to-size demo) · He opens it (gift reaction) · Stocking stuffers for the golfer (markers, tees, glove flat lay) · Black Friday, cover the foursome (only the live offer)
+4. **The utility belt** (tees, glove, marker in a real round): Batman on the golf course (reveal) · What's on my belt (a spin on What's in the bag) · Stop getting stabbed by tees (pocket pain skit) · The glove never hits the ground (glove lost vs clipped) · Never borrow a marker again (green POV) · 18 holes, never touched it (wear test)
+5. **Look the part** (leathers and drops): $100 for a golf belt? (price hook, kit reveal) · Compliments before the first tee (texture close-ups) · The white belt handicap (joke) · The drop you missed last time (restock)
+6. **Ditch the old belt**: Your belt only holds up your pants (side by side) · You don't need another belt, you need a better one (pattern interrupt) · Cut it once, fits all season (scissors cold open) · Ditch the dad belt (old vs new transition)
+7. **Always works**: The whole kit in one second (box flat lay) · 3 strokes minimum (joke) · First try reaction (a buddy who has never seen it) · Why is there a glove on your belt? (partner skit)
+8. **Masters to Father's Day** (OFF, switch on in March): Masters week, dress the part (watch party) · The Father's Day gift he wears every round (dad reaction)
+
+Season chart: drawn, not real sales. Black Friday week was 6x a normal week and flattens the rest, and fall 2025 was pre-scale with a stock dip in September.
