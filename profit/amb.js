@@ -292,7 +292,7 @@ function linkStrip() {
     <div class="am-link"><p class="am-lbl">Creator link · ${b.live ? '<span style="color:var(--good)">live</span>' : '<span style="color:var(--warn)">off, creators see "being set up"</span>'}</p><b>${esc(url.replace('https://', ''))}</b></div>
     ${sw('amLive', b.live, b.live ? 'Live' : 'Off')}
     <button class="btn" id="amCopy">${ic('copy', 14)} Copy link</button>
-    <a class="btn" href="${esc(url)}" target="_blank" rel="noopener">${ic('external-link', 14)} Open as a creator</a>
+    <a class="btn" href="${esc(url)}" target="_blank" rel="noopener" title="${b.live ? 'Opens the page creators see' : 'Only signed-in Mobius staff can see it while the link is off'}">${ic('external-link', 14)} ${b.live ? 'Open as a creator' : 'Preview the link'}</a>
     <button class="btn primary" id="amPdf">${ic('file-down', 14)} Brief PDF</button>
   </div>`;
 }
@@ -564,7 +564,7 @@ function paintEditor(body) {
   <div class="am-bar">
     <div><button class="btn" id="amBack">${ic('arrow-left', 14)} All angles</button></div>
     <div style="display:flex;gap:8px;align-items:center">
-      ${!isNew && d.brand.live ? `<a class="btn" href="${esc(PUBLIC_BASE + d.brand.slug + '#a=' + a.id)}" target="_blank" rel="noopener">${ic('eye', 14)} See it on the link</a>` : ''}
+      ${!isNew ? `<a class="btn" href="${esc(PUBLIC_BASE + d.brand.slug + '#a=' + a.id)}" target="_blank" rel="noopener">${ic('eye', 14)} ${d.brand.live ? 'See it on the link' : 'Preview it on the link'}</a>` : ''}
       ${!isNew ? `<button class="btn" id="amDelAng" style="color:var(--bad)">${ic('trash', 14)} Delete</button>` : ''}
     </div>
   </div>

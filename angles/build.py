@@ -11,7 +11,7 @@ import json, os, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SLUGS = ['party-patch', 'grunk-dolfer', 'dartee']   # add a brand here for a clean link preview
-V = '6'
+V = '7'
 
 icons = json.load(open(os.path.join(HERE, 'icons.json'), encoding='utf-8'))
 src = open(os.path.join(HERE, 'app.src.js'), encoding='utf-8').read()

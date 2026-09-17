@@ -296,3 +296,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 }
 @media (hover:none){.ang:hover{box-shadow:0 1px 2px rgba(10,11,13,.04);border-color:var(--line)}}
 @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+
+/* Staff preview of a switched-off link */
+.pv-bar{background:#FFF4D6;border-bottom:1px solid #F0D48A;color:#6B4A00;font-size:13px;line-height:1.4}
+.pv-bar .wrap{padding-top:9px;padding-bottom:9px}

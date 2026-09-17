@@ -712,6 +712,18 @@ profit/
 - **Clean links.** GitHub Pages has no rewrites: `angles/<slug>/index.html` shells
   (listed in `SLUGS` in build.py) give a 200 for link previews; any other slug still
   works through `404.html`. Add a brand to `SLUGS` when it goes live.
+- **Staff preview of a switched-off link (2026-09-17).** `/api/angles/<slug>` with a valid
+  Locus session (`Authorization`, checked by `isAdmin`) returns the full page with
+  `preview: true` and `Cache-Control: private, no-store`. The page sends `pf_token` or the
+  shared `mobius_session` from localStorage (same origin as Locus), shows a yellow
+  "Preview" bar, and loads covers and video through the signed-in `/api/ad-creatives` and
+  `/api/ad-video` routes, because the slug only authorises ads on a LIVE page. Creators
+  have no session and still see "being set up". Locus labels the buttons "Preview the
+  link" while the link is off. Local testing: `?api=http://127.0.0.1:8799` works on
+  localhost only; the local `ADMIN_TOKEN` is not valid on account-health, so covers 401
+  locally and load for real sessions.
+- **Grunk Dolfer** was seeded from `migrations/seed_grunk_dolfer.py` (research and angle list
+  in `docs/angles-grunk-dolfer.md`), left OFF for Cole's review. Do NOT re-run it either.
 - **Party Patch** was seeded from `migrations/seed_party_patch.py` (Chris's Sept-Dec
   emails, the account's best ads, the Mobius angle framework). Do NOT re-run it: it
   replaces the brand's sections, angles and proof.

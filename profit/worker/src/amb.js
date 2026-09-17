@@ -129,11 +129,14 @@ function customShape(custom, weeks = 52, back = 13) {
 
 /* ---------------- public ---------------- */
 
-async function publicPayload(env, slug) {
+/** `preview` = a signed-in team member. They see a switched-off page in full, so a
+ *  new brand can be reviewed before creators get it (Cole, 2026-09-17, Grunk Dolfer).
+ *  Creators (no session) still get "being set up". Same idea as the report preview. */
+async function publicPayload(env, slug, preview = false) {
   const b = await env.DB.prepare(`SELECT * FROM p_amb_brand WHERE slug = ?1`).bind(slug).first();
   if (!b) return { status: 404, body: { error: 'We could not find this creator page.' } };
   const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(b.act_id).first();
-  if (!b.live) return { status: 200, body: { live: false, brand: { display_name: b.display_name || acct?.name || '', accent: b.accent, logo_url: b.logo_url } } };
+  if (!b.live && !preview) return { status: 200, body: { live: false, brand: { display_name: b.display_name || acct?.name || '', accent: b.accent, logo_url: b.logo_url } } };
   const { sections, angles, proof } = await loadAll(env, b.act_id);
   const onSecs = sections.filter(s => s.enabled);
   const secIds = new Set(onSecs.map(s => s.id));
@@ -158,6 +161,7 @@ async function publicPayload(env, slug) {
   const pinned = onSecs.find(s => s.pinned);
   const out = {
     live: true,
+    preview: !b.live,
     brand: (() => { const x = shapeBrand(b, acct); delete x.act_id; delete x.live; return x; })(),
     season_chart: (() => { const se = safeJson(b.season_json, null); return se?.mode === 'custom' ? customShape(se.custom) : null; })()
       || await seasonShape(env, b.act_id).catch(() => null),
@@ -182,13 +186,14 @@ export async function adOnLiveLink(env, slug, adId) {
 }
 
 /** Routes that need no sign-in. Returns a Response, or null to fall through. */
-export async function handlePublic(request, env, url, path, json, CORS) {
+export async function handlePublic(request, env, url, path, json, CORS, isStaff = async () => false) {
   let m;
   if ((m = path.match(/^\/api\/angles\/([a-z0-9-]{1,50})$/)) && request.method === 'GET') {
-    const r = await publicPayload(env, m[1]);
+    const signed = request.headers.has('Authorization');
+    const r = await publicPayload(env, m[1], signed && await isStaff());
     return new Response(JSON.stringify(r.body), {
       status: r.status,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=30', ...CORS },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': signed ? 'private, no-store' : 'public, max-age=30', ...CORS },
     });
   }
   if ((m = path.match(/^\/api\/angles-file\/([a-f0-9]{16})$/)) && (request.method === 'GET' || request.method === 'HEAD')) {

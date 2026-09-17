@@ -9,7 +9,22 @@
  */
 (function () {
 'use strict';
-const API = 'https://mobius-profit.mobius-digital.workers.dev';
+const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+// Local testing only: ?api=http://127.0.0.1:8799 points the page at a dev worker.
+const API = (LOCAL && new URLSearchParams(location.search).get('api')) || 'https://mobius-profit.mobius-digital.workers.dev';
+/* A signed-in Mobius team member (same origin as Locus) sees a switched-off page in
+   full, flagged as a preview. Creators have no session and never send one. */
+function staffToken() {
+  try {
+    const own = localStorage.getItem('pf_token');
+    if (own) return own;
+    const t = localStorage.getItem('mobius_session');
+    const exp = +localStorage.getItem('mobius_session_exp') || 0;
+    return t && (exp === 0 || exp > Date.now() + 60e3) ? t : '';
+  } catch { return ''; }
+}
+const TOK = staffToken();
+const authed = () => (TOK ? { headers: { Authorization: 'Bearer ' + TOK } } : undefined);
 const ICONS = __ICONS__;
 const ic = (n, s = 16, st = '') => `<svg class="i" viewBox="0 0 24 24" style="width:${s}px;height:${s}px;${st}" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 const svgI = (svg, s = 16) => `<svg class="i" viewBox="0 0 24 24" style="width:${s}px;height:${s}px" aria-hidden="true">${svg || ICONS.sparkles}</svg>`;
@@ -90,7 +105,8 @@ function topbar() {
   const b = D.brand;
   // Stored in UTC ("2026-09-17 01:10"); shown in the viewer's own time zone.
   const upd = b.updated_at ? `Updated ${new Date(b.updated_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '';
-  return `<header class="topbar"><div class="wrap">
+  const pv = D.preview ? `<div class="pv-bar" role="status"><div class="wrap"><b>Preview.</b> This link is switched off, so creators see "being set up". Only signed-in Mobius staff can see this page.</div></div>` : '';
+  return `${pv}<header class="topbar"><div class="wrap">
     <a class="brand" href="#" data-home aria-label="${esc(b.display_name)} creator angles">
       ${b.logo_url ? `<img src="${esc(b.logo_url)}" alt="${esc(b.display_name)}">` : `<span class="nm">${esc(b.display_name)}</span>`}
       <span class="lbl">Creators</span>
@@ -424,7 +440,10 @@ async function loadCovers(a) {
   const ids = a.proof.filter(p => p.kind === 'meta' && !p.thumb).map(p => p.ad_id);
   if (!ids.length) return;
   try {
-    const r = await fetch(`${API}/api/ad-creatives?angles=${encodeURIComponent(SLUG)}&ads=${encodeURIComponent(ids.join(','))}`).then(x => x.json());
+    // A preview page is not live, so the slug does not authorise its ads yet: use the staff session.
+    const r = await (D.preview
+      ? fetch(`${API}/api/ad-creatives?ads=${encodeURIComponent(ids.join(','))}`, authed())
+      : fetch(`${API}/api/ad-creatives?angles=${encodeURIComponent(SLUG)}&ads=${encodeURIComponent(ids.join(','))}`)).then(x => x.json());
     for (const [id, v] of Object.entries(r.assets || {})) {
       if (!v.thumb) continue;
       document.querySelectorAll(`[data-cover="${CSS.escape(id)}"]`).forEach(m => { if (!m.querySelector('img')) m.insertAdjacentHTML('afterbegin', `<img src="${esc(v.thumb)}" alt="" loading="lazy">`); });
@@ -449,7 +468,9 @@ function player(inner) {
 async function playAd(adId) {
   const w = player(`<div class="loading">Loading the ad…</div>`);
   try {
-    const res = await fetch(`${API}/api/ad-video?ad=${encodeURIComponent(adId)}&angles=${encodeURIComponent(SLUG)}`);
+    const res = D.preview
+      ? await fetch(`${API}/api/ad-video?ad=${encodeURIComponent(adId)}`, authed())
+      : await fetch(`${API}/api/ad-video?ad=${encodeURIComponent(adId)}&angles=${encodeURIComponent(SLUG)}`);
     const v = await res.json();
     if (!res.ok) throw new Error(v.error || 'This ad cannot be played right now.');
     const box = w.querySelector('.loading');
@@ -487,7 +508,7 @@ async function boot() {
   if (!SLUG) { app.innerHTML = `<div class="center"><div><h1 class="disp">Creator angles</h1><p class="muted">This link is missing the brand. Check the link you were sent.</p></div></div>`; return; }
   app.innerHTML = `<div class="wrap" style="padding-top:56px;display:flex;flex-direction:column;gap:14px;max-width:720px"><div class="skel" style="height:40px;width:70%"></div><div class="skel"></div><div class="skel" style="width:85%"></div><div class="skel" style="height:180px;margin-top:20px"></div></div>`;
   try {
-    const res = await fetch(`${API}/api/angles/${encodeURIComponent(SLUG)}`);
+    const res = await fetch(`${API}/api/angles/${encodeURIComponent(SLUG)}`, authed());
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || 'This page could not be loaded.');
     if (!j.live) {

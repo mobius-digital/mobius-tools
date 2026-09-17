@@ -1637,7 +1637,7 @@ export default {
     /* The creator link (Ambassadors). Public by design: the slug is the address,
        and the payload carries no money. See amb.js. */
     {
-      const r = await ambPublic(request, env, url, path, json, CORS);
+      const r = await ambPublic(request, env, url, path, json, CORS, () => isAdmin(request, env));
       if (r) return r;
     }
 
