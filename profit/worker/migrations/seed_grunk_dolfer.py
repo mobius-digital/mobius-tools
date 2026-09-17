@@ -69,7 +69,6 @@ brand = dict(
         'Never say UPF, sun protection, stain-proof or beer-proof about a polo. Never say HYDR18 prevents or cures hangovers.',
         'Sizes: every polo comes small through 4XL, and many prints go to 5XL. Check the product page before you say 5XL.',
         'Only mention an offer that is live on the site. The Black Friday deal (BOGO + 30% off sitewide) goes in Black Friday videos only.',
-        "Don't mention free shipping. \"Rated 4.9 stars\" is fine.",
         'If there is alcohol on screen, everyone is 21 or older. A beer in hand is fine. No chugging, and nobody drinks and drives, golf carts included.',
         "Show the print up close at least once and say the print's name.",
         'Film vertical, sound on, and show where you are in the first two seconds.',
