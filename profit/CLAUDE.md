@@ -690,8 +690,13 @@ profit/
 - **Playback on the link** goes through the account-health worker with
   `?angles=<slug>`: it authorises only Meta ads shown as proof on that brand's LIVE
   page (same rule as share tokens), and `ad-creatives` returns covers and copy only.
+- **Look = the Lucky Golf hub (Cole, 2026-09-16).** Archivo, lanes per section, labelled
+  single-line pill rows for sections and formats (no dropdowns, no bottom sheets), black
+  primary buttons. The PDF is ONE dark page: link as a button + QR, no angle list (a list
+  was tried and rejected). The season chart is thin bars like the canvas, season colour
+  and a spike limit (`season.color`, `season.cap`) set on Link and brief.
 - **The season chart is relative.** `seasonShape()` = last year's weekly `netSales`
-  for the 18 weeks ahead, divided by the median week. Never dollars. The season card
+  for a year (13 weeks back, 38 ahead, `now_index`), divided by the median week. Never dollars. The season card
   text is staff-written; it must not claim a sales multiple the chart does not show
   (Party Patch Oct 2025 was only ~19% above Sep; December is the real peak).
 - **Icons are Lucide** (lucide-static 1.46.0 on jsDelivr, the set the Lucky app uses).

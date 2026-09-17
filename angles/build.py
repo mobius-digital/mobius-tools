@@ -11,7 +11,7 @@ import json, os, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SLUGS = ['party-patch', 'grunk-dolfer', 'dartee']   # add a brand here for a clean link preview
-V = '2'
+V = '4'
 
 icons = json.load(open(os.path.join(HERE, 'icons.json'), encoding='utf-8'))
 src = open(os.path.join(HERE, 'app.src.js'), encoding='utf-8').read()
@@ -26,12 +26,12 @@ SHELL = '''<!doctype html>
 <meta name="description" content="What to film this week: angles, openers, shot plans and proof. Updated by the brand.">
 <meta property="og:title" content="Creator angles">
 <meta property="og:description" content="What to film this week: angles, openers, shot plans and proof.">
-<meta name="theme-color" content="#13202B">
+<meta name="theme-color" content="#ffffff">
 <meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&display=swap">
 <link rel="stylesheet" href="/angles/app.css?v={V}">
 </head>
 <body>
@@ -72,9 +72,9 @@ if (/^\/angles\/[a-z0-9-]+\/?$/i.test(location.pathname)) {
 </html>
 '''
 inner = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
-         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap">'
+         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&display=swap">'
          f'<link rel="stylesheet" href="/angles/app.css?v={V}">'
-         '<meta name="theme-color" content="#13202B">'
+         '<meta name="theme-color" content="#ffffff">'
          '</head><body><div id="app"></div>'
          f'<script src="/angles/app.js?v={V}"></script>')
 open(os.path.join(ROOT, '404.html'), 'w', encoding='utf-8').write(NOT_FOUND % json.dumps(inner).replace('</', '<' + chr(92) + '/'))

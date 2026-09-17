@@ -163,6 +163,8 @@ function injectCss() {
 .am-pdf{border:1px solid var(--line);border-radius:10px;background:#F6F8FA;padding:16px}
 .am-pdf .pg{background:#fff;border-radius:4px;box-shadow:0 6px 20px -10px rgba(19,32,43,.35);padding:18px;aspect-ratio:8.5/11;display:flex;flex-direction:column;gap:8px;overflow:hidden}
 .am-pdf .ln{height:5px;border-radius:3px;background:#E4EBF0}
+.am-pdf .pg.dark{background:#0A0B0D;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:14px 14px}
+.am-pdf .pg.dark .ln{background:#2A2E36}
 @media (max-width:1000px){.am-split{grid-template-columns:1fr}.am-g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:720px){.am-g2,.am-g3,.am-g4{grid-template-columns:1fr}.am-score{display:none}.am-list-edit .am-li{grid-template-columns:1fr}}
 `;
@@ -799,6 +801,11 @@ function paintLink(body) {
           <label class="am-f">to <small>MM-DD</small><input class="am-in" id="sH1" value="${esc(se.highlight?.[1] || '')}" placeholder="10-31"></label>
           <div class="am-f">Chart<div style="min-height:38px;display:flex;align-items:center">${sw('sChart', se.show_chart !== false, 'Show the chart')}</div></div>
         </div>
+        <div class="am-g2">
+          <div class="am-f">Season colour <small>the highlighted bars and the tag</small><div class="am-swatches" id="sSw">${['#7C3AED', '#C2410C', '#DB2777', '#0F766E', '#15803D', '#1D4ED8', '#A16207', '#475569'].map(c => `<button type="button" class="am-swatch ${(se.color || '#7C3AED').toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}<input type="color" class="am-color" id="sCol" value="${esc(se.color || '#7C3AED')}" aria-label="Any colour"></div></div>
+          <label class="am-f">Tallest bar <small>trim big spikes so the season stands out</small>
+            <select class="am-in" id="sCap">${[['', 'Show every spike in full'], ['4', 'Trim above 4x a normal week'], ['3', 'Trim above 3x'], ['2.5', 'Trim above 2.5x'], ['2', 'Trim above 2x'], ['1.6', 'Trim above 1.6x']].map(([v, t]) => `<option value="${v}" ${String(se.cap || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        </div>
         <div id="sPrev"><p class="tiny">Loading last year's shape…</p></div>
       </div>
 
@@ -809,12 +816,14 @@ function paintLink(body) {
 
     <div style="display:flex;flex-direction:column;gap:14px">
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-        <div><h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3><p class="hint" style="margin:0">Lists every live angle, each one tappable, under a big tap-or-scan box that opens the full brief. The link is always current; the list is a snapshot dated on the page, so download a fresh copy for TRYBE when you add or switch angles.</p></div>
-        <div class="am-pdf"><div class="pg">
-          <b style="color:${esc(b.accent || '#13202B')};font-size:14px">${esc(b.display_name)}</b>
-          <b style="font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.05">Everything you need is at one link</b>
-          <div class="ln"></div><div class="ln" style="width:80%"></div>
-          <div style="display:flex;gap:10px;align-items:center;padding:10px;border-radius:6px;background:${esc(tint(b.accent || '#13202B').bg)}"><span id="lQr" style="width:52px;height:52px;background:#fff;border-radius:4px;display:block"></span><div style="flex:1"><div class="ln"></div><div class="ln" style="width:70%;margin-top:5px"></div></div></div>
+        <div><h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3><p class="hint" style="margin:0">One page: the link as a button and a QR code. It never lists angles, so the copy on TRYBE never goes out of date. Rebuild it only if the logo, colour or intro changes.</p></div>
+        <div class="am-pdf"><div class="pg dark">
+          <b style="color:#F0F2F5;font-size:12px">${esc(b.display_name)}</b>
+          <b style="color:#F0F2F5;font-size:22px;line-height:1.05;margin-top:14px">Every angle.<br><span style="color:${esc(b.accent || '#3B82F6')}">One link.</span></b>
+          <div class="ln"></div><div class="ln" style="width:75%"></div>
+          <div style="display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;background:#14161B;border:1px solid #262A32;margin-top:6px"><span id="lQr" style="width:54px;height:54px;background:#fff;border-radius:5px;display:block;flex:none"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ln" style="width:60%"></div><div style="height:14px;border-radius:4px;background:${esc(b.accent || '#3B82F6')}"></div></div></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px">${'<div style="height:22px;border-radius:4px;background:#14161B;border:1px solid #262A32"></div>'.repeat(4)}</div>
+        </div></div></div>
           <div class="ln" style="margin-top:6px"></div><div class="ln" style="width:90%"></div><div class="ln" style="width:60%"></div>
         </div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="lPdf" style="flex:1">${ic('file-down', 14)} Download PDF</button><button class="btn" id="lQrDl">${ic('qr-code', 14)} QR code</button></div>
@@ -837,21 +846,35 @@ function paintLink(body) {
 
   const drawSeason = async () => {
     try {
-      const r = await api(`/api/amb/season?act=${encodeURIComponent(S.act)}`);
-      const ch = r.chart;
+      if (!body._chart) body._chart = (await api(`/api/amb/season?act=${encodeURIComponent(S.act)}`)).chart;
+      const ch = body._chart;
       if (!ch) { $('#sPrev').innerHTML = '<p class="tiny">Not enough sales history for a chart yet. The card still shows without it.</p>'; return; }
+      const color = body._sColor ? body._sColor() : (se.color || '#7C3AED');
       const xs = ch.weeks.map(w => w.x).filter(v => v != null);
-      const mx = Math.max(...xs, 1.2);
+      const peak = Math.max(...xs);
+      const cap = +$('#sCap').value || 0;
+      const top = Math.max(cap ? Math.min(cap, peak) : peak, 1.2);
       const h0 = $('#sH0').value.trim(), h1 = $('#sH1').value.trim();
       const add = (d, n) => { const t = new Date(d + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
-      const hi = w => { if (!h0 || !h1) return false; const s = w.week_of.slice(5), e = add(w.week_of, 6).slice(5); return h0 <= h1 ? (e >= h0 && s <= h1) : (e >= h0 || s <= h1); };
-      $('#sPrev').innerHTML = `<p class="am-lbl" style="margin-bottom:6px">What creators see · weeks from ${esc(ch.weeks[0].week_of)}</p>
-        <div class="am-bars">${ch.weeks.map(w => `<div class="${hi(w) ? 'hi' : ''}" style="height:${w.x == null ? 4 : Math.max(3, w.x / mx * 100)}%" title="${esc(w.week_of)}: ${w.x == null ? 'no data' : w.x.toFixed(1) + 'x a normal week'}"></div>`).join('')}</div>
-        <p class="tiny" style="margin-top:6px">Busiest week last year: ${Math.max(...xs).toFixed(1)}x a normal week.</p>`;
+      const hi = w => { if (!h0 || !h1) return false; const a = w.week_of.slice(5), e = add(w.week_of, 6).slice(5); return h0 <= h1 ? (e >= h0 && a <= h1) : (e >= h0 || a <= h1); };
+      const n = ch.weeks.length, base = 110;
+      const bars = ch.weeks.map((w, k) => {
+        const h = w.x == null ? 3 : Math.max(3, Math.min(w.x, top) / top * (base - 16));
+        return `<rect x="${k * 10 + 1.5}" y="${base - h}" width="7" height="${h}" rx="1.5" fill="${w.x == null ? '#E6E9EE' : hi(w) ? color : '#CBD2DC'}"><title>${esc(w.week_of)}: ${w.x == null ? 'no data' : w.x.toFixed(1) + 'x a normal week'}</title></rect>${w.x > top ? `<rect x="${k * 10 + 1.5}" y="${base - h}" width="7" height="3" fill="#0a0b0d" opacity=".5"/>` : ''}`;
+      }).join('');
+      const nx = (ch.now_index ?? 0) * 10 + 5;
+      $('#sPrev').innerHTML = `<p class="am-lbl" style="margin-bottom:6px">What creators see</p>
+        <svg viewBox="0 0 ${n * 10} ${base}" preserveAspectRatio="none" style="width:100%;height:110px;display:block">${bars}<line x1="${nx}" y1="8" x2="${nx}" y2="${base}" stroke="#0a0b0d" stroke-width="1.4" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/></svg>
+        <p class="tiny" style="margin-top:6px">Busiest week last year: ${peak.toFixed(1)}x a normal week.${cap && peak > top ? ' Bars above the limit are trimmed and marked.' : ''} The dashed line is this week.</p>`;
     } catch (e) { $('#sPrev').innerHTML = `<p class="tiny">${esc(e.message)}</p>`; }
   };
+  let sColor = se.color || '#7C3AED';
+  const syncS = () => body.querySelectorAll('#sSw .am-swatch').forEach(x => x.classList.toggle('on', x.dataset.c.toLowerCase() === sColor.toLowerCase()));
+  body.querySelectorAll('#sSw .am-swatch').forEach(x => x.onclick = () => { sColor = x.dataset.c; $('#sCol').value = sColor; syncS(); drawSeason(); });
+  $('#sCol').oninput = e => { sColor = e.target.value.toUpperCase(); syncS(); drawSeason(); };
+  body._sColor = () => sColor;
   drawSeason();
-  $('#sH0').onchange = $('#sH1').onchange = drawSeason;
+  $('#sH0').onchange = $('#sH1').onchange = $('#sCap').onchange = drawSeason;
 
   $('#lSave').onclick = async () => {
     const avoidOut = [...body.querySelectorAll('#lAvoid .am-li')].map(li => ({ title: li.querySelector('[data-at]').value.trim(), why: li.querySelector('[data-aw]').value.trim() })).filter(x => x.title);
@@ -862,7 +885,7 @@ function paintLink(body) {
       submit_platform: $('#lPlat').value.trim() || 'TRYBE', submit_url: $('#lSubmit').value.trim(), submit_label: $('#lBtn').value.trim(),
       logo_url: $('#lLogo').value.trim(), accent, intro: $('#lIntro').value.trim(), about: $('#lAbout').value.trim(), audience: $('#lAud').value.trim(),
       avoid: avoidOut, rules: rulesOut, show_inspo: $('#lInspo').checked,
-      season: title ? { title, until: $('#sUntil').value.trim(), next: $('#sNext').value.trim(), line: $('#sLine').value.trim(), highlight: [$('#sH0').value.trim(), $('#sH1').value.trim()], show_chart: $('#sChart').checked } : null,
+      season: title ? { title, until: $('#sUntil').value.trim(), next: $('#sNext').value.trim(), line: $('#sLine').value.trim(), highlight: [$('#sH0').value.trim(), $('#sH1').value.trim()], show_chart: $('#sChart').checked, color: body._sColor ? body._sColor() : null, cap: +$('#sCap').value || null } : null,
     };
     if (payload.slug !== b.slug && !(await confirmModal('Change the link address?', 'Any PDF or message that already has the old link will stop working.', 'Change it'))) return;
     try { S.data = await post('/api/amb/brand', payload, 'PUT'); paint(); flashMsg($('#lMsg'), 'Saved. The link is updated.'); }
@@ -896,147 +919,111 @@ async function qrPng() {
 }
 async function makePdf() {
   await loadScript(JSPDF_URL);
-  const d = S.data, b = d.brand;
+  const b = S.data.brand;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  const W = 612, H = 792, M = 46;
+  const W = 612, H = 792, M = 52;
   const url = PUBLIC_BASE + b.slug;
-  const inkOf = hx => { let c = hexRgb(hx); for (let i = 0; i < 14 && 1.05 / (lum(c) + .05) < 5; i++) c = mix(c, [0, 0, 0], .08); return c; };
-  const acc = inkOf(b.accent || '#13202B');
-  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const INK = [19, 32, 43], INK2 = [58, 75, 88], MUTED = [91, 109, 123], FAINT = [122, 139, 151];
-  const clip1 = (t, w, size) => { doc.setFontSize(size); const l = doc.splitTextToSize(t, w); return l.length > 1 ? l[0].replace(/[\s,.;:]+$/, '') + '...' : l[0]; };
-  let page = 1;
-  const foot = () => {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...FAINT);
-    doc.text(`${b.display_name} creator brief · ${today}`, M, H - 26);
-    doc.text(`Page ${page} · Powered by Mobius Digital`, W - M, H - 26, { align: 'right' });
-  };
-  const newPage = label => {
-    foot(); doc.addPage(); page++;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...MUTED);
-    doc.text(label, M, M + 4);
-    return M + 22;
-  };
+  const short = url.replace('https://', '');
+  const plat = b.submit_platform || 'TRYBE';
+  const acc = hexRgb(b.accent || '#3B82F6');
+  const BG = [10, 11, 13], PANEL = [20, 22, 27], EDGE = [38, 42, 50], TXT = [240, 242, 245], SUB = [150, 156, 168], DIM = [96, 102, 114];
+  const op = o => doc.setGState(new doc.GState({ opacity: o, 'stroke-opacity': o }));
+
+  // Ground: near-black, a faint grid, one soft glow in the brand colour.
+  doc.setFillColor(...BG); doc.rect(0, 0, W, H, 'F');
+  op(0.05); doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.4);
+  for (let x = 0; x <= W; x += 36) doc.line(x, 0, x, H);
+  for (let y = 0; y <= H; y += 36) doc.line(0, y, W, y);
+  op(0.16); doc.setFillColor(...acc);
+  [150, 110, 70].forEach((r, i) => { op(0.05 + i * 0.04); doc.circle(W - 40, 40, r, 'F'); });
+  op(1);
 
   // Header
-  let y = M + 8;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...acc);
-  doc.text(b.display_name || '', M, y + 10);
-  doc.setFontSize(8.5); doc.setTextColor(...MUTED);
-  doc.text(`CREATOR BRIEF · UPDATED ${today.toUpperCase()}`, W - M, y + 8, { align: 'right' });
-  y += 50;
-  doc.setFont('times', 'normal'); doc.setFontSize(34); doc.setTextColor(...INK);
-  doc.text('Your angle list', M, y);
-  y += 20;
-  if (b.intro) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK2);
-    const t = doc.splitTextToSize(b.intro, W - 2 * M);
-    doc.text(t, M, y); y += t.length * 13.5 + 12;
-  }
+  let y = M + 6;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...TXT);
+  doc.text(b.display_name || '', M, y);
+  doc.setFontSize(8); doc.setTextColor(...SUB); doc.setCharSpace(1.6);
+  doc.text('CREATOR BRIEF', W - M, y, { align: 'right' });
+  doc.setCharSpace(0);
 
-  // The call to action: solid brand colour, impossible to miss.
-  const boxH = 162, boxY = y;
-  doc.setFillColor(...acc); doc.roundedRect(M, boxY, W - 2 * M, boxH, 12, 12, 'F');
-  doc.setFillColor(255, 255, 255); doc.roundedRect(M + 16, boxY + 22, 118, 118, 8, 8, "F");
-  doc.addImage(await qrData(6), "GIF", M + 21, boxY + 27, 108, 108);
-  const tx = M + 152;
-  doc.setTextColor(255, 255, 255); doc.setFillColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-  doc.text('EVERY ANGLE BELOW, IN FULL', tx, boxY + 32);
-  doc.setFontSize(19);
-  doc.text('Tap here or scan to open', tx, boxY + 56);
-  doc.text('the full brief', tx, boxY + 78);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-  ['Openers to copy, word for word', 'A shot-by-shot plan for each angle', 'Real example videos to watch'].forEach((s, i) => {
-    doc.circle(tx + 3, boxY + 95 + i * 14, 1.6, 'F');
-    doc.text(s, tx + 10, boxY + 98 + i * 14);
+  // Headline
+  y += 86;
+  doc.setFontSize(46); doc.setTextColor(...TXT);
+  doc.text('Every angle.', M, y);
+  doc.setTextColor(...acc);
+  doc.text('One link.', M, y + 48);
+  y += 84;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11.5); doc.setTextColor(...SUB);
+  const intro = `Everything we want you to film for ${b.display_name} lives on one page that updates itself: what is hot this week, what is in season, openers to copy, shot plans and real examples.`;
+  const it = doc.splitTextToSize(intro, W - 2 * M - 40);
+  doc.text(it, M, y); y += it.length * 15 + 26;
+
+  // The link panel
+  const ph = 196;
+  doc.setFillColor(...PANEL); doc.setDrawColor(...EDGE); doc.setLineWidth(1);
+  doc.roundedRect(M, y, W - 2 * M, ph, 14, 14, 'FD');
+  const qs = 140;
+  doc.setFillColor(255, 255, 255); doc.roundedRect(M + 24, y + 28, qs, qs, 10, 10, 'F');
+  doc.addImage(await qrData(6), 'GIF', M + 32, y + 36, qs - 16, qs - 16);
+  doc.link(M + 24, y + 28, qs, qs, { url });
+  const tx = M + 24 + qs + 28, tw = W - M - 24 - tx;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...SUB); doc.setCharSpace(1.6);
+  doc.text('OPEN THE ANGLE HUB', tx, y + 44);
+  doc.setCharSpace(0);
+  doc.setFontSize(19); doc.setTextColor(...TXT);
+  doc.text('Click the link', tx, y + 72);
+  doc.text('or scan the code', tx, y + 96);
+  // The link itself, as a button
+  const by = y + 116, bh = 38;
+  doc.setFillColor(...acc); doc.roundedRect(tx, by, tw, bh, 9, 9, 'F');
+  doc.setFontSize(10.5); doc.setTextColor(255, 255, 255);
+  const lt = doc.splitTextToSize(short, tw - 44)[0];
+  doc.text(lt, tx + 14, by + 24);
+  doc.setDrawColor(255, 255, 255); doc.setLineWidth(1.4);
+  const ax = tx + tw - 22, ay = by + bh / 2;
+  doc.line(ax - 8, ay, ax + 4, ay); doc.line(ax, ay - 4, ax + 4, ay); doc.line(ax, ay + 4, ax + 4, ay);
+  doc.link(tx, by, tw, bh, { url });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...DIM);
+  doc.text('Opens on your phone. No login. Always up to date.', tx, by + bh + 20);
+  y += ph + 30;
+
+  // What is inside: four small tiles
+  const items = [['Hot right now', 'Our top picks this week'], ['In season', 'What sells right now'], ['Openers + shot plans', 'Copy them word for word'], ['Real examples', 'Videos that ran as ads']];
+  const gw = (W - 2 * M - 30) / 4, gh = 62;
+  items.forEach(([t, s], i) => {
+    const gx = M + i * (gw + 10);
+    doc.setFillColor(...PANEL); doc.setDrawColor(...EDGE); doc.setLineWidth(0.8);
+    doc.roundedRect(gx, y, gw, gh, 10, 10, 'FD');
+    doc.setFillColor(...acc); doc.circle(gx + 16, y + 18, 3, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...TXT);
+    doc.text(t, gx + 14, y + 36);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...SUB);
+    doc.text(doc.splitTextToSize(s, gw - 24)[0], gx + 14, y + 50);
   });
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-  doc.text(url.replace('https://', '') + '  >', W - M - 16, boxY + boxH - 14, { align: 'right' });
-  doc.link(M, boxY, W - 2 * M, boxH, { url });
-  y = boxY + boxH + 28;
+  y += gh + 34;
 
-  // The angle list: Hot first, then every switched-on section, no repeats.
-  const sections = d.sections.filter(s => s.enabled);
-  const live = d.angles.filter(a => a.status === 'live');
-  const hotSec = sections.find(s => s.pinned);
-  const groups = [];
-  const shown = new Set();
-  if (hotSec) {
-    const hot = live.filter(a => a.hot).sort((p, q) => p.hot_sort - q.hot_sort);
-    if (hot.length) { groups.push({ s: hotSec, list: hot }); hot.forEach(a => shown.add(a.id)); }
-  }
-  for (const s of sections.filter(x => !x.pinned)) {
-    const list = live.filter(a => a.section_id === s.id && !shown.has(a.id)).sort((p, q) => p.sort - q.sort);
-    if (list.length) groups.push({ s, list });
-  }
-  const total = groups.reduce((t, g) => t + g.list.length, 0);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...INK);
-  doc.text(`The angles (${total})`, M, y);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...MUTED);
-  doc.text('Tap any angle to open its openers, shot plan and examples.', W - M, y, { align: 'right' });
-  y += 18;
+  // How it works
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...SUB); doc.setCharSpace(1.6);
+  doc.text('HOW IT WORKS', M, y);
+  doc.setCharSpace(0);
+  y += 22;
+  const steps = ['Open the link and pick an angle', 'Film it with the opener and shot plan', `Submit on ${plat} with the angle name`];
+  const sw2 = (W - 2 * M) / 3;
+  steps.forEach((t, i) => {
+    const sx = M + i * sw2;
+    doc.setDrawColor(...acc); doc.setLineWidth(1.2); doc.circle(sx + 11, y, 11, 'S');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...TXT);
+    doc.text(String(i + 1), sx + 11, y + 3.5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...SUB);
+    doc.text(doc.splitTextToSize(t, sw2 - 44), sx + 30, y - 2);
+  });
 
-  const gap = 22, colW = (W - 2 * M - gap) / 2, bottom = H - 50;
-  let col = 0, n = 0, colTop = y, cy = y, maxY = y;
-  const cx = () => M + col * (colW + gap);
-  const need = h => {
-    if (cy + h <= bottom) return;
-    maxY = Math.max(maxY, cy);
-    if (col === 0) { col = 1; cy = colTop; return; }
-    colTop = newPage(`${(b.display_name || '').toUpperCase()} · THE ANGLES, CONTINUED`);
-    col = 0; cy = colTop; maxY = colTop;
-  };
-  for (const g of groups) {
-    const c = hexRgb(g.s.color || '#475569');
-    const ink = inkOf(g.s.color || '#475569');
-    need(62);
-    doc.setFillColor(...mix(c, [255, 255, 255], .86)); doc.roundedRect(cx(), cy, colW, 22, 5, 5, 'F');
-    doc.setFillColor(...ink); doc.rect(cx(), cy, 4, 22, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...ink);
-    doc.text(g.s.name, cx() + 12, cy + 14.5);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text(`${g.list.length} angle${g.list.length === 1 ? '' : 's'}`, cx() + colW - 8, cy + 14.5, { align: 'right' });
-    cy += 32;
-    for (const a of g.list) {
-      need(32);
-      n++;
-      const x = cx();
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...INK);
-      doc.text(`${n}.`, x, cy + 8);
-      doc.text(clip1(a.title, colW - 26, 10.5), x + 20, cy + 8);
-      const op = (a.openers || [])[0];
-      if (op) {
-        doc.setFont('helvetica', 'italic'); doc.setTextColor(...MUTED);
-        doc.text(clip1(`"${op}"`, colW - 26, 9), x + 20, cy + 20);
-      }
-      doc.link(x, cy - 3, colW, op ? 28 : 16, { url: `${url}#a=${a.id}` });
-      cy += op ? 32 : 20;
-    }
-    cy += 8;
-  }
-  maxY = Math.max(maxY, cy);
-
-  // Stop list and how it works, below the longer column.
-  const avoid = (b.avoid || []).slice(0, 6);
-  const avoidH = avoid.length ? 34 + avoid.length * 14 : 0;
-  y = (col === 1 ? maxY : cy) + 6;
-  if (y + avoidH + 70 > bottom) y = newPage(`${(b.display_name || '').toUpperCase()} · BEFORE YOU FILM`);
-  if (avoid.length) {
-    doc.setFillColor(247, 231, 228); doc.roundedRect(M, y, W - 2 * M, avoidH, 10, 10, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(156, 58, 46);
-    doc.text('Please stop filming these', M + 16, y + 20);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(...INK2);
-    avoid.forEach((a, i) => doc.text(clip1(`x   ${a.title}`, W - 2 * M - 32, 9.5), M + 16, y + 38 + i * 14));
-    y += avoidH + 20;
-  }
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...MUTED);
-  doc.text('HOW IT WORKS', M, y); y += 15;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
-  const how = `1. Open the link and pick an angle.   2. Film it with the opener and shot plan.   3. Submit on ${b.submit_platform || 'TRYBE'} with the angle name in your note.`;
-  doc.text(doc.splitTextToSize(how, W - 2 * M), M, y);
-  foot();
+  // Footer
+  doc.setDrawColor(...EDGE); doc.setLineWidth(0.8); doc.line(M, H - 50, W - M, H - 50);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DIM);
+  doc.text(`${b.display_name} creator program on ${plat}`, M, H - 32);
+  doc.text('Powered by Mobius Digital', W - M, H - 32, { align: 'right' });
   doc.save(`${b.slug}-creator-brief.pdf`);
 }
 

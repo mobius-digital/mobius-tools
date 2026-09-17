@@ -82,30 +82,26 @@ function shapeBrand(b, acct) {
   };
 }
 
-/** Last year's weekly sales for the weeks ahead, as a multiple of the median week. */
-async function seasonShape(env, actId, weeks = 18) {
-  const start = addDays(today(), -364);                 // same weekday, one year back
+/** A year of last year's weekly sales, as a multiple of the median week, with
+ *  this week marked. Thirteen weeks behind, thirty-eight ahead: the shape of the
+ *  whole year with "now" near the left, like the Frost Buddy chart. */
+async function seasonShape(env, actId, weeks = 52, back = 13) {
+  const nowLast = addDays(today(), -364);               // this week, one year back
+  const start = addDays(nowLast, -back * 7);
   const end = addDays(start, weeks * 7 - 1);
   const { results } = await env.DB.prepare(
     `SELECT date, value FROM tw_daily WHERE act_id = ?1 AND metric = 'netSales' AND date BETWEEN ?2 AND ?3`,
-  ).bind(actId, addDays(start, -182), end).all();
+  ).bind(actId, start, end).all();
   const byDate = new Map((results || []).map(r => [r.date, r.value]));
   const weekSum = from => { let s = 0, n = 0; for (let i = 0; i < 7; i++) { const v = byDate.get(addDays(from, i)); if (v != null) { s += v; n++; } } return n >= 5 ? s * 7 / n : null; };
-  // Baseline = median week across the half-year BEFORE the window plus the window itself.
-  const all = [];
-  for (let d = addDays(start, -182); d <= end; d = addDays(d, 7)) { const w = weekSum(d); if (w != null) all.push(w); }
-  if (all.length < 8) return null;
-  const sorted = [...all].sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)] || 1;
-  const out = [];
-  for (let i = 0; i < weeks; i++) {
-    const from = addDays(start, i * 7);
-    const w = weekSum(from);
-    // The label is the date the week falls on THIS year, which is what a creator plans against.
-    out.push({ week_of: addDays(from, 364), x: w == null ? null : Math.round((w / median) * 100) / 100 });
-  }
-  if (out.filter(w => w.x != null).length < weeks / 2) return null;
-  return { weeks: out, basis: 'last year, the same weeks, compared with a normal week' };
+  const raw = [];
+  for (let i = 0; i < weeks; i++) { const from = addDays(start, i * 7); raw.push({ from, w: weekSum(from) }); }
+  const vals = raw.map(r => r.w).filter(v => v != null).sort((a, b) => a - b);
+  if (vals.length < weeks / 2) return null;
+  const median = vals[Math.floor(vals.length / 2)] || 1;
+  // The label is the date the week falls on THIS year, which is what a creator plans against.
+  const out = raw.map(r => ({ week_of: addDays(r.from, 364), x: r.w == null ? null : Math.round((r.w / median) * 100) / 100 }));
+  return { weeks: out, now_index: back, basis: 'last year, week by week, compared with a normal week' };
 }
 
 /* ---------------- public ---------------- */
@@ -309,6 +305,8 @@ export async function handleStaff(request, env, url, path, json) {
           title: clip(body.season.title, 80), line: clip(body.season.line, 400), until: clip(body.season.until, 40),
           next: clip(body.season.next, 120), highlight: Array.isArray(body.season.highlight) ? body.season.highlight.slice(0, 2).map(x => clip(x, 10)) : null,
           show_chart: body.season.show_chart !== false,
+          color: HEX_RE.test(body.season.color || '') ? body.season.color : null,
+          cap: body.season.cap ? Math.min(Math.max(+body.season.cap || 0, 1.2), 10) : null,
         }) : null) : cur.season_json,
         has('show_inspo') ? (body.show_inspo ? 1 : 0) : cur.show_inspo,
       ).run();
