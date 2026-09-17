@@ -214,3 +214,5 @@ CREATE TABLE IF NOT EXISTS p_amb_proof (
 );
 CREATE INDEX IF NOT EXISTS p_amb_proof_angle ON p_amb_proof (angle_id, sort);
 CREATE INDEX IF NOT EXISTS p_amb_proof_ad ON p_amb_proof (ad_id);
+-- Ambassadors: editable text for the one-page brief PDF, per brand (2026-09-16).
+ALTER TABLE p_amb_brand ADD COLUMN pdf_json TEXT;

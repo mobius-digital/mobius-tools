@@ -131,7 +131,7 @@ main{padding:28px 0 64px}
 .lane-t .num{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .lane-s{font-size:13px;color:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.lane-hot .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lane-hot .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .more{margin-top:12px;min-height:42px;font-size:14px}
 
 /* card */
@@ -156,6 +156,7 @@ main{padding:28px 0 64px}
 /* detail */
 .detail{padding-top:22px}
 .det{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px;align-items:start}
+.det-main{min-width:0}
 .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);min-height:36px}
 .back:hover{color:var(--ink)}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
@@ -234,7 +235,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .wrap{padding:0 24px}
   .top-grid{grid-template-columns:1fr}
   .grid,.lane-hot .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .det{grid-template-columns:1fr}
+  .grid > .ang:not([hidden]):last-of-type:nth-of-type(odd){grid-column:1 / -1}
+  .det{grid-template-columns:minmax(0,1fr)}
   .det-side{display:none}
   .only-narrow{display:flex;flex-direction:column;gap:10px;margin-top:16px}
   .only-narrow .money{margin-top:0;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:14px}

@@ -79,6 +79,7 @@ function shapeBrand(b, acct) {
     submit_platform: b.submit_platform, submit_url: b.submit_url, submit_label: b.submit_label,
     avoid: safeJson(b.avoid_json, []), rules: safeJson(b.rules_json, []), season: safeJson(b.season_json, null),
     show_inspo: !!b.show_inspo, updated_at: b.updated_at,
+    pdf: safeJson(b.pdf_json, null),
   };
 }
 
@@ -316,7 +317,7 @@ export async function handleStaff(request, env, url, path, json) {
       await env.DB.prepare(
         `UPDATE p_amb_brand SET slug=?2, live=?3, display_name=?4, intro=?5, about=?6, audience=?7, accent=?8, logo_url=?9,
            submit_platform=?10, submit_url=?11, submit_label=?12, avoid_json=?13, rules_json=?14, season_json=?15,
-           show_inspo=?16, updated_at=datetime('now') WHERE act_id=?1`,
+           show_inspo=?16, pdf_json=?17, updated_at=datetime('now') WHERE act_id=?1`,
       ).bind(acct.act_id, slug,
         has('live') ? (body.live ? 1 : 0) : cur.live,
         v('display_name', 80, cur.display_name), v('intro', 1200, cur.intro), v('about', 800, cur.about),
@@ -336,6 +337,10 @@ export async function handleStaff(request, env, url, path, json) {
             : null,
         }) : null) : cur.season_json,
         has('show_inspo') ? (body.show_inspo ? 1 : 0) : cur.show_inspo,
+        has('pdf') ? (body.pdf ? JSON.stringify({
+          line1: clip(body.pdf.line1, 60), line2: clip(body.pdf.line2, 60), intro: clip(body.pdf.intro, 400),
+          cta: clip(body.pdf.cta, 60), note: clip(body.pdf.note, 120), steps: arr(body.pdf.steps, 3, 80),
+        }) : null) : cur.pdf_json,
       ).run();
       return json(await staffPayload(env, acct));
     }

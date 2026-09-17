@@ -496,6 +496,7 @@ async function boot() {
       return;
     }
     D = j;
+    if (D.hot) D.hot.pinned = true;
     applyAccent(j.brand.accent);
     route();
   } catch (e) {

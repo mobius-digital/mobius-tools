@@ -81,6 +81,10 @@ function injectCss() {
   st.id = 'am-css';
   st.textContent = `
 .am{display:flex;flex-direction:column;gap:14px}
+#amBody{display:flex;flex-direction:column;gap:14px;min-width:0}
+.am .card{margin-bottom:0}
+.am-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.am-bar > div{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .am .am-i{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:middle}
 .am-sub{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:2px}
 .am-sub button{padding:9px 14px;font-size:13.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -120,6 +124,8 @@ function injectCss() {
 .am .am-in,.am-modal .am-in{display:block;width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;font-weight:500;color:var(--ink);background:var(--surface);max-width:none}
 .am .am-in:focus,.am-modal .am-in:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
 .am textarea.am-in,.am-modal textarea.am-in{min-height:84px;resize:vertical;line-height:1.5}
+.am textarea.am-in.grow{min-height:40px;resize:none;overflow:hidden}
+.am-list-edit .am-li .btn{height:40px}
 .am-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .am-g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .am-g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
@@ -158,7 +164,7 @@ function injectCss() {
 .am-bars div{flex:1;border-radius:3px 3px 0 0;background:#CBD5DE;min-height:3px}
 .am-bars div.hi{background:var(--brand-lo)}
 .am-empty{padding:26px;text-align:center;color:var(--muted)}
-.am-save{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 0;background:linear-gradient(180deg,transparent,var(--bg) 30%)}
+.am-save{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 16px;margin:0 -16px;background:rgba(239,244,247,.94);backdrop-filter:blur(8px);border-top:1px solid var(--line)}
 .am-msg{font-size:12.5px;color:var(--muted)}
 .am-msg.ok{color:var(--good)}.am-msg.bad{color:var(--bad)}
 .am-modal{max-width:640px !important}
@@ -230,6 +236,12 @@ async function render({ tok, url, act, accounts, pick }) {
   paint();
 }
 
+function autoGrow(root) {
+  root.querySelectorAll('textarea.am-in').forEach(t => {
+    const fit = () => { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
+    fit(); t.addEventListener('input', fit);
+  });
+}
 function paint() {
   const main = $('#main');
   const d = S.data;
@@ -263,8 +275,8 @@ function paint() {
   main.querySelectorAll('.am-sub button').forEach(b => b.onclick = () => { S.view = b.dataset.v; S.edit = null; localStorage.setItem(LS_VIEW, S.view); paint(); });
   wireStrip();
   const body = $('#amBody');
-  if (S.view === 'link') return paintLink(body);
-  if (S.edit) return paintEditor(body);
+  if (S.view === 'link') { paintLink(body); return autoGrow(body); }
+  if (S.edit) { paintEditor(body); return autoGrow(body); }
   return paintAngles(body);
 }
 
@@ -345,10 +357,10 @@ function paintAngles(body) {
     const pc = d.proof.filter(p => p.angle_id === a.id).length;
     return `<div class="am-row ${a.status === 'draft' ? 'off' : ''}" data-ang="${esc(a.id)}" draggable="true" data-list="${inHot ? 'hot' : esc(a.section_id || '')}">
       <span class="am-grip" title="Drag to reorder">${ic('grip-vertical', 16)}</span>
-      <div class="am-grow"><p class="am-t">${esc(a.title)} ${a.status === 'draft' ? '<span class="am-chip draft">Draft</span>' : ''} ${!pc ? '<span class="am-chip new">No video yet</span>' : ''}</p>
+      <div class="am-grow"><p class="am-t">${esc(a.title)} ${a.status === 'draft' ? '<span class="am-chip draft">Draft</span>' : ''}</p>
         <p class="am-s">${a.openers?.[0] ? `&ldquo;${esc(a.openers[0])}&rdquo;` : esc(a.argument || '')}</p></div>
       ${a.format ? `<span class="am-chip">${esc(a.format)}</span>` : ''}
-      <div class="am-score">${sc.ads ? `<b>${sc.ads}</b> ad${sc.ads === 1 ? '' : 's'} · <b class="g">${money(sc.revenue)}</b> · ${x2(sc.roas)}` : `${pc} example${pc === 1 ? '' : 's'}`}</div>
+      <div class="am-score">${sc.ads ? `<b>${sc.ads}</b> ad${sc.ads === 1 ? '' : 's'} · <b class="g">${money(sc.revenue)}</b> · ${x2(sc.roas)}` : pc ? `${pc} example${pc === 1 ? '' : 's'}` : '<span class="am-chip new">No video yet</span>'}</div>
       ${sw('hot_' + a.id + (inHot ? '_h' : ''), a.hot, 'Hot', `data-hottog="${esc(a.id)}"`)}
       <button class="btn" data-angedit="${esc(a.id)}">Edit</button>
     </div>`;
@@ -376,8 +388,8 @@ function paintAngles(body) {
       <div data-drop="sections" style="margin-top:8px">${secs.map(secRow).join('')}</div>
     </div>
   <div class="card" style="padding:16px 18px">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3>Angles</h3><p class="hint" style="margin:0">Scores come from the Meta ads tagged to each angle. Typed examples never count. Drag a row onto another section to move it.</p></div>
-      <button class="btn primary" id="amNew">${ic('plus', 14)} New angle</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px"><div style="flex:1;min-width:0"><h3>Angles</h3><p class="hint" style="margin:0">Scores come from tagged Meta ads. Drag a row to reorder it or move it to another section.</p></div>
+      <button class="btn primary" id="amNew" style="flex:none">${ic('plus', 14)} New angle</button></div>
     <div style="margin-top:6px">${groups.join('')}</div>
   </div>
     </div>
@@ -545,7 +557,7 @@ function paintEditor(body) {
   const fmtList = [...new Set([...FORMATS, ...d.angles.map(x => x.format).filter(Boolean)])];
   const shots = (a.shots?.length ? a.shots : [{ label: 'Open · 0 to 3s', text: '' }, { label: 'Middle', text: '' }, { label: 'Close', text: '' }]);
   body.innerHTML = `
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div class="am-bar">
     <div><button class="btn" id="amBack">${ic('arrow-left', 14)} All angles</button></div>
     <div style="display:flex;gap:8px;align-items:center">
       ${!isNew && d.brand.live ? `<a class="btn" href="${esc(PUBLIC_BASE + d.brand.slug + '#a=' + a.id)}" target="_blank" rel="noopener">${ic('eye', 14)} See it on the link</a>` : ''}
@@ -758,6 +770,33 @@ function paintLink(body) {
   <div class="am-split">
     <div style="display:flex;flex-direction:column;gap:14px">
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+        <div><h3>The season card and chart</h3><p class="hint" style="margin:0">What is in season right now. The chart shows either last year's real store sales (no dollar amounts) or a shape you draw to tell creators when to film. Clear the title to hide the card.</p></div>
+        <div class="am-f">Chart shape <small>pick Draw it yourself to shape the spikes by hand</small>
+          <div class="am-seg" id="sMode" role="group" aria-label="Chart shape">
+            <button type="button" data-m="sales">Last year's real sales</button>
+            <button type="button" data-m="custom">Draw it yourself</button>
+          </div></div>
+        <div id="sPrev"><p class="tiny">Loading last year's shape…</p></div>
+
+        <div class="am-g3">
+          <label class="am-f">Title<input class="am-in" id="sTitle" value="${esc(se.title || '')}" placeholder="Halloween party season"></label>
+          <label class="am-f">Until<input class="am-in" id="sUntil" value="${esc(se.until || '')}" placeholder="Oct 31"></label>
+          <label class="am-f">Next up<input class="am-in" id="sNext" value="${esc(se.next || '')}" placeholder="Friendsgiving and holiday parties, from Nov 1"></label>
+        </div>
+        <label class="am-f">One or two lines<textarea class="am-in" id="sLine" style="min-height:60px">${esc(se.line || '')}</textarea></label>
+        <div class="am-g3">
+          <label class="am-f">Colour the chart from <small>MM-DD</small><input class="am-in" id="sH0" value="${esc(se.highlight?.[0] || '')}" placeholder="10-01"></label>
+          <label class="am-f">to <small>MM-DD</small><input class="am-in" id="sH1" value="${esc(se.highlight?.[1] || '')}" placeholder="10-31"></label>
+          <div class="am-f">Chart<div style="min-height:38px;display:flex;align-items:center">${sw('sChart', se.show_chart !== false, 'Show the chart')}</div></div>
+        </div>
+        <div class="am-g2">
+          <div class="am-f">Season colour <small>the highlighted bars and the tag</small><div class="am-swatches" id="sSw">${['#7C3AED', '#C2410C', '#DB2777', '#0F766E', '#15803D', '#1D4ED8', '#A16207', '#475569'].map(c => `<button type="button" class="am-swatch ${(se.color || '#7C3AED').toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}<input type="color" class="am-color" id="sCol" value="${esc(se.color || '#7C3AED')}" aria-label="Any colour"></div></div>
+          <label class="am-f">Tallest bar <small>trim big spikes so the season stands out</small>
+            <select class="am-in" id="sCap">${[['', 'Show every spike in full'], ['4', 'Trim above 4x a normal week'], ['3', 'Trim above 3x'], ['2.5', 'Trim above 2.5x'], ['2', 'Trim above 2x'], ['1.6', 'Trim above 1.6x']].map(([v, t]) => `<option value="${v}" ${String(se.cap || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        </div>
+      </div>
+
+      <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <h3>The link</h3>
         <label class="am-f">Address <small>set it once. Changing it breaks the link in any PDF already uploaded.</small>
           <div style="display:flex"><span class="am-in" style="width:auto;border-radius:8px 0 0 8px;background:#F1F5F8;color:var(--muted);border-right:none;white-space:nowrap">${esc(PUBLIC_BASE.replace('https://', ''))}</span><input class="am-in" id="lSlug" style="border-radius:0 8px 8px 0;font-weight:700" value="${esc(b.slug)}"></div></label>
@@ -786,6 +825,22 @@ function paintLink(body) {
         </div>
       </div>
 
+      <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px" id="pdfCard">
+        <div><h3>Brief PDF text</h3><p class="hint" style="margin:0">What the one-page PDF says. Keep it short: what the link is and why to open it. Leave a box empty to use the default shown in grey.</p></div>
+        <div class="am-g2">
+          <label class="am-f">Headline, first line<input class="am-in" id="pL1" value="${esc(b.pdf?.line1 || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).line1)}"></label>
+          <label class="am-f">Headline, second line <small>in the brand colour</small><input class="am-in" id="pL2" value="${esc(b.pdf?.line2 || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).line2)}"></label>
+        </div>
+        <label class="am-f">Intro <small>two sentences at most</small><textarea class="am-in" id="pIntro" placeholder="${esc(pdfText({ ...b, pdf: null }).intro)}">${esc(b.pdf?.intro || '')}</textarea></label>
+        <div class="am-g2">
+          <label class="am-f">Link box heading<input class="am-in" id="pCta" value="${esc(b.pdf?.cta || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).cta)}"></label>
+          <label class="am-f">Note under the link<input class="am-in" id="pNote" value="${esc(b.pdf?.note || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).note)}"></label>
+        </div>
+        <div class="am-g3">
+          ${[0, 1, 2].map(k => `<label class="am-f">Step ${k + 1}<input class="am-in" data-pstep="${k}" value="${esc(b.pdf?.steps?.[k] || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).steps[k])}"></label>`).join('')}
+        </div>
+      </div>
+
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <div><h3 style="color:var(--bad)">Please stop filming these</h3><p class="hint" style="margin:0">A red card near the top of the link. Name the video everyone keeps sending, and say why.</p></div>
         <div class="am-list-edit" id="lAvoid">${avoid.map(x => avoidRow(x)).join('')}</div>
@@ -798,32 +853,6 @@ function paintLink(body) {
         <div><button class="btn" id="lRuleAdd" type="button">${ic('plus', 13)} Add a rule</button></div>
       </div>
 
-      <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-        <div><h3>The season card</h3><p class="hint" style="margin:0">What is in season right now. The chart shows either last year's real store sales (no dollar amounts) or a shape you draw to tell creators when to film. Clear the title to hide the card.</p></div>
-        <div class="am-g3">
-          <label class="am-f">Title<input class="am-in" id="sTitle" value="${esc(se.title || '')}" placeholder="Halloween party season"></label>
-          <label class="am-f">Until<input class="am-in" id="sUntil" value="${esc(se.until || '')}" placeholder="Oct 31"></label>
-          <label class="am-f">Next up<input class="am-in" id="sNext" value="${esc(se.next || '')}" placeholder="Friendsgiving and holiday parties, from Nov 1"></label>
-        </div>
-        <label class="am-f">One or two lines<textarea class="am-in" id="sLine" style="min-height:60px">${esc(se.line || '')}</textarea></label>
-        <div class="am-g3">
-          <label class="am-f">Colour the chart from <small>MM-DD</small><input class="am-in" id="sH0" value="${esc(se.highlight?.[0] || '')}" placeholder="10-01"></label>
-          <label class="am-f">to <small>MM-DD</small><input class="am-in" id="sH1" value="${esc(se.highlight?.[1] || '')}" placeholder="10-31"></label>
-          <div class="am-f">Chart<div style="min-height:38px;display:flex;align-items:center">${sw('sChart', se.show_chart !== false, 'Show the chart')}</div></div>
-        </div>
-        <div class="am-g2">
-          <div class="am-f">Season colour <small>the highlighted bars and the tag</small><div class="am-swatches" id="sSw">${['#7C3AED', '#C2410C', '#DB2777', '#0F766E', '#15803D', '#1D4ED8', '#A16207', '#475569'].map(c => `<button type="button" class="am-swatch ${(se.color || '#7C3AED').toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}<input type="color" class="am-color" id="sCol" value="${esc(se.color || '#7C3AED')}" aria-label="Any colour"></div></div>
-          <label class="am-f">Tallest bar <small>trim big spikes so the season stands out</small>
-            <select class="am-in" id="sCap">${[['', 'Show every spike in full'], ['4', 'Trim above 4x a normal week'], ['3', 'Trim above 3x'], ['2.5', 'Trim above 2.5x'], ['2', 'Trim above 2x'], ['1.6', 'Trim above 1.6x']].map(([v, t]) => `<option value="${v}" ${String(se.cap || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-        </div>
-        <div class="am-f">Chart shape
-          <div class="am-seg" id="sMode" role="group" aria-label="Chart shape">
-            <button type="button" data-m="sales">Last year's real sales</button>
-            <button type="button" data-m="custom">Draw it yourself</button>
-          </div></div>
-        <div id="sPrev"><p class="tiny">Loading last year's shape…</p></div>
-      </div>
-
       <div class="card" style="padding:18px 20px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h3>Inspiration from other brands</h3><p class="hint" style="margin:0">Show tiles labelled Inspiration, which open the other brand's post.</p></div>${sw('lInspo', b.show_inspo, '')}</div>
       </div>
@@ -833,7 +862,7 @@ function paintLink(body) {
       <div class="card am-pdfcard">
         <div class="am-pdf"><div class="pg grid">
           <b style="color:#0A0B0D;font-size:11px">${esc(b.display_name)}</b>
-          <b style="color:#0A0B0D;font-size:19px;line-height:1.05;margin-top:10px">Every angle.<br><span style="color:${esc(b.accent || '#3B82F6')}">One link.</span></b>
+          <b style="color:#0A0B0D;font-size:17px;line-height:1.1;margin-top:10px">${esc(pdfText(b).line1)}<br><span style="color:${esc(b.accent || '#3B82F6')}">${esc(pdfText(b).line2)}</span></b>
           <div class="ln"></div><div class="ln" style="width:75%"></div>
           <div style="display:flex;gap:8px;align-items:center;padding:8px;border-radius:7px;background:#fff;border:1px solid #DFE3E9;margin-top:4px"><span id="lQr" style="width:46px;height:46px;background:#fff;border-radius:4px;display:block;flex:none"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ln" style="width:60%"></div><div style="height:12px;border-radius:4px;background:${esc(b.accent || '#3B82F6')}"></div></div></div>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:4px">${'<div style="height:18px;border-radius:4px;background:#fff;border:1px solid #DFE3E9"></div>'.repeat(4)}</div>
@@ -853,8 +882,8 @@ function paintLink(body) {
   const syncSw = () => body.querySelectorAll('#lSw .am-swatch').forEach(x => x.classList.toggle('on', x.dataset.c.toLowerCase() === accent.toLowerCase()));
   body.querySelectorAll('#lSw .am-swatch').forEach(x => x.onclick = () => { accent = x.dataset.c; $('#lAcc').value = accent; syncSw(); });
   $('#lAcc').oninput = e => { accent = e.target.value.toUpperCase(); syncSw(); };
-  $('#lAvoidAdd').onclick = () => $('#lAvoid').insertAdjacentHTML('beforeend', avoidRow({}));
-  $('#lRuleAdd').onclick = () => $('#lRules').insertAdjacentHTML('beforeend', ruleRow(''));
+  $('#lAvoidAdd').onclick = () => { $('#lAvoid').insertAdjacentHTML('beforeend', avoidRow({})); autoGrow($('#lAvoid')); };
+  $('#lRuleAdd').onclick = () => { $('#lRules').insertAdjacentHTML('beforeend', ruleRow('')); autoGrow($('#lRules')); };
   body.addEventListener('click', e => { const r = e.target.closest('[data-rm]'); if (r) r.closest('.am-li').remove(); });
   $('#lQrDl').onclick = () => qrPng().catch(err => helpModal('Could not make the QR code', `<p>${esc(err.message)}</p>`));
   $('#lPdf').onclick = () => makePdf().catch(err => helpModal('Could not build the PDF', `<p>${esc(err.message)}</p>`));
@@ -992,6 +1021,11 @@ function paintLink(body) {
       submit_platform: $('#lPlat').value.trim() || 'TRYBE', submit_url: $('#lSubmit').value.trim(), submit_label: $('#lBtn').value.trim(),
       logo_url: $('#lLogo').value.trim(), accent, intro: $('#lIntro').value.trim(), about: $('#lAbout').value.trim(), audience: $('#lAud').value.trim(),
       avoid: avoidOut, rules: rulesOut, show_inspo: $('#lInspo').checked,
+      pdf: {
+        line1: $('#pL1').value.trim(), line2: $('#pL2').value.trim(), intro: $('#pIntro').value.trim(),
+        cta: $('#pCta').value.trim(), note: $('#pNote').value.trim(),
+        steps: [0, 1, 2].map(k => body.querySelector(`[data-pstep="${k}"]`).value.trim()),
+      },
       season: title ? { title, until: $('#sUntil').value.trim(), next: $('#sNext').value.trim(), line: $('#sLine').value.trim(), highlight: [$('#sH0').value.trim(), $('#sH1').value.trim()], show_chart: $('#sChart').checked, color: body._sColor ? body._sColor() : null, cap: +$('#sCap').value || null, mode: body._mode, custom: body._custom } : null,
     };
     if (payload.slug !== b.slug && !(await confirmModal('Change the link address?', 'Any PDF or message that already has the old link will stop working.', 'Change it'))) return;
@@ -999,10 +1033,23 @@ function paintLink(body) {
     catch (e) { flashMsg($('#lMsg'), e.message, false); }
   };
 }
-const avoidRow = x => `<div class="am-li"><input class="am-in" data-at value="${esc(x.title || '')}" placeholder="What to stop filming"><input class="am-in" data-aw value="${esc(x.why || '')}" placeholder="Why, in one line"><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
-const ruleRow = x => `<div class="am-li one"><input class="am-in" data-r value="${esc(x || '')}" placeholder="e.g. Say 'for a better next day', never 'cures hangovers'"><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
+const avoidRow = x => `<div class="am-li"><textarea class="am-in grow" rows="1" data-at placeholder="What to stop filming">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-aw placeholder="Why, in one line">${esc(x.why || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
+const ruleRow = x => `<div class="am-li one"><textarea class="am-in grow" rows="1" data-r placeholder="e.g. Say 'for a better next day', never 'cures hangovers'">${esc(x || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
 
 /* ---------- PDF + QR ---------- */
+const pdfText = b => {
+  const t = b.pdf || {};
+  const plat = b.submit_platform || 'TRYBE';
+  const steps = (t.steps && t.steps.length === 3) ? t.steps : ['Open the link and pick an idea', 'Film it your way, starting with the opener', `Submit it on ${plat} with the idea's name`];
+  return {
+    line1: t.line1 || `${b.display_name} creators,`,
+    line2: t.line2 || 'start here.',
+    intro: t.intro || `Everything we want you to film for ${b.display_name} lives on one page that updates on its own.`,
+    cta: t.cta || 'Open the creator hub',
+    note: t.note || 'Opens on your phone. No login needed.',
+    steps,
+  };
+};
 function loadScript(src) {
   return new Promise((res, rej) => {
     if (document.querySelector(`script[src="${src}"]`)) return res();
@@ -1036,6 +1083,7 @@ async function makePdf() {
   const acc = hexRgb(b.accent || '#3B82F6');
   const BG = [247, 248, 250], PANEL = [255, 255, 255], EDGE = [223, 227, 233], TXT = [10, 11, 13], SUB = [95, 100, 114], DIM = [139, 144, 156];
   const op = o => doc.setGState(new doc.GState({ opacity: o, 'stroke-opacity': o }));
+  const T = pdfText(b);
 
   // Ground: light paper, a faint grid, one soft glow in the brand colour.
   doc.setFillColor(...BG); doc.rect(0, 0, W, H, 'F');
@@ -1056,13 +1104,17 @@ async function makePdf() {
 
   // Headline
   y += 86;
-  doc.setFontSize(46); doc.setTextColor(...TXT);
-  doc.text('Every angle.', M, y);
+  // Two short lines; long ones step the size down so they never run off the page.
+  let hs = 44;
+  doc.setFont('helvetica', 'bold');
+  while (hs > 26 && Math.max(doc.setFontSize(hs).getTextWidth(T.line1), doc.getTextWidth(T.line2)) > W - 2 * M) hs -= 2;
+  doc.setFontSize(hs); doc.setTextColor(...TXT);
+  doc.text(T.line1, M, y);
   doc.setTextColor(...acc);
-  doc.text('One link.', M, y + 48);
-  y += 84;
+  doc.text(T.line2, M, y + hs * 1.05);
+  y += hs * 1.05 + 36;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11.5); doc.setTextColor(...SUB);
-  const intro = `Everything we want you to film for ${b.display_name} lives on one page that updates itself: what is hot this week, what is in season, openers to copy, shot plans and real examples.`;
+  const intro = T.intro;
   const it = doc.splitTextToSize(intro, W - 2 * M - 40);
   doc.text(it, M, y); y += it.length * 15 + 26;
 
@@ -1076,10 +1128,10 @@ async function makePdf() {
   doc.link(M + 24, y + 28, qs, qs, { url });
   const tx = M + 24 + qs + 28, tw = W - M - 24 - tx;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...SUB); doc.setCharSpace(1.6);
-  doc.text('OPEN THE ANGLE HUB', tx, y + 44);
+  doc.text(T.cta.toUpperCase(), tx, y + 44);
   doc.setCharSpace(0);
   doc.setFontSize(19); doc.setTextColor(...TXT);
-  doc.text('Click the link', tx, y + 72);
+  doc.text('Tap the link', tx, y + 72);
   doc.text('or scan the code', tx, y + 96);
   // The link itself, as a button
   const by = y + 116, bh = 38;
@@ -1092,7 +1144,7 @@ async function makePdf() {
   doc.line(ax - 8, ay, ax + 4, ay); doc.line(ax, ay - 4, ax + 4, ay); doc.line(ax, ay + 4, ax + 4, ay);
   doc.link(tx, by, tw, bh, { url });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...DIM);
-  doc.text('Opens on your phone. No login. Always up to date.', tx, by + bh + 20);
+  doc.text(doc.splitTextToSize(T.note, tw)[0], tx, by + bh + 20);
   y += ph + 30;
 
   // What is inside: four small tiles
@@ -1115,7 +1167,7 @@ async function makePdf() {
   doc.text('HOW IT WORKS', M, y);
   doc.setCharSpace(0);
   y += 22;
-  const steps = ['Open the link and pick an angle', 'Film it with the opener and shot plan', `Submit on ${plat} with the angle name`];
+  const steps = T.steps;
   const sw2 = (W - 2 * M) / 3;
   steps.forEach((t, i) => {
     const sx = M + i * sw2;
