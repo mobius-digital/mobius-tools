@@ -809,7 +809,7 @@ function paintLink(body) {
 
     <div style="display:flex;flex-direction:column;gap:14px">
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-        <div><h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3><p class="hint" style="margin:0">One page. It explains the link instead of listing angles, so the copy you upload never goes out of date. Rebuild it only if the logo, colour, intro or stop list changes.</p></div>
+        <div><h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3><p class="hint" style="margin:0">Lists every live angle, each one tappable, under a big tap-or-scan box that opens the full brief. The link is always current; the list is a snapshot dated on the page, so download a fresh copy for TRYBE when you add or switch angles.</p></div>
         <div class="am-pdf"><div class="pg">
           <b style="color:${esc(b.accent || '#13202B')};font-size:14px">${esc(b.display_name)}</b>
           <b style="font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.05">Everything you need is at one link</b>
@@ -896,85 +896,147 @@ async function qrPng() {
 }
 async function makePdf() {
   await loadScript(JSPDF_URL);
-  const b = S.data.brand;
+  const d = S.data, b = d.brand;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  const W = 612, M = 54;
-  const acc = hexRgb(b.accent || '#13202B');
-  let ink = acc; for (let i = 0; i < 14 && 1.05 / (lum(ink) + .05) < 5; i++) ink = mix(ink, [0, 0, 0], .08);
-  const soft = mix(acc, [255, 255, 255], .88);
+  const W = 612, H = 792, M = 46;
   const url = PUBLIC_BASE + b.slug;
-  let y = M + 6;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...ink);
-  doc.text(b.display_name || '', M, y + 12);
-  doc.setFontSize(9); doc.setTextColor(91, 109, 123);
-  doc.text('CREATOR BRIEF', W - M, y + 10, { align: 'right' });
-  y += 58;
-  doc.setFont('times', 'normal'); doc.setFontSize(34); doc.setTextColor(19, 32, 43);
-  const head = doc.splitTextToSize('Everything you need is at one link', W - 2 * M);
-  doc.text(head, M, y); y += head.length * 36 + 4;
+  const inkOf = hx => { let c = hexRgb(hx); for (let i = 0; i < 14 && 1.05 / (lum(c) + .05) < 5; i++) c = mix(c, [0, 0, 0], .08); return c; };
+  const acc = inkOf(b.accent || '#13202B');
+  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const INK = [19, 32, 43], INK2 = [58, 75, 88], MUTED = [91, 109, 123], FAINT = [122, 139, 151];
+  const clip1 = (t, w, size) => { doc.setFontSize(size); const l = doc.splitTextToSize(t, w); return l.length > 1 ? l[0].replace(/[\s,.;:]+$/, '') + '...' : l[0]; };
+  let page = 1;
+  const foot = () => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...FAINT);
+    doc.text(`${b.display_name} creator brief · ${today}`, M, H - 26);
+    doc.text(`Page ${page} · Powered by Mobius Digital`, W - M, H - 26, { align: 'right' });
+  };
+  const newPage = label => {
+    foot(); doc.addPage(); page++;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...MUTED);
+    doc.text(label, M, M + 4);
+    return M + 22;
+  };
+
+  // Header
+  let y = M + 8;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...acc);
+  doc.text(b.display_name || '', M, y + 10);
+  doc.setFontSize(8.5); doc.setTextColor(...MUTED);
+  doc.text(`CREATOR BRIEF · UPDATED ${today.toUpperCase()}`, W - M, y + 8, { align: 'right' });
+  y += 50;
+  doc.setFont('times', 'normal'); doc.setFontSize(34); doc.setTextColor(...INK);
+  doc.text('Your angle list', M, y);
+  y += 20;
   if (b.intro) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(11.5); doc.setTextColor(58, 75, 88);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK2);
     const t = doc.splitTextToSize(b.intro, W - 2 * M);
-    doc.text(t, M, y); y += t.length * 15 + 14;
+    doc.text(t, M, y); y += t.length * 13.5 + 12;
   }
-  // link box
-  const boxH = 132;
-  doc.setFillColor(...soft); doc.roundedRect(M, y, W - 2 * M, boxH, 10, 10, 'F');
-  doc.setFillColor(255, 255, 255); doc.roundedRect(M + 16, y + 14, 104, 104, 6, 6, 'F');
-  doc.addImage(await qrData(6), 'GIF', M + 20, y + 18, 96, 96);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...ink);
-  doc.text('SCAN OR TAP', M + 140, y + 38);
-  doc.setFontSize(15); doc.setTextColor(19, 32, 43);
-  const ut = doc.splitTextToSize(url.replace('https://', ''), W - 2 * M - 160);
-  doc.textWithLink(ut[0], M + 140, y + 60, { url });
-  if (ut[1]) doc.textWithLink(ut[1], M + 140, y + 78, { url });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(58, 75, 88);
-  doc.text('Opens on your phone. No login. Always current.', M + 140, y + (ut[1] ? 100 : 84));
-  y += boxH + 26;
-  // what is there
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(91, 109, 123);
-  doc.text('WHAT YOU WILL FIND THERE', M, y); y += 16;
-  const items = [
-    ['Hot right now', 'The angles we are pushing hardest this week.'],
-    ['In season', 'What sells right now, and when it ends.'],
-    ['Always works', 'Angles that sell every month of the year.'],
-    ['Openers to steal', 'First lines, word for word, for every angle.'],
-    ['What to film', 'A shot by shot plan for each angle.'],
-    ['Proof', 'Real videos made on each angle, to play.'],
-  ];
-  const colW = (W - 2 * M - 24) / 2;
-  items.forEach((it, i) => {
-    const cx = M + (i % 2) * (colW + 24), cy = y + Math.floor(i / 2) * 40;
-    doc.setFillColor(...ink); doc.circle(cx + 4, cy + 4, 3, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(19, 32, 43); doc.text(it[0], cx + 14, cy + 8);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(58, 75, 88); doc.text(doc.splitTextToSize(it[1], colW - 14), cx + 14, cy + 22);
+
+  // The call to action: solid brand colour, impossible to miss.
+  const boxH = 162, boxY = y;
+  doc.setFillColor(...acc); doc.roundedRect(M, boxY, W - 2 * M, boxH, 12, 12, 'F');
+  doc.setFillColor(255, 255, 255); doc.roundedRect(M + 16, boxY + 22, 118, 118, 8, 8, "F");
+  doc.addImage(await qrData(6), "GIF", M + 21, boxY + 27, 108, 108);
+  const tx = M + 152;
+  doc.setTextColor(255, 255, 255); doc.setFillColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+  doc.text('EVERY ANGLE BELOW, IN FULL', tx, boxY + 32);
+  doc.setFontSize(19);
+  doc.text('Tap here or scan to open', tx, boxY + 56);
+  doc.text('the full brief', tx, boxY + 78);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  ['Openers to copy, word for word', 'A shot-by-shot plan for each angle', 'Real example videos to watch'].forEach((s, i) => {
+    doc.circle(tx + 3, boxY + 95 + i * 14, 1.6, 'F');
+    doc.text(s, tx + 10, boxY + 98 + i * 14);
   });
-  y += Math.ceil(items.length / 2) * 40 + 12;
-  // stop list
-  if (b.avoid?.length) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(156, 58, 46);
-    doc.text('PLEASE STOP FILMING THESE', M, y); y += 15;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(58, 75, 88);
-    for (const a of b.avoid.slice(0, 5)) {
-      const t = doc.splitTextToSize(`• ${a.title}`, W - 2 * M);
-      if (y + t.length * 13 > 700) break;
-      doc.text(t, M, y); y += t.length * 13 + 3;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  doc.text(url.replace('https://', '') + '  >', W - M - 16, boxY + boxH - 14, { align: 'right' });
+  doc.link(M, boxY, W - 2 * M, boxH, { url });
+  y = boxY + boxH + 28;
+
+  // The angle list: Hot first, then every switched-on section, no repeats.
+  const sections = d.sections.filter(s => s.enabled);
+  const live = d.angles.filter(a => a.status === 'live');
+  const hotSec = sections.find(s => s.pinned);
+  const groups = [];
+  const shown = new Set();
+  if (hotSec) {
+    const hot = live.filter(a => a.hot).sort((p, q) => p.hot_sort - q.hot_sort);
+    if (hot.length) { groups.push({ s: hotSec, list: hot }); hot.forEach(a => shown.add(a.id)); }
+  }
+  for (const s of sections.filter(x => !x.pinned)) {
+    const list = live.filter(a => a.section_id === s.id && !shown.has(a.id)).sort((p, q) => p.sort - q.sort);
+    if (list.length) groups.push({ s, list });
+  }
+  const total = groups.reduce((t, g) => t + g.list.length, 0);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...INK);
+  doc.text(`The angles (${total})`, M, y);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...MUTED);
+  doc.text('Tap any angle to open its openers, shot plan and examples.', W - M, y, { align: 'right' });
+  y += 18;
+
+  const gap = 22, colW = (W - 2 * M - gap) / 2, bottom = H - 50;
+  let col = 0, n = 0, colTop = y, cy = y, maxY = y;
+  const cx = () => M + col * (colW + gap);
+  const need = h => {
+    if (cy + h <= bottom) return;
+    maxY = Math.max(maxY, cy);
+    if (col === 0) { col = 1; cy = colTop; return; }
+    colTop = newPage(`${(b.display_name || '').toUpperCase()} · THE ANGLES, CONTINUED`);
+    col = 0; cy = colTop; maxY = colTop;
+  };
+  for (const g of groups) {
+    const c = hexRgb(g.s.color || '#475569');
+    const ink = inkOf(g.s.color || '#475569');
+    need(62);
+    doc.setFillColor(...mix(c, [255, 255, 255], .86)); doc.roundedRect(cx(), cy, colW, 22, 5, 5, 'F');
+    doc.setFillColor(...ink); doc.rect(cx(), cy, 4, 22, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...ink);
+    doc.text(g.s.name, cx() + 12, cy + 14.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text(`${g.list.length} angle${g.list.length === 1 ? '' : 's'}`, cx() + colW - 8, cy + 14.5, { align: 'right' });
+    cy += 32;
+    for (const a of g.list) {
+      need(32);
+      n++;
+      const x = cx();
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...INK);
+      doc.text(`${n}.`, x, cy + 8);
+      doc.text(clip1(a.title, colW - 26, 10.5), x + 20, cy + 8);
+      const op = (a.openers || [])[0];
+      if (op) {
+        doc.setFont('helvetica', 'italic'); doc.setTextColor(...MUTED);
+        doc.text(clip1(`"${op}"`, colW - 26, 9), x + 20, cy + 20);
+      }
+      doc.link(x, cy - 3, colW, op ? 28 : 16, { url: `${url}#a=${a.id}` });
+      cy += op ? 32 : 20;
     }
-    y += 10;
+    cy += 8;
   }
-  // how it works
-  if (y < 690) {
-    doc.setDrawColor(223, 231, 236); doc.line(M, y, W - M, y); y += 18;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(91, 109, 123);
-    doc.text('HOW IT WORKS', M, y); y += 15;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(19, 32, 43);
-    const how = `1. Open the link and pick an angle.   2. Film it with the opener and shot plan.   3. Submit on ${b.submit_platform || 'TRYBE'} with the angle name in your note.`;
-    doc.text(doc.splitTextToSize(how, W - 2 * M), M, y);
+  maxY = Math.max(maxY, cy);
+
+  // Stop list and how it works, below the longer column.
+  const avoid = (b.avoid || []).slice(0, 6);
+  const avoidH = avoid.length ? 34 + avoid.length * 14 : 0;
+  y = (col === 1 ? maxY : cy) + 6;
+  if (y + avoidH + 70 > bottom) y = newPage(`${(b.display_name || '').toUpperCase()} · BEFORE YOU FILM`);
+  if (avoid.length) {
+    doc.setFillColor(247, 231, 228); doc.roundedRect(M, y, W - 2 * M, avoidH, 10, 10, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(156, 58, 46);
+    doc.text('Please stop filming these', M + 16, y + 20);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...INK2);
+    avoid.forEach((a, i) => doc.text(clip1(`x   ${a.title}`, W - 2 * M - 32, 9.5), M + 16, y + 38 + i * 14));
+    y += avoidH + 20;
   }
-  doc.setFontSize(9); doc.setTextColor(122, 139, 151);
-  doc.text(`${b.display_name} creator program on ${b.submit_platform || 'TRYBE'}`, M, 760);
-  doc.text('Powered by Mobius Digital', W - M, 760, { align: 'right' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...MUTED);
+  doc.text('HOW IT WORKS', M, y); y += 15;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...INK);
+  const how = `1. Open the link and pick an angle.   2. Film it with the opener and shot plan.   3. Submit on ${b.submit_platform || 'TRYBE'} with the angle name in your note.`;
+  doc.text(doc.splitTextToSize(how, W - 2 * M), M, y);
+  foot();
   doc.save(`${b.slug}-creator-brief.pdf`);
 }
 
