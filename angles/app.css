@@ -38,8 +38,12 @@ svg.i{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke
 .btn-sm{min-height:36px;padding:0 14px;font-size:13px}
 .btn-full{width:100%;min-height:48px;font-size:15px}
 .btn.is-off{background:var(--chip);color:var(--muted);border-color:transparent;cursor:default}
-.tag{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;line-height:1.6;font-variation-settings:"wdth" 104;background:var(--t-soft,var(--chip));color:var(--t-ink,var(--muted));max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tag{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;line-height:1.6;font-variation-settings:"wdth" 104;background:linear-gradient(135deg,var(--t-soft,var(--chip)),var(--t-soft2,var(--chip)));color:var(--t-ink,var(--muted));max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tag-chip{background:var(--chip);color:var(--muted)}
+/* A chip you can tap to filter by it. Quiet until you hover: it is a label first
+   and a control second. */
+.tag.tap{cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}
+.tag.tap:hover{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
 .tag-green{background:var(--greensoft);color:var(--green)}
 .tag-acc{background:var(--acc-soft);color:var(--acc-ink)}
 .pill{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line2);background:var(--card);font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
@@ -137,8 +141,10 @@ main{padding:28px 0 64px}
 /* card */
 .ang{padding:18px 20px 16px;display:flex;flex-direction:column;gap:10px;min-width:0;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .ang:hover{border-color:var(--line2);box-shadow:0 10px 26px -18px rgba(10,11,13,.35)}
-.ang-top{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
-.ang-top .meta{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ang-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+/* A product name the team typed long wraps inside the card. Cutting it with an
+   ellipsis hides the one thing the chip exists to say. */
+.ang-top .tag-chip{white-space:normal;max-width:100%}
 .ang-title{font-size:19px;display:block}
 .ang-title:hover{text-decoration:underline;text-underline-offset:3px}
 .ang-line{font-size:13.5px;color:var(--muted)}

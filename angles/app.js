@@ -70,7 +70,7 @@ function applyAccent(hex) {
 /** One section colour becomes a tag, a badge and a lane edge. */
 const toneVars = hex => {
   const rgb = hexToRgb(hex) || [95, 100, 114];
-  return `--t:${toHex(rgb)};--t-ink:${toHex(darkenTo(rgb, 5))};--t-soft:rgba(${rgb.join(',')},.12);--t-line:rgba(${rgb.join(',')},.32)`;
+  return `--t:${toHex(rgb)};--t-ink:${toHex(darkenTo(rgb, 5))};--t-soft:rgba(${rgb.join(',')},.17);--t-soft2:rgba(${rgb.join(',')},.05);--t-line:rgba(${rgb.join(',')},.32)`;
 };
 
 /* ---------- data ---------- */
@@ -78,6 +78,45 @@ const lanes = () => [D.hot, ...D.sections].filter(s => s && s.angles.length);
 const uniq = () => { const seen = new Set(); return lanes().flatMap(s => s.angles).filter(a => !seen.has(a.id) && seen.add(a.id)); };
 const findAngle = id => uniq().find(a => a.id === id);
 const sectionOf = a => D.sections.find(s => s.id === a.section_id);
+/* `products` is free text the team types, so the card has to tidy it:
+   "Muni belts (The Last Loop, Beach Club, ...)"        -> "Muni belts"
+   "Koozies, ball markers, divot tools, towels"         -> "Koozies +3"
+   The angle's own page still shows the full string, untouched. */
+function shortProd(p) {
+  const t = String(p || '').split('(')[0].trim().replace(/[,;]\s*$/, '');
+  if (t.length <= 20) return t;
+  // A list, however it was punctuated: "a, b and c" / "a or b" / "a + b" -> "a +2".
+  const parts = t.split(/\s*[,+]\s*|\s+and\s+|\s+or\s+/i).map(x => x.trim()).filter(Boolean);
+  if (parts.length < 2) return t;
+  // "Fall drops: Brown Chunkman, Espresso Martini, ..." -> "Fall drops +3":
+  // when the list already carries its own label, that label IS the short name.
+  const head = parts[0].includes(':') ? parts[0].split(':')[0].trim() : parts[0];
+  return `${head} +${parts.length - 1}`;
+}
+/* The value the team put on MOST of this brand's angles is its default - "Any
+   Dartee belt", "Party Patch", "Grunk Dolfer polos" - which is another way of
+   saying "our product". On every card it is noise, so only the ones that name
+   something specific get a chip. */
+/* "The Muni" the group and "Muni belts" the product are the same fact twice.
+   Compare them stripped down to letters and drop the chip if either swallows
+   the other, so a product chip only ever ADDS something. */
+const bare = t => String(t || '').toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '');
+function sameThing(p, name) {
+  const a = bare(p), b = bare(name);
+  return !!a && !!b && (a.includes(b) || b.includes(a));
+}
+/* Words the team types when the answer is "no particular product". They are
+   not products, so they never become a chip. */
+const VAGUE = new Set(['everything', 'all', 'any', 'anything', 'allproducts', 'various', 'na', 'none']);
+let _defProd = null;
+function defaultProd() {
+  if (_defProd === null) {
+    const c = {};
+    for (const a of uniq()) { const p = shortProd(a.products); if (p) c[p] = (c[p] || 0) + 1; }
+    _defProd = Object.entries(c).sort((x, y) => y[1] - x[1])[0]?.[0] || '';
+  }
+  return _defProd;
+}
 const fmtViews = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
 const platformOf = u => /tiktok/i.test(u) ? 'TikTok' : /instagram/i.test(u) ? 'Instagram' : /facebook|fb\.watch/i.test(u) ? 'Facebook' : /youtu/i.test(u) ? 'YouTube' : 'the web';
 const plat = () => D.brand.submit_platform || 'TRYBE';
@@ -248,17 +287,24 @@ function aboutCard() {
 
 /* ---------- list ---------- */
 function card(a, lane) {
-  const own = sectionOf(a);
-  const inHot = lane && lane.pinned;
-  const t = inHot ? D.hot : own;
-  const meta = [inHot && own ? own.name : '', a.format].filter(Boolean).join(' · ');
+  /* The colour chip is ALWAYS the angle's own group, never the lane it is being
+     shown in: inside Hot right now the lane header already says Hot, so
+     repeating it there costs a chip and tells the creator nothing. */
+  const own = sectionOf(a) || (lane && !lane.pinned ? lane : null);
+  const p = shortProd(a.products);
+  const chips = [
+    own ? `<span class="tag" style="${toneVars(own.color)}">${svgI(own.icon_svg, 12)}${esc(own.name)}</span>` : '',
+    a.format ? `<button class="tag tag-chip tap" data-fmt="${esc(a.format)}" title="Show only ${esc(a.format)}">${esc(a.format)}</button>` : '',
+    p && p !== defaultProd() && !VAGUE.has(bare(p)) && !(own && sameThing(p, own.name))
+      ? `<span class="tag tag-chip" title="${esc(a.products)}">${esc(p)}</span>` : '',
+  ].filter(Boolean).join('');
   const n = a.proof.length;
   const score = [
     n ? `<span><b>${n}</b> example${n === 1 ? '' : 's'}</span>` : `<span class="fresh">${ic('sparkles', 13)}New idea, be the first</span>`,
     a.ads ? `<span><b>${a.ads}</b> ran as ads</span>` : '',
   ].join('');
   return `<article class="card ang" data-open="${esc(a.id)}">
-    <div class="ang-top">${t ? `<span class="tag" style="${toneVars(t.color)}">${svgI(t.icon_svg, 12)}${esc(t.name)}</span>` : '<span></span>'}<span class="meta">${esc(meta)}</span></div>
+    <div class="ang-top">${chips}</div>
     <a class="disp ang-title" href="#a=${esc(a.id)}">${esc(a.title)}</a>
     ${a.openers?.[0] ? `<p class="hook">&ldquo;${esc(a.openers[0])}&rdquo;</p>` : ''}
     ${a.argument ? `<p class="ang-line">${esc(a.argument)}</p>` : ''}
@@ -322,7 +368,7 @@ function renderList() {
   ${footer()}`;
 
   app.querySelectorAll('[data-sec]').forEach(p => p.onclick = () => { F.sec = p.dataset.sec; rerender(); });
-  app.querySelectorAll('[data-fmt]').forEach(p => p.onclick = () => { F.fmt = p.dataset.fmt; rerender(); });
+  app.querySelectorAll('[data-fmt]').forEach(p => p.onclick = () => { F.fmt = F.fmt === p.dataset.fmt ? 'all' : p.dataset.fmt; rerender(); });
   app.querySelector('[data-reset]')?.addEventListener('click', () => { F.sec = 'all'; F.fmt = 'all'; rerender(); });
   app.querySelectorAll('[data-more]').forEach(btn => btn.onclick = () => { btn.closest('.lane').querySelectorAll('[hidden]').forEach(x => x.hidden = false); btn.remove(); });
   app.querySelectorAll('[data-open]').forEach(c => c.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = 'a=' + c.dataset.open; }));
