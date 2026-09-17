@@ -730,6 +730,18 @@ function heldReceiptMatch(rows, vendor, amount, date) {
 const askHelpers = () => ({ slack, getSetting, putSetting, safeJson, sendStatement,
                             centralDate, monthOf, monthStatus, bucketFor, learnDefault });
 
+/* A thread Cole has mentioned the bot in stays open for follow-ups, so he can
+ * keep talking in it without @-ing every line. The mark is what separates a
+ * conversation from the rest of the channel: a receipt thread he never
+ * addressed the bot in is still just a receipt thread, and his replies in it
+ * are not questions. */
+const askThreadKey = (channel, ts) => `askthread:${channel}:${ts}`;
+const openAskThread = (env, channel, ts) => env.DB.prepare(
+  "INSERT OR IGNORE INTO ledger_jobs(id,kind,payload,status) VALUES(?1,'ask-thread',?2,'done')")
+  .bind(askThreadKey(channel, ts), JSON.stringify({ channel, ts, at: new Date().toISOString() })).run();
+const askThreadIsOpen = async (env, channel, ts) => !!(await env.DB
+  .prepare("SELECT 1 AS x FROM ledger_jobs WHERE id = ?1").bind(askThreadKey(channel, ts)).first());
+
 async function askGate(env, body, ev) {
   /* Slack retries any event it did not get a 200 for inside 3 seconds, and an
    * AI answer takes longer than that — we always ack instantly, so a retry
@@ -753,6 +765,18 @@ async function askGate(env, body, ev) {
     return { skipped: 'owner unknown' };
   }
   if (ev.user !== owner) return { skipped: 'not the owner' };
+
+  const mentioned = ev.type === 'app_mention';
+  const dm = ev.channel_type === 'im';
+  if (mentioned) {
+    // whichever thread this mention is in is now a conversation, including a
+    // receipt thread he has just pulled the bot into
+    await openAskThread(env, ev.channel, ev.thread_ts || ev.ts);
+  } else if (!dm) {
+    if (!ev.thread_ts) return { skipped: 'not in a thread' };
+    if (!(await askThreadIsOpen(env, ev.channel, ev.thread_ts)))
+      return { skipped: 'thread was never addressed to the bot' };
+  }
   return answerAsk(env, ev, askHelpers());
 }
 
@@ -2658,13 +2682,17 @@ export default {
       const ev = body.event || {};
       if ((ev.files || []).length || ev.subtype === 'file_share')
         ctx.waitUntil(processSlackReceipts(env).catch(e => console.log('slack event: ' + e.message)));
-      /* Ask the ledger. A question is a plain text message: either an @mention
-       * in the receipts channel or a DM to the bot. Anything carrying files is
-       * a receipt and belongs to the branch above, edits and joins carry a
-       * subtype, and bot posts (including our own answers) are skipped — so
-       * normal channel chatter never reaches the API and never costs a cent. */
-      const isAsk = !ev.bot_id && !ev.subtype && !(ev.files || []).length && !!ev.user
-        && (ev.type === 'app_mention' || (ev.type === 'message' && ev.channel_type === 'im'));
+      /* Ask the ledger. A question is a plain text message in one of three
+       * places: an @mention anywhere, a DM, or a reply inside a thread he has
+       * already mentioned the bot in (askGate checks that mark — everything
+       * else in the channel is somebody else's thread). Anything carrying
+       * files is a receipt and belongs to the branch above, edits and joins
+       * carry a subtype, and bot posts (our own answers included) are skipped,
+       * so ordinary channel chatter never reaches the API or costs a cent. */
+      const plain = !ev.bot_id && !(ev.files || []).length && !!ev.user
+        && (!ev.subtype || ev.subtype === 'thread_broadcast');
+      const isAsk = plain && (ev.type === 'app_mention' || (ev.type === 'message'
+        && (ev.channel_type === 'im' || (ev.thread_ts && ev.thread_ts !== ev.ts))));
       if (isAsk) ctx.waitUntil(askGate(env, body, ev).catch(e => console.log('ask: ' + e.message)));
       return json({ ok: true });
     }
