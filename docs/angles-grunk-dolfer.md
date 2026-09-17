@@ -205,7 +205,7 @@ Sources: 493 Grunk reviews, 1,000 Bad Birdie and 1,000 Pins & Aces reviews, Trus
 - **Hot right now pushes:** the new fall drops, the Den Caddy with a free polo, and holiday gifting early.
 - **Offer:** Black Friday / Cyber Monday is **BOGO + 30% off sitewide**. Creators only say it in BFCM videos; otherwise "check the site for the current deal".
 - **Crude products:** both the Tittees hats and "Donde Esta La Cart Girl" are fine to film.
-- Still open: free shipping threshold ($125 cart vs $150 footer), so creators do not quote it.
+- **Free shipping:** creators never mention it (Cole is not sure of the threshold).
 
 ---
 
@@ -273,7 +273,7 @@ Angles with no tagged ad show "be the first" on the link.
 
 **Please stop filming these:** a product held up at a wall or shelf with nothing else happening; hat videos that talk about polos; stiff posed shots; opening on another brand's shirt; shotgunning, chugging or anyone who looks drunk; reading the product page out loud.
 
-**Wording rules:** only the site's claims (soft, 4-way stretch, moisture-wicking, breathable, wrinkle-resistant, relaxed dad bod fit); never UPF, sun protection, stain-proof or beer-proof on a polo; never say HYDR18 prevents or cures hangovers; sizes S to 4XL on every polo, 5XL on many (check first); BFCM offer only in BFCM videos; no free shipping amount; 21+ on screen with alcohol, no drinking and driving (carts included); print up close and named; vertical, sound on; consent from everyone filmed.
+**Wording rules:** only the site's claims (soft, 4-way stretch, moisture-wicking, breathable, wrinkle-resistant, relaxed dad bod fit); never UPF, sun protection, stain-proof or beer-proof on a polo; never say HYDR18 prevents or cures hangovers; sizes S to 4XL on every polo, 5XL on many (check first); BFCM offer only in BFCM videos; never mention free shipping; 21+ on screen with alcohol, no drinking and driving (carts included); print up close and named; vertical, sound on; consent from everyone filmed.
 
 **Season card:** "Fall golf season" until Nov 25, highlight Sep 15 to Nov 25, colour #B45309, next up Black Friday (BOGO + 30% off sitewide) and holiday gifting from Nov 26. Chart is **drawn** (`mode: custom`): fall bump, Black Friday spike, December plateau, February lift, Masters week, Father's Day peak, summer plateau, September low.
 **When to change it:** Nov 26 switch to "Black Friday and gifting" (pin angle 9 to Hot); ~Dec 20 switch to "Christmas money"; March switch on the Masters to Father's Day section.
@@ -285,5 +285,4 @@ Angles with no tagged ad show "be the first" on the link.
 - Paste the Grunk TRYBE campaign link in Locus > Ambassadors > Link and brief (until then the button says "Submit this on TRYBE").
 - Review the page with the Preview the link button, then switch the link on.
 - Add creator examples to the angles showing "be the first".
-- Confirm the free shipping threshold ($125 or $150).
 - Copy errors in live ads: 330 B names "Golf Sock's Polos"; 332 B copy describes a different print; 336 says 4.99 and 4.91.
