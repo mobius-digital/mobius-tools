@@ -168,7 +168,11 @@ function injectCss() {
 .am-msg{font-size:12.5px;color:var(--muted)}
 .am-msg.ok{color:var(--good)}.am-msg.bad{color:var(--bad)}
 .am-modal{max-width:640px !important}
-.am-pdfcard{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.am-brief{padding:20px 22px;display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;align-items:start}
+.am-brief-l{display:flex;flex-direction:column;gap:10px}
+.am-brief-r{display:flex;flex-direction:column;gap:12px;min-width:0}
+.am-stack{display:flex;flex-direction:column;gap:14px}
+@media (max-width:760px){.am-brief{grid-template-columns:1fr}}
 .am-pdfinfo{display:flex;flex-direction:column;gap:10px;min-width:0}
 .am-pdfbtns{display:flex;gap:8px;flex-wrap:wrap}
 .am-pdfbtns .primary{flex:1}
@@ -767,8 +771,37 @@ function paintLink(body) {
   const avoid = b.avoid?.length ? b.avoid : [{ title: '', why: '' }];
   const rules = b.rules?.length ? b.rules : [''];
   body.innerHTML = `
-  <div class="am-split">
-    <div style="display:flex;flex-direction:column;gap:14px">
+  <div class="card am-brief">
+    <div class="am-brief-l">
+        <div class="am-pdf"><div class="pg grid">
+          <b style="color:#0A0B0D;font-size:11px">${esc(b.display_name)}</b>
+          <b style="color:#0A0B0D;font-size:17px;line-height:1.1;margin-top:10px">${esc(pdfText(b).line1)}<br><span style="color:${esc(b.accent || '#3B82F6')}">${esc(pdfText(b).line2)}</span></b>
+          <div class="ln"></div><div class="ln" style="width:75%"></div>
+          <div style="display:flex;gap:8px;align-items:center;padding:8px;border-radius:7px;background:#fff;border:1px solid #DFE3E9;margin-top:4px"><span id="lQr" style="width:46px;height:46px;background:#fff;border-radius:4px;display:block;flex:none"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ln" style="width:60%"></div><div style="height:12px;border-radius:4px;background:${esc(b.accent || '#3B82F6')}"></div></div></div>
+          ${'<div style="height:14px;border-radius:4px;background:#fff;border:1px solid #DFE3E9;margin-top:2px"></div>'.repeat(3)}
+        </div></div>
+      <div class="am-pdfbtns"><button class="btn primary" id="lPdf">${ic('file-down', 14)} Download PDF</button><button class="btn" id="lQrDl">${ic('qr-code', 14)} QR code</button></div>
+      <button class="btn" id="lTxt" style="width:100%">${ic('copy', 14)} Copy brief text</button>
+    </div>
+    <div class="am-brief-r">
+      <div><h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3>
+        <p class="hint" style="margin:0">Upload it as the campaign brief. ${esc(b.submit_platform || 'TRYBE')} shows creators the words inside the PDF, not the design, so write it the way you want it read: headline, intro, the link, the steps. Leave a box empty to use the default in grey, then press Save before downloading.</p></div>
+        <div class="am-g2">
+          <label class="am-f">Headline, first line<input class="am-in" id="pL1" value="${esc(b.pdf?.line1 || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).line1)}"></label>
+          <label class="am-f">Headline, second line <small>in the brand colour</small><input class="am-in" id="pL2" value="${esc(b.pdf?.line2 || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).line2)}"></label>
+        </div>
+        <label class="am-f">Intro <small>two sentences at most</small><textarea class="am-in" id="pIntro" placeholder="${esc(pdfText({ ...b, pdf: null }).intro)}">${esc(b.pdf?.intro || '')}</textarea></label>
+        <div class="am-g2">
+          <label class="am-f">Link box heading<input class="am-in" id="pCta" value="${esc(b.pdf?.cta || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).cta)}"></label>
+          <label class="am-f">Note under the link<input class="am-in" id="pNote" value="${esc(b.pdf?.note || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).note)}"></label>
+        </div>
+        <div class="am-g3">
+          ${[0, 1, 2].map(k => `<label class="am-f">Step ${k + 1}<input class="am-in" data-pstep="${k}" value="${esc(b.pdf?.steps?.[k] || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).steps[k])}"></label>`).join('')}
+        </div>
+      <p class="tiny" style="margin:0">Also paste the link into the ${esc(b.submit_platform || 'TRYBE')} campaign description, so creators on phones can tap it.</p>
+    </div>
+  </div>
+  <div class="am-stack">
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <div><h3>The season card and chart</h3><p class="hint" style="margin:0">What is in season right now. The chart shows either last year's real store sales (no dollar amounts) or a shape you draw to tell creators when to film. Clear the title to hide the card.</p></div>
         <div class="am-f">Chart shape <small>pick Draw it yourself to shape the spikes by hand</small>
@@ -825,22 +858,6 @@ function paintLink(body) {
         </div>
       </div>
 
-      <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px" id="pdfCard">
-        <div><h3>Brief PDF text</h3><p class="hint" style="margin:0">What the one-page PDF says. Keep it short: what the link is and why to open it. Leave a box empty to use the default shown in grey.</p></div>
-        <div class="am-g2">
-          <label class="am-f">Headline, first line<input class="am-in" id="pL1" value="${esc(b.pdf?.line1 || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).line1)}"></label>
-          <label class="am-f">Headline, second line <small>in the brand colour</small><input class="am-in" id="pL2" value="${esc(b.pdf?.line2 || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).line2)}"></label>
-        </div>
-        <label class="am-f">Intro <small>two sentences at most</small><textarea class="am-in" id="pIntro" placeholder="${esc(pdfText({ ...b, pdf: null }).intro)}">${esc(b.pdf?.intro || '')}</textarea></label>
-        <div class="am-g2">
-          <label class="am-f">Link box heading<input class="am-in" id="pCta" value="${esc(b.pdf?.cta || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).cta)}"></label>
-          <label class="am-f">Note under the link<input class="am-in" id="pNote" value="${esc(b.pdf?.note || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).note)}"></label>
-        </div>
-        <div class="am-g3">
-          ${[0, 1, 2].map(k => `<label class="am-f">Step ${k + 1}<input class="am-in" data-pstep="${k}" value="${esc(b.pdf?.steps?.[k] || '')}" placeholder="${esc(pdfText({ ...b, pdf: null }).steps[k])}"></label>`).join('')}
-        </div>
-      </div>
-
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <div><h3 style="color:var(--bad)">Please stop filming these</h3><p class="hint" style="margin:0">A red card near the top of the link. Name the video everyone keeps sending, and say why.</p></div>
         <div class="am-list-edit" id="lAvoid">${avoid.map(x => avoidRow(x)).join('')}</div>
@@ -856,25 +873,6 @@ function paintLink(body) {
       <div class="card" style="padding:18px 20px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h3>Inspiration from other brands</h3><p class="hint" style="margin:0">Show tiles labelled Inspiration, which open the other brand's post.</p></div>${sw('lInspo', b.show_inspo, '')}</div>
       </div>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:14px">
-      <div class="card am-pdfcard">
-        <div class="am-pdf"><div class="pg grid">
-          <b style="color:#0A0B0D;font-size:11px">${esc(b.display_name)}</b>
-          <b style="color:#0A0B0D;font-size:17px;line-height:1.1;margin-top:10px">${esc(pdfText(b).line1)}<br><span style="color:${esc(b.accent || '#3B82F6')}">${esc(pdfText(b).line2)}</span></b>
-          <div class="ln"></div><div class="ln" style="width:75%"></div>
-          <div style="display:flex;gap:8px;align-items:center;padding:8px;border-radius:7px;background:#fff;border:1px solid #DFE3E9;margin-top:4px"><span id="lQr" style="width:46px;height:46px;background:#fff;border-radius:4px;display:block;flex:none"></span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ln" style="width:60%"></div><div style="height:12px;border-radius:4px;background:${esc(b.accent || '#3B82F6')}"></div></div></div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:4px">${'<div style="height:18px;border-radius:4px;background:#fff;border:1px solid #DFE3E9"></div>'.repeat(4)}</div>
-        </div></div>
-        <div class="am-pdfinfo">
-          <h3>Brief PDF for ${esc(b.submit_platform || 'TRYBE')}</h3>
-          <p class="hint" style="margin:0">One page with the link as a button and a QR code. It never lists angles, so the copy on ${esc(b.submit_platform || 'TRYBE')} never goes out of date. Rebuild it only if the logo, colour or intro changes.</p>
-          <div class="am-pdfbtns"><button class="btn primary" id="lPdf">${ic('file-down', 14)} Download PDF</button><button class="btn" id="lQrDl">${ic('qr-code', 14)} QR code</button></div>
-        </div>
-      </div>
-      <div class="card" style="padding:14px 16px"><p class="am-lbl">On ${esc(b.submit_platform || 'TRYBE')}</p><p style="margin-top:6px;font-size:13.5px">Upload the PDF as the campaign brief, and paste the link in the campaign description too, so creators on phones can tap it.</p></div>
-    </div>
   </div>
   <div class="am-save"><span class="am-msg" id="lMsg"></span><button class="btn primary" id="lSave">Save</button></div>`;
 
@@ -885,6 +883,11 @@ function paintLink(body) {
   $('#lAvoidAdd').onclick = () => { $('#lAvoid').insertAdjacentHTML('beforeend', avoidRow({})); autoGrow($('#lAvoid')); };
   $('#lRuleAdd').onclick = () => { $('#lRules').insertAdjacentHTML('beforeend', ruleRow('')); autoGrow($('#lRules')); };
   body.addEventListener('click', e => { const r = e.target.closest('[data-rm]'); if (r) r.closest('.am-li').remove(); });
+  $('#lTxt').onclick = async e => {
+    const btn = e.currentTarget;
+    try { await navigator.clipboard.writeText(briefText(S.data.brand)); btn.innerHTML = `${ic('check', 14)} Copied`; setTimeout(() => { btn.innerHTML = `${ic('copy', 14)} Copy brief text`; }, 1600); }
+    catch { helpModal('Copy this text', `<pre style="white-space:pre-wrap;font:inherit">${esc(briefText(S.data.brand))}</pre>`); }
+  };
   $('#lQrDl').onclick = () => qrPng().catch(err => helpModal('Could not make the QR code', `<p>${esc(err.message)}</p>`));
   $('#lPdf').onclick = () => makePdf().catch(err => helpModal('Could not build the PDF', `<p>${esc(err.message)}</p>`));
   qrInto($('#lQr')).catch(() => {});
@@ -1071,6 +1074,28 @@ async function qrPng() {
   const a = document.createElement('a');
   a.href = url; a.download = `${S.data.brand.slug}-creator-link-qr.gif`; a.click();
 }
+/* THE TEXT LAYER IS THE BRIEF ON TRYBE. TRYBE does not show the PDF: it pulls
+   the text out, in the order it was drawn, and formats that as the creator's
+   brief. So every piece of text below is drawn in reading order, as whole
+   sentences, one per line where it matters (steps are "1. ...", never a lone
+   digit in a circle), and nothing decorative carries words. The same page
+   still has to look right wherever the PDF itself is opened. */
+function briefText(b) {
+  const T = pdfText(b);
+  const url = PUBLIC_BASE + b.slug;
+  return [
+    `${T.line1} ${T.line2}`,
+    '',
+    T.intro,
+    '',
+    `${T.cta}: ${url}`,
+    T.note,
+    '',
+    'How it works',
+    ...T.steps.map((s, i) => `${i + 1}. ${s}`),
+  ].join('\n');
+}
+
 async function makePdf() {
   await loadScript(JSPDF_URL);
   const b = S.data.brand;
@@ -1078,111 +1103,88 @@ async function makePdf() {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const W = 612, H = 792, M = 52;
   const url = PUBLIC_BASE + b.slug;
-  const short = url.replace('https://', '');
   const plat = b.submit_platform || 'TRYBE';
   const acc = hexRgb(b.accent || '#3B82F6');
   const BG = [247, 248, 250], PANEL = [255, 255, 255], EDGE = [223, 227, 233], TXT = [10, 11, 13], SUB = [95, 100, 114], DIM = [139, 144, 156];
   const op = o => doc.setGState(new doc.GState({ opacity: o, 'stroke-opacity': o }));
   const T = pdfText(b);
+  doc.setProperties({ title: `${b.display_name} Creator Brief`, subject: T.intro, author: b.display_name, creator: 'Mobius Digital' });
 
-  // Ground: light paper, a faint grid, one soft glow in the brand colour.
+  // Ground: light paper, a faint grid, one soft glow in the brand colour. No text.
   doc.setFillColor(...BG); doc.rect(0, 0, W, H, 'F');
   op(0.06); doc.setDrawColor(10, 11, 13); doc.setLineWidth(0.4);
   for (let x = 0; x <= W; x += 36) doc.line(x, 0, x, H);
   for (let y = 0; y <= H; y += 36) doc.line(0, y, W, y);
-  op(0.16); doc.setFillColor(...acc);
+  doc.setFillColor(...acc);
   [170, 120, 70].forEach((r, i) => { op(0.04 + i * 0.03); doc.circle(W - 30, 30, r, 'F'); });
   op(1);
 
-  // Header
+  // 1. Headline (the first words TRYBE shows).
   let y = M + 6;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...TXT);
-  doc.text(b.display_name || '', M, y);
-  doc.setFontSize(8); doc.setTextColor(...SUB); doc.setCharSpace(1.6);
-  doc.text('CREATOR BRIEF', W - M, y, { align: 'right' });
-  doc.setCharSpace(0);
-
-  // Headline
-  y += 86;
-  // Two short lines; long ones step the size down so they never run off the page.
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...SUB);
+  doc.text(`${b.display_name} creator brief`, M, y);
+  y += 80;
   let hs = 44;
-  doc.setFont('helvetica', 'bold');
   while (hs > 26 && Math.max(doc.setFontSize(hs).getTextWidth(T.line1), doc.getTextWidth(T.line2)) > W - 2 * M) hs -= 2;
   doc.setFontSize(hs); doc.setTextColor(...TXT);
   doc.text(T.line1, M, y);
   doc.setTextColor(...acc);
   doc.text(T.line2, M, y + hs * 1.05);
-  y += hs * 1.05 + 36;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11.5); doc.setTextColor(...SUB);
-  const intro = T.intro;
-  const it = doc.splitTextToSize(intro, W - 2 * M - 40);
-  doc.text(it, M, y); y += it.length * 15 + 26;
+  y += hs * 1.05 + 38;
 
-  // The link panel
-  const ph = 196;
+  // 2. Intro.
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(...SUB);
+  const it = doc.splitTextToSize(T.intro, W - 2 * M - 30);
+  doc.text(it, M, y); y += it.length * 16 + 28;
+
+  // 3. The link panel: heading, instruction, the full link, the note.
+  const ph = 206, py = y;
   doc.setFillColor(...PANEL); doc.setDrawColor(...EDGE); doc.setLineWidth(1);
-  doc.roundedRect(M, y, W - 2 * M, ph, 14, 14, 'FD');
-  const qs = 140;
-  doc.setFillColor(255, 255, 255); doc.setDrawColor(...EDGE); doc.roundedRect(M + 24, y + 28, qs, qs, 10, 10, 'FD');
-  doc.addImage(await qrData(6), 'GIF', M + 32, y + 36, qs - 16, qs - 16);
-  doc.link(M + 24, y + 28, qs, qs, { url });
-  const tx = M + 24 + qs + 28, tw = W - M - 24 - tx;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...SUB); doc.setCharSpace(1.6);
-  doc.text(T.cta.toUpperCase(), tx, y + 44);
-  doc.setCharSpace(0);
-  doc.setFontSize(19); doc.setTextColor(...TXT);
-  doc.text('Tap the link', tx, y + 72);
-  doc.text('or scan the code', tx, y + 96);
-  // The link itself, as a button
-  const by = y + 116, bh = 38;
+  doc.roundedRect(M, py, W - 2 * M, ph, 14, 14, 'FD');
+  const qs = 150, qx = M + 24, qy = py + 28;
+  const tx = qx + qs + 28, tw = W - M - 24 - tx;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...acc);
+  doc.text(T.cta, tx, py + 44);
+  doc.setFontSize(20); doc.setTextColor(...TXT);
+  const ins = doc.splitTextToSize('Tap the link or scan the code.', tw);
+  doc.text(ins, tx, py + 72);
+  const by = py + 72 + (ins.length - 1) * 23 + 20, bh = 40;
   doc.setFillColor(...acc); doc.roundedRect(tx, by, tw, bh, 9, 9, 'F');
-  doc.setFontSize(10.5); doc.setTextColor(255, 255, 255);
-  const lt = doc.splitTextToSize(short, tw - 44)[0];
-  doc.text(lt, tx + 14, by + 24);
+  let ls = 10.5;
+  doc.setFont('helvetica', 'bold');
+  while (ls > 7 && doc.setFontSize(ls).getTextWidth(url) > tw - 44) ls -= 0.5;
+  doc.setFontSize(ls); doc.setTextColor(255, 255, 255);
+  doc.textWithLink(url, tx + 14, by + bh / 2 + ls * 0.35, { url });
   doc.setDrawColor(255, 255, 255); doc.setLineWidth(1.4);
-  const ax = tx + tw - 22, ay = by + bh / 2;
+  const ax = tx + tw - 20, ay = by + bh / 2;
   doc.line(ax - 8, ay, ax + 4, ay); doc.line(ax, ay - 4, ax + 4, ay); doc.line(ax, ay + 4, ax + 4, ay);
   doc.link(tx, by, tw, bh, { url });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...DIM);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...DIM);
   doc.text(doc.splitTextToSize(T.note, tw)[0], tx, by + bh + 20);
-  y += ph + 30;
+  // The code carries no words, so it is drawn after them.
+  doc.setFillColor(255, 255, 255); doc.setDrawColor(...EDGE);
+  doc.roundedRect(qx, qy, qs, qs, 10, 10, 'FD');
+  doc.addImage(await qrData(6), 'GIF', qx + 8, qy + 8, qs - 16, qs - 16);
+  doc.link(qx, qy, qs, qs, { url });
+  y = py + ph + 40;
 
-  // What is inside: four small tiles
-  const items = [['Hot right now', 'Our top picks this week'], ['In season', 'What sells right now'], ['Openers + shot plans', 'Copy them word for word'], ['Real examples', 'Videos that ran as ads']];
-  const gw = (W - 2 * M - 30) / 4, gh = 62;
-  items.forEach(([t, s], i) => {
-    const gx = M + i * (gw + 10);
-    doc.setFillColor(...PANEL); doc.setDrawColor(...EDGE); doc.setLineWidth(0.8);
-    doc.roundedRect(gx, y, gw, gh, 10, 10, 'FD');
-    doc.setFillColor(...acc); doc.circle(gx + 16, y + 18, 3, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...TXT);
-    doc.text(t, gx + 14, y + 36);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...SUB);
-    doc.text(doc.splitTextToSize(s, gw - 24)[0], gx + 14, y + 50);
-  });
-  y += gh + 34;
-
-  // How it works
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...SUB); doc.setCharSpace(1.6);
-  doc.text('HOW IT WORKS', M, y);
-  doc.setCharSpace(0);
+  // 4. How it works: one full line per step.
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...TXT);
+  doc.text('How it works', M, y);
   y += 22;
-  const steps = T.steps;
-  const sw2 = (W - 2 * M) / 3;
-  steps.forEach((t, i) => {
-    const sx = M + i * sw2;
-    doc.setDrawColor(...acc); doc.setLineWidth(1.2); doc.circle(sx + 11, y, 11, 'S');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...TXT);
-    doc.text(String(i + 1), sx + 11, y + 3.5, { align: 'center' });
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...SUB);
-    doc.text(doc.splitTextToSize(t, sw2 - 44), sx + 30, y - 2);
+  T.steps.forEach((s, i) => {
+    doc.setFillColor(...PANEL); doc.setDrawColor(...EDGE); doc.setLineWidth(0.8);
+    doc.roundedRect(M, y, W - 2 * M, 38, 9, 9, 'FD');
+    doc.setFillColor(...acc); doc.roundedRect(M, y, 5, 38, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...TXT);
+    doc.text(`${i + 1}.  ${s}`, M + 20, y + 24);
+    y += 46;
   });
 
-  // Footer
+  // 5. Footer.
   doc.setDrawColor(...EDGE); doc.setLineWidth(0.8); doc.line(M, H - 50, W - M, H - 50);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DIM);
-  doc.text(`${b.display_name} creator program on ${plat}`, M, H - 32);
-  doc.text('Powered by Mobius Digital', W - M, H - 32, { align: 'right' });
+  doc.text(`${b.display_name} creator program on ${plat}. Powered by Mobius Digital.`, M, H - 32);
   doc.save(`${b.slug}-creator-brief.pdf`);
 }
 

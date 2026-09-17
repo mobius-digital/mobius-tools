@@ -695,6 +695,14 @@ profit/
   primary buttons. The PDF is ONE dark page: link as a button + QR, no angle list (a list
   was tried and rejected). The season chart is thin bars like the canvas, season colour
   and a spike limit (`season.color`, `season.cap`) set on Link and brief.
+- **TRYBE SHOWS THE PDF'S TEXT LAYER, NOT THE PAGE.** It extracts the words in draw
+  order and formats them as the brief. `makePdf()` draws text in reading order, whole
+  sentences, steps as "1. ..." on their own lines, no decorative words; verify with
+  pypdf `extract_text()` after any layout change. PDF wording is per brand
+  (`p_amb_brand.pdf_json`, edited on Link and brief); `briefText()` is the same copy
+  as plain text for the Copy brief text button.
+- **Season chart can be drawn** (`season.mode = 'custom'`, `season.custom` = 0-100 per ISO
+  week, 25 = normal). A drawn chart is titled "When to film" and never shows numbers.
 - **The season chart is relative.** `seasonShape()` = last year's weekly `netSales`
   for a year (13 weeks back, 38 ahead, `now_index`), divided by the median week. Never dollars. The season card
   text is staff-written; it must not claim a sales multiple the chart does not show
