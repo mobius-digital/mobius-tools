@@ -5581,6 +5581,27 @@ export default {
        contains. They cache in ad_creative on first view; every later open is
        instant. Same rule as ad-video below: the token authorises its own ads
        and nothing else. */
+    /* COVERS ON A CREATOR LINK (Ambassadors, profit/worker/src/amb.js). The slug
+       authorises exactly the Meta ads shown as proof on that brand's LIVE page,
+       and nothing else - the same rule as a share token. */
+    if (path === '/api/ad-creatives' && url.searchParams.get('angles')) {
+      const slug = url.searchParams.get('angles');
+      if (!/^[a-z0-9-]{1,50}$/.test(slug)) return json({ error: 'bad link' }, 400);
+      const { results } = await env.DB.prepare(
+        `SELECT p.ad_id FROM p_amb_proof p JOIN p_amb_brand b ON b.act_id = p.act_id
+          WHERE b.slug = ?1 AND b.live = 1 AND p.kind = 'meta' AND p.shown = 1`,
+      ).bind(slug).all().catch(() => ({ results: [] }));
+      const allowed = new Set((results || []).map(r => r.ad_id));
+      const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(id => allowed.has(id)).slice(0, 40);
+      if (!ids.length) return json({ assets: {} });
+      let assets = {};
+      try { assets = await adThumbnails(env, ids, LIVE_THUMBS); } catch (e) { return json({ assets: {}, error: e.message }); }
+      // A creator link never carries money or internal names: covers and copy only.
+      const slim = {};
+      for (const [k, v] of Object.entries(assets)) slim[k] = { thumb: v.thumb || null, media_type: v.media_type || null, headline: v.headline || null, body: v.body || null };
+      return json({ assets: slim });
+    }
+
     if (path === '/api/ad-creatives' && url.searchParams.get('share')) {
       const tok = url.searchParams.get('share');
       if (!/^[a-f0-9]{16,}$/.test(tok)) return json({ error: 'bad token' }, 400);
@@ -5621,6 +5642,14 @@ export default {
         const hit = (safeJson(row.data_json, {}).ads || []).find(a => a.ad_id === adId);
         if (!hit) return json({ error: 'not in this set of ads' }, 404);
         hint = { video_id: hit.video_id, page_id: hit.page_id };
+      } else if (url.searchParams.get('angles')) {
+        // A creator link plays only the ads it shows as proof (see ad-creatives above).
+        const slug = url.searchParams.get('angles');
+        const ok = /^[a-z0-9-]{1,50}$/.test(slug) && await env.DB.prepare(
+          `SELECT 1 FROM p_amb_proof p JOIN p_amb_brand b ON b.act_id = p.act_id
+            WHERE b.slug = ?1 AND b.live = 1 AND p.kind = 'meta' AND p.shown = 1 AND p.ad_id = ?2 LIMIT 1`,
+        ).bind(slug, adId).first().catch(() => null);
+        if (!ok) return json({ error: 'not on this page' }, 404);
       } else if (!(await isAdmin(request, env))) {
         return json({ error: 'unauthorized' }, 401);
       }

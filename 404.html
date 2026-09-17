@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.png">
+<script>
+/* Any /angles/<slug> that has no folder of its own still opens its creator page. */
+if (/^\/angles\/[a-z0-9-]+\/?$/i.test(location.pathname)) {
+  document.write("<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap\"><link rel=\"stylesheet\" href=\"/angles/app.css?v=1\"><meta name=\"theme-color\" content=\"#13202B\"><\/head><body><div id=\"app\"><\/div><script src=\"/angles/app.js?v=1\"><\/script>");
+}
+</script>
+</head>
+<body style="font-family:system-ui,sans-serif;background:#F6F8FA;color:#13202B">
+<div id="nf" style="max-width:520px;margin:18vh auto;padding:0 20px;text-align:center">
+<h1 style="font-weight:600">Page not found</h1>
+<p><a href="/">Mobius Digital tools</a></p>
+</div>
+<script>if (document.getElementById('app')) document.getElementById('nf').remove();</script>
+</body>
+</html>

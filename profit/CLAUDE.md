@@ -668,3 +668,42 @@ profit/
   page we hand over and cannot talk someone through. Use the shared helper so
   the client view and the report view cannot drift. The client payload carries
   money only and no ratios, so MER is derived in the formatter.
+
+## Ambassadors: the creator link (2026-09-16)
+
+- **What it is.** One public page per brand, `tools.go-mobius-digital.com/angles/<slug>`,
+  that the brand's TRYBE creators read instead of a PDF brief. Staff edit it on the
+  **Ambassadors** tab (Creators group in the rail). The PDF uploaded to TRYBE only
+  explains the link, so it never goes stale. Modelled on the Lucky Golf creator app's
+  "What to shoot" hub (canvas https://claude.ai/artifact/5U7YKC3LU2Hpp6eAnkmnsn).
+- **Files.** `profit/amb.js` (staff UI, own closure like meta.js),
+  `profit/worker/src/amb.js` (routes), `angles/` (public page: edit `app.src.js`,
+  then `python angles/build.py`, which writes `app.js`, the per-brand shells and the
+  root `404.html` fallback), `profit/worker/migrations/amb-001.sql` (tables, also
+  appended to schema.sql). Tables: `p_amb_brand`, `p_amb_section`, `p_amb_angle`,
+  `p_amb_proof`. Uploaded clips live in R2 `mobius-amb-media` (binding `MEDIA`);
+  the Worker body cap means 95MB max.
+- **NO MONEY ON THE PUBLIC LINK. Cole's rule.** `publicPayload()` never sends spend,
+  revenue, ROAS or typed sales. Tagged Meta ads reach creators as playable proof
+  labelled "Ran as a paid ad". Scores live on the staff tab only. Typed VIEWS are
+  public and labelled typed.
+- **Playback on the link** goes through the account-health worker with
+  `?angles=<slug>`: it authorises only Meta ads shown as proof on that brand's LIVE
+  page (same rule as share tokens), and `ad-creatives` returns covers and copy only.
+- **The season chart is relative.** `seasonShape()` = last year's weekly `netSales`
+  for the 18 weeks ahead, divided by the median week. Never dollars. The season card
+  text is staff-written; it must not claim a sales multiple the chart does not show
+  (Party Patch Oct 2025 was only ~19% above Sep; December is the real peak).
+- **Icons are Lucide** (lucide-static 1.46.0 on jsDelivr, the set the Lucky app uses).
+  A section stores `icon_svg` so the public page needs no icon library.
+- **Clean links.** GitHub Pages has no rewrites: `angles/<slug>/index.html` shells
+  (listed in `SLUGS` in build.py) give a 200 for link previews; any other slug still
+  works through `404.html`. Add a brand to `SLUGS` when it goes live.
+- **Party Patch** was seeded from `migrations/seed_party_patch.py` (Chris's Sept-Dec
+  emails, the account's best ads, the Mobius angle framework). Do NOT re-run it: it
+  replaces the brand's sections, angles and proof.
+- **Local testing without Cole's sign-in:** `profit-worker-dev` in `.claude/launch.json`
+  runs `wrangler dev --remote` on :8799 with a throwaway `ADMIN_TOKEN` in the
+  gitignored `profit/worker/.dev.vars`; point localStorage `pf_worker` at it. It reads
+  and writes the REAL shared D1. The Browser pane stops painting once scrolled; hide
+  the content above instead of scrolling to screenshot lower sections.

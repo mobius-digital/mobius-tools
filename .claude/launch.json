@@ -56,6 +56,20 @@
       ],
       "port": 8796,
       "url": "http://127.0.0.1:8796"
+    },
+    {
+      "name": "profit-worker-dev",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--remote",
+        "--port",
+        "8799",
+        "--config",
+        "profit/worker/wrangler.toml"
+      ],
+      "port": 8799
     }
   ]
 }

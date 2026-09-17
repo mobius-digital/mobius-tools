@@ -16,6 +16,8 @@
  * Plan lives in ../PRD.md.
  */
 
+import { handlePublic as ambPublic, handleStaff as ambStaff } from './amb.js';
+
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -1632,8 +1634,15 @@ export default {
        how to validate a share token. Forward it here instead when it carries
        one; account-health checks the token against that client's own sent
        report or shared ad set, and rejects anything else. */
+    /* The creator link (Ambassadors). Public by design: the slug is the address,
+       and the payload carries no money. See amb.js. */
+    {
+      const r = await ambPublic(request, env, url, path, json, CORS);
+      if (r) return r;
+    }
+
     if (path === '/api/ad-video' && request.method === 'GET'
-        && (url.searchParams.get('report') || url.searchParams.get('ads'))) {
+        && (url.searchParams.get('report') || url.searchParams.get('ads') || url.searchParams.get('angles'))) {
       const target = `${AUTH_WORKER}${path}${url.search}`;
       const init = { method: 'GET', headers: {} };
       const res = env.AUTH ? await env.AUTH.fetch(new Request(target, init)) : await fetch(target, init);
@@ -1643,7 +1652,7 @@ export default {
     /* Cover images for a client's shared ad set - same arrangement as the
        video above: forwarded here, before the auth gate, when it carries a
        share token; account-health validates the token against the snapshot. */
-    if (path === '/api/ad-creatives' && request.method === 'GET' && url.searchParams.get('share')) {
+    if (path === '/api/ad-creatives' && request.method === 'GET' && (url.searchParams.get('share') || url.searchParams.get('angles'))) {
       const target = `${AUTH_WORKER}${path}${url.search}`;
       const init = { method: 'GET', headers: {} };
       const res = env.AUTH ? await env.AUTH.fetch(new Request(target, init)) : await fetch(target, init);
@@ -2219,6 +2228,12 @@ export default {
          THIS tool's interface — all its numbers are store-level, which is this tool's
          job — but the engine behind it stays where the credentials already are.
          One hop over the service binding; no secret is duplicated. */
+      /* Ambassadors: the staff side of the creator link. */
+      {
+        const r = await ambStaff(request, env, url, path, json);
+        if (r) return r;
+      }
+
       if (PROXY_PATHS.has(path)) {
         const auth = request.headers.get('Authorization') || '';
         const target = `${AUTH_WORKER}${path}${url.search}`;
