@@ -546,3 +546,26 @@ FIRST error.** The backfill's first run resolved 0 of 200 and reported them as
 the error turned a one-line API deprecation into an invisible data hole. An empty
 `catch {}` around a Meta call is only acceptable when the caller can genuinely
 carry on AND something else will notice the absence.
+
+## ATTRIBUTION IS TRIPLE WHALE'S, ALWAYS (2026-09-18)
+
+Cole: "Triple Whale's always there for attribution." Per-channel purchases,
+revenue, ROAS and CPA in the Daily Brief, the reports, their narratives and the
+Locus pages come from `tw_ad_attr` under `BRIEF_ATTR_MODEL` (`lastPlatformClick`,
+TW's default). Spend, CPM, CTR, impressions, clicks, hook and hold stay the
+platform's. Platform figures survive only as `*_platform` / `platform_*` fields
+for reference and are never rendered or prompted.
+
+- Why: Google's self-reported conversions ran ~40% under TW's pixel (Sep 10-16:
+  107 vs 178 orders) and had mostly not landed by the 7am brief. Dartee Google
+  read 2 conversions for the week against TW's 15.
+- `briefData` reads `tw_ad_attr`; `twAttributeChannels` overlays the report's
+  Meta/Google sections (current AND prior window).
+- The nightly attribution sync (03:30 UTC) is still the evening before in US
+  zones, so it never holds yesterday. `dailyBriefs` and the report builder
+  each pull the last three days of attribution first.
+- A day/window with NO attribution rows is "not synced", never zero, and
+  never silently falls back to the platform number.
+- Reports default to `lastPlatformClick`; the "Platform reported" option was
+  removed from the picker. Old frozen reports without `attr` still render as
+  they were sent.

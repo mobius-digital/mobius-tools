@@ -473,7 +473,7 @@ profit/
 - **`.info-i` must reset `letter-spacing`, `font-style` and `text-transform`** — stat
   labels are uppercase and letter-spaced, and without the reset the glyph inside the
   circle is squashed and reads as broken.
-- **Name the SOURCE on every ROAS, always.** Meta ROAS and Google ROAS are each
+- **Name the SOURCE on every ROAS, always.** (2026-09-18: channel ROAS in briefs and reports is now TRIPLE WHALE attribution, lastPlatformClick - see account-health/CLAUDE.md. The history below is why.) Meta ROAS and Google ROAS were each
   PLATFORM-reported (Meta's API; TW's `ga_ROAS`, which is Google Ads' own figure
   passed through). Blended ROAS is Triple Whale's. MER is ours. Four numbers for one
   day that all disagree by design: Grunk 2026-08-23..29 read Meta 3.81, Google 1.70,
