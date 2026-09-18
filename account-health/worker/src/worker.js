@@ -5904,6 +5904,51 @@ export default {
         }
         return json({ ok: true, results: out });
       }
+      /* EDIT A SENT BRIEF IN THE CLIENT CHANNEL. Rebuilds the day, finds the
+         message we posted as Cole (its ts is not stored, so it is matched by
+         its opening line in the channel history) and chat.updates it with the
+         user token that posted it. `dry: true` reports the match and the new
+         text without touching anything. */
+      if (b.kind === 'client-edit') {
+        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        if (!acct || !b.date) return json({ error: 'act and date required' }, 400);
+        const row = await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, b.date).first();
+        if (row?.status !== 'sent' || !row.channel) return json({ error: 'not a sent brief', status: row?.status }, 400);
+        if (!env.SLACK_USER_TOKEN) return json({ error: 'no user token' }, 500);
+        const ut = (method, body) => xfetch(`https://slack.com/api/${method}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify(body),
+        }).then(r => r.json());
+        const oldest = String(Math.floor(new Date(row.posted_at).getTime() / 1000) - 7200);
+        // The user token has no history scope; the bot reads, the user token edits.
+        const hist = await slackApi(env, 'conversations.history', { channel: row.channel, oldest, limit: 100 });
+        if (!hist.ok) return json({ error: `history: ${hist.error}` }, 500);
+        const head = s => String(s || '').split('\n').slice(0, 3).join('\n').trim();
+        const want = head(row.text);
+        const msg = (hist.messages || []).find(m => head(m.text) === want)
+          || (hist.messages || []).find(m => String(m.text || '').includes(want.split('\n')[0]));
+        if (!msg) return json({ error: 'could not find the sent message', looked_at: (hist.messages || []).length, want });
+        /* `text` = an exact, already-reviewed replacement (e.g. only the
+           narrative swapped, the sender's own edits kept). Then nothing is
+           rebuilt and the stored numbers are left as sent. */
+        if (typeof b.text === 'string' && b.text.trim()) {
+          if (b.dry) return json({ ok: true, dry: true, ts: msg.ts, old: msg.text, new: b.text });
+          const u = await ut('chat.update', { channel: row.channel, ts: msg.ts, text: b.text });
+          if (!u.ok) return json({ error: `update: ${u.error}` }, 500);
+          await env.DB.prepare(`UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, b.date, b.text).run();
+          await slackSyncBrief(env, acct, b.date).catch(() => {});
+          return json({ ok: true, ts: msg.ts, updated: true });
+        }
+        const r = await makeBrief(env, acct, b.date).catch(e => ({ error: e.message }));
+        if (r.error) return json({ error: r.error }, 500);
+        if (b.dry) return json({ ok: true, dry: true, ts: msg.ts, old: msg.text, new: r.text });
+        const u = await ut('chat.update', { channel: row.channel, ts: msg.ts, text: r.text });
+        if (!u.ok) return json({ error: `update: ${u.error}` }, 500);
+        await upsertBrief(env, acct.act_id, b.date, 'sent', row.channel, r.text, r.data, { health: r.health ?? null });
+        await slackSyncBrief(env, acct, b.date).catch(() => {});
+        return json({ ok: true, ts: msg.ts, updated: true });
+      }
       if (b.kind === 'report') {
         const accts = !b.act || b.act === 'all'
           ? await listAccounts(env, true)
