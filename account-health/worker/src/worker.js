@@ -1873,12 +1873,24 @@ async function weeklyBlock(env, acct, data, date) {
   };
 }
 
+/* PLAIN VOICE (Cole, 2026-09-18): "every brief in What it means is the same
+   thing over and over... I don't even know what half this stuff means." The
+   old instruction literally asked for "a demand problem, a platform problem, or
+   our own levers" every day, so every brief opened that way, in media-buyer
+   jargon. These rules ban the stock framing and the jargon, and the brief
+   narrative is now handed its own last three briefs so it can avoid them. */
+const PLAIN_VOICE = `PLAIN ENGLISH, LIKE A PERSON. The reader runs a business, not an ad account. Short sentences. Say "we" and "you". Explain the way you would out loud.
+NEVER USE THESE WORDS OR PHRASES: "lever" or "levers", "throttle", "demand problem", "weak demand", "less about demand", "platform problem", "learning", "relearning", "reset learning", "top of funnel", "acquisition", "delivery", "volume", "arithmetic", "structural", "efficiency", "efficient", "prospecting", "cold traffic", "blended", "directional", "digesting", "the account responded". Say the plain thing instead: "finding new customers", "how much each ad dollar brought back", "people who had never bought before".
+WHEN AN IDEA NEEDS A TECHNICAL WORD, EXPLAIN IT. Not "the relaunch reset learning" but "when ads get switched off and back on, Meta spends a few days working out who to show them to again, so results bounce around". Not "we are underspending" on its own, but what that means for sales.
+NO STOCK OPENINGS. Never start a section or a sentence with "This is not", "This reads as", "This looks like" or "It is not a". Vary how you begin from one brief to the next.
+DO NOT REPEAT RECENT BRIEFS. When earlier briefs for this client are provided, do not reuse their sentences, their openings or their framing. If the situation has not changed, say that in one short sentence and use the rest on what is new, what we learned, or what we are watching for.`;
+
 const BRIEF_SYSTEM = `You are a senior media buyer at Mobius Digital writing the narrative section of a client's daily performance brief. A numbers block (forecast vs actual for yesterday) is prepended by the system - do NOT repeat it as a list.
 Write exactly three sections, in this order, Slack-style plain text. The section titles are exactly these words on their own line, with NO arrow, colon or question mark after them:
 What we saw
 • 3-5 bullets: what happened, stated plainly. Streaks across recent days, the new-vs-returning split, the per-channel read, where the month stands. Conclusion first in every bullet.
 What it means
-2-4 sentences: what those observations ADD UP TO for this client's money. This section explains, it does not report - if a sentence here could have been a bullet above, it is in the wrong place. Say whether this reads as a demand problem, a platform problem, or our own levers, and tie moves to the change log where it supports you.
+2-4 sentences, written the way you would explain it to the owner across a table. Pick the ONE thing about yesterday that matters most for their money and explain why, with the context someone outside advertising needs: what caused it, and what usually happens next. It explains, it does not report: if a sentence here could have been a bullet above, it is in the wrong place. Tie it to something we changed (the change log) only when that is genuinely the cause. If the story is the same as the last few briefs, do NOT retell it: say what moved, what we learned, or what we are watching for next.
 What we're doing
 • 2-4 bullets: what we will actually do, each with a trigger or a day where possible ("if Meta is still under 1.8 on Wednesday, we cut the three weakest new ads").
 
@@ -1889,6 +1901,7 @@ TWO NUMBERS PER BULLET, MAXIMUM. A bullet carrying seven figures is a table cram
 NO ABBREVIATIONS OR SHORTHAND ANYWHERE. Write "month to date", not MTD. Write "Wednesday", not 48h or 72h. Write "about 20", not ~20. Write "September 8", not 09-08. This rule is about WORDS, not symbols: always write money with its currency symbol as "$36", never "36 dollars", and percentages as "64%".
 NEVER print a raw ad or campaign name. Say "the new creative" or "the relaunched ads".
 NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
+${PLAIN_VOICE}
 Every sentence should survive being read once, at speed, by a client who does not work in ads.
 Rules: use ONLY the numbers provided - never invent or extrapolate figures. Money in the account's own currency, rounded to WHOLE units - write $612, never $611.51. Write dates the way a person says them: "September 6", "the 8th". Meta and Google ROAS and order counts are Triple Whale's pixel attribution, and recent days keep settling for a few days as journeys resolve - hedge a read on the last day or two. NEVER report a ROAS the block marks n/a - say the orders have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with a channel ROAS (which IS attributed, by Triple Whale). Keep the whole narrative under 200 words. Short bullets that are real sentences, never paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
@@ -1913,6 +1926,15 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
      WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
   ).bind(acct.act_id, addDays(date, -7)).all();
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
+  // Its own last three briefs, so it can see what it already said and not
+  // say it again (see PLAIN_VOICE).
+  const { results: recent } = await env.DB.prepare(
+    `SELECT date, text FROM briefs WHERE act_id = ?1 AND date < ?2 AND text IS NOT NULL ORDER BY date DESC LIMIT 3`,
+  ).bind(acct.act_id, date).all().catch(() => ({ results: [] }));
+  const recentBlock = recent.map(r => {
+    const i = r.text.indexOf('What we saw');
+    return i < 0 ? null : `--- brief for ${r.date} ---\n${r.text.slice(i, i + 1800)}`;
+  }).filter(Boolean);
   return claude(env, {
     system: BRIEF_SYSTEM,
     maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom for the text
@@ -1946,6 +1968,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
       (data.week ? `THE WEEK THAT JUST CLOSED (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)}\n`
         + `There is NO week-in-review block in the numbers section - the weekly report is a separate deliverable and this brief must not duplicate it as a second scoreboard. So the week reaches the reader ONLY through your narrative. Give it ONE bullet in What we saw with the figures that matter (net sales against plan, spend, aMER, best and slowest day), weigh the weekly shape rather than just yesterday in What it means, and let it inform What we're doing. Do not list the week metric by metric.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}` +
+      (recentBlock.length ? `\n\nWHAT WE ALREADY TOLD THIS CLIENT in the last few briefs. Do not reuse these sentences, openings or framing, and do not retell the same story. Build on it: what changed since, what we learned, what we are watching for.\n${recentBlock.join('\n\n')}` : '') +
       steerBlock(steer),
   });
 }
@@ -3645,7 +3668,7 @@ Write exactly three sections, plain text, section titles on their own line exact
 What we saw
 • 3-5 bullets: what happened over the period, stated plainly. The trend against the prior period, the new-vs-returning read, the per-channel read, and where the month stands. Conclusion first in every bullet.
 What it means
-2-4 sentences: what those observations ADD UP TO for this client's money. This section explains, it does not report - if a sentence here could have been a bullet above, it is in the wrong place. Where the change log supports it, say which of our changes drove what.
+2-4 sentences, written the way you would explain it to the owner across a table: the one or two things from this period that matter most for their money, and why, with the context someone outside advertising needs. It explains, it does not report: if a sentence here could have been a bullet above, it is in the wrong place. Where the change log supports it, say which of our changes drove what.
 What we're doing
 • 2-4 bullets: what we will actually do next, each with a trigger or a date where possible.
 
@@ -3656,6 +3679,7 @@ TWO NUMBERS PER BULLET, MAXIMUM. A bullet carrying seven figures is a table cram
 NO ABBREVIATIONS OR SHORTHAND. Write "month to date", not MTD. Write "Wednesday", not 48h. Write "about 20", not ~20. Write "September 8", not 09-08. This rule is about WORDS, not symbols: always write money with its currency symbol as "$36", never "36 dollars", and percentages as "64%".
 NEVER print a raw ad or campaign name. Say "the new creative".
 NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
+${PLAIN_VOICE}
 Every sentence should survive being read once, at speed, by a client who does not work in ads.
 Rules: use ONLY the numbers provided - never invent or extrapolate figures. Money in the account's own currency, whole units. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend on every platform; aMER = new-customer revenue ÷ that same spend. Both are blended on BOTH sides - never call them attributed, and never confuse them with a channel ROAS (which is Triple Whale attributed, double-counts across platforms, and should be treated as directional). Write for the client: confident, plain language, no hedging filler. Under 230 words total. No greeting, no sign-off, no markdown headers, no asterisks for bold.`;
 
