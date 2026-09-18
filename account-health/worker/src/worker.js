@@ -1998,6 +1998,13 @@ async function coverageDates(env, acct, date, data) {
 }
 
 async function makeBrief(env, acct, date, { steer } = {}) {
+  /* Channel ROAS and orders are Triple Whale attribution, and the nightly
+     attribution sync runs at 03:30 UTC - still the evening before in the
+     brands' own zones - so it never holds the brief's day. Pull the last three
+     days first, here, so the cron AND every Rewrite (Locus or Slack) get it. */
+  if (acct.tw_shop && env.TW_API_KEY && date >= addDays(localDate(acct.tz), -7)) {
+    await syncTwAttribution(env, acct, 0, { from: addDays(date, -2), to: date }).catch(() => {});
+  }
   const data = await briefData(env, acct, date);
   const day = data.days.find(x => x.date === date);
   if (!data.goals) return { data, error: 'no goals set for this month - set them on the Daily Brief page' };
@@ -2350,12 +2357,6 @@ async function dailyBriefs(env) {
           `SELECT 1 AS x FROM tw_daily WHERE act_id = ?1 AND date = ?2 LIMIT 1`,
         ).bind(a.act_id, date).first().catch(() => null);
         if (!have) await syncTwDaily(env, a, 45).catch(() => {});
-        /* Channel ROAS and orders are Triple Whale attribution, and the nightly
-           attribution sync runs at 03:30 UTC - still the evening before in the
-           brands' own zones - so it never holds the brief's day. Pull the last
-           three days here, which also refreshes the two before it while their
-           journeys are still resolving. */
-        await syncTwAttribution(env, a, 0, { from: addDays(date, -2), to: date }).catch(() => {});
         // Two modes per brand. Review-first parks a draft internally and waits for
         // a human; auto sends straight to the client. A daily deliverable can be
         // either, and forcing every brand through a morning approval is exactly
@@ -5852,6 +5853,30 @@ export default {
           }
           out.push({ name: acct.name, date, marked_not_sent: sk?.meta?.changes ?? 0,
             length: r.text.length, reposted: !!posted?.ts, error: posted?.error });
+        }
+        return json({ ok: true, results: out });
+      }
+      /* REWRITE IN PLACE: rebuild the day's brief (fresh numbers + narrative)
+         and redraw its existing Slack card. Unlike 'reset' it marks nothing
+         skipped and never touches a brief already sent to the client. */
+      if (b.kind === 'rewrite') {
+        const accts = !b.act || b.act === 'all'
+          ? await listAccounts(env, true)
+          : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+        const out = [];
+        for (const acct of accts) {
+          const date = b.date || addDays(localDate(BRIEF_TZ), -1);
+          const prior = await env.DB.prepare(`SELECT status, slack_ts FROM briefs WHERE act_id = ?1 AND date = ?2`)
+            .bind(acct.act_id, date).first().catch(() => null);
+          if (!prior) { out.push({ name: acct.name, date, skipped: 'no brief for that day' }); continue; }
+          if (prior.status === 'sent' || prior.status === 'skipped') { out.push({ name: acct.name, date, skipped: prior.status }); continue; }
+          const r = await makeBrief(env, acct, date).catch(e => ({ error: e.message }));
+          if (r.error) { out.push({ name: acct.name, date, error: r.error }); continue; }
+          await upsertBrief(env, acct.act_id, date, prior.status, null, r.text, r.data, { health: r.health ?? null, steer: null });
+          const card = prior.slack_ts ? await slackSyncBrief(env, acct, date).then(() => 'updated').catch(e => e.message) : 'no card';
+          const d = r.data?.days?.find(x => x.date === date)?.a || {};
+          out.push({ name: acct.name, date, status: prior.status, card, attr: d.attr_source,
+            meta: [d.meta_purchases, d.meta_roas], google: [d.google_purchases, d.google_roas], narrative_error: r.narrative_error });
         }
         return json({ ok: true, results: out });
       }
