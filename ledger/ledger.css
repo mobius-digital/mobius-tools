@@ -677,7 +677,13 @@ body.signed-out main,body.signed-out footer{margin-left:0}
   .txn-tbl td.amt{grid-area:amt;text-align:right;font-size:16px}
   .txn-tbl .rowsel{margin-top:5px;max-width:100%}
   .msel-btn{max-width:100%}
-  /* sheets */
+  /* sheets. The SHAPE is here; the BEHAVIOUR - slide, drag to dismiss, page
+     lock, pinned header and actions, back-to-close - is sheet.js/sheet.css,
+     shared with Locus. These rules stand alone if that script never loads, so
+     a modal is still a usable bottom sheet either way.
+     The action row is deliberately NOT styled here any more: .ms-foot pins it
+     to the bottom of the sheet and owns its order, and a rule at .mbox .acts
+     .btn (0,3,0) would quietly out-specify it. */
   .modal{padding:0;align-items:flex-end}
   .mbox{max-width:none;border-radius:18px 18px 0 0;border-bottom:none;max-height:92dvh;overflow-y:auto;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
   .mbox .mrow{flex-direction:column;gap:0}
@@ -686,10 +692,10 @@ body.signed-out main,body.signed-out footer{margin-left:0}
   .mbox .msel{display:block}
   .mbox .msel-btn{width:100%;max-width:none;min-height:46px;font-size:15px}
   .mbox .acts{flex-wrap:wrap;gap:8px}
-  .mbox .acts .spacer{display:none}
-  .mbox .acts .btn{flex:1 1 45%;min-height:48px}
-  .mbox .acts .btn.primary{order:-1;flex-basis:100%}
   .msel-panel{max-height:60vh}
+  /* One dimmed layer, not two: sheet.js fades in its own backdrop so it can
+     also fade OUT under a drag, which a display:none scrim cannot do. */
+  html.ms-locked .scrim{display:none!important}
   .msel-opt{padding:13px 14px;font-size:15px}
   .conn{flex-wrap:wrap}
 }

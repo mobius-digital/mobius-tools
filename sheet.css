@@ -1,0 +1,135 @@
+/* ==========================================================================
+   sheet.css - phone behaviour for every Mobius modal
+   --------------------------------------------------------------------------
+   Cole, 2026-09-20: "when pop ups happen they get stuck and can't slide down
+   and can't figure out how to navigate, it's very clucky and doesn't seem
+   like a real phone app."
+
+   That is four separate faults, and all four were real:
+
+     STUCK      the page behind a sheet kept scrolling, and the sheet was a
+                scroller inside a scroller, so a drag did one of three things
+                depending on where your thumb landed. Nothing chained, nothing
+                sprang back; it just felt dead.
+     NO SLIDE   a sheet appeared and vanished with display:none. Every phone
+                sheet on earth slides up and can be flicked back down. Ours
+                could not be dragged at all.
+     NO WAY OUT a long sheet fills the screen, so the backdrop - the only
+                dismiss target on a phone - is off screen, and a phone has no
+                Escape key. Cancel was somewhere below the fold.
+     NO ANCHOR  the title scrolled away and the buttons sat at the end of the
+                content, so on any form longer than a screen you lost both
+                what you were doing and how to finish it.
+
+   So: one scroll container with a grabber and a close button pinned to its
+   top, the actions pinned to its bottom, a real slide-in, drag-to-dismiss, a
+   page that cannot move behind it, and the phone's own back gesture wired to
+   close it. sheet.js does the behaviour; this file is only the look.
+
+   EVERY rule here is gated on a class that sheet.js adds and only adds below
+   the phone breakpoint, so nothing in this file can reach a desktop layout.
+   Colours come from `background-color:inherit` and `currentColor` rather than
+   tokens, because Locus and Ledger have different palettes and both load it.
+   ========================================================================== */
+
+/* ---------- the page behind ----------
+   overflow:hidden on BOTH html and body. On body alone iOS ignores it and the
+   page scrolls under the sheet, which is the "stuck" complaint verbatim: you
+   drag expecting the sheet to move and the page behind it moves instead. */
+html.ms-locked,html.ms-locked body{overflow:hidden!important}
+
+/* ---------- the wrap (backdrop layer) ---------- */
+.ms-wrap{align-items:flex-end!important;padding:0!important;
+  /* Sized to the VISUAL viewport, not the layout viewport, so when the
+     keyboard opens the sheet's bottom edge lands on top of the keyboard
+     instead of behind it. --ms-vv is written by sheet.js. */
+  height:var(--ms-vv,100%)!important;bottom:auto!important;
+  overflow:hidden!important;overscroll-behavior:contain}
+.ms-backdrop{position:absolute;inset:0;pointer-events:none;
+  /* pointer-events:none is load-bearing. Both apps dismiss on a tap whose
+     target IS the wrap; a backdrop child that could be hit would swallow it
+     and the tap-outside gesture would silently stop working. */
+  opacity:0;transition:opacity .3s ease}
+.ms-wrap.ms-in .ms-backdrop{opacity:1}
+.ms-wrap.ms-out .ms-backdrop{opacity:0;transition-duration:.22s}
+
+/* ---------- the sheet ---------- */
+.ms-box{max-width:none!important;width:100%!important;
+  border-radius:18px 18px 0 0!important;border-bottom:0!important;
+  max-height:calc(var(--ms-vv,100dvh) - 10px)!important;
+  overflow-y:auto!important;overscroll-behavior:contain;
+  padding-top:0!important;
+  /* pan-y and not `none`: the sheet must still scroll itself. The drag
+     handler decides per-gesture whether a downward pan moves the sheet or
+     scrolls its content, which it can only do if the browser lets the
+     touchmove through in the first place. */
+  touch-action:pan-y;
+  transform:translateY(100%);will-change:transform}
+.ms-wrap.ms-in .ms-box{transform:none;transition:transform .34s cubic-bezier(.32,.72,0,1)}
+.ms-wrap.ms-out .ms-box{transform:translateY(100%);transition:transform .24s cubic-bezier(.4,0,1,1)}
+/* While a finger is down the sheet tracks it exactly - no transition, or the
+   sheet lags the thumb and the gesture feels like treacle. */
+.ms-wrap.ms-drag .ms-box{transition:none!important}
+@media (prefers-reduced-motion:reduce){
+  .ms-wrap.ms-in .ms-box,.ms-wrap.ms-out .ms-box,.ms-backdrop{transition-duration:.01ms!important}
+}
+
+/* ---------- pinned top: grabber, title, close ----------
+   background-color:inherit takes the sheet's own computed colour, so this bar
+   is opaque over the content sliding under it in either app and in either
+   theme without naming a single token. --ms-pad is the sheet's own horizontal
+   padding, measured by sheet.js, so the bar is full-bleed inside it. */
+.ms-head{position:sticky;top:0;z-index:6;background-color:inherit;
+  margin:0 calc(var(--ms-pad,18px) * -1) 4px;padding:9px var(--ms-pad,18px) 8px;
+  display:flex;align-items:center;gap:10px;min-height:44px;
+  border-bottom:1px solid transparent;transition:border-color .15s ease}
+.ms-head.ms-stuck{border-bottom-color:color-mix(in srgb,currentColor 14%,transparent)}
+.ms-grab{position:absolute;left:50%;top:6px;transform:translateX(-50%);
+  width:40px;height:5px;border-radius:99px;background:currentColor;opacity:.2}
+/* The title only appears once the real <h3> has scrolled under the bar, so a
+   short sheet is not made to carry the same words twice. */
+.ms-head .ms-title{font-size:14.5px;font-weight:700;letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;
+  opacity:0;transition:opacity .15s ease;padding-top:3px}
+.ms-head.ms-stuck .ms-title{opacity:1}
+.ms-x{margin-left:auto;flex:none;width:36px;height:36px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;border:0;padding:0;
+  background:color-mix(in srgb,currentColor 11%,transparent);
+  color:inherit;cursor:pointer;margin-top:2px}
+.ms-x svg{width:15px;height:15px;stroke:currentColor;stroke-width:2.2;
+  stroke-linecap:round;fill:none;opacity:.7}
+.ms-x:active{background:color-mix(in srgb,currentColor 20%,transparent)}
+
+/* ---------- pinned bottom: the actions ----------
+   A sheet's buttons belong on the sheet, not at the end of its content. The
+   primary goes full width on its own row because that is the shape a thumb
+   expects at the bottom of a phone screen. */
+.ms-foot{position:sticky;bottom:0;z-index:6;background-color:inherit;
+  margin:16px calc(var(--ms-pad,18px) * -1) calc(var(--ms-padb,18px) * -1)!important;
+  padding:11px var(--ms-pad,18px) calc(11px + env(safe-area-inset-bottom))!important;
+  border-top:1px solid color-mix(in srgb,currentColor 14%,transparent);
+  display:flex!important;flex-wrap:wrap;gap:8px;justify-content:stretch!important;align-items:center}
+.ms-foot>.btn,.ms-foot>button{flex:1 1 44%;min-height:48px;justify-content:center;text-align:center}
+.ms-foot>.btn.primary,.ms-foot>button.primary{order:9;flex-basis:100%}
+.ms-foot>.spacer{display:none}
+
+/* ---------- controls inside a sheet ----------
+   16px or iOS zooms the page the instant a field is focused, and there is no
+   gesture that zooms it back - which on its own reads as the app breaking. */
+.ms-box input,.ms-box select,.ms-box textarea{font-size:16px!important}
+.ms-box input:not([type=checkbox]):not([type=radio]),
+.ms-box select,.ms-box .btn,.ms-box button{min-height:44px}
+.ms-box .btn.sm,.ms-box .icon-btn,.ms-box .ms-x{min-height:0}
+/* Locus's searchable picker is an absolutely positioned list. Inside a sheet
+   that scrolls it was clipped at the sheet's edge: the options existed and
+   could not be reached. In a sheet it opens inline and the sheet scrolls to
+   it, which is what a phone does with a list anyway. */
+.ms-box .pk-list{position:static!important;max-height:44vh;margin-top:6px;box-shadow:none}
+.ms-box .pk-opt{padding:11px 10px;font-size:15px}
+
+/* ---------- drawers and menu sheets ----------
+   Same story as a modal: they could be opened and then only closed by finding
+   the strip of scrim beside them, with no back gesture and nothing to drag.
+   sheet.js gives them both; this only stops their own slide transition
+   fighting the finger for the length of the gesture. */
+body.ms-panel-drag .side,body.ms-panel-drag .sheet{transition:none!important}

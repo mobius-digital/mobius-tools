@@ -16,6 +16,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ledger.css?v=4">
+<!-- Phone sheet behaviour, shared with Locus. Loaded after ledger.css so its
+     class-gated rules win the ties they are meant to win. -->
+<link rel="stylesheet" href="../sheet.css?v=1">
+<script src="../sheet.js?v=1"></script>
 <meta name="theme-color" content="#f3f5f6">
 <script data-theme-init>try{if(localStorage.getItem('ledger_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
@@ -3350,7 +3354,30 @@ for (const event of ['click', 'change']) document.addEventListener(event, e => {
   const value=el.dataset.value === '__input__' ? el.value : /^(0|1)$/.test(el.dataset.value || '') ? Number(el.dataset.value) : el.dataset.value;
   if (fn) Promise.resolve(fn(el.dataset.name, el.dataset.field, value)).catch(e=>tell('Could not save',e.message));
 });
-/* ================= go ================= */
+/* ================= go =================
+
+   PHONE SHEETS. Everything modal in Ledger is one #modal / .mbox pair toggled
+   with a class, and the "more" panel is one .sheet toggled the same way, so
+   two registrations cover the whole app - including every modal added later.
+
+   `close` and `fallbackClose` point at the app's own close functions rather
+   than at anything sheet.js invents, because those functions are where the
+   real work lives: closeModal() clears window.__askCancel, without which a
+   dismissed ask() would leave `await ask(...)` hanging forever. */
+if (window.MobiusSheet) {
+  MobiusSheet.bindToggle({
+    wrap: '#modal', box: '.mbox', openClass: 'on',
+    media: '(max-width:767px)',
+    // #modal has no colour of its own - it dims with the separate #scrim,
+    // which ledger.css hides while a sheet is up so the two do not stack.
+    backdropColor: 'var(--scrim)',
+    fallbackClose: () => closeModal()
+  });
+  MobiusSheet.bindPanel({
+    panel: '#sheet', openClass: 'on', axis: 'y',
+    media: '(max-width:767px)', close: () => closeSheet()
+  });
+}
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 boot();
 </script>

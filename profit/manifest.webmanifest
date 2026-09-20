@@ -1,0 +1,15 @@
+{
+  "name": "Locus",
+  "short_name": "Locus",
+  "description": "The agency system: contribution margin, MER and aMER per client, the monthly plan, client reports and the Meta accounts behind them.",
+  "start_url": "/profit/",
+  "scope": "/profit/",
+  "display": "standalone",
+  "background_color": "#E7EEF2",
+  "theme_color": "#0C161D",
+  "icons": [
+    { "src": "/icons/locus-round-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/locus-round-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/locus-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

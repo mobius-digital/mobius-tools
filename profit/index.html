@@ -2,12 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover or env(safe-area-inset-*) is always 0, and the phone
+     tab bar - which pads itself with exactly that - sits under the home
+     indicator on every notched iPhone. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Locus</title>
 <meta name="description" content="Locus by Mobius Digital - the agency system: blended contribution margin, MER and aMER for every client, the agreed monthly plan, weekly and monthly client reports, and the Meta ad accounts behind them.">
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/locus-round-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../icons/locus-round-192.png">
 <link rel="apple-touch-icon" href="../icons/locus-180.png">
+<!-- Installable, like Ledger. Without these Locus can only ever be a browser
+     tab with a URL bar over it, which is half of "doesn't feel like a real
+     phone app" before a single pixel of layout is considered. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Locus">
+<meta name="theme-color" content="#0C161D">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -1404,8 +1415,34 @@
     .ad-modal-wrap{padding:0}
     .ad-modal-body{max-height:none;overflow:visible;padding-right:0}
     .tour-box{max-width:calc(100vw - 24px)}
+    /* A phone needs a 44px target and a 16px field, and neither was here.
+       Under 16px iOS zooms the page the instant a field is focused and
+       nothing zooms it back, so tapping the first box in a form left you
+       scrolled sideways inside a magnified page - most of what "clucky"
+       was describing. Ledger has carried both rules since it was built;
+       Locus never got them. */
+    button,.btn,.chip,.ctl,select{min-height:44px}
+    /* Two deliberate exceptions, both already sized by a stronger selector:
+       a segmented control is one control split into parts, not four buttons
+       stacked, and the tab bar sets its own 48px. Everything else in the app
+       is a target you hit with a thumb. */
+    .seg button{min-height:40px}
+    .icon-btn{min-height:36px;min-width:36px;width:36px;height:36px}
+    input,textarea,select{font-size:16px!important}
+    input:not([type=checkbox]):not([type=radio]){min-height:44px}
+    /* Strips of controls slide instead of wrapping into four ragged rows. */
+    nav.subtabs,.chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    nav.subtabs::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
+    nav.subtabs button,.chips .chip{flex:none}
   }
-</style><body>
+</style>
+<!-- Phone sheet behaviour, shared with Ledger. After this page's <style> so
+     its class-gated rules win the ties they are meant to win. The script is
+     NOT deferred: the app's own script is inline at the end of <body> and so
+     runs before any deferred file would. -->
+<link rel="stylesheet" href="/sheet.css?v=1">
+<script src="/sheet.js?v=1"></script>
+<body>
 <!-- Icon sprite. One <symbol> per tab, 16x16, stroked at a single weight so the
      column reads as one set rather than ten borrowed glyphs. Referenced with
      <use>, which keeps the nav markup to one line per tab. -->
@@ -1562,6 +1599,32 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
      over a rail that is now permanently visible. */
   matchMedia('(min-width:981px)').addEventListener('change', e => { if (e.matches) setNav(false); });
 })();
+
+/* PHONE SHEETS. Locus builds each modal on the fly and appends it to <body>,
+   in eight different functions across three files, so the only registration
+   that cannot go stale is one that watches the body for them. Every modal
+   written after today is covered without touching this line.
+
+   The drawer closes through #navScrim rather than through setNav, which is
+   private to the block above - and going through the app's own path is the
+   point: nothing about closing is duplicated here.
+
+   `fallbackClose` is a last resort only. Every modal in the app dismisses on
+   a backdrop tap, which is what sheet.js fires first; this catches one that
+   does not, because a sheet you cannot shut is worse than one that closes
+   without resolving. */
+if (window.MobiusSheet) {
+  MobiusSheet.watch({
+    wrap: '.modal-wrap', box: '.modal',
+    media: '(max-width:720px)',
+    fallbackClose: w => w.remove()
+  });
+  MobiusSheet.bindPanel({
+    panel: '.side', watchOn: 'body', openClass: 'nav-open', axis: 'x',
+    media: '(max-width:980px)',
+    close: () => document.getElementById('navScrim')?.click()
+  });
+}
 
 /* CHROME ON OR OFF, in one call.
    Six places used to toggle the rail, the picker, the sub-tabs and the sign-out
@@ -2076,7 +2139,9 @@ function steerModal({ title, what, cta = 'Rewrite it', current = '' }) {
     w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
     w.querySelector('[data-m="no"]').onclick = () => done(null);
     w.querySelector('[data-m="yes"]').onclick = () => done(ta.value.trim());
-    setTimeout(() => ta.focus(), 30);
+    // Not on a phone: focusing mid-slide throws the keyboard up over a sheet
+    // that is still animating, and the sheet settles behind it.
+    if (!matchMedia('(max-width:720px)').matches) setTimeout(() => ta.focus(), 30);
   });
 }
 
