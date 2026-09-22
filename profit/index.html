@@ -8312,7 +8312,7 @@ AskUI.init({
   name: 'Strategist', api: apiAH, esc, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
   flash: msg => { const el = document.getElementById('connChip'); if (el) { const was = el.textContent; el.textContent = msg; setTimeout(() => { el.textContent = was; }, 2500); } },
   cardH: (t, q, right = '') => `<div class="ch" style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:0"><h3 style="margin:0 0 4px">${esc(t)}</h3>${q ? `<div class="hint">${esc(q)}</div>` : ''}</div>${right}</div>`,
-  intro: 'Ask me about any brand or the whole book. Try: "how is Dartee doing this month against plan?", "what changed on Party Patch this week and who did it?", "which creatives are tiring on Grunk?", "what did we tell Galway last Monday?", "keep an eye on Dartee's MER under 2.5".',
+  intro: 'Ask me about any brand or the whole book. Try: "how is Dartee doing this month against plan?", "what changed on Party Patch this week and who did it?", "which creatives are tiring on Grunk?", "what did we tell Galway last Monday?", "keep an eye on Dartee MER under 2.5".',
   screen: () => {
     try {
       const a = S.act === 'all' ? null : S.accounts.find(x => x.act_id === S.act);
