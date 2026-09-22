@@ -71,6 +71,18 @@ const RULES = brand => `
 
 const TABLES = ['products', 'orders', 'order_lines', 'factories', 'lines', 'categories', 'collections', 'slots', 'type_map', 'changelog', 'brands'];
 
+/* How a good buyer thinks. Read before every answer; the copy in Settings wins. */
+const PLAYBOOK = `
+- The order-by date is the whole game. Every answer about a product ends with when it must be ordered and what happens if it is not.
+- Read cover in weeks at the CURRENT velocity, then ask whether the velocity is real: a spike from a promotion is not a new run rate, and a fall after a stockout is not a dead product.
+- Never order below the factory MOQ or the order window; say when the maths and the factory disagree.
+- Dead stock is cash. Name the number at cost, and the two ways out: a drop, or discontinue and stop counting it.
+- The lineup is a chain of dates working backwards from on-site: brief, tech pack, sample, order, land. A late step moves the drop; say which step and by how much.
+- One factory order beats three: when several products from one factory are due inside a month, say so and propose one order.
+- Prefer proposing a concrete change (a slot, an order, a lifecycle) over describing what someone could do. A proposal costs nothing until it is applied.
+- Never state a quantity, a date or a cost you did not get from a view or a query.
+`.trim();
+
 const VIEW_BLURBS = {
   today: 'the Today screen: the headline (how many to order, overdue, on the way, next landing, revenue at risk, dead stock) and the decisions the brain is asking for right now, in order. Start here for "what do I need to do".',
   product: 'one product by name or id: velocity, weeks of cover, on hand, sold in 30 days, status, order-by date, suggested quantity, lifecycle, line, factory, flags (spike, rising, falling). Use it for any question about a single product.',
@@ -182,6 +194,119 @@ async function snapshot(env, h, d, brand) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  actions: each one proposes; the tap runs the SAME route the screen  */
+/*  calls, so the Buyer can never write something the app cannot.       */
+/* ------------------------------------------------------------------ */
+
+const ACTIONS = (d, brand) => {
+  const findProduct = (s, q) => {
+    const want = String(q || '').toLowerCase().trim();
+    return s.products.find(p => String(p.id) === want || String(p.sku || '').toLowerCase() === want)
+      || s.products.find(p => String(p.title || '').toLowerCase().includes(want) || String(p.sku || '').toLowerCase().includes(want)) || null;
+  };
+  const findLine = (s, q) => { const w = String(q || '').toLowerCase().trim(); return s.lines.find(l => l.id === q) || s.lines.find(l => String(l.name || '').toLowerCase() === w) || s.lines.find(l => String(l.name || '').toLowerCase().includes(w)) || null; };
+  const findFactory = (s, q) => { const w = String(q || '').toLowerCase().trim(); return s.factories.find(f => f.id === q) || s.factories.find(f => String(f.name || '').toLowerCase().includes(w)) || null; };
+  const findCollection = (s, q) => { if (!q) return null; const w = String(q).toLowerCase().trim(); return s.collections.find(c => c.id === q) || s.collections.find(c => String(c.name || '').toLowerCase().includes(w)) || null; };
+  const state = (h, ctx) => d.state(brand, ctx?.request || h?.request);
+  return [
+    { name: 'add_lineup_slot',
+      description: 'Add a piece to the lineup plan: a new design in a line, with the date it must be on site (or the collection it belongs to, whose date stands in). Supply works the brief, sample and order dates backwards, and creates its Asana task.',
+      input_schema: { type: 'object', properties: {
+        line: { type: 'string', description: 'The line name (or id) it belongs to.' }, name: { type: 'string', description: 'What to call the piece, e.g. "Spring putter cover 2".' },
+        on_site_at: { type: 'string', description: "'YYYY-MM-DD' the day it must be on the site. Optional when a collection is given." },
+        collection: { type: 'string', description: 'The drop it belongs to, by name.' }, notes: { type: 'string' },
+        summary: { type: 'string', description: 'One short line for the card.' } }, required: ['line', 'name', 'summary'] },
+      propose: async (env, input, h, ctx) => {
+        const s = await state(h, ctx);
+        const line = findLine(s, input.line); if (!line) return { error: `No line called "${input.line}". The lines view lists them.` };
+        const col = findCollection(s, input.collection);
+        const on = /^\d{4}-\d{2}-\d{2}$/.test(input.on_site_at || '') ? input.on_site_at : col?.drop_at || col?.dropAt || null;
+        if (!on) return { error: 'Give on_site_at, or a collection with a date.' };
+        return { summary: input.summary, detail: `${input.name} in ${line.name}, on site ${on}${col ? ` (drop: ${col.name})` : ''}. Supply will date the brief, sample and order backwards from that and open the Asana task.`,
+          patch: { body: { line_id: line.id, name: String(input.name).slice(0, 80), on_site_at: on, collection_id: col?.id || null, notes: input.notes || null }, actor: 'the Buyer' } };
+      },
+      apply: async (env, patch, h) => { const r = await d.call(h.request, 'POST', '/api/slots', patch.body); return r.error ? r : { ok: true, note: `Added${r.asanaTask ? ', Asana task created' : ''}.` }; } },
+
+    { name: 'set_product',
+      description: 'Change what Supply knows about one product: its lifecycle (core | seasonal | drop | winding_down | discontinued), the plan decision (keep | cut | decide), its MOQ, or a note. "It was a one-off" = lifecycle drop. "Stop counting it" = discontinued.',
+      input_schema: { type: 'object', properties: {
+        product: { type: 'string', description: 'Title, SKU or id.' }, lifecycle: { type: 'string', enum: ['core', 'seasonal', 'drop', 'winding_down', 'discontinued'] },
+        decision: { type: 'string', enum: ['keep', 'cut', 'decide'] }, moq: { type: 'integer' }, notes: { type: 'string' },
+        summary: { type: 'string' } }, required: ['product', 'summary'] },
+      propose: async (env, input, h, ctx) => {
+        const s = await state(h, ctx);
+        const p = findProduct(s, input.product); if (!p) return { error: `No product matches "${input.product}".` };
+        const body = {}; const lines = [];
+        if (input.lifecycle) { body.lifecycle = input.lifecycle; lines.push(`lifecycle ${p.lifecycle} → ${input.lifecycle}`); }
+        if (input.decision) { body.decision = input.decision; lines.push(`decision → ${input.decision}`); }
+        if (input.moq !== undefined) { body.moq = Number(input.moq); lines.push(`MOQ → ${body.moq}`); }
+        if (input.notes !== undefined) { body.notes = String(input.notes).slice(0, 2000); lines.push('note updated'); }
+        if (!lines.length) return { error: 'Nothing to change.' };
+        return { summary: input.summary, detail: `${p.title}: ${lines.join(', ')}.`, patch: { pid: String(p.id).replace(/\D/g, ''), body } };
+      },
+      apply: async (env, patch, h) => { const r = await d.call(h.request, 'PUT', `/api/products/${patch.pid}`, patch.body); return r.error ? r : { ok: true, note: 'Updated.' }; } },
+
+    { name: 'log_order',
+      description: 'Log a purchase order to a factory: which products and how many, when it is expected to land. Uses the brain\'s suggested split by variant when a product has sizes or colours. Creates it as a draft (or sent) so it shows on Orders and in the forecast.',
+      input_schema: { type: 'object', properties: {
+        factory: { type: 'string' },
+        lines: { type: 'array', items: { type: 'object', properties: { product: { type: 'string' }, qty: { type: 'integer', description: 'Total units for the product. Omit to use the suggested quantity.' } }, required: ['product'] } },
+        expected_at: { type: 'string', description: "'YYYY-MM-DD' landing date, optional." }, status: { type: 'string', enum: ['draft', 'sent'] }, notes: { type: 'string' },
+        summary: { type: 'string' } }, required: ['factory', 'lines', 'summary'] },
+      propose: async (env, input, h, ctx) => {
+        const s = await state(h, ctx);
+        const f = findFactory(s, input.factory); if (!f) return { error: `No factory called "${input.factory}".` };
+        const out = [], detail = [];
+        for (const l of input.lines || []) {
+          const p = findProduct(s, l.product); if (!p) return { error: `No product matches "${l.product}".` };
+          const want = Number(l.qty) || p.suggested || 0;
+          if (!want) return { error: `${p.title}: give a quantity, the brain has no suggestion for it.` };
+          const split = (p.suggestedLines || []).filter(x => x.qty > 0);
+          const total = split.reduce((a, x) => a + x.qty, 0);
+          const variants = (p.designs || p.variants || []);
+          if (split.length && total) for (const x of split) out.push({ product_id: String(p.id), variant_id: String(x.variantId), qty: Math.max(1, Math.round(want * x.qty / total)), unit_cost: p.cost ?? null });
+          else if (variants.length === 1) out.push({ product_id: String(p.id), variant_id: String(variants[0].id), qty: want, unit_cost: p.cost ?? null });
+          else if (variants.length) { const each = Math.max(1, Math.round(want / variants.length)); for (const v of variants) out.push({ product_id: String(p.id), variant_id: String(v.id), qty: each, unit_cost: p.cost ?? null }); }
+          else return { error: `${p.title} has no variants Supply can order against.` };
+          detail.push(`${p.title} × ${want}`);
+        }
+        if (!out.length) return { error: 'An order needs at least one line.' };
+        const units = out.reduce((a, x) => a + x.qty, 0), cost = out.reduce((a, x) => a + x.qty * (x.unit_cost || 0), 0);
+        return { summary: input.summary, detail: `${f.name}: ${detail.join(', ')}. ${units} units${cost ? `, about $${Math.round(cost).toLocaleString('en-US')} at cost` : ''}${input.expected_at ? `, landing ${input.expected_at}` : ''}. Logged as ${input.status || 'draft'}.`,
+          patch: { body: { factory_id: f.id, status: input.status || 'draft', expected_at: input.expected_at || null, notes: input.notes || null, lines: out } } };
+      },
+      apply: async (env, patch, h) => { const r = await d.call(h.request, 'POST', '/api/orders', patch.body); return r.error ? r : { ok: true, note: `${r.id} logged.` }; } },
+
+    { name: 'update_order',
+      description: 'Move a purchase order along: status (sent | confirmed | production | shipped | partial | landed | cancelled), its expected landing date, tracking, or a note.',
+      input_schema: { type: 'object', properties: {
+        id: { type: 'string', description: 'The order id, e.g. PO-0012.' }, status: { type: 'string', enum: ['draft', 'sent', 'confirmed', 'production', 'shipped', 'partial', 'landed', 'cancelled'] },
+        expected_at: { type: 'string' }, tracking: { type: 'string' }, notes: { type: 'string' }, summary: { type: 'string' } }, required: ['id', 'summary'] },
+      propose: async (env, input, h, ctx) => {
+        const s = await state(h, ctx);
+        const o = s.orders.find(x => x.id.toLowerCase() === String(input.id || '').toLowerCase()); if (!o) return { error: `No order ${input.id}.` };
+        const body = {}; const lines = [];
+        for (const k of ['status', 'expected_at', 'tracking', 'notes']) if (input[k] !== undefined) { body[k] = input[k]; lines.push(`${k.replace('_', ' ')} → ${input[k]}`); }
+        if (!lines.length) return { error: 'Nothing to change.' };
+        return { summary: input.summary, detail: `${o.id} (${o.factoryName || 'factory'}): ${lines.join(', ')}.`, patch: { id: o.id, body } };
+      },
+      apply: async (env, patch, h) => { const r = await d.call(h.request, 'PUT', `/api/orders/${encodeURIComponent(patch.id)}`, patch.body); return r.error ? r : { ok: true, note: `${patch.id} updated.` }; } },
+
+    { name: 'send_slot_to_asana',
+      description: 'Create the Asana task for a lineup slot that does not have one yet (with the brief, tech pack and sample steps).',
+      input_schema: { type: 'object', properties: { slot: { type: 'string', description: 'The slot name or id.' }, summary: { type: 'string' } }, required: ['slot', 'summary'] },
+      propose: async (env, input, h, ctx) => {
+        const s = await state(h, ctx);
+        const w = String(input.slot || '').toLowerCase();
+        const sl = s.slots.find(x => x.id === input.slot) || s.slots.find(x => String(x.name || '').toLowerCase().includes(w)); if (!sl) return { error: `No slot matches "${input.slot}".` };
+        if (sl.asana_task) return { error: `${sl.name} already has an Asana task: ${sl.asana_task}` };
+        return { summary: input.summary, detail: `Create the Asana task for ${sl.name} (on site ${sl.dropAt || sl.on_site_at}) in the brand's Asana project, with its steps.`, patch: { id: sl.id } };
+      },
+      apply: async (env, patch, h) => { const r = await d.call(h.request, 'POST', `/api/slots/${encodeURIComponent(patch.id)}/asana`, {}); return r.error ? r : { ok: true, note: 'Asana task created.' }; } },
+  ];
+};
+
+/* ------------------------------------------------------------------ */
 /*  assembly, one per brand                                            */
 /* ------------------------------------------------------------------ */
 
@@ -205,6 +330,7 @@ export function buildBuyer(d, brand, brandName) {
     getStored: (env, key) => d.getSetting(env, brand, key),
   });
   const h = (b, request) => ({
+    request,
     getSetting: (env, key) => d.getSetting(env, brand, key),
     putSetting: (env, key, value) => d.putSetting(env, brand, key, value),
     safeJson: d.safeJson, centralDate: () => d.today(brand), monthOf: x => String(x).slice(0, 7),
@@ -222,6 +348,9 @@ export function buildBuyer(d, brand, brandName) {
     checkKinds: ['late-order', 'late-landing', 'velocity', 'late-slot', 'dead-stock'],
     checks: (env, hh) => runChecks(env, hh, d, brand),
     snapshot: (env, hh) => snapshot(env, hh, d, brand),
+    actions: ACTIONS(d, brand),
+    playbook: PLAYBOOK,
+    slackApp: 'supply',
     briefingHow: `- Slack mrkdwn: *bold* with single asterisks, bullets are "• ", no headings, no tables.
 - Open with one line: how many to order, what is landing next, revenue at risk.
 - Then EVERY finding worth their time, one bullet each, most urgent first, drawn ONLY from the findings given. Each bullet: the product or order, the date, what to do.

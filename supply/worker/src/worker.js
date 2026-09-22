@@ -352,6 +352,18 @@ const buyerDeps = {
   safeJson,
   today: brand => localDate(tzOf.get(brand) || 'America/Chicago'),
   slack: async () => ({ ok: false }),
+  /* An action's apply is the SAME call the screen makes, through the front
+     door, with the person's own token: every validation, log line and Asana
+     hand-off a route does happens here too, and nothing can be written that
+     the app itself could not write. */
+  call: async (request, method, path, body) => {
+    if (!request) return { error: 'no signed-in request to act as' };
+    const url = new URL(request.url); url.pathname = path; url.search = `?brand=${encodeURIComponent(url.searchParams.get('brand') || 'lucky')}`;
+    const res = await app.fetch(new Request(url.toString(), { method, headers: { 'Authorization': request.headers.get('Authorization') || '', 'Content-Type': 'application/json', 'X-Actor': (request.headers.get('X-Actor') || '') + ' (via the Buyer)' },
+      body: body ? JSON.stringify(body) : undefined }), buyerDeps._env);
+    const j = await res.json().catch(() => ({}));
+    return res.ok ? j : { error: j.error || `HTTP ${res.status}` };
+  },
 };
 async function buyerFor(env, brand, request) {
   buyerDeps._env = env;
@@ -368,7 +380,7 @@ async function buyerNightly(env, brand, request) {
 }
 
 /* ---------- routes ---------- */
-export default {
+const app = {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -427,7 +439,8 @@ export default {
           return json(await engine.answerWeb(env, body?.question, body?.history, h, { findings: findings.slice(0, 6), screen: body?.screen || null }));
         }
         if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h),
-          briefing: safeJson(await h.getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h), brief: await engine.getBrief(env, h) });
+          briefing: safeJson(await h.getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h), brief: await engine.getBrief(env, h),
+          playbook: (await h.getSetting(env, engine.keys.playbook)) || '', pending: await engine.pendingList(env, h) });
         if (path === '/api/ask/finding' && request.method === 'POST') {
           if (!body?.key) return bad('key required');
           return json(await engine.setFindingState(env, String(body.key), String(body.state || 'done')));
@@ -440,6 +453,8 @@ export default {
           return json({ ok: true });
         }
         if (path === '/api/ask/brief' && request.method === 'PUT') { await h.putSetting(env, engine.keys.brief, String(body?.text || '').slice(0, 4000)); return json({ ok: true }); }
+        if (path === '/api/ask/playbook' && request.method === 'PUT') { await h.putSetting(env, engine.keys.playbook, String(body?.text || '').slice(0, 8000)); return json({ ok: true }); }
+        if (path === '/api/ask/apply' && request.method === 'POST') return json(await engine.applyProposal(env, String(body?.id || ''), h, { cancel: !!body?.cancel }));
         if (path === '/api/ask/run' && request.method === 'POST') { const r = await buyerNightly(env, brand, request); return json({ found: r.found, fresh: r.fresh.length, urgent: r.urgent.length }); }
         if (path === '/api/ask/briefing' && request.method === 'POST') {
           const text = await engine.briefing(env, h, { force: true });
@@ -752,3 +767,4 @@ export default {
     }
   },
 };
+export default app;

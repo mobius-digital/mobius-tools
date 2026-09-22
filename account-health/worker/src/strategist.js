@@ -91,6 +91,33 @@ const TABLES = ['accounts', 'daily_insights', 'hourly_insights', 'tw_daily', 'ac
 
 const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brands (Dartee, Grunk Dolfer, Party Patch, Galway Bay, Lucky Golf, InStyler and others). Each brand has a Meta ad account, a Triple Whale store, an internal Slack channel for the team and a client channel. Every morning a Daily Brief goes to each client; every week and month a report. Strategists (Ahsan, Noma, Robbo) run the accounts day to day and log what they change and why. The plan per brand sets a monthly sales and spend goal; the target ROAS and CPA are the client's own lines.`;
 
+/* How a good strategist thinks. Read before every answer; the copy in
+ * Settings wins over this one. The creative half is Mobius's own framework
+ * (Angle, Concept, What We're Testing) and the angles-hub hierarchy rule. */
+const PLAYBOOK = `
+READING AN ACCOUNT
+- Is the brand making money: blended (Triple Whale) first, MER and aMER against the plan. Then are the ads working: Meta-reported delivery (spend, CPM, CTR, hook, hold). Say which lens you are using.
+- Pace is spend against the month's budget by day of month; a brand under pace late in the month is throttled or broken, not "saving".
+- When a number moves, look at the change log before guessing: who touched what, and when.
+- The client's own lines (target ROAS, target CPA) are the bar. A day under the bar is noise; three days is a finding; a week is a conversation with the client.
+- A ROAS on fewer than two conversions is not a result. Withhold it and say why.
+- Never mix currencies, never quote Meta's purchases as attribution, never flag The Golf Sock.
+
+BUILDING CREATIVE (Mobius's framework, three words only)
+- ANGLE = the argument: the reason to buy, said in one sentence to a specific person, something you could say at a bar. Not a persona, not a topic, not a feature, not a format.
+- CONCEPT = the idea we build to deliver the angle, specific enough to shoot without questions.
+- WHAT WE'RE TESTING = the one piece that changes. Never two levels at once.
+- New angle: 3 concepts that argue it in genuinely different ways (prove it with evidence, show it happening, make the alternative look ridiculous), 1 ad each, and say what each teaches if it wins. Proven concept: change one piece (hook, person, headline, edit). Winner fatigues: new concepts first, new angle if those die.
+- Copy: lead with the customer's words, one claim per ad, the product as the way out of a specific moment, no jargon, no adjectives doing the work of a proof.
+
+THE ANGLES HUB (what creators see)
+- Two levels, never nested. A SECTION answers one question: why would a creator film this today. Three legal kinds, all at the same level: Hot right now (pinned), a dated window (Halloween, Black Friday, the Masters; it retires itself), and a durable lane (a product line, or a standing theme). Five or six sections per brand, max.
+- Everything describing the video itself is a CHIP on the card: format first, then product. "Split screen" is a chip. "Black Friday" is a section.
+- A section is named after a product only when the buyer chooses BETWEEN products (wedge vs putter). One-product brands get occasions.
+- Each angle carries: title, the argument, who it is for, products (short), format, the lever (staff only), three openers (first lines that stop the scroll), the shots, the on-screen text, a do and a don't.
+- Before writing new angles, read the brand context, the current angles (to not repeat them) and what actually sold (Triple Whale attributed revenue by ad). Angles come from evidence, then taste.
+`.trim();
+
 const VIEW_BLURBS = {
   accounts: 'every client brand with its targets, budget, channels, whether the brief is on, and when it last synced. Start here to resolve a brand name to an account.',
   overview: 'the Overview tab: each active brand over the window with sales, spend, MER, AMER, new-customer revenue and contribution margin, all blended (Triple Whale). Use it for "how is the book doing".',
@@ -102,6 +129,9 @@ const VIEW_BLURBS = {
   reports: 'the weekly and monthly reports for one client, newest first, with their summaries. Pass `brand`.',
   data_health: 'whether one brand\'s data can be trusted right now: sync age, gaps, the last error. Pass `brand`.',
   plan: 'the plan and goals for one brand by month. Pass `brand`.',
+  angles: 'the brand\'s angles hub as creators see it: every section and every angle (title, argument, who, products, format, status). Pass `brand`. Read it before proposing new angles or archiving old ones.',
+  what_worked: 'the ads that actually sold for one brand over the last 90 days, by Triple Whale attributed revenue (lastPlatformClick), with Meta spend and CTR beside them. Pass `brand`. This is the evidence new angles come from.',
+  brand_context: 'what we know about one brand for creative work: who buys and why, the voice, the products, the claims, the KPIs. Pass `brand`. Written by Cole; empty means ask him or read the angles hub\'s intro.',
   findings: 'everything the nightly checks currently have open.',
   config: 'how the Strategist is set up: which Slack channel it briefs in, the brief hour.',
 };
@@ -176,6 +206,30 @@ function buildViews(d) {
       const acct = await need(env, a);
       const { results } = await env.DB.prepare(`SELECT * FROM p_plan WHERE act_id = ?1 ORDER BY 2 DESC LIMIT 24`).bind(acct.act_id).all().catch(() => ({ results: [] }));
       return { brand: acct.name, goals: d.safeJson(acct.goals_json, {}), plan: results || [], how_to_read: VIEW_BLURBS.plan };
+    },
+    angles: async (env, a) => {
+      const acct = await need(env, a);
+      const { results: secs } = await env.DB.prepare(`SELECT id, name, line, pinned, enabled, sort FROM p_amb_section WHERE act_id = ?1 ORDER BY pinned DESC, sort`).bind(acct.act_id).all();
+      const { results: angs } = await env.DB.prepare(`SELECT id, section_id, hot, status, title, argument, who, products, format, trend FROM p_amb_angle WHERE act_id = ?1 ORDER BY sort`).bind(acct.act_id).all();
+      const hub = await env.DB.prepare(`SELECT slug, live, intro, about, audience, avoid_json, rules_json, season_json FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first();
+      return { brand: acct.name, hub: hub ? { ...hub, avoid: d.safeJson(hub.avoid_json, []), rules: d.safeJson(hub.rules_json, []), season: d.safeJson(hub.season_json, null) } : null,
+        sections: (secs || []).map(x => ({ ...x, angles: (angs || []).filter(g => g.section_id === x.id).length })), angles: angs || [], how_to_read: VIEW_BLURBS.angles + ' status draft = archived, not shown to creators.' };
+    },
+    what_worked: async (env, a) => {
+      const acct = await need(env, a);
+      const to = d.localDate(acct.tz), from = d.addDays(to, -90);
+      const { results } = await env.DB.prepare(`SELECT ad.ad_id, ad.name, SUM(t.revenue) AS tw_revenue, SUM(t.orders) AS tw_orders,
+          (SELECT SUM(spend) FROM ad_daily x WHERE x.act_id = t.act_id AND x.ad_id = t.ad_id AND x.date >= ?2 AND x.date <= ?3) AS spend,
+          (SELECT SUM(link_clicks) * 1.0 / NULLIF(SUM(impressions), 0) FROM ad_daily x WHERE x.act_id = t.act_id AND x.ad_id = t.ad_id AND x.date >= ?2 AND x.date <= ?3) AS ctr
+        FROM tw_ad_attr t JOIN ads ad ON ad.act_id = t.act_id AND ad.ad_id = t.ad_id
+        WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY t.ad_id ORDER BY tw_revenue DESC LIMIT 25`).bind(acct.act_id, from, to).all();
+      return { brand: acct.name, from, to, ads: (results || []).map(r => ({ ...r, roas: r.spend ? Math.round(r.tw_revenue / r.spend * 100) / 100 : null })),
+        how_to_read: 'Revenue and orders are Triple Whale attributed (lastPlatformClick). spend and ctr are Meta-reported. The ad NAME carries the angle and the format after the last |; read the names for what the winning arguments were.' };
+    },
+    brand_context: async (env, a) => {
+      const acct = await need(env, a);
+      const text = await d.getSetting(env, `brandContext:${acct.act_id}`);
+      return { brand: acct.name, context: text || '', how_to_read: text ? VIEW_BLURBS.brand_context : 'Nothing written for this brand yet. Ask Cole for who buys, why, the voice and the claims, or read the angles hub intro and the existing angles for the voice.' };
     },
     findings: async (env, a, ctx, engine) => ({ open: await engine.openFindings(env, d.h()), how_to_read: VIEW_BLURBS.findings }),
     config: async env => ({ briefing_channel: await d.getSetting(env, 'strategistChannel'), brief_hour: await d.briefHour(env), how_to_read: VIEW_BLURBS.config }),
@@ -256,6 +310,146 @@ async function snapshot(env, h, d) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  actions: each one proposes; a tap applies                          */
+/* ------------------------------------------------------------------ */
+
+const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+const clip = (v, n) => v == null ? null : String(v).slice(0, n);
+
+const ACTIONS = (d) => {
+  const resolve = async (env, want) => {
+    const accounts = await d.listAccounts(env, false);
+    const w = String(want || '').toLowerCase().trim();
+    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+  };
+  return [
+    { name: 'set_goals',
+      description: 'Set the monthly goals the Daily Brief paces against for one brand: sales, spend, aMER, contribution margin percent. Any field left out keeps its value. Look at the plan view first.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string' }, month: { type: 'string', description: "'YYYY-MM', or 'default' for the standing goals." },
+        sales: { type: 'number' }, spend: { type: 'number' }, amer: { type: 'number' }, cm_pct: { type: 'number', description: 'e.g. 0.32 for 32%' },
+        summary: { type: 'string' } }, required: ['brand', 'month', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const month = input.month === 'default' || /^\d{4}-\d{2}$/.test(input.month || '') ? input.month : null;
+        if (!month) return { error: "month must be 'YYYY-MM' or 'default'." };
+        const goals = d.safeJson(acct.goals_json, {}) || {};
+        const cur = goals[month] || {};
+        const next = { ...cur }; const lines = [];
+        for (const k of ['sales', 'spend', 'amer', 'cm_pct']) if (input[k] !== undefined) { next[k] = Number(input[k]); lines.push(`${k} ${cur[k] ?? 'unset'} → ${next[k]}`); }
+        if (!lines.length) return { error: 'Nothing to change.' };
+        return { summary: input.summary, detail: `${acct.name}, ${month}: ${lines.join(', ')}.`, patch: { act_id: acct.act_id, month, goals: next } };
+      },
+      apply: async (env, patch) => {
+        const row = await env.DB.prepare('SELECT goals_json FROM accounts WHERE act_id = ?1').bind(patch.act_id).first();
+        const goals = d.safeJson(row?.goals_json, {}) || {};
+        goals[patch.month] = patch.goals;
+        await env.DB.prepare('UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1').bind(patch.act_id, JSON.stringify(goals)).run();
+        return { ok: true, note: 'Goals updated. The next brief paces against them.' };
+      } },
+
+    { name: 'set_brand_context',
+      description: 'Write or extend what the Strategist knows about a brand for creative work (who buys, why, the voice, the products, the claims, the KPIs). Use it when Cole tells you something about a brand that should shape every future angle.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string' }, text: { type: 'string', description: 'The context, in plain prose.' },
+        mode: { type: 'string', enum: ['append', 'replace'], description: 'append (default) adds a paragraph; replace rewrites the whole thing.' },
+        summary: { type: 'string' } }, required: ['brand', 'text', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        return { summary: input.summary, detail: `${acct.name}: ${input.mode === 'replace' ? 'replace the brand context with' : 'add to the brand context'}: "${clip(input.text, 300)}${String(input.text).length > 300 ? '…' : ''}"`,
+          patch: { act_id: acct.act_id, text: clip(input.text, 12000), mode: input.mode || 'append' } };
+      },
+      apply: async (env, patch) => {
+        const key = `brandContext:${patch.act_id}`;
+        const cur = (await d.getSetting(env, key)) || '';
+        await d.putSetting(env, key, patch.mode === 'replace' || !cur ? patch.text : cur + '\n\n' + patch.text);
+        return { ok: true, note: 'Brand context updated.' };
+      } },
+
+    { name: 'archive_angles',
+      description: 'Take angles off the brand\'s hub (they become drafts, not deleted): everything whose title, argument, products or section matches a theme, e.g. "Halloween". A dated section left empty is switched off. Read the angles view first so you can name what will go.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string' }, matching: { type: 'string', description: 'A theme, a section name, or a word from the titles.' },
+        ids: { type: 'array', items: { type: 'string' }, description: 'Exact angle ids instead of a match, when you have them.' },
+        summary: { type: 'string' } }, required: ['brand', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const { results: angs } = await env.DB.prepare(`SELECT a.id, a.title, a.products, a.argument, a.section_id, s.name AS section FROM p_amb_angle a LEFT JOIN p_amb_section s ON s.id = a.section_id WHERE a.act_id = ?1 AND a.status = 'live'`).bind(acct.act_id).all();
+        const w = String(input.matching || '').toLowerCase().trim();
+        const hit = (input.ids?.length ? (angs || []).filter(x => input.ids.includes(x.id))
+          : w ? (angs || []).filter(x => [x.title, x.products, x.argument, x.section].some(v => String(v || '').toLowerCase().includes(w))) : []);
+        if (!hit.length) return { error: `No live angle matches "${input.matching || (input.ids || []).join(', ')}".` };
+        const secs = [...new Set(hit.map(x => x.section_id).filter(Boolean))].filter(sid => (angs || []).filter(x => x.section_id === sid).every(x => hit.some(h => h.id === x.id)));
+        return { summary: input.summary, detail: `${acct.name}: archive ${hit.length} angle${hit.length > 1 ? 's' : ''}: ${hit.map(x => x.title).join('; ')}.${secs.length ? ` The section${secs.length > 1 ? 's' : ''} left empty (${[...new Set(hit.filter(x => secs.includes(x.section_id)).map(x => x.section))].join(', ')}) will be switched off.` : ''}`,
+          patch: { act_id: acct.act_id, ids: hit.map(x => x.id), sections: secs } };
+      },
+      apply: async (env, patch) => {
+        for (const id of patch.ids) await env.DB.prepare(`UPDATE p_amb_angle SET status = 'draft', hot = 0, updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`).bind(id, patch.act_id).run();
+        for (const sid of patch.sections || []) await env.DB.prepare(`UPDATE p_amb_section SET enabled = 0 WHERE id = ?1 AND act_id = ?2`).bind(sid, patch.act_id).run();
+        return { ok: true, note: `${patch.ids.length} archived${patch.sections?.length ? `, ${patch.sections.length} section${patch.sections.length > 1 ? 's' : ''} off` : ''}.` };
+      } },
+
+    { name: 'create_angles',
+      description: 'Write new angles for a brand\'s hub from the evidence (brand context, what sold, the current angles) using Mobius\'s Angle / Concept / Testing framework, and put them in a section (existing by name, or a new one). The proposal shows every angle in full for review before anything is published. Use it for "make N angles for X".',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string' }, theme: { type: 'string', description: 'What the angles are for, e.g. "Black Friday", "gifting", "the new putter". Include any direction Cole gave.' },
+        count: { type: 'integer', description: '1 to 10. Default 6.' },
+        section: { type: 'string', description: 'The section they go in. An existing section name, or a new one (a dated window like "Black Friday" or a durable lane).' },
+        section_line: { type: 'string', description: 'One line under the section name, for a new section.' },
+        summary: { type: 'string' } }, required: ['brand', 'theme', 'section', 'summary'] },
+      propose: async (env, input, h) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const n = Math.min(10, Math.max(1, Number(input.count) || 6));
+        const context = (await d.getSetting(env, `brandContext:${acct.act_id}`)) || '';
+        const hub = await env.DB.prepare(`SELECT intro, about, audience, avoid_json, rules_json FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first();
+        const { results: secs } = await env.DB.prepare(`SELECT id, name, line, enabled FROM p_amb_section WHERE act_id = ?1`).bind(acct.act_id).all();
+        const { results: angs } = await env.DB.prepare(`SELECT a.title, a.argument, a.who, a.format, s.name AS section FROM p_amb_angle a LEFT JOIN p_amb_section s ON s.id = a.section_id WHERE a.act_id = ?1 AND a.status = 'live' ORDER BY a.sort LIMIT 60`).bind(acct.act_id).all();
+        const to = d.localDate(acct.tz), from = d.addDays(to, -90);
+        const { results: won } = await env.DB.prepare(`SELECT ad.name, SUM(t.revenue) AS rev, SUM(t.orders) AS ord FROM tw_ad_attr t JOIN ads ad ON ad.act_id = t.act_id AND ad.ad_id = t.ad_id
+          WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY t.ad_id ORDER BY rev DESC LIMIT 15`).bind(acct.act_id, from, to).all();
+        const existing = (secs || []).find(x => x.name.toLowerCase() === String(input.section).toLowerCase());
+        const system = `You are the Strategist at Mobius Digital writing angles for ${acct.name}'s creator hub. Follow the framework exactly:
+- An ANGLE is the argument: the reason to buy, one sentence, to a specific person, sayable at a bar. Not a persona, topic, feature or format.
+- Each angle carries: title (short, punchy), argument (one sentence), who (who it is for), products (a few words), format (one: e.g. "Talking head", "Split screen", "Get ready with me", "Unboxing", "POV", "Static"), lever (the psychological lever, staff only), openers (3 first lines that stop the scroll, in the customer's words), shots (3 to 5 {label, text}), on_screen (the text overlay), do (one line), dont (one line).
+- Angles must be genuinely different arguments, not one argument in five formats. No two may share a lever and a who.
+- Evidence first: the ads that sold tell you which arguments work for this brand. Build on them; do not repeat a live angle.
+- Plain English, the brand's voice, no jargon, no em dashes, no exclamation marks, no claims outside the rules.
+Return ONLY a JSON array of ${n} objects with exactly those keys. No prose.`;
+        const user = `THEME / DIRECTION: ${input.theme}\nSECTION: ${input.section}${existing ? ' (existing)' : ' (new)'}\n\nBRAND CONTEXT:\n${context || '(none written)'}\n\nHUB INTRO: ${hub?.intro || ''}\nABOUT: ${hub?.about || ''}\nAUDIENCE: ${hub?.audience || ''}\nAVOID: ${JSON.stringify(d.safeJson(hub?.avoid_json, []))}\nRULES: ${JSON.stringify(d.safeJson(hub?.rules_json, []))}\n\nLIVE ANGLES NOW (do not repeat):\n${(angs || []).map(a => `- [${a.section || 'no section'}] ${a.title}: ${a.argument || ''} (${a.who || ''}; ${a.format || ''})`).join('\n') || '(none)'}\n\nWHAT SOLD, LAST 90 DAYS (Triple Whale attributed; the ad name carries the angle and format):\n${(won || []).map(w => `- ${w.name}: $${Math.round(w.rev)} from ${w.ord} orders`).join('\n') || '(no attribution rows yet)'}`;
+        let text;
+        try { text = await d.claude(env, { system, user, maxTokens: 6000 }); } catch (e) { return { error: 'The writer could not run: ' + e.message }; }
+        const m = String(text || '').match(/\[[\s\S]*\]/);
+        let list; try { list = JSON.parse(m ? m[0] : '[]'); } catch { return { error: 'The writer did not return a clean list. Try again, or narrow the theme.' }; }
+        list = (Array.isArray(list) ? list : []).filter(x => x && x.title && x.argument).slice(0, n);
+        if (!list.length) return { error: 'No usable angles came back. Try again with a narrower theme.' };
+        const preview = list.map((x, i) => `${i + 1}. ${x.title}\n   ${x.argument}\n   For: ${x.who || ''} · ${x.format || ''} · ${x.products || ''}\n   Openers: ${(x.openers || []).slice(0, 3).map(o => `"${o}"`).join(' / ')}`).join('\n\n');
+        return { summary: input.summary, detail: `${acct.name}: ${list.length} new angle${list.length > 1 ? 's' : ''} for ${input.section}${existing ? '' : ' (new section)'}. Review them below; Apply publishes them live on the hub.`, preview,
+          patch: { act_id: acct.act_id, section: existing ? { id: existing.id } : { name: clip(input.section, 60), line: clip(input.section_line || input.theme, 120) }, angles: list } };
+      },
+      apply: async (env, patch) => {
+        let sid = patch.section.id;
+        if (!sid) {
+          sid = rid();
+          const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort),0)+1 AS n FROM p_amb_section WHERE act_id = ?1`).bind(patch.act_id).first();
+          await env.DB.prepare(`INSERT INTO p_amb_section (id, act_id, name, line, icon, icon_svg, color, enabled, sort) VALUES (?1,?2,?3,?4,NULL,NULL,?5,1,?6)`)
+            .bind(sid, patch.act_id, patch.section.name, patch.section.line || null, '#E86A33', mx?.n || 1).run();
+        } else await env.DB.prepare(`UPDATE p_amb_section SET enabled = 1 WHERE id = ?1 AND act_id = ?2`).bind(sid, patch.act_id).run();
+        let made = 0;
+        for (const x of patch.angles) {
+          const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort),0)+1 AS n FROM p_amb_angle WHERE act_id = ?1`).bind(patch.act_id).first();
+          await env.DB.prepare(`INSERT INTO p_amb_angle (id, act_id, section_id, hot, status, title, argument, who, products, format, lever, openers_json, shots_json, on_screen, do_text, dont_text, trend, sort, hot_sort)
+            VALUES (?1,?2,?3,0,'live',?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,NULL,?15,0)`)
+            .bind(rid(), patch.act_id, sid, clip(x.title, 120), clip(x.argument, 400), clip(x.who, 200), clip(x.products, 120), clip(x.format, 60), clip(x.lever, 120),
+              JSON.stringify((x.openers || []).slice(0, 5).map(o => clip(o, 200))), JSON.stringify((x.shots || []).slice(0, 8).map(sh => ({ label: clip(sh.label, 40), text: clip(sh.text, 300) }))),
+              clip(x.on_screen, 200), clip(x.do || x.do_text, 300), clip(x.dont || x.dont_text, 300), mx?.n || 1).run();
+          made++;
+        }
+        return { ok: true, note: `${made} angle${made > 1 ? 's' : ''} live on the hub.` };
+      } },
+  ];
+};
+
+/* ------------------------------------------------------------------ */
 /*  assembly                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -287,6 +481,9 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
+    actions: ACTIONS(d),
+    playbook: PLAYBOOK,
+    slackApp: 'locus',
     checkKinds: ['sync', 'brief-missing', 'pacing', 'roas', 'fatigue'],
     checks: (env, hh) => runChecks(env, hh, d),
     snapshot: (env, hh) => snapshot(env, hh, d),

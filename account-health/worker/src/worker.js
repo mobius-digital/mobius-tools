@@ -4944,6 +4944,16 @@ async function handleSlackInteract(request, env, ctx) {
   const payload = safeJson(form.get('payload'), null);
   if (!payload) return ACK();
   try {
+    /* An Apply / No thanks tap on one of the Strategist's proposal cards. */
+    const tap = payload.type === 'block_actions' ? (payload.actions || []).find(a => a.action_id === 'ask_apply' || a.action_id === 'ask_cancel') : null;
+    if (tap) {
+      const val = safeJson(tap.value, {});
+      const { engine, h } = strategist();
+      const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel }).catch(e => ({ error: String(e.message || e) }));
+      if (payload.response_url) ctx.waitUntil(xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ replace_original: true, text: res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}` }) }).catch(() => {}));
+      return ACK();
+    }
     if (payload.type === 'block_actions') return await slackBlockAction(env, ctx, payload);
     if (payload.type === 'view_submission') return await slackViewSubmit(env, ctx, payload);
   } catch (e) {
@@ -5519,6 +5529,7 @@ function strategist() {
   if (!_strat) _strat = buildStrategist({
     getSetting, putSetting, safeJson, listAccounts, overview, briefData, dataHealth,
     localDate, addDays, ymdDiff, daysInMonth, briefHour, slack: slackApi,
+    claude: (env, args) => claude(env, args),
   });
   return _strat;
 }
@@ -5762,7 +5773,7 @@ export default {
       }
       if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h()),
         briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
-        channel: await getSetting(env, 'strategistChannel') });
+        channel: await getSetting(env, 'strategistChannel'), playbook: (await getSetting(env, engine.keys.playbook)) || '', pending: await engine.pendingList(env, h()) });
       if (path === '/api/ask/finding' && request.method === 'POST') {
         if (!body.key) return json({ error: 'key required' }, 400);
         return json(await engine.setFindingState(env, String(body.key), String(body.state || 'done')));
@@ -5775,6 +5786,8 @@ export default {
         return json({ ok: true });
       }
       if (path === '/api/ask/brief' && request.method === 'PUT') { await putSetting(env, engine.keys.brief, String(body.text || '').slice(0, 4000)); return json({ ok: true }); }
+      if (path === '/api/ask/playbook' && request.method === 'PUT') { await putSetting(env, engine.keys.playbook, String(body.text || '').slice(0, 8000)); return json({ ok: true }); }
+      if (path === '/api/ask/apply' && request.method === 'POST') return json(await engine.applyProposal(env, String(body.id || ''), h(), { cancel: !!body.cancel }));
       if (path === '/api/ask/channel' && request.method === 'PUT') { await putSetting(env, 'strategistChannel', String(body.channel || '').trim()); return json({ ok: true }); }
       if (path === '/api/ask/run' && request.method === 'POST') return json(await strategistNightly(env));
       if (path === '/api/ask/briefing' && request.method === 'POST') return json({ text: await strategistBriefing(env, true) });
