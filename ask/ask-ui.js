@@ -104,10 +104,17 @@ window.AskUI = (() => {
         <div id="askList" hidden></div>
         <div id="askLog"></div>
         <form id="askForm" onsubmit="AskUI.send(event)">
-          <input id="askIn" placeholder="Ask anything…" autocomplete="off">
+          <textarea id="askIn" placeholder="Ask anything… (Enter sends, Shift+Enter for a new line)" rows="1" autocomplete="off"></textarea>
           <button class="btn primary" type="submit">Ask</button>
         </form>
       </aside>`);
+    /* The box grows with the question, up to about six lines, then scrolls:
+       a long ask stays readable and editable while it is being written. */
+    const ta = $('#askIn');
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; };
+    ta.addEventListener('input', grow);
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+    ta._grow = grow;
     return $('#ask');
   }
   function close() { $('#ask')?.classList.remove('on'); $('#askScrim')?.classList.remove('on'); }
@@ -116,6 +123,7 @@ window.AskUI = (() => {
     render(A.chat.length ? '' : (A.intro || 'Ask me anything about what is in this app.'));
     const el = $('#askIn');
     if (prefill) el.value = prefill;
+    if (el._grow) el._grow();
     el.focus();
   }
   /* A proposal is a change the assistant described and did not make. It sits
@@ -161,7 +169,7 @@ window.AskUI = (() => {
     e?.preventDefault();
     const el = $('#askIn'), q = el.value.trim();
     if (!q || A.busy) return;
-    el.value = '';
+    el.value = ''; if (el._grow) el._grow();
     A.chat.push({ role: 'user', text: q });
     A.busy = true; render();
     try {
