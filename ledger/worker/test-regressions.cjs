@@ -16,7 +16,7 @@ const DB = { prepare(sql) {
   return { bind(...a) { args=a; return this; }, async first() { return stmt().get(values()) || null; },
     async all() { return { results: stmt().all(values()) }; }, async run() { const r=stmt().run(values()); return { meta: { changes:r.changes,last_row_id:Number(r.lastInsertRowid) } }; } };
 }, async batch(stmts) { db.exec('BEGIN'); try { const r=[]; for(const s of stmts) r.push(await s.run()); db.exec('COMMIT'); return r; } catch(e) { db.exec('ROLLBACK'); throw e; } } };
-const source=fs.readFileSync(path.join(__dirname,'src/worker.js'),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default {','const worker = {');
+const source=fs.readFileSync(path.join(__dirname,'src/worker.js'),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'').replace('const LEDGER = {','const worker = {').replace(/^export default LEDGER;\s*$/m,'const LEDGER = worker;');
 const context=vm.createContext({ console, crypto:require('node:crypto').webcrypto, Request,Response,Headers,URL,URLSearchParams,TextEncoder,TextDecoder,Buffer,atob,btoa,Blob,FormData,fetch:async()=>{throw Error('Offline tests prohibit network');} });
 vm.runInContext(source+'\nglobalThis.api={worker,computeReport,periodReport,validSession,bankRefresh,syncStripe,comparePlaid,applyBankJob,saveJob,withLedgerLease,processSlackReceipts,importPlaidRange,receiptMatch,heldReceiptMatch,retryHeldReceipts,selfCheck,tidyHourglasses};',context);
 const env={DB,ADMIN_TOKEN:'local-test-only',OWNER_EMAIL:'owner@mobius.test',AUTH:{fetch:async()=>Response.json({email:'intruder@example.test'})}};

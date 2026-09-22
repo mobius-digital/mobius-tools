@@ -196,6 +196,32 @@ export function reportText(r) {
   return out.join('\n\n');
 }
 
+/**
+ * An action that IS one of the app's own buttons: describe() validates and
+ * says what will happen, and the tap sends the same request the screen sends,
+ * through the app's own route, as the person (or the owner, from Slack). Every
+ * rule the route enforces (closed months, required fields, the Asana hand-off)
+ * applies, and nothing can be written that the app itself could not write.
+ *   describe(env, input, h, ctx) -> { summary, detail, request: { method, path, body } } | { error }
+ * The host passes ctx.call(method, path, body) to applyProposal.
+ */
+export function routeAction({ name, description, input_schema, describe, done }) {
+  return {
+    name, description, input_schema,
+    propose: async (env, input, h, ctx) => {
+      const d = await describe(env, input, h, ctx);
+      if (!d || d.error) return d || { error: 'Could not describe that.' };
+      return { summary: d.summary, detail: d.detail, preview: d.preview, patch: d.request };
+    },
+    apply: async (env, req, h, ctx) => {
+      if (!ctx?.call) return { error: 'This change has to be applied from the app.' };
+      const r = await ctx.call(req.method, req.path, req.body);
+      if (r?.error) return { error: r.error };
+      return { ok: true, note: done ? done(r, req) : 'Done.' };
+    },
+  };
+}
+
 /* Slack mrkdwn is not markdown, and a model reaches for ** by reflex. Also
  * strips headings and, per the house rule, em dashes. */
 export const toSlackText = s => String(s || '').replace(/\*\*(.+?)\*\*/gs, '*$1*').replace(/^#{1,6}\s*/gm, '').replace(/\s*—\s*/g, ' - ').trim();
@@ -408,10 +434,13 @@ export function createAssistant(config) {
       headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, max_tokens: strong ? 4000 : 1200, system, messages, ...(tools ? { tools } : {}) }),
     });
-    const j = await r.json().catch(() => ({}));
+    const body = typeof r.text === 'function' ? await r.text().catch(() => '') : JSON.stringify(await r.json().catch(() => ({})));
+    let j; try { j = JSON.parse(body); } catch { j = {}; }
     if (j.type === 'error' || !j.content) {
-      const why = j?.error?.message || `Claude call failed (HTTP ${r.status})`;
-      console.log(`${C.name}: model call refused: ${why}`);
+      const k = String(env.ANTHROPIC_API_KEY || '');
+      const shape = `key len=${k.length} prefix=${k.slice(0, 12)} quotes=${/["']/.test(k)} ws=${/\s/.test(k)} nonascii=${/[^!-~]/.test(k)}`;
+      const why = j?.error?.message ? `${j.error.type || 'error'}: ${j.error.message}` : `Claude call failed (HTTP ${r.status}): ${String(body).slice(0, 300) || '(empty reply)'} [${shape}; ${r.headers?.get?.('content-type') || 'no content-type'}; ${r.headers?.get?.('request-id') || r.headers?.get?.('cf-ray') || 'no id'}]`;
+      console.log(`${C.name}: model call refused (${r.status}): ${String(body).slice(0, 800)} | key shape: len=${k.length} prefix=${k.slice(0, 12)} quotes=${/["']/.test(k)} ws=${/\s/.test(k)} nonascii=${/[^!-~]/.test(k)} | resp headers: ${JSON.stringify(Object.fromEntries([...(r.headers || [])].filter(([h]) => /content-type|cf-ray|request-id|server|x-should-retry/i.test(h))))}`);
       throw new Error(why);
     }
     return j;
@@ -527,7 +556,7 @@ export function createAssistant(config) {
     await h.putSetting(env, K.pending, JSON.stringify(list));
   }
   /** The tap. Finds the proposal, runs the action's apply, forgets the proposal. */
-  async function applyProposal(env, id, h, { cancel = false } = {}) {
+  async function applyProposal(env, id, h, { cancel = false, ctx = null } = {}) {
     const p = (await pendingList(env, h)).find(x => x.id === id);
     if (!p) return { error: 'That proposal has expired or was already handled.' };
     await dropProposal(env, h, id);
@@ -535,7 +564,7 @@ export function createAssistant(config) {
     const a = actionByName[p.action];
     if (!a) return { error: `The action "${p.action}" no longer exists.` };
     try {
-      const r = await a.apply(env, p.patch, h);
+      const r = await a.apply(env, p.patch, h, ctx);
       return r?.error ? { error: r.error, summary: p.summary } : { ok: true, summary: p.summary, ...(r || {}) };
     } catch (e) { return { error: String(e.message || e), summary: p.summary }; }
   }

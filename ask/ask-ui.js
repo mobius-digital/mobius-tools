@@ -103,11 +103,19 @@ window.AskUI = (() => {
           <button class="x" onclick="AskUI.close()" aria-label="Close">✕</button></div>
         <div id="askList" hidden></div>
         <div id="askLog"></div>
+        <div id="askFile" hidden></div>
         <form id="askForm" onsubmit="AskUI.send(event)">
-          <textarea id="askIn" placeholder="Ask anything… (Enter sends, Shift+Enter for a new line)" rows="1" autocomplete="off"></textarea>
+          ${A.attach ? '<button class="clip" type="button" onclick="AskUI.pick()" title="Attach a receipt, an invoice, a statement">📎</button>' : ''}
+          <textarea id="askIn" placeholder="${A.attach ? 'Ask, or drop a receipt in… ' : 'Ask anything… '}(Enter sends, Shift+Enter for a new line)" rows="1" autocomplete="off"></textarea>
           <button class="btn primary" type="submit">Ask</button>
         </form>
       </aside>`);
+    if (A.attach) {
+      const el = $('#ask');
+      el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
+      el.addEventListener('dragleave', () => el.classList.remove('over'));
+      el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); if (e.dataTransfer.files[0]) attachFile(e.dataTransfer.files[0]); });
+    }
     /* The box grows with the question, up to about six lines, then scrolls:
        a long ask stays readable and editable while it is being written. */
     const ta = $('#askIn');
@@ -118,6 +126,18 @@ window.AskUI = (() => {
     return $('#ask');
   }
   function close() { $('#ask')?.classList.remove('on'); $('#askScrim')?.classList.remove('on'); }
+  /* One file at a time, held beside the question until it is sent. The host
+     decides what to do with it (a receipt files itself; anything else is read). */
+  function pick() { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*,application/pdf,.pdf,.html,.eml,.txt'; i.onchange = () => { if (i.files[0]) attachFile(i.files[0]); }; i.click(); }
+  async function attachFile(file) {
+    try {
+      A.file = await A.attach(file);
+      const el = $('#askFile'); el.hidden = false;
+      el.innerHTML = `<span>📎 ${esc(file.name)}</span><button class="x" type="button" onclick="AskUI.drop()" title="Remove">✕</button>`;
+      $('#askIn').focus();
+    } catch (e) { flash('Could not read that file'); }
+  }
+  function drop() { A.file = null; const el = $('#askFile'); if (el) { el.hidden = true; el.innerHTML = ''; } }
   function open(prefill) {
     panel().classList.add('on'); $('#askScrim').classList.add('on');
     render(A.chat.length ? '' : (A.intro || 'Ask me anything about what is in this app.'));
@@ -167,14 +187,15 @@ window.AskUI = (() => {
   }
   async function send(e) {
     e?.preventDefault();
-    const el = $('#askIn'), q = el.value.trim();
-    if (!q || A.busy) return;
+    const el = $('#askIn'), q = el.value.trim(), file = A.file;
+    if ((!q && !file) || A.busy) return;
     el.value = ''; if (el._grow) el._grow();
-    A.chat.push({ role: 'user', text: q });
+    A.chat.push({ role: 'user', text: (file ? `📎 ${file.name}${q ? ' · ' : ''}` : '') + q });
+    A.file = null; drop();
     A.busy = true; render();
     try {
       const history = A.chat.slice(0, -1).filter(m => !m.proposal && !m.report && !m.handoff);
-      const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history, screen: A.screen ? A.screen() : null }) });
+      const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history, screen: A.screen ? A.screen() : null, ...(file ? { file } : {}) }) });
       if (r.isOwner !== undefined) A.isOwner = !!r.isOwner;
       for (const p of r.proposals || []) A.chat.push({ role: 'assistant', proposal: p, text: 'Proposed: ' + p.summary });
       for (const rep of r.reports || []) { A.reports = [rep, ...(A.reports || []).filter(x => x.id !== rep.id)]; A.chat.push({ role: 'assistant', report: rep, text: 'Report: ' + rep.title }); }
@@ -334,5 +355,5 @@ window.AskUI = (() => {
     catch (e) { flash(e.message); } finally { btn.disabled = false; }
   }
 
-  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
 })();

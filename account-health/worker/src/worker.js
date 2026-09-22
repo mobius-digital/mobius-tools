@@ -4949,7 +4949,7 @@ async function handleSlackInteract(request, env, ctx) {
     if (tap) {
       const val = safeJson(tap.value, {});
       const { engine, h } = strategist();
-      const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel }).catch(e => ({ error: String(e.message || e) }));
+      const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx) }).catch(e => ({ error: String(e.message || e) }));
       if (payload.response_url) ctx.waitUntil(xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ replace_original: true, text: res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}` }) }).catch(() => {}));
       return ACK();
@@ -5535,20 +5535,38 @@ function strategist() {
 }
 /* The Strategist's night: the checks over what the syncs wrote, the watches,
    remembered; urgent new findings to the team channel; Monday, the briefing. */
+/* A post under the Strategist's name where the app allows it (chat:write.customize), the app's name where not. */
+async function strategistSay(env, channel, text) {
+  const r = await slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false, username: 'Strategist' });
+  if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || '')))
+    return slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false });
+  return r;
+}
+/* An action's Apply is the same request the screen sends, through this
+ * worker's own front door: as the caller from Locus, as the admin from a
+ * Slack tap (the card only ever reaches the team's own channel). */
+function askCaller(env, auth, execCtx) {
+  return { call: async (method, path, body) => {
+    const res = await AH_APP.fetch(new Request('https://ah.internal' + path, { method,
+      headers: { 'Authorization': auth, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }), env, execCtx || { waitUntil() {} });
+    const j = await res.json().catch(() => ({}));
+    return res.ok ? j : { error: j.error || `HTTP ${res.status}` };
+  } };
+}
 async function strategistNightly(env) {
   const { engine, h } = strategist();
   const r = await engine.nightly(env, h());
   const channel = await getSetting(env, 'strategistChannel');
   const urgent = r.fresh.filter(f => f.severity === 'high');
   if (channel) for (const f of urgent.slice(0, 3))
-    await slackApi(env, 'chat.postMessage', { channel, text: `*${f.title}*\n${f.detail || ''}`, unfurl_links: false }).catch(() => {});
+    await strategistSay(env, channel, `*${f.title}*\n${f.detail || ''}`).catch(() => {});
   return { found: r.found, fresh: r.fresh.length, urgent: urgent.length };
 }
 async function strategistBriefing(env, force = false) {
   const { engine, h } = strategist();
   const text = await engine.briefing(env, h(), { force });
   const channel = await getSetting(env, 'strategistChannel');
-  if (text && channel) await slackApi(env, 'chat.postMessage', { channel, text: `*Monday briefing from the Strategist*\n\n${text}`, unfurl_links: false }).catch(() => {});
+  if (text && channel) await strategistSay(env, channel, `*Monday briefing*\n\n${text}`).catch(() => {});
   return text;
 }
 
@@ -5665,7 +5683,7 @@ async function nightly(env) {
   return out;
 }
 
-export default {
+const AH_APP = {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(ensureSlackColumns(meterEnv(env)).catch(() => {}));
     // Cloudflare cron expressions are fixed at deploy time and always UTC, so the
@@ -5793,7 +5811,7 @@ export default {
       }
       if (path === '/api/ask/brief' && request.method === 'PUT') { await putSetting(env, engine.keys.brief, String(body.text || '').slice(0, 4000)); return json({ ok: true }); }
       if (path === '/api/ask/playbook' && request.method === 'PUT') { await putSetting(env, engine.keys.playbook, String(body.text || '').slice(0, 8000)); return json({ ok: true }); }
-      if (path === '/api/ask/apply' && request.method === 'POST') return json(await engine.applyProposal(env, String(body.id || ''), h(), { cancel: !!body.cancel }));
+      if (path === '/api/ask/apply' && request.method === 'POST') return json(await engine.applyProposal(env, String(body.id || ''), h(), { cancel: !!body.cancel, ctx: askCaller(env, request.headers.get('Authorization') || '', ctx) }));
       if (path === '/api/ask/channel' && request.method === 'PUT') { await putSetting(env, 'strategistChannel', String(body.channel || '').trim()); return json({ ok: true }); }
       if (path === '/api/ask/run' && request.method === 'POST') return json(await strategistNightly(env));
       if (path === '/api/ask/briefing' && request.method === 'POST') return json({ text: await strategistBriefing(env, true) });
@@ -7066,3 +7084,4 @@ export default {
     }
   },
 };
+export default AH_APP;

@@ -343,6 +343,18 @@ async function dashSummary(env, month) {
   return { month, report, year: await Promise.all(yearRows.results.map(async x => ({ ...x, ...await resolveReport(env, x.month) }))), renewals: renewals.results, attention: attn };
 }
 
+/* An action's Apply is the same request the screen sends, through this
+ * worker's own front door, as the caller (the app) or the owner (a Slack tap,
+ * which slack-interact has already checked is Cole). */
+function askCaller(env, auth, execCtx) {
+  return { call: async (method, path, body) => {
+    const res = await LEDGER.fetch(new Request('https://ledger.internal' + path, { method,
+      headers: { 'Authorization': auth, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }), env, execCtx || { waitUntil() {} });
+    const j = await res.json().catch(() => ({}));
+    return res.ok ? j : { error: j.error || `HTTP ${res.status}` };
+  } };
+}
+
 /* The Controller's night: the checks, the watches, and a word in Slack only
  * about what is urgent. Everything else waits for Monday. */
 async function controllerNightly(env) {
@@ -2683,7 +2695,7 @@ async function syncPlaidInner(env) {
 /*  worker                                                             */
 /* ------------------------------------------------------------------ */
 
-export default {
+const LEDGER = {
   async scheduled(event, env, ctx) {
     ctx.waitUntil((async()=>{const jobs=await env.DB.prepare("SELECT payload FROM ledger_jobs WHERE kind='slack-alert' AND status='pending' LIMIT 20").all();for(const job of jobs.results) await alertSlack(env,JSON.parse(job.payload).text);})().catch(e=>console.log('Notification retry failed: '+e.message)));
     if (event.cron === '17 8 * * *') {
@@ -2917,7 +2929,7 @@ export default {
            first and only thing that writes. */
         if (val?.askp) {
           const { engine, h } = controller();
-          const res = await engine.applyProposal(env, String(val.askp), h(), { cancel: !!val.cancel }).catch(e => ({ error: String(e.message || e) }));
+          const res = await engine.applyProposal(env, String(val.askp), h(), { cancel: !!val.cancel, ctx: askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx) }).catch(e => ({ error: String(e.message || e) }));
           respond({ replace_original: true, text: res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}` });
           return new Response('', { status: 200 });
         }
@@ -3593,7 +3605,7 @@ export default {
       if (path === '/api/ask/apply' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
         const { engine, h } = controller();
-        return json(await engine.applyProposal(env, String(b.id || ''), h(), { cancel: !!b.cancel }));
+        return json(await engine.applyProposal(env, String(b.id || ''), h(), { cancel: !!b.cancel, ctx: askCaller(env, request.headers.get('Authorization') || '', ctx) }));
       }
       if (path === '/api/ask/playbook' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
@@ -4034,3 +4046,4 @@ export default {
     }
   },
 };
+export default LEDGER;

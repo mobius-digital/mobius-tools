@@ -11,7 +11,7 @@
  * one owner for every function.
  */
 
-import { createAssistant, makeAppView, makeSecretKey } from '../../../ask/engine.js';
+import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../../ask/engine.js';
 
 const WHO = `
 You are the Controller, the finance controller for Mobius Digital, a marketing
@@ -441,6 +441,75 @@ const ACTIONS = (d) => [
     } },
 ];
 
+/* The app's own buttons. Each one sends exactly what the screen sends, so the
+ * route's rules hold: a closed month refuses edits, a close refuses while
+ * anything is in Review, a vendor needs a category. */
+const ymRe = /^\d{4}-\d{2}$/, ymdRe = /^\d{4}-\d{2}-\d{2}$/;
+const BUTTONS = (d) => [
+  routeAction({ name: 'close_month',
+    description: 'Close a month (Reports, Close the month): freezes its report for the CPA. Refused while rows are in Review. drop_expected removes retainers that never arrived; say so in the summary when you use it. Read close_state first.',
+    input_schema: { type: 'object', properties: { month: { type: 'string', description: "'YYYY-MM'" }, drop_expected: { type: 'boolean' }, summary: { type: 'string' } }, required: ['month', 'summary'] },
+    describe: async (env, i) => {
+      if (!ymRe.test(i.month || '')) return { error: "month must be 'YYYY-MM'." };
+      const f = await env.DB.prepare(`SELECT SUM(CASE WHEN status='review' AND expected=0 THEN 1 ELSE 0 END) AS review, SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
+        SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noReceipt FROM transactions WHERE month = ?1`).bind(i.month).first();
+      if (f?.review) return { error: `${i.month} has ${f.review} row(s) in Review. Categorize them first.` };
+      if (f?.expected && !i.drop_expected) return { error: `${i.month} has ${f.expected} expected retainer(s) that never arrived. Confirm them, or propose again with drop_expected.` };
+      return { summary: i.summary, detail: `Close ${i.month}. The report freezes for the CPA.${f?.expected ? ` ${f.expected} expected retainer(s) will be dropped.` : ''}${f?.noReceipt ? ` ${f.noReceipt} payment(s) still have no receipt.` : ''} Reopen it any time from Reports.`,
+        request: { method: 'POST', path: '/api/close', body: { month: i.month, dropExpected: !!i.drop_expected } } };
+    }, done: (r, req) => `${req.body.month} is closed.` }),
+  routeAction({ name: 'reopen_month',
+    description: 'Reopen a closed month so it can be edited again.',
+    input_schema: { type: 'object', properties: { month: { type: 'string' }, summary: { type: 'string' } }, required: ['month', 'summary'] },
+    describe: async (env, i) => ymRe.test(i.month || '') ? { summary: i.summary, detail: `Reopen ${i.month}. Its frozen report stays until the next close replaces it.`, request: { method: 'POST', path: '/api/reopen', body: { month: i.month } } } : { error: "month must be 'YYYY-MM'." },
+    done: (r, req) => `${req.body.month} is open.` }),
+  routeAction({ name: 'add_transaction',
+    description: 'Add a transaction by hand (the + Transaction button): a cash payment, something the bank feed missed. type in | out | fee | transfer. Amount positive.',
+    input_schema: { type: 'object', properties: { date: { type: 'string' }, type: { type: 'string', enum: ['in', 'out', 'fee', 'transfer'] }, vendor: { type: 'string' }, amount: { type: 'number' }, tax_cat: { type: 'string' }, note: { type: 'string' }, summary: { type: 'string' } }, required: ['date', 'type', 'vendor', 'amount', 'summary'] },
+    describe: async (env, i) => {
+      if (!ymdRe.test(i.date || '')) return { error: "date must be 'YYYY-MM-DD'." };
+      if (!(Number(i.amount) > 0)) return { error: 'amount must be positive.' };
+      const taxCats = d.safeJson(await d.getSetting(env, 'taxCats'), []) || [];
+      if (i.tax_cat && !taxCats.includes(i.tax_cat)) return { error: `"${i.tax_cat}" is not a category. Use one of: ${JSON.stringify(taxCats)}` };
+      return { summary: i.summary, detail: `${i.date} · ${i.type} · ${i.vendor} · $${Number(i.amount).toFixed(2)}${i.tax_cat ? ` · ${i.tax_cat}` : ''}${i.note ? `\n${i.note}` : ''}`,
+        request: { method: 'POST', path: '/api/transactions', body: { rows: [{ date: i.date, type: i.type, vendor: i.vendor, amount: Number(i.amount), tax_cat: i.tax_cat, note: i.note }] } } };
+    }, done: () => 'Added.' }),
+  routeAction({ name: 'mark_no_receipt',
+    description: 'Mark that a payment has no receipt and never will (bank fee, transfer-like charge), so it stops being chased. Or undo it. Look the row up first.',
+    input_schema: { type: 'object', properties: { id: { type: 'integer' }, no_receipt: { type: 'boolean', description: 'true = no receipt exists (default); false = chase it again.' }, summary: { type: 'string' } }, required: ['id', 'summary'] },
+    describe: async (env, i) => {
+      const row = await env.DB.prepare('SELECT date, vendor, amount FROM transactions WHERE id = ?1').bind(Number(i.id)).first();
+      if (!row) return { error: `No transaction ${i.id}.` };
+      const skip = i.no_receipt !== false;
+      return { summary: i.summary, detail: `${row.date} · ${row.vendor} · $${Number(row.amount).toFixed(2)}: ${skip ? 'no receipt needed' : 'chase the receipt again'}.`, request: { method: 'PUT', path: '/api/transaction', body: { id: Number(i.id), receipt_skip: skip } } };
+    }, done: () => 'Updated.' }),
+  routeAction({ name: 'save_vendor',
+    description: 'Create or change a vendor rule (Settings, Vendors): its category, whether it is recurring, the usual amount, monthly or yearly, the renewal month, its billing page link. apply_to_existing recategorises its rows in open months too.',
+    input_schema: { type: 'object', properties: { name: { type: 'string' }, tax_cat: { type: 'string' }, recurring: { type: 'boolean' }, expected_amount: { type: 'number' }, cadence: { type: 'string', enum: ['monthly', 'yearly'] }, renew_month: { type: 'integer' }, billing_url: { type: 'string' }, active: { type: 'boolean' }, apply_to_existing: { type: 'boolean' }, summary: { type: 'string' } }, required: ['name', 'tax_cat', 'summary'] },
+    describe: async (env, i) => {
+      const taxCats = d.safeJson(await d.getSetting(env, 'taxCats'), []) || [];
+      if (!taxCats.includes(i.tax_cat)) return { error: `"${i.tax_cat}" is not a category. Use one of: ${JSON.stringify(taxCats)}` };
+      const cur = await env.DB.prepare('SELECT * FROM vendors WHERE LOWER(name) = LOWER(?1)').bind(String(i.name)).first();
+      const body = { name: cur?.name || i.name, tax_cat: i.tax_cat, recurring: i.recurring ?? !!cur?.recurring, expected_amount: i.expected_amount ?? cur?.expected_amount, cadence: i.cadence || cur?.cadence || 'monthly',
+        renew_month: i.renew_month ?? cur?.renew_month, billing_url: i.billing_url ?? cur?.billing_url, active: i.active ?? (cur ? !!cur.active : true), applyToExisting: !!i.apply_to_existing };
+      return { summary: i.summary, detail: `${cur ? 'Change' : 'New'} vendor ${body.name}: ${body.tax_cat}${body.recurring ? `, recurring ${body.cadence}${body.expected_amount ? ` ~$${body.expected_amount}` : ''}` : ''}${body.active ? '' : ', inactive'}${body.applyToExisting ? '. Its rows in open months are recategorised too.' : '.'}`,
+        request: { method: 'POST', path: '/api/vendor', body } };
+    }, done: (r, req) => `${req.body.name} saved.` }),
+  routeAction({ name: 'save_client',
+    description: 'Create or change a client (Settings, Clients): retainer, billing retainer | percent, the percent of ad spend, active.',
+    input_schema: { type: 'object', properties: { name: { type: 'string' }, retainer: { type: 'number' }, billing: { type: 'string', enum: ['retainer', 'percent'] }, pct: { type: 'number' }, active: { type: 'boolean' }, summary: { type: 'string' } }, required: ['name', 'summary'] },
+    describe: async (env, i) => {
+      const cur = await env.DB.prepare('SELECT * FROM clients WHERE LOWER(name) = LOWER(?1)').bind(String(i.name)).first();
+      const body = { name: cur?.name || i.name, retainer: i.retainer ?? cur?.retainer ?? 0, billing: i.billing || cur?.billing || 'retainer', pct: i.pct ?? cur?.pct, active: i.active ?? (cur ? !!cur.active : true) };
+      return { summary: i.summary, detail: `${cur ? 'Change' : 'New'} client ${body.name}: ${body.billing === 'percent' ? `${body.pct}% of ad spend (est. $${body.retainer}/mo)` : `$${body.retainer}/mo retainer`}${body.active ? '' : ', inactive'}.`, request: { method: 'POST', path: '/api/client', body } };
+    }, done: (r, req) => `${req.body.name} saved.` }),
+  routeAction({ name: 'expect_retainers',
+    description: 'Pre-create this month\'s expected retainers (the "Expect this month\'s retainers" step), so who has and has not paid shows. Month must be open.',
+    input_schema: { type: 'object', properties: { month: { type: 'string' }, summary: { type: 'string' } }, required: ['month', 'summary'] },
+    describe: async (env, i) => ymRe.test(i.month || '') ? { summary: i.summary, detail: `Create an expected retainer row for every active client in ${i.month}. Each clears itself when the payment lands.`, request: { method: 'POST', path: '/api/recurring', body: { month: i.month } } } : { error: "month must be 'YYYY-MM'." },
+    done: (r, req) => `Retainers expected for ${req.body.month}.` }),
+];
+
 const SLACK_TOOLS = (d) => [
   { def: { name: 'send_report',
       description: 'Post the finished Profit & Loss PDF statement into this Slack channel, with the standard summary. Use this when asked for "the report", "the P&L", a statement, or a PDF. Do NOT use it for figures in the chat or a written summary; answer those yourself.',
@@ -489,7 +558,7 @@ export function buildController(d) {
     checks: (env, hh) => runChecks(env, hh, d),
     snapshot: (env, hh) => snapshot(env, hh, d),
     slackTools: SLACK_TOOLS(d),
-    actions: ACTIONS(d),
+    actions: [...ACTIONS(d), ...BUTTONS(d)],
     playbook: PLAYBOOK,
     slackApp: 'ledger',
   });

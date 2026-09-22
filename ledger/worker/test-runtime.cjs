@@ -78,6 +78,19 @@ async function main() {
     const again2=await (await call("/api/ask/apply","POST",{id:"t3st1234"})).json();
     assert.match(String(again2.error||""),/expired|already/);
     console.log('controller actions: propose does not write, Apply does, a second tap is refused');
+    /* A button action goes through the route itself: closing a month with a
+       row in Review is refused by /api/close, not by the assistant. */
+    const nowYm=ago(0).slice(0,7);
+    await db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,expected,status) VALUES(?1,?2,'out','Mystery',12,0,'review')").bind(nowYm+'-02',nowYm).run();
+    const btn=[{id:'b7ttn001',action:'close_month',summary:'Close',detail:'',patch:{method:'POST',path:'/api/close',body:{month:nowYm}},at:new Date().toISOString()},
+               {id:'b7ttn002',action:'add_transaction',summary:'Add',detail:'',patch:{method:'POST',path:'/api/transactions',body:{rows:[{date:nowYm+'-03',type:'out',vendor:'Cash lunch',amount:23.5}]}},at:new Date().toISOString()}];
+    await db.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES('controllerPending',?1)").bind(JSON.stringify(btn)).run();
+    const refused=await (await call('/api/ask/apply','POST',{id:'b7ttn001'})).json();
+    assert.match(String(refused.error||''),/Review/,'the route should refuse the close: '+JSON.stringify(refused));
+    const added=await (await call('/api/ask/apply','POST',{id:'b7ttn002'})).json();
+    assert.equal(added.ok,true,JSON.stringify(added));
+    assert.ok(await db.prepare("SELECT 1 AS x FROM transactions WHERE vendor='Cash lunch'").first(),'the route should have written the row');
+    console.log('controller buttons: the route refuses what the screen refuses, and writes what it writes');
     if(process.env.ANTHROPIC_API_KEY){
       const a=await (await call('/api/ask','POST',{question:'Who has not paid this month, and how much do they owe?',history:[],screen:{screen:'Overview',month_selected:ago(0).slice(0,7)}})).json();
       console.log('controller answer: '+(a.answer||a.error));

@@ -120,3 +120,11 @@
 #askSet textarea{display:block;width:100%;box-sizing:border-box;min-height:120px;padding:10px 12px;border:1px solid var(--ask-line);border-radius:10px;background:var(--ask-wash);color:var(--ask-ink);font:inherit;font-size:13.5px;line-height:1.5;resize:vertical}
 #askSet textarea:focus{outline:2px solid var(--ask-brand);outline-offset:1px}
 #askSet .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ---- an attachment beside the question (hosts that allow it) ---- */
+#ask.over{outline:2px dashed var(--ask-brand);outline-offset:-10px}
+#askForm .clip{border:1px solid var(--ask-line);background:var(--ask-wash);border-radius:999px;width:40px;height:40px;font-size:15px;cursor:pointer;flex:none}
+#askForm .clip:hover{border-color:var(--ask-brand)}
+#askFile[hidden]{display:none}
+#askFile{display:flex;align-items:center;gap:8px;margin:0 20px;padding:8px 12px;background:var(--ask-wash);border-radius:10px;font-size:12.5px;color:var(--ask-ink)}
+#askFile .x{margin-left:auto;border:0;background:none;opacity:.6;cursor:pointer;color:var(--ask-ink)}

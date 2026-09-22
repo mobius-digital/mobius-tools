@@ -19,7 +19,7 @@
  *   - The Golf Sock is paused and is never flagged.
  */
 
-import { createAssistant, makeAppView, makeSecretKey } from '../../../ask/engine.js';
+import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../../ask/engine.js';
 
 const WHO = `
 You are the Strategist for Mobius Digital, a marketing agency run by Cole
@@ -345,6 +345,70 @@ async function snapshot(env, h, d) {
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const clip = (v, n) => v == null ? null : String(v).slice(0, n);
 
+/* Locus's own buttons, through its own routes. Nothing here reaches a client:
+ * a redrafted brief or a generated report goes to the internal review queue
+ * and waits for a person to send it, exactly as it does from the screen. */
+const BUTTONS = (d) => {
+  const resolve = async (env, want) => {
+    const accounts = await d.listAccounts(env, false);
+    const w = String(want || '').toLowerCase().trim();
+    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+  };
+  const brandOr = async (env, b) => { const a = await resolve(env, b); if (!a) throw new Error(`No brand called "${b}". The accounts view lists them.`); return a; };
+  const safe = fn => async (env, i, h, ctx) => { try { return await fn(env, i, h, ctx); } catch (e) { return { error: e.message }; } };
+  return [
+    routeAction({ name: 'set_account',
+      description: 'Change a brand\'s account settings (Settings, the brand row): target ROAS, target CPA, the monthly budget or one month\'s budget, whether the Daily Brief runs, the team\'s internal Slack channel id. Never the client channel.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, target_roas: { type: 'number' }, target_cpa: { type: 'number' }, monthly_budget: { type: 'number' },
+        month: { type: 'string', description: "'YYYY-MM' for a one-month budget override" }, month_budget: { type: 'number' }, brief_enabled: { type: 'boolean' }, team_channel: { type: 'string' }, summary: { type: 'string' } }, required: ['brand', 'summary'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand);
+        const body = {}, lines = [];
+        if (i.target_roas !== undefined) { body.target_roas = Number(i.target_roas); lines.push(`target ROAS ${a.target_roas ?? 'unset'} → ${body.target_roas}`); }
+        if (i.target_cpa !== undefined) { body.target_cpa = Number(i.target_cpa); lines.push(`target CPA ${a.target_cpa ?? 'unset'} → ${body.target_cpa}`); }
+        if (i.monthly_budget !== undefined) { body.monthly_budget = Number(i.monthly_budget); lines.push(`monthly budget ${a.monthly_budget ?? 'unset'} → ${body.monthly_budget}`); }
+        if (i.month && i.month_budget !== undefined) {
+          if (!/^\d{4}-\d{2}$/.test(i.month)) return { error: "month must be 'YYYY-MM'." };
+          const budgets = d.safeJson(a.budgets_json, {}) || {}; budgets[i.month] = Number(i.month_budget); body.budgets = budgets; lines.push(`${i.month} budget → ${i.month_budget}`);
+        }
+        if (i.brief_enabled !== undefined) { body.brief_enabled = !!i.brief_enabled; lines.push(`Daily Brief ${i.brief_enabled ? 'on' : 'off'}`); }
+        if (i.team_channel !== undefined) { body.slack_channel = String(i.team_channel).trim(); lines.push(`team channel → ${body.slack_channel}`); }
+        if (!lines.length) return { error: 'Nothing to change.' };
+        return { summary: i.summary, detail: `${a.name}: ${lines.join(', ')}.`, request: { method: 'PUT', path: `/api/accounts/${a.act_id}`, body } };
+      }), done: () => 'Account updated.' }),
+    routeAction({ name: 'set_brief_time',
+      description: 'Change the hour (Central) the Daily Brief is drafted every morning, 0 to 23.',
+      input_schema: { type: 'object', properties: { hour: { type: 'integer' }, summary: { type: 'string' } }, required: ['hour', 'summary'] },
+      describe: async (env, i) => Number.isInteger(i.hour) && i.hour >= 0 && i.hour <= 23 ? { summary: i.summary, detail: `The Daily Brief drafts at ${i.hour}:00 Central from tomorrow.`, request: { method: 'PUT', path: '/api/brief-time', body: { hour: i.hour } } } : { error: 'hour must be 0 to 23.' },
+      done: () => 'Brief time updated.' }),
+    routeAction({ name: 'log_change',
+      description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },
+        category: { type: 'string', enum: ['budget', 'new_campaign', 'campaign_paused', 'campaign_relaunched', 'bid_strategy', 'targeting', 'creative', 'other'] }, when: { type: 'string', description: "ISO date-time, default now" } }, required: ['brand', 'summary'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand);
+        return { summary: `Log on ${a.name}: ${i.summary}`, detail: `${i.category || 'other'} · ${i.summary}${i.reason ? `\nWhy: ${i.reason}` : ''}`,
+          request: { method: 'POST', path: '/api/activities', body: { act_id: a.act_id, summary: i.summary, reason: i.reason || null, category: i.category || 'other', event_time: i.when || undefined, actor: 'the Strategist, for the team' } } };
+      }), done: () => 'Logged.' }),
+    routeAction({ name: 'redraft_brief',
+      description: 'Write a brand\'s Daily Brief again, optionally steered ("lead with the Google drop", "shorter"). It goes to the INTERNAL review queue as a draft; nothing is sent to the client.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, date: { type: 'string', description: "'YYYY-MM-DD', default yesterday" }, steer: { type: 'string' }, summary: { type: 'string' } }, required: ['brand', 'summary'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand);
+        return { summary: i.summary, detail: `Redraft ${a.name}'s brief${i.date ? ` for ${i.date}` : ''}${i.steer ? `, steered: "${i.steer}"` : ''}. It lands in the review queue; a person still sends it.`,
+          request: { method: 'POST', path: '/api/brief-draft', body: { act: a.act_id, date: i.date || undefined, steer: i.steer || undefined } } };
+      }), done: () => 'Draft written. It is waiting in the review queue.' }),
+    routeAction({ name: 'draft_report',
+      description: 'Generate a weekly or monthly client report as a DRAFT for review (the Reports tab). Default: the last complete period. Nothing is sent to the client.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, period: { type: 'string', enum: ['weekly', 'monthly'] }, start: { type: 'string', description: "'YYYY-MM-DD', optional" }, summary: { type: 'string' } }, required: ['brand', 'summary'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand);
+        return { summary: i.summary, detail: `Draft ${a.name}'s ${i.period || 'weekly'} report${i.start ? ` from ${i.start}` : ' for the last complete period'}. It waits for review; nothing reaches the client.`,
+          request: { method: 'POST', path: '/api/report-generate', body: { act: a.act_id, period: i.period || 'weekly', start: i.start || undefined } } };
+      }), done: () => 'Report drafted for review.' }),
+  ];
+};
+
 const ACTIONS = (d) => {
   const resolve = async (env, want) => {
     const accounts = await d.listAccounts(env, false);
@@ -416,6 +480,50 @@ const ACTIONS = (d) => {
         for (const id of patch.ids) await env.DB.prepare(`UPDATE p_amb_angle SET status = 'draft', hot = 0, updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`).bind(id, patch.act_id).run();
         for (const sid of patch.sections || []) await env.DB.prepare(`UPDATE p_amb_section SET enabled = 0 WHERE id = ?1 AND act_id = ?2`).bind(sid, patch.act_id).run();
         return { ok: true, note: `${patch.ids.length} archived${patch.sections?.length ? `, ${patch.sections.length} section${patch.sections.length > 1 ? 's' : ''} off` : ''}.` };
+      } },
+
+    { name: 'edit_angle',
+      description: 'Change ONE live angle on a brand\'s hub: pin it to Hot right now or unpin it, rename it, rewrite its argument, who, products, format, openers, on-screen text, do or don\'t. Find it by title. Read the angles view first.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, angle: { type: 'string', description: 'Its title, or enough of it.' }, hot: { type: 'boolean' },
+        title: { type: 'string' }, argument: { type: 'string' }, who: { type: 'string' }, products: { type: 'string' }, format: { type: 'string' },
+        openers: { type: 'array', items: { type: 'string' } }, on_screen: { type: 'string' }, do_text: { type: 'string' }, dont_text: { type: 'string' }, summary: { type: 'string' } }, required: ['brand', 'angle', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const w = String(input.angle || '').toLowerCase();
+        const { results } = await env.DB.prepare(`SELECT id, title FROM p_amb_angle WHERE act_id = ?1 AND status = 'live'`).bind(acct.act_id).all();
+        const hits = (results || []).filter(x => x.title.toLowerCase().includes(w));
+        if (!hits.length) return { error: `No live angle called "${input.angle}".` };
+        if (hits.length > 1) return { error: `"${input.angle}" matches ${hits.length} angles: ${hits.map(x => x.title).join('; ')}. Be more specific.` };
+        const patch = { act_id: acct.act_id, id: hits[0].id, set: {} }, lines = [];
+        const map = { title: 'title', argument: 'argument', who: 'who', products: 'products', format: 'format', on_screen: 'on_screen', do_text: 'do_text', dont_text: 'dont_text' };
+        for (const [k, col] of Object.entries(map)) if (input[k] !== undefined) { patch.set[col] = clip(input[k], 400); lines.push(`${k} → ${clip(input[k], 80)}`); }
+        if (input.openers) { patch.set.openers_json = JSON.stringify(input.openers.slice(0, 5).map(o => clip(o, 200))); lines.push(`${input.openers.length} new openers`); }
+        if (input.hot !== undefined) { patch.set.hot = input.hot ? 1 : 0; lines.push(input.hot ? 'pinned to Hot right now' : 'unpinned from Hot'); }
+        if (!lines.length) return { error: 'Nothing to change.' };
+        return { summary: input.summary, detail: `${acct.name}, "${hits[0].title}": ${lines.join('; ')}.`, patch };
+      },
+      apply: async (env, patch) => {
+        const cols = Object.keys(patch.set);
+        await env.DB.prepare(`UPDATE p_amb_angle SET ${cols.map((c, i) => `${c} = ?${i + 3}`).join(', ')}, updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`)
+          .bind(patch.id, patch.act_id, ...cols.map(c => patch.set[c])).run();
+        return { ok: true, note: 'Angle updated on the hub.' };
+      } },
+
+    { name: 'edit_section',
+      description: 'Change one section of a brand\'s hub: rename it, change its one-line subtitle, or switch it on or off.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, section: { type: 'string' }, name: { type: 'string' }, line: { type: 'string' }, enabled: { type: 'boolean' }, summary: { type: 'string' } }, required: ['brand', 'section', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const w = String(input.section || '').toLowerCase();
+        const { results } = await env.DB.prepare(`SELECT id, name, line, enabled FROM p_amb_section WHERE act_id = ?1`).bind(acct.act_id).all();
+        const sec = (results || []).find(x => x.name.toLowerCase() === w) || (results || []).find(x => x.name.toLowerCase().includes(w));
+        if (!sec) return { error: `No section called "${input.section}".` };
+        const patch = { act_id: acct.act_id, id: sec.id, name: input.name ?? sec.name, line: input.line ?? sec.line, enabled: input.enabled === undefined ? sec.enabled : (input.enabled ? 1 : 0) };
+        return { summary: input.summary, detail: `${acct.name}, section "${sec.name}"${input.name ? ` → "${input.name}"` : ''}${input.line !== undefined ? `, line "${input.line}"` : ''}${input.enabled !== undefined ? (input.enabled ? ', on' : ', off') : ''}.`, patch };
+      },
+      apply: async (env, p) => {
+        await env.DB.prepare(`UPDATE p_amb_section SET name = ?3, line = ?4, enabled = ?5 WHERE id = ?1 AND act_id = ?2`).bind(p.id, p.act_id, clip(p.name, 60), clip(p.line, 120), p.enabled).run();
+        return { ok: true, note: 'Section updated.' };
       } },
 
     { name: 'create_angles',
@@ -511,7 +619,7 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: ACTIONS(d),
+    actions: [...ACTIONS(d), ...BUTTONS(d)],
     playbook: PLAYBOOK,
     slackApp: 'locus',
     checkKinds: ['sync', 'brief-missing', 'pacing', 'roas', 'fatigue'],
