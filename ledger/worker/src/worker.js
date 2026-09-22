@@ -76,6 +76,20 @@ async function validSession(env, tok) {
   return ok;
 }
 
+/* The owner, and only the owner, is shown a feature hand-off (a prompt for
+   Claude Code). ADMIN_TOKEN counts as the owner; a session counts when it is
+   the owner's email. */
+async function isOwner(request, env) {
+  const auth = request.headers.get('Authorization') || '';
+  const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!tok) return false;
+  if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
+  try {
+    const r = await fetch(new Request(AUTH_WORKER + '/api/me', { headers: { Authorization: 'Bearer ' + tok } }));
+    const j = await r.json().catch(() => ({}));
+    return r.ok && String(j.email || '').toLowerCase() === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+  } catch (e) { return false; }
+}
 async function isAdmin(request, env) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return false;
@@ -3545,8 +3559,10 @@ export default {
         const b = await request.json().catch(() => ({}));
         const { engine, h } = controller();
         const findings = await engine.openFindings(env, h()).catch(() => []);
-        return json(await engine.answerWeb(env, b.question, b.history, h(), { findings: findings.slice(0, 6), screen: b.screen || null }));
+        const r = await engine.answerWeb(env, b.question, b.history, h(), { findings: findings.slice(0, 6), screen: b.screen || null });
+        return json({ ...r, isOwner: await isOwner(request, env) });
       }
+      if (path === '/api/ask/reports') { const { engine, h } = controller(); return json({ reports: await engine.reportsList(env, h()) }); }
       if (path === '/api/ask/findings') {
         const { engine, h } = controller();
         return json({ findings: await engine.openFindings(env, h()), briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null),

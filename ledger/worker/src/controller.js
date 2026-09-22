@@ -474,7 +474,7 @@ export function buildController(d) {
   d.h = h;
 
   engine = createAssistant({
-    name: 'Controller', app: 'Mobius Ledger', memoryPrefix: 'controller', owner: 'Cole',
+    name: 'Controller', app: 'Mobius Ledger', memoryPrefix: 'controller', owner: 'Cole', repoPath: 'ledger/ (worker in ledger/worker/src, screens in ledger/index.html)',
     slackName: 'Controller',
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, blobColumns: ['report_json'],
     brief: DEFAULT_BRIEF,

@@ -5769,8 +5769,14 @@ export default {
       const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
       if (path === '/api/ask' && request.method === 'POST') {
         const findings = await engine.openFindings(env, h()).catch(() => []);
-        return json(await engine.answerWeb(env, body.question, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null }));
+        const r = await engine.answerWeb(env, body.question, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null });
+        const auth = request.headers.get('Authorization') || '';
+        const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+        const sess = tok && !(env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) ? await verifySession(env, tok) : null;
+        const owner = (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) || String(sess?.email || '').toLowerCase() === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+        return json({ ...r, isOwner: owner });
       }
+      if (path === '/api/ask/reports') return json({ reports: await engine.reportsList(env, h()) });
       if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h()),
         briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
         channel: await getSetting(env, 'strategistChannel'), playbook: (await getSetting(env, engine.keys.playbook)) || '', pending: await engine.pendingList(env, h()) });

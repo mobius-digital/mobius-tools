@@ -228,12 +228,41 @@ function buildViews(d) {
     },
     brand_context: async (env, a) => {
       const acct = await need(env, a);
-      const text = await d.getSetting(env, `brandContext:${acct.act_id}`);
-      return { brand: acct.name, context: text || '', how_to_read: text ? VIEW_BLURBS.brand_context : 'Nothing written for this brand yet. Ask Cole for who buys, why, the voice and the claims, or read the angles hub intro and the existing angles for the voice.' };
+      const key = `brandContext:${acct.act_id}`;
+      let text = await d.getSetting(env, key);
+      /* Nothing written: work it out from what the app already holds (the
+         hub, the angles, the ads that sold, the briefs and reports we sent)
+         and keep it, marked as derived, so Cole corrects rather than writes. */
+      if (!text) {
+        text = await deriveBrandContext(env, d, acct).catch(e => '');
+        if (text) await d.putSetting(env, key, text);
+      }
+      return { brand: acct.name, context: text || '', how_to_read: text ? VIEW_BLURBS.brand_context + (text.startsWith('(Derived') ? ' This one was derived by the Strategist from the app\'s own data; treat it as a good first draft and correct it in the chat.' : '')
+        : 'Nothing could be worked out for this brand yet (no hub, no angles, no ads, no briefs). Ask Cole.' };
     },
     findings: async (env, a, ctx, engine) => ({ open: await engine.openFindings(env, d.h()), how_to_read: VIEW_BLURBS.findings }),
     config: async env => ({ briefing_channel: await d.getSetting(env, 'strategistChannel'), brief_hour: await d.briefHour(env), how_to_read: VIEW_BLURBS.config }),
   };
+}
+
+/* What we know about a brand, worked out from the app itself: the hub's own
+ * words, the angles already written, the ads that sold, what we told the
+ * client. One model call, kept until Cole corrects it. */
+async function deriveBrandContext(env, d, acct) {
+  const hub = await env.DB.prepare(`SELECT intro, about, audience, avoid_json, rules_json, season_json FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first();
+  const { results: angs } = await env.DB.prepare(`SELECT a.title, a.argument, a.who, a.products, a.format, s.name AS section FROM p_amb_angle a LEFT JOIN p_amb_section s ON s.id = a.section_id WHERE a.act_id = ?1 AND a.status = 'live' ORDER BY a.sort LIMIT 60`).bind(acct.act_id).all();
+  const to = d.localDate(acct.tz), from = d.addDays(to, -120);
+  const { results: won } = await env.DB.prepare(`SELECT ad.name, SUM(t.revenue) AS rev, SUM(t.orders) AS ord FROM tw_ad_attr t JOIN ads ad ON ad.act_id = t.act_id AND ad.ad_id = t.ad_id
+    WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY t.ad_id ORDER BY rev DESC LIMIT 20`).bind(acct.act_id, from, to).all();
+  const { results: adNames } = await env.DB.prepare(`SELECT name FROM ads WHERE act_id = ?1 ORDER BY first_spend_date DESC LIMIT 80`).bind(acct.act_id).all();
+  const { results: briefs } = await env.DB.prepare(`SELECT substr(text, 1, 1500) AS text FROM briefs WHERE act_id = ?1 AND text IS NOT NULL ORDER BY date DESC LIMIT 3`).bind(acct.act_id).all();
+  const { results: reports } = await env.DB.prepare(`SELECT substr(summary, 1, 1500) AS summary FROM reports WHERE act_id = ?1 AND summary IS NOT NULL ORDER BY period_end DESC LIMIT 2`).bind(acct.act_id).all();
+  const have = (hub?.about || hub?.intro) || (angs || []).length || (won || []).length || (briefs || []).length;
+  if (!have) return '';
+  const system = `You write the brand context a marketing strategist needs before writing ads for a client. From the material given, produce a plain-prose brief with these headings: WHAT THEY SELL; WHO BUYS AND WHY; THE VOICE (with three example phrases lifted from the material); WHAT HAS WORKED (the arguments behind the ads that sold, read from the ad names and the angles); CLAIMS AND RULES; KPIs AND TARGETS (only if stated). Say only what the material supports; where it is silent, write "not known yet". No em dashes, no exclamation marks, under 600 words.`;
+  const user = `BRAND: ${acct.name} (${acct.currency}, target ROAS ${acct.target_roas ?? 'unset'}, target CPA ${acct.target_cpa ?? 'unset'})\n\nHUB INTRO: ${hub?.intro || ''}\nABOUT: ${hub?.about || ''}\nAUDIENCE: ${hub?.audience || ''}\nAVOID: ${hub?.avoid_json || ''}\nRULES: ${hub?.rules_json || ''}\nSEASON: ${hub?.season_json || ''}\n\nLIVE ANGLES:\n${(angs || []).map(a => `- [${a.section || ''}] ${a.title}: ${a.argument || ''} (${a.who || ''}; ${a.products || ''}; ${a.format || ''})`).join('\n')}\n\nADS THAT SOLD (Triple Whale attributed, 120 days):\n${(won || []).map(w => `- ${w.name}: $${Math.round(w.rev)} / ${w.ord} orders`).join('\n')}\n\nRECENT AD NAMES:\n${(adNames || []).map(a => a.name).join(' | ')}\n\nLAST BRIEFS TO THE CLIENT:\n${(briefs || []).map(b => b.text).join('\n---\n')}\n\nLAST REPORT SUMMARIES:\n${(reports || []).map(r => r.summary).join('\n---\n')}`;
+  const text = await d.claude(env, { system, user, maxTokens: 2500 });
+  return text ? `(Derived by the Strategist on ${to} from the hub, the angles, the ads and the briefs. Correct it in the chat: "Grunk's context: ...")\n\n${String(text).trim()}` : '';
 }
 
 /* ------------------------------------------------------------------ */
@@ -400,7 +429,8 @@ const ACTIONS = (d) => {
       propose: async (env, input, h) => {
         const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
         const n = Math.min(10, Math.max(1, Number(input.count) || 6));
-        const context = (await d.getSetting(env, `brandContext:${acct.act_id}`)) || '';
+        let context = (await d.getSetting(env, `brandContext:${acct.act_id}`)) || '';
+        if (!context) { context = await deriveBrandContext(env, d, acct).catch(() => ''); if (context) await d.putSetting(env, `brandContext:${acct.act_id}`, context); }
         const hub = await env.DB.prepare(`SELECT intro, about, audience, avoid_json, rules_json FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first();
         const { results: secs } = await env.DB.prepare(`SELECT id, name, line, enabled FROM p_amb_section WHERE act_id = ?1`).bind(acct.act_id).all();
         const { results: angs } = await env.DB.prepare(`SELECT a.title, a.argument, a.who, a.format, s.name AS section FROM p_amb_angle a LEFT JOIN p_amb_section s ON s.id = a.section_id WHERE a.act_id = ?1 AND a.status = 'live' ORDER BY a.sort LIMIT 60`).bind(acct.act_id).all();
@@ -472,7 +502,7 @@ export function buildStrategist(d) {
   });
   d.h = h;
   engine = createAssistant({
-    name: 'Strategist', app: 'Locus', memoryPrefix: 'strategist',
+    name: 'Strategist', app: 'Locus', memoryPrefix: 'strategist', repoPath: 'profit/ for the screens (index.html, meta.js, amb.js), account-health/worker/src for the data and this assistant',
     slackName: 'Strategist',
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],

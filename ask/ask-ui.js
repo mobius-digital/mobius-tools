@@ -99,6 +99,7 @@ window.AskUI = (() => {
         <div class="ch2"><b>The ${esc(A.name)}</b>
           <button class="ctl" onclick="AskUI.fresh()" title="Start a fresh conversation">+ New</button>
           <button class="ctl" onclick="AskUI.history()" title="Earlier conversations">Chats</button>
+          <button class="ctl" onclick="AskUI.reports()" title="Reports it has built for you">Reports</button>
           <button class="x" onclick="AskUI.close()" aria-label="Close">✕</button></div>
         <div id="askList" hidden></div>
         <div id="askLog"></div>
@@ -126,10 +127,22 @@ window.AskUI = (() => {
       ${p.done ? `<div class="pr ${p.done === 'applied' ? 'ok' : ''}">${esc(p.result || (p.done === 'applied' ? 'Applied.' : 'Left as it was.'))}</div>`
         : `<div class="pa"><button class="btn primary" onclick="AskUI.applyProposal('${esc(p.id)}')">Apply</button><button class="btn" onclick="AskUI.applyProposal('${esc(p.id)}', true)">No thanks</button></div>`}
     </div>`;
+  /* A report the assistant built: a card in the chat, the page on Open. */
+  const reportCardHTML = r => `<div class="m ai rep" data-id="${esc(r.id)}">
+      <b>${esc(r.title)}</b>${r.subtitle ? `<div class="pd">${esc(r.subtitle)}</div>` : ''}
+      <div class="pd">${(r.blocks || []).length} block${(r.blocks || []).length === 1 ? '' : 's'}: ${(r.blocks || []).map(b => b.type).join(', ')}</div>
+      <div class="pa"><button class="btn primary" onclick="AskUI.openReport('${esc(r.id)}')">Open</button><button class="btn" onclick="AskUI.openReport('${esc(r.id)}', true)">Print / PDF</button></div>
+    </div>`;
+  /* A feature that needs code: the owner gets the prompt for Claude Code. */
+  const handoffHTML = h => `<div class="m ai hand">
+      <b>${esc(h.title)}</b><div class="pd">This needs a change to the app itself, which only you can make. Paste this into Claude Code:</div>
+      <div class="pv">${esc(h.prompt)}</div>
+      <div class="pa"><button class="btn primary" onclick="navigator.clipboard.writeText(this.closest('.hand').querySelector('.pv').textContent).then(()=>{this.textContent='Copied'})">Copy the prompt</button></div>
+    </div>`;
   function render(intro) {
     const log = $('#askLog');
     log.innerHTML = (intro ? `<div class="m ai intro">${esc(intro).replace(/\n/g, '<br>')}</div>` : '')
-      + A.chat.map(m => m.proposal ? proposalHTML(m.proposal) : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.text).replace(/\n/g, '<br>')}</div>`).join('')
+      + A.chat.map(m => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.text).replace(/\n/g, '<br>')}</div>`).join('')
       + (A.busy ? '<div class="m ai think">Looking…</div>' : '');
     log.scrollTop = log.scrollHeight;
   }
@@ -152,10 +165,14 @@ window.AskUI = (() => {
     A.chat.push({ role: 'user', text: q });
     A.busy = true; render();
     try {
-      const history = A.chat.slice(0, -1).filter(m => !m.proposal);
+      const history = A.chat.slice(0, -1).filter(m => !m.proposal && !m.report && !m.handoff);
       const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history, screen: A.screen ? A.screen() : null }) });
+      if (r.isOwner !== undefined) A.isOwner = !!r.isOwner;
       for (const p of r.proposals || []) A.chat.push({ role: 'assistant', proposal: p, text: 'Proposed: ' + p.summary });
+      for (const rep of r.reports || []) { A.reports = [rep, ...(A.reports || []).filter(x => x.id !== rep.id)]; A.chat.push({ role: 'assistant', report: rep, text: 'Report: ' + rep.title }); }
+      for (const hd of r.handoffs || []) A.chat.push({ role: 'assistant', handoff: hd, text: 'Feature: ' + hd.title });
       A.chat.push({ role: 'assistant', text: r.error || r.answer });
+      if ((r.reports || []).length) openReport(r.reports[0].id);
       if (A.onAnswer) A.onAnswer(r);
     } catch (err) { A.chat.push({ role: 'assistant', text: 'That one broke: ' + err.message }); }
     A.busy = false; render();
@@ -175,8 +192,8 @@ window.AskUI = (() => {
   function fresh() { A.chat = []; A.id = null; try { localStorage.removeItem(LS()); } catch (e) {} const l = $('#askList'); if (l) l.hidden = true; open(); }
   function history() {
     const el = $('#askList'); if (!el) return;
-    if (!el.hidden) { el.hidden = true; return; }
-    loadChats(); el.hidden = false;
+    if (!el.hidden && el.dataset.kind !== 'reports') { el.hidden = true; return; }
+    loadChats(); el.hidden = false; el.dataset.kind = 'chats';
     el.innerHTML = (A.chats || []).length
       ? A.chats.map(c => `<button class="chatrow ${c.id === A.id ? 'on' : ''}" onclick="AskUI.openChat('${c.id}')"><span>${esc(c.title)}</span><small>${esc(new Date(c.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} · ${c.messages.length} message${c.messages.length === 1 ? '' : 's'}</small></button>`).join('')
       : '<div class="hint" style="padding:10px 20px">No earlier chats yet.</div>';
@@ -186,6 +203,71 @@ window.AskUI = (() => {
     const c = (A.chats || []).find(x => x.id === id); if (!c) return;
     A.id = c.id; A.chat = c.messages.slice();
     $('#askList').hidden = true; render();
+  }
+
+  /* ---- the report page ---- */
+  const fmtCell = v => v == null ? '' : typeof v === 'number' ? (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en-US') : String(Math.round(v * 100) / 100)) : String(v);
+  /* A small chart drawn by hand: no library, prints cleanly, reads in both
+     themes. Lines for series over time, bars for a few categories. */
+  function chartSVG(b) {
+    const W = 720, H = 260, L = 56, R = 16, T = 18, B = 40;
+    const x = b.x || [], series = (b.series || []).slice(0, 4);
+    const all = series.flatMap(s => (s.values || []).filter(v => v != null));
+    if (!x.length || !all.length) return '<div class="hint">No data to draw.</div>';
+    let lo = Math.min(0, ...all), hi = Math.max(...all); if (hi === lo) hi = lo + 1;
+    const pad = (hi - lo) * 0.08; hi += pad; if (lo < 0) lo -= pad;
+    const px = i => L + (x.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (x.length - 1));
+    const py = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+    const colors = ['var(--brand,#3b6ea5)', 'var(--good,#2e8b57)', 'var(--warn,#d99a2b)', 'var(--bad,#c9463d)'];
+    const unit = b.unit || '';
+    const fmtY = v => (unit === '$' ? '$' : '') + (Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v * 10) / 10) + (unit && unit !== '$' ? unit : '');
+    const ticks = 4; let g = '';
+    for (let t = 0; t <= ticks; t++) { const v = lo + (hi - lo) * t / ticks, y = py(v); g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line,#ddd)" stroke-width="1"/><text x="${L - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="currentColor" opacity=".7">${fmtY(v)}</text>`; }
+    const step = Math.ceil(x.length / 8);
+    x.forEach((lab, i) => { if (i % step === 0 || i === x.length - 1) g += `<text x="${px(i)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">${esc(String(lab))}</text>`; });
+    if (b.kind === 'bar') {
+      const n = series.length, bw = Math.max(4, ((W - L - R) / x.length) * 0.7 / n);
+      series.forEach((s, si) => (s.values || []).forEach((v, i) => { if (v == null) return; const cx = px(i) - (n * bw) / 2 + si * bw; const y0 = py(Math.max(0, lo)), y1 = py(v);
+        g += `<rect x="${cx}" y="${Math.min(y0, y1)}" width="${bw - 1}" height="${Math.abs(y0 - y1)}" fill="${colors[si]}" rx="2"/>`; }));
+    } else {
+      series.forEach((s, si) => { const pts = (s.values || []).map((v, i) => v == null ? null : `${px(i)},${py(v)}`).filter(Boolean);
+        g += `<polyline points="${pts.join(' ')}" fill="none" stroke="${colors[si]}" stroke-width="2.2" stroke-linejoin="round"/>`;
+        (s.values || []).forEach((v, i) => { if (v != null) g += `<circle cx="${px(i)}" cy="${py(v)}" r="2.6" fill="${colors[si]}"/>`; }); });
+    }
+    const legend = series.map((s, si) => `<span class="lg"><i style="background:${colors[si]}"></i>${esc(s.name)}</span>`).join('');
+    return `<div class="legend">${legend}</div><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${esc(b.title || 'chart')}">${g}</svg>`;
+  }
+  function reportHTML(r) {
+    const blocks = (r.blocks || []).map(b => {
+      const title = b.title ? `<h3>${esc(b.title)}</h3>` : '';
+      if (b.type === 'text') return `<section>${title}<p>${esc(b.text || '').replace(/\n/g, '<br>')}</p></section>`;
+      if (b.type === 'kpis') return `<section>${title}<div class="kpis">${(b.items || []).map(i => `<div class="kpi ${esc(i.tone || '')}"><div class="l">${esc(i.label)}</div><div class="v">${esc(i.value)}</div>${i.note ? `<div class="n">${esc(i.note)}</div>` : ''}</div>`).join('')}</div></section>`;
+      if (b.type === 'table') return `<section>${title}<div class="tw"><table><thead><tr>${(b.columns || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${(b.rows || []).map(row => `<tr>${row.map((v, i) => `<td class="${typeof v === 'number' || /^[-$]?[\d,.]+%?x?$/.test(String(v || '')) ? 'num' : ''}">${esc(fmtCell(v))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`;
+      if (b.type === 'chart') return `<section>${title}<div class="chart">${chartSVG(b)}</div></section>`;
+      return '';
+    }).join('');
+    return `<div class="rp-head"><div><h1>${esc(r.title)}</h1>${r.subtitle ? `<div class="sub">${esc(r.subtitle)}</div>` : ''}<div class="meta">Built by the ${esc(r.by || A.name)} · ${esc(new Date(r.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</div></div>
+      <div class="rp-actions no-print"><button class="btn" onclick="window.print()">Print / PDF</button><button class="btn" onclick="AskUI.closeReport()">Close</button></div></div>${blocks}`;
+  }
+  function openReport(id, print = false) {
+    const r = (A.reports || []).find(x => x.id === id) || A.chat.map(m => m.report).find(x => x && x.id === id);
+    if (!r) return;
+    let el = $('#askReport');
+    if (!el) { document.body.insertAdjacentHTML('beforeend', '<div id="askReport" class="askreport"><div class="rp"></div></div>'); el = $('#askReport'); }
+    el.querySelector('.rp').innerHTML = reportHTML(r);
+    el.classList.add('on'); document.body.classList.add('ask-printing');
+    if (print) setTimeout(() => window.print(), 300);
+  }
+  function closeReport() { $('#askReport')?.classList.remove('on'); document.body.classList.remove('ask-printing'); }
+  /* Every report it has built, newest first: the same list the worker keeps. */
+  async function reports() {
+    const el = $('#askList'); if (!el) return;
+    if (!el.hidden && el.dataset.kind === 'reports') { el.hidden = true; return; }
+    try { A.reports = (await A.api(A.base + '/reports')).reports || []; } catch (e) { A.reports = A.reports || []; }
+    el.hidden = false; el.dataset.kind = 'reports';
+    el.innerHTML = A.reports.length
+      ? A.reports.map(r => `<button class="chatrow" onclick="AskUI.openReport('${esc(r.id)}')"><span>${esc(r.title)}</span><small>${esc(new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}${r.subtitle ? ' · ' + esc(r.subtitle) : ''}</small></button>`).join('')
+      : '<div class="hint" style="padding:10px 20px">No reports yet. Ask for one: "build me a cash forecast report for the next 8 weeks".</div>';
   }
 
   /* ---- settings: what it knows, and the controls ---- */
@@ -244,5 +326,5 @@ window.AskUI = (() => {
     catch (e) { flash(e.message); } finally { btn.disabled = false; }
   }
 
-  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
 })();

@@ -436,8 +436,11 @@ const app = {
         const { engine, h } = await buyerFor(env, brand, request);
         if (path === '/api/ask' && request.method === 'POST') {
           const findings = await engine.openFindings(env, h).catch(() => []);
-          return json(await engine.answerWeb(env, body?.question, body?.history, h, { findings: findings.slice(0, 6), screen: body?.screen || null }));
+          const r = await engine.answerWeb(env, body?.question, body?.history, h, { findings: findings.slice(0, 6), screen: body?.screen || null });
+          /* the owner is whoever signed in as the owner at HQ (the actor header carries the session email) */
+          return json({ ...r, isOwner: String(actor || '').toLowerCase() === 'cole@go-mobius-digital.com' });
         }
+        if (path === '/api/ask/reports') return json({ reports: await engine.reportsList(env, h) });
         if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h),
           briefing: safeJson(await h.getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h), brief: await engine.getBrief(env, h),
           playbook: (await h.getSetting(env, engine.keys.playbook)) || '', pending: await engine.pendingList(env, h) });

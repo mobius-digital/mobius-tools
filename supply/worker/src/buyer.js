@@ -340,7 +340,7 @@ export function buildBuyer(d, brand, brandName) {
   });
   d.h = h;
   engine = createAssistant({
-    name: 'Buyer', app: 'Supply', memoryPrefix: 'buyer', owner: 'Cole',
+    name: 'Buyer', app: 'Supply', memoryPrefix: 'buyer', owner: 'Cole', repoPath: 'supply/ (worker in supply/worker/src, brain in brain.js, screens in supply/app.js and app2.js)',
     who: WHO(brandName), schema: SCHEMA, rules: RULES(brand), tables: TABLES,
     sqlTool: 'query_supply', findingsTable: 'findings_' + brand.replace(/[^a-z0-9]/g, '_'),
     brief: `${brandName}'s products are made to order at factories with long lead times, so the order-by date is the whole game: miss it and the product goes out of stock for the length of the lead time. Supply computes velocity from Shopify sales with out-of-stock days removed, and works the dates backwards from when a product must be on the site. The Slack digest every morning is the Buyer's briefing.`,

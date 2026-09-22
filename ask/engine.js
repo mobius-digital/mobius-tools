@@ -177,6 +177,25 @@ export function makeAppView({ views, blurbs, secretKey, getSetting, safeJson, se
            readableTables: env => readableTables(env, fallbackTables) };
 }
 
+/* A report as Slack text: tiles as lines, tables as monospace, charts as
+ * their last values. The app draws it properly; this is the readable copy. */
+export function reportText(r) {
+  const out = [`*${r.title}*${r.subtitle ? '\n_' + r.subtitle + '_' : ''}`];
+  for (const b of r.blocks || []) {
+    if (b.title) out.push(`*${b.title}*`);
+    if (b.type === 'text') out.push(String(b.text || ''));
+    if (b.type === 'kpis') out.push((b.items || []).map(i => `• ${i.label}: *${i.value}*${i.note ? ' (' + i.note + ')' : ''}`).join('\n'));
+    if (b.type === 'table') {
+      const cols = b.columns || [], rows = b.rows || [];
+      const w = cols.map((c, i) => Math.max(String(c).length, ...rows.map(r => String(r[i] ?? '').length)));
+      const line = r => r.map((v, i) => String(v ?? '').padEnd(w[i])).join('  ');
+      out.push('```\n' + [line(cols), ...rows.slice(0, 25).map(line)].join('\n') + '\n```');
+    }
+    if (b.type === 'chart') out.push((b.series || []).map(sr => `• ${sr.name}: ${(sr.values || []).slice(-6).map(v => v == null ? '·' : v).join(', ')}`).join('\n') + (b.x?.length ? `\n_(${b.x.slice(-6).join(', ')})_` : ''));
+  }
+  return out.join('\n\n');
+}
+
 /* Slack mrkdwn is not markdown, and a model reaches for ** by reflex. Also
  * strips headings and, per the house rule, em dashes. */
 export const toSlackText = s => String(s || '').replace(/\*\*(.+?)\*\*/gs, '*$1*').replace(/^#{1,6}\s*/gm, '').replace(/\s*—\s*/g, ' - ').trim();
@@ -190,7 +209,7 @@ export function createAssistant(config) {
   if (!C.name) throw new Error('createAssistant: config.name is required');
   const P = C.memoryPrefix || C.name.toLowerCase();
   const K = { notes: `${P}Notes`, watches: `${P}Watches`, muted: `${P}Muted`, usage: `${P}Usage`,
-              brief: `${P}Brief`, lastBriefing: `${P}LastBriefing`, playbook: `${P}Playbook`, pending: `${P}Pending` };
+              brief: `${P}Brief`, lastBriefing: `${P}LastBriefing`, playbook: `${P}Playbook`, pending: `${P}Pending`, reports: `${P}Reports` };
   const ACTIONS = C.actions || [];   // [{ name, description, input_schema, propose(env, input, h, ctx), apply(env, patch, h) }]
   const actionByName = Object.fromEntries(ACTIONS.map(a => [a.name, a]));
   const T = C.findingsTable;
@@ -303,6 +322,42 @@ export function createAssistant(config) {
       id: { type: 'string', description: 'A record id, where a view takes one.' },
     }, required: ['view'] },
   };
+  /* A custom report or dashboard, built from numbers the model has already
+   * fetched. The engine renders nothing here: it keeps the spec, the app draws
+   * it (tables, KPI tiles, line and bar charts) and prints it to PDF. */
+  const reportDef = {
+    name: 'make_report',
+    description: 'Build a custom report or dashboard the app does not have: a titled page of KPI tiles, tables, charts and short text, from numbers you have ALREADY fetched with queries and views. Use it when asked for a report, a dashboard, a forecast laid out, a PDF, a breakdown, or "show me X by Y". Gather every number first; never put a number in a report that did not come back from a query or a view. One call per report.',
+    input_schema: { type: 'object', properties: {
+      title: { type: 'string' },
+      subtitle: { type: 'string', description: 'The period and the basis, e.g. "Sep 2026, cash basis, Triple Whale attribution".' },
+      blocks: { type: 'array', description: 'In reading order.', items: { type: 'object', properties: {
+        type: { type: 'string', enum: ['kpis', 'table', 'chart', 'text'] },
+        title: { type: 'string' },
+        text: { type: 'string', description: 'For text blocks: a short paragraph, plain sentences.' },
+        items: { type: 'array', description: 'For kpis: 2 to 6 tiles.', items: { type: 'object', properties: { label: { type: 'string' }, value: { type: 'string' }, note: { type: 'string' }, tone: { type: 'string', enum: ['good', 'warn', 'bad'] } }, required: ['label', 'value'] } },
+        columns: { type: 'array', items: { type: 'string' }, description: 'For table.' },
+        rows: { type: 'array', items: { type: 'array', items: { type: ['string', 'number', 'null'] } }, description: 'For table: one array per row, already formatted.' },
+        kind: { type: 'string', enum: ['line', 'bar'], description: 'For chart.' },
+        x: { type: 'array', items: { type: 'string' }, description: 'For chart: the labels along the bottom.' },
+        series: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, values: { type: 'array', items: { type: ['number', 'null'] } } }, required: ['name', 'values'] }, description: 'For chart: one to four series, values aligned to x.' },
+        unit: { type: 'string', description: 'For chart: "$", "%", "x" or "" (units).' },
+      }, required: ['type'] } },
+    }, required: ['title', 'blocks'] },
+  };
+  /* Something the app cannot do and should: a real feature, a change in how a
+   * number is computed, a new screen. The assistant does not build it; it
+   * hands the owner a prompt for Claude Code. Only the owner sees the card. */
+  const handoffDef = {
+    name: 'hand_to_claude_code',
+    description: 'Use when the request needs a CODE CHANGE to the app itself (a new screen or tab, a new kind of check, a change to how a number is computed, a new integration) rather than an answer, a report or a proposal. Do not use it for anything a query, a view, a report or an action can do. It gives the owner a ready-to-paste prompt for Claude Code; it does not change anything.',
+    input_schema: { type: 'object', properties: {
+      title: { type: 'string', description: 'The feature in five words.' },
+      what: { type: 'string', description: 'What to build or change, precisely, in the owner\'s words plus what you know: which screen, which numbers, which rule.' },
+      why: { type: 'string', description: 'The problem it solves, one sentence.' },
+    }, required: ['title', 'what'] },
+  };
+
   const memoryDefs = [
     { name: 'remember',
       description: 'Save a fact about the business, a decision, or an outcome, so you have it in every future answer. ' +
@@ -336,8 +391,8 @@ export function createAssistant(config) {
   }));
   const extraSlack = C.slackTools || [];   // [{ def, run(env, input, ctx) -> {text, is_error?, ...flags} }]
   const extraWeb = C.webTools || [];
-  const slackToolDefs = [sqlToolDef, readAppDef, ...extraSlack.map(t => t.def), ...actionDefs, ...memoryDefs];
-  const webToolDefs = [sqlToolDef, readAppDef, ...extraWeb.map(t => t.def), ...actionDefs, ...memoryDefs];
+  const slackToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraSlack.map(t => t.def), ...actionDefs, ...memoryDefs];
+  const webToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraWeb.map(t => t.def), ...actionDefs, ...memoryDefs];
 
   /* ---------------- the model ---------------- */
 
@@ -473,6 +528,28 @@ export function createAssistant(config) {
       return r?.error ? { error: r.error, summary: p.summary } : { ok: true, summary: p.summary, ...(r || {}) };
     } catch (e) { return { error: String(e.message || e), summary: p.summary }; }
   }
+  /* ---------------- reports ---------------- */
+  async function reportsList(env, h) { return h.safeJson(await h.getSetting(env, K.reports), []) || []; }
+  async function keepReport(env, h, r) {
+    const list = await reportsList(env, h);
+    list.unshift(r);
+    await h.putSetting(env, K.reports, JSON.stringify(list.slice(0, 30)));
+  }
+  function runReport(env, input, h) {
+    const blocks = (Array.isArray(input?.blocks) ? input.blocks : []).filter(b => b && ['kpis', 'table', 'chart', 'text'].includes(b.type)).slice(0, 20);
+    if (!input?.title || !blocks.length) return { is_error: true, text: 'A report needs a title and at least one block.' };
+    const r = { id: Math.random().toString(36).slice(2, 10), title: String(input.title).slice(0, 120), subtitle: String(input.subtitle || '').slice(0, 200), blocks, at: new Date().toISOString(), by: C.name };
+    return { text: `The report "${r.title}" is built and shown. Reply with ONE or two sentences: what it shows and the one thing worth noticing. Do not repeat the numbers.`, flags: { reports: [r] }, report: r };
+  }
+  function runHandoff(input, ctx) {
+    const title = String(input?.title || 'A change to the app').slice(0, 80);
+    const prompt = [`In the Mobius tools repo, ${C.app || 'this app'}${C.repoPath ? ` (${C.repoPath})` : ''}: ${String(input?.what || '').trim()}`,
+      input?.why ? `Why: ${String(input.why).trim()}` : '',
+      ctx?.screen ? `Where I was when I asked: ${JSON.stringify(ctx.screen)}` : '',
+      `Keep it in the style of the app. Read the app's CLAUDE.md and the ask-engine memory first.`].filter(Boolean).join('\n\n');
+    return { text: `This needs a code change, so the owner is shown a card with a prompt for Claude Code titled "${title}". Reply with ONE sentence: say it is a feature, not something you can do from here, and that the prompt is ready.`, flags: { handoffs: [{ title, prompt }] } };
+  }
+
   /** Runs an action's propose() and keeps what it described. Never writes. */
   async function runAction(env, name, input, h, ctx) {
     const a = actionByName[name];
@@ -572,6 +649,7 @@ export function createAssistant(config) {
     if (brief) blocks.push({ type: 'text', text: '## What you know about the company\n' + brief });
     const playbook = (await h.getSetting(env, K.playbook)) || C.playbook || '';
     if (playbook) blocks.push({ type: 'text', text: '## How you think (your playbook)\n' + playbook });
+    blocks.push({ type: 'text', text: '## Reports and features\nWhen asked for a report, a dashboard, a forecast laid out, a breakdown or a PDF the app does not have: fetch every number first (queries and views), then call make_report ONCE with the whole page (KPI tiles, tables, a chart where a series over time helps, a line of text where a number needs a word). Never a number that did not come back from a query or a view. When the request needs the app itself to change (a new screen, a new check, a different computation, an integration), call hand_to_claude_code; that is the owner\'s job, done in Claude Code, and the card only shows to the owner.' });
     if (ACTIONS.length) blocks.push({ type: 'text', text: '## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.' });
     const mem = await memoryBlock(env, h).catch(() => '');
     if (mem) blocks.push({ type: 'text', text: mem });
@@ -611,6 +689,12 @@ export function createAssistant(config) {
             out = { text: await readApp(h, env, c.input) };
           } else if (memoryNames.has(c.name)) {
             out = { text: await runMemoryTool(env, c.name, c.input, h) };
+          } else if (c.name === 'make_report') {
+            out = runReport(env, c.input, h);
+            if (out.report) { await keepReport(env, h, out.report).catch(() => {}); flags.reports = [...(flags.reports || []), out.report]; }
+          } else if (c.name === 'hand_to_claude_code') {
+            out = runHandoff(c.input, ctx);
+            flags.handoffs = [...(flags.handoffs || []), ...out.flags.handoffs];
           } else if (actionByName[c.name]) {
             out = await runAction(env, c.name, c.input, h, ctx);
             if (out.flags?.proposals) flags.proposals = [...(flags.proposals || []), ...out.flags.proposals];
@@ -700,6 +784,8 @@ export function createAssistant(config) {
         return t ? await t.run(env, input, ctx) : null;
       }, usage, pickModel(question), ctx);
       for (const p of r.flags.proposals || []) await say(p.summary, proposalBlocks(p));
+      for (const rep of r.flags.reports || []) await say(reportText(rep));
+      if (ev.channel_type === 'im') for (const hd of r.flags.handoffs || []) await say(`*${hd.title}* needs a code change. Paste this into Claude Code:\n\`\`\`\n${hd.prompt}\n\`\`\``);
       const text = toSlackText(r.answer);
       if (text) { await say(text); r.answered = true; }
       else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
@@ -809,7 +895,7 @@ export function createAssistant(config) {
     answerSlack, answerWeb, nightly, briefing,
     openFindings, setFindingState, recordFindings, ensureFindings,
     memory, memoryBlock, getBrief, runMemoryTool,
-    applyProposal, pendingList, proposalBlocks, actions: ACTIONS.map(a => a.name),
+    applyProposal, pendingList, proposalBlocks, actions: ACTIONS.map(a => a.name), reportsList,
     gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns }),
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },

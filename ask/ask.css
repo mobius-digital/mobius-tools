@@ -66,3 +66,38 @@
 .askbtn{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.06);color:var(--on-ink,#EAF2F7);border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}
 .askbtn:hover{border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.12);color:#fff}
 .askbtn svg{width:15px;height:15px}
+
+/* ---- reports it built ---- */
+#askLog .m.rep,#askLog .m.hand{max-width:100%;border-left-width:3px}
+#askLog .m.rep{border-color:var(--good)}
+#askLog .m.hand{border-color:var(--warn)}
+#askLog .m.rep b,#askLog .m.hand b{display:block;margin-bottom:4px}
+.askreport{position:fixed;inset:0;z-index:70;background:var(--bg);overflow:auto;display:none}
+.askreport.on{display:block}
+.askreport .rp{max-width:900px;margin:0 auto;padding:28px 24px 60px;color:var(--ink)}
+.askreport .rp-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px}
+.askreport h1{font-size:24px;margin:0 0 4px}
+.askreport .sub{opacity:.75;font-size:14px}
+.askreport .meta{opacity:.55;font-size:12px;margin-top:4px}
+.askreport .rp-actions{display:flex;gap:8px;flex:none}
+.askreport section{margin:0 0 22px}
+.askreport h3{font-size:13px;letter-spacing:.04em;text-transform:uppercase;opacity:.7;margin:0 0 10px}
+.askreport p{font-size:14.5px;line-height:1.6;margin:0}
+.askreport .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.askreport .kpi{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--wash)}
+.askreport .kpi .l{font-size:12px;opacity:.7}
+.askreport .kpi .v{font-size:24px;font-weight:600;margin-top:2px}
+.askreport .kpi .n{font-size:12px;opacity:.65;margin-top:2px}
+.askreport .kpi.good .v{color:var(--good)}
+.askreport .kpi.warn .v{color:var(--warn)}
+.askreport .kpi.bad .v{color:var(--bad)}
+.askreport .tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+.askreport table{width:100%;border-collapse:collapse;font-size:13.5px}
+.askreport th,.askreport td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.askreport th{font-size:12px;opacity:.7;background:var(--wash)}
+.askreport tr:last-child td{border-bottom:0}
+.askreport td.num{text-align:right;font-variant-numeric:tabular-nums}
+.askreport .chart{border:1px solid var(--line);border-radius:12px;padding:12px 12px 6px;background:var(--wash)}
+.askreport .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin:0 0 6px 4px}
+.askreport .legend .lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+@media print{body.ask-printing>*:not(#askReport){display:none!important}.askreport{position:static;display:block!important;background:#fff;color:#111}.askreport .rp{max-width:none;padding:0}.no-print{display:none!important}.askreport .kpi,.askreport .tw,.askreport .chart{background:#fff;border-color:#ccc}}
