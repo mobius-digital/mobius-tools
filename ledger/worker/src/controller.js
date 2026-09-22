@@ -381,6 +381,7 @@ export function buildController(d) {
 
   engine = createAssistant({
     name: 'Controller', app: 'Mobius Ledger', memoryPrefix: 'controller', owner: 'Cole',
+    slackName: 'Controller',
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, blobColumns: ['report_json'],
     brief: DEFAULT_BRIEF,
     liveContext: async (env) => '## The live tax category list (use these values verbatim)\n' + JSON.stringify(d.safeJson(await d.getSetting(env, 'taxCats'), []) || []),

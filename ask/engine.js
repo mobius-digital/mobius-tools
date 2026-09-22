@@ -577,8 +577,16 @@ export function createAssistant(config) {
   async function answerSlack(env, ev, h, extra = {}) {
     const channel = ev.channel;
     const thread = ev.channel_type === 'im' ? ev.thread_ts : (ev.thread_ts || ev.ts);
-    const say = (text, blocks) => h.slack(env, 'chat.postMessage',
-      { channel, ...(thread ? { thread_ts: thread } : {}), text, unfurl_links: false, ...(blocks ? { blocks } : {}) }, true);
+    /* The reply carries the assistant's own name when the Slack app allows it
+       (chat:write.customize). Refused, it goes out under the app's name and
+       nothing is lost. */
+    const say = async (text, blocks) => {
+      const params = { channel, ...(thread ? { thread_ts: thread } : {}), text, unfurl_links: false, ...(blocks ? { blocks } : {}) };
+      if (!C.slackName) return h.slack(env, 'chat.postMessage', params, true);
+      const r = await h.slack(env, 'chat.postMessage', { ...params, username: C.slackName, ...(C.slackIcon ? { icon_emoji: C.slackIcon } : {}) }, true);
+      if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || ''))) return h.slack(env, 'chat.postMessage', params, true);
+      return r;
+    };
     const question = plainText(ev.text);
     if (!question) return { skipped: 'empty question' };
     if (!env.ANTHROPIC_API_KEY) { await say('Ask needs the ANTHROPIC_API_KEY secret set on this worker.'); return { skipped: 'no key' }; }

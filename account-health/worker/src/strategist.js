@@ -279,6 +279,7 @@ export function buildStrategist(d) {
   d.h = h;
   engine = createAssistant({
     name: 'Strategist', app: 'Locus', memoryPrefix: 'strategist',
+    slackName: 'Strategist',
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],
     brief: DEFAULT_BRIEF,
