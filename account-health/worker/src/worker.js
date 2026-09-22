@@ -1919,6 +1919,20 @@ const steerBlock = steer => steer && String(steer).trim()
   ? `\n\nDIRECTION FROM THE TEAM FOR THIS REWRITE -- follow it, and let it override the general guidance above wherever the two disagree:\n<<<${String(steer).trim().slice(0, 1200)}>>>\nIt may change emphasis, ordering, length or tone. It may NOT introduce a number that is not in the data above; if it asks for something the data cannot support, say plainly that the data does not show it.`
   : '';
 
+/* STANDING DIRECTION: how Cole wants every brief or every report written,
+   kept in settings (`briefStyle` / `reportStyle` for every brand, with
+   `:<act_id>` for one brand) and edited by talking to the Strategist. It sits
+   above a one-off steer, below nothing: it can change emphasis, order, length,
+   tone and what gets left out, and it can never add a number. */
+async function styleBlock(env, kind, actId) {
+  const all = await getSetting(env, `${kind}Style`).catch(() => null);
+  const one = actId ? await getSetting(env, `${kind}Style:${actId}`).catch(() => null) : null;
+  const parts = [all && `For every brand: ${all}`, one && `For this brand: ${one}`].filter(Boolean);
+  return parts.length
+    ? `\n\nSTANDING DIRECTION FROM THE TEAM (applies to every ${kind === 'brief' ? 'Daily Brief' : 'report'}, and overrides the general guidance above wherever the two disagree):\n<<<${parts.join('\n').slice(0, 3000)}>>>\nIt may change emphasis, ordering, length, tone and what is left out. It may NOT introduce a number that is not in the data above.`
+    : '';
+}
+
 async function writeBriefNarrative(env, acct, data, date, steer) {
   const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
@@ -1971,6 +1985,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
         + `There is NO week-in-review block in the numbers section - the weekly report is a separate deliverable and this brief must not duplicate it as a second scoreboard. So the week reaches the reader ONLY through your narrative. Give it ONE bullet in What we saw with the figures that matter (net sales against plan, spend, aMER, best and slowest day), weigh the weekly shape rather than just yesterday in What it means, and let it inform What we're doing. Do not list the week metric by metric.\n\n` : '') +
       `Changes we made in the last 7 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}` +
       (recentBlock.length ? `\n\nWHAT WE ALREADY TOLD THIS CLIENT in the last few briefs. Do not reuse these sentences, openings or framing, and do not retell the same story. Build on it: what changed since, what we learned, what we are watching for.\n${recentBlock.join('\n\n')}` : '') +
+      (await styleBlock(env, 'brief', acct.act_id)) +
       steerBlock(steer),
   });
 }
@@ -3719,6 +3734,7 @@ async function writeReportNarrative(env, acct, data, steer) {
       (fmtLines.length ? `Meta spend by creative format (from the ad naming convention - covers every ad that spent):\n${fmtLines.join('\n')}\n` : '') +
       `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
       (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : '') +
+      (await styleBlock(env, 'report', acct.act_id)) +
       steerBlock(steer),
   });
 }

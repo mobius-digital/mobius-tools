@@ -103,6 +103,9 @@ READING AN ACCOUNT
 - A ROAS on fewer than two conversions is not a result. Withhold it and say why.
 - Never mix currencies, never quote Meta's purchases as attribution, never flag The Golf Sock.
 
+CHANGING HOW BRIEFS AND REPORTS READ
+- When Cole does not like how a brief or report reads, turn what he said into standing direction (set_writing_style) for every brand or one, and offer to redraft today's brief with it so he sees the difference. Wording, order, length, tone, what is left out: direction. A new number, a new section, a new layout: hand_to_claude_code.
+
 BUILDING CREATIVE (Mobius's framework, three words only)
 - ANGLE = the argument: the reason to buy, said in one sentence to a specific person, something you could say at a bar. Not a persona, not a topic, not a feature, not a format.
 - CONCEPT = the idea we build to deliver the angle, specific enough to shoot without questions.
@@ -132,6 +135,7 @@ const VIEW_BLURBS = {
   angles: 'the brand\'s angles hub as creators see it: every section and every angle (title, argument, who, products, format, status). Pass `brand`. Read it before proposing new angles or archiving old ones.',
   what_worked: 'the ads that actually sold for one brand over the last 90 days, by Triple Whale attributed revenue (lastPlatformClick), with Meta spend and CTR beside them. Pass `brand`. This is the evidence new angles come from.',
   brand_context: 'what we know about one brand for creative work: who buys and why, the voice, the products, the claims, the KPIs. Pass `brand`. Written by Cole; empty means ask him or read the angles hub\'s intro.',
+  writing_style: 'the standing direction for how Daily Briefs and weekly/monthly reports are written, for every brand and for one (pass `brand`), plus which report sections and periods are switched off for that brand. Read it before changing how briefs or reports read.',
   findings: 'everything the nightly checks currently have open.',
   config: 'how the Strategist is set up: which Slack channel it briefs in, the brief hour.',
 };
@@ -239,6 +243,13 @@ function buildViews(d) {
       }
       return { brand: acct.name, context: text || '', how_to_read: text ? VIEW_BLURBS.brand_context + (text.startsWith('(Derived') ? ' This one was derived by the Strategist from the app\'s own data; treat it as a good first draft and correct it in the chat.' : '')
         : 'Nothing could be worked out for this brand yet (no hub, no angles, no ads, no briefs). Ask Cole.' };
+    },
+    writing_style: async (env, a) => {
+      const acct = a.brand ? await resolve(env, a.brand) : null;
+      const g = k => d.getSetting(env, k);
+      return { brief_all: await g('briefStyle'), report_all: await g('reportStyle'),
+        ...(acct ? { brand: acct.name, brief_brand: await g(`briefStyle:${acct.act_id}`), report_brand: await g(`reportStyle:${acct.act_id}`), report_config: d.safeJson(acct.report_config_json, {}) } : {}),
+        how_to_read: 'The standing direction is added to the writer\'s instructions on every brief or report, above any one-off rewrite steer. report_config.hide lists channel sections left out of reports (meta, google, tiktok, amazon, pinterest, email); weekly/monthly false = that report is not drafted.' };
     },
     findings: async (env, a, ctx, engine) => ({ open: await engine.openFindings(env, d.h()), how_to_read: VIEW_BLURBS.findings }),
     config: async env => ({ briefing_channel: await d.getSetting(env, 'strategistChannel'), brief_hour: await d.briefHour(env), how_to_read: VIEW_BLURBS.config }),
@@ -524,6 +535,52 @@ const ACTIONS = (d) => {
       apply: async (env, p) => {
         await env.DB.prepare(`UPDATE p_amb_section SET name = ?3, line = ?4, enabled = ?5 WHERE id = ?1 AND act_id = ?2`).bind(p.id, p.act_id, clip(p.name, 60), clip(p.line, 120), p.enabled).run();
         return { ok: true, note: 'Section updated.' };
+      } },
+
+    { name: 'set_writing_style',
+      description: 'Change HOW Daily Briefs or weekly/monthly reports are written from now on, when Cole says he does not like how they read ("lead with profit", "shorter", "stop mentioning Google", "no hedging", "always end with one action for the client"). Standing direction, for every brand or for one. It changes emphasis, order, length, tone and what is left out; it can never add a number. Read writing_style first. Structural changes (a new section, a new number, a different layout) are a code change: use hand_to_claude_code for those.',
+      input_schema: { type: 'object', properties: {
+        which: { type: 'string', enum: ['brief', 'report', 'both'] },
+        brand: { type: 'string', description: 'Leave empty for every brand.' },
+        text: { type: 'string', description: 'The direction, in plain sentences, written as instructions to the writer.' },
+        mode: { type: 'string', enum: ['append', 'replace', 'clear'], description: 'append (default) adds to what is there; replace rewrites it; clear removes it.' },
+        summary: { type: 'string' } }, required: ['which', 'summary'] },
+      propose: async (env, input) => {
+        const acct = input.brand ? await resolve(env, input.brand) : null;
+        if (input.brand && !acct) return { error: `No brand called "${input.brand}".` };
+        const kinds = input.which === 'both' ? ['brief', 'report'] : [input.which];
+        const mode = input.mode || 'append';
+        if (mode !== 'clear' && !String(input.text || '').trim()) return { error: 'Give the direction in text.' };
+        const keys = kinds.map(k => acct ? `${k}Style:${acct.act_id}` : `${k}Style`);
+        const now = await Promise.all(keys.map(k => d.getSetting(env, k)));
+        const after = now.map(cur => mode === 'clear' ? '' : mode === 'replace' || !cur ? String(input.text).trim() : `${cur}\n${String(input.text).trim()}`);
+        const who = acct ? acct.name : 'every brand';
+        const what = kinds.map(k => k === 'brief' ? 'Daily Briefs' : 'weekly and monthly reports').join(' and ');
+        return { summary: input.summary, detail: `${what}, ${who}: ${mode === 'clear' ? 'remove the standing direction' : mode === 'replace' ? 'replace the standing direction' : 'add to the standing direction'}. It takes effect from the next one written.`,
+          preview: mode === 'clear' ? null : after[0].slice(0, 1200), patch: { keys, values: after } };
+      },
+      apply: async (env, patch) => {
+        for (let i = 0; i < patch.keys.length; i++) await d.putSetting(env, patch.keys[i], patch.values[i] || '');
+        return { ok: true, note: 'Saved. The next brief or report is written this way.' };
+      } },
+
+    { name: 'set_report_sections',
+      description: 'Switch channel sections in a brand\'s weekly/monthly reports on or off (meta, google, tiktok, amazon, pinterest, email), or stop drafting the weekly or monthly report for that brand altogether.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, hide: { type: 'array', items: { type: 'string', enum: ['meta', 'google', 'tiktok', 'amazon', 'pinterest', 'email'] }, description: 'The full list of sections to leave out.' },
+        weekly: { type: 'boolean' }, monthly: { type: 'boolean' }, summary: { type: 'string' } }, required: ['brand', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const cfg = d.safeJson(acct.report_config_json, {}) || {};
+        const next = { ...cfg }, lines = [];
+        if (input.hide) { next.hide = input.hide; lines.push(input.hide.length ? `leave out: ${input.hide.join(', ')}` : 'show every section'); }
+        if (input.weekly !== undefined) { next.weekly = !!input.weekly; lines.push(`weekly report ${input.weekly ? 'on' : 'off'}`); }
+        if (input.monthly !== undefined) { next.monthly = !!input.monthly; lines.push(`monthly report ${input.monthly ? 'on' : 'off'}`); }
+        if (!lines.length) return { error: 'Nothing to change.' };
+        return { summary: input.summary, detail: `${acct.name}: ${lines.join(', ')}. From the next report drafted.`, patch: { act_id: acct.act_id, cfg: next } };
+      },
+      apply: async (env, patch) => {
+        await env.DB.prepare('UPDATE accounts SET report_config_json = ?2 WHERE act_id = ?1').bind(patch.act_id, JSON.stringify(patch.cfg)).run();
+        return { ok: true, note: 'Report sections updated.' };
       } },
 
     { name: 'create_angles',
