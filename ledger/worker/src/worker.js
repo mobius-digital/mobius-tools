@@ -15,7 +15,7 @@
  */
 import { buildPnlPdf, buildPnlColumnsPdf } from './pdf.js';
 import { zipStream, zipSafe } from './zip.js';
-import { answerAsk, applyAskEdit } from './ask.js';
+import { buildController, applyAskEdit } from './controller.js';
 import { driveReady, driveAuthUrl, driveExchangeCode, driveListReceipts,
          driveDownload, driveFolderId } from './drive.js';
 
@@ -252,6 +252,100 @@ async function computeRange(env, fromMo, toMo) {
 }
 
 /* Period → the report behind it, plus how the statement should be titled. */
+/* ------------------------------------------------------------------ */
+/*  the computations the Overview, Dashboards and the Controller share */
+/* ------------------------------------------------------------------ */
+
+/* Month by month over a range, plus the top vendors and the contractors in
+ * it. Drawn by Dashboards; read by the Controller's `series` view. */
+async function seriesSummary(env, from, to) {
+  const months = [];
+  for (let m = from; m <= to && months.length < 60; m = monthOf(addMonthsYmd(m + '-01', 1))) months.push(m);
+  const status = Object.fromEntries((await env.DB.prepare(
+    'SELECT month, status FROM months WHERE month >= ?1 AND month <= ?2').bind(from, to).all()).results.map(r => [r.month, r.status]));
+  const out = [];
+  for (const m of months) {
+    const r = await resolveReport(env, m);
+    const { transactions, ...rest } = r;
+    out.push({ ...rest, month: m, status: status[m] || 'open' });
+  }
+  const { results: vend } = await env.DB.prepare(`SELECT vendor, bucket, tax_cat, SUM(amount) AS amount, COUNT(*) AS n
+    FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out'
+      AND (tax_cat IS NULL OR (tax_cat NOT LIKE 'Personal%' AND tax_cat NOT LIKE 'Income tax%'))
+    GROUP BY vendor ORDER BY amount DESC LIMIT 15`).bind(from, to).all();
+  const { results: con } = await env.DB.prepare(`SELECT vendor, SUM(amount) AS amount, COUNT(*) AS n
+    FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out'
+      AND tax_cat LIKE 'Contract labor%' GROUP BY vendor ORDER BY amount DESC`).bind(from, to).all();
+  const { results: taxp } = await env.DB.prepare(`SELECT date, vendor, amount FROM transactions
+    WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND tax_cat LIKE 'Income tax%' ORDER BY date`).bind(from, to).all();
+  return { from, to, months: out, money: await getMoney(env), taxPayments: taxp,
+    topVendors: vend.map(v => ({ ...v, amount: round2(v.amount) })),
+    contractors: con.map(v => ({ ...v, amount: round2(v.amount) })) };
+}
+
+/* /accounts/get serves Plaid's cached balances and is not the metered
+ * Balance product. Cached here for three hours on top of that. */
+async function bankBalances(env, fresh = false) {
+  const items = await getPlaidItems(env);
+  if (!plaidReady(env) || !items.length) return { connected: false };
+  const cached = safeJson(await getSetting(env, 'balancesCache'), null);
+  if (cached && cached.at > Date.now() - 3 * 3600e3 && !fresh) return { connected: true, ...cached };
+  const accounts = [];
+  for (const it of items) {
+    try {
+      const r = await plaid(env, '/accounts/get', { access_token: it.access_token });
+      for (const a of r.accounts || []) accounts.push({ item: it.name, name: a.name, mask: a.mask, type: a.type,
+        current: a.balances?.current ?? null, available: a.balances?.available ?? null, limit: a.balances?.limit ?? null });
+    } catch (e) { accounts.push({ item: it.name, error: String(e.message || e).slice(0, 160) }); }
+  }
+  const sum = t => round2(accounts.filter(a => a.type === t).reduce((s, a) => s + (a.current || 0), 0));
+  const out = { at: Date.now(), accounts, cash: sum('depository'), cards: sum('credit') };
+  if (accounts.some(a => !a.error)) await putSetting(env, 'balancesCache', JSON.stringify(out));
+  return { connected: true, ...out };
+}
+
+/* The Home screen: the month's report card, the year so far, what needs
+ * attention, the renewals. */
+async function dashSummary(env, month) {
+  const year = month.slice(0, 4);
+  const [report, yearRows, renewals] = await Promise.all([
+    resolveReport(env, month),
+    env.DB.prepare(`SELECT month,
+        SUM(CASE WHEN type='in' AND expected=0 THEN amount ELSE 0 END) AS revenue,
+        -- personal purchases are owner draws, not business costs: the home
+        -- chart must agree with the report card on that
+        SUM(CASE WHEN type='out' AND expected=0
+             AND (tax_cat IS NULL OR (tax_cat NOT LIKE 'Personal%' AND tax_cat NOT LIKE 'Income tax%'))
+             THEN amount ELSE 0 END) AS expenses,
+        SUM(CASE WHEN type='fee' AND expected=0 THEN amount ELSE 0 END) AS fees
+      FROM transactions WHERE month LIKE ?1 GROUP BY month ORDER BY month`).bind(year + '-%').all(),
+    env.DB.prepare('SELECT name, expected_amount FROM vendors WHERE recurring = 1 AND active = 1 ORDER BY expected_amount DESC').all(),
+  ]);
+  const attn = await env.DB.prepare(`SELECT
+      SUM(CASE WHEN status='review' AND expected=0 THEN 1 ELSE 0 END) AS review,
+      SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
+      SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noReceipt
+    FROM transactions WHERE month = ?1`).bind(month).first();
+  return { month, report, year: await Promise.all(yearRows.results.map(async x => ({ ...x, ...await resolveReport(env, x.month) }))), renewals: renewals.results, attention: attn };
+}
+
+/* The Controller's night: the checks, the watches, and a word in Slack only
+ * about what is urgent. Everything else waits for Monday. */
+async function controllerNightly(env) {
+  const { engine, h } = controller();
+  const r = await engine.nightly(env, h());
+  const urgent = r.fresh.filter(f => f.severity === 'high');
+  for (const f of urgent.slice(0, 3))
+    await alertSlack(env, `*${f.title}*\n${f.detail || ''}`).catch(() => {});
+  return { found: r.found, fresh: r.fresh.length, urgent: urgent.length };
+}
+async function controllerBriefing(env, force = false) {
+  const { engine, h } = controller();
+  const text = await engine.briefing(env, h(), { force });
+  if (text) await alertSlack(env, `*Monday briefing from the Controller*\n\n${text}`).catch(() => {});
+  return text;
+}
+
 async function periodReport(env, period, anchor) {
   if (period === 'quarter') {
     const q = Math.floor((+anchor.slice(5, 7) - 1) / 3);
@@ -725,10 +819,20 @@ function heldReceiptMatch(rows, vendor, amount, date) {
 /*  Ask the ledger (see ask.js)                                        */
 /* ------------------------------------------------------------------ */
 
-/* ask.js is a leaf module: it gets the Slack and D1 plumbing handed to it
- * rather than importing back into this file. */
-const askHelpers = () => ({ slack, getSetting, putSetting, safeJson, sendStatement,
-                            centralDate, monthOf, monthStatus, bucketFor, learnDefault });
+/* The Controller (controller.js, on the shared Ask engine) gets the plumbing
+ * and the computations handed to it rather than importing back into this
+ * file, so every function keeps one owner. Built once per isolate. */
+let _ctl = null;
+function controller() {
+  if (!_ctl) _ctl = buildController({
+    getSetting, putSetting, safeJson, centralDate, monthOf, addMonthsYmd, validMonth, slack,
+    sendStatement, monthStatus, bucketFor, learnDefault,
+    resolveReport, periodReport, seriesSummary, bankBalances, dashSummary, recentRevenueAvg, getMoney, getNotify,
+  });
+  return _ctl;
+}
+/* kept for the one caller that still spells it this way */
+const askHelpers = () => controller().h();
 
 /* A thread Cole has mentioned the bot in stays open for follow-ups, so he can
  * keep talking in it without @-ing every line. The mark is what separates a
@@ -777,7 +881,9 @@ async function askGate(env, body, ev) {
     if (!(await askThreadIsOpen(env, ev.channel, ev.thread_ts)))
       return { skipped: 'thread was never addressed to the bot' };
   }
-  return answerAsk(env, ev, askHelpers());
+  const { engine, h } = controller();
+  const findings = await engine.openFindings(env, h()).catch(() => []);
+  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6) });
 }
 
 async function processSlackReceipts(env) { return withLedgerLease(env, 'receipts', env => processSlackReceiptsInner(env)); }
@@ -2603,6 +2709,10 @@ export default {
         })().catch(e => console.log('self check failed: ' + e.message));
         await monthlyReportSlack(env).catch(e => console.log('monthly report failed: ' + e.message));
         await receiptNudge(env).catch(e => console.log('receipt nudge failed: ' + e.message));
+        /* The Controller looks the books over last, once every sync has
+         * written. Monday it also writes the briefing. */
+        await controllerNightly(env).catch(e => console.log('controller nightly failed: ' + e.message));
+        if (new Date().getUTCDay() === 1) await controllerBriefing(env).catch(e => console.log('controller briefing failed: ' + e.message));
       })());
     } else {
       // every 10 minutes: anything new dropped in Slack #receipts
@@ -3419,76 +3529,57 @@ export default {
       if (path === '/api/series') {
         const from = url.searchParams.get('from'), to = url.searchParams.get('to');
         if (!validMonth(from) || !validMonth(to) || from > to) return json({ error: 'from/to = YYYY-MM' }, 400);
-        const months = [];
-        for (let m = from; m <= to && months.length < 60; m = monthOf(addMonthsYmd(m + '-01', 1))) months.push(m);
-        const status = Object.fromEntries((await env.DB.prepare(
-          'SELECT month, status FROM months WHERE month >= ?1 AND month <= ?2').bind(from, to).all()).results.map(r => [r.month, r.status]));
-        const out = [];
-        for (const m of months) {
-          const r = await resolveReport(env, m);
-          const { transactions, ...rest } = r;
-          out.push({ ...rest, month: m, status: status[m] || 'open' });
-        }
-        const { results: vend } = await env.DB.prepare(`SELECT vendor, bucket, tax_cat, SUM(amount) AS amount, COUNT(*) AS n
-          FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out'
-            AND (tax_cat IS NULL OR (tax_cat NOT LIKE 'Personal%' AND tax_cat NOT LIKE 'Income tax%'))
-          GROUP BY vendor ORDER BY amount DESC LIMIT 15`).bind(from, to).all();
-        const { results: con } = await env.DB.prepare(`SELECT vendor, SUM(amount) AS amount, COUNT(*) AS n
-          FROM transactions WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND type = 'out'
-            AND tax_cat LIKE 'Contract labor%' GROUP BY vendor ORDER BY amount DESC`).bind(from, to).all();
-        const { results: taxp } = await env.DB.prepare(`SELECT date, vendor, amount FROM transactions
-          WHERE month >= ?1 AND month <= ?2 AND expected = 0 AND tax_cat LIKE 'Income tax%' ORDER BY date`).bind(from, to).all();
-        return json({ from, to, months: out, money: await getMoney(env), taxPayments: taxp,
-          topVendors: vend.map(v => ({ ...v, amount: round2(v.amount) })),
-          contractors: con.map(v => ({ ...v, amount: round2(v.amount) })) });
+        return json(await seriesSummary(env, from, to));
       }
 
-      /* ---- bank balances for the Overview ----
-       * /accounts/get serves Plaid's cached balances and is not the metered
-       * Balance product. Cached here for three hours on top of that. */
-      if (path === '/api/balances') {
-        const items = await getPlaidItems(env);
-        if (!plaidReady(env) || !items.length) return json({ connected: false });
-        const cached = safeJson(await getSetting(env, 'balancesCache'), null);
-        if (cached && cached.at > Date.now() - 3 * 3600e3 && url.searchParams.get('fresh') !== '1') return json({ connected: true, ...cached });
-        const accounts = [];
-        for (const it of items) {
-          try {
-            const r = await plaid(env, '/accounts/get', { access_token: it.access_token });
-            for (const a of r.accounts || []) accounts.push({ item: it.name, name: a.name, mask: a.mask, type: a.type,
-              current: a.balances?.current ?? null, available: a.balances?.available ?? null, limit: a.balances?.limit ?? null });
-          } catch (e) { accounts.push({ item: it.name, error: String(e.message || e).slice(0, 160) }); }
-        }
-        const sum = t => round2(accounts.filter(a => a.type === t).reduce((s, a) => s + (a.current || 0), 0));
-        const out = { at: Date.now(), accounts, cash: sum('depository'), cards: sum('credit') };
-        if (accounts.some(a => !a.error)) await putSetting(env, 'balancesCache', JSON.stringify(out));
-        return json({ connected: true, ...out });
+      /* ---- the Controller, in the app ---- */
+      if (path === '/api/ask' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const { engine, h } = controller();
+        const findings = await engine.openFindings(env, h()).catch(() => []);
+        return json(await engine.answerWeb(env, b.question, b.history, h(), { findings: findings.slice(0, 6), screen: b.screen || null }));
       }
+      if (path === '/api/ask/findings') {
+        const { engine, h } = controller();
+        return json({ findings: await engine.openFindings(env, h()), briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null),
+          memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()) });
+      }
+      if (path === '/api/ask/finding' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        if (!b.key) return json({ error: 'key required' }, 400);
+        return json(await controller().engine.setFindingState(env, String(b.key), String(b.state || 'done')));
+      }
+      if (path === '/api/ask/history') {
+        const { engine } = controller();
+        await engine.ensureFindings(env);
+        const { results } = await env.DB.prepare(`SELECT key, kind, severity, title, amount, state, state_at, first_seen FROM findings
+          WHERE state IN ('done','wrong','snoozed') ORDER BY COALESCE(state_at, last_seen) DESC LIMIT 60`).all();
+        return json({ findings: results || [] });
+      }
+      if (path === '/api/ask/forget' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const { engine } = controller();
+        const key = b.kind === 'watch' ? engine.keys.watches : engine.keys.notes;
+        const list = safeJson(await getSetting(env, key), []) || [];
+        const kept = b.kind === 'watch' ? list.map(w => w.id === b.id ? { ...w, active: false } : w) : list.filter((n, i) => i !== Number(b.index));
+        await putSetting(env, key, JSON.stringify(kept));
+        return json({ ok: true });
+      }
+      if (path === '/api/ask/brief' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        await putSetting(env, controller().engine.keys.brief, String(b.text || '').slice(0, 4000));
+        return json({ ok: true });
+      }
+      if (path === '/api/ask/run' && request.method === 'POST') return json(await controllerNightly(env));
+      if (path === '/api/ask/briefing' && request.method === 'POST') return json({ text: await controllerBriefing(env, true) });
+
+      /* ---- bank balances for the Overview ---- */
+      if (path === '/api/balances') return json(await bankBalances(env, url.searchParams.get('fresh') === '1'));
 
       /* ---- dashboard summary ---- */
       if (path === '/api/summary') {
-        const month = validMonth(url.searchParams.get('month'))
-          ? url.searchParams.get('month') : new Date().toISOString().slice(0, 7);
-        const year = month.slice(0, 4);
-        const [report, yearRows, renewals] = await Promise.all([
-          resolveReport(env, month),
-          env.DB.prepare(`SELECT month,
-              SUM(CASE WHEN type='in' AND expected=0 THEN amount ELSE 0 END) AS revenue,
-              -- personal purchases are owner draws, not business costs — the
-              -- home chart must agree with the report card on that
-              SUM(CASE WHEN type='out' AND expected=0
-                   AND (tax_cat IS NULL OR (tax_cat NOT LIKE 'Personal%' AND tax_cat NOT LIKE 'Income tax%'))
-                   THEN amount ELSE 0 END) AS expenses,
-              SUM(CASE WHEN type='fee' AND expected=0 THEN amount ELSE 0 END) AS fees
-            FROM transactions WHERE month LIKE ?1 GROUP BY month ORDER BY month`).bind(year + '-%').all(),
-          env.DB.prepare('SELECT name, expected_amount FROM vendors WHERE recurring = 1 AND active = 1 ORDER BY expected_amount DESC').all(),
-        ]);
-        const attn = await env.DB.prepare(`SELECT
-            SUM(CASE WHEN status='review' AND expected=0 THEN 1 ELSE 0 END) AS review,
-            SUM(CASE WHEN expected=1 THEN 1 ELSE 0 END) AS expected,
-            SUM(CASE WHEN type='out' AND expected=0 AND receipt_key IS NULL AND receipt_skip=0 THEN 1 ELSE 0 END) AS noReceipt
-          FROM transactions WHERE month = ?1`).bind(month).first();
-        return json({ month, report, year: await Promise.all(yearRows.results.map(async x => ({ ...x, ...await resolveReport(env, x.month) }))), renewals: renewals.results, attention: attn });
+        const month = validMonth(url.searchParams.get('month')) ? url.searchParams.get('month') : new Date().toISOString().slice(0, 7);
+        return json(await dashSummary(env, month));
       }
 
       /* ---- CPA pack ---- */

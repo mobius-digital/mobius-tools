@@ -350,12 +350,24 @@ async function main(){
     });
     /* Slack Q&A. The SQL gate is the security boundary for a generated query,
      * so it is tested as one: a cooperative model is not a control. */
-    const askSrc=fs.readFileSync(path.join(__dirname,'src/ask.js'),'utf8').replace(/^export\s+/gm,'');
-    const askCtx=vm.createContext({console,JSON,Object,Number,Array,String,Math,Date,
+    /* The Controller is the shared Ask engine (../../ask/engine.js) plus this
+     * app's config (src/controller.js). Both load into one context with their
+     * module lines stripped, and the controller is built on mocked deps. */
+    const engineSrc=fs.readFileSync(path.join(__dirname,'../../ask/engine.js'),'utf8').replace(/^export\s+/gm,'');
+    const ctlSrc=fs.readFileSync(path.join(__dirname,'src/controller.js'),'utf8').replace(/^import[^;]*;\r?\n/gm,'').replace(/^export\s+/gm,'');
+    const askCtx=vm.createContext({console,JSON,Object,Number,Array,String,Math,Date,Set,RegExp,Promise,Error,
       fetch:async(...a)=>askCtx.claudeMock(...a)});
     askCtx.claudeMock=async()=>{throw Error('no Claude mock installed');};
-    vm.runInContext(askSrc+'\nglobalThis.ask={gateSql,buildProposal,applyAskEdit,toSlackText,answerAsk};',askCtx);
-    const gate=askCtx.ask.gateSql;
+    vm.runInContext(engineSrc+'\n'+ctlSrc+'\nglobalThis.ask={gateSql,buildProposal,applyAskEdit,toSlackText,buildController};',askCtx);
+    const safeJsonT=(x,fb)=>{try{return JSON.parse(x);}catch{return fb;}};
+    const ctlDeps={ getSetting:async()=>null, putSetting:async()=>{}, safeJson:safeJsonT, centralDate:()=>'2026-09-17', monthOf:d=>String(d).slice(0,7),
+      addMonthsYmd:(ymd,n)=>{const d=new Date(ymd+'T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+n);return d.toISOString().slice(0,10);},
+      validMonth:m=>/^\d{4}-\d{2}$/.test(m||''), slack:async()=>({ok:true}), sendStatement:async()=>({sent:true}),
+      monthStatus:async()=>'open', bucketFor:()=>'Software', learnDefault:async()=>{},
+      resolveReport:async()=>({}), periodReport:async()=>({}), seriesSummary:async()=>({}), bankBalances:async()=>({connected:false}),
+      dashSummary:async()=>({}), recentRevenueAvg:async()=>({}), getMoney:async()=>({}), getNotify:async()=>({}) };
+    const ctl=askCtx.ask.buildController(ctlDeps);
+    const gate=sql=>ctl.engine.gateSql(sql);
     await check('ask SQL gate allows a normal aggregate',()=>{
       const g=gate("SELECT vendor, SUM(amount) AS t FROM transactions WHERE month='2026-09' AND expected=0 GROUP BY vendor ORDER BY t DESC");
       assert.equal(g.error,undefined);assert.match(g.sql,/LIMIT 60$/);
@@ -367,8 +379,9 @@ async function main(){
     });
     await check('ask SQL gate cannot reach settings or sqlite internals',()=>{
       assert.ok(gate('SELECT value FROM settings').error);
-      assert.ok(gate('SELECT * FROM ledger_jobs').error);
+      assert.equal(gate('SELECT kind FROM ledger_jobs').error,undefined);   // an audit table, readable on purpose
       assert.ok(gate("SELECT name FROM sqlite_master").error);
+      assert.ok(gate('SELECT report_json FROM months').error);            // the one blob column
       // a CTE must not be a way in through the back door
       assert.ok(gate('WITH s AS (SELECT value FROM settings) SELECT * FROM s').error);
     });
@@ -403,15 +416,14 @@ async function main(){
         const body=JSON.parse(init.body);seen.push(body);
         return { json:async()=>script[turn++] };
       };
-      const h={ slack:async(_e,method,params)=>{if(method==='chat.postMessage')posts.push(params);
+      /* the deps the controller was built on are swapped for this run, so the
+         Slack posts and the PDF land in `posts` */
+      ctlDeps.slack=async(_e,method,params)=>{if(method==='chat.postMessage')posts.push(params);
           if(method==='conversations.replies')return replies?{ok:true,messages:replies}:{ok:true};
-          return {ok:true};},
-        getSetting:async(_e,k)=>k==='taxCats'?JSON.stringify(['Software & subscriptions','Meals']):null,
-        putSetting:async()=>{}, safeJson:(s,fb)=>{try{return JSON.parse(s);}catch{return fb;}},
-        sendStatement:async(_e,period,anchor)=>{posts.push({statement:period+':'+anchor});return {sent:true};},
-        centralDate:()=>'2026-09-17', monthOf:d=>d.slice(0,7),
-        monthStatus:async()=>'open', bucketFor:()=>'Software', learnDefault:async()=>{} };
-      const out=await askCtx.ask.answerAsk({DB,ANTHROPIC_API_KEY:'test'},{channel:'C_TEST',ts:'9.9',user:'OWNER',...ev},h);
+          return {ok:true};};
+      ctlDeps.getSetting=async(_e,k)=>k==='taxCats'?JSON.stringify(['Software & subscriptions','Meals']):null;
+      ctlDeps.sendStatement=async(_e,period,anchor)=>{posts.push({statement:period+':'+anchor});return {sent:true};};
+      const out=await ctl.engine.answerSlack({DB,ANTHROPIC_API_KEY:'test'},{channel:'C_TEST',ts:'9.9',user:'OWNER',...ev},ctl.h());
       return {out,posts,seen};
     };
     await check('Ask runs question → SQL → answer and bills it once',async()=>{
@@ -440,6 +452,7 @@ async function main(){
       assert.equal(result.is_error,true);
       assert.match(result.content,/not readable/);
       assert.equal(posts[0].text,'I can only read the ledger tables.');
+      assert.match(result.content,/settings/);
     });
     await check('Ask asking for the report sends the existing PDF, not a retyped one',async()=>{
       const {posts}=await askRun([
@@ -457,12 +470,10 @@ async function main(){
       assert.equal(posts[0].text,'Here is what I found.');
     });
     await check('Ask stops at the daily cap',async()=>{
-      const h={ slack:async()=>({ok:true}), putSetting:async()=>{},
-        getSetting:async(_e,k)=>k==='askUsage'?JSON.stringify({date:'2026-09-17',count:150}):null,
-        safeJson:(s,fb)=>{try{return JSON.parse(s);}catch{return fb;}},
-        centralDate:()=>'2026-09-17', monthOf:d=>d.slice(0,7) };
-      const out=await askCtx.ask.answerAsk({DB,ANTHROPIC_API_KEY:'test'},{channel:'C',ts:'1',text:'hi'},h);
+      ctlDeps.getSetting=async(_e,k)=>k==='controllerUsage'?JSON.stringify({date:'2026-09-17',count:150}):null;
+      const out=await ctl.engine.answerSlack({DB,ANTHROPIC_API_KEY:'test'},{channel:'C',ts:'1',text:'hi'},ctl.h());
       assert.equal(out.skipped,'daily cap');
+      ctlDeps.getSetting=async()=>null;
     });
 
     await check('Ask carries the thread so a follow-up resolves against it',async()=>{
@@ -474,7 +485,7 @@ async function main(){
          {ts:'9.9',user:'OWNER',text:'and last month?'}]);
       const sent=seen[0].messages[0].content;
       assert.match(sent,/\[Cole\] how much on AcmeCloud this month\?/);   // the mention markup is stripped
-      assert.match(sent,/\[Mobius Ledger\] \*\$340\.00\* on AcmeCloud in September\./);
+      assert.match(sent,/\[Controller\] \*\$340\.00\* on AcmeCloud in September\./);
       assert.match(sent,/\[someone else\] nice/);
       assert.match(sent,/Cole now asks: and last month\?/);
       assert.doesNotMatch(sent,/9\.9.*and last month.*9\.9/s);            // the question is not also in the transcript
@@ -492,7 +503,11 @@ async function main(){
     const asked=[];
     context.askMock=async(_env,ev)=>{asked.push(ev.text);return {ok:true};};
     context.applyAskReal=askCtx.ask.applyAskEdit;
-    vm.runInContext('globalThis.answerAsk = askMock; globalThis.applyAskEdit = applyAskReal',context);
+    /* the worker builds the Controller from its own functions; here it gets
+       a stand-in whose Slack answer is the mock */
+    context.buildControllerMock=()=>({ engine:{ answerSlack:(env,ev)=>context.askMock(env,ev), openFindings:async()=>[], keys:{} },
+      h:()=>({ monthStatus:async()=>'open', bucketFor:()=>'Software', learnDefault:async()=>{} }) });
+    vm.runInContext('globalThis.buildController = buildControllerMock; globalThis.applyAskEdit = applyAskReal; _ctl = null;',context);
     const hmac=(raw,ts)=>'v0='+require('node:crypto').createHmac('sha256',env.SLACK_SIGNING_SECRET).update('v0:'+ts+':'+raw).digest('hex');
     const signedPost=async(url,raw)=>{
       const ts=String(Math.floor(Date.now()/1000)),pending=[];
