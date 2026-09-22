@@ -218,11 +218,11 @@ window.AskUI = (() => {
     const pad = (hi - lo) * 0.08; hi += pad; if (lo < 0) lo -= pad;
     const px = i => L + (x.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (x.length - 1));
     const py = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
-    const colors = ['var(--brand,#3b6ea5)', 'var(--good,#2e8b57)', 'var(--warn,#d99a2b)', 'var(--bad,#c9463d)'];
+    const colors = ['var(--ask-brand)', 'var(--ask-good)', 'var(--ask-warn)', 'var(--ask-bad)'];
     const unit = b.unit || '';
     const fmtY = v => (unit === '$' ? '$' : '') + (Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v * 10) / 10) + (unit && unit !== '$' ? unit : '');
     const ticks = 4; let g = '';
-    for (let t = 0; t <= ticks; t++) { const v = lo + (hi - lo) * t / ticks, y = py(v); g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line,#ddd)" stroke-width="1"/><text x="${L - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="currentColor" opacity=".7">${fmtY(v)}</text>`; }
+    for (let t = 0; t <= ticks; t++) { const v = lo + (hi - lo) * t / ticks, y = py(v); g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--ask-line)" stroke-width="1"/><text x="${L - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="currentColor" opacity=".7">${fmtY(v)}</text>`; }
     const step = Math.ceil(x.length / 8);
     x.forEach((lab, i) => { if (i % step === 0 || i === x.length - 1) g += `<text x="${px(i)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">${esc(String(lab))}</text>`; });
     if (b.kind === 'bar') {

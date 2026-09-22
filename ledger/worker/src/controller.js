@@ -214,6 +214,7 @@ async function runChecks(env, h, d) {
   };
   const dom = Number(today.slice(8));
   for (const r of await all(`SELECT id, date, vendor, amount FROM transactions WHERE type = 'in' AND expected = 1 AND date <= ?1 ORDER BY date`, today)) {
+    if (/golf ?sock/i.test(r.vendor)) continue;   // a paused test account: never flagged (Cole's standing rule)
     const day = usualDay(r.vendor);
     const sameMonth = r.date.slice(0, 7) === month;
     const due = day ? (sameMonth ? dom > day + 3 : true) : daysBetween(r.date, today) >= 5;
@@ -226,15 +227,20 @@ async function runChecks(env, h, d) {
 
   /* 2. The same money paid twice: same vendor, same amount, 3 to 60 days apart,
    * and NOT a vendor that bills that amount every cycle. */
+  /* A duplicate is the same money paid twice INSIDE a billing cycle. A
+   * contractor's $2,200 every month is not one, whether or not the vendor row
+   * says recurring: the same amount three or more times is a price, and a
+   * repeat 25+ days apart is a cycle. */
   const pays = await all(`SELECT id, date, vendor, amount FROM transactions WHERE type = 'out' AND expected = 0 AND amount >= 200 AND date >= date(?1, '-6 months') ORDER BY vendor, date`, today);
-  const rec = new Set((await all(`SELECT LOWER(name) AS n FROM vendors WHERE recurring = 1`)).map(r => r.n));
+  const priceCount = {};
+  for (const t of pays) { const k = t.vendor.toLowerCase() + '|' + Math.round(t.amount); priceCount[k] = (priceCount[k] || 0) + 1; }
   for (let i = 0; i < pays.length; i++) for (let j = i + 1; j < pays.length; j++) {
     const a = pays[i], b = pays[j];
     if (a.vendor.toLowerCase() !== b.vendor.toLowerCase()) continue;
     if (Math.abs(a.amount - b.amount) > 1) continue;
+    if ((priceCount[a.vendor.toLowerCase() + '|' + Math.round(a.amount)] || 0) >= 3) continue;   // a price they charge
     const apart = daysBetween(a.date, b.date);
-    if (apart < 3 || apart > 60) continue;
-    if (rec.has(a.vendor.toLowerCase()) && apart >= 25) continue;   // a monthly bill, on time
+    if (apart < 3 || apart >= 25) continue;
     out.push({ key: `dup:${a.vendor.toLowerCase()}:${a.amount.toFixed(2)}:${b.date}`, kind: 'duplicate', severity: a.amount >= 1000 ? 'high' : 'med', amount: a.amount, month: b.date.slice(0, 7),
       title: `${a.vendor} charged ${money2(a.amount)} twice, ${apart} days apart`,
       detail: `${a.date} and ${b.date}. If it is one bill paid twice, ask for the refund; if both are real, note why on the second.`, evidence: { ids: [a.id, b.id] } });

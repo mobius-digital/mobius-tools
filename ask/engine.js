@@ -475,7 +475,7 @@ export function createAssistant(config) {
   /* New findings are inserted; a known one just moves its last_seen (and its
    * amount, so a duplicate that grew is a bigger finding, not a new one). A
    * snoozed finding whose dollars grew by a fifth wakes up. */
-  async function recordFindings(env, found, h) {
+  async function recordFindings(env, found, h, opts = {}) {
     await ensureFindings(env);
     const now = new Date().toISOString();
     const fresh = [];
@@ -493,6 +493,17 @@ export function createAssistant(config) {
       await env.DB.prepare(`UPDATE ${T} SET last_seen = ?2, amount = ?3, title = ?4, detail = ?5, severity = ?6${wake ? ", state = 'new', snooze_until = NULL" : ''} WHERE key = ?1`)
         .bind(f.key, now, f.amount ?? row.amount, f.title, f.detail || null, f.severity).run();
       if (wake) fresh.push(f);
+    }
+    /* A finding the checks did not produce this time is over: the duplicate
+     * was refunded, the client paid, the rule changed. It retires itself
+     * rather than sitting open until someone taps Done. Only the kinds the
+     * checks own; a watch is judged by its own run. */
+    const kinds = (C.checkKinds || []).filter(k => k !== 'watch');
+    if (kinds.length && (opts.retire !== false)) {
+      const keys = new Set(found.map(f => f.key));
+      const { results } = await env.DB.prepare(`SELECT key FROM ${T} WHERE state = 'new' AND kind IN (${kinds.map(() => '?').join(',')})`).bind(...kinds).all();
+      for (const r of results || []) if (!keys.has(r.key))
+        await env.DB.prepare(`UPDATE ${T} SET state = 'gone', state_at = ?2 WHERE key = ?1`).bind(r.key, now).run();
     }
     return fresh;
   }
