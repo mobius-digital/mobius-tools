@@ -339,9 +339,11 @@ const buyerDeps = {
     if (!request) throw new Error('the Buyer needs a signed-in request to read the brand');
     const raw = await restock(null, request, `/api/raw?store=${brand}`, {}, buyerDeps._env);
     if (!raw.catalog) throw new Error('no snapshot yet');
-    let db = await loadDb(buyerDeps._env, brand);
+    const db = await loadDb(buyerDeps._env, brand);
     if (!db.brand) throw new Error('brand not seeded yet');
-    db = await syncStagesFromAsana(buyerDeps._env, brand, db);
+    /* No Asana round trip here: the screen refreshes stages when it loads;
+       the Buyer reads the last known state. One Asana call per slot was
+       most of a question's subrequest budget. */
     const st = computeSupply(raw, db);
     tzOf.set(brand, st.tz);
     return st;

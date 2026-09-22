@@ -329,15 +329,23 @@ export function buildBuyer(d, brand, brandName) {
     listStored: env => d.listSettings(env, brand),
     getStored: (env, key) => d.getSetting(env, brand, key),
   });
-  const h = (b, request) => ({
+  /* ONE context per request: the brain's state is computed once and every
+     view in the same question reads that copy. Recomputing it per view
+     (a Shopify fetch, eleven queries, the Asana checks) ran a question
+     straight through the Worker's subrequest budget before the model was
+     ever called. */
+  const h = (b, request) => {
+    const ctx = { request, brand };
+    return {
     request,
     getSetting: (env, key) => d.getSetting(env, brand, key),
     putSetting: (env, key, value) => d.putSetting(env, brand, key, value),
     safeJson: d.safeJson, centralDate: () => d.today(brand), monthOf: x => String(x).slice(0, 7),
     slack: d.slack,
-    appView: (env, name, args) => app.appView(env, name, args, { request, brand }),
+    appView: (env, name, args) => app.appView(env, name, args, ctx),
     appViews: app.appViews, viewBlurbs: app.viewBlurbs, readableTables: app.readableTables,
-  });
+    };
+  };
   d.h = h;
   engine = createAssistant({
     name: 'Buyer', app: 'Supply', memoryPrefix: 'buyer', owner: 'Cole', repoPath: 'supply/ (worker in supply/worker/src, brain in brain.js, screens in supply/app.js and app2.js)',
