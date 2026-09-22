@@ -3567,7 +3567,7 @@ export default {
         const { engine, h } = controller();
         return json({ findings: await engine.openFindings(env, h()), briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null),
           memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
-          playbook: (await getSetting(env, engine.keys.playbook)) || '', pending: await engine.pendingList(env, h()) });
+          playbook: await engine.getPlaybook(env, h()), pending: await engine.pendingList(env, h()) });
       }
       if (path === '/api/ask/finding' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));

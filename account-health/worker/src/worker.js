@@ -5779,7 +5779,7 @@ export default {
       if (path === '/api/ask/reports') return json({ reports: await engine.reportsList(env, h()) });
       if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h()),
         briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
-        channel: await getSetting(env, 'strategistChannel'), playbook: (await getSetting(env, engine.keys.playbook)) || '', pending: await engine.pendingList(env, h()) });
+        channel: await getSetting(env, 'strategistChannel'), playbook: await engine.getPlaybook(env, h()), pending: await engine.pendingList(env, h()) });
       if (path === '/api/ask/finding' && request.method === 'POST') {
         if (!body.key) return json({ error: 'key required' }, 400);
         return json(await engine.setFindingState(env, String(body.key), String(body.state || 'done')));

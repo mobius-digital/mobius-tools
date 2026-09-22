@@ -112,3 +112,10 @@
 .askreport .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin:0 0 6px 4px}
 .askreport .legend .lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 @media print{body.ask-printing>*:not(#askReport){display:none!important}.askreport{position:static;display:block!important;background:#fff;color:#111}.askreport .rp{max-width:none;padding:0}.no-print{display:none!important}.askreport .kpi,.askreport .tw,.askreport .chart{background:#fff;border-color:#ccc}}
+
+/* ---- the settings card: its own labels and boxes, whatever the host does to .lbl ---- */
+#askSet label.lbl{display:block;margin:14px 0 6px;font-size:13.5px;font-weight:600;color:var(--ask-ink);text-transform:none;letter-spacing:0;line-height:1.4}
+#askSet label.lbl .why{display:block;font-weight:400;font-size:12.5px;opacity:.7;text-transform:none;letter-spacing:0;margin-top:2px}
+#askSet textarea{display:block;width:100%;box-sizing:border-box;min-height:120px;padding:10px 12px;border:1px solid var(--ask-line);border-radius:10px;background:var(--ask-wash);color:var(--ask-ink);font:inherit;font-size:13.5px;line-height:1.5;resize:vertical}
+#askSet textarea:focus{outline:2px solid var(--ask-brand);outline-offset:1px}
+#askSet .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}

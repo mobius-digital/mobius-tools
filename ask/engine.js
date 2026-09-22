@@ -602,6 +602,7 @@ export function createAssistant(config) {
     return bits.join('\n\n');
   }
   async function getBrief(env, h) { return (await h.getSetting(env, K.brief)) || C.brief || ''; }
+  async function getPlaybook(env, h) { return (await h.getSetting(env, K.playbook)) || C.playbook || ''; }
 
   async function runMemoryTool(env, name, input, h) {
     const now = new Date().toISOString().slice(0, 10);
@@ -905,7 +906,7 @@ export function createAssistant(config) {
     name: C.name, keys: K,
     answerSlack, answerWeb, nightly, briefing,
     openFindings, setFindingState, recordFindings, ensureFindings,
-    memory, memoryBlock, getBrief, runMemoryTool,
+    memory, memoryBlock, getBrief, getPlaybook, runMemoryTool,
     applyProposal, pendingList, proposalBlocks, actions: ACTIONS.map(a => a.name), reportsList,
     gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns }),
     readApp, schemaDoc, usageToday,
