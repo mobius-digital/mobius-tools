@@ -16,7 +16,7 @@
  * from the worker.
  */
 
-import { createAssistant, makeAppView, makeSecretKey } from '../../../ask/engine.js';
+import { createAssistant, makeAppView, makeSecretKey, scopeSql } from '../../../ask/engine.js';
 
 const WHO = brandName => `
 You are the Buyer for ${brandName}, working inside Supply, the buying brain
@@ -356,6 +356,15 @@ export function buildBuyer(d, brand, brandName) {
     checkKinds: ['late-order', 'late-landing', 'velocity', 'late-slot', 'dead-stock'],
     checks: (env, hh) => runChecks(env, hh, d, brand),
     snapshot: (env, hh) => snapshot(env, hh, d, brand),
+    /* Every query sees this brand's rows only: each table is shadowed by a
+       CTE of its own brand's rows. The prompt asks for brand_id filters too;
+       this makes it true rather than hoped. */
+    sqlWrap: sql => scopeSql(sql, {
+      ...Object.fromEntries(['products', 'orders', 'factories', 'lines', 'categories', 'collections', 'slots', 'type_map', 'changelog']
+        .map(t => [t, `SELECT * FROM main.${t} WHERE brand_id = '${brand}'`])),
+      order_lines: `SELECT ol.* FROM main.order_lines ol JOIN main.orders o ON o.id = ol.order_id WHERE o.brand_id = '${brand}'`,
+      brands: `SELECT * FROM main.brands WHERE id = '${brand}'`,
+    }),
     actions: ACTIONS(d, brand),
     playbook: PLAYBOOK,
     slackApp: 'supply',

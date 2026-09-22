@@ -85,15 +85,51 @@ export function gateSql(raw, allowed, opts = {}) {
   for (const col of blobs)
     if (new RegExp('\\b' + col + '\\b', 'i').test(sql)) return { error: `${col} is a large blob. Select the columns you need instead.` };
 
+  /* Words that are never readable wherever they appear: a table the model
+   * must not reach even aliased or comma-joined. `settings` holds tokens in
+   * every app. String literals are blanked first so a value cannot trip it. */
+  const bare = sql.replace(/'(?:[^']|'')*'/g, "''");
+  const forbid = opts.forbidWords || /\bsettings\b/i;
+  const fm = bare.match(forbid);
+  if (fm) return { error: `Table "${fm[0]}" is not readable. Available: ${allowed.join(', ')}.` };
+  if (/\b(main|temp|temporary)\s*\./i.test(bare)) return { error: 'Schema-qualified names are not allowed.' };
+
   const cte = new Set();
   if (/^with\s/i.test(sql)) for (const m of sql.matchAll(/([a-z_][a-z0-9_]*)\s+as\s*\(/gi)) cte.add(m[1].toLowerCase());
-  for (const m of sql.matchAll(/\b(?:from|join)\s+([`"[]?)([a-z_][a-z0-9_]*)\1?/gi)) {
-    const t = m[2].toLowerCase();
-    if (!allowed.includes(t) && !cte.has(t))
-      return { error: `Table "${m[2]}" is not readable. Available: ${allowed.join(', ')}.` };
+  const ok = t => allowed.includes(t) || cte.has(t);
+  for (const m of bare.matchAll(/\b(?:from|join)\s+([`"[]?)([a-z_][a-z0-9_]*)\1?/gi)) {
+    if (!ok(m[2].toLowerCase())) return { error: `Table "${m[2]}" is not readable. Available: ${allowed.join(', ')}.` };
+  }
+  /* A comma join names a second table with no second FROM: check every name
+   * in each FROM list, up to the clause that ends it. */
+  const END = /\b(where|group|order|limit|having|union|except|intersect|window|join|inner|left|right|full|cross|natural|on)\b|\)/i;
+  for (const m of bare.matchAll(/\bfrom\s+/gi)) {
+    const rest = bare.slice(m.index + m[0].length);
+    const stop = rest.search(END);
+    const list = stop < 0 ? rest : rest.slice(0, stop);
+    for (const part of list.split(',').slice(1)) {
+      const p = part.trim();
+      if (!p || p.startsWith('(')) continue;
+      const name = p.replace(/^[`"[]/, '').match(/^[a-z_][a-z0-9_]*/i);
+      if (name && !ok(name[0].toLowerCase())) return { error: `Table "${name[0]}" is not readable. Available: ${allowed.join(', ')}.` };
+    }
   }
   if (!/\blimit\s+\d+/i.test(sql)) sql += ` LIMIT ${maxRows}`;
   return { sql };
+}
+
+/**
+ * Scope a gated SELECT to one tenant: each table becomes a CTE of that
+ * tenant's rows, in front of the query (merged into its own WITH if it has
+ * one). `scopes` is { table: 'SELECT ... FROM main.table WHERE ...' } with the
+ * tenant already bound by the host. The gate refuses `main.` in the model's
+ * own SQL, so only these CTEs can reach the real tables.
+ */
+export function scopeSql(sql, scopes) {
+  const pre = Object.entries(scopes).map(([t, q]) => `${t} AS (${q})`).join(', ');
+  if (/^with\s+recursive\s/i.test(sql)) return sql.replace(/^with\s+recursive\s+/i, `WITH RECURSIVE ${pre}, `);
+  if (/^with\s/i.test(sql)) return sql.replace(/^with\s+/i, `WITH ${pre}, `);
+  return `WITH ${pre} ${sql}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -450,10 +486,13 @@ export function createAssistant(config) {
 
   async function runQuery(env, raw, h) {
     const allowed = h?.readableTables ? await h.readableTables(env).catch(() => C.tables || []) : (C.tables || []);
-    const gate = gateSql(raw, allowed, { maxRows: C.maxRows, blobColumns: C.blobColumns });
+    const gate = gateSql(raw, allowed, { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords });
     if (gate.error) return { error: gate.error };
+    /* A multi-tenant host scopes every query to the tenant being viewed, by
+     * shadowing each table with a CTE of that tenant's rows (config.sqlWrap). */
+    const sql = C.sqlWrap ? C.sqlWrap(gate.sql) : gate.sql;
     let res;
-    try { res = await env.DB.prepare(gate.sql).all(); }
+    try { res = await env.DB.prepare(sql).all(); }
     catch (e) { return { error: 'SQL error: ' + String(e.message || e) }; }
     const rows = (res.results || []).slice(0, C.maxRows).map(r =>
       Object.fromEntries(Object.entries(r).map(([k, v]) =>
@@ -937,7 +976,7 @@ export function createAssistant(config) {
     openFindings, setFindingState, recordFindings, ensureFindings,
     memory, memoryBlock, getBrief, getPlaybook, runMemoryTool,
     applyProposal, pendingList, proposalBlocks, actions: ACTIONS.map(a => a.name), reportsList,
-    gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns }),
+    gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords }),
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },
   };
