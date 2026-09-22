@@ -21,6 +21,8 @@
  * and intraday Pacing.
  */
 
+import { buildStrategist } from './strategist.js';
+
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
 const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle late)
@@ -5511,6 +5513,64 @@ async function syncPass(env) {
 /* ------------------------------------------------------------------ */
 /*  Nightly - only the work that genuinely wants a quiet hour          */
 /* ------------------------------------------------------------------ */
+/* ---- the Strategist (strategist.js, on ../../ask/engine.js) ---- */
+let _strat = null;
+function strategist() {
+  if (!_strat) _strat = buildStrategist({
+    getSetting, putSetting, safeJson, listAccounts, overview, briefData, dataHealth,
+    localDate, addDays, ymdDiff, daysInMonth, briefHour, slack: slackApi,
+  });
+  return _strat;
+}
+/* The Strategist's night: the checks over what the syncs wrote, the watches,
+   remembered; urgent new findings to the team channel; Monday, the briefing. */
+async function strategistNightly(env) {
+  const { engine, h } = strategist();
+  const r = await engine.nightly(env, h());
+  const channel = await getSetting(env, 'strategistChannel');
+  const urgent = r.fresh.filter(f => f.severity === 'high');
+  if (channel) for (const f of urgent.slice(0, 3))
+    await slackApi(env, 'chat.postMessage', { channel, text: `*${f.title}*\n${f.detail || ''}`, unfurl_links: false }).catch(() => {});
+  return { found: r.found, fresh: r.fresh.length, urgent: urgent.length };
+}
+async function strategistBriefing(env, force = false) {
+  const { engine, h } = strategist();
+  const text = await engine.briefing(env, h(), { force });
+  const channel = await getSetting(env, 'strategistChannel');
+  if (text && channel) await slackApi(env, 'chat.postMessage', { channel, text: `*Monday briefing from the Strategist*\n\n${text}`, unfurl_links: false }).catch(() => {});
+  return text;
+}
+
+/* An @-mention in a brand's INTERNAL channel, or a DM. The client channel is
+   never a door: the numbers here are the team's. Slack retries anything not
+   acknowledged in three seconds, so the answer runs after the ack and each
+   message is claimed once. */
+async function handleSlackEvent(request, env, ctx) {
+  const raw = await request.text();
+  const body = safeJson(raw, null);
+  if (body?.type === 'url_verification') return json({ challenge: body.challenge });
+  const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'), raw, request.headers.get('x-slack-signature'));
+  if (!ok) return new Response('bad signature', { status: 401 });
+  const ev = body?.event;
+  if (body?.type !== 'event_callback' || !ev || ev.bot_id || ev.subtype) return ACK();
+  const dm = ev.channel_type === 'im';
+  const mentioned = ev.type === 'app_mention';
+  if (!dm && !mentioned) return ACK();
+  const claim = await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`)
+    .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
+  if (!claim.meta?.changes) return ACK();
+  if (!dm) {
+    const row = await env.DB.prepare(`SELECT name FROM accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
+    if (!row) return ACK();   // not a team channel: stay silent
+  }
+  const { engine, h } = strategist();
+  ctx.waitUntil((async () => {
+    const findings = await engine.openFindings(env, h()).catch(() => []);
+    await engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6) });
+  })().catch(e => console.log('strategist slack: ' + e.message)));
+  return ACK();
+}
+
 async function nightly(env) {
   const out = {};
   /* Cole, 2026-08-30: "I want it to include ALL things I own and future things
@@ -5583,6 +5643,11 @@ async function nightly(env) {
   out.discover = subCanAfford(costOf('sync', COST_SYNC_BRAND))
     ? await discoverAccounts(env).catch(e => ({ error: e.message }))
     : { deferred: 'out of budget - runs tomorrow' };
+
+  // The Strategist looks the book over last, once the syncs have written.
+  // Its checks are a handful of SELECTs; the Monday briefing is one model call.
+  out.strategist = await strategistNightly(env).catch(e => ({ error: e.message }));
+  if (new Date().getUTCDay() === 1) out.strategistBriefing = await strategistBriefing(env).then(t => !!t).catch(e => ({ error: e.message }));
 
   await recordRun(env, 'lastRun', out);
   await alertScheduleTrouble(env, 'nightly sync', out);
@@ -5673,6 +5738,40 @@ export default {
     if (path === '/slack/actions' && request.method === 'POST') {
       await ensureSlackColumns(env).catch(() => {});
       return handleSlackInteract(request, env, ctx);
+    }
+    /* THE STRATEGIST IN SLACK. Unauthenticated by design, like the buttons:
+       Slack signs the request. Subscribe the app to app_mention and
+       message.im with this URL as the Events Request URL. */
+    if (path === '/slack/events' && request.method === 'POST') return handleSlackEvent(request, env, ctx);
+
+    /* ---- the Strategist, in Locus ---- */
+    if (path.startsWith('/api/ask')) {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const { engine, h } = strategist();
+      const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
+      if (path === '/api/ask' && request.method === 'POST') {
+        const findings = await engine.openFindings(env, h()).catch(() => []);
+        return json(await engine.answerWeb(env, body.question, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null }));
+      }
+      if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h()),
+        briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
+        channel: await getSetting(env, 'strategistChannel') });
+      if (path === '/api/ask/finding' && request.method === 'POST') {
+        if (!body.key) return json({ error: 'key required' }, 400);
+        return json(await engine.setFindingState(env, String(body.key), String(body.state || 'done')));
+      }
+      if (path === '/api/ask/forget' && request.method === 'POST') {
+        const key = body.kind === 'watch' ? engine.keys.watches : engine.keys.notes;
+        const list = safeJson(await getSetting(env, key), []) || [];
+        const kept = body.kind === 'watch' ? list.map(w => w.id === body.id ? { ...w, active: false } : w) : list.filter((n, i) => i !== Number(body.index));
+        await putSetting(env, key, JSON.stringify(kept));
+        return json({ ok: true });
+      }
+      if (path === '/api/ask/brief' && request.method === 'PUT') { await putSetting(env, engine.keys.brief, String(body.text || '').slice(0, 4000)); return json({ ok: true }); }
+      if (path === '/api/ask/channel' && request.method === 'PUT') { await putSetting(env, 'strategistChannel', String(body.channel || '').trim()); return json({ ok: true }); }
+      if (path === '/api/ask/run' && request.method === 'POST') return json(await strategistNightly(env));
+      if (path === '/api/ask/briefing' && request.method === 'POST') return json({ text: await strategistBriefing(env, true) });
+      return json({ error: 'not found' }, 404);
     }
 
     /* COVER IMAGES ON A CLIENT LINK. A shared ad set is minted WITHOUT its

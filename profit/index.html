@@ -25,6 +25,7 @@
 <!-- The shared Mobius design system. Loaded BEFORE this page's own <style>, so
      anything Locus still defines locally deliberately wins over it. -->
 <link rel="stylesheet" href="/mobius.css">
+<link rel="stylesheet" href="/ask/ask.css?v=1">
 <style>
   /* ============================================================
      Direction C, adopted app-wide 2026-09-02.
@@ -1442,6 +1443,7 @@
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
 <script src="/sheet.js?v=1"></script>
+<script src="/ask/ask-ui.js?v=1"></script>
 <body>
 <!-- Icon sprite. One <symbol> per tab, 16x16, stroked at a single weight so the
      column reads as one set rather than ten borrowed glyphs. Referenced with
@@ -1514,6 +1516,7 @@
     </nav>
     </div>
     <div class="side-foot">
+      <button class="askbtn" onclick="AskUI.open()" title="Ask the Strategist (Ctrl+K)" style="margin-bottom:8px;width:100%;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 4.5 16.8L21 21l-1.2-4.5A9 9 0 0 0 12 3Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3 2.45V13"/><path d="M12.5 16h.01"/></svg>Ask the Strategist</button>
       <span class="hd-chip" id="connChip">…</span>
       <button class="hd-btn" id="btnOut" style="display:none">Sign out</button>
     </div>
@@ -7757,6 +7760,7 @@ async function renderSettings() {
     one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
         : 'Everything about a brand lives in one place: open its row to set its Meta account, store, Slack channels and margin.')}
     <div id="setRollup"></div>
+    <div id="askSetSlot"></div>
     <h3 class="set-sec">Brands</h3>
     <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
     <h3 class="set-sec">Team</h3>
@@ -8289,6 +8293,51 @@ async function renderSettings() {
   })();
 }
 
+
+/* ================= THE STRATEGIST =================
+   The account strategist, in Locus: what it found on the Overview, a panel
+   that answers anywhere (Ctrl+K, the rail button), and a card in Settings
+   for what it knows and where it briefs. It lives on the account-health
+   worker, which holds the data, the model key and the Slack app; the same
+   brain answers the team in each brand's Slack channel (../ask/ask-ui.js). */
+const AH_URL = 'https://mobius-account-health.mobius-digital.workers.dev';
+async function apiAH(path, opts = {}) {
+  const res = await fetch(AH_URL + path, { ...opts, headers: { 'Authorization': 'Bearer ' + S.tok, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  return j;
+}
+const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (Meta-reported ads)', costs: 'Costs', settings: 'Settings', health: 'Data health' };
+AskUI.init({
+  name: 'Strategist', api: apiAH, esc, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
+  flash: msg => { const el = document.getElementById('connChip'); if (el) { const was = el.textContent; el.textContent = msg; setTimeout(() => { el.textContent = was; }, 2500); } },
+  cardH: (t, q, right = '') => `<div class="ch" style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:0"><h3 style="margin:0 0 4px">${esc(t)}</h3>${q ? `<div class="hint">${esc(q)}</div>` : ''}</div>${right}</div>`,
+  intro: 'Ask me about any brand or the whole book. Try: "how is Dartee doing this month against plan?", "what changed on Party Patch this week and who did it?", "which creatives are tiring on Grunk?", "what did we tell Galway last Monday?", "keep an eye on Dartee's MER under 2.5".',
+  screen: () => {
+    try {
+      const a = S.act === 'all' ? null : S.accounts.find(x => x.act_id === S.act);
+      const ctx = { screen: SCREEN_NAMES[S.tab] || S.tab, screen_id: S.tab, brand_selected: a ? a.name : 'All clients', range: S.range?.preset || S.days };
+      return ctx;
+    } catch (e) { return null; }
+  },
+});
+/* The Overview leads with what the Strategist found. */
+const _renderOverviewBase = renderOverview;
+renderOverview = async function(){
+  await _renderOverviewBase();
+  if (S.tab !== 'overview') return;
+  AskUI.mount(document.querySelector('#main .ph'));
+};
+const _renderSettingsBase = renderSettings;
+renderSettings = async function(){
+  await _renderSettingsBase();
+  const slot = document.getElementById('askSetSlot');
+  if (!slot) return;
+  slot.innerHTML = AskUI.settingsCard() + `<div class="card cardp" style="margin-top:10px"><label class="lbl">Where it briefs on Monday <span class="why">A Slack channel id (C0…) the team reads. Leave empty and the briefing stays in the app.</span></label>
+    <div class="row" style="gap:8px"><input id="askChan" placeholder="C0123ABCDEF" style="flex:1"><button class="btn" onclick="AskUI.state.api('/api/ask/channel',{method:'PUT',body:JSON.stringify({channel:document.getElementById('askChan').value})}).then(()=>AskUI.state.flash&&0)">Save</button></div></div>`;
+  AskUI.afterSettings();
+  try { const d = await apiAH('/api/ask/findings'); const c = document.getElementById('askChan'); if (c) c.value = d.channel || ''; } catch (e) {}
+};
 boot();
 </script>
 </body>
