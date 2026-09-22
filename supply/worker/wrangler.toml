@@ -32,3 +32,9 @@ service = "mobius-restock"
 #   npx wrangler secret put ASANA_TOKEN
 # The project those tasks land in is not a secret: it is the brand setting
 # asana_project, chosen in Settings > Asana.
+
+# The Buyer (src/buyer.js, on ../../ask/engine.js) answers in the app and adds
+# its overnight findings to the morning digest. Its one secret:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+# Without it the checks still run (they are plain state, no model) and the
+# chat says the key is missing.

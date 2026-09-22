@@ -474,8 +474,9 @@ function ganttSVG(items, from, to, closures) {
 window.renderSettings = function (m) {
   const s = st(); S.setTab = S.setTab || 'lines';
   title('Settings', 'How this brand buys. Categories and lines, factories, kinds of product, rules, Slack, data.',
-    `<div class="seg">${[['lines', 'Categories and lines'], ['factories', 'Factories'], ['lifecycle', 'Kinds of product'], ['rules', 'Rules'], ['asana', 'Asana'], ['slack', 'Slack and data']].map(([k, l]) => `<button class="${S.setTab === k ? 'on' : ''}" onclick="S.setTab='${k}';render()">${l}</button>`).join('')}</div>`);
-  m.innerHTML = { lines: settingsLines, factories: settingsFactories, lifecycle: settingsLifecycle, rules: settingsRules, asana: settingsAsana, slack: settingsSlack }[S.setTab](s);
+    `<div class="seg">${[['lines', 'Categories and lines'], ['factories', 'Factories'], ['lifecycle', 'Kinds of product'], ['rules', 'Rules'], ['asana', 'Asana'], ['slack', 'Slack and data'], ['buyer', 'The Buyer']].map(([k, l]) => `<button class="${S.setTab === k ? 'on' : ''}" onclick="S.setTab='${k}';render()">${l}</button>`).join('')}</div>`);
+  m.innerHTML = { lines: settingsLines, factories: settingsFactories, lifecycle: settingsLifecycle, rules: settingsRules, asana: settingsAsana, slack: settingsSlack, buyer: () => AskUI.settingsCard() }[S.setTab](s);
+  if (S.setTab === 'buyer') AskUI.afterSettings();
   if (S.setTab === 'slack') loadSlack();
   if (S.setTab === 'asana') loadAsanaProjects();
 };

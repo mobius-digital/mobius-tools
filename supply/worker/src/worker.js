@@ -7,6 +7,7 @@
  * through to Shopify via Restock). See ../wrangler.toml for the why.
  */
 import { computeSupply, slotDates, addDays, localDate } from './brain.js';
+import { buildBuyer } from './buyer.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +18,8 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, 
 const bad = (msg, status = 400) => json({ error: msg }, status);
 
 /* ---------- the Shopify side, through Restock ---------- */
-async function restock(env, request, path, init = {}) {
+async function restock(env, request, path, init = {}, envAlt = null) {
+  env = env || envAlt;
   const auth = request.headers.get('Authorization') || '';
   const req = new Request(`https://mobius-restock.internal${path}`, {
     method: init.method || 'GET',
@@ -326,6 +328,45 @@ function digestMessage(state) {
   return { attachments: [{ color, fallback: `${state.brandName} Supply: ${line1}`, blocks }] };
 }
 
+/* ---------- the Buyer (buyer.js, on the shared Ask engine) ---------- */
+/* One state per request, the same one the screens draw. The nightly pass
+   runs inside the digest call, which is the one call a day that arrives with
+   the Restock worker's own token, so it needs no cron and no secret here. */
+const tzOf = new Map();
+const safeJson = (v, fb) => { if (v == null) return fb; if (typeof v === 'object') return v; try { return JSON.parse(v); } catch { return fb; } };
+const buyerDeps = {
+  state: async (brand, request) => {
+    if (!request) throw new Error('the Buyer needs a signed-in request to read the brand');
+    const raw = await restock(null, request, `/api/raw?store=${brand}`, {}, buyerDeps._env);
+    if (!raw.catalog) throw new Error('no snapshot yet');
+    let db = await loadDb(buyerDeps._env, brand);
+    if (!db.brand) throw new Error('brand not seeded yet');
+    db = await syncStagesFromAsana(buyerDeps._env, brand, db);
+    const st = computeSupply(raw, db);
+    tzOf.set(brand, st.tz);
+    return st;
+  },
+  getSetting: async (env, brand, key) => (await env.DB.prepare('SELECT value FROM settings WHERE brand_id = ?1 AND key = ?2').bind(brand, key).first())?.value ?? null,
+  putSetting: (env, brand, key, value) => env.DB.prepare('INSERT OR REPLACE INTO settings (brand_id, key, value) VALUES (?1, ?2, ?3)').bind(brand, key, String(value)).run(),
+  listSettings: async (env, brand) => ((await env.DB.prepare('SELECT key, length(value) AS size, substr(value, 1, 120) AS peek FROM settings WHERE brand_id = ?1 ORDER BY key').bind(brand).all()).results || []),
+  safeJson,
+  today: brand => localDate(tzOf.get(brand) || 'America/Chicago'),
+  slack: async () => ({ ok: false }),
+};
+async function buyerFor(env, brand, request) {
+  buyerDeps._env = env;
+  const row = await env.DB.prepare('SELECT name FROM brands WHERE id = ?1').bind(brand).first();
+  const b = buildBuyer(buyerDeps, brand, row?.name || brand);
+  return { ...b, h: b.h(request) };
+}
+/* The night: the checks off the state, the watches, remembered; and what is
+   new and urgent, ready for the digest. */
+async function buyerNightly(env, brand, request) {
+  const { engine, h } = await buyerFor(env, brand, request);
+  const r = await engine.nightly(env, h);
+  return { ...r, urgent: r.fresh.filter(f => f.severity === 'high') };
+}
+
 /* ---------- routes ---------- */
 export default {
   async fetch(request, env) {
@@ -360,8 +401,52 @@ export default {
         let db = await loadDb(env, brand);
         if (!db.brand) { await seed(env, brand, raw, actor); db = await loadDb(env, brand); }
         const msg = digestMessage(computeSupply(raw, db));
+        /* The Buyer looks the brand over on the same call, once a day: what is
+           new and urgent goes under the digest, and on Monday the briefing. */
+        try {
+          const night = await buyerNightly(env, brand, request);
+          const lines = night.urgent.slice(0, 5).map(f => `:red_circle:  *${f.title}*\n        ${f.detail || ''}`);
+          const blocks = msg.attachments[0].blocks;
+          if (lines.length) blocks.push({ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: (`*The Buyer found, overnight:*\n` + lines.join('\n')).slice(0, 2900) } });
+          if (new Date().getUTCDay() === 1 && env.ANTHROPIC_API_KEY) {
+            const { engine, h } = await buyerFor(env, brand, request);
+            const text = await engine.briefing(env, h, { force: false }).catch(() => null);
+            if (text) blocks.push({ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: (`*Monday, from the Buyer:*\n` + text).slice(0, 2900) } });
+          }
+        } catch (e) { console.log('buyer night: ' + e.message); }
         if (request.method === 'POST') return json(await restock(env, request, `/api/slack-post?store=${brand}`, { method: 'POST', body: msg }));
         return json(msg);
+      }
+
+      /* ---- the Buyer, in the app ---- */
+      if (path.startsWith('/api/ask')) {
+        await restock(env, request, '/api/stores'); // auth gate
+        const { engine, h } = await buyerFor(env, brand, request);
+        if (path === '/api/ask' && request.method === 'POST') {
+          const findings = await engine.openFindings(env, h).catch(() => []);
+          return json(await engine.answerWeb(env, body?.question, body?.history, h, { findings: findings.slice(0, 6), screen: body?.screen || null }));
+        }
+        if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h),
+          briefing: safeJson(await h.getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h), brief: await engine.getBrief(env, h) });
+        if (path === '/api/ask/finding' && request.method === 'POST') {
+          if (!body?.key) return bad('key required');
+          return json(await engine.setFindingState(env, String(body.key), String(body.state || 'done')));
+        }
+        if (path === '/api/ask/forget' && request.method === 'POST') {
+          const key = body?.kind === 'watch' ? engine.keys.watches : engine.keys.notes;
+          const list = safeJson(await h.getSetting(env, key), []) || [];
+          const kept = body?.kind === 'watch' ? list.map(w => w.id === body.id ? { ...w, active: false } : w) : list.filter((n, i) => i !== Number(body?.index));
+          await h.putSetting(env, key, JSON.stringify(kept));
+          return json({ ok: true });
+        }
+        if (path === '/api/ask/brief' && request.method === 'PUT') { await h.putSetting(env, engine.keys.brief, String(body?.text || '').slice(0, 4000)); return json({ ok: true }); }
+        if (path === '/api/ask/run' && request.method === 'POST') { const r = await buyerNightly(env, brand, request); return json({ found: r.found, fresh: r.fresh.length, urgent: r.urgent.length }); }
+        if (path === '/api/ask/briefing' && request.method === 'POST') {
+          const text = await engine.briefing(env, h, { force: true });
+          if (text) await restock(env, request, `/api/slack-post?store=${brand}`, { method: 'POST', body: { text: `*From the Buyer*\n\n${text}` } }).catch(() => {});
+          return json({ text });
+        }
+        return bad('not found', 404);
       }
 
       await restock(env, request, '/api/stores'); // auth gate for everything below

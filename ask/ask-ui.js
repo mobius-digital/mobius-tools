@@ -68,12 +68,14 @@ window.AskUI = (() => {
     </div>`;
   }
   /* Drop this into a home screen: a placeholder now, the card when it loads. */
-  async function mount(afterEl) {
+  async function mount(afterEl, where = 'afterend') {
     if (!afterEl) return;
-    afterEl.insertAdjacentHTML('afterend', `<div id="askSlot" class="card cardp askcard loading"><div class="hint">The ${esc(A.name)} is looking…</div></div>`);
+    afterEl.insertAdjacentHTML(where, `<div id="askSlot" class="card cardp askcard loading"><div class="hint">The ${esc(A.name)} is looking…</div></div>`);
     try { const d = await load(); const slot = $('#askSlot'); if (slot) slot.outerHTML = card(d); }
     catch (e) { $('#askSlot')?.remove(); }
   }
+  /* The same card at the top of a container (a screen that has no header block inside it). */
+  const mountIn = container => mount(container, 'afterbegin');
   async function mark(btn, state) {
     const row = btn.closest('.find'), key = row?.dataset.key;
     if (!key) return;
@@ -213,5 +215,5 @@ window.AskUI = (() => {
     catch (e) { flash(e.message); } finally { btn.disabled = false; }
   }
 
-  return { init, open, close, send, fresh, history, openChat, card, mount, mark, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
 })();

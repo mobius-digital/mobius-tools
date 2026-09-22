@@ -122,13 +122,18 @@ export async function storedKeys(env, secretKey, table = 'settings') {
  * name). `views` is {name: async (env, args, ctx) => data}, `blurbs` is
  * {name: 'one line'}. The worker calls this from its askHelpers.appView.
  */
-export function makeAppView({ views, blurbs, secretKey, getSetting, safeJson, settingsTable = 'settings', fallbackTables = [] }) {
+export function makeAppView({ views, blurbs, secretKey, getSetting, safeJson, settingsTable = 'settings', fallbackTables = [],
+                              listStored = null, getStored = null }) {
+  /* A multi-brand app keeps its settings per brand, so it hands in its own
+   * list and read; a single-brand app takes the defaults over `settings`. */
+  const listKeys = env => listStored ? listStored(env).then(ks => ks.filter(k => !secretKey(k.key))) : storedKeys(env, secretKey, settingsTable);
+  const readKey = (env, key) => getStored ? getStored(env, key) : getSetting(env, key);
   const all = {
     ...views,
     map: async env => ({
       views: Object.keys(all).map(v => ({ view: v, holds: blurbs[v] || '' })),
       tables_you_can_query: await readableTables(env, fallbackTables),
-      stored_values: await storedKeys(env, secretKey, settingsTable),
+      stored_values: await listKeys(env),
       how_to_read: 'This is the whole app as you can see it, generated live, so it is never out of date. ' +
         'views are read with read_app. tables_you_can_query are read with the SQL tool. stored_values are read ' +
         'with read_app using the key as the view name (peek is the first 120 characters). Anything not here ' +
@@ -144,10 +149,10 @@ export function makeAppView({ views, blurbs, secretKey, getSetting, safeJson, se
     try {
       if (fn) return await fn(env, args || {}, ctx);
       const flat = x => String(x).toLowerCase().replace(/[^a-z0-9]/g, '');
-      const keys = await storedKeys(env, secretKey, settingsTable);
+      const keys = await listKeys(env);
       const hit = keys.find(k => flat(k.key) === flat(want));
       if (hit) {
-        const value = await getSetting(env, hit.key);
+        const value = await readKey(env, hit.key);
         return { stored_key: hit.key, value: safeJson(value, value),
           how_to_read: 'A value the app has stored. It is whatever the feature that wrote it put there.' };
       }
