@@ -60,11 +60,11 @@
 .memrow .x{border:0;background:none;opacity:.5;cursor:pointer;color:var(--ink)}
 .memrow .x:hover{opacity:1;color:var(--bad)}
 
-/* ---- the rail button ---- 
-   The rail is dark in every app, so the button reads in the rail's own
-   light ink, never the page's dark one. */
-.askbtn{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.06);color:var(--on-ink,#EAF2F7);border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}
-.askbtn:hover{border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.12);color:#fff}
+/* ---- the rail button ----
+   Rails differ: Locus and Supply are dark, Ledger is light. The button takes
+   the rail's own text colour and a neutral edge, so it reads on either. */
+.askbtn{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(128,128,128,.45);background:rgba(128,128,128,.10);color:inherit;border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+.askbtn:hover{border-color:currentColor;background:rgba(128,128,128,.18)}
 .askbtn svg{width:15px;height:15px}
 
 /* ---- reports it built ---- */
