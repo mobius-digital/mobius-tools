@@ -6,8 +6,11 @@ const { Miniflare, convertV4MiniflareOptions } = require('../../marketing-hub/no
 async function main() {
   const mf = new Miniflare(convertV4MiniflareOptions({ modules: true, scriptPath: path.join(__dirname,'.audit-build/bundle/worker.js'),
     compatibilityDate:'2026-07-01', d1Databases:{DB:'mobius-ledger-audit-local'}, kvNamespaces:['RECEIPTS'],
-    bindings:{ADMIN_TOKEN:'offline-audit-only',OWNER_EMAIL:'owner@mobius.test'},
-    outboundService:()=>new Response('Network disabled in local audit', {status:503}) }));
+    bindings:{ADMIN_TOKEN:'offline-audit-only',OWNER_EMAIL:'owner@mobius.test',...(process.env.ANTHROPIC_API_KEY?{ANTHROPIC_API_KEY:process.env.ANTHROPIC_API_KEY}:{})},
+    /* Offline, except: with ANTHROPIC_API_KEY in the environment the Controller
+       may reach the model, and nothing else, so a real answer can be checked
+       against seeded books without touching production. */
+    outboundService:(req)=>process.env.ANTHROPIC_API_KEY&&new URL(req.url).hostname==='api.anthropic.com'?fetch(req):new Response('Network disabled in local audit', {status:503}) }));
   try {
     const db=await mf.getD1Database('DB');
     for(const file of ['schema.sql', ...fs.readdirSync(path.join(__dirname,'migrations')).sort().map(f=>'migrations/'+f)]) {
@@ -30,6 +33,33 @@ async function main() {
     const preview=await call('/api/receipt?id=3');assert.match(preview.headers.get('content-type'),/^text\/plain/);
     const pdf=await call('/api/statement.pdf?month=2026-09');assert.equal(pdf.status,200,await pdf.clone().text());assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,5).toString(),'%PDF-');
     const archive=await call('/api/receipts.zip?from=2026-09&to=2026-09');assert.equal(archive.status,200);assert.ok(Buffer.from(await archive.arrayBuffer()).includes(Buffer.from('manifest.json')));
+    /* The Controller's night is plain SQL, so it runs offline: a client whose
+       retainer is ten days past due, and the same $1,200 paid twice a week
+       apart, must both be found; the recurring vendor billing on its cycle
+       must not. */
+    const ago=n=>new Date(Date.now()-n*86400e3).toISOString().slice(0,10);
+    /* Straight into D1: September is closed by the test above, and the API
+       never creates an expected row by hand, so the books are seeded the way
+       the recurring job and the bank feed would leave them. */
+    for(const [d,t,v,a,e,c] of [[ago(40),'in','Late Client',4000,1,null],[ago(43),'out','Figma',1200,0,'Software & subscriptions'],[ago(36),'out','Figma',1200,0,'Software & subscriptions']])
+      await db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,expected,tax_cat,status) VALUES(?1,?2,?3,?4,?5,?6,?7,'ok')").bind(d,d.slice(0,7),t,v,a,e,c).run();
+    const night=await (await call('/api/ask/run','POST')).json();
+    const open=(await (await call('/api/ask/findings')).json()).findings;
+    assert.ok(open.some(f=>f.kind==='unpaid'&&/Late Client/.test(f.title)),'unpaid client not found: '+JSON.stringify(open.map(f=>f.title)));
+    assert.ok(open.some(f=>f.kind==='duplicate'&&/Figma/.test(f.title)),'duplicate not found');
+    const done=await (await call('/api/ask/finding','POST',{key:open[0].key,state:'done'})).json();assert.equal(done.ok,true);
+    const again=await (await call('/api/ask/run','POST')).json();
+    assert.ok(!(await (await call('/api/ask/findings')).json()).findings.some(f=>f.key===open[0].key),'a finding marked done came back');
+    /* The map is generated: the audit tables and every non-secret setting appear, settings itself never does. */
+    const mapq=await (await call('/api/ask','POST',{question:'x'})).json();   // no key offline: the engine says so, and does not throw
+    assert.ok(mapq.error||mapq.answer);
+    console.log('controller night: '+night.found+' found, '+night.fresh+' new');
+    if(process.env.ANTHROPIC_API_KEY){
+      const a=await (await call('/api/ask','POST',{question:'Who has not paid this month, and how much do they owe?',history:[],screen:{screen:'Overview',month_selected:ago(0).slice(0,7)}})).json();
+      console.log('controller answer: '+(a.answer||a.error));
+      assert.match(String(a.answer||''),/Late Client/);
+      assert.match(String(a.answer||''),/4,000/);
+    }
     if(process.argv.includes('--serve')) {
       const http=require('node:http');
       const server=http.createServer(async(req,res)=>{
@@ -40,7 +70,8 @@ async function main() {
             const response=await mf.dispatchFetch(url.href,{method:req.method,headers:req.headers,...(chunks.length?{body:Buffer.concat(chunks)}:{})});
             res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));return;
           }
-          const routes={'/ledger/':['../index.html','text/html'],'/ledger/ledger.css':['../ledger.css','text/css'],'/ledger/manifest.webmanifest':['../manifest.webmanifest','application/manifest+json']};
+          const routes={'/ledger/':['../index.html','text/html'],'/ledger/ledger.css':['../ledger.css','text/css'],'/ledger/manifest.webmanifest':['../manifest.webmanifest','application/manifest+json'],
+            '/ask/ask.css':['../../ask/ask.css','text/css'],'/ask/ask-ui.js':['../../ask/ask-ui.js','text/javascript'],'/sheet.css':['../../sheet.css','text/css'],'/sheet.js':['../../sheet.js','text/javascript']};
           const icon=url.pathname.match(/^\/icons\/([\w.-]+\.png)$/);
           const file=routes[url.pathname]||(icon&&['../../icons/'+icon[1],'image/png']);if(!file){res.writeHead(404);res.end();return;}
           const contents=fs.readFileSync(path.resolve(__dirname,file[0]));res.setHeader('Content-Type',file[1]);res.end(contents);
