@@ -9,6 +9,7 @@ import { DisplayNameProvider } from "@/components/DisplayName";
 import { TourProvider } from "@/components/Tour";
 import { IDENTITY_COOKIE, readIdentityToken } from "@/lib/session";
 import { getPerson } from "@/lib/people";
+import { AskProducer } from "@/components/AskProducer";
 
 /**
  * One brand's world.
@@ -93,6 +94,7 @@ export default async function BrandLayout({
               <Nav />
               <main className="main">{children}</main>
             </div>
+            <AskProducer />
           </TourProvider>
         </DisplayNameProvider>
       </BrandProvider>

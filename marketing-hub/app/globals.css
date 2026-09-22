@@ -5414,3 +5414,9 @@ body:has(.scrim) {
 .scrim {
   overscroll-behavior: contain;
 }
+
+/* The Producer's button: bottom right, above the phone tab bar. */
+.ask-producer-fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:50;display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;border:1px solid rgba(0,0,0,.12);background:#111;color:#fff;font:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.ask-producer-fab:hover{background:#000}
+@media (max-width: 760px){.ask-producer-fab{bottom:calc(76px + env(safe-area-inset-bottom));padding:10px}.ask-producer-fab span{display:none}}
+@media print{.ask-producer-fab{display:none}}
