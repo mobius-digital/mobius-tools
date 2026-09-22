@@ -5743,6 +5743,13 @@ export default {
        Slack signs the request. Subscribe the app to app_mention and
        message.im with this URL as the Events Request URL. */
     if (path === '/slack/events' && request.method === 'POST') return handleSlackEvent(request, env, ctx);
+    /* The router asks which channels are the Strategist's: a brand's INTERNAL
+       team channel, as registered on its account. A boolean, nothing else. */
+    if (path === '/slack/owns') {
+      const ch = url.searchParams.get('channel') || '';
+      const row = /^[A-Z0-9]{5,20}$/.test(ch) ? await env.DB.prepare(`SELECT 1 AS x FROM accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null) : null;
+      return json({ owns: !!row });
+    }
 
     /* ---- the Strategist, in Locus ---- */
     if (path.startsWith('/api/ask')) {

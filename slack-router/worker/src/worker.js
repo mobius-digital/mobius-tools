@@ -82,6 +82,32 @@ const TARGETS = {
   pulse: ['PULSE', 'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact'],
 };
 
+/* EVENTS: WHO ANSWERS AN @-MENTION. The same one-URL rule applies to Slack's
+   Events API, and two brains listen on it now: the Controller (Ledger) and the
+   Strategist (Locus). The channel decides. A brand's internal team channel is
+   registered on its account in Locus, so a mention there is the Strategist's;
+   everything else - the finance channel, the receipts channel, a DM - keeps
+   going to the Ledger exactly as before. Locus is asked which channels are
+   its (a boolean, no auth needed, channel ids are not secret) and the answer
+   is cached for an hour. */
+const owned = new Map();
+async function locusOwns(env, channel) {
+  if (!channel || !env.AUTH) return false;
+  const hit = owned.get(channel);
+  if (hit && hit.at > Date.now() - 3600e3) return hit.owns;
+  let owns = false;
+  try {
+    const r = await env.AUTH.fetch(new Request(`https://mobius-account-health.mobius-digital.workers.dev/slack/owns?channel=${encodeURIComponent(channel)}`));
+    owns = !!(await r.json().catch(() => ({}))).owns;
+  } catch (e) { owns = false; }
+  owned.set(channel, { owns, at: Date.now() });
+  return owns;
+}
+const EVENT_TARGETS = {
+  ledger: ['LEDGER', 'https://mobius-ledger.mobius-digital.workers.dev/api/slack-events'],
+  locus: ['AUTH', 'https://mobius-account-health.mobius-digital.workers.dev/slack/events'],
+};
+
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname.replace(/\/+$/, '') || '/';
@@ -94,6 +120,7 @@ export default {
       return Response.json({
         service: 'mobius-slack — Slack interactivity router',
         put_this_in_slack: 'https://mobius-slack.mobius-digital.workers.dev/slack',
+        and_this_in_event_subscriptions: 'https://mobius-slack.mobius-digital.workers.dev/slack/events',
         signing_secret_set: !!env.SLACK_SIGNING_SECRET,
         routes: { ledger: !!env.LEDGER, locus: !!env.AUTH, pulse: !!env.PULSE },
       });
@@ -105,6 +132,29 @@ export default {
     const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'), raw,
       request.headers.get('x-slack-signature'));
     if (!ok) return new Response('bad signature', { status: 401 });
+
+    /* The Events API: JSON, not a form. Answer Slack's URL check here, then
+       hand the event on whole, signature headers intact. */
+    if (path === '/slack/events') {
+      const body = safeJson(raw, null);
+      if (body?.type === 'url_verification') return Response.json({ challenge: body.challenge });
+      const ev = body?.event || {};
+      const dm = ev.channel_type === 'im';
+      const who = !dm && await locusOwns(env, ev.channel) ? 'locus' : 'ledger';
+      const [bindingName, target] = EVENT_TARGETS[who];
+      const binding = env[bindingName];
+      if (!binding) return new Response('', { status: 200 });
+      return binding.fetch(new Request(target, {
+        method: 'POST',
+        headers: {
+          'Content-Type': request.headers.get('content-type') || 'application/json',
+          'x-slack-request-timestamp': request.headers.get('x-slack-request-timestamp') || '',
+          'x-slack-signature': request.headers.get('x-slack-signature') || '',
+          'x-slack-retry-num': request.headers.get('x-slack-retry-num') || '',
+        },
+        body: raw,
+      }));
+    }
 
     const form = new URLSearchParams(raw);
     if (form.get('ssl_check')) return new Response('', { status: 200 });
