@@ -2899,6 +2899,14 @@ export default {
           body: JSON.stringify(body) }).catch(() => {}));
         /* An edit the Slack Q&A proposed. It only ever described the change;
          * this tap is the first and only thing that writes it. */
+        /* A proposal card from the Controller (any action). The tap is the
+           first and only thing that writes. */
+        if (val?.askp) {
+          const { engine, h } = controller();
+          const res = await engine.applyProposal(env, String(val.askp), h(), { cancel: !!val.cancel }).catch(e => ({ error: String(e.message || e) }));
+          respond({ replace_original: true, text: res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}` });
+          return new Response('', { status: 200 });
+        }
         if (val?.ask) {
           if (val.ask.cancel) {
             respond({ replace_original: true, text: '✓ Left as it was.' });
@@ -3542,7 +3550,8 @@ export default {
       if (path === '/api/ask/findings') {
         const { engine, h } = controller();
         return json({ findings: await engine.openFindings(env, h()), briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null),
-          memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()) });
+          memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
+          playbook: (await getSetting(env, engine.keys.playbook)) || '', pending: await engine.pendingList(env, h()) });
       }
       if (path === '/api/ask/finding' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
@@ -3563,6 +3572,16 @@ export default {
         const list = safeJson(await getSetting(env, key), []) || [];
         const kept = b.kind === 'watch' ? list.map(w => w.id === b.id ? { ...w, active: false } : w) : list.filter((n, i) => i !== Number(b.index));
         await putSetting(env, key, JSON.stringify(kept));
+        return json({ ok: true });
+      }
+      if (path === '/api/ask/apply' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const { engine, h } = controller();
+        return json(await engine.applyProposal(env, String(b.id || ''), h(), { cancel: !!b.cancel }));
+      }
+      if (path === '/api/ask/playbook' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        await putSetting(env, controller().engine.keys.playbook, String(b.text || '').slice(0, 8000));
         return json({ ok: true });
       }
       if (path === '/api/ask/brief' && request.method === 'PUT') {

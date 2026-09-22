@@ -14,6 +14,15 @@
  *     openFindings, setFindingState, memoryBlock, gateSql, readApp
  *   }
  *
+ * Phase 2 (2026-09-22): the assistant can ACT, and every act is a proposal.
+ *   A config `action` is a tool the model may call; the engine runs the
+ *   action's `propose()` (which validates and describes, never writes), keeps
+ *   the proposal, and shows a card with an Apply button, in the app and in
+ *   Slack. Nothing changes until a person taps Apply, which runs `apply()`.
+ *   Bigger jobs (drafting, planning, creative) go to the strong model; a
+ *   question goes to the cheap one. Each persona carries a playbook: how the
+ *   job thinks, editable in Settings.
+ *
  * What the engine owns (the same in every app):
  *   - the SQL gate: SELECT-only, against the tables the database reports,
  *     minus the ones the config says are secret. A table added tomorrow is
@@ -38,7 +47,9 @@
 
 const DEFAULTS = {
   model: 'claude-haiku-4-5-20251001',
+  strongModel: 'claude-sonnet-5',
   briefingModel: 'claude-sonnet-5',
+  strongWhen: /\b(draft|write|compose|create|make|generate|build|plan|forecast|project|research|angles?|hooks?|rewrite|brief|analy[sz]e|compare|strategy|recommend|should (we|i)|what if)\b/i,
   maxRounds: 5,
   maxRows: 60,
   maxResultChars: 14000,
@@ -179,7 +190,9 @@ export function createAssistant(config) {
   if (!C.name) throw new Error('createAssistant: config.name is required');
   const P = C.memoryPrefix || C.name.toLowerCase();
   const K = { notes: `${P}Notes`, watches: `${P}Watches`, muted: `${P}Muted`, usage: `${P}Usage`,
-              brief: `${P}Brief`, lastBriefing: `${P}LastBriefing` };
+              brief: `${P}Brief`, lastBriefing: `${P}LastBriefing`, playbook: `${P}Playbook`, pending: `${P}Pending` };
+  const ACTIONS = C.actions || [];   // [{ name, description, input_schema, propose(env, input, h, ctx), apply(env, patch, h) }]
+  const actionByName = Object.fromEntries(ACTIONS.map(a => [a.name, a]));
   const T = C.findingsTable;
 
   /* ---------------- the prompt ---------------- */
@@ -313,21 +326,39 @@ export function createAssistant(config) {
         `kinds: ${(C.checkKinds || []).join(', ')}${C.checkKinds?.length ? ', ' : ''}watch. For a custom watch, pass its id instead.`,
       input_schema: { type: 'object', properties: { kind: { type: 'string', description: 'A check kind, or a watch id.' } }, required: ['kind'] } },
   ];
+  /* Every action is a tool, and every action's description says the same
+   * thing first: this proposes, a person applies. The model cannot be told
+   * that too often. */
+  const actionDefs = ACTIONS.map(a => ({
+    name: a.name,
+    description: 'PROPOSES a change; it does NOT apply it. A card with an Apply button is shown and the person taps it. ' + a.description,
+    input_schema: a.input_schema,
+  }));
   const extraSlack = C.slackTools || [];   // [{ def, run(env, input, ctx) -> {text, is_error?, ...flags} }]
   const extraWeb = C.webTools || [];
-  const slackToolDefs = [sqlToolDef, readAppDef, ...extraSlack.map(t => t.def), ...memoryDefs];
-  const webToolDefs = [sqlToolDef, readAppDef, ...extraWeb.map(t => t.def), ...memoryDefs];
+  const slackToolDefs = [sqlToolDef, readAppDef, ...extraSlack.map(t => t.def), ...actionDefs, ...memoryDefs];
+  const webToolDefs = [sqlToolDef, readAppDef, ...extraWeb.map(t => t.def), ...actionDefs, ...memoryDefs];
 
   /* ---------------- the model ---------------- */
 
-  async function callClaude(env, system, messages, tools) {
+  /* A question goes to the cheap model; drafting, planning and creative work
+   * go to the strong one. Decided once per conversation turn from the words
+   * of the question, so a lookup never pays for a writer. */
+  const pickModel = q => (C.strongWhen && C.strongWhen.test(String(q || ''))) ? C.strongModel : C.model;
+
+  async function callClaude(env, system, messages, tools, model = C.model) {
+    const strong = model !== C.model;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: C.model, max_tokens: 1200, system, messages, ...(tools ? { tools } : {}) }),
+      body: JSON.stringify({ model, max_tokens: strong ? 4000 : 1200, system, messages, ...(tools ? { tools } : {}) }),
     });
     const j = await r.json().catch(() => ({}));
-    if (j.type === 'error' || !j.content) throw new Error(j?.error?.message || 'Claude call failed');
+    if (j.type === 'error' || !j.content) {
+      const why = j?.error?.message || `Claude call failed (HTTP ${r.status})`;
+      console.log(`${C.name}: model call refused: ${why}`);
+      throw new Error(why);
+    }
     return j;
   }
 
@@ -411,6 +442,61 @@ export function createAssistant(config) {
     return fresh;
   }
 
+  /* ---------------- proposals ---------------- */
+
+  /* A proposal is what an action described and did not do. Kept for a day so
+   * the Apply tap can come from the app or from Slack, minutes or hours later. */
+  async function pendingList(env, h) {
+    const list = h.safeJson(await h.getSetting(env, K.pending), []) || [];
+    const cutoff = Date.now() - 24 * 3600e3;
+    return list.filter(p => Date.parse(p.at) > cutoff);
+  }
+  async function keepProposal(env, h, p) {
+    const list = await pendingList(env, h);
+    list.push(p);
+    await h.putSetting(env, K.pending, JSON.stringify(list.slice(-20)));
+  }
+  async function dropProposal(env, h, id) {
+    const list = (await pendingList(env, h)).filter(p => p.id !== id);
+    await h.putSetting(env, K.pending, JSON.stringify(list));
+  }
+  /** The tap. Finds the proposal, runs the action's apply, forgets the proposal. */
+  async function applyProposal(env, id, h, { cancel = false } = {}) {
+    const p = (await pendingList(env, h)).find(x => x.id === id);
+    if (!p) return { error: 'That proposal has expired or was already handled.' };
+    await dropProposal(env, h, id);
+    if (cancel) return { ok: true, cancelled: true, summary: p.summary };
+    const a = actionByName[p.action];
+    if (!a) return { error: `The action "${p.action}" no longer exists.` };
+    try {
+      const r = await a.apply(env, p.patch, h);
+      return r?.error ? { error: r.error, summary: p.summary } : { ok: true, summary: p.summary, ...(r || {}) };
+    } catch (e) { return { error: String(e.message || e), summary: p.summary }; }
+  }
+  /** Runs an action's propose() and keeps what it described. Never writes. */
+  async function runAction(env, name, input, h, ctx) {
+    const a = actionByName[name];
+    if (!a) return { is_error: true, text: 'Unknown action.' };
+    let d;
+    try { d = await a.propose(env, input || {}, h, ctx); }
+    catch (e) { return { is_error: true, text: String(e.message || e) }; }
+    if (!d || d.error) return { is_error: true, text: d?.error || 'Could not describe that change.' };
+    const p = { id: Math.random().toString(36).slice(2, 10), action: name, summary: String(d.summary || name).slice(0, 160),
+      detail: String(d.detail || '').slice(0, 1200), patch: d.patch ?? input, at: new Date().toISOString(), preview: d.preview || null };
+    await keepProposal(env, h, p);
+    return { text: `Proposed: ${p.summary}. The card with the Apply button is shown; the person applies it with a tap. Reply with ONE short sentence that says what you proposed and that it is waiting on them. Do not repeat the details.`,
+      flags: { proposals: [p] } };
+  }
+  /* Slack's card for a proposal: the summary, the detail, two buttons. The
+   * value carries the app so the router knows whose tap it is. */
+  const proposalBlocks = p => [
+    { type: 'section', text: { type: 'mrkdwn', text: `*${p.summary}*${p.detail ? '\n' + p.detail : ''}` } },
+    { type: 'actions', elements: [
+      { type: 'button', action_id: 'ask_apply', style: 'primary', text: { type: 'plain_text', text: 'Apply' }, value: JSON.stringify({ askp: p.id, app: C.slackApp || P }) },
+      { type: 'button', action_id: 'ask_cancel', text: { type: 'plain_text', text: 'No thanks' }, value: JSON.stringify({ askp: p.id, app: C.slackApp || P, cancel: true }) },
+    ] },
+  ];
+
   async function memory(env, h) {
     return {
       notes: h.safeJson(await h.getSetting(env, K.notes), []) || [],
@@ -484,6 +570,9 @@ export function createAssistant(config) {
     if (live) blocks.push({ type: 'text', text: live });
     const brief = await getBrief(env, h);
     if (brief) blocks.push({ type: 'text', text: '## What you know about the company\n' + brief });
+    const playbook = (await h.getSetting(env, K.playbook)) || C.playbook || '';
+    if (playbook) blocks.push({ type: 'text', text: '## How you think (your playbook)\n' + playbook });
+    if (ACTIONS.length) blocks.push({ type: 'text', text: '## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.' });
     const mem = await memoryBlock(env, h).catch(() => '');
     if (mem) blocks.push({ type: 'text', text: mem });
     if (extra.findings?.length) blocks.push({ type: 'text', text: '## What you have already flagged this week\n' +
@@ -498,11 +587,11 @@ export function createAssistant(config) {
 
   /* ---------------- the loop ---------------- */
 
-  async function loop(env, h, system, messages, toolDefs, runExtra, usage) {
+  async function loop(env, h, system, messages, toolDefs, runExtra, usage, model = C.model, ctx = null) {
     let inTok = 0, outTok = 0, answer = '', sql = [], flags = {};
     try {
       for (let round = 0; round <= C.maxRounds; round++) {
-        const reply = await callClaude(env, system, messages, round < C.maxRounds ? toolDefs : null);
+        const reply = await callClaude(env, system, messages, round < C.maxRounds ? toolDefs : null, model);
         inTok += (reply.usage?.input_tokens || 0) + (reply.usage?.cache_read_input_tokens || 0);
         outTok += reply.usage?.output_tokens || 0;
         const calls = reply.content.filter(c => c.type === 'tool_use');
@@ -522,6 +611,9 @@ export function createAssistant(config) {
             out = { text: await readApp(h, env, c.input) };
           } else if (memoryNames.has(c.name)) {
             out = { text: await runMemoryTool(env, c.name, c.input, h) };
+          } else if (actionByName[c.name]) {
+            out = await runAction(env, c.name, c.input, h, ctx);
+            if (out.flags?.proposals) flags.proposals = [...(flags.proposals || []), ...out.flags.proposals];
           } else {
             const r = await runExtra(c.name, c.input);
             if (r) { out = r; Object.assign(flags, r.flags || {}); }
@@ -606,7 +698,8 @@ export function createAssistant(config) {
       r = await loop(env, h, system, messages, slackToolDefs, async (name, input) => {
         const t = extraSlack.find(x => x.def.name === name);
         return t ? await t.run(env, input, ctx) : null;
-      }, usage);
+      }, usage, pickModel(question), ctx);
+      for (const p of r.flags.proposals || []) await say(p.summary, proposalBlocks(p));
       const text = toSlackText(r.answer);
       if (text) { await say(text); r.answered = true; }
       else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
@@ -636,11 +729,12 @@ export function createAssistant(config) {
     }
     messages.push({ role: 'user', content: q });
     try {
+      const model = extra.model || pickModel(q);
       const r = await loop(env, h, system, messages, webToolDefs, async (name, input) => {
         const t = extraWeb.find(x => x.def.name === name);
         return t ? await t.run(env, input, { env, h }) : null;
-      }, usage);
-      return { answer: r.answer || 'I could not work that one out. Try naming the period.', sql: r.sql, inTok: r.inTok, outTok: r.outTok, ...r.flags };
+      }, usage, model, { env, h, screen: extra.screen });
+      return { answer: r.answer || 'I could not work that one out. Try naming the period.', sql: r.sql, inTok: r.inTok, outTok: r.outTok, model, ...r.flags };
     } catch (e) {
       return { error: String(e.message || e) };
     }
@@ -715,6 +809,7 @@ export function createAssistant(config) {
     answerSlack, answerWeb, nightly, briefing,
     openFindings, setFindingState, recordFindings, ensureFindings,
     memory, memoryBlock, getBrief, runMemoryTool,
+    applyProposal, pendingList, proposalBlocks, actions: ACTIONS.map(a => a.name),
     gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns }),
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },

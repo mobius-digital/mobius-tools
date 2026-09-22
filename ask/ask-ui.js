@@ -117,12 +117,32 @@ window.AskUI = (() => {
     if (prefill) el.value = prefill;
     el.focus();
   }
+  /* A proposal is a change the assistant described and did not make. It sits
+     in the chat as a card until Apply or No thanks; either way it stays in the
+     history as what happened. */
+  const proposalHTML = p => `<div class="m ai prop" data-id="${esc(p.id)}">
+      <b>${esc(p.summary)}</b>${p.detail ? `<div class="pd">${esc(p.detail).replace(/\n/g, '<br>')}</div>` : ''}
+      ${p.preview ? `<div class="pv">${esc(p.preview).replace(/\n/g, '<br>')}</div>` : ''}
+      ${p.done ? `<div class="pr ${p.done === 'applied' ? 'ok' : ''}">${esc(p.result || (p.done === 'applied' ? 'Applied.' : 'Left as it was.'))}</div>`
+        : `<div class="pa"><button class="btn primary" onclick="AskUI.applyProposal('${esc(p.id)}')">Apply</button><button class="btn" onclick="AskUI.applyProposal('${esc(p.id)}', true)">No thanks</button></div>`}
+    </div>`;
   function render(intro) {
     const log = $('#askLog');
     log.innerHTML = (intro ? `<div class="m ai intro">${esc(intro).replace(/\n/g, '<br>')}</div>` : '')
-      + A.chat.map(m => `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.text).replace(/\n/g, '<br>')}</div>`).join('')
+      + A.chat.map(m => m.proposal ? proposalHTML(m.proposal) : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.text).replace(/\n/g, '<br>')}</div>`).join('')
       + (A.busy ? '<div class="m ai think">Looking…</div>' : '');
     log.scrollTop = log.scrollHeight;
+  }
+  async function applyProposal(id, cancel = false) {
+    const m = A.chat.find(x => x.proposal && x.proposal.id === id);
+    if (!m) return;
+    try {
+      const r = await A.api(A.base + '/apply', { method: 'POST', body: JSON.stringify({ id, cancel }) });
+      m.proposal.done = cancel || r.cancelled ? 'cancelled' : r.error ? 'failed' : 'applied';
+      m.proposal.result = r.error ? 'Could not apply: ' + r.error : cancel ? 'Left as it was.' : (r.note || 'Applied.');
+      if (!r.error && !cancel && A.onApplied) A.onApplied(r);
+    } catch (e) { m.proposal.done = 'failed'; m.proposal.result = 'Could not apply: ' + e.message; }
+    render(); save();
   }
   async function send(e) {
     e?.preventDefault();
@@ -132,7 +152,9 @@ window.AskUI = (() => {
     A.chat.push({ role: 'user', text: q });
     A.busy = true; render();
     try {
-      const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history: A.chat.slice(0, -1), screen: A.screen ? A.screen() : null }) });
+      const history = A.chat.slice(0, -1).filter(m => !m.proposal);
+      const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history, screen: A.screen ? A.screen() : null }) });
+      for (const p of r.proposals || []) A.chat.push({ role: 'assistant', proposal: p, text: 'Proposed: ' + p.summary });
       A.chat.push({ role: 'assistant', text: r.error || r.answer });
       if (A.onAnswer) A.onAnswer(r);
     } catch (err) { A.chat.push({ role: 'assistant', text: 'That one broke: ' + err.message }); }
@@ -171,6 +193,8 @@ window.AskUI = (() => {
     return `<div class="card cardp" id="askSet">${cardH(`The ${A.name}`, 'What it knows about the company before it answers anything, and when it speaks. It reads; it never changes anything.')}
       <label class="lbl">What it knows <span class="why">Written once, read before every answer and every briefing. Add anything it should never have to ask again.</span></label>
       <textarea id="askBrief" rows="7" spellcheck="false"></textarea>
+      <label class="lbl" style="margin-top:14px">How it thinks <span class="why">Its playbook: how a good person in this job reads the numbers and what they do about them. Correct it here in plain English and it changes how every answer is reasoned.</span></label>
+      <textarea id="askPlaybook" rows="10" spellcheck="false"></textarea>
       <div id="askMem"></div>
       <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:8px">
         <button class="btn primary" onclick="AskUI.saveBrief(this)">Save</button>
@@ -184,6 +208,7 @@ window.AskUI = (() => {
     try {
       const d = await load(true);
       const t = $('#askBrief'); if (t) t.value = d.brief || '';
+      const pb = $('#askPlaybook'); if (pb) pb.value = d.playbook || '';
       const m = d.memory || { notes: [], watches: [] };
       const el = $('#askMem'); if (!el) return;
       const notes = (m.notes || []).slice().reverse().slice(0, 25);
@@ -196,7 +221,11 @@ window.AskUI = (() => {
   }
   async function saveBrief(btn) {
     btn.disabled = true;
-    try { await A.api(A.base + '/brief', { method: 'PUT', body: JSON.stringify({ text: $('#askBrief').value }) }); A.data = null; flash('Saved'); }
+    try {
+      await A.api(A.base + '/brief', { method: 'PUT', body: JSON.stringify({ text: $('#askBrief').value }) });
+      if ($('#askPlaybook')) await A.api(A.base + '/playbook', { method: 'PUT', body: JSON.stringify({ text: $('#askPlaybook').value }) });
+      A.data = null; flash('Saved');
+    }
     catch (e) { flash(e.message); } finally { btn.disabled = false; }
   }
   async function forget(kind, ref) {
@@ -215,5 +244,5 @@ window.AskUI = (() => {
     catch (e) { flash(e.message); } finally { btn.disabled = false; }
   }
 
-  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
 })();

@@ -89,6 +89,19 @@ const TABLES = ['transactions', 'vendors', 'clients', 'months', 'ledger_close_hi
 
 const DEFAULT_BRIEF = `Mobius Digital is a marketing agency run by Cole. Clients pay a monthly retainer, or a percentage of ad spend, by Stripe; a client's retainer row is pre-created each month as expected revenue and becomes real when the payment lands. The big costs are contractors (Ahsan, Noma, Robbo and other 1099 strategists), software, and the ads the agency runs. Personal spending and income tax go through the books but are not business costs. Months are closed once receipts are in and everything is categorized; a closed month's report is frozen.`;
 
+/* How a good controller thinks. Read before every answer; editable in Settings
+ * (the stored copy wins over this one). */
+const PLAYBOOK = `
+- Lead with cash and collectability, then profit. A month is only good once the retainers have landed.
+- A client is late when the money is late against THEIR habit, not against the 1st. Read when they actually pay (the last six payments) before calling anything overdue.
+- Separate the three questions: is revenue in, is spend under control, is the month closeable. Answer the one asked; mention the others only if they change the answer.
+- Recurring spend is judged against last month, not against zero. A vendor that billed more than usual is a price change or a seat; say which.
+- Contractors are the agency's cost of delivery: compare contractor spend to the retainers they serve when asked about margin.
+- Personal draws and income tax are real cash out and are never business costs. Say so when they move the cash picture.
+- Never quote a number you did not get from a query or a view. Round to cents in a total, to dollars in a sentence.
+- When something is wrong, say what to do next in one line: chase, recategorise, mark inactive, close the month.
+`.trim();
+
 const VIEW_BLURBS = {
   overview: 'the Home screen for a month: the report card, the year so far month by month, what needs attention (uncategorized, missing receipts, unconfirmed retainers), and the recurring renewals. Use it for "how are we doing".',
   month_report: 'the full P&L report card for one month exactly as the Reports screen computes it (revenue, expenses by category, fees, net, margin, per-client revenue). Use it rather than rebuilding a P&L in SQL.',
@@ -183,13 +196,32 @@ async function runChecks(env, h, d) {
   const all = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).all()).results || [];
 
   /* 1. A client who has not paid. The retainer row is pre-created as
-   * expected; five days past its date and still expected, that is money the
-   * agency is owed. */
-  for (const r of await all(`SELECT id, date, vendor, amount FROM transactions WHERE type = 'in' AND expected = 1 AND date <= date(?1, '-5 days') ORDER BY date`, today)) {
-    const late = daysBetween(r.date, today);
+   * expected, dated the 1st; but clients pay when they pay. Party Patch pays
+   * around the 29th every month, so "expected the 1st, still not here on the
+   * 6th" is not late, it is Tuesday. Each client's own day is read off their
+   * last six payments (or set by hand in Settings), and a retainer is only
+   * late once that day plus three is past. */
+  const terms = h.safeJson(await h.getSetting(env, 'clientTerms'), {}) || {};
+  const hist = await all(`SELECT vendor, CAST(strftime('%d', date) AS INTEGER) AS d FROM transactions
+      WHERE type = 'in' AND expected = 0 AND date >= date(?1, '-7 months') ORDER BY date DESC`, today);
+  const days = {};
+  for (const r of hist) { const k = r.vendor.toLowerCase(); (days[k] ||= []).length < 6 && days[k].push(r.d); }
+  const usualDay = name => {
+    const t = terms[name] || terms[name.toLowerCase()];
+    if (t?.payDay) return Number(t.payDay);
+    const ds = (days[name.toLowerCase()] || []).slice().sort((a, b) => a - b);
+    return ds.length >= 2 ? ds[Math.floor(ds.length / 2)] : null;
+  };
+  const dom = Number(today.slice(8));
+  for (const r of await all(`SELECT id, date, vendor, amount FROM transactions WHERE type = 'in' AND expected = 1 AND date <= ?1 ORDER BY date`, today)) {
+    const day = usualDay(r.vendor);
+    const sameMonth = r.date.slice(0, 7) === month;
+    const due = day ? (sameMonth ? dom > day + 3 : true) : daysBetween(r.date, today) >= 5;
+    if (!due) continue;
+    const late = day && sameMonth ? dom - day : daysBetween(r.date, today);
     out.push({ key: `unpaid:${r.vendor}:${r.date.slice(0, 7)}`, kind: 'unpaid', severity: r.amount >= 3000 ? 'high' : 'med', amount: r.amount, month: r.date.slice(0, 7),
-      title: `${r.vendor} has not paid ${money2(r.amount)}, ${late} days late`,
-      detail: `Their retainer was expected on ${r.date} and nothing has landed. Chase it, or if it arrived under another name, match it in Transactions.`, evidence: { id: r.id } });
+      title: `${r.vendor} has not paid ${money2(r.amount)}, ${late} days past ${day ? 'their usual day (the ' + day + ')' : 'the expected date'}`,
+      detail: `${day ? `They usually pay around the ${day}${terms[r.vendor]?.payDay ? ' (set by you)' : ' (from their last payments)'}. ` : `Expected on ${r.date}. `}Nothing has landed. Chase it, or if it arrived under another name, match it in Transactions. If their day has changed, tell me and I will stop counting from the old one.`, evidence: { id: r.id } });
   }
 
   /* 2. The same money paid twice: same vendor, same amount, 3 to 60 days apart,
@@ -326,6 +358,83 @@ export async function applyAskEdit(env, ask, h) {
   return { ok: true, vendor: row.vendor, amount: row.amount };
 }
 
+/* ------------------------------------------------------------------ */
+/*  actions: each one proposes, a tap applies                          */
+/* ------------------------------------------------------------------ */
+
+const ACTIONS = (d) => [
+  { name: 'update_transaction',
+    description: 'Change ONE transaction: its category, note, one-off flag or review status. Look the row up first (query) so you have its id. Amounts, dates and deletions cannot be changed this way.',
+    input_schema: { type: 'object', properties: {
+      id: { type: 'integer', description: 'transactions.id' },
+      tax_cat: { type: 'string', description: 'New tax category, from the live list. The bucket follows automatically.' },
+      note: { type: 'string' }, one_time: { type: 'boolean' }, status: { type: 'string', enum: ['ok', 'review'] },
+      summary: { type: 'string', description: 'One short line for the card, e.g. "Recategorize Anthropic $340 to Software".' } }, required: ['id', 'summary'] },
+    propose: async (env, input, h) => {
+      const taxCats = d.safeJson(await d.getSetting(env, 'taxCats'), []) || [];
+      const p = await buildProposal(env, input, taxCats, h);
+      if (p.error) return { error: p.error };
+      const { id, patch } = JSON.parse(p.blocks[1].elements[0].value).ask;
+      return { summary: String(input.summary || 'Update this transaction'), detail: p.text.split('\n').slice(1).join('\n'), patch: { id, patch } };
+    },
+    apply: async (env, patch, h) => { const r = await applyAskEdit(env, patch, h); return r.error ? r : { ok: true, note: `${r.vendor} $${Math.abs(r.amount).toFixed(2)} updated.` }; } },
+
+  { name: 'set_client_terms',
+    description: 'Change how a client is expected to pay: the day of the month they usually pay (so the unpaid check stops counting from the 1st), their retainer, or whether they are active. Look the client up first.',
+    input_schema: { type: 'object', properties: {
+      name: { type: 'string', description: 'The client name as it appears in clients.name.' },
+      pay_day: { type: 'integer', description: 'Day of the month they usually pay, 1 to 31. 0 clears it so it is learned from their payments again.' },
+      retainer: { type: 'number' }, active: { type: 'boolean' },
+      summary: { type: 'string', description: 'One short line for the card.' } }, required: ['name', 'summary'] },
+    propose: async (env, input) => {
+      const row = await env.DB.prepare('SELECT name, retainer, active, billing FROM clients WHERE LOWER(name) = LOWER(?1)').bind(String(input.name || '')).first();
+      if (!row) return { error: `No client called "${input.name}". Read the clients view for the list.` };
+      const patch = { name: row.name };
+      const lines = [];
+      if (input.pay_day !== undefined) { const d0 = Number(input.pay_day); if (!(d0 >= 0 && d0 <= 31)) return { error: 'pay_day must be 1 to 31, or 0 to clear.' }; patch.payDay = d0; lines.push(d0 ? `usually pays on the ${d0}` : 'pay day learned from payments again'); }
+      if (input.retainer !== undefined) { patch.retainer = Number(input.retainer); lines.push(`retainer $${row.retainer} → $${patch.retainer}`); }
+      if (input.active !== undefined) { patch.active = input.active ? 1 : 0; lines.push(patch.active ? 'active' : 'inactive'); }
+      if (lines.length === 0) return { error: 'Nothing to change: give pay_day, retainer or active.' };
+      return { summary: String(input.summary || `Update ${row.name}`), detail: `${row.name}: ${lines.join(', ')}.`, patch };
+    },
+    apply: async (env, patch) => {
+      if (patch.payDay !== undefined) {
+        const terms = JSON.parse((await env.DB.prepare("SELECT value FROM settings WHERE key = 'clientTerms'").first())?.value || '{}');
+        if (patch.payDay) terms[patch.name] = { ...(terms[patch.name] || {}), payDay: patch.payDay }; else if (terms[patch.name]) delete terms[patch.name].payDay;
+        await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('clientTerms', ?1)").bind(JSON.stringify(terms)).run();
+        // a finding about this client's retainer was counted from the wrong day; let the next night re-judge it
+        await env.DB.prepare("DELETE FROM findings WHERE kind = 'unpaid' AND key LIKE ?1 AND state = 'new'").bind(`unpaid:${patch.name}:%`).run().catch(() => {});
+      }
+      const sets = [], binds = [];
+      if (patch.retainer !== undefined) sets.push(`retainer = ?${binds.push(patch.retainer) + 1}`);
+      if (patch.active !== undefined) sets.push(`active = ?${binds.push(patch.active) + 1}`);
+      if (sets.length) await env.DB.prepare(`UPDATE clients SET ${sets.join(', ')} WHERE name = ?1`).bind(patch.name, ...binds).run();
+      return { ok: true, note: `${patch.name} updated.` };
+    } },
+
+  { name: 'set_vendor',
+    description: 'Change a vendor rule: mark it inactive (it stopped billing), set the amount it usually bills, or whether it is recurring. Look the vendor up first.',
+    input_schema: { type: 'object', properties: {
+      name: { type: 'string', description: 'vendors.name' }, active: { type: 'boolean' }, expected_amount: { type: 'number' }, recurring: { type: 'boolean' },
+      summary: { type: 'string' } }, required: ['name', 'summary'] },
+    propose: async (env, input) => {
+      const row = await env.DB.prepare('SELECT name, active, expected_amount, recurring FROM vendors WHERE LOWER(name) = LOWER(?1)').bind(String(input.name || '')).first();
+      if (!row) return { error: `No vendor called "${input.name}".` };
+      const patch = { name: row.name }, lines = [];
+      if (input.active !== undefined) { patch.active = input.active ? 1 : 0; lines.push(patch.active ? 'active' : 'inactive (stops the missing-bill check)'); }
+      if (input.expected_amount !== undefined) { patch.expected_amount = Number(input.expected_amount); lines.push(`usual bill $${row.expected_amount ?? 0} → $${patch.expected_amount}`); }
+      if (input.recurring !== undefined) { patch.recurring = input.recurring ? 1 : 0; lines.push(patch.recurring ? 'recurring' : 'not recurring'); }
+      if (!lines.length) return { error: 'Nothing to change.' };
+      return { summary: String(input.summary || `Update ${row.name}`), detail: `${row.name}: ${lines.join(', ')}.`, patch };
+    },
+    apply: async (env, patch) => {
+      const sets = [], binds = [];
+      for (const k of ['active', 'expected_amount', 'recurring']) if (patch[k] !== undefined) sets.push(`${k} = ?${binds.push(patch[k]) + 1}`);
+      if (sets.length) await env.DB.prepare(`UPDATE vendors SET ${sets.join(', ')} WHERE name = ?1`).bind(patch.name, ...binds).run();
+      return { ok: true, note: `${patch.name} updated.` };
+    } },
+];
+
 const SLACK_TOOLS = (d) => [
   { def: { name: 'send_report',
       description: 'Post the finished Profit & Loss PDF statement into this Slack channel, with the standard summary. Use this when asked for "the report", "the P&L", a statement, or a PDF. Do NOT use it for figures in the chat or a written summary; answer those yourself.',
@@ -336,21 +445,6 @@ const SLACK_TOOLS = (d) => [
       const res = await d.sendStatement(env, period, anchor).catch(e => ({ error: String(e.message || e) }));
       return res?.sent ? { text: 'Sent. The PDF and its summary are now in the channel. Reply with at most one short sentence and do not repeat the figures.', flags: { sentPdf: true } }
         : { is_error: true, text: 'Could not send the statement: ' + (res?.error || res?.skipped || 'unknown') };
-    } },
-  { def: { name: 'propose_update',
-      description: 'Propose a change to ONE transaction. This does NOT apply the change: it posts a confirmation button in Slack and Cole taps it to apply. Use it when asked to recategorize, re-note, or flag something. Look the row up first so you have its id. Amounts, dates and deletions cannot be changed this way; say so and point at the app.',
-      input_schema: { type: 'object', properties: {
-        id: { type: 'integer', description: 'transactions.id' },
-        tax_cat: { type: 'string', description: 'New tax category, from the live list. The bucket follows automatically.' },
-        note: { type: 'string' }, one_time: { type: 'boolean' },
-        status: { type: 'string', enum: ['ok', 'review'] },
-        summary: { type: 'string', description: 'One short line describing the change for the button, e.g. "Recategorize Anthropic $340 to Software".' } }, required: ['id', 'summary'] } },
-    run: async (env, input, ctx) => {
-      const taxCats = d.safeJson(await d.getSetting(env, 'taxCats'), []) || [];
-      const p = await buildProposal(env, input, taxCats, d.h());
-      if (p.error) return { is_error: true, text: p.error };
-      await ctx.say(p.text, p.blocks);
-      return { text: 'Proposed. The confirmation button is posted; Cole applies it with a tap. Reply with at most one short sentence.', flags: { proposed: true } };
     } },
 ];
 
@@ -389,6 +483,9 @@ export function buildController(d) {
     checks: (env, hh) => runChecks(env, hh, d),
     snapshot: (env, hh) => snapshot(env, hh, d),
     slackTools: SLACK_TOOLS(d),
+    actions: ACTIONS(d),
+    playbook: PLAYBOOK,
+    slackApp: 'ledger',
   });
   return { engine, h, views: app };
 }
