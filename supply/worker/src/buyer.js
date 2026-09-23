@@ -85,7 +85,7 @@ const PLAYBOOK = `
 
 const VIEW_BLURBS = {
   today: 'the Today screen: the headline (how many to order, overdue, on the way, next landing, revenue at risk, dead stock) and the decisions the brain is asking for right now, in order. Start here for "what do I need to do".',
-  product: 'one product by name or id: velocity, weeks of cover, on hand, sold in 30 days, status, order-by date, suggested quantity, lifecycle, line, factory, flags (spike, rising, falling). Use it for any question about a single product.',
+  product: 'one product by name or id: velocity, weeks of cover, on hand, sold in 30 days, status, order-by date, suggested quantity, lifecycle, line, factory, flags (spike, rising, falling), and every variant/SKU with its own on hand and sold 14/30/90. Use it for any question about a single product or the SKUs inside it.',
   reorder: 'every product that needs ordering, worst first, with the suggested quantity, the order-by date and the factory. This is the Reorder screen.',
   orders: 'every purchase order in flight or landed: units, received, cost, factory, expected landing, whether it is overdue or likely landed.',
   factories: 'each factory with its lead times, its order windows and what it makes.',
@@ -127,8 +127,10 @@ function buildViews(d, brand) {
       const s = await stateOf(ctx);
       const p = find(s, a.id || a.q || a.name || a.product);
       if (!p) return { error: 'No product matches. Give the title, the SKU or the id.', some: s.products.slice(0, 40).map(x => ({ id: x.id, title: x.title, sku: x.sku })) };
-      return { product: { ...slim(p), designs: p.designs, suggestedLines: p.suggestedLines, moq: p.moq, moqMet: p.moqMet, leadDays: p.leadDays, cycleDays: p.cycleDays, incomingLands: p.incomingLands, notes: p.notes },
-        how_to_read: 'status: out | order | soon | covered | ok | gap | unsorted | nofactory | nosales | drop | drop_done | sunset | dormant | off. orderByDate is the last day to place the order and still not run out (orderByDays negative = already late); suggested is what the brain would order and suggestedLines splits it by variant. velocity is units a day blended over 14/30/90 days with out-of-stock days removed; trend is new | flat | rising | spiking | falling | steady.' };
+      const variants = (p.variants || []).map(v => ({ sku: v.sku, title: v.title, axis: v.axis, onHand: v.onHand, sold14: v.sold14, sold30: v.sold30, sold90: v.sold90,
+        velocityPerDay: v.velocity != null ? Math.round(v.velocity * 100) / 100 : null, trend: v.trend, incoming: v.incoming || 0, incomingLands: v.incomingLands }));
+      return { product: { ...slim(p), designs: p.designs, suggestedLines: p.suggestedLines, moq: p.moq, moqMet: p.moqMet, leadDays: p.leadDays, cycleDays: p.cycleDays, incomingLands: p.incomingLands, notes: p.notes, variants },
+        how_to_read: 'status: out | order | soon | covered | ok | gap | unsorted | nofactory | nosales | drop | drop_done | sunset | dormant | off. orderByDate is the last day to place the order and still not run out (orderByDays negative = already late); suggested is what the brain would order and suggestedLines splits it by variant. velocity is units a day blended over 14/30/90 days with out-of-stock days removed; trend is new | flat | rising | spiking | falling | steady. variants is every tracked SKU of the product (loft, hand, size: axis says which) with its own stock and sales: use it to rank SKUs inside a product, e.g. lowest sellers that still have stock.' };
     },
     reorder: async (env, a, ctx) => { const s = await stateOf(ctx); const rows = s.products.filter(p => ['out', 'order', 'gap', 'soon'].includes(p.status)); return { count: rows.length, products: rows.slice(0, 60).map(slim), how_to_read: VIEW_BLURBS.reorder + ' soon = not yet, but inside the watch window.' }; },
     orders: async (env, a, ctx) => { const s = await stateOf(ctx); return { orders: s.orders.slice(0, 60), how_to_read: 'status draft | sent | confirmed | production | shipped | partial | landed | cancelled. expected_at is the landing date; overdue means past it and not landed.' }; },
