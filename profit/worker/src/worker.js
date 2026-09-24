@@ -17,6 +17,7 @@
  */
 
 import { handlePublic as ambPublic, handleStaff as ambStaff } from './amb.js';
+import { handlePublic as brandPublic, handleStaff as brandStaff } from './brand.js';
 
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
@@ -1640,6 +1641,11 @@ export default {
       const r = await ambPublic(request, env, url, path, json, CORS, () => isAdmin(request, env));
       if (r) return r;
     }
+    /* The client's onboarding link (Brand tab). The token is the address. */
+    {
+      const r = await brandPublic(request, env, url, path, json);
+      if (r) return r;
+    }
 
     if (path === '/api/ad-video' && request.method === 'GET'
         && (url.searchParams.get('report') || url.searchParams.get('ads') || url.searchParams.get('angles'))) {
@@ -2231,6 +2237,11 @@ export default {
       /* Ambassadors: the staff side of the creator link. */
       {
         const r = await ambStaff(request, env, url, path, json);
+        if (r) return r;
+      }
+      /* Brand: research, angles, roadmap, onboarding answers. */
+      {
+        const r = await brandStaff(request, env, url, path, json);
         if (r) return r;
       }
 

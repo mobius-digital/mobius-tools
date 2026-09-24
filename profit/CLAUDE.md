@@ -741,3 +741,45 @@ profit/
   gitignored `profit/worker/.dev.vars`; point localStorage `pf_worker` at it. It reads
   and writes the REAL shared D1. The Browser pane stops painting once scrolled; hide
   the content above instead of scrolling to screenshot lower sections.
+
+## Brand: research, angles and the creative roadmap (2026-09-24)
+
+- **What it is.** The Brand tab (Creative group in the rail) replaces each brand's Google Sheet.
+  Views: Roadmap, Angles, Research, Onboarding, Profile. Files: `profit/brand.js` (UI, own
+  closure), `profit/worker/src/brand.js` (routes, `p_br_*` tables), `onboard/index.html` +
+  `onboard/questions.js` (the client's public form; the question list is shared with the
+  staff view, so change questions ONLY in questions.js), `account-health/worker/src/research.js`
+  (the AI: research steps, duplicate check, onboarding help box, website pre-fill).
+  Tables: `migrations/brand-001.sql`.
+- **Nothing gets cut because a brand left it empty (Cole, 2026-09-24).** Every sheet field has a
+  home. Only data Locus already has live (daily log, monthly totals, KPI snapshots) is not
+  re-typed.
+- **Hierarchy:** brand > product LINE (products bought for the same reason; the research unit,
+  e.g. a strip brand's energy / sleep / beauty strips are three lines) > persona > angle
+  (logged once) > concept > batch (ONE test: angle | concept | variation | offer; an offer is
+  its own field, never an angle) > ads.
+- **Ads link by the number that STARTS the ad name** (`batchNumOf`: "326-5 | Still" -> 326,
+  "GD_283" -> 283; "Tiktok #25" does not match on purpose). A match only counts when that batch
+  exists. Ads with no number show under "Ads with no batch number" and are tagged by hand
+  (`p_br_adtag`, which wins over the name). Results are Triple Whale `lastPlatformClick`.
+- **The verdict is the media buyer's call.** Locus only SUGGESTS once a batch passes the brand's
+  test rules (Profile: judge after $X or N days, winner/loser ROAS; `p_br_doc` key `rules`,
+  defaults from `accounts.target_cpa/target_roas`). "Needs a call" lists batches that passed
+  with no verdict. A call on thin spend is allowed and flagged. Closing a test requires a
+  one-line learning.
+- **AI drafts, people approve.** Research writes `status='draft'`, `source='ai'`; a re-run
+  replaces only the AI's own drafts. Angle ideas land as `status='proposed'`. New angles go
+  through `/api/research/dedupe` (falls back to word overlap if the AI is down).
+- **The browser calls the account-health worker directly** for research (NDJSON stream with a
+  10s ping), because the PROXY_PATHS proxy buffers the body. A full step can take 5-15 minutes.
+  Cost per run is logged in `p_br_run` (Opus 5 $5/$25 per MTok, search $10 per 1,000).
+- **Onboarding link** `tools.go-mobius-digital.com/onboard/?t=<token>` (token in
+  `p_br_onboard`). Public routes `GET/PUT /api/onboard/:token`, uploads to R2 `MEDIA` under
+  `onboard/<act>/`. The help box is `/api/onboard-help` on account-health (token-checked). Never
+  ask clients for passwords; the Access step explains how to invite us.
+- **Grunk Dolfer** was imported from its sheet by `migrations/seed_brand_grunk.py` (227 batches,
+  15 clustered angles, the Weekend Warrior, onboarding answers). Do NOT re-run it.
+- **Local testing:** `profit-worker-dev` (:8799) + `tools-static` (:8788), localStorage
+  `pf_worker=http://127.0.0.1:8799`, `pf_token=<.dev.vars ADMIN_TOKEN>`. Research locally:
+  `ah-worker-dev` (:8798, `wrangler dev --remote`, same throwaway ADMIN_TOKEN in
+  account-health/worker/.dev.vars); the deployed Anthropic key is available there.

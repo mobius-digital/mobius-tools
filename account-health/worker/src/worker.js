@@ -22,6 +22,7 @@
  */
 
 import { buildStrategist } from './strategist.js';
+import { handleResearch } from './research.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -5794,6 +5795,12 @@ const AH_APP = {
       const ch = url.searchParams.get('channel') || '';
       const row = /^[A-Z0-9]{5,20}$/.test(ch) ? await env.DB.prepare(`SELECT 1 AS x FROM accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null) : null;
       return json({ owns: !!row });
+    }
+
+    /* ---- Brand research for Locus's Brand tab, plus the onboarding link's help box ---- */
+    if (path.startsWith('/api/research') || path === '/api/onboard-help') {
+      const r = await handleResearch(request, env, ctx, path, json, isAdmin);
+      if (r) return r;
     }
 
     /* ---- the Strategist, in Locus ---- */
