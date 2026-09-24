@@ -22,8 +22,11 @@
 
 const MODEL = 'claude-opus-5';
 const API = 'https://api.anthropic.com/v1/messages';
-const WEB_SEARCH = { type: 'web_search_20260209', name: 'web_search' };
-const WEB_FETCH = { type: 'web_fetch_20260209', name: 'web_fetch' };
+/* The BASIC search and fetch, on purpose. The _20260209 variants add dynamic
+   filtering, which runs code between every search: the first real run made 40+
+   code calls and took over 25 minutes for one step. */
+const WEB_SEARCH = { type: 'web_search_20250305', name: 'web_search' };
+const WEB_FETCH = { type: 'web_fetch_20250910', name: 'web_fetch' };
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -244,7 +247,7 @@ async function stepBrand(env, c, emit, meter) {
   const research = await claude(env, {
     system: `You are the lead researcher at Mobius Digital, a paid social agency. ${VOICE}`,
     user: `${brief(c, { withLibrary: false })}\n\nRead this brand's website properly: the home page, every collection, the best-selling product pages, the about page, FAQ, shipping and returns, and any reviews page. Search for the brand name too, to find its socials and press.\n\nReport, with the URL each fact came from:\n1. Every product and its price.\n2. What they claim about the products, and what proof they give.\n3. Offers, bundles, free shipping thresholds, guarantees.\n4. The brand's voice: how they talk, words they use, with verbatim examples.\n5. Their unique value proposition in one line.\n6. PRODUCT LINES. Group products by the reason someone buys them. Test: does a buyer choose between these products for DIFFERENT jobs? If yes they are separate lines (energy strips vs sleep strips); if no they are one line (polos in different prints). Most brands have one to three lines.`,
-    tools: [{ ...WEB_FETCH, max_uses: 12 }, { ...WEB_SEARCH, max_uses: 5 }],
+    tools: [{ ...WEB_FETCH, max_uses: 12 }, { ...WEB_SEARCH, max_uses: 5 }], effort: 'medium',
   }, emit, meter);
   emit({ type: 'note', text: 'Organising what it found' });
   const out = jsonOf(await claude(env, {
@@ -272,7 +275,7 @@ async function stepCompetitors(env, c, emit, meter) {
   const research = await claude(env, {
     system: `You are the lead researcher at Mobius Digital, a paid social agency. You think like Eugene Schwartz. ${VOICE}`,
     user: `${brief(c, { withLibrary: false })}\n\nFind the 5 to 8 REAL competitors for this product line: brands a buyer would compare it with. Use Google, Amazon, "best X" lists, review sites and the brands' own sites. For each one record: name, URL, price point, their main promise, the mechanism they claim (why it works), their current offer, what their ads and landing pages keep saying, and what their 1 to 3 star reviewers complain about (quote them, with the URL). Then judge the market:\n- Sophistication stage 1 to 5 (1 = first to make the claim, 2 = others say it so claims get bigger, 3 = claims are worn out so a new mechanism is needed, 4 = mechanisms are copied, 5 = buyers have heard it all, sell identity).\n- The claims the market has already made.\n- Open ground: what nobody is saying that buyers clearly care about.`,
-    tools: [{ ...WEB_SEARCH, max_uses: 14 }, { ...WEB_FETCH, max_uses: 10 }],
+    tools: [{ ...WEB_SEARCH, max_uses: 14 }, { ...WEB_FETCH, max_uses: 10 }], effort: 'medium',
   }, emit, meter);
   emit({ type: 'note', text: 'Organising the competitors' });
   const out = jsonOf(await claude(env, {
@@ -296,7 +299,7 @@ async function stepVoc(env, c, emit, meter) {
   const research = await claude(env, {
     system: `You are a voice-of-customer researcher at Mobius Digital. You collect what real buyers say, word for word. ${VOICE}`,
     user: `${brief(c, { withLibrary: false })}\n\nCOMPETITORS WE ALREADY FOUND: ${comps.map(x => `${x.name} ${x.url || ''}`).join('; ') || 'none yet'}\n\nMine the voice of the customer for this product line. Go wide: the brand's own reviews, competitor reviews (1 to 3 star ones are gold), Amazon reviews for the category, Reddit threads, YouTube video comments, Quora answers, Google "People also ask", TikTok and Instagram comments where you can reach them. Some sites block reading; if one does, move on and say so.\n\nCollect 40 to 80 VERBATIM quotes. For each: the exact words, what kind it is (pain, desire, objection, transformation, trigger = what made them start looking, failed = something they tried that did not work), where it came from and the URL, a short theme, and whether it is a golden nugget (a line so good it could be ad copy almost as is). Balance the kinds; pains, failed solutions and objections matter most.`,
-    tools: [{ ...WEB_SEARCH, max_uses: 18 }, { ...WEB_FETCH, max_uses: 14 }],
+    tools: [{ ...WEB_SEARCH, max_uses: 18 }, { ...WEB_FETCH, max_uses: 14 }], effort: 'medium',
   }, emit, meter);
   emit({ type: 'note', text: 'Sorting the quotes' });
   const out = jsonOf(await claude(env, {
@@ -436,7 +439,7 @@ function runPrefill(env, ctx, act) {
       const research = await claude(env, {
         system: `You pre-fill a new client's onboarding form from their public website so they only have to check it. ${VOICE}`,
         user: `Brand: ${c.acct.name}. Website: ${c.website}.\nRead the home page, collections, best sellers, FAQ, shipping page and footer. Note: company name, number of products, variants, main features, what the products solve, free shipping threshold, current offers, the value proposition, why someone would buy from them, the most common questions (from the FAQ), which review app they use (Judge.me, Okendo, Yotpo...), their social accounts, and best sellers with prices.`,
-        tools: [{ ...WEB_FETCH, max_uses: 8 }, { ...WEB_SEARCH, max_uses: 3 }],
+        tools: [{ ...WEB_FETCH, max_uses: 8 }, { ...WEB_SEARCH, max_uses: 3 }], effort: 'low',
       }, emit, meter);
       const out = jsonOf(await claude(env, {
         system: `You turn notes into answers for an onboarding form. Leave a field empty when the notes do not say. Money as a plain number. ${VOICE}`,
