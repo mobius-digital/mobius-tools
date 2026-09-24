@@ -228,13 +228,34 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
   const fields = await getSetting(env, 'brandAsanaFields') || {};
   /* One test per number. When a number has two tasks (338 does), the open one wins, then the newest. */
   const byNum = new Map();
+  const allByNum = new Map();
   for (const t of tasks) {
     const n = numOf(t.name);
     if (!n) continue;
+    (allByNum.get(n) || allByNum.set(n, []).get(n)).push(t);
     const cur = byNum.get(n);
     if (!cur || (cur.completed && !t.completed) || (cur.completed === t.completed && t.modified_at > cur.modified_at)) byNum.set(n, t);
   }
-  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
+  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
+  /* SAFETY: two open tasks with one number would merge two tests into one. Tell the
+     newer task, once, which number to use instead. */
+  const maxNum = Math.max(0, ...existing.map(b => parseInt(b.num, 10) || 0), ...[...allByNum.keys()].map(Number));
+  const warnedDup = new Set(doc.dup_warned || []);
+  let nextFree = maxNum + 1;
+  for (const [n, list] of allByNum) {
+    const open = list.filter(t => !t.completed).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    if (open.length < 2) continue;
+    for (const t of open.slice(1)) {
+      if (warnedDup.has(t.gid)) continue;
+      await asana(env, `/tasks/${t.gid}/stories`, { method: 'POST', body: { text: `Locus: another open task already uses the number ${n} ("${clip(open[0].name, 80)}"). Two tasks with one number get merged into one test. Rename this one to start with ${nextFree}, and name its ads ${nextFree}-1, ${nextFree}-2...` } }).catch(() => {});
+      warnedDup.add(t.gid); nextFree++;
+    }
+  }
+  if (warnedDup.size !== (doc.dup_warned || []).length) doc.dup_warned = [...warnedDup].slice(-300);
+  /* A person can correct the Angle field in Asana. Asana wins: Locus follows it. */
+  const angleRows = (await env.DB.prepare(`SELECT id, name FROM p_br_angle WHERE act_id = ?1`).bind(act).all()).results || [];
+  const angleByName = new Map(angleRows.map(a => [a.name.trim().toLowerCase(), a.id]));
+  let angleFixes = 0;
   const have = new Map(existing.map(b => [String(parseInt(b.num, 10)), b]));
   const st = [];
   let created = 0, updated = 0, closed = 0;
@@ -254,6 +275,17 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     const learning = cf[fields.learning]?.text_value || null;
     const cancelled = /cancel/i.test(status || '');
     const row = have.get(n);
+    const angleText = (cf[fields.angle]?.text_value || '').trim();
+    if (row && angleText && angleText !== (row.asana_angle || '') && !/^no angle/i.test(angleText)) {
+      let aid = angleByName.get(angleText.toLowerCase());
+      if (!aid) {
+        aid = rid();
+        st.push(env.DB.prepare(`INSERT INTO p_br_angle (id, act_id, name, status, source, note) VALUES (?1, ?2, ?3, 'active', 'asana', 'Typed into the Angle field in Asana.')`).bind(aid, act, clip(angleText, 200)));
+        angleByName.set(angleText.toLowerCase(), aid);
+      }
+      st.push(env.DB.prepare(`UPDATE p_br_batch SET angle_id = ?2, asana_angle = ?3, tagged_at = COALESCE(tagged_at, datetime('now')) WHERE id = ?1`).bind(row.id, aid, clip(angleText, 200)));
+      angleFixes++;
+    }
     if (row) {
       const closeNow = stage === 'done' && (verdict || cancelled) && !row.verdict;
       if (closeNow) closed++;
@@ -277,7 +309,7 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
   }
   for (let i = 0; i < st.length; i += 80) await env.DB.batch(st.slice(i, i + 80));
   await putDoc(env, act, 'asana', { ...doc, last_sync: started });
-  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed };
+  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes };
 }
 
 /* ---------------- 2. TAG (+ 3. WARN) ---------------- */
@@ -363,7 +395,8 @@ Return one entry per test, keyed by its number. ${VOICE}`,
     if (r.asana_gid && r.stage !== 'done' && fields.angle) {
       const cf = { [fields.angle]: angleId ? names[angleId] : 'No angle, offer only' };
       if (fields.testing_opts?.[t.level]) cf[fields.testing] = fields.testing_opts[t.level];
-      await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: cf } }).catch(() => {});
+      await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: cf } })
+        .then(() => env.DB.prepare(`UPDATE p_br_batch SET asana_angle = ?2 WHERE id = ?1`).bind(r.id, cf[fields.angle]).run()).catch(() => {});
       /* 3. WARN: a new task (still being briefed or built) on an angle with history. */
       if (warn && wasKnown && ['idea', 'production'].includes(r.stage)) {
         const past = (await env.DB.prepare(`SELECT num, title, verdict FROM p_br_batch WHERE act_id = ?1 AND angle_id = ?2 AND id != ?3 AND verdict IS NOT NULL ORDER BY CAST(num AS INTEGER) DESC LIMIT 6`).bind(act, angleId, r.id).all()).results || [];
