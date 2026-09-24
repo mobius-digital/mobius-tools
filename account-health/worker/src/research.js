@@ -30,7 +30,9 @@ const WEB_FETCH = { type: 'web_fetch_20250910', name: 'web_fetch' };
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-const clip = (s, n) => (s == null ? '' : String(s).slice(0, n));
+/* Cuts at n characters without splitting an emoji: a lone surrogate half makes the
+   whole request body invalid JSON to the Claude API. */
+const clip = (s, n) => (s == null ? '' : String(s).slice(0, n).replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, ''));
 
 /* Keep in step with PERSONA_Q in onboard/questions.js. */
 const PERSONA_KEYS = ['summary', 'demo', 'buys', 'desire', 'struggle', 'identity', 'status', 'how_helps', 'beliefs', 'objections', 'tried_failed', 'not_tried', 'trigger', 'push', 'pull', 'anxiety', 'habit', 'interests', 'online', 'offline', 'follows', 'words'];

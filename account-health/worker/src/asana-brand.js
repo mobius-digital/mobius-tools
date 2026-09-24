@@ -40,7 +40,9 @@ export function useFetch(f) { F = f; }
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-const clip = (s, n) => (s == null ? '' : String(s).slice(0, n));
+/* Cuts at n characters without splitting an emoji: a lone surrogate half makes the
+   whole request body invalid JSON to the Claude API (a Grunk brief did exactly that). */
+const clip = (s, n) => (s == null ? '' : String(s).slice(0, n).replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, ''));
 const today = () => new Date().toISOString().slice(0, 10);
 const addDays = (ymd, n) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const money = n => '$' + Math.round(n || 0).toLocaleString('en-US');
