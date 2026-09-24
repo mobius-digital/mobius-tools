@@ -34,7 +34,7 @@ const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle la
 // 3 = video_plays - the correct denominator for the retention curve. Dividing
 //     by 3-second views produced 150%, because a 25% view of a 7-second video
 //     happens BEFORE 3 seconds.
-const ADS_METRICS_VERSION = 3;
+const ADS_METRICS_VERSION = 4;   // 4 (2026-09-24): add_to_cart per ad, for the Brand tab's test scorecard
 const ACTIVITY_BACKFILL_DAYS = 90;
 // One platform: the Meta screens are now a tab inside Mobius (was the separate
 // Account Health dashboard, which is kept only as a redirect). This worker is
@@ -270,6 +270,7 @@ async function metaAll(env, path, params, maxPages = 30) {
 }
 
 const PURCHASE_TYPES = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];
+const ATC_TYPES = ['omni_add_to_cart', 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart'];
 function pickAction(list, types) {
   if (!Array.isArray(list)) return 0;
   for (const t of types) {
@@ -610,22 +611,22 @@ async function syncAdSlice(env, acct, since, until) {
     +r.reach || 0, +r.clicks || 0, sumActs(r.outbound_clicks),
     sumActs(r.video_p25_watched_actions), sumActs(r.video_p50_watched_actions), sumActs(r.video_p75_watched_actions),
     // avg watch time is SECONDS per impression-ish, not a count - never summed.
-    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions)]);
-  const COLS = 19;
+    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions), pickAction(r.actions, ATC_TYPES)]);
+  const COLS = 20;
   const per = Math.floor(100 / COLS);                  // D1 caps a statement at 100 bound params
   const stmts = [];
   for (let i = 0; i < daily.length; i += per) {
     const chunk = daily.slice(i, i + per);
     stmts.push(env.DB.prepare(
       `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s,
-         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays) VALUES ` +
+         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays, add_to_cart) VALUES ` +
       chunk.map(() => `(${Array(COLS).fill('?').join(',')})`).join(',') +
       ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
         purchases = excluded.purchases, revenue = excluded.revenue, link_clicks = excluded.link_clicks,
         video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100,
         reach = excluded.reach, clicks_all = excluded.clicks_all, outbound_clicks = excluded.outbound_clicks,
         video_p25 = excluded.video_p25, video_p50 = excluded.video_p50, video_p75 = excluded.video_p75,
-        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays`,
+        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays, add_to_cart = excluded.add_to_cart`,
     ).bind(...chunk.flat()));
   }
   const ads = new Map();

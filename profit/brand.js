@@ -1,19 +1,16 @@
 /* Locus - the Brand tab (2026-09-24).
  *
- * Replaces each brand's Google Sheet. Five views:
- *   Profile     the brand at a glance, its voice, the test rules
- *   Onboarding  the client's link and their answers (onboard/index.html is the form)
- *   Research    per product line: market, mechanism, personas, voice of customer,
- *               competitors, angle ideas. "Research this brand" drafts it all with AI
- *               (account-health research.js); a person approves every line.
- *   Angles      the library. Logged once; a new one is checked for duplicates first.
- *   Roadmap     batches, with ads linked by the number that starts the ad name and
- *               Triple Whale results rolled up. The media buyer makes the call;
- *               Locus suggests one once a batch has spent enough to judge.
+ * ASANA IS WHERE THE TEAM WORKS; THIS TAB IS THE MEMORY. Three views:
+ *   Test library  every test, filed by angle (Mobius framework: Angle, Concept, What
+ *                 We're Testing), with Triple Whale results and the media buyer's call.
+ *                 It fills itself from Asana (account-health asana-brand.js); nothing is
+ *                 typed here except angle renames and merges.
+ *   Research      per product line: market, mechanism, personas, voice of customer,
+ *                 competitors, angle ideas. The AI drafts, a person approves.
+ *   Brand info    profile, voice, test rules (CPA first), the client's onboarding answers.
  *
- * Own file and own closure, like amb.js and meta.js. The host hands in the token,
- * the worker URL and the selected client. Questions and persona fields come from
- * ../onboard/questions.js so the client's form and this screen never drift.
+ * Own file and own closure, like amb.js and meta.js. Questions and persona fields
+ * come from ../onboard/questions.js so the client's form and this screen never drift.
  */
 (function () {
 'use strict';
@@ -203,6 +200,8 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .lb-links{display:flex;gap:8px;flex-wrap:wrap}
 .lb-links a{text-decoration:none}
 @media (prefers-reduced-motion:no-preference){.lb-drawer{animation:lbIn .2s ease-out}@keyframes lbIn{from{transform:translateX(24px);opacity:.5}}}
+.lb-soft{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.lb-soft b{color:var(--ink);font-variant-numeric:tabular-nums}
 `;
   document.head.appendChild(st);
 }
@@ -247,12 +246,12 @@ const val = (w, id) => { const el = w.querySelector('#' + id); return el ? el.va
 
 /* ---------------- labels ---------------- */
 const AW = () => Object.fromEntries(Q().AWARENESS.map(([k, l]) => [k, l]));
-const LEVELS = [['angle', 'A new angle'], ['concept', 'A new concept on a proven angle'], ['variation', 'A variation of a concept'], ['offer', 'An offer']];
-const VARS = [['hook', 'Hook'], ['visual', 'Visual'], ['copy', 'Copy or headline'], ['creator', 'Creator or person'], ['format', 'Format'], ['length', 'Length or edit'], ['product', 'Product shown']];
+const LEVELS = [['angle', 'New angle'], ['concept', 'New concept'], ['variation', 'Inside a concept'], ['offer', 'Offer test']];
+const VARS = [['headline', 'Headline'], ['hook', 'Hook'], ['person', 'Person on screen'], ['edit', 'Edit style'], ['redesign', 'Redesign'], ['review', 'Review'], ['offer', 'Offer'], ['copy', 'Copy'], ['visual', 'Visual'], ['format', 'Format']];
 const STAGE_L = { idea: 'Idea', production: 'In production', live: 'Live', done: 'Done' };
-const VERDICT_L = { winner: 'Winner', moderate: 'Moderate', loser: 'Loser', cancelled: 'Cancelled' };
-const SUG_L = { winner: 'Looks like a winner', moderate: 'Looks moderate', loser: 'Looks like a loser', too_early: 'Too early', not_live: 'No spend yet' };
-const verdictTag = v => v ? `<span class="br-tag ${v === 'winner' ? 'win' : v === 'loser' ? 'lose' : v === 'moderate' ? 'mid' : ''}">${VERDICT_L[v]}</span>` : '';
+const VERDICT_L = { winner: 'Winner', loser: 'Loser', cancelled: 'Cancelled' };
+const SUG_L = { winner: 'Looks like a winner', keep: 'Worth more time', loser: 'Looks like a loser', too_early: 'Too early', not_live: 'No spend yet' };
+const verdictTag = v => v ? `<span class="br-tag ${v === 'winner' ? 'win' : v === 'loser' ? 'lose' : ''}">${VERDICT_L[v] || v}</span>` : '';
 const statusTag = s => s === 'draft' ? '<span class="br-tag draft">Draft</span>' : s === 'proposed' ? '<span class="br-tag ai">AI idea</span>' : s === 'retired' ? '<span class="br-tag">Retired</span>' : '';
 const lineName = id => S.d.lines.find(l => l.id === id)?.name || '';
 const personaName = id => S.d.personas.find(p => p.id === id)?.name || '';
@@ -308,12 +307,15 @@ function repaint() { const y = window.scrollY; paint(); window.scrollTo(0, y); }
    Asana is where the work happens; this is the memory. Search it, browse it by
    angle, open a test to see what it did.
    ====================================================================== */
-const RES = { winner: ['Winner', 'win'], moderate: ['Moderate', 'mid'], loser: ['Loser', 'lose'], cancelled: ['Cancelled', ''] };
-const resChip = b => b.verdict ? `<span class="br-tag ${RES[b.verdict][1]}">${RES[b.verdict][0]}</span>`
+const RES = { winner: ['Winner', 'win'], loser: ['Loser', 'lose'], cancelled: ['Cancelled', ''] };
+const resChip = b => b.verdict && RES[b.verdict] ? `<span class="br-tag ${RES[b.verdict][1]}">${RES[b.verdict][0]}</span>`
+  : b.asana_result === 'keep' && b.stage !== 'done' ? `<span class="br-tag mid">Keep running${b.check_again ? ' to ' + esc(b.check_again.slice(5)) : ''}</span>`
   : b.needs_call ? '<span class="br-tag draft">Waiting on a call</span>'
   : b.stage === 'idea' ? '<span class="br-tag">Briefing</span>' : b.stage === 'production' ? '<span class="br-tag">In production</span>' : b.stage === 'live' ? '<span class="br-tag ai">Live</span>' : '';
 const tone = (r, rules) => r == null ? 'var(--muted)' : r >= rules.win_roas ? 'var(--good)' : r < rules.lose_roas ? 'var(--bad)' : 'var(--warn)';
 const shortNum = n => String(parseInt(n, 10) || n);
+const pctf = x => x == null ? '-' : (x * 100).toFixed(1) + '%';
+const cpaTone = (cpa, rules) => cpa == null || !rules.target_cpa ? 'var(--ink)' : cpa <= rules.target_cpa ? 'var(--good)' : cpa <= rules.target_cpa * 1.3 ? 'var(--warn)' : 'var(--bad)';
 
 function paintLibrary(body) {
   const d = S.d, rules = d.rules;
@@ -328,8 +330,9 @@ function paintLibrary(body) {
   if (f === 'waiting') rows = rows.filter(b => b.needs_call);
   if (f === 'open') rows = rows.filter(b => b.stage !== 'done');
   if (f === 'offer') rows = rows.filter(b => b.offer);
+  if (f === 'keep') rows = rows.filter(b => !b.verdict && b.asana_result === 'keep');
   if (q) rows = rows.filter(b => `${b.num} ${b.title} ${angleOf[b.angle_id]?.name || ''} ${conceptName(b.concept_id)} ${b.offer || ''} ${b.hypothesis || ''} ${b.learning || ''}`.toLowerCase().includes(q));
-  const count = k => k === 'all' ? d.batches.length : k === 'waiting' ? d.batches.filter(b => b.needs_call).length : k === 'open' ? d.batches.filter(b => b.stage !== 'done').length : k === 'offer' ? d.batches.filter(b => b.offer).length : d.batches.filter(b => b.verdict === k).length;
+  const count = k => k === 'all' ? d.batches.length : k === 'waiting' ? d.batches.filter(b => b.needs_call).length : k === 'open' ? d.batches.filter(b => b.stage !== 'done').length : k === 'offer' ? d.batches.filter(b => b.offer).length : k === 'keep' ? d.batches.filter(b => !b.verdict && b.asana_result === 'keep').length : d.batches.filter(b => b.verdict === k).length;
   const angles = d.angles.filter(a => a.status !== 'proposed').sort((x, y) => y.stats.batches - x.stats.batches || x.name.localeCompare(y.name));
   const unfiled = d.batches.filter(b => !b.angle_id).length;
   body.innerHTML = `
@@ -340,7 +343,7 @@ function paintLibrary(body) {
         ? `<span class="tiny">Asana: <a href="${esc(asn.url)}" target="_blank" rel="noopener">${esc(asn.project_name)}</a> · synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
         : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>
     </div>
-    <div class="br-chips">${[['all', 'All tests'], ['winner', 'Winners'], ['loser', 'Losers'], ['waiting', 'Waiting on a call'], ['open', 'In progress'], ['offer', 'Offers']].map(([k, l]) => `<span class="br-chip ${f === k ? 'on' : ''}" data-f="${k}">${l}<span class="n">${count(k)}</span></span>`).join('')}</div>
+    <div class="br-chips">${[['all', 'All tests'], ['winner', 'Winners'], ['loser', 'Losers'], ['waiting', 'Waiting on a call'], ['keep', 'Keep running'], ['open', 'In progress'], ['offer', 'Offers']].map(([k, l]) => `<span class="br-chip ${f === k ? 'on' : ''}" data-f="${k}">${l}<span class="n">${count(k)}</span></span>`).join('')}</div>
     <div class="lb-grid">
       <aside class="lb-angles" aria-label="Angles">
         <div class="lb-cap">Angles <span>${angles.length}</span></div>
@@ -359,7 +362,7 @@ function paintLibrary(body) {
             <span class="lb-main"><b>${esc(b.title)}</b>
               <span class="s">${b.angle_id ? esc(angleOf[b.angle_id]?.name || '') : '<i>not filed</i>'}${b.concept_id ? ' · ' + esc(conceptName(b.concept_id)) : ''}${b.offer ? ' · ' + esc(short(b.offer, 40)) : ''}</span>
               ${b.learning ? `<span class="learn">${esc(short(b.learning, 160))}</span>` : ''}</span>
-            <span class="lb-nums">${b.stats.spend ? `<b>${money(b.stats.spend)}</b><span style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null ? x2(b.stats.roas) + ' ROAS' : 'no sales'}</span>` : '<span class="tiny">no spend</span>'}</span>
+            <span class="lb-nums">${b.stats.spend ? `<b>${money(b.stats.spend)}</b>${rules.target_cpa ? `<span style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) + ' CPA' : 'no sales'}</span>` : `<span style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null ? x2(b.stats.roas) + ' ROAS' : 'no sales'}</span>`}` : '<span class="tiny">no spend</span>'}</span>
             <span class="lb-res">${resChip(b)}</span></button>`).join('')
           : `<div class="br-empty">${q ? `Nothing matches "${esc(S.q)}". Try a shorter word.` : 'No tests here yet.'}</div>`}
       </section>
@@ -405,8 +408,10 @@ function testDrawer(b) {
   w.innerHTML = `<div class="lb-scrim"></div><aside class="lb-drawer" role="dialog" aria-modal="true" aria-label="Test ${esc(b.num)}">
     <button class="lb-x" aria-label="Close">×</button>
     <div><span class="lb-num">Test ${esc(shortNum(b.num))}</span> ${resChip(b)}<h2 class="lb-title">${esc(b.title)}</h2></div>
-    <div class="lb-kpis"><div><b>${money(b.stats.spend)}</b><span>spent</span></div><div><b style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null && b.stats.spend ? x2(b.stats.roas) : '-'}</b><span>TW ROAS</span></div><div><b>${b.stats.orders || 0}</b><span>orders</span></div><div><b>${b.stats.ads || 0}</b><span>ads</span></div></div>
-    ${b.needs_call ? `<div class="br-warn">Spent enough to judge. Locus suggests <b>${esc(SUG_L[b.suggest])}</b>; Ahsan makes the call in Asana.</div>` : ''}
+    <div class="lb-kpis"><div><b>${money(b.stats.spend)}</b><span>spent</span></div><div><b style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) : '-'}</b><span>CPA${rules.target_cpa ? ` · target ${money(rules.target_cpa)}` : ''}</span></div><div><b>${b.stats.orders || 0}</b><span>orders</span></div><div><b>${b.stats.roas != null && b.stats.spend ? x2(b.stats.roas) : '-'}</b><span>TW ROAS</span></div></div>
+    ${b.stats.impr ? `<div class="lb-soft"><span>CTR <b>${pctf(b.stats.ctr)}</b></span>${b.stats.hook != null ? `<span>Hook <b>${pctf(b.stats.hook)}</b></span>` : ''}<span>Add to carts <b>${b.stats.atc || 0}</b>${b.stats.cpatc ? ` at ${money(b.stats.cpatc)}` : ''}</span><span>CPM <b>${b.stats.cpm != null ? money(b.stats.cpm) : '-'}</b></span></div>` : ''}
+    ${b.asana_result === 'keep' && !b.verdict ? `<div class="br-warn" style="background:var(--unk-bg);border-color:var(--line)">Keep running${b.keep_reason ? `: <b>${esc(b.keep_reason)}</b>` : ''}. Locus checks in again ${b.check_again ? `on ${esc(b.check_again)}` : 'in 7 days'}.</div>` : ''}
+    ${b.needs_call ? `<div class="br-warn">Spent enough to judge. Locus's read: <b>${esc(SUG_L[b.suggest])}</b>. The media buyer makes the call in Asana.</div>` : ''}
     ${b.thin ? `<div class="br-warn">Called on thin spend: under the ${money(rules.judge_spend)} this brand needs to judge a test.</div>` : ''}
     <label class="br-f">Angle<select class="br-in" id="tdA"><option value="">Not filed</option>${angles.map(a => `<option value="${a.id}" ${a.id === b.angle_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
     <dl class="br-kv">
@@ -418,7 +423,7 @@ function testDrawer(b) {
       ${b.learning ? `<dt>Learning</dt><dd><b>${esc(b.learning)}</b></dd>` : ''}
       ${b.verdict_note ? `<dt>Note on the call</dt><dd>${esc(b.verdict_note)}</dd>` : ''}
     </dl>
-    <div class="lb-links">${b.asana_url ? `<a class="btn" href="${esc(b.asana_url)}" target="_blank" rel="noopener">Open in Asana</a>` : ''}${b.brief_url ? `<a class="btn" href="${esc(b.brief_url)}" target="_blank" rel="noopener">Brief</a>` : ''}${b.asset_url ? `<a class="btn" href="${esc(b.asset_url)}" target="_blank" rel="noopener">Assets</a>` : ''}</div>
+    <div class="lb-links">${b.ads_manager ? `<a class="btn primary" href="${esc(b.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${b.asana_url ? `<a class="btn" href="${esc(b.asana_url)}" target="_blank" rel="noopener">Open in Asana</a>` : ''}${b.brief_url ? `<a class="btn" href="${esc(b.brief_url)}" target="_blank" rel="noopener">Brief</a>` : ''}${b.asset_url ? `<a class="btn" href="${esc(b.asset_url)}" target="_blank" rel="noopener">Assets</a>` : ''}</div>
     <div><div class="br-lbl">Ads named ${esc(shortNum(b.num))}</div><div id="tdAds" class="tiny">Loading…</div></div>
     ${lg ? `<details><summary class="tiny">From the old Google Sheet</summary><dl class="br-kv" style="margin-top:8px">${Object.entries(lg).filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
   </aside>`;
@@ -465,89 +470,6 @@ function wireUntagged(body) {
     s.disabled = true;
     try { S.d = await post('/api/brand/tag', { ad_id: s.dataset.tag, batch_id: s.value }); repaint(); } catch (e) { s.disabled = false; helpModal('Could not tag the ad', `<p>${esc(e.message)}</p>`); }
   });
-}
-
-async function batchModal(b) {
-  const d = S.d;
-  const isNew = !b;
-  b = b || { num: d.next_num, stage: 'idea', level: '' };
-  const angles = d.angles.filter(a => a.status !== 'proposed');
-  const concepts = d.concepts.filter(c => c.angle_id === b.angle_id);
-  const lg = b.legacy;
-  const inner = `<div class="br-form">
-      ${inp('bN', 'Batch number', b.num, { hint: 'starts every ad name' })}
-      ${sel('bStage', 'Stage', b.stage, Object.entries(STAGE_L), { blank: null })}
-      ${inp('bT', 'What this batch is', b.title, { full: true, ph: 'The Shirt That Started as a Dare' })}
-      <label class="br-f">Angle <small>the reason to buy</small><select class="br-in" id="bA"><option value="">Pick an angle</option>${angles.map(a => `<option value="${a.id}" ${a.id === b.angle_id ? 'selected' : ''}>${esc(a.name)}${a.status === 'retired' ? ' (retired)' : ''}</option>`).join('')}<option value="__new">+ New angle…</option></select></label>
-      <label class="br-f">Concept <small>how it shows the angle</small><select class="br-in" id="bC"><option value="">No concept yet</option>${concepts.map(c => `<option value="${c.id}" ${c.id === b.concept_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}<option value="__new">+ New concept…</option></select></label>
-      ${sel('bL', 'What this batch tests', b.level, LEVELS, { blank: 'Pick one' })}
-      ${sel('bV', 'If a variation, what changed', b.variable, VARS, { blank: 'Not a variation' })}
-      ${inp('bO', 'Offer', b.offer, { hint: 'leave empty if none', ph: 'BOGO, free polo with the caddy…', full: true })}
-      ${inp('bH', 'What we expect to happen', b.hypothesis, { rows: 2, full: true })}
-      ${inp('bW', 'Why we think so', b.why, { rows: 2, full: true, hint: 'a quote, a past test, a competitor' })}
-      ${inp('bBr', 'Brief link', b.brief_url, { type: 'url' })}
-      ${inp('bAs', 'Assets link', b.asset_url, { type: 'url', hint: 'Frame.io, Drive' })}
-      ${inp('bLe', 'Learning', b.learning, { rows: 2, full: true, hint: 'one line, required to close a test' })}
-    </div>
-    ${!isNew ? `<div><div class="br-bar"><h3 class="br-h">Result</h3><div>${verdictTag(b.verdict)} <button class="btn" id="bVerdict">${b.verdict ? 'Change the call' : 'Make the call'}</button></div></div>
-      <p class="tiny" style="margin:4px 0">${money(b.stats.spend)} spent · ${b.stats.roas != null ? x2(b.stats.roas) + ' TW ROAS' : 'no sales yet'} · ${b.stats.orders || 0} orders${b.stats.cpa ? ' · ' + money(b.stats.cpa) + ' per order' : ''} · ${SUG_L[b.suggest]}${b.verdict_note ? ` · Note: ${esc(b.verdict_note)}` : ''}</p>
-      <div id="bAds" class="tiny">Loading the ads…</div></div>` : ''}
-    ${lg ? `<details><summary class="tiny">From the old Google Sheet</summary><dl class="br-kv" style="margin-top:8px">${Object.entries(lg).filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}`;
-  modal(isNew ? `New batch ${b.num}` : `Batch ${b.num}`, inner, { cta: 'Save', danger: isNew ? null : 'Delete batch', onOpen: (w, ctl) => {
-    const aSel = w.querySelector('#bA'), cSel = w.querySelector('#bC');
-    aSel.onchange = async () => {
-      if (aSel.value === '__new') { const id = await angleModal(null, { quick: true }); aSel.innerHTML = `<option value="">Pick an angle</option>${S.d.angles.filter(a => a.status !== 'proposed').map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}<option value="__new">+ New angle…</option>`; aSel.value = id || ''; }
-      cSel.innerHTML = `<option value="">No concept yet</option>${S.d.concepts.filter(c => c.angle_id === aSel.value).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}<option value="__new">+ New concept…</option>`;
-    };
-    cSel.onchange = async () => {
-      if (cSel.value !== '__new') return;
-      if (!aSel.value || aSel.value === '__new') { cSel.value = ''; return ctl.msg('Pick the angle first. A concept always sits under an angle.'); }
-      const name = await promptText('New concept', 'Name the concept: how the ad shows the angle', 'Wife POV on Snapchat');
-      if (!name) { cSel.value = ''; return; }
-      await saveRow('concept', { angle_id: aSel.value, name });
-      const c = S.d.concepts.filter(x => x.angle_id === aSel.value);
-      cSel.innerHTML = `<option value="">No concept yet</option>${c.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}<option value="__new">+ New concept…</option>`;
-      cSel.value = c[c.length - 1]?.id || '';
-    };
-    w.onSubmit(async () => {
-      const row = { id: b.id, num: val(w, 'bN'), stage: val(w, 'bStage'), title: val(w, 'bT'), angle_id: aSel.value.startsWith('__') ? '' : aSel.value, concept_id: cSel.value.startsWith('__') ? '' : cSel.value,
-        level: val(w, 'bL'), variable: val(w, 'bV'), offer: val(w, 'bO'), hypothesis: val(w, 'bH'), why: val(w, 'bW'), brief_url: val(w, 'bBr'), asset_url: val(w, 'bAs'), learning: val(w, 'bLe') };
-      if (!row.title) throw new Error('Say what the batch is.');
-      if (row.level === 'variation' && !row.variable) throw new Error('For a variation, pick what changed. One thing at a time.');
-      await saveRow('batch', row);
-      ctl.close(); repaint();
-    });
-    if (!isNew) {
-      w.onDelete(async () => { await delRow('batch', b.id); ctl.close(); repaint(); });
-      w.querySelector('#bVerdict').onclick = () => { ctl.close(); verdictModal(b); };
-      api(`/api/brand/ads?act=${encodeURIComponent(S.act)}&batch=${b.id}`).then(r => {
-        const el = w.querySelector('#bAds'); if (!el) return;
-        el.innerHTML = r.ads.length ? `<table class="br-mini"><tr><th>Ad</th><th>Spend</th><th>TW ROAS</th><th>Last spend</th><th></th></tr>${r.ads.map(a => `<tr><td>${esc(short(a.name, 60))}</td><td>${money(a.spend)}</td><td>${a.roas != null ? x2(a.roas) : '-'}</td><td>${esc(a.last || '-')}</td><td>${a.manual ? `<button class="btn" style="padding:2px 8px" data-untag="${esc(a.ad_id)}">Untag</button>` : ''}</td></tr>`).join('')}</table>`
-          : `No ads linked yet. Name them starting with <b>${esc(b.num)}</b> in Ads Manager, or tag them from the list of ads with no batch number.`;
-        el.querySelectorAll('[data-untag]').forEach(x => x.onclick = async () => { S.d = await post('/api/brand/tag', { ad_id: x.dataset.untag, batch_id: null }); x.closest('tr').remove(); repaint(); });
-      }).catch(e => { const el = w.querySelector('#bAds'); if (el) el.textContent = e.message; });
-    }
-  } });
-}
-
-function verdictModal(b, pre) {
-  const r = S.d.rules;
-  const thin = b.stats.spend < r.judge_spend && !['winner', 'loser', 'moderate'].includes(b.suggest);
-  modal(`Batch ${b.num}: make the call`, `
-    <p class="hint">${money(b.stats.spend)} spent, ${b.stats.roas != null ? x2(b.stats.roas) + ' Triple Whale ROAS' : 'no attributed sales'}, ${b.stats.orders || 0} orders. Locus says: <b>${SUG_L[b.suggest]}</b>.</p>
-    ${thin ? `<div class="br-warn">Only ${money(b.stats.spend)} spent, under the ${money(r.judge_spend)} this brand needs before a test can be judged. You can still call it; it will be marked as called on thin spend.</div>` : ''}
-    <div class="br-chips" id="vPick">${Object.entries(VERDICT_L).map(([k, l]) => `<span class="br-chip ${(pre || b.verdict) === k ? 'on' : ''}" data-v="${k}">${l}</span>`).join('')}<span class="br-chip" data-v="">Clear the call</span></div>
-    ${inp('vNote', 'Why this call', b.verdict_note, { rows: 2 })}
-    ${inp('vLearn', 'Learning (one line, required)', b.learning, { rows: 2, ph: 'Self-deprecating copy beat feature copy 3 to 1 on the same hero image.' })}`, { cta: 'Save the call', wide: false, onOpen: (w, ctl) => {
-    let v = pre || b.verdict || '';
-    w.querySelectorAll('#vPick [data-v]').forEach(c => c.onclick = () => { v = c.dataset.v; w.querySelectorAll('#vPick [data-v]').forEach(x => x.classList.toggle('on', x === c)); });
-    w.onSubmit(async () => {
-      const learning = val(w, 'vLearn');
-      if (v && v !== 'cancelled' && !learning) throw new Error('Write the one-line learning. It is what stops the next strategist re-testing this.');
-      S.d = await post('/api/brand/verdict', { id: b.id, verdict: v || null, note: val(w, 'vNote'), learning });
-      ctl.close(); repaint();
-    });
-  } });
 }
 
 function promptText(title, label, ph = '') {
@@ -970,12 +892,12 @@ function paintProfile(body) {
           <dt>Notes</dt><dd>${esc(p.notes || '-')}</dd>
         </dl></div>
       <div class="card"><div class="br-bar"><h3 class="br-h">Test rules</h3></div>
-        <p class="hint" style="margin:6px 0 10px">When a batch has spent enough to judge, and what counts as a winner. Results are Triple Whale attribution. The media buyer still makes the call; these only decide when Locus suggests one.</p>
+        <p class="hint" style="margin:6px 0 10px">When a test has spent enough to judge, and the CPA it is judged against. Sales are Triple Whale attribution. Locus suggests Winner, Keep running or Loser in Asana with the soft metrics beside it; the media buyer makes the call.</p>
         <div class="br-form">
-          ${inp('rS', 'Judge after spending', r.judge_spend, { type: 'number', hint: 'about 3x your target cost per sale' })}
+          ${inp('rC', 'Target CPA', r.target_cpa || '', { type: 'number', hint: 'the cost per sale you want' })}
+          ${inp('rS', 'Judge after spending', r.judge_spend, { type: 'number', hint: 'about 3x the target CPA' })}
           ${inp('rD', 'Or after this many days', r.judge_days, { type: 'number' })}
-          ${inp('rW', 'Winner at TW ROAS of', r.win_roas, { type: 'number' })}
-          ${inp('rL', 'Loser below TW ROAS of', r.lose_roas, { type: 'number' })}
+
         </div>
         <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn primary" id="brRules">Save rules</button><span class="br-msg" id="brRulesMsg"></span></div></div>
     </div>
@@ -1000,7 +922,7 @@ function paintProfile(body) {
   body.querySelector('#brRules').onclick = async () => {
     const m = $('#brRulesMsg');
     try {
-      await putDoc('', 'rules', { judge_spend: +val(body, 'rS'), judge_days: +val(body, 'rD'), win_roas: +val(body, 'rW'), lose_roas: +val(body, 'rL') });
+      await putDoc('', 'rules', { ...(S.d.docs['']?.rules || {}), target_cpa: +val(body, 'rC') || 0, judge_spend: +val(body, 'rS'), judge_days: +val(body, 'rD') });
       repaint(); const m2 = $('#brRulesMsg'); if (m2) { m2.textContent = 'Saved. The roadmap uses these now.'; m2.className = 'br-msg ok'; }
     } catch (e) { m.textContent = e.message; m.className = 'br-msg bad'; }
   };

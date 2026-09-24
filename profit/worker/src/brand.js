@@ -38,7 +38,7 @@ const numKey = n => { const p = parseInt(String(n || '').replace(/^\D+/, ''), 10
 
 const LEVELS = new Set(['angle', 'concept', 'variation', 'offer']);
 const STAGES = new Set(['idea', 'production', 'live', 'done']);
-const VERDICTS = new Set(['winner', 'moderate', 'loser', 'cancelled']);
+const VERDICTS = new Set(['winner', 'loser', 'cancelled']);
 
 /* Columns each kind may write. Anything else in the body is ignored. */
 const KINDS = {
@@ -69,13 +69,17 @@ function cleanRow(kind, b) {
   return out;
 }
 
-/* ---------------- test rules ---------------- */
-const DEFAULT_RULES = { judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
+/* ---------------- test rules ----------------
+   CPA first, like the team judges (keep in step with account-health asana-brand.js,
+   which posts the same suggestion into Asana with the soft metrics beside it).
+   ROAS is only the fallback for a brand with no target CPA. */
+const DEFAULT_RULES = { target_cpa: 0, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
 function rulesFor(acct, doc) {
-  const r = { ...DEFAULT_RULES };
-  if (acct?.target_cpa > 0) r.judge_spend = Math.round(acct.target_cpa * 3);
+  const r = { ...DEFAULT_RULES, target_cpa: null };
+  if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
   for (const k of Object.keys(DEFAULT_RULES)) if (doc && +doc[k] > 0) r[k] = +doc[k];
+  if (!(doc && +doc.judge_spend > 0) && r.target_cpa) r.judge_spend = Math.round(r.target_cpa * 3);
   r.set = !!(doc && Object.keys(DEFAULT_RULES).some(k => +doc[k] > 0));
   return r;
 }
@@ -84,10 +88,16 @@ function suggest(st, rules) {
   const age = st.first ? daysBetween(st.first, today()) : 0;
   const enough = st.spend >= rules.judge_spend || (age >= rules.judge_days && st.spend >= rules.judge_spend / 3);
   if (!enough) return 'too_early';
+  if (rules.target_cpa) {
+    const cpa = st.orders > 0 ? st.spend / st.orders : null;
+    if (cpa != null && cpa <= rules.target_cpa) return 'winner';
+    if (cpa != null && cpa <= rules.target_cpa * 1.3) return 'keep';
+    return 'loser';
+  }
   const roas = st.spend > 0 ? st.rev / st.spend : 0;
   if (roas >= rules.win_roas) return 'winner';
   if (roas < rules.lose_roas) return 'loser';
-  return 'moderate';
+  return 'keep';
 }
 
 /* ---------------- ads ---------------- */
@@ -96,7 +106,8 @@ async function adUniverse(env, actId) {
   const [ads, spend, tw, tags] = await Promise.all([
     env.DB.prepare(`SELECT ad_id, name, created_time, status, media_type FROM ads WHERE act_id = ?1`).bind(actId).all().catch(() => ({ results: [] })),
     env.DB.prepare(`SELECT ad_id, SUM(spend) spend, MIN(CASE WHEN spend > 0 THEN date END) first, MAX(CASE WHEN spend > 0 THEN date END) last,
-                           SUM(CASE WHEN date >= ?2 THEN spend ELSE 0 END) spend30
+                           SUM(CASE WHEN date >= ?2 THEN spend ELSE 0 END) spend30, SUM(impressions) impr, SUM(link_clicks) clicks,
+                           SUM(video_3s) v3, SUM(add_to_cart) atc
                       FROM ad_daily WHERE act_id = ?1 GROUP BY ad_id`).bind(actId, since30).all().catch(() => ({ results: [] })),
     env.DB.prepare(`SELECT ad_id, SUM(revenue) rev, SUM(orders) orders FROM tw_ad_attr
                      WHERE act_id = ?1 AND model = 'lastPlatformClick' GROUP BY ad_id`).bind(actId).all().catch(() => ({ results: [] })),
@@ -109,17 +120,22 @@ async function adUniverse(env, actId) {
     ad_id: a.ad_id, name: a.name, created: (a.created_time || '').slice(0, 10), status: a.status, media_type: a.media_type,
     spend: sp[a.ad_id]?.spend || 0, spend30: sp[a.ad_id]?.spend30 || 0, first: sp[a.ad_id]?.first || null, last: sp[a.ad_id]?.last || null,
     rev: rv[a.ad_id]?.rev || 0, orders: rv[a.ad_id]?.orders || 0,
+    impr: sp[a.ad_id]?.impr || 0, clicks: sp[a.ad_id]?.clicks || 0, v3: sp[a.ad_id]?.v3 || 0, atc: sp[a.ad_id]?.atc || 0,
     num: batchNumOf(a.name), tag: tg[a.ad_id] || null,
   }));
 }
-const blank = () => ({ ads: 0, running: 0, spend: 0, spend30: 0, rev: 0, orders: 0, first: null, last: null });
+const blank = () => ({ ads: 0, running: 0, spend: 0, spend30: 0, rev: 0, orders: 0, impr: 0, clicks: 0, v3: 0, atc: 0, first: null, last: null });
 function addAd(st, a) {
   st.ads++; st.spend += a.spend; st.spend30 += a.spend30; st.rev += a.rev; st.orders += a.orders;
+  st.impr += a.impr || 0; st.clicks += a.clicks || 0; st.v3 += a.v3 || 0; st.atc += a.atc || 0;
   if (a.spend30 > 0) st.running++;
   if (a.first && (!st.first || a.first < st.first)) st.first = a.first;
   if (a.last && (!st.last || a.last > st.last)) st.last = a.last;
 }
-const finish = st => ({ ...st, spend: Math.round(st.spend * 100) / 100, rev: Math.round(st.rev * 100) / 100, roas: st.spend > 0 ? Math.round((st.rev / st.spend) * 100) / 100 : null, cpa: st.orders > 0 ? Math.round((st.spend / st.orders) * 100) / 100 : null });
+const r2 = n => Math.round(n * 100) / 100;
+const finish = st => ({ ...st, spend: r2(st.spend), rev: r2(st.rev), roas: st.spend > 0 ? r2(st.rev / st.spend) : null, cpa: st.orders > 0 ? r2(st.spend / st.orders) : null,
+  ctr: st.impr > 0 ? st.clicks / st.impr : null, hook: st.impr > 0 && st.v3 > 0 ? st.v3 / st.impr : null,
+  cpm: st.impr > 0 ? r2((st.spend / st.impr) * 1000) : null, cpatc: st.atc > 0 ? r2(st.spend / st.atc) : null });
 
 /* ---------------- the whole brand ---------------- */
 async function mustAccount(env, act) {
@@ -163,9 +179,11 @@ async function payload(env, acct) {
     const st = finish(stats[b.id] || blank());
     const sug = suggest(st, rules);
     return { ...b, legacy: safeJson(b.legacy_json, null), legacy_json: undefined, ad_ids: stats[b.id]?.list || [], stats: st, suggest: sug,
-      needs_call: !b.verdict && ['winner', 'loser', 'moderate'].includes(sug),
+      /* Ready for the media buyer: spent enough, no call yet, and not parked on Keep running. */
+      needs_call: !b.verdict && b.stage !== 'done' && b.asana_result !== 'keep' && ['winner', 'loser', 'keep'].includes(sug),
       /* A verdict on too little spend to judge. Allowed, but the buyer sees why it is shaky. */
-      thin: !!(['winner', 'loser', 'moderate'].includes(b.verdict) && (sug === 'too_early' || sug === 'not_live')) };
+      thin: !!(['winner', 'loser'].includes(b.verdict) && (sug === 'too_early' || sug === 'not_live')),
+      ads_manager: stats[b.id]?.list?.length ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${A.replace(/^act_/, '')}&selected_ad_ids=${stats[b.id].list.slice(0, 30).join(',')}` : null };
   }).sort((x, y) => (parseInt(y.num, 10) || 0) - (parseInt(x.num, 10) || 0) || String(y.created_at).localeCompare(String(x.created_at)));
 
   const angleStats = {};
