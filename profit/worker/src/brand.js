@@ -370,6 +370,18 @@ export async function handleStaff(request, env, url, path, json) {
       await del(env, A, body.kind, body.id);
       return back();
     }
+    /* Two angles that are the same reason to buy: every test and concept moves to `into`. */
+    if (path === '/api/brand/merge' && request.method === 'POST') {
+      if (!body.from || !body.into || body.from === body.into) return json({ error: 'Pick two different angles' }, 400);
+      const ok = await env.DB.prepare(`SELECT COUNT(*) n FROM p_br_angle WHERE act_id = ?1 AND id IN (?2, ?3)`).bind(A, body.from, body.into).first();
+      if (ok?.n !== 2) return json({ error: 'unknown angle' }, 404);
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE p_br_batch SET angle_id = ?3, updated_at = datetime('now') WHERE act_id = ?1 AND angle_id = ?2`).bind(A, body.from, body.into),
+        env.DB.prepare(`UPDATE p_br_concept SET angle_id = ?3 WHERE act_id = ?1 AND angle_id = ?2`).bind(A, body.from, body.into),
+        env.DB.prepare(`DELETE FROM p_br_angle WHERE act_id = ?1 AND id = ?2`).bind(A, body.from),
+      ]);
+      return back();
+    }
     if (path === '/api/brand/doc' && request.method === 'PUT') {
       await putDoc(env, A, body.line_id, body.key, body.data, body.status, body.source || 'staff');
       return back();

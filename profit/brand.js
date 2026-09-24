@@ -29,7 +29,7 @@ const x2 = n => n == null ? '-' : (+n).toFixed(2);
 const short = (s, n = 140) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const lines = v => Array.isArray(v) ? v : String(v || '').split('\n').map(s => s.trim()).filter(Boolean);
 
-const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, d: null, view: 'roadmap', line: null, vocKind: 'all', stage: 'all', angleFilter: '', search: '', running: null, log: [] };
+const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, d: null, view: 'library', line: null, vocKind: 'all', stage: 'all', angleFilter: '', search: '', running: null, log: [] };
 const LS_VIEW = 'br_view', LS_LINE = 'br_line';
 
 /* ---------------- api ---------------- */
@@ -151,6 +151,58 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-mini th{background:var(--unk-bg);font-weight:600}
 .br-prog{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .br-prog i{display:block;height:100%;background:var(--good)}
+
+.lb-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.lb-head h2{margin:0}
+.lb-seg{display:inline-flex;background:var(--unk-bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
+.lb-seg button{padding:7px 14px;border-radius:9px;font-weight:600;color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center}
+.lb-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(19,32,43,.08),0 4px 14px -8px rgba(19,32,43,.25)}
+.lb-seg .n{font-size:11px;font-weight:700;background:var(--warn-bg);color:var(--warn);border-radius:99px;padding:0 7px;line-height:18px}
+.lb-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.lb-search{flex:1;min-width:260px;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line-strong);border-radius:14px;padding:0 14px}
+.lb-search:focus-within{border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+.lb-search svg{width:18px;height:18px;fill:none;stroke:var(--muted);stroke-width:2;flex:none}
+.lb-search input{border:0;outline:0;background:none;font:inherit;font-size:15px;padding:12px 0;width:100%;color:var(--ink)}
+.lb-sync{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.lb-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.lb-grid{grid-template-columns:1fr}}
+.lb-angles{display:flex;flex-direction:column;gap:4px;position:sticky;top:12px;max-height:calc(100vh - 40px);overflow:auto;padding-right:2px}
+@media (max-width:860px){.lb-angles{position:static;max-height:none}}
+.lb-cap{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 10px 4px;display:flex;justify-content:space-between}
+.lb-ang{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;text-align:left;padding:9px 10px;border-radius:10px;border:1px solid transparent;width:100%}
+.lb-ang:hover{background:var(--surface)}
+.lb-ang.on{background:var(--surface);border-color:var(--brand-line);box-shadow:0 1px 2px rgba(19,32,43,.06)}
+.lb-ang .nm{font-weight:600;font-size:13.5px;line-height:1.3}
+.lb-ang .ct{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lb-ang .wr{grid-column:1/-1;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.lb-ang .wr i{display:block;height:100%;background:var(--good)}
+.lb-ang .tiny{grid-column:1/-1}
+.lb-list{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lb-angcard{background:var(--brand-tint);border:1px solid var(--brand-line);border-radius:14px;padding:14px 16px;font-size:13.5px;color:var(--ink-2)}
+.lb-angcard b{display:block;font-size:16px;color:var(--ink);margin-bottom:2px}
+.lb-row{display:grid;grid-template-columns:52px minmax(0,1fr) 120px 128px;gap:12px;align-items:center;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;width:100%}
+.lb-row:hover{border-color:var(--brand-line);box-shadow:0 6px 18px -12px rgba(19,32,43,.35)}
+@media (max-width:640px){.lb-row{grid-template-columns:44px minmax(0,1fr)}.lb-nums,.lb-res{grid-column:2}}
+.lb-num{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.lb-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.lb-main b{font-size:14px;line-height:1.35}
+.lb-main .s{font-size:12px;color:var(--muted)}
+.lb-main .learn{font-size:12.5px;color:var(--ink-2);border-left:2px solid var(--good);padding-left:8px;margin-top:4px}
+.lb-nums{display:flex;flex-direction:column;align-items:flex-end;font-size:12.5px;font-variant-numeric:tabular-nums}
+.lb-nums b{font-size:14px}
+.lb-res{display:flex;justify-content:flex-end}
+.lb-scrim{position:fixed;inset:0;background:rgba(12,22,29,.35);z-index:60}
+.lb-drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--surface);z-index:61;padding:24px;overflow:auto;display:flex;flex-direction:column;gap:16px;box-shadow:-24px 0 60px -30px rgba(12,22,29,.5)}
+.lb-x{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:9px;font-size:22px;color:var(--muted)}
+.lb-x:hover{background:var(--unk-bg)}
+.lb-title{font-family:var(--serif);font-weight:400;font-size:28px;line-height:1.1;margin:6px 0 0;padding-right:30px}
+.lb-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.lb-kpis div{background:var(--unk-bg);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column}
+.lb-kpis b{font-size:18px;font-variant-numeric:tabular-nums}
+.lb-kpis span{font-size:11.5px;color:var(--muted)}
+.lb-links{display:flex;gap:8px;flex-wrap:wrap}
+.lb-links a{text-decoration:none}
+@media (prefers-reduced-motion:no-preference){.lb-drawer{animation:lbIn .2s ease-out}@keyframes lbIn{from{transform:translateX(24px);opacity:.5}}}
 `;
   document.head.appendChild(st);
 }
@@ -215,7 +267,7 @@ async function render({ tok, url, act, accounts, pick }) {
   if (act === 'all') return renderAll(main);
   main.innerHTML = `<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>`;
   await load();
-  S.view = localStorage.getItem(LS_VIEW) || 'roadmap';
+  S.view = localStorage.getItem(LS_VIEW) || 'library';
   const saved = localStorage.getItem(LS_LINE + ':' + act);
   S.line = S.d.lines.some(l => l.id === saved) ? saved : (S.d.lines[0]?.id || null);
   paint();
@@ -237,66 +289,160 @@ async function renderAll(main) {
 function paint() {
   const main = $('#main');
   const d = S.d;
-  const calls = d.batches.filter(b => b.needs_call).length;
+  if (!['library', 'research', 'info'].includes(S.view)) S.view = 'library';
   const drafts = d.personas.filter(p => p.status === 'draft').length + d.angles.filter(a => a.status === 'proposed').length;
-  const views = [['roadmap', 'Roadmap', calls], ['angles', 'Angles', 0], ['research', 'Research', drafts], ['onboarding', 'Onboarding', 0], ['profile', 'Profile', 0]];
+  const views = [['library', 'Test library'], ['research', 'Research', drafts], ['info', 'Brand info']];
   main.innerHTML = `<div class="br">
-    <div><h2>Brand</h2><p class="sub">${esc(d.account.name)}: who buys and why, every angle we have tested, and what each test did. Results are Triple Whale attribution.</p></div>
-    <nav class="br-sub" aria-label="Brand sections">${views.map(([k, l, n]) => `<button data-v="${k}" class="${S.view === k ? 'on' : ''}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav>
+    <div class="lb-head"><div><h2>${esc(d.account.name)}</h2><p class="sub" style="margin:0">Every test this brand has run, filed by angle, with Triple Whale results. It fills itself from Asana.</p></div>
+      <nav class="lb-seg" aria-label="Brand sections">${views.map(([k, l, n]) => `<button data-v="${k}" class="${S.view === k ? 'on' : ''}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav></div>
     <div id="brBody" class="br"></div></div>`;
-  main.querySelectorAll('.br-sub button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
+  main.querySelectorAll('.lb-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
   const body = $('#brBody');
-  ({ roadmap: paintRoadmap, angles: paintAngles, research: paintResearch, onboarding: paintOnboarding, profile: paintProfile })[S.view](body);
+  ({ library: paintLibrary, research: paintResearch, info: paintInfo })[S.view](body);
 }
 /* Re-paint without moving the page. */
 function repaint() { const y = window.scrollY; paint(); window.scrollTo(0, y); }
 
 /* ======================================================================
-   ROADMAP
+   TEST LIBRARY
+   Asana is where the work happens; this is the memory. Search it, browse it by
+   angle, open a test to see what it did.
    ====================================================================== */
-function statsCells(st) {
-  return `<td class="num">${st.ads || ''}</td><td class="num">${st.spend ? money(st.spend) : '-'}</td><td class="num">${st.roas != null && st.spend ? x2(st.roas) : '-'}</td>`;
-}
-function paintRoadmap(body) {
-  const d = S.d, r = d.rules;
-  const calls = d.batches.filter(b => b.needs_call);
-  const q = S.search.toLowerCase();
-  let rows = d.batches.filter(b => S.stage === 'all' || b.stage === S.stage);
-  if (S.angleFilter) rows = rows.filter(b => (S.angleFilter === 'none' ? !b.angle_id : b.angle_id === S.angleFilter));
-  if (q) rows = rows.filter(b => `${b.num} ${b.title} ${angleName(b.angle_id)} ${b.offer || ''} ${b.hypothesis || ''}`.toLowerCase().includes(q));
-  const counts = d.batches.reduce((t, b) => ({ ...t, [b.stage]: (t[b.stage] || 0) + 1 }), {});
+const RES = { winner: ['Winner', 'win'], moderate: ['Moderate', 'mid'], loser: ['Loser', 'lose'], cancelled: ['Cancelled', ''] };
+const resChip = b => b.verdict ? `<span class="br-tag ${RES[b.verdict][1]}">${RES[b.verdict][0]}</span>`
+  : b.needs_call ? '<span class="br-tag draft">Waiting on a call</span>'
+  : b.stage === 'idea' ? '<span class="br-tag">Briefing</span>' : b.stage === 'production' ? '<span class="br-tag">In production</span>' : b.stage === 'live' ? '<span class="br-tag ai">Live</span>' : '';
+const tone = (r, rules) => r == null ? 'var(--muted)' : r >= rules.win_roas ? 'var(--good)' : r < rules.lose_roas ? 'var(--bad)' : 'var(--warn)';
+const shortNum = n => String(parseInt(n, 10) || n);
+
+function paintLibrary(body) {
+  const d = S.d, rules = d.rules;
+  const asn = d.docs['']?.asana;
+  const q = (S.q || '').toLowerCase().trim();
+  const f = S.res || 'all';
+  const angleOf = Object.fromEntries(d.angles.map(a => [a.id, a]));
+  let rows = d.batches.slice();
+  if (S.ang === 'none') rows = rows.filter(b => !b.angle_id);
+  else if (S.ang) rows = rows.filter(b => b.angle_id === S.ang);
+  if (f === 'winner' || f === 'loser') rows = rows.filter(b => b.verdict === f);
+  if (f === 'waiting') rows = rows.filter(b => b.needs_call);
+  if (f === 'open') rows = rows.filter(b => b.stage !== 'done');
+  if (f === 'offer') rows = rows.filter(b => b.offer);
+  if (q) rows = rows.filter(b => `${b.num} ${b.title} ${angleOf[b.angle_id]?.name || ''} ${conceptName(b.concept_id)} ${b.offer || ''} ${b.hypothesis || ''} ${b.learning || ''}`.toLowerCase().includes(q));
+  const count = k => k === 'all' ? d.batches.length : k === 'waiting' ? d.batches.filter(b => b.needs_call).length : k === 'open' ? d.batches.filter(b => b.stage !== 'done').length : k === 'offer' ? d.batches.filter(b => b.offer).length : d.batches.filter(b => b.verdict === k).length;
+  const angles = d.angles.filter(a => a.status !== 'proposed').sort((x, y) => y.stats.batches - x.stats.batches || x.name.localeCompare(y.name));
+  const unfiled = d.batches.filter(b => !b.angle_id).length;
   body.innerHTML = `
-    <div class="card" style="padding:12px 16px"><div class="br-bar">
-      <div class="hint" style="max-width:760px">A test is judged once it spends <b>${money(r.judge_spend)}</b> or runs <b>${r.judge_days} days</b>. Winner at <b>${x2(r.win_roas)}+</b> Triple Whale ROAS, loser under <b>${x2(r.lose_roas)}</b>${r.set ? '' : ' (default rules, set them in Profile)'}. Start every ad name with its batch number, like <code>${esc(d.next_num)}-1 | Still</code>, and it links here on its own.</div>
-      <div><button class="btn primary" id="brNewBatch">+ Batch ${esc(d.next_num)}</button></div></div></div>
-    ${calls.length ? `<div class="card"><div class="br-bar"><h3 class="br-h">Needs a call <span class="tiny">${calls.length} spent enough to judge</span></h3></div>
-      ${(S.allCalls ? calls : calls.slice(0, 6)).map(b => `<div class="br-call"><div><b>${esc(b.num)}</b> · ${esc(b.title)} <span class="tiny">${esc(angleName(b.angle_id))}</span><div class="tiny">${money(b.stats.spend)} spent · ${x2(b.stats.roas)} ROAS · ${b.stats.orders || 0} orders · <b>${SUG_L[b.suggest]}</b></div></div>
-        <div class="btns"><button class="btn" data-call="${b.id}" data-v="winner">Winner</button><button class="btn" data-call="${b.id}" data-v="moderate">Moderate</button><button class="btn" data-call="${b.id}" data-v="loser">Loser</button></div></div>`).join('')}
-      ${calls.length > 6 ? `<button class="btn" id="brAllCalls" style="margin-top:8px">${S.allCalls ? 'Show fewer' : `Show all ${calls.length}`}</button>` : ''}</div>` : ''}
-    ${untaggedCard()}
-    <div class="card" style="padding:0">
-      <div class="br-bar" style="padding:12px 14px">
-        <div class="br-chips">${[['all', 'All', d.batches.length], ['idea', 'Ideas'], ['production', 'In production'], ['live', 'Live'], ['done', 'Done']].map(([k, l, n]) => `<span class="br-chip ${S.stage === k ? 'on' : ''}" data-stage="${k}">${l}<span class="n">${n ?? (counts[k] || 0)}</span></span>`).join('')}</div>
-        <div><select class="br-in" id="brAngleF" style="margin:0;width:auto;min-width:180px"><option value="">Every angle</option><option value="none" ${S.angleFilter === 'none' ? 'selected' : ''}>No angle yet</option>${d.angles.filter(a => a.status !== 'proposed').map(a => `<option value="${a.id}" ${S.angleFilter === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
-        <input class="br-in" id="brSearch" placeholder="Search batches" value="${esc(S.search)}" style="margin:0;width:200px"></div>
-      </div>
-      ${rows.length ? `<div class="tbl-wrap"><table class="br-tbl"><thead><tr><th>#</th><th>Batch</th><th>Testing</th><th>Offer</th><th>Stage</th><th class="num">Ads</th><th class="num">Spend</th><th class="num">TW ROAS</th><th>Verdict</th></tr></thead><tbody>
-        ${rows.map(b => `<tr class="click" data-b="${b.id}"><td><b>${esc(b.num)}</b></td>
-          <td><div class="t">${esc(b.title)}</div><div class="s">${b.angle_id ? esc(angleName(b.angle_id)) : '<span style="color:var(--warn)">No angle yet</span>'}${b.concept_id ? ' → ' + esc(conceptName(b.concept_id)) : ''}</div></td>
-          <td>${b.level ? esc(LEVELS.find(l => l[0] === b.level)?.[1].replace(/^An? /, '') || b.level) : '-'}${b.variable ? `<div class="s">${esc(VARS.find(v => v[0] === b.variable)?.[1] || b.variable)}</div>` : ''}</td>
-          <td>${esc(short(b.offer, 40)) || '-'}</td><td>${STAGE_L[b.stage] || b.stage}</td>${statsCells(b.stats)}
-          <td>${verdictTag(b.verdict)}${b.thin ? '<div class="s" style="color:var(--warn)">Called on thin spend</div>' : ''}${!b.verdict && b.suggest !== 'not_live' ? `<div class="s">${SUG_L[b.suggest]}</div>` : ''}</td></tr>`).join('')}
-      </tbody></table></div>` : '<div class="br-empty">No batches match.</div>'}
-    </div>`;
-  body.querySelector('#brNewBatch').onclick = () => batchModal(null);
-  body.querySelectorAll('[data-b]').forEach(tr => tr.onclick = () => batchModal(d.batches.find(b => b.id === tr.dataset.b)));
-  body.querySelectorAll('[data-stage]').forEach(c => c.onclick = () => { S.stage = c.dataset.stage; repaint(); });
-  body.querySelector('#brAngleF').onchange = e => { S.angleFilter = e.target.value; repaint(); };
-  const s = body.querySelector('#brSearch');
-  s.oninput = () => { S.search = s.value; clearTimeout(s._t); s._t = setTimeout(() => { repaint(); const n = $('#brSearch'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
-  body.querySelector('#brAllCalls')?.addEventListener('click', () => { S.allCalls = !S.allCalls; repaint(); });
-  body.querySelectorAll('[data-call]').forEach(b => b.onclick = () => verdictModal(d.batches.find(x => x.id === b.dataset.call), b.dataset.v));
+    <div class="lb-top">
+      <div class="lb-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="lbQ" placeholder="Search every test: wife, bundle, 1 star, fit" value="${esc(S.q || '')}" aria-label="Search tests"></div>
+      <div class="lb-sync">${asn?.project_gid
+        ? `<span class="tiny">Asana: <a href="${esc(asn.url)}" target="_blank" rel="noopener">${esc(asn.project_name)}</a> · synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
+        : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>
+    </div>
+    <div class="br-chips">${[['all', 'All tests'], ['winner', 'Winners'], ['loser', 'Losers'], ['waiting', 'Waiting on a call'], ['open', 'In progress'], ['offer', 'Offers']].map(([k, l]) => `<span class="br-chip ${f === k ? 'on' : ''}" data-f="${k}">${l}<span class="n">${count(k)}</span></span>`).join('')}</div>
+    <div class="lb-grid">
+      <aside class="lb-angles" aria-label="Angles">
+        <div class="lb-cap">Angles <span>${angles.length}</span></div>
+        <button class="lb-ang ${!S.ang ? 'on' : ''}" data-a=""><span class="nm">Every angle</span><span class="ct">${d.batches.length}</span></button>
+        ${angles.map(a => `<button class="lb-ang ${S.ang === a.id ? 'on' : ''}" data-a="${a.id}">
+          <span class="nm">${esc(a.name)}${a.status === 'retired' ? ' <span class="tiny">retired</span>' : ''}</span><span class="ct">${a.stats.batches}</span>
+          <span class="wr"><i style="width:${a.stats.win_rate ?? 0}%"></i></span>
+          <span class="tiny">${a.stats.judged ? `${a.stats.winners} of ${a.stats.judged} won` : 'no calls yet'}${a.stats.spend ? ` · ${money(a.stats.spend)}` : ''}</span></button>`).join('')}
+        ${unfiled ? `<button class="lb-ang ${S.ang === 'none' ? 'on' : ''}" data-a="none"><span class="nm">Not filed yet</span><span class="ct">${unfiled}</span></button>` : ''}
+        ${S.ang && S.ang !== 'none' ? '<button class="btn" id="lbEditAng" style="margin-top:8px;width:100%">Edit or merge this angle</button>' : ''}
+      </aside>
+      <section class="lb-list" aria-label="Tests">
+        ${S.ang && angleOf[S.ang] ? `<div class="lb-angcard"><b>${esc(angleOf[S.ang].name)}</b><div>${esc(angleOf[S.ang].argument || '')}</div></div>` : ''}
+        ${rows.length ? rows.slice(0, 300).map(b => `<button class="lb-row" data-b="${b.id}">
+            <span class="lb-num">${esc(shortNum(b.num))}</span>
+            <span class="lb-main"><b>${esc(b.title)}</b>
+              <span class="s">${b.angle_id ? esc(angleOf[b.angle_id]?.name || '') : '<i>not filed</i>'}${b.concept_id ? ' · ' + esc(conceptName(b.concept_id)) : ''}${b.offer ? ' · ' + esc(short(b.offer, 40)) : ''}</span>
+              ${b.learning ? `<span class="learn">${esc(short(b.learning, 160))}</span>` : ''}</span>
+            <span class="lb-nums">${b.stats.spend ? `<b>${money(b.stats.spend)}</b><span style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null ? x2(b.stats.roas) + ' ROAS' : 'no sales'}</span>` : '<span class="tiny">no spend</span>'}</span>
+            <span class="lb-res">${resChip(b)}</span></button>`).join('')
+          : `<div class="br-empty">${q ? `Nothing matches "${esc(S.q)}". Try a shorter word.` : 'No tests here yet.'}</div>`}
+      </section>
+    </div>
+    ${untaggedCard()}`;
+  const qi = body.querySelector('#lbQ');
+  qi.oninput = () => { S.q = qi.value; clearTimeout(qi._t); qi._t = setTimeout(() => { repaint(); const n = $('#lbQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 200); };
+  body.querySelectorAll('[data-f]').forEach(c => c.onclick = () => { S.res = c.dataset.f; repaint(); });
+  body.querySelectorAll('[data-a]').forEach(c => c.onclick = () => { S.ang = c.dataset.a; repaint(); });
+  body.querySelectorAll('[data-b]').forEach(r => r.onclick = () => testDrawer(d.batches.find(b => b.id === r.dataset.b)));
+  body.querySelector('#lbEditAng')?.addEventListener('click', () => angleModal(d.angles.find(a => a.id === S.ang)));
+  body.querySelector('#lbSync')?.addEventListener('click', () => syncAsana());
+  body.querySelector('#lbConnect')?.addEventListener('click', () => connectAsana());
   wireUntagged(body);
+}
+function ago(iso) {
+  if (!iso) return 'never';
+  const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  return m < 2 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+}
+async function connectAsana() {
+  try { await ahJson('/api/brand-asana/connect', {}); await syncAsana(); }
+  catch (e) { helpModal('Could not connect to Asana', `<p>${esc(e.message)}</p>`); }
+}
+/* Pull the latest from Asana, file anything new, post any results that are due. */
+async function syncAsana() {
+  if (S.syncing) return;
+  S.syncing = true; repaint();
+  try {
+    await ahJson('/api/brand-asana/sync', {});
+    for (let i = 0; i < 6; i++) { const t = await ahJson('/api/brand-asana/tag', { limit: 12 }); if (!t.left || !t.tagged) break; }
+    await ahJson('/api/brand-asana/results', {});
+    await load();
+  } catch (e) { helpModal('Sync with Asana failed', `<p>${esc(e.message)}</p>`); }
+  S.syncing = false; repaint();
+}
+
+function testDrawer(b) {
+  const d = S.d, rules = d.rules;
+  const angles = d.angles.filter(a => a.status !== 'proposed');
+  const lg = b.legacy;
+  const w = document.createElement('div');
+  w.innerHTML = `<div class="lb-scrim"></div><aside class="lb-drawer" role="dialog" aria-modal="true" aria-label="Test ${esc(b.num)}">
+    <button class="lb-x" aria-label="Close">×</button>
+    <div><span class="lb-num">Test ${esc(shortNum(b.num))}</span> ${resChip(b)}<h2 class="lb-title">${esc(b.title)}</h2></div>
+    <div class="lb-kpis"><div><b>${money(b.stats.spend)}</b><span>spent</span></div><div><b style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null && b.stats.spend ? x2(b.stats.roas) : '-'}</b><span>TW ROAS</span></div><div><b>${b.stats.orders || 0}</b><span>orders</span></div><div><b>${b.stats.ads || 0}</b><span>ads</span></div></div>
+    ${b.needs_call ? `<div class="br-warn">Spent enough to judge. Locus suggests <b>${esc(SUG_L[b.suggest])}</b>; Ahsan makes the call in Asana.</div>` : ''}
+    ${b.thin ? `<div class="br-warn">Called on thin spend: under the ${money(rules.judge_spend)} this brand needs to judge a test.</div>` : ''}
+    <label class="br-f">Angle<select class="br-in" id="tdA"><option value="">Not filed</option>${angles.map(a => `<option value="${a.id}" ${a.id === b.angle_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+    <dl class="br-kv">
+      ${b.concept_id ? `<dt>Concept</dt><dd>${esc(conceptName(b.concept_id))}</dd>` : ''}
+      ${b.level ? `<dt>Tested</dt><dd>${esc(LEVELS.find(l => l[0] === b.level)?.[1] || b.level)}${b.variable ? ` (${esc(b.variable)})` : ''}</dd>` : ''}
+      ${b.offer ? `<dt>Offer</dt><dd>${esc(b.offer)}</dd>` : ''}
+      ${b.hypothesis ? `<dt>What it tested</dt><dd>${esc(b.hypothesis)}</dd>` : ''}
+      ${b.why ? `<dt>Why</dt><dd>${esc(b.why)}</dd>` : ''}
+      ${b.learning ? `<dt>Learning</dt><dd><b>${esc(b.learning)}</b></dd>` : ''}
+      ${b.verdict_note ? `<dt>Note on the call</dt><dd>${esc(b.verdict_note)}</dd>` : ''}
+    </dl>
+    <div class="lb-links">${b.asana_url ? `<a class="btn" href="${esc(b.asana_url)}" target="_blank" rel="noopener">Open in Asana</a>` : ''}${b.brief_url ? `<a class="btn" href="${esc(b.brief_url)}" target="_blank" rel="noopener">Brief</a>` : ''}${b.asset_url ? `<a class="btn" href="${esc(b.asset_url)}" target="_blank" rel="noopener">Assets</a>` : ''}</div>
+    <div><div class="br-lbl">Ads named ${esc(shortNum(b.num))}</div><div id="tdAds" class="tiny">Loading…</div></div>
+    ${lg ? `<details><summary class="tiny">From the old Google Sheet</summary><dl class="br-kv" style="margin-top:8px">${Object.entries(lg).filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
+  </aside>`;
+  document.body.appendChild(w);
+  const k = e => { if (e.key === 'Escape') close(); };
+  const close = () => { w.remove(); document.removeEventListener('keydown', k); };
+  document.addEventListener('keydown', k);
+  w.querySelector('.lb-scrim').onclick = close;
+  w.querySelector('.lb-x').onclick = close;
+  w.querySelector('.lb-x').focus();
+  w.querySelector('#tdA').onchange = async e => { await saveRow('batch', { id: b.id, angle_id: e.target.value }); repaint(); };
+  api(`/api/brand/ads?act=${encodeURIComponent(S.act)}&batch=${b.id}`).then(r => {
+    const el = w.querySelector('#tdAds'); if (!el) return;
+    el.innerHTML = r.ads.length ? `<table class="br-mini"><tr><th>Ad</th><th>Spend</th><th>TW ROAS</th><th>Last spend</th></tr>${r.ads.map(a => `<tr><td>${esc(short(a.name, 48))}</td><td>${money(a.spend)}</td><td>${a.roas != null ? x2(a.roas) : '-'}</td><td>${esc(a.last || '-')}</td></tr>`).join('')}</table>` : 'No ads with this number yet.';
+  }).catch(() => {});
+}
+
+/* ======================================================================
+   BRAND INFO: test rules, voice, onboarding, all on one page
+   ====================================================================== */
+function paintInfo(body) {
+  body.innerHTML = '<div id="biProfile" class="br"></div><div id="biOnboard" class="br"></div>';
+  paintProfile(body.querySelector('#biProfile'));
+  paintOnboarding(body.querySelector('#biOnboard'));
 }
 
 function untaggedCard() {
@@ -416,34 +562,6 @@ function promptText(title, label, ph = '') {
 /* ======================================================================
    ANGLES
    ====================================================================== */
-function paintAngles(body) {
-  const d = S.d;
-  const f = S.angleStatus || 'active';
-  const q = (S.angleSearch || '').toLowerCase();
-  let rows = d.angles.filter(a => f === 'all' ? a.status !== 'proposed' : a.status === f);
-  if (S.line && S.angleLineOnly) rows = rows.filter(a => a.line_id === S.line);
-  if (q) rows = rows.filter(a => `${a.name} ${a.argument || ''}`.toLowerCase().includes(q));
-  rows.sort((x, y) => (y.stats.spend - x.stats.spend) || x.name.localeCompare(y.name));
-  const n = s => d.angles.filter(a => a.status === s).length;
-  body.innerHTML = `
-    <div class="card" style="padding:12px 16px"><div class="br-bar"><p class="hint" style="margin:0;max-width:720px">An angle is the reason to buy, logged once. Before a new one is saved, Locus checks it against this list so the same idea never comes back in new words. Concepts and batches hang off it, and its results add up here.</p>
-      <div><button class="btn primary" id="brNewAngle">+ Angle</button></div></div></div>
-    <div class="card" style="padding:0">
-      <div class="br-bar" style="padding:12px 14px"><div class="br-chips">${[['active', 'In use'], ['retired', 'Retired'], ['all', 'All']].map(([k, l]) => `<span class="br-chip ${f === k ? 'on' : ''}" data-f="${k}">${l}<span class="n">${k === 'all' ? n('active') + n('retired') : n(k)}</span></span>`).join('')}</div>
-        <div><input class="br-in" id="brASearch" placeholder="Search angles" value="${esc(S.angleSearch || '')}" style="margin:0;width:220px"></div></div>
-      ${rows.length ? `<div class="tbl-wrap"><table class="br-tbl"><thead><tr><th>Angle</th><th>Persona</th><th>Awareness</th><th class="num">Batches</th><th class="num">Spend</th><th class="num">TW ROAS</th><th class="num">Win rate</th><th>Last tested</th></tr></thead><tbody>
-      ${rows.map(a => `<tr class="click" data-a="${a.id}"><td><div class="t">${esc(a.name)} ${statusTag(a.status)}</div><div class="s">${esc(short(a.argument, 150))}</div>${a.line_id && d.lines.length > 1 ? `<div class="s">${esc(lineName(a.line_id))}</div>` : ''}</td>
-        <td>${esc(personaName(a.persona_id)) || '-'}</td><td>${esc(AW()[a.awareness] || '-')}</td><td class="num">${a.stats.batches || ''}</td><td class="num">${a.stats.spend ? money(a.stats.spend) : '-'}</td><td class="num">${a.stats.roas != null ? x2(a.stats.roas) : '-'}</td>
-        <td class="num">${a.stats.win_rate != null ? `${a.stats.win_rate}% <span class="tiny">(${a.stats.winners}/${a.stats.judged})</span>` : '-'}</td><td>${esc(a.stats.last || '-')}</td></tr>`).join('')}
-      </tbody></table></div>` : `<div class="br-empty">${d.angles.length ? 'No angles match.' : 'No angles yet. Add one, or run the research and approve its angle ideas.'}</div>`}
-    </div>`;
-  body.querySelector('#brNewAngle').onclick = () => angleModal(null);
-  body.querySelectorAll('[data-a]').forEach(tr => tr.onclick = () => angleModal(d.angles.find(a => a.id === tr.dataset.a)));
-  body.querySelectorAll('[data-f]').forEach(c => c.onclick = () => { S.angleStatus = c.dataset.f; repaint(); });
-  const s = body.querySelector('#brASearch');
-  s.oninput = () => { S.angleSearch = s.value; clearTimeout(s._t); s._t = setTimeout(() => { repaint(); const n2 = $('#brASearch'); n2.focus(); n2.setSelectionRange(n2.value.length, n2.value.length); }, 250); };
-}
-
 /* Resolves with the saved angle id (or null). `quick` = opened from a batch. */
 function angleModal(a, { quick = false } = {}) {
   const d = S.d;
@@ -466,6 +584,8 @@ function angleModal(a, { quick = false } = {}) {
         ${inp('aNote', 'Notes', a.note, { rows: 2, full: true })}
       </div>
       <div id="aDup"></div>
+      ${!isNew ? `<div class="br-warn" style="background:var(--unk-bg);border-color:var(--line)"><b>Same reason to buy as another angle?</b> Merge it: every test moves over and this one is removed.
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><select class="br-in" id="aMerge" style="margin:0;flex:1;min-width:200px"><option value="">Merge into…</option>${d.angles.filter(x => x.id !== a.id && x.status !== 'proposed').map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select><button class="btn" id="aMergeGo">Merge</button></div></div>` : ''}
       ${!isNew ? `<div><div class="br-bar"><h3 class="br-h">Concepts</h3><button class="btn" id="aAddC">+ Concept</button></div>
         ${concepts.length ? concepts.map(c => `<div class="br-ans"><div class="l">${esc(c.name)} <button class="btn" style="padding:1px 8px;font-size:11.5px" data-delc="${c.id}">Remove</button></div>${c.about ? `<div class="v">${esc(c.about)}</div>` : ''}</div>`).join('') : '<p class="tiny">No concepts yet. A concept is one way to show this angle: wife POV, comment reply, post-it note.</p>'}</div>
         <div><h3 class="br-h">Batches on this angle</h3>${batches.length ? `<table class="br-mini">${batches.map(b => `<tr><td><b>${esc(b.num)}</b></td><td>${esc(short(b.title, 50))}</td><td>${money(b.stats.spend)}</td><td>${b.stats.roas != null ? x2(b.stats.roas) : '-'}</td><td>${VERDICT_L[b.verdict] || ''}</td><td>${esc(short(b.learning, 80))}</td></tr>`).join('')}</table>` : '<p class="tiny">None yet.</p>'}</div>` : ''}`,
@@ -481,7 +601,7 @@ function angleModal(a, { quick = false } = {}) {
           checked = true;
           if (m.matches.length) {
             w.querySelector('#aDup').innerHTML = `<div class="br-warn"><b>This looks like an angle you already have.</b>${m.matches.map(x => `<div style="margin-top:6px"><b>${esc(x.name)}</b>: ${esc(x.why || '')} <button class="btn" style="padding:2px 9px;margin-left:6px" data-use="${esc(x.id)}">Use this one</button></div>`).join('')}<div class="tiny" style="margin-top:8px">If it really is a different reason to buy, press Save again.</div></div>`;
-            w.querySelectorAll('[data-use]').forEach(x => x.onclick = () => { ctl.close(); resolve(x.dataset.use); if (!quick) { S.view = 'angles'; angleModal(S.d.angles.find(y => y.id === x.dataset.use)); } });
+            w.querySelectorAll('[data-use]').forEach(x => x.onclick = () => { ctl.close(); resolve(x.dataset.use); if (!quick) { S.view = 'library'; S.ang = x.dataset.use; repaint(); } });
             w.querySelector('[data-m="yes"]').textContent = 'It is new, save it';
             ctl.msg('');
             return;
@@ -497,6 +617,12 @@ function angleModal(a, { quick = false } = {}) {
           if (!name) return;
           await saveRow('concept', { angle_id: a.id, name });
           ctl.close(); angleModal(S.d.angles.find(x => x.id === a.id));
+        };
+        w.querySelector('#aMergeGo').onclick = async () => {
+          const into = w.querySelector('#aMerge').value;
+          if (!into) return ctl.msg('Pick the angle to merge into.');
+          S.d = await post('/api/brand/merge', { from: a.id, into });
+          S.ang = into; ctl.close(); resolve(into); repaint();
         };
         w.querySelectorAll('[data-delc]').forEach(x => x.onclick = async () => { await delRow('concept', x.dataset.delc); x.closest('.br-ans').remove(); });
       }

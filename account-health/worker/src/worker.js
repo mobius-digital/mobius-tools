@@ -23,6 +23,7 @@
 
 import { buildStrategist } from './strategist.js';
 import { handleResearch } from './research.js';
+import { handleBrandAsana, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -166,6 +167,7 @@ function meterEnv(env) {
 /** Every outbound HTTP call in this worker goes through here so it is counted.
  *  Same signature as fetch; the only difference is the meter. */
 function xfetch(...args) { subSpend(); return fetch(...args); }
+brandAsanaFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -5755,6 +5757,10 @@ const AH_APP = {
         // the delivery check read the missing day as "spent nothing". Draining it
         // an hour at a time across 24 ticks means a brand is never more than a few
         // hours old, and no single tick has to be big.
+        /* Asana -> the Brand tab's test library: new tasks, AI angle tags, and the
+           result comment once a test has spent enough. Before the Meta sync so a
+           slow sync cannot starve it; it stops itself when the budget runs low. */
+        ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -5798,6 +5804,11 @@ const AH_APP = {
     }
 
     /* ---- Brand research for Locus's Brand tab, plus the onboarding link's help box ---- */
+    /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
+    if (path.startsWith('/api/brand-asana')) {
+      const r = await handleBrandAsana(request, env, path, json, isAdmin);
+      if (r) return r;
+    }
     if (path.startsWith('/api/research') || path === '/api/onboard-help') {
       const r = await handleResearch(request, env, ctx, path, json, isAdmin);
       if (r) return r;

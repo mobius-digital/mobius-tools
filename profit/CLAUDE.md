@@ -783,3 +783,26 @@ profit/
   `pf_worker=http://127.0.0.1:8799`, `pf_token=<.dev.vars ADMIN_TOKEN>`. Research locally:
   `ah-worker-dev` (:8798, `wrangler dev --remote`, same throwaway ADMIN_TOKEN in
   account-health/worker/.dev.vars); the deployed Anthropic key is available there.
+
+### 2026-09-24 (later): ASANA IS THE ONLY PLACE ANYONE TYPES. Read this before touching the Brand tab.
+
+- Cole rejected the in-Locus roadmap/board: Asana already runs production (Creative Brief,
+  Creative Studio, Ready to Launch, Analyze Results, Completed) and strategists complained about
+  entering tests in several places. **Locus is the memory and fills itself.** The Brand tab is
+  now three views: **Test library** (search + angle list + test drawer), **Research**, **Brand
+  info** (profile, test rules, onboarding). Do not bring back a board or a "new batch" form.
+- Engine: `account-health/worker/src/asana-brand.js`. Hourly tick (`brandAsanaTick`, inside the
+  hourly cron before the Meta sync) and the UI's "Sync now" both run: sync tasks (number in the
+  task name, same rule as ad names) -> tag (AI files each test under an angle, reading the brief
+  Google Doc via the `GOOGLE_SA_KEY` service account with domain-wide delegation, as Cole then
+  Ahsan) -> results (a test in Analyze Results past the rules gets Result + Learning fields set and
+  a comment with the TW numbers, @mentioning the assignee) -> close (a completed task's Result +
+  Learning become the verdict).
+- Four workspace custom fields, created once and added per project: Angle, Testing, Result,
+  Learning (`settings.brandAsanaFields`). Brand -> project link is `p_br_doc` key `asana`
+  (matched by name on Connect). `ASANA_TOKEN` is Cole's personal token, so posts show as Cole.
+- **Everything written into Asana is visible to the client** (Cole: "visibility for all").
+  Backlog tagging runs with `warn:false`; fields are only written on OPEN tasks, never on
+  completed ones (that would only notify people about history).
+- Angles are created by the AI as it files tests (`source='ai'`); people rename, retire or MERGE
+  them (`/api/brand/merge`). Cole wiped the sheet-clustered angles on 2026-09-24.
