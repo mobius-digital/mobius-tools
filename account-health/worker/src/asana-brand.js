@@ -635,6 +635,65 @@ ${j.call === 'keep' ? 'Agree? Leave it. Disagree? Change Result, and the reason 
   return { posted, waiting: rows.length };
 }
 
+/* ---------------- angle tidy-up ----------------
+   Filing tests one batch at a time grows near-duplicates: "Gift for golf dad" and
+   "Gift for your golfer man" are one reason to buy. This merges them, keeping the
+   angle with the most tests, and renames the Angle field on open Asana tasks. */
+async function refreshAngleNames(env, act) {
+  const fields = await getSetting(env, 'brandAsanaFields') || {};
+  if (!fields.angle) return 0;
+  const rows = (await env.DB.prepare(`SELECT b.id, b.asana_gid, a.name FROM p_br_batch b JOIN p_br_angle a ON a.id = b.angle_id
+      WHERE b.act_id = ?1 AND b.asana_gid IS NOT NULL AND b.stage != 'done' AND (b.asana_angle IS NULL OR b.asana_angle != a.name)`).bind(act).all()).results || [];
+  let n = 0;
+  for (const r of rows.slice(0, 80)) {
+    try {
+      await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: { [fields.angle]: r.name } } });
+      await env.DB.prepare(`UPDATE p_br_batch SET asana_angle = ?2 WHERE id = ?1`).bind(r.id, r.name).run(); n++;
+    } catch { /* next time */ }
+  }
+  return n;
+}
+const TIDY_SCHEMA = obj({ groups: { type: 'array', items: obj({ keep_id: S, merge_ids: { type: 'array', items: S }, name: S, argument: S }) } });
+async function tidyAngles(env, act) {
+  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const angles = (await env.DB.prepare(`SELECT a.id, a.name, a.argument, COUNT(b.id) n, GROUP_CONCAT(b.title, ' / ') titles
+      FROM p_br_angle a LEFT JOIN p_br_batch b ON b.angle_id = a.id WHERE a.act_id = ?1 AND a.status != 'proposed' GROUP BY a.id ORDER BY n DESC`).bind(act).all()).results || [];
+  if (angles.length < 10) return { merged: 0, angles: angles.length };
+  const { out } = await claudeJson(env, {
+    system: `You tidy ${acct?.name || 'a brand'}'s angle library. An angle is the REASON TO BUY, said in one sentence. Two angles are the same when they give the buyer the same reason in different words, or when one is just a narrower version of the other. Rules:
+- Group only true duplicates. Different reasons to buy stay separate, even if they sound alike.
+- Angles about different products that people buy for different reasons stay separate.
+- In each group, keep_id is the angle with the most tests. merge_ids are the others.
+- Give the kept angle a clear name in 2-5 plain words, and a one-sentence argument that covers the whole group.
+- Aim for a library of roughly 10 to 18 angles. Do not force merges to hit the number.
+- Only return groups that merge 2 or more angles. ${VOICE}`,
+    user: `ANGLES (id | tests | name | argument | example test titles):\n${angles.map(a => `${a.id} | ${a.n} | ${a.name} | ${clip(a.argument, 200)} | ${clip(a.titles, 200)}`).join('\n')}`,
+    schema: TIDY_SCHEMA, effort: 'medium',
+  });
+  const ids = new Set(angles.map(a => a.id));
+  const used = new Set();
+  let merged = 0;
+  const log = [];
+  for (const g of out?.groups || []) {
+    if (!ids.has(g.keep_id) || used.has(g.keep_id)) continue;
+    const from = (g.merge_ids || []).filter(x => ids.has(x) && x !== g.keep_id && !used.has(x));
+    if (!from.length) continue;
+    used.add(g.keep_id); from.forEach(x => used.add(x));
+    const st = [];
+    for (const f of from) {
+      st.push(env.DB.prepare(`UPDATE p_br_batch SET angle_id = ?3, updated_at = datetime('now') WHERE act_id = ?1 AND angle_id = ?2`).bind(act, f, g.keep_id));
+      st.push(env.DB.prepare(`UPDATE p_br_concept SET angle_id = ?3 WHERE act_id = ?1 AND angle_id = ?2`).bind(act, f, g.keep_id));
+      st.push(env.DB.prepare(`DELETE FROM p_br_angle WHERE act_id = ?1 AND id = ?2`).bind(act, f));
+    }
+    if (g.name) st.push(env.DB.prepare(`UPDATE p_br_angle SET name = ?3, argument = COALESCE(NULLIF(?4, ''), argument), updated_at = datetime('now') WHERE act_id = ?1 AND id = ?2`).bind(act, g.keep_id, clip(g.name, 200), clip(g.argument, 3000)));
+    await env.DB.batch(st);
+    merged += from.length;
+    log.push(`${from.map(x => angles.find(a => a.id === x)?.name).join(', ')} -> ${g.name}`);
+  }
+  const renamed = merged ? await refreshAngleNames(env, act) : 0;
+  return { merged, before: angles.length, after: angles.length - merged, asana_updated: renamed, log };
+}
+
 /* ---------------- the hourly tick ---------------- */
 export async function brandAsanaTick(env, canAfford = () => true) {
   if (!env.ASANA_TOKEN) return { skipped: 'no ASANA_TOKEN' };
@@ -678,19 +737,8 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     if (path === '/api/brand-asana/tag') return json({ ok: true, ...(await tagPass(env, b.act, { limit: Math.min(15, +b.limit || 12), warn: b.warn !== false && b.warn !== 'false' })) });
     if (path === '/api/brand-asana/results') return json({ ok: true, ...(await resultsPass(env, b.act, { limit: Math.min(30, +b.limit || 10), quiet: !!b.quiet })) });
     /* After an angle is renamed or merged in Locus, open tasks show the current name. */
-    if (path === '/api/brand-asana/refresh-angles') {
-      const fields = await getSetting(env, 'brandAsanaFields') || {};
-      const rows = (await env.DB.prepare(`SELECT b.id, b.asana_gid, b.asana_angle, a.name FROM p_br_batch b JOIN p_br_angle a ON a.id = b.angle_id
-          WHERE b.act_id = ?1 AND b.asana_gid IS NOT NULL AND b.stage != 'done' AND (b.asana_angle IS NULL OR b.asana_angle != a.name)`).bind(b.act).all()).results || [];
-      let n = 0;
-      for (const r of rows.slice(0, 60)) {
-        try {
-          await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: { [fields.angle]: r.name } } });
-          await env.DB.prepare(`UPDATE p_br_batch SET asana_angle = ?2 WHERE id = ?1`).bind(r.id, r.name).run(); n++;
-        } catch { /* next time */ }
-      }
-      return json({ ok: true, updated: n });
-    }
+    if (path === '/api/brand-asana/refresh-angles') return json({ ok: true, updated: await refreshAngleNames(env, b.act) });
+    if (path === '/api/brand-asana/tidy-angles') return json({ ok: true, ...(await tidyAngles(env, b.act)) });
     if (path === '/api/brand-asana/pause') { await putDoc(env, b.act, 'asana', { ...doc, paused: !!b.paused }); return json({ ok: true }); }
     return json({ error: 'not found' }, 404);
   } catch (e) {

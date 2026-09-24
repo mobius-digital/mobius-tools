@@ -355,6 +355,7 @@ function paintLibrary(body) {
           <span class="tiny">${a.stats.judged ? `${a.stats.winners} of ${a.stats.judged} won` : 'no calls yet'}${a.stats.spend ? ` · ${money(a.stats.spend)}` : ''}</span></button>`).join('')}
         ${unfiled ? `<button class="lb-ang ${S.ang === 'none' ? 'on' : ''}" data-a="none"><span class="nm">Not filed yet</span><span class="ct">${unfiled}</span></button>` : ''}
         ${S.ang && S.ang !== 'none' ? '<button class="btn" id="lbEditAng" style="margin-top:8px;width:100%">Edit or merge this angle</button>' : ''}
+        <button class="btn" id="lbTidy" style="margin-top:6px;width:100%" title="Merges angles that are the same reason to buy in different words">${S.tidying ? 'Tidying…' : 'Tidy up angles'}</button>
       </aside>
       <section class="lb-list" aria-label="Tests">
         ${S.ang && angleOf[S.ang] ? `<div class="lb-angcard"><b>${esc(angleOf[S.ang].name)}</b><div>${esc(angleOf[S.ang].argument || '')}</div></div>` : ''}
@@ -376,6 +377,16 @@ function paintLibrary(body) {
   body.querySelectorAll('[data-b]').forEach(r => r.onclick = () => testDrawer(d.batches.find(b => b.id === r.dataset.b)));
   body.querySelector('#lbEditAng')?.addEventListener('click', () => angleModal(d.angles.find(a => a.id === S.ang)));
   body.querySelector('#lbSync')?.addEventListener('click', () => syncAsana());
+  body.querySelector('#lbTidy')?.addEventListener('click', async () => {
+    if (S.tidying) return;
+    S.tidying = true; repaint();
+    try {
+      const r = await ahJson('/api/brand-asana/tidy-angles', {});
+      await load();
+      helpModal(r.merged ? `Merged ${r.merged} angles` : 'Nothing to merge', r.merged ? `<p>${r.before} angles became ${r.after}. Every test moved with its angle.</p><ul>${(r.log || []).map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '<p>Every angle is already a different reason to buy.</p>');
+    } catch (e) { helpModal('Could not tidy the angles', `<p>${esc(e.message)}</p>`); }
+    S.tidying = false; repaint();
+  });
   body.querySelector('#lbConnect')?.addEventListener('click', () => connectAsana());
   wireUntagged(body);
 }
