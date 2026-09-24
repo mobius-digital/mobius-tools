@@ -568,9 +568,13 @@ function judge(st, r, sc) {
 const pct = x => x == null ? 'n/a' : `${(x * 100).toFixed(1)}%`;
 const esc = x => String(x ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
-async function resultsPass(env, act, { limit = 8 } = {}) {
+/* A brand needs a target CPA before Locus suggests calls: the whole judgement starts
+   from it. `quiet` posts without @mentioning anyone (a new brand's backlog catch-up,
+   so nobody gets twenty notifications at once). */
+async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
   const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas FROM accounts WHERE act_id = ?1`).bind(act).first();
   const rules = rulesOf(acct, await getDoc(env, act, 'rules'));
+  if (!rules.target_cpa) return { posted: 0, skipped: 'Set a target CPA in Brand info to switch on result calls.' };
   const rows = (await env.DB.prepare(`SELECT b.id, b.num, b.title, b.asana_gid, b.assignee_gid, b.result_posted, b.asana_result, b.check_again, b.hypothesis, b.offer, a.name AS angle
       FROM p_br_batch b LEFT JOIN p_br_angle a ON a.id = b.angle_id
       WHERE b.act_id = ?1 AND b.asana_gid IS NOT NULL AND b.stage = 'live' AND b.verdict IS NULL`).bind(act).all()).results || [];
@@ -614,7 +618,7 @@ async function resultsPass(env, act, { limit = 8 } = {}) {
     const line = (label, v, rank) => `${label} <strong>${v}</strong>${rank ? ` (${THIRD_WORD[rank]})` : ''}`;
     try {
       if (Object.keys(cf).length) await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: cf } });
-      const who = r.assignee_gid ? `<a data-asana-gid="${r.assignee_gid}"/> ` : '';
+      const who = r.assignee_gid && !quiet ? `<a data-asana-gid="${r.assignee_gid}"/> ` : '';
       const html = `<body>${who}Locus: ${recheck ? 'check-in on this test.' : 'this test has spent enough to judge.'}
 <strong>${money(st?.spend || 0)} spent, ${st?.orders || 0} order${st?.orders === 1 ? '' : 's'}${sc?.cpa ? `, CPA ${money(sc.cpa)}` : ''}${rules.target_cpa ? ` (target ${money(rules.target_cpa)})` : ''}, ROAS ${sc ? sc.roas.toFixed(2) : '0.00'}</strong> across ${st?.ads || 0} ad${st?.ads === 1 ? '' : 's'}. Sales are Triple Whale; delivery is Meta.
 ${sc ? [line('CTR', pct(sc.ctr), sc.r_ctr), sc.hook != null ? line('Hook rate', pct(sc.hook), sc.r_hook) : null, line('Add to carts', `${st.atc}${sc.cpatc ? ` at ${money(sc.cpatc)} each` : ''}`, sc.r_cpatc), line('CPM', sc.cpm ? money(sc.cpm) : 'n/a', sc.r_cpm)].filter(Boolean).join(' · ') : ''}
@@ -672,7 +676,21 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     if (!doc?.project_gid) return json({ error: 'Connect the brand to its Asana project first.' }, 400);
     if (path === '/api/brand-asana/sync') return json({ ok: true, ...(await syncTasks(env, b.act, doc, { full: !!b.full })) });
     if (path === '/api/brand-asana/tag') return json({ ok: true, ...(await tagPass(env, b.act, { limit: Math.min(15, +b.limit || 12), warn: b.warn !== false && b.warn !== 'false' })) });
-    if (path === '/api/brand-asana/results') return json({ ok: true, ...(await resultsPass(env, b.act, { limit: Math.min(30, +b.limit || 10) })) });
+    if (path === '/api/brand-asana/results') return json({ ok: true, ...(await resultsPass(env, b.act, { limit: Math.min(30, +b.limit || 10), quiet: !!b.quiet })) });
+    /* After an angle is renamed or merged in Locus, open tasks show the current name. */
+    if (path === '/api/brand-asana/refresh-angles') {
+      const fields = await getSetting(env, 'brandAsanaFields') || {};
+      const rows = (await env.DB.prepare(`SELECT b.id, b.asana_gid, b.asana_angle, a.name FROM p_br_batch b JOIN p_br_angle a ON a.id = b.angle_id
+          WHERE b.act_id = ?1 AND b.asana_gid IS NOT NULL AND b.stage != 'done' AND (b.asana_angle IS NULL OR b.asana_angle != a.name)`).bind(b.act).all()).results || [];
+      let n = 0;
+      for (const r of rows.slice(0, 60)) {
+        try {
+          await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: { [fields.angle]: r.name } } });
+          await env.DB.prepare(`UPDATE p_br_batch SET asana_angle = ?2 WHERE id = ?1`).bind(r.id, r.name).run(); n++;
+        } catch { /* next time */ }
+      }
+      return json({ ok: true, updated: n });
+    }
     if (path === '/api/brand-asana/pause') { await putDoc(env, b.act, 'asana', { ...doc, paused: !!b.paused }); return json({ ok: true }); }
     return json({ error: 'not found' }, 404);
   } catch (e) {

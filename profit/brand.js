@@ -343,6 +343,7 @@ function paintLibrary(body) {
         ? `<span class="tiny">Asana: <a href="${esc(asn.url)}" target="_blank" rel="noopener">${esc(asn.project_name)}</a> · synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
         : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>
     </div>
+    ${!rules.target_cpa ? `<div class="br-warn">No target CPA yet, so Locus is not suggesting calls for this brand. Set it in <b>Brand info → Test rules</b>.</div>` : ''}
     <div class="br-chips">${[['all', 'All tests'], ['winner', 'Winners'], ['loser', 'Losers'], ['waiting', 'Waiting on a call'], ['keep', 'Keep running'], ['open', 'In progress'], ['offer', 'Offers']].map(([k, l]) => `<span class="br-chip ${f === k ? 'on' : ''}" data-f="${k}">${l}<span class="n">${count(k)}</span></span>`).join('')}</div>
     <div class="lb-grid">
       <aside class="lb-angles" aria-label="Angles">
@@ -384,17 +385,19 @@ function ago(iso) {
   return m < 2 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
 }
 async function connectAsana() {
-  try { await ahJson('/api/brand-asana/connect', {}); await syncAsana(); }
+  try { await ahJson('/api/brand-asana/connect', {}); await syncAsana({ first: true }); }
   catch (e) { helpModal('Could not connect to Asana', `<p>${esc(e.message)}</p>`); }
 }
 /* Pull the latest from Asana, file anything new, post any results that are due. */
-async function syncAsana() {
+/* On a brand's FIRST connect the whole backlog is filed at once, so repeat warnings are
+   off and result comments mention nobody: one catch-up, not a wall of notifications. */
+async function syncAsana({ first = false } = {}) {
   if (S.syncing) return;
   S.syncing = true; repaint();
   try {
-    await ahJson('/api/brand-asana/sync', {});
-    for (let i = 0; i < 6; i++) { const t = await ahJson('/api/brand-asana/tag', { limit: 12 }); if (!t.left || !t.tagged) break; }
-    await ahJson('/api/brand-asana/results', {});
+    await ahJson('/api/brand-asana/sync', first ? { full: true } : {});
+    for (let i = 0; i < (first ? 40 : 6); i++) { const t = await ahJson('/api/brand-asana/tag', { limit: 12, warn: !first }); if (!t.left || !t.tagged) break; }
+    await ahJson('/api/brand-asana/results', first ? { quiet: true, limit: 30 } : {});
     await load();
   } catch (e) { helpModal('Sync with Asana failed', `<p>${esc(e.message)}</p>`); }
   S.syncing = false; repaint();
@@ -530,6 +533,7 @@ function angleModal(a, { quick = false } = {}) {
           }
         }
         const id = await saveRow('angle', row);
+        if (!isNew && row.name !== a.name) ahJson('/api/brand-asana/refresh-angles', {}).catch(() => {});
         ctl.close(); resolve(id); if (!quick) repaint();
       });
       if (!isNew) {
@@ -544,6 +548,7 @@ function angleModal(a, { quick = false } = {}) {
           const into = w.querySelector('#aMerge').value;
           if (!into) return ctl.msg('Pick the angle to merge into.');
           S.d = await post('/api/brand/merge', { from: a.id, into });
+          ahJson('/api/brand-asana/refresh-angles', {}).catch(() => {});
           S.ang = into; ctl.close(); resolve(into); repaint();
         };
         w.querySelectorAll('[data-delc]').forEach(x => x.onclick = async () => { await delRow('concept', x.dataset.delc); x.closest('.br-ans').remove(); });
