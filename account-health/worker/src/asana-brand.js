@@ -528,7 +528,6 @@ function third(list, v, lowerBetter = false) {
   const good = lowerBetter ? 1 - pct : pct;
   return good >= 0.67 ? 'top' : good <= 0.33 ? 'low' : 'mid';
 }
-const THIRD_WORD = { top: 'top third of this account', mid: 'about average here', low: 'bottom third here' };
 function rulesOf(acct, doc) {
   const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
   if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
@@ -615,17 +614,35 @@ async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
       if (fields.check_again) cf[fields.check_again] = { date: nextCheck };
     }
     const am = `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${act.replace(/^act_/, '')}&selected_ad_ids=${(st?.ad_ids || []).slice(0, 30).join(',')}`;
-    const line = (label, v, rank) => `${label} <strong>${v}</strong>${rank ? ` (${THIRD_WORD[rank]})` : ''}`;
+    /* A list, not a paragraph: the call on top, one metric per line with a mark the
+       eye can scan (✅ good, ➖ average, ⚠️ weak, ❌ over target), then what to do. */
+    const MARK = { top: '✅', mid: '➖', low: '⚠️' };
+    const WORD = { top: 'top third for this brand', mid: 'average for this brand', low: 'bottom third for this brand' };
+    const li = (mark, label, v, note) => `<li>${mark} <strong>${label}:</strong> ${v}${note ? ` · ${note}` : ''}</li>`;
+    const T = rules.target_cpa;
+    const cpaMark = !sc?.cpa ? '❌' : sc.cpa <= T ? '✅' : sc.cpa <= T * 1.3 ? '⚠️' : '❌';
+    const CALL = { winner: '✅ Suggested: Winner', keep: '⏳ Suggested: Keep running', loser: '❌ Suggested: Loser' };
     try {
       if (Object.keys(cf).length) await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: cf } });
       const who = r.assignee_gid && !quiet ? `<a data-asana-gid="${r.assignee_gid}"/> ` : '';
-      const html = `<body>${who}Locus: ${recheck ? 'check-in on this test.' : 'this test has spent enough to judge.'}
-<strong>${money(st?.spend || 0)} spent, ${st?.orders || 0} order${st?.orders === 1 ? '' : 's'}${sc?.cpa ? `, CPA ${money(sc.cpa)}` : ''}${rules.target_cpa ? ` (target ${money(rules.target_cpa)})` : ''}, ROAS ${sc ? sc.roas.toFixed(2) : '0.00'}</strong> across ${st?.ads || 0} ad${st?.ads === 1 ? '' : 's'}. Sales are Triple Whale; delivery is Meta.
-${sc ? [line('CTR', pct(sc.ctr), sc.r_ctr), sc.hook != null ? line('Hook rate', pct(sc.hook), sc.r_hook) : null, line('Add to carts', `${st.atc}${sc.cpatc ? ` at ${money(sc.cpatc)} each` : ''}`, sc.r_cpatc), line('CPM', sc.cpm ? money(sc.cpm) : 'n/a', sc.r_cpm)].filter(Boolean).join(' · ') : ''}
-<strong>Read:</strong> ${esc(j.read)}
-<strong>Suggested: ${L[j.call]}</strong>${j.call === 'keep' ? ` (${KR[j.reason]}). Locus checks in again on ${nextCheck}.` : ''}${learning ? `\nDraft learning: ${esc(learning)}` : ''}
+      const rows = [
+        li(cpaMark, 'Cost per sale', sc?.cpa ? money(sc.cpa) : 'no sales yet', T ? `target ${money(T)}` : ''),
+        li('💵', 'Spent', `${money(st?.spend || 0)} · ${st?.orders || 0} order${st?.orders === 1 ? '' : 's'} · ROAS ${sc ? sc.roas.toFixed(2) : '0.00'}`, `${st?.ads || 0} ad${st?.ads === 1 ? '' : 's'}`),
+        sc ? li(MARK[sc.r_ctr] || '➖', 'Click rate', pct(sc.ctr), WORD[sc.r_ctr]) : '',
+        sc && sc.hook != null ? li(MARK[sc.r_hook] || '➖', 'Hook rate', pct(sc.hook), WORD[sc.r_hook]) : '',
+        sc ? li(MARK[sc.r_cpatc] || (st.atc ? '➖' : '⚠️'), 'Add to carts', `${st.atc}${sc.cpatc ? ` at ${money(sc.cpatc)} each` : ''}`, WORD[sc.r_cpatc]) : '',
+        sc ? li(MARK[sc.r_cpm] || '➖', 'CPM', sc.cpm ? money(sc.cpm) : 'n/a', WORD[sc.r_cpm]) : '',
+      ].filter(Boolean).join('');
+      const next = j.call === 'keep'
+        ? `Agree? Leave it, Locus checks back on ${nextCheck}. Disagree? Change Result above.`
+        : 'Agree? Move this task to Completed. Disagree? Change Result or Learning above first.';
+      const html = `<body>${who}<strong>Test ${parseInt(r.num, 10)} ${recheck ? 'check-in' : 'scorecard'}</strong>
+<strong>${CALL[j.call]}</strong>${j.call === 'keep' ? ` (${KR[j.reason]})` : ''}
+<ul>${rows}</ul><strong>Why:</strong> ${esc(j.read)}${learning ? `
+<strong>Learning:</strong> ${esc(learning)}` : ''}
 <a href="${am}">Open these ads in Ads Manager</a>
-${j.call === 'keep' ? 'Agree? Leave it. Disagree? Change Result, and the reason or the Check again date.' : 'Check Result and Learning above, change them if you disagree, then move this to Completed.'}</body>`;
+<strong>Your move:</strong> ${next}
+<em>Sales: Triple Whale. Delivery: Meta.</em></body>`;
       await asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { html_text: html } });
       await env.DB.prepare(`UPDATE p_br_batch SET result_posted = ?2, asana_result = ?3, check_again = ?4, learning = COALESCE(learning, NULLIF(?5, '')), updated_at = datetime('now') WHERE id = ?1`)
         .bind(r.id, recheck ? `recheck:${r.check_again}` : j.call, j.call, j.call === 'keep' ? nextCheck : r.check_again, learning).run();
