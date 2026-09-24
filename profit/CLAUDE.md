@@ -806,3 +806,14 @@ profit/
   completed ones (that would only notify people about history).
 - Angles are created by the AI as it files tests (`source='ai'`); people rename, retire or MERGE
   them (`/api/brand/merge`). Cole wiped the sheet-clustered angles on 2026-09-24.
+- **Judging (2026-09-24, Cole):** CPA FIRST against the brand's target CPA (Brand info → Test rules),
+  then CTR, hook rate, cost per add to cart and CPM against the account's own recent ads (terciles,
+  never fixed benchmarks). Results are Winner / Keep running / Loser; "Moderate" and "Variation" are
+  retired (Mobius framework: Angle, Concept, What We're Testing). Keep running carries a reason and
+  a Check again date (7 days by default) and Locus re-posts a scorecard on that date. **No target CPA
+  = no suggested calls** for that brand. `add_to_cart` per ad was added to `ad_daily` (ADS_METRICS_VERSION 4).
+- **Auto-numbering:** an open task in a creative section without a number gets the next one. A brand-new
+  EMPTY brief in Creative Brief gets the framework template (`BRIEF_TEMPLATE`). A brand's FIRST connect
+  runs quiet: backlog tagged with `warn:false`, results posted with no @mention.
+- A pinned "📌 Brand kit" task in each project's Client Resources holds what never changes per test;
+  Grunk's was written 2026-09-24.
