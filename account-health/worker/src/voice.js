@@ -27,7 +27,7 @@
  * the staff's never overwrite each other.
  */
 import { claude, textOf, jsonOf, VOICE, clip, safeJson } from './research.js';
-import { skillSystem, syncSkill, buildSkill, getSkill } from './skill.js';
+import { skillSystem, syncSkill, buildSkill, getSkill, buildSpeaker, METHOD, tellsIn } from './skill.js';
 
 const S = { type: 'string' };
 const arr = items => ({ type: 'array', items });
@@ -47,6 +47,9 @@ export const TOPICS = [
   ['examples', 'Lines you loved', 'Any ad, email, caption or line of yours that sounded exactly like you? Any that felt wrong? Paste or describe them.'],
   ['specs', 'Your product, in detail', 'Walk us through your best seller like you are showing it to a friend: what is it made of, what makes it different, and what does each of those things actually do for the person using it?'],
   ['culture', 'How your customers talk', 'How do your customers talk about the thing your product is for? The slang, the in-jokes, the moments they would reach for it.'],
+  ['scene_friend', 'Say it: to a friend', 'Let us try something. I am your buddy and I just noticed your gear and asked what it is. Answer me out loud, exactly how you would, like I am standing right there.'],
+  ['scene_skeptic', 'Say it: to a skeptic', 'Someone comments on your ad: "looks cheap" or "just buy a real brand". What do you actually say back? Talk it, do not write it.'],
+  ['scene_drop', 'Say it: a new drop', 'You just got something new in and you are texting your group chat about it. Say the text out loud.'],
   ['limits', 'Off limits', 'Anything off limits? Topics, claims you legally cannot make, competitors we should never name.'],
 ];
 const TOPIC_IDS = TOPICS.map(t => t[0]);
@@ -58,6 +61,8 @@ const SCHEMAS = {
   samples: obj({ samples: arr(obj({ format: S, text: S })) }),
   guide: obj({ md: S, summary: S, traits: arr(S), say: arr(S), avoid: arr(S) }),
   desk: obj({ lines: arr(obj({ text: S, note: S })) }),
+  spoken: obj({ spoken: S, lines: arr(obj({ text: S, note: S })) }),
+  readback: obj({ lines: arr(obj({ text: S, changed: { type: 'boolean' }, why: S })) }),
 };
 
 /* American English for American brands; and a model glitch once dropped a stray
@@ -104,7 +109,7 @@ function bankText(items, limit = 60) {
   const no = items.filter(x => x.verdict === 'no').slice(-limit);
   return [
     yes.length ? `LINES THE BRAND APPROVED (match the feel, never reuse the phrases):\n${yes.map(x => `- [${x.format}] ${x.text}${x.why ? ` (why: ${x.why})` : ''}`).join('\n')}` : '',
-    no.length ? `LINES THE BRAND REJECTED, AND WHY (do not write like this):\n${no.map(x => `- [${x.format}] ${x.text}${x.why ? ` (why: ${x.why})` : ''}`).join('\n')}` : '',
+    no.length ? `LINES THE BRAND REJECTED, AND HOW THEY WOULD ACTUALLY SAY IT (the pairs teach the most; the second line is the real voice):\n${no.map(x => `- [${x.format}] WE WROTE: ${x.text}${x.said ? `\n  THEY'D SAY: ${x.said}` : ''}${x.why ? ` (why: ${x.why})` : ''}`).join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
 }
 async function brandFacts(env, act, answersJson) {
@@ -141,7 +146,8 @@ async function nextQuestion(env, name, facts, iv) {
   const m = await claude(env, {
     system: `You interview the owner of ${name} to learn how their brand should SOUND in ads, emails and captions. You work for Mobius Digital, their ad agency. The owner is probably talking, not typing, so answers ramble; that is good.
 
-Ask ONE question at a time, short and conversational, the way a curious friend would. Rules:
+What you are really collecting is how this person TALKS, because the brand's copy will be written by someone becoming them and speaking. Their own spoken words are worth more than their opinions about their voice. Ask ONE question at a time, short and conversational, the way a curious friend would. Rules:
+- When they describe instead of talk ("we're fun and confident"), ask them to just say it: "Say it to me like I'm your buddy." The "Say it" topics are role-play; stay in the scene with them.
 - If the last answer was vague, generic or polished ("we're premium and fun"), follow up on THAT answer: ask for a real example, the exact words they would use, or a story. At most two follow-ups on one topic, then move on.
 - If the answer was rich, mark the topic covered and move to the most useful topic not covered yet. Use what they already said ("You said the big brands overcharge. How would you say that in an ad?").
 - Never ask two things at once. Never lecture, never flatter ("great answer!"). No marketing jargon.
@@ -237,23 +243,33 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         const n = Math.max(1, Math.min(10, +b.n || 5));
         const skill = await getSkill(env, A);
         const ask = `FORMAT: ${clip(b.format, 80) || 'Ad headline'}\nBRIEF: ${clip(b.brief, 3000) || '(none: write for the best seller)'}${b.revise?.note ? `\n\nYOUR LAST ROUND:\n${(b.revise.lines || []).slice(0, 10).map((l, i) => `${i + 1}. ${clip(l, 1500)}`).join('\n')}\n\nTHE TEAM'S NOTE ON IT (do what it says; it outranks everything except the facts):\n${clip(b.revise.note, 2000)}` : ''}`;
-        const deskRule = `Write ${n} different attempts, each a real take, not ${n} versions of the same sentence. "note" is one short line for the team: what the attempt is going for, or a fact you needed and did not have. ${VOICE} ${US}`;
+        const deskRule = `Write ${n} different attempts, each a real take, not ${n} versions of the same sentence. Each attempt is ONE complete, standalone piece of the whole format (a full ad primary text, a full email, a full description), never one piece of a longer piece; each can come from its own take on what you said. "note" is one short line for the team: what the attempt is going for, or a fact you needed and did not have. ${VOICE} ${US}`;
         /* The whole skill, cached: the instructions and every reference file, exactly as
            Claude loads it. The bank rides on top: the lines this brand kept or rejected. */
-        if (skill.instructions) {
-          const m = await claude(env, {
-            system: [{ type: 'text', text: skillSystem(acct.name, skill), cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}` }],
-            user: `${facts}\n\n${ask}`,
-            schema: SCHEMAS.desk, effort: 'medium', maxTokens: 12000,
-          });
-          return { lines: (jsonOf(m).lines || []).slice(0, n).map(l => ({ id: rid(), text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) })), used: 'skill' };
-        }
-        const m = await claude(env, {
-          system: `You write copy for ${acct.name} in their voice. Read the guide first; it wins on how the copy SOUNDS. The approved lines show the feel; never reuse their phrases. The rejected lines, and the reasons, are what to avoid. Never invent a product fact, price, number or review; if the brief needs one you do not have, write around it and say so in "note". Write ${n} different attempts, each a real take, not five versions of the same sentence. "note" is one short line for the team (what the attempt is going for), or empty. ${VOICE} ${US}`,
-          user: `${guide ? `HOW WE WRITE:\n${clip(guide, 14000)}` : `NO GUIDE YET. The short card: ${JSON.stringify(card).slice(0, 2000)}`}\n\n${facts}\n\n${bankText(bank)}\n\n${ask}`,
-          schema: SCHEMAS.desk, effort: 'medium', maxTokens: 8000,
+        const speakerMd = (await getDoc(env, A, 'voice_speaker')).data.md || '';
+        const who = clip(b.audience, 400);
+        /* 1-3: become the speaker, say it to one person, write it down. */
+        const base = skill.instructions
+          ? skillSystem(acct.name, skill, speakerMd)
+          : `You write copy for ${acct.name}.\n\n${speakerMd ? `<file path="references/the-speaker.md">\n${speakerMd}\n</file>\n\n` : ''}${guide ? `<file path="references/how-we-write.md">\n${clip(guide, 14000)}\n</file>\n\n` : `The short voice card: ${JSON.stringify(card).slice(0, 2000)}\n\n`}${METHOD}`;
+        const said = await claude(env, {
+          system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}\n\n"spoken" is step 2: you, as the speaker, talking out loud to the person in the scene, unedited, 80 to 250 words. "lines" is step 3: what you said, written down and cut to the format, in your own words.` }],
+          user: `${facts}\n\n${ask}\n\nWHO YOU'RE TALKING TO, AND WHERE: ${who || 'pick the most likely customer for this and a real moment in their day'}`,
+          schema: SCHEMAS.spoken, effort: 'medium', maxTokens: 14000,
         });
-        return { lines: (jsonOf(m).lines || []).slice(0, n).map(l => ({ id: rid(), text: tidy(clip(l.text, 1500)), note: clip(l.note, 300) })), used: 'guide' };
+        const first = jsonOf(said);
+        let lines = (first.lines || []).slice(0, n).map(l => ({ text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) }));
+        /* 4: read it back as the speaker. The tells point at lines that read as writing. */
+        try {
+          const back = await claude(env, {
+            system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `Step 4, reading back. You are the speaker. Read each line out loud to the person you were talking to. If it sounds like something you would actually say, keep it exactly. If it sounds written, announced, like an ad, or like any other brand, say it again the way you would really say it, then write that down. Now, and only now, check the skill's rules and bans. Never change a fact. ${VOICE} ${US}` }],
+            user: `WHAT YOU SAID OUT LOUD:\n${first.spoken || ''}\n\nTHE LINES:\n${lines.map((l, i) => `${i + 1}. ${l.text}${tellsIn(l.text).length ? `\n   (reads like writing: ${tellsIn(l.text).join(', ')})` : ''}`).join('\n')}`,
+            schema: SCHEMAS.readback, effort: 'low', maxTokens: 8000,
+          });
+          const rb = jsonOf(back).lines || [];
+          lines = lines.map((l, i) => rb[i]?.text ? { ...l, text: tidy(clip(rb[i].text, 3000)), redone: !!rb[i].changed, why: clip(rb[i].why, 300) } : l);
+        } catch { /* the read-back is a polish; the written-down lines stand without it */ }
+        return { spoken: tidy(clip(first.spoken, 4000)), lines: lines.map(l => ({ id: rid(), ...l, tells: tellsIn(l.text) })), used: skill.instructions ? 'skill' : 'guide' };
       });
       if (path === '/api/voice/staff/bank') {
         if (b.remove) {
@@ -263,9 +279,11 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         }
         const it = b.item || {};
         if (!String(it.text || '').trim() || !['yes', 'no'].includes(it.verdict)) return json({ error: 'A line and a verdict are needed' }, 400);
-        await bankAdd(env, A, [{ id: it.id || rid(), format: clip(it.format, 60) || 'Other', text: clip(it.text, 1500), verdict: it.verdict, why: clip(it.why, 600), by: clip(it.by, 80) || 'team', at: now() }]);
+        await bankAdd(env, A, [{ id: it.id || rid(), format: clip(it.format, 60) || 'Other', text: clip(it.text, 1500), verdict: it.verdict, why: clip(it.why, 600), said: clip(it.said, 1500) || undefined, by: clip(it.by, 80) || 'team', at: now() }]);
         return json({ ok: true });
       }
+      if (path === '/api/voice/staff/build-speaker') return streamed(ctx, async put => ({ ...(await buildSpeaker(env, A, acct.name, { corpus: clip(b.corpus, 120000), emit: put })) }));
+      if (path === '/api/voice/staff/speaker' && b.md != null) { await setDoc(env, A, 'voice_speaker', { md: clip(b.md, 60000), from: 'staff', built_at: now() }, b.approve ? 'approved' : 'draft', 'staff'); return json({ ok: true }); }
       if (path === '/api/voice/staff/build-skill') return streamed(ctx, async put => ({ ...(await buildSkill(env, A, acct.name, put)) }));
       /* Edit one file of a BUILT skill (a synced one is edited in its repo). */
       if (path === '/api/voice/staff/skill-file') {
@@ -371,8 +389,10 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
       if (!['yes', 'close', 'no', null].includes(b.rating ?? null)) return json({ error: 'bad rating' }, 400);
       s.rating = b.rating ?? null; s.why = clip(b.why, 600);
       await save();
-      /* Only the clear calls teach the bank: yes and no. "Close" guides the next round. */
-      if (s.rating === 'yes' || s.rating === 'no') await bankAdd(env, A, [{ id: 'c_' + s.id, format: s.format, text: s.text, verdict: s.rating, why: s.why, by: 'client', at: now() }]);
+      /* Yes teaches the bank as a kept line; Close and No teach it as a PAIR: our line,
+         and how the client says it instead (their "why" box is "how would you say it?"). */
+      if (s.rating === 'yes') await bankAdd(env, A, [{ id: 'c_' + s.id, format: s.format, text: s.text, verdict: 'yes', why: '', by: 'client', at: now() }]);
+      else if (s.rating === 'no' || (s.rating === 'close' && s.why)) await bankAdd(env, A, [{ id: 'c_' + s.id, format: s.format, text: s.text, verdict: 'no', why: s.rating === 'close' ? 'close' : '', said: s.why, by: 'client', at: now() }]);
       else {
         const { data } = await getDoc(env, A, 'voice_bank');
         if ((data.items || []).some(x => x.id === 'c_' + s.id)) await setDoc(env, A, 'voice_bank', { items: data.items.filter(x => x.id !== 'c_' + s.id) });

@@ -31,6 +31,7 @@ const WEB_SEARCH = { type: 'web_search_20250305', name: 'web_search' };
    file; the path is where it sits in the skill folder. */
 export const ROLES = [
   ['instructions', 'SKILL.md', 'How to use the skill: what to read, when, and the rules'],
+  ['speaker', 'references/the-speaker.md', 'The one person the brand sounds like, in their own words'],
   ['guide', 'references/how-we-write.md', 'How the brand sounds'],
   ['facts', 'references/product-reference-guide.md', 'Every product fact: specs, materials, prices, sizes, CTAs'],
   ['benefits', 'references/spec-to-benefit.md', 'How each spec becomes a reason to buy'],
@@ -41,6 +42,7 @@ export const ROLES = [
 export function roleOf(path) {
   const p = String(path || '').toLowerCase();
   if (/(^|\/)skill\.md$/.test(p)) return 'instructions';
+  if (/speaker|persona|character/.test(p)) return 'speaker';
   if (/how-we-write|voice|tone/.test(p)) return 'guide';
   if (/product-reference|products?\.md|facts/.test(p)) return 'facts';
   if (/spec-to-benefit|benefit/.test(p)) return 'benefits';
@@ -98,15 +100,19 @@ export async function syncSkill(env, b) {
 }
 
 /* ---------------- 2. the whole skill, as the model reads it ---------------- */
-export function skillSystem(name, skill) {
-  const files = (skill.files || []).map(f => `<file path="${f.path}">\n${f.md}\n</file>`).join('\n\n');
+export function skillSystem(name, skill, speakerMd = '') {
+  const own = (skill.files || []).some(f => f.role === 'speaker');
+  const all = [...(skill.files || []), ...(!own && speakerMd ? [{ path: 'references/the-speaker.md', md: speakerMd }] : [])];
+  const files = all.map(f => `<file path="${f.path}">\n${f.md}\n</file>`).join('\n\n');
   return `You are writing copy for ${name} with its copy skill loaded, exactly as Claude would run it. Follow the skill's instructions below to the letter: read the files it says to read, in the order it says, and apply every rule. The reference files it names are all included after the instructions, each inside a <file> tag with its path.
 
 <skill name="${skill.name || name}">
 ${skill.instructions || ''}
 </skill>
 
-${files}`;
+${files}
+
+${METHOD}${!own && speakerMd ? '\nThe speaker is in references/the-speaker.md: read it before anything else.' : ''}`;
 }
 
 /* ---------------- 3. build a skill for a brand that has none ---------------- */
@@ -178,13 +184,17 @@ Write ${name}'s version from ONLY the brand data given, in markdown. Be specific
   await write('culture', 'references/customer-culture.md', "How this brand's customers actually talk: the words, slang and in-jokes, the moments and places they use the product, what they complain about, and which words would sound fake");
   await write('formats', 'references/prompt-patterns.md', 'What each kind of copy is for and what the reader should feel or do: ad parts (headline, primary text, callouts, offer badge, button), email subject, opener, body and CTA, product descriptions short and long, landing page hero and sections, product tiles, social captions, video hooks and scripts. Describe purpose, not a fill-in structure', { user: `THE PRODUCT FACTS FILE:\n${clip(facts, 12000)}` });
   await write('intake', 'references/new-product-intake.md', 'The intake to run when the brand brings a product the skill has never covered: what to pull from what they gave, the short batch of questions to ask for what is missing, and which files to add to before writing any copy');
+  const speaker = (await buildSpeaker(env, act, name, { emit })).md;
+  files.unshift({ path: 'references/the-speaker.md', role: 'speaker', md: speaker });
   const guideMd = data.guide || `# How ${name} writes\n\n(Not written yet. Send ${name} the voice interview, or press "Write the guide" once the copy desk has examples.)`;
   if (!data.guide) gaps.unshift(`Run the voice interview with ${name}: without it the skill has no voice.`);
-  files.splice(1, 0, { path: 'references/how-we-write.md', role: 'guide', md: guideMd });
+  files.splice(2, 0, { path: 'references/how-we-write.md', role: 'guide', md: guideMd });
 
   emit({ type: 'note', text: 'Writing the instructions (SKILL.md)…' });
   const m = await claude(env, {
     system: `You write the SKILL.md instructions for ${name}'s copy skill: the file Claude reads first, which says what the skill is for, which reference files to read every time and which only when a task needs them, the hierarchy when files disagree (facts win on what is TRUE, the guide wins on how it SOUNDS), what to do with a new product (run the intake), and the core rules. The reference files are: ${files.map(f => f.path).join(', ')}.
+The heart of the skill is the SPEAKER (references/the-speaker.md): the writer becomes that person and talks, then writes down what they said. Put this method near the top, in the brand's terms, and make clear the checks and bans are for reading back, never the way to write:
+${METHOD}
 ${ex?.instructions ? `Here is Lucky Golf's SKILL.md body, the model of shape. Adapt it; never copy Lucky specifics.\n<model_file>\n${clip(ex.instructions, 14000)}\n</model_file>` : ''}
 "md" is the body only (no frontmatter). "gaps" stays empty unless something is truly missing. ${VOICE}`,
     user: `THE PRODUCT FACTS FILE:\n${clip(facts, 8000)}\n\nTHE GUIDE:\n${clip(guideMd, 6000)}`,
@@ -200,4 +210,70 @@ ${ex?.instructions ? `Here is Lucky Golf's SKILL.md body, the model of shape. Ad
   };
   await setDoc(env, act, 'voice_skill', doc, 'draft', 'built');
   return { files: files.length + 1, gaps: doc.gaps.length };
+}
+
+/* ---------------- 4. THE SPEAKER (2026-09-25) ----------------
+   Cole: good copy is a person talking. Not rules followed, a human who IS the brand,
+   speaking, and the words written down. Every AI failure on Lucky came from writing
+   copy-shaped text against a checklist. So each brand gets a SPEAKER: a first-person
+   portrait of the one human the brand sounds like, built from the owner's own spoken
+   words (the voice interview, transcripts), with verbatim samples of them talking.
+   The copy desk then works the way a great copywriter does:
+     1. BECOME the speaker (read the portrait and the samples),
+     2. SAY IT to one real person in one real moment, out loud, unedited,
+     3. WRITE DOWN what was said, cut to the format, keeping the speaker's words,
+     4. READ IT BACK as the speaker; anything that reads like writing is said again.
+   The rules (bans, checks) only ever run at step 4, never as the way to write. */
+export const METHOD = `HOW TO WRITE (this outranks every checklist, which only applies when you read back):
+1. Become the speaker. Read the-speaker.md and the samples of them talking until you can hear them. You are not writing for the brand; you are this person.
+2. Say it. Picture one real person and one real moment (who they are, where they are, what just happened). Talk to them, out loud, the way you would if they were standing there. Ramble. Do not write copy.
+3. Write it down. Take what you said and cut it to the format. Keep your own words and rhythm; cutting is allowed, rewriting into "copy" is not. A headline is the best few words you actually said.
+4. Read it back as the speaker. Would you say it to that person without flinching? Anything that sounds announced, written, or like any other brand gets said again, not polished.`;
+
+/* The tells that mark text as AI-written copy. Deterministic, so the read-back can
+   point at the exact line. The model's read-back decides what to do about them. */
+export const TELLS = [
+  [/—/, 'em dash'],
+  [/!/, 'exclamation mark'],
+  [/\b(?:it'?s|this is|that'?s) not (?:just |only )?(?:a |an |about )?[^.?!]{1,40}[,;.] ?(?:it'?s|this is|that'?s)\b/i, '"not X, it\'s Y"'],
+  [/\bnot just\b[^.?!]{1,60}\bbut\b/i, '"not just X but Y"'],
+  [/\b(?:elevate|unleash|unlock|game[- ]?changer|next[- ]level|level up|seamless(?:ly)?|effortless(?:ly)?|revolutioni[sz]e|transform(?:ative)?|designed to|crafted (?:for|to)|whether you'?re|say goodbye to|meet the|look no further|take your .{1,20} to the next|the perfect|ultimate|must-have|curated|elevated|iconic|timeless)\b/i, 'stock copy word'],
+  [/\b(?:ready to|looking for|tired of)\b[^?]{0,60}\?/i, 'rhetorical question opener'],
+  [/(?:^|[.!?]\s)(?:[A-Z][a-z]+\.\s){3,}/, 'three one-word sentences'],
+  [/\b(\w+), (\w+),? and (\w+)\b/, 'list of three'],
+];
+export function tellsIn(text) {
+  const t = String(text || '');
+  return TELLS.filter(([re]) => re.test(t)).map(([, why]) => why);
+}
+
+const SPEAKER = obj({ md: S });
+/* The owner's own spoken words: the voice interview verbatim, plus any extra corpus
+   (e.g. Cole's messages from the Lucky voice sessions). */
+export async function buildSpeaker(env, act, name, { corpus = '', emit = () => {} } = {}) {
+  emit({ type: 'note', text: 'Listening to how they talk…' });
+  const data = await brandData(env, act);
+  const skill = await getSkill(env, act);
+  const guide = skill.files?.find(f => f.role === 'guide')?.md || data.guide;
+  const m = await claude(env, {
+    system: `You write "the-speaker.md" for ${name}'s copy skill: the portrait of the ONE human being this brand sounds like, so that a writer (or an AI) can become that person and simply talk. It is not a style guide and it has no rules. It is a person.
+
+Write it in the FIRST PERSON, as the speaker ("I'm the guy in your group who..."). Cover, in whatever order reads naturally:
+- who I am, where I am in life, and my relationship to the thing ${name} sells
+- who I'm usually talking to, and where (the range, the group chat, the first tee, the kitchen)
+- what I believe, what gets on my nerves, what I love, in my words
+- how I talk: my rhythm, how long I go before I get to the point, the words and phrases I actually use, how I tease people, how I get excited, what I do when I'm not sure
+- how I'd tell a friend about the products (the order I say things in, not a spec sheet)
+- the stories I tell
+- what I would never say, because I'm not that person (never phrased as a rule)
+Then a section "## How I actually sound": 8 to 20 VERBATIM excerpts of the real owner talking, picked from the transcripts below. Keep their words exactly (fix only obvious speech-to-text errors, like "Tacoma" for "Takomo", and cut filler). These samples matter more than anything else in the file.
+Then "## Say it like me": 5 to 8 short scenes (a buddy asks about the product on the range; someone says it looks like a knockoff; a new drop lands; a first-timer asks where to start; a skeptic in the comments) with what I'd actually say, in my voice, built from how they really talk.
+
+The speaker's own spoken words are the evidence. Where the guide and the transcripts disagree on how they sound, the transcripts win. Never invent product facts. No em dashes. American English.`,
+    user: `${guide ? `THE BRAND'S WRITING GUIDE (for what they want to sound like):\n${clip(guide, 14000)}\n\n` : ''}${corpus ? `THE OWNER TALKING (verbatim transcripts of them answering questions about the brand by voice; the most important input):\n${clip(corpus, 90000)}\n\n` : ''}${data.text}`,
+    schema: SPEAKER, effort: 'high', maxTokens: 24000,
+  });
+  const md = String(jsonOf(m).md || '').replace(/\s*—\s*/g, ', ');
+  await setDoc(env, act, 'voice_speaker', { md, built_at: new Date().toISOString(), from: corpus ? 'transcripts + interview' : 'interview' }, 'draft', 'built');
+  return { md };
 }

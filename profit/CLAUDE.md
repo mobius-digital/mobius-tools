@@ -876,3 +876,15 @@ profit/
   becomes `gaps`, and "Ask the client these" puts them at the front of the voice interview
   (topic `gaps`, asked in order). The interview gained `specs` and `culture` topics for the facts and
   customer-language files. "Download the Claude skill" is a zip (SKILL.md + references + examples.md).
+- **2026-09-25: THE SPEAKER. Copy is a person talking, not rules followed (Cole's core principle).**
+  Every brand has a speaker: a first-person portrait of the ONE human the brand sounds like, built
+  from the owner's own SPOKEN words (voice interview verbatim; for Lucky, Cole's 129 messages from
+  the Lucky voice sessions), with verbatim "How I actually sound" samples and "Say it like me"
+  scenes. Lucky's lives in the repo skill (`references/the-speaker.md`, SKILL.md opens with the
+  method); other brands' in `p_br_doc` `voice_speaker` (and as a file in a built skill). The copy
+  desk runs the METHOD in skill.js: become the speaker, SAY IT to one person in one moment
+  ("Who's it for" field; the spoken take is shown), write down what was said, then READ IT BACK as
+  the speaker, with deterministic AI tells (`TELLS`) pointing at lines that read like writing. The
+  checks and bans run only at read-back, never as the way to write. The interview gained
+  role-play "Say it" topics, and the client's Close/Not us box and the desk's "Say it your way"
+  store PAIRS (our line + how they would say it, `said`), which the prompts weight above yes/no.

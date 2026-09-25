@@ -134,6 +134,11 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-file:hover{border-color:var(--brand-line)}
 .br-gaps{margin-top:12px;background:var(--warn-bg);border-radius:9px;padding:10px 12px;font-size:13px}
 .br-gaps ol{margin:6px 0 10px;padding-left:20px}
+.br-file.spk{border-color:var(--brand-line);background:var(--brand-tint)}
+.br-spoken{margin-top:12px;font-size:13px;background:var(--unk-bg);border-radius:9px;padding:8px 12px}
+.br-spoken summary{cursor:pointer;font-weight:600}.br-spoken p{margin:8px 0 0;white-space:pre-wrap;line-height:1.55}
+.br-say{margin-top:8px}
+.br-said{margin-top:4px;padding-left:10px;border-left:3px solid var(--good);white-space:pre-wrap}
 .br-tbl tr.click{cursor:pointer}
 .br-tbl tr.click:hover td{background:var(--brand-tint)}
 .br-tbl .t{font-weight:700}
@@ -988,7 +993,7 @@ function skillPackage(name, sk, guideMd, bank) {
   if (sk.source !== 'repo') files.push({ path: `${slug}/references/examples.md`, md: bankMd });
   return { slug, blob: zipBlob(files) };
 }
-const ROLE_L = { instructions: 'Instructions', guide: 'How we write', facts: 'Product facts', benefits: 'Spec to benefit', culture: 'How customers talk', formats: 'Formats', intake: 'New product intake', other: 'Reference' };
+const ROLE_L = { speaker: 'The speaker', instructions: 'Instructions', guide: 'How we write', facts: 'Product facts', benefits: 'Spec to benefit', culture: 'How customers talk', formats: 'Formats', intake: 'New product intake', other: 'Reference' };
 
 function paintVoice(body) {
   const d = S.d, o = d.onboard;
@@ -1003,7 +1008,9 @@ function paintVoice(body) {
   const yesN = bank.filter(x => x.verdict === 'yes').length, noN = bank.length - yesN;
   const sk = d.docs['']?.voice_skill || {};
   const synced = sk.source === 'repo';
-  const skFiles = sk.instructions ? [{ path: 'SKILL.md', role: 'instructions', md: sk.instructions }, ...(sk.files || [])] : [];
+  const spk = d.docs['']?.voice_speaker || {};
+  const ownSpk = (sk.files || []).some(f => f.role === 'speaker');
+  const skFiles = [...(sk.instructions ? [{ path: 'SKILL.md', role: 'instructions', md: sk.instructions }, ...(sk.files || [])] : []), ...(!ownSpk && spk.md ? [{ path: 'references/the-speaker.md', role: 'speaker', md: spk.md, locus: true }] : [])];
   body.innerHTML = `
     <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h">How we write ${g.md ? (g._status === 'draft' ? `<span class="br-tag draft">Draft v${g.version || 1}</span>` : `<span class="br-tag win">Approved v${g.version || 1}</span>`) : ''}</h3>
         <p class="hint" style="margin:4px 0 0">The brand's writing guide, built the way Lucky Golf's was: the client talks through a voice interview and rates sample lines, then every line the team keeps or rejects on the copy desk teaches it more.</p></div>
@@ -1019,7 +1026,7 @@ function paintVoice(body) {
         </div>
         <div><p class="br-lbl">Example bank · ${yesN} kept · ${noN} rejected</p>
           <p class="tiny" style="margin:4px 0 0">Every line the client or the team approved or rejected, with the reason. The guide and the copy desk both read it.</p>
-          ${bank.length ? `<details style="margin-top:8px"><summary class="tiny" style="cursor:pointer">Show the lines</summary><div class="br-bank">${bank.map(x => `<div class="br-bk"><span class="br-tag ${x.verdict === 'yes' ? 'win' : 'lose'}">${x.verdict === 'yes' ? 'Kept' : 'Rejected'}</span> <span class="tiny">${esc(x.format)} · ${esc(x.by || '')}</span><div>${esc(x.text)}</div>${x.why ? `<div class="tiny">Why: ${esc(x.why)}</div>` : ''}<button class="unsure-x" data-rm="${esc(x.id)}" title="Remove from the bank">Remove</button></div>`).join('')}</div></details>` : ''}
+          ${bank.length ? `<details style="margin-top:8px"><summary class="tiny" style="cursor:pointer">Show the lines</summary><div class="br-bank">${bank.map(x => `<div class="br-bk"><span class="br-tag ${x.verdict === 'yes' ? 'win' : 'lose'}">${x.verdict === 'yes' ? 'Kept' : 'Rejected'}</span> <span class="tiny">${esc(x.format)} · ${esc(x.by || '')}</span><div>${esc(x.text)}</div>${x.said ? `<div class="br-said">They'd say: ${esc(x.said)}</div>` : ''}${x.why && x.why !== 'close' ? `<div class="tiny">Why: ${esc(x.why)}</div>` : ''}<button class="unsure-x" data-rm="${esc(x.id)}" title="Remove from the bank">Remove</button></div>`).join('')}</div></details>` : ''}
         </div>
       </div>
       <div class="br-skill"><div class="br-bar"><p class="br-lbl" style="margin:0">Copy skill · ${synced ? `synced from ${esc(sk.repo || 'the repo')}` : sk.instructions ? (d.docs['']?.voice_skill?._status === 'approved' ? 'built, approved' : 'built, draft') : 'not built yet'}</p>
@@ -1029,7 +1036,8 @@ function paintVoice(body) {
           : sk.instructions ? 'Built from the voice interview, the example bank, the onboarding answers, research and the website, in the shape of Lucky Golf\'s skill. The copy desk writes with all of it. Click a file to read or fix it.'
           : 'A full skill, like Lucky Golf\'s: instructions, how we write, product facts, spec to benefit, how customers talk, formats and new-product intake. Built from everything Locus knows; what it cannot answer becomes questions for the client.'}</p>
         <p class="br-msg" id="skMsg">${esc(S.skLog || '')}</p>
-        ${skFiles.length ? `<div class="br-files">${skFiles.map(f => `<button class="br-file" data-skf="${esc(f.path)}"><b>${esc(ROLE_L[f.role] || f.role)}</b><span class="tiny">${esc(f.path)} · ${Math.max(1, Math.round((f.md || '').length / 1000))}KB</span></button>`).join('')}</div>` : ''}
+        ${skFiles.length ? `<div class="br-files">${skFiles.map(f => `<button class="br-file ${f.role === 'speaker' ? 'spk' : ''}" data-skf="${esc(f.path)}"><b>${esc(ROLE_L[f.role] || f.role)}${f.locus ? ' <span class="br-tag draft">in Locus</span>' : ''}</b><span class="tiny">${esc(f.path)} · ${Math.max(1, Math.round((f.md || '').length / 1000))}KB</span></button>`).join('')}</div>` : ''}
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="spBuild" ${S.spBusy ? 'disabled' : ''}>${S.spBusy ? 'Listening… (about 2 minutes)' : spk.md || ownSpk ? 'Rebuild the speaker' : 'Build the speaker'}</button><span class="tiny">The one person this brand sounds like, written from how the owner actually talks in the voice interview. Copy is written by becoming them and speaking.</span></div>
         ${!synced && (sk.gaps || []).length ? `<div class="br-gaps"><b>${sk.gaps.length} questions the data could not answer</b><ol>${sk.gaps.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
           <button class="btn" id="skAsk" ${o ? '' : 'disabled title="Create the links first"'}>Ask the client these</button> <span class="tiny">They go to the front of the client's voice interview (same link). Rebuild the skill once they answer.</span></div>` : ''}
       </div>
@@ -1040,12 +1048,15 @@ function paintVoice(body) {
         ${sel('dF', 'Format', desk.format, DESK_FORMATS.map(f => [f, f]), { blank: null })}
         ${inp('dN', 'How many', desk.n, { type: 'number' })}
         ${inp('dB', 'Brief', desk.brief, { rows: 3, full: true, ph: 'The product, the angle, the offer. For example: Carver 02 Black, angle "nobody sees it coming", no discount.' })}
+        ${inp('dA', "Who's it for, and where are they?", desk.audience, { full: true, hint: 'optional: it talks to one real person', ph: 'A 40-year-old weekend golfer scrolling Instagram in the clubhouse after a bad short game day' })}
       </div>
       <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn primary" id="dGo" ${desk.busy ? 'disabled' : ''}>${desk.busy ? 'Writing…' : 'Write lines'}</button><span class="br-msg bad">${esc(desk.err || '')}</span></div>
+      ${desk.spoken ? `<details class="br-spoken"><summary>What it said out loud first (the lines are cut from this)</summary><p>${esc(desk.spoken)}</p></details>` : ''}
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${desk.lines.map(l => `<div class="br-desk ${l.done ? 'done' : ''}" data-l="${esc(l.id)}">
         <textarea class="br-in" rows="${Math.min(6, Math.max(2, Math.ceil(l.text.length / 80)))}" data-t aria-label="The line; edit it before keeping if you like">${esc(l.text)}</textarea>
-        ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}
-        ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : 'Rejected: in the bank'}</div>` : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-k="yes">Keep</button><input class="br-in" data-why placeholder="Why it misses (the more specific the better)" aria-label="Why it misses" style="flex:1;min-width:200px;margin:0"><button class="btn" data-k="no">Reject</button></div>`}
+        ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}${l.redone ? `<div class="tiny" style="margin-top:2px">Said again on read-back${l.why ? `: ${esc(l.why)}` : ''}</div>` : ''}${(l.tells || []).length ? `<div class="tiny" style="margin-top:2px;color:var(--warn)">Still reads like writing: ${esc(l.tells.join(', '))}</div>` : ''}
+        ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : l.done === 'said' ? 'Your version is in the bank, paired with this one' : 'Rejected: in the bank'}</div>` : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-k="yes">Keep</button><button class="btn" data-say>Say it your way</button><input class="br-in" data-why placeholder="Or: why it misses" aria-label="Why it misses" style="flex:1;min-width:180px;margin:0"><button class="btn" data-k="no">Reject</button></div>
+        <div class="br-say" hidden><textarea class="br-in" rows="2" data-said placeholder="How would you actually say it? Talk or type." aria-label="How you would say it"></textarea><div style="display:flex;gap:8px;margin-top:6px">${window.SpeechRecognition || window.webkitSpeechRecognition ? '<button class="btn" data-mic>Tap and talk</button>' : ''}<button class="btn primary" data-k="said">Save my version</button></div></div>`}
       </div>`).join('')}</div>
       ${desk.lines.length && !desk.busy ? `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input class="br-in" id="dRev" placeholder="Change something: shorter, more like #2, lead with the price, less jokey..." aria-label="Change something" style="flex:1;min-width:240px;margin:0"><button class="btn" id="dRevGo">Rewrite with this note</button></div>` : ''}
     </div>`;
@@ -1078,6 +1089,12 @@ function paintVoice(body) {
       await load(); S.skBusy = false; S.skLog = ''; repaint(); skMsg(`Built ${r.files} files${r.gaps ? `, with ${r.gaps} questions for the client` : ''}. Read them, then Approve.`, true);
     } catch (e) { S.skBusy = false; S.skLog = ''; repaint(); skMsg(e.message); }
   });
+  body.querySelector('#spBuild')?.addEventListener('click', async () => {
+    if (S.spBusy) return;
+    S.spBusy = true; repaint();
+    try { await ahStream('/api/voice/staff/build-speaker', {}, () => {}); await load(); S.spBusy = false; repaint(); skMsg('Speaker written. Open "The speaker" to read it.', true); }
+    catch (e) { S.spBusy = false; repaint(); skMsg(e.message); }
+  });
   body.querySelector('#skOk')?.addEventListener('click', async () => { try { await ahJson('/api/voice/staff/skill-file', { approve: true }); await load(); repaint(); } catch (e) { skMsg(e.message); } });
   body.querySelector('#skAsk')?.addEventListener('click', async e => {
     try { const r = await ahJson('/api/voice/staff/ask-gaps', {}); await load(); repaint(); skMsg(`${r.asked} questions added to the front of the voice interview. Send the client the voice link again.`, true); }
@@ -1085,6 +1102,9 @@ function paintVoice(body) {
   });
   body.querySelectorAll('[data-skf]').forEach(bt => bt.onclick = () => {
     const f = skFiles.find(x => x.path === bt.dataset.skf); if (!f) return;
+    if (f.locus) return modal('The speaker', inp('skF', 'Written in their voice, first person', f.md, { rows: 26, full: true }), { onOpen: (w, ctl) => w.onSubmit(async () => {
+      await ahJson('/api/voice/staff/speaker', { md: val(w, 'skF'), approve: true }); await load(); ctl.close(); repaint();
+    }) });
     if (synced) return modal(`${ROLE_L[f.role] || f.role}: ${f.path}`, `<p class="tiny">Synced from the repo. Change it there.</p><div class="br-md" style="max-height:60vh;overflow:auto">${mdHtml(f.md)}</div>`, { cta: null });
     modal(`${ROLE_L[f.role] || f.role}: ${f.path}`, inp('skF', 'The file (markdown)', f.md, { rows: 26, full: true }), { onOpen: (w, ctl) => w.onSubmit(async () => {
       await ahJson('/api/voice/staff/skill-file', { path: f.path, md: val(w, 'skF') }); await load(); ctl.close(); repaint();
@@ -1094,24 +1114,40 @@ function paintVoice(body) {
     b.disabled = true;
     try { await ahJson('/api/voice/staff/bank', { remove: b.dataset.rm }); await load(); repaint(); } catch (e) { msg(e.message); }
   });
-  const grab = () => { desk.format = val(body, 'dF'); desk.brief = val(body, 'dB'); desk.n = Math.max(1, Math.min(10, +val(body, 'dN') || 5)); };
+  const grab = () => { desk.format = val(body, 'dF'); desk.brief = val(body, 'dB'); desk.audience = val(body, 'dA'); desk.n = Math.max(1, Math.min(10, +val(body, 'dN') || 5)); };
+  body.querySelectorAll('.br-desk [data-say]').forEach(b => b.onclick = () => { const s2 = b.closest('.br-desk').querySelector('.br-say'); s2.hidden = !s2.hidden; if (!s2.hidden) s2.querySelector('textarea').focus(); });
+  body.querySelectorAll('.br-desk [data-mic]').forEach(b => b.onclick = () => {
+    const ta = b.closest('.br-say').querySelector('textarea'); const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (b._rec) { b._rec.stop(); b._rec = null; b.textContent = 'Tap and talk'; return; }
+    const r = new Rec(); r.continuous = true; r.interimResults = true; r.lang = navigator.language || 'en-US';
+    const base = ta.value ? ta.value.replace(/\s*$/, ' ') : ''; let fin = '';
+    r.onresult = e => { let int = ''; for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) fin += t.trim() + ' '; else int += t; } ta.value = base + fin + int; };
+    r.start(); b._rec = r; b.textContent = 'Listening. Tap to stop';
+  });
   body.querySelector('#dRevGo')?.addEventListener('click', async () => {
     const note = val(body, 'dRev'); if (!note) return body.querySelector('#dRev').focus();
     const prev = [...body.querySelectorAll('.br-desk [data-t]')].map(t => t.value.trim());
     grab(); desk.busy = true; desk.err = ''; repaint();
-    try { const r = await ahStream('/api/voice/staff/desk', { format: desk.format, brief: desk.brief, n: desk.n, revise: { lines: prev, note } }, () => {}); desk.lines = r.lines || []; }
+    try { const r = await ahStream('/api/voice/staff/desk', { format: desk.format, brief: desk.brief, audience: desk.audience, n: desk.n, revise: { lines: prev, note } }, () => {}); desk.lines = r.lines || []; desk.spoken = r.spoken || ''; }
     catch (e) { desk.err = e.message; }
     desk.busy = false; repaint();
   });
   body.querySelector('#dGo').onclick = async () => {
     grab(); desk.busy = true; desk.err = ''; repaint();
-    try { const r = await ahStream('/api/voice/staff/desk', { format: desk.format, brief: desk.brief, n: desk.n }, () => {}); desk.lines = r.lines || []; }
+    try { const r = await ahStream('/api/voice/staff/desk', { format: desk.format, brief: desk.brief, audience: desk.audience, n: desk.n }, () => {}); desk.lines = r.lines || []; desk.spoken = r.spoken || ''; }
     catch (e) { desk.err = e.message; }
     desk.busy = false; repaint();
   };
   body.querySelectorAll('.br-desk [data-k]').forEach(b => b.onclick = async () => {
     const box = b.closest('.br-desk'); const l = desk.lines.find(x => x.id === box.dataset.l);
     const text = box.querySelector('[data-t]').value.trim(); const whyEl = box.querySelector('[data-why]'); const why = whyEl?.value.trim() || '';
+    if (b.dataset.k === 'said') {
+      const said = box.querySelector('[data-said]').value.trim(); if (!said) return box.querySelector('[data-said]').focus();
+      grab();
+      try { await ahJson('/api/voice/staff/bank', { item: { id: 's_' + l.id, format: desk.format, text: l.text, verdict: 'no', said, why, by: 'team' } }); l.done = 'said'; await load(); repaint(); }
+      catch (e) { desk.err = e.message; repaint(); }
+      return;
+    }
     const verdict = b.dataset.k;
     if (verdict === 'no' && !why) { whyEl.placeholder = 'Say why first: that is what it learns from'; whyEl.focus(); return; }
     grab();
