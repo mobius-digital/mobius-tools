@@ -339,7 +339,10 @@ export async function handlePublic(request, env, url, path, json) {
     return json({ ok: true, file: { key, name, at: today() } });
   }
   if (request.method === 'GET') {
-    return json({ brand: row.name, answers: safeJson(row.answers_json, {}), prefill: safeJson(row.prefill_json, {}), status: row.status, step: row.step, submitted_at: row.submitted_at });
+    /* Links the client's form shows (their Drive folder), from Brand info > At a glance. */
+    const prof = safeJson((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'profile'`).bind(row.act_id).first().catch(() => null))?.data_json, {});
+    const links = /^https:\/\//.test(prof.drive || '') ? { drive: prof.drive } : {};
+    return json({ brand: row.name, links, answers: safeJson(row.answers_json, {}), prefill: safeJson(row.prefill_json, {}), status: row.status, step: row.step, submitted_at: row.submitted_at });
   }
   if (request.method === 'PUT') {
     const b = await request.json().catch(() => ({}));

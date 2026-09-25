@@ -478,3 +478,6 @@ export async function handleResearch(request, env, ctx, path, json, isAdmin) {
   }
   return json({ error: 'not found' }, 404);
 }
+
+/* The voice interview (voice.js) reuses the same Claude call and house voice. */
+export { claude, textOf, jsonOf, VOICE, clip, safeJson, cost };

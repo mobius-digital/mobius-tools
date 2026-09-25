@@ -817,3 +817,30 @@ profit/
   runs quiet: backlog tagged with `warn:false`, results posted with no @mention.
 - A pinned "📌 Brand kit" task in each project's Client Resources holds what never changes per test;
   Grunk's was written 2026-09-24.
+
+## 2026-09-25: onboarding Access rebuilt + the brand voice loop (How we write)
+
+- **The Access step now matches the Asana template word for word** (the "Client Responsible"
+  tasks and their Looms). Constants live ONCE in `onboard/questions.js`: `MOBIUS` (Business ID
+  695359915477596, domain go-mobius-digital.com, cole@ + ahsan@, the Calendly link) and `LOOM`.
+  Meta = Partners + our Business ID + Full control on every asset. Google = Allowed domains FIRST,
+  then invite both emails as Admin. **Shopify is a collaborator request FROM us**: the client
+  gives their .myshopify.com address (+ request code) and approves; never ask them to add staff.
+  A `check` field can carry `steps`, `copy` ([label, value] chips), `loom`, `go` (buttons) and
+  `link: 'drive'` (the brand's Drive folder, set in Brand info > At a glance, served as
+  `links.drive` by `GET /api/onboard/:token`).
+- **New first step "Getting started"**: invoice, agreement, Slack hello, strategy call, Drive
+  content upload. It shifted every saved `step` index by one; harmless.
+- **The voice loop (Lucky Golf's process, for every brand).** `onboard/voice.html?t=<onboarding
+  token>` is a talk-don't-type interview (browser SpeechRecognition; keyboard dictation as the
+  fallback), 12 topics, the AI follows up on thin answers, then writes sample lines in 8 formats
+  that the client rates Sounds like us / Close / Not us (+ why). Finish writes "How we write" as a
+  DRAFT. Engine: `account-health/worker/src/voice.js` (public routes by token, staff routes
+  `/api/voice/staff/*` admin). Docs in `p_br_doc`: `voice_interview`, `voice_guide`,
+  `voice_bank`, and the old `voice` card is refreshed from the guide.
+- **The bank is the learning.** Client yes/no ratings and every Keep/Reject on Locus's Copy desk
+  (Brand info) land in `voice_bank` with the reason; the guide rewrite and the desk both read it.
+  All bank writes go through account-health (read-modify-write) so the two sides never clobber
+  each other. "Download as a Claude skill" builds a SKILL.md from the guide + bank.
+- Slow AI writes (samples, guide, desk) stream NDJSON with 10s pings (Cloudflare cuts a silent
+  response at 100s). Local: `pf_ah` in localStorage points brand.js at a local account-health.

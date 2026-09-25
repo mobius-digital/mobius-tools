@@ -72,6 +72,15 @@ textarea.in{min-height:90px;resize:vertical}
 .calc{margin-top:10px;background:var(--acc-soft);border-radius:9px;padding:10px 12px;font-size:14px}
 .calc b{font-size:20px;color:var(--acc)}
 .files{margin-top:8px;font-size:13.5px}
+.howto{margin:10px 0 0 30px;font-size:13.5px;color:var(--ink-2)}
+.howto ol{margin:0;padding-left:18px}.howto li{margin:3px 0}
+.howto .cp{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.howto .cp button{display:inline-flex;gap:8px;align-items:center;border:1px dashed var(--line-strong);background:var(--acc-soft);border-radius:9px;padding:7px 11px;font-size:13px}
+.howto .cp button small{color:var(--muted);font-weight:600}
+.howto .cp button b{font-family:ui-monospace,Consolas,monospace;font-weight:600;color:var(--ink)}
+.howto .go{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.howto a.btn{text-decoration:none;color:inherit;display:inline-block}
+@media (max-width:520px){.howto{margin-left:0}}
 .nav{display:flex;justify-content:space-between;gap:10px;margin:22px 0 10px}
 .helpbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin:22px 0}
 .helpbox h3{margin:0 0 4px;font-size:15px}
@@ -86,7 +95,7 @@ textarea.in{min-height:90px;resize:vertical}
 </head>
 <body>
 <div class="wrap" id="app"><div class="center"><p class="note">Loading your form…</p></div></div>
-<script src="questions.js?v=1"></script>
+<script src="questions.js?v=2"></script>
 <script>
 'use strict';
 (function () {
@@ -99,7 +108,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 
-const St = { brand: '', answers: {}, prefill: {}, step: 0, status: '', dirty: {}, saving: false, done: false };
+const St = { brand: '', links: {}, answers: {}, prefill: {}, step: 0, status: '', dirty: {}, saving: false, done: false };
 
 async function boot() {
   if (!TOKEN) return fatal('This link is missing its code. Ask your Mobius contact for your onboarding link.');
@@ -107,7 +116,7 @@ async function boot() {
     const r = await fetch(`${API}/api/onboard/${TOKEN}`);
     const j = await r.json();
     if (!r.ok) return fatal(j.error || 'This link is not valid.');
-    Object.assign(St, { brand: j.brand, answers: j.answers || {}, prefill: j.prefill || {}, step: Math.min(j.step || 0, STEPS.length), status: j.status });
+    Object.assign(St, { brand: j.brand, answers: j.answers || {}, prefill: j.prefill || {}, links: j.links || {}, step: Math.min(j.step || 0, STEPS.length), status: j.status });
     document.title = `${j.brand} onboarding · Mobius Digital`;
     if (St.status === 'submitted' && St.step >= STEPS.length) St.done = true;
     paint();
@@ -148,7 +157,7 @@ function fieldHtml(f) {
   else if (f.type === 'long') body = `<textarea class="in" id="f_${f.id}" rows="4">${esc(val ?? '')}</textarea>`;
   else if (f.type === 'money') body = `<div class="money"><span>$</span><input class="in" id="f_${f.id}" inputmode="decimal" value="${esc(val ?? '')}"></div>`;
   else if (f.type === 'yesno') body = `<div class="yn" id="f_${f.id}"><button type="button" data-yn="yes" class="${val === 'yes' ? 'on' : ''}">Yes</button><button type="button" data-yn="no" class="${val === 'no' ? 'on' : ''}">No</button></div>`;
-  else if (f.type === 'check') body = `<div class="check"><input type="checkbox" id="f_${f.id}" ${val === true ? 'checked' : ''}><span class="help">${esc(f.help || '')}</span></div>`;
+  else if (f.type === 'check') body = `<div class="check"><input type="checkbox" id="f_${f.id}" ${val === true ? 'checked' : ''}><span class="help">${esc(f.help || 'Tick when done.')}</span></div>${howto(f)}`;
   else if (f.type === 'list') body = `<div class="list" id="f_${f.id}"></div><button type="button" class="btn sm" data-add="${f.id}" style="margin-top:8px">+ Add a row</button>`;
   else if (f.type === 'file') body = `<div class="files" id="files_${f.id}"></div><input type="file" id="f_${f.id}" class="in" style="padding:8px">`;
   else body = `<input class="in" id="f_${f.id}" type="${f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text'}" value="${esc(val ?? '')}" ${f.type === 'number' ? 'inputmode="numeric"' : ''}>`;
@@ -159,6 +168,18 @@ function fieldHtml(f) {
     ${body}
     ${sug != null ? `<div class="sug"><b>From your website:</b> <span style="white-space:pre-wrap">${esc(sugText)}</span><br><button type="button" class="btn sm" data-use="${f.id}">Use this</button></div>` : ''}
     ${f.calc || f.type === 'check' ? '' : `<div class="foot"><span></span><button type="button" class="unsure ${unsure ? 'on' : ''}" data-unsure="${f.id}">${unsure ? 'Marked "not sure". Tap to undo.' : "I'm not sure"}</button></div>`}
+  </div>`;
+}
+/* The how-to under a tick box: numbered clicks, values to copy, the Loom. */
+function howto(f) {
+  if (!f.steps && !f.copy && !f.loom && !f.go && !f.link) return '';
+  const link = f.link && St.links[f.link];
+  const go = [...(f.go || []), ...(link ? [['Open your Google Drive folder', link]] : []), ...(f.loom ? [['Watch the short video', f.loom]] : [])];
+  return `<div class="howto">
+    ${f.steps ? `<ol>${f.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
+    ${f.copy ? `<div class="cp">${f.copy.map(([l, v]) => `<button type="button" data-copy="${esc(v)}" title="Copy"><small>${esc(l)}</small><b>${esc(v)}</b><span class="note">Copy</span></button>`).join('')}</div>` : ''}
+    ${f.link && !link ? `<p class="note" style="margin:8px 0 0">Your folder link is in your Asana project under Client Resources, or ask your Mobius contact.</p>` : ''}
+    ${go.length ? `<div class="go">${go.map(([l, u]) => `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">${esc(l)}</a>`).join('')}</div>` : ''}
   </div>`;
 }
 function listRows(f) {
@@ -207,7 +228,7 @@ function paint() {
     <div class="helpbox"><h3>Stuck on a question?</h3><p class="note" style="margin:0">Ask anything about this step and get an answer right away.</p>
       <div class="row"><input class="in" id="hq" placeholder="What do you mean by landed cost?"><button class="btn" id="hgo">Ask</button></div><div id="hans"></div></div>
     <div class="nav"><button class="btn" id="back" ${St.step === 0 ? 'style="visibility:hidden"' : ''}>Back</button><button class="btn pri" id="next">${St.step === STEPS.length - 1 ? 'Review and send' : 'Next'}</button></div>
-    <p class="note" style="margin-bottom:40px">Never type a password here. For access, the last step shows you how to invite us from inside each platform.</p>`;
+    <p class="note" style="margin-bottom:40px">Never type a password here. For access, the Access step shows you how to invite us from inside each platform.</p>`;
   wire(s);
   window.scrollTo(0, 0);
 }
@@ -227,6 +248,11 @@ function wire(s) {
     if (f.type === 'file') { paintFiles(f); el.onchange = () => upload(f, el); continue; }
     el.oninput = () => setAnswer(f.id, f.type === 'money' ? el.value.replace(/[^0-9.]/g, '') : el.value.trim());
   }
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+    const t = b.querySelector('.note');
+    try { await navigator.clipboard.writeText(b.dataset.copy); t.textContent = 'Copied'; } catch { t.textContent = 'Select and copy'; }
+    setTimeout(() => { t.textContent = 'Copy'; }, 1800);
+  });
   document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => document.getElementById('f_' + b.dataset.add)._add());
   document.querySelectorAll('[data-unsure]').forEach(b => b.onclick = () => {
     const id = b.dataset.unsure;
@@ -287,6 +313,9 @@ function paintReview() {
 }
 function paintDone() {
   $('#app').innerHTML = `<div class="center"><div class="brand">Mobius Digital · ${esc(St.brand)}</div><h1>Thank you. We have it.</h1><p class="lede" style="margin:0 auto">Your answers are with the team. We start the research now and will be in touch about the kickoff. You can reopen this link any time to add or change something.</p>
+    <div class="helpbox" style="text-align:left;max-width:520px;margin:28px auto 0"><h3>One more thing: help us find your voice</h3>
+      <p class="note" style="margin:0 0 10px">About 20 minutes, and you talk instead of type. We ask how your brand sounds, write a few sample lines, and you tell us which ones sound like you. It becomes the guide every ad and email is written from.</p>
+      <a class="btn pri" style="display:inline-block;text-decoration:none" href="voice.html?t=${TOKEN}">Start the voice interview</a></div>
     <p style="margin-top:22px"><button class="btn" id="again">Edit my answers</button></p></div>`;
   $('#again').onclick = () => { St.done = false; St.step = 0; paint(); };
 }

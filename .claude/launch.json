@@ -84,6 +84,48 @@
         "account-health/worker/wrangler.toml"
       ],
       "port": 8798
+    },
+    {
+      "name": "voice-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8781"
+      ],
+      "port": 8781
+    },
+    {
+      "name": "voice-ah-dev",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--remote",
+        "--port",
+        "8782",
+        "--inspector-port",
+        "9331",
+        "--config",
+        "account-health/worker/wrangler.toml"
+      ],
+      "port": 8782
+    },
+    {
+      "name": "voice-profit-dev",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--remote",
+        "--port",
+        "8783",
+        "--inspector-port",
+        "9332",
+        "--config",
+        "profit/worker/wrangler.toml"
+      ],
+      "port": 8783
     }
   ]
 }

@@ -15,7 +15,8 @@
 (function () {
 'use strict';
 
-const AH_URL = 'https://mobius-account-health.mobius-digital.workers.dev';
+/* Local testing: localStorage pf_ah points the AI calls at a local account-health dev worker. */
+const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 const FORM_BASE = 'https://tools.go-mobius-digital.com/onboard/?t=';
 const Q = () => window.MOBIUS_ONBOARD || { STEPS: [], PERSONA_Q: [], AWARENESS: [], STAGES: [], calc: () => null };
 
@@ -118,6 +119,15 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-msg.ok{color:var(--good)}.br-msg.bad{color:var(--bad)}
 .br-empty{padding:22px;text-align:center;color:var(--muted);font-size:13.5px}
 .br-tbl td,.br-tbl th{vertical-align:top}
+.br-md{margin-top:10px;font-size:14px;line-height:1.6;max-width:78ch}
+.br-md h4{font-size:14.5px;margin:16px 0 4px}.br-md p{margin:0 0 8px}.br-md ul{margin:0 0 8px;padding-left:20px}
+.br-voicetx{max-height:420px;overflow:auto;font-size:13px;margin-top:8px}.br-voicetx p{margin:0 0 10px;white-space:pre-wrap}
+.br-bank{max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.br-bk{border:1px solid var(--line);border-radius:8px;padding:8px 10px 8px;font-size:13px;position:relative}
+.br-bk > div{margin-top:4px;white-space:pre-wrap;padding-right:56px}
+.unsure-x{position:absolute;top:6px;right:8px;font-size:11.5px;color:var(--muted);background:none;border:0;text-decoration:underline;cursor:pointer}
+.br-desk{border:1px solid var(--line);border-radius:10px;padding:10px}
+.br-desk.done{opacity:.7}
 .br-tbl tr.click{cursor:pointer}
 .br-tbl tr.click:hover td{background:var(--brand-tint)}
 .br-tbl .t{font-weight:700}
@@ -459,8 +469,9 @@ function testDrawer(b) {
    BRAND INFO: test rules, voice, onboarding, all on one page
    ====================================================================== */
 function paintInfo(body) {
-  body.innerHTML = '<div id="biProfile" class="br"></div><div id="biOnboard" class="br"></div>';
+  body.innerHTML = '<div id="biProfile" class="br"></div><div id="biVoice" class="br"></div><div id="biOnboard" class="br"></div>';
   paintProfile(body.querySelector('#biProfile'));
+  paintVoice(body.querySelector('#biVoice'));
   paintOnboarding(body.querySelector('#biOnboard'));
 }
 
@@ -839,7 +850,7 @@ function paintOnboarding(body) {
   const Qo = Q();
   if (!o) {
     body.innerHTML = `<div class="card" style="max-width:720px;display:flex;flex-direction:column;gap:10px"><h3 class="br-h">Send ${esc(d.account.name)} their onboarding link</h3>
-      <p class="hint">One link, no login. It walks the client through ${Qo.STEPS.length} short steps (team, products, numbers, offers, customers, brand, competitors, access), saves as they go, explains why each question matters and has a help box for anything they are unsure of. "I'm not sure" is always allowed; it flags the question for our research instead.</p>
+      <p class="hint">One link, no login. It walks the client through ${Qo.STEPS.length} short steps (getting started, team, products, numbers, offers, customers, brand, competitors, access), saves as they go, explains why each question matters and has a help box for anything they are unsure of. "I'm not sure" is always allowed; it flags the question for our research instead.</p>
       <div><button class="btn primary" id="brMkLink">Create the link</button></div></div>`;
     body.querySelector('#brMkLink').onclick = async () => { S.d = await post('/api/brand/onboard', {}); repaint(); };
     return;
@@ -883,6 +894,147 @@ function paintOnboarding(body) {
 }
 
 /* ======================================================================
+   HOW WE WRITE: the voice interview, the guide, the copy desk, the bank
+   (2026-09-25). The Lucky Golf loop for every brand: the client talks through
+   the interview (onboard/voice.html), rates sample lines, the AI writes the
+   guide; then every line the team keeps or rejects here goes into the bank, and
+   the next draft reads it. The AI is account-health voice.js.
+   ====================================================================== */
+const VOICE_BASE = 'https://tools.go-mobius-digital.com/onboard/voice.html?t=';
+const DESK_FORMATS = ['Ad headline', 'Ad primary text', 'Email subject line', 'Email opener', 'Email body', 'Product description', 'Social caption', 'Video hook (first 3 seconds)', 'Video script', 'Landing page hero', 'Homepage headline'];
+
+/* Just enough markdown for the guide: ## headings, - bullets, **bold**, paragraphs. */
+function mdHtml(md) {
+  const out = []; let list = false;
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  for (const raw of String(md || '').split('\n')) {
+    const l = raw.trim();
+    if (/^[-*] /.test(l)) { if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${inline(l.slice(2))}</li>`); continue; }
+    if (list) { out.push('</ul>'); list = false; }
+    if (!l) continue;
+    const h = /^(#{1,4})\s+(.*)$/.exec(l);
+    out.push(h ? `<h4>${inline(h[2])}</h4>` : `<p>${inline(l)}</p>`);
+  }
+  if (list) out.push('</ul>');
+  return out.join('');
+}
+const slugOf = name => String(name || 'brand').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+/* A Claude skill (SKILL.md) built from the guide and the bank, the same shape as lucky-golf-copy. */
+function skillFile(name, guide, bank) {
+  const yes = bank.filter(x => x.verdict === 'yes'), no = bank.filter(x => x.verdict === 'no');
+  const row = x => `- [${x.format}] ${x.text}${x.why ? ` (why: ${x.why})` : ''}`;
+  return [
+    '---',
+    `name: ${slugOf(name)}-copy`,
+    `description: Write copy in the ${name} brand voice for any format: ad headlines, primary text, email subject lines and bodies, product descriptions, captions, video hooks and scripts, landing pages. Trigger whenever the user asks for copy, writing or drafts for ${name}, or to rewrite or improve existing ${name} copy.`,
+    '---',
+    '',
+    `# ${name} copy`,
+    '',
+    'Read the whole guide below before writing a word. It wins on how the copy SOUNDS. The approved lines show the feel: match it, never reuse their phrases. The rejected lines, and the reasons, are what to avoid. Never invent a product fact, price, number or review; if you need one you do not have, ask. No em dashes.',
+    '',
+    'When the user approves or rejects a line, suggest they add it in Locus > Brand > Brand info > Copy desk, so the guide keeps learning.',
+    '',
+    guide || '(No guide yet. Run the voice interview first.)',
+    '',
+    `## Approved lines (${yes.length})`,
+    yes.map(row).join('\n') || '- none yet',
+    '',
+    `## Rejected lines, and why (${no.length})`,
+    no.map(row).join('\n') || '- none yet',
+    '',
+  ].join('\n');
+}
+
+function paintVoice(body) {
+  const d = S.d, o = d.onboard;
+  const iv = d.docs['']?.voice_interview || {};
+  const g = d.docs['']?.voice_guide || {};
+  const bankAll = d.docs['']?.voice_bank?.items || [];
+  const bank = bankAll.slice().reverse();
+  const link = o ? VOICE_BASE + o.token : '';
+  const turns = iv.turns || [];
+  const st = !turns.length ? 'not started' : iv.stage === 'done' ? `finished ${esc((iv.finished_at || '').slice(0, 10))}` : iv.stage === 'samples' ? `rating samples, round ${iv.round || 1}` : `talking, ${turns.length} answers`;
+  const desk = S.desk && S.desk.act === S.act ? S.desk : (S.desk = { act: S.act, format: DESK_FORMATS[0], brief: '', n: 5, lines: [], busy: false, err: '' });
+  const yesN = bank.filter(x => x.verdict === 'yes').length, noN = bank.length - yesN;
+  body.innerHTML = `
+    <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h">How we write ${g.md ? (g._status === 'draft' ? `<span class="br-tag draft">Draft v${g.version || 1}</span>` : `<span class="br-tag win">Approved v${g.version || 1}</span>`) : ''}</h3>
+        <p class="hint" style="margin:4px 0 0">The brand's writing guide, built the way Lucky Golf's was: the client talks through a voice interview and rates sample lines, then every line the team keeps or rejects on the copy desk teaches it more.</p></div>
+      <div>${g.md && g._status === 'draft' ? '<button class="btn" id="vgOk">Approve</button>' : ''}${g.md ? '<button class="btn" id="vgEdit">Edit</button>' : ''}<button class="btn" id="vgRe">${S.vgBusy ? 'Writing… (about a minute)' : g.md ? 'Rewrite with new examples' : 'Write the guide'}</button>${g.md ? '<button class="btn" id="vgSkill">Download as a Claude skill</button>' : ''}</div></div>
+      <p class="br-msg" id="vgMsg"></p>
+      <div class="br-g2" style="margin-top:10px">
+        <div><p class="br-lbl">Voice interview · ${st}</p>
+          ${o ? `<b style="word-break:break-all;font-size:13px">${esc(link.replace('https://', ''))}</b>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" id="vCopy">Copy link</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open it</a></div>
+            <p class="tiny" style="margin:8px 0 0">Send it after the strategy call. The onboarding form's thank-you screen offers it too. About 20 minutes: they talk, it asks follow-ups, then they rate sample lines.</p>
+            ${turns.length ? `<details style="margin-top:10px"><summary class="tiny" style="cursor:pointer">Read the interview (${turns.length} answers)</summary><div class="br-voicetx">${turns.map(t => `<p><b>${esc(t.q)}</b><br>${esc(t.a || 'Skipped')}</p>`).join('')}</div></details>` : ''}`
+            : `<p class="tiny">The interview uses the onboarding link's code.</p><button class="btn" id="vMk">Create the links</button>`}
+        </div>
+        <div><p class="br-lbl">Example bank · ${yesN} kept · ${noN} rejected</p>
+          <p class="tiny" style="margin:4px 0 0">Every line the client or the team approved or rejected, with the reason. The guide and the copy desk both read it.</p>
+          ${bank.length ? `<details style="margin-top:8px"><summary class="tiny" style="cursor:pointer">Show the lines</summary><div class="br-bank">${bank.map(x => `<div class="br-bk"><span class="br-tag ${x.verdict === 'yes' ? 'win' : 'lose'}">${x.verdict === 'yes' ? 'Kept' : 'Rejected'}</span> <span class="tiny">${esc(x.format)} · ${esc(x.by || '')}</span><div>${esc(x.text)}</div>${x.why ? `<div class="tiny">Why: ${esc(x.why)}</div>` : ''}<button class="unsure-x" data-rm="${esc(x.id)}" title="Remove from the bank">Remove</button></div>`).join('')}</div></details>` : ''}
+        </div>
+      </div>
+      ${g.md ? `<details style="margin-top:14px" ${S.vgOpen ? 'open' : ''} id="vgD"><summary style="cursor:pointer;font-weight:600">Read the guide</summary><div class="br-md">${mdHtml(g.md)}</div></details>` : ''}
+    </div>
+    <div class="card"><div class="br-bar"><h3 class="br-h">Copy desk</h3><span class="tiny">Writes from the guide and the bank. Keep or reject each line: that is how it learns.</span></div>
+      <div class="br-form" style="margin-top:10px">
+        ${sel('dF', 'Format', desk.format, DESK_FORMATS.map(f => [f, f]), { blank: null })}
+        ${inp('dN', 'How many', desk.n, { type: 'number' })}
+        ${inp('dB', 'Brief', desk.brief, { rows: 3, full: true, ph: 'The product, the angle, the offer. For example: Carver 02 Black, angle "nobody sees it coming", no discount.' })}
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn primary" id="dGo" ${desk.busy ? 'disabled' : ''}>${desk.busy ? 'Writing…' : 'Write lines'}</button><span class="br-msg bad">${esc(desk.err || '')}</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${desk.lines.map(l => `<div class="br-desk ${l.done ? 'done' : ''}" data-l="${esc(l.id)}">
+        <textarea class="br-in" rows="${Math.min(6, Math.max(2, Math.ceil(l.text.length / 80)))}" data-t aria-label="The line; edit it before keeping if you like">${esc(l.text)}</textarea>
+        ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}
+        ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : 'Rejected: in the bank'}</div>` : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-k="yes">Keep</button><input class="br-in" data-why placeholder="Why it misses (the more specific the better)" aria-label="Why it misses" style="flex:1;min-width:200px;margin:0"><button class="btn" data-k="no">Reject</button></div>`}
+      </div>`).join('')}</div>
+    </div>`;
+  const msg = (t, ok) => { const m = $('#vgMsg'); if (m) { m.textContent = t; m.className = 'br-msg ' + (ok ? 'ok' : 'bad'); } };
+  body.querySelector('#vMk')?.addEventListener('click', async () => { S.d = await post('/api/brand/onboard', {}); repaint(); });
+  body.querySelector('#vCopy')?.addEventListener('click', async e => { try { await navigator.clipboard.writeText(link); e.target.textContent = 'Copied'; } catch { e.target.textContent = 'Select the link above'; } });
+  body.querySelector('#vgD')?.addEventListener('toggle', e => { S.vgOpen = e.target.open; });
+  body.querySelector('#vgOk')?.addEventListener('click', async () => { await putDoc('', 'voice_guide', g, 'approved'); repaint(); });
+  body.querySelector('#vgEdit')?.addEventListener('click', () => modal('How we write', inp('gMd', 'The guide', g.md, { rows: 24, full: true, hint: '## for headings, - for bullets' }), { onOpen: (w, ctl) => w.onSubmit(async () => {
+    await putDoc('', 'voice_guide', { ...g, md: val(w, 'gMd'), version: (g.version || 1) + 1, from: 'staff' }, 'approved'); ctl.close(); repaint();
+  }) }));
+  body.querySelector('#vgRe').onclick = async () => {
+    if (S.vgBusy) return;
+    S.vgBusy = true; repaint();
+    try { await ahStream('/api/voice/staff/guide', {}, () => {}); await load(); S.vgBusy = false; S.vgOpen = true; repaint(); msg('Guide rewritten as a draft. Read it, then Approve.', true); }
+    catch (e) { S.vgBusy = false; repaint(); msg(e.message); }
+  };
+  body.querySelector('#vgSkill')?.addEventListener('click', () => {
+    const blob = new Blob([skillFile(d.account.name, g.md, bankAll)], { type: 'text/markdown' });
+    const u = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = u; a.download = 'SKILL.md'; a.click(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+    msg(`Downloaded SKILL.md. Put it in a folder named ${slugOf(d.account.name)}-copy in your Claude skills. Download it again as the bank grows.`, true);
+  });
+  body.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await ahJson('/api/voice/staff/bank', { remove: b.dataset.rm }); await load(); repaint(); } catch (e) { msg(e.message); }
+  });
+  const grab = () => { desk.format = val(body, 'dF'); desk.brief = val(body, 'dB'); desk.n = Math.max(1, Math.min(10, +val(body, 'dN') || 5)); };
+  body.querySelector('#dGo').onclick = async () => {
+    grab(); desk.busy = true; desk.err = ''; repaint();
+    try { const r = await ahStream('/api/voice/staff/desk', { format: desk.format, brief: desk.brief, n: desk.n }, () => {}); desk.lines = r.lines || []; }
+    catch (e) { desk.err = e.message; }
+    desk.busy = false; repaint();
+  };
+  body.querySelectorAll('.br-desk [data-k]').forEach(b => b.onclick = async () => {
+    const box = b.closest('.br-desk'); const l = desk.lines.find(x => x.id === box.dataset.l);
+    const text = box.querySelector('[data-t]').value.trim(); const whyEl = box.querySelector('[data-why]'); const why = whyEl?.value.trim() || '';
+    const verdict = b.dataset.k;
+    if (verdict === 'no' && !why) { whyEl.placeholder = 'Say why first: that is what it learns from'; whyEl.focus(); return; }
+    grab();
+    try {
+      await ahJson('/api/voice/staff/bank', { item: { id: 's_' + l.id, format: desk.format, text, verdict, why: why || (text !== l.text ? 'Kept after an edit' : ''), by: 'team' } });
+      l.text = text; l.done = verdict; await load(); repaint();
+    } catch (e) { desk.err = e.message; repaint(); }
+  });
+}
+
+/* ======================================================================
    PROFILE
    ====================================================================== */
 function paintProfile(body) {
@@ -897,6 +1049,7 @@ function paintProfile(body) {
       <div class="card"><div class="br-bar"><h3 class="br-h">At a glance</h3><button class="btn" id="brEditProf">Edit</button></div>
         <dl class="br-kv" style="margin-top:10px">
           <dt>Website</dt><dd>${esc(p.website || a.website || '-')}</dd>
+          <dt>Google Drive</dt><dd>${p.drive ? `<a href="${esc(p.drive)}" target="_blank" rel="noopener">Client folder</a>` : '<span class="tiny">not set: the onboarding link cannot show the client their folder</span>'}</dd>
           <dt>Current offer</dt><dd>${esc(p.current_offer || a.offers || '-')}</dd>
           <dt>Free shipping over</dt><dd>${p.free_ship || a.free_ship ? money(+(p.free_ship || a.free_ship)) : '-'}</dd>
           <dt>Average order</dt><dd>${a.aov ? money(+a.aov) : '-'}${be != null ? ` · break-even cost per sale ${money(be)}` : ''}</dd>
@@ -927,12 +1080,13 @@ function paintProfile(body) {
       </dl></div>`;
   body.querySelector('#brEditProf').onclick = () => modal('At a glance', `<div class="br-form">
       ${inp('pW', 'Website', p.website || a.website, { type: 'url', full: true })}
+      ${inp('pDr', 'Google Drive client folder', p.drive, { type: 'url', full: true, hint: 'the onboarding link shows it to the client' })}
       ${inp('pO', 'Current offer', p.current_offer, { rows: 2, full: true })}
       ${inp('pF', 'Free shipping over', p.free_ship, { type: 'number' })}
       ${inp('pDo', 'Do', p.dos, { rows: 3, full: true, hint: 'what always works or is always required' })}
       ${inp('pDn', 'Never', p.donts, { rows: 3, full: true, hint: 'the lines we never cross' })}
       ${inp('pN', 'Notes', p.notes, { rows: 3, full: true })}</div>`, { onOpen: (w, ctl) => w.onSubmit(async () => {
-    await putDoc('', 'profile', { ...p, website: val(w, 'pW'), current_offer: val(w, 'pO'), free_ship: val(w, 'pF'), dos: val(w, 'pDo'), donts: val(w, 'pDn'), notes: val(w, 'pN') });
+    await putDoc('', 'profile', { ...p, website: val(w, 'pW'), drive: val(w, 'pDr'), current_offer: val(w, 'pO'), free_ship: val(w, 'pF'), dos: val(w, 'pDo'), donts: val(w, 'pDn'), notes: val(w, 'pN') });
     ctl.close(); repaint();
   }) });
   body.querySelector('#brRules').onclick = async () => {

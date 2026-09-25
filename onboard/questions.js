@@ -9,7 +9,36 @@
  */
 (function () {
 'use strict';
+/* What the client pastes into each platform. One place, so a change lands on
+   every client's link at once. */
+const MOBIUS = {
+  bmId: '695359915477596',
+  domain: 'go-mobius-digital.com',
+  team: [['Cole', 'cole@go-mobius-digital.com'], ['Ahsan', 'ahsan@go-mobius-digital.com']],
+  calendly: 'https://calendly.com/mobius-digital/strategy-session',
+};
+const LOOM = {
+  meta: 'https://www.loom.com/share/5775fe7e6ee54ea89927e319a54b7ebd',
+  google: 'https://www.loom.com/share/a137cdef52784270bc937d440b4d83b6',
+  drive: 'https://www.loom.com/share/a143560ddbfc48dfa956844eb37bca74',
+};
 const STEPS = [
+  /* The rest of the client's Asana "Client Responsible" list. `link: 'drive'` is
+     the brand's own Google Drive folder, set in Locus (Brand info > At a glance). */
+  { id: 'start', title: 'Getting started', intro: 'The quick admin first. Tick each one when it is done.',
+    fields: [
+      { id: 'st_invoice', label: 'Pay the first invoice', type: 'check', steps: ['It is in your email. We start once it is paid.'] },
+      { id: 'st_agreement', label: 'Sign the agreement', type: 'check', steps: ['It is in your email too. Please sign it before the rest of onboarding.'] },
+      { id: 'st_slack', label: 'Say hi in our shared Slack channel', type: 'check', steps: ['You will get an invite to a Slack channel with our team. Drop a quick hello so we know you are in.'] },
+      { id: 'st_call', label: 'Book your strategy call', type: 'check', steps: ['Pick a time that suits you. We go through this form together on the call.'], go: [['Book the call', MOBIUS.calendly]] },
+      { id: 'st_drive', label: 'Drop your content in your Google Drive folder', type: 'check', loom: LOOM.drive, link: 'drive',
+        steps: [
+          'Open your folder, then Assets > Insert client content.',
+          'Add anything we could use in ads: videos, photos, GIFs, past ads, product shots, lifestyle and model shoots, customer videos (UGC).',
+          'Sort it into sub-folders if you can (past ads, product shoots, lifestyle, videos, UGC). It gets your ads live sooner.',
+          'Already have a Drive folder of your own? Paste its link in the Branding folder, or in the notes on the last step.',
+        ] },
+    ] },
   { id: 'team', title: 'You and your team', intro: 'Who we will be working with, and where to find you.',
     fields: [
       { id: 'company', label: 'Company name', type: 'text' },
@@ -112,14 +141,39 @@ const STEPS = [
       { id: 'comments', label: 'Do you reply to comments on posts and ads?', type: 'yesno' },
       { id: 'cro', label: 'Website testing (CRO): tool and who owns it', type: 'text' },
     ] },
-  { id: 'access', title: 'Access', intro: 'Tick each one when it is done. Each has a short how-to.',
+  /* Access, word for word from the client's Asana "Client Responsible" tasks and
+     the Looms on them (2026-09-25). `steps`, `copy` and `loom` render as a how-to
+     under the tick box. We never take a password: the client invites us. */
+  { id: 'access', title: 'Access', intro: 'Invite us from inside each platform, then tick it off. Each one has the exact clicks and a short video. Skip any platform you do not use.',
     fields: [
-      { id: 'acc_meta', label: 'Meta ad account and Page', type: 'check', help: 'Business Settings > Partners > Add > Give a partner access to your assets. Use our Business ID, which your contact will send you.' },
-      { id: 'acc_shopify', label: 'Shopify', type: 'check', help: 'Settings > Users > Add staff, using the email your contact gives you.' },
-      { id: 'acc_tw', label: 'Triple Whale', type: 'check', help: 'Settings > Users > Invite. Choose the admin role.' },
-      { id: 'acc_klaviyo', label: 'Klaviyo', type: 'check', help: 'Account > Settings > Users > Add user.' },
-      { id: 'acc_google', label: 'Google Ads', type: 'check', help: 'Admin > Access and security > add our manager account.' },
-      { id: 'acc_tiktok', label: 'TikTok Ads', type: 'check', help: 'Business Center > Users > Invite member.' },
+      { id: 'acc_meta', label: 'Meta (Facebook and Instagram)', type: 'check', loom: LOOM.meta,
+        steps: [
+          'Go to business.facebook.com/settings and pick your business.',
+          'Open Users > Partners, click Add, then "Give a partner access to your assets".',
+          'Paste our Business ID (below) and click Next.',
+          'Tick every asset you have and give each one Full control: Pages, ad accounts, pixels and datasets, the Instagram account, catalogs, commerce accounts, custom conversions, domains, offline event sets, block lists, apps and creative folders.',
+          'Click Save changes once, at the end.',
+        ],
+        copy: [['Our Meta Business ID', MOBIUS.bmId]] },
+      { id: 'acc_google', label: 'Google Ads', type: 'check', loom: LOOM.google,
+        steps: [
+          'Go to ads.google.com, open Tools and settings (Admin), then Access and security.',
+          'Open the Security tab, find Allowed domains, add our domain (below) and click Save. Without this step Google blocks our invites.',
+          'Go back to the Users tab, click the + button and add both of our emails.',
+          'Choose Admin access and click Send invitation.',
+        ],
+        copy: [['Our domain', MOBIUS.domain], ...MOBIUS.team] },
+      { id: 'shopify_url', label: 'Your Shopify store address', type: 'text', help: 'The one that ends in .myshopify.com. You can see it in Shopify under Settings > Domains.',
+        why: 'We send you a collaborator request from our side, so you never have to make us an account.' },
+      { id: 'shopify_code', label: 'Your collaborator request code, if you have one', type: 'text', help: 'Shopify > Settings > Users > Security, under Collaborators. Leave empty if it says anyone can send a request.' },
+      { id: 'acc_shopify', label: 'Shopify: approve our collaborator request', type: 'check',
+        steps: ['Once you add your store address above, we send the request.', 'You get an email from Shopify. Open it and click Approve (Settings > Users also shows it). That is it.'] },
+      { id: 'acc_tw', label: 'Triple Whale (or the attribution tool you use)', type: 'check',
+        steps: ['Open Settings > Users and click Invite.', 'Add both of our emails with the Admin role.'], copy: MOBIUS.team },
+      { id: 'acc_klaviyo', label: 'Klaviyo (or the email tool you use)', type: 'check',
+        steps: ['In Klaviyo: Settings > Users > Add new user.', 'Add our email with the Admin role.'], copy: [MOBIUS.team[0]] },
+      { id: 'acc_tiktok', label: 'TikTok Ads, if you run them', type: 'check',
+        steps: ['In TikTok Business Center: Users > Invite member.', 'Add both of our emails as Admin, and share the ad account with Full access.'], copy: MOBIUS.team },
       { id: 'acc_notes', label: 'Anything else we should know?', type: 'long' },
     ] },
 ];
@@ -176,7 +230,7 @@ const STAGES = [
   ['5', 'Stage 5: heard it all', 'Identity. Sell who they become.'],
 ];
 
-const api = { STEPS, calc, PERSONA_Q, AWARENESS, STAGES };
+const api = { STEPS, calc, PERSONA_Q, AWARENESS, STAGES, MOBIUS, LOOM };
 if (typeof window !== 'undefined') window.MOBIUS_ONBOARD = api;
 if (typeof globalThis !== 'undefined') globalThis.MOBIUS_ONBOARD = api;
 })();
