@@ -844,3 +844,20 @@ profit/
   each other. "Download as a Claude skill" builds a SKILL.md from the guide + bank.
 - Slow AI writes (samples, guide, desk) stream NDJSON with 10s pings (Cloudflare cuts a silent
   response at 100s). Local: `pf_ah` in localStorage points brand.js at a local account-health.
+- **2026-09-25 (later): the Asana template has TWO client tasks, and they run themselves.**
+  Cole: the onboarding link is the one place a client does setup, so "MD - Template 2026 v2"
+  (gid 1218874412343799) has only "Start here: your onboarding link" and "Help us find your
+  voice" under Client Responsible. `onboardAsanaTick` (asana-brand.js section 6, inside the hourly
+  brand tick; `POST /api/brand-asana/onboard` runs it now) finds projects made in the last 120
+  days with a "Start here" task, creates the onboarding row (a PENDING id `asana_<project gid>`,
+  named after the project, until the brand's Meta account exists), writes the link into the
+  task description AND a comment, reads the Drive folder from the "Google Drive" task, ticks
+  "Start here" on Send, posts the voice link on Send, and ticks the voice task on Finish. When a
+  Meta account with the same name appears (or the brand is connected to that project), it
+  connects and `adoptPending` moves the row and docs onto the real act_id. Onboarding lookups by
+  token LEFT JOIN accounts with `COALESCE(a.name, o.name)` so pending links work. Pending clients
+  show on the Brand overview ("New clients, not in Locus yet"). Flags in
+  `p_br_onboard.flags_json` make every post happen once. A project made from the template for any
+  other purpose gets a link too: archive it (discovery skips archived projects).
+- **Asana cannot edit a project template.** Make a project from it, edit, then
+  `POST /api/brand-asana/save-template {project_gid, name}` (admin) and poll `/api/brand-asana/job`.

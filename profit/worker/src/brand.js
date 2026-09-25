@@ -239,7 +239,10 @@ async function overview(env) {
     cnt(`SELECT act_id, COUNT(*) n, SUM(CASE WHEN stage IN ('idea','production','live') THEN 1 ELSE 0 END) open FROM p_br_batch GROUP BY act_id`),
     cnt(`SELECT act_id, status, submitted_at FROM p_br_onboard`),
   ]);
-  return { brands: accts.map(a => ({ act_id: a.act_id, name: a.name, lines: lines[a.act_id]?.n || 0, personas: personas[a.act_id]?.n || 0, personas_ok: personas[a.act_id]?.ok || 0, angles: angles[a.act_id]?.n || 0, batches: batches[a.act_id]?.n || 0, open: batches[a.act_id]?.open || 0, onboard: onboard[a.act_id]?.status || null })) };
+  /* New clients from the Asana template whose Meta account is not in Locus yet
+     (account-health asana-brand.js section 6). */
+  const pending = ((await env.DB.prepare(`SELECT act_id, name, token, status, submitted_at, json_extract(flags_json, '$.link_posted') posted FROM p_br_onboard WHERE act_id LIKE 'asana_%' ORDER BY created_at DESC`).all().catch(() => ({ results: [] }))).results || []);
+  return { pending, brands: accts.map(a => ({ act_id: a.act_id, name: a.name, lines: lines[a.act_id]?.n || 0, personas: personas[a.act_id]?.n || 0, personas_ok: personas[a.act_id]?.ok || 0, angles: angles[a.act_id]?.n || 0, batches: batches[a.act_id]?.n || 0, open: batches[a.act_id]?.open || 0, onboard: onboard[a.act_id]?.status || null })) };
 }
 
 /* ---------------- writes ---------------- */
@@ -309,7 +312,7 @@ async function putDoc(env, act, lineId, key, data, status, source) {
 const tokenOk = t => /^[a-f0-9]{24,40}$/.test(t || '');
 async function onboardRow(env, token) {
   if (!tokenOk(token)) return null;
-  return env.DB.prepare(`SELECT o.*, a.name FROM p_br_onboard o JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first();
+  return env.DB.prepare(`SELECT o.*, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first();
 }
 function mergeAnswers(old, patch) {
   const out = { ...(old || {}) };

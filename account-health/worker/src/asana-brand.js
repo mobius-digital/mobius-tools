@@ -727,6 +727,175 @@ export async function brandAsanaTick(env, canAfford = () => true) {
       out[d.act_id] = { sync: s, tagged: t.tagged, results: r.posted };
     } catch (e) { out[d.act_id] = { error: e.message }; }
   }
+  /* New client projects: onboarding links posted, tasks ticked (section 6). */
+  out.onboarding = await onboardAsanaTick(env, canAfford).catch(e => ({ error: e.message }));
+  return out;
+}
+
+/* ---------------- 6. ONBOARDING (2026-09-25) ----------------
+   Cole: the onboarding link is the ONE place a new client does their setup, so
+   the client project template ("MD - Template 2026 v2") has just two client tasks:
+   "Start here: your onboarding link" and "Help us find your voice". This pass makes
+   them run themselves:
+     - a new project from the template (it has a "Start here" task) gets an
+       onboarding link, even before Locus knows the brand: a client has not shared
+       Meta yet, which is what the form teaches them to do. Until then the link
+       lives under a pending id, 'asana_<project gid>', named after the project.
+     - the link is posted as a comment on "Start here" (the client gets the Asana
+       notification), the voice interview link on "Help us find your voice" once
+       the form is sent, and each task is ticked when the client finishes.
+     - the brand's Drive folder is read from the "Google Drive" task in Client
+       Resources, so the form can show it.
+     - once the brand's Meta account appears in Locus, it is connected to the project
+       and everything under the pending id moves onto the real brand.
+   Idempotent: each post happens once (p_br_onboard.flags_json). */
+const ONBOARD_FORM = 'https://tools.go-mobius-digital.com/onboard/?t=';
+const VOICE_FORM = 'https://tools.go-mobius-digital.com/onboard/voice.html?t=';
+const START_RE = /^\s*start here/i;
+const VOICE_RE = /find your voice/i;
+const PENDING = gid => `asana_${gid}`;
+let onboardCols = false;
+
+async function ensureOnboardColumns(env) {
+  if (onboardCols) return;
+  for (const c of ['name TEXT', 'asana_project TEXT', 'asana_task TEXT', 'voice_task TEXT', "flags_json TEXT NOT NULL DEFAULT '{}'"]) {
+    await env.DB.prepare(`ALTER TABLE p_br_onboard ADD COLUMN ${c}`).run().catch(() => {});
+  }
+  onboardCols = true;
+}
+const newToken = () => [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, '0')).join('');
+const driveIn = s => (/https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/[A-Za-z0-9_-]+/.exec(s || '') || [])[0]?.replace(/\/u\/\d+\//, '/') || null;
+
+/* Everything filed under the pending id moves to the real brand. What the real brand
+   already has wins, except an empty onboarding row, which the pending one replaces. */
+async function adoptPending(env, from, to) {
+  const [p, r] = await Promise.all([
+    env.DB.prepare(`SELECT * FROM p_br_onboard WHERE act_id = ?1`).bind(from).first(),
+    env.DB.prepare(`SELECT * FROM p_br_onboard WHERE act_id = ?1`).bind(to).first(),
+  ]);
+  if (p) {
+    const empty = r && r.status === 'sent' && (r.answers_json || '{}') === '{}';
+    if (!r || empty) {
+      if (r) await env.DB.prepare(`DELETE FROM p_br_onboard WHERE act_id = ?1`).bind(to).run();
+      await env.DB.prepare(`UPDATE p_br_onboard SET act_id = ?2 WHERE act_id = ?1`).bind(from, to).run();
+    } else {
+      await env.DB.prepare(`UPDATE p_br_onboard SET asana_project = ?2, asana_task = ?3, voice_task = ?4, flags_json = ?5 WHERE act_id = ?1`)
+        .bind(to, p.asana_project, p.asana_task, p.voice_task, p.flags_json || '{}').run();
+      await env.DB.prepare(`DELETE FROM p_br_onboard WHERE act_id = ?1`).bind(from).run();
+    }
+  }
+  const have = new Set(((await env.DB.prepare(`SELECT line_id, key FROM p_br_doc WHERE act_id = ?1`).bind(to).all()).results || []).map(d => `${d.line_id}|${d.key}`));
+  const docs = (await env.DB.prepare(`SELECT line_id, key, data_json FROM p_br_doc WHERE act_id = ?1`).bind(from).all()).results || [];
+  for (const d of docs) {
+    if (!have.has(`${d.line_id}|${d.key}`)) await env.DB.prepare(`UPDATE p_br_doc SET act_id = ?2 WHERE act_id = ?1 AND line_id = ?3 AND key = ?4`).bind(from, to, d.line_id, d.key).run();
+    else if (d.key === 'profile') {
+      const drive = safeJson(d.data_json, {}).drive;
+      if (drive) await env.DB.prepare(`UPDATE p_br_doc SET data_json = json_set(data_json, '$.drive', ?2) WHERE act_id = ?1 AND line_id = '' AND key = 'profile' AND json_extract(data_json, '$.drive') IS NULL`).bind(to, drive).run();
+    }
+  }
+  await env.DB.prepare(`DELETE FROM p_br_doc WHERE act_id = ?1`).bind(from).run();
+}
+
+async function setDrive(env, act, url) {
+  await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'profile', json_object('drive', ?2), 'approved', 'asana', datetime('now'))
+    ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = json_set(p_br_doc.data_json, '$.drive', ?2), updated_at = datetime('now')`).bind(act, url).run();
+}
+
+export async function onboardAsanaTick(env, canAfford = () => true) {
+  if (!env.ASANA_TOKEN) return { skipped: 'no ASANA_TOKEN' };
+  await ensureOnboardColumns(env);
+  const out = { found: 0, posted: 0, ticked: 0, adopted: 0 };
+  const rows = (await env.DB.prepare(`SELECT * FROM p_br_onboard`).all()).results || [];
+  const known = new Set(rows.map(r => r.asana_project).filter(Boolean));
+
+  /* 1. New projects from the template. Only projects made in the last 120 days, and a
+     project without a "Start here" task is remembered so it is never read again. */
+  const skip = new Set(safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'onboardAsanaSkip'`).first().catch(() => null))?.value, []));
+  if (canAfford(4)) {
+    const me = await asana(env, '/users/me?opt_fields=workspaces.name');
+    const ws = me.workspaces?.find(w => /mobius/i.test(w.name)) || me.workspaces?.[0];
+    const since = new Date(Date.now() - 120 * 864e5).toISOString();
+    const projects = ws ? await asanaAll(env, `/projects?workspace=${ws.gid}&archived=false&opt_fields=name,created_at`) : [];
+    const fresh = projects.filter(p => p.created_at >= since && !known.has(p.gid) && !skip.has(p.gid)).slice(0, 5);
+    const links = (await env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'asana'`).all()).results || [];
+    for (const p of fresh) {
+      if (!canAfford(4)) break;
+      const tasks = await asanaAll(env, `/projects/${p.gid}/tasks?opt_fields=name,notes,completed,memberships.section.name`);
+      const start = tasks.find(t => START_RE.test(t.name || ''));
+      if (!start) { skip.add(p.gid); continue; }
+      const voice = tasks.find(t => VOICE_RE.test(t.name || ''));
+      const linked = links.find(l => safeJson(l.data_json, {}).project_gid === p.gid)?.act_id;
+      const act = linked || PENDING(p.gid);
+      const have = await env.DB.prepare(`SELECT act_id FROM p_br_onboard WHERE act_id = ?1`).bind(act).first();
+      if (have) await env.DB.prepare(`UPDATE p_br_onboard SET asana_project = ?2, asana_task = ?3, voice_task = ?4, name = COALESCE(name, ?5) WHERE act_id = ?1`).bind(act, p.gid, start.gid, voice?.gid || null, p.name).run();
+      else await env.DB.prepare(`INSERT INTO p_br_onboard (act_id, token, name, asana_project, asana_task, voice_task) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(act, newToken(), p.name, p.gid, start.gid, voice?.gid || null).run();
+      const drive = driveIn(tasks.find(t => /google drive/i.test(t.name || '') && driveIn(t.notes))?.notes);
+      if (drive) await setDrive(env, act, drive);
+      out.found++;
+    }
+    await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('onboardAsanaSkip', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify([...skip].slice(-500))).run().catch(() => {});
+  }
+
+  /* 2. Every onboarding tied to a project: adopt, post, tick. */
+  const live = (await env.DB.prepare(`SELECT o.*, a.name AS acct_name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.asana_project IS NOT NULL`).all()).results || [];
+  let accts = null;
+  for (let o of live) {
+    if (!canAfford(4)) break;
+    let flags = safeJson(o.flags_json, {});
+    const save = () => env.DB.prepare(`UPDATE p_br_onboard SET flags_json = ?2 WHERE act_id = ?1`).bind(o.act_id, JSON.stringify(flags)).run();
+
+    /* Pending: has the brand's Meta account arrived in Locus? */
+    if (o.act_id.startsWith('asana_')) {
+      const link = (await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'asana' AND json_extract(data_json, '$.project_gid') = ?1`).bind(o.asana_project).first())?.act_id;
+      let real = link;
+      if (!real) {
+        accts ||= (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 1`).all()).results || [];
+        const hits = accts.filter(a => norm(a.name) && norm(a.name) === norm(o.name));
+        if (hits.length === 1) { await connect(env, hits[0].act_id, o.asana_project).catch(() => null); real = hits[0].act_id; }
+      }
+      if (real) {
+        await adoptPending(env, o.act_id, real);
+        out.adopted++;
+        o = await env.DB.prepare(`SELECT * FROM p_br_onboard WHERE act_id = ?1`).bind(real).first();
+        if (!o) continue;
+        flags = safeJson(o.flags_json, {});
+      }
+    }
+
+    if (!flags.link_posted && o.asana_task) {
+      /* In the description too: a comment only notifies followers, and the client is
+         usually not one, so the link has to be the first thing they see on the task. */
+      await asana(env, `/tasks/${o.asana_task}`, { method: 'PUT', body: { html_notes: `<body><strong>Your onboarding link: <a href="${ONBOARD_FORM}${o.token}">open it here</a></strong>\n\nEverything we need to get started is in that one link: the quick admin (invoice, agreement, saying hi in Slack, booking the strategy call, dropping your content in Google Drive), your products and numbers, your team, and giving us access to Meta, Google, Shopify, Klaviyo and Triple Whale, click by click with a short video for each.\n\nIt saves as you go, so stop and come back to the same link any time. <strong>This task ticks itself when you press Send.</strong></body>` } });
+      await asana(env, `/tasks/${o.asana_task}/stories`, { method: 'POST', body: { html_text: `<body>Here is your onboarding link: <a href="${ONBOARD_FORM}${o.token}">${ONBOARD_FORM}${o.token}</a>\n\nIt is the one place for everything we need to get started: the quick admin, your products and numbers, and giving us access to each platform, click by click. It saves as you go. This task ticks itself when you press Send.</body>` } });
+      flags.link_posted = new Date().toISOString(); await save(); out.posted++;
+    }
+    if (!flags.drive) {
+      const prof = await getDoc(env, o.act_id, 'profile');
+      if (prof?.drive) flags.drive = true;
+      else if (o.status !== 'submitted' && canAfford(3)) {
+        const tasks = await asanaAll(env, `/projects/${o.asana_project}/tasks?opt_fields=name,notes`);
+        const drive = driveIn(tasks.find(t => /google drive/i.test(t.name || '') && driveIn(t.notes))?.notes);
+        if (drive) { await setDrive(env, o.act_id, drive); flags.drive = true; }
+      }
+      if (flags.drive) await save();
+    }
+    if (o.status === 'submitted' && !flags.done_ticked && o.asana_task) {
+      await asana(env, `/tasks/${o.asana_task}`, { method: 'PUT', body: { completed: true } });
+      flags.done_ticked = new Date().toISOString(); await save(); out.ticked++;
+    }
+    if (o.status === 'submitted' && o.voice_task && !flags.voice_posted) {
+      await asana(env, `/tasks/${o.voice_task}`, { method: 'PUT', body: { html_notes: `<body><strong>Your voice interview: <a href="${VOICE_FORM}${o.token}">open it here</a></strong>\n\nAbout 20 minutes, and you talk instead of type. We ask how your brand sounds, one question at a time, then write a few sample lines (an ad, an email subject, a caption) and you tell us which ones sound like you and what is off about the rest. It becomes the writing guide every ad and email we make is checked against. After our strategy call is the perfect time. <strong>This task ticks itself when you press Finish.</strong></body>` } });
+      await asana(env, `/tasks/${o.voice_task}/stories`, { method: 'POST', body: { html_text: `<body>Thanks for sending the onboarding form. When you have 20 minutes (after our strategy call is perfect), here is your voice interview: <a href="${VOICE_FORM}${o.token}">${VOICE_FORM}${o.token}</a>\n\nYou talk, we ask. Then you rate a few sample lines. This task ticks itself when you press Finish.</body>` } });
+      flags.voice_posted = new Date().toISOString(); await save(); out.posted++;
+    }
+    if (o.voice_task && flags.voice_posted && !flags.voice_ticked) {
+      const iv = await getDoc(env, o.act_id, 'voice_interview');
+      if (iv?.stage === 'done') {
+        await asana(env, `/tasks/${o.voice_task}`, { method: 'PUT', body: { completed: true } });
+        flags.voice_ticked = new Date().toISOString(); await save(); out.ticked++;
+      }
+    }
+  }
   return out;
 }
 
@@ -743,6 +912,15 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
       if (b.doc) { try { const t = await readDoc(env, b.doc); out.google = t ? { ok: true, chars: t.length, start: clip(t, 200) } : { ok: false, error: 'Could not open that doc as Cole or Ahsan.' }; } catch (e) { out.google = { ok: false, error: e.message }; } }
       return json(out);
     }
+    if (path === '/api/brand-asana/onboard') return json({ ok: true, ...(await onboardAsanaTick(env)) });
+    /* Asana cannot edit a project template. To change one: make a project from it, edit
+       the tasks, then save that project back as a new template here (2026-09-25). */
+    if (path === '/api/brand-asana/save-template') {
+      if (!/^\d+$/.test(b.project_gid || '') || !String(b.name || '').trim()) return json({ error: 'project_gid and name are required' }, 400);
+      const p = await asana(env, `/projects/${b.project_gid}?opt_fields=team.gid`);
+      return json({ ok: true, job: await asana(env, `/projects/${b.project_gid}/saveAsTemplate`, { method: 'POST', body: { name: String(b.name).trim(), team: p.team?.gid, public: false } }) });
+    }
+    if (path === '/api/brand-asana/job') return json({ ok: true, job: await asana(env, `/jobs/${String(b.gid || '').replace(/\D/g, '')}`) });
     if (!b.act) return json({ error: 'act is required' }, 400);
     if (path === '/api/brand-asana/connect') {
       try { return json({ ok: true, asana: await connect(env, b.act, b.project_gid) }); }

@@ -415,7 +415,7 @@ async function dedupe(env, act, b) {
 /* ---------------- onboarding: help box + website pre-fill ---------------- */
 async function onboardHelp(env, b) {
   if (!/^[a-f0-9]{24,40}$/.test(b.token || '')) return { error: 'bad link', status: 404 };
-  const row = await env.DB.prepare(`SELECT o.act_id, a.name FROM p_br_onboard o JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(b.token).first();
+  const row = await env.DB.prepare(`SELECT o.act_id, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(b.token).first();
   if (!row) return { error: 'bad link', status: 404 };
   const q = clip(b.question, 800).trim();
   if (!q) return { answer: '' };

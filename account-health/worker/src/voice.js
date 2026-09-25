@@ -79,7 +79,7 @@ async function setDoc(env, act, key, data, status = 'approved', source = 'voice'
 }
 async function brandByToken(env, token) {
   if (!/^[a-f0-9]{24,40}$/.test(token || '')) return null;
-  return env.DB.prepare(`SELECT o.act_id, o.answers_json, a.name FROM p_br_onboard o JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first().catch(() => null);
+  return env.DB.prepare(`SELECT o.act_id, o.answers_json, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first().catch(() => null);
 }
 async function bankAdd(env, act, items) {
   const { data } = await getDoc(env, act, 'voice_bank');

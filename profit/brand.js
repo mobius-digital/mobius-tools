@@ -291,7 +291,12 @@ async function renderAll(main) {
     <div class="card" style="padding:0"><div class="tbl-wrap"><table>
       <thead><tr><th>Brand</th><th>Onboarding</th><th class="num">Product lines</th><th class="num">Personas</th><th class="num">Angles</th><th class="num">Batches</th><th class="num">Open tests</th><th></th></tr></thead>
       <tbody>${r.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${ob(b.onboard)}</td><td class="num">${b.lines}</td><td class="num">${b.personas_ok}/${b.personas}</td><td class="num">${b.angles}</td><td class="num">${b.batches}</td><td class="num">${b.open}</td>
-        <td style="text-align:right"><button class="btn" data-act="${esc(b.act_id)}">Open</button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+        <td style="text-align:right"><button class="btn" data-act="${esc(b.act_id)}">Open</button></td></tr>`).join('')}</tbody></table></div></div>
+    ${(r.pending || []).length ? `<div class="card"><h3 class="br-h">New clients, not in Locus yet</h3>
+      <p class="hint" style="margin:4px 0 10px">Made from the Asana template. Locus posted their onboarding link on the "Start here" task and moves everything onto the brand once their Meta account shows up here.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Client</th><th>Onboarding</th><th>Link</th></tr></thead><tbody>${r.pending.map(p => `<tr><td><b>${esc(p.name || '')}</b></td><td>${ob(p.status)}</td>
+        <td><a href="${esc(FORM_BASE + p.token)}" target="_blank" rel="noopener">Onboarding form</a> · <a href="${esc(VOICE_BASE + p.token)}" target="_blank" rel="noopener">Voice interview</a>${p.posted ? '' : ' <span class="tiny">(posting to Asana within the hour)</span>'}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+  </div>`;
   main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
 }
 
