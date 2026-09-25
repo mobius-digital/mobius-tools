@@ -27,6 +27,7 @@
  * the staff's never overwrite each other.
  */
 import { claude, textOf, jsonOf, VOICE, clip, safeJson } from './research.js';
+import { skillSystem, syncSkill, buildSkill, getSkill } from './skill.js';
 
 const S = { type: 'string' };
 const arr = items => ({ type: 'array', items });
@@ -44,6 +45,8 @@ export const TOPICS = [
   ['mechanics', 'Style', 'Emojis, exclamation marks, all caps, slang, swearing: yes, no, or sometimes?'],
   ['admire', 'Who you sound like', 'Which brands sound the way you wish you sounded, and which ones would you hate to sound like? Why?'],
   ['examples', 'Lines you loved', 'Any ad, email, caption or line of yours that sounded exactly like you? Any that felt wrong? Paste or describe them.'],
+  ['specs', 'Your product, in detail', 'Walk us through your best seller like you are showing it to a friend: what is it made of, what makes it different, and what does each of those things actually do for the person using it?'],
+  ['culture', 'How your customers talk', 'How do your customers talk about the thing your product is for? The slang, the in-jokes, the moments they would reach for it.'],
   ['limits', 'Off limits', 'Anything off limits? Topics, claims you legally cannot make, competitors we should never name.'],
 ];
 const TOPIC_IDS = TOPICS.map(t => t[0]);
@@ -184,6 +187,12 @@ Write it from the owner's own answers and ratings; quote their words where they 
     schema: SCHEMAS.guide, effort: 'medium', maxTokens: 16000,
   });
   const j = jsonOf(m);
+  /* A brand whose skill is synced from its repo (Lucky) keeps the repo's guide; the
+     interview's version is kept beside it as a suggestion to fold in by hand. */
+  if ((await getSkill(env, act)).source === 'repo') {
+    await setDoc(env, act, 'voice_guide_suggested', { md: tidy(clip(j.md, 60000)), written_at: now() }, 'draft');
+    return j.md;
+  }
   const { data: old } = await getDoc(env, act, 'voice_guide');
   await setDoc(env, act, 'voice_guide', { md: tidy(clip(j.md, 60000)), version: (old.version || 0) + 1, from: 'interview', written_at: now() }, 'draft');
   const yes = bank.filter(x => x.verdict === 'yes').slice(-8).map(x => x.text);
@@ -201,7 +210,7 @@ function streamed(ctx, work) {
   const put = o => w.write(enc.encode(JSON.stringify(o) + '\n')).catch(() => {});
   const run = (async () => {
     const ping = setInterval(() => put({ type: 'ping' }), 10000);
-    try { put({ type: 'done', ...(await work()) }); }
+    try { put({ type: 'done', ...(await work(o => put(o))) }); }
     catch (e) { put({ type: 'error', text: e.status ? e.message : 'The writer is busy. Wait a moment and try again.', detail: e.message }); }
     finally { clearInterval(ping); await w.close().catch(() => {}); }
   })();
@@ -226,12 +235,25 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         const card = (await getDoc(env, A, 'voice')).data;
         const facts = await brandFacts(env, A, acct.answers_json);
         const n = Math.max(1, Math.min(10, +b.n || 5));
+        const skill = await getSkill(env, A);
+        const ask = `FORMAT: ${clip(b.format, 80) || 'Ad headline'}\nBRIEF: ${clip(b.brief, 3000) || '(none: write for the best seller)'}${b.revise?.note ? `\n\nYOUR LAST ROUND:\n${(b.revise.lines || []).slice(0, 10).map((l, i) => `${i + 1}. ${clip(l, 1500)}`).join('\n')}\n\nTHE TEAM'S NOTE ON IT (do what it says; it outranks everything except the facts):\n${clip(b.revise.note, 2000)}` : ''}`;
+        const deskRule = `Write ${n} different attempts, each a real take, not ${n} versions of the same sentence. "note" is one short line for the team: what the attempt is going for, or a fact you needed and did not have. ${VOICE} ${US}`;
+        /* The whole skill, cached: the instructions and every reference file, exactly as
+           Claude loads it. The bank rides on top: the lines this brand kept or rejected. */
+        if (skill.instructions) {
+          const m = await claude(env, {
+            system: [{ type: 'text', text: skillSystem(acct.name, skill), cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}` }],
+            user: `${facts}\n\n${ask}`,
+            schema: SCHEMAS.desk, effort: 'medium', maxTokens: 12000,
+          });
+          return { lines: (jsonOf(m).lines || []).slice(0, n).map(l => ({ id: rid(), text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) })), used: 'skill' };
+        }
         const m = await claude(env, {
           system: `You write copy for ${acct.name} in their voice. Read the guide first; it wins on how the copy SOUNDS. The approved lines show the feel; never reuse their phrases. The rejected lines, and the reasons, are what to avoid. Never invent a product fact, price, number or review; if the brief needs one you do not have, write around it and say so in "note". Write ${n} different attempts, each a real take, not five versions of the same sentence. "note" is one short line for the team (what the attempt is going for), or empty. ${VOICE} ${US}`,
-          user: `${guide ? `HOW WE WRITE:\n${clip(guide, 14000)}` : `NO GUIDE YET. The short card: ${JSON.stringify(card).slice(0, 2000)}`}\n\n${facts}\n\n${bankText(bank)}\n\nFORMAT: ${clip(b.format, 80) || 'Ad headline'}\nBRIEF: ${clip(b.brief, 3000) || '(none: write for the best seller)'}`,
+          user: `${guide ? `HOW WE WRITE:\n${clip(guide, 14000)}` : `NO GUIDE YET. The short card: ${JSON.stringify(card).slice(0, 2000)}`}\n\n${facts}\n\n${bankText(bank)}\n\n${ask}`,
           schema: SCHEMAS.desk, effort: 'medium', maxTokens: 8000,
         });
-        return { lines: (jsonOf(m).lines || []).slice(0, n).map(l => ({ id: rid(), text: tidy(clip(l.text, 1500)), note: clip(l.note, 300) })) };
+        return { lines: (jsonOf(m).lines || []).slice(0, n).map(l => ({ id: rid(), text: tidy(clip(l.text, 1500)), note: clip(l.note, 300) })), used: 'guide' };
       });
       if (path === '/api/voice/staff/bank') {
         if (b.remove) {
@@ -244,13 +266,49 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         await bankAdd(env, A, [{ id: it.id || rid(), format: clip(it.format, 60) || 'Other', text: clip(it.text, 1500), verdict: it.verdict, why: clip(it.why, 600), by: clip(it.by, 80) || 'team', at: now() }]);
         return json({ ok: true });
       }
+      if (path === '/api/voice/staff/build-skill') return streamed(ctx, async put => ({ ...(await buildSkill(env, A, acct.name, put)) }));
+      /* Edit one file of a BUILT skill (a synced one is edited in its repo). */
+      if (path === '/api/voice/staff/skill-file') {
+        const sk = await getSkill(env, A);
+        if (sk.source === 'repo') return json({ error: 'This skill is synced from its repo. Edit it there.' }, 400);
+        if (b.path === 'SKILL.md') sk.instructions = clip(b.md, 60000);
+        else if (b.path) {
+          const f = (sk.files || []).find(x => x.path === b.path);
+          if (!f) return json({ error: 'unknown file' }, 404);
+          f.md = clip(b.md, 120000);
+          if (f.role === 'guide') await setDoc(env, A, 'voice_guide', { md: f.md, version: ((await getDoc(env, A, 'voice_guide')).data.version || 0) + 1, from: 'staff' }, 'approved');
+        }
+        if (Array.isArray(b.gaps)) sk.gaps = b.gaps.map(g => clip(g, 400)).filter(Boolean).slice(0, 30);
+        await setDoc(env, A, 'voice_skill', sk, b.approve ? 'approved' : ((await getDoc(env, A, 'voice_skill')).status || 'draft'), 'built');
+        return json({ ok: true });
+      }
+      /* The skill's open questions go to the front of the client's voice interview. */
+      if (path === '/api/voice/staff/ask-gaps') {
+        const sk = await getSkill(env, A);
+        const gaps = (sk.gaps || []).filter(Boolean);
+        if (!gaps.length) return json({ error: 'No open questions.' }, 400);
+        const { data: iv0 } = await getDoc(env, A, 'voice_interview');
+        const iv = iv0.stage ? iv0 : fresh();
+        iv.gaps = gaps; iv.gap_i = 0; iv.stage = 'interview';
+        iv.next = { topic: 'gaps', q: gaps[0], ack: 'A few more questions so we get your products exactly right.' };
+        await setDoc(env, A, 'voice_interview', iv);
+        return json({ ok: true, asked: gaps.length });
+      }
       if (path === '/api/voice/staff/guide') {
+        if ((await getSkill(env, A)).source === 'repo') return json({ error: `${acct.name}'s guide comes from its synced skill. Change it in the repo.` }, 400);
         const iv = (await getDoc(env, A, 'voice_interview')).data;
         const prev = (await getDoc(env, A, 'voice_guide')).data.md || '';
         if (!(iv.turns || []).length && !bank.length) return json({ error: 'Nothing to write from yet: the interview is empty and the example bank is empty.' }, 400);
         return streamed(ctx, async () => ({ md: await writeGuide(env, A, acct.name, await brandFacts(env, A, acct.answers_json), iv, bank, prev) }));
       }
       return json({ error: 'not found' }, 404);
+    }
+
+    /* ---- a brand repo's post-commit hook: the whole skill, every time it changes ---- */
+    if (path === '/api/voice/skill-sync' && request.method === 'POST') {
+      const auth = request.headers.get('Authorization') || '';
+      if (!env.SKILL_SYNC_TOKEN || auth !== `Bearer ${env.SKILL_SYNC_TOKEN}`) return json({ error: 'unauthorized' }, 401);
+      return json({ ok: true, ...(await syncSkill(env, b)) });
     }
 
     /* ---- public: the client's interview, by onboarding token ---- */
@@ -276,6 +334,12 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         if (skips >= 1) iv.covered.push(iv.next.topic);
       }
       await save();
+      /* The skill's open questions, asked in order before the normal topics resume. */
+      if (iv.turns[iv.turns.length - 1].topic === 'gaps') {
+        iv.gap_i = (iv.gap_i || 0) + 1;
+        if (iv.gap_i < (iv.gaps || []).length) { iv.next = { topic: 'gaps', q: iv.gaps[iv.gap_i] }; await save(); return json(publicState(row.name, iv)); }
+        iv.gaps = []; iv.gap_i = 0;
+      }
       const facts = await brandFacts(env, A, row.answers_json);
       try {
         const n = await nextQuestion(env, row.name, facts, iv);

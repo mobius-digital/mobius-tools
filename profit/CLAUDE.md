@@ -861,3 +861,18 @@ profit/
   other purpose gets a link too: archive it (discovery skips archived projects).
 - **Asana cannot edit a project template.** Make a project from it, edit, then
   `POST /api/brand-asana/save-template {project_gid, name}` (admin) and poll `/api/brand-asana/job`.
+- **2026-09-25 (later still): a brand's FULL copy skill lives in Locus** (`account-health/worker/src/skill.js`,
+  `p_br_doc` key `voice_skill` = instructions + every reference file). The Copy desk hands the model
+  the whole skill (SKILL.md body, then each file in a `<file path>` tag, prompt-cached), plus the bank,
+  so Locus writes like Claude with the skill loaded. **Lucky is SYNCED:** the Lucky repo's
+  `.git/hooks/post-commit` runs `profit/scripts/sync-copy-skill.py` whenever a commit touches
+  `.claude/skills/lucky-golf-copy`, posting every file to `/api/voice/skill-sync` (Bearer
+  `SKILL_SYNC_TOKEN`; the local copy is `~/.config/mobius/skill-sync-token`, outside every repo). A
+  synced skill is read-only in Locus, and the interview never overwrites its guide (it writes
+  `voice_guide_suggested` instead). The hook is LOCAL to this machine because the Lucky skill's
+  current commits live on an unpushed branch; run the script by hand after editing elsewhere.
+  **Every other brand:** "Build the full skill" drafts all seven files (facts read from the website
+  with web_fetch) using Lucky's matching file as the model of SHAPE only; what the data cannot answer
+  becomes `gaps`, and "Ask the client these" puts them at the front of the voice interview
+  (topic `gaps`, asked in order). The interview gained `specs` and `culture` topics for the facts and
+  customer-language files. "Download the Claude skill" is a zip (SKILL.md + references + examples.md).

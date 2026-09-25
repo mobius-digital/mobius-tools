@@ -128,6 +128,12 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .unsure-x{position:absolute;top:6px;right:8px;font-size:11.5px;color:var(--muted);background:none;border:0;text-decoration:underline;cursor:pointer}
 .br-desk{border:1px solid var(--line);border-radius:10px;padding:10px}
 .br-desk.done{opacity:.7}
+.br-skill{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.br-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-top:10px}
+.br-file{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface);cursor:pointer;font:inherit;color:var(--ink)}
+.br-file:hover{border-color:var(--brand-line)}
+.br-gaps{margin-top:12px;background:var(--warn-bg);border-radius:9px;padding:10px 12px;font-size:13px}
+.br-gaps ol{margin:6px 0 10px;padding-left:20px}
 .br-tbl tr.click{cursor:pointer}
 .br-tbl tr.click:hover td{background:var(--brand-tint)}
 .br-tbl .t{font-weight:700}
@@ -951,6 +957,39 @@ function skillFile(name, guide, bank) {
   ].join('\n');
 }
 
+/* A stored (uncompressed) zip, so "Download the skill" is one file Claude can install. */
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function zipBlob(files) {
+  const enc = new TextEncoder(), parts = [], dir = []; let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.path), data = enc.encode(f.md);
+    let c = 0xFFFFFFFF; for (const x of data) c = CRC[(c ^ x) & 0xFF] ^ (c >>> 8); c = (c ^ 0xFFFFFFFF) >>> 0;
+    const h = new DataView(new ArrayBuffer(30));
+    [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, 0, 2], [12, 0x21, 2], [14, c, 4], [18, data.length, 4], [22, data.length, 4], [26, name.length, 2], [28, 0, 2]].forEach(([o, v, n]) => n === 4 ? h.setUint32(o, v, true) : h.setUint16(o, v, true));
+    const e = new DataView(new ArrayBuffer(46));
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, 0, 2], [14, 0x21, 2], [16, c, 4], [20, data.length, 4], [24, data.length, 4], [28, name.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, off, 4]].forEach(([o, v, n]) => n === 4 ? e.setUint32(o, v, true) : e.setUint16(o, v, true));
+    parts.push(h, name, data); dir.push(e, name); off += 30 + name.length + data.length;
+  }
+  const size = dir.reduce((t, x) => t + (x.byteLength ?? x.length), 0);
+  const end = new DataView(new ArrayBuffer(22));
+  [[0, 0x06054b50, 4], [8, files.length, 2], [10, files.length, 2], [12, size, 4], [16, off, 4]].forEach(([o, v, n]) => n === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true));
+  return new Blob([...parts, ...dir, end], { type: 'application/zip' });
+}
+/* The brand's skill as Claude installs it: SKILL.md + references, plus the bank. */
+function skillPackage(name, sk, guideMd, bank) {
+  const slug = sk.name || `${slugOf(name)}-copy`;
+  const row = x => `- [${x.format}] ${x.text}${x.why ? ` (why: ${x.why})` : ''}`;
+  const yes = bank.filter(x => x.verdict === 'yes'), no = bank.filter(x => x.verdict === 'no');
+  const bankMd = `# ${name}: lines the brand kept and rejected\n\nFrom Locus (Brand info > Copy desk and the voice interview). Match the feel of the kept lines, never reuse their phrases; the rejected ones, and why, are what to avoid.\n\n## Kept (${yes.length})\n${yes.map(row).join('\n') || '- none yet'}\n\n## Rejected (${no.length})\n${no.map(row).join('\n') || '- none yet'}\n`;
+  const files = sk.instructions
+    ? [{ path: `${slug}/SKILL.md`, md: `---\nname: ${slug}\ndescription: ${sk.description || `Write copy in the ${name} brand voice.`}\n---\n${sk.instructions}${sk.source === 'repo' ? '' : '\n\nAlso read `references/examples.md`: the lines the brand kept and rejected.\n'}` },
+       ...(sk.files || []).map(f => ({ path: `${slug}/${f.path}`, md: f.md }))]
+    : [{ path: `${slug}/SKILL.md`, md: skillFile(name, guideMd, bank) }];
+  if (sk.source !== 'repo') files.push({ path: `${slug}/references/examples.md`, md: bankMd });
+  return { slug, blob: zipBlob(files) };
+}
+const ROLE_L = { instructions: 'Instructions', guide: 'How we write', facts: 'Product facts', benefits: 'Spec to benefit', culture: 'How customers talk', formats: 'Formats', intake: 'New product intake', other: 'Reference' };
+
 function paintVoice(body) {
   const d = S.d, o = d.onboard;
   const iv = d.docs['']?.voice_interview || {};
@@ -962,10 +1001,13 @@ function paintVoice(body) {
   const st = !turns.length ? 'not started' : iv.stage === 'done' ? `finished ${esc((iv.finished_at || '').slice(0, 10))}` : iv.stage === 'samples' ? `rating samples, round ${iv.round || 1}` : `talking, ${turns.length} answers`;
   const desk = S.desk && S.desk.act === S.act ? S.desk : (S.desk = { act: S.act, format: DESK_FORMATS[0], brief: '', n: 5, lines: [], busy: false, err: '' });
   const yesN = bank.filter(x => x.verdict === 'yes').length, noN = bank.length - yesN;
+  const sk = d.docs['']?.voice_skill || {};
+  const synced = sk.source === 'repo';
+  const skFiles = sk.instructions ? [{ path: 'SKILL.md', role: 'instructions', md: sk.instructions }, ...(sk.files || [])] : [];
   body.innerHTML = `
     <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h">How we write ${g.md ? (g._status === 'draft' ? `<span class="br-tag draft">Draft v${g.version || 1}</span>` : `<span class="br-tag win">Approved v${g.version || 1}</span>`) : ''}</h3>
         <p class="hint" style="margin:4px 0 0">The brand's writing guide, built the way Lucky Golf's was: the client talks through a voice interview and rates sample lines, then every line the team keeps or rejects on the copy desk teaches it more.</p></div>
-      <div>${g.md && g._status === 'draft' ? '<button class="btn" id="vgOk">Approve</button>' : ''}${g.md ? '<button class="btn" id="vgEdit">Edit</button>' : ''}<button class="btn" id="vgRe">${S.vgBusy ? 'Writing… (about a minute)' : g.md ? 'Rewrite with new examples' : 'Write the guide'}</button>${g.md ? '<button class="btn" id="vgSkill">Download as a Claude skill</button>' : ''}</div></div>
+      <div>${synced ? '' : `${g.md && g._status === 'draft' ? '<button class="btn" id="vgOk">Approve</button>' : ''}${g.md ? '<button class="btn" id="vgEdit">Edit</button>' : ''}<button class="btn" id="vgRe">${S.vgBusy ? 'Writing… (about a minute)' : g.md ? 'Rewrite with new examples' : 'Write the guide'}</button>`}${g.md || sk.instructions ? '<button class="btn" id="vgSkill">Download the Claude skill</button>' : ''}</div></div>
       <p class="br-msg" id="vgMsg"></p>
       <div class="br-g2" style="margin-top:10px">
         <div><p class="br-lbl">Voice interview · ${st}</p>
@@ -980,9 +1022,20 @@ function paintVoice(body) {
           ${bank.length ? `<details style="margin-top:8px"><summary class="tiny" style="cursor:pointer">Show the lines</summary><div class="br-bank">${bank.map(x => `<div class="br-bk"><span class="br-tag ${x.verdict === 'yes' ? 'win' : 'lose'}">${x.verdict === 'yes' ? 'Kept' : 'Rejected'}</span> <span class="tiny">${esc(x.format)} · ${esc(x.by || '')}</span><div>${esc(x.text)}</div>${x.why ? `<div class="tiny">Why: ${esc(x.why)}</div>` : ''}<button class="unsure-x" data-rm="${esc(x.id)}" title="Remove from the bank">Remove</button></div>`).join('')}</div></details>` : ''}
         </div>
       </div>
+      <div class="br-skill"><div class="br-bar"><p class="br-lbl" style="margin:0">Copy skill · ${synced ? `synced from ${esc(sk.repo || 'the repo')}` : sk.instructions ? (d.docs['']?.voice_skill?._status === 'approved' ? 'built, approved' : 'built, draft') : 'not built yet'}</p>
+          <div>${synced ? '' : `<button class="btn" id="skBuild" ${S.skBusy ? 'disabled' : ''}>${S.skBusy ? 'Building… (about 5 minutes)' : sk.instructions ? 'Rebuild the skill' : 'Build the full skill'}</button>${sk.instructions && d.docs['']?.voice_skill?._status !== 'approved' ? '<button class="btn" id="skOk">Approve</button>' : ''}`}</div></div>
+        <p class="tiny" style="margin:4px 0 0">${synced
+          ? `The same 7 files Claude uses, last synced ${esc((sk.synced_at || '').slice(0, 16).replace('T', ' '))} UTC from commit ${esc(sk.commit || '?')}. Change them in the repo: every commit that touches the skill updates Locus within seconds. The copy desk writes with all of them.`
+          : sk.instructions ? 'Built from the voice interview, the example bank, the onboarding answers, research and the website, in the shape of Lucky Golf\'s skill. The copy desk writes with all of it. Click a file to read or fix it.'
+          : 'A full skill, like Lucky Golf\'s: instructions, how we write, product facts, spec to benefit, how customers talk, formats and new-product intake. Built from everything Locus knows; what it cannot answer becomes questions for the client.'}</p>
+        <p class="br-msg" id="skMsg">${esc(S.skLog || '')}</p>
+        ${skFiles.length ? `<div class="br-files">${skFiles.map(f => `<button class="br-file" data-skf="${esc(f.path)}"><b>${esc(ROLE_L[f.role] || f.role)}</b><span class="tiny">${esc(f.path)} · ${Math.max(1, Math.round((f.md || '').length / 1000))}KB</span></button>`).join('')}</div>` : ''}
+        ${!synced && (sk.gaps || []).length ? `<div class="br-gaps"><b>${sk.gaps.length} questions the data could not answer</b><ol>${sk.gaps.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
+          <button class="btn" id="skAsk" ${o ? '' : 'disabled title="Create the links first"'}>Ask the client these</button> <span class="tiny">They go to the front of the client's voice interview (same link). Rebuild the skill once they answer.</span></div>` : ''}
+      </div>
       ${g.md ? `<details style="margin-top:14px" ${S.vgOpen ? 'open' : ''} id="vgD"><summary style="cursor:pointer;font-weight:600">Read the guide</summary><div class="br-md">${mdHtml(g.md)}</div></details>` : ''}
     </div>
-    <div class="card"><div class="br-bar"><h3 class="br-h">Copy desk</h3><span class="tiny">Writes from the guide and the bank. Keep or reject each line: that is how it learns.</span></div>
+    <div class="card"><div class="br-bar"><h3 class="br-h">Copy desk</h3><span class="tiny">${sk.instructions ? 'Writes with the full copy skill' : 'Writes from the guide'} plus the bank. Keep or reject each line: that is how it learns.</span></div>
       <div class="br-form" style="margin-top:10px">
         ${sel('dF', 'Format', desk.format, DESK_FORMATS.map(f => [f, f]), { blank: null })}
         ${inp('dN', 'How many', desk.n, { type: 'number' })}
@@ -994,6 +1047,7 @@ function paintVoice(body) {
         ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}
         ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : 'Rejected: in the bank'}</div>` : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-k="yes">Keep</button><input class="br-in" data-why placeholder="Why it misses (the more specific the better)" aria-label="Why it misses" style="flex:1;min-width:200px;margin:0"><button class="btn" data-k="no">Reject</button></div>`}
       </div>`).join('')}</div>
+      ${desk.lines.length && !desk.busy ? `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input class="br-in" id="dRev" placeholder="Change something: shorter, more like #2, lead with the price, less jokey..." aria-label="Change something" style="flex:1;min-width:240px;margin:0"><button class="btn" id="dRevGo">Rewrite with this note</button></div>` : ''}
     </div>`;
   const msg = (t, ok) => { const m = $('#vgMsg'); if (m) { m.textContent = t; m.className = 'br-msg ' + (ok ? 'ok' : 'bad'); } };
   body.querySelector('#vMk')?.addEventListener('click', async () => { S.d = await post('/api/brand/onboard', {}); repaint(); });
@@ -1003,23 +1057,52 @@ function paintVoice(body) {
   body.querySelector('#vgEdit')?.addEventListener('click', () => modal('How we write', inp('gMd', 'The guide', g.md, { rows: 24, full: true, hint: '## for headings, - for bullets' }), { onOpen: (w, ctl) => w.onSubmit(async () => {
     await putDoc('', 'voice_guide', { ...g, md: val(w, 'gMd'), version: (g.version || 1) + 1, from: 'staff' }, 'approved'); ctl.close(); repaint();
   }) }));
-  body.querySelector('#vgRe').onclick = async () => {
+  const vgRe = body.querySelector('#vgRe'); if (vgRe) vgRe.onclick = async () => {
     if (S.vgBusy) return;
     S.vgBusy = true; repaint();
     try { await ahStream('/api/voice/staff/guide', {}, () => {}); await load(); S.vgBusy = false; S.vgOpen = true; repaint(); msg('Guide rewritten as a draft. Read it, then Approve.', true); }
     catch (e) { S.vgBusy = false; repaint(); msg(e.message); }
   };
   body.querySelector('#vgSkill')?.addEventListener('click', () => {
-    const blob = new Blob([skillFile(d.account.name, g.md, bankAll)], { type: 'text/markdown' });
+    const { slug, blob } = skillPackage(d.account.name, sk, g.md, bankAll);
     const u = URL.createObjectURL(blob); const a = document.createElement('a');
-    a.href = u; a.download = 'SKILL.md'; a.click(); setTimeout(() => URL.revokeObjectURL(u), 5000);
-    msg(`Downloaded SKILL.md. Put it in a folder named ${slugOf(d.account.name)}-copy in your Claude skills. Download it again as the bank grows.`, true);
+    a.href = u; a.download = `${slug}.zip`; a.click(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+    msg(`Downloaded ${slug}.zip. Unzip it into your Claude skills folder (or upload it in Claude > Settings > Skills). Download it again as the bank grows.`, true);
+  });
+  const skMsg = (t, ok) => { S.skLog = ''; const m = $('#skMsg'); if (m) { m.textContent = t; m.className = 'br-msg ' + (ok ? 'ok' : 'bad'); } };
+  body.querySelector('#skBuild')?.addEventListener('click', async () => {
+    if (S.skBusy) return;
+    S.skBusy = true; S.skLog = 'Starting…'; repaint();
+    try {
+      const r = await ahStream('/api/voice/staff/build-skill', {}, o => { if (o.type === 'note') { S.skLog = o.text; const m = $('#skMsg'); if (m) { m.textContent = o.text; m.className = 'br-msg'; } } });
+      await load(); S.skBusy = false; S.skLog = ''; repaint(); skMsg(`Built ${r.files} files${r.gaps ? `, with ${r.gaps} questions for the client` : ''}. Read them, then Approve.`, true);
+    } catch (e) { S.skBusy = false; S.skLog = ''; repaint(); skMsg(e.message); }
+  });
+  body.querySelector('#skOk')?.addEventListener('click', async () => { try { await ahJson('/api/voice/staff/skill-file', { approve: true }); await load(); repaint(); } catch (e) { skMsg(e.message); } });
+  body.querySelector('#skAsk')?.addEventListener('click', async e => {
+    try { const r = await ahJson('/api/voice/staff/ask-gaps', {}); await load(); repaint(); skMsg(`${r.asked} questions added to the front of the voice interview. Send the client the voice link again.`, true); }
+    catch (err) { skMsg(err.message); }
+  });
+  body.querySelectorAll('[data-skf]').forEach(bt => bt.onclick = () => {
+    const f = skFiles.find(x => x.path === bt.dataset.skf); if (!f) return;
+    if (synced) return modal(`${ROLE_L[f.role] || f.role}: ${f.path}`, `<p class="tiny">Synced from the repo. Change it there.</p><div class="br-md" style="max-height:60vh;overflow:auto">${mdHtml(f.md)}</div>`, { cta: null });
+    modal(`${ROLE_L[f.role] || f.role}: ${f.path}`, inp('skF', 'The file (markdown)', f.md, { rows: 26, full: true }), { onOpen: (w, ctl) => w.onSubmit(async () => {
+      await ahJson('/api/voice/staff/skill-file', { path: f.path, md: val(w, 'skF') }); await load(); ctl.close(); repaint();
+    }) });
   });
   body.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
     b.disabled = true;
     try { await ahJson('/api/voice/staff/bank', { remove: b.dataset.rm }); await load(); repaint(); } catch (e) { msg(e.message); }
   });
   const grab = () => { desk.format = val(body, 'dF'); desk.brief = val(body, 'dB'); desk.n = Math.max(1, Math.min(10, +val(body, 'dN') || 5)); };
+  body.querySelector('#dRevGo')?.addEventListener('click', async () => {
+    const note = val(body, 'dRev'); if (!note) return body.querySelector('#dRev').focus();
+    const prev = [...body.querySelectorAll('.br-desk [data-t]')].map(t => t.value.trim());
+    grab(); desk.busy = true; desk.err = ''; repaint();
+    try { const r = await ahStream('/api/voice/staff/desk', { format: desk.format, brief: desk.brief, n: desk.n, revise: { lines: prev, note } }, () => {}); desk.lines = r.lines || []; }
+    catch (e) { desk.err = e.message; }
+    desk.busy = false; repaint();
+  });
   body.querySelector('#dGo').onclick = async () => {
     grab(); desk.busy = true; desk.err = ''; repaint();
     try { const r = await ahStream('/api/voice/staff/desk', { format: desk.format, brief: desk.brief, n: desk.n }, () => {}); desk.lines = r.lines || []; }
