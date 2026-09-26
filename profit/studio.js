@@ -638,14 +638,25 @@ async function setup() {
   const a = E.ad, over = $('#edOver'), ot = $('#edOverT');
   over.hidden = false;
   if (!a.has_plate) {
-    ot.textContent = 'Lifting the words off the picture. About 30 seconds, only the first time.';
-    const r = await streamCall(S.url, '/api/studio/lift', { id: a.id }, o => { if (o.type === 'status') ot.textContent = o.text; });
+    ot.textContent = 'Reading the words. Only the first time you edit this ad.';
+    const [read, full] = await Promise.all([streamCall(S.url, '/api/studio/read', { id: a.id }, () => {}), loadImg(img(a, 'full'))]);
+    const all = read.lines || [];
+    const lines = all.filter(l => !l.is_art && l.role !== 'art'), art = all.filter(l => l.is_art || l.role === 'art');
+    ot.textContent = 'Finding exactly where each line sits…';
+    await locate(full, lines).catch(() => {});
+    const holes = lines.map(l => holeFor(l, full));
+    ot.textContent = 'Erasing the words from the picture. About 30 seconds.';
+    const r = await streamCall(S.url, '/api/studio/lift', { id: a.id, lines, art, holes }, o => { if (o.type === 'status') ot.textContent = o.text; });
     Object.assign(a, r.ad);
     const i = S.d.ads.findIndex(x => x.id === a.id); if (i >= 0) S.d.ads[i] = a;
   }
   ot.textContent = 'Loading…';
   [E.full, E.plate] = await Promise.all([loadImg(img(a, 'full')), loadImg(img(a, 'plate'))]);
   const L = a.layers || {};
+  /* The model redraws the whole picture when it erases, so things can shift. Keep the ORIGINAL
+     pixels everywhere and take the erased version only inside the word holes, feathered. */
+  E.holes = L.holes || null;
+  if (E.holes?.length) E.plate = await composite(E.full, E.plate, E.holes);
   /* Fonts must be loaded BEFORE fromAi measures text, or it sizes against the fallback face. */
   await Promise.all((L.lines || []).map(l => document.fonts.load(`${l.weight || 700} 40px "${FONTS.includes(l.font) ? l.font : 'Inter'}"`).catch(() => {})));
   E.boxes = L.source === 'editor' ? (L.boxes || []).map(b => ({ ...b })) : fromAi(L.lines || []);
@@ -656,6 +667,97 @@ async function setup() {
   showView();
 }
 
+async function composite(full, plate, holes) {
+  const W = full.naturalWidth, H = full.naturalHeight, f = Math.round(W * 0.012);
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return [c, c.getContext('2d')]; };
+  const [mc, mx] = mk(); mx.filter = `blur(${f}px)`; mx.fillStyle = '#fff';
+  for (const [l, t, r, b] of holes) mx.fillRect(l * W / 1000, t * H / 1000, (r - l) * W / 1000, (b - t) * H / 1000);
+  const [pc, px] = mk(); px.drawImage(plate, 0, 0, W, H); px.globalCompositeOperation = 'destination-in'; px.drawImage(mc, 0, 0);
+  const [oc, ox] = mk(); ox.drawImage(full, 0, 0); ox.drawImage(pc, 0, 0);
+  return loadImg(oc.toDataURL('image/png'));
+}
+/* ---- OCR: exact word boxes (free, in the browser) ----
+   The vision model knows WHAT each line says and how it looks, but its boxes run several % off,
+   which erased the wrong areas (the clover on the club) and missed real text. Tesseract finds
+   every word's pixel box; each vision line is matched to the run of OCR words that spells it. */
+let TESS = null;
+const loadScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load the text reader.')); document.head.appendChild(s); });
+async function ocrWords(image, region = null, k = 2) {
+  if (!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+  if (!TESS) TESS = await window.Tesseract.createWorker('eng');
+  /* A region is read zoomed in and as sparse text: small labels on busy pictures are missed at page scale. */
+  await TESS.setParameters({ tessedit_pageseg_mode: region ? '11' : '3' });
+  const [rx, ry, rw, rh] = region || [0, 0, image.naturalWidth, image.naturalHeight];
+  const c = document.createElement('canvas');
+  c.width = Math.round(rw * k); c.height = Math.round(rh * k);
+  c.getContext('2d').drawImage(image, rx, ry, rw, rh, 0, 0, c.width, c.height);
+  const out = [];
+  /* Light-on-dark and dark-on-light both occur on one ad: read the picture and its negative. */
+  for (const invert of [false, true]) {
+    const src = invert ? (() => { const d = document.createElement('canvas'); d.width = c.width; d.height = c.height; const x = d.getContext('2d'); x.filter = 'invert(1)'; x.drawImage(c, 0, 0); return d; })() : c;
+    const { data } = await TESS.recognize(src, {}, { blocks: true });
+    const lines = data.lines?.length ? data.lines : (data.blocks || []).flatMap(b => (b.paragraphs || []).flatMap(p => p.lines || []));
+    for (const ln of lines) out.push((ln.words || []).filter(w => w.text?.trim()).map(w => ({ t: w.text, b: [rx + w.bbox.x0 / k, ry + w.bbox.y0 / k, rx + w.bbox.x1 / k, ry + w.bbox.y1 / k] })));
+  }
+  return out.filter(l => l.length);
+}
+const nrm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9%$]/g, '');
+function dice(a, b) {
+  if (!a || !b) return 0; if (a === b) return 1;
+  const g = s => { const m = new Map(); for (let i = 0; i < s.length - 1; i++) { const x = s.slice(i, i + 2); m.set(x, (m.get(x) || 0) + 1); } return m; };
+  const A = g(a), B = g(b); let hit = 0;
+  for (const [x, n] of A) hit += Math.min(n, B.get(x) || 0);
+  return (2 * hit) / Math.max(1, a.length - 1 + b.length - 1);
+}
+function matchLines(ocr, lines, idxs, W, H, used) {
+  const order = idxs.slice().sort((p, q) => nrm(lines[q].text).length - nrm(lines[p].text).length);
+  for (const i of order) {
+    const want = nrm(lines[i].text); if (!want) continue;
+    let best = null;
+    ocr.forEach((ws, li) => {
+      for (let a = 0; a < ws.length; a++) {
+        let txt = '';
+        /* Widely spaced capitals come back one letter per "word", so allow long runs. */
+        for (let b = a; b < ws.length && b < a + 60; b++) {
+          if (used.has(`${li}:${b}`)) break;
+          txt += nrm(ws[b].t);
+          if (txt.length > want.length * 2) break;
+          /* Only a WHOLE-line match may override the AI's box: half a line gave half a box. */
+          const sc = txt.length < want.length * 0.85 ? 0 : dice(want, txt) - (txt.length > want.length * 1.3 ? 0.2 : 0);
+          if (!best || sc > best.sc) best = { sc, li, a, b };
+        }
+      }
+    });
+    if (!best || best.sc < 0.7) continue;
+    const ws = ocr[best.li].slice(best.a, best.b + 1);
+    for (let k = best.a; k <= best.b; k++) used.add(`${best.li}:${k}`);
+    const bx = [Math.min(...ws.map(w => w.b[0])), Math.min(...ws.map(w => w.b[1])), Math.max(...ws.map(w => w.b[2])), Math.max(...ws.map(w => w.b[3]))];
+    lines[i].box = [bx[0] / W * 1000, bx[1] / H * 1000, bx[2] / W * 1000, bx[3] / H * 1000].map(v => Math.round(v * 10) / 10);
+    lines[i].exact = true;
+  }
+}
+async function locate(image, lines) {
+  const W = image.naturalWidth, H = image.naturalHeight;
+  const all = lines.map((l, i) => i);
+  matchLines(await ocrWords(image), lines, all, W, H, new Set());
+  /* Anything still unplaced: read a zoomed-in window around the AI's rough box. Its boxes can
+     be more than a line-height off vertically, so the window is generous. */
+  for (const i of all.filter(i => !lines[i].exact)) {
+    const [l, t, r, b] = lines[i].box.map((v, k) => v / 1000 * (k % 2 ? H : W));
+    const h = b - t, w = r - l;
+    const x0 = Math.max(0, l - w * 0.25 - h), y0 = Math.max(0, t - h * 3), x1 = Math.min(W, r + w * 0.25 + h), y1 = Math.min(H, b + h * 3);
+    const ocr = await ocrWords(image, [x0, y0, x1 - x0, y1 - y0], 3).catch(() => []);
+    matchLines(ocr, lines, [i], W, H, new Set());
+  }
+}
+/* What to erase around a line: tight around exact letters, generous around a button's shape
+   (the pill extends past its letters) and around a rough box (it may be off). */
+function holeFor(l, image) {
+  const [x0, y0, x1, y1] = l.box, h = y1 - y0, w = x1 - x0, ar = image.naturalWidth / image.naturalHeight;
+  const py = l.bg ? 1.1 : 0.35, px = l.bg ? 2.4 : 0.35;
+  const padX = h * px / ar + (l.exact ? 3 : w * 0.03);
+  return [x0 - padX, y0 - h * py, x1 + padX, y1 + h * py].map(v => Math.max(0, Math.min(1000, Math.round(v))));
+}
 /* AI boxes (0-1000 of the returned image) -> 4:5 frame %, tightened against the plate. */
 function fromAi(lines) {
   const W = E.full.naturalWidth, H = E.full.naturalHeight, r = crop45(W, H);
@@ -663,7 +765,7 @@ function fromAi(lines) {
   return lines.map(l => {
     let [x0, y0, x1, y1] = l.box.map(v => v / 1000);
     x0 *= W; x1 *= W; y0 *= H; y1 *= H;
-    const t = tighten(diff, x0, y0, x1, y1, W, H);
+    const t = l.exact ? null : tighten(diff, x0, y0, x1, y1, W, H);
     if (t) ({ x0, y0, x1, y1 } = t);
     const hPx = (y1 - y0) / r.h * H_OUT;
     const upper = !!l.upper, text = l.text;
@@ -676,16 +778,22 @@ function fromAi(lines) {
     };
     /* Font size: fill the height the letters took (caps ~0.72em, mixed ~0.95em with descenders),
        then shrink to the width they took. */
-    const em = hPx / (upper || text === text.toUpperCase() ? 0.74 : 0.95);
-    box.size = em / W_OUT * 100;
+    /* A button's box is the whole pill (the plate erased the shape too): the letters are about
+       1/1.75 of its height and it is 1.2em wider than them (the padding place() draws). */
+    const caps = upper || text === text.toUpperCase();
+    const pill = !!box.bg && !l.exact;
+    let em = pill ? hPx / 1.75 : hPx / (caps ? 0.74 : 0.95);
     const c = document.createElement('canvas').getContext('2d');
-    c.font = `${box.weight} ${em}px "${box.font}"`;
-    const tw = c.measureText(upper ? text.toUpperCase() : text).width, want = (x1 - x0) / r.w * W_OUT;
-    if (tw > want * 1.08) box.size *= want / tw;
+    const measure = e => { c.font = `${box.weight} ${e}px "${box.font}"`; return c.measureText(caps && upper ? text.toUpperCase() : text).width; };
+    const want = (x1 - x0) / r.w * W_OUT - (pill ? 1.2 * em : 0);
+    let tw = measure(em);
+    if (tw > want * 1.05) { em *= want / tw; tw = want; }
+    /* Wide-spaced type: the letters filled the width at this size, so the gap is tracking. */
+    else if (!pill && tw < want * 0.9 && text.length > 3) box.track = Math.min(0.5, Math.round((want - tw) / ((text.length - 1) * em) * 100) / 100);
+    box.size = em / W_OUT * 100;
     /* Text is centred on its em box, but capitals sit high in it: nudge down so the letters
        land where the AI drew them. */
-    const emPx = box.size / 100 * W_OUT;
-    box.cy += (upper || text === text.toUpperCase() ? 0.09 : 0.04) * emPx / H_OUT * 100;
+    if (!pill) box.cy += (caps ? 0.09 : 0.04) * em / H_OUT * 100;
     return box;
   });
 }
@@ -703,16 +811,25 @@ function tighten(d, x0, y0, x1, y1, W, H) {
   const sx = d.w / W, sy = d.h / H;
   const bw = x1 - x0, bh = y1 - y0;
   const X0 = Math.max(0, Math.floor((x0 - bw * 0.15) * sx)), X1 = Math.min(d.w - 1, Math.ceil((x1 + bw * 0.15) * sx));
+  /* Generous vertical slack is safe because the band picker below keeps neighbouring lines apart. */
   const Y0 = Math.max(0, Math.floor((y0 - bh * 0.6) * sy)), Y1 = Math.min(d.h - 1, Math.ceil((y1 + bh * 0.6) * sy));
   /* Grow a band of rows out from the AI's own box and stop at the first empty row, so a
      neighbouring line of text (often only a few pixels away) never joins this one. */
   const rows = []; for (let y = Y0; y <= Y1; y++) { let c = 0; for (let x = X0; x <= X1; x++) c += d.m[y * d.w + x]; rows[y] = c; }
-  const oy0 = Math.max(Y0, Math.floor(y0 * sy)), oy1 = Math.min(Y1, Math.ceil(y1 * sy));
-  let seed = -1; for (let y = oy0; y <= oy1; y++) if (rows[y] > (seed < 0 ? 0 : rows[seed])) seed = y;
-  if (seed < 0) return null;
-  let b = seed, e = seed;
-  while (b - 1 >= Y0 && rows[b - 1] > 0) b--;
-  while (e + 1 <= Y1 && rows[e + 1] > 0) e++;
+  /* Split the window into bands of consecutive non-empty rows (one per line of text) and take
+     the band that overlaps the AI's box most. The AI's boxes run a few % off vertically, so
+     "the busiest row inside its box" often belonged to the line below. */
+  const oy0 = y0 * sy, oy1 = y1 * sy;
+  const bands = []; let cur = null;
+  for (let y = Y0; y <= Y1; y++) {
+    if (rows[y] > 1) { if (!cur) cur = { b: y, e: y }; else cur.e = y; }
+    else if (cur) { bands.push(cur); cur = null; }
+  }
+  if (cur) bands.push(cur);
+  const score = k => Math.max(0, Math.min(k.e + 1, oy1) - Math.max(k.b, oy0)) / Math.max(1, Math.max(k.e + 1, oy1) - Math.min(k.b, oy0));
+  const best = bands.filter(k => k.e - k.b >= 1).sort((p, q) => score(q) - score(p))[0];
+  if (!best || score(best) <= 0) return null;
+  const b = best.b, e = best.e;
   let a = 1e9, c = -1, n = 0;
   for (let y = b; y <= e; y++) for (let x = X0; x <= X1; x++) if (d.m[y * d.w + x]) { n++; if (x < a) a = x; if (x > c) c = x; }
   if (n < 12 || c < 0) return null;
@@ -861,11 +978,11 @@ async function save(approve, close) {
   try {
     const boxes = E.boxes.map(({ el, ...rest }) => rest);
     const png = await renderPng(E.plate, boxes);
-    const r = await post('/api/studio/save', { id: E.ad.id, png, approve, layers: { source: 'editor', boxes, art: E.art || [] } });
+    const r = await post('/api/studio/save', { id: E.ad.id, png, approve, layers: { source: 'editor', boxes, art: E.art || [], holes: E.holes } });
     const i = S.d.ads.findIndex(x => x.id === E.ad.id); if (i >= 0) S.d.ads[i] = r.ad;
     close();
   } catch (e) { btns.forEach(x => x.disabled = false); alertIn(e.message); }
 }
 
-window.StudioTab = { render };
+window.StudioTab = { render, _test: { locate, holeFor, loadImg } };
 })();

@@ -51,6 +51,42 @@ function pngSize(u) {
   return { w: 0, h: 0 };
 }
 
+/* A word box (0-1000, [l, t, r, b]) grown to cover what the vision model misses: its boxes
+   run a few % off vertically, and a button's shape extends past its letters. */
+function padBox([l, t, r, b]) {
+  const h = b - t, w = r - l;
+  return [Math.max(0, l - w * 0.06 - 12), Math.max(0, t - h * 0.7), Math.min(1000, r + w * 0.06 + 12), Math.min(1000, b + h * 0.7)].map(Math.round);
+}
+/* An RGBA PNG the size of the ad: transparent inside the holes (edit here), opaque elsewhere.
+   Built by hand because Workers has no image library; CompressionStream('deflate') is zlib. */
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u) { let c = 0xffffffff; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+async function maskPng(W, H, holes) {
+  const row = 1 + W * 4, raw = new Uint8Array(row * H);
+  const hs = holes.map(([l, t, r, b]) => [l * W / 1000, t * H / 1000, r * W / 1000, b * H / 1000]);
+  for (let y = 0; y < H; y++) {
+    const o = y * row; raw[o] = 0;
+    const inRow = hs.filter(h => y >= h[1] && y < h[3]);
+    for (let x = 0; x < W; x++) {
+      const p = o + 1 + x * 4;
+      raw[p + 3] = inRow.some(h => x >= h[0] && x < h[2]) ? 0 : 255;
+    }
+  }
+  const zip = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const chunk = (type, data) => {
+    const out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer);
+    dv.setUint32(0, data.length); out.set(new TextEncoder().encode(type), 4); out.set(data, 8);
+    dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+  };
+  const ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer);
+  dv.setUint32(0, W); dv.setUint32(4, H); ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  const parts = [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zip), chunk('IEND', new Uint8Array(0))];
+  const png = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let at = 0;
+  for (const p of parts) { png.set(p, at); at += p.length; }
+  return png;
+}
+
 async function getKey(env) {
   return (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = 'openai_key'`).first().catch(() => null))?.value || env.OPENAI_API_KEY || '';
 }
@@ -75,7 +111,7 @@ async function models(key) {
 
 /* One image call. Retries without whichever optional parameter the model rejects, so a
    model that lacks 4:5 or input_fidelity still works (the editor crops to 4:5 either way). */
-async function imageCall(key, model, { prompt, images = [], size = '1024x1280', fidelity = false }) {
+async function imageCall(key, model, { prompt, images = [], size = '1024x1280', fidelity = false, mask = null }) {
   const opts = { size, quality: 'high', ...(fidelity ? { input_fidelity: 'high' } : {}) };
   for (let attempt = 0; attempt < 4; attempt++) {
     let res;
@@ -84,6 +120,7 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
       fd.append('model', model); fd.append('prompt', prompt); fd.append('n', '1');
       for (const [k, v] of Object.entries(opts)) fd.append(k, v);
       images.forEach((im, i) => fd.append('image[]', new Blob([im.buf], { type: im.type }), `ref${i}.${(im.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`));
+      if (mask) fd.append('mask', new Blob([mask], { type: 'image/png' }), 'mask.png');
       res = await fetch(`${OA}/images/edits`, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd });
     } else {
       res = await fetch(`${OA}/images/generations`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, prompt, n: 1, ...opts }) });
@@ -164,26 +201,31 @@ async function readText(key, model, bytes, spec) {
       properties: {
         text: { type: 'string' }, role: { type: 'string', enum: ['headline', 'subline', 'callout', 'cta', 'label', 'art'] },
         is_art: { type: 'boolean' },
-        box: { type: 'array', items: { type: 'integer' }, description: '[left, top, right, bottom] in 0-1000 of the image width and height, tight around the letters' },
+        box: { type: 'array', items: { type: 'integer' }, description: '[left, top, right, bottom] in PIXELS of this image, tight around the letters' },
         color: { type: 'string', description: '#rrggbb of the letters' },
         font: { type: 'string', enum: FONTS }, weight: { type: 'integer', enum: [300, 400, 600, 700, 800] }, upper: { type: 'boolean' },
         bg: { type: 'string', description: '#rrggbb of the button or label shape behind the words, or empty when the words sit on the picture' },
       } } } },
   };
   const expected = [spec.headline, spec.subline, ...(spec.callouts || []), spec.cta].filter(Boolean).map(s => `"${s}"`).join(', ');
+  const { w: W, h: H } = pngSize(bytes);
   const r = await fetch(`${OA}/chat/completions`, {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model, response_format: { type: 'json_schema', json_schema: { name: 'ad_text', strict: true, schema } },
       messages: [{ role: 'user', content: [
-        { type: 'text', text: `List every separate line of text drawn on this ad, top to bottom. One entry per visual line (a button is one entry). The words we asked for were: ${expected || 'none'}${spec.art ? `, plus title art "${spec.art}"` : ''}. Title art (stylised lettering that is part of the scene) gets role "art" and is_art true. Ignore words printed on the product itself (logos, embroidery, wordmarks). Font is the closest match from the list. Box must be tight around the letters of that line only.` },
+        { type: 'text', text: `List every separate line of text drawn on this ad, top to bottom. One entry per visual line (a button is one entry). The words we asked for were: ${expected || 'none'}${spec.art ? `, plus title art "${spec.art}"` : ''}. Title art (stylised lettering that is part of the scene) gets role "art" and is_art true. Ignore words printed on the product itself (logos, embroidery, wordmarks). Font is the closest match from the list; judge stroke thickness carefully (thin or light letters are weight 300, not 700), and lines that share one look must get the same font and weight. The image is ${W} pixels wide and ${H} tall: give each box in those pixels, tight around the letters of that line only.` },
         { type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } },
       ] }],
     }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error?.message || `OpenAI vision said ${r.status}`);
-  return (safeJson(j.choices?.[0]?.message?.content, {}).lines || []).filter(l => Array.isArray(l.box) && l.box.length === 4);
+  /* Measured 2026-09-26: the model answers in PIXELS whatever the schema says (a button at y
+     1093-1172 on a 1280-tall ad). Everything downstream works in 0-1000, so convert here. */
+  const toK = (v, n) => Math.max(0, Math.min(1000, Math.round(v / (n || 1000) * 1000)));
+  return (safeJson(j.choices?.[0]?.message?.content, {}).lines || []).filter(l => Array.isArray(l.box) && l.box.length === 4)
+    .map(l => ({ ...l, box: [toK(l.box[0], W), toK(l.box[1], H), toK(l.box[2], W), toK(l.box[3], H)] }));
 }
 
 function stream(CORS, work) {
@@ -364,7 +406,25 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     });
   }
 
-  /* First Edit: erase the words (plate) and read where they were (layers), in parallel. */
+  /* First Edit, step 1: what the words say, their style, and a rough box each. The browser then
+     finds each line's EXACT box with OCR (the vision model's boxes run several % off). */
+  if (path === '/api/studio/read' && request.method === 'POST') {
+    if (!key) return needKey();
+    const row = await getAd(env, body.id);
+    if (!row) return json({ error: 'not found' }, 404);
+    return stream(CORS, async send => {
+      const m = await models(key);
+      const obj = await env.MEDIA.get(keyOf(row, 'full'));
+      if (!obj) throw new Error('The ad image is missing.');
+      const lines = await readText(key, m.vision, new Uint8Array(await obj.arrayBuffer()), safeJson(row.spec_json, {}));
+      await env.DB.prepare(`UPDATE p_studio_ad SET cost = cost + ?2 WHERE id = ?1`).bind(row.id, COST.vision).run();
+      send({ type: 'done', lines });
+    });
+  }
+
+  /* First Edit, step 2: erase the words inside the given holes only (a MASK). The image model
+     redraws the whole picture on an edit (measured: the club moved and the clover vanished), so
+     the browser keeps the original pixels everywhere outside the holes. */
   if (path === '/api/studio/lift' && request.method === 'POST') {
     if (!key) return needKey();
     const row = await getAd(env, body.id);
@@ -375,23 +435,28 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const obj = await env.MEDIA.get(keyOf(row, 'full'));
       if (!obj) throw new Error('The ad image is missing.');
       const full = new Uint8Array(await obj.arrayBuffer());
-      send({ type: 'status', text: 'Lifting the words off the picture. About 30 seconds.' });
-      const words = [spec.headline, spec.subline, ...(spec.callouts || []), spec.cta].filter(Boolean);
-      const erase = imageCall(key, m.image, {
-        images: [{ buf: full, type: 'image/png' }], fidelity: true,
+      send({ type: 'status', text: 'Erasing the words from the picture. About 30 seconds.' });
+      let lines = Array.isArray(body.lines) ? body.lines.slice(0, 20) : null;
+      let art = Array.isArray(body.art) ? body.art.slice(0, 5) : [];
+      if (!lines) { const all = await readText(key, m.vision, full, spec); lines = all.filter(l => !l.is_art && l.role !== 'art'); art = all.filter(l => l.is_art || l.role === 'art'); }
+      const okBox = b => Array.isArray(b) && b.length === 4 && b.every(v => Number.isFinite(+v));
+      const holes = (Array.isArray(body.holes) ? body.holes.filter(okBox).slice(0, 30).map(b => b.map(v => Math.max(0, Math.min(1000, Math.round(+v))))) : null) || lines.map(l => padBox(l.box));
+      const { w: W, h: H } = pngSize(full);
+      const mask = W && H && holes.length ? await maskPng(W, H, holes) : null;
+      const words = lines.map(l => l.text).filter(Boolean);
+      const plate = await imageCall(key, m.image, {
+        images: [{ buf: full, type: 'image/png' }], fidelity: true, mask,
         size: row.full_w && row.full_h ? `${row.full_w}x${row.full_h}` : '1024x1280',
         prompt: [
-          `Remove all the ad text from this image${words.length ? `: ${words.map(w => `"${w}"`).join(', ')}` : ''}, including any button, pill or label shapes behind those words. Fill each area with the natural background so no trace of text remains.`,
+          `Remove all the ad text from this image${words.length ? `: ${words.map(w => `"${w}"`).join(', ')}` : ''}, including any button, pill or label shapes and pointer lines behind those words. Fill each area with the natural background so no trace of text remains.`,
           spec.art ? `Keep the title art "${spec.art}" exactly as it is.` : '',
           'Change nothing else: the same product with its own logos and printing, the same scene, lighting, colours and framing, pixel for pixel wherever there was no text.',
         ].filter(Boolean).join(' '),
       });
-      const read = readText(key, m.vision, full, spec);
-      const [plate, lines] = await Promise.all([erase, read]);
       await env.MEDIA.put(keyOf(row, 'plate'), plate.bytes, { httpMetadata: { contentType: 'image/png' } });
-      const layers = { source: 'ai', lines: lines.filter(l => !l.is_art && l.role !== 'art'), art: lines.filter(l => l.is_art || l.role === 'art') };
+      const layers = { source: 'ai', lines, art, holes };
       await env.DB.prepare(`UPDATE p_studio_ad SET has_plate = 1, layers_json = ?2, cost = cost + ?3, updated_at = datetime('now') WHERE id = ?1`)
-        .bind(row.id, JSON.stringify(layers), COST.image + COST.vision).run();
+        .bind(row.id, JSON.stringify(layers), COST.image).run();
       send({ type: 'done', ad: shape(await getAd(env, row.id)) });
     });
   }

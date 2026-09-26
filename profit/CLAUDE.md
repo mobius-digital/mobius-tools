@@ -914,6 +914,16 @@ profit/
   products or words), callouts (up to 6, badges/labels, also erased on Edit), and free "Anything
   else" notes. EVERYTHING is optional except one starting point: a product or an inspiration image.
   No words at all = the copy desk writes a headline before making.
+- **How Edit finds and erases the words (measured on a real ad, do not simplify):**
+  1. `/api/studio/read`: the vision model names each line, font, colour and box. **It answers in
+     PIXELS whatever the schema says** (a button at y 1093-1172 on a 1280-tall ad); `readText`
+     converts to 0-1000. Before that fix every box sat low and the erase hit the wrong places.
+  2. The browser tightens each box with Tesseract.js OCR (`locate`: whole page, both polarities,
+     then a zoomed sparse-text read around anything unmatched). An OCR match overrides the AI's box
+     ONLY if it covers the whole line (>=85% of the letters); half a line gave half a box.
+  3. `/api/studio/lift` erases with a MASK of those holes. GPT Image still redraws the whole
+     picture (the club moved, the clover vanished), so `composite()` keeps the ORIGINAL pixels
+     everywhere and takes the erased version only inside the feathered holes.
 - "Write for me" and "Rewrite" call the account-health copy desk (`/api/voice/staff/desk`, format
   "Ad headline") with the ad's product, look and who-it's-for.
 - Not built yet (blueprint https://claude.ai/artifact/TuFSFdBySvWpQjfZ2ys4sR): weekly plan (Gate 1),
