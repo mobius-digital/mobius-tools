@@ -61,8 +61,8 @@ const SCHEMAS = {
   samples: obj({ samples: arr(obj({ format: S, text: S })) }),
   guide: obj({ md: S, summary: S, traits: arr(S), say: arr(S), avoid: arr(S) }),
   desk: obj({ lines: arr(obj({ text: S, note: S })) }),
-  spoken: obj({ spoken: S, lines: arr(obj({ text: S, note: S })) }),
-  readback: obj({ lines: arr(obj({ text: S, changed: { type: 'boolean' }, why: S })) }),
+  spoken: obj({ spoken: S, attempts: arr(obj({ text: S, note: S })) }),
+  readback: obj({ attempts: arr(obj({ text: S, changed: { type: 'boolean' }, why: S })) }),
 };
 
 /* American English for American brands; and a model glitch once dropped a stray
@@ -253,20 +253,20 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
           ? skillSystem(acct.name, skill, speakerMd)
           : `You write copy for ${acct.name}.\n\n${speakerMd ? `<file path="references/the-speaker.md">\n${speakerMd}\n</file>\n\n` : ''}${guide ? `<file path="references/how-we-write.md">\n${clip(guide, 14000)}\n</file>\n\n` : `The short voice card: ${JSON.stringify(card).slice(0, 2000)}\n\n`}${METHOD}`;
         const said = await claude(env, {
-          system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}\n\n"spoken" is step 2: you, as the speaker, talking out loud to the person in the scene, unedited, 80 to 250 words. "lines" is step 3: what you said, written down and cut to the format, in your own words.` }],
+          system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}\n\n"spoken" is step 2: you, as the speaker, talking out loud to the person in the scene, unedited, 80 to 250 words. "attempts" is step 3: what you said, written down and cut to the format, in your own words. Each attempt is the WHOLE piece (a full primary text with its line breaks, a full description), never a fragment of one.` }],
           user: `${facts}\n\n${ask}\n\nWHO YOU'RE TALKING TO, AND WHERE: ${who || 'pick the most likely customer for this and a real moment in their day'}`,
           schema: SCHEMAS.spoken, effort: 'medium', maxTokens: 14000,
         });
         const first = jsonOf(said);
-        let lines = (first.lines || []).slice(0, n).map(l => ({ text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) }));
+        let lines = (first.attempts || []).slice(0, n).map(l => ({ text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) }));
         /* 4: read it back as the speaker. The tells point at lines that read as writing. */
         try {
           const back = await claude(env, {
             system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `Step 4, reading back. You are the speaker. Read each line out loud to the person you were talking to. If it sounds like something you would actually say, keep it exactly. If it sounds written, announced, like an ad, or like any other brand, say it again the way you would really say it, then write that down. Now, and only now, check the skill's rules and bans. Never change a fact. ${VOICE} ${US}` }],
-            user: `WHAT YOU SAID OUT LOUD:\n${first.spoken || ''}\n\nTHE LINES:\n${lines.map((l, i) => `${i + 1}. ${l.text}${tellsIn(l.text).length ? `\n   (reads like writing: ${tellsIn(l.text).join(', ')})` : ''}`).join('\n')}`,
+            user: `WHAT YOU SAID OUT LOUD:\n${first.spoken || ''}\n\nTHE ATTEMPTS (return each one whole, in the same order):\n${lines.map((l, i) => `${i + 1}. ${l.text}${tellsIn(l.text).length ? `\n   (reads like writing: ${tellsIn(l.text).join(', ')})` : ''}`).join('\n')}`,
             schema: SCHEMAS.readback, effort: 'low', maxTokens: 8000,
           });
-          const rb = jsonOf(back).lines || [];
+          const rb = jsonOf(back).attempts || [];
           lines = lines.map((l, i) => rb[i]?.text ? { ...l, text: tidy(clip(rb[i].text, 3000)), redone: !!rb[i].changed, why: clip(rb[i].why, 300) } : l);
         } catch { /* the read-back is a polish; the written-down lines stand without it */ }
         return { spoken: tidy(clip(first.spoken, 4000)), lines: lines.map(l => ({ id: rid(), ...l, tells: tellsIn(l.text) })), used: skill.instructions ? 'skill' : 'guide' };
