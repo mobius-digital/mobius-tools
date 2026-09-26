@@ -814,6 +814,12 @@ async function syncAccount(env, acct, days, { includeAds = true } = {}) {
 
 const ANTHROPIC_MODEL = 'claude-opus-5';
 
+/* The system prompt is the part that repeats (the same brief/report prompt
+ * for every brand in a cron run, the same skill model file for every file in a
+ * build), so it is marked for caching. Under the model's minimum it just
+ * does not cache; no error. An array system is passed through as given. */
+const cachedSystem = s => typeof s === 'string' && s ? [{ type: 'text', text: s, cache_control: { type: 'ephemeral' } }] : s;
+
 async function claude(env, { system, user, maxTokens = 4000 }) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY secret is not set - run `npx wrangler secret put ANTHROPIC_API_KEY` in account-health/worker/');
@@ -828,7 +834,7 @@ async function claude(env, { system, user, maxTokens = 4000 }) {
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
       max_tokens: maxTokens,
-      system,
+      system: cachedSystem(system),
       messages: [{ role: 'user', content: user }],
     }),
   });

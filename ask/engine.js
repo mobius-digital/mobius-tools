@@ -468,7 +468,10 @@ export function createAssistant(config) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, max_tokens: strong ? 4000 : 1200, system, messages, ...(tools ? { tools } : {}) }),
+      /* Top-level cache_control caches the conversation so far: every round of
+       * the tool loop re-sends it, and each round now reads it back at a tenth
+       * of the price instead of paying for it again. */
+      body: JSON.stringify({ model, max_tokens: strong ? 4000 : 1200, system, messages, ...(tools ? { tools } : {}), cache_control: { type: 'ephemeral' } }),
     });
     const body = typeof r.text === 'function' ? await r.text().catch(() => '') : JSON.stringify(await r.json().catch(() => ({})));
     let j; try { j = JSON.parse(body); } catch { j = {}; }

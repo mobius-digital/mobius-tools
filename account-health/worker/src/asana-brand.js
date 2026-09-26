@@ -140,11 +140,17 @@ async function readDoc(env, id) {
 }
 
 /* ---------------- Claude (small structured calls) ---------------- */
+/* The system prompt is the part that repeats (the same brief/report prompt
+ * for every brand in a cron run, the same skill model file for every file in a
+ * build), so it is marked for caching. Under the model's minimum it just
+ * does not cache; no error. An array system is passed through as given. */
+const cachedSystem = s => typeof s === 'string' && s ? [{ type: 'text', text: s, cache_control: { type: 'ephemeral' } }] : s;
+
 async function claudeJson(env, { system, user, schema, effort = 'medium', maxTokens = 16000 }) {
   const res = await F('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system, thinking: { type: 'adaptive' }, output_config: { effort, format: { type: 'json_schema', schema } }, messages: [{ role: 'user', content: user }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system: cachedSystem(system), thinking: { type: 'adaptive' }, output_config: { effort, format: { type: 'json_schema', schema } }, messages: [{ role: 'user', content: user }] }),
   });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(j.error?.message || `Claude API HTTP ${res.status}`);
