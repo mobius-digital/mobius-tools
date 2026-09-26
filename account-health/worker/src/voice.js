@@ -265,6 +265,34 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         const lines = (jsonOf(m).attempts || []).slice(0, n).map(l => ({ text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) }));
         return { lines: lines.map(l => ({ id: rid(), ...l, tells: tellsIn(l.text) })), used: skill.instructions ? 'skill' : 'guide' };
       });
+      /* Studio bulk: split a pasted campaign doc (e.g. a Black Friday plan) into one row per
+         static ad. The team's own words are kept exactly; only a missing headline is written. */
+      if (path === '/api/voice/staff/split') return streamed(ctx, async () => {
+        const text = clip(b.text, 60000);
+        if (!text.trim()) throw Object.assign(new Error('Paste the plan first.'), { status: 400 });
+        const products = (Array.isArray(b.products) ? b.products : []).slice(0, 400).map(t => clip(t, 160));
+        const STR = { type: 'string' }, ARR = { type: 'array', items: STR };
+        const idea = { type: 'object', additionalProperties: false,
+          required: ['name', 'headline', 'subline', 'callouts', 'cta', 'art', 'look', 'who', 'notes', 'products', 'style'],
+          properties: { name: STR, headline: STR, subline: STR, callouts: ARR, cta: STR, art: STR, look: STR, who: STR, notes: STR, products: ARR,
+            style: { type: 'string', enum: ['auto', 'bold', 'clean', 'serif', 'hand', 'luxe', 'native'] } } };
+        const m = await claude(env, {
+          system: `You turn a marketing team's campaign plan into a list of static image ads for ${acct.name}, one entry per distinct ad. ${VOICE}`,
+          user: `THE PLAN:\n<<<\n${text}\n>>>\n\nTHE BRAND'S PRODUCTS (use these exact titles in "products"; pick the ones each ad is about, or none if it is brand-wide):\n${products.join('\n') || '(none listed)'}\n\nRULES:
+- One entry per ad the plan asks for. If one angle lists several headlines, each headline is its own ad. If the plan says "3 versions of X", that is 3 entries with different words.
+- KEEP THE TEAM'S WORDS EXACTLY: headlines, sublines, callouts, offers and codes are copied character for character. Never polish them.
+- Only when an ad has no headline, write one short, specific headline in the plan's own tone. Never invent an offer, price, discount or code that is not in the plan.
+- callouts: short badge lines the plan puts on THAT ad or its angle (a sitewide offer or code may go on every ad; an angle's own callouts stay on that angle). Never more than 3 per ad. cta: the button text if the plan gives one.
+- art: only for a launch or drop that wants one word drawn as title art, otherwise empty.
+- look: the scene, mood and camera, from the plan if it says, otherwise a short sensible scene for the product. who: the person it speaks to if the plan says.
+- notes: layout or anything specific the plan asks for this ad. style: the type style that fits (auto when unsure).
+- name: a 2-5 word label for the team, like "BF · Carver gift angle".`,
+          schema: { type: 'object', additionalProperties: false, required: ['ideas'], properties: { ideas: { type: 'array', items: idea } } },
+          effort: 'low', maxTokens: 32000,
+        });
+        const ideas = (jsonOf(m).ideas || []).slice(0, 250).map(x => ({ ...x, products: (x.products || []).filter(p => products.includes(p)).slice(0, 4), callouts: (x.callouts || []).slice(0, 6) }));
+        return { ideas };
+      });
       if (path === '/api/voice/staff/bank') {
         if (b.remove) {
           const { data } = await getDoc(env, A, 'voice_bank');

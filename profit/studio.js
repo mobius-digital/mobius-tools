@@ -211,11 +211,11 @@ function paint() {
     <div class="st-bar"><div style="display:block"><h2>Studio · ${esc(d.account?.name || '')}</h2><p class="sub" style="margin:0">AI makes the whole ad. Approve it, or tap Edit to move, retype or delete any words without making the picture again.</p></div>
       <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span><button class="btn" id="stKey">Image AI key</button>` : ''}</div></div>
     ${d.has_key ? '' : keyCard()}
-    ${d.has_key ? makeCard() : ''}
+    ${d.has_key ? (S.mode === 'bulk' ? bulkCard() : makeCard()) : ''}
     ${boardCard()}
   </div>`;
   window.scrollTo(0, y);
-  wireKey(); if (d.has_key) wireMake(); wireBoard();
+  wireKey(); if (d.has_key) { if (S.mode === 'bulk') wireBulk(); else { wireMake(); document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { readForm(); S.mode = b.dataset.mode; if (S.mode === 'bulk') ensureProducts().then(paint); else paint(); }); } } wireBoard();
 }
 
 /* ---------------- key ---------------- */
@@ -248,7 +248,7 @@ function makeCard() {
   const inspoHtml = (s.inspo || []).map((u, i) => `<div style="position:relative;line-height:0"><img src="${esc(u)}" alt="" style="width:74px;height:92px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button class="btn" data-rminspo="${i}" style="position:absolute;top:3px;right:3px;padding:1px 6px;font-size:11px">×</button></div>`).join('');
   const writeBtn = k => `<button class="btn" data-write="${k}" title="The copy desk writes options in the brand's voice">Write for me</button>`;
   const sug = f.sugg ? `<div class="full"><p class="st-lbl">Pick one for the ${f.sugg.field === 'headline' ? 'headline' : 'smaller line'}</p><div class="st-sugg">${f.sugg.lines.map((l, i) => `<button data-sug="${i}">${esc(l)}</button>`).join('')}</div></div>` : '';
-  return `<div class="card"><div class="st-bar"><h3 class="st-h">Make ads</h3><span class="tiny">About 25¢ per version. Everything is optional except a product or an inspiration image.</span></div>
+  return `<div class="card"><div class="st-bar"><h3 class="st-h">Make ads</h3>${modeTabs()}</div><p class="tiny" style="margin:4px 0 0">About 25¢ per version. Everything is optional except a product or an inspiration image.</p>
     <div class="st-form" style="margin-top:12px">
       <div class="full"><p class="st-lbl">Start from · at least one</p>
         <div class="br-g2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px">
@@ -391,6 +391,123 @@ async function make() {
     S.busy = ''; await reload();
   } catch (e) { S.busy = ''; S.err = e.message; paint(); }
 }
+
+/* ---------------- bulk ----------------
+   Paste a whole plan (a Black Friday doc, a list of headlines, anything). Claude splits it into
+   one row per ad, keeping the team's words exactly. The team checks the rows, then Make runs
+   them as a queue from this page, two at a time (OpenAI limits how fast images can be made). */
+const BK = { text: '', ideas: null, busy: '', err: '', n: 1, run: null };
+function modeTabs() {
+  return `<div class="st-chips"><button class="st-chip ${S.mode !== 'bulk' ? 'on' : ''}" data-mode="one">One idea</button><button class="st-chip ${S.mode === 'bulk' ? 'on' : ''}" data-mode="bulk">Bulk from a plan</button></div>`;
+}
+function bulkCard() {
+  const ideas = BK.ideas || [];
+  const on = ideas.filter(x => x.on);
+  const run = BK.run;
+  const prodOpts = (S.products || []).map(p => p.title);
+  const rows = ideas.map((x, i) => `<tr style="${x.state === 'done' ? 'opacity:.55' : ''}">
+      <td><input type="checkbox" data-bon="${i}" ${x.on ? 'checked' : ''} ${run ? 'disabled' : ''} aria-label="Include"></td>
+      <td style="min-width:220px"><input class="st-in" style="margin:0" data-bf="${i}:headline" value="${esc(x.headline)}" ${run ? 'disabled' : ''}><div class="tiny" style="margin-top:3px">${esc(x.name || '')}</div></td>
+      <td style="min-width:200px"><input class="st-in" style="margin:0" data-bf="${i}:subline" value="${esc(x.subline)}" placeholder="none" ${run ? 'disabled' : ''}>${x.callouts?.length ? `<div class="tiny" style="margin-top:3px">Callouts: ${x.callouts.map(esc).join(' · ')}</div>` : ''}</td>
+      <td style="min-width:170px"><select class="st-in" style="margin:0" data-bp="${i}" ${run ? 'disabled' : ''}><option value="">${x.products?.length > 1 ? esc(x.products.join(' + ')) : '(no product)'}</option>${prodOpts.map(t => `<option ${x.products?.length === 1 && x.products[0] === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></td>
+      <td class="tiny" style="max-width:260px">${esc((x.look || '').slice(0, 140))}</td>
+      <td>${x.state === 'done' ? '<span class="st-tag ok">Made</span>' : x.state === 'making' ? '<span class="st-busy"><span class="st-spin"></span></span>' : x.state === 'failed' ? `<span class="st-msg bad" title="${esc(x.error || '')}">Failed</span>` : ''}</td></tr>`).join('');
+  return `<div class="card"><div class="st-bar"><h3 class="st-h">Make ads</h3>${modeTabs()}</div>
+    ${!BK.ideas ? `
+      <p class="hint" style="margin:10px 0">Paste the whole plan: angles, headlines, offers, codes, notes, in any format. Locus splits it into one ad per headline, keeps your words exactly, and matches products from the store. You check the list before anything is made.</p>
+      <textarea class="st-in" id="bkText" rows="12" placeholder="BLACK FRIDAY, Lucky Golf&#10;Offer: 25% off sitewide with code LUCKY25, Nov 27 to Dec 1&#10;&#10;Angle 1: The gift they'll actually use (Carver 02 wedges)&#10;- The gift that fixes their short game&#10;- Stop buying him socks&#10;...">${esc(BK.text)}</textarea>
+      <div class="st-bar" style="margin-top:10px"><span class="tiny">Splitting costs a few cents. Nothing is made until you press Make.</span>
+        <div>${BK.busy ? `<span class="st-busy"><span class="st-spin"></span>${esc(BK.busy)}</span>` : ''}<button class="btn primary" id="bkSplit" ${BK.busy ? 'disabled' : ''}>Split into ads</button></div></div>`
+    : `
+      <div class="st-bar" style="margin-top:12px"><div><b>${ideas.length} ads found</b><span class="tiny">${on.length} selected · about $${(on.length * BK.n * 0.25).toFixed(2)} for ${on.length * BK.n} image${on.length * BK.n === 1 ? '' : 's'}</span></div>
+        <div><span class="st-lbl" style="margin:0">Versions each</span><div class="st-chips">${[1, 2].map(n => `<button class="st-chip ${BK.n === n ? 'on' : ''}" data-bn="${n}" ${run ? 'disabled' : ''}>${n}</button>`).join('')}</div>
+          <button class="btn" id="bkAll" ${run ? 'disabled' : ''}>${on.length === ideas.length ? 'Select none' : 'Select all'}</button>
+          <button class="btn" id="bkBack" ${run ? 'disabled' : ''}>Back to the plan</button>
+          ${run ? `<span class="st-busy"><span class="st-spin"></span>Made ${run.done} of ${run.total}${run.failed ? `, ${run.failed} failed` : ''}. Keep this page open.</span><button class="btn" id="bkStop">Stop</button>`
+            : `<button class="btn primary" id="bkMake" ${on.length ? '' : 'disabled'}>Make ${on.length * BK.n} ad${on.length * BK.n === 1 ? '' : 's'}</button>`}</div></div>
+      <p class="hint" style="margin:6px 0 0">Edit any headline or product here first. Rows with no product use the product${(S.form.spec.products || []).length > 1 ? 's' : ''} picked in One idea${(S.form.spec.products || []).length ? ` (${esc(S.form.spec.products.map(p => p.title).join(' + '))})` : ', and are made from the description alone if none is picked'}.</p>
+      <div class="tbl-wrap" style="margin-top:10px;max-height:62vh;overflow:auto"><table><thead><tr><th></th><th>Headline</th><th>Smaller line</th><th>Product</th><th>Look</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`}
+    <p class="st-msg bad" id="bkErr">${esc(BK.err || '')}</p></div>`;
+}
+async function ensureProducts() {
+  if (S.products) return;
+  const r = await api(`/api/studio/products?act=${encodeURIComponent(S.act)}`).catch(e => ({ products: [], note: e.message }));
+  S.products = r.products || []; S.prodNote = r.note || '';
+}
+function wireBulk() {
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (S.mode !== 'bulk') readForm(); S.mode = b.dataset.mode; paint(); });
+  const t = $('#bkText'); if (t) t.oninput = () => { BK.text = t.value; };
+  const sp = $('#bkSplit');
+  if (sp) sp.onclick = async () => {
+    BK.text = $('#bkText').value;
+    if (!BK.text.trim()) { BK.err = 'Paste the plan first.'; return paint(); }
+    BK.err = ''; BK.busy = 'Reading the plan. Under a minute for most docs.'; paint();
+    try {
+      await ensureProducts();
+      const r = await streamCall(AH_URL, '/api/voice/staff/split', { text: BK.text, products: S.products.map(p => p.title) }, () => {});
+      BK.ideas = (r.ideas || []).map(x => ({ ...x, on: true, state: '' }));
+      if (!BK.ideas.length) { BK.ideas = null; BK.err = 'No ads found in that text.'; }
+    } catch (e) { BK.err = e.message; }
+    BK.busy = ''; paint();
+  };
+  document.querySelectorAll('[data-bon]').forEach(c => c.onchange = () => { BK.ideas[+c.dataset.bon].on = c.checked; paint(); });
+  document.querySelectorAll('[data-bf]').forEach(inp => inp.oninput = () => { const [i, k] = inp.dataset.bf.split(':'); BK.ideas[+i][k] = inp.value; });
+  document.querySelectorAll('[data-bp]').forEach(s => s.onchange = () => { const x = BK.ideas[+s.dataset.bp]; x.products = s.value ? [s.value] : []; });
+  document.querySelectorAll('[data-bn]').forEach(b => b.onclick = () => { BK.n = +b.dataset.bn; paint(); });
+  const all = $('#bkAll'); if (all) all.onclick = () => { const every = BK.ideas.every(x => x.on); BK.ideas.forEach(x => { x.on = !every; }); paint(); };
+  const back = $('#bkBack'); if (back) back.onclick = () => { BK.ideas = null; paint(); };
+  const stop = $('#bkStop'); if (stop) stop.onclick = () => { if (BK.run) BK.run.stop = true; };
+  const mk = $('#bkMake'); if (mk) mk.onclick = runBulk;
+}
+function specFor(x) {
+  const byTitle = t => (S.products || []).find(p => p.title === t);
+  let prods = (x.products || []).map(byTitle).filter(Boolean);
+  let images;
+  if (prods.length) images = prods.flatMap(p => p.images.slice(0, prods.length > 1 ? 1 : 2));
+  else {
+    const f = S.form.spec;
+    prods = (f.products || []).map(p => ({ title: p.title, handle: p.handle }));
+    images = (f.images || []).slice();
+  }
+  return {
+    products: prods.map(p => ({ title: p.title, handle: p.handle })), images, inspo: (S.form.spec.inspo || []).slice(),
+    headline: x.headline, subline: x.subline, callouts: x.callouts || [], cta: x.cta, art: x.art,
+    look: x.look, who: x.who, notes: x.notes, style: x.style || 'auto',
+  };
+}
+async function runBulk() {
+  const todo = BK.ideas.filter(x => x.on && x.state !== 'done');
+  BK.run = { total: todo.length, done: 0, failed: 0, stop: false };
+  S.filter = 'review'; paint();
+  let i = 0;
+  const worker = async () => {
+    while (i < todo.length && !BK.run.stop) {
+      const x = todo[i++];
+      const spec = specFor(x);
+      if (!spec.images.length && !spec.inspo.length && !spec.look) { x.state = 'failed'; x.error = 'No product and nothing to start from'; BK.run.failed++; paint(); continue; }
+      x.state = 'making'; paint();
+      try {
+        await streamCall(S.url, '/api/studio/make', { spec, n: BK.n }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); });
+        x.state = 'done'; BK.run.done++;
+      } catch (e) {
+        /* OpenAI's per-minute image limit: wait and retry once. */
+        if (/rate|limit|429/i.test(e.message)) {
+          await new Promise(r => setTimeout(r, 30000));
+          try { await streamCall(S.url, '/api/studio/make', { spec, n: BK.n }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); }); x.state = 'done'; BK.run.done++; paint(); continue; } catch (e2) { e = e2; }
+        }
+        x.state = 'failed'; x.error = e.message; BK.run.failed++;
+        if (/credit|billing|quota|Incorrect API key/i.test(e.message)) { BK.run.stop = true; BK.err = e.message; }
+      }
+      paint();
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  const r = BK.run; BK.run = null;
+  BK.err = BK.err || (r.failed ? `${r.failed} failed. Hover "Failed" for why; select them and press Make to retry.` : '');
+  BK.ideas.forEach(x => { if (x.state === 'done') x.on = false; });
+  await reload();
+}
+window.addEventListener('beforeunload', e => { if (BK.run) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ---------------- board ---------------- */
 function boardCard() {
