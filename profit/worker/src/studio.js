@@ -103,29 +103,46 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
   throw new Error('The image model kept rejecting the request.');
 }
 
-function adPrompt(spec, brand, k = 0, n = 1) {
+function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
   const lines = [];
   if (spec.headline) lines.push(`Headline: "${spec.headline}"`);
   if (spec.subline) lines.push(`Smaller line: "${spec.subline}"`);
+  for (const c of spec.callouts || []) lines.push(`Callout (a small badge, label or pointer near the part of the product it describes): "${c}"`);
   if (spec.cta) lines.push(`Button (a clean pill or label shape): "${spec.cta}"`);
   if (spec.art) lines.push(`Title art: "${spec.art}" as custom stylised lettering that is part of the scene itself`);
+  const names = (spec.products || []).map(p => p.title).filter(Boolean);
+  const many = names.length > 1;
+  const which = counts.prod && counts.inspo
+    ? `The first ${counts.prod} attached image${counts.prod > 1 ? 's are' : ' is'} the real product${many ? 's' : ''}. The last ${counts.inspo} ${counts.inspo > 1 ? 'are' : 'is'} INSPIRATION ONLY.`
+    : counts.inspo ? `All ${counts.inspo} attached image${counts.inspo > 1 ? 's are' : ' is'} INSPIRATION ONLY.` : '';
   return [
     `Create a finished, scroll-stopping Meta feed ad for ${brand}, portrait 4:5.`,
-    spec.product ? `The product is "${spec.product}". The attached photos are the real product: reproduce it exactly, with the same shape, colours, materials, logos and any words printed on it.` : '',
+    which,
+    names.length
+      ? `The product${many ? 's are' : ' is'}: ${names.map(t => `"${t}"`).join(', ')}. ${many ? 'Show every one of them. ' : ''}The product photos are the real thing: reproduce ${many ? 'each product' : 'it'} exactly, with the same shape, colours, materials, logos and any words printed on ${many ? 'them' : 'it'}.`
+      : 'There is no product photo: build the image from the description and the inspiration.',
+    counts.inspo ? 'From the inspiration take the layout, composition, typography treatment, colour mood and energy. Do NOT copy its products, brand names, logos, people or words.' : '',
     spec.look ? `Scene and look: ${spec.look}` : '',
     spec.who ? `It is for: ${spec.who}. Let that guide the mood, setting and casting.` : '',
     `Typography: ${STYLES[spec.style] || STYLES.auto}`,
     lines.length ? `Put exactly this text on the ad, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Put no text on the ad.',
     'Meta crops 4:5 ads to a square in some placements, so keep every word and the product inside the centred square: the top tenth and bottom tenth of the frame are background only.',
+    spec.notes ? `Also: ${spec.notes}` : '',
     'No watermark, no extra logos, no made-up words, no price unless it is in the text above.',
     n > 1 ? `This is version ${k + 1} of ${n}: use a clearly different composition and camera angle from the other versions.` : '',
   ].filter(Boolean).join('\n\n');
 }
 
-async function refImages(urls) {
+async function refImages(env, urls, max = 10) {
   const out = [];
-  for (const u of (urls || []).slice(0, 4)) {
+  for (const u of (urls || []).slice(0, max)) {
     try {
+      const own = u.match(/\/api\/studio\/ref\/([a-f0-9]{24}\.(png|jpg|webp))$/);
+      if (own) {
+        const obj = await env.MEDIA.get(`studio/ref/${own[1]}`);
+        if (obj) out.push({ buf: await obj.arrayBuffer(), type: own[2] === 'jpg' ? 'image/jpeg' : `image/${own[2]}` });
+        continue;
+      }
       const src = /cdn\.shopify\.com/.test(u) && !/[?&]width=/.test(u) ? u + (u.includes('?') ? '&' : '?') + 'width=1024' : u;
       const r = await fetch(src);
       if (!r.ok) continue;
@@ -145,7 +162,7 @@ async function readText(key, model, bytes, spec) {
     properties: { lines: { type: 'array', items: { type: 'object', additionalProperties: false,
       required: ['text', 'role', 'is_art', 'box', 'color', 'font', 'weight', 'upper', 'bg'],
       properties: {
-        text: { type: 'string' }, role: { type: 'string', enum: ['headline', 'subline', 'cta', 'label', 'art'] },
+        text: { type: 'string' }, role: { type: 'string', enum: ['headline', 'subline', 'callout', 'cta', 'label', 'art'] },
         is_art: { type: 'boolean' },
         box: { type: 'array', items: { type: 'integer' }, description: '[left, top, right, bottom] in 0-1000 of the image width and height, tight around the letters' },
         color: { type: 'string', description: '#rrggbb of the letters' },
@@ -153,7 +170,7 @@ async function readText(key, model, bytes, spec) {
         bg: { type: 'string', description: '#rrggbb of the button or label shape behind the words, or empty when the words sit on the picture' },
       } } } },
   };
-  const expected = [spec.headline, spec.subline, spec.cta].filter(Boolean).map(s => `"${s}"`).join(', ');
+  const expected = [spec.headline, spec.subline, ...(spec.callouts || []), spec.cta].filter(Boolean).map(s => `"${s}"`).join(', ');
   const r = await fetch(`${OA}/chat/completions`, {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -194,8 +211,8 @@ function shape(row) {
 const getAd = (env, id) => env.DB.prepare(`SELECT * FROM p_studio_ad WHERE id = ?1`).bind(id).first();
 const keyOf = (row, kind) => `studio/${row.act_id}/${row.id}/${kind}.png`;
 
-async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent) {
-  const prompt = adPrompt(spec, brand, k, n);
+async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts) {
+  const prompt = adPrompt(spec, brand, k, n, counts);
   const out = await imageCall(key, m.image, { prompt, images: refs });
   const { w, h } = pngSize(out.bytes);
   const id = rid();
@@ -205,17 +222,27 @@ async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent) {
   return shape(await getAd(env, id));
 }
 
+const urls = (a, n) => (Array.isArray(a) ? a : []).filter(u => /^https?:\/\//.test(u)).slice(0, n).map(u => clip(u, 1000));
 function cleanSpec(s = {}) {
+  let products = (Array.isArray(s.products) ? s.products : []).slice(0, 4).map(p => ({ title: clip(p.title, 200), handle: clip(p.handle, 200) })).filter(p => p.title);
+  if (!products.length && s.product) products = [{ title: clip(s.product, 200), handle: clip(s.product_handle, 200) }];
   return {
-    product: clip(s.product, 200), product_handle: clip(s.product_handle, 200),
-    images: (Array.isArray(s.images) ? s.images : []).filter(u => /^https:\/\//.test(u)).slice(0, 4).map(u => clip(u, 1000)),
+    products, product: products.map(p => p.title).join(' + '),
+    images: urls(s.images, 8), inspo: urls(s.inspo, 3),
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
-    art: clip(s.art, 40), look: clip(s.look, 1200), style: STYLES[s.style] ? s.style : 'auto',
+    callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
+    art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
   };
 }
 
 /* ---------------- public: the images ---------------- */
 export async function handlePublic(request, env, url, path, json, CORS) {
+  const rf = path.match(/^\/api\/studio\/ref\/([a-f0-9]{24})\.(png|jpg|webp)$/);
+  if (rf && request.method === 'GET' && env.MEDIA) {
+    const obj = await env.MEDIA.get(`studio/ref/${rf[1]}.${rf[2]}`);
+    if (!obj) return json({ error: 'not found' }, 404);
+    return new Response(obj.body, { headers: { 'Content-Type': rf[2] === 'jpg' ? 'image/jpeg' : `image/${rf[2]}`, 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
+  }
   const m = path.match(/^\/api\/studio\/img\/([a-f0-9]{24})\/(full|plate|final)$/);
   if (!m || request.method !== 'GET') return null;
   const row = await getAd(env, m[1]);
@@ -228,6 +255,18 @@ export async function handlePublic(request, env, url, path, json, CORS) {
 /* ---------------- staff ---------------- */
 export async function handleStaff(request, env, url, path, json, CORS) {
   if (!path.startsWith('/api/studio')) return null;
+  /* Inspiration images: stored once, referenced by URL in the spec. */
+  if (path === '/api/studio/upload' && request.method === 'POST') {
+    if (!env.MEDIA) return json({ error: 'Image storage is not set up.' }, 500);
+    const type = (request.headers.get('Content-Type') || '').split(';')[0];
+    const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[type];
+    if (!ext) return json({ error: 'Use a PNG, JPG or WebP image.' }, 400);
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 12e6) return json({ error: 'That image is over 12MB.' }, 400);
+    const id = rid();
+    await env.MEDIA.put(`studio/ref/${id}.${ext}`, buf, { httpMetadata: { contentType: type } });
+    return json({ url: `${url.origin}/api/studio/ref/${id}.${ext}` });
+  }
   const body = request.method === 'POST' || request.method === 'PUT' ? await request.clone().json().catch(() => ({})) : {};
   const act = url.searchParams.get('act') || body.act || '';
 
@@ -306,17 +345,18 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!key) return needKey();
     if (!env.MEDIA) return json({ error: 'Image storage is not set up on this worker.' }, 500);
     const spec = cleanSpec(body.spec);
-    if (!spec.images.length) return json({ error: 'Pick a product first.' }, 400);
+    if (!spec.images.length && !spec.inspo.length) return json({ error: 'Pick a product or add an inspiration image.' }, 400);
     const n = Math.max(1, Math.min(4, +body.n || 1));
     const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
     if (!acct) return json({ error: 'unknown brand' }, 404);
     return stream(CORS, async send => {
       const m = await models(key);
       send({ type: 'status', text: `Making ${n} version${n > 1 ? 's' : ''} with ${m.image}. About a minute.` });
-      const refs = await refImages(spec.images);
-      if (!refs.length) throw new Error('Could not load the product photos.');
+      const prod = await refImages(env, spec.images, 8), insp = await refImages(env, spec.inspo, 3);
+      if (!prod.length && !insp.length) throw new Error('Could not load the photos.');
+      const counts = { prod: prod.length, inspo: insp.length };
       const results = await Promise.allSettled(Array.from({ length: n }, (_, k) =>
-        makeOne(env, key, m, act, acct.name, spec, refs, k, n, body.parent_id).then(ad => { send({ type: 'ad', ad }); return ad; })));
+        makeOne(env, key, m, act, acct.name, spec, [...prod, ...insp], k, n, body.parent_id, counts).then(ad => { send({ type: 'ad', ad }); return ad; })));
       const ok = results.filter(r => r.status === 'fulfilled').map(r => r.value);
       const bad = results.filter(r => r.status === 'rejected').map(r => r.reason?.message || 'failed');
       if (!ok.length) throw new Error(bad[0] || 'Nothing came back.');
@@ -336,7 +376,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       if (!obj) throw new Error('The ad image is missing.');
       const full = new Uint8Array(await obj.arrayBuffer());
       send({ type: 'status', text: 'Lifting the words off the picture. About 30 seconds.' });
-      const words = [spec.headline, spec.subline, spec.cta].filter(Boolean);
+      const words = [spec.headline, spec.subline, ...(spec.callouts || []), spec.cta].filter(Boolean);
       const erase = imageCall(key, m.image, {
         images: [{ buf: full, type: 'image/png' }], fidelity: true,
         size: row.full_w && row.full_h ? `${row.full_w}x${row.full_h}` : '1024x1280',

@@ -198,7 +198,7 @@ async function render({ tok, url, act, accounts, pick }) {
     return;
   }
   main.innerHTML = `<div class="st"><div class="card"><span class="hint">Loading…</span></div></div>`;
-  if (S.form?.act !== act) { S.form = { act, spec: { style: 'auto', cta: 'Shop now', images: [] }, n: 2, sugg: null }; S.products = null; }
+  if (S.form?.act !== act) { S.form = { act, spec: freshSpec(), n: 2, sugg: null }; S.products = null; }
   S.d = await api(`/api/studio?act=${encodeURIComponent(act)}`);
   paint();
 }
@@ -236,58 +236,113 @@ function wireKey() {
   if (ch) ch.onclick = () => modal('Image AI key', `<p class="hint" style="margin:0 0 10px">A key is connected. Paste a new one to replace it, or leave it empty and save to disconnect.</p><label class="st-f">New OpenAI API key<input class="st-in" id="k2" type="password" autocomplete="off" placeholder="sk-..."></label>`, { onOpen: (w, ctl) => w.onSubmit(async () => { await post('/api/studio/key', { key: w.querySelector('#k2').value }); ctl.close(true); reload(); }) });
 }
 
-/* ---------------- make ---------------- */
+/* ---------------- make ----------------
+   Everything is optional except ONE starting point: a product or an inspiration image.
+   No words given? Locus asks the copy desk for a headline before making. */
 function makeCard() {
   const f = S.form, s = f.spec;
-  const prod = s.product ? `<div class="st-prod"><div><b style="font-size:14px">${esc(s.product)}</b><div class="hint" style="margin-top:2px">Photos the AI copies the product from (click to use or skip):</div>
-      <div class="st-thumbs" style="margin-top:6px">${(f.allImages || s.images).map(u => `<button data-img="${esc(u)}" class="${s.images.includes(u) ? 'on' : ''}" title="${s.images.includes(u) ? 'Used' : 'Not used'}"><img src="${esc(u)}${u.includes('?') ? '&' : '?'}width=120" alt=""></button>`).join('')}</div></div>
-      <button class="btn" id="stProd">Change product</button></div>`
-    : `<button class="btn" id="stProd">Choose a product</button> <span class="hint">from the brand's store</span>`;
+  const prods = s.products || [];
+  const prodHtml = prods.map((p, pi) => `<div class="st-prod" style="margin-top:8px"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${esc(p.title)}</b>
+      <div class="st-thumbs" style="margin-top:6px">${(p.all || []).map(u => `<button data-img="${esc(u)}" class="${s.images.includes(u) ? 'on' : ''}" title="${s.images.includes(u) ? 'Used: click to skip' : 'Skipped: click to use'}"><img src="${esc(u)}${u.includes('?') ? '&' : '?'}width=120" alt=""></button>`).join('')}</div></div>
+      <button class="btn" data-rmprod="${pi}">Remove</button></div>`).join('');
+  const inspoHtml = (s.inspo || []).map((u, i) => `<div style="position:relative;line-height:0"><img src="${esc(u)}" alt="" style="width:74px;height:92px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button class="btn" data-rminspo="${i}" style="position:absolute;top:3px;right:3px;padding:1px 6px;font-size:11px">×</button></div>`).join('');
   const writeBtn = k => `<button class="btn" data-write="${k}" title="The copy desk writes options in the brand's voice">Write for me</button>`;
   const sug = f.sugg ? `<div class="full"><p class="st-lbl">Pick one for the ${f.sugg.field === 'headline' ? 'headline' : 'smaller line'}</p><div class="st-sugg">${f.sugg.lines.map((l, i) => `<button data-sug="${i}">${esc(l)}</button>`).join('')}</div></div>` : '';
-  return `<div class="card"><div class="st-bar"><h3 class="st-h">Make ads</h3><span class="tiny">About 25¢ per version</span></div>
+  return `<div class="card"><div class="st-bar"><h3 class="st-h">Make ads</h3><span class="tiny">About 25¢ per version. Everything is optional except a product or an inspiration image.</span></div>
     <div class="st-form" style="margin-top:12px">
-      <div class="full">${prod}</div>
-      <label class="st-f full">Who it's for<small>one real person, so the picture and words speak to them</small><input class="st-in" id="sfWho" value="${esc(s.who || '')}" placeholder="e.g. The 15-handicap who dreads the 40-yard pitch"></label>
-      <div class="st-row full"><label class="st-f">Headline<input class="st-in" id="sfHead" value="${esc(s.headline || '')}" placeholder="THE SHOT YOU DREAD."></label>${writeBtn('headline')}</div>
-      <div class="st-row full"><label class="st-f">Smaller line<small>optional</small><input class="st-in" id="sfSub" value="${esc(s.subline || '')}" placeholder="Meet the wedge you'll actually trust from 40 yards."></label>${writeBtn('subline')}</div>
+      <div class="full"><p class="st-lbl">Start from · at least one</p>
+        <div class="br-g2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px">
+          <div><b style="font-size:13px">Products</b><div class="hint">Up to 4. The AI copies them exactly from their photos.</div>${prodHtml}
+            <div style="margin-top:8px"><button class="btn" id="stProd" ${prods.length >= 4 ? 'disabled' : ''}>${prods.length ? 'Add another product' : 'Choose a product'}</button></div></div>
+          <div><b style="font-size:13px">Inspiration</b><div class="hint">Ads or images you like. The AI borrows the layout, type and feel, never their products or words.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${inspoHtml}
+              ${(s.inspo || []).length < 3 ? `<div id="stDrop" tabindex="0" role="button" style="width:74px;height:92px;border:1.5px dashed var(--line-strong);border-radius:8px;display:grid;place-items:center;text-align:center;font-size:11px;color:var(--muted);cursor:pointer;padding:4px">Add, drop or paste</div>` : ''}</div>
+            <input type="file" id="stFile" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
+        </div></div>
+      <div class="full"><p class="st-lbl" style="margin-top:6px">The words · all optional</p></div>
+      <div class="st-row full"><label class="st-f">Headline<small>leave empty and Locus writes one</small><input class="st-in" id="sfHead" value="${esc(s.headline || '')}" placeholder="THE SHOT YOU DREAD."></label>${writeBtn('headline')}</div>
+      <div class="st-row full"><label class="st-f">Smaller line<input class="st-in" id="sfSub" value="${esc(s.subline || '')}" placeholder="Meet the wedge you'll actually trust from 40 yards."></label>${writeBtn('subline')}</div>
       ${sug}
-      <label class="st-f">Button<small>optional</small><input class="st-in" id="sfCta" value="${esc(s.cta || '')}" placeholder="Shop now"></label>
-      <label class="st-f">Title art<small>optional, for launches: one word drawn as art</small><input class="st-in" id="sfArt" value="${esc(s.art || '')}" placeholder="NIGHTSHADE"></label>
+      <label class="st-f full">Callouts<small>one per line, up to 6: badges or labels pointing at features</small><textarea class="st-in" id="sfCall" rows="3" placeholder="Forged carbon steel&#10;Tour-grade spin&#10;Free shipping">${esc((s.callouts || []).join('\n'))}</textarea></label>
+      <label class="st-f">Button<input class="st-in" id="sfCta" value="${esc(s.cta || '')}" placeholder="Shop now"></label>
+      <label class="st-f">Title art<small>for launches: one word drawn as art</small><input class="st-in" id="sfArt" value="${esc(s.art || '')}" placeholder="NIGHTSHADE"></label>
+      <div class="full"><p class="st-lbl" style="margin-top:6px">The picture · all optional</p></div>
+      <label class="st-f full">Who it's for<small>one real person, so the picture and words speak to them</small><input class="st-in" id="sfWho" value="${esc(s.who || '')}" placeholder="The 15-handicap who dreads the 40-yard pitch"></label>
       <label class="st-f full">The look<small>the scene, mood and camera</small><textarea class="st-in" id="sfLook" rows="2" placeholder="Early morning, dew on thick rough, low gold sun, the wedge behind a ball sitting down in the grass">${esc(s.look || '')}</textarea></label>
+      <label class="st-f full">Anything else<small>layout, colours, what to avoid, anything specific</small><textarea class="st-in" id="sfNotes" rows="2" placeholder="Split screen: our wedge on the left, a generic wedge on the right. Keep it dark.">${esc(s.notes || '')}</textarea></label>
       <div class="full"><p class="st-lbl">Type style</p><div class="st-chips">${STYLES.map(([k, l, h]) => `<button class="st-chip ${s.style === k ? 'on' : ''}" data-style="${k}">${l}<small>${h}</small></button>`).join('')}</div></div>
       <div class="full st-bar"><div><span class="st-lbl" style="margin:0">Versions</span><div class="st-chips">${[1, 2, 3, 4].map(n => `<button class="st-chip ${f.n === n ? 'on' : ''}" data-n="${n}">${n}</button>`).join('')}</div></div>
-        <div>${S.busy ? `<span class="st-busy"><span class="st-spin"></span>${esc(S.busy)}</span>` : ''}<button class="btn primary" id="stMake" ${S.busy ? 'disabled' : ''}>Make ${f.n} ad${f.n > 1 ? 's' : ''}</button></div></div>
+        <div>${S.busy ? `<span class="st-busy"><span class="st-spin"></span>${esc(S.busy)}</span>` : ''}<button class="btn" id="stClear" ${S.busy ? 'disabled' : ''}>Clear</button><button class="btn primary" id="stMake" ${S.busy ? 'disabled' : ''}>Make ${f.n} ad${f.n > 1 ? 's' : ''}</button></div></div>
       <p class="st-msg bad full" id="stErr">${esc(S.err || '')}</p>
     </div></div>`;
 }
+function freshSpec() { return { style: 'auto', cta: '', products: [], images: [], inspo: [], callouts: [] }; }
 function readForm() {
   const s = S.form.spec, v = id => ($('#' + id)?.value || '').trim();
-  Object.assign(s, { who: v('sfWho'), headline: v('sfHead'), subline: v('sfSub'), cta: v('sfCta'), art: v('sfArt'), look: v('sfLook') });
+  if (!$('#sfHead')) return;
+  Object.assign(s, { who: v('sfWho'), headline: v('sfHead'), subline: v('sfSub'), cta: v('sfCta'), art: v('sfArt'), look: v('sfLook'), notes: v('sfNotes'),
+    callouts: v('sfCall').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 6) });
+}
+async function addInspo(files) {
+  readForm();
+  const s = S.form.spec;
+  for (const file of [...files].filter(f => /^image\/(png|jpeg|webp)$/.test(f.type)).slice(0, 3 - s.inspo.length)) {
+    try {
+      const res = await fetch(S.url.replace(/\/+$/, '') + '/api/studio/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': file.type }, body: file });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Upload failed');
+      s.inspo.push(j.url);
+    } catch (e) { S.err = e.message; }
+  }
+  paint();
 }
 function wireMake() {
   const f = S.form;
-  ['sfWho', 'sfHead', 'sfSub', 'sfCta', 'sfArt', 'sfLook'].forEach(id => { const el = $('#' + id); if (el) el.oninput = readForm; });
+  ['sfWho', 'sfHead', 'sfSub', 'sfCta', 'sfArt', 'sfLook', 'sfNotes', 'sfCall'].forEach(id => { const el = $('#' + id); if (el) el.oninput = readForm; });
   $('#stProd').onclick = pickProduct;
   document.querySelectorAll('[data-img]').forEach(b => b.onclick = () => {
     const u = b.dataset.img, on = f.spec.images.includes(u);
-    if (on && f.spec.images.length === 1) return;
-    f.spec.images = on ? f.spec.images.filter(x => x !== u) : [...f.spec.images, u].slice(-4);
+    f.spec.images = on ? f.spec.images.filter(x => x !== u) : [...f.spec.images, u].slice(-8);
     readForm(); paint();
   });
+  document.querySelectorAll('[data-rmprod]').forEach(b => b.onclick = () => {
+    readForm(); const p = f.spec.products.splice(+b.dataset.rmprod, 1)[0];
+    f.spec.images = f.spec.images.filter(u => !(p.all || []).includes(u)); paint();
+  });
+  document.querySelectorAll('[data-rminspo]').forEach(b => b.onclick = () => { readForm(); f.spec.inspo.splice(+b.dataset.rminspo, 1); paint(); });
+  const drop = $('#stDrop'), file = $('#stFile');
+  if (drop) {
+    drop.onclick = () => file.click();
+    drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } };
+    drop.ondragover = e => { e.preventDefault(); drop.style.borderColor = 'var(--brand-ink)'; };
+    drop.ondragleave = () => { drop.style.borderColor = ''; };
+    drop.ondrop = e => { e.preventDefault(); addInspo(e.dataTransfer.files); };
+  }
+  file.onchange = () => addInspo(file.files);
   document.querySelectorAll('[data-style]').forEach(b => b.onclick = () => { readForm(); f.spec.style = b.dataset.style; paint(); });
   document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { readForm(); f.n = +b.dataset.n; paint(); });
   document.querySelectorAll('[data-write]').forEach(b => b.onclick = () => writeFor(b.dataset.write, b));
   document.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { readForm(); f.spec[f.sugg.field] = f.sugg.lines[+b.dataset.sug]; f.sugg = null; paint(); });
+  $('#stClear').onclick = () => { f.spec = freshSpec(); f.sugg = null; S.err = ''; paint(); };
   $('#stMake').onclick = make;
+}
+/* Paste an image anywhere on the Studio page (outside a text box) to add it as inspiration. */
+document.addEventListener('paste', e => {
+  if (!$('#stDrop') || /INPUT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable) return;
+  const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
+  if (files.length) { e.preventDefault(); addInspo(files); }
+});
+function deskBrief(field) {
+  const s = S.form.spec;
+  return [s.product && `Product: ${s.product}.`, s.look && `The picture: ${s.look}.`, s.notes && `Notes: ${s.notes}.`, (s.callouts || []).length && `Callouts on the ad: ${s.callouts.join('; ')}.`,
+    field === 'subline' && s.headline && `It sits under the headline "${s.headline}" and is one short supporting line.`,
+    field === 'headline' && 'It is the big headline on a static image ad, a few words.'].filter(Boolean).join(' ');
 }
 async function writeFor(field, btn) {
   readForm();
-  const s = S.form.spec;
   btn.disabled = true; btn.textContent = 'Writing…';
   try {
-    const brief = [s.product && `Product: ${s.product}.`, s.look && `The picture: ${s.look}.`, field === 'subline' && s.headline && `It sits under the headline "${s.headline}" and is one short supporting line.`, field === 'headline' && 'It is the big headline on a static image ad, a few words.'].filter(Boolean).join(' ');
-    const r = await streamCall(AH_URL, '/api/voice/staff/desk', { format: 'Ad headline', brief, audience: s.who || '', n: 5 }, () => {});
+    const r = await streamCall(AH_URL, '/api/voice/staff/desk', { format: 'Ad headline', brief: deskBrief(field), audience: S.form.spec.who || '', n: 5 }, () => {});
     S.form.sugg = { field, lines: (r.lines || []).map(l => l.text).filter(Boolean) };
     S.err = S.form.sugg.lines.length ? '' : 'The copy desk sent nothing back.';
   } catch (e) { S.err = `Copy desk: ${e.message}`; }
@@ -299,15 +354,15 @@ async function pickProduct() {
     const r = await api(`/api/studio/products?act=${encodeURIComponent(S.act)}`).catch(e => ({ products: [], note: e.message }));
     S.products = r.products || []; S.prodNote = r.note || '';
   }
-  modal('Choose a product', `<input class="st-in" id="pq" placeholder="Search products" value="${esc(S.prodQ)}"><div class="st-pgrid" id="pg" style="margin-top:10px"></div>${S.prodNote ? `<p class="hint">${esc(S.prodNote)}</p>` : ''}`, { cta: null, wide: true, onOpen: (w, ctl) => {
+  modal('Add a product', `<input class="st-in" id="pq" placeholder="Search products" value="${esc(S.prodQ)}"><div class="st-pgrid" id="pg" style="margin-top:10px"></div>${S.prodNote ? `<p class="hint">${esc(S.prodNote)}</p>` : ''}`, { cta: null, wide: true, onOpen: (w, ctl) => {
     const draw = () => {
-      const q = S.prodQ.toLowerCase();
-      const list = S.products.filter(p => !q || (p.title + ' ' + p.type).toLowerCase().includes(q));
-      w.querySelector('#pg').innerHTML = list.map((p, i) => `<button data-p="${S.products.indexOf(p)}"><img src="${esc(p.images[0])}${p.images[0].includes('?') ? '&' : '?'}width=260" alt="" loading="lazy"><span>${esc(p.title)}</span></button>`).join('') || '<p class="hint">No products match.</p>';
+      const q = S.prodQ.toLowerCase(), have = new Set(S.form.spec.products.map(p => p.handle));
+      const list = S.products.filter(p => !have.has(p.handle) && (!q || (p.title + ' ' + p.type).toLowerCase().includes(q)));
+      w.querySelector('#pg').innerHTML = list.map(p => `<button data-p="${S.products.indexOf(p)}"><img src="${esc(p.images[0])}${p.images[0].includes('?') ? '&' : '?'}width=260" alt="" loading="lazy"><span>${esc(p.title)}</span></button>`).join('') || '<p class="hint">No products match.</p>';
       w.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
-        const p = S.products[+b.dataset.p];
-        Object.assign(S.form.spec, { product: p.title, product_handle: p.handle, images: p.images.slice(0, 2) });
-        S.form.allImages = p.images;
+        const p = S.products[+b.dataset.p], s = S.form.spec;
+        s.products.push({ title: p.title, handle: p.handle, all: p.images });
+        s.images = [...s.images, ...p.images.slice(0, s.products.length > 1 ? 1 : 2)].slice(0, 8);
         ctl.close(true); paint();
       });
     };
@@ -318,13 +373,20 @@ async function pickProduct() {
 async function make() {
   readForm();
   const s = S.form.spec;
-  if (!s.images.length) { S.err = 'Choose a product first.'; return paint(); }
-  if (!s.headline && !s.art) { S.err = 'Give it a headline (or title art).'; return paint(); }
-  S.err = ''; S.busy = 'Starting…'; S.filter = 'review'; paint();
+  if (!s.images.length && !(s.inspo || []).length) { S.err = 'Add a product or an inspiration image to start from.'; return paint(); }
+  S.err = ''; S.filter = 'review';
   try {
-    await streamCall(S.url, '/api/studio/make', { spec: s, n: S.form.n }, o => {
+    if (!s.headline && !s.art && !(s.callouts || []).length) {
+      S.busy = 'Writing a headline first…'; paint();
+      const r = await streamCall(AH_URL, '/api/voice/staff/desk', { format: 'Ad headline', brief: deskBrief('headline'), audience: s.who || '', n: 3 }, () => {});
+      const line = (r.lines || []).map(l => l.text).find(Boolean);
+      if (line) s.headline = line;
+    }
+    S.busy = 'Starting…'; paint();
+    const spec = { ...s, products: (s.products || []).map(({ title, handle }) => ({ title, handle })) };
+    await streamCall(S.url, '/api/studio/make', { spec, n: S.form.n }, o => {
       if (o.type === 'status') { S.busy = o.text; paint(); }
-      if (o.type === 'ad') { S.d.ads.unshift(o.ad); S.busy = `${S.d.ads.filter(a => a.status === 'review').length} ready to review, still making…`; paint(); }
+      if (o.type === 'ad') { S.d.ads.unshift(o.ad); S.busy = 'First ones are in, still making…'; paint(); }
     });
     S.busy = ''; await reload();
   } catch (e) { S.busy = ''; S.err = e.message; paint(); }

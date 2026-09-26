@@ -908,6 +908,12 @@ profit/
 - **The OpenAI key is connected from the Studio screen** (stored in `p_studio_cfg`, never returned).
   Cole pastes it himself; Claude must never handle it. `imageCall` retries without a rejected
   optional param (4:5 size, input_fidelity, quality) so a model change cannot break Make.
+- **Make takes (2026-09-26, Cole):** up to 4 products (each with chosen photos, 8 photos max), up to 3
+  inspiration images (uploaded to R2 `studio/ref/`, served at `/api/studio/ref/<id>.<ext>`; the prompt
+  says which attached images are product vs INSPIRATION ONLY and never to copy the inspiration's
+  products or words), callouts (up to 6, badges/labels, also erased on Edit), and free "Anything
+  else" notes. EVERYTHING is optional except one starting point: a product or an inspiration image.
+  No words at all = the copy desk writes a headline before making.
 - "Write for me" and "Rewrite" call the account-health copy desk (`/api/voice/staff/desk`, format
   "Ad headline") with the ad's product, look and who-it's-for.
 - Not built yet (blueprint https://claude.ai/artifact/TuFSFdBySvWpQjfZ2ys4sR): weekly plan (Gate 1),
