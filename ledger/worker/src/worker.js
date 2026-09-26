@@ -873,6 +873,18 @@ const askThreadIsOpen = async (env, channel, ts) => !!(await env.DB
   .prepare("SELECT 1 AS x FROM ledger_jobs WHERE id = ?1").bind(askThreadKey(channel, ts)).first());
 
 async function askGate(env, body, ev) {
+  const mentioned = ev.type === 'app_mention';
+  const dm = ev.channel_type === 'im';
+  /* A mention inside a channel thread ALSO arrives as a plain message event,
+   * often first. If that copy claimed the message below and then bowed out
+   * (thread not open yet), the app_mention copy would be thrown away as a
+   * duplicate and the question never answered. So a plain thread reply that
+   * is not ours to answer leaves without claiming anything. */
+  if (!mentioned && !dm) {
+    if (!ev.thread_ts) return { skipped: 'not in a thread' };
+    if (!(await askThreadIsOpen(env, ev.channel, ev.thread_ts)))
+      return { skipped: 'thread was never addressed to the bot' };
+  }
   /* Slack retries any event it did not get a 200 for inside 3 seconds, and an
    * AI answer takes longer than that — we always ack instantly, so a retry
    * here is a duplicate. An @mention inside a DM is delivered twice as well,
@@ -896,16 +908,10 @@ async function askGate(env, body, ev) {
   }
   if (ev.user !== owner) return { skipped: 'not the owner' };
 
-  const mentioned = ev.type === 'app_mention';
-  const dm = ev.channel_type === 'im';
   if (mentioned) {
     // whichever thread this mention is in is now a conversation, including a
     // receipt thread he has just pulled the bot into
     await openAskThread(env, ev.channel, ev.thread_ts || ev.ts);
-  } else if (!dm) {
-    if (!ev.thread_ts) return { skipped: 'not in a thread' };
-    if (!(await askThreadIsOpen(env, ev.channel, ev.thread_ts)))
-      return { skipped: 'thread was never addressed to the bot' };
   }
   const { engine, h } = controller();
   const findings = await engine.openFindings(env, h()).catch(() => []);

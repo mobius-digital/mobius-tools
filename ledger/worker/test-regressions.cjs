@@ -558,6 +558,12 @@ async function main(){
       // and an open thread still answers only Cole
       await event({type:'message',user:'INTRUDER',thread_ts:'R1',text:'what is the balance?'},'Ev14');
       assert.equal(asked.length,before+3);
+      /* A mention in a fresh thread arrives twice, and the plain message copy
+       * often lands FIRST. It must not claim the message and swallow the
+       * app_mention copy that follows. */
+      await event({type:'message',user:'OWNER',thread_ts:'R3',text:'<@BOT> will it match the amex charge?'},'Ev15a','9.R3');
+      await event({type:'app_mention',user:'OWNER',thread_ts:'R3',text:'<@BOT> will it match the amex charge?'},'Ev15b','9.R3');
+      assert.equal(asked.length,before+4);
     });
     await check('Apply tap stays with Ledger and writes the proposed change',async()=>{
       const row=db.prepare("INSERT INTO transactions(date,month,type,vendor,amount,tax_cat,status) VALUES('2026-09-05','2026-09','out','Figma',45,'Uncategorized','review')").run();
