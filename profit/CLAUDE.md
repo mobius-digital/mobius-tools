@@ -888,3 +888,27 @@ profit/
   checks and bans run only at read-back, never as the way to write. The interview gained
   role-play "Say it" topics, and the client's Close/Not us box and the desk's "Say it your way"
   store PAIRS (our line + how they would say it, `said`), which the prompts weight above yes/no.
+
+## 2026-09-26: Studio (AI makes the ad, people fix only what they want)
+
+- **Files.** `profit/studio.js` (UI, own closure, `window.StudioTab`), `profit/worker/src/studio.js`
+  (routes), `migrations/studio-001.sql` (`p_studio_ad`, `p_studio_cfg`). Images in R2 `MEDIA` under
+  `studio/<act>/<id>/{full,plate,final}.png`, served publicly by the 24-hex id (`/api/studio/img/...`).
+- **Cole's flow, do not "improve" it into something else.** The image model (OpenAI GPT Image, newest
+  id discovered from `/v1/models`) draws the WHOLE ad, words included, in a type style picked per
+  creative (not one brand font), 4:5 with everything inside the 1:1 square. Review = Approve / Edit /
+  Redo / Delete. ONLY the first Edit spends: the model erases the words (the plate, `input_fidelity:
+  high`) while a vision model reads each line's box, colour and closest font from `FONTS`; the browser
+  tightens each box against the full-vs-plate pixel difference (`tighten`, grows a row band and stops
+  at the first empty row so neighbouring lines never merge). From then on moving, retyping, deleting,
+  restyling and adding text are free. Title art (stylised lettering) stays in the picture; `/art`
+  redraws only that. Save exports 1080x1350 from the plate + boxes (`renderPng`) as `final.png`.
+- **Positions are % of the 4:5 frame** (cx, cy = centre; size = % of width), so stage, export and a
+  reopened edit agree. Fonts must be loaded BEFORE measuring (`setup`), or sizes come out small.
+- **The OpenAI key is connected from the Studio screen** (stored in `p_studio_cfg`, never returned).
+  Cole pastes it himself; Claude must never handle it. `imageCall` retries without a rejected
+  optional param (4:5 size, input_fidelity, quality) so a model change cannot break Make.
+- "Write for me" and "Rewrite" call the account-health copy desk (`/api/voice/staff/desk`, format
+  "Ad headline") with the ad's product, look and who-it's-for.
+- Not built yet (blueprint https://claude.ai/artifact/TuFSFdBySvWpQjfZ2ys4sR): weekly plan (Gate 1),
+  Asana hand-off, push to Meta, templates lane, reason-on-reject learning.

@@ -18,6 +18,7 @@
 
 import { handlePublic as ambPublic, handleStaff as ambStaff } from './amb.js';
 import { handlePublic as brandPublic, handleStaff as brandStaff } from './brand.js';
+import { handlePublic as studioPublic, handleStaff as studioStaff } from './studio.js';
 
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
@@ -1646,6 +1647,11 @@ export default {
       const r = await brandPublic(request, env, url, path, json);
       if (r) return r;
     }
+    /* Studio ad images, addressed by their unguessable id (see studio.js). */
+    {
+      const r = await studioPublic(request, env, url, path, json, CORS);
+      if (r) return r;
+    }
 
     if (path === '/api/ad-video' && request.method === 'GET'
         && (url.searchParams.get('report') || url.searchParams.get('ads') || url.searchParams.get('angles'))) {
@@ -2242,6 +2248,11 @@ export default {
       /* Brand: research, angles, roadmap, onboarding answers. */
       {
         const r = await brandStaff(request, env, url, path, json);
+        if (r) return r;
+      }
+      /* Studio: AI makes the ad, people fix only what they want. */
+      {
+        const r = await studioStaff(request, env, url, path, json, CORS);
         if (r) return r;
       }
 
