@@ -61,7 +61,7 @@ const SCHEMAS = {
   samples: obj({ samples: arr(obj({ format: S, text: S })) }),
   guide: obj({ md: S, summary: S, traits: arr(S), say: arr(S), avoid: arr(S) }),
   desk: obj({ lines: arr(obj({ text: S, note: S })) }),
-  spoken: obj({ spoken: S, attempts: arr(obj({ text: S, note: S })) }),
+  spoken: obj({ attempts: arr(obj({ text: S, note: S })) }),
   readback: obj({ attempts: arr(obj({ text: S, changed: { type: 'boolean' }, why: S })) }),
 };
 
@@ -243,33 +243,27 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         const n = Math.max(1, Math.min(10, +b.n || 5));
         const skill = await getSkill(env, A);
         const ask = `FORMAT: ${clip(b.format, 80) || 'Ad headline'}\nBRIEF: ${clip(b.brief, 3000) || '(none: write for the best seller)'}${b.revise?.note ? `\n\nYOUR LAST ROUND:\n${(b.revise.lines || []).slice(0, 10).map((l, i) => `${i + 1}. ${clip(l, 1500)}`).join('\n')}\n\nTHE TEAM'S NOTE ON IT (do what it says; it outranks everything except the facts):\n${clip(b.revise.note, 2000)}` : ''}`;
-        const deskRule = `Write ${n} different attempts, each a real take, not ${n} versions of the same sentence. Each attempt is ONE complete, standalone piece of the whole format (a full ad primary text, a full email, a full description), never one piece of a longer piece; each can come from its own take on what you said. "note" is one short line for the team: what the attempt is going for, or a fact you needed and did not have. ${VOICE} ${US}`;
+        const deskRule = `Write ${n} different attempts, each a real take, not ${n} versions of the same sentence. Each attempt stands on its own as the whole piece, at the length the skill sets for that format (short means short), never a fragment of another attempt. When in doubt, shorter: say the spec, do not explain it, and stop early. "note" is one short line for the team: what the attempt is going for, or a fact you needed and did not have. ${VOICE} ${US}`;
         /* The whole skill, cached: the instructions and every reference file, exactly as
            Claude loads it. The bank rides on top: the lines this brand kept or rejected. */
-        const speakerMd = (await getDoc(env, A, 'voice_speaker')).data.md || '';
+        /* ONE PASS (2026-09-26). A "say it out loud first, then cut" pipeline was tried
+           and measured against the same Lucky brief and against Takomo: it made the copy
+           ~55% longer and more explained (57 -> 90 words; Takomo runs 35-67). Cole's rule:
+           if it was better before, go back. So: the skill, the bank (with "how they'd say
+           it" pairs) and the reader, in one call. A synced skill (Lucky) gets exactly its
+           own files; a Locus-built speaker is only a reference file for other brands. */
+        const speakerMd = skill.source === 'repo' ? '' : ((await getDoc(env, A, 'voice_speaker')).data.md || '');
         const who = clip(b.audience, 400);
-        /* 1-3: become the speaker, say it to one person, write it down. */
         const base = skill.instructions
           ? skillSystem(acct.name, skill, speakerMd)
-          : `You write copy for ${acct.name}.\n\n${speakerMd ? `<file path="references/the-speaker.md">\n${speakerMd}\n</file>\n\n` : ''}${guide ? `<file path="references/how-we-write.md">\n${clip(guide, 14000)}\n</file>\n\n` : `The short voice card: ${JSON.stringify(card).slice(0, 2000)}\n\n`}${METHOD}`;
-        const said = await claude(env, {
-          system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}\n\n"spoken" is step 2: you, as the speaker, talking out loud to the person in the scene, unedited, 80 to 250 words. "attempts" is step 3: what you said, written down and cut to the format, in your own words. Each attempt is the WHOLE piece (a full primary text with its line breaks, a full description), never a fragment of one.` }],
-          user: `${facts}\n\n${ask}\n\nWHO YOU'RE TALKING TO, AND WHERE: ${who || 'pick the most likely customer for this and a real moment in their day'}`,
-          schema: SCHEMAS.spoken, effort: 'medium', maxTokens: 14000,
+          : `You write copy for ${acct.name} in their voice. The guide wins on how the copy SOUNDS. Never invent a product fact, price, number or review.\n\n${speakerMd ? `<file path="references/the-speaker.md">\n${speakerMd}\n</file>\n\n` : ''}${guide ? `<file path="references/how-we-write.md">\n${clip(guide, 14000)}\n</file>` : `The short voice card: ${JSON.stringify(card).slice(0, 2000)}`}`;
+        const m = await claude(env, {
+          system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}` }],
+          user: `${facts}\n\n${ask}${who ? `\n\nWHO'S READING, AND WHERE: ${who}` : ''}`,
+          schema: SCHEMAS.spoken, effort: 'medium', maxTokens: 12000,
         });
-        const first = jsonOf(said);
-        let lines = (first.attempts || []).slice(0, n).map(l => ({ text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) }));
-        /* 4: read it back as the speaker. The tells point at lines that read as writing. */
-        try {
-          const back = await claude(env, {
-            system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `Step 4, reading back. You are the speaker. Read each line out loud to the person you were talking to. If it sounds like something you would actually say, keep it exactly. If it sounds written, announced, like an ad, or like any other brand, say it again the way you would really say it, then write that down. Now, and only now, check the skill's rules and bans. Never change a fact. ${VOICE} ${US}` }],
-            user: `WHAT YOU SAID OUT LOUD:\n${first.spoken || ''}\n\nTHE ATTEMPTS (return each one whole, in the same order):\n${lines.map((l, i) => `${i + 1}. ${l.text}${tellsIn(l.text).length ? `\n   (reads like writing: ${tellsIn(l.text).join(', ')})` : ''}`).join('\n')}`,
-            schema: SCHEMAS.readback, effort: 'low', maxTokens: 8000,
-          });
-          const rb = jsonOf(back).attempts || [];
-          lines = lines.map((l, i) => rb[i]?.text ? { ...l, text: tidy(clip(rb[i].text, 3000)), redone: !!rb[i].changed, why: clip(rb[i].why, 300) } : l);
-        } catch { /* the read-back is a polish; the written-down lines stand without it */ }
-        return { spoken: tidy(clip(first.spoken, 4000)), lines: lines.map(l => ({ id: rid(), ...l, tells: tellsIn(l.text) })), used: skill.instructions ? 'skill' : 'guide' };
+        const lines = (jsonOf(m).attempts || []).slice(0, n).map(l => ({ text: tidy(clip(l.text, 3000)), note: clip(l.note, 300) }));
+        return { lines: lines.map(l => ({ id: rid(), ...l, tells: tellsIn(l.text) })), used: skill.instructions ? 'skill' : 'guide' };
       });
       if (path === '/api/voice/staff/bank') {
         if (b.remove) {

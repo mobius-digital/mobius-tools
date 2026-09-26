@@ -1010,7 +1010,7 @@ function paintVoice(body) {
   const synced = sk.source === 'repo';
   const spk = d.docs['']?.voice_speaker || {};
   const ownSpk = (sk.files || []).some(f => f.role === 'speaker');
-  const skFiles = [...(sk.instructions ? [{ path: 'SKILL.md', role: 'instructions', md: sk.instructions }, ...(sk.files || [])] : []), ...(!ownSpk && spk.md ? [{ path: 'references/the-speaker.md', role: 'speaker', md: spk.md, locus: true }] : [])];
+  const skFiles = [...(sk.instructions ? [{ path: 'SKILL.md', role: 'instructions', md: sk.instructions }, ...(sk.files || [])] : []), ...(!ownSpk && !synced && spk.md ? [{ path: 'references/the-speaker.md', role: 'speaker', md: spk.md, locus: true }] : [])];
   body.innerHTML = `
     <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h">How we write ${g.md ? (g._status === 'draft' ? `<span class="br-tag draft">Draft v${g.version || 1}</span>` : `<span class="br-tag win">Approved v${g.version || 1}</span>`) : ''}</h3>
         <p class="hint" style="margin:4px 0 0">The brand's writing guide, built the way Lucky Golf's was: the client talks through a voice interview and rates sample lines, then every line the team keeps or rejects on the copy desk teaches it more.</p></div>
@@ -1037,7 +1037,7 @@ function paintVoice(body) {
           : 'A full skill, like Lucky Golf\'s: instructions, how we write, product facts, spec to benefit, how customers talk, formats and new-product intake. Built from everything Locus knows; what it cannot answer becomes questions for the client.'}</p>
         <p class="br-msg" id="skMsg">${esc(S.skLog || '')}</p>
         ${skFiles.length ? `<div class="br-files">${skFiles.map(f => `<button class="br-file ${f.role === 'speaker' ? 'spk' : ''}" data-skf="${esc(f.path)}"><b>${esc(ROLE_L[f.role] || f.role)}${f.locus ? ' <span class="br-tag draft">in Locus</span>' : ''}</b><span class="tiny">${esc(f.path)} · ${Math.max(1, Math.round((f.md || '').length / 1000))}KB</span></button>`).join('')}</div>` : ''}
-        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="spBuild" ${S.spBusy ? 'disabled' : ''}>${S.spBusy ? 'Listening… (about 2 minutes)' : spk.md || ownSpk ? 'Rebuild the speaker' : 'Build the speaker'}</button><span class="tiny">The one person this brand sounds like, written from how the owner actually talks in the voice interview. Copy is written by becoming them and speaking.</span></div>
+        ${synced ? '' : `<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="spBuild" ${S.spBusy ? 'disabled' : ''}>${S.spBusy ? 'Listening… (about 2 minutes)' : spk.md || ownSpk ? 'Rebuild the speaker' : 'Build the speaker'}</button><span class="tiny">The one person this brand sounds like, written from how the owner actually talks in the voice interview. It helps the copy desk hear the voice.</span></div>`}
         ${!synced && (sk.gaps || []).length ? `<div class="br-gaps"><b>${sk.gaps.length} questions the data could not answer</b><ol>${sk.gaps.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
           <button class="btn" id="skAsk" ${o ? '' : 'disabled title="Create the links first"'}>Ask the client these</button> <span class="tiny">They go to the front of the client's voice interview (same link). Rebuild the skill once they answer.</span></div>` : ''}
       </div>

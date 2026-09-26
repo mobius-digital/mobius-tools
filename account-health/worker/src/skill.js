@@ -112,7 +112,7 @@ ${skill.instructions || ''}
 
 ${files}
 
-${METHOD}${!own && speakerMd ? '\nThe speaker is in references/the-speaker.md: read it before anything else.' : ''}`;
+${!own && speakerMd ? 'references/the-speaker.md is the person this brand sounds like, with samples of them talking. Use it to hear the voice; the other files still decide what the copy says and how long it runs.' : ''}`;
 }
 
 /* ---------------- 3. build a skill for a brand that has none ---------------- */
@@ -193,8 +193,7 @@ Write ${name}'s version from ONLY the brand data given, in markdown. Be specific
   emit({ type: 'note', text: 'Writing the instructions (SKILL.md)…' });
   const m = await claude(env, {
     system: `You write the SKILL.md instructions for ${name}'s copy skill: the file Claude reads first, which says what the skill is for, which reference files to read every time and which only when a task needs them, the hierarchy when files disagree (facts win on what is TRUE, the guide wins on how it SOUNDS), what to do with a new product (run the intake), and the core rules. The reference files are: ${files.map(f => f.path).join(', ')}.
-The heart of the skill is the SPEAKER (references/the-speaker.md): the writer becomes that person and talks, then writes down what they said. Put this method near the top, in the brand's terms, and make clear the checks and bans are for reading back, never the way to write:
-${METHOD}
+references/the-speaker.md is the person the brand sounds like, with samples of them talking: tell the writer to read it to hear the voice. Copy stays short and plain like the best DTC brands (Takomo runs 35 to 70 words a description): one big idea said once, specs said not explained, and it stops early.
 ${ex?.instructions ? `Here is Lucky Golf's SKILL.md body, the model of shape. Adapt it; never copy Lucky specifics.\n<model_file>\n${clip(ex.instructions, 14000)}\n</model_file>` : ''}
 "md" is the body only (no frontmatter). "gaps" stays empty unless something is truly missing. ${VOICE}`,
     user: `THE PRODUCT FACTS FILE:\n${clip(facts, 8000)}\n\nTHE GUIDE:\n${clip(guideMd, 6000)}`,
