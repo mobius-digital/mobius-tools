@@ -928,3 +928,34 @@ profit/
   "Ad headline") with the ad's product, look and who-it's-for.
 - Not built yet (blueprint https://claude.ai/artifact/TuFSFdBySvWpQjfZ2ys4sR): weekly plan (Gate 1),
   Asana hand-off, push to Meta, templates lane, reason-on-reject learning.
+
+### 2026-09-27: Studio v2 = BATCHES (read this; it replaces the one-idea form and the text editor)
+
+- **Cole's model: Studio makes a BATCH from a brief, ONE AD PER NUMBERED LINE** (Mobius framework:
+  Angle, Why, Concept, What We're Testing, lines). "Versions" of one idea were removed: Meta treats
+  look-alikes as duplicates and they teach nothing. Redo is the backup for a bad ad.
+- **Flow:** New batch (from Asana: `/api/studio/asana` lists open p_br_batch tests; the brief is
+  usually a Google Doc link, opened by account-health `readDoc` / or paste a brief or a whole BFCM
+  plan) -> `/api/studio-ai/brief` (account-health `studio-ai.js`) lays out batches; post copy goes
+  to `brief.post_copy`, never a line; "N iterations" become N lines -> product + swipe file + per-line
+  "look like this" inspiration -> `/api/studio-ai/plan` (the art director, system prompt = the
+  brand's copy skill) -> Make -> review -> Send to Canva.
+- **Testing inside a concept (headlines/offer/reviews/hooks/copy) = line 1 is made, the rest are
+  `/api/studio/vary` edits of it that change ONLY the words**, so it is a clean test. Concepts, looks
+  and format = genuinely different ads, made two at a time from the page (keep it open).
+- **Product accuracy (Cole's hard rule):** generation uses `input_fidelity: high` on the product
+  photos; every ad is checked by `productCheck` (strongest gpt-5 on the key, silhouette first) and
+  redone ONCE if it looks off; the card shows "Product checked" / "may be off". Measured on #412
+  (Eclipse Mallet): fidelity fixed 3 of 4; the check still passed one wrong-shaped head, so it is a
+  net, not a guarantee. Tell the team to tick clean studio shots of the product.
+- **The art director drew descriptions as text** when it put an idea in `art` (title art). Title
+  art is now max 3 words and the prompt says scene notes are never written on the ad; every label
+  must fit. Callouts max 4, about 6 words.
+- **The in-Studio text editor is REMOVED** (Cole: retyped text never matched the AI's lettering and
+  the erase was slow). Edits = "Change with AI" (`/api/studio/change`, an instruction redraws only
+  that change; old version goes to Deleted) or Canva. The lift/read routes remain but nothing calls them.
+- **Canva:** Connect API with PKCE (`/api/studio/canva/setup|start|send`, public callback
+  `/api/studio/canva/callback`). Cole must create a Canva developer integration once (scopes asset,
+  design content, folder read/write + design meta read; redirect URL shown in the modal) and paste
+  the client id + secret in Studio. Send = a folder per batch, one 1080x1350 design per ad (approved
+  ones if any). Untested end to end until Cole connects it.

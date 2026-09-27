@@ -105,7 +105,9 @@ async function models(key) {
   const imgAny = ids.filter(id => /^gpt-image/.test(id)).sort(cmp);
   const vis = ids.filter(id => /^gpt-5(\.\d+)?-mini$/.test(id)).sort(cmp);
   const vis2 = ids.filter(id => /^gpt-4\.1-mini$|^gpt-4o-mini$/.test(id));
+  const strong = ids.filter(id => /^gpt-5(\.\d+)?$/.test(id)).sort(cmp);
   MODELS = { key, image: img.pop() || imgAny.pop() || 'gpt-image-1', vision: vis.pop() || vis2[0] || 'gpt-4o-mini' };
+  MODELS.check = strong.pop() || MODELS.vision;
   return MODELS;
 }
 
@@ -146,7 +148,7 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
   if (spec.subline) lines.push(`Smaller line: "${spec.subline}"`);
   for (const c of spec.callouts || []) lines.push(`Callout (a small badge, label or pointer near the part of the product it describes): "${c}"`);
   if (spec.cta) lines.push(`Button (a clean pill or label shape): "${spec.cta}"`);
-  if (spec.art) lines.push(`Title art: "${spec.art}" as custom stylised lettering that is part of the scene itself`);
+  if (spec.art && spec.art.trim().split(/\s+/).length <= 3) lines.push(`Title art: "${spec.art}" as custom stylised lettering that is part of the scene itself`);
   const names = (spec.products || []).map(p => p.title).filter(Boolean);
   const many = names.length > 1;
   const which = counts.prod && counts.inspo
@@ -158,14 +160,20 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     names.length
       ? `The product${many ? 's are' : ' is'}: ${names.map(t => `"${t}"`).join(', ')}. ${many ? 'Show every one of them. ' : ''}The product photos are the real thing: reproduce ${many ? 'each product' : 'it'} exactly, with the same shape, colours, materials, logos and any words printed on ${many ? 'them' : 'it'}.`
       : 'There is no product photo: build the image from the description and the inspiration.',
-    counts.inspo ? 'From the inspiration take the layout, composition, typography treatment, colour mood and energy. Do NOT copy its products, brand names, logos, people or words.' : '',
+    counts.inspo ? (spec.ref_use === 'copy'
+      ? 'Recreate the inspiration CLOSELY: its layout, composition, camera angle, typography treatment and colour grade, with our product and our words in place of theirs. Never copy its brand, products, logos, people or words.'
+      : spec.ref_use === 'vibe'
+        ? 'Use the inspiration only as a loose mood reference (colour, light, energy). Make your own layout. Never copy its brand, products, logos, people or words.'
+        : 'From the inspiration take the layout, composition, typography treatment, colour mood and energy. Do NOT copy its products, brand names, logos, people or words.') : '',
     spec.look ? `Scene and look: ${spec.look}` : '',
     spec.who ? `It is for: ${spec.who}. Let that guide the mood, setting and casting.` : '',
     `Typography: ${STYLES[spec.style] || STYLES.auto}`,
     lines.length ? `Put exactly this text on the ad, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Put no text on the ad.',
     'Meta crops 4:5 ads to a square in some placements, so keep every word and the product inside the centred square: the top tenth and bottom tenth of the frame are background only.',
     spec.notes ? `Also: ${spec.notes}` : '',
-    'No watermark, no extra logos, no made-up words, no price unless it is in the text above.',
+    'The scene and look notes above are directions for you. Never write any of them on the ad; the only words on the ad are the ones listed.',
+    'Every word must fit completely: size each label or badge so no word is ever cut off.',
+    'No watermark, no extra logos, no made-up words, no product name unless it is in the text above, no price unless it is in the text above.',
     n > 1 ? `This is version ${k + 1} of ${n}: use a clearly different composition and camera angle from the other versions.` : '',
   ].filter(Boolean).join('\n\n');
 }
@@ -247,21 +255,56 @@ function shape(row) {
     spec: safeJson(row.spec_json, {}), model: row.model, full_w: row.full_w, full_h: row.full_h,
     has_plate: !!row.has_plate, has_final: !!row.has_final, layers: safeJson(row.layers_json, null),
     cost: Math.round((row.cost || 0) * 100) / 100, created_at: row.created_at, updated_at: row.updated_at,
+    batch_id: row.batch_id || null, line: row.line ?? null, check: safeJson(row.check_json, null),
     v: (row.updated_at || '').replace(/\D/g, ''),
   };
 }
 const getAd = (env, id) => env.DB.prepare(`SELECT * FROM p_studio_ad WHERE id = ?1`).bind(id).first();
 const keyOf = (row, kind) => `studio/${row.act_id}/${row.id}/${kind}.png`;
 
-async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts) {
+async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts, where = {}) {
   const prompt = adPrompt(spec, brand, k, n, counts);
-  const out = await imageCall(key, m.image, { prompt, images: refs });
-  const { w, h } = pngSize(out.bytes);
+  let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true });
+  let cost = COST.image, check = null;
+  /* Cole's rule: the product must look exactly like the product. Every ad is checked against
+     the real photos; one that looks off is redone once, and the result is flagged either way. */
+  const prodRefs = refs.slice(0, counts.prod || 0);
+  if (prodRefs.length) {
+    check = await productCheck(key, m.check || m.vision, out.bytes, prodRefs, spec.product).catch(() => null);
+    cost += COST.vision;
+    if (check && !check.ok) {
+      const again = await imageCall(key, m.image, { prompt: `${prompt}
+
+IMPORTANT: a previous attempt got the product wrong (${check.issue}). Copy the product from the photos exactly: the same silhouette and shape, proportions, colours, finish and every logo. Do not redesign it.`, images: refs, fidelity: true }).catch(() => null);
+      cost += COST.image;
+      if (again) {
+        const c2 = await productCheck(key, m.check || m.vision, again.bytes, prodRefs, spec.product).catch(() => null);
+        cost += COST.vision;
+        if (!c2 || c2.ok || !check.ok) { out = again; check = c2 ? { ...c2, redone: true } : { ok: null, issue: '', redone: true }; }
+      }
+    }
+  }
+  return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check, parent, ...where });
+}
+async function saveAd(env, act, { bytes, spec, prompt, model, cost, check, parent, batch_id, line }) {
+  const { w, h } = pngSize(bytes);
   const id = rid();
-  await env.MEDIA.put(`studio/${act}/${id}/full.png`, out.bytes, { httpMetadata: { contentType: 'image/png' } });
-  await env.DB.prepare(`INSERT INTO p_studio_ad (id, act_id, parent_id, status, spec_json, prompt, model, full_w, full_h, cost) VALUES (?1, ?2, ?3, 'review', ?4, ?5, ?6, ?7, ?8, ?9)`)
-    .bind(id, act, parent || null, JSON.stringify(spec), prompt, m.image, w, h, COST.image).run();
+  await env.MEDIA.put(`studio/${act}/${id}/full.png`, bytes, { httpMetadata: { contentType: 'image/png' } });
+  await env.DB.prepare(`INSERT INTO p_studio_ad (id, act_id, parent_id, status, spec_json, prompt, model, full_w, full_h, cost, batch_id, line, check_json) VALUES (?1, ?2, ?3, 'review', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`)
+    .bind(id, act, parent || null, JSON.stringify(spec), prompt, model, w, h, cost, batch_id || null, Number.isInteger(line) ? line : null, check ? JSON.stringify(check) : null).run();
   return shape(await getAd(env, id));
+}
+async function productCheck(key, model, bytes, refs, name) {
+  const content = [{ type: 'text', text: `The first images are REFERENCE photos of the real product${name ? ` ("${name}")` : ''}. The last image is an AD. Is the product in the ad the SAME product? Compare the silhouette and outline first (for a putter or club: the head shape seen from above and the side, its cut-outs and wings), then proportions, colours, finish, logos and printed details. A different angle, light or background is fine. A redesigned or different-shaped product is NOT ok even if the colour and logo match. Be strict: when unsure, say it is not ok.` }];
+  for (const r of refs.slice(0, 3)) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
+  content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } });
+  const res = await fetch(`${OA}/chat/completions`, {
+    method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], response_format: { type: 'json_schema', json_schema: { name: 'check', strict: true, schema: { type: 'object', additionalProperties: false, required: ['ok', 'issue'], properties: { ok: { type: 'boolean' }, issue: { type: 'string', description: 'what is wrong, in a few words, or empty' } } } } } }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error?.message || 'check failed');
+  return safeJson(j.choices?.[0]?.message?.content, null);
 }
 
 const urls = (a, n) => (Array.isArray(a) ? a : []).filter(u => /^https?:\/\//.test(u)).slice(0, n).map(u => clip(u, 1000));
@@ -274,11 +317,64 @@ function cleanSpec(s = {}) {
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
     callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
     art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
+    ref_use: ['copy', 'vibe'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300),
   };
+}
+
+
+/* ---------------- Canva (Connect API, the team's own Canva account) ----------------
+   One click sends a whole batch to Canva: a folder named after the batch, one design per ad
+   with the ad placed in it, so the team can Grab Text / Magic Grab and move pieces. OAuth with
+   PKCE; tokens refresh themselves. Set up once from Studio (client id + secret of a Canva
+   developer integration whose redirect URL is this worker's /api/studio/canva/callback). */
+const CANVA = 'https://api.canva.com/rest/v1';
+const CANVA_SCOPES = 'asset:read asset:write design:content:read design:content:write design:meta:read folder:read folder:write';
+async function cfgGet(env, k) { return (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = ?1`).bind(k).first().catch(() => null))?.value || null; }
+async function cfgSet(env, k, v) {
+  if (v == null) return env.DB.prepare(`DELETE FROM p_studio_cfg WHERE key = ?1`).bind(k).run();
+  return env.DB.prepare(`INSERT INTO p_studio_cfg (key, value, updated_at) VALUES (?1, ?2, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).bind(k, v).run();
+}
+const b64url = u => btoa(String.fromCharCode(...u)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function canvaToken(env) {
+  const t = safeJson(await cfgGet(env, 'canva_tokens'), null);
+  if (!t) return null;
+  if (t.exp > Date.now() + 60000) return t.access;
+  const id = await cfgGet(env, 'canva_client_id'), secret = await cfgGet(env, 'canva_client_secret');
+  const r = await fetch(`${CANVA}/oauth/token`, { method: 'POST', headers: { Authorization: `Basic ${btoa(`${id}:${secret}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: t.refresh }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { await cfgSet(env, 'canva_tokens', null); throw new Error('Canva needs connecting again (the sign-in expired).'); }
+  await cfgSet(env, 'canva_tokens', JSON.stringify({ access: j.access_token, refresh: j.refresh_token || t.refresh, exp: Date.now() + (j.expires_in || 3600) * 1000 }));
+  return j.access_token;
+}
+async function canva(env, tok, path, opts = {}) {
+  const r = await fetch(`${CANVA}${path}`, { ...opts, headers: { Authorization: `Bearer ${tok}`, ...(opts.body && !(opts.body instanceof Uint8Array) ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`Canva: ${j.message || j.error || r.status}`);
+  return j;
+}
+async function canvaCallback(env, url) {
+  const st = safeJson(await cfgGet(env, 'canva_state'), null);
+  const page = (msg, ok) => new Response(`<!doctype html><meta charset="utf-8"><title>Canva</title><body style="font:16px system-ui;padding:40px;color:#13202B"><h2>${ok ? 'Canva is connected' : 'Canva did not connect'}</h2><p>${msg}</p><p>You can close this tab and go back to Locus.</p></body>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  if (!st || st.state !== url.searchParams.get('state')) return page('The sign-in link was out of date. Click Connect Canva again.', false);
+  if (url.searchParams.get('error')) return page(String(url.searchParams.get('error_description') || url.searchParams.get('error')), false);
+  const id = await cfgGet(env, 'canva_client_id'), secret = await cfgGet(env, 'canva_client_secret');
+  const r = await fetch(`${CANVA}/oauth/token`, { method: 'POST', headers: { Authorization: `Basic ${btoa(`${id}:${secret}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'authorization_code', code: url.searchParams.get('code') || '', code_verifier: st.verifier, redirect_uri: `${url.origin}/api/studio/canva/callback` }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return page(`Canva said: ${j.error_description || j.message || r.status}`, false);
+  await cfgSet(env, 'canva_tokens', JSON.stringify({ access: j.access_token, refresh: j.refresh_token, exp: Date.now() + (j.expires_in || 3600) * 1000 }));
+  await cfgSet(env, 'canva_state', null);
+  return page('Studio can now send batches straight to your Canva.', true);
+}
+
+function shapeBatch(r) {
+  return { id: r.id, act_id: r.act_id, num: r.num || '', br_batch_id: r.br_batch_id || null, name: r.name || '', status: r.status,
+    brief: safeJson(r.brief_json, {}), setup: safeJson(r.setup_json, {}), plan: safeJson(r.plan_json, null), created_at: r.created_at, updated_at: r.updated_at };
 }
 
 /* ---------------- public: the images ---------------- */
 export async function handlePublic(request, env, url, path, json, CORS) {
+  if (path === '/api/studio/canva/callback' && request.method === 'GET') return canvaCallback(env, url);
   const rf = path.match(/^\/api\/studio\/ref\/([a-f0-9]{24})\.(png|jpg|webp)$/);
   if (rf && request.method === 'GET' && env.MEDIA) {
     const obj = await env.MEDIA.get(`studio/ref/${rf[1]}.${rf[2]}`);
@@ -317,7 +413,9 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const acct = act ? await env.DB.prepare(`SELECT act_id, name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first() : null;
     const rows = act ? (await env.DB.prepare(`SELECT * FROM p_studio_ad WHERE act_id = ?1 AND status != 'gone' ORDER BY created_at DESC LIMIT 300`).bind(act).all()).results || [] : [];
     const spent = act ? (await env.DB.prepare(`SELECT COALESCE(SUM(cost),0) c FROM p_studio_ad WHERE act_id = ?1 AND created_at >= date('now','start of month')`).bind(act).first())?.c || 0 : 0;
-    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), spent_month: Math.round(spent * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
+    const canvaState = { configured: !!(await cfgGet(env, 'canva_client_id')), connected: !!(await cfgGet(env, 'canva_tokens')) };
+    const batches = act ? ((await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE act_id = ?1 AND status != 'archived' ORDER BY updated_at DESC LIMIT 200`).bind(act).all()).results || []).map(shapeBatch) : [];
+    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), batches, canva: canvaState, spent_month: Math.round(spent * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
   }
 
   if (path === '/api/studio/key' && request.method === 'POST') {
@@ -398,7 +496,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       if (!prod.length && !insp.length) throw new Error('Could not load the photos.');
       const counts = { prod: prod.length, inspo: insp.length };
       const results = await Promise.allSettled(Array.from({ length: n }, (_, k) =>
-        makeOne(env, key, m, act, acct.name, spec, [...prod, ...insp], k, n, body.parent_id, counts).then(ad => { send({ type: 'ad', ad }); return ad; })));
+        makeOne(env, key, m, act, acct.name, spec, [...prod, ...insp], k, n, body.parent_id, counts, { batch_id: clip(body.batch_id, 40) || null, line: Number.isInteger(body.line) ? body.line : null }).then(ad => { send({ type: 'ad', ad }); return ad; })));
       const ok = results.filter(r => r.status === 'fulfilled').map(r => r.value);
       const bad = results.filter(r => r.status === 'rejected').map(r => r.reason?.message || 'failed');
       if (!ok.length) throw new Error(bad[0] || 'Nothing came back.');
@@ -485,6 +583,110 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       await env.DB.prepare(`UPDATE p_studio_ad SET spec_json = ?2, has_plate = 0, has_final = 0, layers_json = NULL, cost = cost + ?3, updated_at = datetime('now') WHERE id = ?1`)
         .bind(row.id, JSON.stringify({ ...spec, art: to }), COST.image).run();
       send({ type: 'done', ad: shape(await getAd(env, row.id)) });
+    });
+  }
+
+  /* ---- batches ---- */
+  if (path === '/api/studio/batch/save' && request.method === 'POST') {
+    const x = body.batch || {};
+    const id = /^[a-f0-9]{24}$/.test(x.id || '') ? x.id : rid();
+    const st = ['draft', 'planned', 'made', 'archived'].includes(x.status) ? x.status : 'draft';
+    await env.DB.prepare(`INSERT INTO p_studio_batch (id, act_id, num, br_batch_id, name, brief_json, setup_json, plan_json, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+      ON CONFLICT(id) DO UPDATE SET num = excluded.num, br_batch_id = excluded.br_batch_id, name = excluded.name, brief_json = excluded.brief_json, setup_json = excluded.setup_json, plan_json = excluded.plan_json, status = excluded.status, updated_at = datetime('now')`)
+      .bind(id, act, clip(x.num, 20) || null, clip(x.br_batch_id, 40) || null, clip(x.name, 200), JSON.stringify(x.brief || {}).slice(0, 60000), JSON.stringify(x.setup || {}).slice(0, 30000), x.plan ? JSON.stringify(x.plan).slice(0, 60000) : null, st).run();
+    return json({ ok: true, batch: shapeBatch(await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE id = ?1`).bind(id).first()) });
+  }
+  /* Open Asana tests for this brand (synced by the Brand tab), to start a batch from. */
+  if (path === '/api/studio/asana' && request.method === 'GET') {
+    const rows = (await env.DB.prepare(`SELECT id, num, title, stage, asana_url, length(COALESCE(brief_text,'')) AS blen FROM p_br_batch WHERE act_id = ?1 AND stage IN ('idea','production') ORDER BY CAST(num AS INTEGER) DESC LIMIT 60`).bind(act).all()).results || [];
+    return json({ briefs: rows.map(r => ({ id: r.id, num: r.num, title: r.title, stage: r.stage, url: r.asana_url, has_brief: r.blen > 20 })) });
+  }
+
+  /* ---- Canva setup + send ---- */
+  if (path === '/api/studio/canva/setup' && request.method === 'POST') {
+    const id = String(body.client_id || '').trim(), secret = String(body.client_secret || '').trim();
+    if (!id) { for (const k of ['canva_client_id', 'canva_client_secret', 'canva_tokens', 'canva_state']) await cfgSet(env, k, null); return json({ ok: true }); }
+    if (!secret) return json({ error: 'Both the client ID and the client secret are needed.' }, 400);
+    await cfgSet(env, 'canva_client_id', id); await cfgSet(env, 'canva_client_secret', secret); await cfgSet(env, 'canva_tokens', null);
+    return json({ ok: true });
+  }
+  if (path === '/api/studio/canva/start' && request.method === 'GET') {
+    const id = await cfgGet(env, 'canva_client_id');
+    if (!id) return json({ error: 'Set up the Canva app first.' }, 400);
+    const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+    const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+    const state = b64url(crypto.getRandomValues(new Uint8Array(24)));
+    await cfgSet(env, 'canva_state', JSON.stringify({ state, verifier, at: Date.now() }));
+    const q = new URLSearchParams({ code_challenge: challenge, code_challenge_method: 's256', scope: CANVA_SCOPES, response_type: 'code', client_id: id, state, redirect_uri: `${url.origin}/api/studio/canva/callback` });
+    return json({ url: `https://www.canva.com/api/oauth/authorize?${q}`, redirect_uri: `${url.origin}/api/studio/canva/callback` });
+  }
+  if (path === '/api/studio/canva/send' && request.method === 'POST') {
+    const ids = (Array.isArray(body.ids) ? body.ids : []).filter(x => /^[a-f0-9]{24}$/.test(x)).slice(0, 60);
+    if (!ids.length) return json({ error: 'No ads to send.' }, 400);
+    return stream(CORS, async send => {
+      const tok = await canvaToken(env);
+      if (!tok) throw new Error('Connect Canva first (Studio, Canva button).');
+      const folder = await canva(env, tok, '/folders', { method: 'POST', body: JSON.stringify({ name: clip(body.folder || 'Locus Studio', 250), parent_folder_id: 'root' }) });
+      const fid = folder.folder?.id;
+      const out = [];
+      for (const [i, id] of ids.entries()) {
+        const row = await getAd(env, id);
+        if (!row) continue;
+        const obj = await env.MEDIA.get(keyOf(row, row.has_final ? 'final' : 'full'));
+        if (!obj) continue;
+        const bytes = new Uint8Array(await obj.arrayBuffer());
+        const spec = safeJson(row.spec_json, {});
+        const name = clip(`${body.folder || 'Ad'} ${i + 1} ${spec.headline || ''}`.trim(), 50);
+        send({ type: 'status', text: `Sending ${i + 1} of ${ids.length} to Canva` });
+        let job = await canva(env, tok, '/asset-uploads', { method: 'POST', body: bytes, headers: { 'Content-Type': 'application/octet-stream', 'Asset-Upload-Metadata': JSON.stringify({ name_base64: btoa(unescape(encodeURIComponent(name))) }) } });
+        for (let t = 0; t < 20 && job.job?.status === 'in_progress'; t++) { await new Promise(r => setTimeout(r, 1500)); job = await canva(env, tok, `/asset-uploads/${job.job.id}`); }
+        const asset = job.job?.asset?.id;
+        if (!asset) { send({ type: 'status', text: `Canva could not take ad ${i + 1}` }); continue; }
+        const d = await canva(env, tok, '/designs', { method: 'POST', body: JSON.stringify({ design_type: { type: 'custom', width: 1080, height: 1350 }, asset_id: asset, title: name }) });
+        if (fid && d.design?.id) await canva(env, tok, '/folders/move', { method: 'POST', body: JSON.stringify({ item_id: d.design.id, to_folder_id: fid }) }).catch(() => {});
+        out.push({ id, edit_url: d.design?.urls?.edit_url || '' });
+      }
+      send({ type: 'done', designs: out, folder_url: fid ? `https://www.canva.com/folder/${fid}` : '' });
+    });
+  }
+
+  /* ---- a variation of a finished ad: only the words change ---- */
+  if (path === '/api/studio/vary' && request.method === 'POST') {
+    if (!key) return needKey();
+    const base = await getAd(env, body.base_id);
+    if (!base) return json({ error: 'base ad not found' }, 404);
+    const spec = cleanSpec(body.spec);
+    const old = safeJson(base.spec_json, {});
+    return stream(CORS, async send => {
+      const m = await models(key);
+      const full = new Uint8Array(await (await env.MEDIA.get(keyOf(base, 'full'))).arrayBuffer());
+      const pairs = [['headline', 'The headline'], ['subline', 'The smaller line'], ['cta', 'The button']]
+        .filter(([k]) => (old[k] || '') !== (spec[k] || '')).map(([k, l]) => spec[k] ? `${l} "${old[k] || ''}" now reads "${spec[k]}".` : `${l} "${old[k]}" is removed.`);
+      if ((old.callouts || []).join('|') !== (spec.callouts || []).join('|')) pairs.push(`The callouts are now: ${(spec.callouts || []).map(c => `"${c}"`).join(', ') || 'none'}.`);
+      const prompt = `This is a finished ad. Change ONLY these words, in exactly the same lettering style, size, colour and position: ${pairs.join(' ') || 'no change'} Spell every word exactly. Keep everything else identical: the picture, the product, the layout and every other word.`;
+      send({ type: 'status', text: 'Changing only the words. About 40 seconds.' });
+      const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: base.full_w && base.full_h ? `${base.full_w}x${base.full_h}` : '1024x1280' });
+      const ad = await saveAd(env, base.act_id, { bytes: out.bytes, spec: { ...old, ...spec, varied_from: base.id }, prompt, model: m.image, cost: COST.image, parent: base.id, batch_id: clip(body.batch_id, 40) || base.batch_id, line: Number.isInteger(body.line) ? body.line : null });
+      send({ type: 'done', ad });
+    });
+  }
+
+  /* ---- Change with AI: an instruction redraws that ad with only that change ---- */
+  if (path === '/api/studio/change' && request.method === 'POST') {
+    if (!key) return needKey();
+    const row = await getAd(env, body.id);
+    const ask = clip(body.instruction, 800).trim();
+    if (!row || !ask) return json({ error: 'id and an instruction are required' }, 400);
+    return stream(CORS, async send => {
+      const m = await models(key);
+      const full = new Uint8Array(await (await env.MEDIA.get(keyOf(row, 'full'))).arrayBuffer());
+      const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colours, and all other words in the same lettering. Keep every word inside the centred square of the 4:5 frame. Spell every word exactly.`;
+      send({ type: 'status', text: 'Making the change. About 40 seconds.' });
+      const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: row.full_w && row.full_h ? `${row.full_w}x${row.full_h}` : '1024x1280' });
+      const spec = { ...safeJson(row.spec_json, {}), changes: [...(safeJson(row.spec_json, {}).changes || []), ask].slice(-10) };
+      const ad = await saveAd(env, row.act_id, { bytes: out.bytes, spec, prompt, model: m.image, cost: COST.image, parent: row.id, batch_id: row.batch_id, line: row.line });
+      await env.DB.prepare(`UPDATE p_studio_ad SET status = 'deleted', updated_at = datetime('now') WHERE id = ?1`).bind(row.id).run();
+      send({ type: 'done', ad });
     });
   }
 

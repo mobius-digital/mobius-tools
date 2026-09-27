@@ -24,6 +24,7 @@
 import { buildStrategist } from './strategist.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
+import { handleStudioAI } from './studio-ai.js';
 import { handleBrandAsana, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
@@ -5820,6 +5821,11 @@ const AH_APP = {
     /* ---- The brand voice interview (public, token) + Locus's copy desk (admin) ---- */
     if (path.startsWith('/api/voice')) {
       const r = await handleVoice(request, env, ctx, path, json, isAdmin);
+      if (r) return r;
+    }
+    /* ---- Studio's thinking: briefs into batches, the art director (images are on the profit worker) ---- */
+    if (path.startsWith('/api/studio-ai/')) {
+      const r = await handleStudioAI(request, env, ctx, path, json, isAdmin);
       if (r) return r;
     }
     if (path.startsWith('/api/research') || path === '/api/onboard-help') {
