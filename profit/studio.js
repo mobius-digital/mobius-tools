@@ -604,7 +604,19 @@ async function download(a, b = S.cur) {
 }
 async function downloadAll(b) { for (const a of live(adsOf(b))) { await download(a, b); await new Promise(r => setTimeout(r, 400)); } }
 async function sendCanva(b) {
-  if (!S.d.canva?.connected) return canvaSetup();
+  /* No Canva app connected (Canva requires two-factor login for that): download the batch and open
+     Canva, where the files are dragged into Uploads in one go. Works with zero setup. */
+  if (!S.d.canva?.connected) {
+    const ads = live(adsOf(b)), approved = ads.filter(a => a.status === 'approved');
+    const list = approved.length ? approved : ads;
+    S.making = `Downloading ${list.length} ad${list.length === 1 ? '' : 's'} for Canva…`; paint();
+    for (const a of list) { await download(a, b); await new Promise(r => setTimeout(r, 400)); }
+    S.making = ''; paint();
+    window.open('https://www.canva.com/design?create&width=1080&height=1350&units=px', '_blank', 'noopener');
+    modal('Into Canva', `<p class="hint" style="margin:0">The ${list.length} ad${list.length === 1 ? ' is' : 's are'} in your Downloads, and a blank 4:5 Canva design just opened in a new tab.</p>
+      <ol class="st-ol"><li>Drag the downloaded files onto the Canva page (or into <b>Uploads</b>).</li><li>Click an ad, then <b>Edit photo, Grab Text</b> to turn its words into text boxes, or <b>Magic Grab</b> to move the product.</li></ol>`, { cta: null });
+    return;
+  }
   const ads = live(adsOf(b));
   const approved = ads.filter(a => a.status === 'approved');
   const list = (approved.length ? approved : ads).sort((p, q) => (p.line ?? 0) - (q.line ?? 0));
