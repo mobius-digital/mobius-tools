@@ -250,21 +250,21 @@ const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,pe
    that has nothing written yet, so nobody has to find the template. The same layout
    lives in each project's Asana task templates ("Static Ad Template", "UGC/Video
    Template"); Asana's API cannot write those, so they were set by hand 2026-09-27.
-   Keep the two in step. Labels only, no instructions to delete: one grey hint per section. */
+   Keep the two in step. Labels only, no instructions to delete, one italic hint where it helps, no emoji (Cole: clean and minimal). */
 const BRIEF_PARTS = {
-  test: `<h2>🎯 The test</h2><strong>Angle:</strong>
+  test: `<h2>The test</h2><strong>Angle:</strong>
 <strong>Why it works:</strong>
 <strong>Testing:</strong>
 <em>New angle, new concepts on a winning angle, or one change inside a winning concept (say which concept and what changes).</em>`,
-  ads: hint => `<h2>🧩 The ads</h2><em>One line each${hint}. Files are named with the test number: 348-1, 348-2, 348-3.</em>
+  ads: hint => `<h2>The ads</h2><em>One line each${hint}. Files are named with the test number: 348-1, 348-2, 348-3.</em>
 <strong>Ad 1:</strong>
 <strong>Ad 2:</strong>
 <strong>Ad 3:</strong> `,
-  copy: `<h2>✍️ Copy</h2><strong>Primary text:</strong>
+  copy: `<h2>Copy</h2><strong>Primary text:</strong>
 <strong>Headline:</strong>
 <strong>Offer:</strong> none
 <strong>Landing page:</strong> `,
-  files: `<h2>📎 Files</h2><strong>Inspo:</strong>
+  files: `<h2>Files</h2><strong>Inspo:</strong>
 <strong>Frame.io:</strong> `,
 };
 const BRIEF_STATIC = `<body><em>Static · 4:5, plus a 9:16 crop</em>
@@ -275,7 +275,7 @@ ${BRIEF_PARTS.files}</body>`;
 const BRIEF_VIDEO = `<body><em>Video · 9:16</em>
 ${BRIEF_PARTS.test}
 ${BRIEF_PARTS.ads(' the editor can build from')}
-<h2>🎬 The video</h2><strong>Creator:</strong>
+<h2>The video</h2><strong>Creator:</strong>
 <strong>Length:</strong>
 <strong>Hook 1:</strong>
 <strong>Hook 2:</strong>
