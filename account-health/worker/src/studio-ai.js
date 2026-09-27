@@ -119,6 +119,9 @@ RULES:
       const v = (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = ?1`).bind(`dna:${A}:${h}`).first().catch(() => null))?.value;
       if (v) dnas.push(v);
     }
+    const cutouts = (Array.isArray(b.cutouts) ? b.cutouts : []).filter(u => /^https:\/\//.test(u)).slice(0, 8);
+    const exact = !!b.exact && cutouts.length > 0;
+    cutouts.forEach((u, i) => { content.push({ type: 'text', text: `PRODUCT PHOTO ${i + 1} (a real photo of the product, cut out; it goes into the ad exactly as shot, at this angle):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
     swipe.forEach((u, i) => { content.push({ type: 'text', text: `SWIPE FILE image ${i + 1}:` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
     lines.forEach((l, i) => (l.inspo || []).slice(0, 2).forEach((u, k) => { content.push({ type: 'text', text: `LINE ${i + 1} INSPIRATION ${k + 1} (make it look like this):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); }));
     content.push({ type: 'text', text: `THE BATCH
@@ -140,6 +143,7 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
 - ART: title art is only for a launch or drop where the brief wants ONE word (or two) drawn as lettering art, like a product name. Otherwise leave art empty. Never put a description or idea in art.
 - CALLOUTS: short enough to fit a small badge, about 6 words each; keep the team's words, but split a long one into two.
 - CALLOUTS THAT NAME A PART of the product (heel, toe, face, sole, neck) must be planned as pointers on that exact part of the product, so the look must show that part clearly. On a club the heel is the shaft end, the toe the far end.
+- ${exact ? `EXACT PRODUCT: the product in every ad is one of the PRODUCT PHOTOS above, placed as shot (same angle, never redrawn). For each ad set photo to the number of the photo whose angle suits the idea, and write the look AROUND that angle (camera height and light that match the photo). place: where it sits in the square (center, left, right, lower, upper); size: small, medium or large. Set photo 0 only when no photo angle can possibly show the idea (for example a cut-away cross-section); then the product is drawn by the AI.` : 'Set photo 0, place center, size medium (no exact product photos).'}
 - STYLE: one of ${STYLES.join(', ')} per ad (auto lets the image model pick).
 - ref: "line" (its own inspiration), "swipe N" (swipe file image N), or "none". ref_use: copy, vibe or none.
 - note: one short line for the team on what this ad is going for.` });
@@ -148,7 +152,7 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
       user: content,
       schema: obj({ ads: { type: 'array', items: obj({
         headline: STR, subline: STR, callouts: ARR, cta: STR, art: STR, look: STR,
-        style: { type: 'string', enum: STYLES }, ref: STR, ref_use: { type: 'string', enum: ['copy', 'vibe', 'none'] }, note: STR,
+        style: { type: 'string', enum: STYLES }, photo: { type: 'integer' }, place: { type: 'string', enum: ['center', 'left', 'right', 'lower', 'upper'] }, size: { type: 'string', enum: ['small', 'medium', 'large'] }, ref: STR, ref_use: { type: 'string', enum: ['copy', 'vibe', 'none'] }, note: STR,
       }) } }),
       effort: 'medium', maxTokens: 16000,
     });
@@ -157,9 +161,10 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
     const ads = (jsonOf(m).ads || []).slice(0, lines.length).map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, nd(v)]))).map((a, i) => {
       const sw = (a.ref.match(/swipe\s*(\d+)/i) || [])[1];
       const ref_url = a.ref === 'line' ? (lines[i].inspo || [])[0] || '' : sw ? swipe[+sw - 1] || '' : '';
-      return { ...a, callouts: (a.callouts || []).slice(0, 4), ref_url, ref_use: ref_url ? a.ref_use : 'none' };
+      const photo = exact && a.photo >= 1 && a.photo <= cutouts.length ? a.photo : 0;
+      return { ...a, callouts: (a.callouts || []).slice(0, 4), ref_url, ref_use: ref_url ? a.ref_use : 'none', photo };
     });
-    return { ads, variation };
+    return { ads, variation, exact };
   });
 
   return json({ error: 'not found' }, 404);

@@ -157,8 +157,9 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
   return [
     `Create a finished, scroll-stopping Meta feed ad for ${brand}. The image is SQUARE: it is the safe area of a 4:5 ad and will be extended above and below later, so let the background continue naturally past the top and bottom edges.`,
     which,
-    spec.dna ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
-    names.length
+    spec.exact ? 'THE PRODUCT IS ALREADY IN THE IMAGE, placed exactly where it must stay: a real photograph of the real product. Build the whole ad around it. Never redraw, move, resize, rotate, recolour, cover, crop or duplicate it. Give it a natural contact shadow and reflections that match the scene light, so it sits in the scene rather than on top of it.' : '',
+    spec.dna && !spec.exact ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
+    spec.exact ? `The product is ${names.map(t => `"${t}"`).join(', ') || 'the one already in the image'}.` : names.length
       ? `The product${many ? 's are' : ' is'}: ${names.map(t => `"${t}"`).join(', ')}. ${many ? 'Show every one of them. ' : ''}The product photos are the real thing: reproduce ${many ? 'each product' : 'it'} exactly, with the same shape, colours, materials, logos and any words printed on ${many ? 'them' : 'it'}.`
       : 'There is no product photo: build the image from the description and the inspiration.',
     counts.inspo ? (spec.ref_use === 'copy'
@@ -298,6 +299,30 @@ async function saveAd(env, act, { bytes, spec, prompt, model, cost, check, paren
     .bind(id, act, parent || null, JSON.stringify(spec), prompt, model, w, h, cost, batch_id || null, Number.isInteger(line) ? line : null, check ? JSON.stringify(check) : null).run();
   return shape(await getAd(env, id));
 }
+async function emptyCheck(key, model, bytes, box) {
+  const res = await fetch(`${OA}/chat/completions`, {
+    method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: [
+      { type: 'text', text: `This ad scene must contain NO golf club, putter, shaft, grip or product anywhere, and the box [${box.join(', ')}] (left, top, right, bottom, 0-1000) must be empty background with no words in it. Fail it if either is broken, and say which.` },
+      { type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } }] }],
+      response_format: { type: 'json_schema', json_schema: { name: 'empty', strict: true, schema: { type: 'object', additionalProperties: false, required: ['ok', 'issue'], properties: { ok: { type: 'boolean' }, issue: { type: 'string' } } } } } }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error?.message || 'check failed');
+  return safeJson(j.choices?.[0]?.message?.content, null);
+}
+async function layoutCheck(key, model, bytes, box) {
+  const res = await fetch(`${OA}/chat/completions`, {
+    method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: [
+      { type: 'text', text: `This ad must show exactly ONE product (one club, one shaft), and no words may sit on the product, which fills the box [${box.join(', ')}] (left, top, right, bottom, 0-1000). Fail it if there is a second club or product anywhere, a second shaft, or any word overlapping that box.` },
+      { type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } }] }],
+      response_format: { type: 'json_schema', json_schema: { name: 'layout', strict: true, schema: { type: 'object', additionalProperties: false, required: ['ok', 'issue'], properties: { ok: { type: 'boolean' }, issue: { type: 'string' } } } } } }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error?.message || 'check failed');
+  return safeJson(j.choices?.[0]?.message?.content, null);
+}
 async function productCheck(key, model, bytes, refs, name, dna = '') {
   const content = [{ type: 'text', text: `The first images are REFERENCE photos of the real product${name ? ` ("${name}")` : ''}. The last image is an AD. Is the product in the ad the SAME product? Compare the silhouette and outline first (for a putter or club: the head shape seen from above and the side, its cut-outs and wings), then proportions, colours, finish, logos and printed details. A different angle, light or background is fine. A redesigned or different-shaped product is NOT ok even if the colour and logo match. Be strict: when unsure, say it is not ok.${dna ? `\n\nThe product's fingerprint; check EVERY point against the ad and fail it if any point is wrong:\n${dna}` : ''}` }];
   for (const r of refs.slice(0, 5)) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
@@ -321,7 +346,8 @@ function cleanSpec(s = {}) {
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
     callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
     art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
-    ref_use: ['copy', 'vibe'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000),
+    ref_use: ['copy', 'vibe'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000), exact: !!s.exact,
+    cut: s.cut && /^https?:\/\//.test(s.cut.url || '') ? { url: clip(s.cut.url, 1000), x: +s.cut.x || 0, y: +s.cut.y || 0, w: +s.cut.w || 0, h: +s.cut.h || 0 } : null,
   };
 }
 
@@ -768,6 +794,62 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const dna = clip((j.choices?.[0]?.message?.content || '').replace(/\u2014/g, ','), 3000);
     await cfgSet(env, cfgKey, dna);
     return json({ dna });
+  }
+
+  /* ---- exact product (clubs and other precise hard goods) ----
+     Image AI redraws a product from memory and drifts on engineered shapes, mirror metal and small
+     marks (measured on the Eclipse Mallet: wrong clover, heel and toe swapped, thin milling). And when
+     the model can SEE the real product in the canvas it draws extra copies of it (measured: a second
+     putter and a second neck behind the real one). So, in order:
+       1. make-exact   the model makes the scene and words with the product's box left EMPTY and no
+                       product anywhere (checked; redone once if a product or a word got in there);
+       2. the browser  puts the real cut-out product into the box;
+       3. harmonize    the model adds only the contact shadow, allowed to touch a ring around the
+                       product (the mask), and the browser puts the real product pixels back on top. */
+  if (path === '/api/studio/make-exact' && request.method === 'POST') {
+    if (!key) return needKey();
+    const spec = cleanSpec({ ...(body.spec || {}), exact: true });
+    const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+    if (!acct) return json({ error: 'unknown brand' }, 404);
+    return stream(CORS, async send => {
+      const m = await models(key);
+      const insp = await refImages(env, spec.inspo, 1);
+      const r = spec.cut || { x: 312, y: 312, w: 400, h: 400 };
+      const pct = v => Math.round(v / 10.24);
+      const names = (spec.products || []).map(p => p.title).join(', ');
+      const scene = { ...spec, exact: false, products: [], dna: '' };
+      const where = `IMPORTANT LAYOUT: leave the box from ${pct(r.x)}% to ${pct(r.x + r.w)}% across and ${pct(r.y)}% to ${pct(r.y + r.h)}% down COMPLETELY EMPTY: only the plain surface or background there, lit as if ${names ? `the ${names}` : 'the product'} will stand in it. A real product photo will be placed there afterwards. Do NOT draw any golf club, putter, shaft, grip or product anywhere in the image. Every word goes outside that box.`;
+      const prompt = `${adPrompt(scene, acct.name, 0, 1, { prod: 0, inspo: insp.length })}\n\n${where}`;
+      send({ type: 'status', text: 'Making the scene with a spot for the real product. About a minute.' });
+      const gen = () => imageCall(key, m.image, { images: insp, size: '1024x1024', prompt });
+      let out = await gen(), cost = COST.image;
+      const box = [r.x, r.y, r.x + r.w, r.y + r.h].map(v => Math.round(v / 1.024));
+      const bad = await emptyCheck(key, m.check || m.vision, out.bytes, box).catch(() => null);
+      cost += COST.vision;
+      if (bad && !bad.ok) {
+        send({ type: 'status', text: 'Clearing the product spot. About a minute.' });
+        const again = await imageCall(key, m.image, { images: insp, size: '1024x1024', prompt: `${prompt}\n\nA previous attempt failed: ${bad.issue}. No product of any kind, and nothing in that box.` }).catch(() => null);
+        cost += COST.image; if (again) out = again;
+      }
+      const ad = await saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check: { ok: true, issue: '', exact: true }, parent: body.parent_id, batch_id: clip(body.batch_id, 40) || null, line: Number.isInteger(body.line) ? body.line : null });
+      send({ type: 'done', ads: [ad] });
+    });
+  }
+  if (path === '/api/studio/harmonize' && request.method === 'POST') {
+    if (!key) return needKey();
+    const row = await getAd(env, body.id);
+    if (!row || !body.png || !body.mask) return json({ error: 'id, png and mask are required' }, 400);
+    return stream(CORS, async send => {
+      const m = await models(key);
+      const img = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
+      const mask = unb64(String(body.mask).replace(/^data:image\/png;base64,/, ''));
+      send({ type: 'status', text: 'Adding the shadow under the product.' });
+      const out = await imageCall(key, m.image, { images: [{ buf: img, type: 'image/png' }], mask, fidelity: true, size: '1024x1024', quality: 'medium',
+        prompt: 'The product is a real photo placed on this scene. Add only a soft, natural contact shadow and a faint reflection where it touches the surface, matching the direction and softness of the scene light, so it sits in the scene. Do not change the product, the words or anything else. Do not add any object.' });
+      await env.MEDIA.put(keyOf(row, 'plate'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.DB.prepare(`UPDATE p_studio_ad SET cost = cost + 0.08, updated_at = datetime('now') WHERE id = ?1`).bind(row.id).run();
+      send({ type: 'done', ad: shape(await getAd(env, row.id)) });
+    });
   }
 
   return null;

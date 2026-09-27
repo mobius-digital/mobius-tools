@@ -348,7 +348,11 @@ function batchView(b) {
           <div class="st-thumbs" style="margin-top:4px">${(p.all || []).map(u => `<button class="t ${(su.images || []).includes(u) ? 'on' : ''}" data-img="${esc(u)}" title="${(su.images || []).includes(u) ? 'Used' : 'Not used'}"><img src="${esc(thumb(u))}" alt=""></button>`).join('')}</div>
           <label class="st-f" style="margin-top:8px">Product fingerprint<small>what makes it ours; the AI must match every line. Fix anything wrong.</small>${p.dna == null ? '<span class="st-busy" style="display:flex;margin-top:6px"><span class="st-spin"></span>Reading the product photos…</span>' : `<textarea class="st-in" data-dna="${pi}" rows="5">${esc(p.dna)}</textarea>`}</label>
           <button class="btn" data-redna="${pi}" style="margin-top:6px">Read the photos again</button></div>`).join('')}
-        <button class="btn" id="bProd" style="margin-top:8px" ${(su.products || []).length >= 4 ? 'disabled' : ''}>${(su.products || []).length ? 'Add another product' : 'Choose the product'}</button></div>
+        <button class="btn" id="bProd" style="margin-top:8px" ${(su.products || []).length >= 4 ? 'disabled' : ''}>${(su.products || []).length ? 'Add another product' : 'Choose the product'}</button>
+        ${(su.products || []).length ? `<div style="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:8px">
+          <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer"><input type="checkbox" id="bExact" ${su.exact ? 'checked' : ''} style="margin-top:3px;accent-color:var(--brand-ink)"><span><b>Exact product</b> · use the real product photos in the ads, the AI builds the scene around them. On by default for golf clubs and other precise products, where AI drawing drifts.</span></label>
+          ${su.exact ? `<div class="st-thumbs">${S.cutting ? '<span class="st-busy"><span class="st-spin"></span>Cutting the product out of its photos…</span>' : (su.cutouts || []).length ? (su.cutouts || []).map(c => `<button class="t" data-zu="${esc(c.url)}" style="background:repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="${esc(c.url)}" alt="" style="object-fit:contain"></button>`).join('') + '<span class="tiny">Real angles the ads can use</span><button class="btn" id="bRecut" style="padding:4px 8px;font-size:12px">Cut again</button>' : '<span class="tiny">No clean studio shots (plain white background) to cut out. Ads will be AI-drawn.</span>'}</div>` : ''}
+        </div>` : ''}</div>
       <div><b style="font-size:13px">Swipe file</b><div class="hint">Ads you like, for range and ideas. Nothing gets copied; the art director picks styles from it. Up to 12. Drop, click, or paste a screenshot.</div>
         <div class="st-thumbs" style="margin-top:8px">${(su.swipe || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(u)}" alt=""><span class="st-x" data-rmsw="${k}" role="button" aria-label="Remove">×</span></button>`).join('')}${(su.swipe || []).length < 12 ? '<button class="st-add" id="bSwipe">Add images</button>' : ''}</div></div>
     </div>
@@ -376,12 +380,14 @@ function planRow(a, i, plan) {
       <label class="st-f">Button<input class="st-in" data-pf="${i}:cta" value="${esc(a.cta)}"></label></div>
     <div class="st-g2"><label class="st-f">Callouts<small>one per line</small><textarea class="st-in" data-pf="${i}:callouts" rows="2">${esc((a.callouts || []).join('\n'))}</textarea></label>
       <label class="st-f">The look${lock ? '<small>same as ad 1 in this test</small>' : ''}<textarea class="st-in" data-pf="${i}:look" rows="2" ${lock ? 'disabled' : ''}>${esc(a.look)}</textarea></label></div>
+    ${plan.exact ? `<div class="st-bar"><div class="st-thumbs"><span class="tiny">Product</span><select class="st-in" style="width:auto;margin:0" data-pf="${i}:photo" ${lock ? 'disabled' : ''}><option value="0" ${!a.photo ? 'selected' : ''}>AI-drawn (check the details)</option>${(S.cur.setup.cutouts || []).map((c, k) => `<option value="${k + 1}" ${+a.photo === k + 1 ? 'selected' : ''}>Real photo ${k + 1}</option>`).join('')}</select>${a.photo ? `<button class="t" data-zu="${esc((S.cur.setup.cutouts || [])[a.photo - 1]?.url || '')}"><img src="${esc((S.cur.setup.cutouts || [])[a.photo - 1]?.url || '')}" alt="" style="object-fit:contain;background:#fff"></button>` : ''}</div>
+      <div><select class="st-in" style="width:auto;margin:0" data-pf="${i}:place" ${lock ? 'disabled' : ''}>${['center', 'left', 'right', 'lower', 'upper'].map(v => `<option ${a.place === v ? 'selected' : ''}>${v}</option>`).join('')}</select><select class="st-in" style="width:auto;margin:0" data-pf="${i}:size" ${lock ? 'disabled' : ''}>${['small', 'medium', 'large'].map(v => `<option ${a.size === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>` : ''}
     <div class="st-bar"><div><span class="tiny">Type</span><select class="st-in" style="width:auto;margin:0" data-pf="${i}:style" ${lock ? 'disabled' : ''}>${STYLES.map(([k, l]) => `<option value="${k}" ${a.style === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>${ref}</div></div>`;
 }
 function adCard(a) {
   const s = a.spec || {}, ck = a.check;
   const tags = [a.line != null ? `<span class="st-tag">Ad ${a.line + 1}</span>` : '', a.status === 'approved' ? '<span class="st-tag ok">Approved</span>' : '',
-    ck ? (ck.ok === false ? `<span class="st-tag warn" title="${esc(ck.issue || '')}">Product may be off</span>` : ck.ok ? `<span class="st-tag ok">Product checked${ck.redone ? ' (redone)' : ''}</span>` : '') : ''].join('');
+    ck?.exact ? '<span class="st-tag ok">Real product photo</span>' : ck ? (ck.ok === false ? `<span class="st-tag warn" title="${esc(ck.issue || '')}">Product may be off</span>` : ck.ok ? `<span class="st-tag ok">Product checked${ck.redone ? ' (redone)' : ''}</span>` : '') : ''].join('');
   return `<div class="st-ad"><div class="pic" data-zoom="${a.id}"><img src="${esc(shown(a))}" alt="${esc(s.headline || 'Ad')}" loading="lazy"><div class="tags">${tags}</div></div>
     <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${ck?.ok === false ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
       <div class="acts">${a.status === 'approved' ? `<button class="btn" data-unapprove="${a.id}">Unapprove</button>` : `<button class="btn primary" data-approve="${a.id}">Approve</button>`}
@@ -424,11 +430,14 @@ function wireBatch() {
   });
   document.querySelectorAll('[data-redna]').forEach(el => el.onclick = () => fingerprint(su.products[+el.dataset.redna], true));
   document.querySelectorAll('[data-rmprod]').forEach(el => el.onclick = () => { const p = su.products.splice(+el.dataset.rmprod, 1)[0]; su.images = su.images.filter(u => !(p.all || []).includes(u)); queueSave(); paint(); });
+  const ex = $('#bExact'); if (ex) ex.onchange = async () => { su.exact = ex.checked; if (b.plan) b.plan = null; await saveCur(); paint(); if (su.exact && !(su.cutouts || []).length) cutAll(); };
+  const rc = $('#bRecut'); if (rc) rc.onclick = () => cutAll();
   $('#bPlan').onclick = planAds;
   document.querySelectorAll('[data-pf]').forEach(el => { const h = () => {
     const [i, k] = el.dataset.pf.split(':'); const a = b.plan.ads[+i];
-    a[k] = k === 'callouts' ? el.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 4) : el.value;
-    if (b.plan.variation && +i === 0 && ['look', 'style', 'ref_use'].includes(k)) b.plan.ads.forEach(x => { x[k] = a[k]; });
+    a[k] = k === 'callouts' ? el.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 4) : k === 'photo' ? +el.value : el.value;
+    if (b.plan.variation && +i === 0 && ['look', 'style', 'ref_use', 'photo', 'place', 'size'].includes(k)) b.plan.ads.forEach(x => { x[k] = a[k]; });
+    if (k === 'photo') { queueSave(); return paint(); }
     queueSave();
   }; el.oninput = h; el.onchange = h; });
   const mk = $('#bMake'); if (mk) mk.onclick = makeBatch;
@@ -469,11 +478,13 @@ async function pickProduct() {
       w.querySelector('#pg').innerHTML = list.map(p => `<button data-p="${S.products.indexOf(p)}"><img src="${esc(thumb(p.images[0]))}" alt="" loading="lazy"><span>${esc(p.title)}</span></button>`).join('') || '<p class="hint">No products match.</p>';
       w.querySelectorAll('[data-p]').forEach(bt => bt.onclick = async () => {
         const p = S.products[+bt.dataset.p];
-        const prod = { title: p.title, handle: p.handle, all: p.images, dna: null };
+        const prod = { title: p.title, handle: p.handle, type: p.type || '', all: p.images, dna: null };
         su.products.push(prod);
+        if (su.products.some(x => HARD.test(`${x.type} ${x.title}`))) su.exact = true;
         su.images = [...su.images, ...p.images.slice(0, su.products.length > 1 ? 2 : 6)].slice(0, 8);
         ctl.close(true); await saveCur(); paint();
         fingerprint(prod);
+        if (su.exact) cutAll();
       });
     };
     w.querySelector('#pq').oninput = e => { S.prodQ = e.target.value; draw(); };
@@ -494,11 +505,122 @@ async function planAds() {
   try {
     await saveCur();
     br.lines = br.lines.filter(l => (l.text || '').trim());
-    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe });
-    b.plan = { ads: r.ads, variation: r.variation }; b.status = 'planned';
+    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: !!su.exact, cutouts: (su.cutouts || []).map(c => c.url) });
+    b.plan = { ads: r.ads, variation: r.variation, exact: !!r.exact }; b.status = 'planned';
     await saveCur();
   } catch (e) { S.err = `Planning: ${e.message}`; }
   S.busy = ''; paint();
+}
+/* ---- exact product: real photos cut out in the browser ----
+   Precise hard goods (golf clubs first) drift when AI draws them, so their ads use the real photo:
+   plain white studio shots are cut out here (flood fill of the white background from the edges,
+   so white highlights inside the product survive), uploaded, and placed on the canvas the model
+   builds the scene around. The product pixels are put back on top afterwards. */
+const HARD = /wedge|putter|hybrid|driver|iron|fairway|club|wood\b/i;
+async function cutoutOf(src) {
+  const im = await loadImg(src + (/cdn\.shopify\.com/.test(src) ? (src.includes('?') ? '&' : '?') + 'width=1400' : ''));
+  const k = Math.min(1, 1400 / Math.max(im.naturalWidth, im.naturalHeight));
+  const W = Math.round(im.naturalWidth * k), H = Math.round(im.naturalHeight * k);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H), px = d.data;
+  const white = i => px[i] > 222 && px[i + 1] > 222 && px[i + 2] > 222 && Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) < 22;
+  let edge = 0, edgeN = 0;
+  for (let xx = 0; xx < W; xx += 4) { edgeN += 2; edge += white((0 * W + xx) * 4) + white(((H - 1) * W + xx) * 4); }
+  for (let yy = 0; yy < H; yy += 4) { edgeN += 2; edge += white((yy * W) * 4) + white((yy * W + W - 1) * 4); }
+  if (edge / edgeN < 0.9) return null;
+  const bg = new Uint8Array(W * H), stack = [];
+  const push = p => { if (!bg[p] && white(p * 4)) { bg[p] = 1; stack.push(p); } };
+  for (let xx = 0; xx < W; xx++) { push(xx); push((H - 1) * W + xx); }
+  for (let yy = 0; yy < H; yy++) { push(yy * W); push(yy * W + W - 1); }
+  while (stack.length) { const p = stack.pop(), xx = p % W, yy = (p / W) | 0; if (xx > 0) push(p - 1); if (xx < W - 1) push(p + 1); if (yy > 0) push(p - W); if (yy < H - 1) push(p + W); }
+  /* Keep the product: drop small islands (soft studio shadows, dust) not joined to the main shape. */
+  const lab = new Int32Array(W * H), sizes = [0]; let id = 0;
+  for (let p0 = 0; p0 < W * H; p0++) {
+    if (bg[p0] || lab[p0]) continue;
+    id++; let sz = 0; const st = [p0]; lab[p0] = id;
+    while (st.length) { const p = st.pop(), xx = p % W; sz++; for (const q of [xx > 0 ? p - 1 : -1, xx < W - 1 ? p + 1 : -1, p - W, p + W]) if (q >= 0 && q < W * H && !bg[q] && !lab[q]) { lab[q] = id; st.push(q); } }
+    sizes.push(sz);
+  }
+  const big = Math.max(...sizes);
+  for (let p = 0; p < W * H; p++) if (!bg[p] && sizes[lab[p]] < big * 0.06) bg[p] = 1;
+  let x0 = W, y0 = H, x1 = 0, y1 = 0, n = 0;
+  for (let p = 0; p < W * H; p++) {
+    let a = bg[p] ? 0 : 255;
+    if (!bg[p]) { const xx = p % W, yy = (p / W) | 0; const nb = (xx > 0 && bg[p - 1]) + (xx < W - 1 && bg[p + 1]) + (yy > 0 && bg[p - W]) + (yy < H - 1 && bg[p + W]); if (nb) a = 150; n++; if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy; }
+    px[p * 4 + 3] = a;
+  }
+  if (n < W * H * 0.01 || n > W * H * 0.92) return null;
+  x.putImageData(d, 0, 0);
+  const pad = 4; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+  const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+  o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+  return { blob: await new Promise(r => o.toBlob(r, 'image/png')), w: o.width, h: o.height };
+}
+async function cutAll() {
+  const b = S.cur, su = b.setup;
+  S.cutting = true; paint();
+  const out = [];
+  for (const p of su.products) for (const u of (p.all || []).slice(0, 12)) {
+    if (out.length >= 8) break;
+    try {
+      const c = await cutoutOf(u); if (!c) continue;
+      const res = await fetch(S.url.replace(/\/+$/, '') + '/api/studio/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'image/png' }, body: c.blob });
+      const j = await res.json(); if (j.url) out.push({ src: u, url: j.url, w: c.w, h: c.h });
+    } catch {}
+  }
+  su.cutouts = out; S.cutting = false;
+  await saveCur(); paint();
+}
+const SIZE = { small: 0.42, medium: 0.58, large: 0.74 };
+const PLACE = { center: [0.5, 0.56], left: [0.32, 0.56], right: [0.68, 0.56], lower: [0.5, 0.66], upper: [0.5, 0.44] };
+function rectFor(cut, a) {
+  const f = SIZE[a.size] || SIZE.medium, [cx, cy] = PLACE[a.place] || PLACE.center;
+  const s = Math.min(f * 1024 / cut.w, f * 1024 / cut.h), w = cut.w * s, h = cut.h * s, m = 56;
+  const x = Math.min(1024 - m - w, Math.max(m, cx * 1024 - w / 2)), y = Math.min(1024 - m - h, Math.max(m, cy * 1024 - h / 2));
+  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+}
+/* Put the real product pixels back on top of a square ad (after make, vary, redo or change). */
+async function relock(ad) {
+  const cut = ad?.spec?.cut; if (!cut?.url || ad.full_w !== ad.full_h) return ad;
+  const [base, pic] = await Promise.all([loadImg(img(ad, 'full')), loadImg(cut.url)]);
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
+  const x = c.getContext('2d'); x.drawImage(base, 0, 0, 1024, 1024); x.drawImage(pic, cut.x, cut.y, cut.w, cut.h);
+  const fin = await post('/api/studio/finalize', { id: ad.id, png: c.toDataURL('image/png') });
+  const i = S.d.ads.findIndex(a => a.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad;
+  return fin.ad;
+}
+async function makeExact(b, a, i, extra = {}) {
+  const cut = (b.setup.cutouts || [])[a.photo - 1];
+  const r = rectFor(cut, a);
+  const spec = { ...specOf(b, a), exact: true, cut: { url: cut.url, ...r } };
+  /* 1. the scene and words, with the product's spot left empty */
+  const res = await streamCall(S.url, '/api/studio/make-exact', { spec, batch_id: b.id, line: i, ...extra });
+  let ad = res.ads?.[0]; if (!ad) return null;
+  S.d.ads.unshift(ad);
+  /* 2. the real product into the spot */
+  const [scene, pic] = await Promise.all([loadImg(img(ad, 'full')), loadImg(cut.url)]);
+  const comp = document.createElement('canvas'); comp.width = 1024; comp.height = 1024;
+  const cx = comp.getContext('2d'); cx.drawImage(scene, 0, 0, 1024, 1024); cx.drawImage(pic, r.x, r.y, r.w, r.h);
+  /* 3. shadow only: the model may touch a ring around the product, never the product */
+  const mask = document.createElement('canvas'); mask.width = 1024; mask.height = 1024;
+  const mx = mask.getContext('2d'); mx.fillStyle = '#000'; mx.fillRect(0, 0, 1024, 1024);
+  mx.clearRect(Math.max(0, r.x - r.w * 0.18), Math.max(0, r.y + r.h * 0.35), r.w * 1.36, Math.min(1024, r.h * 0.9));
+  mx.drawImage(pic, r.x, r.y, r.w, r.h);
+  try {
+    const h = await streamCall(S.url, '/api/studio/harmonize', { id: ad.id, png: comp.toDataURL('image/png'), mask: mask.toDataURL('image/png') });
+    /* Take only the shadow ring from the model's pass (it redraws everything, words included);
+       the rest stays the original scene, pixel for pixel. */
+    const shaded = await loadImg(img(h.ad, 'plate'));
+    const ring = [Math.max(0, r.x - r.w * 0.18), Math.max(0, r.y + r.h * 0.35), r.w * 1.36, Math.min(1024, r.h * 0.9)];
+    const t = document.createElement('canvas'); t.width = 1024; t.height = 1024;
+    const tx = t.getContext('2d'); tx.drawImage(shaded, 0, 0, 1024, 1024);
+    tx.globalCompositeOperation = 'destination-in'; tx.filter = 'blur(14px)'; tx.fillStyle = '#000'; tx.fillRect(ring[0] + 14, ring[1] + 14, ring[2] - 28, ring[3] - 28);
+    cx.clearRect(0, 0, 1024, 1024); cx.drawImage(scene, 0, 0, 1024, 1024); cx.drawImage(t, 0, 0); cx.drawImage(pic, r.x, r.y, r.w, r.h);
+  } catch { /* no shadow is better than no ad: keep the plain composite */ }
+  const fin = await post('/api/studio/finalize', { id: ad.id, png: comp.toDataURL('image/png') });
+  const k = S.d.ads.findIndex(x => x.id === ad.id); if (k >= 0) S.d.ads[k] = fin.ad;
+  return fin.ad;
 }
 /* 4:5 with a guaranteed 1:1 safe area: every ad is made square, then placed in a 4:5 canvas with
    transparent bands that the model fills with background only, and the original square goes back
@@ -538,8 +660,9 @@ async function makeBatch() {
   const tick = () => { S.making = `Made ${done} of ${total}${failed ? `, ${failed} failed` : ''}. Keep this page open.`; paint(); };
   const one = async i => {
     try {
-      const r = await streamCall(S.url, '/api/studio/make', { spec: specOf(b, plan.ads[i]), n: 1, batch_id: b.id, line: i }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); });
-      const ad = r.ads?.[0];
+      let ad;
+      if (plan.exact && plan.ads[i].photo > 0 && (b.setup.cutouts || [])[plan.ads[i].photo - 1]) ad = await makeExact(b, plan.ads[i], i);
+      else { const r = await streamCall(S.url, '/api/studio/make', { spec: specOf(b, plan.ads[i]), n: 1, batch_id: b.id, line: i }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); }); ad = r.ads?.[0]; }
       await extend(ad).catch(e => { S.err = `4:5: ${e.message}`; });
       done++; tick(); return ad;
     } catch (e) { failed++; S.err = e.message; tick(); return null; }
@@ -548,7 +671,7 @@ async function makeBatch() {
   if (plan.variation) {
     const base = await one(0);
     if (base) for (let i = 1; i < total; i++) {
-      try { const r = await streamCall(S.url, '/api/studio/vary', { base_id: base.id, spec: specOf(b, plan.ads[i]), batch_id: b.id, line: i }); S.d.ads.unshift(r.ad); await extend(r.ad).catch(e => { S.err = `4:5: ${e.message}`; }); done++; }
+      try { const r = await streamCall(S.url, '/api/studio/vary', { base_id: base.id, spec: { ...specOf(b, plan.ads[i]), cut: base.spec?.cut || null, exact: !!base.spec?.exact }, batch_id: b.id, line: i }); S.d.ads.unshift(r.ad); const locked = await relock(r.ad).catch(() => r.ad); await extend(locked).catch(e => { S.err = `4:5: ${e.message}`; }); done++; }
       catch (e) { failed++; S.err = e.message; }
       tick();
     }
@@ -578,7 +701,9 @@ async function redo(a) {
   try {
     if (a.spec?.varied_from) {
       const r = await streamCall(S.url, '/api/studio/vary', { base_id: a.spec.varied_from, spec: a.spec, batch_id: a.batch_id, line: a.line });
-      S.d.ads.unshift(r.ad); await extend(r.ad);
+      S.d.ads.unshift(r.ad); await extend(await relock(r.ad));
+    } else if (a.spec?.exact && a.spec?.cut && S.cur?.plan?.ads?.[a.line]) {
+      await extend(await makeExact(S.cur, S.cur.plan.ads[a.line], a.line, { parent_id: a.id }));
     } else {
       const r = await streamCall(S.url, '/api/studio/make', { spec: a.spec, n: 1, parent_id: a.id, batch_id: a.batch_id, line: a.line }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); });
       await extend(r.ads?.[0]);
@@ -594,7 +719,7 @@ function change(a) {
     const t = w.querySelector('#chIn').value.trim(); if (!t) throw new Error('Say what to change.');
     ctl.msg('Making the change. About 40 seconds.', true);
     const r = await streamCall(S.url, '/api/studio/change', { id: a.id, instruction: t });
-    S.d.ads.unshift(r.ad); ctl.msg('Fitting it to 4:5…', true); await extend(r.ad).catch(() => {}); const old = S.d.ads.find(x => x.id === a.id); if (old) old.status = 'deleted';
+    S.d.ads.unshift(r.ad); ctl.msg('Fitting it to 4:5…', true); await extend(await relock(r.ad).catch(() => r.ad)).catch(() => {}); const old = S.d.ads.find(x => x.id === a.id); if (old) old.status = 'deleted';
     ctl.close(true); paint();
   }) });
 }

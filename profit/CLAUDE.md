@@ -986,3 +986,14 @@ profit/
   the batch and opens a blank 1080x1350 Canva design. Folder structure: Locus Studio / <Brand> /
   "<#> · <batch name>", designs "<#>-<line> · <headline>"; folder ids cached as `canva_folder:<path>`
   (Lucky + #412 were created through the Canva MCP connector and seeded into the cache).
+
+- **Exact product (2026-09-27, clubs first):** `setup.exact` defaults on when a product's Shopify type/title
+  matches `HARD` (wedge|putter|hybrid|driver|iron|club...). White-background studio photos are cut out in
+  the browser (`cutoutOf`: flood fill from the edges, islands under 6% dropped) and uploaded as
+  `setup.cutouts`; the art director picks `photo` (0 = AI-drawn, flagged), `place`, `size` per ad.
+  Order that works: `/api/studio/make-exact` makes the scene + words with the product box EMPTY and no
+  product (checked by `emptyCheck`, redone once), the browser places the real cut-out, `/api/studio/harmonize`
+  adds a contact shadow in a ring (only the ring is kept), the browser locks the product pixels, then 4:5.
+  Measured on #412: a single-hero-product ad is right (real clover, milling, heel/toe callouts on the face);
+  concepts that ask for several objects (a cast-vs-milled comparison) still get extra clubs or labels
+  hidden behind the product. Letting the model SEE the product made it draw more copies; do not go back.
