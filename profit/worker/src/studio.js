@@ -371,6 +371,23 @@ async function canvaCallback(env, url) {
   return page('Studio can now send batches straight to your Canva.', true);
 }
 
+/* Canva folder structure (Cole, 2026-09-27): Locus Studio / <Brand> / <batch # · name>, one design
+   per ad named "<#>-<line> · <headline>". Folder ids are cached in p_studio_cfg by path so the same
+   folders are reused; a cached id Canva no longer knows is recreated. */
+async function canvaFolder(env, tok, parts) {
+  let parent = 'root';
+  for (let i = 0; i < parts.length; i++) {
+    const path = parts.slice(0, i + 1).join('/'), ck = `canva_folder:${path}`;
+    let id = await cfgGet(env, ck);
+    if (id) { const ok = await fetch(`${CANVA}/folders/${id}`, { headers: { Authorization: `Bearer ${tok}` } }).then(r => r.ok).catch(() => false); if (!ok) id = null; }
+    if (!id) {
+      const f = await canva(env, tok, '/folders', { method: 'POST', body: JSON.stringify({ name: clip(parts[i], 250), parent_folder_id: parent }) });
+      id = f.folder?.id; if (id) await cfgSet(env, ck, id);
+    }
+    parent = id || parent;
+  }
+  return parent;
+}
 function shapeBatch(r) {
   return { id: r.id, act_id: r.act_id, num: r.num || '', br_batch_id: r.br_batch_id || null, name: r.name || '', status: r.status,
     brief: safeJson(r.brief_json, {}), setup: safeJson(r.setup_json, {}), plan: safeJson(r.plan_json, null), created_at: r.created_at, updated_at: r.updated_at };
@@ -630,8 +647,9 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     return stream(CORS, async send => {
       const tok = await canvaToken(env);
       if (!tok) throw new Error('Connect Canva first (Studio, Canva button).');
-      const folder = await canva(env, tok, '/folders', { method: 'POST', body: JSON.stringify({ name: clip(body.folder || 'Locus Studio', 250), parent_folder_id: 'root' }) });
-      const fid = folder.folder?.id;
+      const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+      const bt = body.batch_id ? await env.DB.prepare(`SELECT num, name FROM p_studio_batch WHERE id = ?1`).bind(body.batch_id).first() : null;
+      const fid = await canvaFolder(env, tok, ['Locus Studio', acct?.name || 'Brand', bt ? `${bt.num ? `${bt.num} · ` : ''}${bt.name || 'Batch'}` : clip(body.folder || 'Ads', 120)]);
       const out = [];
       for (const [i, id] of ids.entries()) {
         const row = await getAd(env, id);
@@ -640,7 +658,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
         if (!obj) continue;
         const bytes = new Uint8Array(await obj.arrayBuffer());
         const spec = safeJson(row.spec_json, {});
-        const name = clip(`${body.folder || 'Ad'} ${i + 1} ${spec.headline || ''}`.trim(), 50);
+        const name = clip(`${bt?.num ? `${bt.num}-${(row.line ?? i) + 1}` : `Ad ${i + 1}`} · ${spec.headline || ''}`.trim(), 50);
         send({ type: 'status', text: `Sending ${i + 1} of ${ids.length} to Canva` });
         let job = await canva(env, tok, '/asset-uploads', { method: 'POST', body: bytes, headers: { 'Content-Type': 'application/octet-stream', 'Asset-Upload-Metadata': JSON.stringify({ name_base64: btoa(unescape(encodeURIComponent(name))) }) } });
         for (let t = 0; t < 20 && job.job?.status === 'in_progress'; t++) { await new Promise(r => setTimeout(r, 1500)); job = await canva(env, tok, `/asset-uploads/${job.job.id}`); }

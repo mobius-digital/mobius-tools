@@ -977,3 +977,12 @@ profit/
 - **House style:** the art director sees the brand's top 5 static ads by TW revenue (120 days, from
   `ad_creative.thumb`) and gets hard type rules (flat, crisp, no bevels/glows/3D/fake badges, real
   photography). Image prompts carry the same rules.
+
+- **Canva status (2026-09-27):** app "Locus Studio" created in Cole's Canva developer account (App ID
+  AAHOGFM5NCI, Public, Draft). REST API setup is BLOCKED until Cole turns on MFA on his Canva account
+  (Canva's rule; Claude must not change account security settings). Then: Outside Canva -> Start
+  integrating, scopes, redirect `https://mobius-profit.mobius-digital.workers.dev/api/studio/canva/callback`,
+  Cole generates the secret and pastes id + secret in Studio. Until connected, "Send to Canva" downloads
+  the batch and opens a blank 1080x1350 Canva design. Folder structure: Locus Studio / <Brand> /
+  "<#> · <batch name>", designs "<#>-<line> · <headline>"; folder ids cached as `canva_folder:<path>`
+  (Lucky + #412 were created through the Canva MCP connector and seeded into the cache).
