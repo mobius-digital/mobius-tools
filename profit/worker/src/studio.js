@@ -171,6 +171,7 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     `Typography: ${STYLES[spec.style] || STYLES.auto}`,
     lines.length ? `Put exactly this text on the ad, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Put no text on the ad.',
     'Keep every word and the whole product inside this square with a small margin from every edge.',
+    'A callout that names a part of the product (heel, toe, face, sole, neck, grip, crown, collar and so on) must point at that exact part of the product itself, never at anything else in the scene. On a golf club the heel is the end nearest the shaft and the toe is the far end.',
     'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges. Labels and callouts are simple flat shapes or plain text.',
     'It must look like a real photograph with real design on top, not a CGI render: natural light, real materials, real depth of field.',
     spec.notes ? `Also: ${spec.notes}` : '',

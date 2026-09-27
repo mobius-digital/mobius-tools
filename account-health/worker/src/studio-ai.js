@@ -139,6 +139,7 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
 - INSPIRATION: a line with its own inspiration copies that layout and type treatment closely ("copy"). The swipe file is for range, never copied: when it helps, point a line at the swipe image whose style fits and use it as a loose mood reference ("vibe"). With no inspiration, choose varied, strong formats yourself (product hero, lifestyle, native phone post, bold type, comparison, founder note, review card).
 - ART: title art is only for a launch or drop where the brief wants ONE word (or two) drawn as lettering art, like a product name. Otherwise leave art empty. Never put a description or idea in art.
 - CALLOUTS: short enough to fit a small badge, about 6 words each; keep the team's words, but split a long one into two.
+- CALLOUTS THAT NAME A PART of the product (heel, toe, face, sole, neck) must be planned as pointers on that exact part of the product, so the look must show that part clearly. On a club the heel is the shaft end, the toe the far end.
 - STYLE: one of ${STYLES.join(', ')} per ad (auto lets the image model pick).
 - ref: "line" (its own inspiration), "swipe N" (swipe file image N), or "none". ref_use: copy, vibe or none.
 - note: one short line for the team on what this ad is going for.` });
