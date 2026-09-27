@@ -100,13 +100,36 @@ RULES:
     const voice = skill.instructions ? skillSystem(acct.name, skill, speaker) : `You write copy for ${acct.name} in their voice. Never invent a product fact, price, number or review.`;
     const variation = !['concepts', 'visuals', 'format'].includes(bt.testing);
     const content = [];
+    /* House style: this brand's best-selling static ads (Triple Whale revenue, last 120 days),
+       from the creative cache. What already sells beats any generic idea of a good ad. */
+    const wins = ((await env.DB.prepare(`SELECT a.ad_id, SUM(t.revenue) rev FROM ads a JOIN tw_ad_attr t ON t.ad_id = a.ad_id AND t.model = 'lastPlatformClick'
+      WHERE a.act_id = ?1 AND a.media_type = 'image' AND t.date >= date('now', '-120 day') GROUP BY a.ad_id ORDER BY rev DESC LIMIT 10`).bind(A).all().catch(() => ({ results: [] }))).results || []);
+    let nWin = 0;
+    for (const w of wins) {
+      if (nWin >= 5) break;
+      const c = safeJson((await env.DB.prepare(`SELECT json FROM ad_creative WHERE ad_id = ?1`).bind(w.ad_id).first().catch(() => null))?.json, null);
+      const mt = String(c?.thumb || '').match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
+      if (!mt) continue;
+      nWin++;
+      content.push({ type: 'text', text: `OUR BEST-SELLING AD ${nWin} ($${Math.round(w.rev)} revenue): headline "${clip(c.headline, 120)}"` });
+      content.push({ type: 'image', source: { type: 'base64', media_type: mt[1], data: mt[2] } });
+    }
+    const dnas = [];
+    for (const h of (Array.isArray(b.handles) ? b.handles : []).slice(0, 4)) {
+      const v = (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = ?1`).bind(`dna:${A}:${h}`).first().catch(() => null))?.value;
+      if (v) dnas.push(v);
+    }
     swipe.forEach((u, i) => { content.push({ type: 'text', text: `SWIPE FILE image ${i + 1}:` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
     lines.forEach((l, i) => (l.inspo || []).slice(0, 2).forEach((u, k) => { content.push({ type: 'text', text: `LINE ${i + 1} INSPIRATION ${k + 1} (make it look like this):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); }));
     content.push({ type: 'text', text: `THE BATCH
 Angle: ${clip(bt.angle, 600)}
 Why: ${clip(bt.why, 600)}
 ${bt.concept ? `Concept: ${clip(bt.concept, 600)}\n` : ''}Testing: ${bt.testing || 'concepts'}
-Products: ${products.join(', ') || '(none picked)'}
+Products: ${products.join(', ') || '(none picked)'}${dnas.length ? `
+Product fingerprint (the product must match this exactly in every ad):
+${dnas.join('
+
+')}` : ''}
 Lines:
 ${lines.map((l, i) => `${i + 1}. ${clip(l.text, 1200)}${(l.inspo || []).length ? ' [has its own inspiration above]' : ''}`).join('\n')}
 
@@ -115,6 +138,7 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
 - ${variation
     ? `This batch tests ${bt.testing} INSIDE one concept. Every ad must share the SAME look, layout and type style; only the tested piece changes (the ${bt.testing}). Write one shared "look" and repeat it on every line.`
     : `This batch tests ${bt.testing === 'visuals' ? 'different looks for the same words: keep the words the same on every line and make each look genuinely different' : 'different ideas: every ad must be genuinely different (scene, composition, camera, type), never near duplicates, because Meta treats look-alikes as duplicates'}.`}
+- HOUSE STYLE: ${nWin ? 'the best-selling ads above are what works for this brand. Match their level of restraint, realism and type quality; take their confidence, not their layouts.' : 'restrained, real, confident.'} It must never look like an AI ad: real photography, flat and crisp typography, one clear headline, few elements, no glossy badges, no fake 3D, no clutter.
 - LOOK: a concrete scene, mood, light and camera a photographer could shoot, plus the layout (where the product and words sit). Keep all words inside the centred square of the 4:5 frame.
 - INSPIRATION: a line with its own inspiration copies that layout and type treatment closely ("copy"). The swipe file is for range, never copied: when it helps, point a line at the swipe image whose style fits and use it as a loose mood reference ("vibe"). With no inspiration, choose varied, strong formats yourself (product hero, lifestyle, native phone post, bold type, comparison, founder note, review card).
 - ART: title art is only for a launch or drop where the brief wants ONE word (or two) drawn as lettering art, like a product name. Otherwise leave art empty. Never put a description or idea in art.

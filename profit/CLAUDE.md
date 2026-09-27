@@ -959,3 +959,21 @@ profit/
   design content, folder read/write + design meta read; redirect URL shown in the modal) and paste
   the client id + secret in Studio. Send = a folder per batch, one 1080x1350 design per ad (approved
   ones if any). Untested end to end until Cole connects it.
+
+### 2026-09-27 (later): 4:5 guarantee, product fingerprint, house style (after Cole: "not our putter", "text outside the safe zone", "looks like AI slop")
+- **1:1 safe area is GUARANTEED, not asked for.** Prompts saying "keep words out of the top/bottom tenth"
+  failed on 3 of 4 ads. Every ad is now made SQUARE (1024), then the browser (`extend()`) places it in a
+  1024x1280 canvas with transparent bands, `/api/studio/extend` has the model fill only the bands
+  (the transparency is the mask, quality medium, ~8c), and the browser puts the original square back
+  on top with a 24px feather and saves it via `/api/studio/finalize` (the square is kept as
+  `square.png`; vary and change edit the square, then extend again). Compositing happens in the
+  browser on purpose: the Worker is on the free plan's CPU limit.
+- **Product fingerprint** (`/api/studio/dna`, stored in `p_studio_cfg` as `dna:<act>:<handle>`): the
+  strongest vision model writes checkable facts from all product photos (silhouette, cut-outs, where the
+  neck/shaft joins, logos and positions). Editable on the batch; it rides in every prompt, the art
+  director's plan and the product check. Measured on #412: before it, none of 4 heads was the real
+  Eclipse Mallet; after, 3 of 4 clearly were (cross-section included). It can still be wrong (it called
+  the gold shaft black), which is why the team edits it.
+- **House style:** the art director sees the brand's top 5 static ads by TW revenue (120 days, from
+  `ad_creative.thumb`) and gets hard type rules (flat, crisp, no bevels/glows/3D/fake badges, real
+  photography). Image prompts carry the same rules.

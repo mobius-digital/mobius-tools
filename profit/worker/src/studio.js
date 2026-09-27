@@ -20,7 +20,7 @@
  */
 
 const OA = 'https://api.openai.com/v1';
-const KINDS = new Set(['full', 'plate', 'final']);
+const KINDS = new Set(['full', 'plate', 'final', 'square', 'ext']);
 /* Rough USD per call, for the running cost on each ad. High-quality portrait image ~ $0.25. */
 const COST = { image: 0.25, vision: 0.01 };
 
@@ -113,8 +113,8 @@ async function models(key) {
 
 /* One image call. Retries without whichever optional parameter the model rejects, so a
    model that lacks 4:5 or input_fidelity still works (the editor crops to 4:5 either way). */
-async function imageCall(key, model, { prompt, images = [], size = '1024x1280', fidelity = false, mask = null }) {
-  const opts = { size, quality: 'high', ...(fidelity ? { input_fidelity: 'high' } : {}) };
+async function imageCall(key, model, { prompt, images = [], size = '1024x1280', fidelity = false, mask = null, quality = 'high' }) {
+  const opts = { size, quality, ...(fidelity ? { input_fidelity: 'high' } : {}) };
   for (let attempt = 0; attempt < 4; attempt++) {
     let res;
     if (images.length) {
@@ -155,8 +155,9 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     ? `The first ${counts.prod} attached image${counts.prod > 1 ? 's are' : ' is'} the real product${many ? 's' : ''}. The last ${counts.inspo} ${counts.inspo > 1 ? 'are' : 'is'} INSPIRATION ONLY.`
     : counts.inspo ? `All ${counts.inspo} attached image${counts.inspo > 1 ? 's are' : ' is'} INSPIRATION ONLY.` : '';
   return [
-    `Create a finished, scroll-stopping Meta feed ad for ${brand}, portrait 4:5.`,
+    `Create a finished, scroll-stopping Meta feed ad for ${brand}. The image is SQUARE: it is the safe area of a 4:5 ad and will be extended above and below later, so let the background continue naturally past the top and bottom edges.`,
     which,
+    spec.dna ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
     names.length
       ? `The product${many ? 's are' : ' is'}: ${names.map(t => `"${t}"`).join(', ')}. ${many ? 'Show every one of them. ' : ''}The product photos are the real thing: reproduce ${many ? 'each product' : 'it'} exactly, with the same shape, colours, materials, logos and any words printed on ${many ? 'them' : 'it'}.`
       : 'There is no product photo: build the image from the description and the inspiration.',
@@ -169,7 +170,9 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     spec.who ? `It is for: ${spec.who}. Let that guide the mood, setting and casting.` : '',
     `Typography: ${STYLES[spec.style] || STYLES.auto}`,
     lines.length ? `Put exactly this text on the ad, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Put no text on the ad.',
-    'Meta crops 4:5 ads to a square in some placements, so keep every word and the product inside the centred square: the top tenth and bottom tenth of the frame are background only.',
+    'Keep every word and the whole product inside this square with a small margin from every edge.',
+    'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges. Labels and callouts are simple flat shapes or plain text.',
+    'It must look like a real photograph with real design on top, not a CGI render: natural light, real materials, real depth of field.',
     spec.notes ? `Also: ${spec.notes}` : '',
     'The scene and look notes above are directions for you. Never write any of them on the ad; the only words on the ad are the ones listed.',
     'Every word must fit completely: size each label or badge so no word is ever cut off.',
@@ -264,21 +267,21 @@ const keyOf = (row, kind) => `studio/${row.act_id}/${row.id}/${kind}.png`;
 
 async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts, where = {}) {
   const prompt = adPrompt(spec, brand, k, n, counts);
-  let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true });
+  let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: '1024x1024' });
   let cost = COST.image, check = null;
   /* Cole's rule: the product must look exactly like the product. Every ad is checked against
      the real photos; one that looks off is redone once, and the result is flagged either way. */
   const prodRefs = refs.slice(0, counts.prod || 0);
   if (prodRefs.length) {
-    check = await productCheck(key, m.check || m.vision, out.bytes, prodRefs, spec.product).catch(() => null);
+    check = await productCheck(key, m.check || m.vision, out.bytes, prodRefs, spec.product, spec.dna).catch(() => null);
     cost += COST.vision;
     if (check && !check.ok) {
       const again = await imageCall(key, m.image, { prompt: `${prompt}
 
-IMPORTANT: a previous attempt got the product wrong (${check.issue}). Copy the product from the photos exactly: the same silhouette and shape, proportions, colours, finish and every logo. Do not redesign it.`, images: refs, fidelity: true }).catch(() => null);
+IMPORTANT: a previous attempt got the product wrong (${check.issue}). Copy the product from the photos exactly: the same silhouette and shape, proportions, colours, finish and every logo. Do not redesign it.`, images: refs, fidelity: true, size: '1024x1024' }).catch(() => null);
       cost += COST.image;
       if (again) {
-        const c2 = await productCheck(key, m.check || m.vision, again.bytes, prodRefs, spec.product).catch(() => null);
+        const c2 = await productCheck(key, m.check || m.vision, again.bytes, prodRefs, spec.product, spec.dna).catch(() => null);
         cost += COST.vision;
         if (!c2 || c2.ok || !check.ok) { out = again; check = c2 ? { ...c2, redone: true } : { ok: null, issue: '', redone: true }; }
       }
@@ -294,9 +297,9 @@ async function saveAd(env, act, { bytes, spec, prompt, model, cost, check, paren
     .bind(id, act, parent || null, JSON.stringify(spec), prompt, model, w, h, cost, batch_id || null, Number.isInteger(line) ? line : null, check ? JSON.stringify(check) : null).run();
   return shape(await getAd(env, id));
 }
-async function productCheck(key, model, bytes, refs, name) {
-  const content = [{ type: 'text', text: `The first images are REFERENCE photos of the real product${name ? ` ("${name}")` : ''}. The last image is an AD. Is the product in the ad the SAME product? Compare the silhouette and outline first (for a putter or club: the head shape seen from above and the side, its cut-outs and wings), then proportions, colours, finish, logos and printed details. A different angle, light or background is fine. A redesigned or different-shaped product is NOT ok even if the colour and logo match. Be strict: when unsure, say it is not ok.` }];
-  for (const r of refs.slice(0, 3)) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
+async function productCheck(key, model, bytes, refs, name, dna = '') {
+  const content = [{ type: 'text', text: `The first images are REFERENCE photos of the real product${name ? ` ("${name}")` : ''}. The last image is an AD. Is the product in the ad the SAME product? Compare the silhouette and outline first (for a putter or club: the head shape seen from above and the side, its cut-outs and wings), then proportions, colours, finish, logos and printed details. A different angle, light or background is fine. A redesigned or different-shaped product is NOT ok even if the colour and logo match. Be strict: when unsure, say it is not ok.${dna ? `\n\nThe product's fingerprint; check EVERY point against the ad and fail it if any point is wrong:\n${dna}` : ''}` }];
+  for (const r of refs.slice(0, 5)) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
   content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } });
   const res = await fetch(`${OA}/chat/completions`, {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -317,7 +320,7 @@ function cleanSpec(s = {}) {
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
     callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
     art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
-    ref_use: ['copy', 'vibe'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300),
+    ref_use: ['copy', 'vibe'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000),
   };
 }
 
@@ -381,7 +384,7 @@ export async function handlePublic(request, env, url, path, json, CORS) {
     if (!obj) return json({ error: 'not found' }, 404);
     return new Response(obj.body, { headers: { 'Content-Type': rf[2] === 'jpg' ? 'image/jpeg' : `image/${rf[2]}`, 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
   }
-  const m = path.match(/^\/api\/studio\/img\/([a-f0-9]{24})\/(full|plate|final)$/);
+  const m = path.match(/^\/api\/studio\/img\/([a-f0-9]{24})\/(full|plate|final|square|ext)$/);
   if (!m || request.method !== 'GET') return null;
   const row = await getAd(env, m[1]);
   if (!row || !env.MEDIA) return json({ error: 'not found' }, 404);
@@ -659,13 +662,15 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const old = safeJson(base.spec_json, {});
     return stream(CORS, async send => {
       const m = await models(key);
-      const full = new Uint8Array(await (await env.MEDIA.get(keyOf(base, 'full'))).arrayBuffer());
+      const src = (await env.MEDIA.get(keyOf(base, 'square'))) || (await env.MEDIA.get(keyOf(base, 'full')));
+      const full = new Uint8Array(await src.arrayBuffer());
+      const sz = pngSize(full);
       const pairs = [['headline', 'The headline'], ['subline', 'The smaller line'], ['cta', 'The button']]
         .filter(([k]) => (old[k] || '') !== (spec[k] || '')).map(([k, l]) => spec[k] ? `${l} "${old[k] || ''}" now reads "${spec[k]}".` : `${l} "${old[k]}" is removed.`);
       if ((old.callouts || []).join('|') !== (spec.callouts || []).join('|')) pairs.push(`The callouts are now: ${(spec.callouts || []).map(c => `"${c}"`).join(', ') || 'none'}.`);
       const prompt = `This is a finished ad. Change ONLY these words, in exactly the same lettering style, size, colour and position: ${pairs.join(' ') || 'no change'} Spell every word exactly. Keep everything else identical: the picture, the product, the layout and every other word.`;
       send({ type: 'status', text: 'Changing only the words. About 40 seconds.' });
-      const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: base.full_w && base.full_h ? `${base.full_w}x${base.full_h}` : '1024x1280' });
+      const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: `${sz.w || 1024}x${sz.h || 1024}` });
       const ad = await saveAd(env, base.act_id, { bytes: out.bytes, spec: { ...old, ...spec, varied_from: base.id }, prompt, model: m.image, cost: COST.image, parent: base.id, batch_id: clip(body.batch_id, 40) || base.batch_id, line: Number.isInteger(body.line) ? body.line : null });
       send({ type: 'done', ad });
     });
@@ -679,15 +684,71 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row || !ask) return json({ error: 'id and an instruction are required' }, 400);
     return stream(CORS, async send => {
       const m = await models(key);
-      const full = new Uint8Array(await (await env.MEDIA.get(keyOf(row, 'full'))).arrayBuffer());
-      const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colours, and all other words in the same lettering. Keep every word inside the centred square of the 4:5 frame. Spell every word exactly.`;
+      const src = (await env.MEDIA.get(keyOf(row, 'square'))) || (await env.MEDIA.get(keyOf(row, 'full')));
+      const full = new Uint8Array(await src.arrayBuffer());
+      const sz = pngSize(full);
+      const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colours, and all other words in the same lettering. Keep every word inside the frame with a small margin. Spell every word exactly.`;
       send({ type: 'status', text: 'Making the change. About 40 seconds.' });
-      const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: row.full_w && row.full_h ? `${row.full_w}x${row.full_h}` : '1024x1280' });
+      const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: `${sz.w || 1024}x${sz.h || 1024}` });
       const spec = { ...safeJson(row.spec_json, {}), changes: [...(safeJson(row.spec_json, {}).changes || []), ask].slice(-10) };
       const ad = await saveAd(env, row.act_id, { bytes: out.bytes, spec, prompt, model: m.image, cost: COST.image, parent: row.id, batch_id: row.batch_id, line: row.line });
       await env.DB.prepare(`UPDATE p_studio_ad SET status = 'deleted', updated_at = datetime('now') WHERE id = ?1`).bind(row.id).run();
       send({ type: 'done', ad });
     });
+  }
+
+  /* ---- 4:5 with a GUARANTEED 1:1 safe area ----
+     Asking the model to keep words out of the top and bottom tenths did not work (3 of 4 ads broke
+     it). So every ad is made SQUARE (the safe area), then the browser sends the square placed in a
+     4:5 canvas with transparent bands; the model fills only the bands (the transparency is the
+     mask), and the browser puts the original square back on top, feathered. Nothing can land
+     outside the 1:1 area. extend = step 1 (the bands); finalize = step 2 (the composite). */
+  if (path === '/api/studio/extend' && request.method === 'POST') {
+    if (!key) return needKey();
+    const row = await getAd(env, body.id);
+    if (!row || !body.png) return json({ error: 'id and png are required' }, 400);
+    return stream(CORS, async send => {
+      const m = await models(key);
+      const canvas = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
+      const out = await imageCall(key, m.image, { images: [{ buf: canvas, type: 'image/png' }], mask: canvas, fidelity: true, size: '1024x1280', quality: 'medium',
+        prompt: 'Extend this picture upward and downward to fill the transparent areas: continue the same background, surfaces, light and colour grade seamlessly. Add NO text, NO product, NO logos, NO new objects in the new areas. Leave the existing picture exactly as it is.' });
+      await env.MEDIA.put(keyOf(row, 'ext'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.DB.prepare(`UPDATE p_studio_ad SET cost = cost + ?2, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, 0.08).run();
+      send({ type: 'done', ad: shape(await getAd(env, row.id)) });
+    });
+  }
+  if (path === '/api/studio/finalize' && request.method === 'POST') {
+    const row = await getAd(env, body.id);
+    if (!row || !body.png) return json({ error: 'id and png are required' }, 400);
+    const cur = await env.MEDIA.get(keyOf(row, 'full'));
+    if (cur && row.full_w === row.full_h) await env.MEDIA.put(keyOf(row, 'square'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
+    const bytes = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
+    const { w, h } = pngSize(bytes);
+    await env.MEDIA.put(keyOf(row, 'full'), bytes, { httpMetadata: { contentType: 'image/png' } });
+    await env.DB.prepare(`UPDATE p_studio_ad SET full_w = ?2, full_h = ?3, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, w, h).run();
+    return json({ ok: true, ad: shape(await getAd(env, row.id)) });
+  }
+
+  /* ---- the product fingerprint ----
+     The image model kept redesigning complex shapes (a putter head, where the neck sits) while
+     getting colour and logos right. A written, checkable description of the product, made once
+     from all its photos and editable by the team, rides in every prompt and every check. */
+  if (path === '/api/studio/dna' && request.method === 'POST') {
+    if (!key) return needKey();
+    const handle = clip(body.handle, 200), cfgKey = `dna:${act}:${handle}`;
+    if (!body.refresh && !body.text) { const have = await cfgGet(env, cfgKey); if (have) return json({ dna: have }); }
+    if (typeof body.text === 'string') { await cfgSet(env, cfgKey, clip(body.text, 3000)); return json({ dna: clip(body.text, 3000) }); }
+    const imgs = await refImages(env, urls(body.images, 8), 8);
+    if (!imgs.length) return json({ error: 'No product photos.' }, 400);
+    const m = await models(key);
+    const content = [{ type: 'text', text: `These are photos of one real product: "${clip(body.title, 200)}". Write its FINGERPRINT: the exact, checkable facts an illustrator needs to draw it so its owner would say "that is ours". Cover, as short bullet lines: overall silhouette from the top, side and front; every distinctive shape (cut-outs, wings, flanges, curves) and where it sits; how and where parts join (for a club: the neck or hosel type and where the shaft enters the head); proportions; colours and finish per part; every logo, word and mark with its exact position. Only what the photos show. No marketing words.` }];
+    for (const r of imgs) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
+    const res = await fetch(`${OA}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.check || m.vision, messages: [{ role: 'user', content }] }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return json({ error: j.error?.message || 'Could not read the product.' }, 500);
+    const dna = clip((j.choices?.[0]?.message?.content || '').replace(/\u2014/g, ','), 3000);
+    await cfgSet(env, cfgKey, dna);
+    return json({ dna });
   }
 
   return null;

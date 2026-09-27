@@ -24,7 +24,7 @@
 const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 const TESTING = [['concepts', 'Concepts', 'different ideas'], ['headlines', 'Headlines', 'same ad, new words'], ['visuals', 'Looks', 'same words, new looks'], ['offer', 'Offer', 'same ad, offer framing'], ['reviews', 'Reviews', 'same ad, review quote'], ['hooks', 'Hooks', 'the opening line'], ['copy', 'Copy', 'the body words'], ['format', 'Format', 'layout type']];
 const STYLES = [['auto', 'AI picks'], ['bold', 'Bold condensed'], ['clean', 'Clean modern'], ['serif', 'Elegant serif'], ['hand', 'Handwritten'], ['luxe', 'Thin luxe'], ['native', 'Native social']];
-const PER_AD = 0.27;
+const PER_AD = 0.36;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -340,7 +340,9 @@ function batchView(b) {
     <div class="st-g2" style="margin-top:10px">
       <div><b style="font-size:13px">Product</b><div class="hint">The AI draws it from the photos you tick, then checks every ad against them and redoes any that look off.</div>
         ${(su.products || []).map((p, pi) => `<div style="margin-top:8px"><div class="st-bar"><b style="font-size:13px">${esc(p.title)}</b><button class="btn" data-rmprod="${pi}">Remove</button></div>
-          <div class="st-thumbs" style="margin-top:4px">${(p.all || []).map(u => `<button class="t ${(su.images || []).includes(u) ? 'on' : ''}" data-img="${esc(u)}" title="${(su.images || []).includes(u) ? 'Used' : 'Not used'}"><img src="${esc(thumb(u))}" alt=""></button>`).join('')}</div></div>`).join('')}
+          <div class="st-thumbs" style="margin-top:4px">${(p.all || []).map(u => `<button class="t ${(su.images || []).includes(u) ? 'on' : ''}" data-img="${esc(u)}" title="${(su.images || []).includes(u) ? 'Used' : 'Not used'}"><img src="${esc(thumb(u))}" alt=""></button>`).join('')}</div>
+          <label class="st-f" style="margin-top:8px">Product fingerprint<small>what makes it ours; the AI must match every line. Fix anything wrong.</small>${p.dna == null ? '<span class="st-busy" style="display:flex;margin-top:6px"><span class="st-spin"></span>Reading the product photos…</span>' : `<textarea class="st-in" data-dna="${pi}" rows="5">${esc(p.dna)}</textarea>`}</label>
+          <button class="btn" data-redna="${pi}" style="margin-top:6px">Read the photos again</button></div>`).join('')}
         <button class="btn" id="bProd" style="margin-top:8px" ${(su.products || []).length >= 4 ? 'disabled' : ''}>${(su.products || []).length ? 'Add another product' : 'Choose the product'}</button></div>
       <div><b style="font-size:13px">Swipe file</b><div class="hint">Ads you like, for range and ideas. Nothing gets copied; the art director picks styles from it. Up to 12. Drop, click, or paste a screenshot.</div>
         <div class="st-thumbs" style="margin-top:8px">${(su.swipe || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(u)}" alt=""><span class="st-x" data-rmsw="${k}" role="button" aria-label="Remove">×</span></button>`).join('')}${(su.swipe || []).length < 12 ? '<button class="st-add" id="bSwipe">Add images</button>' : ''}</div></div>
@@ -411,6 +413,11 @@ function wireBatch() {
   main.ondrop = e => { e.preventDefault(); const f = [...e.dataTransfer.files]; if (f.length) upload(f, { swipe: true }); };
   $('#bProd').onclick = pickProduct;
   document.querySelectorAll('[data-img]').forEach(el => el.onclick = () => { const u = el.dataset.img; su.images = su.images.includes(u) ? su.images.filter(x => x !== u) : [...su.images, u].slice(-8); queueSave(); paint(); });
+  document.querySelectorAll('[data-dna]').forEach(el => el.oninput = () => {
+    const p = su.products[+el.dataset.dna]; p.dna = el.value;
+    clearTimeout(el._t); el._t = setTimeout(() => post('/api/studio/dna', { handle: p.handle, text: p.dna }).catch(() => {}), 800); queueSave();
+  });
+  document.querySelectorAll('[data-redna]').forEach(el => el.onclick = () => fingerprint(su.products[+el.dataset.redna], true));
   document.querySelectorAll('[data-rmprod]').forEach(el => el.onclick = () => { const p = su.products.splice(+el.dataset.rmprod, 1)[0]; su.images = su.images.filter(u => !(p.all || []).includes(u)); queueSave(); paint(); });
   $('#bPlan').onclick = planAds;
   document.querySelectorAll('[data-pf]').forEach(el => { const h = () => {
@@ -457,14 +464,23 @@ async function pickProduct() {
       w.querySelector('#pg').innerHTML = list.map(p => `<button data-p="${S.products.indexOf(p)}"><img src="${esc(thumb(p.images[0]))}" alt="" loading="lazy"><span>${esc(p.title)}</span></button>`).join('') || '<p class="hint">No products match.</p>';
       w.querySelectorAll('[data-p]').forEach(bt => bt.onclick = async () => {
         const p = S.products[+bt.dataset.p];
-        su.products.push({ title: p.title, handle: p.handle, all: p.images });
-        su.images = [...su.images, ...p.images.slice(0, su.products.length > 1 ? 1 : 3)].slice(0, 8);
+        const prod = { title: p.title, handle: p.handle, all: p.images, dna: null };
+        su.products.push(prod);
+        su.images = [...su.images, ...p.images.slice(0, su.products.length > 1 ? 2 : 6)].slice(0, 8);
         ctl.close(true); await saveCur(); paint();
+        fingerprint(prod);
       });
     };
     w.querySelector('#pq').oninput = e => { S.prodQ = e.target.value; draw(); };
     draw();
   } });
+}
+/* The product fingerprint: made once per product from its photos, editable, reused by every batch. */
+async function fingerprint(p, refresh = false) {
+  p.dna = null; paint();
+  try { const r = await post('/api/studio/dna', { handle: p.handle, title: p.title, images: p.all.slice(0, 8), refresh }); p.dna = r.dna || ''; }
+  catch (e) { p.dna = ''; S.err = `Product fingerprint: ${e.message}`; }
+  await saveCur(); paint();
 }
 async function planAds() {
   const b = S.cur, br = b.brief, su = b.setup;
@@ -473,17 +489,40 @@ async function planAds() {
   try {
     await saveCur();
     br.lines = br.lines.filter(l => (l.text || '').trim());
-    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), swipe: su.swipe });
+    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe });
     b.plan = { ads: r.ads, variation: r.variation }; b.status = 'planned';
     await saveCur();
   } catch (e) { S.err = `Planning: ${e.message}`; }
   S.busy = ''; paint();
 }
+/* 4:5 with a guaranteed 1:1 safe area: every ad is made square, then placed in a 4:5 canvas with
+   transparent bands that the model fills with background only, and the original square goes back
+   on top, feathered. See /api/studio/extend. */
+async function extend(ad) {
+  if (!ad || ad.full_w !== ad.full_h) return ad;
+  const sq = await loadImg(img(ad, 'full'));
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 1280;
+  c.getContext('2d').drawImage(sq, 0, 128, 1024, 1024);
+  const r = await streamCall(S.url, '/api/studio/extend', { id: ad.id, png: c.toDataURL('image/png') });
+  const ext = await loadImg(img(r.ad, 'ext'));
+  const out = document.createElement('canvas'); out.width = 1024; out.height = 1280;
+  const x = out.getContext('2d'); x.drawImage(ext, 0, 0, 1024, 1280);
+  const t = document.createElement('canvas'); t.width = 1024; t.height = 1280;
+  const tx = t.getContext('2d'); tx.drawImage(sq, 0, 128, 1024, 1024);
+  const g = tx.createLinearGradient(0, 128, 0, 1152), f = 24 / 1024;
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(f, '#000'); g.addColorStop(1 - f, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  tx.globalCompositeOperation = 'destination-in'; tx.fillStyle = g; tx.fillRect(0, 128, 1024, 1024);
+  x.drawImage(t, 0, 0);
+  const fin = await post('/api/studio/finalize', { id: ad.id, png: out.toDataURL('image/png') });
+  const i = S.d.ads.findIndex(a => a.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad; else S.d.ads.unshift(fin.ad);
+  return fin.ad;
+}
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => rej(new Error('Could not load the image.')); i.src = src; });
 function specOf(b, a) {
   const su = b.setup, ref = a.ref_url && a.ref_use !== 'none' ? [a.ref_url] : [];
   return { products: su.products.map(p => ({ title: p.title, handle: p.handle })), images: su.images.slice(), inspo: ref, ref_use: a.ref_use,
     headline: a.headline, subline: a.subline, callouts: a.callouts || [], cta: a.cta, art: a.art || '', look: a.look, style: a.style || 'auto', note: a.note,
-    who: b.brief.why || '' };
+    who: b.brief.why || '', dna: su.products.map(p => p.dna ? `${p.title}:\n${p.dna}` : '').filter(Boolean).join('\n\n') };
 }
 async function makeBatch() {
   const b = S.cur, plan = b.plan;
@@ -495,14 +534,16 @@ async function makeBatch() {
   const one = async i => {
     try {
       const r = await streamCall(S.url, '/api/studio/make', { spec: specOf(b, plan.ads[i]), n: 1, batch_id: b.id, line: i }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); });
-      done++; tick(); return r.ads?.[0];
+      const ad = r.ads?.[0];
+      await extend(ad).catch(e => { S.err = `4:5: ${e.message}`; });
+      done++; tick(); return ad;
     } catch (e) { failed++; S.err = e.message; tick(); return null; }
   };
   tick();
   if (plan.variation) {
     const base = await one(0);
     if (base) for (let i = 1; i < total; i++) {
-      try { const r = await streamCall(S.url, '/api/studio/vary', { base_id: base.id, spec: specOf(b, plan.ads[i]), batch_id: b.id, line: i }); S.d.ads.unshift(r.ad); done++; }
+      try { const r = await streamCall(S.url, '/api/studio/vary', { base_id: base.id, spec: specOf(b, plan.ads[i]), batch_id: b.id, line: i }); S.d.ads.unshift(r.ad); await extend(r.ad).catch(e => { S.err = `4:5: ${e.message}`; }); done++; }
       catch (e) { failed++; S.err = e.message; }
       tick();
     }
@@ -532,9 +573,10 @@ async function redo(a) {
   try {
     if (a.spec?.varied_from) {
       const r = await streamCall(S.url, '/api/studio/vary', { base_id: a.spec.varied_from, spec: a.spec, batch_id: a.batch_id, line: a.line });
-      S.d.ads.unshift(r.ad);
+      S.d.ads.unshift(r.ad); await extend(r.ad);
     } else {
-      await streamCall(S.url, '/api/studio/make', { spec: a.spec, n: 1, parent_id: a.id, batch_id: a.batch_id, line: a.line }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); });
+      const r = await streamCall(S.url, '/api/studio/make', { spec: a.spec, n: 1, parent_id: a.id, batch_id: a.batch_id, line: a.line }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); });
+      await extend(r.ads?.[0]);
     }
     await post('/api/studio/status', { id: a.id, status: 'deleted' });
   } catch (e) { S.err = e.message; }
@@ -547,7 +589,7 @@ function change(a) {
     const t = w.querySelector('#chIn').value.trim(); if (!t) throw new Error('Say what to change.');
     ctl.msg('Making the change. About 40 seconds.', true);
     const r = await streamCall(S.url, '/api/studio/change', { id: a.id, instruction: t });
-    S.d.ads.unshift(r.ad); const old = S.d.ads.find(x => x.id === a.id); if (old) old.status = 'deleted';
+    S.d.ads.unshift(r.ad); ctl.msg('Fitting it to 4:5…', true); await extend(r.ad).catch(() => {}); const old = S.d.ads.find(x => x.id === a.id); if (old) old.status = 'deleted';
     ctl.close(true); paint();
   }) });
 }
