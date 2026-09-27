@@ -254,14 +254,19 @@ function canvaSetup() {
       <li><b>Configuration</b>: copy the <b>Client ID</b>, click <b>Generate secret</b>, and paste both here.</li>
     </ol>
     <div class="st-g2" style="margin-top:10px"><label class="st-f">Client ID<input class="st-in" id="cvId" autocomplete="off" placeholder="OC-..."></label><label class="st-f">Client secret<input class="st-in" id="cvSecret" type="password" autocomplete="off"></label></div>
-    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" id="cvSave">Save the app</button><button class="btn primary" id="cvGo" ${c.configured ? '' : 'disabled'}>Connect Canva</button>${c.configured ? '<button class="btn" id="cvOff">Disconnect</button>' : ''}</div>`,
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" id="cvSave">Save the app</button><button class="btn primary" id="cvGo">Connect Canva</button>${c.configured ? '<button class="btn" id="cvOff">Disconnect</button>' : ''}</div>`,
   { cta: null, onOpen: (w, ctl) => {
     w.querySelector('#cvSave').onclick = async () => {
       try { await post('/api/studio/canva/setup', { client_id: w.querySelector('#cvId').value, client_secret: w.querySelector('#cvSecret').value }); S.d.canva = { configured: true, connected: false }; w.querySelector('#cvGo').disabled = false; ctl.msg('Saved. Now click Connect Canva.', true); }
       catch (e) { ctl.msg(e.message); }
     };
     w.querySelector('#cvGo').onclick = async () => {
-      try { const r = await api(`/api/studio/canva/start?act=${encodeURIComponent(S.act)}`); window.open(r.url, '_blank', 'noopener'); ctl.msg('Finish signing in to Canva in the new tab, then refresh this page.', true); }
+      try {
+        /* One button: if the ID and secret are typed in, save them first. */
+        const id = w.querySelector('#cvId').value.trim(), sec = w.querySelector('#cvSecret').value.trim();
+        if (id && sec) { await post('/api/studio/canva/setup', { client_id: id, client_secret: sec }); S.d.canva = { configured: true, connected: false }; }
+        else if (!S.d.canva?.configured) throw new Error('Paste the Client ID and the Client secret first.');
+        const r = await api(`/api/studio/canva/start?act=${encodeURIComponent(S.act)}`); window.open(r.url, '_blank', 'noopener'); ctl.msg('Finish signing in to Canva in the new tab, then refresh this page.', true); }
       catch (e) { ctl.msg(e.message); }
     };
     const off = w.querySelector('#cvOff');
