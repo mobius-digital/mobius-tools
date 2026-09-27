@@ -92,7 +92,7 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 .st-msg{font-size:12.5px;color:var(--muted);margin:0}
 .st-msg.ok{color:var(--good)}.st-msg.bad{color:var(--bad)}
 .st-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;align-items:start}
-@media (max-width:980px){.st-layout{grid-template-columns:1fr}}
+@media (max-width:980px){.st-layout{grid-template-columns:1fr}.st-list{max-height:190px}}
 .st-list{display:flex;flex-direction:column;gap:4px;max-height:75vh;overflow:auto}
 .st-li{font:inherit;text-align:left;border:1px solid transparent;border-radius:9px;background:transparent;padding:8px 10px;cursor:pointer;color:var(--ink);display:grid;gap:2px}
 .st-li:hover{background:var(--brand-tint)}
@@ -138,6 +138,15 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 @media (prefers-reduced-motion:reduce){.st-spin{animation:none}}
 .st-zoom{position:fixed;inset:0;z-index:70;background:rgba(6,13,18,.85);display:grid;place-items:center;padding:20px;cursor:zoom-out}
 .st-zoom img{max-height:92vh;max-width:92vw;object-fit:contain;border-radius:6px}
+.st-pick{max-height:52vh;overflow:auto;display:grid;gap:6px;padding:2px}
+.st-pick label{display:grid;grid-template-columns:20px 48px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13.5px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;text-align:left;margin:0;width:auto;font-weight:500;color:var(--ink)}
+.st-pick label:hover{border-color:var(--brand-line);background:var(--brand-tint)}
+.st-pick label:has(input:checked){border-color:var(--brand-ink);background:var(--brand-tint)}
+.st-pick input[type=checkbox]{width:18px;height:18px;margin:0;padding:0;flex:none;accent-color:var(--brand-ink)}
+.st-pick .num{font-weight:700;color:var(--brand-ink);font-variant-numeric:tabular-nums}
+.st-pick .ttl{font-weight:600;line-height:1.3}
+.st-pick .tiny{white-space:nowrap}
+@media (max-width:520px){.st-pick label{grid-template-columns:20px 42px minmax(0,1fr)}.st-pick .tiny{display:none}}
 .st-ol{margin:6px 0 0;padding-left:20px;display:grid;gap:6px;font-size:13.5px}
 .st-code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(--brand-tint);padding:2px 6px;border-radius:5px;word-break:break-all}
 `;
@@ -274,7 +283,7 @@ async function newBatch(mode = null) {
   modal('New batch', `
     <div class="st-chips" style="margin-bottom:10px"><button class="st-chip ${paste ? '' : 'on'}" data-tab="asana">From Asana</button><button class="st-chip ${paste ? 'on' : ''}" data-tab="paste">Paste</button></div>
     <div data-pane="asana" ${paste ? 'hidden' : ''}>${asana.length ? `<p class="hint" style="margin:0 0 8px">Open tests in Asana. Tick one or more; Locus opens each brief doc and lays it out.</p>
-      <div style="max-height:46vh;overflow:auto;display:grid;gap:4px">${asana.map(a => `<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px;border:1px solid var(--line);border-radius:8px"><input type="checkbox" value="${esc(a.id)}"><b>#${esc(a.num)}</b> ${esc(a.title || '')}${a.has_brief ? '' : ' <span class="tiny">(no brief yet)</span>'}</label>`).join('')}</div>`
+      <div class="st-pick">${asana.map(a => `<label><input type="checkbox" value="${esc(a.id)}"><span class="num">#${esc(a.num)}</span><span class="ttl">${esc(a.title || '')}</span><span class="tiny">${a.has_brief ? (a.stage === 'production' ? 'In Studio' : 'Brief') : 'No brief yet'}</span></label>`).join('')}</div>`
       : '<p class="hint">No open Asana tests for this brand yet.</p>'}</div>
     <div data-pane="paste" ${paste ? '' : 'hidden'}><p class="hint" style="margin:0 0 8px">Paste one brief (Angle, Testing, 1-2-3) or a whole plan in any format, text or CSV. A plan with many angles becomes many batches.</p>
       <textarea class="st-in" id="nbText" rows="12" placeholder="ANGLE: The gift that actually fixes their game&#10;TESTING: concepts&#10;1. Unboxing the Carver on Christmas morning&#10;2. Before and after: chunked chip vs clean chip&#10;3. 'Stop buying him socks' in bold type"></textarea></div>`,
