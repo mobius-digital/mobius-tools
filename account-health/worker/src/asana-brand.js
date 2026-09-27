@@ -247,19 +247,45 @@ async function connect(env, act, projectGid) {
 /* ---------------- 1. SYNC ---------------- */
 const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,permalink_url,assignee.gid,assignee.name,memberships.project.gid,memberships.section.name,custom_fields.gid,custom_fields.name,custom_fields.display_value,custom_fields.text_value,custom_fields.enum_value.gid,custom_fields.date_value';
 /* The brief, in the framework's shape. Dropped into a brand-new task in Creative Brief
-   that has nothing written yet, so nobody has to find the template. */
-const BRIEF_TEMPLATE = `<body><h2>The test</h2><strong>Angle:</strong> one sentence, the reason to buy. Pick one from the Locus library, or leave it and Locus fills it.
-<strong>Why:</strong> what we believe about the customer that makes this work.
-<strong>Testing:</strong> new angle (3 concepts, 1 ad each), new concepts on a proven angle, or inside a proven concept (name the ONE piece that changes: headline, hook, person on screen, edit style, redesign or review).
-<strong>Concept:</strong> only when testing inside a proven concept: which concept, and the test it came from.
-<h2>The ads</h2><ol><li>Ad 1: one line the designer or editor can build from.</li><li>Ad 2:</li><li>Ad 3:</li></ol>Files and ads are named with the test number first: 348-1, 348-2, 348-3.
-<h2>Format</h2>Static 4:5, or video 9:16 and length. For video: hooks, script, b-roll and editor notes.
-<h2>Ad copy</h2><strong>Primary text:</strong>
+   that has nothing written yet, so nobody has to find the template. The same layout
+   lives in each project's Asana task templates ("Static Ad Template", "UGC/Video
+   Template"); Asana's API cannot write those, so they were set by hand 2026-09-27.
+   Keep the two in step. Labels only, no instructions to delete: one grey hint per section. */
+const BRIEF_PARTS = {
+  test: `<h2>🎯 The test</h2><strong>Angle:</strong>
+<strong>Why it works:</strong>
+<strong>Testing:</strong>
+<em>New angle, new concepts on a winning angle, or one change inside a winning concept (say which concept and what changes).</em>`,
+  ads: hint => `<h2>🧩 The ads</h2><em>One line each${hint}. Files are named with the test number: 348-1, 348-2, 348-3.</em>
+<strong>Ad 1:</strong>
+<strong>Ad 2:</strong>
+<strong>Ad 3:</strong> `,
+  copy: `<h2>✍️ Copy</h2><strong>Primary text:</strong>
 <strong>Headline:</strong>
 <strong>Offer:</strong> none
-<strong>Landing page:</strong>
-<h2>Inspo</h2>Attach images or paste links.
-<h2>Assets</h2>Frame.io link:</body>`;
+<strong>Landing page:</strong> `,
+  files: `<h2>📎 Files</h2><strong>Inspo:</strong>
+<strong>Frame.io:</strong> `,
+};
+const BRIEF_STATIC = `<body><em>Static · 4:5, plus a 9:16 crop</em>
+${BRIEF_PARTS.test}
+${BRIEF_PARTS.ads(' the designer can build from')}
+${BRIEF_PARTS.copy}
+${BRIEF_PARTS.files}</body>`;
+const BRIEF_VIDEO = `<body><em>Video · 9:16</em>
+${BRIEF_PARTS.test}
+${BRIEF_PARTS.ads(' the editor can build from')}
+<h2>🎬 The video</h2><strong>Creator:</strong>
+<strong>Length:</strong>
+<strong>Hook 1:</strong>
+<strong>Hook 2:</strong>
+<strong>Hook 3:</strong>
+<strong>Script:</strong>
+<strong>B-roll:</strong>
+<strong>Editor notes:</strong>
+${BRIEF_PARTS.copy}
+${BRIEF_PARTS.files}</body>`;
+const briefFor = name => /\b(ugc|video|vid|reel|creator)\b/i.test(name || '') ? BRIEF_VIDEO : BRIEF_STATIC;
 const sectionOf = (t, doc) => t.memberships?.find(m => m.project?.gid === doc.project_gid)?.section?.name || '';
 
 async function syncTasks(env, act, doc, { full = false } = {}) {
@@ -284,7 +310,7 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
   for (const t of tasks) {
     if (t.completed || templated.has(t.gid) || stageOf(sectionOf(t, doc)) !== 'idea') continue;
     if (String(t.notes || '').trim().length > 3 || Date.now() - Date.parse(t.created_at || 0) > 3 * 864e5) continue;
-    try { await asana(env, `/tasks/${t.gid}`, { method: 'PUT', body: { html_notes: BRIEF_TEMPLATE } }); templated.add(t.gid); } catch { /* next hour */ }
+    try { await asana(env, `/tasks/${t.gid}`, { method: 'PUT', body: { html_notes: briefFor(t.name) } }); templated.add(t.gid); } catch { /* next hour */ }
   }
   doc.templated = [...templated].slice(-300);
 
