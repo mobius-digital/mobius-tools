@@ -256,7 +256,7 @@ const BRIEF_PARTS = {
 <strong>Why it works:</strong>
 <strong>Testing:</strong>
 <em>New angle, new concepts on a winning angle, or one change inside a winning concept (say which concept and what changes).</em>`,
-  ads: hint => `<h2>The ads</h2><em>One line each${hint}. Files are named with the test number: 348-1, 348-2, 348-3.</em>
+  ads: hint => `<h2>The ads</h2><em>One line per ad${hint}. Files are named with the test number: 348-1, 348-2, 348-3.</em>
 <strong>Ad 1:</strong>
 <strong>Ad 2:</strong>
 <strong>Ad 3:</strong> `,
@@ -269,12 +269,12 @@ const BRIEF_PARTS = {
 };
 const BRIEF_STATIC = `<body><em>Static · 4:5, plus a 9:16 crop</em>
 ${BRIEF_PARTS.test}
-${BRIEF_PARTS.ads(' the designer can build from')}
+${BRIEF_PARTS.ads(', enough for the designer to build it')}
 ${BRIEF_PARTS.copy}
 ${BRIEF_PARTS.files}</body>`;
 const BRIEF_VIDEO = `<body><em>Video · 9:16</em>
 ${BRIEF_PARTS.test}
-${BRIEF_PARTS.ads(' the editor can build from')}
+${BRIEF_PARTS.ads(', enough for the editor to build it')}
 <h2>The video</h2><strong>Creator:</strong>
 <strong>Length:</strong>
 <strong>Hook 1:</strong>
