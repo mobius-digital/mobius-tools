@@ -125,11 +125,7 @@ RULES:
 Angle: ${clip(bt.angle, 600)}
 Why: ${clip(bt.why, 600)}
 ${bt.concept ? `Concept: ${clip(bt.concept, 600)}\n` : ''}Testing: ${bt.testing || 'concepts'}
-Products: ${products.join(', ') || '(none picked)'}${dnas.length ? `
-Product fingerprint (the product must match this exactly in every ad):
-${dnas.join('
-
-')}` : ''}
+Products: ${products.join(', ') || '(none picked)'}${dnas.length ? `\nProduct fingerprint (the product must match this exactly in every ad):\n${dnas.join('\n\n')}` : ''}
 Lines:
 ${lines.map((l, i) => `${i + 1}. ${clip(l.text, 1200)}${(l.inspo || []).length ? ' [has its own inspiration above]' : ''}`).join('\n')}
 
