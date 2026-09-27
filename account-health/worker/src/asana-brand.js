@@ -946,4 +946,4 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     return json({ error: e.message }, e.status && e.status < 600 ? e.status : 500);
   }
 }
-export { readDoc };
+export { readDoc, asana };

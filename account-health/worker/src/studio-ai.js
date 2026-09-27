@@ -15,7 +15,7 @@
  */
 import { claude, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { getSkill, skillSystem } from './skill.js';
-import { readDoc } from './asana-brand.js';
+import { readDoc, asana } from './asana-brand.js';
 
 const STR = { type: 'string' }, ARR = { type: 'array', items: STR };
 const obj = p => ({ type: 'object', additionalProperties: false, required: Object.keys(p), properties: p });
@@ -166,6 +166,19 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
     });
     return { ads, variation, exact };
   });
+
+  /* ---- tell the batch's Asana task the ads are ready (after Send to Canva) ---- */
+  if (path === '/api/studio-ai/asana-note') {
+    const r = b.br_batch_id && await env.DB.prepare(`SELECT asana_gid, num FROM p_br_batch WHERE id = ?1 AND act_id = ?2`).bind(b.br_batch_id, A).first();
+    if (!r?.asana_gid) return json({ ok: false, reason: 'This batch is not linked to an Asana task.' });
+    const links = (Array.isArray(b.designs) ? b.designs : []).slice(0, 30);
+    const esc = t => String(t || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const html = `<body><strong>Locus Studio: ${links.length} ad${links.length === 1 ? '' : 's'} ready for batch ${esc(r.num)}.</strong>
+${b.folder_url ? `<a href="${esc(b.folder_url)}">Open the Canva folder</a>
+` : ''}<ul>${links.map((d, i) => `<li><a href="${esc(d.edit_url)}">${esc(d.name || `Ad ${i + 1}`)}</a></li>`).join('')}</ul></body>`;
+    await asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { html_text: html } });
+    return json({ ok: true });
+  }
 
   return json({ error: 'not found' }, 404);
 }

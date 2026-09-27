@@ -38,6 +38,10 @@ async function api(path, opts = {}) {
   return j;
 }
 const post = (p, b) => api(p, { method: 'POST', body: JSON.stringify({ act: S.act, ...b }) });
+async function streamCallJson(base, path, body) {
+  const res = await fetch(base.replace(/\/+$/, '') + path, { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: S.act, ...body }) });
+  const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status)); return j;
+}
 async function streamCall(base, path, body, onLine = () => {}) {
   const res = await fetch(base.replace(/\/+$/, '') + path, { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: S.act, ...body }) });
   if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || ('HTTP ' + res.status)); }
@@ -750,7 +754,14 @@ async function sendCanva(b) {
   try {
     const r = await streamCall(S.url, '/api/studio/canva/send', { ids: list.map(a => a.id), batch_id: b.id, folder: `${S.d.account?.name || ''} · ${b.num ? `Batch ${b.num} · ` : ''}${b.name || 'Studio'}` }, o => { if (o.type === 'status') { S.making = o.text; paint(); } });
     S.making = ''; paint();
-    modal('Sent to Canva', `<p class="hint" style="margin:0 0 8px">${r.designs.length} design${r.designs.length === 1 ? '' : 's'} in Canva under Locus Studio, ${esc(S.d.account?.name || '')}, ${esc(b.num ? b.num + ' · ' : '')}${esc(b.name || '')}${approved.length ? ' (the approved ones)' : ''}. In Canva, use <b>Edit photo, Grab Text</b> to turn the words into text boxes, or <b>Magic Grab</b> to move the product.</p>
+    /* Close the loop: the batch's Asana task gets the Canva links (only batches made from Asana). */
+    let asanaNote = '';
+    if (b.br_batch_id) {
+      const names = list.map(x => `${b.num ? `${b.num}-${(x.line ?? 0) + 1}` : 'Ad'} · ${x.spec?.headline || ''}`);
+      const n = await streamCallJson(AH_URL, '/api/studio-ai/asana-note', { br_batch_id: b.br_batch_id, folder_url: r.folder_url, designs: r.designs.map((d, i) => ({ edit_url: d.edit_url, name: names[i] })) }).catch(() => null);
+      asanaNote = n?.ok ? ' The links are posted on its Asana task.' : '';
+    }
+    modal('Sent to Canva', `<p class="hint" style="margin:0 0 8px">${r.designs.length} design${r.designs.length === 1 ? '' : 's'} in Canva under Locus Studio, ${esc(S.d.account?.name || '')}, ${esc(b.num ? b.num + ' · ' : '')}${esc(b.name || '')}.${asanaNote}${approved.length ? ' (the approved ones)' : ''}. In Canva, use <b>Edit photo, Grab Text</b> to turn the words into text boxes, or <b>Magic Grab</b> to move the product.</p>
       ${r.folder_url ? `<p><a class="btn primary" href="${esc(r.folder_url)}" target="_blank" rel="noopener">Open the folder in Canva</a></p>` : ''}
       <div style="display:grid;gap:4px">${r.designs.map((d, i) => `<a href="${esc(d.edit_url)}" target="_blank" rel="noopener">Design ${i + 1}</a>`).join('')}</div>`, { cta: null });
   } catch (e) { S.making = ''; S.err = e.message; paint(); }

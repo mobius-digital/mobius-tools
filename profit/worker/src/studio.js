@@ -271,23 +271,14 @@ async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts
   const prompt = adPrompt(spec, brand, k, n, counts);
   let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: '1024x1024' });
   let cost = COST.image, check = null;
-  /* Cole's rule: the product must look exactly like the product. Each attempt is scored against the
-     real photos and the fingerprint; up to three attempts, the best one is kept and its score shown. */
+  /* One image per ad, no automatic retries (Cole: retries waste credits). The product is scored
+     0-10 against the real photos (about 1 cent) and the score is shown on the card; a low score is
+     the team's cue to press Redo. */
   const prodRefs = refs.slice(0, counts.prod || 0);
   if (prodRefs.length) {
     check = await productCheck(key, m.check || m.vision, out.bytes, prodRefs, spec.product, spec.dna).catch(() => null);
     cost += COST.vision;
-    for (let tryN = 2; tryN <= 3 && check && !(check.ok && check.score >= 8); tryN++) {
-      const again = await imageCall(key, m.image, { prompt: `${prompt}
-
-IMPORTANT: a previous attempt got the product wrong (${check.issue}). Copy the product from the photos exactly: the same silhouette and shape, proportions, colours, finish, surface texture and every logo in its exact position. Do not redesign it.`, images: refs, fidelity: true, size: '1024x1024' }).catch(() => null);
-      cost += COST.image;
-      if (!again) break;
-      const c2 = await productCheck(key, m.check || m.vision, again.bytes, prodRefs, spec.product, spec.dna).catch(() => null);
-      cost += COST.vision;
-      if (c2 && (c2.score ?? 0) > (check.score ?? 0)) { out = again; check = { ...c2, tries: tryN }; }
-      else check = { ...check, tries: tryN };
-    }
+    if (check) check.ok = check.ok && (check.score ?? 10) >= 7;
   }
   return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check, parent, ...where });
 }
