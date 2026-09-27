@@ -25,7 +25,7 @@ import { buildStrategist } from './strategist.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
-import { handleBrandAsana, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
+import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -5804,6 +5804,9 @@ const AH_APP = {
        Slack signs the request. Subscribe the app to app_mention and
        message.im with this URL as the Events Request URL. */
     if (path === '/slack/events' && request.method === 'POST') return handleSlackEvent(request, env, ctx);
+    /* ASANA WEBHOOKS. Unauthenticated by design: Asana signs each call with the
+       secret from the handshake, and handleAsanaHook checks it. */
+    if (path === '/asana/hook' && request.method === 'POST') return handleAsanaHook(request, env, ctx);
     /* The router asks which channels are the Strategist's: a brand's INTERNAL
        team channel, as registered on its account. A boolean, nothing else. */
     if (path === '/slack/owns') {

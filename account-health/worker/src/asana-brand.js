@@ -238,7 +238,7 @@ async function connect(env, act, projectGid) {
     if (!project) throw Object.assign(new Error(`No Asana project called "${acct.name}". Pick it by hand.`), { status: 404, projects: all.map(p => ({ gid: p.gid, name: p.name })) });
   }
   const prev = (await getDoc(env, act, 'asana')) || {};
-  const doc = { ...prev, project_gid: project.gid, project_name: project.name, url: project.permalink_url, workspace: ws.gid, connected_at: prev.connected_at || new Date().toISOString(), as: me.name, fields_version: prev.project_gid === project.gid ? prev.fields_version : null };
+  const doc = { ...prev, project_gid: project.gid, project_name: project.name, url: project.permalink_url, workspace: ws.gid, connected_at: prev.connected_at || new Date().toISOString(), as: me.name, fields_version: prev.project_gid === project.gid ? prev.fields_version : null, hook_gid: prev.project_gid === project.gid ? prev.hook_gid : null };
   await ensureProjectFields(env, doc);
   await putDoc(env, act, 'asana', doc);
   return doc;
@@ -753,7 +753,9 @@ export async function brandAsanaTick(env, canAfford = () => true) {
     if (!doc.project_gid || doc.paused) continue;
     if (!canAfford(30)) { out[d.act_id] = 'deferred'; continue; }
     try {
+      const hooked = await ensureHook(env, d.act_id, doc).catch(e => `hook: ${e.message}`);
       const s = await syncTasks(env, d.act_id, doc);
+      if (hooked) s.hook = hooked;
       const t = await tagPass(env, d.act_id, { limit: 8 });
       const r = await resultsPass(env, d.act_id, { limit: 4 });
       out[d.act_id] = { sync: s, tagged: t.tagged, results: r.posted };
@@ -931,6 +933,75 @@ export async function onboardAsanaTick(env, canAfford = () => true) {
   return out;
 }
 
+/* ---------------- 7. INSTANT (Asana webhooks, 2026-09-27) ----------------
+   Cole: "is it possible to make it instant when things are done in Asana?" Each
+   connected project has one webhook pointing here. Any task event runs the same
+   syncTasks the hourly tick runs (numbering, the brief layout, the library), so a
+   new task is numbered and briefed within seconds. The hourly tick stays as the
+   net for anything a webhook drops. No AI runs on this path: tagging and results
+   stay on the hourly tick, which only spends when there is new work. */
+const HOOK_URL = 'https://mobius-account-health.mobius-digital.workers.dev/asana/hook';
+
+async function hmacHex(secret, body) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(body)))].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+function sameHex(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
+/** One webhook per connected project; re-made if Asana dropped it. */
+async function ensureHook(env, act, doc) {
+  if (doc.hook_gid) {
+    const w = await asana(env, `/webhooks/${doc.hook_gid}?opt_fields=active`).catch(e => (e.status === 404 ? null : { active: true }));
+    if (w?.active) return false;
+    if (w) await asana(env, `/webhooks/${doc.hook_gid}`, { method: 'DELETE' }).catch(() => {});
+  }
+  /* The handshake is only accepted while we are asking for it, so nobody else can
+     swap the secret. */
+  await putSetting(env, `asanaHookOpen_${act}`, Date.now());
+  const w = await asana(env, '/webhooks', { method: 'POST', body: { resource: doc.project_gid, target: `${HOOK_URL}?act=${act}`, filters: [{ resource_type: 'task', action: 'added' }, { resource_type: 'task', action: 'changed' }] } });
+  doc.hook_gid = w.gid;
+  await putDoc(env, act, 'asana', { ...(await getDoc(env, act, 'asana')), hook_gid: w.gid });
+  return true;
+}
+
+/* One run per brand at a time. Events that land mid-run ask for one more pass. */
+async function hookRun(env, act) {
+  const key = `asanaHookRun_${act}`;
+  const st = (await getSetting(env, key)) || {};
+  if (st.running && Date.now() - st.running < 90e3) { await putSetting(env, key, { ...st, again: true }); return; }
+  for (let i = 0; i < 3; i++) {
+    await putSetting(env, key, { running: Date.now() });
+    const doc = await getDoc(env, act, 'asana');
+    if (!doc?.project_gid || doc.paused) break;
+    await syncTasks(env, act, doc);
+    if (!((await getSetting(env, key)) || {}).again) break;
+  }
+  await putSetting(env, key, {});
+}
+
+export async function handleAsanaHook(request, env, ctx) {
+  const act = new URL(request.url).searchParams.get('act') || '';
+  if (!/^act_\d+$/.test(act)) return new Response('bad act', { status: 400 });
+  const hs = request.headers.get('X-Hook-Secret');
+  if (hs) {
+    const open = await getSetting(env, `asanaHookOpen_${act}`);
+    if (!open || Date.now() - open > 120e3) return new Response('not expecting a handshake', { status: 403 });
+    await putSetting(env, `asanaHook_${act}`, hs);
+    await putSetting(env, `asanaHookOpen_${act}`, 0);
+    return new Response('', { status: 200, headers: { 'X-Hook-Secret': hs } });
+  }
+  const body = await request.text();
+  const secret = await getSetting(env, `asanaHook_${act}`);
+  if (!secret || !sameHex(await hmacHex(secret, body), request.headers.get('X-Hook-Signature') || '')) return new Response('bad signature', { status: 401 });
+  const events = safeJson(body, {}).events || [];
+  if (events.some(e => e.resource?.resource_type === 'task')) ctx.waitUntil(hookRun(env, act).catch(() => {}));
+  return new Response('', { status: 200 });
+}
+
 /* ---------------- routes (admin) ---------------- */
 export async function handleBrandAsana(request, env, path, json, isAdmin) {
   if (!path.startsWith('/api/brand-asana')) return null;
@@ -960,6 +1031,7 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     }
     const doc = await getDoc(env, b.act, 'asana');
     if (!doc?.project_gid) return json({ error: 'Connect the brand to its Asana project first.' }, 400);
+    if (path === '/api/brand-asana/hook') return json({ ok: true, made: await ensureHook(env, b.act, doc), hook_gid: doc.hook_gid });
     if (path === '/api/brand-asana/sync') return json({ ok: true, ...(await syncTasks(env, b.act, doc, { full: !!b.full })) });
     if (path === '/api/brand-asana/tag') return json({ ok: true, ...(await tagPass(env, b.act, { limit: Math.min(15, +b.limit || 12), warn: b.warn !== false && b.warn !== 'false' })) });
     if (path === '/api/brand-asana/results') return json({ ok: true, ...(await resultsPass(env, b.act, { limit: Math.min(30, +b.limit || 10), quiet: !!b.quiet })) });
