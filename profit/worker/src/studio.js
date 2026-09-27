@@ -271,22 +271,22 @@ async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts
   const prompt = adPrompt(spec, brand, k, n, counts);
   let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: '1024x1024' });
   let cost = COST.image, check = null;
-  /* Cole's rule: the product must look exactly like the product. Every ad is checked against
-     the real photos; one that looks off is redone once, and the result is flagged either way. */
+  /* Cole's rule: the product must look exactly like the product. Each attempt is scored against the
+     real photos and the fingerprint; up to three attempts, the best one is kept and its score shown. */
   const prodRefs = refs.slice(0, counts.prod || 0);
   if (prodRefs.length) {
     check = await productCheck(key, m.check || m.vision, out.bytes, prodRefs, spec.product, spec.dna).catch(() => null);
     cost += COST.vision;
-    if (check && !check.ok) {
+    for (let tryN = 2; tryN <= 3 && check && !(check.ok && check.score >= 8); tryN++) {
       const again = await imageCall(key, m.image, { prompt: `${prompt}
 
-IMPORTANT: a previous attempt got the product wrong (${check.issue}). Copy the product from the photos exactly: the same silhouette and shape, proportions, colours, finish and every logo. Do not redesign it.`, images: refs, fidelity: true, size: '1024x1024' }).catch(() => null);
+IMPORTANT: a previous attempt got the product wrong (${check.issue}). Copy the product from the photos exactly: the same silhouette and shape, proportions, colours, finish, surface texture and every logo in its exact position. Do not redesign it.`, images: refs, fidelity: true, size: '1024x1024' }).catch(() => null);
       cost += COST.image;
-      if (again) {
-        const c2 = await productCheck(key, m.check || m.vision, again.bytes, prodRefs, spec.product, spec.dna).catch(() => null);
-        cost += COST.vision;
-        if (!c2 || c2.ok || !check.ok) { out = again; check = c2 ? { ...c2, redone: true } : { ok: null, issue: '', redone: true }; }
-      }
+      if (!again) break;
+      const c2 = await productCheck(key, m.check || m.vision, again.bytes, prodRefs, spec.product, spec.dna).catch(() => null);
+      cost += COST.vision;
+      if (c2 && (c2.score ?? 0) > (check.score ?? 0)) { out = again; check = { ...c2, tries: tryN }; }
+      else check = { ...check, tries: tryN };
     }
   }
   return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check, parent, ...where });
@@ -329,7 +329,7 @@ async function productCheck(key, model, bytes, refs, name, dna = '') {
   content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } });
   const res = await fetch(`${OA}/chat/completions`, {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content }], response_format: { type: 'json_schema', json_schema: { name: 'check', strict: true, schema: { type: 'object', additionalProperties: false, required: ['ok', 'issue'], properties: { ok: { type: 'boolean' }, issue: { type: 'string', description: 'what is wrong, in a few words, or empty' } } } } } }),
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], response_format: { type: 'json_schema', json_schema: { name: 'check', strict: true, schema: { type: 'object', additionalProperties: false, required: ['ok', 'score', 'issue'], properties: { ok: { type: 'boolean' }, score: { type: 'integer', description: '0 to 10: 10 means the product is identical to the photos, 7 means close with small differences, below 5 means a different-looking product' }, issue: { type: 'string', description: 'what is wrong, in a few words, or empty' } } } } } }),
   });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(j.error?.message || 'check failed');

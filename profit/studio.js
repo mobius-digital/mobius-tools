@@ -349,10 +349,7 @@ function batchView(b) {
           <label class="st-f" style="margin-top:8px">Product fingerprint<small>what makes it ours; the AI must match every line. Fix anything wrong.</small>${p.dna == null ? '<span class="st-busy" style="display:flex;margin-top:6px"><span class="st-spin"></span>Reading the product photos…</span>' : `<textarea class="st-in" data-dna="${pi}" rows="5">${esc(p.dna)}</textarea>`}</label>
           <button class="btn" data-redna="${pi}" style="margin-top:6px">Read the photos again</button></div>`).join('')}
         <button class="btn" id="bProd" style="margin-top:8px" ${(su.products || []).length >= 4 ? 'disabled' : ''}>${(su.products || []).length ? 'Add another product' : 'Choose the product'}</button>
-        ${(su.products || []).length ? `<div style="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:8px">
-          <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer"><input type="checkbox" id="bExact" ${su.exact ? 'checked' : ''} style="margin-top:3px;accent-color:var(--brand-ink)"><span><b>Exact product</b> · use the real product photos in the ads, the AI builds the scene around them. On by default for golf clubs and other precise products, where AI drawing drifts.</span></label>
-          ${su.exact ? `<div class="st-thumbs">${S.cutting ? '<span class="st-busy"><span class="st-spin"></span>Cutting the product out of its photos…</span>' : (su.cutouts || []).length ? (su.cutouts || []).map(c => `<button class="t" data-zu="${esc(c.url)}" style="background:repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="${esc(c.url)}" alt="" style="object-fit:contain"></button>`).join('') + '<span class="tiny">Real angles the ads can use</span><button class="btn" id="bRecut" style="padding:4px 8px;font-size:12px">Cut again</button>' : '<span class="tiny">No clean studio shots (plain white background) to cut out. Ads will be AI-drawn.</span>'}</div>` : ''}
-        </div>` : ''}</div>
+</div>
       <div><b style="font-size:13px">Swipe file</b><div class="hint">Ads you like, for range and ideas. Nothing gets copied; the art director picks styles from it. Up to 12. Drop, click, or paste a screenshot.</div>
         <div class="st-thumbs" style="margin-top:8px">${(su.swipe || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(u)}" alt=""><span class="st-x" data-rmsw="${k}" role="button" aria-label="Remove">×</span></button>`).join('')}${(su.swipe || []).length < 12 ? '<button class="st-add" id="bSwipe">Add images</button>' : ''}</div></div>
     </div>
@@ -387,7 +384,7 @@ function planRow(a, i, plan) {
 function adCard(a) {
   const s = a.spec || {}, ck = a.check;
   const tags = [a.line != null ? `<span class="st-tag">Ad ${a.line + 1}</span>` : '', a.status === 'approved' ? '<span class="st-tag ok">Approved</span>' : '',
-    ck?.exact ? '<span class="st-tag ok">Real product photo</span>' : ck ? (ck.ok === false ? `<span class="st-tag warn" title="${esc(ck.issue || '')}">Product may be off</span>` : ck.ok ? `<span class="st-tag ok">Product checked${ck.redone ? ' (redone)' : ''}</span>` : '') : ''].join('');
+    ck?.exact ? '<span class="st-tag ok">Real product photo</span>' : ck ? (ck.ok === false ? `<span class="st-tag warn" title="${esc(ck.issue || '')}">Product may be off</span>` : ck.ok ? `<span class="st-tag ok">Product ${ck.score != null ? ck.score + '/10' : 'checked'}${ck.tries ? ` · best of ${ck.tries}` : ''}</span>` : '') : ''].join('');
   return `<div class="st-ad"><div class="pic" data-zoom="${a.id}"><img src="${esc(shown(a))}" alt="${esc(s.headline || 'Ad')}" loading="lazy"><div class="tags">${tags}</div></div>
     <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${ck?.ok === false ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
       <div class="acts">${a.status === 'approved' ? `<button class="btn" data-unapprove="${a.id}">Unapprove</button>` : `<button class="btn primary" data-approve="${a.id}">Approve</button>`}
@@ -480,11 +477,10 @@ async function pickProduct() {
         const p = S.products[+bt.dataset.p];
         const prod = { title: p.title, handle: p.handle, type: p.type || '', all: p.images, dna: null };
         su.products.push(prod);
-        if (su.products.some(x => HARD.test(`${x.type} ${x.title}`))) su.exact = true;
+        su.exact = false;
         su.images = [...su.images, ...p.images.slice(0, su.products.length > 1 ? 2 : 6)].slice(0, 8);
         ctl.close(true); await saveCur(); paint();
         fingerprint(prod);
-        if (su.exact) cutAll();
       });
     };
     w.querySelector('#pq').oninput = e => { S.prodQ = e.target.value; draw(); };
@@ -505,7 +501,7 @@ async function planAds() {
   try {
     await saveCur();
     br.lines = br.lines.filter(l => (l.text || '').trim());
-    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: !!su.exact, cutouts: (su.cutouts || []).map(c => c.url) });
+    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: false, cutouts: [] });
     b.plan = { ads: r.ads, variation: r.variation, exact: !!r.exact }; b.status = 'planned';
     await saveCur();
   } catch (e) { S.err = `Planning: ${e.message}`; }

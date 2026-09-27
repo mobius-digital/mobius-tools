@@ -997,3 +997,10 @@ profit/
   Measured on #412: a single-hero-product ad is right (real clover, milling, heel/toe callouts on the face);
   concepts that ask for several objects (a cast-vs-milled comparison) still get extra clubs or labels
   hidden behind the product. Letting the model SEE the product made it draw more copies; do not go back.
+
+- **2026-09-27 (final): Cole: "go back to full AI, just make it correct."** Exact-product mode is switched
+  off and its UI removed (code kept: make-exact, harmonize, cutouts). What made full AI right on #412:
+  (1) tick 5-6 clean STUDIO shots of the product as references (not the 3 lifestyle shots the picker
+  defaults to), (2) the fingerprint, (3) each ad scored 0-10 by the check model, up to 3 attempts, best kept,
+  score on the card ("Product 9/10 · best of 2"). Result: 4 of 4 read as the real Eclipse Mallet
+  (clover at the heel, offset neck, fang cut-out, dense milling), text inside the 1:1 area.
