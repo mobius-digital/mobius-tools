@@ -144,13 +144,13 @@ async function readStream(res, onEvent) {
  * does not cache; no error. An array system is passed through as given. */
 const cachedSystem = s => typeof s === 'string' && s ? [{ type: 'text', text: s, cache_control: { type: 'ephemeral' } }] : s;
 
-async function claude(env, { system, user, tools, schema, effort = 'high', maxTokens = 32000 }, onEvent, meter) {
+async function claude(env, { system, user, tools, schema, effort = 'high', maxTokens = 32000, model = MODEL }, onEvent, meter) {
   if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set on the account-health worker');
   const messages = [{ role: 'user', content: user }];
   let last = null;
   for (let turn = 0; turn < 5; turn++) {
     const body = {
-      model: MODEL, max_tokens: maxTokens, stream: true, system: cachedSystem(system),
+      model, max_tokens: maxTokens, stream: true, system: cachedSystem(system),
       thinking: { type: 'adaptive' },
       output_config: { effort, ...(schema ? { format: { type: 'json_schema', schema } } : {}) },
       messages,

@@ -262,7 +262,9 @@ await check('first tag: watches the TikTok once, reads the image, one Claude cal
   assert.match(media[0].facts_json, /golfguy/);
   const run = db.prepare('SELECT * FROM idea_run WHERE idea_id = ?').get(`${CH}:100.1`);
   assert.equal(run.status, 'done'); assert.equal(run.videos_new, 1); assert.equal(run.g_in, 12000); assert.equal(run.c_cache_read, 15000);
-  assert.ok(run.cost > 0.04 && run.cost < 0.2, `cost ${run.cost}`);
+  /* Sonnet 5.5 by default (Cole's target: $0.06 or less): 3000 in + 15000 cache read + 1500 out + Gemini. */
+  assert.ok(run.cost > 0.02 && run.cost < 0.06, `cost ${run.cost}`);
+  assert.equal(lastClaudeBody.model, 'claude-sonnet-5-5');
   const sys = lastClaudeBody.system;
   assert.equal(sys.length, 2); assert.match(sys[0].text, /MOBIUS FRAMEWORK/); assert.match(sys[0].text, /SPECIFICITY RULES/);
   assert.deepEqual(sys[1].cache_control, { type: 'ephemeral' });
@@ -431,6 +433,16 @@ await check('only the suggested draft up front; "Make Asana brief draft" writes 
   assert.equal(d.asana.title, 'Made on demand');
   assert.equal(d.creator_link.title, 'The garage rant', 'the stored creator draft survives');
   assert.ok(actionIds(lastPost().blocks).includes('idea_asana'));
+});
+await check('"deep" in the tag runs Opus with the full brain, and Redo on that thread stays deep', async () => {
+  const id = `${CH}:710.1`;
+  threads[id] = [{ ts: '710.1', user: 'U_COLE', text: 'Big one, go deep on this <@U_BOT>' }];
+  const r = await ideas.runIdeaJob(env, job('710.1', '<@U_BOT> deep'));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(lastClaudeBody.model, 'claude-opus-5');
+  assert.equal(row(id).deep, 1);
+  await ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: 'U_RANDO' }, container: { channel_id: CH }, actions: [{ action_id: 'idea_redo', value: JSON.stringify({ i: id }) }] });
+  assert.equal(lastClaudeBody.model, 'claude-opus-5');
 });
 await check('Redo is open to anyone and re-runs from the cache; Discard is approver-only', async () => {
   calls.length = 0;

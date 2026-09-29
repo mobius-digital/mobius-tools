@@ -44,8 +44,16 @@ export function useFetch(f) { F = f; }
 export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI = 'https://generativelanguage.googleapis.com';
 const SCRAPE = 'https://api.scrapecreators.com';
-/* Per million tokens. Claude = Opus 5 (the claude() helper's model). */
-const PRICE = { in: 5, write: 6.25, read: 0.5, out: 25, g_in: 0.30, g_out: 2.50, download: 0.00188 };
+/* COST (2026-09-29, Cole: "pennies, $0.06 or less"). The first live draft on Opus 5 with the full
+   brain cost $0.34. Default now = Sonnet 5.5 with a slimmer brain (~5 cents). Saying "deep" in the
+   tag runs Opus 5 with the full brain for the ideas that deserve it (~25 cents).
+   Per million tokens; write = 1.25x input (5 minute cache). */
+const MODELS = {
+  fast: { id: 'claude-sonnet-5-5', in: 2, write: 2.5, read: 0.2, out: 10, brainMax: 24000, effort: 'medium' },
+  deep: { id: 'claude-opus-5', in: 5, write: 6.25, read: 0.5, out: 25, brainMax: 0, effort: 'medium' },
+};
+const PRICE = { ...MODELS.fast, g_in: 0.30, g_out: 2.50, download: 0.00188 };
+const wantsDeep = text => /\bdeep\b/i.test(String(text || ''));
 export const DEFAULT_APPROVERS = 'U06C37MDWD7,U06K732S4BD';   // Cole, Ahsan
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const ANGLES = 'https://tools.go-mobius-digital.com/angles/';
@@ -93,6 +101,8 @@ export async function ensureIdeaTables(env) {
       videos_new INTEGER NOT NULL DEFAULT 0, videos_cached INTEGER NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0, error TEXT,
       started_at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT)`,
   ]) await env.DB.prepare(sql).run();
+  /* Added 2026-09-29: remembers a "deep" (Opus) thread so Redo and Make-draft stay on the same model. */
+  await env.DB.prepare(`ALTER TABLE idea_thread ADD COLUMN deep INTEGER NOT NULL DEFAULT 0`).run().catch(() => {});
   ready = true;
 }
 export function _resetForTests() { ready = false; }
@@ -306,7 +316,8 @@ async function geminiUpload(env, res, mime, size, name) {
 const FACTS_PROMPT = `Watch this short-form video and report FACTS only, no opinions and no advice. Reply with JSON with exactly these keys:
 {"format": [one or more of: yapper, pov, green screen, skit, demo, testimonial, unboxing, street interview, voiceover b-roll, slideshow, before and after, tutorial, reaction, stitch or duet, founder story, other],
  "length_seconds": number,
- "hook": {"spoken": "the words said in the first 3 seconds, verbatim", "on_screen_text": "text on screen in the first 3 seconds, verbatim", "visual": "what is on screen in the first 3 seconds"},
+ "hook": {"spoken": "the words said in the first 3 seconds, verbatim", "on_screen_text": "text on screen in the first 3 seconds, verbatim", "visual": "exactly what is on screen and what the hands and body are doing in the first 3 seconds"},
+ "visual_moments": [{"t": "0:01", "what": "anything visually unusual, surprising or pattern-breaking: an odd prop or action (for example stirring a drink with scissors), a costume, a sudden zoom or cut, a text pop, a camera trick, a reveal. Look for these yourself; nobody will point them out"}],
  "beats": [{"t": "0:00-0:03", "what": "what happens", "said": "verbatim", "on_screen": "verbatim"}],
  "on_screen_text": ["every text overlay, verbatim, in order"],
  "transcript": "the full spoken transcript, verbatim",
@@ -499,9 +510,9 @@ TEARDOWN: why the reference works for its audience: the awareness stage, the sop
 
 QUESTIONS: 0 to 3, only when the brand brain AND the thread truly lack something you need (for example which persona or which product). blocking = true only when any draft would be a guess without the answer.
 
-DESTINATION (pick one, say why in one line):
-- creator_link: a UGC idea creators can film from a short pitch (the brand's public creator link).${lucky ? '\n- lucky_creators: Lucky Golf\'s own creator app; same shape as the creator link.' : ''}
-- asana_brief: a paid ad the team produces as a test with numbered ads.
+DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATORS, so the creator link is the default:
+- creator_link: anything a creator could film at home or out and about from a short pitch, including odd props, visual hooks, skits, talking heads and demos. Props a creator already owns (scissors, a glass, a drawer of packets) do NOT make it a production job. Pick this unless one of the two below clearly fits better.${lucky ? '\n- lucky_creators: Lucky Golf\'s own creator app; same shape as the creator link.' : ''}
+- asana_brief: only when a creator could not make it from a pitch: it needs our editor to build it from existing footage, a specific person or location, heavy motion graphics, or it is a structured paid test of several scripted versions the team must control. Also when the thread asks for a brief.
 - studio: static image ads the AI can make now from lines of words.
 
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
@@ -737,7 +748,11 @@ export async function runIdeaJob(env, job) {
     }
     if (imgs.length > MAX_IMAGES) notes.push(`Only the first ${MAX_IMAGES} images were read.`);
 
-    const brain = await brandBrain(env, acct.act_id).catch(() => ({ md: '' }));
+    /* The deep run gets Opus and the whole brain; the default gets Sonnet and a brain trimmed to the
+       parts that shape a brief (the creator link is already in the prompt below, so it is left out). */
+    const deep = wantsDeep(job.text) || (job.kind !== 'draft' && !!row?.deep);
+    const M = deep ? MODELS.deep : MODELS.fast;
+    const brain = await brandBrain(env, acct.act_id, { creator: false, ...(M.brainMax ? { max: M.brainMax } : {}) }).catch(() => ({ md: '' }));
     const hub = await hubOf(env, acct.act_id);
     const prev = job.kind !== 'redo' && row?.draft_json ? row.draft_json : null;
     const fresh = prev && row.seen_ts ? t.msgs.filter(m => +m.ts > +row.seen_ts) : [];
@@ -746,7 +761,7 @@ export async function runIdeaJob(env, job) {
       ...(breakdowns.length ? [{ type: 'text', text: `VIDEO BREAKDOWNS (facts from a video model):\n\n${breakdowns.join('\n\n')}` }] : []),
       ...(notes.length ? [{ type: 'text', text: `MEDIA I COULD NOT READ (work from the thread's words for these):\n${notes.join('\n')}` }] : []),
       ...imageBlocks,
-      { type: 'text', text: `THE CREATOR LINK NOW (${hub.brand ? `/angles/${hub.brand.slug}, ${hub.brand.live ? 'live' : 'switched off'}` : 'this brand has no creator link yet'}):\nSections: ${hub.sections.map(s => `[${s.id}] ${s.name}${s.line ? `: ${s.line}` : ''}${s.enabled ? '' : ' (off)'}`).join('; ') || 'none'}\nAngles:\n${hub.angles.map(a => `[${a.id}] ${a.title} (${a.section || 'no section'}; ${a.format || ''}): ${clip(a.argument, 200)}`).join('\n') || 'none'}` },
+      { type: 'text', text: `THE CREATOR LINK NOW (${hub.brand ? `/angles/${hub.brand.slug}, ${hub.brand.live ? 'live' : 'switched off'}` : 'this brand has no creator link yet'}):\nSections: ${hub.sections.map(s => `[${s.id}] ${s.name}${s.line ? `: ${s.line}` : ''}${s.enabled ? '' : ' (off)'}`).join('; ') || 'none'}\nAngles:\n${hub.angles.map(a => `[${a.id}] ${a.title} (${a.section || 'no section'}; ${a.format || ''}): ${clip(a.argument, 110)}`).join('\n') || 'none'}` },
       ...(prev ? [{ type: 'text', text: `YOUR LAST DRAFT FOR THIS THREAD (revise it with what people said since; keep what nobody pushed back on):\n${clip(prev, 20000)}\n\nNEW MESSAGES SINCE THAT DRAFT: ${fresh.length ? fresh.map(m => `${m.name}: ${m.text}`).join(' / ') : 'none, they just asked again'}` }] : []),
     ];
     /* "Make <destination> draft" button: only that one draft is written, on top of the stored one,
@@ -755,20 +770,20 @@ export async function runIdeaJob(env, job) {
     if (makeKey) user.push({ type: 'text', text: `NOW WRITE ONLY THE ${DESTS[job.dest].toUpperCase()} DRAFT for this idea, consistent with your last draft's teardown and take. Return only that one field.` });
     const m = await claude(env, {
       system: [{ type: 'text', text: systemText(acct.name, lucky) }, ...(brain.md ? [brainBlock(brain.md)] : [])],
-      user, schema: makeKey ? obj({ [makeKey]: IDEA_SCHEMA.properties[makeKey] }) : IDEA_SCHEMA, effort: 'medium', maxTokens: 16000,
+      user, schema: makeKey ? obj({ [makeKey]: IDEA_SCHEMA.properties[makeKey] }) : IDEA_SCHEMA, effort: M.effort, maxTokens: 16000, model: M.id,
     }, null, meter);
     const u = m.usage || {};
     const d = makeKey ? { ...safeJson(prev, {}), [makeKey]: nd(jsonOf(m))[makeKey] } : nd(jsonOf(m));
     if (d.creator_link) d.creator_link = cleanCreator(d.creator_link);
     const blocking = (d.questions || []).some(q => q.blocking && q.q);
-    const cost = ((u.input_tokens || 0) * PRICE.in + (u.cache_creation_input_tokens || 0) * PRICE.write + (u.cache_read_input_tokens || 0) * PRICE.read
-      + (u.output_tokens || 0) * PRICE.out + meter.g_in * PRICE.g_in + meter.g_out * PRICE.g_out) / 1e6 + meter.downloads * PRICE.download;
+    const cost = ((u.input_tokens || 0) * M.in + (u.cache_creation_input_tokens || 0) * M.write + (u.cache_read_input_tokens || 0) * M.read
+      + (u.output_tokens || 0) * M.out + meter.g_in * PRICE.g_in + meter.g_out * PRICE.g_out) / 1e6 + meter.downloads * PRICE.download;
     const refs = t.videos.filter(v => v.platform !== 'slack').map(v => v.link || v.url);
     const from = t.msgs[0]?.name || 'the team';
     const status = blocking ? 'questions' : (prevStatus === 'pushed' ? 'pushed' : 'drafted');
     await env.DB.prepare(`UPDATE idea_thread SET status = ?2, from_name = ?3, refs_json = ?4, draft_json = ?5, seen_ts = ?6, notes_json = ?7,
-      runs = runs + 1, cost = cost + ?8, last_cost = ?8, updated_at = datetime('now') WHERE id = ?1`)
-      .bind(id, status, from, JSON.stringify(refs), JSON.stringify(d), t.msgs[t.msgs.length - 1].ts, JSON.stringify(notes), cost).run();
+      runs = runs + 1, cost = cost + ?8, last_cost = ?8, deep = ?9, updated_at = datetime('now') WHERE id = ?1`)
+      .bind(id, status, from, JSON.stringify(refs), JSON.stringify(d), t.msgs[t.msgs.length - 1].ts, JSON.stringify(notes), cost, deep ? 1 : 0).run();
     row = await getRow(env, id);
     /* A revision is a new reply, so the thread reads in order; the old card stops offering buttons. */
     if (row.reply_ts) await slack(env, 'chat.update', { channel: job.channel, ts: row.reply_ts, text: 'Replaced by the newer draft below.',

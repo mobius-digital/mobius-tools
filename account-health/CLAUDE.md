@@ -754,3 +754,21 @@ Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule).
   (conversations.replies in private -internal channels), files:read (uploads), users:read
   (names). The Strategist and Ledger already use all of these; if a call fails, the thread says
   which scope is missing.
+
+### Ideas bot cost + quality pass (2026-09-29, after the first live run)
+- **First live run:** Opus 5 + the full 60k-char brain + drafts for every destination = **$0.34** (cache WRITE of a 28k-token
+  system block $0.175, 6k output tokens $0.15), and Gemini answered 524. Cole's bar: **$0.06 or less per idea.**
+- **Default model is now Sonnet 5.5** (`MODELS.fast`, $2/$10, effort medium) with the brain capped at **24k chars**
+  (`brandBrain(act, {creator:false, max:24000})`; the creator link is already in the user prompt). Party Patch keeps
+  staff rules, Viktor notes, lines, all personas, 50 quotes, competitors and past tests. Target ~5-6 cents.
+- **"deep" in the tag** = `MODELS.deep` (Opus 5, full brain, ~25 cents); stored as `idea_thread.deep` so Redo /
+  Make-draft stay on the same model. `claude()` in research.js now takes an optional `model`.
+- **One draft up front**: only the suggested destination is written; the others are "Make <dest> draft" buttons
+  (`idea_make`, open to anyone) that write just that field on top of the stored draft (narrowed schema).
+- **Creator link is the default destination** (Cole: "this is mainly for the creators"); props a creator owns do not
+  make it a production job. Asana only when a creator could not make it from a pitch.
+- **Gemini is STREAMED** (`streamGenerateContent?alt=sse`, one retry on 429/5xx/524) and the facts now include
+  `visual_moments` (odd props/actions, zooms, text pops, reveals) the model must find on its own.
+- Card: `sections()` splits on lines and never drops text; model-numbered lines are de-numbered; awareness and
+  sophistication are separate bullets.
+
