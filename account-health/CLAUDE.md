@@ -648,3 +648,71 @@ with no copy skill got "you write copy for X"). `src/brain.js` fixes the context
   tests, each with a floor (`TRIM_FLOOR`); staff rules are never cut. Measured after the import:
   Party Patch 59.9k, Bonk 57.4k, Dartee 59.5k, Grunk 59.8k; every brand keeps all its personas,
   all nuggets and its full test history, and two runs produce byte-identical output (cache-safe).
+
+## Ideas bot (2026-09-29)
+
+An idea dropped in a brand's INTERNAL channel (`accounts.slack_channel`, the `-internal`
+channels; clients are never in them) becomes a draft brief when someone tags @Mobius Digital
+in the thread. Code: `src/ideas.js`; tests: `node test-ideas.mjs` (28 offline checks, mocked
+Slack / Gemini / ScrapeCreators / Claude / Asana, plus the router rule).
+
+- **Routing.** Slack events already reach this worker through slack-router (`/slack/events`
+  forwards any channel registered as an account's `slack_channel`; DMs and everything else go
+  to the Ledger, unchanged). `handleSlackEvent` then asks `ideaWanted()`; if no, the Strategist
+  answers exactly as before. An idea = the thread already has a draft, OR the tag says idea /
+  brief / draft / teardown / creator link / studio / redo, OR the thread has a TikTok /
+  Instagram / YouTube link or an uploaded video, OR an image with a tag that is not about the
+  numbers (roas, cpa, spend...), OR a bare tag inside a thread. Saying "strategist" in the tag
+  always goes to the Strategist. Untagged chat never reaches a model: $0.
+- **The slow part runs on a Queue** (`mobius-ideas`, binding `IDEA_Q`, `queue()` in `AH_APP`,
+  one message per job, `max_retries = 0`). The event is acked with :eyes: and queued, because
+  waitUntil after a response only lives ~30 s and a watched video plus an Opus draft takes
+  longer. Without the binding the job runs inline (tests).
+- **Kill switch:** `IDEAS_BOT` var in wrangler.toml. `"off"` = every tag goes to the Strategist,
+  idea buttons ack and do nothing, queued jobs are dropped.
+- **Media, each read ONCE:** videos go to Gemini (`GEMINI_MODEL`, one constant, currently
+  `gemini-3.5-flash-lite`) for FACTS only (format, hook verbatim, beats, on-screen text, transcript,
+  people, product role, CTA, pacing, audio), cached in `idea_media` keyed `yt:<id>` / `tt:<id>` /
+  `ig:<shortcode>` / `slack:<file id>`. A re-tag or Redo never re-watches. YouTube goes by URL;
+  Slack uploads are downloaded with the bot token and streamed into Gemini's Files API;
+  TikTok / Instagram go through `fetchSocialVideo()` (ScrapeCreators, `DOWNLOADER_KEY`). Images
+  go straight to Claude (no Gemini). Missing `GEMINI_API_KEY` or `DOWNLOADER_KEY` = a plain line
+  in the card ("upload the file and tag me again") and the draft is still written from the words.
+- **Thinking:** one `claude()` call (research.js, Opus 5) per tag. System = the framework +
+  transfer rules + SPECIFICITY, then `brainBlock(brandBrain(act))` (cached). Output `IDEA_SCHEMA`:
+  teardown, transfer (as_is / style / hook_only / mixed; team notes outrank the model; the latest
+  direction wins and is named), 0-3 questions (any `blocking` = questions-only reply, no draft),
+  destination (creator_link / lucky_creators / asana_brief / studio) and a draft for every
+  destination that fits. Em dashes are stripped from everything the model wrote.
+- **The row is the truth, the card is a view** (`idea_thread`, id `channel:thread_ts`). A re-tag
+  REVISES: the last draft and the new messages go in the prompt, the old card is retired
+  ("Replaced by the newer draft below") and a new card is posted so the thread reads in order.
+- **Buttons** (`idea_*`, routed by slack-router to `/slack/actions`, HMAC-checked there):
+  Creator link / Lucky creator app / Asana brief / Studio are APPROVER-ONLY (`IDEA_APPROVERS`,
+  default Cole U06C37MDWD7 + Ahsan U06K732S4BD); Redo is open to anyone; Discard is approver-only.
+  A button from another channel than the thread's is refused.
+  - Creator link: a LIVE `p_amb_angle` in the section the model picked (or a new section), the
+    reference link as `p_amb_proof` kind `inspo` ("Another brand (inspiration)"). If the model
+    named an existing angle as a duplicate, only the proof is added. `noMoney()` strips any
+    sentence with a paid metric or a money figure: nothing about spend/ROAS/revenue reaches the
+    public link. Undo deletes only what this press created.
+  - Asana brief: next number (max of `p_br_batch` and the project's last 3 days of tasks), task
+    `"<n> - <title>"` in the Creative Brief section, `html_notes` in the BRIEF_STATIC / BRIEF_VIDEO
+    layout plus Concept, "Idea from <name>" with the Slack permalink, the reference under Inspo, and
+    the Testing custom field. Never the Angle field (the tagger files angles). The project webhook
+    syncs it into the Brand tab like any other brief.
+  - Studio: a `draft` row in `p_studio_batch` (brief {angle, why, concept, testing, post_copy,
+    lines[{text, inspo:[]}]}), numbered after the Asana brief if one was sent. It shows in Locus
+    Studio's batch list; the team picks the product and makes it there.
+  - Lucky creator app: NOT BUILT. The button says "Lucky creator app hookup is next" and marks
+    the stored draft (`pushed_json.lucky_creators`). The push needs the lucky-golf-creators
+    Supabase URL + service-role key and its "what to shoot" table; the creator_link draft shape
+    already matches it.
+- **Cost:** `idea_run` per tag (Claude in / cache read / cache write / out, Gemini in/out,
+  downloads, videos new vs cached, dollars); the card's footer shows the run's cost. Offline
+  estimate with a ~15k-token cached brain: about $0.06 per tag, plus about half a cent per new
+  60-second video and $0.002 per TikTok/Instagram download.
+- **Slack scopes it uses:** chat:write, reactions:write, channels:history + groups:history
+  (conversations.replies in private -internal channels), files:read (uploads), users:read
+  (names). The Strategist and Ledger already use all of these; if a call fails, the thread says
+  which scope is missing.

@@ -23,6 +23,21 @@ binding = "DB"
 database_name = "mobius-account-health"
 database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 
+# The ideas bot (src/ideas.js, 2026-09-29): a tag in a brand's -internal channel is acked
+# in the Slack event and the slow work (watch the video, write the draft) runs on this queue,
+# because waitUntil after a response only lives ~30 seconds. One message per job, no retries
+# (a failure is said in the thread once, never posted twice). Create once:
+#   npx wrangler queues create mobius-ideas
+[[queues.producers]]
+binding = "IDEA_Q"
+queue = "mobius-ideas"
+
+[[queues.consumers]]
+queue = "mobius-ideas"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 0
+
 # Public config (Google OAuth client id is public by design; used to verify sign-ins).
 [vars]
 GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"
@@ -42,6 +57,9 @@ GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleus
 # 2026-09-01: 51 subrequests. Six brands plus reports plus syncs is comfortably
 # inside 10,000, but "comfortably inside" is a thing you know by counting.
 SUBREQUEST_LIMIT = "10000"
+# The ideas bot's kill switch: "off" = every tag goes to the Strategist as before, idea buttons
+# and queued jobs do nothing. "on" = live.
+IDEAS_BOT = "on"
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put META_TOKEN        system-user token, ads_read on every client ad account
@@ -55,3 +73,6 @@ SUBREQUEST_LIMIT = "10000"
 #                                             This is the ONLY credential on that endpoint: every
 #                                             button press is verified against it, and with the
 #                                             secret unset the endpoint refuses everything.
+#   npx wrangler secret put GEMINI_API_KEY    ideas bot: Google AI Studio key, watches reference videos (optional)
+#   npx wrangler secret put DOWNLOADER_KEY    ideas bot: ScrapeCreators key, pulls TikTok + Instagram MP4s (optional)
+# Optional var: IDEA_APPROVERS = "U06C37MDWD7,U06K732S4BD" (who may press the ideas bot's send buttons)

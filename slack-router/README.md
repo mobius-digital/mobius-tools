@@ -33,7 +33,8 @@ and then never looked at again.
 2. Works out whose payload it is:
    - **Ledger** — a block action whose value carries `{id, tax}`
    - **Locus** — action ids and modal callback ids prefixed `brief_` / `report_`
-     (plus `noop_open`)
+     (plus `noop_open`), and the ideas bot's buttons `idea_*` (checked first, by
+     action id only)
    - **Pulse** — everything else, which is what it got before this existed
 3. Hands it on over a service binding with the raw body and both signature
    headers intact, so each tool verifies for itself. This worker can never be a

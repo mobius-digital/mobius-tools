@@ -1016,3 +1016,10 @@ profit/
   defaults to), (2) the fingerprint, (3) each ad scored 0-10 by the check model, up to 3 attempts, best kept,
   score on the card ("Product 9/10 · best of 2"). Result: 4 of 4 read as the real Eclipse Mallet
   (clover at the heel, offset neck, fang cut-out, dense milling), text inside the 1:1 area.
+
+## 2026-09-29: the ideas bot (Slack idea -> brief)
+A tag of @Mobius Digital on an idea thread in a brand's -internal channel drafts a teardown plus a
+creator-link angle, an Asana brief and a Studio batch; approver buttons write them into
+`p_amb_*`, the brand's Asana Creative Brief section and `p_studio_batch`. It lives in
+account-health (`src/ideas.js`); read account-health/CLAUDE.md "Ideas bot (2026-09-29)" before
+touching the creator link, Studio batches or Asana briefs from anywhere else.

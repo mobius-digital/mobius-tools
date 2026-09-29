@@ -54,16 +54,22 @@ const safeJson = (s, d) => { try { const v = JSON.parse(s); return v == null ? d
             reports the click even though nothing needs doing.
    Locus  — the Daily Brief and Reports cards: every action_id and every modal
             callback_id is prefixed brief_ / report_, plus the noop_open link
-            buttons Slack reports anyway. Modal submissions carry NO actions
-            array at all, which is why this cannot be a block_actions-only test.
+            buttons Slack reports anyway; and the ideas bot's cards, idea_*.
+            Modal submissions carry NO actions array at all, which is why
+            this cannot be a block_actions-only test.
    Pulse  — everything else, which is what it got before this existed.
    Pulse is the default deliberately: it is the oldest tool here and the one
    whose buttons must not change behaviour, so an unrecognised payload keeps
    going exactly where it always went. */
 const LOCUS_ID = /^(brief|report)_|^noop_open$/;
 
+/* The ideas bot's buttons (account-health ideas.js). Checked FIRST and by action id only, so
+   no value shape of Ledger's can ever be mistaken for one, and none of these can reach Ledger. */
+const IDEA_ID = /^idea_/;
+
 function ownerOf(payload) {
   const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
+  if (acts.some(x => IDEA_ID.test(x.action_id || ''))) return 'locus';
   /* An Apply tap on an assistant's proposal card: the value says which app. */
   for (const x of acts) {
     const v = safeJson(x.value, null);

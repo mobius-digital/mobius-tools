@@ -197,3 +197,20 @@ CREATE TABLE IF NOT EXISTS ad_preview (
   page_id     TEXT,
   fetched_at  TEXT NOT NULL
 );
+
+-- The ideas bot (src/ideas.js, 2026-09-29). Also created on first use by ensureIdeaTables.
+-- idea_media: each reference video watched ONCE (Gemini facts), keyed by video id / Slack file id.
+CREATE TABLE IF NOT EXISTS idea_media (key TEXT PRIMARY KEY, platform TEXT, url TEXT, status TEXT NOT NULL DEFAULT 'ok',
+  facts_json TEXT, g_in INTEGER NOT NULL DEFAULT 0, g_out INTEGER NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')));
+-- idea_thread: one row per Slack thread (id = channel:thread_ts); the draft is the truth, the Slack card a view of it.
+CREATE TABLE IF NOT EXISTS idea_thread (id TEXT PRIMARY KEY, act_id TEXT, channel TEXT NOT NULL, thread_ts TEXT NOT NULL,
+  reply_ts TEXT, status TEXT NOT NULL DEFAULT 'working', from_name TEXT, refs_json TEXT, draft_json TEXT, seen_ts TEXT,
+  pushed_json TEXT, notes_json TEXT, runs INTEGER NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0, last_cost REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+-- idea_run: tokens and dollars per tag (the cost meter).
+CREATE TABLE IF NOT EXISTS idea_run (id TEXT PRIMARY KEY, idea_id TEXT, act_id TEXT, kind TEXT, status TEXT NOT NULL DEFAULT 'running',
+  c_in INTEGER NOT NULL DEFAULT 0, c_cache_read INTEGER NOT NULL DEFAULT 0, c_cache_write INTEGER NOT NULL DEFAULT 0, c_out INTEGER NOT NULL DEFAULT 0,
+  g_in INTEGER NOT NULL DEFAULT 0, g_out INTEGER NOT NULL DEFAULT 0, downloads INTEGER NOT NULL DEFAULT 0,
+  videos_new INTEGER NOT NULL DEFAULT 0, videos_cached INTEGER NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0, error TEXT,
+  started_at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT);

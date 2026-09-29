@@ -26,6 +26,7 @@ import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
+import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -170,6 +171,7 @@ function meterEnv(env) {
  *  Same signature as fetch; the only difference is the meter. */
 function xfetch(...args) { subSpend(); return fetch(...args); }
 brandAsanaFetch(xfetch);
+ideasFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -4972,6 +4974,9 @@ async function handleSlackInteract(request, env, ctx) {
   const payload = safeJson(form.get('payload'), null);
   if (!payload) return ACK();
   try {
+    /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^idea_/.test(a.action_id || '')))
+      return env.IDEAS_BOT === 'off' ? ACK() : await handleIdeaAction(env, ctx, payload);
     /* An Apply / No thanks tap on one of the Strategist's proposal cards. */
     const tap = payload.type === 'block_actions' ? (payload.actions || []).find(a => a.action_id === 'ask_apply' || a.action_id === 'ask_cancel') : null;
     if (tap) {
@@ -5609,7 +5614,9 @@ async function handleSlackEvent(request, env, ctx) {
   const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'), raw, request.headers.get('x-slack-signature'));
   if (!ok) return new Response('bad signature', { status: 401 });
   const ev = body?.event;
-  if (body?.type !== 'event_callback' || !ev || ev.bot_id || ev.subtype) return ACK();
+  /* A mention that uploads a clip or image arrives with subtype file_share; the ideas bot wants those. */
+  const okSubtype = !ev?.subtype || (ev.type === 'app_mention' && /^(file_share|thread_broadcast)$/.test(ev.subtype));
+  if (body?.type !== 'event_callback' || !ev || ev.bot_id || !okSubtype) return ACK();
   const dm = ev.channel_type === 'im';
   const mentioned = ev.type === 'app_mention';
   if (!dm && !mentioned) return ACK();
@@ -5622,6 +5629,10 @@ async function handleSlackEvent(request, env, ctx) {
   }
   const { engine, h } = strategist();
   ctx.waitUntil((async () => {
+    /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
+       or "idea"/"brief" in the tag) drafts a brief instead. Everything else is the Strategist's. */
+    if (!dm && env.IDEAS_BOT !== 'off' && await ideaWanted(env, ev).catch(e => { console.log('ideas route: ' + e.message); return false; }))
+      return ideaStart(env, ev, body);
     const findings = await engine.openFindings(env, h()).catch(() => []);
     await engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6) });
   })().catch(e => console.log('strategist slack: ' + e.message)));
@@ -5712,6 +5723,16 @@ async function nightly(env) {
 }
 
 const AH_APP = {
+  /* The ideas bot's slow work (watch the video, write the draft) runs here: a queue consumer
+     gets minutes, where waitUntil after a Slack ack gets about thirty seconds. max_retries is
+     0 so a failure is said in the thread once, never posted twice. */
+  async queue(batch, env) {
+    env = meterEnv(env); subReset(env);
+    for (const m of batch.messages) {
+      if (env.IDEAS_BOT !== 'off') await runIdeaJob(env, m.body).catch(e => console.log('idea job: ' + e.message));
+      m.ack();
+    }
+  },
   async scheduled(event, env, ctx) {
     ctx.waitUntil(ensureSlackColumns(meterEnv(env)).catch(() => {}));
     // Cloudflare cron expressions are fixed at deploy time and always UTC, so the
