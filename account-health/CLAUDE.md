@@ -569,3 +569,52 @@ for reference and are never rendered or prompted.
 - Reports default to `lastPlatformClick`; the "Platform reported" option was
   removed from the picker. Old frozen reports without `attr` still render as
   they were sent.
+
+## Brand brain (2026-09-29)
+
+Cole: the AI across Locus came back vague and generic. The model was fine; the
+context was thin (the Studio brief reader got only the brand's NAME, and a brand
+with no copy skill got "you write copy for X"). `src/brain.js` fixes the context.
+
+- **`brandBrain(env, act_id, {voice, creator, max})`** assembles ONE markdown block
+  per brand, in a FIXED order with no timestamp (so the prompt cache hits): Brand +
+  products + offers + facts (`brand_facts`, `profile`, onboarding answers); **Staff
+  rules** (profile always/never, the client's dos/don'ts, the creator link's
+  `rules_json` claim rules, test rules) which outrank everything; Product lines
+  with market stage, awareness, claims made, open ground, mechanism; Personas
+  (every field); Voice of customer (nuggets first, then pains, failed, objections;
+  verbatim; 40 max); Competitors; Angle library with each angle's tests, most
+  recent first (40 max), result (`verdict`, else Asana's `asana_result`) and
+  Triple Whale lastPlatformClick spend / orders / CPA / ROAS matched by ad-name
+  number or `p_br_adtag` (4 queries per brand, not per batch); Earlier research
+  notes; Creator link (sections, angle titles, "please stop filming these");
+  How the brand sounds (speaker + guide, or the voice card, only when there is no
+  full skill); **GAPS** (always last, never cut: "No personas yet", "No customer
+  quotes yet", "No copy skill"...). AI drafts are included, labelled draft.
+- **Size:** per-section caps, ~60k characters total; over the total, sections are
+  halved in a fixed order (`TRIM`: research notes first, staff rules never). `clip()`
+  so no emoji is split; em dashes are replaced with commas on the way out.
+- **`SPECIFICITY`** (exported) rides with the brain in every creative prompt: tie
+  every angle/line/claim to a named persona, a verbatim quote, a past test or a
+  product fact, and say which in the note/why field (never in the ad's words); the
+  swap test (another brand's name still works = too vague, rewrite); never fill a
+  gap with generic language, name what is missing; awareness + sophistication decide
+  the opening; plain English, no em dashes.
+- **Wired into:** `studio-ai.js` brief step (system = instructions + SPECIFICITY,
+  then the brain as a cached block) and plan step (skill block, brain block, then
+  VOICE + SPECIFICITY; the skill is untouched); `voice.js` copy desk (brain with
+  `voice:false` after the skill/guide base, SPECIFICITY after the desk rule);
+  `strategist.js` `create_angles` (brain with `creator:false`, since the hub is
+  already in that prompt). Every call site catches a brain failure and runs without
+  it. `brainBlock(md)` = `{type:'text', text, cache_control:{type:'ephemeral'}}`;
+  both `claude()`s pass an array system through as given. No extra model calls.
+- **Research notes:** the research half of `docs/angles-grunk-dolfer.md` and
+  `docs/angles-dartee.md` (brand, competitors, VOC, personas, Cole's decisions; not
+  the Meta performance tables or seasonality) lives in `p_br_doc` key
+  `research_notes` (source `docs`). Re-run
+  `node profit/worker/migrations/research_notes.mjs` after editing either doc.
+- Measured 2026-09-29, before the Brand-tab research runs (0 VOC, 1 persona): Party Patch
+  25k chars, Lucky 20k, Grunk 41k, Dartee 36k, Bonk 23k (roughly 5k to 10k tokens, cached).
+  It grows toward the 60k cap as research lands and needs no code change. Local check:
+  a shim that runs `brandBrain` through `wrangler d1 execute --remote --command` works
+  (use `--command`, not `--file`, which returns no rows).

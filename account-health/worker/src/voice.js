@@ -28,6 +28,7 @@
  */
 import { claude, textOf, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { skillSystem, syncSkill, buildSkill, getSkill, buildSpeaker, METHOD, tellsIn } from './skill.js';
+import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 
 const S = { type: 'string' };
 const arr = items => ({ type: 'array', items });
@@ -257,8 +258,11 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
         const base = skill.instructions
           ? skillSystem(acct.name, skill, speakerMd)
           : `You write copy for ${acct.name} in their voice. The guide wins on how the copy SOUNDS. Never invent a product fact, price, number or review.\n\n${speakerMd ? `<file path="references/the-speaker.md">\n${speakerMd}\n</file>\n\n` : ''}${guide ? `<file path="references/how-we-write.md">\n${clip(guide, 14000)}\n</file>` : `The short voice card: ${JSON.stringify(card).slice(0, 2000)}`}`;
+        /* The brand brain (2026-09-29): personas, customer quotes, past tests, staff rules, cached
+           after the skill. voice:false because the base above already carries how they sound. */
+        const brain = await brandBrain(env, A, { voice: false }).catch(() => ({ md: '' }));
         const m = await claude(env, {
-          system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}` }],
+          system: [{ type: 'text', text: base, cache_control: { type: 'ephemeral' } }, ...(brain.md ? [brainBlock(brain.md)] : []), { type: 'text', text: `${bankText(bank) || ''}\n\n${deskRule}\n\n${SPECIFICITY}` }],
           user: `${facts}\n\n${ask}${who ? `\n\nWHO'S READING, AND WHERE: ${who}` : ''}`,
           schema: SCHEMAS.spoken, effort: 'medium', maxTokens: 12000,
         });

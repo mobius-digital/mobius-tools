@@ -12,10 +12,14 @@
  * The framework (Cole's mobius-brief-review skill): Angle = the argument, Concept = the idea we
  * build, Testing = the ONE piece that changes. Testing concepts means genuinely different ads.
  * Testing a piece inside a proven concept means everything else stays the same.
+ *
+ * Both steps carry the BRAND BRAIN (brain.js, 2026-09-29) in a cached system block, plus the
+ * SPECIFICITY rules, because with only the brand's name the output came back generic.
  */
 import { claude, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { getSkill, skillSystem } from './skill.js';
 import { readDoc, asana } from './asana-brand.js';
+import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 
 const STR = { type: 'string' }, ARR = { type: 'array', items: STR };
 const obj = p => ({ type: 'object', additionalProperties: false, required: Object.keys(p), properties: p });
@@ -65,8 +69,16 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
     if (b.text) parts.push(clip(b.text, 60000));
     if (!parts.length) throw new Error('Paste a brief or pick one from Asana.');
     put({ type: 'status', text: 'Reading the brief' });
+    const brain = await brandBrain(env, A).catch(() => ({ md: '' }));
     const m = await claude(env, {
-      system: `You read a marketing team's creative briefs for ${acct.name} and lay each one out as a test batch in the Mobius framework. ${VOICE}`,
+      system: [
+        { type: 'text', text: `You read a marketing team's creative briefs for ${acct.name} and lay each one out as a test batch in the Mobius framework. ${VOICE}
+
+The BRAND BRAIN below is everything Locus knows about ${acct.name}. Use it to understand the brief (which persona, which past test, which product) and to write anything the brief leaves out (why, name, a missing concept). The team's own words in the brief are never changed; the specificity rules apply to what YOU write.
+
+${SPECIFICITY}` },
+        ...(brain.md ? [brainBlock(brain.md)] : []),
+      ],
       user: `${parts.join('\n\n')}\n\nTHE FRAMEWORK:
 - Angle = the argument: the reason to buy, one sentence to a specific person.
 - Concept = the idea we build to deliver the angle. Only fill it when every line is inside ONE concept.
@@ -79,7 +91,7 @@ RULES:
 - If a brief gives an angle and ideas but no numbered lines, make one line per idea.
 - A line that asks for N versions or iterations becomes N lines (same text, marked "iteration 1 of N" and so on).
 - The post's own copy (primary text, body, caption, landing page, "ad copy for both versions") is NOT an ad: put it in post_copy, never in a line. Lines are only the images to make.
-- "why" is what the team believes about the customer, if the brief says; otherwise one short line inferred from the angle.
+- "why" is what the team believes about the customer, if the brief says; otherwise one short line inferred from the angle, naming the persona, customer quote or past test from the brand brain it rests on (or saying plainly that the brain has nothing on it).
 - name: 2 to 5 words, e.g. "Gift angle, 3 concepts".`,
       schema: obj({ batches: { type: 'array', items: BATCH } }), effort: 'low', maxTokens: 24000,
     });
@@ -98,6 +110,9 @@ RULES:
     let speaker = '';
     if (skill.source !== 'repo') speaker = safeJson((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'voice_speaker'`).bind(A).first())?.data_json, {}).md || '';
     const voice = skill.instructions ? skillSystem(acct.name, skill, speaker) : `You write copy for ${acct.name} in their voice. Never invent a product fact, price, number or review.`;
+    /* The brand brain rides after the skill as its own cached block: personas, customer quotes,
+       market stage, past tests, staff rules. For a brand with no skill it also carries the voice. */
+    const brain = await brandBrain(env, A).catch(() => ({ md: '' }));
     const variation = !['concepts', 'visuals', 'format'].includes(bt.testing);
     const content = [];
     /* House style: this brand's best-selling static ads (Triple Whale revenue, last 120 days),
@@ -146,9 +161,11 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
 - ${exact ? `EXACT PRODUCT: the product in every ad is one of the PRODUCT PHOTOS above, placed as shot (same angle, never redrawn). For each ad set photo to the number of the photo whose angle suits the idea, and write the look AROUND that angle (camera height and light that match the photo). place: where it sits in the square (center, left, right, lower, upper); size: small, medium or large. Set photo 0 only when no photo angle can possibly show the idea (for example a cut-away cross-section); then the product is drawn by the AI.` : 'Set photo 0, place center, size medium (no exact product photos).'}
 - STYLE: one of ${STYLES.join(', ')} per ad (auto lets the image model pick).
 - ref: "line" (its own inspiration), "swipe N" (swipe file image N), or "none". ref_use: copy, vibe or none.
-- note: one short line for the team on what this ad is going for.` });
+- note: one short line for the team on what this ad is going for and what in the brand brain it rests on (the persona, customer quote, past test or product fact), or what was missing.` });
     const m = await claude(env, {
-      system: [{ type: 'text', text: voice, cache_control: { type: 'ephemeral' } }, { type: 'text', text: VOICE }],
+      system: [{ type: 'text', text: voice, cache_control: { type: 'ephemeral' } }, ...(brain.md ? [brainBlock(brain.md)] : []), { type: 'text', text: `${VOICE}
+
+${SPECIFICITY}` }],
       user: content,
       schema: obj({ ads: { type: 'array', items: obj({
         headline: STR, subline: STR, callouts: ARR, cta: STR, art: STR, look: STR,

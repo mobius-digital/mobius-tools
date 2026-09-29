@@ -940,6 +940,11 @@ profit/
   to `brief.post_copy`, never a line; "N iterations" become N lines -> product + swipe file + per-line
   "look like this" inspiration -> `/api/studio-ai/plan` (the art director, system prompt = the
   brand's copy skill) -> Make -> review -> Send to Canva.
+- **2026-09-29: the BRAND BRAIN.** Both Studio AI steps, the copy desk and the Strategist's angle
+  writer now also get `account-health/worker/src/brain.js`: one cached block with everything Locus
+  knows about the brand (staff rules, personas, customer quotes, market stage, past tests with TW
+  results and learnings, creator link, GAPS) plus the SPECIFICITY rules (tie every line to a
+  persona, quote, test or fact; the swap test). Details in account-health/CLAUDE.md "Brand brain".
 - **Testing inside a concept (headlines/offer/reviews/hooks/copy) = line 1 is made, the rest are
   `/api/studio/vary` edits of it that change ONLY the words**, so it is a clean test. Concepts, looks
   and format = genuinely different ads, made two at a time from the page (keep it open).

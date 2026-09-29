@@ -20,6 +20,7 @@
  */
 
 import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../../ask/engine.js';
+import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 
 const WHO = `
 You are the Strategist for Mobius Digital, a marketing agency run by Cole
@@ -623,10 +624,16 @@ const ACTIONS = (d) => {
 - Angles must be genuinely different arguments, not one argument in five formats. No two may share a lever and a who.
 - Evidence first: the ads that sold tell you which arguments work for this brand. Build on them; do not repeat a live angle.
 - Plain English, the brand's voice, no jargon, no em dashes, no exclamation marks, no claims outside the rules.
+- Use the BRAND BRAIN: every angle must rest on a persona, a customer quote, a past test result or a product fact from it; say which in "lever", after the lever itself, e.g. "Relief (test 399 won on the bachelorette crew)".
+
+${SPECIFICITY}
+
 Return ONLY a JSON array of ${n} objects with exactly those keys. No prose.`;
         const user = `THEME / DIRECTION: ${input.theme}\nSECTION: ${input.section}${existing ? ' (existing)' : ' (new)'}\n\nBRAND CONTEXT:\n${context || '(none written)'}\n\nHUB INTRO: ${hub?.intro || ''}\nABOUT: ${hub?.about || ''}\nAUDIENCE: ${hub?.audience || ''}\nAVOID: ${JSON.stringify(d.safeJson(hub?.avoid_json, []))}\nRULES: ${JSON.stringify(d.safeJson(hub?.rules_json, []))}\n\nLIVE ANGLES NOW (do not repeat):\n${(angs || []).map(a => `- [${a.section || 'no section'}] ${a.title}: ${a.argument || ''} (${a.who || ''}; ${a.format || ''})`).join('\n') || '(none)'}\n\nWHAT SOLD, LAST 90 DAYS (Triple Whale attributed; the ad name carries the angle and format):\n${(won || []).map(w => `- ${w.name}: $${Math.round(w.rev)} from ${w.ord} orders`).join('\n') || '(no attribution rows yet)'}`;
         let text;
-        try { text = await d.claude(env, { system, user, maxTokens: 6000 }); } catch (e) { return { error: 'The writer could not run: ' + e.message }; }
+        /* The brand brain (2026-09-29), cached; creator:false because the hub is already in the prompt. */
+        const brain = await brandBrain(env, acct.act_id, { creator: false }).catch(() => ({ md: '' }));
+        try { text = await d.claude(env, { system: brain.md ? [{ type: 'text', text: system }, brainBlock(brain.md)] : system, user, maxTokens: 6000 }); } catch (e) { return { error: 'The writer could not run: ' + e.message }; }
         const m = String(text || '').match(/\[[\s\S]*\]/);
         let list; try { list = JSON.parse(m ? m[0] : '[]'); } catch { return { error: 'The writer did not return a clean list. Try again, or narrow the theme.' }; }
         list = (Array.isArray(list) ? list : []).filter(x => x && x.title && x.argument).slice(0, n);
