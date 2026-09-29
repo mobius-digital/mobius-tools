@@ -27,6 +27,7 @@ import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
+import { handleAtria, useFetch as atriaFetch } from './atria.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -172,6 +173,7 @@ function meterEnv(env) {
 function xfetch(...args) { subSpend(); return fetch(...args); }
 brandAsanaFetch(xfetch);
 ideasFetch(xfetch);
+atriaFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -5836,6 +5838,12 @@ const AH_APP = {
       return json({ owns: !!row });
     }
 
+    /* ---- Atria (the ideas bot reads Atria ad links): Connect / status / Disconnect are admin,
+       the OAuth callback is public (the state it carries is the proof). See atria.js. ---- */
+    if (path === '/atria/callback' || path.startsWith('/api/atria/')) {
+      const r = await handleAtria(request, env, url, path, json, isAdmin);
+      if (r) return r;
+    }
     /* ---- Brand research for Locus's Brand tab, plus the onboarding link's help box ---- */
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
     if (path.startsWith('/api/brand-asana')) {

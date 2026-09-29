@@ -653,8 +653,8 @@ with no copy skill got "you write copy for X"). `src/brain.js` fixes the context
 
 An idea dropped in a brand's INTERNAL channel (`accounts.slack_channel`, the `-internal`
 channels; clients are never in them) becomes a draft brief when someone tags @Mobius Digital
-in the thread. Code: `src/ideas.js`; tests: `node test-ideas.mjs` (28 offline checks, mocked
-Slack / Gemini / ScrapeCreators / Claude / Asana, plus the router rule).
+in the thread. Code: `src/ideas.js`; tests: `node test-ideas.mjs` (39 offline checks, mocked
+Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule).
 
 - **Routing.** Slack events already reach this worker through slack-router (`/slack/events`
   forwards any channel registered as an account's `slack_channel`; DMs and everything else go
@@ -712,6 +712,44 @@ Slack / Gemini / ScrapeCreators / Claude / Asana, plus the router rule).
   downloads, videos new vs cached, dollars); the card's footer shows the run's cost. Offline
   estimate with a ~15k-token cached brain: about $0.06 per tag, plus about half a cent per new
   60-second video and $0.002 per TikTok/Instagram download.
+- **Atria ad links (2026-09-29, `src/atria.js`).** An Atria link (`app.tryatria.com/ad/m<id>`) or a
+  Meta Ad Library link (`facebook.com/ads/library/?id=<id>`, read as Atria id `m<id>`) counts as a
+  reference video/image. Atria has NO REST API or key: it has an MCP server
+  (`https://api.tryatria.com/mcp`, Streamable HTTP) behind OAuth, so Locus connects ONCE for the
+  whole workspace: Locus Studio, **Connect Atria** -> `POST /api/atria/start` (admin) registers this
+  worker by dynamic client registration the first time (client id + secret in `p_studio_cfg`
+  `atria_client`, never logged or sent to the browser), stores a PKCE S256 verifier + state
+  (`atria_state`, single use, 20 min) and returns Atria's sign-in URL (scope `atria:read` only,
+  `resource=https://api.tryatria.com/mcp`). Cole signs in himself; Atria redirects to the PUBLIC
+  `GET /atria/callback` on this worker, which swaps the code (Basic client auth + verifier) and
+  stores `atria_tokens` {access, refresh, exp, since}. `atriaToken()` refreshes a minute before
+  expiry (and re-reads the row if another job rotated it first); a dead refresh token clears the
+  row = "not connected". `GET /api/atria/status` says connected/since only; `POST
+  /api/atria/disconnect` revokes the refresh token and forgets client + tokens.
+  - Per ad: MCP `initialize` (+ `Mcp-Session-Id` when the server gives one, `notifications/initialized`),
+    then `tools/call` `get_library_ad {ad_id}`, `get_library_ad_transcript {ad_id}` (videos, used only
+    when `status: ready`) and `get_library_ad_creative_tags {ad_ids: [..]}` (an ARRAY; `ad_id` is
+    rejected). Replies may be JSON or SSE; both are read. A 401 refreshes once and retries.
+    `transcribe_library_ad` is never called (it would start work on Atria's side).
+  - Video ad: the public `cdn.tryatria.com/adfiles/...mp4` is downloaded (no auth, no downloader
+    credit) and streamed into Gemini exactly like a Slack upload. Image / carousel ad: up to 3
+    images go to Claude as image blocks, no Gemini. The breakdown gets an `atria` part: advertiser,
+    headline, body copy, CTA, landing page, format, "Running N days since <date>, status X. Long-running
+    ads are usually profitable for the advertiser: a signal, not proof.", transcript, creative tags.
+    The system prompt says the same about days running.
+  - Cached ONCE per ad in `idea_media` as `atria:<id>` (platform `atria`, the image urls inside the
+    facts so a re-tag still shows Claude the picture). A re-tag or Redo makes no MCP call and no
+    download. Not cached: not connected, not in Atria, or a video with no GEMINI_API_KEY (Atria's
+    transcript and details are still used that run).
+  - Not connected / not in Atria / Atria down: one line in the card ("Atria is not connected ...
+    Cole can connect it in Locus (Studio, Connect Atria)" / "That ad (V1) is not in Atria's
+    library") and the draft is written from the words. Same cost as before: no extra model call.
+  - The PUBLIC creator link never gets an Atria URL (needs an Atria login): `publicRef()` turns a
+    Meta Atria id into its Meta Ad Library page for the proof. Asana Inspo keeps the pasted link.
+  - Tests: 11 Atria checks in `test-ideas.mjs` (mocked OAuth server + MCP server). NOT tested live:
+    the DCR registration, Atria's sign-in/consent, the token swap and refresh, and the MCP session
+    against the real server (whether it wants `resource`, sends a session id, answers SSE). If the
+    first real Atria link fails, the card says what Atria answered.
 - **Slack scopes it uses:** chat:write, reactions:write, channels:history + groups:history
   (conversations.replies in private -internal channels), files:read (uploads), users:read
   (names). The Strategist and Ledger already use all of these; if a call fails, the thread says

@@ -21,10 +21,18 @@
  * Secrets: GEMINI_API_KEY (video), DOWNLOADER_KEY (ScrapeCreators, TikTok + Instagram). Both
  * are optional: without them the bot says so in the thread and asks for the file instead.
  * IDEA_APPROVERS (comma list of Slack user ids) may press the destination buttons; anyone can tag.
+ *
+ * ATRIA (2026-09-29): an Atria ad link (app.tryatria.com/ad/m<id>) or a Meta Ad Library link
+ * (facebook.com/ads/library/?id=<id>, read as Atria id "m<id>") works like a video or image.
+ * atria.js fetches the ad over Atria's MCP server (one workspace-wide OAuth connection, made in
+ * Locus Studio, Connect Atria): the public MP4 goes to Gemini like an upload, an image ad goes
+ * to Claude like an image, and the ad's text (advertiser, copy, CTA, landing page, days running,
+ * transcript, creative tags) rides in the breakdown. Cached per ad in idea_media as `atria:<id>`.
  */
 import { claude, jsonOf, clip, safeJson } from './research.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 import { asana, numOf } from './asana-brand.js';
+import { atriaAd } from './atria.js';
 
 /* Outbound HTTP goes through the worker's metered fetch (xfetch). worker.js hands it in. */
 let F = (...a) => fetch(...a);
@@ -55,7 +63,15 @@ export const DESTS = { creator_link: 'Creator link', lucky_creators: 'Lucky crea
 const MODE = { as_is: 'Use it as is', style: 'Borrow the style', hook_only: 'Just the hook', mixed: 'A mix' };
 const TEST_TYPE = { angle: 'angle test', concept: 'concept test', iteration: 'iteration test' };
 const STUDIO_TESTING = ['concepts', 'headlines', 'visuals', 'offer', 'reviews', 'hooks', 'copy', 'format'];
-const PLATFORM = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', slack: 'uploaded' };
+const PLATFORM = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', slack: 'uploaded', atria: 'Atria' };
+/* A reference shown on the PUBLIC creator link must open for anyone: an Atria link needs an Atria
+   login, so a Meta ad ("m" + id) goes on as its public Meta Ad Library page instead. */
+export function publicRef(u) {
+  const c = classifyLink(u);
+  if (c?.platform !== 'atria') return u;
+  const m = /^m(\d+)$/.exec(c.atria);
+  return m ? `https://www.facebook.com/ads/library/?id=${m[1]}` : u;
+}
 
 /* ---------------- tables (created on first use; also in schema.sql) ---------------- */
 let ready = false;
@@ -117,6 +133,10 @@ export function classifyLink(u) {
     m = /\/video\/(\d{8,})/.exec(url);
     return { platform: 'tiktok', key: m ? `tt:${m[1]}` : `tt:${url.replace(/[?#].*$/, '').replace(/\/+$/, '')}`, url: url.replace(/[?#].*$/, ''), link: url };
   }
+  m = /tryatria\.com\/ads?\/([A-Za-z0-9_-]{4,})/i.exec(url);
+  if (m) return { platform: 'atria', key: `atria:${m[1]}`, atria: m[1], url: `https://app.tryatria.com/ad/${m[1]}`, link: url };
+  m = /facebook\.com\/ads\/library\/?\?(?:[^#]*&)?id=(\d{6,})/i.exec(url);
+  if (m) return { platform: 'atria', key: `atria:m${m[1]}`, atria: `m${m[1]}`, url: `https://www.facebook.com/ads/library/?id=${m[1]}`, link: url };
   m = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(reels?|p|tv)\/([A-Za-z0-9_-]+)/i.exec(url);
   if (m) { const kind = m[1].toLowerCase() === 'p' ? 'p' : 'reel'; return { platform: 'instagram', key: `ig:${m[2]}`, url: `https://www.instagram.com/${kind}/${m[2]}/`, link: url }; }
   return null;
@@ -316,7 +336,8 @@ async function geminiFacts(env, part, meter) {
 /** One video's facts: from the cache, or watched once and cached. Never throws. */
 export async function videoFacts(env, v, meter) {
   const hit = await env.DB.prepare(`SELECT facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
-  if (hit) { meter.videos_cached++; return { facts: safeJson(hit.facts_json, {}), cached: true }; }
+  if (hit) { meter.videos_cached++; const facts = safeJson(hit.facts_json, {}); return { facts, cached: true, image_urls: facts.atria?.image_urls || [] }; }
+  if (v.platform === 'atria') return atriaFacts(env, v, meter);
   const what = v.platform === 'slack' ? `the uploaded video (${v.label})` : `the ${PLATFORM[v.platform]} video (${v.label})`;
   if (!env.GEMINI_API_KEY) return { note: `I could not watch ${what}: the video reader is not switched on yet (GEMINI_API_KEY is missing on the worker). I worked from the words in the thread.`, missing: 'gemini' };
   try {
@@ -351,6 +372,62 @@ export async function videoFacts(env, v, meter) {
     return { facts };
   } catch (e) {
     return { note: `I could not watch ${what}: ${e.message}.` };
+  }
+}
+
+/* Atria's words about the ad, labelled for the thinking step. */
+function atriaSummary(a) {
+  const ad = a.ad || {};
+  const days = +ad.days_running || 0;
+  const video = (ad.videos || [])[0] || null;
+  return {
+    source: 'Atria ad library (facts about the ad as it runs on Meta)',
+    advertiser: ad.advertiser_name || '', headline: ad.title || '', body_copy: clip(ad.body, 4000), cta: ad.cta_text || '', landing_page: ad.link_url || '',
+    format: [ad.display_format, ad.media_format].filter(Boolean).join(', '), video_seconds: video?.duration_seconds || ad.video_duration || null,
+    running: days || ad.start_date || ad.status
+      ? `${days ? `Running ${days} days` : 'Running'}${ad.start_date ? ` since ${String(ad.start_date).slice(0, 10)}` : ''}${ad.status ? `, status ${ad.status}` : ''}. Long-running ads are usually profitable for the advertiser: a signal, not proof.`
+      : '',
+    transcript: a.transcript || '', creative_tags: a.tags || '',
+    image_urls: (ad.images || []).map(i => i?.url || i).filter(u => /^https:\/\//.test(u || '')).slice(0, 3),
+  };
+}
+const ATRIA_OFF = 'Atria is not connected, so I could not open the Atria ad; Cole can connect it in Locus (Studio, Connect Atria). I worked from the words in the thread.';
+
+/** An Atria (or Meta Ad Library) ad: the ad's details from Atria, then its video watched once like an upload. Never throws. */
+async function atriaFacts(env, v, meter) {
+  let a;
+  try { a = await atriaAd(env, v.atria); } catch (e) { a = { ok: false, reason: 'failed', message: e.message }; }
+  if (!a.ok) return { note: a.reason === 'not_connected' ? ATRIA_OFF
+    : a.reason === 'not_found' ? `That ad (${v.label}) is not in Atria's library, so I worked from the words in the thread.`
+    : `I could not open the Atria ad (${v.label}): ${clip(a.message || 'Atria did not answer', 160)}. I worked from the words in the thread.` };
+  const atria = atriaSummary(a);
+  const vid = ((a.ad.videos || [])[0] || {}).url || '';
+  const save = async (facts, g = { g_in: 0, g_out: 0 }) => {
+    const cost = (g.g_in * PRICE.g_in + g.g_out * PRICE.g_out) / 1e6;
+    await env.DB.prepare(`INSERT INTO idea_media (key, platform, url, status, facts_json, g_in, g_out, cost) VALUES (?1, 'atria', ?2, 'ok', ?3, ?4, ?5, ?6)
+      ON CONFLICT(key) DO UPDATE SET facts_json = excluded.facts_json, status = 'ok', g_in = excluded.g_in, g_out = excluded.g_out, cost = excluded.cost`)
+      .bind(v.key, v.url, JSON.stringify(facts).slice(0, 60000), g.g_in, g.g_out, cost).run();
+  };
+  if (!/^https:\/\//.test(vid)) {
+    /* An image (or a carousel): the pictures go to Claude as images, the words ride in the breakdown. */
+    const facts = { atria };
+    await save(facts);
+    return { facts, image_urls: atria.image_urls };
+  }
+  if (!env.GEMINI_API_KEY) return { facts: { atria }, note: `I could not watch the Atria video (${v.label}): the video reader is not switched on yet (GEMINI_API_KEY is missing on the worker). I used Atria's transcript and details.` };
+  try {
+    const res = await F(vid);
+    if (!res.ok || /text\/html|json/.test(res.headers.get('content-type') || '')) throw new Error(`the video file would not download (${res.status})`);
+    const size = +(res.headers.get('content-length') || 0);
+    if (size > MAX_VIDEO_BYTES) return { facts: { atria }, note: `The Atria video (${v.label}) is over 300MB, so I used Atria's transcript and details only.` };
+    const file = await geminiUpload(env, res, 'video/mp4', size, v.key);
+    const g = await geminiFacts(env, { file_data: { mime_type: file.mimeType || 'video/mp4', file_uri: file.uri } }, meter);
+    const facts = { ...g.facts, atria };
+    await save(facts, g);
+    meter.videos_new++;
+    return { facts };
+  } catch (e) {
+    return { facts: { atria }, note: `I could not watch the Atria video (${v.label}): ${e.message}. I used Atria's transcript and details.` };
   }
 }
 
@@ -399,6 +476,7 @@ THE MOBIUS FRAMEWORK
 READING THE THREAD
 - The team's notes outrank your own read. "works as is" means as_is, "love the style" means style, "just the hook" means hook_only; more than one of these means mixed. If people disagreed, follow the LATEST direction and say so in transfer.disagreement (otherwise leave it empty).
 - The video breakdowns are facts from a video model. Trust them for what was said and shown.
+- A breakdown with an "atria" part is an ad from the Atria ad library (it runs on Meta): its advertiser, copy, CTA, landing page, transcript and creative tags are facts. How long it has been running is a signal it makes money for that advertiser, not proof; say so if you lean on it.
 - The reference is usually another brand's ad. Take its structure, never its claims, product or words.
 
 TEARDOWN: why the reference works for its audience: the awareness stage, the sophistication stage, the desire it hits, the mechanism, the proof it uses, and why the hook stops the scroll. Then what is weak or not worth copying. Specific to this reference: if a sentence would fit any ad, cut it. A typed idea with no reference gets the same treatment for the idea itself.
@@ -615,8 +693,9 @@ export async function runIdeaJob(env, job) {
     const breakdowns = [], imgs = [];
     for (const v of t.videos.slice(0, MAX_VIDEOS)) {
       const r = await videoFacts(env, v, meter);
-      if (r.facts) breakdowns.push(`${v.label} (${PLATFORM[v.platform]}${v.url ? ` ${v.url}` : ''}${r.cached ? ', watched before' : ''}):\n${clip(JSON.stringify(r.facts), 9000)}`);
+      if (r.facts) breakdowns.push(`${v.label} (${PLATFORM[v.platform]}${v.url ? ` ${v.url}` : ''}${r.cached ? ', read before' : ''}):\n${clip(JSON.stringify(r.facts), 12000)}`);
       else if (r.image_url) imgs.push({ label: v.label, url: r.image_url, slack: false });
+      (r.image_urls || []).forEach((u, i) => imgs.push({ label: r.image_urls.length > 1 ? `${v.label}.${i + 1}` : v.label, url: u, slack: false }));
       if (r.note) notes.push(r.note);
     }
     if (t.videos.length > MAX_VIDEOS) notes.push(`Only the first ${MAX_VIDEOS} videos were watched.`);
@@ -771,7 +850,7 @@ export async function pushCreator(env, row, acct, d, pushed) {
         clip(c.on_screen, 200), clip(c.do_text, 400), clip(c.dont_text, 400), mx?.n || 1).run();
     created.angle = angleId;
   }
-  for (const url of (safeJson(row.refs_json, []) || []).slice(0, 2)) {
+  for (const url of (safeJson(row.refs_json, []) || []).slice(0, 2).map(publicRef)) {
     if (await env.DB.prepare(`SELECT id FROM p_amb_proof WHERE angle_id = ?1 AND url = ?2`).bind(angleId, url).first()) continue;
     const pid = rid();
     const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM p_amb_proof WHERE angle_id = ?1`).bind(angleId).first();

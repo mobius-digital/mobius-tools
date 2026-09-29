@@ -117,8 +117,59 @@ globalThis.fetch = async (url, init = {}) => {
     if (p === '/tasks') return Response.json({ data: { gid: 'T1', name: JSON.parse(init.body).data.name, permalink_url: 'https://app.asana.com/0/P1/T1' } });
     return Response.json({ data: {} });
   }
+  if (u.hostname === 'auth.tryatria.com') return atriaAuth(u, init);
+  if (u.hostname === 'api.tryatria.com') return atriaMcp(u, init);
+  if (u.hostname === 'cdn.tryatria.com') return new Response(new Uint8Array(2048), { headers: { 'content-type': 'video/mp4', 'content-length': '2048' } });
+  if (u.hostname === 'scontent.xx.fbcdn.net') return new Response(new Uint8Array([255, 216, 255, 1, 2]), { headers: { 'content-type': 'image/jpeg' } });
   throw new Error('Unexpected network call in offline test: ' + url);
 };
+
+/* ---------------- Atria mocks: OAuth server + MCP server ---------------- */
+const ATRIA = { valid: new Set(), session: 'SESS1', revoked: [] };
+const ATRIA_ADS = {
+  m742305868280793: { ad_id: 'm742305868280793', advertiser_name: 'Zound', title: 'Concert earplugs that keep the music clear', body: 'Hear every note. 40% off today.', cta_text: 'Shop now',
+    link_url: 'https://zound.com/earplugs', days_running: 142, start_date: '2026-05-10', status: 'active', display_format: 'video', media_format: 'video', video_duration: 67,
+    images: [], videos: [{ url: 'https://cdn.tryatria.com/adfiles/m742305868280793_x.mp4', duration_seconds: 67, preview_image_url: 'https://cdn.tryatria.com/p.jpg' }] },
+  m555000111: { ad_id: 'm555000111', advertiser_name: 'Hat Co', title: 'The hat that fits', body: 'Fits every head.', cta_text: 'Learn more', link_url: 'https://hat.co',
+    days_running: 12, start_date: '2026-09-17', status: 'active', display_format: 'image', media_format: 'image', images: [{ url: 'https://scontent.xx.fbcdn.net/hat.jpg' }], videos: [] },
+};
+function atriaAuth(u, init) {
+  const form = new URLSearchParams(init.body || '');
+  if (u.pathname === '/.well-known/oauth-authorization-server') return Response.json({ authorization_endpoint: 'https://auth.tryatria.com/oauth/authorize', token_endpoint: 'https://auth.tryatria.com/oauth/token',
+    registration_endpoint: 'https://auth.tryatria.com/oauth/register', revocation_endpoint: 'https://auth.tryatria.com/oauth/revoke' });
+  if (u.pathname === '/oauth/register') { ATRIA.registered = JSON.parse(init.body); return Response.json({ client_id: 'CID1', client_secret: 'CSECRET1', token_endpoint_auth_method: 'client_secret_basic' }, { status: 201 }); }
+  if (u.pathname === '/oauth/revoke') { ATRIA.revoked.push(form.get('token')); return new Response('', { status: 200 }); }
+  if (u.pathname === '/oauth/token') {
+    ATRIA.lastToken = { form: Object.fromEntries(form), auth: init.headers?.Authorization || '' };
+    if (init.headers?.Authorization !== `Basic ${btoa('CID1:CSECRET1')}`) return Response.json({ error: 'invalid_client' }, { status: 401 });
+    if (form.get('grant_type') === 'authorization_code' && form.get('code') === 'CODE1' && form.get('code_verifier')) { ATRIA.valid.add('AT1'); return Response.json({ access_token: 'AT1', refresh_token: 'RT1', expires_in: 3600 }); }
+    if (form.get('grant_type') === 'refresh_token' && form.get('refresh_token') === 'RT1') { ATRIA.valid.add('AT2'); return Response.json({ access_token: 'AT2', refresh_token: 'RT2', expires_in: 3600 }); }
+    return Response.json({ error: 'invalid_grant' }, { status: 400 });
+  }
+  return new Response('', { status: 404 });
+}
+function atriaMcp(u, init) {
+  const tok = String(init.headers?.Authorization || '').replace('Bearer ', '');
+  if (!ATRIA.valid.has(tok)) return Response.json({ error: 'unauthorized' }, { status: 401 });
+  const m = JSON.parse(init.body);
+  if (m.method === 'initialize') return Response.json({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'atria' } } }, { headers: { 'mcp-session-id': ATRIA.session } });
+  if (m.method === 'notifications/initialized') return new Response(null, { status: 202 });
+  if (init.headers['Mcp-Session-Id'] !== ATRIA.session) return new Response('no session', { status: 400 });
+  const { name, arguments: a } = m.params;
+  const text = o => ({ jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: JSON.stringify(o) }] } });
+  if (name === 'get_library_ad') {
+    const ad = ATRIA_ADS[a.ad_id];
+    const msg = ad ? text(ad) : { jsonrpc: '2.0', id: m.id, result: { isError: true, content: [{ type: 'text', text: `Ad not found: ${a.ad_id}` }] } };
+    /* This one answers as an SSE stream, the other two as plain JSON: the client must read both. */
+    return new Response(`event: message\ndata: ${JSON.stringify(msg)}\n\n`, { headers: { 'content-type': 'text/event-stream' } });
+  }
+  if (name === 'get_library_ad_transcript') return Response.json(text({ ad_id: a.ad_id, status: 'ready', text: '5 reasons why you need Zound earplugs for concerts', segments: [] }));
+  if (name === 'get_library_ad_creative_tags') {
+    if (!Array.isArray(a.ad_ids)) return Response.json({ jsonrpc: '2.0', id: m.id, result: { isError: true, content: [{ type: 'text', text: 'ad_ids must be an array' }] } });
+    return Response.json(text({ results: [{ ad_id: a.ad_ids[0], tags: { hook_type: 'listicle', creator: 'UGC woman 25-34', angle: 'music stays clear' } }] }));
+  }
+  return Response.json({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'unknown tool' } });
+}
 
 const ideas = await import('./src/ideas.js');
 const env = { DB, IDEA_APPROVERS: 'U_COLE,U_AHSAN', SLACK_BOT_TOKEN: 'xoxb-test', ANTHROPIC_API_KEY: 'test', GEMINI_API_KEY: 'test', DOWNLOADER_KEY: 'test', ASANA_TOKEN: 'test' };
@@ -364,6 +415,131 @@ await check('Redo is open to anyone and re-runs from the cache; Discard is appro
   assert.match(JSON.stringify(cardOf(ID).blocks), /Discarded by Ahsan/);
 });
 
+/* ---------------- Atria ---------------- */
+const atria = await import('./src/atria.js');
+const AT_LINK = 'https://app.tryatria.com/ad/m742305868280793';
+const FB_LINK = 'https://www.facebook.com/ads/library/?active_status=all&id=555000111';
+const cfg = k => db.prepare('SELECT value FROM p_studio_cfg WHERE key = ?').get(k)?.value || null;
+const jr = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json' } });
+const adminOk = async req => (req.headers.get('Authorization') || '') === 'Bearer adm';
+const atRoute = (p, method = 'GET', auth = 'adm') => atria.handleAtria(new Request(`https://ah.test${p}`, { method, headers: auth ? { Authorization: `Bearer ${auth}` } : {} }), env, new URL(`https://ah.test${p}`), new URL(`https://ah.test${p}`).pathname, jr, adminOk);
+threads[`${CH}:600.1`] = [{ ts: '600.1', user: 'U_AHSAN', text: `This one has run for months <${AT_LINK}> just the hook <@U_BOT>` }];
+threads[`${CH}:610.1`] = [{ ts: '610.1', user: 'U_AHSAN', text: `Static idea <${FB_LINK.replace(/&/g, '&amp;')}> <@U_BOT>` }];
+threads[`${CH}:620.1`] = [{ ts: '620.1', user: 'U_AHSAN', text: 'Not in Atria <https://app.tryatria.com/ad/m999999999> <@U_BOT>' }];
+
+await check('Atria links: app.tryatria.com/ad/<id> and Meta Ad Library ?id= both become Atria ids; public ref for the creator link', () => {
+  const a = ideas.classifyLink(AT_LINK);
+  assert.equal(a.platform, 'atria'); assert.equal(a.key, 'atria:m742305868280793'); assert.equal(a.atria, 'm742305868280793');
+  const f = ideas.classifyLink(FB_LINK);
+  assert.equal(f.key, 'atria:m555000111'); assert.equal(f.url, 'https://www.facebook.com/ads/library/?id=555000111');
+  assert.equal(ideas.classifyLink('https://www.facebook.com/ads/library/?id=742305868280793').atria, 'm742305868280793');
+  assert.equal(ideas.classifyLink('https://www.facebook.com/somepage'), null);
+  assert.equal(ideas.publicRef(AT_LINK), 'https://www.facebook.com/ads/library/?id=742305868280793');
+  assert.equal(ideas.publicRef(TT), TT);
+});
+await check('Atria not connected: one line in the thread, the draft still comes from the words', async () => {
+  calls.length = 0;
+  const r = await ideas.runIdeaJob(env, job('600.1'));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(count(/tryatria/), 0, 'no Atria call without a connection');
+  assert.match(JSON.stringify(lastPost().blocks), /Atria is not connected/);
+  assert.match(JSON.stringify(lastClaudeBody.messages[0].content), /MEDIA I COULD NOT READ/);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM idea_media WHERE key LIKE 'atria:%'`).get().n, 0);
+  db.exec(`DELETE FROM idea_thread WHERE id = '${CH}:600.1'`);
+});
+await check('Connect Atria: admin only; registers once (DCR, atria:read), PKCE S256 sign-in URL with the MCP resource', async () => {
+  assert.equal((await atRoute('/api/atria/start', 'POST', 'nope')).status, 401);
+  assert.equal((await (await atRoute('/api/atria/status')).json()).connected, false);
+  const r = await (await atRoute('/api/atria/start', 'POST')).json();
+  const q = new URL(r.url);
+  assert.equal(q.origin + q.pathname, 'https://auth.tryatria.com/oauth/authorize');
+  assert.equal(q.searchParams.get('client_id'), 'CID1'); assert.equal(q.searchParams.get('scope'), 'atria:read');
+  assert.equal(q.searchParams.get('code_challenge_method'), 'S256'); assert.ok(q.searchParams.get('code_challenge').length >= 43);
+  assert.equal(q.searchParams.get('redirect_uri'), 'https://ah.test/atria/callback'); assert.equal(q.searchParams.get('resource'), 'https://api.tryatria.com/mcp');
+  assert.deepEqual(ATRIA.registered.redirect_uris, ['https://ah.test/atria/callback']); assert.equal(ATRIA.registered.scope, 'atria:read');
+  assert.ok(!JSON.stringify(r).includes('CSECRET1'), 'the client secret must never reach the browser');
+  calls.length = 0;
+  await (await atRoute('/api/atria/start', 'POST')).json();
+  assert.equal(count(/oauth\/register/), 0, 'registers once');
+  ATRIA.state = new URL((await (await atRoute('/api/atria/start', 'POST')).json()).url).searchParams.get('state');
+});
+await check('Atria callback: wrong state refused; right state swaps the code (Basic auth, PKCE verifier) and stores tokens', async () => {
+  let res = await atRoute('/atria/callback?code=CODE1&state=forged', 'GET', null);
+  assert.match(await res.text(), /did not connect/);
+  assert.equal(cfg('atria_tokens'), null);
+  res = await atRoute(`/atria/callback?code=CODE1&state=${ATRIA.state}`, 'GET', null);
+  assert.match(await res.text(), /Atria is connected/);
+  assert.equal(ATRIA.lastToken.form.grant_type, 'authorization_code'); assert.ok(ATRIA.lastToken.form.code_verifier.length >= 43);
+  assert.equal(JSON.parse(cfg('atria_tokens')).refresh, 'RT1');
+  assert.equal(cfg('atria_state'), null, 'the state is single-use');
+  const st = await (await atRoute('/api/atria/status')).json();
+  assert.equal(st.connected, true); assert.ok(!JSON.stringify(st).includes('AT1') && !JSON.stringify(st).includes('RT1'), 'tokens never leave the worker');
+  res = await atRoute(`/atria/callback?code=CODE1&state=${ATRIA.state}`, 'GET', null);
+  assert.match(await res.text(), /out of date/);
+});
+await check('Atria video ad: MCP (SSE and JSON), public MP4 watched once by Gemini, Atria facts + running signal + transcript + tags in the prompt', async () => {
+  calls.length = 0;
+  const r = await ideas.runIdeaJob(env, job('600.1'));
+  assert.equal(r.ok, true, r.error);
+  const tools = calls.filter(c => c.url === 'https://api.tryatria.com/mcp').map(c => JSON.parse(c.init.body)).filter(m => m.method === 'tools/call').map(m => m.params.name);
+  assert.deepEqual(tools, ['get_library_ad', 'get_library_ad_transcript', 'get_library_ad_creative_tags']);
+  assert.equal(count(/cdn\.tryatria\.com/), 1); assert.equal(count(/:generateContent$/), 1); assert.equal(count(/api\.anthropic\.com/), 1);
+  const content = JSON.stringify(lastClaudeBody.messages[0].content);
+  for (const s of ['Zound', 'Concert earplugs that keep the music clear', 'Shop now', 'zound.com/earplugs', 'Running 142 days since 2026-05-10', 'a signal, not proof', '5 reasons why you need Zound', 'listicle', 'I shot a 112 today'])
+    assert.ok(content.includes(s), 'prompt is missing ' + s);
+  assert.match(lastClaudeBody.system[0].text, /Atria ad library/);
+  const m = db.prepare(`SELECT * FROM idea_media WHERE key = 'atria:m742305868280793'`).get();
+  assert.equal(m.platform, 'atria'); assert.ok(m.g_in > 0);
+  assert.equal(r.videos_new, 1);
+  assert.deepEqual(JSON.parse(row(`${CH}:600.1`).refs_json), [AT_LINK]);
+  assert.doesNotMatch(JSON.stringify(lastPost().blocks), /not connected|could not/);
+});
+await check('Atria re-tag: from the cache, no MCP call, no download, no re-watch', async () => {
+  calls.length = 0;
+  const r = await ideas.runIdeaJob(env, job('600.1', 'Make it for the cooler <@U_BOT>'));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(count(/tryatria|generativelanguage/), 0);
+  assert.equal(r.videos_cached, 1);
+  assert.match(JSON.stringify(lastClaudeBody.messages[0].content), /Running 142 days/);
+});
+await check('Meta Ad Library image ad: token refreshed on expiry, image goes to Claude, no Gemini; cached with its image', async () => {
+  const t = JSON.parse(cfg('atria_tokens')); t.exp = Date.now() - 1000;
+  db.prepare('UPDATE p_studio_cfg SET value = ? WHERE key = ?').run(JSON.stringify(t), 'atria_tokens');
+  calls.length = 0;
+  const r = await ideas.runIdeaJob(env, job('610.1'));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(ATRIA.lastToken.form.grant_type, 'refresh_token');
+  assert.equal(JSON.parse(cfg('atria_tokens')).access, 'AT2'); assert.equal(JSON.parse(cfg('atria_tokens')).refresh, 'RT2');
+  assert.equal(count(/generativelanguage/), 0);
+  assert.ok(lastClaudeBody.messages[0].content.some(b => b.type === 'image'));
+  assert.match(JSON.stringify(lastClaudeBody.messages[0].content), /Hat Co/);
+  assert.ok(calls.filter(c => c.url === 'https://api.tryatria.com/mcp').map(c => JSON.parse(c.init.body)).some(m => m.params?.name === 'get_library_ad' && m.params.arguments.ad_id === 'm555000111'));
+  calls.length = 0;
+  await ideas.runIdeaJob(env, job('610.1'));
+  assert.equal(count(/tryatria/), 0);
+  assert.equal(count(/fbcdn/), 1, 'the cached image still reaches Claude');
+  assert.ok(lastClaudeBody.messages[0].content.some(b => b.type === 'image'));
+});
+await check('Ad not in Atria: one line in the thread, still drafts, nothing cached', async () => {
+  const r = await ideas.runIdeaJob(env, job('620.1'));
+  assert.equal(r.ok, true, r.error);
+  assert.match(JSON.stringify(lastPost().blocks), /not in Atria's library/);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM idea_media WHERE key = 'atria:m999999999'`).get().n, 0);
+});
+await check('Creator link proof for an Atria reference is the public Meta Ad Library page', async () => {
+  await press('idea_link', `${CH}:600.1`);
+  const a = db.prepare(`SELECT id FROM p_amb_angle WHERE title = 'The garage rant'`).get();
+  assert.equal(db.prepare('SELECT url FROM p_amb_proof WHERE angle_id = ?').get(a.id).url, 'https://www.facebook.com/ads/library/?id=742305868280793');
+  await press('idea_undo_link', `${CH}:600.1`);
+});
+await check('Disconnect Atria: refresh token revoked, client and tokens forgotten', async () => {
+  const r = await (await atRoute('/api/atria/disconnect', 'POST')).json();
+  assert.equal(r.connected, false);
+  assert.deepEqual(ATRIA.revoked, ['RT2']);
+  assert.equal(cfg('atria_tokens'), null); assert.equal(cfg('atria_client'), null);
+  assert.equal((await (await atRoute('/api/atria/status')).json()).connected, false);
+});
+
 /* ---------------- the account-health Slack door ---------------- */
 const secret = 'test-signing-secret';
 const sign = (raw, t = Math.floor(Date.now() / 1000)) => ({ 'x-slack-request-timestamp': String(t), 'x-slack-signature': 'v0=' + crypto.createHmac('sha256', secret).update(`v0:${t}:${raw}`).digest('hex') });
@@ -403,6 +579,12 @@ if (worker) {
     assert.equal((await post('/slack/actions', b, sign(b), 'application/x-www-form-urlencoded')).status, 200);
     assert.equal(calls.length, 0);
     delete wenv.IDEAS_BOT;
+  });
+  await check('worker routes: /api/atria/* needs a sign-in, /atria/callback is public', async () => {
+    const res = await worker.fetch(new Request('https://ah.test/api/atria/status'), wenv, { waitUntil() {} });
+    assert.equal(res.status, 401);
+    const cb = await worker.fetch(new Request('https://ah.test/atria/callback?code=x&state=y'), wenv, { waitUntil() {} });
+    assert.equal(cb.status, 200); assert.match(await cb.text(), /did not connect/);
   });
   await check('Slack door: url_verification still answers', async () => {
     const raw = JSON.stringify({ type: 'url_verification', challenge: 'abc' });

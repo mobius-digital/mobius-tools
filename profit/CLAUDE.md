@@ -990,6 +990,12 @@ profit/
   `ad_creative.thumb`) and gets hard type rules (flat, crisp, no bevels/glows/3D/fake badges, real
   photography). Image prompts carry the same rules.
 
+- **Connect Atria (2026-09-29):** a second button in the Studio top bar (`#stAtria`, next to Canva,
+  visible once a brand is picked). One workspace-wide connection for the Slack ideas bot, not per
+  brand. The UI calls the ACCOUNT-HEALTH worker directly (`/api/atria/status|start|disconnect`,
+  admin Bearer); the OAuth client, tokens and the public callback (`/atria/callback`) all live there
+  (`account-health/worker/src/atria.js`, rows `atria_*` in the shared `p_studio_cfg`). No profit
+  worker change. Details in account-health/CLAUDE.md "Ideas bot", Atria bullet.
 - **Canva status (2026-09-27):** app "Locus Studio" created in Cole's Canva developer account (App ID
   AAHOGFM5NCI, Public, Draft). REST API setup is BLOCKED until Cole turns on MFA on his Canva account
   (Canva's rule; Claude must not change account security settings). Then: Outside Canva -> Start

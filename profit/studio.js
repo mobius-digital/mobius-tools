@@ -197,7 +197,8 @@ async function render({ tok, url, act, accounts, pick }) {
   await reload();
 }
 async function reload() {
-  S.d = await api(`/api/studio?act=${encodeURIComponent(S.act)}`);
+  const [d, at] = await Promise.all([api(`/api/studio?act=${encodeURIComponent(S.act)}`), atriaCall('/api/atria/status').catch(() => null)]);
+  S.d = d; S.atria = at;
   if (S.cur && S.cur.id !== 'loose') S.cur = S.d.batches.find(b => b.id === S.cur.id) || null;
   paint();
 }
@@ -209,7 +210,7 @@ function paint() {
   const loose = live(adsOf(null));
   main.innerHTML = `<div class="st">
     <div class="st-bar"><div style="display:block"><h2>Studio · ${esc(d.account?.name || '')}</h2><p class="sub" style="margin:0">Make a batch straight from the brief: one ad per line, the product checked against the real photos, then send it to Canva.</p></div>
-      <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span><button class="btn" id="stKey">Image AI key</button>` : ''}<button class="btn" id="stCanva">${d.canva?.connected ? 'Canva connected' : 'Connect Canva'}</button></div></div>
+      <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span><button class="btn" id="stKey">Image AI key</button>` : ''}<button class="btn" id="stAtria" title="Lets the Slack ideas bot open Atria ad links">${S.atria?.connected ? 'Atria connected' : 'Connect Atria'}</button><button class="btn" id="stCanva">${d.canva?.connected ? 'Canva connected' : 'Connect Canva'}</button></div></div>
     ${d.has_key ? '' : keyCard()}
     <div class="st-layout">
       <div class="card" style="padding:12px"><div class="st-bar" style="margin-bottom:8px"><h3 class="st-h">Batches</h3><button class="btn primary" id="stNew">New batch</button></div>
@@ -242,8 +243,34 @@ function wireTop() {
   const k = $('#stKey');
   if (k) k.onclick = () => modal('Image AI key', `<p class="hint" style="margin:0 0 10px">A key is connected. Paste a new one to replace it, or leave it empty and save to disconnect.</p><label class="st-f">New OpenAI API key<input class="st-in" id="k2" type="password" autocomplete="off" placeholder="sk-..."></label>`, { onOpen: (w, ctl) => w.onSubmit(async () => { await post('/api/studio/key', { key: w.querySelector('#k2').value }); ctl.close(true); reload(); }) });
   $('#stCanva').onclick = canvaSetup;
+  $('#stAtria').onclick = atriaSetup;
   $('#stNew').onclick = () => newBatch();
   document.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { S.cur = b.dataset.b === 'loose' ? { id: 'loose' } : S.d.batches.find(x => x.id === b.dataset.b); S.err = ''; paint(); });
+}
+/* Atria (2026-09-29): one workspace-wide sign-in so the Slack ideas bot can open Atria ad links.
+   The whole OAuth dance lives on the account-health worker (atria.js); nothing secret comes here. */
+async function atriaCall(path, method = 'GET') {
+  const res = await fetch(AH_URL + path, { method, headers: { Authorization: 'Bearer ' + S.tok } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  return j;
+}
+function atriaSetup() {
+  const on = !!S.atria?.connected;
+  modal('Connect Atria', `
+    <p class="hint" style="margin:0 0 8px">Paste an Atria ad link (or a Meta Ad Library link) in a brand's internal Slack channel and tag @Mobius Digital: the ideas bot opens the ad in Atria, watches the video, reads the copy, the landing page and how long it has been running, and drafts the brief from it.</p>
+    ${on ? `<p class="st-msg ok" style="margin-bottom:8px">Connected${S.atria.since ? ` since ${esc(new Date(S.atria.since).toLocaleDateString())}` : ''}. One connection covers every brand.</p>`
+      : `<ol class="st-ol"><li>Click <b>Connect Atria</b>. Atria's sign-in opens in a new tab.</li><li>Sign in with the Atria account the team uses and allow <b>read</b> access.</li><li>Come back here and refresh the page.</li></ol>`}
+    <p class="hint" style="margin:8px 0 0">Locus only reads from Atria. It never saves, follows or changes anything there.</p>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${on ? '<button class="btn" id="atGo">Sign in again</button><button class="btn" id="atOff">Disconnect</button>' : '<button class="btn primary" id="atGo">Connect Atria</button>'}</div>`,
+  { cta: null, onOpen: (w, ctl) => {
+    w.querySelector('#atGo').onclick = async () => {
+      try { const r = await atriaCall('/api/atria/start', 'POST'); window.open(r.url, '_blank', 'noopener'); ctl.msg('Finish signing in to Atria in the new tab, then refresh this page.', true); }
+      catch (e) { ctl.msg(e.message); }
+    };
+    const off = w.querySelector('#atOff');
+    if (off) off.onclick = async () => { try { await atriaCall('/api/atria/disconnect', 'POST'); ctl.close(); reload(); } catch (e) { ctl.msg(e.message); } };
+  } });
 }
 function canvaSetup() {
   const c = S.d.canva || {};
