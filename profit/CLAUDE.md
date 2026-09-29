@@ -779,6 +779,12 @@ profit/
   ask clients for passwords; the Access step explains how to invite us.
 - **Grunk Dolfer** was imported from its sheet by `migrations/seed_brand_grunk.py` (227 batches,
   15 clustered angles, the Weekend Warrior, onboarding answers). Do NOT re-run it.
+- **Viktor's research** (Party Patch, Bonk, Dartee, Grunk; 2026-09-29) was loaded into the research
+  tables by `migrations/viktor_import.mjs` (data in `migrations/viktor/`). Rows are drafts with
+  `source 'viktor'` or ids `vk_...`, so staff approve them like AI drafts; the header of that
+  script has the one-query removal SQL. It refuses to run twice; do not re-run it blindly.
+  Existing lines that now overlap a Viktor line and are referenced by nothing were left alone:
+  Party Patch "Daily Wellness", Bonk "Course Accessories", Dartee "The glove" and "Hats".
 - **Local testing:** `profit-worker-dev` (:8799) + `tools-static` (:8788), localStorage
   `pf_worker=http://127.0.0.1:8799`, `pf_token=<.dev.vars ADMIN_TOKEN>`. Research locally:
   `ah-worker-dev` (:8798, `wrangler dev --remote`, same throwaway ADMIN_TOKEN in

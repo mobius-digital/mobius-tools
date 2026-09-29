@@ -618,3 +618,22 @@ with no copy skill got "you write copy for X"). `src/brain.js` fixes the context
   It grows toward the 60k cap as research lands and needs no code change. Local check:
   a shim that runs `brandBrain` through `wrangler d1 execute --remote --command` works
   (use `--command`, not `--file`, which returns no rows).
+- **Viktor's research (2026-09-29).** Cole's Slack AI produced source-verified brand brains for
+  Party Patch, Bonk, Dartee and Grunk; `profit/worker/migrations/viktor_import.mjs` loaded them
+  ONCE (read its header before touching it): 46 personas (`source 'viktor'`), 623 verbatim quotes,
+  27 competitors (complaint quotes in `data_json.complaints`), per-line `market` + `mechanism`
+  docs and a brand-level `viktor_notes` doc `{md, gaps, from}`, all `status 'draft'`, ids
+  `vk_...`. Nine new product lines were added (`vk_...`); no line was deleted. Grunk's Apparel
+  line already had an APPROVED sheet `market` doc, so Viktor's is `market_viktor` there and the
+  brain fills only the fields the approved doc lacks.
+- **What the brain does with it:** `viktor_notes` renders as section 2b right after the staff
+  rules (guardrails and flags first, the Meta-reported ad history late and labelled "Meta-reported
+  ROAS, not Triple Whale"). Drafts from it are tagged "Viktor research". Up to 14 personas (fields
+  clipped at sentence ends), 50 quotes (all nuggets first up to 24, then a round robin over kinds
+  and product lines, each tagged with its line; long quotes end in "..." and are never reworded),
+  12 competitors. GAPS says when personas are Viktor drafts and lists what Viktor could not reach.
+- **Trimming is now "only as much as needed, lowest value first":** `TRIM` order research notes,
+  creator link, brand facts, competitors, Viktor notes, voice, lines, quotes, personas, angle
+  tests, each with a floor (`TRIM_FLOOR`); staff rules are never cut. Measured after the import:
+  Party Patch 59.9k, Bonk 57.4k, Dartee 59.5k, Grunk 59.8k; every brand keeps all its personas,
+  all nuggets and its full test history, and two runs produce byte-identical output (cache-safe).
