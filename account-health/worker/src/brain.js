@@ -93,7 +93,7 @@ export async function brandBrain(env, act, opts = {}) {
     q(`SELECT line_id, key, data_json, status, source FROM p_br_doc WHERE act_id = ?1 AND key IN ('profile', 'rules', 'brand_facts', 'market', 'market_viktor', 'mechanism', 'voice', 'voice_guide', 'voice_speaker', 'voice_skill', 'research_notes', 'viktor_notes')`, act),
     q(`SELECT id, line_id, name, data_json, status, source FROM p_br_persona WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id`, act),
     q(`SELECT line_id, kind, quote, source, theme, nugget, status FROM p_br_voc WHERE act_id = ?1 ORDER BY nugget DESC, status = 'approved' DESC, created_at DESC, id LIMIT 400`, act),
-    q(`SELECT line_id, name, url, data_json, status FROM p_br_comp WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id LIMIT 12`, act),
+    q(`SELECT line_id, name, url, data_json, status FROM p_br_comp WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id LIMIT 16`, act),
     q(`SELECT id, line_id, persona_id, name, argument, awareness, lead, status, source FROM p_br_angle WHERE act_id = ?1 ORDER BY name, id`, act),
     q(`SELECT id, num, title, angle_id, level, variable, offer, hypothesis, verdict, asana_result, keep_reason, learning FROM p_br_batch WHERE act_id = ?1
         AND ((verdict IS NOT NULL AND verdict != 'cancelled') OR asana_result IS NOT NULL OR (learning IS NOT NULL AND learning != ''))
@@ -157,8 +157,15 @@ export async function brandBrain(env, act, opts = {}) {
   }
 
   /* ---- 2b. Viktor's brand research notes (guardrails and flags first; ad history is Meta-reported) ---- */
+  /* A brand with a full copy skill gets its voice ONLY from that skill (Lucky's is synced from its
+     repo and being rebuilt): any voice / tone / writing subsection in Viktor's notes is dropped. */
+  const skill = data('', 'voice_skill') || {};
+  const hasSkill = !!skill.instructions;
   const vn = data('', 'viktor_notes');
-  if (vn?.md) sec('viktor', `Brand research from Viktor (${vn.from || 'viktor'}; source-checked, not yet reviewed by staff)`, vn.md);
+  const VOICEY = /voice|tone|how (?:we|the brand|it|they) (?:write|writes|sound|sounds)|writing|copy style|positioning/i;
+  const vmd = !vn?.md ? '' : !hasSkill ? vn.md
+    : vn.md.split(/\n(?=### )/).filter(b => !VOICEY.test((b.match(/^### (.*)/) || [])[1] || '')).join('\n');
+  if (vmd) sec('viktor', `Brand research from Viktor (${vn.from || 'viktor'}; source-checked, not yet reviewed by staff)`, vmd);
 
   /* ---- 3. product lines: market stage, claims made, open ground ---- */
   const lineName = Object.fromEntries(lines.map(l => [l.id, l.name]));
@@ -300,8 +307,6 @@ export async function brandBrain(env, act, opts = {}) {
   }
 
   /* ---- 10. how the brand sounds, when there is no full copy skill ---- */
-  const skill = data('', 'voice_skill') || {};
-  const hasSkill = !!skill.instructions;
   if (opts.voice !== false) {
     if (hasSkill) sec('voice', 'How the brand sounds', `The brand's full copy skill (${skill.source === 'repo' ? 'synced from its repo' : 'built in Locus'}) is loaded separately where copy is written; it wins on how the copy sounds.`);
     else {

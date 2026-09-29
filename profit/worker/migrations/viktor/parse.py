@@ -7,19 +7,20 @@ import re, io, json, sys, zipfile, html
 sys.stdout.reconfigure(encoding='utf-8')
 SP = 'C:/Users/wetzl/AppData/Local/Temp/claude/C--Users-wetzl-OneDrive-Apps-Desktop-Mobius-Digital-Mobius-Digital-Tools/905df0a3-409b-4a0f-8919-2b6bf57eefa7/scratchpad/'
 DL = 'C:/Users/wetzl/Downloads/'
-BRANDS = ['Party Patch', 'Bonk Golf', 'Dartee Golf', 'Grunk Dolfer']
+BRANDS = sys.argv[1:] or ['Party Patch', 'Bonk Golf', 'Dartee Golf', 'Grunk Dolfer']
+OUT = 'viktor-parsed.json' if not sys.argv[1:] else 'viktor-parsed-' + '-'.join(b.split()[0].lower() for b in sys.argv[1:]) + '.json'
 
 LABELS = [
     (r'Summary', 'summary'), (r'Age/gender/location', 'demo'), (r'Age/gender', 'demo'),
     (r'What (?:he|she|they) buys?', 'buys'), (r'Buys', 'buys'),
-    (r'Core desire', 'desire'), (r'Desire', 'desire'), (r'Struggle', 'struggle'), (r'Identity', 'identity'),
-    (r'Status (?:she|he|they) wants?', 'status'), (r'Status', 'status'),
-    (r'How (?:it|BONK|Dartee|the product) helps', 'how_helps'), (r'Beliefs', 'beliefs'),
+    (r'Core desire', 'desire'), (r'Desire', 'desire'), (r'Struggle', 'struggle'), (r'Identity / status', 'identity'), (r'Identity', 'identity'), (r'Wants', 'desire'),
+    (r'Status (?:she|he|they) wants?', 'status'), (r'Status wanted', 'status'), (r'Status', 'status'),
+    (r'How (?:it|BONK|Dartee|Lucky|the product) helps', 'how_helps'), (r'Beliefs', 'beliefs'), (r'Belief', 'beliefs'),
     (r'Objections/anxiety', 'objections'), (r'Objections', 'objections'), (r'Objection', 'objections'),
-    (r'Tried and failed', 'tried_failed'), (r'Tried/failed', 'tried_failed'), (r"Hasn't tried", 'not_tried'),
+    (r'Tried and failed', 'tried_failed'), (r'Tried/failed', 'tried_failed'), (r'Tried that failed', 'tried_failed'), (r'Tried', 'tried_failed'), (r"Hasn't tried", 'not_tried'),
     (r'Trigger', 'trigger'), (r'Push', 'push'), (r'Pull', 'pull'), (r'Anxiety', 'anxiety'), (r'Habit', 'habit'),
     (r'Interests / online / offline', 'interests'), (r'Interests / hangouts', 'interests'), (r'Interests', 'interests'),
-    (r'Online hangouts', 'online'), (r'Online/offline', 'online'), (r'Online', 'online'), (r'Hangouts', 'online'), (r'Where', 'online'),
+    (r'Online hangouts', 'online'), (r'Hangs out', 'online'), (r'Online/offline', 'online'), (r'Online', 'online'), (r'Hangouts', 'online'), (r'Where', 'online'),
     (r'Offline', 'offline'), (r'Who (?:she|he|they) follows?', 'follows'), (r'Follows', 'follows'),
     (r'Phrases[^:]{0,40}', 'words'), (r'Evidence', 'evidence'), (r'Why it matters', 'why'),
 ]
@@ -43,7 +44,7 @@ def split_fields(text):
 
 def parse_quote(row):
     # returns dict(ref, quote, kind, src_raw, nugget, competitor)
-    m = re.match(r'#: (\S+) · (?:Competitor: (.*?) · )?(?:quote|Quote \(verbatim\)): "(.*)" · [Kk]ind: ([a-z ]+?) · (.*)$', row)
+    m = re.match(r'#: (\S+) · (?:Competitor: (.*?) · )?(?:quote|Quote \(verbatim\)|Quote): "(.*)" · [Kk]ind: ([a-z ]+?) · (.*)$', row)
     if not m: raise Exception('bad row ' + row[:120])
     ref, comp, quote, kind, rest = m.groups()
     nugget = 0
@@ -91,6 +92,9 @@ for b in BRANDS:
                     t, u = links[link_i]; link_i += 1
                     assert t.strip() and t.strip() in q['src_raw'], (t, q['src_raw'])
                     q['url'] = u
+                if b == 'Lucky Golf':  # the source label is the hyperlink; skip links that belong to prose
+                    while not (links[link_i][0].strip() and links[link_i][0].strip() in q['src_raw']): link_i += 1
+                    q['url'] = links[link_i][1]; link_i += 1
                 assert q['quote'] in doctext, q['quote']
                 cur['quotes'].append(q)
             else:
@@ -102,10 +106,11 @@ for b in BRANDS:
         else: doc['head'].append(ln)
     if b == 'Dartee Golf': assert link_i == len(links), (link_i, len(links))
     res[b] = doc
+    doc['links'] = links
     print(b, [(l['name'][:30], len(l['quotes']), sum(q['nugget'] for q in l['quotes'])) for l in doc['lines']])
 
 # personas: split the "4. Personas" section into persona blocks
-PHEAD = re.compile(r'^(?:Persona [A-Z](?: —|:)\s*|[A-Z]\. )(.*)$')
+PHEAD = re.compile(r'^(?:Persona [A-Z](?: —|:)\s*|[A-Z]\. |[A-Z] — )(.*)$')
 for b, doc in res.items():
     for l in doc['lines']:
         key = [k for k in l['sections'] if k.startswith('4.')][0]
@@ -121,7 +126,7 @@ for b, doc in res.items():
             head = bl[0]
             fields = {}
             # head may carry text after the name (compact personas)
-            nm = re.match(r'^"([^"]+)",?\s*(.*)$', head) or re.match(r'^“([^”]+)”,?\s*(.*)$', head)
+            nm = re.match(r'^"([^"]+)"[,:]?\s*(.*)$', head) or re.match(r'^“([^”]+)”,?\s*(.*)$', head)
             if nm: name, desc = nm.group(1), nm.group(2)
             else:
                 mm = re.match(r'^(.*?)(\s*\((?:inferred|the |repeat|trip|bachelorette|milestone|cruise|seasonal|social|business|bride|PF|youth|bulk|tournament)[^)]*\).*)?$', head)
@@ -138,7 +143,7 @@ for b, doc in res.items():
                     fields[k] = (fields[k] + ' ' + v) if k in fields else v
             l['personas'].append(dict(name=name.strip(), fields=fields, raw=bl))
 
-json.dump(res, io.open(SP + 'viktor-parsed.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+json.dump(res, io.open(SP + OUT, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 for b, doc in res.items():
     for l in doc['lines']:
         for p in l['personas']:

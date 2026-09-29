@@ -9172,5 +9172,2503 @@
     }
    }
   ]
+ },
+ "Lucky Golf": {
+  "act": "act_378146126054294",
+  "brand": "Lucky Golf",
+  "new_lines": [
+   {
+    "id": "vk_lucky_putters",
+    "name": "Putters",
+    "about": "A putter that feels solid, gets noticed on every green and makes the Scotty guys jealous, at a price that does not need hiding. A statement and feel purchase, often by people who already own a Lucky wedge.",
+    "products": "Eclipse Blade (LGP01) $199, RH only, 431 stainless, 385g; Eclipse Mallet (LGP02) $229, RH + LH, 365g, oversized 3.0 grip. The Product Reference Guide still calls them \"Tracer\". Prices as of 2026-09-29, re-check.",
+    "sort": 0
+   }
+  ],
+  "line_updates": [
+   {
+    "id": "f4e7bae963214fcd",
+    "name": "Wedges",
+    "about": "The buyer's job: \"I lose strokes inside 100 yards and I want a club that fixes that and looks unreal in my bag.\" Bought for short-game spin, the gold look and the price; about 65% of club revenue. Putters are their own line now.",
+    "products": "Carver 02 Gold $99 (RH + LH, 50 to 60 degrees, K or S grind), Carver 02 Black \"Shadow\" $109 (RH, 50 to 60 degrees). Prices as of 2026-09-29; the site is being rebuilt, re-check."
+   },
+   {
+    "id": "5251cf534576451a",
+    "products": "Stryker hybrid (LGH01) $209: 19 degree titanium head, Flex Channel face, Glide Sole, RH + LH. The page says \"LIMITED RUN 100 units ONLY\". Price as of 2026-09-29, re-check."
+   },
+   {
+    "id": "116e358402d748fe",
+    "products": "Classic and Blade polos $67 (13 colorways, S to 3XL, 88/12 poly-spandex, UPF 50+), hats $29 (10 snapback designs), grips $9.95 to $19.95, Tour Glove $17.95, blade and mallet covers $29.95, driver cover $40, tees $9.95. Prices as of 2026-09-29, re-check."
+   }
+  ],
+  "personas": [
+   {
+    "id": "vk_lucky_wedges_p1",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Gold-Curious Weekend Guy",
+    "data": {
+     "summary": "The core buyer. Social golfer who plays with the same group, scrolls golf IG, and wants his bag to say something. Basis: inferred from W3, W17, W18, W20, W24, W28.",
+     "demo": "male, ~25–45, US suburbs (inferred; no demographic data queried)",
+     "buys": "one wedge first (usually 56° or 60°), then adds 52/60 to make a set (W4, W45).",
+     "desire": "be the guy with the club everyone asks about, and hit better chips.",
+     "struggle": "inconsistent short game. \"My short game has been blaming my wedges for years…\" (W50).",
+     "identity": "fun, a little flashy, doesn't take golf too seriously. \"So even though I suck at golf, I look doing it.\" (W17)",
+     "status": "",
+     "how_helps": "instant compliments on the first round, plus real spin that justifies the purchase.",
+     "beliefs": "big brands are overpriced. A gold club might be a gimmick.",
+     "objections": "\"bag candy\", legit or not, finish rubbing off (W52, W53, W55).",
+     "tried_failed": "stock/set wedges and hand-me-downs.",
+     "not_tried": "a fitted wedge or knowing his bounce/grind.",
+     "trigger": "sees the gold in an IG/FB ad or a buddy's bag (\"until I hit my buddies 60 degree\" W19).",
+     "push": "bored of looking like everyone else.",
+     "pull": "$99 + gold + compliments.",
+     "anxiety": "looks cheesy/tacky (W14).",
+     "habit": "keeps using his old wedge.",
+     "interests": "golf IG reels, TikTok golf, Good Good / Bryan Bros-style creator content (inferred); muni and daily-fee courses, range with buddies, golf trips.",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"people ask you about it\", \"total head turner\", \"bag candy\", \"so nasty\", \"Cuban link on the golf bag\", \"conversation starter\" (W3, W7, W16, W18, W63).",
+     "awareness": "solution"
+    },
+    "sort": 0
+   },
+   {
+    "id": "vk_lucky_wedges_p2",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Vokey Defector",
+    "data": {
+     "summary": "The skeptical better player. Single-digit to mid handicap who has played Vokey/Cleveland/TaylorMade and judges a wedge on spin and turf interaction. Basis: inferred from W5, W15, W16, W19, W27, W40.",
+     "demo": "male, ~30–60 (inferred)",
+     "buys": "multiple lofts (50/54/58 or 52/56/60), sometimes a third set (W16).",
+     "desire": "equal performance for less, with no compromise.",
+     "struggle": "paying $180 a wedge (\"Why Pay $180 For Wedges?\" ad), grooves wearing out.",
+     "identity": "knows the specs and doesn't want to be seen with a gimmick (\"would not be caught dead with a gold wedge\" W27).",
+     "status": "the guy whose \"regular partners are now buying Lucky wedges to try to beat me\" (W16).",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "bounce/grind specs not visible (W56), shaft quality on full shots (W40), no stiff flex for lefties (W38), grip size (W39), \"Maltby would be better and cheaper\" (W57).",
+     "tried_failed": "expensive name brands that did the same job at twice the price.",
+     "not_tried": "",
+     "trigger": "hits a buddy's Lucky wedge and sees the check (W19, W27).",
+     "push": "price of replacing worn grooves.",
+     "pull": "forged 1020, micro-grooves, $99.",
+     "anxiety": "durability and resale.",
+     "habit": "",
+     "interests": "",
+     "online": "r/golfequipment, MyGolfSpy, GolfWRX (inferred from Reddit threads pulled).",
+     "offline": "",
+     "follows": "",
+     "words": "\"Performs as well as my Vokey SM10\", \"I took Vokeys out of my bag and never looked back\", \"I \"snuffed\" at the idea of a gold wedge\" (W5, W16, W27).",
+     "awareness": "solution"
+    },
+    "sort": 1
+   },
+   {
+    "id": "vk_lucky_wedges_p3",
+    "line_id": "f4e7bae963214fcd",
+    "name": "The Gift Giver",
+    "data": {
+     "summary": "Wife / girlfriend / parent. Non-golfer or casual golfer buying for a husband, boyfriend, son, dad or groomsmen. Basis: inferred from W23, W25, W61 + many Judge.me reviews like \"My husband loves it\" and the gift-driven Gorgias tickets.",
+     "demo": "female ~22–55 or parent/grandparent ~45–70 (inferred)",
+     "buys": "one wedge (or putter) at Christmas, Valentine's, Father's Day, birthdays, graduations.",
+     "desire": "a gift he'll actually use and brag about. \"Girls buy this for your manss!\" (W23)",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "holiday calendar, reviews (\"I read amazing reviews about this one!\" W23).",
+     "push": "",
+     "pull": "the look, the price, free shipping/easy returns.",
+     "anxiety": "\"he never heard of lucky golf\" (W25), picking the right loft/length, the return window closing before the gift is given (W61).",
+     "habit": "defaults to golf balls or gadgets (ad 288 A copy: \"Forget the gadgets and golf shirts\").",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"My husband loves it\", \"Best Wife Award goes to me!\", \"Great club and perfect gift\" (W64–W66).",
+     "awareness": "solution"
+    },
+    "sort": 2
+   },
+   {
+    "id": "vk_lucky_wedges_p4",
+    "line_id": "f4e7bae963214fcd",
+    "name": "The New Golfer",
+    "data": {
+     "summary": "Started golf recently, building a first bag, not ready for $180 clubs. \"I am new to golf so I was not ready to spend a ton of money on a club.\" (W1)",
+     "demo": "",
+     "buys": "",
+     "desire": "confidence and to look like he belongs.",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "is this too good to be true, length/fit (W47).",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "first real rounds, first wedge gap, IG ads.",
+     "push": "",
+     "pull": "",
+     "anxiety": "",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"Makes me feel like I know what I’m doing\", \"I am a beginner golfer\" (W59, W67).",
+     "awareness": "solution"
+    },
+    "sort": 3
+   },
+   {
+    "id": "vk_lucky_putters_p1",
+    "line_id": "vk_lucky_putters",
+    "name": "Scotty-Envy Showman",
+    "data": {
+     "summary": "Male ~25–45 (inferred). Wants the statement putter his group notices.",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "Scotty money is silly, but he wants that status.",
+     "objections": "\"just a flex?\" (ad 387 B headline \"Wait? A gold putter?\").",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "sees the gold putter in an ad or in a buddy's bag.",
+     "push": "",
+     "pull": "",
+     "anxiety": "",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"Makes all the Scotty Cameron guys jealous\", \"the flyest one on the course\", \"Everytime i play someone will ask where i bought it\" (P1, P28, P17).",
+     "awareness": "product"
+    },
+    "sort": 10
+   },
+   {
+    "id": "vk_lucky_putters_p2",
+    "line_id": "vk_lucky_putters",
+    "name": "Frustrated Lag Putter",
+    "data": {
+     "summary": "Mid-handicap ~35–65 (inferred). Has tried insert mallets and light blades. Wants distance control and a solid feel.",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "Odyssey, TaylorMade, starter putters (P26, P24).",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "heavier head, milled face.",
+     "anxiety": "too heavy for fast greens (P2, P40).",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"frustrated with how inaccurate my lag putting was\", \"night and day\" (P26, P38).",
+     "awareness": "product"
+    },
+    "sort": 11
+   },
+   {
+    "id": "vk_lucky_putters_p3",
+    "line_id": "vk_lucky_putters",
+    "name": "The Gift Giver",
+    "data": {
+     "summary": "Girlfriend/fiancée/wife. Buys anniversary, graduation or Christmas putters (P8, P9, P21, P36).",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "",
+     "anxiety": "will he like it, which length.",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"he loves the color gold\", \"he loved it :)\".",
+     "awareness": "product"
+    },
+    "sort": 12
+   },
+   {
+    "id": "vk_lucky_putters_p4",
+    "line_id": "vk_lucky_putters",
+    "name": "The Underserved Lefty",
+    "data": {
+     "summary": "Left-handed golfer who's been waiting. \"Still no left handed gold putter stop the hate\" (P3), \"I want to spend my money on one very badly\" (P4). The LH mallet is now live, and ad 387 B (\"And yes, it comes in left-handed too\") hit 3.70 on $529. The blade is still RH only.",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "",
+     "anxiety": "",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "",
+     "awareness": "product"
+    },
+    "sort": 13
+   },
+   {
+    "id": "vk_lucky_hybrid_p1",
+    "line_id": "5251cf534576451a",
+    "name": "Long-Iron Refugee",
+    "data": {
+     "summary": "Male ~40–65, mid-high handicap (inferred).",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "the 200-yard shot he never trusts (ad 318 B copy).",
+     "pull": "easy launch, looks.",
+     "anxiety": "shaft too soft for his speed (H4).",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"replaced my sorry 3 wood\", \"Best club in my bag now\", \"fill that gap\" (H6, H1, and the 303 A ad quoting a reviewer).",
+     "awareness": "problem"
+    },
+    "sort": 20
+   },
+   {
+    "id": "vk_lucky_hybrid_p2",
+    "line_id": "5251cf534576451a",
+    "name": "Lucky Collector",
+    "data": {
+     "summary": "Already owns gold wedges/putter, wants the full gold bag, and asks for more (4 hybrid, 3 wood, driver) (H2, H14, H22).",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "",
+     "anxiety": "",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"Please make a 3 wood!\", \"all Gold. VERY COOL.\" (H2, H27)",
+     "awareness": "problem"
+    },
+    "sort": 21
+   },
+   {
+    "id": "vk_lucky_hybrid_p3",
+    "line_id": "5251cf534576451a",
+    "name": "Gift Giver",
+    "data": {
+     "summary": "Buys for son/husband/wife (H12, H16, H26). The Valentine's ad 306 E (\"He’ll LOVE you for this\") got a 5.71% CTR and 2.60 ROAS.",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "",
+     "anxiety": "",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "",
+     "awareness": "problem"
+    },
+    "sort": 22
+   },
+   {
+    "id": "vk_lucky_apparel_p1",
+    "line_id": "116e358402d748fe",
+    "name": "Club Buyer Add-on",
+    "data": {
+     "summary": "Bought a wedge, got or wants the free polo/hat (CLOVERPOLO, BFCM \"any club = free hat\").",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "",
+     "anxiety": "did the freebie apply (A17).",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "\"Where’s my cap and polo?\" (A20).",
+     "awareness": "product"
+    },
+    "sort": 30
+   },
+   {
+    "id": "vk_lucky_apparel_p2",
+    "line_id": "116e358402d748fe",
+    "name": "Groom / Bachelor-trip Organizer",
+    "data": {
+     "summary": "Often the bride/fiancée, planning groomsmen gifts (\"black for the groomsmen and one white for Sam as the groom\" A13). 186 of the mined Gorgias tickets mention \"bachelor\" or \"groomsmen\". Most ask for free product, but they show real demand for group/bulk hats and polos (inferred from those tickets).",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "",
+     "anxiety": "",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "",
+     "awareness": "product"
+    },
+    "sort": 31
+   },
+   {
+    "id": "vk_lucky_apparel_p3",
+    "line_id": "116e358402d748fe",
+    "name": "Hot-Weather Style Golfer",
+    "data": {
+     "summary": "Wants performance + compliments, wears it to work too (A1, A2, A7).",
+     "demo": "",
+     "buys": "",
+     "desire": "",
+     "struggle": "",
+     "identity": "",
+     "status": "",
+     "how_helps": "",
+     "beliefs": "",
+     "objections": "",
+     "tried_failed": "",
+     "not_tried": "",
+     "trigger": "",
+     "push": "",
+     "pull": "",
+     "anxiety": "",
+     "habit": "",
+     "interests": "",
+     "online": "",
+     "offline": "",
+     "follows": "",
+     "words": "",
+     "awareness": "product"
+    },
+    "sort": 32
+   }
+  ],
+  "voc": [
+   {
+    "id": "vk_lucky_wedges_qW1",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "I am new to golf so I was not ready to spend a ton of money on a club. These clubs are very affordable but they are also very high quality.",
+    "source": "Judge.me review (Carver 02 Black, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-black",
+    "theme": "W1",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW2",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "I bought these because I loved the look but wow can these wedges perform.  Incredible spin and even better feel around the greens.",
+    "source": "Judge.me review (Carver 02 Black, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-black",
+    "theme": "W2",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW3",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "Every shot I touch now turns to gold since I got this lucky golf wedge. Pure beauty in each stroke, it’s total head turner. You don’t even have to take it out of the bag and people ask you about it.",
+    "source": "Judge.me review (Lucky Golf LGW02 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W3",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_wedges_qW4",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "I bought myself a 60 degree last year. I love it so much, and get so many comments/compliments on the look… but the performance speaks even louder!",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W4",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW5",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "Performs as well as my Vokey SM10, and Cleveland RTX wedges.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W5",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW6",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "I LOVE my wedges they preform high up with the big name brands and all my friends are jealous of how sexy these clubs are",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W6",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW7",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "Great looking bag candy! It’s so pretty I’m almost afraid to use it. I like it more than my titleist vokey",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W7",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW8",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "all of my friends are jealous from the look.And when they stick on the green and come back two feet, there's no doubt their top quality",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W8",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW9",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "Would definitely recommend for someone looking for a solid wedge and doesn’t want to pay the price for the large and popular brands",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 4★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W9",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW10",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "I was looking for a gap wedge that didn't break the bank but still felt 'premium,' and Lucky Golf absolutely nailed it.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W10",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW11",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "initially the gold caught my eye, but the more I read about these clubs I was intrigued. It went on sale - why not",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W11",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW12",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "Gotta admit, I didn't have a 60 degree wedge so I bought this one because it's GOLD.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W12",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW13",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "I thought is was going to be all sizzle but that’s not the case.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 4★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W13",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW14",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "Beautiful club, thought the gold was going to be a little tacky but I love it.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W14",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW15",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "failed",
+    "quote": "I swapped out my Taylormade Hi toe with the Lucky 56 wedge.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W15",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW16",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "This is my third set of these wedges. I took Vokeys out of my bag and never looked back. My short game is so nasty with these my regular partners are now buying Lucky wedges to try to beat me!",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W16",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_wedges_qW17",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "So even though I suck at golf, I look doing it.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W17",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW18",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "Sic af! Like rockin the Cuban link on the golf bag!",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W18",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW19",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "Because of the name and \"funky\" gold clubs I did not take Lucky golf seriously, until I hit my buddies 60 degree ... dropped all my Vokey wedges the next day!",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W19",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_wedges_qW20",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "After getting bombarded with ads on my social media, I finally caved and pulled the trigger on a new 60 degree wedge.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W20",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW21",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "I bought JT mainly for looks thinking if anything it’s a talking piece.",
+    "source": "Judge.me review (Lucky Golf LGW02 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W21",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW22",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "I've gotten several compliments from other golfers and even a couple of Marshalls when pulling this bad boy out around the green.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W22",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW23",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "My boyfriend needed a wedge and I read amazing reviews about this one! I kept it a surprise and when it arrived (very fast shipping!) he was THRILLED! Girls buy this for your manss!",
+    "source": "Judge.me review (Lucky Golf LGW02 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W23",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW24",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "love having something unique when everybody else in my golf group has simular equipment",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W24",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_wedges_qW25",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "I will admit at first he was mad at me for buying him this wedge as he never heard of lucky golf.He gave it a try and loves it!",
+    "source": "Judge.me review (Lucky Golf LGW02 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W25",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW26",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "High quality wedge with a premium look and feel without the premium price.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W26",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW27",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "I \"snuffed\" at the idea of a gold wedge but this is probably the best all round performing wedge I have ever played. Even the really low handicappers in the club who would not be caught dead with a gold wedge were impressed after hitting it.",
+    "source": "Judge.me review (Signature Gold 60 Degree Lob Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W27",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_wedges_qW28",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "Not going to lie - the Instagram ads finally got the best of me! And I'm glad they did.",
+    "source": "Judge.me review (Signature Gold 56 Degree Sand Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W28",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW29",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "Work just like the better clubs for half the price.",
+    "source": "Judge.me review (Signature Gold 56 Degree Sand Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W29",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW30",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "My wife is Irish and I thought it would just be a “fun” club to have around and may not be in my bag very long.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W30",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW31",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "The wedges look great, which is probably the reason to carry them, but the feel is soft and they are easy to hit.",
+    "source": "Judge.me review (Signature Gold 50 Degree Attack Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W31",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW32",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "failed",
+    "quote": "Had a Cleveland 56 but never felt confident with it. This Lucky wedge has been super.",
+    "source": "Judge.me review (LEFT-Hand Signature Gold 56 Degree Sand Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W32",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW33",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "pain",
+    "quote": "Took one swing and the head separated from the shaft right where the ferrule is.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 1★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W33",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW34",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "I feel like for $119 it shouldn’t be rusting after 5 to 6 rounds of golf.",
+    "source": "Judge.me review (Lucky Golf LGW02 Gold, 2★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W34",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW35",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "After one session on the range, the black began immediately fading from the bottom and grooves",
+    "source": "Judge.me review (Carver 02 Black, 4★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-black",
+    "theme": "W35",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW36",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "The way these clubs look in my bag gets me loads of compliments. BUT the metal is soft",
+    "source": "Judge.me review (Signature Gold 56 Degree Sand Wedge, 3★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W36",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW37",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "Shaft feels super cheap but looks great.",
+    "source": "Judge.me review (Signature Gold 56 Degree Sand Wedge, 3★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W37",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW38",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "Why not a stiff flex option for lefties",
+    "source": "Judge.me review (LEFT-Hand Signature Gold 58 Degree Flop Wedge, 1★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W38",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW39",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "The grip is small, tiny even. If I could have it my way I would have gotten a jumbo grip.",
+    "source": "Judge.me review (Carver 02 Black, 4★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-black",
+    "theme": "W39",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW40",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "It performs as good as my past Vokey, JAWS etc. However, the shaft on it is not the same quality so for full shots or 3/4 shots I don't have as much trust in it.",
+    "source": "Judge.me review (Signature Gold 60 Degree Lob Wedge, 3★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W40",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW41",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "pain",
+    "quote": "used it 9 holes and it looks like my head connector is already broken.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/102093631",
+    "theme": "W41",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW42",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "How does the gold color hold up with its use",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/104641936",
+    "theme": "W42",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW43",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "What used to be a smooth gold finish, is now bumpy with rust spots. It sort of feels like sandpaper.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/107832654",
+    "theme": "W43",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW44",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "I’m a very not great, kind of mid average golfer and within 120 yards I can’t be stopped lol thanks to yalls awesome 60° and 50°.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/107094990",
+    "theme": "W44",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_wedges_qW45",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "I love my Lucky wedges! I have 60*, 56*, 50*. I get compliments on them all the time.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/103119401",
+    "theme": "W45",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW46",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "Google said they do not and it upset me lol. You just made my decision. I will def be purchasing the lucky shadow wedges now.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/114181501",
+    "theme": "W46",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW47",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "I’m interested in getting a wedge but I’m afraid that the shaft length won’t be right for me.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/110115232",
+    "theme": "W47",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW48",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "I saw an advertisement video on instagram, and saw that it had a green grip, which i thought was a really cool combo with the chrome gold of the club.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/110879058",
+    "theme": "W48",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW49",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "pain",
+    "quote": "Now that’s a wedge that might save me from some of those short game disasters 😂",
+    "source": "Instagram comment, @luckygolfofficial",
+    "url": "https://www.instagram.com/p/DbCE_-NABan/",
+    "theme": "W49",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW50",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "pain",
+    "quote": "😂 My short game has been blaming my wedges for years… but somehow the 3 putts are still my fault.",
+    "source": "Instagram comment, @luckygolfofficial",
+    "url": "https://www.instagram.com/p/Da_6YnFMGWS/",
+    "theme": "W50",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW51",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "I need a new sand wedge so bag!!! Love the gold. These would match my putter 😍",
+    "source": "Instagram comment, @luckygolfofficial",
+    "url": "https://www.instagram.com/p/DbCE_-NABan/",
+    "theme": "W51",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW52",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "are these legit?",
+    "source": "Instagram comment, @luckygolfofficial",
+    "url": "https://www.instagram.com/reel/DbiT9hzOhkN/",
+    "theme": "W52",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW53",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "Does the finish rub off at all over time?",
+    "source": "Instagram comment, @luckygolfofficial",
+    "url": "https://www.instagram.com/reel/CadJKvrhsIG/",
+    "theme": "W53",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW54",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "Feels the same as my vokey and callaway clubs! Plus I like the look of these more. They get lots of attention!",
+    "source": "Instagram comment, @luckygolfofficial",
+    "url": "https://www.instagram.com/reel/DbiT9hzOhkN/",
+    "theme": "W54",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW55",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "They look like they are good \"bag candy\" but not much more than that",
+    "source": "Reddit r/golf",
+    "url": "https://www.reddit.com/r/golf/comments/azvwef/lucky_wedges_thoughtreview/eiaeap0/",
+    "theme": "W55",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW56",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "I worry about the fact they dont discuss bounce anywhere on their page and charge usually a premium price for a wedge.",
+    "source": "Reddit r/golf",
+    "url": "https://www.reddit.com/r/golf/comments/azvwef/lucky_wedges_thoughtreview/eiae3wj/",
+    "theme": "W56",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW57",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "On appearance alone I’d pass. Maltby would be better and cheaper",
+    "source": "Reddit r/golf",
+    "url": "https://www.reddit.com/r/golf/comments/1bi7kwj/whats_your_take_on_lucky_wedges_anyone_use_them/kviy2pr/",
+    "theme": "W57",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW58",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "failed",
+    "quote": "Just get MD3s in the same color and stamp them with a shamrock at a pro shop, you'll save money and get better clubs",
+    "source": "Reddit r/golf",
+    "url": "https://www.reddit.com/r/golf/comments/azvwef/lucky_wedges_thoughtreview/eidt384/",
+    "theme": "W58",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW59",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "Makes me feel like I know what I’m doing haha!",
+    "source": "Judge.me review (Signature Gold 56 Degree Sand Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W59",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW60",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "I truly think they are lucky too because even when I miss hit, it still turns out pretty good.",
+    "source": "Judge.me review (Signature Gold 60 Degree Lob Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W60",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW61",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "objection",
+    "quote": "My only complaint is that the return policy is prior to when I give the gift.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 3★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W61",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW62",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "transformation",
+    "quote": "Bought for fun, but it’s become my favorite club in the bag!",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W62",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW63",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "desire",
+    "quote": "They're always a good conversation starter.",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W63",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW64",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "Best Wife Award goes to me!",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W64",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW65",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "Great club and perfect gift",
+    "source": "Judge.me review (Signature Gold 60 Degree Lob Wedge, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W65",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW66",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "My husband loves it",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W66",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_wedges_qW67",
+    "line_id": "f4e7bae963214fcd",
+    "kind": "trigger",
+    "quote": "I am a beginner golfer and wanted to buy a 60 for a little more versatility",
+    "source": "Judge.me review (Lucky Golf LGW02 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "W67",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP1",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "Makes all the Scotty Cameron guys jealous (at least in my group).",
+    "source": "Judge.me review (Signature Gold Putter, 4★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P1",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_putters_qP2",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "Also the putter is very heavy compared to anything I have ever used. Tough to get the ball to the hole with it",
+    "source": "Judge.me review (Signature Gold Putter, 4★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P2",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP3",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "Still no left handed gold putter stop the hate need the putter to drop",
+    "source": "Judge.me review (Eclipse Mallet, 1★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P3",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP4",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "Please make a left handed blade putter. I want to spend my money on one very badly",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/106031746",
+    "theme": "P4",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP5",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "No matching headcover and its not numbered.",
+    "source": "Judge.me review (LGP02 Mallet Putter - Patriot, 1★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P5",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP6",
+    "line_id": "vk_lucky_putters",
+    "kind": "failed",
+    "quote": "I like the solid face of the Lucky putter vs. the face insert on her old putter.",
+    "source": "Judge.me review (Eclipse Mallet, 4★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P6",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP7",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "My only real complaint is being 6'4, the club is on the short side and have to lean down more to use it, but have knocked a few strokes off so there's that.",
+    "source": "Judge.me review (Eclipse Mallet, 4★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P7",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP8",
+    "line_id": "vk_lucky_putters",
+    "kind": "trigger",
+    "quote": "I bought this for my boyfriend as an anniversary gift and he loved it :)",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P8",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP9",
+    "line_id": "vk_lucky_putters",
+    "kind": "trigger",
+    "quote": "Bought my boyfriend the limited edition mallet putter for graduation and he loved it! The gold has a very striking look that catches the eye.",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P9",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP10",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "Definitely a head turner walking up to the green with your buddies.",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P10",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP11",
+    "line_id": "vk_lucky_putters",
+    "kind": "transformation",
+    "quote": "Not just bag “bling”. Love the oversized grip, soft touch of the mallet",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P11",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP12",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "Great price then most that are known brands which do the same.",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P12",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP13",
+    "line_id": "vk_lucky_putters",
+    "kind": "failed",
+    "quote": "it’s not like my old putter that was like hitting with a mallet",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P13",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP14",
+    "line_id": "vk_lucky_putters",
+    "kind": "failed",
+    "quote": "I've gone through a few different blade putters and just haven't been able to find something I really like.",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P14",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP15",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "Will this putter take 5 strokes off my game? Probably not. But it WILL make everyone that I play with jealous every time I’m on the green.",
+    "source": "Judge.me review (Eclipse Mallet, 5★)",
+    "url": "https://www.luckygolf.com/products/limited-edition-mallet-putter",
+    "theme": "P15",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_putters_qP16",
+    "line_id": "vk_lucky_putters",
+    "kind": "transformation",
+    "quote": "The look alone is amazing!!! And I haven’t putted this good in my life. I should have switched to blades years ago",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P16",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP17",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "Everytime i play someone will ask where i bought it .",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P17",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP18",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "it's just too heavy I had to put it away 170 bucks just to put on my wall",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P18",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP19",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "I haven’t gotten any better at putting but it looks cool when I take it out of my bag to 3 putt. I’d buy it again.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P19",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP20",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "i originally got this putter just to show it off to friends and have as decoration but it’s honestly so nice.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P20",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP21",
+    "line_id": "vk_lucky_putters",
+    "kind": "trigger",
+    "quote": "I gifted this to my boyfriend for Christmas. He’s getting into golf more recently and he loves the color gold.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P21",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP22",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "Even when my game isn't perfect, the look keeps my confidence up and helps me focus in on my putts.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P22",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_putters_qP23",
+    "line_id": "vk_lucky_putters",
+    "kind": "trigger",
+    "quote": "We used it as a closest to the pin prize for our company golf tournament, and it was definitely the most coveted item.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P23",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP24",
+    "line_id": "vk_lucky_putters",
+    "kind": "transformation",
+    "quote": "Besides being a flashy statement about your putter, it actually feels pretty solid and provides better feedback than my starter putter.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P24",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP25",
+    "line_id": "vk_lucky_putters",
+    "kind": "transformation",
+    "quote": "Feels like clubs 3x the price.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P25",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP26",
+    "line_id": "vk_lucky_putters",
+    "kind": "failed",
+    "quote": "I had the original Odyssey two ball with the soft insert face and found myself getting frustrated with how inaccurate my lag putting was. I started looking for a heavier putter with a milled face",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P26",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_putters_qP27",
+    "line_id": "vk_lucky_putters",
+    "kind": "trigger",
+    "quote": "I saw it on the website and thought it was amazing for $200, so I ordered one.",
+    "source": "Judge.me review (Signature Gold Putter, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P27",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP28",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "not only am I now the flyest one on the course every time I go",
+    "source": "Judge.me review (Signature Gold Putter, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P28",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP29",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "Lucky brand might not be as big of a household name like Scotty Cameron for example, but it will be the putter I use for the rest of my life!!",
+    "source": "Judge.me review (Signature Gold Putter, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P29",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP30",
+    "line_id": "vk_lucky_putters",
+    "kind": "transformation",
+    "quote": "Because heavier I feel like my tempo while putting has improved significantly.",
+    "source": "Judge.me review (Signature Gold Putter, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P30",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP31",
+    "line_id": "vk_lucky_putters",
+    "kind": "failed",
+    "quote": "The putter has been a great replacement of the Scotty I have been using for years.",
+    "source": "Judge.me review (Lucky Mallet Cover, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-putter-head-cover-mallet-large",
+    "theme": "P31",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP32",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "Bright glare in the sun though, I did not think of that.",
+    "source": "Judge.me review (Eclipse Blade, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P32",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP33",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "I bought this putter as a gimmick. Well gimmick no more this putter changed my score big time.",
+    "source": "Judge.me review (Performance Tour Glove - White, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "P33",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP34",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "I see someone online reselling the new lucky mallett putter for much cheaper and with a head cover, so wouldn’t make sense to pay an additional $50+",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/108014202",
+    "theme": "P34",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP35",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "Can you provide a head cover if I purchase your putter?",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/119092777",
+    "theme": "P35",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP36",
+    "line_id": "vk_lucky_putters",
+    "kind": "trigger",
+    "quote": "My lovely Fiance surprised me with a new putter this morning and me receiving one in the mail might not go over to well.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/106122698",
+    "theme": "P36",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP37",
+    "line_id": "vk_lucky_putters",
+    "kind": "desire",
+    "quote": "Nothing Makes Me More Proud To Be An American Than Our Colors…. RED, WHITE, and BLUE BABY!!!",
+    "source": "Judge.me review (LGP02 Mallet Putter - Patriot, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P37",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP38",
+    "line_id": "vk_lucky_putters",
+    "kind": "failed",
+    "quote": "I was previously using a second hand putter and the difference is night and day, anything within 10 ft feels makable.",
+    "source": "Judge.me review (Lucky Golf LGW02 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "P38",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_putters_qP39",
+    "line_id": "vk_lucky_putters",
+    "kind": "trigger",
+    "quote": "I like the look of the green grips with the shamrock and the putter looks pretty cool",
+    "source": "Reddit r/golf",
+    "url": "https://www.reddit.com/r/golf/comments/r5dfzy/lucky_golf_shamrock_reviews/",
+    "theme": "P39",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_putters_qP40",
+    "line_id": "vk_lucky_putters",
+    "kind": "objection",
+    "quote": "distance control is an issue for me with the weight  of this thing",
+    "source": "Judge.me review (Eclipse Blade, 3★)",
+    "url": "https://www.luckygolf.com/products/signature-gold-putters",
+    "theme": "P40",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH1",
+    "line_id": "5251cf534576451a",
+    "kind": "transformation",
+    "quote": "Played 2 rounds and love swinging and hitting a fairway shot. Best club in my bag now",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H1",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH2",
+    "line_id": "5251cf534576451a",
+    "kind": "desire",
+    "quote": "This club is MONEY!!’ Please make a 3 wood!",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H2",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH3",
+    "line_id": "5251cf534576451a",
+    "kind": "transformation",
+    "quote": "Head performs well, and it looks amazing. The quality is there like the wedges.",
+    "source": "Judge.me review (Stryker, 4★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H3",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH4",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "Only complaint is the shaft, it’s a little twisty with my swing speed. would love to be able to upgrade the shaft/grip at check out",
+    "source": "Judge.me review (Stryker, 4★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H4",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH5",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "shaft is pretty soft so I’ll be able to shank it so far into the woods I won’t even need to go look for my ball",
+    "source": "Judge.me review (Stryker, 3★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H5",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH6",
+    "line_id": "5251cf534576451a",
+    "kind": "failed",
+    "quote": "The gold color is stunning and the performance is unmatched. This club has replaced my sorry 3 wood.",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H6",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_hybrid_qH7",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "Awesome looking club. Can’t wait to hit it. No club head cover? Really?",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H7",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH8",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "Lefty??",
+    "source": "Judge.me review (Stryker, 1★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H8",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH9",
+    "line_id": "5251cf534576451a",
+    "kind": "desire",
+    "quote": "Sometimes a guy just needs to get Lucky.",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H9",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH10",
+    "line_id": "5251cf534576451a",
+    "kind": "transformation",
+    "quote": "what a beautiful sound it made when I struck it right!",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H10",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH11",
+    "line_id": "5251cf534576451a",
+    "kind": "transformation",
+    "quote": "great weight 220 ball flight so far",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H11",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH12",
+    "line_id": "5251cf534576451a",
+    "kind": "trigger",
+    "quote": "Got this as a Christmas present for my son. He absolutely loves it and uses it often",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H12",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH13",
+    "line_id": "5251cf534576451a",
+    "kind": "trigger",
+    "quote": "Liked it so much I also bought the 52 degree and the Hybrid. If you play Hybrid's this one is the real deal!",
+    "source": "Judge.me review (Lucky Golf LGW01 Gold, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-golf-lgw02-gold",
+    "theme": "H13",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH14",
+    "line_id": "5251cf534576451a",
+    "kind": "desire",
+    "quote": "How about a new 4 hybrid. Love the 3 hybrid 19 degree. Solid 200-220",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/102957209",
+    "theme": "H14",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_hybrid_qH15",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "Currently waiting on your lefty hybrid to drop",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/100672852",
+    "theme": "H15",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH16",
+    "line_id": "5251cf534576451a",
+    "kind": "trigger",
+    "quote": "Looking to buy the hybrid for my wife to add to her Lucky collection of clubs.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/100190180",
+    "theme": "H16",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH17",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "Is a head cover not included with the hybrid like the putter was when I bought it?",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/100190180",
+    "theme": "H17",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH18",
+    "line_id": "5251cf534576451a",
+    "kind": "desire",
+    "quote": "Great feel and would match it with any other club.",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H18",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH19",
+    "line_id": "5251cf534576451a",
+    "kind": "desire",
+    "quote": "Absolutely gorgeous piece of art, can't wait to hit it!!!",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H19",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH20",
+    "line_id": "5251cf534576451a",
+    "kind": "trigger",
+    "quote": "I’m building out a set at the moment and I still need hybrid and wedges.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/105994497",
+    "theme": "H20",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH21",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "Was skeptical at first because of all the gold but the hybrid performs flawlessly from the tee box to the fairway or ruff.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/70891397",
+    "theme": "H21",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_hybrid_qH22",
+    "line_id": "5251cf534576451a",
+    "kind": "transformation",
+    "quote": "I purchased the limited edition 3 Hybrid and absolutely LOVE that club. My favorite club in the bag.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/45106643",
+    "theme": "H22",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH23",
+    "line_id": "5251cf534576451a",
+    "kind": "objection",
+    "quote": "I recently paid $194.00 for your new hybrid club. I now see it’s on sale for &125.00 Can I please get a refund for the difference?",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/64068847",
+    "theme": "H23",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH24",
+    "line_id": "5251cf534576451a",
+    "kind": "transformation",
+    "quote": "Both clubs work like a charm! 😎",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H24",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH25",
+    "line_id": "5251cf534576451a",
+    "kind": "transformation",
+    "quote": "The club looks fantastic, just as good as advertised! It feels solid too.",
+    "source": "Judge.me review (Stryker, 4★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H25",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH26",
+    "line_id": "5251cf534576451a",
+    "kind": "desire",
+    "quote": "Hubby loves it",
+    "source": "Judge.me review (Stryker, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-striker-hybrid-limited-edition",
+    "theme": "H26",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_hybrid_qH27",
+    "line_id": "5251cf534576451a",
+    "kind": "desire",
+    "quote": "In addition to my Lucky Driver, My 56 wedge, and Lucky blade and mallet Putters, all Gold. VERY COOL.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/45106643",
+    "theme": "H27",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA1",
+    "line_id": "116e358402d748fe",
+    "kind": "transformation",
+    "quote": "This polo is one of my favorite polos and is a guaranteed choice in my clothing rotation for work. I’ve had more people compliment it, than any other in my wardrobe.",
+    "source": "Judge.me review (Azalea Classic Polo, 5★)",
+    "url": "https://www.luckygolf.com/products/azalea-classic-polo",
+    "theme": "A1",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_apparel_qA2",
+    "line_id": "116e358402d748fe",
+    "kind": "transformation",
+    "quote": "Super comfortable, perfect fit, and felt great in 95+ deg. Texas weather",
+    "source": "Judge.me review (Frost Classic Polo, 5★)",
+    "url": "https://www.luckygolf.com/products/frost-classic-polo",
+    "theme": "A2",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA3",
+    "line_id": "116e358402d748fe",
+    "kind": "objection",
+    "quote": "i feel comfortable with this shirt but it s pricey",
+    "source": "Judge.me review (Marble Classic Polo, 4★)",
+    "url": "https://www.luckygolf.com/products/marble-classic-polo",
+    "theme": "A3",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA4",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "Great material, fit to size!",
+    "source": "Judge.me review (Cruiser Classic Polo, 5★)",
+    "url": "https://www.luckygolf.com/products/cruiser-classic-polo",
+    "theme": "A4",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA5",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "Size fits as expected.  Great quality.",
+    "source": "Judge.me review (Signature Black Classic Polo, 5★)",
+    "url": "https://www.luckygolf.com/products/signature-black-classic-polo",
+    "theme": "A5",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA6",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "Okay, now you’re making it hard to blame my bad rounds on looking the part. A good-looking polo might be the easiest upgrade to my golf game. 😂",
+    "source": "Instagram comment, @luckygolfofficial",
+    "url": "https://www.instagram.com/p/DZglus2DCPt/",
+    "theme": "A6",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_apparel_qA7",
+    "line_id": "116e358402d748fe",
+    "kind": "pain",
+    "quote": "your shirts are the best for the course. I don’t feel like a wet mop every time I finish the 18th hole… what a game changer.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/100739209",
+    "theme": "A7",
+    "nugget": 1
+   },
+   {
+    "id": "vk_lucky_apparel_qA8",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "The polos are cool and look good",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/107813468",
+    "theme": "A8",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA9",
+    "line_id": "116e358402d748fe",
+    "kind": "objection",
+    "quote": "I am trying to return or exchange a polo and I’m having a hard time finding out how to do so.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/101819188",
+    "theme": "A9",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA10",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "One thing I genuinely love from Lucky Golf is your golf polos. I really like the clean style and overall feel of the brand",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/98392851",
+    "theme": "A10",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA11",
+    "line_id": "116e358402d748fe",
+    "kind": "trigger",
+    "quote": "Any idea how long it will take for the black lucky clover patch hat to come back in stock? Trying to place a Father’s Day order",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/102798556",
+    "theme": "A11",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA12",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "YALL are his fav brand and he wears your shirts constantly !!!",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/104846848",
+    "theme": "A12",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA13",
+    "line_id": "116e358402d748fe",
+    "kind": "trigger",
+    "quote": "I was specifically thinking of your hats — black for the groomsmen and one white for Sam as the groom.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/113584549",
+    "theme": "A13",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA14",
+    "line_id": "116e358402d748fe",
+    "kind": "objection",
+    "quote": "Just didn't care for the look as much in person. The fit was great.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/107881409",
+    "theme": "A14",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA15",
+    "line_id": "116e358402d748fe",
+    "kind": "objection",
+    "quote": "Blackout Blade is to small how do I exchange for 3xxx",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/113845759",
+    "theme": "A15",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA16",
+    "line_id": "116e358402d748fe",
+    "kind": "objection",
+    "quote": "I just bought a 54° wedge the other day and at checkout I did not have the option of picking what kind of hat I wanted what is up with that?",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/118925281",
+    "theme": "A16",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA17",
+    "line_id": "116e358402d748fe",
+    "kind": "objection",
+    "quote": "I just placed my order and it should’ve qualified me for a free hat, and free shirt… I don’t think that it Worked.",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/118064197",
+    "theme": "A17",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA18",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "Comfortable and looks classy AF! No glove no love.",
+    "source": "Judge.me review (Lucky Tour Glove, 5★)",
+    "url": "https://www.luckygolf.com/products/lucky-clover-tour-glove",
+    "theme": "A18",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA19",
+    "line_id": "116e358402d748fe",
+    "kind": "desire",
+    "quote": "I have purchased every club you have made and would really like a hat",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/88891809",
+    "theme": "A19",
+    "nugget": 0
+   },
+   {
+    "id": "vk_lucky_apparel_qA20",
+    "line_id": "116e358402d748fe",
+    "kind": "objection",
+    "quote": "Where’s my cap and polo?",
+    "source": "Gorgias ticket (customer message)",
+    "url": "https://luckygolf.gorgias.com/app/ticket/118246325",
+    "theme": "A20",
+    "nugget": 0
+   }
+  ],
+  "comps": [
+   {
+    "id": "vk_lucky_c1",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Takomo",
+    "url": "https://takomogolf.com",
+    "sort": 0,
+    "data": {
+     "price": "Skyforger wedge $89 (web search snapshot 2026-09-29, page dated 2025-12-26)",
+     "promise": "Forged feel, \"hop and stop\"",
+     "mechanism": "S20C forged, precision-milled grooves + micro-milling, progressive blade weighting",
+     "offer": "2-year warranty",
+     "ad_themes": [
+      "Iron-fitting quiz, Golf Monthly review mention, fair-price DTC (Slack competitor monitor 9/23)"
+     ],
+     "complaints": [
+      "I ordered a wedge on the 8th of August and I still haven't seen it, they even charged me extra for an express courier.",
+      "Repeatedly Sent Broken Clubs – Appalling Service"
+     ],
+     "complaint_sources": [
+      {
+       "quote": "I ordered a wedge on the 8th of August and I still haven't seen it, they even charged me extra for an express courier.",
+       "source": "Trustpilot",
+       "url": "https://www.trustpilot.com/review/takomogolf.com"
+      },
+      {
+       "quote": "Repeatedly Sent Broken Clubs – Appalling Service",
+       "source": "Trustpilot",
+       "url": "https://www.trustpilot.com/review/takomogolf.com"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c2",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Vice Golf",
+    "url": "https://vicegolf.com",
+    "sort": 1,
+    "data": {
+     "price": "VGW01 $119, VGW02 $129 (web snapshot 2026-09-29)",
+     "promise": "\"Any-Lie Wedge\", built from real golfer strike data",
+     "mechanism": "Hand-built, precision-milled in Munich, milled sole",
+     "offer": "Clubs ship free, 30-day trial, test at Club Champion",
+     "ad_themes": [
+      "Boost starter set \"looks/feels/plays like a premium $1k+ set for less\", ball promos (Slack monitor 9/23)"
+     ],
+     "complaints": [
+      "try getting a hold of a human to talk to when there is a problem!"
+     ],
+     "complaint_sources": [
+      {
+       "quote": "try getting a hold of a human to talk to when there is a problem!",
+       "source": "Trustpilot UK",
+       "url": "https://uk.trustpilot.com/review/vicegolf.com"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c3",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Sub 70",
+    "url": "https://golfsub70.com",
+    "sort": 2,
+    "data": {
+     "price": "JB Forged $90, Sugar Skull $125 (web snapshot)",
+     "promise": "DTC value, craftsmanship",
+     "mechanism": "Forged, custom builds",
+     "offer": "unknown",
+     "ad_themes": [
+      "859 driver / craftsmanship + a \"Graves Golf\" swing-fix lead-gen funnel (Slack monitor)"
+     ],
+     "complaints": [
+      "The wedges don’t spin as much as my Vokey."
+     ],
+     "complaint_sources": [
+      {
+       "quote": "The wedges don’t spin as much as my Vokey.",
+       "source": "review roundup, golfhubz",
+       "url": "https://golfhubz.com/sub-70-20260624/"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c4",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Haywood Golf",
+    "url": "https://haywoodgolf.com",
+    "sort": 3,
+    "data": {
+     "price": "Signature Forged from $118, head-only $80 (web snapshot)",
+     "promise": "Custom, precision",
+     "mechanism": "S20C, CNC-milled to the legal limit, raw finish option",
+     "offer": "unknown",
+     "ad_themes": [
+      "~0 real Meta ads (Slack monitor)"
+     ],
+     "complaints": [],
+     "complaint_sources": [],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c5",
+    "line_id": "f4e7bae963214fcd",
+    "name": "BombTech",
+    "url": "https://bombtechgolf.com",
+    "sort": 4,
+    "data": {
+     "price": "Individual wedge $87, 64°/66° $67 (reg $97) (web snapshot); putters: Mallet putter $97 (reg $167)",
+     "promise": "\"Easy to hit and dangerously accurate\"",
+     "mechanism": "Precision-milled grooves",
+     "offer": "\"Test for 60 days on your course\", constant sale pricing",
+     "ad_themes": [],
+     "complaints": [
+      "I feel it's to good to be true."
+     ],
+     "complaint_sources": [
+      {
+       "quote": "I feel it's to good to be true.",
+       "source": "The Sand Trap, 2016",
+       "url": "https://thesandtrap.com/forums/topic/91651-bombtech-golf-grenade-series/"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c6",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Stix",
+    "url": "https://stix.golf",
+    "sort": 5,
+    "data": {
+     "price": "Compete 14-club set $899.40 (reg $1,499) incl. 52/56/60 (web snapshot); putters: Tech Mallet included in the $899.40 set",
+     "promise": "\"All the performance at half the cost\"",
+     "mechanism": "Milled-face wedges, full-set bundle",
+     "offer": "40% off",
+     "ad_themes": [
+      "Set value vs PGA Tour Superstore MSRP"
+     ],
+     "complaints": [
+      "The clubs are junk, woods and driver heads snap off constantly.",
+      "The black finish wears off immediately and scratches are very visible."
+     ],
+     "complaint_sources": [
+      {
+       "quote": "The clubs are junk, woods and driver heads snap off constantly.",
+       "source": "Trustpilot",
+       "url": "https://www.trustpilot.com/review/stix.golf"
+      },
+      {
+       "quote": "The black finish wears off immediately and scratches are very visible.",
+       "source": "Trustpilot",
+       "url": "https://www.trustpilot.com/review/stix.golf"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c7",
+    "line_id": "f4e7bae963214fcd",
+    "name": "New Level",
+    "url": "https://newlevelgolf.com",
+    "sort": 6,
+    "data": {
+     "price": "unknown (only a used 902 listing at $79.99 found)",
+     "promise": "Forged wedges",
+     "mechanism": "Forged",
+     "offer": "unknown",
+     "ad_themes": [
+      "0 real Meta ads (Slack monitor)"
+     ],
+     "complaints": [],
+     "complaint_sources": [],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c8",
+    "line_id": "vk_lucky_putters",
+    "name": "LAZRUS Golf",
+    "url": "https://lazrusgolf.com",
+    "sort": 7,
+    "data": {
+     "price": "Zero Torque mallets $207–$247, head only $117–$147 (web snapshot 2026-09-29)",
+     "promise": "\"Pro-Quality golf clubs at a third of the price\", Made in Boise, Idaho",
+     "mechanism": "Zero Torque balance",
+     "offer": "\"On Sale Now\" banner",
+     "ad_themes": [],
+     "complaints": [
+      "many users describe it as feeling thin, slick, or cheap"
+     ],
+     "complaint_sources": [
+      {
+       "quote": "many users describe it as feeling thin, slick, or cheap",
+       "source": "the stock grip, GolferHive review",
+       "url": "https://golferhive.com/lazrus-golf-mallet-putter-review/"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c9",
+    "line_id": "116e358402d748fe",
+    "name": "Primo Golf",
+    "url": "https://primogolfapparel.com",
+    "sort": 8,
+    "data": {
+     "price": "Blade & Classic collar polos $69 (web snapshot, page 2025-09-15). Same \"Blade/Classic\" naming as Lucky",
+     "promise": "Athletic-golfer style",
+     "mechanism": "",
+     "offer": "Waffle hoodie, braided belts, joggers ads, 10–12 active ads (Slack monitor 9/16, 9/23)",
+     "ad_themes": [],
+     "complaints": [
+      "The shirt looked good when I first got it, but for the price I expected more."
+     ],
+     "complaint_sources": [
+      {
+       "quote": "The shirt looked good when I first got it, but for the price I expected more.",
+       "source": "worthepenny",
+       "url": "https://primogolfapparel.worthepenny.com/"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c10",
+    "line_id": "116e358402d748fe",
+    "name": "Bad Birdie",
+    "url": "https://badbirdiegolf.com",
+    "sort": 9,
+    "data": {
+     "price": "Core Performance Polo $78–$88, sale $53 (web snapshot)",
+     "promise": "Bold prints, 4-way stretch, UPF 50, \"Stay-Right collar\"",
+     "mechanism": "",
+     "offer": "Whatnot livestream ads, skort, partner ads (Slack monitor)",
+     "ad_themes": [],
+     "complaints": [
+      "Great print. Runs small."
+     ],
+     "complaint_sources": [
+      {
+       "quote": "Great print. Runs small.",
+       "source": "Bad Birdie review",
+       "url": "https://badbirdiegolf.com/products/cheetah-dove"
+      }
+     ],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c11",
+    "line_id": "116e358402d748fe",
+    "name": "Swannies, Devereux",
+    "url": "",
+    "sort": 10,
+    "data": {
+     "price": "unknown",
+     "promise": "Lifestyle",
+     "mechanism": "",
+     "offer": "Swannies 6 ads, no video. Devereux \"Pioneertown/Westward\" drops (Slack monitor)",
+     "ad_themes": [],
+     "complaints": [],
+     "complaint_sources": [],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   },
+   {
+    "id": "vk_lucky_c12",
+    "line_id": "f4e7bae963214fcd",
+    "name": "Big-brand referents (what customers compare to)",
+    "url": "",
+    "sort": 11,
+    "data": {
+     "price": "\"$180 wedge\" is the team's shorthand; prices not verified",
+     "promise": "Tour brands: wedges Titleist Vokey SM10, Cleveland RTX, TaylorMade Hi-Toe, Callaway MD3; putters Scotty Cameron, Odyssey (Two Ball, White Hot), TaylorMade Ardmore; hybrids Callaway, Ping, TaylorMade",
+     "mechanism": "",
+     "offer": "",
+     "ad_themes": [],
+     "complaints": [],
+     "complaint_sources": [],
+     "praise": [],
+     "complaints_note": "",
+     "strengths": "",
+     "weaknesses": "",
+     "source": "viktor"
+    }
+   }
+  ],
+  "docs": [
+   {
+    "line_id": "f4e7bae963214fcd",
+    "key": "market",
+    "data": {
+     "mass_desire": "The core desire is short-game confidence and spin that doesn't cost big-brand money, in a club that other people notice. Buyers come for the gold look and stay for the spin. The look-then-performance sequence shows up in review after review: \"I bought these because I loved the look but wow can these wedges perform\" (W2), \"initially the gold caught my eye\" (W11), \"I bought this one because it's GOLD\" (W12). What they want after that: To be noticed / have the thing nobody else has. \"You don’t even have to take it out of the bag and people ask you about it\" (W3), \"love having something unique when everybody else in my golf group has simular equipment\" (W24), \"Like rockin the Cuban link on the golf bag!\" (W18), \"even a couple of Marshalls\" (W22). Performance on par with Vokey/Cleveland at a fair price. \"Performs as well as my Vokey SM10, and Cleveland RTX wedges\" (W5), \"Work just like the better clubs for half the price\" (W29), \"didn't break the bank but still felt 'premium'\" (W10). To feel competent around the green. \"Makes me feel like I know what I’m doing haha!\" (W59), \"within 120 yards I can’t be stopped lol\" (W44), \"My short game is so nasty with these my regular partners are now buying Lucky wedges\" (W16).",
+     "awareness": "solution",
+     "awareness_why": "Solution-aware → Product-aware (Schwartz). Buyers already know they want a new wedge (usually a 52/56/60 slot, W12, W44). Their question is \"is a cheaper gold one legit?\" (\"are these legit?\" W52, \"Has anyone ever heard of them\" on Reddit). Many were introduced by ads (\"the Instagram ads finally got the best of me\" W28, \"bombarded with ads\" W20). (inferred from review/ticket language and Meta being the #1 spend channel)",
+     "stage": "5",
+     "stage_why": "Stage 4–5. Every DTC rival makes the same claim (\"same materials as the big brands, no markup\": Takomo \"forged and precision-milled\", Stix \"All the performance at half the cost\", Vice \"precision-milled in Germany\", BombTech \"dangerously accurate\"). Spec claims (forged, CNC-milled, micro-grooves) are saturated. What still works is identification: gold as a personality signal plus social proof from real golfers. (inferred from competitor pages + Lucky's own ad results in section 8)",
+     "claims_made": [
+      "\"Same materials as the big brands, no markup\" (every DTC rival: Takomo, Stix, Vice, BombTech)",
+      "\"Forged + CNC-milled + micro-grooves\" spec stacks",
+      "\"Half the cost\" (Stix)",
+      "\"Tour-level spin\"",
+      "\"X-day trial\" (BombTech 60 days, Vice 30 days)"
+     ],
+     "open_ground": [
+      "\"The wedge people ask about\": being noticed (W3, W22, W24); no rival owns gold as identity",
+      "\"It looks like a gimmick until you hit it\": turn the gold skepticism into the hook with converts' reviews (W13, W14, W19, W27)",
+      "Honest wear: the product page already says the gold wears on the sole; nobody else admits wear (W34, W35, W43, W53)",
+      "The gift that stays in his bag (W23, W25, ad 306 E)",
+      "Constant 300g head weight across lofts, \"every wedge swings the same\" (unused in ads)"
+     ],
+     "source": "viktor",
+     "from_doc": "Lucky Golf - Brand Brain (Viktor, 2026-09-29)"
+    }
+   },
+   {
+    "line_id": "f4e7bae963214fcd",
+    "key": "mechanism",
+    "data": {
+     "problem": "big-brand wedges are good but priced for logos and tour contracts (brand-tax angle, Slack). Silver wedges all look identical (\"Tired of Silver?\" ad 323 B). Cheap/thrift wedges don't spin or give confidence (\"compared to my old thrift shop 60°\", \"Had a Cleveland 56 but never felt confident with it\" W32).",
+     "solution": "soft 1020 forged carbon steel gives an honest, buttery feel. The dual-texture face (CNC-milled grooves + micro-grooving + sandblast) keeps spin on off-center and wet strikes. Head weight is constant at 300g across all lofts, so every wedge swings the same. The customer version is \"when they stick on the green and come back two feet\" (W8), \"I truly think they are lucky too because even when I miss hit, it still turns out pretty good\" (W60). Honest trade-off the brand must own: soft steel wears. Customers report rust on the shafts (W34, W43), black finish fading (W35), \"the metal is soft\" (W36) and head/hosel failures (W33, W41). The Spec-to-Benefit doc already forbids durability claims on forged wedges.",
+     "source": "viktor"
+    }
+   },
+   {
+    "line_id": "vk_lucky_putters",
+    "key": "market",
+    "data": {
+     "mass_desire": "A putter that feels solid, gets noticed on every green, and makes the Scotty guys jealous, at a price that doesn't need hiding from the spouse. Envy/statement: \"Makes all the Scotty Cameron guys jealous\" (P1), \"it WILL make everyone that I play with jealous every time I’m on the green\" (P15), \"Definitely a head turner walking up to the green\" (P10). Confidence over the ball: \"the look keeps my confidence up and helps me focus in on my putts\" (P22), \"anything within 10 ft feels makable\" (P38). Solid, milled feel instead of insert/cheap feel: \"I like the solid face of the Lucky putter vs. the face insert\" (P6), \"Feels like clubs 3x the price\" (P25). Self-aware humor: buyers joke they still 3-putt (P19). They're buying the vibe as much as the stroke.",
+     "awareness": "product",
+     "awareness_why": "Product-aware / \"most aware\" for many. Putter buyers often already own a Lucky wedge (\"Bought the putter previously and now the wedge\", \"I had bought the 56 so I wanted a putter to match\"). New buyers are solution-aware and comparing to Scotty/Odyssey/TaylorMade. (inferred from reviews)",
+     "stage": "5",
+     "stage_why": "\"Milled from a single block\" is saturated. The Spec-to-Benefit doc itself says not to lead with it. Rivals (Lazrus Zero Torque, BombTech, Stix Tech Mallet) sell tech mechanisms. Lucky wins on identification (gold, \"flyest one on the course\" P28) plus feel.",
+     "claims_made": [
+      "\"Milled from a single block\" (saturated)",
+      "\"Zero torque\" (Lazrus)",
+      "\"Pure roll\"",
+      "\"Tour quality for less\"",
+      "\"$350+ putters wish they felt like this\" (Lucky 297 A)"
+     ],
+     "open_ground": [
+      "\"The putter they ask about on every green\" (P15)",
+      "Heavy on purpose: own the weight as the tempo benefit (P30) and get ahead of the complaint",
+      "Lefty-first messaging for the mallet (P3, P4, 387 B)",
+      "\"Still 3-putt, but in gold\": dry self-deprecating humor (P19)"
+     ],
+     "source": "viktor",
+     "from_doc": "Lucky Golf - Brand Brain (Viktor, 2026-09-29)"
+    }
+   },
+   {
+    "line_id": "vk_lucky_putters",
+    "key": "mechanism",
+    "data": {
+     "problem": "soft-insert putters with poor lag distance control (\"original Odyssey two ball with the soft insert face\" P26), second-hand/starter putters (P38, P24), blades that never felt right (P14).",
+     "solution": "fully CNC-milled head gives a muted strike with no ping. Blade 385g, mallet 365g (Spec-to-Benefit), and customers describe the heavier head as the benefit: \"Because heavier I feel like my tempo while putting has improved significantly\" (P30). The oversized 3.0 grip on the mallet is praised (P11). Double-edged: weight is the #1 putter complaint (\"very heavy\", \"distance control is an issue\" P2, P18, P40). Headcover confusion (P5, P34, P35) and lefty demand (P3, P4) are the other recurring objections. The site now sells the mallet LH, and the blade is RH only.",
+     "source": "viktor"
+    }
+   },
+   {
+    "line_id": "5251cf534576451a",
+    "key": "market",
+    "data": {
+     "mass_desire": "Replace the long club they dread (3-wood, 4-iron) with one that launches easily and still looks like the rest of their gold bag. \"This club has replaced my sorry 3 wood.\" (H6), \"Best club in my bag now\" (H1), \"Solid 200-220\" (H14). Secondary: completing the Lucky set (H13, H16, H22).",
+     "awareness": "problem",
+     "awareness_why": "Problem/solution-aware. They know their long game has a gap. Many are existing Lucky owners (most aware). (inferred from H13, H16, H20, H22)",
+     "stage": "4",
+     "stage_why": "Hybrids in general are sold on forgiveness/launch. Lucky's \"Flex Channel face + Glide Sole\" is mechanism-level, but the Spec-to-Benefit doc flags both as \"Drafted from engineering logic… Flagged for play-test verification\", so claims need care.",
+     "claims_made": [
+      "\"Easy distance\", \"forgiveness\", \"titanium\", \"launch it high\" (every brand, including Lucky's own weak \"Easy Distance\" ads)"
+     ],
+     "open_ground": [
+      "Name the club it replaces (\"Your 4-iron's retirement plan\")",
+      "Real mishit footage (must be a real mishit)",
+      "Complete the gold bag for existing owners"
+     ],
+     "source": "viktor",
+     "from_doc": "Lucky Golf - Brand Brain (Viktor, 2026-09-29)"
+    }
+   },
+   {
+    "line_id": "5251cf534576451a",
+    "key": "mechanism",
+    "data": {
+     "problem": "long irons skulled (\"The long iron you skull twice a round? This replaces it.\" homepage) and 3-woods (H6).",
+     "solution": "titanium head, Flex Channel face (ball speed on mishits), Glide Sole (clean from rough). Customers describe it as \"what a beautiful sound it made when I struck it right\" (H10) and \"great weight 220 ball flight\" (H11). Objections: soft/\"twisty\" stock shaft (H4, H5), no headcover (H7, H17), lefty wait (H8, H15), price drop from $194 to $125 during a sale (H23). The \"LIMITED RUN 100 units ONLY\" page copy vs 57 units sold in 60 days is a credibility risk (unknown how it's managed).",
+     "source": "viktor"
+    }
+   },
+   {
+    "line_id": "116e358402d748fe",
+    "key": "market",
+    "data": {
+     "mass_desire": "Look good and feel good on the course without the boxy, sweaty polo. \"I don’t feel like a wet mop every time I finish the 18th hole\" (A7), \"felt great in 95+ deg. Texas weather\" (A2), \"I’ve had more people compliment it, than any other in my wardrobe\" (A1). The second job is belonging to the brand/group: groomsmen and bachelor-trip hats and polos (A12, A13), and free-with-club add-ons (A16, A17).",
+     "awareness": "product",
+     "awareness_why": "mostly Product-aware existing club buyers (free polo/hat promos, \"I have purchased every club you have made and would really like a hat\" A19). Cold apparel buyers are rare. (inferred from Gorgias + Meta results)",
+     "stage": "5",
+     "stage_why": "Golf polos are saturated (Primo, Bad Birdie, Swannies, Devereux all claim stretch, UPF and bold prints). The only differentiation left is identity/fit.",
+     "claims_made": [
+      "Stretch, UPF, moisture-wicking, bold prints, athletic fit (Primo, Bad Birdie, Swannies, Devereux)"
+     ],
+     "open_ground": [
+      "\"Matches the gold in your bag\": apparel as part of the Lucky set, which no apparel brand can say",
+      "Groomsmen and group packs (the demand is in Gorgias)",
+      "Hot-weather proof from real customers (A2, A7)"
+     ],
+     "source": "viktor",
+     "from_doc": "Lucky Golf - Brand Brain (Viktor, 2026-09-29)"
+    }
+   },
+   {
+    "line_id": "116e358402d748fe",
+    "key": "mechanism",
+    "data": {
+     "problem": "boxy, heavy polos (\"Stop Settling For Boxy\" ad), shirts that soak through (A7).",
+     "solution": "88/12 poly-spandex, athletic fit, moisture-wicking, UPF 50+, 4-way stretch (Product Reference Guide). Customers confirm fit (\"fit to size\" A4, \"Size fits as expected\" A5). Objections: price (\"it s pricey\" A3), looks different in person (A14), sizing up to 3XL out of stock (A15), free-gift selection friction (A16, A17, A20).",
+     "source": "viktor"
+    }
+   },
+   {
+    "line_id": "",
+    "key": "viktor_notes",
+    "data": {
+     "md": "### Flags and claim checks\n- Voice and positioning come from Lucky's copy skill only; the website and voice are being rebuilt (2026-09), so re-check prices and product names against the live site.\n- Internal doc conflicts: the Product Reference Guide v1.8 lists LGW02 Gold at $109, S grind only; the live site sells Carver 02 Gold at $99 with K and S. The Guide calls the putters \"Tracer\", the site \"Eclipse\". Ad 297 A said \"$249\" for the LGP02; the site price is $229.\n- Review-count claims are unverified: ad 313 A \"10,000+ positive reviews\", ad 310 B \"500+ five-star reviews\". Judge.me shows 1,101 fetchable reviews (970 five-star); the Shopify skill notes 1,486 in total.\n- CLOVER15 (15% off clubs, from the welcome pop-up, created 2026-09-11, no end date) was on 368 of 806 paid retail orders in the last 60 days.\n- Wedge durability complaints are real: rust on shafts, black finish fading, \"the metal is soft\", head and hosel failures (W33 to W43). The Spec-to-Benefit doc forbids durability claims on forged wedges; the product page already says the gold wears on the sole.\n- Putters: weight is the #1 complaint, then headcover confusion and lefty demand (the blade is RH only; the mallet is LH too).\n- Stryker: \"LIMITED RUN 100 units ONLY\" on the page vs 57 sold in 60 days and still selling is a credibility risk. The Flex Channel face and Glide Sole claims are flagged in the Spec-to-Benefit doc for play-test verification.\n- The \"$500 for a wedge?\" line (Cole - 3) is unproven; numbers in ads need proof.\n\n### Offers and business\n- Prices on 2026-09-29: Carver 02 Gold $99, Carver 02 Black $109, Eclipse Blade $199, Eclipse Mallet $229, Stryker $209, polos $67, hats $29. The driver (LGD01, then \"Havoc\") is not for sale; the Havoc name reveal is planned for Jan 6.\n- Codes live: CLOVER15, CLOVERCREDIT ($52.17 \"mystery credit\", clubs, $200+), CLOVERPOLO (free polo with a club), CLOVERSHIP; per-subscriber 15% FB-EMAIL / IG-EMAIL codes (30 days); legacy LUCKYDAY10, GOLDEN, FEELINGLUCKY, GETLUCKY15.\n- Free shipping from $198 (\"the price of 2 wedges\") since 2026-09-11, was $125. 60-day play trial on clubs (wedges: one opened wedge per set, tested on a mat).\n- BFCM 2026 plan: giveaway Oct 29 to Nov 15, members' early access Nov 26, any club = free hat, first 400 orders = free polo, no codes or markdowns.\n- Sales mix, 806 paid retail orders 2026-07-31 to 2026-09-28: wedges 65% ($85,297, 823 units), putters 18% ($23,129, almost all the mallet), Stryker 9% ($11,913), polos 4%, accessories 2%, hats 1%.\n- Triple Whale, 12 months to 2026-09-28: order revenue $827,938, 5,521 orders, AOV $136.16, blended ROAS 2.09, new-customer ROAS 1.64, 78.5% new-customer orders; spend Facebook $242,847, Google $132,148, Vibe (CTV) $21,310; Klaviyo 16.8% of sales.\n\n### Past ads (Meta-reported ROAS, not Triple Whale; use the Triple Whale test results elsewhere in this brain for judging)\n- Wedges (1.76x on $96,709): won with creator and UGC on fair price and same materials (Jett - 1 \"The most forgiving clubs... Ever\" 5.29x on $1,111; Michael Kerr A \"Golf... But Fair Prices\" 3.08x) and identity statics (323 B \"Tired of Silver?\" 2.36x; 310 B \"All performance. All gold.\" 2.23x on $8,849, the biggest spender; Black Wedges - 9 \"Blacked out. Not toned down.\" 2.17x; 326 A \"Be Ready for Compliments\" 3.43x on $632). Lost: 288 A gift \"Shopping For A Golfer?\" 0.92x despite 5.2% CTR; 126 A spec stack 0.97x; \"Lefties Get Lucky\" restock 1.22x / 0.57x; LGW02 Back In Stock B 1.26x on $5,294; 291-1 whitelist testimonial 1.32x on $7,049; 295 A \"$99 wedge. Not a typo.\" 1.32x.\n- Putters (the weakest club line, 1.49x on $41,925): won with 387 B \"Wait? A gold putter?\" + \"And yes, it comes in left-handed too.\" 3.70x on $529; 340 A UGC blade specs + 60-day trial 3.10x; 320 A \"Quality Gear Shouldn't Hurt Your Wallet.\" 2.29x; 330 C \"Details Win\" 2.15x. Lost: Mallet Putter C / F \"Stability You Can Feel\" 0.63x / 0.66x; Blade Putter D \"Precision Meets Swagger\" 1.09x on $8,714; 297 A \"$249\" 0.44x.\n- Stryker (the best club line, 1.91x on $28,272): won with 303 A reviewer quote \"the perfect upgrade to fill that gap in the bag\" 4.11x; 309 A \"Titanium hybrid. Easy launch.\" 2.65x; 306 E Valentine's \"He'll LOVE you for this\" 2.60x (5.71% CTR); 318 B \"that 200-yard shot you never feel confident about\" 2.47x. Lost: 286 A \"Fairway. Rough. Doesn't Matter.\" 0.25x; 298 B \"$300 hybrids wish they felt like this\" 0.56x; Hybrid F \"Easy Distance\" 1.00x on $3,960.\n- Apparel: no winners (0.72x on $3,102; 382 A \"Stop Settling For Boxy\" 0.92x). It sells as a club add-on or gift, not cold.\n- Sitewide: BFCM 2025 statics with identical copy went 2.70x (Static #10) and 0.93x (Static #11), so the design decided it. \"Cole - 3\" UGC 1.50x on $5,919.\n- Google (Google-reported): PMax Wedges 2.32x on $89,750, Shopping Putters 3.15x on $13,724 (best non-brand), PMax hats 3.40x, branded search 21x.\n- Read: fair price with the same materials, said by a real person, and identity statics beat restock, spec-stack and gift ads; a specific moment plus a real review beats generic claims.\n\n### Per-line competitor notes\n- Stryker: competitor hybrid prices were not captured; Stix bundles a 4-hybrid into its $899.40 set; customers name Callaway, Ping and TaylorMade.\n- Putters: Lazrus sells Zero Torque mallets at $207 to $247; BombTech's mallet is $97 (reg $167).",
+     "gaps": [
+      "Meta ad comments (rate limited)",
+      "buyer demographics (all inferred)",
+      "blade vs mallet unit split",
+      "competitor hybrid and putter prices",
+      "the status of the Stryker \"100 units\" limited run",
+      "Trustpilot pages (blocked; complaints come from search snapshots)"
+     ],
+     "from": "viktor 2026-09-29"
+    }
+   }
+  ]
  }
 }
