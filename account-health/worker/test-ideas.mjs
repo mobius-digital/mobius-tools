@@ -108,7 +108,16 @@ globalThis.fetch = async (url, init = {}) => {
   if (u.hostname === 'generativelanguage.googleapis.com') {
     if (u.pathname === '/upload/v1beta/files') return new Response('{}', { headers: { 'x-goog-upload-url': 'https://generativelanguage.googleapis.com/upload/session/1' } });
     if (u.pathname === '/upload/session/1') return Response.json({ file: { name: 'files/abc', uri: 'https://generativelanguage.googleapis.com/v1beta/files/abc', mimeType: 'video/mp4', state: 'ACTIVE' } });
-    if (/:generateContent$/.test(u.pathname)) return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ format: ['yapper'], length_seconds: 42, hook: { spoken: 'I shot a 112 today', on_screen_text: 'worst round', visual: 'man in garage' }, transcript: 'I shot a 112 today...' }) }] } }], usageMetadata: { promptTokenCount: 12000, candidatesTokenCount: 800 } });
+    if (/:streamGenerateContent$/.test(u.pathname)) {
+      /* Streamed like the real API: the JSON arrives in two SSE chunks, usage on the last one. */
+      const full = JSON.stringify({ format: ['yapper'], length_seconds: 42, hook: { spoken: 'I shot a 112 today', on_screen_text: 'worst round', visual: 'man in garage' }, transcript: 'I shot a 112 today...' });
+      const half = Math.floor(full.length / 2);
+      const sse = [{ candidates: [{ content: { parts: [{ text: full.slice(0, half) }] } }] }, { candidates: [{ content: { parts: [{ text: full.slice(half) }] } }], usageMetadata: { promptTokenCount: 12000, candidatesTokenCount: 800 } }]
+        .map(c => `data: ${JSON.stringify(c)}
+
+`).join('');
+      return new Response(sse, { headers: { 'Content-Type': 'text/event-stream' } });
+    }
   }
   if (u.hostname === 'app.asana.com') {
     const p = u.pathname.replace('/api/1.0', '');
@@ -237,7 +246,7 @@ await check('first tag: watches the TikTok once, reads the image, one Claude cal
   const r = await ideas.runIdeaJob(env, job('100.1'));
   assert.equal(r.ok, true, r.error);
   assert.equal(count(/scrapecreators/), 1);
-  assert.equal(count(/:generateContent$/), 1);
+  assert.equal(count(/:streamGenerateContent/), 1);
   assert.equal(count(/api\.anthropic\.com/), 1);
   assert.equal(slackCalls('reactions.remove').length, 1);
   const x = row(`${CH}:100.1`);
@@ -301,7 +310,7 @@ await check('YouTube goes straight to Gemini by URL (no download)', async () => 
   db.exec(`DELETE FROM idea_thread WHERE id = '${CH}:400.1'`);
   calls.length = 0;
   await ideas.runIdeaJob(env, job('400.1'));
-  const g = calls.find(c => /:generateContent$/.test(c.url));
+  const g = calls.find(c => /:streamGenerateContent/.test(c.url));
   assert.equal(JSON.parse(g.init.body).contents[0].parts[0].file_data.file_uri, 'https://www.youtube.com/watch?v=abcdefghijk');
   assert.equal(count(/scrapecreators|upload/), 0);
 });
@@ -403,6 +412,26 @@ await check('Lucky creator app button only on Lucky, and it stores the draft and
   assert.ok(JSON.parse(row(`${LUCKY_CH}:500.1`).pushed_json).lucky_creators);
   assert.ok(JSON.parse(row(`${LUCKY_CH}:500.1`).draft_json).creator_link.title);
 });
+await check('only the suggested draft up front; "Make Asana brief draft" writes just that one on top of the stored draft', async () => {
+  const id = `${CH}:700.1`;
+  threads[id] = [{ ts: '700.1', user: 'U_COLE', text: 'Typed idea: a dad rants about his round <@U_BOT>' }];
+  claudeQueue.push(draft({ asana: { ...draft().asana, title: '', ads: [] }, studio: { ...draft().studio, lines: [] } }));
+  const r = await ideas.runIdeaJob(env, job('700.1', '<@U_BOT>'));
+  assert.equal(r.ok, true, r.error);
+  const ids = actionIds(lastPost().blocks);
+  assert.ok(ids.includes('idea_link') && !ids.includes('idea_asana') && ids.filter(x => x === 'idea_make').length === 2, ids.join(','));
+  assert.match(lastClaudeBody.system[0].text, /write ONLY the draft for the destination you picked/);
+  calls.length = 0;
+  claudeQueue.push({ asana: { ...draft().asana, title: 'Made on demand' } });
+  await ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: 'U_RANDO' }, container: { channel_id: CH }, actions: [{ action_id: 'idea_make', value: JSON.stringify({ i: id, k: 'asana_brief' }) }] });
+  assert.equal(count(/api\.anthropic\.com/), 1);
+  assert.match(JSON.stringify(lastClaudeBody.messages[0].content), /NOW WRITE ONLY THE ASANA BRIEF DRAFT/);
+  assert.deepEqual(Object.keys(lastClaudeBody.output_format?.schema?.properties || lastClaudeBody.tools?.[0]?.input_schema?.properties || {}).length <= 1, true);
+  const d = JSON.parse(row(id).draft_json);
+  assert.equal(d.asana.title, 'Made on demand');
+  assert.equal(d.creator_link.title, 'The garage rant', 'the stored creator draft survives');
+  assert.ok(actionIds(lastPost().blocks).includes('idea_asana'));
+});
 await check('Redo is open to anyone and re-runs from the cache; Discard is approver-only', async () => {
   calls.length = 0;
   await press('idea_redo', ID, 'U_RANDO');
@@ -483,7 +512,7 @@ await check('Atria video ad: MCP (SSE and JSON), public MP4 watched once by Gemi
   assert.equal(r.ok, true, r.error);
   const tools = calls.filter(c => c.url === 'https://api.tryatria.com/mcp').map(c => JSON.parse(c.init.body)).filter(m => m.method === 'tools/call').map(m => m.params.name);
   assert.deepEqual(tools, ['get_library_ad', 'get_library_ad_transcript', 'get_library_ad_creative_tags']);
-  assert.equal(count(/cdn\.tryatria\.com/), 1); assert.equal(count(/:generateContent$/), 1); assert.equal(count(/api\.anthropic\.com/), 1);
+  assert.equal(count(/cdn\.tryatria\.com/), 1); assert.equal(count(/:streamGenerateContent/), 1); assert.equal(count(/api\.anthropic\.com/), 1);
   const content = JSON.stringify(lastClaudeBody.messages[0].content);
   for (const s of ['Zound', 'Concert earplugs that keep the music clear', 'Shop now', 'zound.com/earplugs', 'Running 142 days since 2026-05-10', 'a signal, not proof', '5 reasons why you need Zound', 'listicle', 'I shot a 112 today'])
     assert.ok(content.includes(s), 'prompt is missing ' + s);

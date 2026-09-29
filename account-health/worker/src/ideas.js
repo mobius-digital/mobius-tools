@@ -60,6 +60,8 @@ const xesc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 const nd = v => typeof v === 'string' ? v.replace(/\s*[—–]\s*/g, ', ') : Array.isArray(v) ? v.map(nd) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, nd(x)])) : v;
 
 export const DESTS = { creator_link: 'Creator link', lucky_creators: 'Lucky creator app', asana_brief: 'Asana brief', studio: 'Studio' };
+/* Which draft field each destination reads. */
+const DRAFT_KEY = { creator_link: 'creator_link', lucky_creators: 'creator_link', asana_brief: 'asana', studio: 'studio' };
 const MODE = { as_is: 'Use it as is', style: 'Borrow the style', hook_only: 'Just the hook', mixed: 'A mix' };
 const TEST_TYPE = { angle: 'angle test', concept: 'concept test', iteration: 'iteration test' };
 const STUDIO_TESTING = ['concepts', 'headlines', 'visuals', 'offer', 'reviews', 'hooks', 'copy', 'format'];
@@ -315,18 +317,32 @@ const FACTS_PROMPT = `Watch this short-form video and report FACTS only, no opin
  "audio": "music (name it if known), voice, sound effects"}
 Use "" or [] when something is absent. Never guess words you cannot hear or read: write [unclear].`;
 
+/* STREAMED (2026-09-29): the first live run got a 524, a gateway timeout, because a plain
+   generateContent sends nothing until the whole breakdown of a 55 second video is written.
+   streamGenerateContent sends chunks as it goes, so the connection never sits idle. One retry
+   on a gateway or overload error. */
 async function geminiFacts(env, part, meter) {
-  const r = await F(`${GEMINI}/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: 'POST', headers: { 'x-goog-api-key': env.GEMINI_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ role: 'user', parts: [part, { text: FACTS_PROMPT }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 8192 } }),
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`the video reader said ${r.status}${j.error?.message ? `: ${clip(j.error.message, 160)}` : ''}`);
-  const u = j.usageMetadata || {};
+  const body = JSON.stringify({ contents: [{ role: 'user', parts: [part, { text: FACTS_PROMPT }] }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 8192 } });
+  let r, raw = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    r = await F(`${GEMINI}/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`, {
+      method: 'POST', headers: { 'x-goog-api-key': env.GEMINI_API_KEY, 'Content-Type': 'application/json' }, body });
+    raw = await r.text().catch(() => '');
+    if (r.ok || ![429, 500, 502, 503, 504, 524].includes(r.status)) break;
+    await new Promise(res => setTimeout(res, 3000));
+  }
+  if (!r.ok) {
+    const j = safeJson(raw, {}) || {};
+    const err = Array.isArray(j) ? j[0]?.error : j.error;
+    throw new Error(`the video reader said ${r.status}${err?.message ? `: ${clip(err.message, 160)}` : ''}`);
+  }
+  /* SSE: each "data:" line is one chunk; the text parts join up, the last chunk carries the usage. */
+  const chunks = raw.split(/\r?\n/).filter(l => l.startsWith('data:')).map(l => safeJson(l.slice(5).trim(), null)).filter(Boolean);
+  const u = [...chunks].reverse().find(c => c.usageMetadata)?.usageMetadata || {};
   const gi = u.promptTokenCount || 0, go = (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0);
   meter.g_in += gi; meter.g_out += go;
-  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+  const text = chunks.map(c => (c.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('')).join('');
   let facts = safeJson(text, null);
   if (!facts) { const a = text.indexOf('{'), z = text.lastIndexOf('}'); facts = a >= 0 ? safeJson(text.slice(a, z + 1), null) : null; }
   if (!facts) throw new Error('the video reader answered in a shape I could not read');
@@ -488,7 +504,7 @@ DESTINATION (pick one, say why in one line):
 - asana_brief: a paid ad the team produces as a test with numbered ads.
 - studio: static image ads the AI can make now from lines of words.
 
-DRAFTS: fill every destination that could work; for one that makes no sense, leave its strings empty and its arrays empty.
+DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
 - creator_link follows the hierarchy rule. The section answers "why would a creator film this today": Hot right now, a dated window, a product line, or a standing theme. Format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. openers are first lines a creator could say; shots are the few shots to film. proof_note says in one line what to take from the reference. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
 - asana is the team's brief template: title (a few words), angle, why it works, concept, testing (what changes) and test_type, then 3 to 5 numbered ads unless the thread asks otherwise, each enough for the designer or editor to build it. kind is video for anything filmed, static for images. For video also creator, length, three hooks, a script, b-roll and editor notes; for static leave those empty. Copy fields only when you have something real to say.
 - studio: static ads only, one line per ad: the words on the ad plus a short note on the look. testing is what changes across the lines.
@@ -531,12 +547,20 @@ function cleanCreator(c) {
 }
 
 /* ---------------- the card (a view of the stored row) ---------------- */
+/* Slack caps a section at 3000 characters. Split on lines (then on words for a monster line) and
+   NEVER drop text: the first live card lost the end of its brief to a hard slice. */
 function sections(text, limit = 2900) {
   const out = [];
   let buf = '';
-  for (const para of String(text || '').split(/\n\n/)) {
-    const piece = para.length > limit ? para.slice(0, limit) : para;
-    if (buf && buf.length + piece.length + 2 > limit) { out.push(buf); buf = piece; } else buf = buf ? `${buf}\n\n${piece}` : piece;
+  const pieces = [];
+  for (const line of String(text || '').split('\n')) {
+    if (line.length <= limit) { pieces.push(line); continue; }
+    let rest = line;
+    while (rest.length > limit) { const cut = rest.lastIndexOf(' ', limit) > limit / 2 ? rest.lastIndexOf(' ', limit) : limit; pieces.push(rest.slice(0, cut)); rest = rest.slice(cut).trimStart(); }
+    if (rest) pieces.push(rest);
+  }
+  for (const piece of pieces) {
+    if (buf && buf.length + piece.length + 1 > limit) { out.push(buf); buf = piece; } else buf = buf ? `${buf}\n${piece}` : piece;
   }
   if (buf) out.push(buf);
   return out.map(t => ({ type: 'section', text: { type: 'mrkdwn', text: t } }));
@@ -566,12 +590,14 @@ function creatorText(c, hub, lucky) {
   lines.push(`Proof: the reference, shown as another brand (inspiration).${c.proof_note ? ` ${esc(c.proof_note)}` : ''}`);
   return lines.filter(Boolean).join('\n');
 }
+/* The model often numbers its own lines ("1. SCISSORS"); the card numbers them too. */
+const unnum = x => String(x || '').replace(/^\s*\d+\s*[.):-]\s*/, '');
 function asanaText(a) {
   if (!a?.title) return '';
   const l = [`*Asana brief*  ·  ${a.kind === 'video' ? 'Video' : 'Static'}, ${TEST_TYPE[a.test_type] || 'concept test'}`, `*${esc(a.title)}*`,
     `*Angle:* ${esc(a.angle)}`, `*Why it works:* ${esc(a.why)}`];
   if (a.concept) l.push(`*Concept:* ${esc(a.concept)}`);
-  l.push(`*Testing:* ${esc(a.testing)}`, '*Ads*', ...(a.ads || []).map((x, i) => `${i + 1}. ${esc(x)}`));
+  l.push(`*Testing:* ${esc(a.testing)}`, '*Ads*', ...(a.ads || []).map((x, i) => `${i + 1}. ${esc(unnum(x))}`));
   if (a.kind === 'video') {
     if (a.creator) l.push(`*Creator:* ${esc(a.creator)}`);
     if (a.length) l.push(`*Length:* ${esc(a.length)}`);
@@ -588,7 +614,7 @@ function asanaText(a) {
 function studioText(s) {
   if (!(s?.lines || []).length) return '';
   return [`*Studio batch*  ·  ${esc(s.name || 'Untitled')} (testing ${esc(s.testing)})`, `*Angle:* ${esc(s.angle)}`, `*Why:* ${esc(s.why)}`,
-    s.concept ? `*Concept:* ${esc(s.concept)}` : '', ...s.lines.map((x, i) => `${i + 1}. ${esc(x)}`), s.post_copy ? `*Post copy:* ${esc(s.post_copy)}` : ''].filter(Boolean).join('\n');
+    s.concept ? `*Concept:* ${esc(s.concept)}` : '', ...s.lines.map((x, i) => `${i + 1}. ${esc(unnum(x))}`), s.post_copy ? `*Post copy:* ${esc(s.post_copy)}` : ''].filter(Boolean).join('\n');
 }
 const btn = (text, action_id, id, extra = {}) => ({ type: 'button', text: { type: 'plain_text', text: clip(text, 75) }, action_id, value: JSON.stringify({ i: id }), ...extra });
 const ACTION_OF = { creator_link: 'idea_link', lucky_creators: 'idea_lucky', asana_brief: 'idea_asana', studio: 'idea_studio' };
@@ -612,7 +638,8 @@ export function ideaCard(row, acct, hub) {
   const why = [`*Why it works*`, esc(t.summary)];
   if (t.hook_why) why.push(`• Hook: ${esc(t.hook_why)}`);
   if (t.desire) why.push(`• Desire: ${esc(t.desire)}`);
-  if (t.awareness || t.sophistication) why.push(`• Stage: ${esc([t.awareness, t.sophistication].filter(Boolean).join('; '))}`);
+  if (t.awareness) why.push(`• Awareness: ${esc(t.awareness)}`);
+  if (t.sophistication) why.push(`• Sophistication: ${esc(t.sophistication)}`);
   if (t.mechanism) why.push(`• Mechanism: ${esc(t.mechanism)}`);
   if (t.proof) why.push(`• Proof: ${esc(t.proof)}`);
   if (t.weak) why.push(`*Don't copy:* ${esc(t.weak)}`);
@@ -635,7 +662,9 @@ export function ideaCard(row, acct, hub) {
   const els = [];
   for (const k of Object.keys(DESTS)) {
     if (k === 'lucky_creators' && !lucky) continue;
-    if (pushed[k] || !has(d)[k]) continue;
+    if (pushed[k]) continue;
+    /* Only the suggested destination is drafted up front; the rest cost a press of "Make ... draft". */
+    if (!has(d)[k]) { if (row.status !== 'questions') els.push({ ...btn(`Make ${DESTS[k]} draft`, 'idea_make', row.id), value: JSON.stringify({ i: row.id, k }) }); continue; }
     els.push(btn(`${DESTS[k]}${k === pick ? ' (suggested)' : ''}`, ACTION_OF[k], row.id, k === pick ? { style: 'primary' } : {}));
   }
   if (pushed.creator_link) els.push(btn('Undo creator link', 'idea_undo_link', row.id, { style: 'danger' }));
@@ -720,12 +749,16 @@ export async function runIdeaJob(env, job) {
       { type: 'text', text: `THE CREATOR LINK NOW (${hub.brand ? `/angles/${hub.brand.slug}, ${hub.brand.live ? 'live' : 'switched off'}` : 'this brand has no creator link yet'}):\nSections: ${hub.sections.map(s => `[${s.id}] ${s.name}${s.line ? `: ${s.line}` : ''}${s.enabled ? '' : ' (off)'}`).join('; ') || 'none'}\nAngles:\n${hub.angles.map(a => `[${a.id}] ${a.title} (${a.section || 'no section'}; ${a.format || ''}): ${clip(a.argument, 200)}`).join('\n') || 'none'}` },
       ...(prev ? [{ type: 'text', text: `YOUR LAST DRAFT FOR THIS THREAD (revise it with what people said since; keep what nobody pushed back on):\n${clip(prev, 20000)}\n\nNEW MESSAGES SINCE THAT DRAFT: ${fresh.length ? fresh.map(m => `${m.name}: ${m.text}`).join(' / ') : 'none, they just asked again'}` }] : []),
     ];
+    /* "Make <destination> draft" button: only that one draft is written, on top of the stored one,
+       so the output (the expensive part) stays small; the system block is usually still cached. */
+    const makeKey = job.kind === 'make' && prev ? DRAFT_KEY[job.dest] : null;
+    if (makeKey) user.push({ type: 'text', text: `NOW WRITE ONLY THE ${DESTS[job.dest].toUpperCase()} DRAFT for this idea, consistent with your last draft's teardown and take. Return only that one field.` });
     const m = await claude(env, {
       system: [{ type: 'text', text: systemText(acct.name, lucky) }, ...(brain.md ? [brainBlock(brain.md)] : [])],
-      user, schema: IDEA_SCHEMA, effort: 'medium', maxTokens: 16000,
+      user, schema: makeKey ? obj({ [makeKey]: IDEA_SCHEMA.properties[makeKey] }) : IDEA_SCHEMA, effort: 'medium', maxTokens: 16000,
     }, null, meter);
     const u = m.usage || {};
-    const d = nd(jsonOf(m));
+    const d = makeKey ? { ...safeJson(prev, {}), [makeKey]: nd(jsonOf(m))[makeKey] } : nd(jsonOf(m));
     if (d.creator_link) d.creator_link = cleanCreator(d.creator_link);
     const blocking = (d.questions || []).some(q => q.blocking && q.q);
     const cost = ((u.input_tokens || 0) * PRICE.in + (u.cache_creation_input_tokens || 0) * PRICE.write + (u.cache_read_input_tokens || 0) * PRICE.read
@@ -778,6 +811,12 @@ export async function handleIdeaAction(env, ctx, p) {
     if (!row || row.channel !== chan) return whisper(env, chan, user, 'That idea is no longer stored, so this button cannot do anything. Tag me in the thread for a fresh draft.');
     if (GATED.has(aid) && !approversOf(env).includes(user)) return whisper(env, chan, user, 'Only Cole or Ahsan can send an idea on. Anyone can tag me for a draft or press Redo.', row.thread_ts);
     if (row.status === 'discarded' && aid !== 'idea_redo') return whisper(env, chan, user, 'That draft was discarded. Tag me again to start over.', row.thread_ts);
+    if (aid === 'idea_make') {
+      if (!DRAFT_KEY[val.k]) return null;
+      const j = { kind: 'make', dest: val.k, channel: row.channel, root: row.thread_ts, ts: row.reply_ts || row.thread_ts, user, text: '', bot: null };
+      await slack(env, 'reactions.add', { channel: row.channel, timestamp: j.ts, name: 'eyes' });
+      return env.IDEA_Q ? env.IDEA_Q.send(j) : runIdeaJob(env, j);
+    }
     if (aid === 'idea_redo') {
       const j = { kind: 'redo', channel: row.channel, root: row.thread_ts, ts: row.reply_ts || row.thread_ts, user, text: '', bot: null };
       await slack(env, 'reactions.add', { channel: row.channel, timestamp: j.ts, name: 'eyes' });
