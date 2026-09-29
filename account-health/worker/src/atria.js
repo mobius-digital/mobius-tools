@@ -100,9 +100,17 @@ function page(ok, msg) {
 export async function atriaCallback(env, url) {
   await ensureCfg(env);
   const st = safeJson(await cfgGet(env, K.state), null);
-  if (!st || !url.searchParams.get('state') || st.state !== url.searchParams.get('state') || Date.now() - st.at > 20 * 60e3)
-    return page(false, 'The sign-in link was out of date. Go back to Locus and click Connect Atria again.');
+  const got = url.searchParams.get('state');
+  /* Names only, never values: what Atria actually sent back, for the next person debugging this. */
+  console.log('atria callback', JSON.stringify({ params: [...url.searchParams.keys()], pending: !!st, match: !!st && got === st.state, age_s: st ? Math.round((Date.now() - st.at) / 1000) : null }));
+  /* An error from Atria wins over every state check, so its real reason is shown. */
   if (url.searchParams.get('error')) { await cfgSet(env, K.state, null); return page(false, `Atria said: ${clip(url.searchParams.get('error_description') || url.searchParams.get('error'), 200)}`); }
+  if (!st) return page(false, 'This sign-in link was already used or is out of date. Go back to Locus and click Connect Atria again.');
+  if (Date.now() - st.at > 20 * 60e3) return page(false, 'The sign-in took longer than 20 minutes and is out of date. Go back to Locus and click Connect Atria again.');
+  /* A different state is refused. A MISSING one (some servers drop it after their own login step) is let
+     through, because PKCE still binds the code to the verifier only this worker holds. */
+  if (got && got !== st.state) return page(false, 'That sign-in was started from an older click. Go back to Locus and click Connect Atria once, then finish in the tab it opens.');
+  if (!url.searchParams.get('code')) return page(false, 'Atria sent no sign-in code back. Go back to Locus and click Connect Atria again.');
   const c = safeJson(await cfgGet(env, K.client), null);
   if (!c?.id) return page(false, 'Locus lost its Atria registration. Click Connect Atria again.');
   const body = new URLSearchParams({ grant_type: 'authorization_code', code: url.searchParams.get('code') || '', redirect_uri: c.redirect, code_verifier: st.verifier, resource: ATRIA_MCP });
