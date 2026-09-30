@@ -735,7 +735,8 @@ export function ideaCard(row, acct, hub) {
     if (k === 'lucky_creators' && !lucky) continue;
     if (pushed[k]) continue;
     /* Only the suggested destination is drafted up front; the rest cost a press of "Make ... draft". */
-    if (!has(d)[k]) { if (row.status !== 'questions') els.push({ ...btn(`Make ${DESTS[k]} draft`, 'idea_make', row.id), value: JSON.stringify({ i: row.id, k }) }); continue; }
+    /* Action ids must be unique inside one block (Slack answers invalid_blocks otherwise). */
+    if (!has(d)[k]) { if (row.status !== 'questions') els.push({ ...btn(`Make ${DESTS[k]} draft`, `idea_make_${k}`, row.id), value: JSON.stringify({ i: row.id, k }) }); continue; }
     els.push(btn(`${DESTS[k]}${k === pick ? ' (suggested)' : ''}`, ACTION_OF[k], row.id, k === pick ? { style: 'primary' } : {}));
   }
   if (pushed.creator_link) els.push(btn('Undo creator link', 'idea_undo_link', row.id, { style: 'danger' }));
@@ -978,7 +979,7 @@ export async function handleIdeaAction(env, ctx, p) {
     if (!row || row.channel !== chan) return whisper(env, chan, user, 'That idea is no longer stored, so this button cannot do anything. Tag me in the thread for a fresh draft.');
     if (GATED.has(aid) && !approversOf(env).includes(user)) return whisper(env, chan, user, 'Only Cole or Ahsan can send an idea on. Anyone can tag me for a draft or press Redo.', row.thread_ts);
     if (row.status === 'discarded' && aid !== 'idea_redo') return whisper(env, chan, user, 'That draft was discarded. Tag me again to start over.', row.thread_ts);
-    if (aid === 'idea_make') {
+    if (aid.startsWith('idea_make')) {
       if (!DRAFT_KEY[val.k]) return null;
       const j = { kind: 'make', dest: val.k, channel: row.channel, root: row.thread_ts, ts: row.reply_ts || row.thread_ts, user, text: '', bot: null };
       await slack(env, 'reactions.add', { channel: row.channel, timestamp: j.ts, name: 'eyes' });

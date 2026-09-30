@@ -455,11 +455,11 @@ await check('only the suggested draft up front; "Make Asana brief draft" writes 
   const r = await ideas.runIdeaJob(env, job('700.1', '<@U_BOT>'));
   assert.equal(r.ok, true, r.error);
   const ids = actionIds(lastPost().blocks);
-  assert.ok(ids.includes('idea_link') && !ids.includes('idea_asana') && ids.filter(x => x === 'idea_make').length === 2, ids.join(','));
+  assert.ok(ids.includes('idea_link') && !ids.includes('idea_asana') && ids.filter(x => x.startsWith('idea_make_')).length === 2 && new Set(ids).size === ids.length, ids.join(','));
   assert.match(lastClaudeBody.system[0].text, /write ONLY the draft for the destination you picked/);
   calls.length = 0;
   claudeQueue.push({ asana: { ...draft().asana, title: 'Made on demand' } });
-  await ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: 'U_RANDO' }, container: { channel_id: CH }, actions: [{ action_id: 'idea_make', value: JSON.stringify({ i: id, k: 'asana_brief' }) }] });
+  await ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: 'U_RANDO' }, container: { channel_id: CH }, actions: [{ action_id: 'idea_make_asana_brief', value: JSON.stringify({ i: id, k: 'asana_brief' }) }] });
   assert.equal(count(/api\.anthropic\.com/), 1);
   assert.match(JSON.stringify(lastClaudeBody.messages[0].content), /NOW WRITE ONLY THE ASANA BRIEF DRAFT/);
   assert.deepEqual(Object.keys(lastClaudeBody.output_format?.schema?.properties || lastClaudeBody.tools?.[0]?.input_schema?.properties || {}).length <= 1, true);
