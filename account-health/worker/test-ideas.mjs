@@ -128,7 +128,11 @@ globalThis.fetch = async (url, init = {}) => {
     if (m === 'chat.getPermalink') return Response.json({ ok: true, permalink: 'https://mobius.slack.com/archives/x/p1' });
     return Response.json({ ok: true });
   }
-  if (u.hostname === 'files.slack.com') return new Response(new Uint8Array([137, 80, 78, 71, 1, 2, 3]), { headers: { 'content-type': 'image/png' } });
+  if (u.hostname === 'files.slack.com') {
+    if (/\/F_VID\//.test(u.pathname)) return new Response(new Uint8Array(4096), { headers: { 'content-type': 'video/quicktime', 'content-length': '4096' } });
+    if (/\/F_BIG\//.test(u.pathname)) return new Response(new Uint8Array(16), { headers: { 'content-type': 'video/mp4', 'content-length': String(120 * 1024 * 1024) } });
+    return new Response(new Uint8Array([137, 80, 78, 71, 1, 2, 3]), { headers: { 'content-type': 'image/png' } });
+  }
   if (u.hostname === 'api.anthropic.com') {
     const body = JSON.parse(init.body);
     claudeBodies.push(body);
@@ -215,7 +219,13 @@ function atriaMcp(u, init) {
 }
 
 const ideas = await import('./src/ideas.js');
-const env = { DB, IDEA_APPROVERS: 'U_COLE,U_AHSAN', SLACK_BOT_TOKEN: 'xoxb-test', ANTHROPIC_API_KEY: 'test', GEMINI_API_KEY: 'test', DOWNLOADER_KEY: 'test', ASANA_TOKEN: 'test' };
+/* R2 stand-in (the Ambassadors bucket): put / get / delete, bytes only (no FixedLengthStream here). */
+const MEDIA = { store: new Map(),
+  async put(key, body, opts) { const buf = body instanceof ArrayBuffer ? body : body?.buffer ? body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) : await new Response(body).arrayBuffer(); this.store.set(key, { buf, type: opts?.httpMetadata?.contentType }); },
+  async get(key) { const o = this.store.get(key); return o ? { key, size: o.buf.byteLength, body: null, arrayBuffer: async () => o.buf, httpMetadata: { contentType: o.type } } : null; },
+  async head(key) { const o = this.store.get(key); return o ? { key, size: o.buf.byteLength } : null; },
+  async delete(key) { this.store.delete(key); } };
+const env = { DB, MEDIA, IDEA_APPROVERS: 'U_COLE,U_AHSAN', SLACK_BOT_TOKEN: 'xoxb-test', ANTHROPIC_API_KEY: 'test', GEMINI_API_KEY: 'test', DOWNLOADER_KEY: 'test', ASANA_TOKEN: 'test' };
 const job = (root, text = '<@U_BOT>', channel = CH) => ({ kind: 'draft', channel, root, ts: root, user: 'U_AHSAN', text, bot: 'U_BOT' });
 const row = id => db.prepare('SELECT * FROM idea_thread WHERE id = ?').get(id);
 const press = (action_id, id, user = 'U_COLE', channel = CH) => ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: user }, container: { channel_id: channel }, actions: [{ action_id, value: JSON.stringify({ i: id }) }] });
@@ -287,8 +297,9 @@ await check('first tag: watches the TikTok once, reads the image, one Claude cal
   assert.equal(x.act_id, GRUNK); assert.equal(x.status, 'drafted'); assert.equal(x.from_name, 'Ahsan');
   assert.ok(x.reply_ts);
   const card = lastPost();
-  assert.deepEqual(actionIds(card.blocks), ['idea_link', 'idea_asana', 'idea_studio', 'idea_redo', 'idea_discard']);
-  assert.match(card.blocks.find(b => b.type === 'actions').elements[0].text.text, /suggested/);
+  /* 2026-09-30: the Section dropdown first, Details last. */
+  assert.deepEqual(actionIds(card.blocks), ['idea_section', 'idea_link', 'idea_asana', 'idea_studio', 'idea_redo', 'idea_discard', 'idea_details']);
+  assert.match(card.blocks.find(b => b.type === 'actions').elements[1].text.text, /suggested/);
   assert.ok(!JSON.stringify(card).includes('—'), 'em dash leaked into the card');
   assert.ok(!/ROAS/.test(JSON.stringify(JSON.parse(x.draft_json).creator_link)), 'money left in the creator draft');
   const media = db.prepare('SELECT * FROM idea_media').all();
@@ -479,6 +490,116 @@ await check('"quick" in the tag runs Sonnet 5.5, and Redo on that thread stays q
   assert.equal(lastClaudeBody.model, 'claude-sonnet-5-5');
 });
 
+/* ---------------- 2026-09-30 simplification: Section dropdown, caps, minimal card + Details ---------------- */
+const select = (id, s, user = 'U_RANDO') => ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: user }, container: { channel_id: CH },
+  actions: [{ type: 'static_select', action_id: 'idea_section', selected_option: { text: { type: 'plain_text', text: 'x' }, value: JSON.stringify({ i: id, s }) } }] });
+const selectOf = blocks => (blocks.find(b => b.type === 'actions')?.elements || []).find(e => e.type === 'static_select');
+await check('Section dropdown: the brand\'s sections plus the model\'s new one, model pick preselected; choosing stores it (no model call) and the push uses it', async () => {
+  const id = `${CH}:700.1`;
+  db.exec(`INSERT INTO p_amb_section (id, act_id, name, line, sort, enabled) VALUES ('sec_hot', '${GRUNK}', 'Hot right now', 'This week', 0, 1), ('sec_off', '${GRUNK}', 'Winter', 'Later', 5, 0)`);
+  calls.length = 0;
+  await press('idea_redo', id, 'U_RANDO');
+  let sel = selectOf(lastPost().blocks);
+  assert.ok(sel, 'no Section dropdown on a creator-link card');
+  assert.deepEqual(sel.options.map(o => o.text.text), ['Hot right now', 'Dad bod approved', 'Winter (off)']);
+  assert.equal(JSON.parse(sel.initial_option.value).s, 'sec_dad', 'the model\'s pick is preselected');
+  assert.ok(sel.options.every(o => o.text.text.length <= 75 && o.value.length <= 150));
+  calls.length = 0;
+  await select(id, 'sec_hot');
+  assert.equal(row(id).section_pick, 'sec_hot');
+  assert.equal(count(/api\.anthropic\.com/), 0); assert.equal(slackCalls('chat.update').length, 0, 'ack only');
+  await press('idea_link', id);
+  const a = db.prepare(`SELECT * FROM p_amb_angle WHERE title = 'The garage rant'`).get();
+  assert.equal(a.section_id, 'sec_hot', 'the dropdown outranks the model');
+  await press('idea_undo_link', id);
+  /* The model proposed a new section: it is an option; picking it creates the section on push. */
+  const d = JSON.parse(row(id).draft_json);
+  d.creator_link.section_id = ''; d.creator_link.new_section = 'Halloween week'; d.creator_link.new_section_line = 'Costumes and a cooler';
+  db.prepare('UPDATE idea_thread SET draft_json = ?, section_pick = NULL WHERE id = ?').run(JSON.stringify(d), id);
+  await press('idea_redo', id, 'U_RANDO');   // the fixture draft comes back; set it again below
+  db.prepare('UPDATE idea_thread SET draft_json = ?, section_pick = NULL WHERE id = ?').run(JSON.stringify(d), id);
+  const card = ideas.ideaCard(row(id), { act_id: GRUNK, name: 'Grunk Dolfer' }, { sections: db.prepare('SELECT * FROM p_amb_section WHERE act_id = ?').all(GRUNK), angles: [] });
+  sel = selectOf(card.blocks);
+  assert.equal(sel.options.at(-1).text.text, 'New section: Halloween week');
+  assert.equal(JSON.parse(sel.initial_option.value).s, 'new');
+  await select(id, 'new');
+  await press('idea_link', id);
+  const sec = db.prepare(`SELECT * FROM p_amb_section WHERE name = 'Halloween week'`).get();
+  assert.ok(sec, 'the new section was created'); assert.equal(sec.line, 'Costumes and a cooler');
+  assert.equal(db.prepare(`SELECT section_id FROM p_amb_angle WHERE title = 'The garage rant'`).get().section_id, sec.id);
+  await press('idea_undo_link', id);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_amb_section WHERE name = 'Halloween week'`).get().n, 0, 'undo removes the section it made');
+  /* No section anywhere: the push refuses instead of hiding the angle. */
+  d.creator_link.new_section = '';
+  db.prepare('UPDATE idea_thread SET draft_json = ?, section_pick = NULL WHERE id = ?').run(JSON.stringify(d), id);
+  calls.length = 0;
+  await press('idea_link', id);
+  assert.match(lastPost().text, /Pick a section first/);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_amb_angle WHERE title = 'The garage rant'`).get().n, 0);
+  assert.equal(JSON.parse(row(id).pushed_json).creator_link, undefined);
+  db.exec(`DELETE FROM p_amb_section WHERE id IN ('sec_hot', 'sec_off')`);
+});
+await check('creator-link caps: the prompt asks for them and the code clamps an over-long draft', async () => {
+  assert.match(lastClaudeBody.system[0].text, /HARD CAPS.*title up to 6 words.*EXACTLY 2/);
+  const long = 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three twenty-four twenty-five twenty-six twenty-seven twenty-eight';
+  const id = `${CH}:720.1`;
+  threads[id] = [{ ts: '720.1', user: 'U_COLE', text: 'Long one <@U_BOT>' }];
+  claudeQueue.push(draft({ creator_link: { ...draft().creator_link, title: 'The garage rant that never ends at all', argument: long, who: long, format: 'Talking head to camera', products: 'Cooler bag and the belt',
+    openers: [long, 'Second opener here.', 'A third that must go.'], shots: [{ label: 'Hook shot number one', text: long }, { label: 'B', text: 'two' }, { label: 'C', text: 'three' }, { label: 'D', text: 'four' }],
+    on_screen: 'Line one\nLine two\nLine three\nLine four', do_text: '- Keep it real and loose and honest and short and true and kind\n- Show the bag\n- Smile\n- Wave',
+    dont_text: 'No scripts. / No music / No logos. / No hats', proof_note: 'Take the mid-rant opening. Also copy the lighting and the pacing and everything else.' } }));
+  const r = await ideas.runIdeaJob(env, job('720.1'));
+  assert.equal(r.ok, true, r.error);
+  const c = JSON.parse(row(id).draft_json).creator_link;
+  const n = s => s.trim().split(/\s+/).length;
+  assert.equal(c.title, 'The garage rant that never ends');
+  assert.ok(n(c.argument) <= 25 && n(c.who) <= 15, `${n(c.argument)} / ${n(c.who)}`);
+  assert.equal(c.openers.length, 2); assert.ok(c.openers.every(o => n(o) <= 18));
+  assert.equal(c.shots.length, 3); assert.ok(n(c.shots[0].text) <= 20); assert.equal(c.shots[0].label, 'Hook shot number');
+  assert.deepEqual(c.on_screen.split('\n'), ['Line one', 'Line two', 'Line three']);
+  assert.deepEqual(c.do_text.split('\n').map(n), [10, 3, 1]);
+  assert.deepEqual(c.dont_text.split('\n'), ['No scripts.', 'No music', 'No logos.']);
+  assert.equal(c.format, 'Talking head to'); assert.equal(c.products, 'Cooler bag and');
+  assert.equal(c.proof_note, 'Take the mid-rant opening.');
+  /* Undo-safe: the public link never gets a longer version either (the push clamps too). */
+  const u = ideas.clampCreator({ title: 'a b c d e f g h', openers: ['x'], shots: [], on_screen: '', do_text: '', dont_text: '' });
+  assert.equal(u.title, 'a b c d e f'); assert.deepEqual(u.openers, ['x']);
+  assert.ok(!JSON.stringify(ideas.CREATOR_CAPS).includes('—'));
+});
+await check('minimal card: one bold line, the idea in four lines, no teardown; Details posts the full teardown + draft in the thread', async () => {
+  const id = `${CH}:720.1`;
+  const card = lastPost();
+  const text = card.blocks.filter(b => b.type === 'section').map(b => b.text.text).join('\n');
+  assert.match(text, /^\*Grunk Dolfer idea from Cole -> Creator link\*\n\*The garage rant that never ends\*\n/);
+  assert.match(text, /\nWho: /); assert.match(text, /\nOpener: "/);
+  for (const bad of ['Why it works', 'Take:', 'Best home', 'Worth answering', 'Don\'t copy', 'Hook:', 'Chips:']) assert.ok(!text.includes(bad), `card still shows ${bad}`);
+  assert.equal(text.split('\n').length, 5, text);
+  const ctx = card.blocks.filter(b => b.type === 'context').map(b => b.elements[0].text).join('\n');
+  assert.match(ctx, /^\$0\.\d\d this run/); assert.ok(!/Only Cole/.test(ctx));
+  assert.ok(actionIds(card.blocks).includes('idea_details'));
+  calls.length = 0;
+  await press('idea_details', id, 'U_RANDO');
+  assert.equal(count(/api\.anthropic\.com/), 0);
+  const det = lastPost();
+  assert.equal(det.thread_ts, '720.1');
+  const dt = JSON.stringify(det.blocks);
+  for (const s of ['Details: Grunk Dolfer idea from Cole', 'Why it works', 'Hook: He opens mid-rant', 'Take:', 'Best home:', 'Creator link angle', 'Openers:', 'On screen: Line one  /  Line two', 'Do: Keep it real']) assert.ok(dt.includes(s), `Details is missing ${s}`);
+  assert.equal(det.blocks.find(b => b.type === 'actions'), undefined, 'Details has no buttons');
+  /* A non-blocking question stays off the card and shows in Details; an Asana pick summarises the brief. */
+  const id2 = `${CH}:730.1`;
+  threads[id2] = [{ ts: '730.1', user: 'U_AHSAN', text: 'Needs the editor <@U_BOT> brief' }];
+  claudeQueue.push(draft({ destination: { pick: 'asana_brief', reason: 'Editor job.' }, questions: [{ q: 'Which cooler colour?', blocking: false }], creator_link: { ...draft().creator_link, title: '' } }));
+  await ideas.runIdeaJob(env, job('730.1', '<@U_BOT> brief'));
+  const c2 = lastPost();
+  const t2 = c2.blocks.filter(b => b.type === 'section').map(b => b.text.text).join('\n');
+  assert.match(t2, /^\*Grunk Dolfer idea from Ahsan -> Asana brief\*\n\*Garage rant hook\*\nAngle: Golf is hard.*\nTesting: Three different rants\n3 ads, video, concept test$/);
+  assert.ok(!t2.includes('Which cooler colour'));
+  assert.equal(selectOf(c2.blocks), undefined, 'no Section dropdown when the idea is not for the creator link');
+  assert.ok(actionIds(c2.blocks).includes('idea_make_creator_link'));
+  await press('idea_details', id2, 'U_RANDO');
+  assert.match(JSON.stringify(lastPost().blocks), /Worth answering: Which cooler colour/);
+});
+
 /* ---------------- focused brain, line picker, blind compare ---------------- */
 const { brandBrain } = await import('./src/brain.js');
 await check('focused brain: personas, quotes, market and tests narrowed to the line; voice, staff rules, brand-wide rows kept; other lines one line each', async () => {
@@ -516,7 +637,7 @@ await check('line picker: one small Sonnet call first, brain focused on its pick
   assert.deepEqual(JSON.parse(row(id).lines_json).ids, ['ln_night']);
   const run = db.prepare(`SELECT * FROM idea_run WHERE idea_id = ? ORDER BY rowid DESC`).get(id);
   assert.ok(run.pick_cost > 0 && run.cost > run.pick_cost, `pick ${run.pick_cost} of ${run.cost}`); assert.equal(run.model, 'claude-opus-5-5');
-  assert.match(JSON.stringify(lastPost().blocks), /Written for the Night Out Defense line/);
+  assert.match(JSON.stringify(lastPost().blocks), /Night Out Defense line/);
   threads[id].push({ ts: '800.2', user: 'U_COLE', text: 'Shorter hook <@U_BOT>' });
   calls.length = 0;
   r = await ideas.runIdeaJob(env, job('800.1', 'Shorter hook <@U_BOT>', PP_CH));
@@ -705,11 +826,91 @@ await check('Ad not in Atria: one line in the thread, still drafts, nothing cach
   assert.match(JSON.stringify(lastPost().blocks), /not in Atria's library/);
   assert.equal(db.prepare(`SELECT COUNT(*) n FROM idea_media WHERE key = 'atria:m999999999'`).get().n, 0);
 });
-await check('Creator link proof for an Atria reference is the public Meta Ad Library page', async () => {
-  await press('idea_link', `${CH}:600.1`);
+await check('Creator link proof for an Atria reference: the public Meta Ad Library page as a link, and the mp4 from R2 as a clip that PLAYS; Undo deletes the R2 object', async () => {
+  const id = `${CH}:600.1`;
+  const proofs = aid => db.prepare('SELECT * FROM p_amb_proof WHERE angle_id = ? ORDER BY sort').all(aid);
+  /* The watch stored the clip in the Ambassadors bucket under the brand's prefix. */
+  let m = db.prepare(`SELECT * FROM idea_media WHERE key = 'atria:m742305868280793'`).get();
+  assert.match(m.file_key, new RegExp(`^amb/${GRUNK}/idea-[a-f0-9]{16}\\.mp4$`)); assert.equal(m.bytes, 2048); assert.equal(m.clip, 'ok');
+  assert.ok(MEDIA.store.has(m.file_key)); assert.equal(MEDIA.store.get(m.file_key).type, 'video/mp4');
+  assert.equal(JSON.parse(m.facts_json).atria.video_url, 'https://cdn.tryatria.com/adfiles/m742305868280793_x.mp4');
+  assert.equal(JSON.parse(row(id).media_json)[0].key, 'atria:m742305868280793');
+  calls.length = 0;
+  await press('idea_link', id);
   const a = db.prepare(`SELECT id FROM p_amb_angle WHERE title = 'The garage rant'`).get();
-  assert.equal(db.prepare('SELECT url FROM p_amb_proof WHERE angle_id = ?').get(a.id).url, 'https://www.facebook.com/ads/library/?id=742305868280793');
-  await press('idea_undo_link', `${CH}:600.1`);
+  let ps = proofs(a.id);
+  assert.equal(ps.length, 2);
+  assert.equal(ps[0].kind, 'inspo'); assert.equal(ps[0].url, 'https://www.facebook.com/ads/library/?id=742305868280793');
+  assert.equal(ps[1].kind, 'upload'); assert.equal(ps[1].file_key, m.file_key); assert.equal(ps[1].who, 'Another brand (inspiration)'); assert.equal(ps[1].shown, 1); assert.equal(ps[1].url, null);
+  assert.match(ps[1].id, /^[a-f0-9]{16}$/, 'the public /api/angles-file/<id> route wants 16 hex');
+  assert.match(lastPost().text, /The reference clip plays on it/);
+  assert.match(JSON.stringify(cardOf(id).blocks), /the clip plays on it/);
+  assert.equal(count(/cdn\.tryatria|tryatria\.com\/mcp/), 0, 'the push downloads nothing');
+  await press('idea_undo_link', id);
+  assert.equal(proofs(a.id).length, 0);
+  assert.ok(!MEDIA.store.has(m.file_key), 'Undo deletes the R2 object');
+  m = db.prepare(`SELECT file_key, clip FROM idea_media WHERE key = 'atria:m742305868280793'`).get();
+  assert.equal(m.file_key, null); assert.equal(m.clip, 'undone');
+  /* A re-tag stores it again from the cached video url: one cdn fetch, no MCP call, no re-watch. */
+  calls.length = 0;
+  const r = await ideas.runIdeaJob(env, job('600.1', 'Once more <@U_BOT>'));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(count(/cdn\.tryatria/), 1); assert.equal(count(/tryatria\.com\/mcp|generativelanguage/), 0);
+  m = db.prepare(`SELECT file_key, clip FROM idea_media WHERE key = 'atria:m742305868280793'`).get();
+  assert.ok(m.file_key && MEDIA.store.has(m.file_key)); assert.equal(m.clip, 'ok');
+  /* A thread drafted before clips existed (no media list, no stored clip): the button fetches it on demand.
+     Same when Locus deleted the object behind a remembered key (the key is checked before reuse). */
+  db.prepare(`UPDATE idea_thread SET media_json = NULL WHERE id = ?`).run(id);
+  MEDIA.store.delete(m.file_key);
+  calls.length = 0;
+  await press('idea_link', id);
+  const a2 = db.prepare(`SELECT id FROM p_amb_angle WHERE title = 'The garage rant'`).get();
+  ps = proofs(a2.id);
+  assert.equal(ps.filter(p => p.kind === 'upload').length, 1); assert.equal(count(/cdn\.tryatria/), 1);
+  assert.ok(MEDIA.store.has(ps.find(p => p.kind === 'upload').file_key));
+  const k2 = ps.find(p => p.kind === 'upload').file_key;
+  await press('idea_undo_link', id);
+  assert.ok(!MEDIA.store.has(k2), 'nothing of this thread is left in R2');
+});
+await check('Slack upload: the clip is stored when watched and plays on the link; a YouTube reference stays a link; a clip over 95MB is watched but not kept', async () => {
+  const id = `${CH}:640.1`;
+  threads[id] = [{ ts: '640.1', user: 'U_AHSAN', text: 'Filmed this myself <@U_BOT>', files: [{ id: 'F_VID', name: 'clip.mov', mimetype: 'video/quicktime', size: 4096, url_private_download: 'https://files.slack.com/F_VID/clip.mov' }] }];
+  calls.length = 0;
+  let r = await ideas.runIdeaJob(env, job('640.1'));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(count(/:streamGenerateContent/), 1);
+  const m = db.prepare(`SELECT * FROM idea_media WHERE key = 'slack:F_VID'`).get();
+  assert.match(m.file_key, /\.mov$/); assert.equal(m.bytes, 4096); assert.equal(MEDIA.store.get(m.file_key).type, 'video/mov');
+  assert.deepEqual(JSON.parse(row(id).refs_json), [], 'a Slack upload is never a public link');
+  assert.equal(JSON.parse(row(id).media_json)[0].file.url, 'https://files.slack.com/F_VID/clip.mov');
+  await press('idea_link', id);
+  const a = db.prepare(`SELECT id FROM p_amb_angle WHERE title = 'The garage rant'`).get();
+  const ps = db.prepare('SELECT * FROM p_amb_proof WHERE angle_id = ?').all(a.id);
+  assert.equal(ps.length, 1); assert.equal(ps[0].kind, 'upload'); assert.equal(ps[0].file_key, m.file_key); assert.equal(ps[0].who, 'Another brand (inspiration)');
+  await press('idea_undo_link', id);
+  assert.ok(!MEDIA.store.has(m.file_key));
+  /* YouTube: watched by URL, nothing to store, the button says so once and adds the link. */
+  const yid = `${CH}:400.1`;
+  assert.equal(db.prepare(`SELECT file_key, clip FROM idea_media WHERE key = 'yt:abcdefghijk'`).get().clip, 'YouTube stays a link');
+  calls.length = 0;
+  await press('idea_link', yid);
+  const ya = db.prepare(`SELECT id FROM p_amb_angle WHERE title = 'The garage rant'`).get();
+  assert.deepEqual(db.prepare('SELECT kind FROM p_amb_proof WHERE angle_id = ?').all(ya.id).map(p => p.kind), ['inspo']);
+  assert.match(lastPost().text, /YouTube stays a link/);
+  await press('idea_undo_link', yid);
+  /* Over the cap: Gemini still watches it (up to 300MB), R2 never sees it, and nobody fetches it again. */
+  const bid = `${CH}:650.1`;
+  threads[bid] = [{ ts: '650.1', user: 'U_AHSAN', text: 'Big one <@U_BOT>', files: [{ id: 'F_BIG', name: 'big.mp4', mimetype: 'video/mp4', size: 120 * 1024 * 1024, url_private_download: 'https://files.slack.com/F_BIG/big.mp4' }] }];
+  calls.length = 0;
+  r = await ideas.runIdeaJob(env, job('650.1'));
+  assert.equal(r.ok, true, r.error); assert.equal(r.videos_new, 1);
+  const b = db.prepare(`SELECT file_key, clip FROM idea_media WHERE key = 'slack:F_BIG'`).get();
+  assert.equal(b.file_key, null); assert.equal(b.clip, 'too big');
+  calls.length = 0;
+  await press('idea_link', bid);
+  assert.equal(count(/files\.slack\.com/), 0);
+  assert.match(lastPost().text, /over 95MB/);
+  await press('idea_undo_link', bid);
 });
 await check('Disconnect Atria: refresh token revoked, client and tokens forgotten', async () => {
   const r = await (await atRoute('/api/atria/disconnect', 'POST')).json();

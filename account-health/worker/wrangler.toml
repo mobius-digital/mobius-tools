@@ -38,6 +38,13 @@ max_batch_size = 1
 max_batch_timeout = 1
 max_retries = 0
 
+# The ideas bot keeps each reference clip it watches (Atria mp4, Slack upload, TikTok / Instagram
+# download; never YouTube) in the SAME bucket Locus's Ambassadors tab uploads to, so the Creator
+# link button can attach it as a clip that plays on the public creator link. Keys amb/<act>/idea-*.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "mobius-amb-media"
+
 # Public config (Google OAuth client id is public by design; used to verify sign-ins).
 [vars]
 GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"

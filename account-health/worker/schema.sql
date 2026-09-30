@@ -199,6 +199,10 @@ CREATE TABLE IF NOT EXISTS ad_preview (
 );
 
 -- The ideas bot (src/ideas.js, 2026-09-29). Also created on first use by ensureIdeaTables.
+-- Columns added later by ensureIdeaTables (ALTER ... on first use, never here): idea_thread.deep,
+-- lines_json, section_pick (the card's Section dropdown), media_json (the thread's videos);
+-- idea_media.file_key / bytes / clip (the R2 copy of the clip kept for the creator link);
+-- idea_run.model, pick_cost, card_ts.
 -- idea_media: each reference video watched ONCE (Gemini facts), keyed by video id / Slack file id.
 CREATE TABLE IF NOT EXISTS idea_media (key TEXT PRIMARY KEY, platform TEXT, url TEXT, status TEXT NOT NULL DEFAULT 'ok',
   facts_json TEXT, g_in INTEGER NOT NULL DEFAULT 0, g_out INTEGER NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0,

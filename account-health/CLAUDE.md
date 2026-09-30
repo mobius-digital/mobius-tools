@@ -657,7 +657,8 @@ with no copy skill got "you write copy for X"). `src/brain.js` fixes the context
 An idea dropped in a brand's INTERNAL channel (`accounts.slack_channel`, the `-internal`
 channels; clients are never in them) becomes a draft brief when someone tags @Mobius Digital
 in the thread. Code: `src/ideas.js`; tests: `node test-ideas.mjs` (39 offline checks, mocked
-Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule; 45 since the focused-brain pass).
+Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule; 45 since the focused-brain pass,
+49 since the 2026-09-30 simplification, see the last subsection: minimal card, Section dropdown, caps, clips in R2).
 
 - **Routing.** Slack events already reach this worker through slack-router (`/slack/events`
   forwards any channel registered as an account's `slack_channel`; DMs and everything else go
@@ -828,3 +829,56 @@ solution-aware call, grounded in quotes and the 312-9 losing test, the scissors 
 the video this time. **Opus 5.5 is now the default; "quick" in the tag = Sonnet 5.5** (`idea_thread.deep` 1/0 keeps
 Redo and Make on the thread's model). Cole's $0.06 bar is not reachable at this quality; expect ~$0.15-0.22 a first tag.
 
+
+### 2026-09-30 simplification (Cole's notes on the first real drafts; all four shipped)
+- **The card is minimal.** `ideaCard`: one bold line `<Brand> idea from <name> -> <destination>`, then the idea in
+  about four lines (creator link: title, pitch, who, the first opener; Asana: title, angle, testing, "N ads, video,
+  concept test"; Studio: name, angle, "N lines, testing X"), the Section dropdown (creator link only), the buttons
+  (Creator link / Asana brief / Studio / Make ... draft / Undo / Redo / Discard / **Details**), and one tiny context
+  line (`$0.19 this run, $0.40 this thread  ·  Night Out Defense line`). No teardown, no Take, no Best home, no
+  "Worth answering". Blocking questions keep the questions-only card. Media notes ("Atria is not connected...") stay
+  as a context line because they explain a thin draft. **Details** (`idea_details`, anyone) posts the full teardown +
+  transfer + destination reason + non-blocking questions + the full draft (`detailsCard` = the old `draftBody`) as a
+  threaded reply. The stored draft is unchanged; only the default view shrank. Blind compare cards still show the
+  full body (Cole judges quality there). The teardown prompt now asks for one short sentence per field.
+- **Section dropdown** (`static_select`, action `idea_section`, in the actions block before the buttons): options =
+  the brand's `p_amb_section` rows in page order ("(off)" when disabled, 99 max, text clipped to 72) plus "New
+  section: <name>" when the model proposed one; the model's pick is `initial_option`. Each option's value is
+  `{"i": row id, "s": section id | "new"}` (the select itself carries no value). Choosing it stores
+  `idea_thread.section_pick` and acks; no model call, no redraw. `pushCreator` uses the pick over the model's
+  `section_id` ("new" = create the proposed section); a fresh draft (tag, Redo) clears the pick, a "Make ... draft"
+  keeps it. **No section anywhere = the push refuses** ("Pick a section first") instead of filing an angle the page
+  cannot show (live angles need an enabled section or hot). Duplicate-of angles get no dropdown.
+- **The reference plays on the public link.** The Atria reference was an `inspo` proof, which is only a link.
+  Now every watched clip except YouTube is kept in R2 **`mobius-amb-media`** (the Ambassadors bucket; this worker
+  gained the `MEDIA` binding in wrangler.toml), key `amb/<act_id>/idea-<id>.<ext>`, 95MB cap like an Ambassadors
+  upload (`MAX_CLIP_BYTES`; bigger clips are still watched, up to 300MB, just not kept), remembered on
+  `idea_media.file_key / bytes / clip` (`clip` = ok | too big | no video on that ad | YouTube stays a link |
+  undone | failed: ...). `stashClip()` puts the file in R2 first (buffered up to 30MB so a storage failure never
+  loses the watch, streamed above that through FixedLengthStream) and Gemini reads the stored object. Atria facts
+  now carry `atria.video_url`. The thread row keeps `media_json` (label, platform, key, urls, Slack file info).
+  **Creator link button:** the link proof as before (`inspo`, Meta Ad Library page for an Atria ad, hidden when the
+  brand's "show inspiration" is off) PLUS the first video with a stored clip as an **`upload` proof** (the kind the
+  page plays natively through the profit worker's `/api/angles-file/<proof id>`), `who = "Another brand
+  (inspiration)"`, note = proof_note. `ensureClip()` fills a missing clip on demand (a thread drafted before this
+  shipped, an undone clip, a key whose object Locus deleted with the angle: it `head()`s the key first) from the
+  Slack file URL, `atria.video_url` (or one MCP round for old cached rows) or the downloader (one credit). Never
+  for YouTube, image ads or "too big" (`NO_CLIP`). A cached re-tag also stores a missing clip, no re-watch. The
+  reply says "The reference clip plays on it" or why not. **Undo** deletes the proof rows, the R2 object (unless
+  another proof still uses the key) and sets `idea_media.clip = 'undone'` so the next tag stores it again.
+  R2 keeps clips of ideas never pushed; nothing sweeps them yet (cents per month).
+- **The public page** (`angles/app.src.js`, built to app.js, `V = 10`): an `upload` proof whose `who` says
+  inspiration / another brand renders with the Inspiration label and "Steal the shape, not the brand", and plays
+  like any upload. `.dd p` and `.overlay p` are `white-space: pre-line` so the "one item per line" fields below
+  render their lines. The profit worker did not change.
+- **Creator-link caps** (Cole: "is the brief too complicated for a creator?"): `CREATOR_CAPS` = title 6 words,
+  argument 25, who 15, openers exactly 2 of 18, shots 3 of 20 (label 3), on_screen 3 lines of 10, do / don't 3
+  items of 10 (one per line), format 3, products 3, proof_note one sentence. The system prompt asks for them (and
+  for specific words: fewer, never vaguer); `clampCreator()` cuts at the word cap (no ellipsis), runs inside
+  `cleanCreator()` so the stored draft, the card and the push all see it, and `noMoney()` now works line by line so
+  it keeps those lines. The card and Details show on_screen / do / don't joined with " / ".
+- Tests: `node test-ideas.mjs`, **49 checks** (Section dropdown incl. new section + refuse-without-section, caps
+  clamp, minimal card + Details, Atria clip in R2 + Undo + re-store + on-demand fetch on an old thread, Slack
+  upload clip, YouTube stays a link, over-95MB watched but not kept). R2 is a Map stand-in. NOT tested live: the
+  R2 put from a Worker with a streamed body over 30MB, playback of an idea clip on the real creator link, and
+  Slack's rendering of the `static_select` next to the buttons.

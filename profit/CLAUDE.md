@@ -687,6 +687,14 @@ profit/
   revenue, ROAS or typed sales. Tagged Meta ads reach creators as playable proof
   labelled "Ran as a paid ad". Scores live on the staff tab only. Typed VIEWS are
   public and labelled typed.
+- **Ideas-bot clips (2026-09-30).** The account-health worker binds the same `mobius-amb-media` bucket
+  (`MEDIA`) and stores every reference clip the ideas bot watches (Atria mp4, Slack upload, TikTok / Instagram
+  download; never YouTube) at `amb/<act_id>/idea-<id>.<ext>`, 95MB cap. Its Creator link button files them as
+  `p_amb_proof` kind **`upload`** with `who = "Another brand (inspiration)"`, so they play through the normal
+  `/api/angles-file/<proof id>` route; the public page (`angles/app.src.js`) shows an upload whose `who` says
+  inspiration / another brand with the Inspiration label. Nothing in this worker changed for it. Deleting such an
+  angle on the Ambassadors tab deletes the object like any upload; the ideas bot checks the key before reusing it.
+  `.dd p` / `.overlay p` on the page are `pre-line`: do / don't / on-screen text may hold one item per line.
 - **Playback on the link** goes through the account-health worker with
   `?angles=<slug>`: it authorises only Meta ads shown as proof on that brand's LIVE
   page (same rule as share tokens), and `ad-creatives` returns covers and copy only.

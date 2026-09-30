@@ -396,8 +396,11 @@ function proofItem(p) {
     upload: ['chip', 'Clip from the team'],
     inspo: ['chip', 'Inspiration · another brand'],
   };
-  const [tone, label] = kinds[p.kind] || ['chip', 'Example'];
-  const headline = p.kind === 'meta' ? (p.who || D.brand.display_name) : p.kind === 'inspo' ? 'Steal the shape, not the brand' : p.views ? `${fmtViews(p.views)} views` : (p.who || 'Example');
+  /* An uploaded clip can be another brand's ad (the ideas bot stores the reference so it plays here):
+     it reads as inspiration, and plays like any upload. */
+  const inspo = p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
+  const [tone, label] = inspo ? kinds.inspo : (kinds[p.kind] || ['chip', 'Example']);
+  const headline = p.kind === 'meta' ? (p.who || D.brand.display_name) : inspo ? 'Steal the shape, not the brand' : p.views ? `${fmtViews(p.views)} views` : (p.who || 'Example');
   const sub = [p.kind === 'inspo' || p.views ? p.who : '', p.note].filter(Boolean).join(' · ');
   const out = p.kind === 'post' || p.kind === 'typed' || p.kind === 'inspo';
   const media = `<span class="well" ${p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : ''}>${p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : ''}<span class="pbtn">${ic(out ? 'external-link' : 'play', 16)}</span></span>`;

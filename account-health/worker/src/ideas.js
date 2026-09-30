@@ -37,6 +37,23 @@
  * another line. "compare" in the tag writes the SAME prompt with Sonnet 5.5 and Opus 5.5 and posts
  * them as Version A and Version B in random order, with no model, no cost and no buttons; the
  * mapping is in idea_run (kind compare_A / compare_B, model, cost, card_ts).
+ *
+ * SIMPLIFICATION (2026-09-30, Cole's notes on the first real drafts):
+ *   - The card is MINIMAL: one bold line (brand, who, destination), the idea in about four short
+ *     lines, a Section dropdown (creator link only; the choice lands on idea_thread.section_pick,
+ *     no model call) and the buttons. The full teardown + draft is one press away (Details, a
+ *     threaded reply). The stored draft keeps everything; only the default view shrank.
+ *   - The creator-link draft has HARD CAPS (a creator reads it on a phone): title 6 words, pitch
+ *     25, who 15, exactly 2 openers of 18, up to 3 shots of 20, on-screen 3 lines, do / don't 3
+ *     items of 10, chips 3 words, proof note one sentence. Asked for in the prompt AND clamped in
+ *     clampCreator() before the draft is stored or pushed.
+ *   - The reference PLAYS on the public link: an Atria mp4, a Slack upload or a downloaded
+ *     TikTok / Instagram file is streamed into R2 `mobius-amb-media` (binding MEDIA, the same
+ *     bucket Locus's Ambassadors tab uploads to, 95MB cap) when it is watched, remembered on
+ *     idea_media.file_key, and the Creator link button attaches it as a `upload` proof (the kind
+ *     the page plays natively) labelled "Another brand (inspiration)". YouTube stays a link. Undo
+ *     deletes the proof, the R2 object (unless another proof still uses it) and forgets the key so
+ *     the next tag stores it again.
  */
 import { claude, jsonOf, clip, safeJson } from './research.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
@@ -75,6 +92,10 @@ export const DEFAULT_APPROVERS = 'U06C37MDWD7,U06K732S4BD';   // Cole, Ahsan
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const ANGLES = 'https://tools.go-mobius-digital.com/angles/';
 const MAX_VIDEOS = 3, MAX_IMAGES = 4, MAX_VIDEO_BYTES = 300e6, MAX_IMAGE_BYTES = 3.7e6;
+/* A reference clip kept for the creator link: same cap as an Ambassadors-tab upload (amb.js MAX_UPLOAD).
+   Up to CLIP_BUFFER_BYTES the file is read into memory first, so a storage hiccup never costs the watch. */
+const MAX_CLIP_BYTES = 95 * 1024 * 1024, CLIP_BUFFER_BYTES = 30 * 1024 * 1024;
+const INSPO_WHO = 'Another brand (inspiration)';
 const ACK = () => new Response('', { status: 200 });
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const hex24 = () => [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -124,6 +145,12 @@ export async function ensureIdeaTables(env) {
      model, the picker's cost and (for compare cards) which Slack message the version was posted as. */
   for (const sql of [`ALTER TABLE idea_thread ADD COLUMN lines_json TEXT`, `ALTER TABLE idea_run ADD COLUMN model TEXT`,
     `ALTER TABLE idea_run ADD COLUMN pick_cost REAL NOT NULL DEFAULT 0`, `ALTER TABLE idea_run ADD COLUMN card_ts TEXT`])
+    await env.DB.prepare(sql).run().catch(() => {});
+  /* Added 2026-09-30 (simplification): the Section dropdown's choice, the thread's media list (so the
+     Creator link button can find the clip), and per watched video the R2 copy kept for the public link. */
+  for (const sql of [`ALTER TABLE idea_thread ADD COLUMN section_pick TEXT`, `ALTER TABLE idea_thread ADD COLUMN media_json TEXT`,
+    `ALTER TABLE idea_media ADD COLUMN file_key TEXT`, `ALTER TABLE idea_media ADD COLUMN bytes INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE idea_media ADD COLUMN clip TEXT`])
     await env.DB.prepare(sql).run().catch(() => {});
   ready = true;
 }
@@ -341,6 +368,87 @@ async function geminiUpload(env, res, mime, size, name) {
   return file;
 }
 
+/* ---------------- keeping the clip for the creator link (2026-09-30) ---------------- */
+const clipExt = mime => ({ 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/x-m4v': 'mp4' }[mime]
+  || (String(mime || '').split('/')[1] || 'mp4').replace(/[^a-z0-9]/g, '').slice(0, 5) || 'mp4');
+/**
+ * Puts the video in R2 (the Ambassadors bucket, key amb/<act>/idea-<id>.<ext>) and hands back
+ * something geminiUpload can read from: the stored object, or the original response when the
+ * file was not kept. Never throws. `why` says why it was not kept ('no storage', 'too big',
+ * 'failed: ...'); small files are buffered first so a storage failure never loses the watch.
+ */
+async function stashClip(env, act, res, mime, size) {
+  if (!env.MEDIA) return { res, size, why: 'no storage' };
+  if (size > MAX_CLIP_BYTES) return { res, size, why: 'too big' };
+  const key = `amb/${act || 'idea'}/idea-${rid()}.${clipExt(mime)}`;
+  let buf = null, body = null;
+  try {
+    if (size > 0 && size > CLIP_BUFFER_BYTES && typeof FixedLengthStream !== 'undefined' && res.body) {
+      const fl = new FixedLengthStream(size);
+      res.body.pipeTo(fl.writable).catch(() => {});
+      body = fl.readable;
+    } else {
+      buf = await res.arrayBuffer(); size = buf.byteLength; body = buf;
+      if (size > MAX_CLIP_BYTES) return { res: { body: null, arrayBuffer: async () => buf }, size, why: 'too big' };
+    }
+    await env.MEDIA.put(key, body, { httpMetadata: { contentType: mime || 'video/mp4' } });
+    const obj = await env.MEDIA.get(key);
+    if (!obj) throw new Error('the stored clip could not be read back');
+    return { res: obj, size: obj.size || size, key, bytes: obj.size || size };
+  } catch (e) {
+    /* A buffered file is still readable; a streamed one is gone with the failed put. */
+    return { res: buf ? { body: null, arrayBuffer: async () => buf } : null, size, why: `failed: ${clip(e.message, 100)}` };
+  }
+}
+/* Reasons that never change, so nobody fetches again. */
+const NO_CLIP = new Set(['too big', 'no video on that ad', 'YouTube stays a link']);
+/* The clip's source again, for a video watched before storage existed or whose clip was undone. */
+async function clipSource(env, v, facts, meter) {
+  if (v.platform === 'slack') {
+    const res = await F(v.file.url, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+    if (!res.ok || /text\/html/.test(res.headers.get('content-type') || '')) throw new Error('Slack would not hand the file over');
+    return { res, mime: geminiMime(v.file.mimetype), size: v.file.size || +(res.headers.get('content-length') || 0) };
+  }
+  if (v.platform === 'atria') {
+    let vid = facts?.atria?.video_url || '';
+    if (!vid) { const a = await atriaAd(env, v.atria); vid = ((a.ad?.videos || [])[0] || {}).url || ''; }
+    if (!/^https:\/\//.test(vid)) throw Object.assign(new Error('no video on that ad'), { final: true });
+    const res = await F(vid);
+    if (!res.ok || /text\/html|json/.test(res.headers.get('content-type') || '')) throw new Error(`the video file would not download (${res.status})`);
+    return { res, mime: 'video/mp4', size: +(res.headers.get('content-length') || 0) };
+  }
+  if (v.platform === 'tiktok' || v.platform === 'instagram') {
+    const s = await fetchSocialVideo(v.link || v.url, env);
+    if (s.reason !== 'no_key' && meter) meter.downloads++;
+    if (!s.ok) throw new Error(s.message || 'no downloader key');
+    return { res: s.res, mime: 'video/mp4', size: s.size };
+  }
+  throw new Error('YouTube stays a link');
+}
+/**
+ * Makes sure a watched video has its clip in R2: fills idea_media.file_key when it is missing
+ * (watched before 2026-09-30, undone, or a storage failure). Returns { key } or { why }. Never throws.
+ */
+export async function ensureClip(env, act, v, meter = null) {
+  const m = await env.DB.prepare(`SELECT file_key, clip, facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
+  if (!m) return { why: 'not watched yet' };
+  /* Locus's Ambassadors tab deletes an angle's files with it, so a remembered key is checked before reuse. */
+  if (m.file_key && (!env.MEDIA || await env.MEDIA.head(m.file_key).catch(() => null))) return { key: m.file_key };
+  if (NO_CLIP.has(m.clip)) return { why: m.clip };
+  if (v.platform === 'youtube') return { why: 'YouTube stays a link' };
+  if (!env.MEDIA) return { why: 'no storage' };
+  try {
+    const src = await clipSource(env, v, safeJson(m.facts_json, {}), meter);
+    const st = await stashClip(env, act, src.res, src.mime, src.size);
+    await env.DB.prepare(`UPDATE idea_media SET file_key = ?2, bytes = ?3, clip = ?4 WHERE key = ?1`).bind(v.key, st.key || null, st.bytes || 0, st.key ? 'ok' : st.why).run();
+    return st.key ? { key: st.key } : { why: st.why };
+  } catch (e) {
+    const why = e.final ? e.message : `failed: ${clip(e.message, 100)}`;
+    await env.DB.prepare(`UPDATE idea_media SET clip = ?2 WHERE key = ?1`).bind(v.key, why).run().catch(() => {});
+    return { why };
+  }
+}
+
 /* Facts only. The judgement is Claude's, with the brand brain; this just has to be right. */
 const FACTS_PROMPT = `Watch this short-form video and report FACTS only, no opinions and no advice. Reply with JSON with exactly these keys:
 {"format": [one or more of: yapper, pov, green screen, skit, demo, testimonial, unboxing, street interview, voiceover b-roll, slideshow, before and after, tutorial, reaction, stitch or duet, founder story, other],
@@ -390,12 +498,20 @@ async function geminiFacts(env, part, meter) {
 }
 
 /** One video's facts: from the cache, or watched once and cached. Never throws. */
-export async function videoFacts(env, v, meter) {
-  const hit = await env.DB.prepare(`SELECT facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
-  if (hit) { meter.videos_cached++; const facts = safeJson(hit.facts_json, {}); return { facts, cached: true, image_urls: facts.atria?.image_urls || [] }; }
-  if (v.platform === 'atria') return atriaFacts(env, v, meter);
+export async function videoFacts(env, v, meter, act = null) {
+  const hit = await env.DB.prepare(`SELECT facts_json, file_key, clip FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
+  if (hit) {
+    meter.videos_cached++;
+    const facts = safeJson(hit.facts_json, {});
+    /* Watched before clips were kept, or undone: store the file now (no re-watch, no model call). */
+    const imageAd = !!facts.atria && !facts.atria.video_url && (facts.atria.image_urls || []).length > 0;
+    if (!hit.file_key && !NO_CLIP.has(hit.clip) && v.platform !== 'youtube' && !imageAd && env.MEDIA) await ensureClip(env, act, v, meter);
+    return { facts, cached: true, image_urls: facts.atria?.image_urls || [] };
+  }
+  if (v.platform === 'atria') return atriaFacts(env, v, meter, act);
   const what = v.platform === 'slack' ? `the uploaded video (${v.label})` : `the ${PLATFORM[v.platform]} video (${v.label})`;
   if (!env.GEMINI_API_KEY) return { note: `I could not watch ${what}: the video reader is not switched on yet (GEMINI_API_KEY is missing on the worker). I worked from the words in the thread.`, missing: 'gemini' };
+  let kept = null;
   try {
     let part, meta = {};
     if (v.platform === 'youtube') part = { file_data: { file_uri: v.url } };
@@ -415,18 +531,25 @@ export async function videoFacts(env, v, meter) {
         res = s.res; size = s.size; meta = s.meta || {};
       }
       if (size > MAX_VIDEO_BYTES) return { note: `${what} is over 300MB, so I skipped it.` };
-      const file = await geminiUpload(env, res, mime, size, v.key);
+      /* Kept in R2 for the creator link first, then read from there for the watch. */
+      kept = await stashClip(env, act, res, mime, size);
+      if (!kept.res) throw new Error(`the clip could not be stored (${kept.why})`);
+      const file = await geminiUpload(env, kept.res, mime, kept.size, v.key);
       part = { file_data: { mime_type: file.mimeType || mime, file_uri: file.uri } };
     }
     const g = await geminiFacts(env, part, meter);
     const facts = { ...g.facts, ...(meta.caption ? { post_caption: meta.caption } : {}), ...(meta.author ? { posted_by: meta.author } : {}) };
     const cost = (g.g_in * PRICE.g_in + g.g_out * PRICE.g_out) / 1e6;
-    await env.DB.prepare(`INSERT INTO idea_media (key, platform, url, status, facts_json, g_in, g_out, cost) VALUES (?1, ?2, ?3, 'ok', ?4, ?5, ?6, ?7)
-      ON CONFLICT(key) DO UPDATE SET facts_json = excluded.facts_json, status = 'ok', g_in = excluded.g_in, g_out = excluded.g_out, cost = excluded.cost`)
-      .bind(v.key, v.platform, v.url || v.file?.name || null, JSON.stringify(facts).slice(0, 60000), g.g_in, g.g_out, cost).run();
+    await env.DB.prepare(`INSERT INTO idea_media (key, platform, url, status, facts_json, g_in, g_out, cost, file_key, bytes, clip) VALUES (?1, ?2, ?3, 'ok', ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+      ON CONFLICT(key) DO UPDATE SET facts_json = excluded.facts_json, status = 'ok', g_in = excluded.g_in, g_out = excluded.g_out, cost = excluded.cost,
+      file_key = excluded.file_key, bytes = excluded.bytes, clip = excluded.clip`)
+      .bind(v.key, v.platform, v.url || v.file?.name || null, JSON.stringify(facts).slice(0, 60000), g.g_in, g.g_out, cost,
+        kept?.key || null, kept?.bytes || 0, kept ? (kept.key ? 'ok' : kept.why) : (v.platform === 'youtube' ? 'YouTube stays a link' : null)).run();
     meter.videos_new++;
     return { facts };
   } catch (e) {
+    /* No facts row means no clip either: nothing points at the object, so it goes. */
+    if (kept?.key && env.MEDIA) await env.MEDIA.delete(kept.key).catch(() => {});
     return { note: `I could not watch ${what}: ${e.message}.` };
   }
 }
@@ -445,44 +568,51 @@ function atriaSummary(a) {
       : '',
     transcript: a.transcript || '', creative_tags: a.tags || '',
     image_urls: (ad.images || []).map(i => i?.url || i).filter(u => /^https:\/\//.test(u || '')).slice(0, 3),
+    /* The public mp4, kept so the clip can be stored again later without another MCP round. */
+    video_url: /^https:\/\//.test(video?.url || '') ? video.url : '',
   };
 }
 const ATRIA_OFF = 'Atria is not connected, so I could not open the Atria ad; Cole can connect it in Locus (Studio, Connect Atria). I worked from the words in the thread.';
 
 /** An Atria (or Meta Ad Library) ad: the ad's details from Atria, then its video watched once like an upload. Never throws. */
-async function atriaFacts(env, v, meter) {
+async function atriaFacts(env, v, meter, act = null) {
   let a;
   try { a = await atriaAd(env, v.atria); } catch (e) { a = { ok: false, reason: 'failed', message: e.message }; }
   if (!a.ok) return { note: a.reason === 'not_connected' ? ATRIA_OFF
     : a.reason === 'not_found' ? `That ad (${v.label}) is not in Atria's library, so I worked from the words in the thread.`
     : `I could not open the Atria ad (${v.label}): ${clip(a.message || 'Atria did not answer', 160)}. I worked from the words in the thread.` };
   const atria = atriaSummary(a);
-  const vid = ((a.ad.videos || [])[0] || {}).url || '';
-  const save = async (facts, g = { g_in: 0, g_out: 0 }) => {
+  const vid = atria.video_url;
+  const save = async (facts, g = { g_in: 0, g_out: 0 }, kept = null) => {
     const cost = (g.g_in * PRICE.g_in + g.g_out * PRICE.g_out) / 1e6;
-    await env.DB.prepare(`INSERT INTO idea_media (key, platform, url, status, facts_json, g_in, g_out, cost) VALUES (?1, 'atria', ?2, 'ok', ?3, ?4, ?5, ?6)
-      ON CONFLICT(key) DO UPDATE SET facts_json = excluded.facts_json, status = 'ok', g_in = excluded.g_in, g_out = excluded.g_out, cost = excluded.cost`)
-      .bind(v.key, v.url, JSON.stringify(facts).slice(0, 60000), g.g_in, g.g_out, cost).run();
+    await env.DB.prepare(`INSERT INTO idea_media (key, platform, url, status, facts_json, g_in, g_out, cost, file_key, bytes, clip) VALUES (?1, 'atria', ?2, 'ok', ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+      ON CONFLICT(key) DO UPDATE SET facts_json = excluded.facts_json, status = 'ok', g_in = excluded.g_in, g_out = excluded.g_out, cost = excluded.cost,
+      file_key = excluded.file_key, bytes = excluded.bytes, clip = excluded.clip`)
+      .bind(v.key, v.url, JSON.stringify(facts).slice(0, 60000), g.g_in, g.g_out, cost, kept?.key || null, kept?.bytes || 0, kept ? (kept.key ? 'ok' : kept.why) : null).run();
   };
-  if (!/^https:\/\//.test(vid)) {
+  if (!vid) {
     /* An image (or a carousel): the pictures go to Claude as images, the words ride in the breakdown. */
     const facts = { atria };
     await save(facts);
     return { facts, image_urls: atria.image_urls };
   }
   if (!env.GEMINI_API_KEY) return { facts: { atria }, note: `I could not watch the Atria video (${v.label}): the video reader is not switched on yet (GEMINI_API_KEY is missing on the worker). I used Atria's transcript and details.` };
+  let kept = null;
   try {
     const res = await F(vid);
     if (!res.ok || /text\/html|json/.test(res.headers.get('content-type') || '')) throw new Error(`the video file would not download (${res.status})`);
     const size = +(res.headers.get('content-length') || 0);
     if (size > MAX_VIDEO_BYTES) return { facts: { atria }, note: `The Atria video (${v.label}) is over 300MB, so I used Atria's transcript and details only.` };
-    const file = await geminiUpload(env, res, 'video/mp4', size, v.key);
+    kept = await stashClip(env, act, res, 'video/mp4', size);
+    if (!kept.res) throw new Error(`the clip could not be stored (${kept.why})`);
+    const file = await geminiUpload(env, kept.res, 'video/mp4', kept.size, v.key);
     const g = await geminiFacts(env, { file_data: { mime_type: file.mimeType || 'video/mp4', file_uri: file.uri } }, meter);
     const facts = { ...g.facts, atria };
-    await save(facts, g);
+    await save(facts, g, kept);
     meter.videos_new++;
     return { facts };
   } catch (e) {
+    if (kept?.key && env.MEDIA) await env.MEDIA.delete(kept.key).catch(() => {});
     return { facts: { atria }, note: `I could not watch the Atria video (${v.label}): ${e.message}. I used Atria's transcript and details.` };
   }
 }
@@ -535,7 +665,7 @@ READING THE THREAD
 - A breakdown with an "atria" part is an ad from the Atria ad library (it runs on Meta): its advertiser, copy, CTA, landing page, transcript and creative tags are facts. How long it has been running is a signal it makes money for that advertiser, not proof; say so if you lean on it.
 - The reference is usually another brand's ad. Take its structure, never its claims, product or words.
 
-TEARDOWN: why the reference works for its audience: the awareness stage, the sophistication stage, the desire it hits, the mechanism, the proof it uses, and why the hook stops the scroll. Then what is weak or not worth copying. Specific to this reference: if a sentence would fit any ad, cut it. A typed idea with no reference gets the same treatment for the idea itself.
+TEARDOWN: why the reference works for its audience: the awareness stage, the sophistication stage, the desire it hits, the mechanism, the proof it uses, and why the hook stops the scroll. Then what is weak or not worth copying. ONE short sentence per field (summary may be two). Specific to this reference: if a sentence would fit any ad, cut it. A typed idea with no reference gets the same treatment for the idea itself.
 
 QUESTIONS: 0 to 3, only when the brand brain AND the thread truly lack something you need (for example which persona or which product). blocking = true only when any draft would be a guess without the answer.
 
@@ -545,7 +675,7 @@ DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATOR
 - studio: static image ads the AI can make now from lines of words.
 
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
-- creator_link follows the hierarchy rule. The section answers "why would a creator film this today": Hot right now, a dated window, a product line, or a standing theme. Format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. openers are first lines a creator could say; shots are the few shots to film. proof_note says in one line what to take from the reference. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
+- creator_link is read by a creator on a phone, so it is SHORT and every word is specific (from the persona, a quote, a product fact; fewer words, never vaguer ones). HARD CAPS, the code cuts anything longer: title up to 6 words; argument (the pitch) up to 25 words; who up to 15 words; openers EXACTLY 2, up to 18 words each, lines a creator could say out loud; shots up to 3, each up to 20 words in plain language (label up to 3 words); on_screen up to 3 short lines, one per line; do_text and dont_text up to 3 items each, one per line, up to 10 words each; format up to 3 words; products up to 3 words; proof_note one short sentence on what to take from the reference. It follows the hierarchy rule: the section answers "why would a creator film this today" (Hot right now, a dated window, a product line, or a standing theme); format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
 - asana is the team's brief template: title (a few words), angle, why it works, concept, testing (what changes) and test_type, then 3 to 5 numbered ads unless the thread asks otherwise, each enough for the designer or editor to build it. kind is video for anything filmed, static for images. For video also creator, length, three hooks, a script, b-roll and editor notes; for static leave those empty. Copy fields only when you have something real to say.
 - studio: static ads only, one line per ad: the words on the ad plus a short note on the look. testing is what changes across the lines.
 
@@ -628,14 +758,42 @@ const MONEY_WORD = /\b(spend|spent|revenue|sales|orders|profit|margin|converted|
 const moneyish = x => METRIC.test(x) || (MONEY_WORD.test(x) && /\d/.test(x)) || /\$\s?\d[\d,.]*\s?[kKmM]\b/.test(x);
 export function noMoney(s) {
   if (!s) return '';
-  return String(s).split(/(?<=[.!?])\s+/).filter(x => !moneyish(x)).join(' ').trim();
+  /* Line by line, so "one item per line" fields keep their lines. */
+  return String(s).split('\n').map(line => line.split(/(?<=[.!?])\s+/).filter(x => !moneyish(x)).join(' ').trim()).filter(Boolean).join('\n');
+}
+/* ---------------- the creator link draft is SHORT (2026-09-30) ---------------- */
+/* Cole: "is the brief too complicated for a creator?" Yes. These are the caps the prompt asks for;
+   the code cuts anything longer so a long answer never reaches the link. Specific still beats generic:
+   the words come from the persona and the quotes, there are just fewer of them. */
+export const CREATOR_CAPS = { title: 6, argument: 25, who: 15, openers: [2, 18], shots: [3, 20], shot_label: 3, on_screen: [3, 10], do: [3, 10], format: 3, products: 3 };
+const words = (s, n) => {
+  const w = String(s || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return w.length <= n ? w.join(' ') : w.slice(0, n).join(' ').replace(/[,;:(\-]+$/, '').trim();
+};
+const firstSentence = s => (String(s || '').replace(/\s+/g, ' ').trim().match(/^.*?[.!?](?=\s|$)/) || [String(s || '').replace(/\s+/g, ' ').trim()])[0];
+/* "One per line" fields: newline, " / " or a bullet each start a new item. */
+const items = (s, [n, w]) => String(s || '').split(/\n|\s+\/\s+|\s*[•·]\s*|(?:^|\s)-\s+(?=[A-Za-z])/).map(x => x.replace(/^\s*(?:\d+[.)]|-|\*)\s*/, '').trim()).filter(Boolean).slice(0, n).map(x => words(x, w));
+export function clampCreator(c) {
+  const o = { ...c };
+  o.title = words(o.title, CREATOR_CAPS.title);
+  o.argument = words(o.argument, CREATOR_CAPS.argument);
+  o.who = words(o.who, CREATOR_CAPS.who);
+  o.format = words(o.format, CREATOR_CAPS.format);
+  o.products = words(o.products, CREATOR_CAPS.products);
+  o.openers = (o.openers || []).map(x => words(x, CREATOR_CAPS.openers[1])).filter(Boolean).slice(0, CREATOR_CAPS.openers[0]);
+  o.shots = (o.shots || []).map(s => ({ label: words(s?.label, CREATOR_CAPS.shot_label), text: words(s?.text, CREATOR_CAPS.shots[1]) })).filter(s => s.text).slice(0, CREATOR_CAPS.shots[0]);
+  o.on_screen = items(o.on_screen, CREATOR_CAPS.on_screen).join('\n');
+  o.do_text = items(o.do_text, CREATOR_CAPS.do).join('\n');
+  o.dont_text = items(o.dont_text, CREATOR_CAPS.do).join('\n');
+  o.proof_note = firstSentence(o.proof_note);
+  return o;
 }
 function cleanCreator(c) {
   const o = { ...c };
   for (const k of ['title', 'argument', 'who', 'format', 'products', 'on_screen', 'do_text', 'dont_text', 'proof_note', 'new_section', 'new_section_line']) o[k] = noMoney(o[k]);
   o.openers = (o.openers || []).map(noMoney).filter(Boolean);
   o.shots = (o.shots || []).map(s => ({ label: noMoney(s.label), text: noMoney(s.text) })).filter(s => s.text);
-  return o;
+  return clampCreator(o);
 }
 
 /* ---------------- the card (a view of the stored row) ---------------- */
@@ -676,9 +834,10 @@ function creatorText(c, hub, lucky) {
   if (chips) lines.push(`Chips: ${chips}`);
   if ((c.openers || []).length) lines.push(`Openers: ${c.openers.map(o => `"${esc(o)}"`).join('  /  ')}`);
   for (const s of (c.shots || []).slice(0, 6)) lines.push(`• ${s.label ? `${esc(s.label)}: ` : ''}${esc(s.text)}`);
-  if (c.on_screen) lines.push(`On screen: ${esc(c.on_screen)}`);
-  if (c.do_text) lines.push(`Do: ${esc(c.do_text)}`);
-  if (c.dont_text) lines.push(`Don't: ${esc(c.dont_text)}`);
+  const oneLine = s => esc(String(s || '').split('\n').filter(Boolean).join('  /  '));
+  if (c.on_screen) lines.push(`On screen: ${oneLine(c.on_screen)}`);
+  if (c.do_text) lines.push(`Do: ${oneLine(c.do_text)}`);
+  if (c.dont_text) lines.push(`Don't: ${oneLine(c.dont_text)}`);
   lines.push(`Proof: the reference, shown as another brand (inspiration).${c.proof_note ? ` ${esc(c.proof_note)}` : ''}`);
   return lines.filter(Boolean).join('\n');
 }
@@ -711,49 +870,95 @@ function studioText(s) {
 const btn = (text, action_id, id, extra = {}) => ({ type: 'button', text: { type: 'plain_text', text: clip(text, 75) }, action_id, value: JSON.stringify({ i: id }), ...extra });
 const ACTION_OF = { creator_link: 'idea_link', lucky_creators: 'idea_lucky', asana_brief: 'idea_asana', studio: 'idea_studio' };
 
-/** The whole card, rendered from the row. Every change to the row ends in a redraw. */
+/* The destination the card is for: the model's pick, Lucky's app only on Lucky. */
+const pickOf = (d, acct) => { const lucky = /lucky/i.test(acct?.name || ''); const p = d.destination?.pick; return p === 'lucky_creators' && !lucky ? 'creator_link' : (DESTS[p] ? p : 'creator_link'); };
+/* The idea in about four short lines: what a person needs to approve it, nothing else. */
+function summaryLines(d, pick, hub) {
+  if (pick === 'asana_brief' && d.asana?.title) {
+    const a = d.asana, n = (a.ads || []).length;
+    return [`*${esc(a.title)}*`, a.angle ? `Angle: ${esc(a.angle)}` : '', a.testing ? `Testing: ${esc(a.testing)}` : '',
+      `${n} ad${n === 1 ? '' : 's'}, ${a.kind === 'video' ? 'video' : 'static'}, ${TEST_TYPE[a.test_type] || 'concept test'}`].filter(Boolean);
+  }
+  if (pick === 'studio' && (d.studio?.lines || []).length) {
+    const s = d.studio, n = s.lines.length;
+    return [`*${esc(s.name || 'Untitled')}*`, s.angle ? `Angle: ${esc(s.angle)}` : '', `${n} line${n === 1 ? '' : 's'}, testing ${esc(s.testing || 'concepts')}`].filter(Boolean);
+  }
+  const c = d.creator_link || {};
+  const dup = c.duplicate_of && hub?.angles?.find(a => a.id === c.duplicate_of);
+  if (dup) return [`Already on the link as *${esc(dup.title)}*. The button adds this reference to it as proof.`];
+  if (!c.title) return ['_No draft yet. Press Redo._'];
+  return [`*${esc(c.title)}*`, esc(c.argument), c.who ? `Who: ${esc(c.who)}` : '', c.openers?.[0] ? `Opener: "${esc(c.openers[0])}"` : ''].filter(Boolean);
+}
+/* Where the angle goes on the creator link. Options = the brand's sections (plus the model's new one);
+   the model's pick is preselected until someone changes it (idea_thread.section_pick). */
+function sectionSelect(row, c, hub) {
+  const opt = (value, name) => ({ text: { type: 'plain_text', text: clip(name, 72) || 'Untitled' }, value: JSON.stringify({ i: row.id, s: value }) });
+  const options = (hub?.sections || []).slice(0, 99).map(s => opt(s.id, `${s.name}${s.enabled === 0 ? ' (off)' : ''}`));
+  if (c.new_section) options.push(opt('new', `New section: ${c.new_section}`));
+  if (!options.length) return null;
+  const want = row.section_pick || (hub?.sections?.some(s => s.id === c.section_id) ? c.section_id : c.new_section ? 'new' : null);
+  const initial = want && options.find(o => safeJson(o.value, {}).s === want);
+  return { type: 'static_select', action_id: 'idea_section', placeholder: { type: 'plain_text', text: 'Section' }, options, ...(initial ? { initial_option: initial } : {}) };
+}
+
+/** The whole card, rendered from the row. Every change to the row ends in a redraw. MINIMAL (2026-09-30):
+ *  one bold line, the idea in about four lines, the Section dropdown, the buttons. Details is one press away. */
 export function ideaCard(row, acct, hub) {
   const d = safeJson(row.draft_json, null) || {};
   const pushed = safeJson(row.pushed_json, {}) || {};
   const notes = safeJson(row.notes_json, []) || [];
   const lucky = /lucky/i.test(acct?.name || '');
-  const title = `*${esc(acct?.name || 'Idea')}: idea from ${esc(row.from_name || 'the team')}*${row.runs > 1 ? '  (revised)' : ''}`;
-  if (row.status === 'discarded') return { text: 'Idea discarded', blocks: [{ type: 'section', text: { type: 'mrkdwn', text: `${title}\n_Discarded${pushed.discarded_by ? ` by ${esc(pushed.discarded_by)}` : ''}. Tag me again to start over._` } }] };
-  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: title } }];
+  const pick = pickOf(d, acct);
+  const head = `*${esc(acct?.name || 'Idea')} idea from ${esc(row.from_name || 'the team')} -> ${DESTS[pick]}*${row.runs > 1 ? '  (revised)' : ''}`;
+  if (row.status === 'discarded') return { text: 'Idea discarded', blocks: [{ type: 'section', text: { type: 'mrkdwn', text: `${head}\n_Discarded${pushed.discarded_by ? ` by ${esc(pushed.discarded_by)}` : ''}. Tag me again to start over._` } }] };
   const qs = (d.questions || []).filter(q => q.q);
   if (row.status === 'questions') {
+    const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: head } }];
     blocks.push(...sections(`Before I draft this, I need:\n${qs.map((q, i) => `${i + 1}. ${esc(q.q)}`).join('\n')}`));
-    blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Answer in this thread and tag me again.${row.last_cost ? `  ·  This run cost about $${row.last_cost.toFixed(2)}.` : ''}` }] });
+    blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Answer in this thread and tag me again.${row.last_cost ? `  ·  $${row.last_cost.toFixed(2)} this run.` : ''}` }] });
     return { text: `Questions before I draft the ${acct?.name || ''} idea`, blocks };
   }
-  const body = draftBody(d, acct, hub);
-  blocks.push(...body.blocks);
-  const pick = body.pick;
+  const blocks = sections([head, ...summaryLines(d, pick, hub)].join('\n'));
   const done = [];
-  if (pushed.creator_link) done.push(`✓ On the creator link: ${pushed.creator_link.url ? `<${pushed.creator_link.url}|${esc(pushed.creator_link.title)}>` : esc(pushed.creator_link.title)}`);
+  if (pushed.creator_link) done.push(`✓ On the creator link: ${pushed.creator_link.url ? `<${pushed.creator_link.url}|${esc(pushed.creator_link.title)}>` : esc(pushed.creator_link.title)}${pushed.creator_link.clip ? ' (the clip plays on it)' : ''}`);
   if (pushed.lucky_creators) done.push('✓ Saved for the Lucky creator app (hookup is next)');
   if (pushed.asana_brief) done.push(`✓ Asana: <${pushed.asana_brief.url}|${esc(pushed.asana_brief.name)}>`);
   if (pushed.studio) done.push(`✓ Studio: batch "${esc(pushed.studio.name)}" (<${LOCUS}|open Locus>)`);
   if (done.length) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: done.join('\n') } });
+  if (notes.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: clip(notes.map(esc).join('\n'), 2900) }] });
   const els = [];
+  const c = d.creator_link || {};
+  if ((pick === 'creator_link' || pick === 'lucky_creators') && has(d).creator_link && !c.duplicate_of && !pushed.creator_link) {
+    const sel = sectionSelect(row, c, hub);
+    if (sel) els.push(sel);
+  }
   for (const k of Object.keys(DESTS)) {
     if (k === 'lucky_creators' && !lucky) continue;
     if (pushed[k]) continue;
     /* Only the suggested destination is drafted up front; the rest cost a press of "Make ... draft". */
     /* Action ids must be unique inside one block (Slack answers invalid_blocks otherwise). */
-    if (!has(d)[k]) { if (row.status !== 'questions') els.push({ ...btn(`Make ${DESTS[k]} draft`, `idea_make_${k}`, row.id), value: JSON.stringify({ i: row.id, k }) }); continue; }
+    if (!has(d)[k]) { els.push({ ...btn(`Make ${DESTS[k]} draft`, `idea_make_${k}`, row.id), value: JSON.stringify({ i: row.id, k }) }); continue; }
     els.push(btn(`${DESTS[k]}${k === pick ? ' (suggested)' : ''}`, ACTION_OF[k], row.id, k === pick ? { style: 'primary' } : {}));
   }
   if (pushed.creator_link) els.push(btn('Undo creator link', 'idea_undo_link', row.id, { style: 'danger' }));
   els.push(btn('Redo', 'idea_redo', row.id));
   els.push(btn('Discard', 'idea_discard', row.id, { style: 'danger', confirm: { title: { type: 'plain_text', text: 'Discard this draft?' }, text: { type: 'plain_text', text: 'The draft is dropped. Anything already sent on stays where it is.' }, confirm: { type: 'plain_text', text: 'Discard' }, deny: { type: 'plain_text', text: 'Keep it' } } }));
+  els.push(btn('Details', 'idea_details', row.id));
   blocks.push({ type: 'actions', elements: els.slice(0, 25) });
-  const ctxs = [...notes.map(esc)];
+  const ctxs = [];
+  if (row.last_cost) ctxs.push(`$${row.last_cost.toFixed(2)} this run${row.cost > row.last_cost ? `, $${row.cost.toFixed(2)} this thread` : ''}`);
   const lp = safeJson(row.lines_json, null);
-  if (lp?.names?.length) ctxs.push(`Written for the ${lp.names.map(esc).join(' and ')} line${lp.names.length > 1 ? 's' : ''}.`);
-  if (row.last_cost) ctxs.push(`This run cost about $${row.last_cost.toFixed(2)}${row.cost > row.last_cost ? ` ($${row.cost.toFixed(2)} for this thread so far)` : ''}. Only Cole and Ahsan can send it on.`);
-  if (ctxs.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: clip(ctxs.join('\n'), 2900) }] });
+  if (lp?.names?.length) ctxs.push(`${lp.names.map(esc).join(' + ')} line`);
+  if (ctxs.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: clip(ctxs.join('  ·  '), 2900) }] });
   return { text: `Draft for the ${acct?.name || ''} idea`, blocks: blocks.slice(0, 50) };
+}
+
+/** The full teardown + draft, posted in the thread when someone presses Details. */
+export function detailsCard(row, acct, hub) {
+  const d = safeJson(row.draft_json, null) || {};
+  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*Details: ${esc(acct?.name || 'Idea')} idea from ${esc(row.from_name || 'the team')}*` } }];
+  blocks.push(...draftBody(d, acct, hub, { buttons: false }).blocks);
+  return { text: `Details for the ${acct?.name || ''} idea`, blocks: blocks.slice(0, 50) };
 }
 
 /* The draft itself (why it works, the take, the best home, the draft for it): the same on the normal
@@ -843,7 +1048,7 @@ export async function runIdeaJob(env, job) {
     /* Videos: each watched once, ever. */
     const breakdowns = [], imgs = [], seenFacts = [];
     for (const v of t.videos.slice(0, MAX_VIDEOS)) {
-      const r = await videoFacts(env, v, meter);
+      const r = await videoFacts(env, v, meter, acct.act_id);
       if (r.facts) seenFacts.push({ label: v.label, facts: r.facts });
       if (r.facts) breakdowns.push(`${v.label} (${PLATFORM[v.platform]}${v.url ? ` ${v.url}` : ''}${r.cached ? ', read before' : ''}):\n${clip(JSON.stringify(r.facts), 12000)}`);
       else if (r.image_url) imgs.push({ label: v.label, url: r.image_url, slack: false });
@@ -899,11 +1104,15 @@ export async function runIdeaJob(env, job) {
     const blocking = (d.questions || []).some(q => q.blocking && q.q);
     const cost = priceOf(M, u) + (meter.g_in * PRICE.g_in + meter.g_out * PRICE.g_out) / 1e6 + meter.downloads * PRICE.download + pickCost;
     const refs = t.videos.filter(v => v.platform !== 'slack').map(v => v.link || v.url);
+    /* The thread's videos, enough to find each one's stored clip later (the Creator link button). */
+    const media = t.videos.slice(0, MAX_VIDEOS).map(v => ({ label: v.label, platform: v.platform, key: v.key, url: v.url || null, link: v.link || null, atria: v.atria || null,
+      ...(v.file ? { file: { id: v.file.id, name: v.file.name, mimetype: v.file.mimetype, size: v.file.size, url: v.file.url } } : {}) }));
     const from = t.msgs[0]?.name || 'the team';
     const status = blocking ? 'questions' : (prevStatus === 'pushed' ? 'pushed' : 'drafted');
+    /* A fresh draft may pick another section; a "Make ... draft" press keeps what someone chose. */
     await env.DB.prepare(`UPDATE idea_thread SET status = ?2, from_name = ?3, refs_json = ?4, draft_json = ?5, seen_ts = ?6, notes_json = ?7,
-      runs = runs + 1, cost = cost + ?8, last_cost = ?8, deep = ?9, updated_at = datetime('now') WHERE id = ?1`)
-      .bind(id, status, from, JSON.stringify(refs), JSON.stringify(d), t.msgs[t.msgs.length - 1].ts, JSON.stringify(notes), cost, deep ? 1 : 0).run();
+      runs = runs + 1, cost = cost + ?8, last_cost = ?8, deep = ?9, media_json = ?10, section_pick = CASE WHEN ?11 THEN section_pick ELSE NULL END, updated_at = datetime('now') WHERE id = ?1`)
+      .bind(id, status, from, JSON.stringify(refs), JSON.stringify(d), t.msgs[t.msgs.length - 1].ts, JSON.stringify(notes), cost, deep ? 1 : 0, JSON.stringify(media), makeKey ? 1 : 0).run();
     row = await getRow(env, id);
     /* A revision is a new reply, so the thread reads in order; the old card stops offering buttons. */
     if (row.reply_ts) await slack(env, 'chat.update', { channel: job.channel, ts: row.reply_ts, text: 'Replaced by the newer draft below.',
@@ -977,13 +1186,25 @@ export async function handleIdeaAction(env, ctx, p) {
   if (aid === 'idea_open') return ACK();
   const chan = p.container?.channel_id || p.channel?.id || null;
   const user = p.user?.id || null;
-  const val = safeJson(a.value, {}) || {};
+  /* A button carries its value; the Section dropdown carries it on the chosen option. */
+  const val = safeJson(a.type === 'static_select' ? a.selected_option?.value : a.value, {}) || {};
   const job = (async () => {
     await ensureIdeaTables(env);
     const row = val.i ? await getRow(env, String(val.i)) : null;
     if (!row || row.channel !== chan) return whisper(env, chan, user, 'That idea is no longer stored, so this button cannot do anything. Tag me in the thread for a fresh draft.');
     if (GATED.has(aid) && !approversOf(env).includes(user)) return whisper(env, chan, user, 'Only Cole or Ahsan can send an idea on. Anyone can tag me for a draft or press Redo.', row.thread_ts);
     if (row.status === 'discarded' && aid !== 'idea_redo') return whisper(env, chan, user, 'That draft was discarded. Tag me again to start over.', row.thread_ts);
+    /* Section dropdown: remember the choice, nothing else (no model, no redraw). */
+    if (aid === 'idea_section') {
+      if (!val.s) return null;
+      return env.DB.prepare(`UPDATE idea_thread SET section_pick = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, String(val.s)).run();
+    }
+    /* Details: the full teardown + draft, as a reply in the thread. Open to anyone. */
+    if (aid === 'idea_details') {
+      const accts = await acctsOf(env);
+      const card = detailsCard(row, accts.find(x => x.act_id === row.act_id), await hubOf(env, row.act_id));
+      return say(env, row.channel, row.thread_ts, card.text, card.blocks);
+    }
     if (aid.startsWith('idea_make')) {
       if (!DRAFT_KEY[val.k]) return null;
       const j = { kind: 'make', dest: val.k, channel: row.channel, root: row.thread_ts, ts: row.reply_ts || row.thread_ts, user, text: '', bot: null };
@@ -1041,7 +1262,9 @@ export async function pushCreator(env, row, acct, d, pushed) {
   let title = angleId ? (await env.DB.prepare(`SELECT title FROM p_amb_angle WHERE id = ?1`).bind(angleId).first())?.title : c.title;
   if (!angleId) {
     if (!c.title) return { ok: false, text: 'The draft has no creator link angle to add. Press Redo, or tag me and say it is for the creator link.' };
-    let sid = c.section_id ? (await env.DB.prepare(`SELECT id FROM p_amb_section WHERE id = ?1 AND act_id = ?2`).bind(c.section_id, act).first())?.id : null;
+    /* The Section dropdown outranks the model's pick; "new" means the section the model proposed. */
+    const want = row.section_pick && row.section_pick !== 'new' ? row.section_pick : (row.section_pick === 'new' ? null : c.section_id);
+    let sid = want ? (await env.DB.prepare(`SELECT id FROM p_amb_section WHERE id = ?1 AND act_id = ?2`).bind(want, act).first())?.id : null;
     if (!sid && c.new_section) {
       const same = await env.DB.prepare(`SELECT id FROM p_amb_section WHERE act_id = ?1 AND lower(name) = lower(?2)`).bind(act, c.new_section).first();
       if (same) sid = same.id;
@@ -1053,6 +1276,7 @@ export async function pushCreator(env, row, acct, d, pushed) {
         created.section = sid;
       }
     }
+    if (!sid) return { ok: false, text: 'Pick a section first (the dropdown on the card), so creators can find it on the link. Then press Creator link again.' };
     angleId = rid();
     const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM p_amb_angle WHERE act_id = ?1`).bind(act).first();
     await env.DB.prepare(`INSERT INTO p_amb_angle (id, act_id, section_id, hot, status, title, argument, who, products, format, lever,
@@ -1062,32 +1286,67 @@ export async function pushCreator(env, row, acct, d, pushed) {
         clip(c.on_screen, 200), clip(c.do_text, 400), clip(c.dont_text, 400), mx?.n || 1).run();
     created.angle = angleId;
   }
+  const nextSort = async () => (await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM p_amb_proof WHERE angle_id = ?1`).bind(angleId).first())?.n || 1;
+  /* The reference as a link (the page opens it; hidden when the brand's "show inspiration" is off). */
   for (const url of (safeJson(row.refs_json, []) || []).slice(0, 2).map(publicRef)) {
     if (await env.DB.prepare(`SELECT id FROM p_amb_proof WHERE angle_id = ?1 AND url = ?2`).bind(angleId, url).first()) continue;
     const pid = rid();
-    const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM p_amb_proof WHERE angle_id = ?1`).bind(angleId).first();
-    await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, url, who, note, shown, sort) VALUES (?1, ?2, ?3, 'inspo', ?4, 'Another brand (inspiration)', ?5, 1, ?6)`)
-      .bind(pid, act, angleId, clip(url, 500), clip(c.proof_note, 300) || null, mx?.n || 1).run();
+    await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, url, who, note, shown, sort) VALUES (?1, ?2, ?3, 'inspo', ?4, ?5, ?6, 1, ?7)`)
+      .bind(pid, act, angleId, clip(url, 500), INSPO_WHO, clip(c.proof_note, 300) || null, await nextSort()).run();
     created.proofs.push(pid);
   }
+  /* The reference as a CLIP THAT PLAYS (2026-09-30): the R2 copy kept when the video was watched, attached as
+     the `upload` kind the public page plays natively. The first video with a stored clip; YouTube never. */
+  let clipNote = '';
+  const media = safeJson(row.media_json, null) || (safeJson(row.refs_json, []) || []).map(classifyLink).filter(Boolean);
+  for (const v of media) {
+    const r = await ensureClip(env, act, v);
+    if (!r.key) { clipNote = clipNote || r.why; continue; }
+    if (await env.DB.prepare(`SELECT id FROM p_amb_proof WHERE angle_id = ?1 AND file_key = ?2`).bind(angleId, r.key).first()) { clipNote = 'already there'; break; }
+    const pid = rid();
+    await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, file_key, who, note, shown, sort) VALUES (?1, ?2, ?3, 'upload', ?4, ?5, ?6, 1, ?7)`)
+      .bind(pid, act, angleId, r.key, INSPO_WHO, clip(c.proof_note, 300) || null, await nextSort()).run();
+    created.proofs.push(pid);
+    created.clip = { id: pid, key: r.key };
+    break;
+  }
   const link = `${ANGLES}${b.slug}`;
-  pushed.creator_link = { angle_id: angleId, title, url: link, created, live: !!b.live, at: new Date().toISOString() };
+  pushed.creator_link = { angle_id: angleId, title, url: link, created, live: !!b.live, at: new Date().toISOString(), ...(created.clip ? { clip: created.clip.key } : {}) };
   const what = created.angle ? `New angle "${title}" is on the ${acct.name} creator link` : `The reference is now proof on "${title}" on the ${acct.name} creator link`;
-  const text = `${what}: ${link}${b.live ? '' : ' (the link is switched off, so creators do not see it yet)'}${!created.proofs.length && !created.angle ? '. Nothing new to add: that reference was already there.' : ''}`;
+  const clipLine = created.clip ? ' The reference clip plays on it.'
+    : clipNote === 'YouTube stays a link' ? ' YouTube stays a link (it cannot be downloaded).'
+    : clipNote === 'too big' ? ' The clip is over 95MB, so the reference is a link only.'
+    : clipNote === 'no storage' ? ' Clip storage is not connected on this worker, so the reference is a link only.'
+    : clipNote && clipNote !== 'already there' ? ` The clip could not be stored (${clipNote}), so the reference is a link only; a re-tag in the thread tries again.` : '';
+  const text = `${what}: ${link}${b.live ? '' : ' (the link is switched off, so creators do not see it yet)'}${!created.proofs.length && !created.angle ? '. Nothing new to add: that reference was already there.' : ''}${clipLine}`;
   return { text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text: esc(text).replace(esc(link), `<${link}|${esc(link)}>`) } },
     { type: 'actions', elements: [btn('Undo', 'idea_undo_link', row.id, { style: 'danger' })] }] };
+}
+/* Drops an R2 clip nobody points at any more, and lets the watched video store it again on the next tag. */
+async function dropClip(env, key) {
+  if (!key) return;
+  if (await env.DB.prepare(`SELECT 1 AS x FROM p_amb_proof WHERE file_key = ?1`).bind(key).first()) return;
+  if (env.MEDIA) await env.MEDIA.delete(key).catch(() => {});
+  await env.DB.prepare(`UPDATE idea_media SET file_key = NULL, bytes = 0, clip = 'undone' WHERE file_key = ?1`).bind(key).run().catch(() => {});
 }
 export async function undoCreator(env, row, pushed) {
   const p = pushed.creator_link;
   if (!p) return { ok: false, text: 'Nothing on the creator link to take back.' };
   const act = row.act_id, cr = p.created || {};
-  for (const pid of cr.proofs || []) await env.DB.prepare(`DELETE FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(pid, act).run();
+  const keys = new Set();
+  for (const pid of cr.proofs || []) {
+    const k = (await env.DB.prepare(`SELECT file_key FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(pid, act).first())?.file_key;
+    if (k) keys.add(k);
+    await env.DB.prepare(`DELETE FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(pid, act).run();
+  }
   if (cr.angle) {
+    for (const r of (await env.DB.prepare(`SELECT file_key FROM p_amb_proof WHERE angle_id = ?1 AND act_id = ?2 AND file_key IS NOT NULL`).bind(cr.angle, act).all()).results || []) keys.add(r.file_key);
     await env.DB.prepare(`DELETE FROM p_amb_proof WHERE angle_id = ?1 AND act_id = ?2`).bind(cr.angle, act).run();
     await env.DB.prepare(`DELETE FROM p_amb_angle WHERE id = ?1 AND act_id = ?2`).bind(cr.angle, act).run();
   }
   if (cr.section && !(await env.DB.prepare(`SELECT 1 AS x FROM p_amb_angle WHERE section_id = ?1`).bind(cr.section).first()))
     await env.DB.prepare(`DELETE FROM p_amb_section WHERE id = ?1 AND act_id = ?2`).bind(cr.section, act).run();
+  for (const k of keys) await dropClip(env, k);
   delete pushed.creator_link;
   return { text: `Taken back off the creator link: "${p.title}".` };
 }
