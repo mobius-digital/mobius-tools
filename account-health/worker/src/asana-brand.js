@@ -249,42 +249,29 @@ const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,pe
 /* The brief, in the framework's shape. Dropped into a brand-new task in Creative Brief
    that has nothing written yet, so nobody has to find the template. The same layout
    lives in each project's Asana task templates ("Static Ad Template", "UGC/Video
-   Template"); Asana's API cannot write those, so they were set by hand 2026-09-27.
-   Keep the two in step. Labels only, no instructions to delete, one italic hint where it helps, no emoji (Cole: clean and minimal). */
-const BRIEF_PARTS = {
-  test: `<h2>The test</h2><strong>Angle:</strong>
-<strong>Why it works:</strong>
-<strong>Testing:</strong>
-<em>New angle, new concepts on a winning angle, or one change inside a winning concept (say which concept and what changes).</em>`,
-  ads: hint => `<h2>The ads</h2><em>One line per ad${hint}. Files are named with the test number: 348-1, 348-2, 348-3.</em>
-<strong>Ad 1:</strong>
-<strong>Ad 2:</strong>
-<strong>Ad 3:</strong> `,
-  copy: `<h2>Copy</h2><strong>Primary text:</strong>
-<strong>Headline:</strong>
-<strong>Offer:</strong> none
-<strong>Landing page:</strong> `,
-  files: `<h2>Files</h2><strong>Inspo:</strong>
-<strong>Frame.io:</strong> `,
-};
-const BRIEF_STATIC = `<body><em>Static · 4:5, plus a 9:16 crop</em>
-${BRIEF_PARTS.test}
-${BRIEF_PARTS.ads(', enough for the designer to build it')}
-${BRIEF_PARTS.copy}
-${BRIEF_PARTS.files}</body>`;
-const BRIEF_VIDEO = `<body><em>Video · 9:16</em>
-${BRIEF_PARTS.test}
-${BRIEF_PARTS.ads(', enough for the editor to build it')}
-<h2>The video</h2><strong>Creator:</strong>
-<strong>Length:</strong>
-<strong>Hook 1:</strong>
-<strong>Hook 2:</strong>
-<strong>Hook 3:</strong>
+   Template"); Asana's API cannot write those, so they are set by hand. Keep the two in step.
+   Cole, 2026-09-30: as simple as possible. Testing and concept are ONE line ("3 headlines
+   on 412-3" names the winner), the numbered lines under it are the ads. The only grey
+   text is the examples line, alone on its line so one triple-click deletes it. No Frame.io,
+   no crop line, no subtasks. Ideas bot's briefHtml (ideas.js) uses the same layout. */
+const BRIEF_TEST = eg => `<h2>The test</h2><strong>Angle:</strong>
+<strong>Why:</strong>
+<strong>What we're testing:</strong>
+<em>What changes, and on which ad. Like: ${eg}</em>
+<strong>1.</strong>
+<strong>2.</strong>
+<strong>3.</strong>`;
+const BRIEF_COPY = `<h2>Copy</h2><strong>Headline:</strong>
+<strong>Primary text:</strong>
+<strong>Offer:</strong>
+<strong>Landing page:</strong>
+<strong>Inspo:</strong> `;
+const BRIEF_STATIC = `<body>${BRIEF_TEST('3 new concepts · 3 headlines on 412-3 · 2 redesigns of 412-3 · 3 reviews on 388-1')}
+${BRIEF_COPY}</body>`;
+const BRIEF_VIDEO = `<body>${BRIEF_TEST('3 new concepts · 3 hooks on 290-1 · 2 creators on 290-1 · 2 edits of 290-1')}
+<h2>Video</h2><strong>Creator:</strong>
 <strong>Script:</strong>
-<strong>B-roll:</strong>
-<strong>Editor notes:</strong>
-${BRIEF_PARTS.copy}
-${BRIEF_PARTS.files}</body>`;
+${BRIEF_COPY}</body>`;
 const briefFor = name => /\b(ugc|video|vid|reel|creator)\b/i.test(name || '') ? BRIEF_VIDEO : BRIEF_STATIC;
 const sectionOf = (t, doc) => t.memberships?.find(m => m.project?.gid === doc.project_gid)?.section?.name || '';
 

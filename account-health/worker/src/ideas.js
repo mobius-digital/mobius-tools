@@ -645,8 +645,8 @@ export const IDEA_SCHEMA = obj({
   destination: obj({ pick: en(...Object.keys(DESTS)), reason: S }),
   creator_link: obj({ section_id: S, new_section: S, new_section_line: S, duplicate_of: S, title: S, argument: S, who: S, format: S, products: S,
     openers: arr(S), shots: arr(obj({ label: S, text: S })), on_screen: S, do_text: S, dont_text: S, proof_note: S }),
-  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, concept: S, testing: S,
-    ads: arr(S), creator: S, length: S, hooks: arr(S), script: S, broll: S, editor_notes: S, primary_text: S, headline: S, offer: S }),
+  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, testing: S,
+    ads: arr(S), creator: S, script: S, primary_text: S, headline: S, offer: S }),
   studio: obj({ name: S, angle: S, why: S, concept: S, testing: en(...STUDIO_TESTING), post_copy: S, lines: arr(S) }),
 });
 
@@ -676,7 +676,7 @@ DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATOR
 
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
 - creator_link is read by a creator on a phone, so it is SHORT and every word is specific (from the persona, a quote, a product fact; fewer words, never vaguer ones). HARD CAPS, the code cuts anything longer: title up to 6 words; argument (the pitch) up to 25 words; who up to 15 words; openers EXACTLY 2, up to 18 words each, lines a creator could say out loud; shots up to 3, each up to 20 words in plain language (label up to 3 words); on_screen up to 3 short lines, one per line; do_text and dont_text up to 3 items each, one per line, up to 10 words each; format up to 3 words; products up to 3 words; proof_note one short sentence on what to take from the reference. It follows the hierarchy rule: the section answers "why would a creator film this today" (Hot right now, a dated window, a product line, or a standing theme); format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
-- asana is the team's brief template: title (a few words), angle, why it works, concept, testing (what changes) and test_type, then 3 to 5 numbered ads unless the thread asks otherwise, each enough for the designer or editor to build it. kind is video for anything filmed, static for images. For video also creator, length, three hooks, a script, b-roll and editor notes; for static leave those empty. Copy fields only when you have something real to say.
+- asana is the team's brief template, kept simple: title (a few words), angle (one sentence), why (one sentence) and test_type. testing is ONE short line saying what changes and, inside a proven concept, on which ad, like "3 new concepts", "3 headlines on 412-3", "2 redesigns of 412-3", "3 hooks on 290-1". Then 3 to 5 ads unless the thread asks otherwise, one line each: a different idea when testing concepts, otherwise the one piece that changes (the new hook, the new headline, what the redesign changes), enough for the designer or editor to build it. kind is video for anything filmed, static for images. For video also creator and script (one per ad if they are different videos); for static leave those empty. Copy fields only when you have something real to say.
 - studio: static ads only, one line per ad: the words on the ad plus a short note on the look. testing is what changes across the lines.
 
 ${SPECIFICITY}
@@ -846,19 +846,14 @@ const unnum = x => String(x || '').replace(/^\s*\d+\s*[.):-]\s*/, '');
 function asanaText(a) {
   if (!a?.title) return '';
   const l = [`*Asana brief*  ·  ${a.kind === 'video' ? 'Video' : 'Static'}, ${TEST_TYPE[a.test_type] || 'concept test'}`, `*${esc(a.title)}*`,
-    `*Angle:* ${esc(a.angle)}`, `*Why it works:* ${esc(a.why)}`];
-  if (a.concept) l.push(`*Concept:* ${esc(a.concept)}`);
-  l.push(`*Testing:* ${esc(a.testing)}`, '*Ads*', ...(a.ads || []).map((x, i) => `${i + 1}. ${esc(unnum(x))}`));
+    `*Angle:* ${esc(a.angle)}`, `*Why:* ${esc(a.why)}`];
+  l.push(`*What we're testing:* ${esc(a.testing)}`, ...(a.ads || []).map((x, i) => `${i + 1}. ${esc(unnum(x))}`));
   if (a.kind === 'video') {
     if (a.creator) l.push(`*Creator:* ${esc(a.creator)}`);
-    if (a.length) l.push(`*Length:* ${esc(a.length)}`);
-    (a.hooks || []).forEach((h, i) => l.push(`*Hook ${i + 1}:* ${esc(h)}`));
     if (a.script) l.push(`*Script:* ${esc(a.script)}`);
-    if (a.broll) l.push(`*B-roll:* ${esc(a.broll)}`);
-    if (a.editor_notes) l.push(`*Editor notes:* ${esc(a.editor_notes)}`);
   }
-  if (a.primary_text) l.push(`*Primary text:* ${esc(a.primary_text)}`);
   if (a.headline) l.push(`*Headline:* ${esc(a.headline)}`);
+  if (a.primary_text) l.push(`*Primary text:* ${esc(a.primary_text)}`);
   if (a.offer) l.push(`*Offer:* ${esc(a.offer)}`);
   return l.join('\n');
 }
@@ -1356,20 +1351,15 @@ export async function undoCreator(env, row, pushed) {
    project webhook then syncs it into the Brand tab like any other brief. */
 export function briefHtml(a, { num, from, permalink, refs = [] }) {
   const x = xesc, line = (k, v) => `<strong>${k}:</strong> ${x(v || '')}`;
-  const ads = (a.ads || []).length ? a.ads : [''];
+  const ads = (a.ads || []).length ? a.ads : ['', '', ''];
   const parts = [
     `<body><em>Idea from ${x(from || 'the team')}${permalink ? ` in <a href="${x(permalink)}">Slack</a>` : ' in Slack'}. Drafted by Locus.</em>`,
-    `<em>${a.kind === 'video' ? 'Video · 9:16' : 'Static · 4:5, plus a 9:16 crop'}</em>`,
-    `<h2>The test</h2>${line('Angle', a.angle)}`, line('Why it works', a.why), line('Concept', a.concept),
-    line('Testing', `${TEST_TYPE[a.test_type] ? `${TEST_TYPE[a.test_type][0].toUpperCase()}${TEST_TYPE[a.test_type].slice(1)}: ` : ''}${a.testing || ''}`),
-    `<h2>The ads</h2><em>One line per ad, enough for the ${a.kind === 'video' ? 'editor' : 'designer'} to build it. Files are named with the test number: ${num}-1, ${num}-2, ${num}-3.</em>`,
-    ...ads.map((t, i) => line(`Ad ${i + 1}`, t)),
+    `<h2>The test</h2>${line('Angle', a.angle)}`, line('Why', a.why), line("What we're testing", a.testing),
+    ...ads.map((t, i) => `<strong>${i + 1}.</strong> ${x(unnum(t))}`),
   ];
-  if (a.kind === 'video') parts.push(`<h2>The video</h2>${line('Creator', a.creator)}`, line('Length', a.length),
-    ...[0, 1, 2].map(i => line(`Hook ${i + 1}`, (a.hooks || [])[i])), line('Script', a.script), line('B-roll', a.broll), line('Editor notes', a.editor_notes));
-  parts.push(`<h2>Copy</h2>${line('Primary text', a.primary_text)}`, line('Headline', a.headline), line('Offer', a.offer || 'none'), line('Landing page', ''),
-    `<h2>Files</h2><strong>Inspo:</strong> ${refs.map(u => `<a href="${x(u)}">${x(u)}</a>`).join(' ') || (permalink ? `<a href="${x(permalink)}">the Slack thread</a>` : '')}`,
-    '<strong>Frame.io:</strong> </body>');
+  if (a.kind === 'video') parts.push(`<h2>Video</h2>${line('Creator', a.creator)}`, line('Script', a.script));
+  parts.push(`<h2>Copy</h2>${line('Headline', a.headline)}`, line('Primary text', a.primary_text), line('Offer', a.offer), line('Landing page', ''),
+    `<strong>Inspo:</strong> ${refs.map(u => `<a href="${x(u)}">${x(u)}</a>`).join(' ') || (permalink ? `<a href="${x(permalink)}">the Slack thread</a>` : '')}</body>`);
   return parts.join('\n');
 }
 async function nextNumber(env, act, gid) {

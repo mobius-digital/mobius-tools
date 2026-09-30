@@ -89,7 +89,7 @@ const draft = (over = {}) => ({
   questions: [],
   destination: { pick: 'creator_link', reason: 'Creators can film a garage rant from a pitch.' },
   creator_link: { section_id: 'sec_dad', new_section: '', new_section_line: '', duplicate_of: '', title: 'The garage rant', argument: 'Every dad has a round he needs to vent about. This ad drove a 3.2 ROAS last month.', who: 'Weekend Warrior dads', format: 'Talking head', products: 'Cooler bag', openers: ['I shot a 112 today.'], shots: [{ label: 'Hook', text: 'Mid-rant in the garage' }], on_screen: 'My worst round', do_text: 'Keep it real', dont_text: 'No scripted lines', proof_note: 'Take the mid-rant opening.' },
-  asana: { title: 'Garage rant hook', kind: 'video', test_type: 'concept', angle: 'Golf is hard, your gear should not be', why: 'Weekend Warrior persona', concept: 'Dad vents in his garage', testing: 'Three different rants', ads: ['Rant about the slice', 'Rant about the cart girl', 'Rant about three putts'], creator: 'Any dad creator', length: '20s', hooks: ['I shot a 112', 'Never again', 'My wife was right'], script: 'Rant, then product.', broll: 'Garage, clubs', editor_notes: 'Fast cuts', primary_text: '', headline: '', offer: '' },
+  asana: { title: 'Garage rant hook', kind: 'video', test_type: 'concept', angle: 'Golf is hard, your gear should not be', why: 'Weekend Warrior persona', testing: '3 new concepts', ads: ['Rant about the slice', 'Rant about the cart girl', 'Rant about three putts'], creator: 'Any dad creator', script: 'Rant, then product.', primary_text: '', headline: '', offer: '' },
   studio: { name: 'Rant statics', angle: 'Golf is hard', why: 'Weekend Warrior', concept: '', testing: 'headlines', post_copy: '', lines: ['I shot a 112. My cooler did not care.', 'Bad round, cold drink.'] },
   ...over,
 });
@@ -433,8 +433,9 @@ await check('Asana: numbered task in Creative Brief, template layout, credit, re
   const body = JSON.parse(create.init.body).data;
   assert.equal(body.name, '353 - Garage rant hook');
   assert.deepEqual(body.projects, ['P1']);
-  for (const s of ['<h2>The test</h2>', '<strong>Angle:</strong>', '<h2>The ads</h2>', '<strong>Ad 3:</strong>', '<h2>The video</h2>', '<strong>Hook 2:</strong>', '<h2>Files</h2>', 'Idea from Ahsan', TT.replace(/&/g, '&amp;'), 'Concept test'])
+  for (const s of ['<h2>The test</h2>', '<strong>Angle:</strong>', "<strong>What we're testing:</strong> 3 new concepts", '<strong>3.</strong> Rant about three putts', '<h2>Video</h2>', '<strong>Script:</strong>', '<strong>Inspo:</strong>', 'Idea from Ahsan', TT.replace(/&/g, '&amp;')])
     assert.ok(body.html_notes.includes(s), 'missing ' + s);
+  for (const s of ['Frame.io', '9:16', 'Hook 1', 'B-roll']) assert.ok(!body.html_notes.includes(s), 'still has ' + s);
   assert.ok(calls.some(c => /sections\/S1\/addTask/.test(c.url)));
   const field = calls.find(c => /tasks\/T1$/.test(c.url) && c.init.method === 'PUT');
   assert.deepEqual(JSON.parse(field.init.body).data.custom_fields, { F_TEST: 'O_C' });
@@ -592,7 +593,7 @@ await check('minimal card: one bold line, the idea in four lines, no teardown; D
   await ideas.runIdeaJob(env, job('730.1', '<@U_BOT> brief'));
   const c2 = lastPost();
   const t2 = c2.blocks.filter(b => b.type === 'section').map(b => b.text.text).join('\n');
-  assert.match(t2, /^\*Grunk Dolfer idea from Ahsan -> Asana brief\*\n\*Garage rant hook\*\nAngle: Golf is hard.*\nTesting: Three different rants\n3 ads, video, concept test$/);
+  assert.match(t2, /^\*Grunk Dolfer idea from Ahsan -> Asana brief\*\n\*Garage rant hook\*\nAngle: Golf is hard.*\nTesting: 3 new concepts\n3 ads, video, concept test$/);
   assert.ok(!t2.includes('Which cooler colour'));
   assert.equal(selectOf(c2.blocks), undefined, 'no Section dropdown when the idea is not for the creator link');
   assert.ok(actionIds(c2.blocks).includes('idea_make_creator_link'));
