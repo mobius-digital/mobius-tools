@@ -1874,6 +1874,61 @@ function looksLikeTransfer(name, pfc, selfAccounts = []) {
   return SELF_TRANSFER_DETAIL.has(d);
 }
 
+/* Clients who pay by bank instead of Stripe show up under the payer's bank
+ * name, and one payer can cover several clients: Vita Pharm pays for both
+ * VetriPaws and SpeedIn, sometimes split across days. The payerMap setting
+ * ({ "VITAPHARM": ["VetriPaws", "SpeedIn"] }) names who a deposit is for. It
+ * learns itself: renaming a bank deposit to a client remembers the payer. */
+const PAYER_NOISE = new Set(['ACH', 'ID', 'NBR', 'PMT', 'PAYMENT', 'PAYMENTS', 'DEPOSIT', 'CREDIT', 'ONLINE',
+  'TRANSFER', 'FROM', 'ORIG', 'CO', 'NAME', 'LLC', 'INC', 'CORP', 'LTD', 'THE', 'EDI', 'CCD', 'PPD', 'WEB', 'DES', 'INDN']);
+const payerCompact = name => String(name || '').toUpperCase().replace(/[^A-Z]/g, '');
+function payerKey(name) {
+  const words = String(name || '').toUpperCase().split(/ID NBR/)[0]
+    .replace(/[^A-Z ]/g, ' ').split(/\s+/).filter(w => w.length > 1 && !PAYER_NOISE.has(w));
+  return words.slice(0, 2).join('');
+}
+
+/* A payer's deposit pays that payer's expected rows, oldest first. A row paid
+ * in part keeps the unpaid rest as expected, so the $1K still owed stays in
+ * front of Cole until it lands. Money past everything expected goes to Review. */
+async function payerDeposit(env, t, date, month, vendor, amount) {
+  const map = safeJson(await getSetting(env, 'payerMap'), {}) || {};
+  const compact = payerCompact(vendor);
+  const key = Object.keys(map).sort((a, b) => b.length - a.length)
+    .find(k => k.length >= 4 && compact.includes(k));
+  if (!key) return null;
+  const clients = [].concat(map[key]).filter(Boolean);
+  if (!clients.length) return null;
+  const ph = clients.map((_, i) => '?' + (i + 1)).join(',');
+  const { results: exp } = await env.DB.prepare(`SELECT * FROM transactions WHERE expected = 1 AND type = 'in'
+      AND plaid_id IS NULL AND vendor IN (${ph}) AND date <= ?${clients.length + 1} ORDER BY date, id`)
+    .bind(...clients, date).all();
+  let left = amount;
+  const paid = new Map();
+  for (const e of exp) {
+    if (left < 0.005) break;
+    if ((await monthStatus(env, e.month)) === 'closed') continue;
+    const pay = round2(Math.min(left, e.amount));
+    const rest = round2(e.amount - pay);
+    if (rest < 0.005) await env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(e.id).run();
+    else await env.DB.prepare(`UPDATE transactions SET amount = ?2, note = ?3 WHERE id = ?1`)
+      .bind(e.id, rest, `Still owed: $${pay.toFixed(2)} of $${e.amount.toFixed(2)} paid by ${vendor} on ${date}`).run();
+    paid.set(e.vendor, round2((paid.get(e.vendor) || 0) + pay));
+    left = round2(left - pay);
+  }
+  const rows = [...paid].map(([client, amt]) => ({ client, amt, status: 'ok', note: `Paid by bank · ${vendor}` }));
+  if (left >= 0.005) rows.push({ client: clients[0], amt: left, status: 'review',
+    note: `${vendor} paid $${left.toFixed(2)} more than was expected${clients.length > 1 ? ' · which client is it for: ' + clients.join(' or ') + '?' : '.'}` });
+  let first = true;
+  for (const r of rows) {
+    await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, plaid_id)
+      VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', ?5, ?6, 'plaid', ?7)`)
+      .bind(date, month, r.client, r.amt, r.note, r.status, first ? t.transaction_id : null).run();
+    first = false;
+  }
+  return rows.some(r => r.status === 'review') ? 'added-review' : 'confirmed-expected';
+}
+
 /**
  * One Plaid transaction → the ledger, reconcile-first:
  *   1. an EXPECTED row for the same vendor/amount confirms itself (the engine's
@@ -2026,6 +2081,11 @@ async function processPlaidTxnInner(env, item, t, opts = {}) {
         .bind(mHit.id, t.transaction_id, date).run();
       return 'matched-existing';
     }
+  }
+
+  if (type === 'in') {
+    const payer = await payerDeposit(env, t, date, month, vendor, amount);
+    if (payer) return payer;
   }
 
   // 3) new row through the rules
@@ -3209,6 +3269,19 @@ const LEDGER = {
           if (!self.some(a => String(a).toLowerCase() === next.vendor.toLowerCase())) {
             self.push(next.vendor);
             await putSetting(env, 'selfAccounts', JSON.stringify(self.slice(0, 100)));
+          }
+        }
+        /* A bank deposit renamed to a client teaches the payer, so the next
+         * deposit from the same bank name files itself (see payerDeposit). */
+        if (cur.type === 'in' && cur.plaid_id && next.vendor !== cur.vendor) {
+          const client = await env.DB.prepare('SELECT name FROM clients WHERE name = ?1 COLLATE NOCASE').bind(next.vendor).first();
+          const key = payerKey(cur.vendor);
+          if (client && key.length >= 4) {
+            const map = safeJson(await getSetting(env, 'payerMap'), {}) || {};
+            const list = [].concat(map[key] || []);
+            if (!list.includes(client.name)) list.push(client.name);
+            map[key] = list;
+            await putSetting(env, 'payerMap', JSON.stringify(map));
           }
         }
         // The row-level and Slack pickers send only a tax category — the bucket
