@@ -54,6 +54,13 @@
  *     the page plays natively) labelled "Another brand (inspiration)". YouTube stays a link. Undo
  *     deletes the proof, the R2 object (unless another proof still uses it) and forgets the key so
  *     the next tag stores it again.
+ *
+ * LUCKY CREATOR APP (2026-09-30): on Lucky Golf the "Lucky creator app" button files the same draft into
+ * LuckyGolfCo/lucky-golf-creators (Supabase) over PostgREST + Storage REST with the service key: a live
+ * `angles` row in the picked `angle_sections` row (the dropdown lists the APP's sections on Lucky), the
+ * reference as `angle_examples` (owner 'brand' = Inspiration; the link, and the R2 clip uploaded to the
+ * app's `creative` bucket so it plays on the angle page). Undo takes all of it back. Without
+ * LUCKY_SUPABASE_URL + LUCKY_SUPABASE_SERVICE_KEY the button says so and stores nothing.
  */
 import { claude, jsonOf, clip, safeJson } from './research.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
@@ -96,6 +103,16 @@ const MAX_VIDEOS = 3, MAX_IMAGES = 4, MAX_VIDEO_BYTES = 300e6, MAX_IMAGE_BYTES =
    Up to CLIP_BUFFER_BYTES the file is read into memory first, so a storage hiccup never costs the watch. */
 const MAX_CLIP_BYTES = 95 * 1024 * 1024, CLIP_BUFFER_BYTES = 30 * 1024 * 1024;
 const INSPO_WHO = 'Another brand (inspiration)';
+/* LUCKY GOLF'S OWN CREATOR APP (2026-09-30): LuckyGolfCo/lucky-golf-creators, Next.js + Supabase Postgres,
+   creators.luckygolf.com. Its "What to shoot" page is the Locus creator link's cousin: `angle_sections` (one is
+   pinned = Hot right now), `angles` (title, who, hooks[], beat_open / middle / close, product_id, format, hot,
+   active) and `angle_examples` (a link or a file in the Supabase Storage bucket `creative`, owner 'brand' =
+   Inspiration, "Steal the shape, not the brand"). This worker talks to it over PostgREST and the Storage REST
+   API with the service-role key (LUCKY_SUPABASE_URL var + LUCKY_SUPABASE_SERVICE_KEY secret); no SDK. */
+export const luckyReady = env => !!(env.LUCKY_SUPABASE_URL && env.LUCKY_SUPABASE_SERVICE_KEY);
+const LUCKY_APP = env => String(env.LUCKY_CREATORS_URL || 'https://creators.luckygolf.com').replace(/\/+$/, '');
+const LUCKY_BUCKET = 'creative';
+const LUCKY_NOT_CONNECTED = 'Lucky creator app is not connected yet (Cole sets LUCKY_SUPABASE_URL and LUCKY_SUPABASE_SERVICE_KEY). The draft stays with this thread; press the button again once it is.';
 const ACK = () => new Response('', { status: 200 });
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const hex24 = () => [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -670,7 +687,7 @@ TEARDOWN: why the reference works for its audience: the awareness stage, the sop
 QUESTIONS: 0 to 3, only when the brand brain AND the thread truly lack something you need (for example which persona or which product). blocking = true only when any draft would be a guess without the answer.
 
 DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATORS, so the creator link is the default:
-- creator_link: anything a creator could film at home or out and about from a short pitch, including odd props, visual hooks, skits, talking heads and demos. Props a creator already owns (scissors, a glass, a drawer of packets) do NOT make it a production job. Pick this unless one of the two below clearly fits better.${lucky ? '\n- lucky_creators: Lucky Golf\'s own creator app; same shape as the creator link.' : ''}
+- creator_link: anything a creator could film at home or out and about from a short pitch, including odd props, visual hooks, skits, talking heads and demos. Props a creator already owns (scissors, a glass, a drawer of packets) do NOT make it a production job. Pick this unless one of the two below clearly fits better.${lucky ? '\n- lucky_creators: Lucky Golf\'s own creator app (its "What to shoot" page; the sections and angles listed below are the app\'s). For Lucky Golf this IS the creator link, so pick it wherever creator_link would fit.' : ''}
 - asana_brief: only when a creator could not make it from a pitch: it needs our editor to build it from existing footage, a specific person or location, heavy motion graphics, or it is a structured paid test of several scripted versions the team must control. Also when the thread asks for a brief.
 - studio: static image ads the AI can make now from lines of words.
 
@@ -741,6 +758,9 @@ function transcriptOf(t) {
 }
 
 async function hubOf(env, act) {
+  /* Lucky Golf's hub IS its creator app once it is connected: the sections the model picks from, the
+     dropdown lists and the push files into are the APP's, not Locus's p_amb rows. */
+  if (luckyReady(env) && await isLuckyAct(env, act)) return luckyHub(env).catch(e => ({ brand: null, lucky: true, app: LUCKY_APP(env), sections: [], angles: [], down: clip(e.message, 200) }));
   const q = (sql) => env.DB.prepare(sql).bind(act).all().then(r => r.results || []).catch(() => []);
   const brand = await env.DB.prepare(`SELECT slug, live FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
   const [sections, angles] = await Promise.all([
@@ -748,6 +768,50 @@ async function hubOf(env, act) {
     q(`SELECT a.id, a.title, a.argument, a.format, s.name AS section FROM p_amb_angle a LEFT JOIN p_amb_section s ON s.id = a.section_id WHERE a.act_id = ?1 AND a.status = 'live' ORDER BY a.sort LIMIT 80`),
   ]);
   return { brand, sections, angles };
+}
+/* The prompt's description of where the angle will land, for either hub. */
+function hubText(hub) {
+  const head = hub.lucky
+    ? `THE LUCKY CREATOR APP'S "WHAT TO SHOOT" NOW (${hub.app}; this is Lucky's creator link. The pinned section is Hot right now: an angle filed there is marked hot${hub.down ? `; it could not be read right now: ${hub.down}` : ''})`
+    : `THE CREATOR LINK NOW (${hub.brand ? `/angles/${hub.brand.slug}, ${hub.brand.live ? 'live' : 'switched off'}` : 'this brand has no creator link yet'})`;
+  return `${head}:\nSections: ${hub.sections.map(s => `[${s.id}] ${s.name}${s.line ? `: ${s.line}` : ''}${s.pinned ? ' (pinned)' : ''}${s.enabled ? '' : ' (off)'}`).join('; ') || 'none'}\nAngles:\n${hub.angles.map(a => `[${a.id}] ${a.title} (${a.section || 'no section'}; ${a.format || ''}): ${clip(a.argument, 110)}`).join('\n') || 'none'}`;
+}
+
+/* ---------------- Lucky Golf's creator app: PostgREST + Storage over fetch ---------------- */
+const isLuckyAct = async (env, act) => /lucky/i.test((await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first().catch(() => null))?.name || '');
+const luckyHeaders = env => ({ apikey: env.LUCKY_SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.LUCKY_SUPABASE_SERVICE_KEY}` });
+const luckyBase = env => String(env.LUCKY_SUPABASE_URL).replace(/\/+$/, '');
+/* One PostgREST call. GET returns the rows; POST / DELETE return the rows they touched (Prefer: return=representation). */
+async function luckyRest(env, method, path, body) {
+  const r = await F(`${luckyBase(env)}/rest/v1/${path}`, { method, headers: { ...luckyHeaders(env), 'Content-Type': 'application/json', Accept: 'application/json', ...(method === 'GET' ? {} : { Prefer: 'return=representation' }) },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`the Lucky creator app answered ${r.status} on ${method} ${path.split('?')[0]}: ${clip(text, 160)}`);
+  return text ? safeJson(text, null) : null;
+}
+/* One object in the app's Supabase Storage bucket. Buffered up to CLIP_BUFFER_BYTES; above that the R2 body is
+   streamed through a FixedLengthStream so the request carries a length. */
+async function luckyStoragePut(env, path, obj, mime) {
+  let body, size = obj.size || 0;
+  if (size > CLIP_BUFFER_BYTES && obj.body && typeof FixedLengthStream !== 'undefined') { const fl = new FixedLengthStream(size); obj.body.pipeTo(fl.writable).catch(() => {}); body = fl.readable; }
+  else { body = await obj.arrayBuffer(); size = body.byteLength; }
+  const r = await F(`${luckyBase(env)}/storage/v1/object/${LUCKY_BUCKET}/${path}`, { method: 'POST', headers: { ...luckyHeaders(env), 'Content-Type': mime || 'video/mp4', 'x-upsert': 'true', 'Cache-Control': 'max-age=3600' }, body });
+  if (!r.ok) throw new Error(`the Lucky creator app's storage answered ${r.status}: ${clip(await r.text().catch(() => ''), 160)}`);
+  return size;
+}
+const luckyStorageDelete = (env, path) => F(`${luckyBase(env)}/storage/v1/object/${LUCKY_BUCKET}/${path}`, { method: 'DELETE', headers: luckyHeaders(env) }).catch(() => null);
+const luckyLinks = (env, id) => ({ url: `${LUCKY_APP(env)}/shoot/${id}`, staff: `${LUCKY_APP(env)}/staff/angles/${id}` });
+/** The app's What to shoot page, in the shape the prompt, the card and the dropdown already read (hubOf). */
+async function luckyHub(env) {
+  const [secs, angs] = await Promise.all([
+    luckyRest(env, 'GET', 'angle_sections?select=id,name,blurb,pinned,active,sort&order=sort.asc,created_at.asc&limit=99'),
+    luckyRest(env, 'GET', 'angles?select=id,title,who,format,section_id,hot&active=eq.true&order=sort.asc,created_at.asc&limit=80'),
+  ]);
+  const sections = (secs || []).map(s => ({ id: s.id, name: s.name, line: s.blurb || '', enabled: s.active ? 1 : 0, pinned: !!s.pinned }));
+  const byId = Object.fromEntries(sections.map(s => [s.id, s]));
+  const hot = sections.find(s => s.pinned)?.name || '';
+  const angles = (angs || []).map(a => ({ id: a.id, title: a.title, argument: a.who || '', format: a.format || '', section: byId[a.section_id]?.name || (a.hot ? hot : '') }));
+  return { brand: null, lucky: true, app: LUCKY_APP(env), sections, angles };
 }
 
 /* ---------------- money never reaches the public link ---------------- */
@@ -866,7 +930,7 @@ const btn = (text, action_id, id, extra = {}) => ({ type: 'button', text: { type
 const ACTION_OF = { creator_link: 'idea_link', lucky_creators: 'idea_lucky', asana_brief: 'idea_asana', studio: 'idea_studio' };
 
 /* The destination the card is for: the model's pick, Lucky's app only on Lucky. */
-const pickOf = (d, acct) => { const lucky = /lucky/i.test(acct?.name || ''); const p = d.destination?.pick; return p === 'lucky_creators' && !lucky ? 'creator_link' : (DESTS[p] ? p : 'creator_link'); };
+const pickOf = (d, acct) => { const lucky = /lucky/i.test(acct?.name || ''); const p = d.destination?.pick; return p === 'lucky_creators' && !lucky ? 'creator_link' : (p === 'creator_link' || !DESTS[p]) && lucky ? 'lucky_creators' : (DESTS[p] ? p : 'creator_link'); };
 /* The idea in about four short lines: what a person needs to approve it, nothing else. */
 function summaryLines(d, pick, hub) {
   if (pick === 'asana_brief' && d.asana?.title) {
@@ -916,19 +980,21 @@ export function ideaCard(row, acct, hub) {
   const blocks = sections([head, ...summaryLines(d, pick, hub)].join('\n'));
   const done = [];
   if (pushed.creator_link) done.push(`✓ On the creator link: ${pushed.creator_link.url ? `<${pushed.creator_link.url}|${esc(pushed.creator_link.title)}>` : esc(pushed.creator_link.title)}${pushed.creator_link.clip ? ' (the clip plays on it)' : ''}`);
-  if (pushed.lucky_creators) done.push('✓ Saved for the Lucky creator app (hookup is next)');
+  if (pushed.lucky_creators) done.push(`✓ On the Lucky creator app: ${pushed.lucky_creators.url ? `<${pushed.lucky_creators.url}|${esc(pushed.lucky_creators.title)}>` : esc(pushed.lucky_creators.title || 'saved')}${pushed.lucky_creators.clip ? ' (the clip plays on it)' : ''}`);
   if (pushed.asana_brief) done.push(`✓ Asana: <${pushed.asana_brief.url}|${esc(pushed.asana_brief.name)}>`);
   if (pushed.studio) done.push(`✓ Studio: batch "${esc(pushed.studio.name)}" (<${LOCUS}|open Locus>)`);
   if (done.length) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: done.join('\n') } });
   if (notes.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: clip(notes.map(esc).join('\n'), 2900) }] });
   const els = [];
   const c = d.creator_link || {};
-  if ((pick === 'creator_link' || pick === 'lucky_creators') && has(d).creator_link && !c.duplicate_of && !pushed.creator_link) {
+  if ((pick === 'creator_link' || pick === 'lucky_creators') && has(d).creator_link && !c.duplicate_of && !pushed.creator_link && !pushed.lucky_creators) {
     const sel = sectionSelect(row, c, hub);
     if (sel) els.push(sel);
   }
   for (const k of Object.keys(DESTS)) {
     if (k === 'lucky_creators' && !lucky) continue;
+    /* Once Lucky's app is connected it IS the creator link: the Locus button would file into sections the app does not have. */
+    if (k === 'creator_link' && hub?.lucky) continue;
     if (pushed[k]) continue;
     /* Only the suggested destination is drafted up front; the rest cost a press of "Make ... draft". */
     /* Action ids must be unique inside one block (Slack answers invalid_blocks otherwise). */
@@ -936,6 +1002,7 @@ export function ideaCard(row, acct, hub) {
     els.push(btn(`${DESTS[k]}${k === pick ? ' (suggested)' : ''}`, ACTION_OF[k], row.id, k === pick ? { style: 'primary' } : {}));
   }
   if (pushed.creator_link) els.push(btn('Undo creator link', 'idea_undo_link', row.id, { style: 'danger' }));
+  if (pushed.lucky_creators) els.push(btn('Undo Lucky app', 'idea_undo_lucky', row.id, { style: 'danger' }));
   els.push(btn('Redo', 'idea_redo', row.id));
   els.push(btn('Discard', 'idea_discard', row.id, { style: 'danger', confirm: { title: { type: 'plain_text', text: 'Discard this draft?' }, text: { type: 'plain_text', text: 'The draft is dropped. Anything already sent on stays where it is.' }, confirm: { type: 'plain_text', text: 'Discard' }, deny: { type: 'plain_text', text: 'Keep it' } } }));
   els.push(btn('Details', 'idea_details', row.id));
@@ -973,7 +1040,7 @@ function draftBody(d, acct, hub, { buttons = true } = {}) {
   if (t.weak) why.push(`*Don't copy:* ${esc(t.weak)}`);
   blocks.push(...sections(why.join('\n')));
   const tr = d.transfer || {};
-  const pick = d.destination?.pick === 'lucky_creators' && !lucky ? 'creator_link' : d.destination?.pick;
+  const pick = pickOf(d, acct);
   blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Take:* ${MODE[tr.mode] || 'A mix'}. ${esc(tr.reason)}${tr.disagreement ? `\n_${esc(tr.disagreement)}_` : ''}\n*Best home:* ${DESTS[pick] || 'Asana brief'}. ${esc(d.destination?.reason)}` } });
   if (qs.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Worth answering: ${qs.map(q => esc(q.q)).join('  /  ')}` }] });
   blocks.push({ type: 'divider' });
@@ -1077,7 +1144,7 @@ export async function runIdeaJob(env, job) {
       ...(breakdowns.length ? [{ type: 'text', text: `VIDEO BREAKDOWNS (facts from a video model):\n\n${breakdowns.join('\n\n')}` }] : []),
       ...(notes.length ? [{ type: 'text', text: `MEDIA I COULD NOT READ (work from the thread's words for these):\n${notes.join('\n')}` }] : []),
       ...imageBlocks,
-      { type: 'text', text: `THE CREATOR LINK NOW (${hub.brand ? `/angles/${hub.brand.slug}, ${hub.brand.live ? 'live' : 'switched off'}` : 'this brand has no creator link yet'}):\nSections: ${hub.sections.map(s => `[${s.id}] ${s.name}${s.line ? `: ${s.line}` : ''}${s.enabled ? '' : ' (off)'}`).join('; ') || 'none'}\nAngles:\n${hub.angles.map(a => `[${a.id}] ${a.title} (${a.section || 'no section'}; ${a.format || ''}): ${clip(a.argument, 110)}`).join('\n') || 'none'}` },
+      { type: 'text', text: hubText(hub) },
       ...(prev ? [{ type: 'text', text: `YOUR LAST DRAFT FOR THIS THREAD (revise it with what people said since; keep what nobody pushed back on):\n${clip(prev, 20000)}\n\nNEW MESSAGES SINCE THAT DRAFT: ${fresh.length ? fresh.map(m => `${m.name}: ${m.text}`).join(' / ') : 'none, they just asked again'}` }] : []),
     ];
     /* "Make <destination> draft" button: only that one draft is written, on top of the stored one,
@@ -1173,7 +1240,7 @@ async function runCompare(env, c) {
 
 /* ---------------- the buttons ---------------- */
 export const approversOf = env => String(env.IDEA_APPROVERS || DEFAULT_APPROVERS).split(/[\s,]+/).filter(Boolean);
-const GATED = new Set(['idea_link', 'idea_lucky', 'idea_asana', 'idea_studio', 'idea_undo_link', 'idea_discard']);
+const GATED = new Set(['idea_link', 'idea_lucky', 'idea_asana', 'idea_studio', 'idea_undo_link', 'idea_undo_lucky', 'idea_discard']);
 
 export async function handleIdeaAction(env, ctx, p) {
   const a = (p.actions || []).find(x => /^idea_/.test(x.action_id || '')) || {};
@@ -1226,7 +1293,8 @@ export async function handleIdeaAction(env, ctx, p) {
       if (key && pushed[key]) return whisper(env, chan, user, `Already sent to ${DESTS[key]}.`, row.thread_ts);
       if (aid === 'idea_link') reply = await pushCreator(env, row, acct, d, pushed);
       else if (aid === 'idea_undo_link') reply = await undoCreator(env, row, pushed);
-      else if (aid === 'idea_lucky') { pushed.lucky_creators = { at: new Date().toISOString(), by: who }; reply = { text: 'Lucky creator app hookup is next. The draft is saved with this thread so it can be pushed the moment the app is connected.' }; }
+      else if (aid === 'idea_lucky') reply = await pushLucky(env, row, acct, d, pushed, who);
+      else if (aid === 'idea_undo_lucky') reply = await undoLucky(env, row, pushed);
       else if (aid === 'idea_asana') reply = await pushAsana(env, row, acct, d, pushed);
       else if (aid === 'idea_studio') reply = await pushStudio(env, row, acct, d, pushed);
       else return null;
@@ -1344,6 +1412,132 @@ export async function undoCreator(env, row, pushed) {
   for (const k of keys) await dropClip(env, k);
   delete pushed.creator_link;
   return { text: `Taken back off the creator link: "${p.title}".` };
+}
+
+/* ---------------- Lucky creator app: the push (2026-09-30) ---------------- */
+/* The app's angle has three beats (Start / Then / End) and no field for the on-screen lines or the do / don't
+   list, so the shots fill the beats and the rest rides on the last beats, labelled. Never more than three. */
+export function luckyBeats(c) {
+  const parts = (c.shots || []).slice(0, 3).map(s => s.text).filter(Boolean);
+  const oneLine = s => String(s || '').split('\n').filter(Boolean).join(' / ');
+  const extra = [c.on_screen && `On screen: ${oneLine(c.on_screen)}`, c.do_text && `Do: ${oneLine(c.do_text)}`, c.dont_text && `Don't: ${oneLine(c.dont_text)}`].filter(Boolean);
+  for (const x of extra) { if (parts.length < 3) parts.push(x); else parts[2] = `${parts[2]}\n${x}`; }
+  return [parts[0] || null, parts[1] || null, parts[2] || null].map(x => x ? clip(x, 600) : null);
+}
+/* The club the angle is about, only when the draft names a product the app sells; otherwise "Any club". */
+function luckyProduct(products, text) {
+  const t = norm(text);
+  if (!t) return null;
+  const hit = (products || []).find(p => { const n = norm(p.title); return n && (t.includes(n) || n.includes(t)); });
+  return hit?.id || null;
+}
+/** Files the creator draft into Lucky's app the way Staff > Angles would: a LIVE angle (active, like the Locus
+ *  push) in the picked section, the reference as an Inspiration example (a link, and the stored clip uploaded to
+ *  the `creative` bucket so it plays on the angle page). NO MONEY: cleanCreator ran on the draft. */
+export async function pushLucky(env, row, acct, d, pushed, who) {
+  if (!luckyReady(env)) return { ok: false, text: LUCKY_NOT_CONNECTED };
+  const c = cleanCreator(d.creator_link || {});
+  const hub = await luckyHub(env);
+  const created = { examples: [] };
+  let angleId = c.duplicate_of ? hub.angles.find(a => a.id === c.duplicate_of)?.id || null : null;
+  let title = angleId ? hub.angles.find(a => a.id === angleId).title : c.title;
+  if (!angleId) {
+    if (!c.title) return { ok: false, text: 'The draft has no creator angle to add. Press Redo, or tag me and say it is for the creator app.' };
+    const want = row.section_pick && row.section_pick !== 'new' ? row.section_pick : (row.section_pick === 'new' ? null : c.section_id);
+    let sec = want ? hub.sections.find(s => s.id === want) : null;
+    if (!sec && c.new_section) {
+      sec = hub.sections.find(s => s.name.toLowerCase() === c.new_section.toLowerCase());
+      if (!sec) {
+        const last = await luckyRest(env, 'GET', 'angle_sections?select=sort&order=sort.desc&limit=1');
+        const [made] = await luckyRest(env, 'POST', 'angle_sections', { name: clip(c.new_section, 60), blurb: clip(c.new_section_line, 120) || null, icon: 'sparkles', color: 'gold', pinned: false, active: true, sort: ((last || [])[0]?.sort ?? 0) + 10 }) || [];
+        if (!made?.id) throw new Error('the Lucky creator app did not hand back the new section');
+        sec = { id: made.id, name: made.name, pinned: false };
+        created.section = made.id;
+      }
+    }
+    if (!sec) return { ok: false, text: 'Pick a section first (the dropdown on the card), so creators can find it in the app. Then press Lucky creator app again.' };
+    const [products, last] = await Promise.all([
+      luckyRest(env, 'GET', 'products?select=id,title&kind=not.is.null&order=title.asc&limit=200').catch(() => []),
+      luckyRest(env, 'GET', 'angles?select=sort&order=sort.desc&limit=1'),
+    ]);
+    const beats = luckyBeats(c);
+    const [made] = await luckyRest(env, 'POST', 'angles', {
+      section_id: sec.pinned ? null : sec.id, hot: !!sec.pinned, active: true, sort: ((last || [])[0]?.sort ?? 0) + 10,
+      title: clip(c.title, 120), who: clip([c.who, c.argument].filter(Boolean).join('. ').replace(/\.\./g, '.'), 500) || null,
+      hooks: (c.openers || []).slice(0, 8).map(o => clip(o, 200)), beat_open: beats[0], beat_middle: beats[1], beat_close: beats[2],
+      product_id: luckyProduct(products, c.products), format: clip(c.format, 60) || null,
+    }) || [];
+    if (!made?.id) throw new Error('the Lucky creator app did not hand back the new angle');
+    angleId = made.id;
+    created.angle = angleId;
+  }
+  const existing = await luckyRest(env, 'GET', `angle_examples?select=id,url,sort&angle_id=eq.${angleId}`) || [];
+  let sort = Math.max(0, ...existing.map(e => e.sort || 0));
+  const example = async (fields) => {
+    const [made] = await luckyRest(env, 'POST', 'angle_examples', { angle_id: angleId, owner: 'brand', owner_name: INSPO_WHO, note: clip(c.proof_note, 300) || null, active: true, sort: (sort += 10), ...fields }) || [];
+    if (!made?.id) throw new Error('the Lucky creator app did not hand back the example');
+    created.examples.push({ id: made.id, ...(fields.file_path ? { path: fields.file_path } : {}) });
+    return made.id;
+  };
+  /* The reference as a link: only the platforms the app plays (its own form refuses anything else). */
+  for (const url of (safeJson(row.refs_json, []) || []).slice(0, 2).map(publicRef)) {
+    if (!/tiktok\.com|instagram\.com|youtube\.com|youtu\.be|facebook\.com|fb\.watch/i.test(url)) continue;
+    if (existing.some(e => e.url === url)) continue;
+    await example({ kind: 'link', url: clip(url, 500) });
+  }
+  /* The reference as a CLIP THAT PLAYS: the R2 copy (fetched on demand when missing) goes into the app's bucket. */
+  let clipNote = '';
+  const media = safeJson(row.media_json, null) || (safeJson(row.refs_json, []) || []).map(classifyLink).filter(Boolean);
+  for (const v of media) {
+    const r = await ensureClip(env, acct.act_id, v);
+    if (!r.key) { clipNote = clipNote || r.why; continue; }
+    const obj = env.MEDIA ? await env.MEDIA.get(r.key).catch(() => null) : null;
+    if (!obj) { clipNote = clipNote || 'failed: the stored clip could not be read'; continue; }
+    const mime = obj.httpMetadata?.contentType || 'video/mp4';
+    const path = `angles/${angleId}/idea-${rid()}.${clipExt(mime)}`;
+    try { await luckyStoragePut(env, path, obj, mime); } catch (e) { clipNote = `failed: ${clip(e.message, 120)}`; continue; }
+    const id = await example({ kind: 'file', file_path: path });
+    created.clip = { id, path };
+    break;
+  }
+  const links = luckyLinks(env, angleId);
+  pushed.lucky_creators = { angle_id: angleId, title, url: links.url, staff: links.staff, created, at: new Date().toISOString(), by: who, ...(created.clip ? { clip: created.clip.path } : {}) };
+  const what = created.angle ? `New angle "${title}" is live on the Lucky creator app${created.section ? ` in the new section "${clip(c.new_section, 60)}"` : ''}` : `The reference is now an example on "${title}" on the Lucky creator app`;
+  const clipLine = created.clip ? ' The reference clip plays on it.'
+    : clipNote === 'YouTube stays a link' ? ' YouTube stays a link (it cannot be downloaded).'
+    : clipNote === 'too big' ? ' The clip is over 95MB, so the reference is a link only.'
+    : clipNote === 'no storage' ? ' Clip storage is not connected on this worker, so the reference is a link only.'
+    : clipNote ? ` The clip could not be attached (${clipNote}), so the reference is a link only; a re-tag in the thread tries again.` : '';
+  const text = `${what}: ${links.url} (staff view: ${links.staff})${!created.examples.length && !created.angle ? '. Nothing new to add: that reference was already there.' : ''}${clipLine}`;
+  const md = esc(text).replace(esc(links.url), `<${links.url}|${esc(links.url)}>`).replace(esc(links.staff), `<${links.staff}|${esc(links.staff)}>`);
+  return { text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text: md } }, { type: 'actions', elements: [btn('Undo', 'idea_undo_lucky', row.id, { style: 'danger' })] }] };
+}
+/** Takes back exactly what the press created: the examples (and their objects in the `creative` bucket, unless
+ *  another example still points at the same file), the angle, and a section it made that is still empty. */
+export async function undoLucky(env, row, pushed) {
+  const p = pushed.lucky_creators;
+  if (!p) return { ok: false, text: 'Nothing on the Lucky creator app to take back.' };
+  if (!luckyReady(env)) return { ok: false, text: LUCKY_NOT_CONNECTED };
+  const cr = p.created || {};
+  const paths = new Set();
+  for (const e of cr.examples || []) {
+    const gone = await luckyRest(env, 'DELETE', `angle_examples?id=eq.${e.id}`) || [];
+    for (const g of gone) if (g.file_path) paths.add(g.file_path);
+    if (e.path) paths.add(e.path);
+  }
+  if (cr.angle) {
+    const gone = await luckyRest(env, 'DELETE', `angle_examples?angle_id=eq.${cr.angle}`) || [];
+    for (const g of gone) if (g.file_path) paths.add(g.file_path);
+    await luckyRest(env, 'DELETE', `angles?id=eq.${cr.angle}`);
+  }
+  if (cr.section && !((await luckyRest(env, 'GET', `angles?select=id&section_id=eq.${cr.section}&limit=1`) || []).length))
+    await luckyRest(env, 'DELETE', `angle_sections?id=eq.${cr.section}&pinned=eq.false`);
+  for (const path of paths) {
+    if (((await luckyRest(env, 'GET', `angle_examples?select=id&file_path=eq.${encodeURIComponent(path)}&limit=1`).catch(() => [])) || []).length) continue;
+    await luckyStorageDelete(env, path);
+  }
+  delete pushed.lucky_creators;
+  return { text: `Taken back off the Lucky creator app: "${p.title}".` };
 }
 
 /* Asana: a numbered task in the brand's Creative Brief section, in the team's template

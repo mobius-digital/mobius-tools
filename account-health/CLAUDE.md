@@ -658,7 +658,8 @@ An idea dropped in a brand's INTERNAL channel (`accounts.slack_channel`, the `-i
 channels; clients are never in them) becomes a draft brief when someone tags @Mobius Digital
 in the thread. Code: `src/ideas.js`; tests: `node test-ideas.mjs` (39 offline checks, mocked
 Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule; 45 since the focused-brain pass,
-49 since the 2026-09-30 simplification, see the last subsection: minimal card, Section dropdown, caps, clips in R2).
+49 since the 2026-09-30 simplification: minimal card, Section dropdown, caps, clips in R2; 53 since the Lucky creator
+app push, see the last subsection).
 
 - **Routing.** Slack events already reach this worker through slack-router (`/slack/events`
   forwards any channel registered as an account's `slack_channel`; DMs and everything else go
@@ -709,10 +710,10 @@ Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule; 
   - Studio: a `draft` row in `p_studio_batch` (brief {angle, why, concept, testing, post_copy,
     lines[{text, inspo:[]}]}), numbered after the Asana brief if one was sent. It shows in Locus
     Studio's batch list; the team picks the product and makes it there.
-  - Lucky creator app: NOT BUILT. The button says "Lucky creator app hookup is next" and marks
-    the stored draft (`pushed_json.lucky_creators`). The push needs the lucky-golf-creators
-    Supabase URL + service-role key and its "what to shoot" table; the creator_link draft shape
-    already matches it.
+  - Lucky creator app: BUILT 2026-09-30 (`pushLucky` / `undoLucky`; see "Lucky creator app push" at
+    the end). The same creator draft goes into LuckyGolfCo/lucky-golf-creators' Supabase over PostgREST
+    and Storage REST with the service key. Not connected = the thread says which two names Cole sets,
+    nothing is stored, the button stays.
 - **Cost:** `idea_run` per tag (Claude in / cache read / cache write / out, Gemini in/out,
   downloads, videos new vs cached, dollars); the card's footer shows the run's cost. Offline
   estimate with a ~15k-token cached brain: about $0.06 per tag, plus about half a cent per new
@@ -882,3 +883,51 @@ Redo and Make on the thread's model). Cole's $0.06 bar is not reachable at this 
   upload clip, YouTube stays a link, over-95MB watched but not kept). R2 is a Map stand-in. NOT tested live: the
   R2 put from a Worker with a streamed body over 30MB, playback of an idea clip on the real creator link, and
   Slack's rendering of the `static_select` next to the buttons.
+
+### Lucky creator app push (2026-09-30)
+Lucky Golf has NO Locus creator link (`p_amb_brand` holds Party Patch, Grunk, Dartee). Its creator link is its
+own app, `LuckyGolfCo/lucky-golf-creators` (Next.js + Supabase Postgres on Cloudflare, creators.luckygolf.com), whose
+"What to shoot" page is modelled on the Locus hub: `angle_sections` (uuid, name, blurb, icon, color, `pinned` = Hot
+right now, `active`, sort), `angles` (section_id, title, who, `hooks text[]`, beat_open / beat_middle / beat_close,
+product_id, format, `hot`, `active`, sort) and `angle_examples` (angle_id, kind link | file, url, file_path, owner
+ambassador | lucky | brand, owner_name, note, active, sort). There is no review state: `active` is the only switch
+(members see active rows, staff see all), so the push goes LIVE like the Locus button. File examples live in the
+Supabase Storage bucket **`creative`** (`angles/<angle id>/<name>`); the app plays them through a signed URL
+(`signedReadUrl`; an `r2/` prefix would mean the app's own R2, which we never write).
+- **Config on this worker:** `LUCKY_SUPABASE_URL` (var or secret) + `LUCKY_SUPABASE_SERVICE_KEY` (secret, the
+  project's service_role key; it bypasses RLS, which is what a server-side staff write needs). Optional var
+  `LUCKY_CREATORS_URL` (default `https://creators.luckygolf.com`). `luckyReady(env)`. Plain `fetch` (xfetch), no SDK:
+  `luckyRest()` = `{url}/rest/v1/<table>?...` with `apikey` + `Authorization: Bearer`, `Prefer: return=representation`
+  on writes; `luckyStoragePut()` = `POST {url}/storage/v1/object/creative/<path>` (`x-upsert: true`, buffered up to
+  30MB, FixedLengthStream above); `luckyStorageDelete()` = `DELETE` on the same path.
+- **On Lucky the hub IS the app** once connected: `hubOf()` returns `luckyHub()` (sections with `pinned`, active
+  angles with `who` as the argument), so the model picks from the APP's section ids, the Section dropdown lists the
+  app's sections, and `hubText()` heads the prompt block "THE LUCKY CREATOR APP'S "WHAT TO SHOOT" NOW". The Locus
+  "Creator link" button is hidden on Lucky while the app is connected (it would file into sections the app does not
+  have); `pickOf` turns a creator_link pick into lucky_creators on Lucky. App unreachable = the hub comes back empty
+  with `down`, the card draws with no dropdown, the prompt says it could not be read, the push whispers what the app
+  answered.
+- **`pushLucky`** (approvers only, `idea_lucky`): `cleanCreator` first (no money, caps). duplicate_of an app angle =
+  examples only. Else the dropdown pick outranks the model's section_id; "new" = insert the proposed section (icon
+  sparkles, color gold, sort max+10); no section = "Pick a section first". Angle: `active: true`, section_id (null
+  when the pick is the pinned section, with `hot: true` instead: that is how the app shows Hot right now),
+  `who` = "<who>. <argument>" (the app has no pitch field; its own seed rows read the same way), `hooks` = the
+  openers, the three beats = the shots, with "On screen: ...", "Do: ...", "Don't: ..." filling empty beats or riding
+  on the last one (`luckyBeats`), `format`, `product_id` only when the draft's product text matches an app product
+  title (else "Any club"). Examples: each reference link (only TikTok / Instagram / YouTube / Facebook, the platforms
+  the app's own form accepts; Meta Ad Library page for an Atria ad) as kind `link`, then the first stored R2 clip
+  (`ensureClip`, on demand if missing) copied into `creative/angles/<angle>/idea-<id>.<ext>` as kind `file`; both
+  owner `brand`, owner_name "Another brand (inspiration)", note = proof_note. On the angle page that renders as the
+  Inspiration chip, "Steal the shape, not the brand", the clip playing in the tile. Reply: the creator link
+  `/shoot/<id>` and the staff link `/staff/angles/<id>`, "The reference clip plays on it" or why not, an Undo button;
+  `pushed_json.lucky_creators` = {angle_id, title, url, staff, created{angle, section, examples[{id, path}], clip},
+  clip, by}. The card says "✓ On the Lucky creator app: <link>".
+- **`undoLucky`** (`idea_undo_lucky`, approvers): deletes the examples it made (and their bucket objects unless
+  another example still points at the path), the angle (its examples cascade; their files are deleted too), and a
+  section it made that is still empty (`pinned=eq.false` guard). The R2 copy in `mobius-amb-media` stays (it is the
+  watch's, not this push's).
+- Tests: 5 Lucky checks in `test-ideas.mjs` against an in-memory PostgREST + Storage mock (`luckyMock`: eq / is.null /
+  not.is.null filters, order, limit, cascade on angle delete, 401 on a wrong key). **NOT tested live:** the real
+  PostgREST answers (column names are from migration 046/048 in the app repo, not from a live query), the Storage
+  upload with a streamed body over 30MB, whether the app's signed-URL playback likes an object this worker wrote,
+  and the app's `products` table shape for the club match (`kind=not.is.null`, `title`).

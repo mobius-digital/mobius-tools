@@ -168,6 +168,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (u.hostname === 'api.tryatria.com') return atriaMcp(u, init);
   if (u.hostname === 'cdn.tryatria.com') return new Response(new Uint8Array(2048), { headers: { 'content-type': 'video/mp4', 'content-length': '2048' } });
   if (u.hostname === 'scontent.xx.fbcdn.net') return new Response(new Uint8Array([255, 216, 255, 1, 2]), { headers: { 'content-type': 'image/jpeg' } });
+  if (u.hostname === 'lucky.supabase.test') return luckyMock(u, init);
   throw new Error('Unexpected network call in offline test: ' + url);
 };
 
@@ -218,6 +219,43 @@ function atriaMcp(u, init) {
   return Response.json({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'unknown tool' } });
 }
 
+/* ---------------- Lucky creator app mock: Supabase PostgREST + Storage (the `creative` bucket) ---------------- */
+/* The tables the app's What to shoot page reads (supabase/migrations/046_angles.sql in lucky-golf-creators):
+   angle_sections, angles, angle_examples, plus products for the club match. Filters understood: eq, is.null,
+   not.is.null; order by one column; limit. Deleting an angle cascades its examples, like the real schema. */
+const LUCKY_DB = { angle_sections: [], angles: [], angle_examples: [], products: [{ id: 'prod-wedge-uuid', title: 'Carver Wedge', product_type: 'Wedges', kind: 'club' }], storage: new Map() };
+function luckyMock(u, init) {
+  const h = init.headers || {}, method = init.method || 'GET';
+  if (h.apikey !== 'lucky-service-key' || h.Authorization !== 'Bearer lucky-service-key') return Response.json({ message: 'Invalid API key' }, { status: 401 });
+  if (u.pathname.startsWith('/storage/v1/object/creative/')) {
+    const path = u.pathname.slice('/storage/v1/object/creative/'.length);
+    if (method === 'POST') { LUCKY_DB.storage.set(path, { type: h['Content-Type'], size: init.body?.byteLength ?? 0, upsert: h['x-upsert'] }); return Response.json({ Key: `creative/${path}` }); }
+    if (method === 'DELETE') return LUCKY_DB.storage.delete(path) ? Response.json({ message: 'Successfully deleted' }) : Response.json({ message: 'Object not found' }, { status: 404 });
+  }
+  const m = /^\/rest\/v1\/(\w+)$/.exec(u.pathname);
+  const table = m && LUCKY_DB[m[1]];
+  if (!Array.isArray(table)) return Response.json({ message: `relation ${u.pathname} does not exist` }, { status: 404 });
+  const filters = [...u.searchParams].filter(([k]) => !['select', 'order', 'limit'].includes(k));
+  const matches = r => filters.every(([k, v]) => v.startsWith('eq.') ? String(r[k]) === v.slice(3) : v === 'not.is.null' ? r[k] != null : v === 'is.null' ? r[k] == null : true);
+  let rows = table.filter(matches);
+  const order = u.searchParams.get('order');
+  if (order) { const [col, dir] = order.split(',')[0].split('.'); rows = [...rows].sort((a, b) => (a[col] > b[col] ? 1 : a[col] < b[col] ? -1 : 0) * (dir === 'desc' ? -1 : 1)); }
+  const limit = +u.searchParams.get('limit'); if (limit) rows = rows.slice(0, limit);
+  if (method === 'GET') return Response.json(rows);
+  if (method === 'POST') {
+    const body = JSON.parse(init.body);
+    const list = (Array.isArray(body) ? body : [body]).map(r => ({ id: crypto.randomUUID(), created_at: new Date().toISOString(), ...r }));
+    table.push(...list);
+    return Response.json(init.headers?.Prefer === 'return=representation' ? list : null, { status: 201 });
+  }
+  if (method === 'DELETE') {
+    for (const r of rows) table.splice(table.indexOf(r), 1);
+    if (m[1] === 'angles') LUCKY_DB.angle_examples = LUCKY_DB.angle_examples.filter(e => !rows.some(a => a.id === e.angle_id));
+    return Response.json(rows);
+  }
+  return new Response('', { status: 405 });
+}
+
 const ideas = await import('./src/ideas.js');
 /* R2 stand-in (the Ambassadors bucket): put / get / delete, bytes only (no FixedLengthStream here). */
 const MEDIA = { store: new Map(),
@@ -232,6 +270,10 @@ const press = (action_id, id, user = 'U_COLE', channel = CH) => ideas.handleIdea
 const lastPost = () => bodyOf(slackCalls('chat.postMessage').at(-1));
 const cardOf = id => { const r = row(id); const u = slackCalls('chat.update').filter(c => bodyOf(c).ts === r.reply_ts).at(-1); return u ? bodyOf(u) : bodyOf(slackCalls('chat.postMessage').find(c => bodyOf(c).blocks && JSON.stringify(bodyOf(c).blocks).includes('Redo'))); };
 const actionIds = blocks => (blocks.find(b => b.type === 'actions')?.elements || []).map(e => e.action_id);
+/* The Section dropdown: choose an option in a thread's channel, and find the select on a card. */
+const select = (id, s, user = 'U_RANDO', channel = CH) => ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: user }, container: { channel_id: channel },
+  actions: [{ type: 'static_select', action_id: 'idea_section', selected_option: { text: { type: 'plain_text', text: 'x' }, value: JSON.stringify({ i: id, s }) } }] });
+const selectOf = blocks => (blocks.find(b => b.type === 'actions')?.elements || []).find(e => e.type === 'static_select');
 
 const checks = [];
 const check = async (name, fn) => { try { await fn(); checks.push({ name, pass: true }); } catch (e) { checks.push({ name, pass: false, error: e.stack?.split('\n').slice(0, 3).join(' | ') || e.message }); } };
@@ -450,15 +492,124 @@ await check('Studio: a draft batch in p_studio_batch with one line per ad, numbe
   assert.equal(brief.lines.length, 2); assert.equal(brief.testing, 'headlines'); assert.deepEqual(brief.lines[0].inspo, []);
   assert.deepEqual(JSON.parse(b.setup_json), { products: [], images: [], swipe: [] });
 });
-await check('Lucky creator app button only on Lucky, and it stores the draft and says the hookup is next', async () => {
+const LUCKY_ID = `${LUCKY_CH}:500.1`;
+await check('Lucky creator app button only on Lucky; not connected = the thread says who sets what, nothing is stored, the draft and the button stay', async () => {
   const r = await ideas.runIdeaJob(env, job('500.1', '<@U_BOT>', LUCKY_CH));
   assert.equal(r.ok, true, r.error);
-  assert.ok(actionIds(lastPost().blocks).includes('idea_lucky'));
+  const ids = actionIds(lastPost().blocks);
+  assert.ok(ids.includes('idea_lucky')); assert.ok(ids.includes('idea_link'), 'without the app the Locus button still shows');
+  assert.match(JSON.stringify(lastPost().blocks), /Lucky creator app \(suggested\)/, 'on Lucky the app is the creator link');
   assert.ok(!actionIds(cardOf(ID).blocks).includes('idea_lucky'));
-  await press('idea_lucky', `${LUCKY_CH}:500.1`, 'U_COLE', LUCKY_CH);
-  assert.match(lastPost().text, /Lucky creator app hookup is next/);
-  assert.ok(JSON.parse(row(`${LUCKY_CH}:500.1`).pushed_json).lucky_creators);
-  assert.ok(JSON.parse(row(`${LUCKY_CH}:500.1`).draft_json).creator_link.title);
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.match(lastPost().text, /Lucky creator app is not connected yet \(Cole sets LUCKY_SUPABASE_URL and LUCKY_SUPABASE_SERVICE_KEY\)/);
+  assert.equal(JSON.parse(row(LUCKY_ID).pushed_json || '{}').lucky_creators, undefined, 'nothing stored as sent');
+  assert.ok(JSON.parse(row(LUCKY_ID).draft_json).creator_link.title, 'the draft stays');
+  assert.ok(actionIds(cardOf(LUCKY_ID).blocks).includes('idea_lucky'), 'the button stays for when it is connected');
+});
+const SEC_HOT = '11111111-1111-4111-8111-111111111111', SEC_ALWAYS = '22222222-2222-4222-8222-222222222222', ANG_PRICE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+await check('Lucky connected: the dropdown and the prompt list the APP\'s sections; the push files a live angle in the app\'s schema, the reference as an Inspiration example, the clip in the creative bucket; app link with Undo', async () => {
+  env.LUCKY_SUPABASE_URL = 'https://lucky.supabase.test/'; env.LUCKY_SUPABASE_SERVICE_KEY = 'lucky-service-key';
+  LUCKY_DB.angle_sections.push({ id: SEC_HOT, name: 'Hot right now', blurb: 'What we are pushing hardest this week', icon: 'flame', color: 'gold', pinned: true, active: true, sort: 0 },
+    { id: SEC_ALWAYS, name: 'Always works', blurb: 'The evergreen shapes', icon: 'circle-check', color: 'grey', pinned: false, active: true, sort: 10 });
+  LUCKY_DB.angles.push({ id: ANG_PRICE, section_id: SEC_ALWAYS, title: 'Price vs. performance', who: 'The golfer who assumes $99 means junk.', hooks: ['This $99 wedge has no business feeling this good.'], format: 'Test', hot: true, active: true, sort: 0 });
+  calls.length = 0;
+  await press('idea_redo', LUCKY_ID, 'U_RANDO', LUCKY_CH);
+  const prompt = JSON.stringify(lastClaudeBody.messages[0].content);
+  assert.match(prompt, /THE LUCKY CREATOR APP'S \\"WHAT TO SHOOT\\" NOW \(https:\/\/creators\.luckygolf\.com/);
+  assert.ok(prompt.includes(`[${SEC_ALWAYS}] Always works: The evergreen shapes`)); assert.ok(prompt.includes(`[${SEC_HOT}] Hot right now: What we are pushing hardest this week (pinned)`));
+  assert.ok(prompt.includes(`[${ANG_PRICE}] Price vs. performance (Always works; Test)`)); assert.ok(!prompt.includes('sec_dad'));
+  const card = lastPost();
+  const sel = selectOf(card.blocks);
+  assert.deepEqual(sel.options.map(o => o.text.text), ['Hot right now', 'Always works']);
+  assert.ok(!sel.initial_option, 'the model named a section the app does not have: nothing preselected');
+  const ids = actionIds(card.blocks);
+  assert.ok(ids.includes('idea_lucky')); assert.ok(!ids.includes('idea_link'), 'the app replaces the Locus creator link on Lucky');
+  /* No section picked and the model's id is not the app's: refuse rather than file an angle nobody can find. */
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.match(lastPost().text, /Pick a section first/); assert.equal(LUCKY_DB.angles.length, 1);
+  await select(LUCKY_ID, SEC_ALWAYS, 'U_RANDO', LUCKY_CH);
+  calls.length = 0;
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  const a = LUCKY_DB.angles.find(x => x.title === 'The garage rant');
+  assert.ok(a, 'the angle was inserted'); assert.equal(a.section_id, SEC_ALWAYS); assert.equal(a.active, true, 'live, like the Locus push'); assert.equal(a.hot, false);
+  assert.equal(a.who, 'Weekend Warrior dads. Every dad has a round he needs to vent about.'); assert.doesNotMatch(JSON.stringify(a), /ROAS|3\.2/);
+  assert.deepEqual(a.hooks, ['I shot a 112 today.']); assert.equal(a.beat_open, 'Mid-rant in the garage');
+  assert.equal(a.beat_middle, 'On screen: My worst round'); assert.equal(a.beat_close, "Do: Keep it real\nDon't: No scripted lines");
+  assert.equal(a.format, 'Talking head'); assert.equal(a.product_id, null, '"Cooler bag" is not a Lucky product'); assert.equal(a.sort, 10);
+  const ex = LUCKY_DB.angle_examples.filter(e => e.angle_id === a.id);
+  assert.equal(ex.length, 2);
+  assert.equal(ex[0].kind, 'link'); assert.equal(ex[0].url, TT); assert.equal(ex[0].owner, 'brand'); assert.equal(ex[0].owner_name, 'Another brand (inspiration)'); assert.equal(ex[0].note, 'Take the mid-rant opening.'); assert.equal(ex[0].active, true); assert.equal(ex[0].sort, 10);
+  assert.equal(ex[1].kind, 'file'); assert.match(ex[1].file_path, new RegExp(`^angles/${a.id}/idea-[a-f0-9]{16}\\.mp4$`)); assert.equal(ex[1].url, undefined); assert.equal(ex[1].sort, 20);
+  const st = LUCKY_DB.storage.get(ex[1].file_path);
+  assert.ok(st, 'the clip is in the creative bucket'); assert.equal(st.type, 'video/mp4'); assert.equal(st.size, 1024); assert.equal(st.upsert, 'true');
+  assert.ok(!calls.some(c => /supabase\.test/.test(c.url) && /ROAS/.test(String(c.init?.body || ''))), 'no money reaches the app');
+  const post = lastPost();
+  assert.ok(post.text.includes(`https://creators.luckygolf.com/shoot/${a.id}`), post.text); assert.ok(post.text.includes(`https://creators.luckygolf.com/staff/angles/${a.id}`));
+  assert.match(post.text, /is live on the Lucky creator app/); assert.match(post.text, /The reference clip plays on it/);
+  assert.deepEqual(actionIds(post.blocks), ['idea_undo_lucky']);
+  assert.equal(row(LUCKY_ID).status, 'pushed');
+  const p = JSON.parse(row(LUCKY_ID).pushed_json).lucky_creators;
+  assert.equal(p.angle_id, a.id); assert.equal(p.clip, ex[1].file_path); assert.equal(p.by, 'Cole'); assert.deepEqual(p.created.examples.map(e => e.id), ex.map(e => e.id));
+  const c2 = cardOf(LUCKY_ID);
+  assert.match(JSON.stringify(c2.blocks), /On the Lucky creator app: <https:\/\/creators\.luckygolf\.com\/shoot\/.*The garage rant> \(the clip plays on it\)/);
+  assert.ok(actionIds(c2.blocks).includes('idea_undo_lucky')); assert.ok(!actionIds(c2.blocks).includes('idea_lucky')); assert.ok(!selectOf(c2.blocks));
+  calls.length = 0;
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.match(bodyOf(slackCalls('chat.postEphemeral')[0]).text, /Already sent to Lucky creator app/);
+  assert.equal(LUCKY_DB.angles.length, 2);
+});
+await check('Lucky Undo: the examples, the bucket object and the angle go; a section the push made goes too once empty; the draft can be pushed again', async () => {
+  await press('idea_undo_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.equal(LUCKY_DB.angles.length, 1); assert.ok(!LUCKY_DB.angles.find(x => x.title === 'The garage rant'));
+  assert.equal(LUCKY_DB.angle_examples.length, 0); assert.equal(LUCKY_DB.storage.size, 0, 'the clip left the creative bucket');
+  assert.match(lastPost().text, /Taken back off the Lucky creator app: "The garage rant"/);
+  assert.equal(JSON.parse(row(LUCKY_ID).pushed_json).lucky_creators, undefined);
+  assert.ok(actionIds(cardOf(LUCKY_ID).blocks).includes('idea_lucky'));
+  /* The model proposed a new section and the dropdown picked it: made on push, removed on Undo. */
+  const d = JSON.parse(row(LUCKY_ID).draft_json);
+  d.creator_link.section_id = ''; d.creator_link.new_section = 'Range days'; d.creator_link.new_section_line = 'Filmed at the range';
+  db.prepare('UPDATE idea_thread SET draft_json = ?, section_pick = ? WHERE id = ?').run(JSON.stringify(d), 'new', LUCKY_ID);
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  const sec = LUCKY_DB.angle_sections.find(s => s.name === 'Range days');
+  assert.ok(sec, 'the section was made'); assert.equal(sec.blurb, 'Filmed at the range'); assert.equal(sec.sort, 20); assert.equal(sec.icon, 'sparkles'); assert.equal(sec.color, 'gold'); assert.equal(sec.pinned, false); assert.equal(sec.active, true);
+  assert.equal(LUCKY_DB.angles.find(x => x.title === 'The garage rant').section_id, sec.id);
+  assert.match(lastPost().text, /in the new section "Range days"/);
+  await press('idea_undo_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.ok(!LUCKY_DB.angle_sections.find(s => s.name === 'Range days'), 'Undo removes the empty section it made');
+  assert.equal(LUCKY_DB.angle_sections.length, 2); assert.equal(LUCKY_DB.storage.size, 0);
+});
+await check('Lucky: Hot right now = a hot angle with no section; a named Lucky product becomes the club; duplicate_of an app angle adds the example to it and Undo leaves that angle alone', async () => {
+  const d = JSON.parse(row(LUCKY_ID).draft_json);
+  d.creator_link.new_section = ''; d.creator_link.products = 'Carver wedge';
+  db.prepare('UPDATE idea_thread SET draft_json = ?, section_pick = ? WHERE id = ?').run(JSON.stringify(d), SEC_HOT, LUCKY_ID);
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  const a = LUCKY_DB.angles.find(x => x.title === 'The garage rant');
+  assert.equal(a.hot, true); assert.equal(a.section_id, null); assert.equal(a.product_id, 'prod-wedge-uuid');
+  await press('idea_undo_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.equal(LUCKY_DB.angles.length, 1);
+  d.creator_link.duplicate_of = ANG_PRICE;
+  db.prepare('UPDATE idea_thread SET draft_json = ? WHERE id = ?').run(JSON.stringify(d), LUCKY_ID);
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.equal(LUCKY_DB.angles.length, 1, 'no new angle');
+  const ex = LUCKY_DB.angle_examples.filter(e => e.angle_id === ANG_PRICE);
+  assert.equal(ex.length, 2); assert.equal(ex[0].kind, 'link'); assert.equal(ex[1].kind, 'file'); assert.equal(LUCKY_DB.storage.size, 1);
+  assert.match(lastPost().text, /now an example on "Price vs. performance" on the Lucky creator app/);
+  assert.ok(lastPost().text.includes(`/shoot/${ANG_PRICE}`));
+  await press('idea_undo_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.equal(LUCKY_DB.angles.length, 1, 'never deletes an angle it did not create'); assert.equal(LUCKY_DB.angle_examples.length, 0); assert.equal(LUCKY_DB.storage.size, 0);
+  delete env.LUCKY_SUPABASE_URL; delete env.LUCKY_SUPABASE_SERVICE_KEY;
+});
+await check('Lucky app unreachable: the card still draws (no dropdown), the prompt says so, the push says what the app answered', async () => {
+  env.LUCKY_SUPABASE_URL = 'https://lucky.supabase.test'; env.LUCKY_SUPABASE_SERVICE_KEY = 'wrong-key';
+  calls.length = 0;
+  await press('idea_redo', LUCKY_ID, 'U_RANDO', LUCKY_CH);
+  assert.match(JSON.stringify(lastClaudeBody.messages[0].content), /could not be read right now: the Lucky creator app answered 401/);
+  assert.ok(!selectOf(lastPost().blocks)); assert.ok(actionIds(lastPost().blocks).includes('idea_lucky'));
+  calls.length = 0;
+  await press('idea_lucky', LUCKY_ID, 'U_COLE', LUCKY_CH);
+  assert.match(bodyOf(slackCalls('chat.postEphemeral')[0]).text, /That did not work: the Lucky creator app answered 401/);
+  assert.equal(JSON.parse(row(LUCKY_ID).pushed_json || '{}').lucky_creators, undefined);
+  delete env.LUCKY_SUPABASE_URL; delete env.LUCKY_SUPABASE_SERVICE_KEY;
 });
 await check('only the suggested draft up front; "Make Asana brief draft" writes just that one on top of the stored draft', async () => {
   const id = `${CH}:700.1`;
@@ -492,9 +643,6 @@ await check('"quick" in the tag runs Sonnet 5.5, and Redo on that thread stays q
 });
 
 /* ---------------- 2026-09-30 simplification: Section dropdown, caps, minimal card + Details ---------------- */
-const select = (id, s, user = 'U_RANDO') => ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: user }, container: { channel_id: CH },
-  actions: [{ type: 'static_select', action_id: 'idea_section', selected_option: { text: { type: 'plain_text', text: 'x' }, value: JSON.stringify({ i: id, s }) } }] });
-const selectOf = blocks => (blocks.find(b => b.type === 'actions')?.elements || []).find(e => e.type === 'static_select');
 await check('Section dropdown: the brand\'s sections plus the model\'s new one, model pick preselected; choosing stores it (no model call) and the push uses it', async () => {
   const id = `${CH}:700.1`;
   db.exec(`INSERT INTO p_amb_section (id, act_id, name, line, sort, enabled) VALUES ('sec_hot', '${GRUNK}', 'Hot right now', 'This week', 0, 1), ('sec_off', '${GRUNK}', 'Winter', 'Later', 5, 0)`);

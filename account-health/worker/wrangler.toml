@@ -83,3 +83,10 @@ IDEAS_BOT = "on"
 #   npx wrangler secret put GEMINI_API_KEY    ideas bot: Google AI Studio key, watches reference videos (optional)
 #   npx wrangler secret put DOWNLOADER_KEY    ideas bot: ScrapeCreators key, pulls TikTok + Instagram MP4s (optional)
 # Optional var: IDEA_APPROVERS = "U06C37MDWD7,U06K732S4BD" (who may press the ideas bot's send buttons)
+#
+# Lucky creator app (ideas bot, 2026-09-30): the "Lucky creator app" button files the draft into
+# LuckyGolfCo/lucky-golf-creators' Supabase (angle_sections / angles / angle_examples + the `creative`
+# storage bucket) with the project's service-role key. Until both are set the button says so and does nothing.
+#   npx wrangler secret put LUCKY_SUPABASE_URL          https://<project-ref>.supabase.co (a var is fine too)
+#   npx wrangler secret put LUCKY_SUPABASE_SERVICE_KEY  Supabase -> Project Settings -> API -> service_role
+# Optional var: LUCKY_CREATORS_URL = "https://creators.luckygolf.com" (the app's public origin, for the links it posts)
