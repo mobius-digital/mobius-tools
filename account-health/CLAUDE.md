@@ -821,3 +821,10 @@ Cole: about $0.06 a draft and NOT worse. The blunt 24k trim lost exactly what ma
   Tests: `node test-ideas.mjs`, 45 checks (focused brain, picker + cache + re-pick + bad pick, compare with both random
   orders).
 
+### Blind test result (2026-09-30)
+Cole ran `compare` on the Waterboy idea and picked **Version B = Opus 5.5** ("not close": sharper concept, correct
+solution-aware call, grounded in quotes and the 312-9 losing test, the scissors explained). Measured: Opus 5.5 $0.222
+(22k cache write, 4.3k out), Sonnet 5.5 $0.086 (1.8k out), video watch + line pick $0.011; Gemini streaming DID watch
+the video this time. **Opus 5.5 is now the default; "quick" in the tag = Sonnet 5.5** (`idea_thread.deep` 1/0 keeps
+Redo and Make on the thread's model). Cole's $0.06 bar is not reachable at this quality; expect ~$0.15-0.22 a first tag.
+

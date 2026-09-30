@@ -54,8 +54,10 @@ export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI = 'https://generativelanguage.googleapis.com';
 const SCRAPE = 'https://api.scrapecreators.com';
 /* COST (2026-09-29, Cole: "pennies, $0.06 or less", and not worse). The first live draft on Opus 5
-   with the full brain cost $0.34. Default = Sonnet 5.5; "deep" in the tag = Opus 5.5. Both read the
-   FOCUSED brain (the idea's product line at full depth, see brain.js), never a blunt trim.
+   with the full brain cost $0.34. 2026-09-30 blind test on the Waterboy idea: Cole picked Opus 5.5
+   ("not close": sharper concept, right awareness call, grounded in quotes and losing tests), so
+   OPUS 5.5 IS THE DEFAULT and "quick" in the tag = Sonnet 5.5.
+   Both read the FOCUSED brain (the idea's product line at full depth, see brain.js), never a blunt trim.
    Per million tokens; write = 1.25x input (5 minute cache). Opus 5.5 always thinks (adaptive). */
 export const MODELS = {
   fast: { id: 'claude-sonnet-5-5', in: 2, write: 2.5, read: 0.2, out: 10, effort: 'medium' },
@@ -67,7 +69,7 @@ const PRICE = { ...MODELS.fast, g_in: 0.30, g_out: 2.50, download: 0.00188 };
 const priceOf = (M, u = {}) => ((u.input_tokens || 0) * M.in + (u.cache_creation_input_tokens || 0) * M.write
   + (u.cache_read_input_tokens || 0) * M.read + (u.output_tokens || 0) * M.out) / 1e6;
 const r4 = n => Math.round((n || 0) * 10000) / 10000;
-const wantsDeep = text => /\bdeep\b/i.test(String(text || ''));
+const wantsQuick = text => /\bquick\b/i.test(String(text || ''));
 const wantsCompare = text => /\bcompare\b/i.test(stripTags(text));
 export const DEFAULT_APPROVERS = 'U06C37MDWD7,U06K732S4BD';   // Cole, Ahsan
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
@@ -852,10 +854,10 @@ export async function runIdeaJob(env, job) {
     }
     if (imgs.length > MAX_IMAGES) notes.push(`Only the first ${MAX_IMAGES} images were read.`);
 
-    /* Default Sonnet 5.5, "deep" = Opus 5.5; both read the brain FOCUSED on the idea's product line
-       (picked once per thread by a tiny call; no pick = the full brain). The creator link is already
-       in the prompt below, so the brain leaves it out. */
-    const deep = !compare && (wantsDeep(job.text) || (job.kind !== 'draft' && !!row?.deep));
+    /* Default Opus 5.5 (Cole's pick in the blind test), "quick" = Sonnet 5.5; Redo and Make keep the
+       thread's model. Both read the brain FOCUSED on the idea's product line (picked once per thread by
+       a tiny call; no pick = the full brain). The creator link is already in the prompt below. */
+    const deep = !compare && (job.kind === 'draft' ? !wantsQuick(job.text) : (row?.deep == null ? true : !!row.deep));
     const M = deep ? MODELS.deep : MODELS.fast;
     const pick = await pickLines(env, acct, t, job, row, seenFacts);
     const pickCost = pick?.cost || 0;

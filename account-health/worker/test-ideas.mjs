@@ -296,9 +296,9 @@ await check('first tag: watches the TikTok once, reads the image, one Claude cal
   assert.match(media[0].facts_json, /golfguy/);
   const run = db.prepare('SELECT * FROM idea_run WHERE idea_id = ?').get(`${CH}:100.1`);
   assert.equal(run.status, 'done'); assert.equal(run.videos_new, 1); assert.equal(run.g_in, 12000); assert.equal(run.c_cache_read, 15000);
-  /* Sonnet 5.5 by default (Cole's target: $0.06 or less): 3000 in + 15000 cache read + 1500 out + Gemini. */
-  assert.ok(run.cost > 0.02 && run.cost < 0.06, `cost ${run.cost}`);
-  assert.equal(lastClaudeBody.model, 'claude-sonnet-5-5');
+  /* Opus 5.5 by default (Cole's pick in the 2026-09-30 blind test): 3000 in + 15000 cache read + 1500 out + Gemini. */
+  assert.ok(run.cost > 0.03 && run.cost < 0.08, `cost ${run.cost}`);
+  assert.equal(lastClaudeBody.model, 'claude-opus-5-5');
   const sys = lastClaudeBody.system;
   assert.equal(sys.length, 2); assert.match(sys[0].text, /MOBIUS FRAMEWORK/); assert.match(sys[0].text, /SPECIFICITY RULES/);
   assert.deepEqual(sys[1].cache_control, { type: 'ephemeral' });
@@ -468,15 +468,15 @@ await check('only the suggested draft up front; "Make Asana brief draft" writes 
   assert.equal(d.creator_link.title, 'The garage rant', 'the stored creator draft survives');
   assert.ok(actionIds(lastPost().blocks).includes('idea_asana'));
 });
-await check('"deep" in the tag runs Opus 5.5, and Redo on that thread stays deep', async () => {
+await check('"quick" in the tag runs Sonnet 5.5, and Redo on that thread stays quick', async () => {
   const id = `${CH}:710.1`;
-  threads[id] = [{ ts: '710.1', user: 'U_COLE', text: 'Big one, go deep on this <@U_BOT>' }];
-  const r = await ideas.runIdeaJob(env, job('710.1', '<@U_BOT> deep'));
+  threads[id] = [{ ts: '710.1', user: 'U_COLE', text: 'Small one, quick pass <@U_BOT>' }];
+  const r = await ideas.runIdeaJob(env, job('710.1', '<@U_BOT> quick'));
   assert.equal(r.ok, true, r.error);
-  assert.equal(lastClaudeBody.model, 'claude-opus-5-5');
-  assert.equal(row(id).deep, 1);
+  assert.equal(lastClaudeBody.model, 'claude-sonnet-5-5');
+  assert.equal(row(id).deep, 0);
   await ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: 'U_RANDO' }, container: { channel_id: CH }, actions: [{ action_id: 'idea_redo', value: JSON.stringify({ i: id }) }] });
-  assert.equal(lastClaudeBody.model, 'claude-opus-5-5');
+  assert.equal(lastClaudeBody.model, 'claude-sonnet-5-5');
 });
 
 /* ---------------- focused brain, line picker, blind compare ---------------- */
@@ -515,7 +515,7 @@ await check('line picker: one small Sonnet call first, brain focused on its pick
   assert.match(lastClaudeBody.system[1].text, /FOCUSED ON: Night Out Defense/); assert.doesNotMatch(lastClaudeBody.system[1].text, /Maid of honor planner/);
   assert.deepEqual(JSON.parse(row(id).lines_json).ids, ['ln_night']);
   const run = db.prepare(`SELECT * FROM idea_run WHERE idea_id = ? ORDER BY rowid DESC`).get(id);
-  assert.ok(run.pick_cost > 0 && run.cost > run.pick_cost, `pick ${run.pick_cost} of ${run.cost}`); assert.equal(run.model, 'claude-sonnet-5-5');
+  assert.ok(run.pick_cost > 0 && run.cost > run.pick_cost, `pick ${run.pick_cost} of ${run.cost}`); assert.equal(run.model, 'claude-opus-5-5');
   assert.match(JSON.stringify(lastPost().blocks), /Written for the Night Out Defense line/);
   threads[id].push({ ts: '800.2', user: 'U_COLE', text: 'Shorter hook <@U_BOT>' });
   calls.length = 0;
