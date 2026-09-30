@@ -28,6 +28,15 @@
  * Locus Studio, Connect Atria): the public MP4 goes to Gemini like an upload, an image ad goes
  * to Claude like an image, and the ad's text (advertiser, copy, CTA, landing page, days running,
  * transcript, creative tags) rides in the breakdown. Cached per ad in idea_media as `atria:<id>`.
+ *
+ * FOCUSED BRAIN + BLIND COMPARE (2026-09-29, Cole: about $0.06 a draft and NOT worse). Before the
+ * draft, one tiny Sonnet call (pickLines) picks the product line the idea is about; the brain is then
+ * built FOCUSED on that line (brain.js: everything brand-wide at full depth, that line's personas,
+ * quotes, market and tests at full depth, other lines one line each). The pick is cached on the
+ * thread (idea_thread.lines_json) so a re-tag, Redo or Make reuses it unless the new words name
+ * another line. "compare" in the tag writes the SAME prompt with Sonnet 5.5 and Opus 5.5 and posts
+ * them as Version A and Version B in random order, with no model, no cost and no buttons; the
+ * mapping is in idea_run (kind compare_A / compare_B, model, cost, card_ts).
  */
 import { claude, jsonOf, clip, safeJson } from './research.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
@@ -44,16 +53,22 @@ export function useFetch(f) { F = f; }
 export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI = 'https://generativelanguage.googleapis.com';
 const SCRAPE = 'https://api.scrapecreators.com';
-/* COST (2026-09-29, Cole: "pennies, $0.06 or less"). The first live draft on Opus 5 with the full
-   brain cost $0.34. Default now = Sonnet 5.5 with a slimmer brain (~5 cents). Saying "deep" in the
-   tag runs Opus 5 with the full brain for the ideas that deserve it (~25 cents).
-   Per million tokens; write = 1.25x input (5 minute cache). */
-const MODELS = {
-  fast: { id: 'claude-sonnet-5-5', in: 2, write: 2.5, read: 0.2, out: 10, brainMax: 24000, effort: 'medium' },
-  deep: { id: 'claude-opus-5', in: 5, write: 6.25, read: 0.5, out: 25, brainMax: 0, effort: 'medium' },
+/* COST (2026-09-29, Cole: "pennies, $0.06 or less", and not worse). The first live draft on Opus 5
+   with the full brain cost $0.34. Default = Sonnet 5.5; "deep" in the tag = Opus 5.5. Both read the
+   FOCUSED brain (the idea's product line at full depth, see brain.js), never a blunt trim.
+   Per million tokens; write = 1.25x input (5 minute cache). Opus 5.5 always thinks (adaptive). */
+export const MODELS = {
+  fast: { id: 'claude-sonnet-5-5', in: 2, write: 2.5, read: 0.2, out: 10, effort: 'medium' },
+  deep: { id: 'claude-opus-5-5', in: 4, write: 5, read: 0.2, out: 20, effort: 'medium' },
 };
+/* The line picker: the cheapest sensible call (a few hundred tokens out). */
+const PICK = { ...MODELS.fast, effort: 'low', maxTokens: 2000 };
 const PRICE = { ...MODELS.fast, g_in: 0.30, g_out: 2.50, download: 0.00188 };
+const priceOf = (M, u = {}) => ((u.input_tokens || 0) * M.in + (u.cache_creation_input_tokens || 0) * M.write
+  + (u.cache_read_input_tokens || 0) * M.read + (u.output_tokens || 0) * M.out) / 1e6;
+const r4 = n => Math.round((n || 0) * 10000) / 10000;
 const wantsDeep = text => /\bdeep\b/i.test(String(text || ''));
+const wantsCompare = text => /\bcompare\b/i.test(stripTags(text));
 export const DEFAULT_APPROVERS = 'U06C37MDWD7,U06K732S4BD';   // Cole, Ahsan
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const ANGLES = 'https://tools.go-mobius-digital.com/angles/';
@@ -103,6 +118,11 @@ export async function ensureIdeaTables(env) {
   ]) await env.DB.prepare(sql).run();
   /* Added 2026-09-29: remembers a "deep" (Opus) thread so Redo and Make-draft stay on the same model. */
   await env.DB.prepare(`ALTER TABLE idea_thread ADD COLUMN deep INTEGER NOT NULL DEFAULT 0`).run().catch(() => {});
+  /* Added 2026-09-29 (focused brain + blind compare): the cached line pick per thread, and per run the
+     model, the picker's cost and (for compare cards) which Slack message the version was posted as. */
+  for (const sql of [`ALTER TABLE idea_thread ADD COLUMN lines_json TEXT`, `ALTER TABLE idea_run ADD COLUMN model TEXT`,
+    `ALTER TABLE idea_run ADD COLUMN pick_cost REAL NOT NULL DEFAULT 0`, `ALTER TABLE idea_run ADD COLUMN card_ts TEXT`])
+    await env.DB.prepare(sql).run().catch(() => {});
   ready = true;
 }
 export function _resetForTests() { ready = false; }
@@ -231,6 +251,8 @@ export async function ideaWanted(env, ev) {
   const root = ev.thread_ts || ev.ts;
   if (await env.DB.prepare(`SELECT 1 AS x FROM idea_thread WHERE id = ?1`).bind(`${ev.channel}:${root}`).first()) return true;
   if (IDEA_WORDS.test(said)) return true;
+  /* "compare" (the blind model test) inside a thread, unless it is about the numbers. */
+  if (ev.thread_ts && /\bcompare\b/i.test(said) && !NUMBER_WORDS.test(said)) return true;
   const own = { social: linksOf(ev.text).some(classifyLink), video: (ev.files || []).some(isVideoFile), image: (ev.files || []).some(isImageFile) };
   if (own.social || own.video) return true;
   if (own.image && !NUMBER_WORDS.test(said)) return true;
@@ -525,6 +547,58 @@ ${SPECIFICITY}
 No em dashes anywhere. Plain English, like a person talking to a colleague.`;
 }
 
+/* ---------------- which product line (so the brain can focus) ---------------- */
+const PICK_SCHEMA = obj({ line_ids: arr(S), why: S });
+const PICK_SYSTEM = `You sort ad ideas for a brand by product line. Read the Slack thread and the facts about the reference, then pick the product line of THIS brand the idea would sell. Pick ONE line. Pick two only if you genuinely cannot tell which of the two it is. Use the line ids exactly as given. why: one short plain sentence. No em dashes.`;
+const lineKey = n => String(n || '').replace(/\s*\(.*$/, '').toLowerCase().replace(/[^a-z0-9']+/g, ' ').trim();
+/* The reference in a few lines: enough to tell which product it is about. */
+function factsBrief(list) {
+  return list.map(({ label, facts: f = {} }) => {
+    const a = f.atria || {};
+    const bits = [
+      f.hook?.spoken && `hook said: "${clip(f.hook.spoken, 200)}"`, f.hook?.on_screen_text && `hook on screen: "${clip(f.hook.on_screen_text, 160)}"`,
+      f.product && `product: ${clip(typeof f.product === 'string' ? f.product : JSON.stringify(f.product), 240)}`,
+      a.advertiser && `advertiser: ${clip(a.advertiser, 80)}`, a.headline && `headline: ${clip(a.headline, 160)}`, a.body_copy && `ad copy: ${clip(a.body_copy, 240)}`,
+      f.post_caption && `caption: ${clip(f.post_caption, 200)}`, (f.transcript || a.transcript) && `transcript: ${clip(String(f.transcript || a.transcript), 400)}`,
+    ].filter(Boolean);
+    return `${label}: ${bits.join('; ') || 'no details'}`;
+  }).join('\n');
+}
+/**
+ * The product line(s) this idea is about: { ids, names, why, cost, usage, cached } or null (one line
+ * or none, or the call failed: the caller then uses the full brain). Cached on the thread row; a later
+ * tag re-picks only when its words (or the messages since the last run) name another line.
+ */
+export async function pickLines(env, acct, t, job, row, facts = []) {
+  const lines = await env.DB.prepare(`SELECT id, name, about, products FROM p_br_line WHERE act_id = ?1 ORDER BY sort, created_at, id`).bind(acct.act_id).all().then(r => r.results || []).catch(() => []);
+  if (lines.length < 2) return null;
+  const known = new Set(lines.map(l => l.id));
+  const prev = row?.act_id === acct.act_id ? safeJson(row?.lines_json, null) : null;
+  if (prev?.ids?.length && prev.ids.every(id => known.has(id))) {
+    const since = row.seen_ts ? t.msgs.filter(m => +m.ts > +row.seen_ts).map(m => m.text) : [];
+    const said = ` ${[stripTags(job.text), ...since].join(' ').toLowerCase().replace(/[^a-z0-9']+/g, ' ')} `;
+    const named = lines.some(l => !prev.ids.includes(l.id) && lineKey(l.name).length >= 4 && said.includes(` ${lineKey(l.name)} `));
+    if (!named) return { ...prev, cached: true, cost: 0 };
+  }
+  const user = `BRAND: ${acct.name}\n\nPRODUCT LINES:\n${lines.map(l => `[${l.id}] ${l.name}${l.about ? `: ${clip(String(l.about).replace(/\s+/g, ' '), 300)}` : ''}${l.products ? `\n  Products: ${clip(String(l.products).replace(/\s+/g, ' '), 300)}` : ''}`).join('\n')}`
+    + `\n\nTHE THREAD:\n${clip(transcriptOf(t), 6000)}\n\nTHE TAG: "${clip(stripTags(job.text), 300) || '(just the tag)'}"`
+    + (facts.length ? `\n\nTHE REFERENCE (facts from a video model or the ad library):\n${factsBrief(facts)}` : '');
+  try {
+    const m = await claude(env, { system: PICK_SYSTEM, user, schema: PICK_SCHEMA, effort: PICK.effort, maxTokens: PICK.maxTokens, model: PICK.id });
+    const u = m.usage || {};
+    const cost = priceOf(PICK, u);
+    const out = jsonOf(m);
+    const ids = [...new Set((out.line_ids || []).map(String))].filter(id => known.has(id)).slice(0, 2);
+    if (!ids.length) { console.log(`idea line pick: no known line in ${JSON.stringify(out.line_ids)}`); return { ids: [], cost, usage: u }; }
+    const pick = { ids, names: ids.map(id => lines.find(l => l.id === id).name), why: nd(clip(out.why, 300)) };
+    await env.DB.prepare(`UPDATE idea_thread SET lines_json = ?2 WHERE id = ?1`).bind(`${job.channel}:${job.root}`, JSON.stringify(pick)).run();
+    return { ...pick, cost, usage: u };
+  } catch (e) {
+    console.log(`idea line pick failed: ${e.message}`);
+    return null;
+  }
+}
+
 function transcriptOf(t) {
   return t.msgs.map((m, i) => `${i + 1}. ${m.name}: ${m.text || '(no words)'}${m.tags.length ? ` [${m.tags.join(', ')}]` : ''}`).join('\n');
 }
@@ -645,25 +719,9 @@ export function ideaCard(row, acct, hub) {
     blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Answer in this thread and tag me again.${row.last_cost ? `  ·  This run cost about $${row.last_cost.toFixed(2)}.` : ''}` }] });
     return { text: `Questions before I draft the ${acct?.name || ''} idea`, blocks };
   }
-  const t = d.teardown || {};
-  const why = [`*Why it works*`, esc(t.summary)];
-  if (t.hook_why) why.push(`• Hook: ${esc(t.hook_why)}`);
-  if (t.desire) why.push(`• Desire: ${esc(t.desire)}`);
-  if (t.awareness) why.push(`• Awareness: ${esc(t.awareness)}`);
-  if (t.sophistication) why.push(`• Sophistication: ${esc(t.sophistication)}`);
-  if (t.mechanism) why.push(`• Mechanism: ${esc(t.mechanism)}`);
-  if (t.proof) why.push(`• Proof: ${esc(t.proof)}`);
-  if (t.weak) why.push(`*Don't copy:* ${esc(t.weak)}`);
-  blocks.push(...sections(why.join('\n')));
-  const tr = d.transfer || {};
-  const pick = d.destination?.pick === 'lucky_creators' && !lucky ? 'creator_link' : d.destination?.pick;
-  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Take:* ${MODE[tr.mode] || 'A mix'}. ${esc(tr.reason)}${tr.disagreement ? `\n_${esc(tr.disagreement)}_` : ''}\n*Best home:* ${DESTS[pick] || 'Asana brief'}. ${esc(d.destination?.reason)}` } });
-  if (qs.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Worth answering: ${qs.map(q => esc(q.q)).join('  /  ')}` }] });
-  blocks.push({ type: 'divider' });
-  const draft = pick === 'asana_brief' ? asanaText(d.asana) : pick === 'studio' ? studioText(d.studio) : creatorText(d.creator_link, hub, pick === 'lucky_creators');
-  blocks.push(...sections(draft || asanaText(d.asana) || studioText(d.studio) || creatorText(d.creator_link, hub, lucky)));
-  const others = Object.keys(DESTS).filter(k => k !== pick && k !== 'lucky_creators' && has(d)[k]).map(k => DESTS[k]);
-  if (others.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Drafts for ${others.join(' and ')} are ready too: the buttons send them as drafted.` }] });
+  const body = draftBody(d, acct, hub);
+  blocks.push(...body.blocks);
+  const pick = body.pick;
   const done = [];
   if (pushed.creator_link) done.push(`✓ On the creator link: ${pushed.creator_link.url ? `<${pushed.creator_link.url}|${esc(pushed.creator_link.title)}>` : esc(pushed.creator_link.title)}`);
   if (pushed.lucky_creators) done.push('✓ Saved for the Lucky creator app (hookup is next)');
@@ -683,9 +741,53 @@ export function ideaCard(row, acct, hub) {
   els.push(btn('Discard', 'idea_discard', row.id, { style: 'danger', confirm: { title: { type: 'plain_text', text: 'Discard this draft?' }, text: { type: 'plain_text', text: 'The draft is dropped. Anything already sent on stays where it is.' }, confirm: { type: 'plain_text', text: 'Discard' }, deny: { type: 'plain_text', text: 'Keep it' } } }));
   blocks.push({ type: 'actions', elements: els.slice(0, 25) });
   const ctxs = [...notes.map(esc)];
+  const lp = safeJson(row.lines_json, null);
+  if (lp?.names?.length) ctxs.push(`Written for the ${lp.names.map(esc).join(' and ')} line${lp.names.length > 1 ? 's' : ''}.`);
   if (row.last_cost) ctxs.push(`This run cost about $${row.last_cost.toFixed(2)}${row.cost > row.last_cost ? ` ($${row.cost.toFixed(2)} for this thread so far)` : ''}. Only Cole and Ahsan can send it on.`);
   if (ctxs.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: clip(ctxs.join('\n'), 2900) }] });
   return { text: `Draft for the ${acct?.name || ''} idea`, blocks: blocks.slice(0, 50) };
+}
+
+/* The draft itself (why it works, the take, the best home, the draft for it): the same on the normal
+   card and on a blind compare card. `buttons` false leaves out the line that points at buttons. */
+function draftBody(d, acct, hub, { buttons = true } = {}) {
+  const lucky = /lucky/i.test(acct?.name || '');
+  const blocks = [];
+  const qs = (d.questions || []).filter(q => q.q);
+  const t = d.teardown || {};
+  const why = [`*Why it works*`, esc(t.summary)];
+  if (t.hook_why) why.push(`• Hook: ${esc(t.hook_why)}`);
+  if (t.desire) why.push(`• Desire: ${esc(t.desire)}`);
+  if (t.awareness) why.push(`• Awareness: ${esc(t.awareness)}`);
+  if (t.sophistication) why.push(`• Sophistication: ${esc(t.sophistication)}`);
+  if (t.mechanism) why.push(`• Mechanism: ${esc(t.mechanism)}`);
+  if (t.proof) why.push(`• Proof: ${esc(t.proof)}`);
+  if (t.weak) why.push(`*Don't copy:* ${esc(t.weak)}`);
+  blocks.push(...sections(why.join('\n')));
+  const tr = d.transfer || {};
+  const pick = d.destination?.pick === 'lucky_creators' && !lucky ? 'creator_link' : d.destination?.pick;
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Take:* ${MODE[tr.mode] || 'A mix'}. ${esc(tr.reason)}${tr.disagreement ? `\n_${esc(tr.disagreement)}_` : ''}\n*Best home:* ${DESTS[pick] || 'Asana brief'}. ${esc(d.destination?.reason)}` } });
+  if (qs.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Worth answering: ${qs.map(q => esc(q.q)).join('  /  ')}` }] });
+  blocks.push({ type: 'divider' });
+  const draft = pick === 'asana_brief' ? asanaText(d.asana) : pick === 'studio' ? studioText(d.studio) : creatorText(d.creator_link, hub, pick === 'lucky_creators');
+  blocks.push(...sections(draft || asanaText(d.asana) || studioText(d.studio) || creatorText(d.creator_link, hub, lucky)));
+  const others = Object.keys(DESTS).filter(k => k !== pick && k !== 'lucky_creators' && has(d)[k]).map(k => DESTS[k]);
+  if (buttons && others.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Drafts for ${others.join(' and ')} are ready too: the buttons send them as drafted.` }] });
+  return { blocks, pick };
+}
+
+/* An error can name the model; a blind card never does. */
+const blind = s => String(s || '').replace(/\b(claude[\w.-]*|opus[\w.-]*|sonnet[\w.-]*|fable[\w.-]*|haiku[\w.-]*)/gi, 'the model');
+/** One version of a blind compare: the draft only. No model, no cost, no buttons. */
+export function compareCard(label, d, err, acct, hub, notes = []) {
+  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*${esc(acct?.name || 'Idea')}: Version ${label}*` } }];
+  const qs = (d?.questions || []).filter(q => q.q);
+  if (err || !d) blocks.push(...sections(`_Version ${label} could not be written: ${esc(blind(clip(err || 'no answer', 200)))}_`));
+  else if (qs.some(q => q.blocking)) blocks.push(...sections(`Before I draft this, I need:\n${qs.map((q, i) => `${i + 1}. ${esc(q.q)}`).join('\n')}`));
+  else blocks.push(...draftBody(d, acct, hub, { buttons: false }).blocks);
+  const ctx = [...notes.map(n => esc(blind(n))), 'Blind test. Tell Cole\'s Claude which version reads better.'];
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: clip(ctx.join('\n'), 2900) }] });
+  return { text: `Version ${label} of the ${acct?.name || ''} idea`, blocks: blocks.slice(0, 50) };
 }
 
 /* ---------------- one run: read, watch, think, post ---------------- */
@@ -717,9 +819,10 @@ export async function runIdeaJob(env, job) {
   const acct = brandOverride(job.text, accounts) || (row?.act_id && accounts.find(a => a.act_id === row.act_id)) || accounts.find(a => a.slack_channel === job.channel);
   if (!acct) { await say(env, job.channel, job.root, 'I can\'t tell which brand this is for. Tag me again with "for <brand>".'); await done(); return { skipped: 'no brand' }; }
   const lucky = /lucky/i.test(acct.name);
+  const compare = (job.kind || 'draft') === 'draft' && wantsCompare(job.text);
   await env.DB.prepare(`INSERT INTO idea_thread (id, act_id, channel, thread_ts, status) VALUES (?1, ?2, ?3, ?4, 'working')
     ON CONFLICT(id) DO UPDATE SET act_id = excluded.act_id, status = 'working', updated_at = datetime('now')`).bind(id, acct.act_id, job.channel, job.root).run();
-  await env.DB.prepare(`INSERT INTO idea_run (id, idea_id, act_id, kind) VALUES (?1, ?2, ?3, ?4)`).bind(runId, id, acct.act_id, job.kind || 'draft').run();
+  await env.DB.prepare(`INSERT INTO idea_run (id, idea_id, act_id, kind) VALUES (?1, ?2, ?3, ?4)`).bind(runId, id, acct.act_id, compare ? 'compare' : job.kind || 'draft').run();
   const prevStatus = row?.status && row.status !== 'working' ? row.status : null;
   try {
     const rep = await slack(env, 'conversations.replies', { channel: job.channel, ts: job.root, limit: 200 }, true);
@@ -730,9 +833,10 @@ export async function runIdeaJob(env, job) {
     const notes = [];
 
     /* Videos: each watched once, ever. */
-    const breakdowns = [], imgs = [];
+    const breakdowns = [], imgs = [], seenFacts = [];
     for (const v of t.videos.slice(0, MAX_VIDEOS)) {
       const r = await videoFacts(env, v, meter);
+      if (r.facts) seenFacts.push({ label: v.label, facts: r.facts });
       if (r.facts) breakdowns.push(`${v.label} (${PLATFORM[v.platform]}${v.url ? ` ${v.url}` : ''}${r.cached ? ', read before' : ''}):\n${clip(JSON.stringify(r.facts), 12000)}`);
       else if (r.image_url) imgs.push({ label: v.label, url: r.image_url, slack: false });
       (r.image_urls || []).forEach((u, i) => imgs.push({ label: r.image_urls.length > 1 ? `${v.label}.${i + 1}` : v.label, url: u, slack: false }));
@@ -748,13 +852,17 @@ export async function runIdeaJob(env, job) {
     }
     if (imgs.length > MAX_IMAGES) notes.push(`Only the first ${MAX_IMAGES} images were read.`);
 
-    /* The deep run gets Opus and the whole brain; the default gets Sonnet and a brain trimmed to the
-       parts that shape a brief (the creator link is already in the prompt below, so it is left out). */
-    const deep = wantsDeep(job.text) || (job.kind !== 'draft' && !!row?.deep);
+    /* Default Sonnet 5.5, "deep" = Opus 5.5; both read the brain FOCUSED on the idea's product line
+       (picked once per thread by a tiny call; no pick = the full brain). The creator link is already
+       in the prompt below, so the brain leaves it out. */
+    const deep = !compare && (wantsDeep(job.text) || (job.kind !== 'draft' && !!row?.deep));
     const M = deep ? MODELS.deep : MODELS.fast;
-    const brain = await brandBrain(env, acct.act_id, { creator: false, ...(M.brainMax ? { max: M.brainMax } : {}) }).catch(() => ({ md: '' }));
+    const pick = await pickLines(env, acct, t, job, row, seenFacts);
+    const pickCost = pick?.cost || 0;
+    const brain = await brandBrain(env, acct.act_id, { creator: false, ...(pick?.ids?.length ? { lines: pick.ids } : {}) }).catch(() => ({ md: '' }));
     const hub = await hubOf(env, acct.act_id);
-    const prev = job.kind !== 'redo' && row?.draft_json ? row.draft_json : null;
+    /* A blind compare starts fresh (a revision would lean on whichever model wrote the last draft). */
+    const prev = job.kind !== 'redo' && !compare && row?.draft_json ? row.draft_json : null;
     const fresh = prev && row.seen_ts ? t.msgs.filter(m => +m.ts > +row.seen_ts) : [];
     const user = [
       { type: 'text', text: `BRAND: ${acct.name}\n\nTHE THREAD (oldest first; V1, V2 are the videos broken down below, I1, I2 the images attached):\n${clip(transcriptOf(t), 30000)}\n\nTHE TAG THAT CALLED YOU: "${clip(stripTags(job.text), 600) || '(just the tag)'}"` },
@@ -768,16 +876,20 @@ export async function runIdeaJob(env, job) {
        so the output (the expensive part) stays small; the system block is usually still cached. */
     const makeKey = job.kind === 'make' && prev ? DRAFT_KEY[job.dest] : null;
     if (makeKey) user.push({ type: 'text', text: `NOW WRITE ONLY THE ${DESTS[job.dest].toUpperCase()} DRAFT for this idea, consistent with your last draft's teardown and take. Return only that one field.` });
+    const system = [{ type: 'text', text: systemText(acct.name, lucky) }, ...(brain.md ? [brainBlock(brain.md)] : [])];
+    if (compare) {
+      const r = await runCompare(env, { job, id, acct, t, hub, system, user, notes, meter, pick, pickCost, runId, prevStatus, brainSize: brain.size || 0 });
+      await done();
+      return r;
+    }
     const m = await claude(env, {
-      system: [{ type: 'text', text: systemText(acct.name, lucky) }, ...(brain.md ? [brainBlock(brain.md)] : [])],
-      user, schema: makeKey ? obj({ [makeKey]: IDEA_SCHEMA.properties[makeKey] }) : IDEA_SCHEMA, effort: M.effort, maxTokens: 16000, model: M.id,
+      system, user, schema: makeKey ? obj({ [makeKey]: IDEA_SCHEMA.properties[makeKey] }) : IDEA_SCHEMA, effort: M.effort, maxTokens: 16000, model: M.id,
     }, null, meter);
     const u = m.usage || {};
     const d = makeKey ? { ...safeJson(prev, {}), [makeKey]: nd(jsonOf(m))[makeKey] } : nd(jsonOf(m));
     if (d.creator_link) d.creator_link = cleanCreator(d.creator_link);
     const blocking = (d.questions || []).some(q => q.blocking && q.q);
-    const cost = ((u.input_tokens || 0) * M.in + (u.cache_creation_input_tokens || 0) * M.write + (u.cache_read_input_tokens || 0) * M.read
-      + (u.output_tokens || 0) * M.out + meter.g_in * PRICE.g_in + meter.g_out * PRICE.g_out) / 1e6 + meter.downloads * PRICE.download;
+    const cost = priceOf(M, u) + (meter.g_in * PRICE.g_in + meter.g_out * PRICE.g_out) / 1e6 + meter.downloads * PRICE.download + pickCost;
     const refs = t.videos.filter(v => v.platform !== 'slack').map(v => v.link || v.url);
     const from = t.msgs[0]?.name || 'the team';
     const status = blocking ? 'questions' : (prevStatus === 'pushed' ? 'pushed' : 'drafted');
@@ -793,10 +905,10 @@ export async function runIdeaJob(env, job) {
     if (!posted.ok) throw Object.assign(new Error(`I could not post the draft: ${slackWhy(posted.error || 'error')}.`), { plain: true });
     await env.DB.prepare(`UPDATE idea_thread SET reply_ts = ?2 WHERE id = ?1`).bind(id, posted.ts).run();
     await env.DB.prepare(`UPDATE idea_run SET status = 'done', c_in = ?2, c_cache_read = ?3, c_cache_write = ?4, c_out = ?5, g_in = ?6, g_out = ?7,
-      downloads = ?8, videos_new = ?9, videos_cached = ?10, cost = ?11, finished_at = datetime('now') WHERE id = ?1`)
+      downloads = ?8, videos_new = ?9, videos_cached = ?10, cost = ?11, model = ?12, pick_cost = ?13, card_ts = ?14, finished_at = datetime('now') WHERE id = ?1`)
       .bind(runId, u.input_tokens || 0, u.cache_read_input_tokens || 0, u.cache_creation_input_tokens || 0, u.output_tokens || 0,
-        meter.g_in, meter.g_out, meter.downloads, meter.videos_new, meter.videos_cached, Math.round(cost * 10000) / 10000).run();
-    console.log(`idea ${id} ${acct.name}: $${cost.toFixed(4)} (claude in ${u.input_tokens || 0}, cache read ${u.cache_read_input_tokens || 0}, write ${u.cache_creation_input_tokens || 0}, out ${u.output_tokens || 0}; gemini ${meter.g_in}/${meter.g_out}; videos new ${meter.videos_new}, cached ${meter.videos_cached})`);
+        meter.g_in, meter.g_out, meter.downloads, meter.videos_new, meter.videos_cached, r4(cost), M.id, r4(pickCost), posted.ts || null).run();
+    console.log(`idea ${id} ${acct.name}: ${M.id} $${cost.toFixed(4)}, brain ${brain.size || 0} chars${pick?.names ? ` on ${pick.names.join(' + ')}${pick.cached ? ' (cached pick)' : ` (pick $${pickCost.toFixed(4)})`}` : ' (full)'} (claude in ${u.input_tokens || 0}, cache read ${u.cache_read_input_tokens || 0}, write ${u.cache_creation_input_tokens || 0}, out ${u.output_tokens || 0}; gemini ${meter.g_in}/${meter.g_out}; videos new ${meter.videos_new}, cached ${meter.videos_cached})`);
     await done();
     return { ok: true, status, cost, videos_new: meter.videos_new, videos_cached: meter.videos_cached };
   } catch (e) {
@@ -807,6 +919,44 @@ export async function runIdeaJob(env, job) {
     await done();
     return { ok: false, error: e.message };
   }
+}
+
+/**
+ * BLIND COMPARE: the identical prompt to Sonnet 5.5 and Opus 5.5, posted as Version A and Version B in
+ * random order. The cards never say which model or what it cost; idea_run keeps the mapping (kind
+ * compare_A / compare_B, model, cost, tokens, card_ts). The thread's stored draft is not touched.
+ */
+async function runCompare(env, c) {
+  const { job, id, acct, t, hub, system, user, notes, meter, pick, pickCost, runId, prevStatus, brainSize } = c;
+  const order = Math.random() < 0.5 ? [MODELS.fast, MODELS.deep] : [MODELS.deep, MODELS.fast];
+  const settled = await Promise.allSettled(order.map(M => claude(env, { system, user, schema: IDEA_SCHEMA, effort: M.effort, maxTokens: 16000, model: M.id }, null, { in: 0, out: 0, searches: 0 })));
+  const shared = (meter.g_in * PRICE.g_in + meter.g_out * PRICE.g_out) / 1e6 + meter.downloads * PRICE.download + pickCost;
+  let total = shared;
+  const versions = [];
+  for (const [i, M] of order.entries()) {
+    const label = 'AB'[i], s = settled[i];
+    let d = null, u = {}, cost = 0, err = null;
+    if (s.status === 'fulfilled') {
+      u = s.value.usage || {}; cost = priceOf(M, u);
+      try { d = nd(jsonOf(s.value)); if (d.creator_link) d.creator_link = cleanCreator(d.creator_link); } catch (e) { err = e.message; }
+    } else err = s.reason?.message || 'no answer';
+    total += cost;
+    const card = compareCard(label, d, err, acct, hub, notes);
+    const posted = await say(env, job.channel, job.root, card.text, card.blocks);
+    await env.DB.prepare(`INSERT INTO idea_run (id, idea_id, act_id, kind, status, model, c_in, c_cache_read, c_cache_write, c_out, cost, error, card_ts, finished_at)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, datetime('now'))`)
+      .bind(rid(), id, acct.act_id, `compare_${label}`, err ? 'failed' : 'done', M.id, u.input_tokens || 0, u.cache_read_input_tokens || 0,
+        u.cache_creation_input_tokens || 0, u.output_tokens || 0, r4(cost), err ? clip(err, 500) : null, posted.ts || null).run();
+    versions.push({ label, model: M.id, cost, ts: posted.ts || null, error: err });
+    console.log(`idea compare ${id} ${acct.name} Version ${label} = ${M.id}: $${cost.toFixed(4)} (in ${u.input_tokens || 0}, cache read ${u.cache_read_input_tokens || 0}, write ${u.cache_creation_input_tokens || 0}, out ${u.output_tokens || 0})${err ? ` FAILED ${err}` : ''}`);
+  }
+  await env.DB.prepare(`UPDATE idea_run SET status = 'done', g_in = ?2, g_out = ?3, downloads = ?4, videos_new = ?5, videos_cached = ?6, cost = ?7, pick_cost = ?8,
+    model = ?9, finished_at = datetime('now') WHERE id = ?1`)
+    .bind(runId, meter.g_in, meter.g_out, meter.downloads, meter.videos_new, meter.videos_cached, r4(shared), r4(pickCost), pick && !pick.cached ? PICK.id : null).run();
+  /* The stored draft, its card and its run count stay as they were; only the thread's total cost moves. */
+  await env.DB.prepare(`UPDATE idea_thread SET status = ?2, cost = cost + ?3, updated_at = datetime('now') WHERE id = ?1`).bind(id, prevStatus || 'compared', total).run();
+  console.log(`idea compare ${id} ${acct.name}: brain ${brainSize} chars${pick?.names ? ` on ${pick.names.join(' + ')}` : ' (full)'}, shared $${shared.toFixed(4)}, total $${total.toFixed(4)}`);
+  return { ok: true, status: 'compared', cost: total, versions, videos_new: meter.videos_new, videos_cached: meter.videos_cached };
 }
 
 /* ---------------- the buttons ---------------- */

@@ -648,13 +648,16 @@ with no copy skill got "you write copy for X"). `src/brain.js` fixes the context
   tests, each with a floor (`TRIM_FLOOR`); staff rules are never cut. Measured after the import:
   Party Patch 59.9k, Bonk 57.4k, Dartee 59.5k, Grunk 59.8k; every brand keeps all its personas,
   all nuggets and its full test history, and two runs produce byte-identical output (cache-safe).
+- **Focused mode (2026-09-29):** `brandBrain(env, act, {lines: [ids]})` narrows personas, quotes, market docs and
+  line-tied tests to those lines at full depth and keeps everything brand-wide (voice always). Used by the ideas bot;
+  see "Focused brain, line picker, blind compare" under the Ideas bot.
 
 ## Ideas bot (2026-09-29)
 
 An idea dropped in a brand's INTERNAL channel (`accounts.slack_channel`, the `-internal`
 channels; clients are never in them) becomes a draft brief when someone tags @Mobius Digital
 in the thread. Code: `src/ideas.js`; tests: `node test-ideas.mjs` (39 offline checks, mocked
-Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule).
+Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule; 45 since the focused-brain pass).
 
 - **Routing.** Slack events already reach this worker through slack-router (`/slack/events`
   forwards any channel registered as an account's `slack_channel`; DMs and everything else go
@@ -678,8 +681,9 @@ Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule).
   TikTok / Instagram go through `fetchSocialVideo()` (ScrapeCreators, `DOWNLOADER_KEY`). Images
   go straight to Claude (no Gemini). Missing `GEMINI_API_KEY` or `DOWNLOADER_KEY` = a plain line
   in the card ("upload the file and tag me again") and the draft is still written from the words.
-- **Thinking:** one `claude()` call (research.js, Opus 5) per tag. System = the framework +
-  transfer rules + SPECIFICITY, then `brainBlock(brandBrain(act))` (cached). Output `IDEA_SCHEMA`:
+- **Thinking:** one `claude()` call (research.js; Sonnet 5.5 by default, see the cost pass below) per tag, after a tiny
+  line-picker call. System = the framework + transfer rules + SPECIFICITY, then `brainBlock(brandBrain(act, {lines}))`
+  (cached; focused on the idea's product line). Output `IDEA_SCHEMA`:
   teardown, transfer (as_is / style / hook_only / mixed; team notes outrank the model; the latest
   direction wins and is named), 0-3 questions (any `blocking` = questions-only reply, no draft),
   destination (creator_link / lucky_creators / asana_brief / studio) and a draft for every
@@ -758,11 +762,12 @@ Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule).
 ### Ideas bot cost + quality pass (2026-09-29, after the first live run)
 - **First live run:** Opus 5 + the full 60k-char brain + drafts for every destination = **$0.34** (cache WRITE of a 28k-token
   system block $0.175, 6k output tokens $0.15), and Gemini answered 524. Cole's bar: **$0.06 or less per idea.**
-- **Default model is now Sonnet 5.5** (`MODELS.fast`, $2/$10, effort medium) with the brain capped at **24k chars**
-  (`brandBrain(act, {creator:false, max:24000})`; the creator link is already in the user prompt). Party Patch keeps
-  staff rules, Viktor notes, lines, all personas, 50 quotes, competitors and past tests. Target ~5-6 cents.
-- **"deep" in the tag** = `MODELS.deep` (Opus 5, full brain, ~25 cents); stored as `idea_thread.deep` so Redo /
-  Make-draft stay on the same model. `claude()` in research.js now takes an optional `model`.
+- **Default model is Sonnet 5.5** (`MODELS.fast`, $2 in / $2.5 cache write / $0.20 cache read / $10 out, effort
+  medium). The 24k-char blunt cap it first shipped with is GONE (see "Focused brain" below): for Party Patch it had cut
+  personas 10.9k to 4.8k, quotes 10k to 4k, tests in half and dropped "How the brand sounds".
+- **"deep" in the tag** = `MODELS.deep` = **Opus 5.5** ($4 / $5 / $0.20 / $20, effort medium; it always thinks,
+  `claude()` sends adaptive); stored as `idea_thread.deep` so Redo / Make-draft stay on the same model. `claude()` in
+  research.js takes an optional `model`.
 - **One draft up front**: only the suggested destination is written; the others are "Make <dest> draft" buttons
   (`idea_make`, open to anyone) that write just that field on top of the stored draft (narrowed schema).
 - **Creator link is the default destination** (Cole: "this is mainly for the creators"); props a creator owns do not
@@ -771,4 +776,48 @@ Slack / Gemini / ScrapeCreators / Claude / Asana / Atria, plus the router rule).
   `visual_moments` (odd props/actions, zooms, text pops, reveals) the model must find on its own.
 - Card: `sections()` splits on lines and never drops text; model-numbered lines are de-numbered; awareness and
   sophistication are separate bullets.
+
+### Focused brain, line picker, blind compare (2026-09-29, same evening)
+Cole: about $0.06 a draft and NOT worse. The blunt 24k trim lost exactly what makes a draft specific, so:
+- **Focused brain** (`brandBrain(env, act, {lines: [ids]})`, brain.js). Brand-wide stays at FULL depth: brand facts,
+  staff rules, Viktor's notes, competitors, GAPS and **How the brand sounds (always, never trimmed)**. Line-tied parts
+  are narrowed to the chosen line(s) at full depth: that line's market + mechanism, ALL its personas, ALL its quotes
+  (nuggets first; caps open to 30 personas / 120 quotes), and the tests on angles tied to it. Rows with no line stay in.
+  Other lines become one line each ("Other product lines ...: name: what it is"). Viktor's notes drop only bullets or
+  `###` subsections whose label NAMES another line (for example "- Party Themes: ..." under Per-line competitor notes).
+  How rows tie to a line (checked in the schema, not guessed): `line_id` on p_br_persona / p_br_voc / p_br_doc;
+  p_br_angle has its own `line_id`, else its persona's line; p_br_batch ties through its angle. **As of 2026-09-29 no
+  angle in any brand has a line_id or persona_id, so every test stays in** (they narrow automatically once angles are
+  filed to lines). No lines = the full brain exactly as before. Deterministic (cache-safe). Safety cap `FOCUS_MAX`
+  45k (not 40k: at 40k Party Patch and Bonk lost brand facts); over it, trim order `TRIM_FOCUS` = older research
+  notes, then the OLDEST tests, then competitors, brand, Viktor, lines, quotes, personas; staff rules and voice never.
+- **Measured (real D1, `creator:false`):** Party Patch full 53.7k chars; focused on Night Out Defense **43.9k**, no trim:
+  brand 4.8k, rules 0.7k, Viktor 4.0k (other lines' notes gone), lines 4.0k (was 8.7k), personas 5.3k (4 of 4, was
+  10.9k for all 11), quotes 9.6k (**56 of 56** Night Out quotes, was 50 of 116 across lines), competitors 2.3k, tests
+  9.5k, voice 2.7k, gaps 0.7k. Main line, untrimmed: Lucky 44.8k, Bonk 46.6k, Dartee 50.3k, Grunk 51.7k (the last two
+  carry 8k of older research notes, cut first).
+- **Line picker** (`pickLines`, ideas.js): one call before the draft, Sonnet 5.5, effort low, max 2000 tokens,
+  schema `{line_ids, why}`; input = the thread, the tag, a few-line summary of each reference (hook, product,
+  advertiser, headline, copy, caption, transcript excerpt) and the brand's lines (id, name, about, products). One line,
+  two only if unsure; unknown ids are dropped. Cached on `idea_thread.lines_json` {ids, names, why}; a re-tag, Redo or
+  Make reuses it unless the tag or the messages since the last run NAME another line (its short name). One line or
+  none, a failed call or no known id = the full brain. Cost in the run (`idea_run.pick_cost`, included in `cost`);
+  the card footer says "Written for the <line> line."
+- **Blind compare:** "compare" in the tag (inside a thread, not with a numbers word) fetches thread + media once, runs
+  the picker once (or reuses it), then sends the IDENTICAL prompt (fresh, no last draft) to Sonnet 5.5 and Opus 5.5 in
+  parallel and posts "Version A" and "Version B" in RANDOM order (`Math.random`). The cards carry no model, no cost and
+  no buttons, only "Blind test. Tell Cole's Claude which version reads better." The thread's stored draft, card, runs
+  and status are untouched (a thread with no draft gets status `compared`). **Which was which:**
+  `SELECT kind, model, cost, c_in, c_cache_write, c_cache_read, c_out, card_ts, started_at FROM idea_run WHERE
+  idea_id = '<channel>:<thread_ts>' AND kind LIKE 'compare_%' ORDER BY started_at DESC` (the shared Gemini + picker
+  cost is on the `compare` row); the worker log prints "Version A = <model>" too.
+- **Cost estimate (not yet measured live).** The first live run cache-wrote 28,005 tokens for about 66k chars, so about
+  2.4 chars per token. Focused PP brain + system is about 50k chars, about 21k tokens. Sonnet 5.5, first tag: cache
+  write ~$0.053 + ~4k input ~$0.008 + ~3k out ~$0.03 + picker ~$0.005 = **~$0.09-0.10** (plus ~$0.005 per new video).
+  Within 5 minutes on the same brand + line (Redo, Make, a re-tag) the brain is a cache read: **~$0.05**. Opus 5.5:
+  **~$0.20** first tag, ~$0.10 warm. A compare costs both, about $0.28. The brain is the cost: each ~10k chars of brain
+  is about $0.01 on a cache write with Sonnet.
+- `idea_run` gained `model`, `pick_cost`, `card_ts`; `idea_thread` gained `lines_json` (ALTERs in `ensureIdeaTables`).
+  Tests: `node test-ideas.mjs`, 45 checks (focused brain, picker + cache + re-pick + bad pick, compare with both random
+  orders).
 

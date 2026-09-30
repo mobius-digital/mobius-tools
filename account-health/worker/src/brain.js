@@ -26,11 +26,22 @@
  * clip() never splits an emoji.
  *
  * SPECIFICITY is the rule block every creative prompt carries with the brain.
+ *
+ * FOCUSED BRAIN (2026-09-29, the ideas bot): brandBrain(env, act, { lines: [line ids] }) keeps
+ * everything brand-wide at full depth (brand facts, staff rules, Viktor's notes, competitors, how
+ * the brand sounds, GAPS) but narrows the LINE-TIED parts to the chosen line(s): their market and
+ * mechanism, all their personas, all their customer quotes (nuggets first) and the tests on angles
+ * tied to them. Rows with no line stay in. Other lines shrink to one line each (name + what it is)
+ * so the model knows they exist. How rows tie to a line: p_br_line.id = line_id on p_br_persona,
+ * p_br_voc and p_br_doc; p_br_angle has its own line_id, else its persona's line; p_br_batch
+ * ties through its angle. Viktor's notes drop only bullets and subsections that NAME another line
+ * (for example "- Party Themes: ..." under Per-line competitor notes). Safety cap FOCUS_MAX.
  */
 import { clip, safeJson } from './research.js';
 import { numOf } from './asana-brand.js';
 
 export const BRAIN_MAX = 60000;
+export const FOCUS_MAX = 45000;
 
 export const SPECIFICITY = `SPECIFICITY RULES (these decide whether the work is any good):
 - Tie every angle, line and claim to something in the BRAND BRAIN: a named persona, a customer quote word for word, a past test result, or a product fact. If you cannot tie it to one, do not write it. Where the output has a field for notes, why or reasoning, name what it is tied to there (for example "Weekend Warrior persona" or "test 339 won on this"); never put that reasoning into the ad's own words.
@@ -54,6 +65,14 @@ const CAP = { brand: 6000, rules: 4000, viktor: 7000, lines: 12000, personas: 15
 const TRIM = ['research', 'creator', 'brand', 'comps', 'viktor', 'voice', 'lines', 'voc', 'personas', 'angles'];
 const TRIM_FLOOR = { research: 600, creator: 1200, brand: 1500, comps: 1500, viktor: 2000, voice: 1500, lines: 4000, voc: 4000, personas: 5000, angles: 5000 };
 const MAX_PERSONAS = 14, MAX_VOC = 50, MAX_NUGGETS = 24;
+/* Focused on one or two lines: every persona and quote of those lines fits, so the caps open up. */
+const FOCUS_CAP = { personas: 22000, voc: 22000 };
+const FOCUS_LIMIT = { personas: 30, voc: 120, nuggets: 60 };
+/* Over FOCUS_MAX: least valuable first. The older research notes (mostly repeated by Viktor's), then the
+   OLDEST tests (the section is most recent first, so a cut comes off the old end), before any brand fact.
+   Staff rules and how the brand sounds are never cut. Measured 2026-09-29 untrimmed, main line: PP 43.9k,
+   Lucky 44.8k, Bonk 46.6k, Dartee 50.3k and Grunk 51.7k (both with 8k of older research notes). */
+const TRIM_FOCUS = ['research', 'creator', 'angles', 'comps', 'brand', 'viktor', 'lines', 'voc', 'personas'];
 
 const str = v => v == null ? '' : typeof v === 'string' ? v.trim() : Array.isArray(v) ? v.map(str).filter(Boolean).join('; ') : JSON.stringify(v);
 const list = v => (Array.isArray(v) ? v : String(v || '').split('\n')).map(str).filter(Boolean);
@@ -81,7 +100,8 @@ function capped(text, n) {
 /**
  * @param opts.voice    false leaves out "How the brand sounds" (the caller already has it)
  * @param opts.creator  false leaves out the creator link (the caller already has it)
- * @param opts.max      total character cap (default BRAIN_MAX)
+ * @param opts.max      total character cap (default BRAIN_MAX, or FOCUS_MAX when focused)
+ * @param opts.lines    product line ids to focus on (see FOCUSED BRAIN above); none = the full brain
  * @returns { md, size, gaps, has_skill }
  */
 export async function brandBrain(env, act, opts = {}) {
@@ -92,7 +112,7 @@ export async function brandBrain(env, act, opts = {}) {
     q(`SELECT id, name, about, products FROM p_br_line WHERE act_id = ?1 ORDER BY sort, created_at, id`, act),
     q(`SELECT line_id, key, data_json, status, source FROM p_br_doc WHERE act_id = ?1 AND key IN ('profile', 'rules', 'brand_facts', 'market', 'market_viktor', 'mechanism', 'voice', 'voice_guide', 'voice_speaker', 'voice_skill', 'research_notes', 'viktor_notes')`, act),
     q(`SELECT id, line_id, name, data_json, status, source FROM p_br_persona WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id`, act),
-    q(`SELECT line_id, kind, quote, source, theme, nugget, status FROM p_br_voc WHERE act_id = ?1 ORDER BY nugget DESC, status = 'approved' DESC, created_at DESC, id LIMIT 400`, act),
+    q(`SELECT line_id, kind, quote, source, theme, nugget, status FROM p_br_voc WHERE act_id = ?1 ORDER BY nugget DESC, status = 'approved' DESC, created_at DESC, id LIMIT ${opts.lines?.length ? 1000 : 400}`, act),
     q(`SELECT line_id, name, url, data_json, status FROM p_br_comp WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id LIMIT 16`, act),
     q(`SELECT id, line_id, persona_id, name, argument, awareness, lead, status, source FROM p_br_angle WHERE act_id = ?1 ORDER BY name, id`, act),
     q(`SELECT id, num, title, angle_id, level, variable, offer, hypothesis, verdict, asana_result, keep_reason, learning FROM p_br_batch WHERE act_id = ?1
@@ -107,7 +127,12 @@ export async function brandBrain(env, act, opts = {}) {
   const data = (line, key) => safeJson(docOf(line, key)?.data_json, null);
   const gaps = [];
   const out = [];
-  const sec = (key, title, body) => { if (body && body.trim()) out.push({ key, text: capped(`## ${title}\n${body.trim()}`, CAP[key]) }); };
+  /* Focus: only line ids this brand has count; none left = the full brain. */
+  const focus = new Set((Array.isArray(opts.lines) ? opts.lines : []).map(String).filter(id => lines.some(l => l.id === id)));
+  const focused = focus.size > 0;
+  const inFocus = id => !focused || !id || focus.has(id);
+  const cap = focused ? { ...CAP, ...FOCUS_CAP } : CAP;
+  const sec = (key, title, body) => { if (body && body.trim()) out.push({ key, text: capped(`## ${title}\n${body.trim()}`, cap[key]) }); };
 
   /* ---- 1. brand, products, offers, facts ---- */
   const profile = data('', 'profile') || {};
@@ -163,8 +188,9 @@ export async function brandBrain(env, act, opts = {}) {
   const hasSkill = !!skill.instructions;
   const vn = data('', 'viktor_notes');
   const VOICEY = /voice|tone|how (?:we|the brand|it|they) (?:write|writes|sound|sounds)|writing|copy style|positioning/i;
-  const vmd = !vn?.md ? '' : !hasSkill ? vn.md
+  let vmd = !vn?.md ? '' : !hasSkill ? vn.md
     : vn.md.split(/\n(?=### )/).filter(b => !VOICEY.test((b.match(/^### (.*)/) || [])[1] || '')).join('\n');
+  if (vmd && focused) vmd = dropOtherLines(vmd, lines.filter(l => !focus.has(l.id)), lines.filter(l => focus.has(l.id)));
   if (vmd) sec('viktor', `Brand research from Viktor (${vn.from || 'viktor'}; source-checked, not yet reviewed by staff)`, vmd);
 
   /* ---- 3. product lines: market stage, claims made, open ground ---- */
@@ -172,6 +198,7 @@ export async function brandBrain(env, act, opts = {}) {
   {
     const r = [];
     for (const l of lines) {
+      if (!focus.has(l.id) && focused) continue;
       /* The market doc, with Viktor's filling any field it leaves empty: Grunk's Apparel line has an
          approved market doc from the sheet, so Viktor's sits beside it as 'market_viktor'. */
       const m0 = data(l.id, 'market') || {}, mv = data(l.id, 'market_viktor') || {}, mech = data(l.id, 'mechanism') || {};
@@ -193,22 +220,26 @@ export async function brandBrain(env, act, opts = {}) {
       if (!m.stage && !m.awareness) gaps.push(`No market stage or awareness for the ${l.name} line (run Research > Competitors and Personas).`);
       if (!list(m.open_ground).length && m.stage) gaps.push(`No open ground mapped for the ${l.name} line.`);
     }
+    const others = focused ? lines.filter(l => !focus.has(l.id)) : [];
+    if (others.length) r.push(`### Other product lines (not what this is about; listed so you know they exist)\n${others.map(l => `- ${l.name}${l.about ? `: ${sent(l.about, 220)}` : ''}`).join('\n')}`);
     sec('lines', 'Product lines', r.join('\n\n'));
     if (!lines.length) gaps.push('No product lines set up yet.');
   }
 
   /* ---- 4. personas, every field ---- */
   const personaName = Object.fromEntries(personas.map(p => [p.id, p.name]));
+  const P = personas.filter(p => inFocus(p.line_id));
+  const maxP = focused ? FOCUS_LIMIT.personas : MAX_PERSONAS;
   {
-    const r = personas.slice(0, MAX_PERSONAS).map(p => {
+    const r = P.slice(0, maxP).map(p => {
       const d = safeJson(p.data_json, {});
       const f = PERSONA_FIELDS.filter(([k]) => d[k]).map(([k, label]) => `- ${label}: ${k === 'summary' ? sent(str(d[k]), 360) : one(str(d[k]), k === 'words' ? 280 : 220)}`);
       if (d.awareness) f.unshift(`- Awareness: ${AWARE[d.awareness] || d.awareness}`);
       return `### ${p.name}${p.line_id && lineName[p.line_id] ? ` [${lineName[p.line_id]}]` : ''}${draftTag(p.status, p.source)}\n${f.join('\n')}`;
     });
-    sec('personas', `Personas${personas.length > MAX_PERSONAS ? ` (${MAX_PERSONAS} of ${personas.length})` : ''}`, r.join('\n\n'));
-    if (!personas.length) gaps.push('No personas yet (run Research > Personas and angles).');
-    else if (!personas.some(p => p.status === 'approved')) gaps.push(personas.some(p => p.source === 'viktor')
+    sec('personas', `Personas${P.length > maxP ? ` (${maxP} of ${P.length})` : ''}`, r.join('\n\n'));
+    if (!P.length) gaps.push(focused && personas.length ? 'No personas for this product line yet (run Research > Personas and angles).' : 'No personas yet (run Research > Personas and angles).');
+    else if (!P.some(p => p.status === 'approved')) gaps.push(P.some(p => p.source === 'viktor')
       ? 'No approved personas yet; the ones here are drafts from Viktor\'s research (source-checked, not yet reviewed by staff).'
       : 'No approved personas yet; the ones here are AI drafts.');
   }
@@ -221,20 +252,22 @@ export async function brandBrain(env, act, opts = {}) {
     const lineOrder = Object.fromEntries(lines.map((l, i) => [l.id, i]));
     const byLine = rows => { const g = {}; for (const v of rows) (g[v.line_id || ''] ||= []).push(v); return Object.keys(g).sort((a, b) => (lineOrder[a] ?? 99) - (lineOrder[b] ?? 99)).map(k => g[k]); };
     const robin = groups => { const out = []; for (let i = 0; groups.some(g => i < g.length); i++) for (const g of groups) if (i < g.length) out.push(g[i]); return out; };
-    const nug = robin(byLine(voc.filter(v => v.nugget))).slice(0, MAX_NUGGETS);
-    const kinds = [...VOC_ORDER, ...new Set(voc.map(v => v.kind).filter(k => !VOC_ORDER.includes(k)))];
-    const rest = robin(kinds.map(k => robin(byLine(voc.filter(v => !v.nugget && v.kind === k)))));
-    const pick = [...nug, ...rest.slice(0, MAX_VOC - nug.length)];
+    const V = voc.filter(v => inFocus(v.line_id));
+    const maxV = focused ? FOCUS_LIMIT.voc : MAX_VOC;
+    const nug = robin(byLine(V.filter(v => v.nugget))).slice(0, focused ? FOCUS_LIMIT.nuggets : MAX_NUGGETS);
+    const kinds = [...VOC_ORDER, ...new Set(V.map(v => v.kind).filter(k => !VOC_ORDER.includes(k)))];
+    const rest = robin(kinds.map(k => robin(byLine(V.filter(v => !v.nugget && v.kind === k)))));
+    const pick = [...nug, ...rest.slice(0, maxV - nug.length)];
     const groups = [['nugget', 'Golden nuggets (could be ad copy almost as is)']].concat(kinds.map(k => [k, VOC_LABEL[k] || k]));
-    const tagLine = new Set(voc.map(v => v.line_id || '')).size > 1;
+    const tagLine = new Set(V.map(v => v.line_id || '')).size > 1;
     const r = [];
     for (const [k, label] of groups) {
       const rows = pick.filter(v => k === 'nugget' ? v.nugget : !v.nugget && v.kind === k);
       if (rows.length) r.push(`### ${label}\n${rows.map(v => `- "${quoteOf(v.quote, 280)}"${v.source ? ` (${one(v.source, 60)})` : ''}${v.theme ? ` [${one(v.theme, 60)}]` : ''}${tagLine && lineName[v.line_id] ? ` [${shortLine(lineName[v.line_id])}]` : ''}${v.status !== 'approved' ? ' (draft)' : ''}`).join('\n')}`);
     }
     if (r.length) r.unshift('Word for word. Quote them as written; never tidy their language.');
-    sec('voc', `Voice of customer (${pick.length} of ${voc.length} quotes)`, r.join('\n'));
-    if (!voc.length) gaps.push('No customer quotes yet (run Research > Voice of customer).');
+    sec('voc', `Voice of customer (${pick.length} of ${V.length} quotes${focused ? ' for this line' : ''})`, r.join('\n'));
+    if (!V.length) gaps.push(focused && voc.length ? 'No customer quotes for this product line yet (run Research > Voice of customer).' : 'No customer quotes yet (run Research > Voice of customer).');
   }
 
   /* ---- 6. competitors, short ---- */
@@ -250,10 +283,16 @@ export async function brandBrain(env, act, opts = {}) {
 
   /* ---- 7. angle library with test results (Triple Whale, lastPlatformClick) ---- */
   {
-    const stats = await batchNumbers(env, act, batches).catch(() => ({}));
-    const byAngle = {};
-    for (const b of batches.slice(0, 40)) (byAngle[b.angle_id || ''] ||= []).push(b);
+    /* Focused: an angle ties to a line by its own line_id, else by its persona's line; a test by its
+       angle. Angles and tests with no line stay in. */
+    const personaLine = Object.fromEntries(personas.map(p => [p.id, p.line_id || '']));
     const angleById = Object.fromEntries(angles.map(a => [a.id, a]));
+    const angleKept = a => inFocus(a.line_id || personaLine[a.persona_id] || '');
+    const A = angles.filter(angleKept);
+    const B = batches.filter(b => !angleById[b.angle_id] || angleKept(angleById[b.angle_id]));
+    const stats = await batchNumbers(env, act, B).catch(() => ({}));
+    const byAngle = {};
+    for (const b of B.slice(0, 40)) (byAngle[b.angle_id || ''] ||= []).push(b);
     const resultOf = b => b.verdict && b.verdict !== 'cancelled' ? `${b.verdict.toUpperCase()} (called)`
       : b.asana_result === 'keep' ? `KEEP RUNNING${b.keep_reason ? ` (${b.keep_reason})` : ''}`
       : b.asana_result ? `${b.asana_result.toUpperCase()} (Asana call, test not closed)` : b.verdict === 'cancelled' ? 'CANCELLED' : 'no call yet';
@@ -270,14 +309,14 @@ export async function brandBrain(env, act, opts = {}) {
         : '- NO ANGLE FILED';
       r.push(`${head}\n${byAngle[id].map(testLine).join('\n')}`);
     }
-    const untested = angles.filter(a => !byAngle[a.id] && a.status !== 'retired');
+    const untested = A.filter(a => !byAngle[a.id] && a.status !== 'retired');
     if (untested.length) r.push(`\nAngles with no judged test yet:\n${untested.slice(0, 30).map(a => `- "${one(a.name, 90)}"${a.status === 'proposed' ? ' (proposed by AI, not approved)' : ''}: ${one(a.argument, 200)}${a.persona_id && personaName[a.persona_id] ? ` [for ${personaName[a.persona_id]}]` : ''}`).join('\n')}`);
-    const nWin = batches.filter(b => b.verdict === 'winner' || (!b.verdict && b.asana_result === 'winner')).length;
-    const nLose = batches.filter(b => b.verdict === 'loser' || (!b.verdict && b.asana_result === 'loser')).length;
-    if (r.length) r.unshift(`Most recent tests first. Numbers are Triple Whale attributed (last platform click), all time. ${nWin} winners and ${nLose} losers in the tests below.`);
+    const nWin = B.filter(b => b.verdict === 'winner' || (!b.verdict && b.asana_result === 'winner')).length;
+    const nLose = B.filter(b => b.verdict === 'loser' || (!b.verdict && b.asana_result === 'loser')).length;
+    if (r.length) r.unshift(`Most recent tests first. Numbers are Triple Whale attributed (last platform click), all time. ${nWin} winners and ${nLose} losers in the tests below.${B.length < batches.length ? ' Tests on angles tied to other product lines are left out.' : ''}`);
     sec('angles', 'Angle library and past tests', r.join('\n'));
-    if (!batches.length) gaps.push('No judged tests with results or learnings yet.');
-    if (!angles.length) gaps.push('No angles in the library yet.');
+    if (!B.length) gaps.push('No judged tests with results or learnings yet.');
+    if (!A.length) gaps.push('No angles in the library yet.');
   }
 
   /* ---- 8. earlier research notes (docs/angles-*.md, loaded 2026-09-29) ---- */
@@ -324,16 +363,18 @@ export async function brandBrain(env, act, opts = {}) {
   if (list(vn?.gaps).length) gaps.push(`Viktor's research could not reach: ${list(vn.gaps).slice(0, 6).map(g => one(g, 120)).join('; ')}.`);
 
   /* ---- 11. GAPS, always last and never cut ---- */
-  const head = `# BRAND BRAIN: ${name}\nEverything Locus knows about ${name}, in one place. Items marked draft are AI research nobody has approved yet: use them, but prefer approved items when they disagree. Staff rules outrank everything.`;
+  const focusNames = lines.filter(l => focus.has(l.id)).map(l => l.name);
+  const head = `# BRAND BRAIN: ${name}\nEverything Locus knows about ${name}, in one place. Items marked draft are AI research nobody has approved yet: use them, but prefer approved items when they disagree. Staff rules outrank everything.${focused
+    ? `\nFOCUSED ON: ${focusNames.join(' and ')}. The market, personas, customer quotes and tests below are for ${focusNames.length > 1 ? 'those lines' : 'that line'} (plus anything not tied to a line). The other product lines are listed in one line each so you know they exist.` : ''}`;
   const tail = `## GAPS (what Locus does not know yet; never fill these with generic language)\n${gaps.length ? gaps.map(g => `- ${g}`).join('\n') : '- None worth flagging.'}`;
-  const max = opts.max || BRAIN_MAX;
+  const max = opts.max || (focused ? FOCUS_MAX : BRAIN_MAX);
   const room = max - head.length - tail.length - 4;
   /* Over the total: shorten the least important sections first (older notes before fresh
      research; staff rules never), each only as far as needed and never below its floor, in a
      fixed order so the result stays deterministic. The cut comes off a section's END, and every
      section puts its most useful lines first (guardrails, nuggets, the most recent tests). */
   const total = () => out.reduce((n, x) => n + x.text.length + 2, 0);
-  for (const k of TRIM) {
+  for (const k of focused ? TRIM_FOCUS : TRIM) {
     const x = out.find(o => o.key === k), over = total() - room;
     if (over <= 0) break;
     if (x && x.text.length > TRIM_FLOOR[k]) x.text = capped(x.text, Math.max(TRIM_FLOOR[k], x.text.length - over - 40));
@@ -343,6 +384,31 @@ export async function brandBrain(env, act, opts = {}) {
   /* No em dashes anywhere (Mobius house rule): the data carries some, and a prompt full of them invites more. */
   const md = `${head}\n\n${body}\n\n${tail}`.replace(/\s*—\s*/g, ', ');
   return { md, size: md.length, gaps, has_skill: hasSkill };
+}
+
+/* Viktor's notes, focused: drop a bullet whose label names another product line ("- Party Themes:
+   ...", "- Wedges (1.76x ...):") and a ### subsection titled with another line's name; a heading left
+   with nothing under it goes too. Anything not clearly tied to another line stays. */
+function dropOtherLines(md, others, mine) {
+  const key = n => shortLine(n).toLowerCase().replace(/\s+/g, ' ').trim();
+  const other = new Set(others.map(l => key(l.name)).filter(Boolean));
+  const own = new Set(mine.map(l => key(l.name)));
+  const isOther = label => { const k = key(label); return other.has(k) && !own.has(k); };
+  const out = [];
+  let skipBlock = false, skipBullet = false;
+  for (const line of md.split('\n')) {
+    const h = /^###\s+(.*)$/.exec(line);
+    if (h) { skipBlock = isOther(h[1]); skipBullet = false; if (!skipBlock) out.push(line); continue; }
+    if (skipBlock) continue;
+    const b = /^-\s+([^:(]{2,60}?)\s*[:(]/.exec(line);
+    if (b) { skipBullet = isOther(b[1]); if (!skipBullet) out.push(line); continue; }
+    if (skipBullet && line.trim() && !/^[-#]/.test(line)) continue;
+    skipBullet = false;
+    out.push(line);
+  }
+  /* A ### heading with nothing under it (the next non-blank line is another heading, or the end) goes. */
+  const next = i => { for (let j = i + 1; j < out.length; j++) if (out[j].trim()) return out[j]; return null; };
+  return out.filter((l, i) => !(/^###\s/.test(l) && (next(i) == null || /^###\s/.test(next(i))))).join('\n');
 }
 
 /* Spend and Triple Whale results per test, matched the way the Brand tab does it: the

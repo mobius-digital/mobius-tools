@@ -3,6 +3,7 @@
  * Same shape as ledger/worker/test-regressions.cjs: an in-memory SQLite standing in for D1,
  * every network call mocked (Slack, Gemini, ScrapeCreators, Claude, Asana), no secrets.
  *   node test-ideas.mjs          (from account-health/worker)
+ * 2026-09-29: the focused brain (brain.js lines), the line picker and the blind Sonnet / Opus compare.
  */
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
@@ -41,6 +42,30 @@ db.exec(`INSERT INTO p_amb_section (id, act_id, name, line, sort) VALUES ('sec_d
 db.exec(`INSERT INTO p_amb_angle (id, act_id, section_id, title, argument) VALUES ('ang_old', '${GRUNK}', 'sec_dad', 'The cart path cooler', 'Your drinks stay cold for all 18')`);
 db.exec(`INSERT INTO p_br_doc (act_id, line_id, key, data_json) VALUES ('${GRUNK}', '', 'asana', '{"project_gid":"P1","workspace":"W1"}')`);
 db.exec(`INSERT INTO p_br_batch (id, act_id, num, title, stage) VALUES ('b1', '${GRUNK}', '349', 'Old test', 'done')`);
+/* Party Patch has two product lines, a persona and quotes on each, brand-wide rules and a voice, so the
+   line picker runs and the brain can focus. Grunk has no lines: no picker call, the full brain. */
+const PP_CH = 'C06KL1K710R';
+db.exec(`INSERT INTO p_br_line (id, act_id, name, about, products, sort) VALUES
+  ('ln_night', '${PP}', 'Night Out Defense', 'Drinking tonight and cannot write off tomorrow.', 'The Party Patch 5-pack', 0),
+  ('ln_theme', '${PP}', 'Party Themes (group packs)', 'The planner buying for the whole crew.', 'Bride Squad packs', 1)`);
+db.exec(`INSERT INTO p_br_persona (id, act_id, line_id, name, data_json, status, source, sort) VALUES
+  ('pp_p1', '${PP}', 'ln_night', 'Thirty-something recoverer', '{"summary":"Recovery takes two days now.","words":"I cannot do this anymore"}', 'draft', 'viktor', 0),
+  ('pp_p2', '${PP}', 'ln_theme', 'Maid of honor planner', '{"summary":"Plans the bach trip for eleven friends."}', 'draft', 'viktor', 1)`);
+db.exec(`INSERT INTO p_br_voc (id, act_id, line_id, kind, quote, nugget, status) VALUES
+  ('pv1', '${PP}', 'ln_night', 'pain', 'Two days to recover from one night out', 1, 'draft'),
+  ('pv2', '${PP}', 'ln_theme', 'desire', 'I gave them out to 11 friends', 1, 'draft'),
+  ('pv3', '${PP}', NULL, 'pain', 'A brand wide quote about the smell', 0, 'draft')`);
+db.exec(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source) VALUES
+  ('${PP}', '', 'profile', '{"dos":"Say support, never cure","donts":"No medical claims"}', 'approved', 'staff'),
+  ('${PP}', '', 'voice_guide', '{"md":"Talk like the friend who always has a spare patch in her bag."}', 'approved', 'staff'),
+  ('${PP}', '', 'viktor_notes', '{"md":"### Flags\\n- Keep claims to support, not cure.\\n### Per-line competitor notes\\n- Party Themes: Bytox fights for this buyer.\\n- Night Out Defense: Cheers pills upset the stomach.","from":"viktor"}', 'draft', 'viktor'),
+  ('${PP}', 'ln_night', 'market', '{"stage":4,"open_ground":["It did not used to hit like this"]}', 'draft', 'viktor'),
+  ('${PP}', 'ln_theme', 'market', '{"stage":3,"open_ground":["The crew wakes up human"]}', 'draft', 'viktor')`);
+db.exec(`INSERT INTO p_br_angle (id, act_id, line_id, persona_id, name, argument) VALUES
+  ('pa1', '${PP}', 'ln_theme', NULL, 'Crew angle', 'The whole crew makes day two'),
+  ('pa2', '${PP}', NULL, 'pp_p1', 'Age angle', 'It did not used to hit like this')`);
+db.exec(`INSERT INTO p_br_batch (id, act_id, num, title, angle_id, verdict, stage) VALUES
+  ('pb1', '${PP}', '401', 'Crew test', 'pa1', 'loser', 'done'), ('pb2', '${PP}', '402', 'Age test', 'pa2', 'winner', 'done')`);
 db.exec(`INSERT INTO settings (key, value) VALUES ('brandAsanaFields', '{"testing":"F_TEST","testing_opts":{"angle":"O_A","concept":"O_C","variation":"O_V"}}')`);
 
 const TT = 'https://www.tiktok.com/@golfguy/video/7301234567890123456?is_from_webapp=1';
@@ -71,7 +96,9 @@ const draft = (over = {}) => ({
 
 /* ---------------- the network ---------------- */
 const calls = [];
-let claudeQueue = [], lastClaudeBody = null;
+let claudeQueue = [], lastClaudeBody = null, pickBody = null;
+const pickQueue = [], byModel = {}, claudeBodies = [];
+const isPick = b => !!b.output_config?.format?.schema?.properties?.line_ids;
 const count = pat => calls.filter(c => pat.test(c.url)).length;
 const slackCalls = m => calls.filter(c => c.url === `https://slack.com/api/${m}`);
 const bodyOf = c => { const ct = c.init?.headers?.['Content-Type'] || ''; return /json/.test(ct) ? JSON.parse(c.init.body) : Object.fromEntries(new URLSearchParams(c.init.body)); };
@@ -102,7 +129,14 @@ globalThis.fetch = async (url, init = {}) => {
     return Response.json({ ok: true });
   }
   if (u.hostname === 'files.slack.com') return new Response(new Uint8Array([137, 80, 78, 71, 1, 2, 3]), { headers: { 'content-type': 'image/png' } });
-  if (u.hostname === 'api.anthropic.com') { lastClaudeBody = JSON.parse(init.body); return sse(claudeQueue.shift() || draft()); }
+  if (u.hostname === 'api.anthropic.com') {
+    const body = JSON.parse(init.body);
+    claudeBodies.push(body);
+    /* The line picker (its schema has line_ids) answers from pickQueue; a draft by model, else the queue. */
+    if (isPick(body)) { pickBody = body; return sse(pickQueue.shift() || { line_ids: ['ln_night'], why: 'It is about the morning after a night out.' }); }
+    lastClaudeBody = body;
+    return sse(byModel[body.model] || claudeQueue.shift() || draft());
+  }
   if (u.hostname === 'api.scrapecreators.com') return Response.json({ aweme_detail: { desc: 'my worst round ever', author: { nickname: 'golfguy' }, video: { download_no_watermark_addr: { url_list: ['https://v16.tiktokcdn.com/video.mp4'] } } } });
   if (u.hostname === 'v16.tiktokcdn.com') return new Response(new Uint8Array(1024), { headers: { 'content-type': 'video/mp4', 'content-length': '1024' } });
   if (u.hostname === 'generativelanguage.googleapis.com') {
@@ -434,15 +468,119 @@ await check('only the suggested draft up front; "Make Asana brief draft" writes 
   assert.equal(d.creator_link.title, 'The garage rant', 'the stored creator draft survives');
   assert.ok(actionIds(lastPost().blocks).includes('idea_asana'));
 });
-await check('"deep" in the tag runs Opus with the full brain, and Redo on that thread stays deep', async () => {
+await check('"deep" in the tag runs Opus 5.5, and Redo on that thread stays deep', async () => {
   const id = `${CH}:710.1`;
   threads[id] = [{ ts: '710.1', user: 'U_COLE', text: 'Big one, go deep on this <@U_BOT>' }];
   const r = await ideas.runIdeaJob(env, job('710.1', '<@U_BOT> deep'));
   assert.equal(r.ok, true, r.error);
-  assert.equal(lastClaudeBody.model, 'claude-opus-5');
+  assert.equal(lastClaudeBody.model, 'claude-opus-5-5');
   assert.equal(row(id).deep, 1);
   await ideas.handleIdeaAction(env, null, { type: 'block_actions', user: { id: 'U_RANDO' }, container: { channel_id: CH }, actions: [{ action_id: 'idea_redo', value: JSON.stringify({ i: id }) }] });
-  assert.equal(lastClaudeBody.model, 'claude-opus-5');
+  assert.equal(lastClaudeBody.model, 'claude-opus-5-5');
+});
+
+/* ---------------- focused brain, line picker, blind compare ---------------- */
+const { brandBrain } = await import('./src/brain.js');
+await check('focused brain: personas, quotes, market and tests narrowed to the line; voice, staff rules, brand-wide rows kept; other lines one line each', async () => {
+  const full = await brandBrain(env, PP, { creator: false });
+  const f = await brandBrain(env, PP, { creator: false, lines: ['ln_night'] });
+  assert.match(full.md, /Maid of honor planner/); assert.match(full.md, /11 friends/);
+  assert.match(f.md, /FOCUSED ON: Night Out Defense/);
+  assert.match(f.md, /Thirty-something recoverer/); assert.doesNotMatch(f.md, /Maid of honor planner/);
+  assert.match(f.md, /Two days to recover/); assert.doesNotMatch(f.md, /11 friends/);
+  assert.match(f.md, /A brand wide quote about the smell/, 'a quote with no line stays in');
+  assert.match(f.md, /It did not used to hit like this/); assert.doesNotMatch(f.md, /The crew wakes up human/);
+  assert.match(f.md, /Other product lines[^#]*- Party Themes \(group packs\): The planner buying for the whole crew\./);
+  assert.match(f.md, /## How the brand sounds[^]*?spare patch in her bag/);
+  assert.match(f.md, /## Staff rules[^#]*never cure/);
+  assert.match(f.md, /Keep claims to support/); assert.match(f.md, /Cheers pills/); assert.doesNotMatch(f.md, /Bytox/, "Viktor's note on another line goes");
+  assert.match(f.md, /Age test/, 'a test tied to the line through its persona stays'); assert.doesNotMatch(f.md, /Crew test/, 'a test on another line goes');
+  assert.equal((await brandBrain(env, PP, { creator: false, lines: ['ln_night'] })).md, f.md, 'deterministic, so the cache hits');
+  assert.equal((await brandBrain(env, PP, { creator: false, lines: ['nope'] })).md, full.md, 'an unknown line = the full brain');
+});
+await check('routing: "compare" in a thread is the ideas bot, "compare CPA" is still the Strategist', async () => {
+  const ev = text => ({ type: 'app_mention', channel: CH, ts: '990.2', thread_ts: '990.1', text });
+  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> compare')), true);
+  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> compare CPA to last week')), false);
+});
+await check('line picker: one small Sonnet call first, brain focused on its pick, cached on the thread; naming another line re-picks; a bad pick = full brain', async () => {
+  const id = `${PP_CH}:800.1`;
+  threads[id] = [{ ts: '800.1', user: 'U_AHSAN', text: 'Idea: a woman in her 30s says it did not used to hit like this <@U_BOT>' }];
+  calls.length = 0;
+  let r = await ideas.runIdeaJob(env, job('800.1', '<@U_BOT> idea', PP_CH));
+  assert.equal(r.ok, true, r.error);
+  assert.equal(count(/api\.anthropic\.com/), 2);
+  assert.equal(pickBody.model, 'claude-sonnet-5-5'); assert.equal(pickBody.output_config.effort, 'low'); assert.ok(pickBody.max_tokens <= 2000);
+  assert.match(pickBody.messages[0].content, /\[ln_night\] Night Out Defense/); assert.match(pickBody.messages[0].content, /did not used to hit/);
+  assert.match(lastClaudeBody.system[1].text, /FOCUSED ON: Night Out Defense/); assert.doesNotMatch(lastClaudeBody.system[1].text, /Maid of honor planner/);
+  assert.deepEqual(JSON.parse(row(id).lines_json).ids, ['ln_night']);
+  const run = db.prepare(`SELECT * FROM idea_run WHERE idea_id = ? ORDER BY rowid DESC`).get(id);
+  assert.ok(run.pick_cost > 0 && run.cost > run.pick_cost, `pick ${run.pick_cost} of ${run.cost}`); assert.equal(run.model, 'claude-sonnet-5-5');
+  assert.match(JSON.stringify(lastPost().blocks), /Written for the Night Out Defense line/);
+  threads[id].push({ ts: '800.2', user: 'U_COLE', text: 'Shorter hook <@U_BOT>' });
+  calls.length = 0;
+  r = await ideas.runIdeaJob(env, job('800.1', 'Shorter hook <@U_BOT>', PP_CH));
+  assert.equal(count(/api\.anthropic\.com/), 1, 'the cached pick is reused');
+  assert.match(lastClaudeBody.system[1].text, /FOCUSED ON: Night Out Defense/);
+  threads[id].push({ ts: '800.3', user: 'U_COLE', text: 'Actually make it a Party Themes idea <@U_BOT>' });
+  pickQueue.push({ line_ids: ['ln_theme'], why: 'The thread says Party Themes.' });
+  calls.length = 0;
+  r = await ideas.runIdeaJob(env, job('800.1', 'Actually make it a Party Themes idea <@U_BOT>', PP_CH));
+  assert.equal(count(/api\.anthropic\.com/), 2, 'naming another line re-picks');
+  assert.deepEqual(JSON.parse(row(id).lines_json).ids, ['ln_theme']);
+  assert.match(lastClaudeBody.system[1].text, /FOCUSED ON: Party Themes/);
+  const id2 = `${PP_CH}:810.1`;
+  threads[id2] = [{ ts: '810.1', user: 'U_AHSAN', text: 'Idea: something vague <@U_BOT>' }];
+  pickQueue.push({ line_ids: ['not_a_line'], why: '' });
+  r = await ideas.runIdeaJob(env, job('810.1', '<@U_BOT> idea', PP_CH));
+  assert.equal(r.ok, true, r.error);
+  assert.doesNotMatch(lastClaudeBody.system[1].text, /FOCUSED ON/); assert.match(lastClaudeBody.system[1].text, /Maid of honor planner/);
+});
+await check('blind compare: same prompt to Sonnet 5.5 and Opus 5.5, Version A / B in random order, no model, cost or buttons, mapping in idea_run, stored draft untouched', async () => {
+  const id = `${PP_CH}:900.1`;
+  threads[id] = [{ ts: '900.1', user: 'U_AHSAN', text: 'Idea: the crew wakes up human <@U_BOT>' }];
+  let r = await ideas.runIdeaJob(env, job('900.1', '<@U_BOT> idea', PP_CH));
+  assert.equal(r.ok, true, r.error);
+  const before = row(id);
+  byModel['claude-sonnet-5-5'] = draft({ creator_link: { ...draft().creator_link, title: 'Title from S' } });
+  byModel['claude-opus-5-5'] = draft({ creator_link: { ...draft().creator_link, title: 'Title from O' } });
+  const realRandom = Math.random;
+  try {
+    for (const [rnd, firstModel] of [[0.1, 'claude-sonnet-5-5'], [0.9, 'claude-opus-5-5']]) {
+      Math.random = () => rnd;
+      calls.length = 0; claudeBodies.length = 0;
+      r = await ideas.runIdeaJob(env, job('900.1', '<@U_BOT> compare', PP_CH));
+      Math.random = realRandom;
+      assert.equal(r.ok, true, r.error); assert.equal(r.status, 'compared');
+      assert.equal(claudeBodies.filter(isPick).length, 0, 'the thread\'s line pick is reused');
+      const drafts = claudeBodies.filter(b => !isPick(b));
+      assert.equal(drafts.length, 2);
+      assert.deepEqual(drafts.map(b => b.model).sort(), ['claude-opus-5-5', 'claude-sonnet-5-5']);
+      assert.deepEqual(drafts[0].system, drafts[1].system); assert.deepEqual(drafts[0].messages, drafts[1].messages);
+      assert.doesNotMatch(JSON.stringify(drafts[0].messages), /YOUR LAST DRAFT/, 'a compare starts fresh');
+      const cards = slackCalls('chat.postMessage').map(bodyOf);
+      assert.equal(cards.length, 2);
+      assert.match(cards[0].text, /Version A/); assert.match(cards[1].text, /Version B/);
+      for (const c of cards) {
+        const t = JSON.stringify(c);
+        assert.doesNotMatch(t, /sonnet|opus|claude-|\$|cost/i, 'a blind card names no model and no cost');
+        assert.equal(c.blocks.find(b => b.type === 'actions'), undefined, 'no buttons');
+        assert.match(t, /Blind test\. Tell Cole's Claude which version reads better\./);
+      }
+      const runs = db.prepare(`SELECT kind, model, cost, c_out, card_ts FROM idea_run WHERE idea_id = ? AND kind LIKE 'compare_%' ORDER BY rowid DESC LIMIT 2`).all(id).sort((a, b) => a.kind.localeCompare(b.kind));
+      assert.deepEqual(runs.map(x => x.kind), ['compare_A', 'compare_B']);
+      assert.equal(runs[0].model, firstModel, `random ${rnd}: Version A is ${firstModel}`);
+      assert.notEqual(runs[1].model, runs[0].model);
+      assert.ok(runs.every(x => x.cost > 0 && x.c_out > 0 && x.card_ts));
+      const opus = runs.find(x => x.model === 'claude-opus-5-5'), son = runs.find(x => x.model === 'claude-sonnet-5-5');
+      assert.ok(opus.cost > son.cost, 'Opus costs more on the same tokens');
+      assert.match(JSON.stringify(cards[0].blocks), runs[0].model === 'claude-sonnet-5-5' ? /Title from S/ : /Title from O/, 'the recorded mapping matches the card');
+      const after = row(id);
+      assert.equal(after.draft_json, before.draft_json); assert.equal(after.reply_ts, before.reply_ts); assert.equal(after.runs, before.runs);
+      assert.equal(after.status, 'drafted');
+      assert.equal(slackCalls('chat.update').length, 0, 'the stored draft card is not retired');
+    }
+  } finally { Math.random = realRandom; delete byModel['claude-sonnet-5-5']; delete byModel['claude-opus-5-5']; }
 });
 await check('Redo is open to anyone and re-runs from the cache; Discard is approver-only', async () => {
   calls.length = 0;
