@@ -193,7 +193,12 @@ function cleanText(t, botUser, names) {
 export function parseThread(messages, { botUser = null, names = {} } = {}) {
   const msgs = [], videos = [], images = [], seen = new Set();
   for (const m of messages || []) {
-    if (m.bot_id || m.subtype === 'bot_message' || (botUser && m.user === botUser)) continue;
+    if (m.bot_id || m.subtype === 'bot_message' || (botUser && m.user === botUser)) {
+      /* The bot's own compare cards stay readable, so "use B's opener" means something on the next tag. */
+      const label = (String(m.text || '').match(/^Version ([AB]) of the /) || [])[1];
+      if (label) msgs.push({ ts: m.ts, user: null, name: `Version ${label} (my earlier draft)`, text: clip((m.blocks || []).map(b => b.text?.text || '').filter(Boolean).join(' / '), 6000), tags: [], links: [] });
+      continue;
+    }
     if (m.subtype && !['file_share', 'thread_broadcast'].includes(m.subtype)) continue;
     const tags = [];
     for (const u of linksOf(m.text)) {
