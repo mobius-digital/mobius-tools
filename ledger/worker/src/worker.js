@@ -1929,8 +1929,12 @@ async function processPlaidTxnInner(env, item, t, opts = {}) {
    * save it, because the transfer branch decides before any rule is read. It
    * happened once at $19K and again at $46K. */
   const known = await findRule(env, vendor);
+  /* A Stripe deposit into the bank is a payout of revenue the Stripe sync
+   * already counted. The "Stripe" fee rule matches its name too, and without
+   * this it outranked the transfer check and every payout counted twice. */
+  const stripePayout = amt < 0 && acctType !== 'credit' && /stripe/i.test(rawName);
   let type, amount, status = 'ok', note = null;
-  if (!known && looksLikeTransfer(rawName, t.personal_finance_category, selfAccounts)) {
+  if (stripePayout || (!known && looksLikeTransfer(rawName, t.personal_finance_category, selfAccounts))) {
     type = 'transfer'; amount = Math.abs(amt);
   } else if (amt > 0) {
     type = 'out'; amount = amt;
