@@ -694,7 +694,7 @@ DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATOR
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
 - creator_link is read by a creator on a phone, so it is SHORT and every word is specific (from the persona, a quote, a product fact; fewer words, never vaguer ones). HARD CAPS, the code cuts anything longer: title up to 6 words; argument (the pitch) up to 25 words; who up to 15 words; openers EXACTLY 2, up to 18 words each, lines a creator could say out loud; shots up to 3, each up to 20 words in plain language (label up to 3 words); on_screen up to 3 short lines, one per line; do_text and dont_text up to 3 items each, one per line, up to 10 words each; format up to 3 words; products up to 3 words; proof_note one short sentence on what to take from the reference. It follows the hierarchy rule: the section answers "why would a creator film this today" (Hot right now, a dated window, a product line, or a standing theme); format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
 - asana is the team's brief template, kept simple: title (a few words), angle (one sentence), why (one sentence) and test_type. testing is ONE short line saying what changes and, inside a proven concept, on which ad, like "3 new concepts", "3 headlines on 412-3", "2 redesigns of 412-3", "3 hooks on 290-1". Then 3 to 5 ads unless the thread asks otherwise, one line each: a different idea when testing concepts, otherwise the one piece that changes (the new hook, the new headline, what the redesign changes), enough for the designer or editor to build it. kind is video for anything filmed, static for images. For video also creator and script (one per ad if they are different videos); for static leave those empty. Copy fields only when you have something real to say.
-- studio: static ads only, one line per ad: the words on the ad plus a short note on the look. testing is what changes across the lines.
+- studio: static ads only, one line per ad: the words on the ad plus a short note on the look. testing is what changes across the lines. 3 to 6 lines unless the thread asks for a number (up to 12).
 
 ${SPECIFICITY}
 
@@ -1590,17 +1590,58 @@ export async function pushAsana(env, row, acct, d, pushed) {
   return { text: `Brief ${num} is in ${acct.name}'s Creative Brief column in Asana: ${pushed.asana_brief.url}` };
 }
 
-/* Studio: a draft batch in Locus Studio's own table, ready to plan and make. */
+/* The thread's still images (Slack uploads, Atria / Meta Ad Library image ads), copied into Studio's own
+   reference store (same R2 bucket, studio/ref/<24 hex>.<ext>, served by the profit worker) so the batch
+   opens with the inspiration already on it. Videos stay out: Studio makes statics, and the written
+   breakdown already shaped the lines. Never throws; an image that cannot be copied is skipped. */
+const STUDIO_REF = 'https://mobius-profit.mobius-digital.workers.dev/api/studio/ref/';
+async function studioRefs(env, row) {
+  if (!env.MEDIA) return [];
+  const srcs = [];
+  try {
+    const rep = await slack(env, 'conversations.replies', { channel: row.channel, ts: row.thread_ts, limit: 200 }, true);
+    const t = parseThread(rep.messages || []);
+    for (const im of t.images) srcs.push({ url: im.file.url, slack: true });
+    for (const v of t.videos.filter(v => v.platform === 'atria')) {
+      const hit = await env.DB.prepare(`SELECT facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
+      const a = safeJson(hit?.facts_json, {})?.atria;
+      if (a && !a.video_url) (a.image_urls || []).forEach(u => srcs.push({ url: u, slack: false }));
+    }
+  } catch { return []; }
+  const out = [];
+  for (const s of srcs.slice(0, 6)) {
+    try {
+      const res = await F(s.url, s.slack ? { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } } : {});
+      const type = (res.headers.get('content-type') || '').split(';')[0];
+      const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[type];
+      if (!res.ok || !ext) continue;
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength > 12e6) continue;
+      const key = `${hex24()}.${ext}`;
+      await env.MEDIA.put(`studio/ref/${key}`, buf, { httpMetadata: { contentType: type } });
+      out.push(STUDIO_REF + key);
+    } catch { /* skipped */ }
+  }
+  return out;
+}
+
+/* Studio: a draft batch in Locus Studio's own table, ready to plan and make. The inspiration comes along:
+   "as is" / "the style" puts the first image on every line ("make it look like this", copied closely);
+   otherwise the images go in the batch's swipe file (loose mood, for range). */
 export async function pushStudio(env, row, acct, d, pushed) {
   const s = d.studio || {};
   if (!(s.lines || []).length) return { ok: false, text: 'The draft has no Studio lines. Press Redo, or tag me and say it is for Studio.' };
   const id = hex24();
+  const refs = await studioRefs(env, row);
+  const copyLook = ['as_is', 'style'].includes(d.transfer?.mode) && refs.length > 0;
   const brief = { angle: s.angle || '', why: s.why || '', concept: s.concept || '', post_copy: s.post_copy || '',
-    testing: STUDIO_TESTING.includes(s.testing) ? s.testing : 'concepts', lines: s.lines.slice(0, 12).map(text => ({ text: clip(text, 1200), inspo: [] })),
+    testing: STUDIO_TESTING.includes(s.testing) ? s.testing : 'concepts', lines: s.lines.slice(0, 12).map(text => ({ text: clip(text, 1200), inspo: copyLook ? [refs[0]] : [] })),
     source: 'slack idea', reference: safeJson(row.refs_json, []) || [] };
+  const swipe = copyLook ? refs.slice(1) : refs;
   const name = clip(s.name || s.angle || 'Idea from Slack', 200);
   await env.DB.prepare(`INSERT INTO p_studio_batch (id, act_id, num, br_batch_id, name, brief_json, setup_json, plan_json, status) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, NULL, 'draft')`)
-    .bind(id, acct.act_id, pushed.asana_brief?.num ? String(pushed.asana_brief.num) : null, name, JSON.stringify(brief), JSON.stringify({ products: [], images: [], swipe: [] })).run();
+    .bind(id, acct.act_id, pushed.asana_brief?.num ? String(pushed.asana_brief.num) : null, name, JSON.stringify(brief), JSON.stringify({ products: [], images: [], swipe })).run();
   pushed.studio = { id, name, at: new Date().toISOString() };
-  return { text: `Studio batch "${name}" is waiting in Locus Studio for ${acct.name} (${brief.lines.length} ad${brief.lines.length === 1 ? '' : 's'}). Pick the product there and make it: ${LOCUS}` };
+  const inspo = !refs.length ? '' : copyLook ? ' The inspiration is on every line as "make it look like this".' : ` The inspiration is in its swipe file (${refs.length} image${refs.length === 1 ? '' : 's'}).`;
+  return { text: `Studio batch "${name}" is waiting in Locus Studio for ${acct.name} (${brief.lines.length} ad${brief.lines.length === 1 ? '' : 's'}).${inspo} Pick the product there and make it: ${LOCUS}` };
 }

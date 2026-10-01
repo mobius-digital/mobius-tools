@@ -490,7 +490,13 @@ await check('Studio: a draft batch in p_studio_batch with one line per ad, numbe
   assert.equal(b.act_id, GRUNK); assert.equal(b.status, 'draft'); assert.equal(b.num, '353'); assert.match(b.id, /^[a-f0-9]{24}$/);
   const brief = JSON.parse(b.brief_json);
   assert.equal(brief.lines.length, 2); assert.equal(brief.testing, 'headlines'); assert.deepEqual(brief.lines[0].inspo, []);
-  assert.deepEqual(JSON.parse(b.setup_json), { products: [], images: [], swipe: [] });
+  /* "Just the hook" + the thread's frame.png: the image rides along in the swipe file (not on the lines),
+     copied into Studio's own ref store so the profit worker serves it. */
+  const su = JSON.parse(b.setup_json);
+  assert.deepEqual(su.products, []); assert.equal(su.swipe.length, 1);
+  assert.match(su.swipe[0], /^https:\/\/mobius-profit\.mobius-digital\.workers\.dev\/api\/studio\/ref\/[a-f0-9]{24}\.png$/);
+  assert.ok(MEDIA.store.has(`studio/ref/${su.swipe[0].split('/').pop()}`));
+  assert.match(lastPost().text, /inspiration is in its swipe file \(1 image\)/);
 });
 const LUCKY_ID = `${LUCKY_CH}:500.1`;
 await check('Lucky creator app button only on Lucky; not connected = the thread says who sets what, nothing is stored, the draft and the button stay', async () => {

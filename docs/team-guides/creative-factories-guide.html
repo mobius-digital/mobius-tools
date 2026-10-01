@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Creative Factories Guide</title>
+<link rel="stylesheet" href="guide.css">
+<style>
+.page { gap: 18px; }
+.fac { display: grid; grid-template-columns: 54px 1fr 150px; gap: 14px; align-items: center; padding: 14px 16px; }
+.fac .ic { width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; background: var(--brandSoft); }
+.fac h3 { font-size: 17px; margin: 0 0 2px; }
+.fac p { color: var(--ink2); font-size: 13px; }
+.fac .side { font-size: 11.5px; color: var(--muted); display: grid; gap: 2px; }
+.fac .side b { font-size: 11.5px; }
+.board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.ad { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: grid; }
+.ad .img { aspect-ratio: 4/5; position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; color: #fff; }
+.ad .img .hl { font-family: var(--serif); font-size: 19px; line-height: 1.05; text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.ad .img .cta { align-self: flex-start; background: #fff; color: #111; font-size: 9.5px; font-weight: 800; padding: 3px 8px; border-radius: 999px; }
+.ad .img .prod { position: absolute; right: 12px; bottom: 34px; width: 46px; height: 72px; border-radius: 10px 10px 4px 4px; background: rgba(255,255,255,.9); box-shadow: 0 6px 14px rgba(0,0,0,.25); }
+.ad .meta { padding: 7px 8px; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; }
+.loop { display: grid; gap: 0; }
+.ls { display: grid; grid-template-columns: 36px 120px 1fr; gap: 14px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+.ls:first-child { border-top: 0; }
+.ls .app { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--brandInk); }
+.ls b { font-size: 14px; }
+.ls p { color: var(--ink2); }
+.wk { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.wk .d { background: var(--panel); color: var(--onPanel); border-radius: 10px; padding: 10px; display: grid; gap: 3px; align-content: start; }
+.wk .d .day { font-family: var(--serif); font-size: 24px; color: #fff; line-height: 1; }
+.wk .d b { color: var(--brand); font-size: 12px; }
+.wk .d small { color: var(--onPanel2); font-size: 10.5px; line-height: 1.35; }
+.big2 { font-family: var(--serif); font-size: 34px; line-height: 1.05; }
+</style></head>
+<body>
+
+<!-- PAGE 1: TL;DR -->
+<section class="page">
+  <div class="top"><img src="../../logo/mobius-mark-gradient.svg" alt=""><span class="eyebrow">Mobius Digital · Team guide · How we make ads</span></div>
+  <h1>Four factories.<br>One testing engine.</h1>
+  <p class="lede">How we make ads for every brand from here on, on one page.</p>
+
+  <div class="dark" style="padding:22px 24px">
+    <span class="eyebrow" style="color:var(--brand)">Too long, didn't read</span>
+    <div style="display:grid;gap:16px;margin-top:14px">
+      <div class="step"><span class="n">1</span><div><b style="font-size:15px">Ads come from four places</b><p class="muted">AI Studio, Ambassadors, Templates, and our Designer and production team.</p></div></div>
+      <div class="step"><span class="n">2</span><div><b style="font-size:15px">Every ad is a test</b><p class="muted">One brief asks one question. The ads are numbered so we can read the answer.</p></div></div>
+      <div class="step"><span class="n">3</span><div><b style="font-size:15px">Triple Whale picks the winners</b><p class="muted">Winners get more budget and become next week's briefs.</p></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Every week, for every brand</h3>
+    <div class="flow" style="margin-top:10px">
+      <div class="box"><span class="ic">📋</span><b>Brief</b><span>Monday, in Asana</span></div><div class="arr">›</div>
+      <div class="box"><span class="ic">🏭</span><b>Make</b><span>Tuesday, in a factory</span></div><div class="arr">›</div>
+      <div class="box"><span class="ic">🚀</span><b>Launch</b><span>Wednesday, in Meta</span></div><div class="arr">›</div>
+      <div class="box"><span class="ic">📊</span><b>Judge</b><span>Triple Whale</span></div><div class="arr">›</div>
+      <div class="box"><span class="ic">🔁</span><b>Repeat</b><span>Winners feed next week</span></div>
+    </div>
+  </div>
+
+  <div class="callout"><b>Why:</b> winners are rare. The brands that win test more good ideas, on a steady rhythm. This makes that rhythm the default.</div>
+  <div class="foot"><span>Creative factories guide</span><span>1 / 5</span></div>
+</section>
+
+<!-- PAGE 2: THE FOUR FACTORIES -->
+<section class="page">
+  <div class="top"><img src="../../logo/mobius-mark-gradient.svg" alt=""><span class="eyebrow">The four factories</span></div>
+  <h2>Pick the factory that fits the idea</h2>
+
+  <div class="card fac"><span class="ic">🤖</span><div><h3>AI Studio</h3><p>Use it when you want <b>lots of statics fast</b>: many headlines, many angles.</p></div>
+    <div class="side"><span><b>Who:</b> Strategist</span><span><b>Where:</b> Locus, Studio</span><span><b>Cost:</b> ~35¢ an ad</span></div></div>
+  <div class="card fac"><span class="ic">🤳</span><div><h3>Ambassadors</h3><p>Use it when <b>a real person needs to say it</b>: UGC, reviews, real-life use.</p></div>
+    <div class="side"><span><b>Who:</b> Strategist sets angles</span><span><b>Where:</b> creator link (TRYBE)</span><span><b>Lucky:</b> Lucky creator app</span></div></div>
+  <div class="card fac"><span class="ic">🧩</span><div><h3>Templates</h3><p>Use it when <b>a layout already won</b>. Refill it with a new angle or product.</p></div>
+    <div class="side"><span><b>Who:</b> Strategist</span><span><b>Where:</b> Locus, Studio</span><span><b>Source:</b> last month's winners</span></div></div>
+  <div class="card fac"><span class="ic">🎨</span><div><h3>Designer and production</h3><p>Use it when <b>it has to be perfect or it's a video</b>: hero work, launches, B-roll edits.</p></div>
+    <div class="side"><span><b>Who:</b> Designer, video editor</span><span><b>Where:</b> Asana brief</span><span><b>Speed:</b> 2 to 3 days</span></div></div>
+
+  <div class="callout good"><b>Shortcut:</b> drop inspo in Slack and tag the Ideas bot. It writes the brief for whichever factory fits (see the Ideas bot guide).</div>
+  <div class="foot"><span>Creative factories guide</span><span>2 / 5</span></div>
+</section>
+
+<!-- PAGE 3: AI STUDIO -->
+<section class="page">
+  <div class="top"><img src="../../logo/mobius-mark-gradient.svg" alt=""><span class="eyebrow">Factory 1 up close</span></div>
+  <h2>AI Studio in four clicks</h2>
+  <p class="lede">The AI makes the whole static ad, words included. You act as the creative director.</p>
+
+  <div class="flow">
+    <div class="box"><span class="ic">📋</span><b>1. Pick the brief</b><span>From Asana, or from the Ideas bot</span></div><div class="arr">›</div>
+    <div class="box"><span class="ic">📦</span><b>2. Pick the product</b><span>Tick its clean photos</span></div><div class="arr">›</div>
+    <div class="box"><span class="ic">✨</span><b>3. Make</b><span>One ad per line</span></div><div class="arr">›</div>
+    <div class="box"><span class="ic">✅</span><b>4. Approve</b><span>Then Send to Canva</span></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div><span class="eyebrow">Example</span><h3 style="margin:2px 0 0">Batch 412 · testing headlines</h3></div>
+      <span class="chip">4 ads · about $1.40</span>
+    </div>
+    <div class="board">
+      <div class="ad"><div class="img" style="background:linear-gradient(170deg,#1b4d2e,#0b2016)"><span class="hl">Your line. Every time.</span><span class="prod"></span><span class="cta">Shop now</span></div><div class="meta"><b>412-1</b><span class="chip good">9/10</span></div></div>
+      <div class="ad"><div class="img" style="background:linear-gradient(170deg,#3d3a35,#141210)"><span class="hl">Stop three-putting.</span><span class="prod"></span><span class="cta">Shop now</span></div><div class="meta"><b>412-2</b><span class="chip good">8/10</span></div></div>
+      <div class="ad"><div class="img" style="background:linear-gradient(170deg,#24527a,#0d1f30)"><span class="hl">Milled. Not cast.</span><span class="prod"></span><span class="cta">See why</span></div><div class="meta"><b>412-3</b><span class="chip bad">6/10 Redo</span></div></div>
+      <div class="ad"><div class="img" style="background:linear-gradient(170deg,#8a6d3b,#2d220f)"><span class="hl">The gift that fixes their short game.</span><span class="prod"></span><span class="cta">Gift it</span></div><div class="meta"><b>412-4</b><span class="chip good">9/10</span></div></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card"><h3>The score</h3><p class="muted">Every ad gets a 0 to 10 check on the product. <b>Under 7, press Redo.</b></p></div>
+    <div class="card"><h3>Statics only</h3><p class="muted">Videos go to Ambassadors or the editor.</p></div>
+  </div>
+  <div class="foot"><span>Creative factories guide · example is illustrative</span><span>3 / 5</span></div>
+</section>
+
+<!-- PAGE 4: APP STACK -->
+<section class="page">
+  <div class="top"><img src="../../logo/mobius-mark-gradient.svg" alt=""><span class="eyebrow">Our app stack</span></div>
+  <h2>Same tools we already use, in one loop</h2>
+
+  <div class="card" style="padding:6px 18px">
+    <div class="loop">
+      <div class="ls"><span class="n dk">1</span><span class="app">Slack · Atria</span><div><b>Find the idea</b><p>Spot inspo, tag the Ideas bot.</p></div></div>
+      <div class="ls"><span class="n dk">2</span><span class="app">Asana</span><div><b>Write the brief</b><p>Creative Brief column. Angle, why, what we're testing, numbered ads.</p></div></div>
+      <div class="ls"><span class="n dk">3</span><span class="app">Locus · TRYBE</span><div><b>Make the ads</b><p>Studio for AI, the creator link for ambassadors, Asana for the designer.</p></div></div>
+      <div class="ls"><span class="n dk">4</span><span class="app">Canva</span><div><b>Polish</b><p>Final touches. Links post back on the Asana task.</p></div></div>
+      <div class="ls"><span class="n dk">5</span><span class="app">Meta</span><div><b>Launch</b><p>Into the testing campaign, named by batch (412-3).</p></div></div>
+      <div class="ls"><span class="n dk">6</span><span class="app">Triple Whale</span><div><b>Judge</b><p>Sales and CPA per ad. Scorecards post to Asana.</p></div></div>
+      <div class="ls"><span class="n dk">7</span><span class="app">Locus Brand tab</span><div><b>Learn</b><p>Winners become next week's briefs and templates.</p></div></div>
+    </div>
+  </div>
+
+  <div class="callout"><b>Still done by people, on purpose:</b> writing briefs, launching in Meta, and the Winner / Loser call.</div>
+  <div class="foot"><span>Creative factories guide</span><span>4 / 5</span></div>
+</section>
+
+<!-- PAGE 5: NUMBERS + WEEK -->
+<section class="page">
+  <div class="top"><img src="../../logo/mobius-mark-gradient.svg" alt=""><span class="eyebrow">The numbers</span></div>
+  <h2>What we aim for</h2>
+
+  <div class="dark" style="padding:20px 22px">
+    <span class="eyebrow" style="color:var(--brand)">New ads per brand, per week</span>
+    <p class="big2" style="margin-top:6px">Testing budget ÷ (3 × target CPA)</p>
+    <p class="muted" style="margin-top:8px">Example: $4K testing budget, $40 target CPA = <b>about 33 ads a week</b>.</p>
+  </div>
+
+  <div class="grid4">
+    <div class="kpi"><span class="v">≤ target</span><span class="l">CPA</span><span class="s">The main call, from Triple Whale</span></div>
+    <div class="kpi"><span class="v">30%+</span><span class="l">Hook rate</span><span class="s">Videos. 40%+ is great</span></div>
+    <div class="kpi"><span class="v">1%+</span><span class="l">Link CTR</span><span class="s">1.5%+ is strong</span></div>
+    <div class="kpi"><span class="v">1 in 10</span><span class="l">Win rate</span><span class="s">Tested ads that become winners</span></div>
+  </div>
+
+  <div class="wk">
+    <div class="d"><span class="day">Mon</span><b>Judge + brief</b><small>Call last week's tests. Write this week's briefs.</small></div>
+    <div class="d"><span class="day">Tue</span><b>Make</b><small>Studio batches. Designer starts.</small></div>
+    <div class="d"><span class="day">Wed</span><b>Launch</b><small>Polish, then live in the testing campaign.</small></div>
+    <div class="d"><span class="day">Thu</span><b>Check</b><small>Every new ad spending and named.</small></div>
+    <div class="d"><span class="day">Fri</span><b>Pulse</b><small>Kill clear losers only.</small></div>
+  </div>
+
+  <div class="callout warn">These are starting targets. Each brand's own test rules in the Brand tab win.</div>
+  <div class="foot"><span>Creative factories guide</span><span>5 / 5</span></div>
+</section>
+
+</body></html>
