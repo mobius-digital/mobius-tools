@@ -25,6 +25,7 @@ import { buildStrategist } from './strategist.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
+import { serveVideo } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
@@ -5840,6 +5841,11 @@ const AH_APP = {
 
     /* ---- Atria (the ideas bot reads Atria ad links): Connect / status / Disconnect are admin,
        the OAuth callback is public (the state it carries is the proof). See atria.js. ---- */
+    /* ---- Studio videos: PUBLIC mp4 (24 random hex id), Range-aware; see studio-video.js ---- */
+    if (path.startsWith('/studio-vid/')) {
+      const r = await serveVideo(request, env, path);
+      if (r) return r;
+    }
     if (path === '/atria/callback' || path.startsWith('/api/atria/')) {
       const r = await handleAtria(request, env, url, path, json, isAdmin);
       if (r) return r;

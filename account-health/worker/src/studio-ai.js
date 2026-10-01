@@ -20,6 +20,7 @@ import { claude, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { getSkill, skillSystem } from './skill.js';
 import { readDoc, asana } from './asana-brand.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
+import { startVideo, listVideos, deleteVideo } from './studio-video.js';
 
 const STR = { type: 'string' }, ARR = { type: 'array', items: STR };
 const obj = p => ({ type: 'object', additionalProperties: false, required: Object.keys(p), properties: p });
@@ -54,6 +55,12 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
   const acct = b.act && await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(b.act).first();
   if (!acct) return json({ error: 'pick a brand first' }, 400);
   const A = acct.act_id;
+
+  /* ---- Make video (Veo, studio-video.js) ---- */
+  const run = async f => { try { return json(await f()); } catch (e) { return json({ error: e.message || 'Something went wrong.' }, 400); } };
+  if (path === '/api/studio-ai/animate') return run(() => startVideo(env, A, b));
+  if (path === '/api/studio-ai/videos') return run(() => listVideos(env, A, new URL(request.url).origin));
+  if (path === '/api/studio-ai/video-delete') return run(() => deleteVideo(env, A, b.id));
 
   /* ---- read briefs into batches ---- */
   if (path === '/api/studio-ai/brief') return streamed(ctx, async put => {

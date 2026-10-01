@@ -142,6 +142,10 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 @media (prefers-reduced-motion:reduce){.st-spin{animation:none}}
 .st-zoom{position:fixed;inset:0;z-index:70;background:rgba(6,13,18,.85);display:grid;place-items:center;padding:20px;cursor:zoom-out}
 .st-zoom img{max-height:92vh;max-width:92vw;object-fit:contain;border-radius:6px}
+.st-zoom video{max-height:92vh;max-width:92vw;border-radius:8px;background:#000;cursor:auto}
+.st-vid{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:8px;background:var(--brand-tint);font-size:12px}
+.st-vid.bad{background:var(--bad-bg,#F7E3DF)}
+.st-vid .btn{padding:4px 8px;font-size:11.5px}
 .st-pick{max-height:52vh;overflow:auto;display:grid;gap:6px;padding:2px}
 .st-pick label{display:grid;grid-template-columns:20px 48px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13.5px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;text-align:left;margin:0;width:auto;font-weight:500;color:var(--ink)}
 .st-pick label:hover{border-color:var(--brand-line);background:var(--brand-tint)}
@@ -197,8 +201,9 @@ async function render({ tok, url, act, accounts, pick }) {
   await reload();
 }
 async function reload() {
-  const [d, at] = await Promise.all([api(`/api/studio?act=${encodeURIComponent(S.act)}`), atriaCall('/api/atria/status').catch(() => null)]);
-  S.d = d; S.atria = at;
+  const [d, at, v] = await Promise.all([api(`/api/studio?act=${encodeURIComponent(S.act)}`), atriaCall('/api/atria/status').catch(() => null), loadVids()]);
+  S.d = d; S.atria = at; S.vids = v;
+  watchVids();
   if (S.cur && S.cur.id !== 'loose') S.cur = S.d.batches.find(b => b.id === S.cur.id) || null;
   paint();
 }
@@ -420,7 +425,76 @@ function adCard(a) {
     <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${ck?.ok === false ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
       <div class="acts">${a.status === 'approved' ? `<button class="btn" data-unapprove="${a.id}">Unapprove</button>` : `<button class="btn primary" data-approve="${a.id}">Approve</button>`}
         <button class="btn" data-change="${a.id}" title="Tell the AI what to change">Change</button><button class="btn" data-redo="${a.id}" title="Make this one again">Redo</button></div>
-      <div class="acts" style="grid-template-columns:1fr 1fr"><button class="btn" data-dl="${a.id}">Download</button><button class="btn" data-del="${a.id}">Delete</button></div></div></div>`;
+      ${vidStrip(a)}
+      <div class="acts"><button class="btn" data-vid="${a.id}" title="Turn this ad into an 8-second vertical video">Make video</button><button class="btn" data-dl="${a.id}">Download</button><button class="btn" data-del="${a.id}">Delete</button></div></div></div>`;
+}
+
+/* ---- Make video (Veo, on the account-health worker; studio-video.js there) ---- */
+const VID_MOTIONS = [['push', 'Slow push-in', 'the camera eases toward the product'], ['light', 'Light sweep', 'a glint of light moves across it'],
+  ['alive', 'Background comes alive', 'the scene moves, the product stays still'], ['orbit', 'Slow turn', 'a slight arc around the product']];
+const VID_Q = [['fast', 'Best', '$1.20'], ['lite', 'Draft', '40¢']];
+async function loadVids() { try { return (await streamCallJson(AH_URL, '/api/studio-ai/videos', {})).videos || []; } catch { return S.vids || []; } }
+const vidOf = a => (S.vids || []).find(v => v.ad_id === a.id);
+function vidStrip(a) {
+  const v = vidOf(a); if (!v) return '';
+  if (v.status === 'working') return `<div class="st-vid"><span class="st-busy"><span class="st-spin"></span>Making the video. About 2 minutes.</span></div>`;
+  if (v.status === 'failed') return `<div class="st-vid bad"><span>${esc(v.error || 'The video failed.')}</span><button class="btn" data-vid="${a.id}">Try again</button></div>`;
+  return `<div class="st-vid"><b>Video ready</b><span><button class="btn" data-vplay="${v.id}">Play</button><button class="btn" data-vdl="${v.id}">Download</button><button class="btn" data-vrm="${v.id}" title="Delete the video">×</button></span></div>`;
+}
+let vidT = null;
+function watchVids() {
+  clearTimeout(vidT);
+  if (!(S.vids || []).some(v => v.status === 'working')) return;
+  vidT = setTimeout(async () => {
+    const before = JSON.stringify((S.vids || []).map(v => v.status));
+    S.vids = await loadVids();
+    if (JSON.stringify(S.vids.map(v => v.status)) !== before && !document.querySelector('.modal-wrap')) paint();
+    watchVids();
+  }, 15000);
+}
+/* The ad is 4:5; Veo makes 9:16. The frame is the ad centred on a blurred, darkened copy of itself. */
+async function frame916(a) {
+  const im = await loadImg(shown(a));
+  const W = 720, H = 1280, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const cover = Math.max(W / im.width, H / im.height);
+  x.filter = 'blur(28px) brightness(0.8)';
+  x.drawImage(im, (W - im.width * cover) / 2, (H - im.height * cover) / 2, im.width * cover, im.height * cover);
+  x.filter = 'none';
+  const h = im.height * (W / im.width);
+  x.drawImage(im, 0, (H - h) / 2, W, h);
+  return c.toDataURL('image/jpeg', 0.92);
+}
+function makeVideo(a) {
+  let motion = 'push', quality = 'fast';
+  const chips = (list, cur, attr) => list.map(([k, l, h]) => `<button class="st-chip ${k === cur ? 'on' : ''}" data-${attr}="${k}">${esc(l)}<small>${esc(h)}</small></button>`).join('');
+  modal('Make a video from this ad', `<p class="hint" style="margin:0 0 10px">An 8-second vertical (9:16) video of this ad for Reels and Stories. The words and the product stay put; only motion is added. About 2 minutes. Check the text and the product before you use it.</p>
+    <p class="st-lbl">How it moves</p><div class="st-chips" id="vMo">${chips(VID_MOTIONS, motion, 'mo')}</div>
+    <label class="st-f" style="margin-top:10px">Anything else?<small>optional, for example "the grass sways" or "steam rises from the cup"</small><input class="st-in" id="vNote" maxlength="300"></label>
+    <p class="st-lbl" style="margin-top:10px">Quality</p><div class="st-chips" id="vQ">${chips(VID_Q, quality, 'q')}</div>`,
+  { cta: 'Make the video', onOpen: (w, ctl) => {
+    const wire = () => {
+      w.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { motion = b.dataset.mo; w.querySelector('#vMo').innerHTML = chips(VID_MOTIONS, motion, 'mo'); wire(); });
+      w.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { quality = b.dataset.q; w.querySelector('#vQ').innerHTML = chips(VID_Q, quality, 'q'); wire(); });
+    };
+    wire();
+    w.onSubmit(async () => {
+      ctl.msg('Sending the ad to the video model…', true);
+      const image = await frame916(a);
+      const r = await streamCallJson(AH_URL, '/api/studio-ai/animate', { ad_id: a.id, image, motion, quality, note: w.querySelector('#vNote').value.trim() });
+      S.vids = [r.video, ...(S.vids || [])];
+      ctl.close(true); paint(); watchVids();
+    });
+  } });
+}
+function playVid(v) { const z = document.createElement('div'); z.className = 'st-zoom'; z.innerHTML = `<video src="${esc(v.url)}" controls autoplay playsinline loop></video>`; z.onclick = e => { if (e.target === z) z.remove(); }; document.body.appendChild(z); }
+async function downloadVid(v) {
+  try {
+    const a = S.d.ads.find(x => x.id === v.ad_id), blob = await (await fetch(v.url)).blob();
+    const o = URL.createObjectURL(blob), l = document.createElement('a');
+    l.href = o; l.download = fileName(a || {}, S.cur?.id === 'loose' ? null : S.cur).replace(/\.png$/, '') + ' 9x16.mp4';
+    document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(o), 4000);
+  } catch (e) { S.err = e.message; paint(); }
 }
 
 /* ---- wiring ---- */
@@ -719,6 +793,10 @@ function wireAds() {
   document.querySelectorAll('[data-dl]').forEach(x => x.onclick = () => download(S.d.ads.find(a => a.id === x.dataset.dl)));
   document.querySelectorAll('[data-redo]').forEach(x => x.onclick = () => redo(S.d.ads.find(a => a.id === x.dataset.redo)));
   document.querySelectorAll('[data-change]').forEach(x => x.onclick = () => change(S.d.ads.find(a => a.id === x.dataset.change)));
+  document.querySelectorAll('[data-vid]').forEach(x => x.onclick = () => makeVideo(S.d.ads.find(a => a.id === x.dataset.vid)));
+  document.querySelectorAll('[data-vplay]').forEach(x => x.onclick = () => playVid(S.vids.find(v => v.id === x.dataset.vplay)));
+  document.querySelectorAll('[data-vdl]').forEach(x => x.onclick = () => downloadVid(S.vids.find(v => v.id === x.dataset.vdl)));
+  document.querySelectorAll('[data-vrm]').forEach(x => x.onclick = async () => { await streamCallJson(AH_URL, '/api/studio-ai/video-delete', { id: x.dataset.vrm }).catch(e => { S.err = e.message; }); S.vids = S.vids.filter(v => v.id !== x.dataset.vrm); paint(); });
   document.querySelectorAll('[data-zoom]').forEach(p => p.onclick = () => zoom(shown(S.d.ads.find(a => a.id === p.dataset.zoom))));
   document.querySelectorAll('[data-zu]').forEach(p => p.onclick = e => { if (e.target.closest('.st-x')) return; zoom(p.dataset.zu); });
 }
