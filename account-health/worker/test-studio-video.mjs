@@ -24,7 +24,7 @@ globalThis.fetch = async (url, init = {}) => {
   calls.push({ url: String(url), init });
   if (/:predictLongRunning$/.test(url)) return startStatus === 200 ? Response.json({ name: 'models/veo/operations/op1' }) : Response.json({ error: { message: 'Quota exceeded for free tier' } }, { status: 429 });
   if (/operations\/op1$/.test(url)) return Response.json(pollDone ? { done: true, response: { generateVideoResponse: { generatedSamples: [{ video: { uri: 'https://files.example/v.mp4' } }] } } } : { done: false });
-  if (/api\.higgsfield\.ai\/estimate/.test(url)) return init.headers.Authorization === 'Key kid:ksecret' ? Response.json({ credits: '1', usd: '0.06' }) : Response.json({ detail: 'Invalid credentials' }, { status: 401 });
+  if (/api\.higgsfield\.ai\/estimate/.test(url)) return ['Key kid:ksecret', 'Bearer single123'].includes(init.headers.Authorization) ? Response.json({ credits: '1', usd: '0.06' }) : Response.json({ detail: 'Invalid credentials' }, { status: 401 });
   if (url === 'https://files.example/v.mp4') return new Response(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
   return new Response('?', { status: 404 });
 };
@@ -86,14 +86,15 @@ await check('delete removes the R2 file and hides the row', async () => {
 await check('Higgsfield: wrong key refused and not stored; key + secret or one "id:secret" value checked and stored; status never returns the key; disconnect', async () => {
   await assert.rejects(V.hfSave(env, { key: 'kid', secret: 'bad' }), /did not accept/);
   assert.equal((await V.hfStatus(env)).connected, false);
-  await assert.rejects(V.hfSave(env, { key: 'kid' }), /secret too/);
+  await assert.rejects(V.hfSave(env, { key: 'kid' }), /did not accept/);
   await V.hfSave(env, { key: 'kid', secret: 'ksecret' });
-  assert.equal(db.prepare(`SELECT value FROM p_studio_cfg WHERE key = 'higgsfield_key'`).get().value, 'kid:ksecret');
+  assert.equal(db.prepare(`SELECT value FROM p_studio_cfg WHERE key = 'higgsfield_key'`).get().value, 'Key kid:ksecret');
   const st = await V.hfStatus(env); assert.equal(st.connected, true); assert.ok(!JSON.stringify(st).includes('ksecret'));
   assert.equal(await V.hfAuth(env), 'Key kid:ksecret');
   await V.hfSave(env, { clear: true }); assert.equal((await V.hfStatus(env)).connected, false);
   await V.hfSave(env, { key: 'kid:ksecret' }); assert.equal((await V.hfStatus(env)).connected, true);
   assert.ok('higgsfield' in await V.listVideos(env, 'act_1'));
+  await V.hfSave(env, { key: 'single123' }); assert.equal(await V.hfAuth(env), 'Bearer single123', 'one-value key: the header shape it answers to is kept');
 });
 console.log(`\n${n}/${n + fails} passed`);
 if (fails) process.exit(1);

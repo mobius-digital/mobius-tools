@@ -285,10 +285,10 @@ function hfSetup() {
     ${on ? `<p class="st-msg ok" style="margin-bottom:8px">Connected${S.hf.since ? ` since ${esc(String(S.hf.since).slice(0, 10))}` : ''}. Paste a new key below only to replace it.</p>` : ''}
     <ol class="st-ol">
       <li>Open <a href="https://cloud.higgsfield.ai" target="_blank" rel="noopener">cloud.higgsfield.ai</a> and sign in with the team's Higgsfield account.</li>
-      <li>Create an API key named <b>Locus Studio</b>. Copy the <b>key</b> and the <b>secret</b> before you close the window.</li>
-      <li>Paste both here and click <b>Connect</b>. If Higgsfield gave you one long value with a colon in it, paste it in the first box and leave the second empty.</li>
+      <li>Create an API key named <b>Locus Studio</b>. Keep that window open.</li>
+      <li>Click <b>Copy API key</b>, paste it in the first box, and click <b>Connect</b>. Leave Secret empty unless Higgsfield gave you one.</li>
     </ol>
-    <div class="st-g2" style="margin-top:10px"><label class="st-f">API key<input class="st-in" id="hfKey" type="password" autocomplete="off"></label><label class="st-f">Secret<input class="st-in" id="hfSecret" type="password" autocomplete="off"></label></div>
+    <div class="st-g2" style="margin-top:10px"><label class="st-f">API key<input class="st-in" id="hfKey" type="password" autocomplete="off"></label><label class="st-f">Secret<small>only if Higgsfield showed one</small><input class="st-in" id="hfSecret" type="password" autocomplete="off"></label></div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn primary" id="hfGo">Connect</button>${on ? '<button class="btn" id="hfOff">Disconnect</button>' : ''}</div>`,
   { cta: null, onOpen: (w, ctl) => {
     w.querySelector('#hfGo').onclick = async () => {
