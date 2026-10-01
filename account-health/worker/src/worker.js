@@ -25,7 +25,7 @@ import { buildStrategist } from './strategist.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
-import { serveVideo } from './studio-video.js';
+import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
@@ -5844,6 +5844,10 @@ const AH_APP = {
     /* ---- Studio videos: PUBLIC mp4 (24 random hex id), Range-aware; see studio-video.js ---- */
     if (path.startsWith('/studio-vid/')) {
       const r = await serveVideo(request, env, path);
+      if (r) return r;
+    }
+    if (path.startsWith('/studio-ref/')) {
+      const r = await serveRef(request, env, path);
       if (r) return r;
     }
     if (path === '/atria/callback' || path.startsWith('/api/atria/')) {

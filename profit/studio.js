@@ -146,6 +146,13 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 .st-vid{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:8px;background:var(--brand-tint);font-size:12px}
 .st-vid.bad{background:var(--bad-bg,#F7E3DF)}
 .st-vid .btn{padding:4px 8px;font-size:11.5px}
+.st-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
+.st-vt{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
+.st-vt .pv{aspect-ratio:9/16;background:#0c161d;display:grid;place-items:center;color:#cfe3ee;font-size:12px;text-align:center;padding:10px;position:relative}
+.st-vt .pv video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.st-vt .mt{padding:8px 9px;display:grid;gap:6px;font-size:12px}
+.st-vt .mt b{font-size:12.5px;line-height:1.3}
+.st-vt .acts{display:flex;gap:5px;flex-wrap:wrap}.st-vt .acts .btn{padding:4px 8px;font-size:11.5px}
 .st-pick{max-height:52vh;overflow:auto;display:grid;gap:6px;padding:2px}
 .st-pick label{display:grid;grid-template-columns:20px 48px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13.5px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;text-align:left;margin:0;width:auto;font-weight:500;color:var(--ink)}
 .st-pick label:hover{border-color:var(--brand-line);background:var(--brand-tint)}
@@ -341,9 +348,10 @@ function canvaSetup() {
 function startView() {
   return `<div class="card"><h3 class="st-h">Start a batch</h3>
     <p class="hint" style="margin:6px 0 12px">A batch is one test: the angle, what you're testing, and numbered lines. Studio makes one ad per line.</p>
-    <div class="st-chips"><button class="st-chip" data-start="asana"><b>From Asana</b><small>pick the brief your team already wrote</small></button><button class="st-chip" data-start="paste"><b>Paste a brief or a plan</b><small>one brief, or a whole BFCM doc for many batches</small></button><button class="st-chip" data-start="blank"><b>Start blank</b><small>type the angle and lines here</small></button></div></div>`;
+    <div class="st-chips"><button class="st-chip" data-start="asana"><b>From Asana</b><small>pick the brief your team already wrote</small></button><button class="st-chip" data-start="paste"><b>Paste a brief or a plan</b><small>one brief, or a whole BFCM doc for many batches</small></button><button class="st-chip" data-start="blank"><b>Start blank</b><small>type the angle and lines here</small></button></div></div>
+    ${videosCard(null)}`;
 }
-function wireStart() { document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => newBatch(b.dataset.start)); }
+function wireStart() { document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => newBatch(b.dataset.start)); wireVideos(); }
 async function newBatch(mode = null) {
   if (mode === 'blank') return saveNew([{ name: 'New batch', angle: '', why: '', concept: '', testing: 'concepts', lines: [{ text: '' }, { text: '' }, { text: '' }] }]);
   const asana = mode === 'paste' ? [] : (await api(`/api/studio/asana?act=${encodeURIComponent(S.act)}`).catch(() => ({ briefs: [] }))).briefs;
@@ -429,7 +437,8 @@ function batchView(b) {
       ${ads.length ? `<button class="btn" id="bDl" ${S.making ? 'disabled' : ''}>Download all</button><button class="btn primary" id="bCanva" ${S.making ? 'disabled' : ''}>Send to Canva</button>` : ''}</div></div>
     <p class="st-msg bad" style="margin-top:6px">${esc(S.err || '')}</p>
     ${ads.length ? `<div class="st-board" style="margin-top:10px">${ads.slice().sort((p, q) => (p.line ?? 99) - (q.line ?? 99)).map(a => adCard(a)).join('')}</div>` : plan ? '<div class="st-empty">Press Make when the plan looks right.</div>' : '<div class="st-empty">Plan the ads first.</div>'}
-  </div>`;
+  </div>
+  ${videosCard(b)}`;
 }
 function planRow(a, i, plan) {
   const lock = plan.variation && i > 0;
@@ -456,10 +465,111 @@ function adCard(a) {
       <div class="acts"><button class="btn" data-vid="${a.id}" title="Turn this ad into an 8-second vertical video">Make video</button><button class="btn" data-dl="${a.id}">Download</button><button class="btn" data-del="${a.id}">Delete</button></div></div></div>`;
 }
 
+/* ---- Videos: "Make a video" (any video, Higgsfield) and the brand's / batch's videos ---- */
+const LOOKS = [['auto', 'Let the AI decide', 'it picks the format'], ['ugc', 'UGC', 'a real-looking person on a phone'], ['cinematic', 'Product cinematic', 'premium B-roll shots'],
+  ['animated', 'Animated 3D', 'Pixar-style characters'], ['clay', 'Claymation', 'stop-motion clay'], ['motion', 'Motion graphics', 'moving text and shapes'], ['recreate', 'Recreate a reference', 'copy a video you upload']];
+function videosCard(b) {
+  const list = (S.vids || []).filter(v => v.kind === 'create' && (b ? v.batch_id === b.id : !v.batch_id));
+  return `<div class="card"><div class="st-bar"><div><h3 class="st-h">Videos</h3><p class="hint" style="margin:2px 0 0">Any AI video: UGC, product shots, Pixar or claymation, motion graphics, or a copy of a reference video. ${b ? 'Uses this batch\u2019s brief and product.' : 'For one batch\u2019s brief, open the batch.'}</p></div>
+    <button class="btn primary" data-vnew="${b ? b.id : ''}">Make a video</button></div>
+    ${list.length ? `<div class="st-vgrid">${list.map(vidTile).join('')}</div>` : ''}</div>`;
+}
+function vidTile(v) {
+  const pv = v.status === 'ready' ? `<video src="${esc(v.url)}" muted loop playsinline preload="metadata"></video>` : v.status === 'failed' ? esc(v.error || 'It failed.') : '<span class="st-busy"><span class="st-spin"></span>Making it. 2 to 6 minutes.</span>';
+  return `<div class="st-vt"><div class="pv" ${v.status === 'ready' ? `data-vplay="${v.id}" style="cursor:pointer"` : ''}>${pv}</div>
+    <div class="mt"><b>${esc(v.title || 'Video')}</b><span class="tiny">${v.seconds || ''}s${v.cost ? ` \u00b7 $${(+v.cost).toFixed(2)}` : ''}</span>
+      <div class="acts">${v.status === 'ready' ? `<button class="btn" data-vplay="${v.id}">Play</button><button class="btn" data-vdl="${v.id}">Download</button>` : ''}${v.status !== 'working' ? `<button class="btn" data-vagain="${v.id}">${v.status === 'failed' ? 'Try again' : 'Make another'}</button>` : ''}<button class="btn" data-vrm="${v.id}" title="Delete">\u00d7</button></div></div></div>`;
+}
+function wireVideos() {
+  document.querySelectorAll('[data-vnew]').forEach(x => x.onclick = () => makeAnyVideo(x.dataset.vnew ? S.d.batches.find(b => b.id === x.dataset.vnew) : null));
+  document.querySelectorAll('[data-vagain]').forEach(x => x.onclick = () => { const v = S.vids.find(y => y.id === x.dataset.vagain); makeAnyVideo(v.batch_id ? S.d.batches.find(b => b.id === v.batch_id) : null, v); });
+  document.querySelectorAll('.st-vt video').forEach(el => { el.onmouseenter = () => el.play().catch(() => {}); el.onmouseleave = () => el.pause(); });
+  if (!S.cur || S.cur.id === 'loose') wireVidButtons();
+}
+function wireVidButtons() {
+  document.querySelectorAll('[data-vplay]').forEach(x => x.onclick = () => playVid(S.vids.find(v => v.id === x.dataset.vplay)));
+  document.querySelectorAll('[data-vdl]').forEach(x => x.onclick = () => downloadVid(S.vids.find(v => v.id === x.dataset.vdl)));
+  document.querySelectorAll('[data-vrm]').forEach(x => x.onclick = async () => { await streamCallJson(AH_URL, '/api/studio-ai/video-delete', { id: x.dataset.vrm }).catch(e => { S.err = e.message; }); S.vids = S.vids.filter(v => v.id !== x.dataset.vrm); paint(); });
+}
+async function upAh(file) {
+  const res = await fetch(`${AH_URL}/api/studio-ai/upload?act=${encodeURIComponent(S.act)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': file.type }, body: file });
+  const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed'); return j.url;
+}
+async function makeAnyVideo(b, again = null) {
+  if (!S.hf?.connected) { hfSetup(); return; }
+  if (!S.products) { const r = await api(`/api/studio/products?act=${encodeURIComponent(S.act)}`).catch(() => ({ products: [] })); S.products = r.products || []; }
+  const su = b?.setup || {}, refs = again ? safeRefs(again) : null;
+  const st = { look: 'auto', seconds: 8, aspect: '9:16', quality: 'draft', images: refs ? refs.images : (su.images || []).slice(0, 4), videos: refs ? refs.videos : [], prompt: again?.prompt || '', title: again?.title || '', why: '', usd: null, prodTitles: (su.products || []).map(p => p.title) };
+  const chips = (list, cur, attr) => list.map(([k, l, h]) => `<button class="st-chip ${String(k) === String(cur) ? 'on' : ''}" data-${attr}="${k}">${esc(l)}${h ? `<small>${esc(h)}</small>` : ''}</button>`).join('');
+  const body = () => `
+    <label class="st-f">What's the video?<small>plain words. For example: "A golfer pulls a ball marker off his belt mid-round and says why he'll never go back to pockets" or "Claymation: a sock monster eats tees until our belt saves the day"</small><textarea class="st-in" id="vIdea" rows="3">${esc(st.idea || '')}</textarea></label>
+    <p class="st-lbl" style="margin-top:8px">Look</p><div class="st-chips" data-grp="look">${chips(LOOKS, st.look, 'lk')}</div>
+    <p class="st-lbl" style="margin-top:10px">Product and references</p>
+    <div class="st-thumbs">${st.images.map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmimg="${k}" role="button" aria-label="Remove">\u00d7</span></button>`).join('')}
+      ${st.videos.map((u, k) => `<span class="st-chip on" style="cursor:default">Reference video ${k + 1} <span data-rmvid="${k}" style="cursor:pointer;margin-left:4px">\u00d7</span></span>`).join('')}
+      <select class="st-in" id="vProd" style="width:auto;margin:0"><option value="">Add a product\u2019s photos\u2026</option>${(S.products || []).map((p, i) => `<option value="${i}">${esc(p.title)}</option>`).join('')}</select>
+      <button class="st-add" id="vAddImg">Add image</button><button class="st-add" id="vAddVid">Add video</button></div>
+    <input type="file" id="vFile" hidden>
+    <div class="st-g2" style="margin-top:10px">
+      <div><p class="st-lbl">Length</p><div class="st-chips" data-grp="len">${chips([[5, '5s'], [8, '8s'], [10, '10s'], [15, '15s'], [20, '20s']], st.seconds, 'sec')}</div></div>
+      <div><p class="st-lbl">Shape</p><div class="st-chips" data-grp="shape">${chips([['9:16', '9:16', 'Reels, Stories'], ['1:1', '1:1', 'feed'], ['3:4', '3:4', 'close to 4:5']], st.aspect, 'asp')}</div></div></div>
+    <p class="st-lbl" style="margin-top:10px">Quality</p><div class="st-chips" data-grp="q">${chips([['draft', 'Draft', '720p, cheaper'], ['best', 'Best', '1080p']], st.quality, 'vq')}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><p class="st-lbl" style="margin:0">The shot</p><button class="btn" id="vWrite">${st.prompt ? 'Write it again' : 'Write the shot with AI'}</button></div>
+    ${st.why ? `<p class="hint" style="margin:4px 0">${esc(st.why)}</p>` : ''}
+    <textarea class="st-in" id="vPrompt" rows="7" placeholder="Press Write the shot, or type exactly what the camera should see. Edit anything before you make it.">${esc(st.prompt)}</textarea>
+    <p class="hint" id="vCost" style="margin-top:6px">${st.usd != null ? `About $${st.usd.toFixed(2)} for this video.` : 'The price shows here once the shot is written.'}</p>`;
+  modal(b ? `Make a video \u00b7 ${b.name || 'batch'}` : 'Make a video', `<div id="vBody">${body()}</div>`, { cta: 'Make the video', wide: true, onOpen: (w, ctl) => {
+    const keep = () => { st.idea = w.querySelector('#vIdea').value; st.prompt = w.querySelector('#vPrompt').value; };
+    const redraw = (k = true) => { if (k) keep(); w.querySelector('#vBody').innerHTML = body(); wire(); };
+    const price = async () => {
+      const el = w.querySelector('#vCost'); if (!st.prompt.trim()) return;
+      el.textContent = 'Checking the price\u2026';
+      try { const r = await streamCallJson(AH_URL, '/api/studio-ai/video-estimate', payload()); st.usd = r.usd; el.textContent = `About $${r.usd.toFixed(2)} for this video.`; }
+      catch (e) { el.textContent = e.message; }
+    };
+    const payload = () => ({ prompt: st.prompt, image_urls: st.images, video_urls: st.videos, seconds: st.seconds, aspect: st.aspect, quality: st.quality, look: st.look, title: st.title, batch_id: b?.id || null });
+    const wire = () => {
+      w.querySelectorAll('[data-lk]').forEach(x => x.onclick = () => { st.look = x.dataset.lk; redraw(); });
+      w.querySelectorAll('[data-sec]').forEach(x => x.onclick = () => { st.seconds = +x.dataset.sec; redraw(); price(); });
+      w.querySelectorAll('[data-asp]').forEach(x => x.onclick = () => { st.aspect = x.dataset.asp; redraw(); price(); });
+      w.querySelectorAll('[data-vq]').forEach(x => x.onclick = () => { st.quality = x.dataset.vq; redraw(); price(); });
+      w.querySelectorAll('[data-rmimg]').forEach(x => x.onclick = e => { e.stopPropagation(); st.images.splice(+x.dataset.rmimg, 1); redraw(); });
+      w.querySelectorAll('[data-rmvid]').forEach(x => x.onclick = () => { st.videos.splice(+x.dataset.rmvid, 1); redraw(); });
+      w.querySelectorAll('[data-zu]').forEach(x => x.onclick = e => { if (!e.target.closest('.st-x')) zoom(x.dataset.zu); });
+      w.querySelector('#vProd').onchange = e => { const p = S.products[+e.target.value]; if (!p) return; st.images = [...st.images, ...p.images.slice(0, 3)].slice(0, 8); if (!st.prodTitles.includes(p.title)) st.prodTitles.push(p.title); redraw(); };
+      const file = w.querySelector('#vFile');
+      w.querySelector('#vAddImg').onclick = () => { file.accept = 'image/png,image/jpeg,image/webp'; file.click(); };
+      w.querySelector('#vAddVid').onclick = () => { file.accept = 'video/mp4,video/quicktime'; file.click(); };
+      file.onchange = async () => {
+        const f = file.files[0]; file.value = ''; if (!f) return;
+        ctl.msg(`Uploading ${f.name}\u2026`, true);
+        keep(); try { const u = await upAh(f); if (/^video\//.test(f.type)) { st.videos = [...st.videos, u].slice(0, 3); if (st.look === 'auto') st.look = 'recreate'; } else st.images = [...st.images, u].slice(0, 8); ctl.msg('Added.', true); redraw(false); }
+        catch (e) { ctl.msg(e.message); }
+      };
+      w.querySelector('#vPrompt').oninput = e => { st.prompt = e.target.value; };
+      w.querySelector('#vWrite').onclick = async () => {
+        keep(); ctl.msg('Writing the shot. About 20 seconds.', true);
+        try {
+          const r = await streamCallJson(AH_URL, '/api/studio-ai/video-shot', { idea: st.idea, look: st.look, seconds: st.seconds, aspect: st.aspect, products: st.prodTitles, n_images: st.images.length, n_videos: st.videos.length, brief: b?.brief || null });
+          st.prompt = r.prompt; st.title = r.title; st.why = r.why; ctl.msg('', true); redraw(false); price();
+        } catch (e) { ctl.msg(e.message); }
+      };
+    };
+    wire(); if (st.prompt) price();
+    w.onSubmit(async () => {
+      keep(); if (!st.prompt.trim()) throw new Error('Write the shot first (or type it).');
+      ctl.msg('Sending it to Higgsfield\u2026', true);
+      const r = await streamCallJson(AH_URL, '/api/studio-ai/video-create', payload());
+      S.vids = [r.video, ...(S.vids || [])]; ctl.close(true); paint(); watchVids();
+    });
+  } });
+}
+const safeRefs = v => { try { const r = JSON.parse(v.refs_json || '{}'); return { images: r.images || [], videos: r.videos || [] }; } catch { return { images: [], videos: [] }; } };
+
 /* ---- Make video (Veo, on the account-health worker; studio-video.js there) ---- */
 const VID_MOTIONS = [['push', 'Slow push-in', 'the camera eases toward the product'], ['light', 'Light sweep', 'a glint of light moves across it'],
   ['alive', 'Background comes alive', 'the scene moves, the product stays still'], ['orbit', 'Slow turn', 'a slight arc around the product']];
-const VID_Q = [['fast', 'Best', '$1.20'], ['lite', 'Draft', '40¢']];
+const vidQ = () => S.hf?.connected ? [['fast', 'Best', '1080p'], ['lite', 'Draft', '720p, cheaper']] : [['fast', 'Best', '$1.20'], ['lite', 'Draft', '40¢']];
 async function loadVids() { try { const r = await streamCallJson(AH_URL, '/api/studio-ai/videos', {}); S.hf = r.higgsfield || S.hf; return r.videos || []; } catch { return S.vids || []; } }
 const vidOf = a => (S.vids || []).find(v => v.ad_id === a.id);
 function vidStrip(a) {
@@ -498,11 +608,11 @@ function makeVideo(a) {
   modal('Make a video from this ad', `<p class="hint" style="margin:0 0 10px">An 8-second vertical (9:16) video of this ad for Reels and Stories. The words and the product stay put; only motion is added. About 2 minutes. Check the text and the product before you use it.</p>
     <p class="st-lbl">How it moves</p><div class="st-chips" id="vMo">${chips(VID_MOTIONS, motion, 'mo')}</div>
     <label class="st-f" style="margin-top:10px">Anything else?<small>optional, for example "the grass sways" or "steam rises from the cup"</small><input class="st-in" id="vNote" maxlength="300"></label>
-    <p class="st-lbl" style="margin-top:10px">Quality</p><div class="st-chips" id="vQ">${chips(VID_Q, quality, 'q')}</div>`,
+    <p class="st-lbl" style="margin-top:10px">Quality</p><div class="st-chips" id="vQ">${chips(vidQ(), quality, 'q')}</div>`,
   { cta: 'Make the video', onOpen: (w, ctl) => {
     const wire = () => {
       w.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { motion = b.dataset.mo; w.querySelector('#vMo').innerHTML = chips(VID_MOTIONS, motion, 'mo'); wire(); });
-      w.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { quality = b.dataset.q; w.querySelector('#vQ').innerHTML = chips(VID_Q, quality, 'q'); wire(); });
+      w.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { quality = b.dataset.q; w.querySelector('#vQ').innerHTML = chips(vidQ(), quality, 'q'); wire(); });
     };
     wire();
     w.onSubmit(async () => {
@@ -572,7 +682,7 @@ function wireBatch() {
   const mk = $('#bMake'); if (mk) mk.onclick = makeBatch;
   const dl = $('#bDl'); if (dl) dl.onclick = () => downloadAll(b);
   const cv = $('#bCanva'); if (cv) cv.onclick = () => sendCanva(b);
-  wireAds();
+  wireAds(); wireVideos();
 }
 /* Paste a screenshot anywhere on a batch (outside a text box) to add it to the swipe file. */
 document.addEventListener('paste', e => {

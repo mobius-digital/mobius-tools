@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const db = new DatabaseSync(':memory:');
 db.exec(`CREATE TABLE p_studio_cfg (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`);
-db.exec(`CREATE TABLE p_studio_ad (id TEXT PRIMARY KEY, act_id TEXT, cost REAL DEFAULT 0)`);
+db.exec(`CREATE TABLE p_studio_ad (id TEXT PRIMARY KEY, act_id TEXT, batch_id TEXT, cost REAL DEFAULT 0)`);
 db.exec(`INSERT INTO p_studio_ad (id, act_id, cost) VALUES ('a'.repeat(24), 'act_1', 0.3)`.replace(`'a'.repeat(24)`, `'${'a'.repeat(24)}'`));
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
 const vals = a => Object.fromEntries(a.map((v, i) => ['p' + (i + 1), v === undefined ? null : v]));
@@ -95,6 +95,76 @@ await check('Higgsfield: wrong key refused and not stored; key + secret or one "
   await V.hfSave(env, { key: 'kid:ksecret' }); assert.equal((await V.hfStatus(env)).connected, true);
   assert.ok('higgsfield' in await V.listVideos(env, 'act_1'));
   await V.hfSave(env, { key: 'single123' }); assert.equal(await V.hfAuth(env), 'Bearer single123', 'one-value key: the header shape it answers to is kept');
+});
+/* ---- Higgsfield video (connected from here on: Key kid:ksecret) ---- */
+await V.hfSave(env, { key: 'kid', secret: 'ksecret' });
+db.exec(`CREATE TABLE p_studio_batch (id TEXT PRIMARY KEY, act_id TEXT)`); db.exec(`INSERT INTO p_studio_batch VALUES ('b1', 'act_1')`);
+let hfState = 'queued', lastSubmit = null;
+const prevFetch = globalThis.fetch;
+globalThis.fetch = async (url, init = {}) => {
+  url = String(url);
+  if (url.startsWith('https://api.higgsfield.ai/')) {
+    calls.push({ url, init });
+    if (init.headers?.Authorization !== 'Key kid:ksecret') return Response.json({ detail: 'Invalid credentials' }, { status: 401 });
+    if (url.includes('/estimate/')) return Response.json({ credits: '20', usd: '1.25' });
+    if (url.includes('/requests/')) return Response.json(hfState === 'completed' ? { status: 'completed', request_id: 'r1', video: { url: 'https://cdn.hf/out.mp4' } } : { status: hfState, request_id: 'r1' });
+    lastSubmit = { url, body: JSON.parse(init.body), idem: init.headers['Idempotency-Key'] };
+    return Response.json({ status: 'queued', request_id: 'r1', status_url: 'https://api.higgsfield.ai/requests/r1/status' });
+  }
+  if (url === 'https://cdn.hf/out.mp4') return new Response(new Uint8Array([9, 9, 9]));
+  return prevFetch(url, init);
+};
+await check('routing: product photos or a reference video = Seedance reference-to-video; nothing = text-to-video; a frame = image-to-video', async () => {
+  let r = V.hfBody({ prompt: 'p', image_urls: ['https://a/1.jpg', 'http://bad'], video_urls: ['https://a/v.mp4'], seconds: 12, aspect: '1:1', quality: 'best' });
+  assert.equal(r.model, 'bytedance/seedance-2.5/reference-to-video');
+  assert.deepEqual(r.body, { prompt: 'p', image_urls: ['https://a/1.jpg'], video_urls: ['https://a/v.mp4'], aspect_ratio: '1:1', duration: 12, resolution: '1080p', generate_audio: true });
+  r = V.hfBody({ prompt: 'p', seconds: 90 }); assert.equal(r.model, 'bytedance/seedance-2.5/text-to-video'); assert.equal(r.body.duration, 30); assert.equal(r.body.aspect_ratio, '9:16');
+  r = V.hfBody({ frame_url: 'https://a/f.jpg', prompt: 'move' }); assert.equal(r.model, 'bytedance/seedance-2.5/image-to-video'); assert.equal(r.body.image_url, 'https://a/f.jpg');
+});
+await check('Make a video: price checked first, submitted with an idempotency key, stored working with the estimate; another brand\'s batch refused', async () => {
+  await assert.rejects(V.createVideo(env, 'act_2', { prompt: 'x', batch_id: 'b1' }), /not in this brand/);
+  await assert.rejects(V.createVideo(env, 'act_1', { prompt: '' }), /Write the shot/);
+  const e = await V.estimateHf(env, { prompt: 'a golfer talks to camera', image_urls: ['https://a/1.jpg'] });
+  assert.equal(e.usd, 1.25);
+  const r = await V.createVideo(env, 'act_1', { prompt: 'a golfer talks to camera', image_urls: ['https://a/1.jpg'], batch_id: 'b1', title: 'Pocket talk', look: 'ugc' });
+  assert.match(lastSubmit.url, /seedance-2\.5\/reference-to-video$/); assert.equal(lastSubmit.idem, r.video.id);
+  assert.equal(r.video.status, 'working'); assert.equal(r.video.provider, 'higgsfield'); assert.equal(r.video.cost, 1.25); assert.equal(r.video.batch_id, 'b1'); assert.equal(r.video.kind, 'create');
+});
+await check('poll: queued stays working; nsfw fails with "nothing was charged"; completed copies the mp4 into R2', async () => {
+  let v = (await V.listVideos(env, 'act_1')).videos.find(x => x.provider === 'higgsfield');
+  assert.equal(v.status, 'working');
+  hfState = 'completed';
+  v = (await V.listVideos(env, 'act_1')).videos.find(x => x.id === v.id);
+  assert.equal(v.status, 'ready'); assert.ok(MEDIA.store.has(`studio/vid/${v.id}.mp4`));
+  hfState = 'nsfw';
+  const r2 = await V.createVideo(env, 'act_1', { prompt: 'y' });
+  const v2 = (await V.listVideos(env, 'act_1')).videos.find(x => x.id === r2.video.id);
+  assert.equal(v2.status, 'failed'); assert.match(v2.error, /Nothing was charged/);
+});
+await check('animate this ad goes to Higgsfield once connected: the frame is stored in R2 and served public, Seedance image-to-video', async () => {
+  hfState = 'queued';
+  const r = await V.startVideo(env, 'act_1', { ad_id: AD, image: IMG, motion: 'push', quality: 'lite' }, 'https://ah.example');
+  assert.match(lastSubmit.url, /seedance-2\.5\/image-to-video$/);
+  assert.match(lastSubmit.body.image_url, /^https:\/\/ah\.example\/studio-ref\/[a-f0-9]{24}\.jpg$/);
+  assert.equal(lastSubmit.body.resolution, '720p');
+  const key = 'studio/vref/' + lastSubmit.body.image_url.split('/').pop();
+  assert.ok(MEDIA.store.has(key));
+  const served = await V.serveRef(new Request(lastSubmit.body.image_url), env, '/studio-ref/' + key.split('/').pop());
+  assert.equal(served.status, 200); assert.equal(served.headers.get('Content-Type'), 'image/jpeg');
+  assert.equal(r.video.kind, 'animate'); assert.equal(r.video.ad_id, AD);
+});
+await check('upload: a reference video lands in R2 with a public URL; wrong types and empty files refused', async () => {
+  const req = new Request('https://ah.example/api/studio-ai/upload?act=act_1', { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: new Uint8Array([1, 2, 3]) });
+  const u = await V.uploadRef(req, env, 'act_1', 'https://ah.example');
+  assert.match(u.url, /^https:\/\/ah\.example\/studio-ref\/[a-f0-9]{24}\.mp4$/);
+  await assert.rejects(V.uploadRef(new Request('https://x', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: 'x' }), env, 'act_1'), /MP4/);
+  await assert.rejects(V.uploadRef(new Request('https://x', { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: new Uint8Array([]) }), env, 'act_1'), /empty/);
+});
+await check('no credits = a plain "add credits" message', async () => {
+  const f = globalThis.fetch;
+  globalThis.fetch = async (url, init) => String(url).startsWith('https://api.higgsfield.ai/') && !String(url).includes('/estimate/') ? Response.json({ detail: 'Insufficient credits' }, { status: 403 }) : f(url, init);
+  await assert.rejects(V.createVideo(env, 'act_1', { prompt: 'z' }), /no credits/);
+  globalThis.fetch = f;
 });
 console.log(`\n${n}/${n + fails} passed`);
 if (fails) process.exit(1);

@@ -20,7 +20,7 @@ import { claude, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { getSkill, skillSystem } from './skill.js';
 import { readDoc, asana } from './asana-brand.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
-import { startVideo, listVideos, deleteVideo, hfStatus, hfSave } from './studio-video.js';
+import { startVideo, listVideos, deleteVideo, hfStatus, hfSave, uploadRef, writeShot, estimateHf, createVideo } from './studio-video.js';
 
 const STR = { type: 'string' }, ARR = { type: 'array', items: STR };
 const obj = p => ({ type: 'object', additionalProperties: false, required: Object.keys(p), properties: p });
@@ -51,6 +51,13 @@ const BATCH = obj({
 export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
   if (!path.startsWith('/api/studio-ai/')) return null;
   if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+  /* Raw-body upload (reference videos and images for Higgsfield): the brand comes in ?act=. */
+  if (path === '/api/studio-ai/upload') {
+    const u = new URL(request.url);
+    const ok = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(u.searchParams.get('act') || '').first();
+    if (!ok) return json({ error: 'pick a brand first' }, 400);
+    try { return json(await uploadRef(request, env, ok.act_id, u.origin)); } catch (e) { return json({ error: e.message }, 400); }
+  }
   const b = await request.json().catch(() => ({}));
   const acct = b.act && await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(b.act).first();
   if (!acct) return json({ error: 'pick a brand first' }, 400);
@@ -58,7 +65,10 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
 
   /* ---- Make video (Veo, studio-video.js) ---- */
   const run = async f => { try { return json(await f()); } catch (e) { return json({ error: e.message || 'Something went wrong.' }, 400); } };
-  if (path === '/api/studio-ai/animate') return run(() => startVideo(env, A, b));
+  if (path === '/api/studio-ai/animate') return run(() => startVideo(env, A, b, new URL(request.url).origin));
+  if (path === '/api/studio-ai/video-shot') return run(() => writeShot(env, acct, b, { claude, jsonOf, brandBrain }));
+  if (path === '/api/studio-ai/video-estimate') return run(() => estimateHf(env, b));
+  if (path === '/api/studio-ai/video-create') return run(() => createVideo(env, A, b));
   if (path === '/api/studio-ai/videos') return run(() => listVideos(env, A, new URL(request.url).origin));
   if (path === '/api/studio-ai/video-delete') return run(() => deleteVideo(env, A, b.id));
   if (path === '/api/studio-ai/higgsfield') return run(() => hfSave(env, b));
