@@ -20,7 +20,7 @@ import { claude, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { getSkill, skillSystem } from './skill.js';
 import { readDoc, asana } from './asana-brand.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
-import { startVideo, listVideos, deleteVideo } from './studio-video.js';
+import { startVideo, listVideos, deleteVideo, hfStatus, hfSave } from './studio-video.js';
 
 const STR = { type: 'string' }, ARR = { type: 'array', items: STR };
 const obj = p => ({ type: 'object', additionalProperties: false, required: Object.keys(p), properties: p });
@@ -61,6 +61,7 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
   if (path === '/api/studio-ai/animate') return run(() => startVideo(env, A, b));
   if (path === '/api/studio-ai/videos') return run(() => listVideos(env, A, new URL(request.url).origin));
   if (path === '/api/studio-ai/video-delete') return run(() => deleteVideo(env, A, b.id));
+  if (path === '/api/studio-ai/higgsfield') return run(() => hfSave(env, b));
 
   /* ---- read briefs into batches ---- */
   if (path === '/api/studio-ai/brief') return streamed(ctx, async put => {

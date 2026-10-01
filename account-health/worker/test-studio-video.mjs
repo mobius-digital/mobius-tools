@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 
 const db = new DatabaseSync(':memory:');
+db.exec(`CREATE TABLE p_studio_cfg (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`);
 db.exec(`CREATE TABLE p_studio_ad (id TEXT PRIMARY KEY, act_id TEXT, cost REAL DEFAULT 0)`);
 db.exec(`INSERT INTO p_studio_ad (id, act_id, cost) VALUES ('a'.repeat(24), 'act_1', 0.3)`.replace(`'a'.repeat(24)`, `'${'a'.repeat(24)}'`));
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -23,6 +24,7 @@ globalThis.fetch = async (url, init = {}) => {
   calls.push({ url: String(url), init });
   if (/:predictLongRunning$/.test(url)) return startStatus === 200 ? Response.json({ name: 'models/veo/operations/op1' }) : Response.json({ error: { message: 'Quota exceeded for free tier' } }, { status: 429 });
   if (/operations\/op1$/.test(url)) return Response.json(pollDone ? { done: true, response: { generateVideoResponse: { generatedSamples: [{ video: { uri: 'https://files.example/v.mp4' } }] } } } : { done: false });
+  if (/api\.higgsfield\.ai\/estimate/.test(url)) return init.headers.Authorization === 'Key kid:ksecret' ? Response.json({ credits: '1', usd: '0.06' }) : Response.json({ detail: 'Invalid credentials' }, { status: 401 });
   if (url === 'https://files.example/v.mp4') return new Response(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
   return new Response('?', { status: 404 });
 };
@@ -80,6 +82,18 @@ await check('delete removes the R2 file and hides the row', async () => {
   await V.deleteVideo(env, 'act_1', v.id);
   assert.ok(!MEDIA.store.has(`studio/vid/${v.id}.mp4`));
   assert.equal((await V.listVideos(env, 'act_1')).videos.length, 0);
+});
+await check('Higgsfield: wrong key refused and not stored; key + secret or one "id:secret" value checked and stored; status never returns the key; disconnect', async () => {
+  await assert.rejects(V.hfSave(env, { key: 'kid', secret: 'bad' }), /did not accept/);
+  assert.equal((await V.hfStatus(env)).connected, false);
+  await assert.rejects(V.hfSave(env, { key: 'kid' }), /secret too/);
+  await V.hfSave(env, { key: 'kid', secret: 'ksecret' });
+  assert.equal(db.prepare(`SELECT value FROM p_studio_cfg WHERE key = 'higgsfield_key'`).get().value, 'kid:ksecret');
+  const st = await V.hfStatus(env); assert.equal(st.connected, true); assert.ok(!JSON.stringify(st).includes('ksecret'));
+  assert.equal(await V.hfAuth(env), 'Key kid:ksecret');
+  await V.hfSave(env, { clear: true }); assert.equal((await V.hfStatus(env)).connected, false);
+  await V.hfSave(env, { key: 'kid:ksecret' }); assert.equal((await V.hfStatus(env)).connected, true);
+  assert.ok('higgsfield' in await V.listVideos(env, 'act_1'));
 });
 console.log(`\n${n}/${n + fails} passed`);
 if (fails) process.exit(1);

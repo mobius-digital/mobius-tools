@@ -137,7 +137,7 @@ export async function listVideos(env, act, origin) {
       const i = rows.findIndex(x => x.id === id); if (fresh && i >= 0) rows[i] = fresh;
     }
   }
-  return { videos: rows.map(r => shapeVid(r, env, origin)) };
+  return { videos: rows.map(r => shapeVid(r, env, origin)), higgsfield: await hfStatus(env) };
 }
 
 export async function deleteVideo(env, act, id) {
@@ -169,4 +169,32 @@ export async function serveVideo(request, env, path) {
   const obj = await env.MEDIA.get(key);
   if (!obj) return new Response('not found', { status: 404 });
   return new Response(obj.body, { headers: { ...head, 'Content-Length': String(obj.size) } });
+}
+
+/* ---------------- Higgsfield connection (2026-10-01) ----------------
+   One workspace key, pasted by Cole in Locus Studio (never handled by anyone else). Higgsfield keys
+   come as a key ID + secret (Authorization: Key <id>:<secret>); some consoles show them as one
+   "id:secret" string, so either shape is accepted. Checked with the free estimate endpoint before it
+   is saved; stored in p_studio_cfg 'higgsfield_key', never sent back to the browser. */
+export const HF = 'https://api.higgsfield.ai';
+const cfgGet = async (env, k) => (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = ?1`).bind(k).first().catch(() => null))?.value || null;
+export const hfAuth = async env => { const k = await cfgGet(env, 'higgsfield_key'); return k ? `Key ${k}` : null; };
+export async function hfStatus(env) {
+  const r = await env.DB.prepare(`SELECT updated_at FROM p_studio_cfg WHERE key = 'higgsfield_key'`).first().catch(() => null);
+  return { connected: !!r, since: r?.updated_at || null };
+}
+export async function hfSave(env, b) {
+  if (b.clear) { await env.DB.prepare(`DELETE FROM p_studio_cfg WHERE key = 'higgsfield_key'`).run(); return { connected: false }; }
+  let id = String(b.key || '').trim(), secret = String(b.secret || '').trim();
+  if (!secret && id.includes(':')) [id, secret] = [id.slice(0, id.indexOf(':')), id.slice(id.indexOf(':') + 1)];
+  if (!id) throw new Error('Paste the API key.');
+  if (!secret) throw new Error('Paste the secret too. If Higgsfield showed only one value, it may be both joined by a colon; otherwise create a new key and copy the secret before closing the window.');
+  if (/\s/.test(id + secret) || (id + secret).length > 400) throw new Error('That does not look like a Higgsfield key.');
+  const res = await fetch(`${HF}/estimate/higgsfield-ai/soul/v2/standard`, {
+    method: 'POST', headers: { Authorization: `Key ${id}:${secret}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'test' }),
+  });
+  if (res.status === 401) throw new Error('Higgsfield did not accept that key and secret. Check you copied both in full.');
+  if (!res.ok && res.status !== 403 && res.status !== 404 && res.status !== 422) throw new Error(`Higgsfield answered ${res.status}. Try again in a minute.`);
+  await env.DB.prepare(`INSERT INTO p_studio_cfg (key, value, updated_at) VALUES ('higgsfield_key', ?1, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).bind(`${id}:${secret}`).run();
+  return { connected: true, credits_note: res.status === 403 ? 'Connected, but the API account has no credits yet. Add credits at cloud.higgsfield.ai.' : '' };
 }

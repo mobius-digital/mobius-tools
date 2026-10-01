@@ -215,7 +215,7 @@ function paint() {
   const loose = live(adsOf(null));
   main.innerHTML = `<div class="st">
     <div class="st-bar"><div style="display:block"><h2>Studio · ${esc(d.account?.name || '')}</h2><p class="sub" style="margin:0">Make a batch straight from the brief: one ad per line, the product checked against the real photos, then send it to Canva.</p></div>
-      <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span><button class="btn" id="stKey">Image AI key</button>` : ''}<button class="btn" id="stAtria" title="Lets the Slack ideas bot open Atria ad links">${S.atria?.connected ? 'Atria connected' : 'Connect Atria'}</button><button class="btn" id="stCanva">${d.canva?.connected ? 'Canva connected' : 'Connect Canva'}</button></div></div>
+      <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span><button class="btn" id="stKey">Image AI key</button>` : ''}<button class="btn" id="stAtria" title="Lets the Slack ideas bot open Atria ad links">${S.atria?.connected ? 'Atria connected' : 'Connect Atria'}</button><button class="btn" id="stCanva">${d.canva?.connected ? 'Canva connected' : 'Connect Canva'}</button><button class="btn" id="stHf" title="The video AI">${S.hf?.connected ? 'Higgsfield connected' : 'Connect Higgsfield'}</button></div></div>
     ${d.has_key ? '' : keyCard()}
     <div class="st-layout">
       <div class="card" style="padding:12px"><div class="st-bar" style="margin-bottom:8px"><h3 class="st-h">Batches</h3><button class="btn primary" id="stNew">New batch</button></div>
@@ -239,6 +239,7 @@ function keyCard() {
     <p class="st-msg" id="stKeyMsg"></p></div>`;
 }
 function wireTop() {
+  const hf = $('#stHf'); if (hf) hf.onclick = hfSetup;
   const save = $('#stKeySave');
   if (save) save.onclick = async () => {
     const m = $('#stKeyMsg'); m.textContent = 'Checking the key with OpenAI…'; m.className = 'st-msg';
@@ -275,6 +276,32 @@ function atriaSetup() {
     };
     const off = w.querySelector('#atOff');
     if (off) off.onclick = async () => { try { await atriaCall('/api/atria/disconnect', 'POST'); ctl.close(); reload(); } catch (e) { ctl.msg(e.message); } };
+  } });
+}
+function hfSetup() {
+  const on = !!S.hf?.connected;
+  modal('Connect Higgsfield', `
+    <p class="hint" style="margin:0 0 8px">Higgsfield is the video AI. Connect it once for the whole team; the key stays on our server and is never shown again.</p>
+    ${on ? `<p class="st-msg ok" style="margin-bottom:8px">Connected${S.hf.since ? ` since ${esc(String(S.hf.since).slice(0, 10))}` : ''}. Paste a new key below only to replace it.</p>` : ''}
+    <ol class="st-ol">
+      <li>Open <a href="https://cloud.higgsfield.ai" target="_blank" rel="noopener">cloud.higgsfield.ai</a> and sign in with the team's Higgsfield account.</li>
+      <li>Create an API key named <b>Locus Studio</b>. Copy the <b>key</b> and the <b>secret</b> before you close the window.</li>
+      <li>Paste both here and click <b>Connect</b>. If Higgsfield gave you one long value with a colon in it, paste it in the first box and leave the second empty.</li>
+    </ol>
+    <div class="st-g2" style="margin-top:10px"><label class="st-f">API key<input class="st-in" id="hfKey" type="password" autocomplete="off"></label><label class="st-f">Secret<input class="st-in" id="hfSecret" type="password" autocomplete="off"></label></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn primary" id="hfGo">Connect</button>${on ? '<button class="btn" id="hfOff">Disconnect</button>' : ''}</div>`,
+  { cta: null, onOpen: (w, ctl) => {
+    w.querySelector('#hfGo').onclick = async () => {
+      ctl.msg('Checking the key with Higgsfield…', true);
+      try {
+        const r = await streamCallJson(AH_URL, '/api/studio-ai/higgsfield', { key: w.querySelector('#hfKey').value, secret: w.querySelector('#hfSecret').value });
+        S.hf = { connected: true, since: new Date().toISOString() };
+        ctl.msg(r.credits_note || 'Connected. Higgsfield is ready.', !r.credits_note);
+        setTimeout(() => { ctl.close(); paint(); }, r.credits_note ? 4000 : 1200);
+      } catch (e) { ctl.msg(e.message); }
+    };
+    const off = w.querySelector('#hfOff');
+    if (off) off.onclick = async () => { try { await streamCallJson(AH_URL, '/api/studio-ai/higgsfield', { clear: true }); S.hf = { connected: false }; ctl.close(); paint(); } catch (e) { ctl.msg(e.message); } };
   } });
 }
 function canvaSetup() {
@@ -433,7 +460,7 @@ function adCard(a) {
 const VID_MOTIONS = [['push', 'Slow push-in', 'the camera eases toward the product'], ['light', 'Light sweep', 'a glint of light moves across it'],
   ['alive', 'Background comes alive', 'the scene moves, the product stays still'], ['orbit', 'Slow turn', 'a slight arc around the product']];
 const VID_Q = [['fast', 'Best', '$1.20'], ['lite', 'Draft', '40¢']];
-async function loadVids() { try { return (await streamCallJson(AH_URL, '/api/studio-ai/videos', {})).videos || []; } catch { return S.vids || []; } }
+async function loadVids() { try { const r = await streamCallJson(AH_URL, '/api/studio-ai/videos', {}); S.hf = r.higgsfield || S.hf; return r.videos || []; } catch { return S.vids || []; } }
 const vidOf = a => (S.vids || []).find(v => v.ad_id === a.id);
 function vidStrip(a) {
   const v = vidOf(a); if (!v) return '';
