@@ -37,7 +37,7 @@ const DRIVE_TEMPLATE = '1rPYv4HRCpDEny66Ux-gIFmkOqSuurgYF';   // "# Client Templ
 const OWNER = 'cole@go-mobius-digital.com';
 const ONBOARD_FORM = 'https://tools.go-mobius-digital.com/onboard/?t=';
 const CALENDLY = 'https://calendly.com/mobius-digital/strategy-session';
-const STEPS = ['asana', 'onboard', 'drive', 'slack', 'email', 'summary'];
+const STEPS = ['asana', 'onboard', 'drive', 'slack', 'stripe', 'email', 'summary'];
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -345,6 +345,114 @@ async function stepEmail(env, r, b) {
   return { text: `Sent to ${r.contact_email} from your Gmail.` };
 }
 
+/* ---------------- Stripe: invoice first, then autopay ----------------
+   Cole's way: the first invoice goes out and work starts when it is paid; from then
+   on the retainer is on autopay. One Stripe subscription does both: it is made with
+   collection_method send_invoice (Stripe emails the invoice, the client pays by card
+   on Stripe's page, the card is saved on the subscription), and when invoice.paid
+   arrives on /stripe/webhook the subscription flips to charge_automatically. The
+   webhook endpoint is made through the API the first time, so there is no dashboard
+   step. Secret: STRIPE_SECRET_KEY on this worker (a restricted key with write access
+   to Customers, Products, Prices, Subscriptions, Invoices and Webhook Endpoints is
+   enough). Nothing is charged here; the client pays the invoice themselves. */
+const STRIPE_WEBHOOK = 'https://mobius-account-health.mobius-digital.workers.dev/stripe/webhook';
+const NEEDS_STRIPE = 'Stripe is not connected to Locus. Paste a key with: cd account-health/worker then npx.cmd wrangler secret put STRIPE_SECRET_KEY. Until then, send the invoice from Stripe by hand.';
+
+function form(obj, prefix = '') {
+  const out = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    const key = prefix ? `${prefix}[${k}]` : k;
+    if (Array.isArray(v)) v.forEach((x, i) => out.push(typeof x === 'object' ? form(x, `${key}[${i}]`) : `${encodeURIComponent(`${key}[${i}]`)}=${encodeURIComponent(x)}`));
+    else if (typeof v === 'object') out.push(form(v, key));
+    else out.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`);
+  }
+  return out.filter(Boolean).join('&');
+}
+async function stripe(env, method, path, body) {
+  const key = (env.STRIPE_SECRET_KEY || '').trim();
+  if (!key) throw new Error(NEEDS_STRIPE);
+  const res = await F(`https://api.stripe.com/v1/${path}`, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' }, body: body ? form(body) : undefined });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Stripe: ${j.error?.message || res.status}`);
+  return j;
+}
+/** The webhook that flips a paid subscription to autopay. Made once; the signing
+ *  secret lives in settings.stripeWebhook. */
+async function ensureStripeWebhook(env) {
+  const have = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'stripeWebhook'`).first().catch(() => null))?.value, null);
+  if (have?.secret) return have;
+  const w = await stripe(env, 'POST', 'webhook_endpoints', { url: STRIPE_WEBHOOK, enabled_events: ['invoice.paid'], description: 'Locus: first retainer invoice paid, switch the subscription to autopay' });
+  const row = { id: w.id, secret: w.secret, made: new Date().toISOString() };
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('stripeWebhook', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(row)).run();
+  return row;
+}
+
+async function stepStripe(env, r, b) {
+  if (!(r.retainer > 0)) return { status: 'skipped', text: 'Skipped: no retainer was entered.' };
+  if (!emailOk(r.contact_email)) throw new Error('No client email, so there is nobody to invoice.');
+  const prev = safeJson(r.steps_json, {}).stripe || {};
+  if (prev.subscription) {
+    /* Already made: just refresh what the invoice says. */
+    const inv = prev.invoice ? await stripe(env, 'GET', `invoices/${prev.invoice}`) : null;
+    const paid = inv?.status === 'paid';
+    return { ...prev, status: 'done', paid, text: `${paid ? 'First invoice PAID, retainer on autopay.' : `Invoice sent, ${inv?.status || 'open'}.`} $${Math.round(r.retainer).toLocaleString('en-US')} a month.` };
+  }
+  if (!b.approved) throw new Error('The invoice is only sent when you press Send on it.');
+  await ensureStripeWebhook(env);
+  const found = await stripe(env, 'GET', `customers/search?${form({ query: `email:'${r.contact_email.replace(/'/g, '')}'`, limit: 1 })}`);
+  const customer = found.data?.[0] || await stripe(env, 'POST', 'customers', { email: r.contact_email, name: r.contact_name || r.name, description: r.name, metadata: { brand: r.name, locus: r.id } });
+  const sub = await stripe(env, 'POST', 'subscriptions', {
+    customer: customer.id,
+    items: [{ price_data: { currency: 'usd', unit_amount: Math.round(r.retainer * 100), recurring: { interval: 'month' }, product_data: { name: `Mobius Digital retainer: ${r.name}` } } }],
+    collection_method: 'send_invoice', days_until_due: 7,
+    payment_settings: { save_default_payment_method: 'on_subscription' },
+    description: `${r.name} monthly retainer`,
+    metadata: { brand: r.name, locus: r.id, autopay: 'after first payment' },
+  });
+  /* A subscription's first invoice is a draft; Stripe only sends a finalized one. */
+  await stripe(env, 'POST', `invoices/${sub.latest_invoice}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
+  const inv = await stripe(env, 'POST', `invoices/${sub.latest_invoice}/send`);
+  return { status: 'done', customer: customer.id, subscription: sub.id, invoice: inv.id, url: inv.hosted_invoice_url, paid: false,
+    text: `Invoice for $${Math.round(r.retainer).toLocaleString('en-US')} sent to ${r.contact_email}. When they pay, the card is saved and the retainer bills itself every month.` };
+}
+
+/* Stripe calls this (public, signed). invoice.paid on a Locus subscription -> autopay. */
+async function stripeSig(secret, body, header) {
+  const parts = Object.fromEntries((header || '').split(',').map(p => p.split('=')));
+  if (!parts.t || !parts.v1 || Math.abs(Date.now() / 1000 - +parts.t) > 300) return false;
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const hex = [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`${parts.t}.${body}`)))].map(x => x.toString(16).padStart(2, '0')).join('');
+  if (hex.length !== parts.v1.length) return false;
+  let d = 0; for (let i = 0; i < hex.length; i++) d |= hex.charCodeAt(i) ^ parts.v1.charCodeAt(i);
+  return d === 0;
+}
+export async function handleStripeWebhook(request, env) {
+  const body = await request.text();
+  const cfg = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'stripeWebhook'`).first().catch(() => null))?.value, null);
+  if (!cfg?.secret || !(await stripeSig(cfg.secret, body, request.headers.get('Stripe-Signature')))) return new Response('bad signature', { status: 400 });
+  const ev = safeJson(body, {});
+  if (ev.type !== 'invoice.paid') return new Response('ignored', { status: 200 });
+  const inv = ev.data?.object || {};
+  const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
+  if (!subId) return new Response('no subscription', { status: 200 });
+  await ensureTable(env);
+  const rows = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE json_extract(steps_json, '$.stripe.subscription') = ?1`).bind(subId).all()).results || [];
+  for (const r of rows) {
+    const steps = safeJson(r.steps_json, {});
+    if (steps.stripe?.paid) continue;
+    try {
+      const sub = await stripe(env, 'GET', `subscriptions/${subId}`);
+      const pm = sub.default_payment_method || inv.payment_intent?.payment_method || null;
+      if (sub.collection_method !== 'charge_automatically') await stripe(env, 'POST', `subscriptions/${subId}`, { collection_method: 'charge_automatically', ...(typeof pm === 'string' ? { default_payment_method: pm } : {}) });
+      steps.stripe = { ...steps.stripe, paid: true, paid_at: new Date().toISOString(), text: `First invoice PAID on ${new Date().toISOString().slice(0, 10)}. Retainer is on autopay.` };
+    } catch (e) { steps.stripe = { ...steps.stripe, paid: true, paid_at: new Date().toISOString(), text: `First invoice paid, but autopay was not switched on: ${e.message}. Do it in Stripe.` }; }
+    await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
+    if (r.slack_internal && env.SLACK_BOT_TOKEN) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: `*${r.name} paid their first invoice.* The retainer is on autopay from here. Work can start.` }).catch(() => {});
+  }
+  return new Response('ok', { status: 200 });
+}
+
 /* ---------------- summary ---------------- */
 async function stepSummary(env, r) {
   if (!r.slack_internal) throw new Error('No internal channel yet. Make the Slack channels first.');
@@ -356,6 +464,7 @@ async function stepSummary(env, r) {
     r.slack_client ? `• Client channel: <#${r.slack_client}>` : null,
     r.token ? `• Their onboarding link: ${ONBOARD_FORM}${r.token}` : null,
     r.website ? `• Website: ${r.website}` : null,
+    safeJson(r.steps_json, {}).stripe?.url ? `• First invoice: ${safeJson(r.steps_json, {}).stripe.url}` : null,
     `• Team: strategist ${team.strategist || 'not picked'}, media buyer ${team.buyer || 'not picked'}, editor ${team.editor || 'not picked'}`,
     `Locus posts here when they send the onboarding form.`,
   ].filter(Boolean);
@@ -364,7 +473,7 @@ async function stepSummary(env, r) {
   return { text: 'Posted in the internal channel.' };
 }
 
-const RUN = { asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, email: stepEmail, summary: stepSummary };
+const RUN = { asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, stripe: stepStripe, email: stepEmail, summary: stepSummary };
 
 /* ---------------- routes (admin) ---------------- */
 export async function handleNewClient(request, env, path, json, isAdmin, who) {
@@ -378,7 +487,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const runs = (await env.DB.prepare(`SELECT * FROM p_newclient ORDER BY created_at DESC LIMIT 30`).all()).results || [];
       let team = [], err = null;
       try { team = await teamList(env); } catch (e) { err = e.message; }
-      return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS });
+      return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS, stripe: !!(env.STRIPE_SECRET_KEY || '').trim() });
     }
     if (path === '/api/new-client' && request.method === 'POST') {
       const name = String(b.name || '').trim().slice(0, 80);
@@ -418,7 +527,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       steps[b.step] = { ...res, at: new Date().toISOString() };
       await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
       const now = await getRun(env, r.id);
-      return json({ ok: res.status === 'done', step: steps[b.step], run: view(now), welcome: welcomeDraft(now) });
+      return json({ ok: res.status !== 'failed', step: steps[b.step], run: view(now), welcome: welcomeDraft(now) });
     }
     if (path === '/api/new-client/remove' && request.method === 'POST') {
       /* Forgets the row only. Nothing made in Asana, Drive or Slack is deleted. */

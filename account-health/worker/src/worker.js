@@ -29,7 +29,7 @@ import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
-import { handleNewClient, newClientTick, useFetch as newClientFetch } from './newclient.js';
+import { handleNewClient, newClientTick, handleStripeWebhook, useFetch as newClientFetch } from './newclient.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -5824,6 +5824,8 @@ const AH_APP = {
     /* BUTTONS ON THE SLACK CARD. Every action the Daily Brief and Reports tabs
        offer, available where the draft already is. Unauthenticated by design:
        Slack signs the request and verifySlackSig is what proves it. */
+    /* Stripe: the first retainer invoice was paid (signed with the endpoint secret, newclient.js). */
+    if (path === '/stripe/webhook' && request.method === 'POST') return handleStripeWebhook(request, env);
     if (path === '/slack/actions' && request.method === 'POST') {
       await ensureSlackColumns(env).catch(() => {});
       return handleSlackInteract(request, env, ctx);

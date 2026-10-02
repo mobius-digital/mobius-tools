@@ -15,7 +15,7 @@
 const LEDGER_URL = 'https://mobius-ledger.mobius-digital.workers.dev';
 const LABEL = {
   asana: 'Asana project', onboard: 'Onboarding link', drive: 'Google Drive folder', slack: 'Slack channels',
-  summary: 'Summary for the team', ledger: 'Ledger', prefill: 'Form pre-filled from their website', email: 'Welcome email',
+  summary: 'Summary for the team', ledger: 'Ledger', prefill: 'Form pre-filled from their website', email: 'Welcome email', stripe: 'First invoice',
 };
 const WHAT = {
   asana: 'Made from the 2026 template, your team added, the client invited by email.',
@@ -28,7 +28,6 @@ const WHAT = {
 };
 const AUTO = ['asana', 'onboard', 'drive', 'slack', 'summary', 'ledger', 'prefill'];
 const BY_HAND = [
-  'Send the invoice and set up the subscription (Stripe is not connected to Locus yet)',
   'Send the contract (DocuSign is not connected to Locus yet)',
   'Create the Frame project and add the team',
   'Send the Shopify collaborator request once they give their store address in the form',
@@ -166,6 +165,16 @@ async function status(id, autorun) {
         ${(st?.notes || []).map(n => `<span class="tiny nc-bad">${esc(n)}</span>`).join('')}</div>
       ${!running && !busy && st?.status !== 'done' ? `<button class="btn" data-go="${key}">${st ? 'Retry' : 'Run'}</button>` : '<span></span>'}</div>`;
   };
+  /* The invoice is money, so it never runs by itself: one button, one confirm. */
+  const invoiceBlock = () => {
+    const st = run.steps.stripe;
+    const amt = run.retainer ? `$${Number(run.retainer).toLocaleString('en-US')} a month` : '';
+    if (!run.retainer) return `<div style="margin-top:16px"><b style="font-size:14px">○ First invoice</b><span class="tiny" style="display:block">Skipped: no retainer was entered. Send it from Stripe if you need one.</span></div>`;
+    const sent = st?.status === 'done';
+    return `<div style="margin-top:16px"><b style="font-size:14px">${sent ? (st.paid ? '✅' : '📨') : busy === 'stripe' ? '⏳' : '○'} First invoice, ${amt}</b>
+      <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'stripe' ? 'Sending…' : esc(st?.text || `Stripe emails ${run.contact_email} the first invoice. When they pay it, their card is saved and the retainer bills itself every month from then on.`)}${st?.url ? ` <a href="${esc(st.url)}" target="_blank" rel="noopener">Open the invoice</a>` : ''}</span>
+      ${sent || busy ? (sent && !st.paid ? `<button class="btn" data-go="stripe" style="margin-top:6px">Check if paid</button>` : '') : `<button class="btn primary" id="ncInvoice" style="margin-top:6px">${st?.status === 'failed' ? 'Try again' : 'Send the invoice'}</button>`}</div>`;
+  };
   const paint = () => {
     if (closed) return;
     const m = run.steps.email;
@@ -175,6 +184,7 @@ async function status(id, autorun) {
     body.innerHTML = `<h3>${esc(run.name)}: setup</h3>
       <p class="hint" style="margin-bottom:8px">Each line is one thing Locus does. A warning says what is missing and what to do instead. You can close this and come back from Settings > New client.</p>
       <div>${AUTO.map(row).join('')}</div>
+      ${invoiceBlock()}
       <div class="nc-mail" style="margin-top:16px">
         <b style="font-size:14px">${m?.status === 'done' ? '✅ ' : ''}Welcome email to ${esc(run.contact_email || '')}</b>
         <p class="tiny${m?.status === 'failed' ? ' nc-bad' : ''}" style="margin:2px 0 8px">${m ? esc(m.text) : 'Read it, change anything, then Send. It goes from your Gmail. Nothing is sent until you press Send.'}</p>
@@ -189,6 +199,11 @@ async function status(id, autorun) {
         <ul class="nc-list">${BY_HAND.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0"><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
+    const inv = body.querySelector('#ncInvoice');
+    if (inv) inv.onclick = async () => {
+      if (!(await confirmModal(`Send the first invoice?`, `Stripe emails ${run.contact_email} an invoice for $${Number(run.retainer).toLocaleString('en-US')}. When they pay it, their card is saved and the retainer bills itself every month. Nothing is charged until they pay.`, 'Send the invoice'))) return;
+      await go('stripe');
+    };
     body.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
     const sub = body.querySelector('#ncSub'), msg = body.querySelector('#ncMsg');
     if (sub) {
@@ -245,7 +260,7 @@ async function status(id, autorun) {
         const j = await post('/api/new-client/mark', { id, step: key, ok: r.ok, text: r.text });
         run = j.run; ok = r.ok;
       } else {
-        const j = await post('/api/new-client/step', { id, step: key, ...(key === 'email' ? { subject: mail.subject, body: mail.body, approved: true } : {}) });
+        const j = await post('/api/new-client/step', { id, step: key, ...(key === 'email' ? { subject: mail.subject, body: mail.body, approved: true } : {}), ...(key === 'stripe' ? { approved: true } : {}) });
         run = j.run; welcome = j.welcome || welcome; ok = j.ok;
       }
     } catch (e) { run.steps[key] = { status: 'failed', text: e.message }; }
