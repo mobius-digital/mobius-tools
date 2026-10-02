@@ -7,8 +7,8 @@
  * be retried alone. A step that cannot run yet says why and what to do by hand.
  * The welcome email is never sent until Cole presses Send on its text.
  *
- * Classic script, loaded before the inline one: it uses the host's esc, apiAH, S and
- * AH_URL at call time.
+ * Classic script, loaded before the inline one: it uses the host's esc, S, noteModal and
+ * confirmModal at call time.
  */
 (function () {
 'use strict';
@@ -56,7 +56,15 @@ function css() {
   document.head.appendChild(s);
 }
 
-const post = (path, body) => apiAH(path, { method: 'POST', body: JSON.stringify(body) });
+/* Local testing: localStorage pf_ah points this at a local account-health dev worker (same as brand.js). */
+const AH = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
+async function ah(path, opts = {}) {
+  const res = await fetch(AH + path, { ...opts, headers: { Authorization: 'Bearer ' + S.tok, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  return j;
+}
+const post = (path, body) => ah(path, { method: 'POST', body: JSON.stringify(body) });
 
 function shell(inner, width) {
   const w = document.createElement('div');
@@ -70,7 +78,7 @@ function shell(inner, width) {
 async function open() {
   css();
   let opts;
-  try { opts = await apiAH('/api/new-client/options'); }
+  try { opts = await ah('/api/new-client/options'); }
   catch (e) { return noteModal('Could not open New client', `<p>${esc(e.message)}</p>`); }
   const team = opts.team || [];
   const pick = { strategist: '', buyer: '', editor: '' };
@@ -211,7 +219,7 @@ async function status(id, autorun) {
   async function prefill() {
     if (!run.website) return { ok: true, text: 'Skipped: no website was entered.' };
     if (!run.pending_act && !run.act_id) throw new Error('Make the onboarding link first.');
-    const res = await fetch(AH_URL + '/api/research/prefill', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: run.act_id || run.pending_act }) });
+    const res = await fetch(AH + '/api/research/prefill', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: run.act_id || run.pending_act }) });
     if (!res.ok || !res.body) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
     const rd = res.body.getReader(), dec = new TextDecoder();
     let buf = '', out = null;
@@ -245,7 +253,7 @@ async function status(id, autorun) {
     return ok;
   }
 
-  try { const j = await apiAH('/api/new-client/run?id=' + encodeURIComponent(id)); run = j.run; welcome = j.welcome; }
+  try { const j = await ah('/api/new-client/run?id=' + encodeURIComponent(id)); run = j.run; welcome = j.welcome; }
   catch (e) { body.innerHTML = `<h3>Could not load</h3><p class="hint">${esc(e.message)}</p>`; return; }
   paint();
   if (autorun) {

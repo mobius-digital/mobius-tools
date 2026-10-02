@@ -1037,3 +1037,37 @@ creator-link angle, an Asana brief and a Studio batch; approver buttons write th
 `p_amb_*`, the brand's Asana Creative Brief section and `p_studio_batch`. It lives in
 account-health (`src/ideas.js`); read account-health/CLAUDE.md "Ideas bot (2026-09-29)" before
 touching the creator link, Studio batches or Asana briefs from anywhere else.
+
+## 2026-10-02: New client (one button sets a client up everywhere)
+
+- **Where:** Settings > **+ New client** (`profit/newclient.js`, own closure, `window.NewClient`). Engine:
+  `account-health/worker/src/newclient.js`, table `p_newclient` (created on first use), routes
+  `/api/new-client[/options|/run|/step|/mark|/remove]` (admin). "+ Add a brand" stays for a client whose Meta
+  account Locus can already see.
+- **Shape:** the form makes a row, then the SCREEN asks for one step per request (`asana`, `onboard`, `drive`,
+  `slack`, `summary` on the worker; `ledger` and `prefill` from the browser, reported with `/mark`), so each
+  line shows its own result and has its own Retry. A step that lacks a permission FAILS WITH THE REASON and
+  the by-hand fallback. Never fake a step.
+- **asana:** `instantiateProject` on "MD - Template 2026 v2", the picked team + Cole added, the client added by
+  email, Website filled, the Marketing Plan task deleted, the 18 old Onboarding subtasks replaced by 7.
+- **onboard:** runs `onboardAsanaTick` now, so the brand lives under the pending id `asana_<project>` until its
+  Meta account is added. `research.js context()` accepts a pending id, so the website pre-fill works before Meta.
+- **drive:** creates Branding + Assets (Ad Concepts, Client Content) beside "# Client Template Folder", as Cole.
+  Needs the `drive` scope on the service account's domain-wide delegation (it had `drive.readonly` only).
+- **slack:** two PRIVATE channels, `<slug>` and `<slug>-internal`, only the picked team invited. Slack Connect
+  invite (`conversations.inviteShared`) is attempted; on 2026-10-02 Slack answered `not_allowed_token_type`, so
+  the note tells Cole to invite the client from the channel. Channel ids land on `accounts.slack_channel` /
+  `brief_channel` when the pending brand is adopted (`adoptNewClient` in asana-brand.js), never over a set one.
+- **email:** the welcome email is sent from Cole's Gmail ONLY from the Send button with the text on screen
+  (`approved: true`). Needs the `gmail.send` delegation scope; until then Copy.
+- **Team roster:** `ROSTER` in newclient.js (Asana emails; Noma and Ravo are on personal addresses), or the
+  setting `newClientTeam`. Slack ids fall back to a first-name match.
+- **Hourly:** `newClientTick` posts in the internal channel when the onboarding form is sent.
+- **NOT built:** Stripe invoice + subscription, DocuSign contract, Frame project, auto-activating the brand
+  when Meta is shared, auto research on submit (Cole chose a button for now).
+- **Form (questions.js v3, same day):** Access is step 2 ("Access and content") and carries `content_link` +
+  `content_shared` (the client shares their own library; uploading into ours is the fallback). The teammates
+  list is gone (`approver` instead; they add people in Slack). New: `ad_spend`, `success_90`, `tried_failed`,
+  `key_dates`. Low-value questions moved to a last optional step `extras`.
+- Tested 2026-10-02 against the real services with "ZZ Locus Test": asana, onboard, slack, summary, pre-fill
+  ($0.58) all ran; drive failed on the scope as designed. The email Send and the Ledger write were not exercised.
