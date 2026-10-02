@@ -103,6 +103,28 @@ ${li('Client Communication and Support', 'Conduct regular strategy and performan
 }
 
 /** A plain-text form of the same words, for the hash and the email. */
+/** Cole's edits, on a cheap model. Only what the instruction says changes; the rest of the
+ *  words stay exactly as they are. Returns the whole agreement as HTML. ~1 cent a go. */
+export async function aiEdit(env, html, instruction) {
+  const ask = String(instruction || '').trim().slice(0, 3000);
+  if (!ask) throw new Error('Say what should change.');
+  const res = await F('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 8000,
+      system: 'You edit a services agreement for a small ad agency. You get the agreement as HTML and an instruction from the agency owner. Change ONLY what the instruction asks for; every other sentence stays word for word. Keep the same HTML structure (one <article class="agreement"> with h1, h2, p, ol, ul, li, strong). Write plain English, no em dashes. If the instruction changes money, put the full payment terms in section 3 as one clear paragraph plus the three bullet points that are already there. If it asks for a new clause, add it as a numbered section before "In Witness Whereof" and renumber nothing else. Return ONLY the HTML, nothing before or after it.',
+      messages: [{ role: 'user', content: `THE AGREEMENT:\n${html}\n\nTHE INSTRUCTION:\n${ask}` }] }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error?.message || `Claude ${res.status}`);
+  const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+  const m = /<article[\s\S]*<\/article>/.exec(text);
+  if (!m) throw new Error('The AI did not return the agreement. Try wording the change differently.');
+  const out = m[0].replace(/\u2014/g, ',').replace(/<script[\s\S]*?<\/script>/gi, '');
+  const usage = j.usage || {};
+  return { html: out, cost: Math.round(((usage.input_tokens || 0) * 1 + (usage.output_tokens || 0) * 5) / 1e6 * 10000) / 10000 };
+}
+
 const textOf = html => html.replace(/<li>/g, '- ').replace(/<\/(p|li|h1|h2)>/g, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\n{3,}/g, '\n\n').trim();
 
 /* ---------------- email (Cole's Gmail, same delegation as the welcome email) ---------------- */
@@ -123,7 +145,10 @@ export async function sendContract(env, r, vars, ip) {
   if (have?.status === 'signed') throw new Error('This agreement is already signed. It cannot be changed.');
   const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(vars || {}).filter(([k, x]) => ['client_name', 'company', 'start_date', 'term', 'payment'].includes(k) && String(x || '').trim()).map(([k, x]) => [k, String(x).trim().slice(0, 2000)])) };
   if (!v.client_name) throw new Error('The agreement needs the client\'s full name (the person signing).');
-  const html = contractHtml(v);
+  /* A text the AI edited for this client replaces the generated one, as is. */
+  const custom = /^<article[\s\S]*<\/article>$/.test(String(vars?.html || '').trim()) ? String(vars.html).trim().replace(/<script[\s\S]*?<\/script>/gi, '') : null;
+  if (custom) v.custom = true;
+  const html = custom || contractHtml(v);
   const hash = await sha256(textOf(html));
   const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO p_contract (token, act_id, brand, vars_json, html, hash, status, sent_at, provider_name, provider_ip, provider_at, client_email)

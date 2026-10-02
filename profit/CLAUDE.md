@@ -1099,3 +1099,12 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   (electronic signatures) was added to the doc's wording. The page prints to PDF. Drive scope
   (`auth/drive`) and `gmail.send` were added to the Mobius Tools delegation on 2026-10-02 and the Gmail API
   enabled on the Cloud project; both tested live.
+- **AI contract editor (same day):** "Anything different for this client?" on the setup screen -> `POST
+  /api/new-client/contract-ai {id, vars, instruction}` -> `aiEdit()` in contract.js on `claude-haiku-4-5-20251001`
+  (about a cent): changes only what the instruction says, returns the whole `<article>`; stored as `vars.html`, which
+  `sendContract` and the preview use as is (fields then no longer apply; "Back to the standard text" drops it).
+- **Frame (same day):** step `frame`, legacy v2 API with `FRAME_TOKEN` (developer.frame.io), optional var
+  `FRAME_TEAM`; `POST /v2/teams/{id}/projects` + `/v2/projects/{id}/collaborators {email}` for the picked team.
+  Not connected = the step fails with the instruction. NOT tested against a real Frame account (no token yet); if
+  Cole's Frame is the Adobe (V4) kind, the v2 token path will not exist and this needs the V4 OAuth flow instead.
+- Setup screen also has "Remove this client" (voids an unpaid invoice, cancels its subscription, forgets the row).

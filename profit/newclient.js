@@ -15,7 +15,7 @@
 const LEDGER_URL = 'https://mobius-ledger.mobius-digital.workers.dev';
 const LABEL = {
   asana: 'Asana project', onboard: 'Onboarding link', drive: 'Google Drive folder', slack: 'Slack channels',
-  summary: 'Summary for the team', ledger: 'Ledger', prefill: 'Form pre-filled from their website', email: 'Welcome email', stripe: 'First invoice', contract: 'Agreement',
+  summary: 'Summary for the team', ledger: 'Ledger', prefill: 'Form pre-filled from their website', email: 'Welcome email', stripe: 'First invoice', contract: 'Agreement', frame: 'Frame project',
 };
 const WHAT = {
   asana: 'Made from the 2026 template, your team added, the client invited by email.',
@@ -23,12 +23,12 @@ const WHAT = {
   drive: 'Branding and Assets folders, shared with the team and the client.',
   slack: 'Two private channels: one with the client, one for the team only.',
   summary: 'One post in the internal channel with every link.',
+  frame: 'A Frame project for asset review, the team added.',
   ledger: 'The client and their retainer, for your books.',
   prefill: 'Locus reads their website and fills in what it can, so they only check it. Takes a few minutes.',
 };
-const AUTO = ['asana', 'onboard', 'drive', 'slack', 'summary', 'ledger', 'prefill'];
+const AUTO = ['asana', 'onboard', 'drive', 'slack', 'frame', 'summary', 'ledger', 'prefill'];
 const BY_HAND = [
-  'Create the Frame project and add the team',
   'Send the Shopify collaborator request once they give their store address in the form',
 ];
 
@@ -165,7 +165,7 @@ async function status(id, autorun) {
       ${!running && !busy && st?.status !== 'done' ? `<button class="btn" data-go="${key}">${st ? 'Retry' : 'Run'}</button>` : '<span></span>'}</div>`;
   };
   /* The agreement: the blanks are editable until it is sent; after that it is frozen. */
-  const readCv = () => { const g = k => body.querySelector('#cv_' + k)?.value; cv = { ...(cv || {}), client_name: g('client_name') ?? cv?.client_name, start_date: g('start_date') ?? cv?.start_date, term: g('term') ?? cv?.term, payment: g('payment') ?? cv?.payment }; };
+  const readCv = () => { const g = k => body.querySelector('#cv_' + k)?.value; cv = { ...(cv || {}), client_name: g('client_name') ?? cv?.client_name, start_date: g('start_date') ?? cv?.start_date, term: g('term') ?? cv?.term, payment: g('payment') ?? cv?.payment, ...(cv?.html ? { html: cv.html } : {}) }; };
   const contractBlock = () => {
     const c = contract || {}; const st = run.steps.contract;
     if (!cv) cv = { ...(c.defaults || {}), ...(c.vars || {}) };
@@ -176,7 +176,10 @@ async function status(id, autorun) {
       <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'contract' ? 'Sending…' : esc(st?.status === 'failed' ? st.text : 'Your standard services agreement with the blanks filled in. Check them, preview, then send. The client signs on a page inside their onboarding, no DocuSign.')}</span>
       ${f('client_name', 'Who signs for the client', 'Their full name, as it appears on the agreement.')}
       <div class="nc-two">${f('start_date', 'Start date', 'YYYY-MM-DD.')}${f('term', 'Term', 'How long the agreement runs before it renews.')}</div>
-      ${f('payment', 'Payment terms', 'The one paragraph that changes per client.', true)}
+      ${cv.html ? `<p class="tiny" style="margin-top:8px">✎ This agreement has custom text from your edits. The fields above no longer apply to it. <a href="#" id="ncCvReset">Back to the standard text</a></p>` : f('payment', 'Payment terms', 'The one paragraph that changes per client.', true)}
+      <div class="ab-f" style="margin-top:10px"><label style="font-size:13px">Anything different for this client?</label><p class="hint" style="margin:0 0 4px">Say it in plain words and the AI rewrites the agreement, changing only that. About a cent each time. For example: retainer is $3,000 plus 10% of ad spend, six-month term, add a clause that we can pause for non-payment.</p>
+        <textarea id="ncCvAsk" rows="2" placeholder="What should be different?" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit"></textarea>
+        <div class="row" style="gap:8px;margin-top:6px"><button class="btn" id="ncCvAi">Apply with AI</button><span class="tiny" id="ncCvAiMsg"></span></div></div>
       <p class="tiny nc-bad" id="ncCvErr" style="min-height:16px;margin:4px 0 0"></p>
       <div class="row" style="gap:8px;margin-top:4px"><button class="btn" id="ncContractPreview">Preview</button><button class="btn primary" id="ncContractSend"${busy || !run.onboard_url ? ' disabled' : ''}>Send for signature</button>${run.onboard_url ? '' : '<span class="tiny">Needs the onboarding link first.</span>'}</div></div>`;
   };
@@ -213,8 +216,12 @@ async function status(id, autorun) {
       </div>
       <div style="margin-top:16px"><b style="font-size:14px">Still by hand for now</b>
         <ul class="nc-list">${BY_HAND.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
-      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0"><button class="btn" id="ncClose">Close</button></div>`;
+      <div class="row" style="justify-content:space-between;gap:8px;margin:14px 0 0"><button class="btn" id="ncRemove" style="color:var(--bad)">Remove this client</button><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
+    body.querySelector('#ncRemove').onclick = async () => {
+      if (!(await confirmModal(`Remove ${run.name} from this list?`, 'Locus forgets this setup. Anything already made in Asana, Drive, Slack or Frame stays and is yours to delete there. An unpaid invoice is voided and its subscription cancelled.', 'Remove'))) return;
+      try { await post('/api/new-client/remove', { id }); close(); } catch (e) { noteModal('Could not remove', `<p>${esc(e.message)}</p>`); }
+    };
     const cs = body.querySelector('#ncContractSend');
     if (cs) cs.onclick = async () => {
       readCv();
@@ -222,6 +229,17 @@ async function status(id, autorun) {
       if (!(await confirmModal('Send the agreement for signature?', `You sign it now; ${run.contact_email} gets an email with the signing page. The text cannot change after this.`, 'Send for signature'))) return;
       await go('contract');
     };
+    const ai = body.querySelector('#ncCvAi');
+    if (ai) ai.onclick = async () => {
+      readCv();
+      const ask = body.querySelector('#ncCvAsk').value.trim(); const msg = body.querySelector('#ncCvAiMsg');
+      if (!ask) return msg.textContent = 'Say what should change first.';
+      ai.disabled = true; msg.textContent = 'Rewriting…';
+      try { const j = await post('/api/new-client/contract-ai', { id, vars: cv, instruction: ask }); cv.html = j.html; msg.textContent = `Done ($${j.cost}). Preview to read it.`; paint(); body.querySelector('#ncCvAiMsg').textContent = `Done ($${j.cost}). Press Preview to read it.`; }
+      catch (e) { msg.textContent = e.message; ai.disabled = false; }
+    };
+    const rs = body.querySelector('#ncCvReset');
+    if (rs) rs.onclick = e => { e.preventDefault(); delete cv.html; paint(); };
     const cp = body.querySelector('#ncContractPreview');
     if (cp) cp.onclick = async () => {
       readCv();
