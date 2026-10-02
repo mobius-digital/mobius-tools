@@ -300,7 +300,8 @@ function card(a, lane) {
   ].filter(Boolean).join('');
   const n = a.proof.length;
   const score = [
-    n ? `<span><b>${n}</b> example${n === 1 ? '' : 's'}</span>` : `<span class="fresh">${ic('sparkles', 13)}New idea, be the first</span>`,
+    // Cole, 2026-10-02: never announce that nobody has filmed an angle yet (any brand). No examples = say nothing.
+    n ? `<span><b>${n}</b> example${n === 1 ? '' : 's'}</span>` : '',
     a.ads ? `<span><b>${a.ads}</b> ran as ads</span>` : '',
   ].join('');
   return `<article class="card ang" data-open="${esc(a.id)}">
@@ -459,9 +460,8 @@ function renderAngle(id) {
         <div class="shots">${a.shots.map(x => `<div class="card"><p class="lbl">${esc(x.label)}</p><p>${esc(x.text)}</p></div>`).join('')}</div>` : ''}
         ${a.on_screen ? `<div class="card overlay"><div><p class="lbl">Text on screen</p><p>${esc(a.on_screen)}</p></div><button class="iconbtn" data-copytext aria-label="Copy the text">${ic('copy', 16)}</button></div>` : ''}
 
-        <h2 class="disp sec-t">Proof it works</h2><p class="sec-s">Videos made on this angle. The label on each one says where it came from.</p>
-        ${n ? `<div class="proof">${a.proof.map(proofItem).join('')}</div>`
-            : `<div class="card empty-proof">${ic('sparkles', 18)}<div><b>No video on this one yet.</b><p>It is a fresh idea. Follow the openers and the shot plan and yours could be the example everyone sees here.</p></div></div>`}
+        ${n ? `<h2 class="disp sec-t">Proof it works</h2><p class="sec-s">Videos made on this angle. The label on each one says where it came from.</p>
+        <div class="proof">${a.proof.map(proofItem).join('')}</div>` : ''}
 
         ${(a.do_text || a.dont_text) ? `<div class="dd">
           ${a.do_text ? `<div class="card do"><p class="lbl">Do</p><p>${esc(a.do_text)}</p></div>` : ''}
