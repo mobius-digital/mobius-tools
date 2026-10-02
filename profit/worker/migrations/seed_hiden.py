@@ -75,7 +75,10 @@ INSPO = {
 }
 
 brand = dict(
-    slug='hiden', live=1, display_name='HIDEN', accent='#E8401C', logo_url=None,
+    # The dark full-colour mark. The site header uses hiden-logo-wht, which vanishes on the link's
+    # white top bar. hiden.com is Shopify and answers cross-origin reads with "*" (checked 2026-10-02).
+    slug='hiden', live=1, display_name='HIDEN', accent='#E8401C',
+    logo_url='https://www.hiden.com/cdn/shop/files/hiden-logo.png?width=600',
     intro=("HIDEN makes clothes with two sides: normal on one, country on the other. You pick which one shows, "
            "and you can change your mind at the truck door. We want videos that look like your real week: the office, "
            "the school run, the lease, the tailgate, dinner with her parents. Pick an idea below, film it your way, "
