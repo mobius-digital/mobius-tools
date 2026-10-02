@@ -104,8 +104,9 @@ async function asanaAll(env, path) {
 /* ---------------- Google (service account, domain-wide delegation) ---------------- */
 const G_TOKENS = new Map();
 const b64u = buf => btoa(typeof buf === 'string' ? buf : String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-async function googleToken(env, sub) {
-  const hit = G_TOKENS.get(sub);
+async function googleToken(env, sub, scope = 'https://www.googleapis.com/auth/drive.readonly') {
+  const gk = sub + '|' + scope;
+  const hit = G_TOKENS.get(gk);
   if (hit && hit.exp > Date.now() + 60000) return hit.token;
   const key = safeJson(env.GOOGLE_SA_KEY, null);
   if (!key?.private_key || !key?.client_email) throw new Error('GOOGLE_SA_KEY is missing or is not the service-account JSON.');
@@ -113,7 +114,7 @@ async function googleToken(env, sub) {
   const pk = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
   const now = Math.floor(Date.now() / 1000);
   const head = b64u(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claim = b64u(JSON.stringify({ iss: key.client_email, sub, scope: 'https://www.googleapis.com/auth/drive.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
+  const claim = b64u(JSON.stringify({ iss: key.client_email, sub, scope, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
   const sig = b64u(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', pk, new TextEncoder().encode(`${head}.${claim}`)));
   const res = await F('https://oauth2.googleapis.com/token', {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -121,7 +122,7 @@ async function googleToken(env, sub) {
   });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || !j.access_token) throw new Error(`Google sign-in failed: ${j.error_description || j.error || res.status}. Check the domain-wide delegation client ID and scope.`);
-  G_TOKENS.set(sub, { token: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 });
+  G_TOKENS.set(gk, { token: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 });
   return j.access_token;
 }
 const docIdOf = text => (/docs\.google\.com\/document\/d\/([\w-]{20,})/.exec(text || '') || [])[1] || null;
@@ -817,6 +818,16 @@ async function adoptPending(env, from, to) {
   await env.DB.prepare(`DELETE FROM p_br_doc WHERE act_id = ?1`).bind(from).run();
 }
 
+/* A client made with Locus's "New client" button (newclient.js) already has its Slack
+   channels. When the brand's Meta account arrives, they land on the real brand, never
+   over a channel someone already chose. */
+async function adoptNewClient(env, from, to) {
+  const n = await env.DB.prepare(`SELECT id, slack_internal, slack_client FROM p_newclient WHERE pending_act = ?1`).bind(from).first();
+  if (!n) return;
+  await env.DB.prepare(`UPDATE accounts SET slack_channel = COALESCE(NULLIF(slack_channel, ''), ?2), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?3) WHERE act_id = ?1`).bind(to, n.slack_internal || null, n.slack_client || null).run();
+  await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(n.id, to).run();
+}
+
 async function setDrive(env, act, url) {
   await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'profile', json_object('drive', ?2), 'approved', 'asana', datetime('now'))
     ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = json_set(p_br_doc.data_json, '$.drive', ?2), updated_at = datetime('now')`).bind(act, url).run();
@@ -876,6 +887,7 @@ export async function onboardAsanaTick(env, canAfford = () => true) {
       }
       if (real) {
         await adoptPending(env, o.act_id, real);
+        await adoptNewClient(env, o.act_id, real).catch(() => {});
         out.adopted++;
         o = await env.DB.prepare(`SELECT * FROM p_br_onboard WHERE act_id = ?1`).bind(real).first();
         if (!o) continue;
@@ -1032,3 +1044,6 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
   }
 }
 export { readDoc, asana };
+
+/* Shared with newclient.js (Locus's New client button). */
+export { asanaAll, googleToken, setDrive, PENDING };

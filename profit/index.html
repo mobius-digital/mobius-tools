@@ -1568,6 +1568,7 @@
 <script src="amb.js?v=15"></script>
 <script src="../onboard/questions.js?v=2"></script>
 <script src="brand.js?v=6"></script>
+<script src="newclient.js?v=1"></script>
 <script src="studio.js?v=18"></script>
 <script>
 'use strict';
@@ -7937,7 +7938,7 @@ async function renderSettings() {
     const rows = brands();
     list.innerHTML = `<div class="row" style="margin:0 0 10px"><span class="tiny">${rows.length} brand${rows.length === 1 ? '' : 's'}${one ? '' : ' · open a row to change anything about it'}
         &nbsp;·&nbsp; <a href="#" id="brWhy">Why don’t I see all my ad accounts?</a></span>
-        <span style="flex:1"></span><button class="btn primary" id="brAdd">+ Add a brand</button><span class="tiny" id="brMsg"></span></div>
+        <span style="flex:1"></span><button class="btn primary" id="ncOpen" title="Sets a brand-new client up in Asana, Drive and Slack and makes their onboarding link">+ New client</button><button class="btn" id="brAdd" title="For a client whose Meta ad account Locus can already see">+ Add a brand</button><span class="tiny" id="brMsg"></span></div>
       <div id="brAccess"></div>
       ${rows.map(brandRow).join('') || '<div class="card"><span class="hint">No brands yet - press <b>+ Add a brand</b>.</span></div>'}
       ${conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px">⚠️<div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
@@ -8118,6 +8119,8 @@ async function renderSettings() {
       } catch (err) { box.innerHTML = `<div class="notice warn" style="margin:0 0 12px">⚠️<div>Couldn’t check: ${esc(err.message)}</div></div>`; }
     };
 
+    const nc = $('#ncOpen');
+    if (nc) nc.onclick = () => NewClient.open();
     const add = $('#brAdd');
     if (add) add.onclick = async () => {
       const untracked = metaAccts.filter(x => !x.active);

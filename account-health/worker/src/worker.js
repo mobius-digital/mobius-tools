@@ -29,6 +29,7 @@ import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
+import { handleNewClient, newClientTick, useFetch as newClientFetch } from './newclient.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -175,6 +176,7 @@ function xfetch(...args) { subSpend(); return fetch(...args); }
 brandAsanaFetch(xfetch);
 ideasFetch(xfetch);
 atriaFetch(xfetch);
+newClientFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -5794,6 +5796,8 @@ const AH_APP = {
            result comment once a test has spent enough. Before the Meta sync so a
            slow sync cannot starve it; it stops itself when the budget runs low. */
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
+        /* New clients made from Locus: tell the team when the onboarding form is sent. */
+        ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -5855,6 +5859,11 @@ const AH_APP = {
       if (r) return r;
     }
     /* ---- Brand research for Locus's Brand tab, plus the onboarding link's help box ---- */
+    /* ---- New client: one button in Locus sets up Asana, the onboarding link, Drive and Slack (admin) ---- */
+    if (path.startsWith('/api/new-client')) {
+      const r = await handleNewClient(request, env, path, json, isAdmin, (rq, e) => sessionEmail(e, rq));
+      if (r) return r;
+    }
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
     if (path.startsWith('/api/brand-asana')) {
       const r = await handleBrandAsana(request, env, path, json, isAdmin);

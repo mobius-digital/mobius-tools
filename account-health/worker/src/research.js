@@ -201,7 +201,10 @@ function sourcesOf(m) {
 
 /* ---------------- what Locus already knows ---------------- */
 async function context(env, act, lineId) {
-  const acct = await env.DB.prepare(`SELECT act_id, name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first();
+  /* A new client that has not shared Meta yet lives under a pending id (asana_<project>),
+     named on its onboarding row. The website pre-fill has to work for it. */
+  const acct = (await env.DB.prepare(`SELECT act_id, name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first())
+    || (/^asana_\d+$/.test(act || '') ? await env.DB.prepare(`SELECT act_id, name, NULL AS tw_shop FROM p_br_onboard WHERE act_id = ?1`).bind(act).first().catch(() => null) : null);
   if (!acct) throw Object.assign(new Error('unknown account'), { status: 404 });
   const q = (sql, ...b) => env.DB.prepare(sql).bind(...b).all().then(r => r.results || []).catch(() => []);
   const [lines, docs, onboard, angles, batches, personas] = await Promise.all([
