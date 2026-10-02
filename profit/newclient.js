@@ -15,7 +15,7 @@
 const LEDGER_URL = 'https://mobius-ledger.mobius-digital.workers.dev';
 const LABEL = {
   asana: 'Asana project', onboard: 'Onboarding link', drive: 'Google Drive folder', slack: 'Slack channels',
-  summary: 'Summary for the team', ledger: 'Ledger', prefill: 'Form pre-filled from their website', email: 'Welcome email', stripe: 'First invoice',
+  summary: 'Summary for the team', ledger: 'Ledger', prefill: 'Form pre-filled from their website', email: 'Welcome email', stripe: 'First invoice', contract: 'Agreement',
 };
 const WHAT = {
   asana: 'Made from the 2026 template, your team added, the client invited by email.',
@@ -28,7 +28,6 @@ const WHAT = {
 };
 const AUTO = ['asana', 'onboard', 'drive', 'slack', 'summary', 'ledger', 'prefill'];
 const BY_HAND = [
-  'Send the contract (DocuSign is not connected to Locus yet)',
   'Create the Frame project and add the team',
   'Send the Shopify collaborator request once they give their store address in the form',
 ];
@@ -148,7 +147,7 @@ async function open() {
 /* ---------------- the checklist ---------------- */
 async function status(id, autorun) {
   css();
-  let run, welcome, busy = '', mail = null;
+  let run, welcome, contract = null, busy = '', mail = null, cv = null;
   const w = shell('<div id="ncBody"><p class="hint">Loading…</p></div>', 640);
   const body = w.querySelector('#ncBody');
   let closed = false;
@@ -164,6 +163,22 @@ async function status(id, autorun) {
         <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}">${running ? 'Working…' : esc(st?.text || WHAT[key])}</span>
         ${(st?.notes || []).map(n => `<span class="tiny nc-bad">${esc(n)}</span>`).join('')}</div>
       ${!running && !busy && st?.status !== 'done' ? `<button class="btn" data-go="${key}">${st ? 'Retry' : 'Run'}</button>` : '<span></span>'}</div>`;
+  };
+  /* The agreement: the blanks are editable until it is sent; after that it is frozen. */
+  const readCv = () => { const g = k => body.querySelector('#cv_' + k)?.value; cv = { ...(cv || {}), client_name: g('client_name') ?? cv?.client_name, start_date: g('start_date') ?? cv?.start_date, term: g('term') ?? cv?.term, payment: g('payment') ?? cv?.payment }; };
+  const contractBlock = () => {
+    const c = contract || {}; const st = run.steps.contract;
+    if (!cv) cv = { ...(c.defaults || {}), ...(c.vars || {}) };
+    if (c.status === 'signed') return `<div style="margin-top:16px"><b style="font-size:14px">✅ Agreement signed</b><span class="tiny" style="display:block">Signed by ${esc(c.signed_by || '')} on ${esc((c.signed_at || '').slice(0, 10))}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signed copy</a></span></div>`;
+    if (c.status === 'sent') return `<div style="margin-top:16px"><b style="font-size:14px">📨 Agreement sent, waiting for their signature</b><span class="tiny" style="display:block">Sent ${esc((c.sent_at || '').slice(0, 10))} to ${esc(run.contact_email || '')}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signing page</a></span></div>`;
+    const f = (k, label, help, ta) => `<div class="ab-f" style="margin-top:8px"><label style="font-size:13px">${label}</label><p class="hint" style="margin:0 0 4px">${help}</p>${ta ? `<textarea id="cv_${k}" rows="3" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit">${esc(cv[k] || '')}</textarea>` : `<input type="text" id="cv_${k}" value="${esc(cv[k] || '')}" style="width:100%">`}</div>`;
+    return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '⏳' : '○'} Agreement</b>
+      <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'contract' ? 'Sending…' : esc(st?.status === 'failed' ? st.text : 'Your standard services agreement with the blanks filled in. Check them, preview, then send. The client signs on a page inside their onboarding, no DocuSign.')}</span>
+      ${f('client_name', 'Who signs for the client', 'Their full name, as it appears on the agreement.')}
+      <div class="nc-two">${f('start_date', 'Start date', 'YYYY-MM-DD.')}${f('term', 'Term', 'How long the agreement runs before it renews.')}</div>
+      ${f('payment', 'Payment terms', 'The one paragraph that changes per client.', true)}
+      <p class="tiny nc-bad" id="ncCvErr" style="min-height:16px;margin:4px 0 0"></p>
+      <div class="row" style="gap:8px;margin-top:4px"><button class="btn" id="ncContractPreview">Preview</button><button class="btn primary" id="ncContractSend"${busy || !run.onboard_url ? ' disabled' : ''}>Send for signature</button>${run.onboard_url ? '' : '<span class="tiny">Needs the onboarding link first.</span>'}</div></div>`;
   };
   /* The invoice is money, so it never runs by itself: one button, one confirm. */
   const invoiceBlock = () => {
@@ -185,6 +200,7 @@ async function status(id, autorun) {
       <p class="hint" style="margin-bottom:8px">Each line is one thing Locus does. A warning says what is missing and what to do instead. You can close this and come back from Settings > New client.</p>
       <div>${AUTO.map(row).join('')}</div>
       ${invoiceBlock()}
+      ${contractBlock()}
       <div class="nc-mail" style="margin-top:16px">
         <b style="font-size:14px">${m?.status === 'done' ? '✅ ' : ''}Welcome email to ${esc(run.contact_email || '')}</b>
         <p class="tiny${m?.status === 'failed' ? ' nc-bad' : ''}" style="margin:2px 0 8px">${m ? esc(m.text) : 'Read it, change anything, then Send. It goes from your Gmail. Nothing is sent until you press Send.'}</p>
@@ -199,6 +215,19 @@ async function status(id, autorun) {
         <ul class="nc-list">${BY_HAND.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0"><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
+    const cs = body.querySelector('#ncContractSend');
+    if (cs) cs.onclick = async () => {
+      readCv();
+      if (!cv.client_name || cv.client_name.trim().split(/\s+/).length < 2) return body.querySelector('#ncCvErr').textContent = 'The agreement needs the client\'s full name, first and last.';
+      if (!(await confirmModal('Send the agreement for signature?', `You sign it now; ${run.contact_email} gets an email with the signing page. The text cannot change after this.`, 'Send for signature'))) return;
+      await go('contract');
+    };
+    const cp = body.querySelector('#ncContractPreview');
+    if (cp) cp.onclick = async () => {
+      readCv();
+      try { const j = await post('/api/new-client/contract-preview', { id, vars: cv }); noteModal('Agreement, as the client will read it', `<div style="font-size:13.5px;line-height:1.55;max-height:60vh;overflow:auto">${j.html}</div>`); }
+      catch (e) { noteModal('Could not build the preview', `<p>${esc(e.message)}</p>`); }
+    };
     const inv = body.querySelector('#ncInvoice');
     if (inv) inv.onclick = async () => {
       if (!(await confirmModal(`Send the first invoice?`, `Stripe emails ${run.contact_email} an invoice for $${Number(run.retainer).toLocaleString('en-US')}. When they pay it, their card is saved and the retainer bills itself every month. Nothing is charged until they pay.`, 'Send the invoice'))) return;
@@ -260,15 +289,15 @@ async function status(id, autorun) {
         const j = await post('/api/new-client/mark', { id, step: key, ok: r.ok, text: r.text });
         run = j.run; ok = r.ok;
       } else {
-        const j = await post('/api/new-client/step', { id, step: key, ...(key === 'email' ? { subject: mail.subject, body: mail.body, approved: true } : {}), ...(key === 'stripe' ? { approved: true } : {}) });
-        run = j.run; welcome = j.welcome || welcome; ok = j.ok;
+        const j = await post('/api/new-client/step', { id, step: key, ...(key === 'email' ? { subject: mail.subject, body: mail.body, approved: true } : {}), ...(key === 'stripe' ? { approved: true } : {}), ...(key === 'contract' ? { approved: true, vars: cv } : {}) });
+        run = j.run; welcome = j.welcome || welcome; contract = j.contract || contract; ok = j.ok;
       }
     } catch (e) { run.steps[key] = { status: 'failed', text: e.message }; }
     busy = ''; paint();
     return ok;
   }
 
-  try { const j = await ah('/api/new-client/run?id=' + encodeURIComponent(id)); run = j.run; welcome = j.welcome; }
+  try { const j = await ah('/api/new-client/run?id=' + encodeURIComponent(id)); run = j.run; welcome = j.welcome; contract = j.contract; }
   catch (e) { body.innerHTML = `<h3>Could not load</h3><p class="hint">${esc(e.message)}</p>`; return; }
   paint();
   if (autorun) {

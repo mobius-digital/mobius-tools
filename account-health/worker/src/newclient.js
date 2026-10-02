@@ -28,6 +28,7 @@
  * (the email only after he presses Send on its text).
  */
 import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } from './asana-brand.js';
+import { sendContract, contractDefaults, contractHtml, ensureContractTable } from './contract.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -37,7 +38,7 @@ const DRIVE_TEMPLATE = '1rPYv4HRCpDEny66Ux-gIFmkOqSuurgYF';   // "# Client Templ
 const OWNER = 'cole@go-mobius-digital.com';
 const ONBOARD_FORM = 'https://tools.go-mobius-digital.com/onboard/?t=';
 const CALENDLY = 'https://calendly.com/mobius-digital/strategy-session';
-const STEPS = ['asana', 'onboard', 'drive', 'slack', 'stripe', 'email', 'summary'];
+const STEPS = ['asana', 'onboard', 'drive', 'slack', 'stripe', 'contract', 'email', 'summary'];
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -370,11 +371,13 @@ function form(obj, prefix = '') {
   return out.filter(Boolean).join('&');
 }
 async function stripe(env, method, path, body) {
-  const key = (env.STRIPE_SECRET_KEY || '').trim();
+  /* PowerShell can prepend a BOM when a secret is pasted in; strip anything that is not a key character. */
+  const key = String(env.STRIPE_SECRET_KEY || '').replace(/[^!-~]/g, '');
   if (!key) throw new Error(NEEDS_STRIPE);
   const res = await F(`https://api.stripe.com/v1/${path}`, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' }, body: body ? form(body) : undefined });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Stripe: ${j.error?.message || res.status}`);
+  const text = await res.text();
+  const j = safeJson(text, {});
+  if (!res.ok) throw new Error(`Stripe (${method} ${path.split('?')[0]}): ${j.error?.message || j.error?.type || `${res.status} ${text.slice(0, 300)}`}`);
   return j;
 }
 /** The webhook that flips a paid subscription to autopay. Made once; the signing
@@ -388,6 +391,14 @@ async function ensureStripeWebhook(env) {
   return row;
 }
 
+/** One Stripe product, "Mobius Digital retainer", made once; each client gets its own price on it. */
+async function stripeProduct(env) {
+  const have = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'stripeProduct'`).first().catch(() => null))?.value, null);
+  if (have?.id) return have.id;
+  const p = await stripe(env, 'POST', 'products', { name: 'Mobius Digital retainer', description: 'Monthly marketing retainer' });
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('stripeProduct', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify({ id: p.id })).run();
+  return p.id;
+}
 async function stepStripe(env, r, b) {
   if (!(r.retainer > 0)) return { status: 'skipped', text: 'Skipped: no retainer was entered.' };
   if (!emailOk(r.contact_email)) throw new Error('No client email, so there is nobody to invoice.');
@@ -404,7 +415,7 @@ async function stepStripe(env, r, b) {
   const customer = found.data?.[0] || await stripe(env, 'POST', 'customers', { email: r.contact_email, name: r.contact_name || r.name, description: r.name, metadata: { brand: r.name, locus: r.id } });
   const sub = await stripe(env, 'POST', 'subscriptions', {
     customer: customer.id,
-    items: [{ price_data: { currency: 'usd', unit_amount: Math.round(r.retainer * 100), recurring: { interval: 'month' }, product_data: { name: `Mobius Digital retainer: ${r.name}` } } }],
+    items: [{ price_data: { currency: 'usd', unit_amount: Math.round(r.retainer * 100), recurring: { interval: 'month' }, product: await stripeProduct(env) } }],
     collection_method: 'send_invoice', days_until_due: 7,
     payment_settings: { save_default_payment_method: 'on_subscription' },
     description: `${r.name} monthly retainer`,
@@ -453,6 +464,13 @@ export async function handleStripeWebhook(request, env) {
   return new Response('ok', { status: 200 });
 }
 
+/** What the setup screen shows for the agreement: the blanks to edit, or where it stands. */
+async function contractState(env, r) {
+  await ensureContractTable(env);
+  const row = r.token ? await env.DB.prepare(`SELECT status, sent_at, signed_at, client_name, vars_json FROM p_contract WHERE token = ?1`).bind(r.token).first().catch(() => null) : null;
+  return { defaults: contractDefaults(r), status: row?.status || null, sent_at: row?.sent_at || null, signed_at: row?.signed_at || null, signed_by: row?.client_name || null, vars: safeJson(row?.vars_json, null), url: r.token ? `https://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}` : null };
+}
+
 /* ---------------- summary ---------------- */
 async function stepSummary(env, r) {
   if (!r.slack_internal) throw new Error('No internal channel yet. Make the Slack channels first.');
@@ -473,7 +491,14 @@ async function stepSummary(env, r) {
   return { text: 'Posted in the internal channel.' };
 }
 
-const RUN = { asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, stripe: stepStripe, email: stepEmail, summary: stepSummary };
+/* The agreement: Cole's edits to the blanks come in b.vars; approved is the Send press. */
+async function stepContract(env, r, b) {
+  if (!emailOk(r.contact_email)) throw new Error('No client email, so there is nobody to send the agreement to.');
+  if (!b.approved) throw new Error('The agreement is only sent when you press Send for signature.');
+  const s = await sendContract(env, r, b.vars, b.ip);
+  return { url: s.url, hash: s.hash, signed: false, text: `Sent to ${r.contact_email} for signature. You signed it on sending.` };
+}
+const RUN = { asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary };
 
 /* ---------------- routes (admin) ---------------- */
 export async function handleNewClient(request, env, path, json, isAdmin, who) {
@@ -487,7 +512,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const runs = (await env.DB.prepare(`SELECT * FROM p_newclient ORDER BY created_at DESC LIMIT 30`).all()).results || [];
       let team = [], err = null;
       try { team = await teamList(env); } catch (e) { err = e.message; }
-      return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS, stripe: !!(env.STRIPE_SECRET_KEY || '').trim() });
+      return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS, stripe: !!(env.STRIPE_SECRET_KEY || '').trim(), stripe_key: String(env.STRIPE_SECRET_KEY || '').replace(/[^!-~]/g, '').replace(/^(.{7}).*(.{4})$/, '$1...$2'), stripe_raw: { len: String(env.STRIPE_SECRET_KEY || '').length, codes: [...String(env.STRIPE_SECRET_KEY || '').slice(0, 4)].map(c => c.codePointAt(0)) } });
     }
     if (path === '/api/new-client' && request.method === 'POST') {
       const name = String(b.name || '').trim().slice(0, 80);
@@ -507,8 +532,16 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
     }
     const r = b.id ? await getRun(env, String(b.id)) : null;
     if (!r) return json({ error: 'unknown client' }, 404);
-    if (path === '/api/new-client/run') return json({ ok: true, run: view(r), welcome: welcomeDraft(r) });
+    if (path === '/api/new-client/run') return json({ ok: true, run: view(r), welcome: welcomeDraft(r), contract: await contractState(env, r) });
     /* The browser reports the two steps it runs itself (Ledger, the website pre-fill). */
+    if (path === '/api/new-client/contract-preview' && request.method === 'POST') {
+      const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(b.vars || {}).filter(([, x]) => String(x || '').trim())) };
+      return json({ ok: true, html: contractHtml(v) });
+    }
+    if (path === '/api/new-client/contract-preview' && request.method === 'POST') {
+      const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(b.vars || {}).filter(([, x]) => String(x || '').trim())) };
+      return json({ ok: true, html: contractHtml(v) });
+    }
     if (path === '/api/new-client/mark' && request.method === 'POST') {
       if (!['ledger', 'prefill'].includes(b.step)) return json({ error: 'unknown step' }, 400);
       const steps = safeJson(r.steps_json, {});
@@ -520,6 +553,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const fn = RUN[b.step];
       if (!fn) return json({ error: 'unknown step' }, 400);
       let res;
+      b.ip = request.headers.get('CF-Connecting-IP') || '';
       try { res = { status: 'done', ...(await fn(env, r, b)) }; }
       catch (e) { res = { status: 'failed', text: e.message }; }
       const fresh = await getRun(env, r.id);
@@ -527,10 +561,16 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       steps[b.step] = { ...res, at: new Date().toISOString() };
       await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
       const now = await getRun(env, r.id);
-      return json({ ok: res.status !== 'failed', step: steps[b.step], run: view(now), welcome: welcomeDraft(now) });
+      return json({ ok: res.status !== 'failed', step: steps[b.step], run: view(now), welcome: welcomeDraft(now), contract: await contractState(env, now) });
     }
     if (path === '/api/new-client/remove' && request.method === 'POST') {
-      /* Forgets the row only. Nothing made in Asana, Drive or Slack is deleted. */
+      /* Forgets the row. Nothing made in Asana, Drive or Slack is deleted; an UNPAID Stripe
+         subscription is cancelled so a removed client is never invoiced again. */
+      const st = safeJson(r.steps_json, {}).stripe;
+      if (st?.subscription && !st.paid) {
+        await stripe(env, 'DELETE', `subscriptions/${st.subscription}`).catch(() => {});
+        if (st.invoice) await stripe(env, 'POST', `invoices/${st.invoice}/void`).catch(() => {});
+      }
       await env.DB.prepare(`DELETE FROM p_newclient WHERE id = ?1`).bind(r.id).run();
       return json({ ok: true });
     }

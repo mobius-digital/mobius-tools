@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Agreement · Mobius Digital</title>
+<link rel="icon" href="../favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* The services agreement, read and signed on one page (?t=<onboarding token>).
+   Same look as the onboarding form. Prints clean, so "save as PDF" is the copy. */
+:root{
+  --bg:#F3F1FA; --surface:#FFFFFF; --ink:#16131F; --ink-2:#433C55; --muted:#6D6680;
+  --line:#E3DEEF; --line-strong:#CBC3DE; --acc:#5B3FB0; --acc-ink:#FFFFFF; --acc-soft:#EDE8FA;
+  --good:#1C7A46; --good-bg:#E4F2E9; --bad:#9C3A2E;
+  --sans:'Instrument Sans',system-ui,-apple-system,Segoe UI,sans-serif; --serif:'Instrument Serif',Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#14111C;--surface:#1D1928;--ink:#EDEAF5;--ink-2:#C4BDD6;--muted:#9890AD;--line:#2E2940;--line-strong:#40395A;--acc:#9C84EC;--acc-ink:#14111C;--acc-soft:#2A2340;--good:#5FD292;--good-bg:#15301F;--bad:#F09182}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input{font:inherit;color:inherit}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px 60px}
+header{padding:28px 0 14px}
+.brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.lede{color:var(--ink-2);margin:6px 0 0;max-width:62ch}
+.paper{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px clamp(16px,4vw,40px)}
+.agreement h1{font-family:var(--serif);font-weight:400;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0 0 14px;text-wrap:balance}
+.agreement h2{font-size:15px;margin:24px 0 6px}
+.agreement p,.agreement li{color:var(--ink-2)}
+.agreement ol>li{margin:8px 0}
+.agreement ul{padding-left:20px}
+.sig{margin-top:28px;border-top:1px solid var(--line);padding-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.sig .party b{display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.sig .name{font-family:var(--serif);font-size:26px;line-height:1.1}
+.sig .meta{font-size:12.5px;color:var(--muted);margin-top:4px}
+.form{margin-top:18px;background:var(--acc-soft);border-radius:12px;padding:16px}
+.form label.l{display:block;font-weight:600;font-size:14px}
+.in{display:block;width:100%;margin-top:8px;border:1px solid var(--line-strong);border-radius:9px;padding:10px 12px;font-size:16px;background:var(--surface)}
+.in:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--surface)}
+.check{display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:14px}
+.check input{width:20px;height:20px;accent-color:var(--acc);margin-top:2px;flex:none}
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:9px;padding:10px 18px;font-weight:600;font-size:14px;cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.err{color:var(--bad);font-size:13.5px;min-height:18px;margin-top:8px}
+.done{background:var(--good-bg);color:var(--good);border-radius:12px;padding:14px 16px;margin-top:18px;font-weight:600}
+.note{font-size:12.5px;color:var(--muted)}
+.fp{font-family:ui-monospace,Consolas,monospace;font-size:11px;word-break:break-all;color:var(--muted);margin-top:16px}
+.center{text-align:center;padding:60px 0}
+@media print{body{background:#fff;color:#000}.wrap{max-width:none;padding:0}.paper{border:0;padding:0}header .lede,.form,.actions,.note.screen{display:none}.agreement p,.agreement li,.sig .meta{color:#222}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="center"><p class="note">Loading your agreement…</p></div></div>
+<script>
+'use strict';
+(function () {
+const AH = 'https://mobius-account-health.mobius-digital.workers.dev';
+const TOKEN = (new URLSearchParams(location.search).get('t') || '').replace(/[^a-f0-9]/g, '');
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const when = iso => iso ? new Date(iso).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : '';
+let D = null;
+
+async function boot() {
+  if (!TOKEN) return fatal('This link is missing its code. Ask your Mobius contact for your agreement link.');
+  try {
+    const r = await fetch(`${AH}/api/sign/${TOKEN}`);
+    const j = await r.json();
+    if (!r.ok) return fatal(j.error || 'This link is not valid.');
+    D = j; paint();
+  } catch { fatal('Could not load the agreement. Check your connection and try again.'); }
+}
+function fatal(msg) { $('#app').innerHTML = `<div class="center"><p>${esc(msg)}</p></div>`; }
+
+function paint() {
+  const signed = D.status === 'signed';
+  document.title = `${D.brand} agreement · Mobius Digital`;
+  $('#app').innerHTML = `
+    <header><div class="brand">Mobius Digital · ${esc(D.brand)}</div>
+      <p class="lede">${signed ? 'This agreement is signed. Print it or save it as a PDF for your records.' : 'Read the agreement below. To sign it, type your full name at the bottom, tick the box and press Sign. You will get a copy by email.'}</p></header>
+    <div class="paper">
+      ${D.html}
+      <div class="sig">
+        <div class="party"><b>Provider</b><div class="name">${esc(D.provider.name)}</div><div class="meta">Mobius Digital, LLC<br>Signed electronically ${esc(when(D.provider.at))}</div></div>
+        <div class="party"><b>Client</b>${signed
+          ? `<div class="name">${esc(D.client.name)}</div><div class="meta">${esc(D.vars.company)}<br>Signed electronically ${esc(when(D.client.at))}<br>${esc(D.client.email || '')}</div>`
+          : `<div class="name" style="color:var(--muted)">Not signed yet</div><div class="meta">${esc(D.vars.company)}</div>`}</div>
+      </div>
+      ${signed ? `<div class="done">Signed. A copy was emailed to ${esc(D.client.email || 'you')} and to Mobius Digital.</div>
+        <div class="row actions"><button class="btn pri" id="print">Print or save as PDF</button></div>`
+      : `<div class="form">
+          <label class="l" for="name">Your full name, as it should appear on the agreement</label>
+          <input class="in" id="name" type="text" autocomplete="name" placeholder="First and last name" value="${esc(D.vars.client_name || '')}">
+          <label class="check"><input type="checkbox" id="agree"><span>I have read this agreement, I agree to its terms, and I agree to sign it electronically. Typing my name and pressing Sign is my signature.</span></label>
+          <div class="err" id="err"></div>
+          <div class="row"><button class="btn pri" id="sign">Sign the agreement</button><span class="note">Signed on ${esc(new Date().toLocaleDateString('en-US', { dateStyle: 'long' }))}</span></div>
+        </div>`}
+      <div class="fp">Document fingerprint ${esc(D.hash)}</div>
+    </div>
+    <p class="note screen" style="margin-top:14px">Questions about the agreement? Reply to the email it came in, or message us in Slack.</p>`;
+  const p = $('#print'); if (p) p.onclick = () => window.print();
+  const b = $('#sign'); if (b) b.onclick = sign;
+}
+
+async function sign() {
+  const err = $('#err'); err.textContent = '';
+  const name = $('#name').value.trim();
+  if (name.split(/\s+/).length < 2) return err.textContent = 'Type your full name, first and last.';
+  if (!$('#agree').checked) return err.textContent = 'Tick the box to confirm you agree to sign electronically.';
+  const btn = $('#sign'); btn.disabled = true; btn.textContent = 'Signing…';
+  try {
+    const r = await fetch(`${AH}/api/sign/${TOKEN}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, agree: true }) });
+    const j = await r.json();
+    if (!r.ok) { if (j.status === 'signed') { D = j; return paint(); } throw new Error(j.error || 'Could not sign. Try again.'); }
+    D = j; paint(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  } catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = 'Sign the agreement'; }
+}
+boot();
+})();
+</script>
+</body>
+</html>

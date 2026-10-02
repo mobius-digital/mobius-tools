@@ -30,6 +30,7 @@ import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsa
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, useFetch as newClientFetch } from './newclient.js';
+import { handleSign, useFetch as contractFetch } from './contract.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -177,6 +178,7 @@ brandAsanaFetch(xfetch);
 ideasFetch(xfetch);
 atriaFetch(xfetch);
 newClientFetch(xfetch);
+contractFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -5861,6 +5863,11 @@ const AH_APP = {
       if (r) return r;
     }
     /* ---- Brand research for Locus's Brand tab, plus the onboarding link's help box ---- */
+    /* ---- The services agreement, signed inside the onboarding link (public, by token; contract.js) ---- */
+    if (path.startsWith('/api/sign/')) {
+      const r = await handleSign(request, env, path, json);
+      if (r) return r;
+    }
     /* ---- New client: one button in Locus sets up Asana, the onboarding link, Drive and Slack (admin) ---- */
     if (path.startsWith('/api/new-client')) {
       const r = await handleNewClient(request, env, path, json, isAdmin, (rq, e) => sessionEmail(e, rq));

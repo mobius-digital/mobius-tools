@@ -345,6 +345,9 @@ export async function handlePublic(request, env, url, path, json) {
     /* Links the client's form shows (their Drive folder), from Brand info > At a glance. */
     const prof = safeJson((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'profile'`).bind(row.act_id).first().catch(() => null))?.data_json, {});
     const links = /^https:\/\//.test(prof.drive || '') ? { drive: prof.drive } : {};
+    /* The services agreement is signed on its own page once Cole has sent it (p_contract, account-health). */
+    const contract = await env.DB.prepare(`SELECT status FROM p_contract WHERE token = ?1`).bind(row.token).first().catch(() => null);
+    if (contract) links.sign = `https://tools.go-mobius-digital.com/onboard/sign.html?t=${row.token}`;
     return json({ brand: row.name, links, answers: safeJson(row.answers_json, {}), prefill: safeJson(row.prefill_json, {}), status: row.status, step: row.step, submitted_at: row.submitted_at });
   }
   if (request.method === 'PUT') {

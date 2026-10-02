@@ -1071,3 +1071,31 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   `key_dates`. Low-value questions moved to a last optional step `extras`.
 - Tested 2026-10-02 against the real services with "ZZ Locus Test": asana, onboard, slack, summary, pre-fill
   ($0.58) all ran; drive failed on the scope as designed. The email Send and the Ledger write were not exercised.
+
+### 2026-10-02 (later): Stripe invoice-then-autopay, and the agreement signed in-app (no DocuSign)
+
+- **Stripe** (`newclient.js`, step `stripe`, never automatic: the Send the invoice button + confirm). One
+  product "Mobius Digital retainer" (`settings.stripeProduct`), a per-client monthly price via `price_data`
+  (subscriptions reject `product_data`; the product must exist), subscription `collection_method send_invoice`,
+  7 days, `save_default_payment_method on_subscription`; the first invoice is FINALIZED then SENT (a draft
+  cannot be sent). `/stripe/webhook` (public, above the admin gate, Stripe-Signature HMAC, 5 min window) on
+  `invoice.paid` flips the subscription to `charge_automatically` and posts in the internal channel; the
+  endpoint is created via the API on first use, secret in `settings.stripeWebhook`. Removing a run cancels an
+  UNPAID subscription and voids its invoice. Secret `STRIPE_SECRET_KEY` (sk_live): the first paste through
+  PowerShell stored a lone Ctrl+V byte (code 22), so the key is cleaned to printable ASCII and `/options`
+  reports `stripe_key` (masked) + `stripe_raw` {len, codes} for exactly that diagnosis. Put it with
+  `(Get-Content -Raw key.txt).Trim() | npx.cmd wrangler secret put STRIPE_SECRET_KEY`. Tested live: invoice
+  sent to Cole; the paid webhook flip is NOT yet exercised (Cole chose not to pay the $1; first real client
+  will prove it, the screen's "Check if paid" refreshes from Stripe either way).
+- **Agreement** (`account-health/worker/src/contract.js`, table `p_contract` keyed by the onboarding token,
+  page `onboard/sign.html?t=`). Text = the "Mobius Digital Services Agreement - Brand" doc with blanks from
+  the New client form (`contractDefaults`); Cole edits client_name / start_date / term / payment on the setup
+  screen (Preview = `/api/new-client/contract-preview`), "Send for signature" (step `contract`, approved)
+  freezes the HTML, stores a SHA-256 of its text, records Cole's signature (name, time, IP) and emails the
+  client the link from his Gmail. Client: full name (2+ words) + consent tick -> `POST /api/sign/:token`
+  (public) records name, email, time, IP, UA, re-checks the hash, emails both sides a copy, and ticks
+  `st_agreement` in their form (which links to the page via `links.sign` from the profit worker's GET
+  /api/onboard). Signed text can never change (send refuses on a signed row; sign refuses twice). Section 9
+  (electronic signatures) was added to the doc's wording. The page prints to PDF. Drive scope
+  (`auth/drive`) and `gmail.send` were added to the Mobius Tools delegation on 2026-10-02 and the Gmail API
+  enabled on the Cloud project; both tested live.
