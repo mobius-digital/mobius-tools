@@ -29,6 +29,7 @@
  */
 import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } from './asana-brand.js';
 import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit } from './contract.js';
+import { frameProject, frameStatus } from './frame.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -499,38 +500,14 @@ async function stepContract(env, r, b) {
   const s = await sendContract(env, r, b.vars, b.ip);
   return { url: s.url, hash: s.hash, signed: false, text: `Sent to ${r.contact_email} for signature. You signed it on sending.` };
 }
-/* ---------------- Frame.io ----------------
-   Cole reviews assets in Frame. A project per client, the picked team added. Legacy
-   (v2) API with a developer token from developer.frame.io: FRAME_TOKEN on this worker,
-   optional var FRAME_TEAM (team id) when the account has more than one team. */
-const NEEDS_FRAME = 'Frame is not connected to Locus. Get a developer token at developer.frame.io (Tokens > Create), then: npx.cmd wrangler secret put FRAME_TOKEN (paste it from a file, see the Stripe note). Until then: make the project in Frame by hand.';
-async function frame(env, method, path, body) {
-  const tok = String(env.FRAME_TOKEN || '').replace(/[^!-~]/g, '');
-  if (!tok) throw new Error(NEEDS_FRAME);
-  const res = await F(`https://api.frame.io${path}`, { method, headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  const text = await res.text();
-  const j = safeJson(text, {});
-  if (!res.ok) throw new Error(res.status === 401 ? 'Frame rejected the token. Make a fresh one at developer.frame.io and put it on the worker again.' : `Frame (${method} ${path}): ${j.message || j.errors?.[0]?.detail || `${res.status} ${text.slice(0, 200)}`}`);
-  return j;
-}
+/* ---------------- Frame.io (V4, frame.js) ----------------
+   One project per client in the Mobius workspace, the picked team as collaborators. */
 async function stepFrame(env, r) {
   const team = safeJson(r.team_json, {});
   const prev = safeJson(r.steps_json, {}).frame || {};
-  let project = prev.project || null, url = prev.url || null;
-  if (!project) {
-    const teams = await frame(env, 'GET', '/v2/teams');
-    const list = Array.isArray(teams) ? teams : [];
-    const t = (env.FRAME_TEAM && list.find(x => x.id === env.FRAME_TEAM)) || list[0];
-    if (!t) throw new Error('The Frame token sees no team.');
-    const p = await frame(env, 'POST', `/v2/teams/${t.id}/projects`, { name: r.name, private: false });
-    project = p.id; url = `https://app.frame.io/projects/${p.id}`;
-    await patchRun(env, r.id, { steps_json: JSON.stringify({ ...safeJson(r.steps_json, {}), frame: { ...prev, project, url } }) });
-  }
-  const notes = [];
-  for (const e of [...new Set([team.strategist, team.buyer, team.editor].filter(x => emailOk(x) && x.toLowerCase() !== OWNER))]) {
-    await frame(env, 'POST', `/v2/projects/${project}/collaborators`, { email: e }).catch(err => { if (!/already|exists/i.test(err.message)) notes.push(`${e} not added: ${err.message}`); });
-  }
-  return { project, url, notes, text: 'Frame project made, team added.' };
+  const emails = [...new Set([team.strategist, team.buyer, team.editor].filter(x => emailOk(x) && x.toLowerCase() !== OWNER))];
+  const out = await frameProject(env, r.name, emails, prev);
+  return { ...out, text: 'Frame project made, team added.' };
 }
 const RUN = { asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, frame: stepFrame, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary };
 
@@ -546,7 +523,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const runs = (await env.DB.prepare(`SELECT * FROM p_newclient ORDER BY created_at DESC LIMIT 30`).all()).results || [];
       let team = [], err = null;
       try { team = await teamList(env); } catch (e) { err = e.message; }
-      return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS, frame: !!(env.FRAME_TOKEN || '').trim(), stripe: !!(env.STRIPE_SECRET_KEY || '').trim(), stripe_key: String(env.STRIPE_SECRET_KEY || '').replace(/[^!-~]/g, '').replace(/^(.{7}).*(.{4})$/, '$1...$2'), stripe_raw: { len: String(env.STRIPE_SECRET_KEY || '').length, codes: [...String(env.STRIPE_SECRET_KEY || '').slice(0, 4)].map(c => c.codePointAt(0)) } });
+      return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS, frame: (await frameStatus(env)).connected, stripe: !!(env.STRIPE_SECRET_KEY || '').trim(), stripe_key: String(env.STRIPE_SECRET_KEY || '').replace(/[^!-~]/g, '').replace(/^(.{7}).*(.{4})$/, '$1...$2') });
     }
     if (path === '/api/new-client' && request.method === 'POST') {
       const name = String(b.name || '').trim().slice(0, 80);

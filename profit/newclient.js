@@ -89,8 +89,12 @@ async function open() {
   const today = new Date().toISOString().slice(0, 10);
   const runs = (opts.runs || []);
 
+  const frameRow = opts.frame
+    ? ''
+    : `<div class="notice warn" style="margin:0 0 14px">⚠️<div><b>Frame is not connected</b>, so new clients get no Frame project until it is. <a href="#" id="ncFrame">Connect Frame</a> (one time: an Adobe Developer Console app).</div></div>`;
   const w = shell(`<h3>New client</h3>
     <p class="hint" style="margin-bottom:14px">Fill this in once. Locus then makes their Asana project, onboarding link, Drive folder and Slack channels, and invites the client. You see every step as it happens.</p>
+    ${frameRow}
     ${runs.length ? `<div class="nc-runs"><span class="tiny">Already started:</span>${runs.map(r => `<a href="#" data-run="${esc(r.id)}">${esc(r.name)} · open its setup</a>`).join('')}</div>` : ''}
     <div class="ab-form">
       ${f('Brand name', 'What you call them everywhere. It becomes the Asana project, the Drive folder and the Slack channel names.', '<input type="text" id="ncName" placeholder="e.g. Bonk Golf">')}
@@ -124,6 +128,7 @@ async function open() {
     g.querySelectorAll('.nc-chip').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.e === pick[role])));
   });
   w.querySelectorAll('[data-run]').forEach(a => a.onclick = e => { e.preventDefault(); close(); status(a.dataset.run, false); });
+  const fr = $$('#ncFrame'); if (fr) fr.onclick = e => { e.preventDefault(); close(); connectFrame(); };
 
   $$('[data-m="yes"]').onclick = async () => {
     const err = $$('#ncErr'); err.textContent = '';
@@ -329,5 +334,37 @@ async function status(id, autorun) {
   }
 }
 
-window.NewClient = { open, status };
+/* ---------------- Connect Frame (Adobe) ---------------- */
+async function connectFrame() {
+  css();
+  const w = shell(`<h3>Connect Frame</h3>
+    <p class="hint">Your Frame is the new version (next.frame.io), which only talks to apps registered with Adobe. One time, about three minutes:</p>
+    <ol style="font-size:13.5px;line-height:1.6;padding-left:18px;margin:8px 0 12px">
+      <li>Go to <a href="https://developer.adobe.com/console" target="_blank" rel="noopener">developer.adobe.com/console</a> and sign in with the login you use for Frame.</li>
+      <li>Create project &gt; Add API &gt; <b>Frame.io API</b> &gt; <b>OAuth Web App</b>.</li>
+      <li>Default redirect URI: <code style="font-size:12px">https://mobius-account-health.mobius-digital.workers.dev/frame/callback</code> <button class="btn" id="ncCopyRedirect" style="padding:2px 8px;font-size:12px">Copy</button></li>
+      <li>Save, then copy the <b>Client ID</b> and <b>Client Secret</b> here and press Connect. Adobe asks you to sign in once.</li>
+    </ol>
+    <div class="ab-form">
+      <div class="ab-f"><label>Client ID</label><input type="text" id="ncFcid" autocomplete="off"></div>
+      <div class="ab-f"><label>Client Secret</label><input type="password" id="ncFsec" autocomplete="off"></div>
+    </div>
+    <p class="tiny nc-bad" id="ncFerr" style="min-height:16px;margin:8px 0 0"></p>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin:6px 0 0"><button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">Connect</button></div>`, 560);
+  const $$ = s => w.querySelector(s);
+  const close = () => w.remove();
+  $$('[data-m="no"]').onclick = close;
+  $$('#ncCopyRedirect').onclick = async () => { try { await navigator.clipboard.writeText('https://mobius-account-health.mobius-digital.workers.dev/frame/callback'); $$('#ncCopyRedirect').textContent = 'Copied'; } catch {} };
+  $$('[data-m="yes"]').onclick = async () => {
+    const err = $$('#ncFerr'); err.textContent = '';
+    try {
+      const r = await post('/api/frame/start', { client_id: $$('#ncFcid').value.trim(), client_secret: $$('#ncFsec').value.trim() });
+      window.open(r.url, '_blank', 'noopener');
+      close();
+      noteModal('Finish in the Adobe tab', '<p>Sign in with your Frame login and allow it. The tab then says "Frame is connected" and lists your workspaces. Come back and open New client again.</p>');
+    } catch (e) { err.textContent = e.message; }
+  };
+}
+
+window.NewClient = { open, status, connectFrame };
 })();

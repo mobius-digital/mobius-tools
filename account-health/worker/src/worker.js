@@ -31,6 +31,7 @@ import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasF
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, useFetch as newClientFetch } from './newclient.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
+import { handleFrame, useFetch as frameFetch } from './frame.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -179,6 +180,7 @@ ideasFetch(xfetch);
 atriaFetch(xfetch);
 newClientFetch(xfetch);
 contractFetch(xfetch);
+frameFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -5856,6 +5858,11 @@ const AH_APP = {
     }
     if (path.startsWith('/studio-ref/')) {
       const r = await serveRef(request, env, path);
+      if (r) return r;
+    }
+    /* ---- Frame.io V4 (Adobe sign-in): Connect / status / tree are admin, the callback is public; frame.js ---- */
+    if (path === '/frame/callback' || path.startsWith('/api/frame/')) {
+      const r = await handleFrame(request, env, url, path, json, isAdmin);
       if (r) return r;
     }
     if (path === '/atria/callback' || path.startsWith('/api/atria/')) {
