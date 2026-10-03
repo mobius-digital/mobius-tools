@@ -5,27 +5,27 @@
  * One row per new client in p_newclient. The screen in Locus (profit/newclient.js)
  * creates the row, then asks for each step in turn, so every step shows its own
  * result and can be retried on its own:
- *   asana    project from "MD - Template 2026 v2", the picked team added, the client
- *            invited by their main email, the old 18-step checklist replaced by the
- *            few things a person still does
+ *   asana    project from "MD - Template 2026 v2", the picked team added, the old
+ *            checklist replaced by the few things a person still does
  *   onboard  the onboarding link (under the pending id asana_<project> until the
  *            brand's Meta account exists), website + contact saved as pre-fill
- *   drive    a client folder (Branding, Assets > Ad Concepts + Client Content),
- *            shared with the team and the client, linked in Asana and Locus
- *   slack    two PRIVATE channels (<brand> and <brand>-internal), only the picked
- *            team added, the client invited to the client channel by Slack Connect
- *   email    the welcome email, sent from Cole's Gmail ONLY with the text he approved
- *   summary  one post in the internal channel with every link
- * Ledger and the website pre-fill are run by the browser (the Ledger worker and the
- * research stream), and show in the same list.
+ *   drive    a client folder: Agreements (Cole + client) and From the client
+ *   slack    two PRIVATE channels (<brand> and <brand>-internal), only the picked team
+ *   frame    a Frame project for asset review (frame.js)
+ *   summary  one post in the internal channel with every link, and #mobius-newbiz (never money)
+ *   email, stripe, contract   only when Cole presses Send on each. The welcome email goes
+ *            first and also sends the client's Asana invite and Drive shares (stepInvite).
+ * Ledger and the website pre-fill are run by the browser and show in the same list.
  *
  * A step that needs a permission we do not have yet FAILS WITH THE REASON and says
- * what to do by hand. It never pretends. Stripe, DocuSign and Frame are not wired
- * yet; they show as "by hand for now".
+ * what to do by hand. It never pretends.
  *
- * Nothing here reaches a client except: the Asana invite, the Drive share, the Slack
- * Connect invite and the welcome email. All four happen only after Cole presses Go
- * (the email only after he presses Send on its text).
+ * Nothing reaches the client until Cole presses Send. The Slack welcome posts as Cole a
+ * minute after the client joins their channel.
+ *
+ * steps_json is written ONE KEY AT A TIME (setStep): the screen, the hourly pass and the
+ * Stripe / Calendly / Slack webhooks all write it, and a whole-object write from a stale
+ * copy would undo another writer's key.
  */
 import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } from './asana-brand.js';
 import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit, aiAmend, sendAmendment } from './contract.js';
@@ -71,6 +71,11 @@ async function patchRun(env, id, cols) {
   const keys = Object.keys(cols);
   if (!keys.length) return;
   await env.DB.prepare(`UPDATE p_newclient SET ${keys.map((k, i) => `${k} = ?${i + 2}`).join(', ')}, updated_at = datetime('now') WHERE id = ?1`).bind(id, ...keys.map(k => cols[k])).run();
+}
+/** Writes one key of steps_json in place (undefined removes it). */
+async function setStep(env, id, key, val) {
+  if (val === undefined) await env.DB.prepare(`UPDATE p_newclient SET steps_json = json_remove(steps_json, '$.' || ?2), updated_at = datetime('now') WHERE id = ?1`).bind(id, key).run();
+  else await env.DB.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.' || ?2, json(?3)), updated_at = datetime('now') WHERE id = ?1`).bind(id, key, JSON.stringify(val)).run();
 }
 const view = r => r && ({
   id: r.id, name: r.name, website: r.website, contact_name: r.contact_name, contact_email: r.contact_email,
@@ -157,7 +162,7 @@ async function stepAsana(env, r) {
       const subs = await asanaAll(env, `/tasks/${ob.gid}/subtasks?opt_fields=name`);
       for (const s of subs) await asana(env, `/tasks/${s.gid}`, { method: 'DELETE' }).catch(() => {});
       const todo = [
-        ['Send the Shopify collaborator request (Locus posts the store address in the internal channel the moment they type it)', me.gid],
+        ['Send the Shopify collaborator request (Locus posts the store address in the internal channel within the hour of them typing it)', me.gid],
         ['Once Locus says they shared Meta: add the media buyer to the ad account and page in Meta Business Settings', me.gid],
         ['Before the strategy call: review the onboarding answers and the research in Locus (Brand > Brand info, Brand > Research)', gidOf(lead) || me.gid],
         ['After the voice interview: read the How we write draft in Locus and approve it', me.gid],
@@ -169,7 +174,7 @@ async function stepAsana(env, r) {
     out.tidy = true;
   } else out.tidy = true;
   out.url = r.asana_url;
-  out.text = `Project made${out.client_invited ? `, ${r.contact_email} invited` : ''}.`;
+  out.text = 'Project made.';
   return out;
 }
 
@@ -200,15 +205,14 @@ async function gapi(env, scope, path, init = {}) {
 const DRIVE = 'https://www.googleapis.com/auth/drive';
 const NEEDS_DRIVE = 'Locus may only READ Google Drive today. In Google Admin (Security > API controls > Domain-wide delegation) add the scope https://www.googleapis.com/auth/drive to the Locus service account, then press Retry. Until then: copy the template folder by hand and paste its link into the "Google Drive" task in Asana.';
 
-/* The client's Drive folder has three jobs and nothing else (Cole, 2026-10-03: Frame is for review,
+/* The client's Drive folder has two jobs and nothing else (Cole, 2026-10-03: Frame is for review,
    Locus for research, Asana for production; Drive keeps what none of those should hold):
-     Agreements      the signed agreement and every signed amendment, saved by Locus as Google Docs
-                     the moment they are signed. Team only: the client gets their copy by email.
+     Agreements      every signed agreement and amendment, saved by Locus as a PDF the moment it is
+                     signed. Cole and the client (view) only; never the team.
      From the client the files they send us that are not in their own library (raw footage, a product
-                     shoot, a big brand pack). The client can add; this is the folder their form links.
-     Final ads       approved, finished ads for the client to download and use anywhere (organic,
-                     email, site). The client can view and download. The team drops finals here after launch.
-   Runs again safely: missing subfolders are made, existing ones are kept. */
+                     shoot, a big brand pack). The client and the team can add; their form links it.
+   Finished ads live in Frame and on the client's Your ads page. Runs again safely: missing
+   subfolders are made, existing ones are kept. */
 const DRIVE_FOLDERS = [['agreements', 'Agreements'], ['inbox', 'From the client']];   // 'Final ads' dropped 2026-10-03: finished ads live in Frame and on the Your ads page
 async function stepDrive(env, r) {
   const team = safeJson(r.team_json, {});
@@ -224,21 +228,21 @@ async function stepDrive(env, r) {
     await patchRun(env, r.id, { drive_url: url }); r.drive_url = url;
   }
   const rootId = (/folders\/([A-Za-z0-9_-]+)/.exec(url) || [])[1];
-  /* The three folders, found by name or made. */
+  /* The folders, found by name or made. */
   const kids = (await gapi(env, DRIVE, `drive/v3/files?supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)&q=${encodeURIComponent(`'${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`)}`)).files || [];
   const ids = {};
   for (const [k, name] of DRIVE_FOLDERS) ids[k] = kids.find(f => f.name === name)?.id || (await mk(name, rootId)).id;
   const link = id => `https://drive.google.com/drive/folders/${id}`;
   /* Sharing runs on every pass (a Retry after a failed share must share), and is harmless to repeat.
-     The team edits everything. The client can add to From the client and view Final ads; they never
-     get the root or Agreements. Google only lets a non-Google address in with the invite email. */
+     Drive permissions inherit downward, so nobody but Cole is on the root: each folder is shared on
+     its own. The team gets From the client only. */
   const share = (id, email, role, notify) => gapi(env, DRIVE, `drive/v3/files/${id}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role, emailAddress: email } });
-  /* Drive permissions inherit downward, so nobody but Cole is on the root: each folder is shared on
-     its own. Agreements = Cole + the client (view). The team works in the other two. */
   const rootPerms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress,role)`).catch(() => ({}))).permissions || [];
   for (const pm of rootPerms.filter(x => x.role !== 'owner' && x.emailAddress && x.emailAddress.toLowerCase() !== OWNER)) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
   for (const e of teamList(team).filter(x => x !== OWNER)) for (const id of [ids.inbox]) await share(id, e, 'writer', false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
-  /* The client's two folders are shared when the welcome email goes (stepInvite). */
+  /* The client's two folders are shared when the welcome email goes (stepInvite). A Drive that only
+     worked on a Retry after the email went shares them now, or the client would never get them. */
+  if (safeJson(r.steps_json, {}).email?.status === 'done' && emailOk(r.contact_email)) out.notes.push(...(await shareClientDrive(env, r, ids)).notes);
   /* Asana Client Resources > Google Drive carries the two client folders; the form links From the client. */
   if (r.asana_project) await upsertResource(env, r.asana_project, 'Google Drive', `Send us files: ${link(ids.inbox)}\nYour signed agreements: ${link(ids.agreements)}`).catch(() => {});
   if (r.pending_act) await setDrive(env, r.act_id || r.pending_act, link(ids.inbox));
@@ -346,19 +350,25 @@ async function stepInvite(env, r) {
       out.asana = true;
     } catch (e) { out.notes.push(`Not invited to Asana (${e.message}). Invite ${r.contact_email} from the project's Share button.`); }
   }
-  const f = safeJson(r.steps_json, {}).drive?.folders || {};
+  const d = await shareClientDrive(env, r, safeJson(r.steps_json, {}).drive?.folders || {});
+  out.drive = d.drive; out.notes.push(...d.notes);
+  return { ...out, status: 'done', at: new Date().toISOString(), text: `Invited to ${[out.asana && 'Asana', out.drive && 'their Drive folders'].filter(Boolean).join(' and ') || 'nothing yet'}.` };
+}
+
+/* The client's two folders: From the client (they add) and Agreements (they view). Google only lets a
+   non-Google address in with the invite email, hence the second try with notify on. */
+async function shareClientDrive(env, r, f) {
+  const out = { notes: [], drive: false };
   const share = (id, role, notify) => gapi(env, DRIVE, `drive/v3/files/${id}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role, emailAddress: r.contact_email } });
   for (const [id, role] of [[f.inbox, 'writer'], [f.agreements, 'reader']].filter(([id]) => id)) {
-    await share(id, role, false).catch(() => share(id, role, true)).then(() => { out.drive = true; }).catch(err => out.notes.push(`Drive not shared: ${err.message}`));
+    await share(id, role, false).catch(() => share(id, role, true)).then(() => { out.drive = true; }).catch(err => out.notes.push(`Drive not shared with the client: ${err.message}`));
   }
-  return { ...out, status: 'done', at: new Date().toISOString(), text: `Invited to ${[out.asana && 'Asana', out.drive && 'their Drive folders'].filter(Boolean).join(' and ') || 'nothing yet'}.` };
+  return out;
 }
 
 /* ---------------- welcome email ---------------- */
 function welcomeDraft(r) {
   const link = r.token ? ONBOARD_FORM + r.token : '(the onboarding link appears here once it is made)';
-  const st = safeJson(r.steps_json, {});
-  const inbox = st.drive?.folders?.inbox ? `https://drive.google.com/drive/folders/${st.drive.folders.inbox}` : null;
   const slug = r.slug || slugOf(r.name);
   const links = [
     `- Start here, your onboarding: ${link}`,
@@ -377,7 +387,7 @@ ${links}
 
 The onboarding link walks you through the quick admin, giving us access to each platform (click by click, with a short video for each), and a few questions about your products and customers. We filled in what we could from your website, so most of it is checking rather than typing. It saves as you go.
 
-Over the next few minutes you will also get invites from Asana and Slack, plus the first invoice (from Stripe) and our agreement to sign. All of them are linked inside your onboarding too, so nothing gets lost.
+Over the next few minutes you will also get invites from Asana and Slack, plus ${r.retainer > 0 ? 'the first invoice (from Stripe) and ' : ''}our agreement to sign. All of them are linked inside your onboarding too, so nothing gets lost.
 
 Talk soon,`,
   };
@@ -391,12 +401,12 @@ async function stepEmail(env, r, b) {
   const body = String(b.body || '').trim();
   if (!subject || !body) throw new Error('The email needs a subject and a message.');
   if (!b.approved) throw new Error('The welcome email is only sent when you press Send on it.');
+  if (safeJson(r.steps_json, {}).email?.status === 'done') throw new Error('The welcome email was already sent.');
   try { await sendMail(env, r.contact_email, subject, body); }
   catch (e) { throw new Error(/sign-in failed|unauthorized_client|access_denied|insufficient/i.test(e.message) ? NEEDS_GMAIL : e.message); }
   /* The welcome explains the invites, so they go now, not before. */
   const inv = await stepInvite(env, await getRun(env, r.id)).catch(e => ({ status: 'failed', text: e.message, notes: [] }));
-  const st = safeJson((await getRun(env, r.id)).steps_json, {}); st.invite = inv;
-  await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+  await setStep(env, r.id, 'invite', inv);
   return { text: `Sent to ${r.contact_email} from your Gmail. ${inv.text || ''}`.trim(), notes: inv.notes || [] };
 }
 
@@ -457,11 +467,22 @@ async function stepStripe(env, r, b) {
   if (!(r.retainer > 0)) return { status: 'skipped', text: 'Skipped: no retainer was entered.' };
   if (!emailOk(r.contact_email)) throw new Error('No client email, so there is nobody to invoice.');
   const prev = safeJson(r.steps_json, {}).stripe || {};
+  const amt = `$${Math.round(r.retainer).toLocaleString('en-US')}`;
   if (prev.subscription) {
-    /* Already made: just refresh what the invoice says. */
-    const inv = prev.invoice ? await stripe(env, 'GET', `invoices/${prev.invoice}`) : null;
-    const paid = inv?.status === 'paid';
-    return { ...prev, status: 'done', paid, text: `${paid ? 'First invoice PAID, retainer on autopay.' : `Invoice sent, ${inv?.status || 'open'}.`} $${Math.round(r.retainer).toLocaleString('en-US')} a month.` };
+    /* Already made: refresh what the invoice says. A first try that stopped after the subscription
+       was made but before the invoice went out is finished here, never made twice. */
+    let inv = prev.invoice ? await stripe(env, 'GET', `invoices/${prev.invoice}`) : null;
+    if (inv?.status === 'draft') {
+      if (!b.approved) throw new Error('The invoice is only sent when you press Send on it.');
+      await stripe(env, 'POST', `invoices/${inv.id}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
+      inv = await stripe(env, 'POST', `invoices/${inv.id}/send`);
+    }
+    const fin = inv?.status_transitions?.finalized_at;
+    const sent_at = prev.sent_at || (fin ? new Date(fin * 1000).toISOString() : prev.at);
+    const url = inv?.hosted_invoice_url || prev.url;
+    /* Paid, but the webhook was missed: the same autopay switch the webhook does. */
+    if (inv?.status === 'paid') return { ...(await markPaid(env, r, prev.subscription, inv)), status: 'done', sent_at, url };
+    return { ...prev, status: 'done', paid: false, sent_at, url, text: `Invoice sent, ${inv?.status || 'open'}. ${amt} a month.` };
   }
   if (!b.approved) throw new Error('The invoice is only sent when you press Send on it.');
   await ensureStripeWebhook(env);
@@ -475,11 +496,13 @@ async function stepStripe(env, r, b) {
     description: `${r.name} monthly retainer`,
     metadata: { brand: r.name, locus: r.id, autopay: 'after first payment' },
   });
+  /* Kept before anything else can fail, so Try again finishes THIS subscription instead of making a second. */
+  await setStep(env, r.id, 'stripe', { status: 'failed', customer: customer.id, subscription: sub.id, invoice: sub.latest_invoice, text: 'The invoice was made in Stripe but not sent yet. Press Try again.' });
   /* A subscription's first invoice is a draft; Stripe only sends a finalized one. */
   await stripe(env, 'POST', `invoices/${sub.latest_invoice}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
   const inv = await stripe(env, 'POST', `invoices/${sub.latest_invoice}/send`);
-  return { status: 'done', customer: customer.id, subscription: sub.id, invoice: inv.id, url: inv.hosted_invoice_url, paid: false,
-    text: `Invoice for $${Math.round(r.retainer).toLocaleString('en-US')} sent to ${r.contact_email}. When they pay, the card is saved and the retainer bills itself every month.` };
+  return { status: 'done', customer: customer.id, subscription: sub.id, invoice: inv.id, url: inv.hosted_invoice_url, paid: false, sent_at: new Date().toISOString(),
+    text: `Invoice for ${amt} sent to ${r.contact_email}. When they pay, the card is saved and the retainer bills itself every month.` };
 }
 
 /* Stripe calls this (public, signed). invoice.paid on a Locus subscription -> autopay. */
@@ -499,24 +522,40 @@ export async function handleStripeWebhook(request, env) {
   const ev = safeJson(body, {});
   if (ev.type !== 'invoice.paid') return new Response('ignored', { status: 200 });
   const inv = ev.data?.object || {};
-  const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
+  /* The endpoint sends events in the account's own API version; newer ones moved the subscription
+     under parent.subscription_details. Read both, and ask Stripe (in our pinned version) if neither. */
+  const subOf = i => { const s = i?.subscription || i?.parent?.subscription_details?.subscription; return typeof s === 'string' ? s : s?.id; };
+  let subId = subOf(inv);
+  if (!subId && inv.id) subId = subOf(await stripe(env, 'GET', `invoices/${inv.id}`).catch(() => null));
   if (!subId) return new Response('no subscription', { status: 200 });
   await ensureTable(env);
   const rows = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE json_extract(steps_json, '$.stripe.subscription') = ?1`).bind(subId).all()).results || [];
-  for (const r of rows) {
-    const steps = safeJson(r.steps_json, {});
-    if (steps.stripe?.paid) continue;
-    try {
-      const sub = await stripe(env, 'GET', `subscriptions/${subId}`);
-      const pm = sub.default_payment_method || inv.payment_intent?.payment_method || null;
-      if (sub.collection_method !== 'charge_automatically') await stripe(env, 'POST', `subscriptions/${subId}`, { collection_method: 'charge_automatically', ...(typeof pm === 'string' ? { default_payment_method: pm } : {}) });
-      steps.stripe = { ...steps.stripe, paid: true, paid_at: new Date().toISOString(), text: `First invoice PAID on ${new Date().toISOString().slice(0, 10)}. Retainer is on autopay.` };
-    } catch (e) { steps.stripe = { ...steps.stripe, paid: true, paid_at: new Date().toISOString(), text: `First invoice paid, but autopay was not switched on: ${e.message}. Do it in Stripe.` }; }
-    await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
-    await tickForm(env, r.token, 'st_invoice');
-    if (r.slack_internal && env.SLACK_BOT_TOKEN) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: `*${r.name} paid their first invoice.* The retainer is on autopay from here. Work can start.` }).catch(() => {});
-  }
+  for (const r of rows) await markPaid(env, r, subId, inv);
   return new Response('ok', { status: 200 });
+}
+
+/** The first invoice is paid: switch the subscription to autopay, tick the form, tell the team.
+ *  Shared by the webhook and "Check if paid", so a missed webhook loses nothing. Retries the
+ *  autopay switch until it works; the team hears once. */
+async function markPaid(env, r, subId, inv) {
+  const st = safeJson((await getRun(env, r.id))?.steps_json, {}).stripe || {};
+  if (st.autopay) return st;
+  const now = new Date().toISOString();
+  const paid_at = st.paid_at || now;
+  let next;
+  try {
+    const sub = await stripe(env, 'GET', `subscriptions/${subId}`);
+    let pm = null;
+    if (!sub.default_payment_method && typeof inv?.payment_intent === 'string') pm = (await stripe(env, 'GET', `payment_intents/${inv.payment_intent}`).catch(() => null))?.payment_method || null;
+    if (sub.collection_method !== 'charge_automatically') await stripe(env, 'POST', `subscriptions/${subId}`, { collection_method: 'charge_automatically', ...(typeof pm === 'string' ? { default_payment_method: pm } : {}) });
+    next = { ...st, paid: true, paid_at, autopay: true, text: `First invoice PAID on ${paid_at.slice(0, 10)}. Retainer is on autopay.` };
+  } catch (e) { next = { ...st, paid: true, paid_at, autopay: false, text: `First invoice paid, but autopay was not switched on: ${e.message}. Press Check if paid to try again, or do it in Stripe.` }; }
+  await setStep(env, r.id, 'stripe', next);
+  if (!st.paid) {
+    await tickForm(env, r.token, 'st_invoice');
+    if (r.slack_internal && env.SLACK_BOT_TOKEN) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: `*${r.name} paid their first invoice.* ${next.autopay ? 'The retainer is on autopay from here.' : 'Autopay did NOT switch on: see Locus > New client.'} Work can start.` }).catch(() => {});
+  }
+  return next;
 }
 
 /** What the setup screen shows for the agreement: the blanks to edit, or where it stands. */
@@ -534,7 +573,7 @@ async function stepSummary(env, r) {
   const lines = [
     `*${r.name} is set up.* Here is everything in one place:`,
     r.asana_url ? `• Asana project: ${r.asana_url}` : null,
-    r.drive_url ? `• Google Drive folder: ${r.drive_url}` : null,
+    safeJson(r.steps_json, {}).drive?.folders?.inbox ? `• Drive, From the client (the client drops big files here): https://drive.google.com/drive/folders/${safeJson(r.steps_json, {}).drive.folders.inbox}` : null,
     r.slack_client ? `• Client channel: <#${r.slack_client}>` : null,
     r.website ? `• Website: ${r.website}` : null,
     safeJson(r.steps_json, {}).frame?.url ? `• Frame project: ${safeJson(r.steps_json, {}).frame.url}` : null,
@@ -557,7 +596,14 @@ async function stepContract(env, r, b) {
   if (!emailOk(r.contact_email)) throw new Error('No client email, so there is nobody to send the agreement to.');
   if (!b.approved) throw new Error('The agreement is only sent when you press Send for signature.');
   const s = await sendContract(env, r, b.vars, b.ip);
-  return { url: s.url, hash: s.hash, signed: false, text: `Sent to ${r.contact_email} for signature. You signed it on sending.` };
+  const notes = [];
+  /* An AI edit can change the price in the words; Stripe still bills r.retainer. Say so when they differ. */
+  if (r.retainer > 0) {
+    const words = String(b.vars?.html || b.vars?.payment || '');
+    const amounts = [...words.matchAll(/\$\s?([\d,]+(?:\.\d{1,2})?)/g)].map(m => Number(m[1].replace(/,/g, '')));
+    if (amounts.length && !amounts.includes(Math.round(r.retainer * 100) / 100)) notes.push(`The agreement mentions ${amounts.map(a => `$${a.toLocaleString('en-US')}`).join(', ')} but the invoice is $${r.retainer.toLocaleString('en-US')} a month. If the price changed, change it in Stripe too.`);
+  }
+  return { url: s.url, hash: s.hash, signed: false, notes, text: `Sent to ${r.contact_email} for signature. You signed it on sending.` };
 }
 /** A link task under Client Resources in the client's Asana project: found by name, made if missing. */
 async function upsertResource(env, projectGid, name, notes) {
@@ -619,15 +665,10 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
     const r = b.id ? await getRun(env, String(b.id)) : null;
     if (!r) return json({ error: 'unknown client' }, 404);
     if (path === '/api/new-client/run') return json({ ok: true, run: view(r), welcome: welcomeDraft(r), contract: await contractState(env, r) });
-    /* The browser reports the two steps it runs itself (Ledger, the website pre-fill). */
     if (path === '/api/new-client/contract-preview' && request.method === 'POST') {
       const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(b.vars || {}).filter(([, x]) => String(x || '').trim())) };
       const custom = /^<article[\s\S]*<\/article>$/.test(String(b.vars?.html || '').trim()) ? String(b.vars.html).trim() : null;
       return json({ ok: true, html: custom || contractHtml(v) });
-    }
-    if (path === '/api/new-client/contract-preview' && request.method === 'POST') {
-      const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(b.vars || {}).filter(([, x]) => String(x || '').trim())) };
-      return json({ ok: true, html: contractHtml(v) });
     }
     if (path === '/api/new-client/contract-ai' && request.method === 'POST') {
       const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(b.vars || {}).filter(([, x]) => String(x || '').trim())) };
@@ -644,11 +685,10 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       try { const a = await sendAmendment(env, r, b.html, request.headers.get('CF-Connecting-IP') || ''); return json({ ok: true, ...a, contract: await contractState(env, r) }); }
       catch (e) { return json({ error: e.message }, 400); }
     }
+    /* The browser reports the two steps it runs itself (Ledger, the website pre-fill). */
     if (path === '/api/new-client/mark' && request.method === 'POST') {
       if (!['ledger', 'prefill'].includes(b.step)) return json({ error: 'unknown step' }, 400);
-      const steps = safeJson(r.steps_json, {});
-      steps[b.step] = { status: b.ok ? 'done' : 'failed', text: String(b.text || '').slice(0, 400), at: new Date().toISOString() };
-      await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
+      await setStep(env, r.id, b.step, { status: b.ok ? 'done' : 'failed', text: String(b.text || '').slice(0, 400), at: new Date().toISOString() });
       return json({ ok: true, run: view(await getRun(env, r.id)) });
     }
     if (path === '/api/new-client/step' && request.method === 'POST') {
@@ -658,12 +698,16 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       b.ip = request.headers.get('CF-Connecting-IP') || '';
       try { res = { status: 'done', ...(await fn(env, r, b)) }; }
       catch (e) { res = { status: 'failed', text: e.message }; }
-      const fresh = await getRun(env, r.id);
-      const steps = safeJson(fresh.steps_json, {});
-      steps[b.step] = { ...res, at: new Date().toISOString() };
-      await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
+      /* A failed Retry or "Check if paid" must never wipe what an earlier pass made (the Stripe ids,
+         the folder ids): a step that was done stays done with the error as a note. */
+      const prev = safeJson((await getRun(env, r.id)).steps_json, {})[b.step] || {};
+      const at = new Date().toISOString();
+      const step = res.status !== 'failed' ? { ...res, at }
+        : prev.status === 'done' ? { ...prev, notes: [`Last try failed: ${res.text}`] }
+        : { ...prev, status: 'failed', text: res.text, at };
+      await setStep(env, r.id, b.step, step);
       const now = await getRun(env, r.id);
-      return json({ ok: res.status !== 'failed', step: steps[b.step], run: view(now), welcome: welcomeDraft(now), contract: await contractState(env, now) });
+      return json({ ok: res.status !== 'failed', step, run: view(now), welcome: welcomeDraft(now), contract: await contractState(env, now) });
     }
     /* Take back a welcome post (the bot's or Cole's) so the on-join one can go out fresh. */
     if (path === '/api/new-client/unwelcome' && request.method === 'POST') {
@@ -674,17 +718,21 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
         const d = await slack(tok, 'chat.delete', { channel: r.slack_client, ts });
         if (d.ok) break;
       }
-      delete steps.slack_welcome;
-      await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
+      await setStep(env, r.id, 'slack_welcome', undefined);
       return json({ ok: true });
     }
     if (path === '/api/new-client/remove' && request.method === 'POST') {
       /* Forgets the row. Nothing made in Asana, Drive or Slack is deleted; an UNPAID Stripe
-         subscription is cancelled so a removed client is never invoiced again. */
+         subscription is cancelled so a removed client is never invoiced again. Stripe is asked
+         first: a client who paid since the last look is never cancelled. */
       const st = safeJson(r.steps_json, {}).stripe;
       if (st?.subscription && !st.paid) {
-        await stripe(env, 'DELETE', `subscriptions/${st.subscription}`).catch(() => {});
-        if (st.invoice) await stripe(env, 'POST', `invoices/${st.invoice}/void`).catch(() => {});
+        const inv = st.invoice ? await stripe(env, 'GET', `invoices/${st.invoice}`).catch(() => null) : { status: 'none' };
+        if (!inv) return json({ error: 'Could not check the invoice in Stripe, so nothing was removed. Try again in a minute.' }, 502);
+        if (inv.status !== 'paid') {
+          await stripe(env, 'DELETE', `subscriptions/${st.subscription}`).catch(() => {});
+          if (inv.status === 'open') await stripe(env, 'POST', `invoices/${st.invoice}/void`).catch(() => {});
+        }
       }
       await env.DB.prepare(`DELETE FROM p_newclient WHERE id = ?1`).bind(r.id).run();
       return json({ ok: true });
@@ -732,6 +780,9 @@ async function welcomeOnJoin(env, r) {
     if (u.ok && !u.user.is_bot && (u.user.is_stranger || (u.user.team_id && u.user.team_id !== ours))) { joined = true; break; }
   }
   if (!joined) return false;
+  /* Claimed first: the join event and the hourly pass can both get here, and only one may post. */
+  const claim = await env.DB.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.slack_welcome', json(?2)) WHERE id = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL`).bind(r.id, JSON.stringify({ claimed: new Date().toISOString() })).run();
+  if (!claim.meta?.changes) return false;
   const team = safeJson(r.team_json, {});
   const ids = await slackIds(env, teamList(team));
   const who = await roster(env);
@@ -741,19 +792,28 @@ async function welcomeOnJoin(env, r) {
   const links = [
     r.token ? `• Your onboarding link: ${ONBOARD_FORM}${r.token}` : null,
     r.asana_url ? `• Your Asana project (every ad, before it runs): ${r.asana_url}` : null,
-    r.drive_url ? `• Your Google Drive folder with us: ${r.drive_url}` : null,
-    `• Book the strategy call: ${CALENDLY}`,
+    st.drive?.folders?.inbox ? `• A file too big to send here (raw footage, a photo shoot): https://drive.google.com/drive/folders/${st.drive.folders.inbox}` : null,
+    st.call?.when && !st.call.canceled ? null : `• Book the strategy call: ${CALENDLY}`,
     r.act_id ? `• Every ad we run for you, newest first: ${await yourAdsUrl(env, r.act_id)}` : null,
   ].filter(Boolean);
+  /* Only what is still owed: no "pay the invoice" once it is paid, no "book the call" once it is booked. */
+  const signed = (await env.DB.prepare(`SELECT status FROM p_contract WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.status;
+  const owe = [st.stripe?.invoice && !st.stripe.paid ? 'pay the first invoice' : null, signed === 'sent' ? 'sign the agreement' : null].filter(Boolean);
+  const next = [
+    'Finish the onboarding link. Giving us access to Meta, Google and Shopify is the part that unlocks everything else.',
+    st.call?.when && !st.call.canceled ? `Our strategy call is booked for ${st.call.when}. We go through your answers together.` : 'Book the strategy call if you have not yet. We go through your answers together.',
+    owe.length ? `${owe.join(' and ').replace(/^./, c => c.toUpperCase())} (${owe.length > 1 ? 'both came' : 'it came'} by email).` : null,
+    'Then we start: research, first briefs, first ads.',
+  ].filter(Boolean).map((s, i) => `${i + 1}. ${s}`);
   const text = [`*Welcome, ${r.name}!* This channel is where we talk day to day. Say hi, ask anything, drop files, tag any of us.`, '',
     '*Your team at Mobius*', '• Cole Wetzler, founder, your main contact', ...people, '',
     '*Your links*', ...links, '',
-    '*What happens next*', '1. Finish the onboarding link. Giving us access to Meta, Google and Shopify is the part that unlocks everything else.', '2. Book the strategy call if you have not yet. We go through your answers together.', '3. Pay the first invoice and sign the agreement (both came by email).', '4. Then we start: research, first briefs, first ads.', '',
+    '*What happens next*', ...next, '',
     'Add anyone from your side to this channel any time.'].join('\n');
   const m = await slack(user, 'chat.postMessage', { channel: r.slack_client, text, unfurl_links: false });
-  if (!m.ok) return false;
+  if (!m.ok) { await setStep(env, r.id, 'slack_welcome', undefined); return false; }
   await slack(user, 'pins.add', { channel: r.slack_client, timestamp: m.ts }).catch(() => {});
-  await patchRun(env, r.id, { steps_json: JSON.stringify({ ...st, slack_welcome: { ts: m.ts, at: new Date().toISOString() } }) });
+  await setStep(env, r.id, 'slack_welcome', { ts: m.ts, at: new Date().toISOString() });
   await tickForm(env, r.token, 'st_slack');
   return true;
 }
@@ -770,7 +830,7 @@ export async function onCallBooked(env, r, info) {
     await tickForm(env, r.token, 'st_call');
     if (r.asana_project) await upsertResource(env, r.asana_project, 'Call Link', `Strategy call: ${when}${info.join ? `\n${info.join}` : ''}`).catch(() => {});
   }
-  await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+  await setStep(env, r.id, 'call', st.call);
   const team = safeJson(r.team_json, {});
   const ids = await slackIds(env, roleList(team.strategist)).catch(() => ({}));
   const tag = Object.values(ids).map(id => `<@${id}>`).join(' ');
@@ -790,7 +850,7 @@ async function nudges(env) {
   for (const r of rows) {
     const st = safeJson(r.steps_json, {}); st.nudge ||= {};
     const due = [];
-    if (st.stripe?.invoice && !st.stripe.paid && Date.now() - Date.parse(st.stripe.at || 0) > 3 * DAY && !st.nudge.invoice) due.push(['invoice', 'has not paid the first invoice', 'Re-send the invoice']);
+    if (st.stripe?.invoice && !st.stripe.paid && Date.now() - Date.parse(st.stripe.sent_at || st.stripe.at || 0) > 3 * DAY && !st.nudge.invoice) due.push(['invoice', 'has not paid the first invoice', 'Re-send the invoice']);
     if (r.c_status === 'sent' && Date.now() - Date.parse(r.c_sent || 0) > 3 * DAY && !st.nudge.agreement) due.push(['agreement', 'has not signed the agreement', 'Re-send the signing link']);
     if (st.email?.status === 'done' && r.ob_status !== 'submitted' && Date.now() - Date.parse(st.email.at || 0) > 5 * DAY && !st.nudge.form) due.push(['form', 'has not sent the onboarding form', 'Send them a reminder']);
     for (const [kind, what, label] of due) {
@@ -801,7 +861,7 @@ async function nudges(env) {
         { type: 'context', elements: [{ type: 'mrkdwn', text: 'Sends a short, friendly reminder as you. Nothing goes out unless you press it.' }] }] });
       if (j.ok) { st.nudge[kind] = new Date().toISOString(); n++; }
     }
-    if (due.length) await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+    if (due.length) await setStep(env, r.id, 'nudge', st.nudge);
   }
   return n;
 }
@@ -855,17 +915,16 @@ export async function handleNewClientAction(env, ctx, payload) {
         if (m.ok) how = 'in their Slack channel';
       }
       if (!how && emailOk(r.contact_email)) { await sendMail(env, r.contact_email, `Please approve our Shopify request for ${store}`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'by email'; }).catch(() => {}); }
-      st.shopify_ping = { ...st.shopify_ping, sent: new Date().toISOString(), told: how || null };
-      await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+      await setStep(env, r.id, 'shopify_ping', { ...st.shopify_ping, sent: new Date().toISOString(), told: how || null });
       await reply(how ? `✓ Collaborator request for *${store}* sent. ${r.name} was asked to approve it ${how}.` : `✓ Marked as sent, but Locus could not reach ${r.name} (not in Slack, email failed). Tell them to approve it in Shopify > Settings > Users.`);
     })());
   }
   return new Response('', { status: 200 });
 }
 
-/* Shopify has no API for a collaborator request: it is made from the Partner dashboard. So the moment
-   the client types their store address (the form saves as they go), Cole gets it in the internal channel
-   with the request code and the clicks, once. */
+/* Shopify has no API for a collaborator request: it is made from the Partner dashboard. So within the
+   hour of the client typing their store address (the form saves as they go), Cole gets it in the internal
+   channel with the request code and the clicks, once. */
 async function shopifyHeadsUp(env) {
   const rows = (await env.DB.prepare(`SELECT n.*, o.answers_json FROM p_newclient n JOIN p_br_onboard o ON o.token = n.token WHERE n.slack_internal IS NOT NULL AND json_extract(n.steps_json, '$.shopify_ping') IS NULL`).all().catch(() => ({ results: [] }))).results || [];
   let told = 0;
@@ -885,7 +944,7 @@ async function shopifyHeadsUp(env) {
         { type: 'button', style: 'primary', text: { type: 'plain_text', text: 'I sent the request' }, action_id: 'nc_shopify_sent', value: JSON.stringify({ id: r.id }) },
       ] },
     ] });
-    if (j.ok) { const steps = safeJson(r.steps_json, {}); steps.shopify_ping = { store, at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); told++; }
+    if (j.ok) { await setStep(env, r.id, 'shopify_ping', { store, at: new Date().toISOString() }); told++; }
     if (r.act_id) await env.DB.prepare(`UPDATE accounts SET tw_shop = ?2 WHERE act_id = ?1 AND (tw_shop IS NULL OR tw_shop = '')`).bind(r.act_id, store).run().catch(() => {});
   }
   return told;
@@ -915,7 +974,7 @@ export async function newClientTick(env) {
     const team = safeJson(r.team_json, {});
     const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
       text: `*${r.name} sent their onboarding form.* Next: open Locus > Brand > ${r.name} > Research and press "Research this brand", then review the answers and the drafts before the strategy call${team.strategist ? ` (${team.strategist})` : ''}.` });
-    if (j.ok) { steps.form_ping = { status: 'done', at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); told++; }
+    if (j.ok) { await setStep(env, r.id, 'form_ping', { status: 'done', at: new Date().toISOString() }); told++; }
     /* The voice interview, where they will see it: their Slack channel (as Cole) once they are in,
        else email. Asana's "Help us find your voice" task already carries it and ticks itself on Finish. */
     if (j.ok && !steps.voice_sent) {
@@ -924,7 +983,7 @@ export async function newClientTick(env) {
       let how = null;
       if (steps.slack_welcome && r.slack_client && env.SLACK_USER_TOKEN) { const m = await slack(env.SLACK_USER_TOKEN, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false }); if (m.ok) how = 'slack'; }
       if (!how && emailOk(r.contact_email)) await sendMail(env, r.contact_email, `One more thing: your voice interview`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'email'; }).catch(() => {});
-      if (how) { steps.voice_sent = { how, at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); }
+      if (how) await setStep(env, r.id, 'voice_sent', { how, at: new Date().toISOString() });
     }
     /* Their content library link goes under Client Resources > Assets in Asana. */
     const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token).first().catch(() => null))?.answers_json, {});

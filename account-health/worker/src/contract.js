@@ -103,7 +103,6 @@ ${li('Client Communication and Support', 'Conduct regular strategy and performan
 </article>`;
 }
 
-/** A plain-text form of the same words, for the hash and the email. */
 /** Cole's edits, on a cheap model. Only what the instruction says changes; the rest of the
  *  words stay exactly as they are. Returns the whole agreement as HTML. ~1 cent a go. */
 export async function aiEdit(env, html, instruction) {
@@ -229,9 +228,13 @@ Mobius Digital`);
   return { url: link, hash, sent_at: now };
 }
 
+/* An amendment's token is `<base>a<n>`, but a base token is hex and can itself end in "a" + digits,
+   so the base comes from the amendment's own record (vars.of), never from stripping the token. */
+const baseToken = c => safeJson(c.vars_json, {}).of || c.token;
+
 /* The internal channel hears when an agreement or amendment is signed. */
 async function signedPing(env, c) {
-  const run = await env.DB.prepare(`SELECT slack_internal FROM p_newclient WHERE token = ?1`).bind(c.token.replace(/a\d+$/, '')).first().catch(() => null);
+  const run = await env.DB.prepare(`SELECT slack_internal FROM p_newclient WHERE token = ?1`).bind(baseToken(c)).first().catch(() => null);
   if (!run?.slack_internal || !env.SLACK_BOT_TOKEN) return;
   const v = safeJson(c.vars_json, {});
   await F('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
@@ -240,8 +243,7 @@ async function signedPing(env, c) {
 
 /* ---------------- the signed copy, kept in the client's Drive (Agreements) ---------------- */
 async function saveSignedToDrive(env, c) {
-  const base = c.token.replace(/a\d+$/, '');
-  const run = await env.DB.prepare(`SELECT steps_json FROM p_newclient WHERE token = ?1`).bind(base).first().catch(() => null);
+  const run = await env.DB.prepare(`SELECT steps_json FROM p_newclient WHERE token = ?1`).bind(baseToken(c)).first().catch(() => null);
   const folder = safeJson(run?.steps_json, {}).drive?.folders?.agreements;
   if (!folder) return;
   const v = safeJson(c.vars_json, {});
@@ -289,7 +291,9 @@ export async function handleSign(request, env, path, json) {
     const ip = request.headers.get('CF-Connecting-IP') || '';
     const ua = (request.headers.get('User-Agent') || '').slice(0, 300);
     const now = new Date().toISOString();
-    await env.DB.prepare(`UPDATE p_contract SET status = 'signed', client_name = ?2, client_ip = ?3, client_ua = ?4, signed_at = ?5 WHERE token = ?1 AND status != 'signed'`).bind(row.token, name, ip, ua, now).run();
+    const upd = await env.DB.prepare(`UPDATE p_contract SET status = 'signed', client_name = ?2, client_ip = ?3, client_ua = ?4, signed_at = ?5 WHERE token = ?1 AND status != 'signed'`).bind(row.token, name, ip, ua, now).run();
+    /* A double press: the first one signed it and sends the copies; this one stops here. */
+    if (!upd.meta?.changes) { const was = await env.DB.prepare(`SELECT * FROM p_contract WHERE token = ?1`).bind(row.token).first(); return json({ error: 'This agreement is already signed.', ...pub(was) }, 409); }
     const fresh = await env.DB.prepare(`SELECT * FROM p_contract WHERE token = ?1`).bind(row.token).first();
     /* Both sides get a copy. The onboarding form's "Sign the agreement" box ticks itself. */
     const link = SIGN_PAGE + row.token;

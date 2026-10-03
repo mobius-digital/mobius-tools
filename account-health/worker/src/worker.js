@@ -401,15 +401,19 @@ const normBrand = s => String(s || '').toLowerCase().replace(/&/g, ' and ').repl
   .replace(/\b(ad|ads|account|acct|new|inc|llc|co|the|meta|facebook|fb|main|official|\d+)\b/g, ' ').replace(/\s+/g, ' ').trim();
 const myshopify = v => { const m = /([a-z0-9][a-z0-9-]*)\.myshopify\.com/i.exec(String(v || '')); return m ? `${m[1].toLowerCase()}.myshopify.com` : null; };
 async function autoConnectMeta(env) {
-  const runs = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE act_id IS NULL AND slack_internal IS NOT NULL`).all().catch(() => ({ results: [] }))).results || [];
+  /* 45 days is plenty for a client to share Meta; after that discovery stops running for them hourly. */
+  const runs = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE act_id IS NULL AND slack_internal IS NOT NULL AND created_at > datetime('now', '-45 days')`).all().catch(() => ({ results: [] }))).results || [];
   if (!runs.length) return { waiting: 0 };
   const disc = await discoverAccounts(env).catch(() => null);
-  const untracked = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%'`).all()).results || [];
+  /* An account we once synced (an old client switched off) is never a NEW client's account. */
+  const untracked = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%' AND NOT EXISTS (SELECT 1 FROM daily_insights d WHERE d.act_id = accounts.act_id)`).all()).results || [];
   const out = { waiting: runs.length, connected: [] };
   for (const r of runs) {
     const want = normBrand(r.name);
     if (want.length < 3) continue;
-    const hits = untracked.filter(a => { const n = normBrand(a.name); return n.length >= 3 && (n === want || n.includes(want) || want.includes(n)); });
+    /* An exact name wins; otherwise whole words only ("ice" never matches "office"). */
+    const exact = untracked.filter(a => normBrand(a.name) === want);
+    const hits = exact.length ? exact : untracked.filter(a => { const n = normBrand(a.name); return n.length >= 3 && (` ${n} `.includes(` ${want} `) || ` ${want} `.includes(` ${n} `)); });
     if (hits.length !== 1) continue;
     const a = hits[0];
     const res = await connectMetaFor(env, r, a);
@@ -434,12 +438,13 @@ async function autoConnectMeta(env) {
 /** Switches an ad account on as a waiting new client, after checking Locus can read it. */
 async function connectMetaFor(env, r, a) {
   const steps = safeJson(r.steps_json, {});
-  const save = () => env.DB.prepare(`UPDATE p_newclient SET steps_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, JSON.stringify(steps)).run();
+  /* One key at a time: r may be an hour old and other writers touch steps_json too. */
+  const save = k => env.DB.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.' || ?2, json(?3)), updated_at = datetime('now') WHERE id = ?1`).bind(r.id, k, JSON.stringify(steps[k])).run();
   try { await meta(env, `${a.act_id}/insights`, { date_preset: 'last_7d', fields: 'spend', limit: 1 }); }
   catch (e) {
     if (!steps.meta_blocked || steps.meta_blocked.act !== a.act_id) {
       await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name}* shared the ad account "${a.name}", but Locus cannot read it yet. In Business Settings > Ad accounts > ${a.name} > Assign people, add the *Mobius Tools* system user. Locus switches it on within the hour after that. (Meta said: ${String(e.message).slice(0, 120)})`, null, { username: 'Locus' }).catch(() => {});
-      steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save();
+      steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save('meta_blocked');
     }
     return { error: 'Locus cannot read that ad account yet: add the Mobius Tools system user to it in Business Settings.' };
   }
@@ -449,7 +454,7 @@ async function connectMetaFor(env, r, a) {
       slack_channel = COALESCE(NULLIF(slack_channel, ''), ?4), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?5) WHERE act_id = ?1`)
     .bind(a.act_id, r.name, shop, r.slack_internal, r.slack_client || null).run();
   await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, a.act_id).run();
-  steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save();
+  steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save('meta_connected');
   await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name} is on Meta.* Locus switched on their ad account "${a.name}": 90 days of history are syncing now, and the daily brief, reports and their Your ads page fill in from it.${shop ? ` Triple Whale is set to ${shop}.` : ' No store address yet, so Triple Whale is not set: Locus sets it when their form has it.'} Still by hand: add the media buyer to the ad account and page in Business Settings. Wrong account? Settings > the brand > Stop tracking.`, null, { username: 'Locus' }).catch(() => {});
   return { ok: true };
 }
@@ -5985,8 +5990,11 @@ const AH_APP = {
       const last = Number((await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`obMsg:${tok}`).first().catch(() => null))?.value || 0);
       if (Date.now() - last < 30000) return json({ error: 'Sent a moment ago. Give it a minute.' }, 429);
       await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(`obMsg:${tok}`, String(Date.now())).run();
-      const ch = o.slack_internal || o.slack_channel || NEWBIZ_CH;
-      await slackPost(env, ch, `<@${COLE_SLACK}> *${o.acct || o.name}* sent a message from their onboarding form${b.step ? ` (step: ${String(b.step).slice(0, 60)})` : ''}:\n>${msg.replace(/\n/g, '\n>')}`, null, { username: 'Locus' });
+      /* No internal channel yet: Cole's DM, never #mobius-newbiz (a client can write anything, money included).
+         Escaped, so a client cannot @channel our workspace or fake a link. */
+      const ch = o.slack_internal || o.slack_channel || COLE_SLACK;
+      const clean = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      await slackPost(env, ch, `<@${COLE_SLACK}> *${clean(o.acct || o.name)}* sent a message from their onboarding form${b.step ? ` (step: ${clean(String(b.step).slice(0, 60))})` : ''}:\n>${clean(msg).replace(/\n/g, '\n>')}`, null, { username: 'Locus' });
       return json({ ok: true });
     }
     if (path === '/api/new-client/connect-meta' && request.method === 'POST') {

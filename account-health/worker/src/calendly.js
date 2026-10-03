@@ -68,6 +68,8 @@ export async function handleCalendly(request, env, onBooked) {
   let slug = '';
   if (se.event_type) slug = (await cal(env, 'GET', se.event_type).catch(() => null))?.resource?.slug || '';
   if (!email || !STRATEGY.test(slug)) return new Response('ignored', { status: 200 });
+  /* A reschedule arrives as a cancel (rescheduled: true) plus a fresh booking: only the booking counts. */
+  if (ev.event === 'invitee.canceled' && p.rescheduled) return new Response('rescheduled', { status: 200 });
   const run = await env.DB.prepare(`SELECT * FROM p_newclient WHERE lower(contact_email) = ?1 ORDER BY created_at DESC LIMIT 1`).bind(email).first().catch(() => null);
   if (!run) return new Response('not a new client', { status: 200 });
   await onBooked(env, run, { canceled: ev.event === 'invitee.canceled', start: se.start_time, name: p.name, join: se.location?.join_url || null, reschedule: p.reschedule_url || null });

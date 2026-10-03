@@ -1048,12 +1048,13 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   `slack`, `summary` on the worker; `ledger` and `prefill` from the browser, reported with `/mark`), so each
   line shows its own result and has its own Retry. A step that lacks a permission FAILS WITH THE REASON and
   the by-hand fallback. Never fake a step.
-- **asana:** `instantiateProject` on "MD - Template 2026 v2", the picked team + Cole added, the client added by
-  email, Website filled, the Marketing Plan task deleted, the 18 old Onboarding subtasks replaced by 7.
+- **asana:** `instantiateProject` on "MD - Template 2026 v2", the picked team + Cole added (the client is
+  invited later, by the welcome email), Website filled, the Marketing Plan task deleted, the old Onboarding
+  subtasks replaced by the 5 things a person still does.
 - **onboard:** runs `onboardAsanaTick` now, so the brand lives under the pending id `asana_<project>` until its
   Meta account is added. `research.js context()` accepts a pending id, so the website pre-fill works before Meta.
-- **drive:** creates Branding + Assets (Ad Concepts, Client Content) beside "# Client Template Folder", as Cole.
-  Needs the `drive` scope on the service account's domain-wide delegation (it had `drive.readonly` only).
+- **drive:** creates the client folder (Agreements + From the client, see "Drive has jobs" below) beside
+  "# Client Template Folder", as Cole. Uses the `drive` delegation scope.
 - **slack:** two PRIVATE channels, `<slug>` and `<slug>-internal`, only the picked team invited. Slack Connect
   invite (`conversations.inviteShared`) is attempted; on 2026-10-02 Slack answered `not_allowed_token_type`, so
   the note tells Cole to invite the client from the channel. Channel ids land on `accounts.slack_channel` /
@@ -1063,8 +1064,8 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
 - **Team roster:** `ROSTER` in newclient.js (Asana emails; Noma and Ravo are on personal addresses), or the
   setting `newClientTeam`. Slack ids fall back to a first-name match.
 - **Hourly:** `newClientTick` posts in the internal channel when the onboarding form is sent.
-- **NOT built:** Stripe invoice + subscription, DocuSign contract, Frame project, auto-activating the brand
-  when Meta is shared, auto research on submit (Cole chose a button for now).
+- **NOT built:** auto research on submit (Cole chose a button for now). Everything else from the first list was
+  built later the same week (sections below).
 - **Form (questions.js v3, same day):** Access is step 2 ("Access and content") and carries `content_link` +
   `content_shared` (the client shares their own library; uploading into ours is the fallback). The teammates
   list is gone (`approver` instead; they add people in Slack). New: `ad_spend`, `success_90`, `tried_failed`,
@@ -1103,10 +1104,9 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   /api/new-client/contract-ai {id, vars, instruction}` -> `aiEdit()` in contract.js on `claude-haiku-4-5-20251001`
   (about a cent): changes only what the instruction says, returns the whole `<article>`; stored as `vars.html`, which
   `sendContract` and the preview use as is (fields then no longer apply; "Back to the standard text" drops it).
-- **Frame (same day):** step `frame`, legacy v2 API with `FRAME_TOKEN` (developer.frame.io), optional var
-  `FRAME_TEAM`; `POST /v2/teams/{id}/projects` + `/v2/projects/{id}/collaborators {email}` for the picked team.
-  Not connected = the step fails with the instruction. NOT tested against a real Frame account (no token yet); if
-  Cole's Frame is the Adobe (V4) kind, the v2 token path will not exist and this needs the V4 OAuth flow instead.
+- **Frame:** Cole's Frame is V4 (next.frame.io), so `frame.js` uses Adobe IMS OAuth (Connect Frame on the setup
+  screen, `/frame/callback`). Step `frame` makes one project per client and writes Asana Client Resources > Frame.
+  V4 has no collaborator route: the team is added in Frame by hand. Tested live on both first clients.
 - Setup screen also has "Remove this client" (voids an unpaid invoice, cancels its subscription, forgets the row).
 - **2026-10-03 round (Cole's 11 points):** roles strategist / buyer / editor (Ravo) / designer (William), each a
   comma list (multi-select chips); the pickable team lives in `settings.newClientTeam` (Locus: "Edit the team list",
@@ -1122,11 +1122,11 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   (`aiAmend`, asks QUESTION: when facts are missing), Preview, Send for signature (`sendAmendment`). Stored as a
   p_contract row with token `<token>a<n>` (still hex, so sign.html serves it unchanged; letterhead says the number).
   The signed original never changes. Stripe is NOT changed by an amendment: a price change must be made in Stripe.
-- **Drive has three jobs (Cole, 2026-10-03: "a drive in case, but with a use case"; Frame stays review-only).**
-  Per client: `Agreements` (team only; `saveSignedToDrive` in contract.js writes every signed agreement and
-  amendment there as a Google Doc with the signature record, the moment it is signed: tested), `From the client`
-  (client can add; the form's drop link and `profile.drive` point here), `Final ads` (client can view and
-  download; the team drops approved finals after launch). The client never gets the root. Asana Client
+- **Drive has jobs (Cole, 2026-10-03: "a drive in case, but with a use case"; Frame stays review-only).**
+  Per client: `Agreements` (Cole + the client as viewer, NEVER the team; `saveSignedToDrive` in contract.js files
+  every signed agreement and amendment there as a PDF the moment it is signed), `From the client` (client and team
+  can add; the form's drop link and `profile.drive` point here). `Final ads` was dropped. Nobody but Cole is on the
+  root, so never link `drive_url` to anyone else. Asana Client
   Resources > Google Drive carries both client links. `stepDrive` is idempotent and also took back the root
   share the first two clients (Ice & Gold, Yak Sports) had. Folder ids are on `steps.drive.folders`.
 - Client welcome: `member_joined_channel` (needs that bot event subscribed in the Slack app) -> IDEA_Q job
@@ -1172,3 +1172,28 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   writes Asana Call Link, shows on the setup screen and pings the internal channel tagging the strategist.
   Nudges: 3 days unpaid / unsigned, 5 days form not sent -> one internal message with "Send a reminder"
   (`nc_remind`: Stripe re-send, or Gmail). Self-ticking boxes are locked to the client.
+
+### 2026-10-03 audit (independent review + fixes)
+
+- **`steps_json` is written one key at a time (`setStep`, json_set).** The screen, the hourly pass and the Stripe /
+  Calendly / Slack-join paths all write it; a whole-object write from a stale copy undid other writers' keys. Never
+  go back to `patchRun(... steps_json: JSON.stringify(...))`. worker.js `connectMetaFor` does the same.
+- **A failed step never wipes an earlier success.** `/step` keeps a done step done (error as a note) and keeps a
+  failed step's ids. Stripe saves customer/subscription/invoice the moment the subscription exists, and a retry
+  finishes THAT subscription (finalize + send a draft) instead of making a second one.
+- **`markPaid` is shared by the webhook and Check if paid:** flips to charge_automatically (payment method from the
+  subscription, else the invoice's payment intent), ticks the form, tells the team once; retries the flip until
+  `stripe.autopay`. The webhook reads the subscription from `invoice.subscription` OR
+  `invoice.parent.subscription_details.subscription` (newer API versions), else asks Stripe.
+- **The Slack welcome is CLAIMED with a conditional UPDATE before posting** (join event + hourly pass could both
+  post); a failed post releases the claim. Its links use the From the client folder (nobody can open the root),
+  and What happens next lists only what is still owed (unpaid invoice, unsigned agreement, unbooked call).
+- Remove asks Stripe before cancelling (a paid invoice is never cancelled; Stripe unreachable = nothing removed).
+- Amendment base token = `vars.of`, never a regex on the token (hex tokens can end in a+digits). Signing checks
+  `meta.changes`, so a double press sends one set of copies. Calendly ignores the cancel half of a reschedule.
+- Meta auto-connect: exact normalised name first, then whole-word containment; accounts we ever synced are excluded;
+  discovery runs only for clients made in the last 45 days.
+- Form "Message the team": text escaped for Slack; with no internal channel it goes to Cole's DM, never
+  #mobius-newbiz.
+- Not changed on purpose: the Your ads page shares the report-archive token (that token only opens the client's
+  own SENT reports, which they already received). The Shopify heads-up is hourly, not instant (copy says so).

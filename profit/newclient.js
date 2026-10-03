@@ -18,9 +18,9 @@ const LABEL = {
   summary: 'Summary for the team', ledger: 'Ledger', prefill: 'Form pre-filled from their website', email: 'Welcome email', stripe: 'First invoice', contract: 'Agreement', frame: 'Frame project',
 };
 const WHAT = {
-  asana: 'Made from the 2026 template, your team added, the client invited by email.',
+  asana: 'Made from the 2026 template, your team added. The client is invited when the welcome email goes.',
   onboard: 'The one link the client fills in. Posted on their "Start here" task.',
-  drive: 'Branding and Assets folders, shared with the team and the client.',
+  drive: 'Agreements (you and the client only) and From the client (they and the team can add files).',
   slack: 'Two private channels: one with the client, one for the team only.',
   summary: 'One post in the internal channel with every link.',
   frame: 'A Frame project for asset review, the team added.',
@@ -93,7 +93,7 @@ async function open() {
     ? ''
     : `<div class="notice warn" style="margin:0 0 14px">⚠️<div><b>Frame is not connected</b>, so new clients get no Frame project until it is. <a href="#" id="ncFrame">Connect Frame</a> (one time: an Adobe Developer Console app).</div></div>`;
   const w = shell(`<h3>New client</h3>
-    <p class="hint" style="margin-bottom:14px">Fill this in once. Locus then makes their Asana project, onboarding link, Drive folder and Slack channels, and invites the client. You see every step as it happens.</p>
+    <p class="hint" style="margin-bottom:14px">Fill this in once. Locus then makes their Asana project, onboarding link, Drive folder, Slack channels and Frame project. The client gets nothing until you press Send on the welcome email. You see every step as it happens.</p>
     ${frameRow}
     ${runs.length ? `<div class="nc-runs"><span class="tiny">Already started:</span>${runs.map(r => `<a href="#" data-run="${esc(r.id)}">${esc(r.name)} · open its setup</a>`).join('')}</div>` : ''}
     <div class="ab-form">
@@ -101,7 +101,7 @@ async function open() {
       ${f('Website', 'Locus reads it to pre-fill their onboarding form.', '<input type="text" id="ncSite" placeholder="brand.com">')}
       <div class="nc-two">
         ${f('Client name', 'Your main contact.', '<input type="text" id="ncContact" placeholder="First and last name">')}
-        ${f('Client email', 'Gets the Asana, Slack and Drive invites.', '<input type="text" id="ncEmail" placeholder="name@brand.com">')}
+        ${f('Client email', 'Gets the welcome email, the invites, the invoice and the agreement.', '<input type="text" id="ncEmail" placeholder="name@brand.com">')}
       </div>
       <div class="nc-two">
         ${f('Monthly retainer', 'Goes into Ledger. Leave empty to skip.', '<input type="text" id="ncRet" inputmode="decimal" placeholder="e.g. 4000">')}
@@ -143,7 +143,7 @@ async function open() {
     if (!body.contact_email) return err.textContent = 'Add the client email. It is how they get invited to everything.';
     if (!pick.strategist.length) return err.textContent = 'Pick the creative strategist.';
     const ok = await confirmModal(`Set up ${body.name}?`,
-      `Locus will make the Asana project, Drive folder and two private Slack channels, and invite ${body.contact_email} to all three. The welcome email waits for you to press Send.`, 'Yes, set it up');
+      `Locus will make the Asana project, Drive folder, Frame project and two private Slack channels. Nothing goes to ${body.contact_email} until you press Send on the welcome email.`, 'Yes, set it up');
     if (!ok) return;
     const btn = $$('[data-m="yes"]'); btn.disabled = true; btn.textContent = 'Starting…';
     try { const r = await post('/api/new-client', body); close(); status(r.run.id, true); }
@@ -283,7 +283,7 @@ async function status(id, autorun) {
     wireAmend();
     wireMeta();
     body.querySelector('#ncRemove').onclick = async () => {
-      if (!(await confirmModal(`Remove ${run.name} from this list?`, 'Locus forgets this setup. Anything already made in Asana, Drive, Slack or Frame stays and is yours to delete there. An unpaid invoice is voided and its subscription cancelled.', 'Remove'))) return;
+      if (!(await confirmModal(`Remove ${run.name} from this list?`, 'Locus forgets this setup. Anything already made in Asana, Drive, Slack or Frame stays and is yours to delete there. An unpaid invoice is voided and its subscription cancelled (Locus checks Stripe first; a paid one is left alone).', 'Remove'))) return;
       try { await post('/api/new-client/remove', { id }); close(); } catch (e) { noteModal('Could not remove', `<p>${esc(e.message)}</p>`); }
     };
     const cs = body.querySelector('#ncContractSend');
