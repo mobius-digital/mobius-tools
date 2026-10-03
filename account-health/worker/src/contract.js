@@ -112,12 +112,14 @@ export async function aiEdit(env, html, instruction) {
     method: 'POST',
     headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 8000,
-      system: 'You edit a services agreement for a small ad agency. You get the agreement as HTML and an instruction from the agency owner. Change ONLY what the instruction asks for; every other sentence stays word for word. Keep the same HTML structure (one <article class="agreement"> with h1, h2, p, ol, ul, li, strong). Write plain English, no em dashes. If the instruction changes money, put the full payment terms in section 3 as one clear paragraph plus the three bullet points that are already there. If it asks for a new clause, add it as a numbered section before "In Witness Whereof" and renumber nothing else. Return ONLY the HTML, nothing before or after it.',
+      system: 'You edit a services agreement for a small ad agency. You get the agreement as HTML and an instruction from the agency owner. Change ONLY what the instruction asks for; every other sentence stays word for word. Keep the same HTML structure (one <article class="agreement"> with h1, h2, p, ol, ul, li, strong). Write plain English, no em dashes. If the instruction changes money, put the full payment terms in section 3 as one clear paragraph plus the three bullet points that are already there. If it asks for a new clause, add it as a numbered section before "In Witness Whereof" and renumber nothing else. If the instruction is missing something you would need to write it properly (an amount, a date, what exactly a new service covers, who pays for what), do NOT guess: reply with one line starting QUESTION: followed by the questions, and no HTML. Otherwise return ONLY the HTML, nothing before or after it.',
       messages: [{ role: 'user', content: `THE AGREEMENT:\n${html}\n\nTHE INSTRUCTION:\n${ask}` }] }),
   });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(j.error?.message || `Claude ${res.status}`);
   const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+  const q = /^\s*QUESTION:\s*([\s\S]+)$/.exec(text);
+  if (q) return { question: q[1].trim().slice(0, 1500), cost: Math.round((((j.usage || {}).input_tokens || 0) * 1 + ((j.usage || {}).output_tokens || 0) * 5) / 1e6 * 10000) / 10000 };
   const m = /<article[\s\S]*<\/article>/.exec(text);
   if (!m) throw new Error('The AI did not return the agreement. Try wording the change differently.');
   const out = m[0].replace(/\u2014/g, ',').replace(/<script[\s\S]*?<\/script>/gi, '');

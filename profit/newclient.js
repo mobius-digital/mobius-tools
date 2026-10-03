@@ -79,9 +79,9 @@ async function open() {
   try { opts = await ah('/api/new-client/options'); }
   catch (e) { return noteModal('Could not open New client', `<p>${esc(e.message)}</p>`); }
   const team = opts.team || [];
-  const pick = { strategist: '', buyer: '', editor: '' };
+  const pick = { strategist: '', buyer: '', editor: '', designer: '' };
   const guess = re => team.find(t => re.test(t.name) || re.test(t.email))?.email || '';
-  pick.buyer = guess(/ahsan/i); pick.editor = guess(/ravo/i);
+  pick.buyer = guess(/ahsan/i); pick.editor = guess(/ravo/i); pick.designer = guess(/william/i);
   const chips = role => team.length
     ? `<div class="nc-chips" data-role="${role}">${team.map(t => `<button type="button" class="nc-chip" data-e="${esc(t.email)}" aria-pressed="${pick[role] === t.email}">${esc(t.name.split(' ')[0])}</button>`).join('')}</div>`
     : `<span class="tiny nc-bad">Could not read the team from Asana${opts.team_error ? ': ' + esc(opts.team_error) : ''}.</span>`;
@@ -109,7 +109,8 @@ async function open() {
       </div>
       ${f('Creative strategist', 'Gets added to Asana, Slack and Drive, and is assigned the research review.', chips('strategist'))}
       ${f('Media buyer', 'Gets added to Asana, Slack and Drive.', chips('buyer'))}
-      ${f('Editor', 'Gets added to Asana, Slack and Drive. Tap again to leave empty.', chips('editor'))}
+      ${f('Video editor', 'Gets added to Asana, Slack, Drive and Frame. Tap again to leave empty.', chips('editor'))}
+      ${f('Graphic designer', 'Gets added to Asana, Slack, Drive and Frame. Tap again to leave empty.', chips('designer'))}
     </div>
     <p class="tiny" id="ncErr" style="color:var(--bad);min-height:16px;margin:10px 0 0"></p>
     <div class="row" style="justify-content:flex-end;gap:8px;margin:6px 0 0">
@@ -183,7 +184,7 @@ async function status(id, autorun) {
       <div class="nc-two">${f('start_date', 'Start date', 'YYYY-MM-DD.')}${f('term', 'Term', 'How long the agreement runs before it renews.')}</div>
       ${cv.html ? `<p class="tiny" style="margin-top:8px">✎ This agreement has custom text from your edits. The fields above no longer apply to it. <a href="#" id="ncCvReset">Back to the standard text</a></p>` : f('payment', 'Payment terms', 'The one paragraph that changes per client.', true)}
       <div class="ab-f" style="margin-top:10px"><label style="font-size:13px">Anything different for this client?</label><p class="hint" style="margin:0 0 4px">Say it in plain words and the AI rewrites the agreement, changing only that. About a cent each time. For example: retainer is $3,000 plus 10% of ad spend, six-month term, add a clause that we can pause for non-payment.</p>
-        <textarea id="ncCvAsk" rows="2" placeholder="What should be different?" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit"></textarea>
+        <textarea id="ncCvAsk" rows="2" placeholder="What should be different?" oninput="this.dataset.v=this.value" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit"></textarea>
         <div class="row" style="gap:8px;margin-top:6px"><button class="btn" id="ncCvAi">Apply with AI</button><span class="tiny" id="ncCvAiMsg"></span></div></div>
       <p class="tiny nc-bad" id="ncCvErr" style="min-height:16px;margin:4px 0 0"></p>
       <div class="row" style="gap:8px;margin-top:4px"><button class="btn" id="ncContractPreview">Preview</button><button class="btn primary" id="ncContractSend"${busy || !run.onboard_url ? ' disabled' : ''}>Send for signature</button>${run.onboard_url ? '' : '<span class="tiny">Needs the onboarding link first.</span>'}</div></div>`;
@@ -206,7 +207,7 @@ async function status(id, autorun) {
     if (!mail.touched) mail = { subject: welcome.subject, body: welcome.body };
     body.innerHTML = `<h3>${esc(run.name)}: setup</h3>
       <p class="hint" style="margin-bottom:8px">Each line is one thing Locus does. A warning says what is missing and what to do instead. You can close this and come back from Settings > New client.</p>
-      <div>${AUTO.map(row).join('')}</div>
+      <div id="ncStepList">${AUTO.map(row).join('')}</div>
       ${invoiceBlock()}
       ${contractBlock()}
       <div class="nc-mail" style="margin-top:16px">
@@ -234,13 +235,18 @@ async function status(id, autorun) {
       if (!(await confirmModal('Send the agreement for signature?', `You sign it now; ${run.contact_email} gets an email with the signing page. The text cannot change after this.`, 'Send for signature'))) return;
       await go('contract');
     };
+    const askBox = body.querySelector('#ncCvAsk'); if (askBox) { askBox.value = cv.ask || ''; askBox.oninput = () => { cv.ask = askBox.value; }; }
     const ai = body.querySelector('#ncCvAi');
     if (ai) ai.onclick = async () => {
       readCv();
       const ask = body.querySelector('#ncCvAsk').value.trim(); const msg = body.querySelector('#ncCvAiMsg');
       if (!ask) return msg.textContent = 'Say what should change first.';
       ai.disabled = true; msg.textContent = 'Rewriting…';
-      try { const j = await post('/api/new-client/contract-ai', { id, vars: cv, instruction: ask }); cv.html = j.html; msg.textContent = `Done ($${j.cost}). Preview to read it.`; paint(); body.querySelector('#ncCvAiMsg').textContent = `Done ($${j.cost}). Press Preview to read it.`; }
+      try {
+        const j = await post('/api/new-client/contract-ai', { id, vars: cv, instruction: ask });
+        if (j.question) { msg.textContent = `It needs to know: ${j.question} Add that to the box and press again.`; ai.disabled = false; return; }
+        cv.html = j.html; cv.ask = ''; msg.textContent = `Done ($${j.cost}). Preview to read it.`; paint(); body.querySelector('#ncCvAiMsg').textContent = `Done ($${j.cost}). Press Preview to read it.`;
+      }
       catch (e) { msg.textContent = e.message; ai.disabled = false; }
     };
     const rs = body.querySelector('#ncCvReset');
@@ -301,9 +307,13 @@ async function status(id, autorun) {
     return out;
   }
 
+  /* While the automatic steps run, only their rows redraw: the agreement box, the AI box and the
+     email are left alone, so typing (or voice typing) in them is never wiped mid-sentence. */
+  const paintSteps = () => { const el = body.querySelector('#ncStepList'); if (el) el.innerHTML = AUTO.map(row).join(''); else paint(); body.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go)); };
+  const light = key => AUTO.includes(key) && body.querySelector('#ncStepList') && !(key === 'onboard' && !run.onboard_url);
   async function go(key) {
     if (busy) return false;
-    busy = key; paint();
+    busy = key; if (light(key)) paintSteps(); else paint();
     let ok = false;
     try {
       if (key === 'ledger' || key === 'prefill') {
@@ -316,7 +326,9 @@ async function status(id, autorun) {
         run = j.run; welcome = j.welcome || welcome; contract = j.contract || contract; ok = j.ok;
       }
     } catch (e) { run.steps[key] = { status: 'failed', text: e.message }; }
-    busy = ''; paint();
+    busy = '';
+    if (light(key)) { paintSteps(); const sb = body.querySelector('#ncSend'); if (sb) sb.disabled = !run.onboard_url; const cb = body.querySelector('#ncContractSend'); if (cb) cb.disabled = !run.onboard_url; }
+    else paint();
     return ok;
   }
 
@@ -337,7 +349,7 @@ async function status(id, autorun) {
 /* The preview IS the signing page: same sheet, same letterhead, same signature block. */
 function previewAgreement(html, v) {
   const today = new Date().toLocaleDateString('en-US', { dateStyle: 'long' });
-  const doc = `<!doctype html><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://tools.go-mobius-digital.com/onboard/agreement.css?v=1">
+  const doc = `<!doctype html><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Caveat:wght@500&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://tools.go-mobius-digital.com/onboard/agreement.css?v=2">
     <body style="margin:0;padding:18px;background:#F3F1FA"><div class="paper"><div class="letterhead"><div class="mark"><img src="https://tools.go-mobius-digital.com/favicon.png" alt=""><div><b>Mobius Digital</b><small>Services agreement</small></div></div><div class="meta"><b>${esc(v.company || '')}</b>Prepared ${esc(today)}<br>Awaiting signature</div></div>
     ${html}
     <div class="sig"><div class="party"><b>Provider</b><div class="name">Cole Wetzler</div><div class="meta"><span>Mobius Digital, LLC</span><br>Signed electronically when sent</div></div><div class="party"><b>Client</b><div class="name empty">Signature</div><div class="meta"><span>${esc(v.client_name || '')}</span><br>${esc(v.company || '')}</div></div></div></div></body>`;
