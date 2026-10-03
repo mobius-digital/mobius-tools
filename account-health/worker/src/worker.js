@@ -384,6 +384,52 @@ async function discoverAdAccounts(env) {
   return { rows: [...byId.values()], direct: before, viaBusiness: byId.size - before };
 }
 
+/* NEW CLIENT SHARED META (2026-10-03, Cole: "when they share Meta can this be done automatically?").
+   A client made with Locus's New client button has no ad account yet. Each hour, while one is waiting,
+   discovery runs; when exactly ONE untracked ad account's name matches the client ("Ice and Gold New"
+   for Ice & Gold), Locus checks it can actually read it, then switches it on as that brand: name, Slack
+   channels, Triple Whale shop from their form's store address. The hourly sync backfills it (a new
+   account sorts first), and the onboarding tick moves the Asana link and answers onto it. Two or more
+   matches, or none, does nothing: a wrong brand is worse than a late one. Cole is told either way. */
+const COLE_SLACK = 'U06C37MDWD7';
+const normBrand = s => String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ')
+  .replace(/\b(ad|ads|account|acct|new|inc|llc|co|the|meta|facebook|fb|main|official|\d+)\b/g, ' ').replace(/\s+/g, ' ').trim();
+const myshopify = v => { const m = /([a-z0-9][a-z0-9-]*)\.myshopify\.com/i.exec(String(v || '')); return m ? `${m[1].toLowerCase()}.myshopify.com` : null; };
+async function autoConnectMeta(env) {
+  const runs = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE act_id IS NULL AND slack_internal IS NOT NULL`).all().catch(() => ({ results: [] }))).results || [];
+  if (!runs.length) return { waiting: 0 };
+  await discoverAccounts(env).catch(() => null);
+  const untracked = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%'`).all()).results || [];
+  const out = { waiting: runs.length, connected: [] };
+  for (const r of runs) {
+    const want = normBrand(r.name);
+    if (want.length < 3) continue;
+    const hits = untracked.filter(a => { const n = normBrand(a.name); return n.length >= 3 && (n === want || n.includes(want) || want.includes(n)); });
+    if (hits.length !== 1) continue;
+    const a = hits[0];
+    const steps = safeJson(r.steps_json, {});
+    const save = () => env.DB.prepare(`UPDATE p_newclient SET steps_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, JSON.stringify(steps)).run();
+    try { await meta(env, `${a.act_id}/insights`, { date_preset: 'last_7d', fields: 'spend', limit: 1 }); }
+    catch (e) {
+      if (!steps.meta_blocked) {
+        await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name}* shared the ad account "${a.name}", but Locus cannot read it yet. In Business Settings > Ad accounts > ${a.name} > Assign people, add the *Mobius Tools* system user. Locus switches it on within the hour after that. (Meta said: ${String(e.message).slice(0, 120)})`, null, { username: 'Locus' }).catch(() => {});
+        steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save();
+      }
+      continue;
+    }
+    const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.answers_json, {});
+    const shop = myshopify(ans.shopify_url);
+    await env.DB.prepare(`UPDATE accounts SET active = 1, name = ?2, tw_shop = COALESCE(NULLIF(tw_shop, ''), ?3),
+        slack_channel = COALESCE(NULLIF(slack_channel, ''), ?4), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?5) WHERE act_id = ?1`)
+      .bind(a.act_id, r.name, shop, r.slack_internal, r.slack_client || null).run();
+    await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, a.act_id).run();
+    steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save();
+    await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name} shared Meta.* Locus switched on their ad account "${a.name}": 90 days of history are syncing now, and the daily brief, reports and their Your ads page fill in from it.${shop ? ` Triple Whale is set to ${shop}.` : ' No store address yet, so Triple Whale is not set: add it in Settings when their form has it.'} Still by hand: add the media buyer to the ad account and page in Business Settings. Wrong account? Settings > the brand > Stop tracking.`, null, { username: 'Locus' }).catch(() => {});
+    out.connected.push({ client: r.name, act: a.act_id });
+  }
+  return out;
+}
+
 async function discoverAccounts(env) {
   const { rows, direct, viaBusiness } = await discoverAdAccounts(env);
   // Which of these we have never seen before. Cheap (one indexed column) and it
@@ -5810,6 +5856,7 @@ const AH_APP = {
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
+        ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -5884,6 +5931,11 @@ const AH_APP = {
     if (path.startsWith('/api/sign/')) {
       const r = await handleSign(request, env, path, json);
       if (r) return r;
+    }
+    /* Run the "client shared Meta" check now instead of on the hour (admin). */
+    if (path === '/api/new-client/meta-now' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      return json({ ok: true, ...(await autoConnectMeta(env)) });
     }
     /* ---- New client: one button in Locus sets up Asana, the onboarding link, Drive and Slack (admin) ---- */
     if (path.startsWith('/api/new-client')) {

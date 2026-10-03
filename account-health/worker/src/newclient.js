@@ -736,6 +736,25 @@ async function welcomeOnJoin(env, r) {
   return true;
 }
 
+/* Shopify has no API for a collaborator request: it is made from the Partner dashboard. So the moment
+   the client types their store address (the form saves as they go), Cole gets it in the internal channel
+   with the request code and the clicks, once. */
+async function shopifyHeadsUp(env) {
+  const rows = (await env.DB.prepare(`SELECT n.*, o.answers_json FROM p_newclient n JOIN p_br_onboard o ON o.token = n.token WHERE n.slack_internal IS NOT NULL AND json_extract(n.steps_json, '$.shopify_ping') IS NULL`).all().catch(() => ({ results: [] }))).results || [];
+  let told = 0;
+  for (const r of rows) {
+    const ans = safeJson(r.answers_json, {});
+    const m = /([a-z0-9][a-z0-9-]*)\.myshopify\.com/i.exec(String(ans.shopify_url || ''));
+    if (!m) continue;
+    const store = `${m[1].toLowerCase()}.myshopify.com`;
+    const code = String(ans.shopify_code || '').trim();
+    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
+      text: `<@U06C37MDWD7> *${r.name}* gave their Shopify store: *${store}*${code ? `, request code *${code}*` : ''}. Send the collaborator request: partners.shopify.com > Stores > Add store > Request access to a store > paste the address${code ? ' and the code' : ''}. They approve it from their email.` });
+    if (j.ok) { const steps = safeJson(r.steps_json, {}); steps.shopify_ping = { store, at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); told++; }
+  }
+  return told;
+}
+
 /** Slack's member_joined_channel event: the welcome goes out seconds after the client joins. */
 export async function welcomeOnJoinByChannel(env, channel) {
   await ensureTable(env);
@@ -763,5 +782,6 @@ export async function newClientTick(env) {
     const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token).first().catch(() => null))?.answers_json, {});
     if (r.asana_project && /^https?:\/\//.test(ans.content_link || '')) await upsertResource(env, r.asana_project, 'Assets', ans.content_link).catch(() => {});
   }
-  return { told, welcomed };
+  const shopify = await shopifyHeadsUp(env).catch(() => 0);
+  return { told, welcomed, shopify };
 }
