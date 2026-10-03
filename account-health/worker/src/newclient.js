@@ -240,19 +240,23 @@ async function stepDrive(env, r) {
      The team edits everything. The client can add to From the client and view Final ads; they never
      get the root or Agreements. Google only lets a non-Google address in with the invite email. */
   const share = (id, email, role, notify) => gapi(env, DRIVE, `drive/v3/files/${id}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role, emailAddress: email } });
-  for (const e of teamList(team).filter(x => x !== OWNER)) await share(rootId, e, 'writer', false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
+  /* Drive permissions inherit downward, so nobody but Cole is on the root: each folder is shared on
+     its own. Agreements = Cole + the client (view). The team works in the other two. */
+  const rootPerms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress,role)`).catch(() => ({}))).permissions || [];
+  for (const pm of rootPerms.filter(x => x.role !== 'owner' && x.emailAddress && x.emailAddress.toLowerCase() !== OWNER)) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
+  for (const e of teamList(team).filter(x => x !== OWNER)) for (const id of [ids.inbox, ids.finals]) await share(id, e, 'writer', false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
   if (emailOk(r.contact_email)) {
     /* A folder made before 2026-10-03 shared its root with the client: take that back. */
     const perms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress)`).catch(() => ({}))).permissions || [];
     for (const pm of perms.filter(x => (x.emailAddress || '').toLowerCase() === r.contact_email.toLowerCase())) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
-    for (const [id, role] of [[ids.inbox, 'writer'], [ids.finals, 'reader']]) {
+    for (const [id, role] of [[ids.inbox, 'writer'], [ids.finals, 'reader'], [ids.agreements, 'reader']]) {
       await share(id, r.contact_email, role, false).catch(() => share(id, r.contact_email, role, true)).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
     }
   }
   /* Asana Client Resources > Google Drive carries the two client folders; the form links From the client. */
   if (r.asana_project) await upsertResource(env, r.asana_project, 'Google Drive', `Send us files: ${link(ids.inbox)}\nYour finished ads: ${link(ids.finals)}`).catch(() => {});
   if (r.pending_act) await setDrive(env, r.act_id || r.pending_act, link(ids.inbox));
-  return { ...out, url, folders: ids, text: 'Folder made: Agreements (team only), From the client, Final ads.' };
+  return { ...out, url, folders: ids, text: 'Folder made: Agreements (you and the client only), From the client, Final ads.' };
 }
 
 /* ---------------- Slack ---------------- */
@@ -684,8 +688,12 @@ async function welcomeOnJoin(env, r) {
   const ours = (await slack(bot, 'auth.test', {})).team_id;
   const mem = await slack(bot, 'conversations.members', { channel: r.slack_client, limit: 200 }, true);
   if (!mem.ok) return false;
+  /* "The client joined" = a person from outside our Slack workspace who is not one of the team
+     (some teammates are Slack Connect guests themselves). */
+  const teamIds = new Set(Object.values(await slackIds(env, [...new Set([OWNER, ...(await roster(env)).map(t => t.email.toLowerCase())])])));
   let joined = false;
   for (const id of mem.members || []) {
+    if (teamIds.has(id)) continue;
     const u = await slack(bot, 'users.info', { user: id }, true);
     if (u.ok && !u.user.is_bot && (u.user.is_stranger || (u.user.team_id && u.user.team_id !== ours))) { joined = true; break; }
   }
