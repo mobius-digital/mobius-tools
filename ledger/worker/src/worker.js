@@ -899,10 +899,15 @@ async function huntOne(env, store, t) {
   const after = gmailDay(addDaysYmd(t.date, -6)), before = gmailDay(addDaysYmd(t.date, 9));
   const base = `after:${after} before:${before} -in:sent -in:chats`;
   const word = vendorWord(t.vendor);
+  /* Most precise first: the company word AND the amount. A common total
+   * ("20.00") alone can match a dozen emails in two weeks and push the real
+   * receipt past the cap (Anthropic $20 on Sep 20, 2026-10-03). */
+  const amt$ = `(${terms.map(x => `"${x}"`).join(' OR ')})`;
   const ids = [...new Set([
-    ...await gmailSearch(env, store, `${base} (${terms.map(x => `"${x}"`).join(' OR ')})`, 5),
-    ...(word ? await gmailSearch(env, store, `${base} ${word} (receipt OR invoice OR paid OR payment OR order OR billing OR statement)`, 4) : []),
-  ])].slice(0, 6);
+    ...(word ? await gmailSearch(env, store, `${base} ${word} ${amt$}`, 4) : []),
+    ...await gmailSearch(env, store, `${base} ${amt$}`, 4),
+    ...(word ? await gmailSearch(env, store, `${base} ${word} (receipt OR invoice OR paid OR payment OR order OR billing OR statement)`, 3) : []),
+  ])].slice(0, 7);
   if (!ids.length) return { found: false, why: 'nothing in Gmail' };
 
   const tried = [];
@@ -1034,7 +1039,14 @@ async function huntReport(env, state) {
   const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
   const channel = state.origin?.channel || sr.channelId;
   if (!channel) return false;
-  const found = state.found || [], missed = (state.missed || []).filter(m => m.why !== 'already has one');
+  const found = state.found || [];
+  // a receipt dropped in by hand while the hunt ran is no longer missing
+  const stillOpen = new Set();
+  for (const m of state.missed || []) {
+    const r = await env.DB.prepare('SELECT 1 AS x FROM transactions WHERE id=?1 AND receipt_key IS NULL AND receipt_skip=0').bind(m.id).first();
+    if (r) stillOpen.add(m.id);
+  }
+  const missed = (state.missed || []).filter(m => m.why !== 'already has one' && stillOpen.has(m.id));
   if (state.auto && !found.length) return false;   // a quiet night says nothing
   const money = n => '$' + Number(n).toFixed(2);
   let text = found.length
