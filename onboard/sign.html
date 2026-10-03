@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="agreement.css?v=1">
 <style>
 /* The services agreement, read and signed on one page (?t=<onboarding token>).
    Same look as the onboarding form. Prints clean, so "save as PDF" is the copy. */
@@ -27,16 +28,6 @@ button,input{font:inherit;color:inherit}
 header{padding:28px 0 14px}
 .brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .lede{color:var(--ink-2);margin:6px 0 0;max-width:62ch}
-.paper{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px clamp(16px,4vw,40px)}
-.agreement h1{font-family:var(--serif);font-weight:400;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0 0 14px;text-wrap:balance}
-.agreement h2{font-size:15px;margin:24px 0 6px}
-.agreement p,.agreement li{color:var(--ink-2)}
-.agreement ol>li{margin:8px 0}
-.agreement ul{padding-left:20px}
-.sig{margin-top:28px;border-top:1px solid var(--line);padding-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
-.sig .party b{display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.sig .name{font-family:var(--serif);font-size:26px;line-height:1.1}
-.sig .meta{font-size:12.5px;color:var(--muted);margin-top:4px}
 .form{margin-top:18px;background:var(--acc-soft);border-radius:12px;padding:16px}
 .form label.l{display:block;font-weight:600;font-size:14px}
 .in{display:block;width:100%;margin-top:8px;border:1px solid var(--line-strong);border-radius:9px;padding:10px 12px;font-size:16px;background:var(--surface)}
@@ -49,9 +40,8 @@ header{padding:28px 0 14px}
 .err{color:var(--bad);font-size:13.5px;min-height:18px;margin-top:8px}
 .done{background:var(--good-bg);color:var(--good);border-radius:12px;padding:14px 16px;margin-top:18px;font-weight:600}
 .note{font-size:12.5px;color:var(--muted)}
-.fp{font-family:ui-monospace,Consolas,monospace;font-size:11px;word-break:break-all;color:var(--muted);margin-top:16px}
 .center{text-align:center;padding:60px 0}
-@media print{body{background:#fff;color:#000}.wrap{max-width:none;padding:0}.paper{border:0;padding:0}header .lede,.form,.actions,.note.screen{display:none}.agreement p,.agreement li,.sig .meta{color:#222}}
+@media print{body{background:#fff}.wrap{max-width:none;padding:0}header,.form,.actions,.note.screen{display:none}}
 </style>
 </head>
 <body>
@@ -84,12 +74,16 @@ function paint() {
     <header><div class="brand">Mobius Digital · ${esc(D.brand)}</div>
       <p class="lede">${signed ? 'This agreement is signed. Print it or save it as a PDF for your records.' : 'Read the agreement below. To sign it, type your full name at the bottom, tick the box and press Sign. You will get a copy by email.'}</p></header>
     <div class="paper">
+      <div class="letterhead">
+        <div class="mark"><img src="../favicon.png" alt=""><div><b>Mobius Digital</b><small>Services agreement</small></div></div>
+        <div class="meta"><b>${esc(D.vars.company)}</b>Prepared ${esc(when(D.sent_at).split(',')[0] || '')}<br>${signed ? 'Signed' : 'Awaiting signature'}</div>
+      </div>
       ${D.html}
       <div class="sig">
-        <div class="party"><b>Provider</b><div class="name">${esc(D.provider.name)}</div><div class="meta">Mobius Digital, LLC<br>Signed electronically ${esc(when(D.provider.at))}</div></div>
+        <div class="party"><b>Provider</b><div class="name">${esc(D.provider.name)}</div><div class="meta"><span>Mobius Digital, LLC</span><br>Signed electronically ${esc(when(D.provider.at))}</div></div>
         <div class="party"><b>Client</b>${signed
-          ? `<div class="name">${esc(D.client.name)}</div><div class="meta">${esc(D.vars.company)}<br>Signed electronically ${esc(when(D.client.at))}<br>${esc(D.client.email || '')}</div>`
-          : `<div class="name" style="color:var(--muted)">Not signed yet</div><div class="meta">${esc(D.vars.company)}</div>`}</div>
+          ? `<div class="name">${esc(D.client.name)}</div><div class="meta"><span>${esc(D.vars.company)}</span><br>Signed electronically ${esc(when(D.client.at))}<br>${esc(D.client.email || '')}</div>`
+          : `<div class="name empty">Signature</div><div class="meta"><span>${esc(D.vars.client_name || '')}</span><br>${esc(D.vars.company)}</div>`}</div>
       </div>
       ${signed ? `<div class="done">Signed. A copy was emailed to ${esc(D.client.email || 'you')} and to Mobius Digital.</div>
         <div class="row actions"><button class="btn pri" id="print">Print or save as PDF</button></div>`

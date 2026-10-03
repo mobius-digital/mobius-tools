@@ -248,7 +248,7 @@ async function status(id, autorun) {
     const cp = body.querySelector('#ncContractPreview');
     if (cp) cp.onclick = async () => {
       readCv();
-      try { const j = await post('/api/new-client/contract-preview', { id, vars: cv }); noteModal('Agreement, as the client will read it', `<div style="font-size:13.5px;line-height:1.55;max-height:60vh;overflow:auto">${j.html}</div>`); }
+      try { const j = await post('/api/new-client/contract-preview', { id, vars: cv }); previewAgreement(j.html, cv); }
       catch (e) { noteModal('Could not build the preview', `<p>${esc(e.message)}</p>`); }
     };
     const inv = body.querySelector('#ncInvoice');
@@ -332,6 +332,20 @@ async function status(id, autorun) {
       if (!ok && key === 'asana') break;
     }
   }
+}
+
+/* The preview IS the signing page: same sheet, same letterhead, same signature block. */
+function previewAgreement(html, v) {
+  const today = new Date().toLocaleDateString('en-US', { dateStyle: 'long' });
+  const doc = `<!doctype html><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://tools.go-mobius-digital.com/onboard/agreement.css?v=1">
+    <body style="margin:0;padding:18px;background:#F3F1FA"><div class="paper"><div class="letterhead"><div class="mark"><img src="https://tools.go-mobius-digital.com/favicon.png" alt=""><div><b>Mobius Digital</b><small>Services agreement</small></div></div><div class="meta"><b>${esc(v.company || '')}</b>Prepared ${esc(today)}<br>Awaiting signature</div></div>
+    ${html}
+    <div class="sig"><div class="party"><b>Provider</b><div class="name">Cole Wetzler</div><div class="meta"><span>Mobius Digital, LLC</span><br>Signed electronically when sent</div></div><div class="party"><b>Client</b><div class="name empty">Signature</div><div class="meta"><span>${esc(v.client_name || '')}</span><br>${esc(v.company || '')}</div></div></div></div></body>`;
+  const w = shell(`<h3>Agreement, as the client sees it</h3><p class="hint" style="margin-bottom:10px">This is the page they open from the email. They type their name and press Sign at the bottom of it.</p>
+    <iframe id="ncPrev" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:10px;background:#F3F1FA" sandbox="allow-same-origin"></iframe>
+    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="ncPrevClose">Close</button></div>`, 860);
+  w.querySelector('#ncPrev').srcdoc = doc;
+  w.querySelector('#ncPrevClose').onclick = () => w.remove();
 }
 
 /* ---------------- Connect Frame (Adobe) ---------------- */

@@ -217,10 +217,14 @@ async function stepDrive(env, r) {
     const assets = await mk('Assets', root.id);
     await mk('Ad Concepts', assets.id);
     await mk('Client Content', assets.id);
-    const share = (email, notify) => gapi(env, DRIVE, `drive/v3/files/${root.id}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role: 'writer', emailAddress: email } });
-    for (const e of [...new Set([team.strategist, team.buyer, team.editor].filter(x => emailOk(x) && x.toLowerCase() !== OWNER))]) await share(e, false).catch(err => out.notes.push(`Not shared with ${e}: ${err.message}`));
-    if (emailOk(r.contact_email)) await share(r.contact_email, false).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
   }
+  /* Sharing runs on every pass (a Retry after a failed share must share), and is harmless to repeat.
+     The team gets no email; the client does, because Google only lets a non-Google address in
+     with the invite email ("Notify people"), and the welcome email tells them to expect it. */
+  const rootId = (/folders\/([A-Za-z0-9_-]+)/.exec(url) || [])[1];
+  const share = (email, notify) => gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role: 'writer', emailAddress: email } });
+  for (const e of [...new Set([team.strategist, team.buyer, team.editor].filter(x => emailOk(x) && x.toLowerCase() !== OWNER))]) await share(e, false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
+  if (emailOk(r.contact_email)) await share(r.contact_email, false).catch(() => share(r.contact_email, true)).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
   /* The link lives in Asana (Client Resources > Google Drive) and on the brand in Locus. */
   if (r.asana_project) {
     const tasks = await asanaAll(env, `/projects/${r.asana_project}/tasks?opt_fields=name`);

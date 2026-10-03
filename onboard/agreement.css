@@ -1,0 +1,30 @@
+/* The services agreement, as the client reads and signs it (sign.html) and as Cole previews it
+   in Locus (an iframe with this same sheet). Letterhead, numbered sections, a signature block
+   that prints. Always light: a contract is paper. */
+.paper{--paper:#fff;--ink:#16131F;--ink-2:#3E3850;--muted:#6D6680;--line:#E6E2EF;--acc:#5B3FB0;--acc-soft:#EDE8FA;--good:#1C7A46;--good-bg:#E4F2E9;
+  --sans:'Instrument Sans',system-ui,-apple-system,Segoe UI,sans-serif;--serif:'Instrument Serif',Georgia,'Times New Roman',serif}
+.paper{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:40px clamp(20px,5vw,56px) 44px;font-family:var(--sans);font-size:14.5px;line-height:1.65;box-shadow:0 1px 2px rgba(22,19,31,.04),0 12px 40px -24px rgba(22,19,31,.25)}
+.letterhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:26px}
+.letterhead .mark{display:flex;align-items:center;gap:10px}
+.letterhead .mark img{width:34px;height:34px;border-radius:9px}
+.letterhead .mark b{font-family:var(--serif);font-weight:400;font-size:21px;letter-spacing:.01em}
+.letterhead .mark small{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:1px}
+.letterhead .meta{text-align:right;font-size:12.5px;color:var(--muted);line-height:1.5}
+.letterhead .meta b{display:block;color:var(--ink);font-weight:600}
+.agreement h1{font-family:var(--serif);font-weight:400;font-size:clamp(28px,4.6vw,36px);line-height:1.1;margin:0 0 18px;text-wrap:balance;letter-spacing:-.01em}
+.agreement h2{font-family:var(--serif);font-weight:400;font-size:19px;margin:28px 0 8px;color:var(--ink)}
+.agreement p{margin:0 0 10px;color:var(--ink-2)}
+.agreement p strong{color:var(--ink);font-weight:600}
+.agreement ol,.agreement ul{margin:6px 0 12px;padding-left:22px;color:var(--ink-2)}
+.agreement ol>li{margin:10px 0}
+.agreement ol>li>strong{color:var(--ink);font-weight:600}
+.agreement ol>li>ul{margin:4px 0 0;padding-left:18px}
+.agreement ul li{margin:3px 0}
+.sig{margin-top:36px;border-top:1px solid var(--line);padding-top:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
+.sig .party b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-weight:600}
+.sig .name{font-family:var(--serif);font-size:30px;line-height:1.05;color:var(--ink);padding-bottom:8px;border-bottom:1px solid var(--ink);min-height:40px}
+.sig .name.empty{color:var(--muted);border-bottom-color:var(--line);font-size:16px;font-family:var(--sans);padding-top:14px}
+.sig .meta{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+.sig .meta span{color:var(--ink-2)}
+.fp{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;word-break:break-all;color:var(--muted);margin-top:26px;padding-top:12px;border-top:1px solid var(--line)}
+@media print{.paper{border:0;box-shadow:none;padding:0;border-radius:0}.agreement h2{break-after:avoid}.sig{break-inside:avoid}}
