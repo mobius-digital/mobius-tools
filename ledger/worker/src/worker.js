@@ -983,7 +983,12 @@ async function huntReceipts(env, opts = {}) {
     let r;
     try { r = await huntOne(env, store, t); }
     catch (e) { r = { found: false, why: String(e.message || e).slice(0, 120), error: true }; }
-    if (r.error && /invalid_grant|unauthor|401|403|insufficient/i.test(r.why)) {
+    /* Out of Worker subrequests for this run: not the charge's fault, so it
+     * goes back on the queue untouched and the next tick carries on. */
+    if (r.error && /subrequest|exceeded|cpu|time limit/i.test(r.why)) { state.queue.unshift(id); break; }
+    // Google refusing the whole connection (revoked, or the Gmail API switched
+    // off in the Cloud project) is not this charge's fault: stop, don't count it.
+    if (r.error && /invalid_grant|unauthor|401|403|insufficient|disabled|has not been used|accessNotConfigured|PERMISSION_DENIED/i.test(r.why)) {
       state.queue.unshift(id);
       await putSetting(env, 'receiptHunt', JSON.stringify(state));
       return { error: 'Gmail refused: ' + r.why + '. Reconnect it under Settings.', did, left: state.queue.length };
