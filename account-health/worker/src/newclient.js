@@ -758,12 +758,69 @@ async function welcomeOnJoin(env, r) {
   return true;
 }
 
+/* ---------------- nudges: what the client has not done yet ----------------
+   Invoice unpaid or agreement unsigned 3 days after it went, onboarding form not sent 5 days after the
+   welcome email: Cole hears once per thing, in the internal channel, with a button that sends the reminder
+   as him (Stripe re-sends its own invoice email; the other two come from his Gmail). Never automatic. */
+const DAY = 864e5;
+async function nudges(env) {
+  const rows = (await env.DB.prepare(`SELECT n.*, o.status AS ob_status, c.status AS c_status, c.sent_at AS c_sent FROM p_newclient n
+      LEFT JOIN p_br_onboard o ON o.token = n.token LEFT JOIN p_contract c ON c.token = n.token WHERE n.slack_internal IS NOT NULL`).all().catch(() => ({ results: [] }))).results || [];
+  let n = 0;
+  for (const r of rows) {
+    const st = safeJson(r.steps_json, {}); st.nudge ||= {};
+    const due = [];
+    if (st.stripe?.invoice && !st.stripe.paid && Date.now() - Date.parse(st.stripe.at || 0) > 3 * DAY && !st.nudge.invoice) due.push(['invoice', 'has not paid the first invoice', 'Re-send the invoice']);
+    if (r.c_status === 'sent' && Date.now() - Date.parse(r.c_sent || 0) > 3 * DAY && !st.nudge.agreement) due.push(['agreement', 'has not signed the agreement', 'Re-send the signing link']);
+    if (st.email?.status === 'done' && r.ob_status !== 'submitted' && Date.now() - Date.parse(st.email.at || 0) > 5 * DAY && !st.nudge.form) due.push(['form', 'has not sent the onboarding form', 'Send them a reminder']);
+    for (const [kind, what, label] of due) {
+      const text = `<@U06C37MDWD7> *${r.name}* ${what} yet.`;
+      const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text, blocks: [
+        { type: 'section', text: { type: 'mrkdwn', text } },
+        { type: 'actions', elements: [{ type: 'button', style: 'primary', text: { type: 'plain_text', text: label }, action_id: 'nc_remind', value: JSON.stringify({ id: r.id, kind }) }] },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Sends a short, friendly reminder as you. Nothing goes out unless you press it.' }] }] });
+      if (j.ok) { st.nudge[kind] = new Date().toISOString(); n++; }
+    }
+    if (due.length) await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+  }
+  return n;
+}
+
+async function sendReminder(env, r, kind) {
+  const st = safeJson(r.steps_json, {});
+  const hi = `Hi ${firstName(r.contact_name)},`;
+  if (kind === 'invoice') {
+    if (!st.stripe?.invoice) throw new Error('No invoice on file.');
+    await stripe(env, 'POST', `invoices/${st.stripe.invoice}/send`);
+    return 'Stripe sent the invoice to them again.';
+  }
+  if (kind === 'agreement') {
+    await sendMail(env, r.contact_email, `A quick reminder: our agreement is ready to sign`, `${hi}\n\nJust a reminder that our services agreement for ${r.name} is waiting for your signature. It takes a minute:\nhttps://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}\n\nThanks,`);
+    return 'The signing link went to them again from your Gmail.';
+  }
+  if (kind === 'form') {
+    await sendMail(env, r.contact_email, `Your onboarding, picking up where you left off`, `${hi}\n\nWhenever you have a few minutes, here is your onboarding link again. It saved everything you have filled in so far:\n${ONBOARD_FORM}${r.token}\n\nThe part that helps us most right now is the Access step, giving us access to Meta, Google and Shopify. Anything unclear, use the Message the team button on the page or reply here.\n\nThanks,`);
+    return 'The onboarding link went to them again from your Gmail.';
+  }
+  throw new Error('Unknown reminder.');
+}
+
 /* Slack buttons from Locus's New client messages (nc_*), routed here by slack-router. */
 export async function handleNewClientAction(env, ctx, payload) {
   const act = (payload.actions || []).find(a => /^nc_/.test(a.action_id || ''));
   if (!act || act.action_id === 'nc_open_partners') return new Response('', { status: 200 });
   const v = safeJson(act.value, {});
   const reply = (text) => payload.response_url && F(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }] }) }).catch(() => {});
+  if (act.action_id === 'nc_remind') {
+    ctx.waitUntil((async () => {
+      await ensureTable(env);
+      const r = await getRun(env, String(v.id || ''));
+      if (!r) return reply('That client is no longer in Locus.');
+      try { const done = await sendReminder(env, r, v.kind); await reply(`✓ ${done}`); }
+      catch (e) { await reply(`Reminder not sent: ${e.message}`); }
+    })());
+    return new Response('', { status: 200 });
+  }
   if (act.action_id === 'nc_shopify_sent') {
     ctx.waitUntil((async () => {
       await ensureTable(env);
@@ -824,6 +881,7 @@ export async function welcomeOnJoinByChannel(env, channel) {
 /** On the hourly tick: welcome the client when they join Slack; tell the team when the form is sent. */
 export async function newClientTick(env) {
   await ensureTable(env);
+  const nudged = await nudges(env).catch(() => 0);
   let welcomed = 0;
   for (const r of (await env.DB.prepare(`SELECT * FROM p_newclient WHERE slack_client IS NOT NULL AND json_extract(steps_json, '$.slack_welcome') IS NULL`).all().catch(() => ({ results: [] }))).results || []) {
     if (await welcomeOnJoin(env, r).catch(() => false)) welcomed++;
@@ -842,5 +900,5 @@ export async function newClientTick(env) {
     if (r.asana_project && /^https?:\/\//.test(ans.content_link || '')) await upsertResource(env, r.asana_project, 'Assets', ans.content_link).catch(() => {});
   }
   const shopify = await shopifyHeadsUp(env).catch(() => 0);
-  return { told, welcomed, shopify };
+  return { told, welcomed, shopify, nudged };
 }

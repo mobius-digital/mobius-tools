@@ -159,6 +159,7 @@ function fieldHtml(f) {
   else if (f.type === 'long') body = `<textarea class="in" id="f_${f.id}" rows="4">${esc(val ?? '')}</textarea>`;
   else if (f.type === 'money') body = `<div class="money"><span>$</span><input class="in" id="f_${f.id}" inputmode="decimal" value="${esc(val ?? '')}"></div>`;
   else if (f.type === 'yesno') body = `<div class="yn" id="f_${f.id}"><button type="button" data-yn="yes" class="${val === 'yes' ? 'on' : ''}">Yes</button><button type="button" data-yn="no" class="${val === 'no' ? 'on' : ''}">No</button></div>`;
+  else if (f.type === 'check' && f.auto) body = `<div class="check"><input type="checkbox" id="f_${f.id}" ${val === true ? 'checked' : ''} disabled aria-readonly="true"><span class="help" id="st_${f.id}">${val === true ? '<b style="color:var(--good)">Done.</b>' : esc(f.help || '')}</span></div>${howto(f)}`;
   else if (f.type === 'check') body = `<div class="check"><input type="checkbox" id="f_${f.id}" ${val === true ? 'checked' : ''}><span class="help">${esc(f.help || 'Tick when done.')}</span></div>${howto(f)}`;
   else if (f.type === 'list') body = `<div class="list" id="f_${f.id}"></div><button type="button" class="btn sm" data-add="${f.id}" style="margin-top:8px">+ Add a row</button>`;
   else if (f.type === 'file') body = `<div class="files" id="files_${f.id}"></div><input type="file" id="f_${f.id}" class="in" style="padding:8px">`;
@@ -249,6 +250,7 @@ function wire(s) {
     if (f.calc) { paintCalc(); continue; }
     if (f.type === 'list') { listRows(f); continue; }
     if (f.type === 'yesno') { el.querySelectorAll('[data-yn]').forEach(b => b.onclick = () => { el.querySelectorAll('[data-yn]').forEach(x => x.classList.toggle('on', x === b)); setAnswer(f.id, b.dataset.yn); }); continue; }
+    if (f.type === 'check' && f.auto) continue;   // Locus ticks these; the client cannot
     if (f.type === 'check') { el.onchange = () => setAnswer(f.id, el.checked ? true : ''); continue; }
     if (f.type === 'file') { paintFiles(f); el.onchange = () => upload(f, el); continue; }
     el.oninput = () => setAnswer(f.id, f.type === 'money' ? el.value.replace(/[^0-9.]/g, '') : el.value.trim());
@@ -320,6 +322,7 @@ async function syncTicks() {
       if (j.answers?.[id] === true && St.answers[id] !== true) {
         St.answers[id] = true;
         const el = document.getElementById('f_' + id); if (el) el.checked = true;
+        const st = document.getElementById('st_' + id); if (st) st.innerHTML = '<b style="color:var(--good)">Done.</b>';
       }
     }
     if (j.links) St.links = { ...St.links, ...j.links };
