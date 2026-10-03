@@ -1107,6 +1107,10 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
 - **Frame:** Cole's Frame is V4 (next.frame.io), so `frame.js` uses Adobe IMS OAuth (Connect Frame on the setup
   screen, `/frame/callback`). Step `frame` makes one project per client and writes Asana Client Resources > Frame.
   V4 has no collaborator route: the team is added in Frame by hand. Tested live on both first clients.
+  **Layout since the 2026-10-03 cleanup: NO PODS.** One project per current client (Ad Concepts + Clips/B-Roll,
+  made by the step), former clients are folders in "Past Clients", plus "MD - Internal" and "# Cole Organic".
+  Admin tidy routes in frame.js (`/api/frame/tree?depth=`, `move`, `rename`, `folder`, `project`, `project-update`,
+  `folder-delete` / `project-delete` only when empty). Frame allows 10 moves a minute.
 - Setup screen also has "Remove this client" (voids an unpaid invoice, cancels its subscription, forgets the row).
 - **2026-10-03 round (Cole's 11 points):** roles strategist / buyer / editor (Ravo) / designer (William), each a
   comma list (multi-select chips); the pickable team lives in `settings.newClientTeam` (Locus: "Edit the team list",
@@ -1187,7 +1191,8 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   `invoice.parent.subscription_details.subscription` (newer API versions), else asks Stripe.
 - **The Slack welcome is CLAIMED with a conditional UPDATE before posting** (join event + hourly pass could both
   post); a failed post releases the claim. Its links use the From the client folder (nobody can open the root),
-  and What happens next lists only what is still owed (unpaid invoice, unsigned agreement, unbooked call).
+  and What happens next is a FIXED template with "if you have not already" (Cole: a pinned message must never
+  depend on state at the minute it posted).
 - Remove asks Stripe before cancelling (a paid invoice is never cancelled; Stripe unreachable = nothing removed).
 - Amendment base token = `vars.of`, never a regex on the token (hex tokens can end in a+digits). Signing checks
   `meta.changes`, so a double press sends one set of copies. Calendly ignores the cancel half of a reschedule.

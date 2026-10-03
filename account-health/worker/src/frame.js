@@ -13,7 +13,12 @@
  *
  * API: https://api.frame.io/v4. accounts -> workspaces -> projects. The New client step
  * makes one project per client in the chosen workspace (settings `frameWorkspace`, else the
- * first) and adds the picked team as collaborators. frameTree() lists everything for tidying.
+ * first) with two folders, Ad Concepts and Clips/B-Roll. V4 has no collaborator call, so the team is
+ * added in Frame by hand. frameTree(env, depth) lists everything; the /api/frame/* tidy routes move,
+ * rename and create, and delete only what is empty.
+ *
+ * LAYOUT (Cole, 2026-10-03): NO PODS. One project per current client, named like the brand; every
+ * former client is a folder in "Past Clients"; "MD - Internal" and "# Cole Organic" are Mobius's own.
  */
 import { clip, safeJson } from './research.js';
 
@@ -169,6 +174,9 @@ export async function frameProject(env, name, emails, prev = {}) {
     project = p.data?.id; account = w.account_id;
     if (!project) throw new Error('Frame made no project.');
     url = `https://next.frame.io/project/${project}`;
+    /* Every client project has the same two folders (the 2026-10-03 cleanup: no pods, one project per client). */
+    const root = p.data?.root_folder_id || (await frameApi(env, 'GET', `/accounts/${account}/projects/${project}`).catch(() => null))?.data?.root_folder_id;
+    if (root) for (const f of ['Ad Concepts', 'Clips/B-Roll']) await frameApi(env, 'POST', `/accounts/${account}/folders/${root}/folders`, { data: { name: f } }).catch(e => notes.push(`Folder "${f}" not made: ${e.message}`));
   }
   /* V4 has no collaborator call yet (2026-10-03: "no route found for POST .../collaborators").
      Say so once instead of failing per person; the workspace's members already see the project. */
@@ -176,12 +184,20 @@ export async function frameProject(env, name, emails, prev = {}) {
   return { project, url, account, notes };
 }
 
-/** Everything, read-only: for the audit. */
-export async function frameTree(env) {
+/** Everything, read-only: for the audit. depth > 0 also walks folders (names, file counts, newest file). */
+export async function frameTree(env, depth = 0) {
   const out = [];
+  const walk = async (acct, folderId, level) => {
+    const items = await all(env, `/accounts/${acct}/folders/${folderId}/children?page_size=100`).catch(e => [{ type: 'error', name: e.message }]);
+    const folders = items.filter(i => i.type === 'folder');
+    const files = items.filter(i => i.type !== 'folder');
+    const newest = files.map(f => f.updated_at || f.inserted_at || '').sort().pop() || null;
+    return { files: files.length, newest, folders: level < depth ? await Promise.all(folders.map(async f => ({ id: f.id, name: f.name, updated: f.updated_at, ...(await walk(acct, f.id, level + 1)) }))) : folders.map(f => ({ id: f.id, name: f.name, updated: f.updated_at })) };
+  };
   for (const w of await frameWorkspaces(env)) {
     const projects = await all(env, `/accounts/${w.account_id}/workspaces/${w.id}/projects`).catch(e => [{ name: `(could not list: ${e.message})` }]);
-    out.push({ ...w, projects: projects.map(p => ({ id: p.id, name: p.name, updated: p.updated_at || p.inserted_at, root: p.root_folder_id || null })) });
+    out.push({ ...w, projects: await Promise.all(projects.map(async p => ({ id: p.id, name: p.name, updated: p.updated_at || p.inserted_at, root: p.root_folder_id || null,
+      ...(depth && p.root_folder_id ? await walk(w.account_id, p.root_folder_id, 1) : {}) }))) });
   }
   return out;
 }
@@ -196,9 +212,47 @@ export async function handleFrame(request, env, url, path, json, isAdmin) {
     if (path === '/api/frame/status') return json(await frameStatus(env));
     if (path === '/api/frame/start' && request.method === 'POST') return json(await start(env, url.origin, b));
     if (path === '/api/frame/disconnect' && request.method === 'POST') { await disconnect(env); return json({ ok: true }); }
-    if (path === '/api/frame/tree') return json({ ok: true, workspaces: await frameTree(env) });
+    if (path === '/api/frame/tree') return json({ ok: true, workspaces: await frameTree(env, Math.min(4, Number(url.searchParams.get('depth')) || 0)) });
     if (path === '/api/frame/workspace' && request.method === 'POST') {
       await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('frameWorkspace', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(String(b.id || ''))).run();
+      return json({ ok: true });
+    }
+    /* Tidying (2026-10-03, the pods -> one project per client cleanup). Admin only; nothing here deletes
+       a file. A folder is deleted only when it is empty. Frame allows 10 moves a minute. */
+    const A = String(b.account_id || '');
+    if (path === '/api/frame/project' && request.method === 'POST') {
+      const p = await frameApi(env, 'POST', `/accounts/${A}/workspaces/${b.workspace_id}/projects`, { data: { name: String(b.name || '').slice(0, 120) } });
+      return json({ ok: true, project: p.data });
+    }
+    if (path === '/api/frame/project-update' && request.method === 'POST') {
+      const data = Object.fromEntries(['name', 'status', 'restricted'].filter(k => b[k] !== undefined).map(k => [k, b[k]]));
+      return json({ ok: true, project: (await frameApi(env, 'PATCH', `/accounts/${A}/projects/${b.project_id}`, { data })).data });
+    }
+    if (path === '/api/frame/folder' && request.method === 'POST') {
+      return json({ ok: true, folder: (await frameApi(env, 'POST', `/accounts/${A}/folders/${b.parent_id}/folders`, { data: { name: String(b.name || '').slice(0, 120) } })).data });
+    }
+    if (path === '/api/frame/rename' && request.method === 'POST') {
+      return json({ ok: true, folder: (await frameApi(env, 'PATCH', `/accounts/${A}/folders/${b.folder_id}`, { data: { name: String(b.name || '').slice(0, 120) } })).data });
+    }
+    if (path === '/api/frame/move' && request.method === 'POST') {
+      return json({ ok: true, folder: (await frameApi(env, 'PATCH', `/accounts/${A}/folders/${b.folder_id}/move`, { data: { parent_id: b.parent_id } })).data });
+    }
+    if (path === '/api/frame/folder-delete' && request.method === 'POST') {
+      const kids = await all(env, `/accounts/${A}/folders/${b.folder_id}/children?page_size=10`);
+      if (kids.length) return json({ error: `Not empty (${kids.length} items): nothing deleted.` }, 409);
+      await frameApi(env, 'DELETE', `/accounts/${A}/folders/${b.folder_id}`);
+      return json({ ok: true });
+    }
+    /* One folder's children (the caller walks the tree; one request per folder keeps under the subrequest cap). */
+    if (path === '/api/frame/children' && request.method === 'POST') {
+      const items = await all(env, `/accounts/${A}/folders/${b.folder_id}/children?page_size=100`);
+      return json({ ok: true, items: items.map(i => ({ id: i.id, name: i.name, type: i.type })) });
+    }
+    if (path === '/api/frame/project-delete' && request.method === 'POST') {
+      const p = (await frameApi(env, 'GET', `/accounts/${A}/projects/${b.project_id}`)).data;
+      const kids = p?.root_folder_id ? await all(env, `/accounts/${A}/folders/${p.root_folder_id}/children?page_size=10`) : [{}];
+      if (kids.length) return json({ error: `Not empty (${kids.length} items): nothing deleted.` }, 409);
+      await frameApi(env, 'DELETE', `/accounts/${A}/projects/${b.project_id}`);
       return json({ ok: true });
     }
     return json({ error: 'not found' }, 404);

@@ -793,18 +793,18 @@ async function welcomeOnJoin(env, r) {
     r.token ? `• Your onboarding link: ${ONBOARD_FORM}${r.token}` : null,
     r.asana_url ? `• Your Asana project (every ad, before it runs): ${r.asana_url}` : null,
     st.drive?.folders?.inbox ? `• A file too big to send here (raw footage, a photo shoot): https://drive.google.com/drive/folders/${st.drive.folders.inbox}` : null,
-    st.call?.when && !st.call.canceled ? null : `• Book the strategy call: ${CALENDLY}`,
+    `• Book the strategy call: ${CALENDLY}`,
     r.act_id ? `• Every ad we run for you, newest first: ${await yourAdsUrl(env, r.act_id)}` : null,
   ].filter(Boolean);
-  /* Only what is still owed: no "pay the invoice" once it is paid, no "book the call" once it is booked. */
-  const signed = (await env.DB.prepare(`SELECT status FROM p_contract WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.status;
-  const owe = [st.stripe?.invoice && !st.stripe.paid ? 'pay the first invoice' : null, signed === 'sent' ? 'sign the agreement' : null].filter(Boolean);
+  /* A FIXED template (Cole, 2026-10-03): the message is pinned and read for weeks, so it must never depend
+     on what was paid or booked at the minute it posted. "If you have not already" covers every case. The
+     only branch is whether a retainer was entered at setup, which never changes afterwards. */
   const next = [
-    'Finish the onboarding link. Giving us access to Meta, Google and Shopify is the part that unlocks everything else.',
-    st.call?.when && !st.call.canceled ? `Our strategy call is booked for ${st.call.when}. We go through your answers together.` : 'Book the strategy call if you have not yet. We go through your answers together.',
-    owe.length ? `${owe.join(' and ').replace(/^./, c => c.toUpperCase())} (${owe.length > 1 ? 'both came' : 'it came'} by email).` : null,
+    'Finish your onboarding link, if you have not already. Giving us access to Meta, Google and Shopify is the part that unlocks everything else.',
+    'Book the strategy call, if you have not already. We go through your answers together.',
+    r.retainer > 0 ? 'Pay the first invoice and sign the agreement, if you have not already. Both came by email.' : 'Sign the agreement, if you have not already. It came by email.',
     'Then we start: research, first briefs, first ads.',
-  ].filter(Boolean).map((s, i) => `${i + 1}. ${s}`);
+  ].map((s, i) => `${i + 1}. ${s}`);
   const text = [`*Welcome, ${r.name}!* This channel is where we talk day to day. Say hi, ask anything, drop files, tag any of us.`, '',
     '*Your team at Mobius*', '• Cole Wetzler, founder, your main contact', ...people, '',
     '*Your links*', ...links, '',
