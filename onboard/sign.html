@@ -79,7 +79,7 @@ function paint() {
     <div class="paper">
       <div class="letterhead">
         <div class="mark"><img src="../brand/mobius-logo.webp" alt="Mobius Digital"></div>
-        <div class="meta"><b>${esc(D.vars.company)}</b>Prepared ${esc(when(D.sent_at).split(',')[0] || '')}<br>${signed ? 'Signed' : 'Awaiting signature'}</div>
+        <div class="meta"><b>${esc(D.vars.company)}</b>${D.vars.amendment ? `Amendment No. ${esc(D.vars.amendment)}<br>` : ''}Prepared ${esc(when(D.sent_at).split(',')[0] || '')}<br>${signed ? 'Signed' : 'Awaiting signature'}</div>
       </div>
       ${D.html}
       <div class="sig">

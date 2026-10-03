@@ -1108,3 +1108,17 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   Not connected = the step fails with the instruction. NOT tested against a real Frame account (no token yet); if
   Cole's Frame is the Adobe (V4) kind, the v2 token path will not exist and this needs the V4 OAuth flow instead.
 - Setup screen also has "Remove this client" (voids an unpaid invoice, cancels its subscription, forgets the row).
+- **2026-10-03 round (Cole's 11 points):** roles strategist / buyer / editor (Ravo) / designer (William), each a
+  comma list (multi-select chips); the pickable team lives in `settings.newClientTeam` (Locus: "Edit the team list",
+  `POST /api/new-client/team`). Step redraws only touch `#ncStepList`, so typing or voice-typing in the AI / agreement
+  / email boxes is never wiped. New Biz (`C0BV9L8NV33`, #mobius-newbiz) gets name, site, start date, team as @mentions
+  and the agreement type: **never money** (Cole). The internal summary no longer carries the client's private link.
+  **Client welcome** is posted AS COLE (`SLACK_USER_TOKEN`), pinned, only once a member from outside our workspace is
+  in the client channel (hourly `newClientTick` -> `welcomeOnJoin`; detection via `users.info` team_id / is_stranger,
+  NOT yet seen live), with the onboarding, Asana, Drive and Calendly links and @mentions. `/api/new-client/unwelcome`
+  retracts one. Client pages (form, sign, voice) use the Mobius blue palette and `brand/` logos (light/white).
+  Default term is month to month. Frame link + the client's content link (on submit) fill Asana Client Resources.
+- **Amendments:** a signed agreement shows "Amend the agreement": Haiku drafts Amendment No. n from plain words
+  (`aiAmend`, asks QUESTION: when facts are missing), Preview, Send for signature (`sendAmendment`). Stored as a
+  p_contract row with token `<token>a<n>` (still hex, so sign.html serves it unchanged; letterhead says the number).
+  The signed original never changes. Stripe is NOT changed by an amendment: a price change must be made in Stripe.

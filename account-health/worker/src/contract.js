@@ -127,6 +127,60 @@ export async function aiEdit(env, html, instruction) {
   return { html: out, cost: Math.round(((usage.input_tokens || 0) * 1 + (usage.output_tokens || 0) * 5) / 1e6 * 10000) / 10000 };
 }
 
+/** An amendment to a SIGNED agreement, drafted on Haiku from Cole's plain words. It names the
+ *  original, lists only what changes as numbered items, and keeps everything else in force.
+ *  Missing facts come back as { question } instead of a guess. */
+export async function aiAmend(env, signed, instruction, n, base) {
+  const ask = String(instruction || '').trim().slice(0, 3000);
+  if (!ask) throw new Error('Say what is changing.');
+  const signedOn = (signed.signed_at || signed.sent_at || '').slice(0, 10);
+  const res = await F('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 6000,
+      system: `You write an amendment to a services agreement for a small ad agency, Mobius Digital, LLC. You get the SIGNED agreement and the owner's description of what is changing. Write Amendment No. ${n}. Output ONE <article class="agreement"> with: <h1>Amendment No. ${n} to the Mobius Digital Services Agreement</h1>; a <p> saying this amends the Services Agreement dated ${signedOn} between Mobius Digital, LLC ("Provider") and the client named in it ("Client") (the "Agreement"), effective on the date given in the instruction or, if none, on the date both Parties sign; <h2>Changes</h2> and an <ol> of numbered changes, each naming the section it changes and the new wording in full (for new services, what they include; for money, the full amount and when it is billed); <h2>Everything else stays the same</h2> with a <p> saying all other terms of the Agreement remain in full force and that if this Amendment and the Agreement conflict, this Amendment wins for the matters it covers. Plain English, no em dashes. If the description is missing something you would need (an amount, a start date, what exactly a new service covers, which section it replaces), do NOT guess: reply with one line starting QUESTION: and the questions, no HTML. Otherwise return ONLY the HTML.`,
+      messages: [{ role: 'user', content: `THE SIGNED AGREEMENT:\n${signed.html}\n\n${base ? `THE CURRENT DRAFT OF THIS AMENDMENT (revise it):\n${base}\n\n` : ''}WHAT IS CHANGING:\n${ask}` }] }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error?.message || `Claude ${res.status}`);
+  const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+  const usage = j.usage || {};
+  const cost = Math.round(((usage.input_tokens || 0) * 1 + (usage.output_tokens || 0) * 5) / 1e6 * 10000) / 10000;
+  const q = /^\s*QUESTION:\s*([\s\S]+)$/.exec(text);
+  if (q) return { question: q[1].trim().slice(0, 1500), cost };
+  const m = /<article[\s\S]*<\/article>/.exec(text);
+  if (!m) throw new Error('The AI did not return an amendment. Try wording it differently.');
+  return { html: m[0].replace(/\u2014/g, ',').replace(/<script[\s\S]*?<\/script>/gi, ''), cost };
+}
+
+/** Freezes the amendment, signs it as Cole, emails the client the same signing page. */
+export async function sendAmendment(env, r, html, ip) {
+  await ensureContractTable(env);
+  const base = await env.DB.prepare(`SELECT * FROM p_contract WHERE token = ?1`).bind(r.token || '').first();
+  if (base?.status !== 'signed') throw new Error('Amendments are for a signed agreement. This one is not signed yet: change it before it is signed instead.');
+  if (!/^<article[\s\S]*<\/article>$/.test(String(html || '').trim())) throw new Error('Draft the amendment first.');
+  const n = ((await env.DB.prepare(`SELECT COUNT(*) AS n FROM p_contract WHERE token LIKE ?1`).bind(`${r.token}a%`).first())?.n || 0) + 1;
+  const token = `${r.token}a${n}`;
+  const clean = String(html).trim().replace(/<script[\s\S]*?<\/script>/gi, '');
+  const hash = await sha256(textOf(clean));
+  const now = new Date().toISOString();
+  const v = { ...safeJson(base.vars_json, {}), amendment: n, of: r.token };
+  await env.DB.prepare(`INSERT INTO p_contract (token, act_id, brand, vars_json, html, hash, status, sent_at, provider_name, provider_ip, provider_at, client_email)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sent', ?7, ?8, ?9, ?7, ?10)`).bind(token, base.act_id, base.brand, JSON.stringify(v), clean, hash, now, PROVIDER, ip || null, base.client_email).run();
+  const link = SIGN_PAGE + token;
+  await gmail(env, base.client_email, `Amendment No. ${n} to your agreement with Mobius Digital: please sign`,
+`Hi ${(v.client_name || '').split(/\s+/)[0] || 'there'},
+
+We have written up the change we discussed as Amendment No. ${n} to our services agreement. Read it and sign it here:
+${link}
+
+Everything else in the agreement stays the same. You get a copy by email the moment it is signed.
+
+Cole
+Mobius Digital`);
+  return { token, n, url: link };
+}
+
 const textOf = html => html.replace(/<li>/g, '- ').replace(/<\/(p|li|h1|h2)>/g, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\n{3,}/g, '\n\n').trim();
 
 /* ---------------- email (Cole's Gmail, same delegation as the welcome email) ---------------- */

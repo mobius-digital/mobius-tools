@@ -176,7 +176,7 @@ async function status(id, autorun) {
   const contractBlock = () => {
     const c = contract || {}; const st = run.steps.contract;
     if (!cv) cv = { ...(c.defaults || {}), ...(c.vars || {}) };
-    if (c.status === 'signed') return `<div style="margin-top:16px"><b style="font-size:14px">✅ Agreement signed</b><span class="tiny" style="display:block">Signed by ${esc(c.signed_by || '')} on ${esc((c.signed_at || '').slice(0, 10))}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signed copy</a></span></div>`;
+    if (c.status === 'signed') return `<div style="margin-top:16px"><b style="font-size:14px">✅ Agreement signed</b><span class="tiny" style="display:block">Signed by ${esc(c.signed_by || '')} on ${esc((c.signed_at || '').slice(0, 10))}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signed copy</a></span>${amendBlock(c)}</div>`;
     if (c.status === 'sent') return `<div style="margin-top:16px"><b style="font-size:14px">📨 Agreement sent, waiting for their signature</b><span class="tiny" style="display:block">Sent ${esc((c.sent_at || '').slice(0, 10))} to ${esc(run.contact_email || '')}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signing page</a></span></div>`;
     const f = (k, label, help, ta) => `<div class="ab-f" style="margin-top:8px"><label style="font-size:13px">${label}</label><p class="hint" style="margin:0 0 4px">${help}</p>${ta ? `<textarea id="cv_${k}" rows="3" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit">${esc(cv[k] || '')}</textarea>` : `<input type="text" id="cv_${k}" value="${esc(cv[k] || '')}" style="width:100%">`}</div>`;
     return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '⏳' : '○'} Agreement</b>
@@ -189,6 +189,35 @@ async function status(id, autorun) {
         <div class="row" style="gap:8px;margin-top:6px"><button class="btn" id="ncCvAi">Apply with AI</button><span class="tiny" id="ncCvAiMsg"></span></div></div>
       <p class="tiny nc-bad" id="ncCvErr" style="min-height:16px;margin:4px 0 0"></p>
       <div class="row" style="gap:8px;margin-top:4px"><button class="btn" id="ncContractPreview">Preview</button><button class="btn primary" id="ncContractSend"${busy || !run.onboard_url ? ' disabled' : ''}>Send for signature</button>${run.onboard_url ? '' : '<span class="tiny">Needs the onboarding link first.</span>'}</div></div>`;
+  };
+  /* Something changed after signing (a new service, a new price): an amendment, drafted by AI from
+     plain words, previewed, then signed the same way. The signed original never changes. */
+  let am = { ask: '', html: '', n: 0 };
+  const amendBlock = c => {
+    const list = (c.amendments || []).map(a => `<span class="tiny" style="display:block">${a.status === 'signed' ? '✅' : '📨'} Amendment No. ${esc(a.n)}: ${a.status === 'signed' ? `signed by ${esc(a.signed_by || '')} on ${esc((a.signed_at || '').slice(0, 10))}` : `sent ${esc((a.sent_at || '').slice(0, 10))}, waiting for their signature`}. <a href="${esc(a.url)}" target="_blank" rel="noopener">Open</a></span>`).join('');
+    return `${list}<div class="ab-f" style="margin-top:10px"><label style="font-size:13px">Something changed? Amend the agreement</label><p class="hint" style="margin:0 0 4px">Say what is changing in plain words, for example: add Google Ads management from November 1 for $1,000 a month. The AI writes the amendment and asks if it needs more. About a cent.</p>
+      <textarea id="ncAmAsk" rows="2" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit"></textarea>
+      <div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap"><button class="btn" id="ncAmDraft">${am.html ? 'Revise with AI' : 'Draft the amendment'}</button>${am.html ? '<button class="btn" id="ncAmPrev">Preview</button><button class="btn primary" id="ncAmSend">Send for signature</button>' : ''}<span class="tiny" id="ncAmMsg"></span></div></div>`;
+  };
+  const wireAmend = () => {
+    const box = body.querySelector('#ncAmAsk'); if (!box) return;
+    box.value = am.ask; box.oninput = () => { am.ask = box.value; };
+    const msg = body.querySelector('#ncAmMsg');
+    body.querySelector('#ncAmDraft').onclick = async () => {
+      if (!am.ask.trim()) return msg.textContent = 'Say what is changing first.';
+      msg.textContent = 'Writing…';
+      try {
+        const j = await post('/api/new-client/amend-draft', { id, instruction: am.ask, html: am.html || null });
+        if (j.question) return msg.textContent = `It needs to know: ${j.question} Add that and press again.`;
+        am.html = j.html; am.n = j.n; am.ask = ''; paint(); body.querySelector('#ncAmMsg').textContent = `Amendment No. ${j.n} drafted ($${j.cost}). Preview it, or say what to change and revise.`;
+      } catch (e) { msg.textContent = e.message; }
+    };
+    const pv = body.querySelector('#ncAmPrev'); if (pv) pv.onclick = () => previewAgreement(am.html, { ...(contract.vars || contract.defaults || {}), company: run.name });
+    const sd = body.querySelector('#ncAmSend'); if (sd) sd.onclick = async () => {
+      if (!(await confirmModal(`Send Amendment No. ${am.n} for signature?`, `You sign it now; ${run.contact_email} gets an email with the signing page. The signed agreement itself does not change.`, 'Send for signature'))) return;
+      try { const j = await post('/api/new-client/amend-send', { id, html: am.html }); contract = j.contract; am = { ask: '', html: '', n: 0 }; paint(); }
+      catch (e) { body.querySelector('#ncAmMsg').textContent = e.message; }
+    };
   };
   /* The invoice is money, so it never runs by itself: one button, one confirm. */
   const invoiceBlock = () => {
@@ -225,6 +254,7 @@ async function status(id, autorun) {
         <ul class="nc-list">${BY_HAND.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div class="row" style="justify-content:space-between;gap:8px;margin:14px 0 0"><button class="btn" id="ncRemove" style="color:var(--bad)">Remove this client</button><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
+    wireAmend();
     body.querySelector('#ncRemove').onclick = async () => {
       if (!(await confirmModal(`Remove ${run.name} from this list?`, 'Locus forgets this setup. Anything already made in Asana, Drive, Slack or Frame stays and is yours to delete there. An unpaid invoice is voided and its subscription cancelled.', 'Remove'))) return;
       try { await post('/api/new-client/remove', { id }); close(); } catch (e) { noteModal('Could not remove', `<p>${esc(e.message)}</p>`); }

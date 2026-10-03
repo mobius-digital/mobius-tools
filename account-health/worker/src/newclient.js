@@ -28,7 +28,7 @@
  * (the email only after he presses Send on its text).
  */
 import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } from './asana-brand.js';
-import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit } from './contract.js';
+import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit, aiAmend, sendAmendment } from './contract.js';
 import { frameProject, frameStatus } from './frame.js';
 
 let F = (...a) => fetch(...a);
@@ -491,7 +491,8 @@ export async function handleStripeWebhook(request, env) {
 async function contractState(env, r) {
   await ensureContractTable(env);
   const row = r.token ? await env.DB.prepare(`SELECT status, sent_at, signed_at, client_name, vars_json FROM p_contract WHERE token = ?1`).bind(r.token).first().catch(() => null) : null;
-  return { defaults: contractDefaults(r), status: row?.status || null, sent_at: row?.sent_at || null, signed_at: row?.signed_at || null, signed_by: row?.client_name || null, vars: safeJson(row?.vars_json, null), url: r.token ? `https://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}` : null };
+  const amendments = r.token ? ((await env.DB.prepare(`SELECT token, status, sent_at, signed_at, client_name, vars_json FROM p_contract WHERE token LIKE ?1 ORDER BY sent_at`).bind(`${r.token}a%`).all().catch(() => ({ results: [] }))).results || []).map(a => ({ n: safeJson(a.vars_json, {}).amendment, status: a.status, sent_at: a.sent_at, signed_at: a.signed_at, signed_by: a.client_name, url: `https://tools.go-mobius-digital.com/onboard/sign.html?t=${a.token}` })) : [];
+  return { amendments, defaults: contractDefaults(r), status: row?.status || null, sent_at: row?.sent_at || null, signed_at: row?.signed_at || null, signed_by: row?.client_name || null, vars: safeJson(row?.vars_json, null), url: r.token ? `https://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}` : null };
 }
 
 /* ---------------- summary ---------------- */
@@ -600,6 +601,16 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(b.vars || {}).filter(([, x]) => String(x || '').trim())) };
       const base = /^<article[\s\S]*<\/article>$/.test(String(b.vars?.html || '').trim()) ? String(b.vars.html).trim() : contractHtml(v);
       try { return json({ ok: true, ...(await aiEdit(env, base, b.instruction)) }); } catch (e) { return json({ error: e.message }, 502); }
+    }
+    if (path === '/api/new-client/amend-draft' && request.method === 'POST') {
+      const signed = await env.DB.prepare(`SELECT * FROM p_contract WHERE token = ?1`).bind(r.token || '').first();
+      if (signed?.status !== 'signed') return json({ error: 'Amendments are for a signed agreement.' }, 400);
+      const n = ((await env.DB.prepare(`SELECT COUNT(*) AS n FROM p_contract WHERE token LIKE ?1`).bind(`${r.token}a%`).first())?.n || 0) + 1;
+      try { return json({ ok: true, n, ...(await aiAmend(env, signed, b.instruction, n, /^<article/.test(String(b.html || '')) ? b.html : null)) }); } catch (e) { return json({ error: e.message }, 502); }
+    }
+    if (path === '/api/new-client/amend-send' && request.method === 'POST') {
+      try { const a = await sendAmendment(env, r, b.html, request.headers.get('CF-Connecting-IP') || ''); return json({ ok: true, ...a, contract: await contractState(env, r) }); }
+      catch (e) { return json({ error: e.message }, 400); }
     }
     if (path === '/api/new-client/mark' && request.method === 'POST') {
       if (!['ledger', 'prefill'].includes(b.step)) return json({ error: 'unknown step' }, 400);
