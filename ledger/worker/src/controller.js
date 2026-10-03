@@ -92,7 +92,12 @@ const RULES = `
   about money in means exactly that: move that money onto that client.
 - RECEIPTS ARE ONLY FOR MONEY OUT: type='out' AND expected=0 AND receipt_key IS
   NULL AND receipt_skip=0. Revenue, transfers and fees never need a receipt;
-  never list them as missing one.
+  never list them as missing one. Count them with that exact filter for the
+  month asked; never say "all attached" without running it.
+- Receipts can be attached to a CLOSED month without reopening it (only the
+  money is frozen). Missing receipts never block a close.
+- To get receipts, use find_receipts (Gmail). If it says Gmail is not
+  connected, say so in one line and stop; do not guess what is attached.
 - Transfers between Cole's own accounts (joint account, Amex/card autopay,
   Stripe payouts into the bank, owner draws moved between accounts) get
   mark_transfer. They leave the P&L and need no receipt.
