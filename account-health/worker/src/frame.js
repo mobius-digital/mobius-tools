@@ -170,10 +170,9 @@ export async function frameProject(env, name, emails, prev = {}) {
     if (!project) throw new Error('Frame made no project.');
     url = `https://next.frame.io/project/${project}`;
   }
-  for (const e of emails) {
-    await frameApi(env, 'POST', `/accounts/${account}/projects/${project}/collaborators`, { data: { email: e } })
-      .catch(err => { if (!/already|exists|conflict/i.test(err.message)) notes.push(`${e} not added to Frame: ${err.message}`); });
-  }
+  /* V4 has no collaborator call yet (2026-10-03: "no route found for POST .../collaborators").
+     Say so once instead of failing per person; the workspace's members already see the project. */
+  if (emails.length) notes.push(`Frame's API cannot add people to a project yet. If ${emails.join(', ')} are not workspace members, add them in Frame (Project > Share).`);
   return { project, url, account, notes };
 }
 

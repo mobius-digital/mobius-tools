@@ -511,7 +511,7 @@ async function stepFrame(env, r) {
   const prev = safeJson(r.steps_json, {}).frame || {};
   const emails = [...new Set([team.strategist, team.buyer, team.editor].filter(x => emailOk(x) && x.toLowerCase() !== OWNER))];
   const out = await frameProject(env, r.name, emails, prev);
-  return { ...out, text: 'Frame project made, team added.' };
+  return { ...out, text: 'Frame project made.' };
 }
 const RUN = { asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, frame: stepFrame, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary };
 
