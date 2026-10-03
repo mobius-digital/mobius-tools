@@ -700,6 +700,13 @@ async function welcomeOnJoin(env, r) {
   return true;
 }
 
+/** Slack's member_joined_channel event: the welcome goes out seconds after the client joins. */
+export async function welcomeOnJoinByChannel(env, channel) {
+  await ensureTable(env);
+  const r = await env.DB.prepare(`SELECT * FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL`).bind(channel || '').first();
+  return r ? welcomeOnJoin(env, r) : false;
+}
+
 /** On the hourly tick: welcome the client when they join Slack; tell the team when the form is sent. */
 export async function newClientTick(env) {
   await ensureTable(env);

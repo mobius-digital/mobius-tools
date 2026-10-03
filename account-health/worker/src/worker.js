@@ -29,7 +29,7 @@ import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
-import { handleNewClient, newClientTick, handleStripeWebhook, useFetch as newClientFetch } from './newclient.js';
+import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, useFetch as newClientFetch } from './newclient.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 
@@ -5623,6 +5623,11 @@ async function handleSlackEvent(request, env, ctx) {
   const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'), raw, request.headers.get('x-slack-signature'));
   if (!ok) return new Response('bad signature', { status: 401 });
   const ev = body?.event;
+  /* Someone joined a new client's channel: welcome them a few seconds later (newclient.js). */
+  if (body?.type === 'event_callback' && ev?.type === 'member_joined_channel') {
+    ctx.waitUntil(new Promise(r => setTimeout(r, 8000)).then(() => welcomeOnJoinByChannel(env, ev.channel)).catch(e => console.log('welcome on join: ' + e.message)));
+    return ACK();
+  }
   /* A mention that uploads a clip or image arrives with subtype file_share; the ideas bot wants those. */
   const okSubtype = !ev?.subtype || (ev.type === 'app_mention' && /^(file_share|thread_broadcast)$/.test(ev.subtype));
   if (body?.type !== 'event_callback' || !ev || ev.bot_id || !okSubtype) return ACK();
@@ -5845,7 +5850,9 @@ const AH_APP = {
        team channel, as registered on its account. A boolean, nothing else. */
     if (path === '/slack/owns') {
       const ch = url.searchParams.get('channel') || '';
-      const row = /^[A-Z0-9]{5,20}$/.test(ch) ? await env.DB.prepare(`SELECT 1 AS x FROM accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null) : null;
+      /* A new client's channel counts too while its welcome is still owed, so the join event reaches us. */
+      const row = /^[A-Z0-9]{5,20}$/.test(ch) ? (await env.DB.prepare(`SELECT 1 AS x FROM accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
+        || await env.DB.prepare(`SELECT 1 AS x FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL LIMIT 1`).bind(ch).first().catch(() => null)) : null;
       return json({ owns: !!row });
     }
 
