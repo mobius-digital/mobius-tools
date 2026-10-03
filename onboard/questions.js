@@ -68,9 +68,9 @@ const STEPS = [
       { id: 'content_link', label: 'Where your content lives', type: 'url', help: 'A link to your Google Drive, Dropbox, Frame or wherever your photos, videos and past ads already are.',
         why: 'Share it with us as it is. You do not need to move or re-upload anything.' },
       { id: 'content_shared', label: 'Share that folder with us', type: 'check', steps: ['Give both of our emails access to view and download.'], copy: MOBIUS.team },
-      { id: 'st_drive', label: 'No library of your own? Drop your content in your folder with us', type: 'check', loom: LOOM.drive, link: 'drive',
+      { id: 'st_drive', label: 'Files that are not in your library? Send them to your folder with us', type: 'check', loom: LOOM.drive, link: 'drive',
         steps: [
-          'Open your folder, then Assets > Client Content.',
+          'Open the folder (button below). It is called From the client.',
           'Add anything we could use in ads: videos, photos, GIFs, past ads, product shots, lifestyle and model shoots, customer videos (UGC).',
           'Sort it into sub-folders if you can (past ads, product shoots, lifestyle, videos, UGC). It gets your ads live sooner.',
         ] },

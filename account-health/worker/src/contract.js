@@ -225,6 +225,26 @@ Mobius Digital`);
   return { url: link, hash, sent_at: now };
 }
 
+/* ---------------- the signed copy, kept in the client's Drive (Agreements) ---------------- */
+async function saveSignedToDrive(env, c) {
+  const base = c.token.replace(/a\d+$/, '');
+  const run = await env.DB.prepare(`SELECT steps_json FROM p_newclient WHERE token = ?1`).bind(base).first().catch(() => null);
+  const folder = safeJson(run?.steps_json, {}).drive?.folders?.agreements;
+  if (!folder) return;
+  const v = safeJson(c.vars_json, {});
+  const when = iso => iso ? new Date(iso).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Chicago' }) + ' CT' : '';
+  const html = `<html><body style="font-family:Arial,sans-serif">${c.html}<hr><p><b>Signed electronically</b></p>
+<p>Provider: ${esc(c.provider_name)}, Mobius Digital, LLC, ${esc(when(c.provider_at))}</p>
+<p>Client: ${esc(c.client_name)} (${esc(c.client_email || '')}), ${esc(v.company || c.brand)}, ${esc(when(c.signed_at))}, from ${esc(c.client_ip || 'unknown address')}</p>
+<p style="font-size:9pt;color:#666">Document fingerprint (SHA-256) ${esc(c.hash)}. Signed copy: ${SIGN_PAGE}${c.token}</p></body></html>`;
+  const name = `${c.brand} - ${v.amendment ? `Amendment No. ${v.amendment}` : 'Services Agreement'} - signed ${String(c.signed_at || '').slice(0, 10)}`;
+  const tok = await googleToken(env, OWNER, 'https://www.googleapis.com/auth/drive');
+  const bnd = 'locus' + crypto.randomUUID().replace(/-/g, '');
+  const body = `--${bnd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, mimeType: 'application/vnd.google-apps.document', parents: [folder] })}\r\n--${bnd}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n${html}\r\n--${bnd}--`;
+  const res = await F('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id', { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': `multipart/related; boundary=${bnd}` }, body });
+  if (!res.ok) throw new Error(`Drive ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
 /* ---------------- public routes (the client) ---------------- */
 export async function handleSign(request, env, path, json) {
   const m = /^\/api\/sign\/([a-f0-9]{24,40})$/.exec(path);
@@ -254,6 +274,7 @@ export async function handleSign(request, env, path, json) {
     let copies = 0;
     for (const to of [fresh.client_email, OWNER].filter(Boolean)) { try { await gmail(env, to, `Signed: ${fresh.brand} services agreement`, note); copies++; } catch {} }
     await env.DB.prepare(`UPDATE p_contract SET copies_sent = ?2 WHERE token = ?1`).bind(row.token, copies).run();
+    await saveSignedToDrive(env, fresh).catch(e => console.log('agreement to drive: ' + e.message));
     await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_set(answers_json, '$.st_agreement', json('true')), updated_at = datetime('now') WHERE token = ?1`).bind(row.token).run().catch(() => {});
     return json({ ok: true, ...pub(fresh) });
   }

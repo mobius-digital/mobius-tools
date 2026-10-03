@@ -5625,7 +5625,9 @@ async function handleSlackEvent(request, env, ctx) {
   const ev = body?.event;
   /* Someone joined a new client's channel: welcome them a few seconds later (newclient.js). */
   if (body?.type === 'event_callback' && ev?.type === 'member_joined_channel') {
-    ctx.waitUntil(new Promise(r => setTimeout(r, 8000)).then(() => welcomeOnJoinByChannel(env, ev.channel)).catch(e => console.log('welcome on join: ' + e.message)));
+    /* One minute later (Cole), on the queue: waitUntil would be cut off long before that. */
+    const job = { kind: 'welcome', channel: ev.channel };
+    ctx.waitUntil((env.IDEA_Q ? env.IDEA_Q.send(job, { delaySeconds: 60 }) : new Promise(r => setTimeout(r, 8000)).then(() => welcomeOnJoinByChannel(env, ev.channel))).catch(e => console.log('welcome on join: ' + e.message)));
     return ACK();
   }
   /* A mention that uploads a clip or image arrives with subtype file_share; the ideas bot wants those. */
@@ -5743,7 +5745,8 @@ const AH_APP = {
   async queue(batch, env) {
     env = meterEnv(env); subReset(env);
     for (const m of batch.messages) {
-      if (env.IDEAS_BOT !== 'off') await runIdeaJob(env, m.body).catch(e => console.log('idea job: ' + e.message));
+      if (m.body?.kind === 'welcome') await welcomeOnJoinByChannel(env, m.body.channel).catch(e => console.log('welcome job: ' + e.message));
+      else if (env.IDEAS_BOT !== 'off') await runIdeaJob(env, m.body).catch(e => console.log('idea job: ' + e.message));
       m.ack();
     }
   },

@@ -207,38 +207,52 @@ async function gapi(env, scope, path, init = {}) {
 const DRIVE = 'https://www.googleapis.com/auth/drive';
 const NEEDS_DRIVE = 'Locus may only READ Google Drive today. In Google Admin (Security > API controls > Domain-wide delegation) add the scope https://www.googleapis.com/auth/drive to the Locus service account, then press Retry. Until then: copy the template folder by hand and paste its link into the "Google Drive" task in Asana.';
 
+/* The client's Drive folder has three jobs and nothing else (Cole, 2026-10-03: Frame is for review,
+   Locus for research, Asana for production; Drive keeps what none of those should hold):
+     Agreements      the signed agreement and every signed amendment, saved by Locus as Google Docs
+                     the moment they are signed. Team only: the client gets their copy by email.
+     From the client the files they send us that are not in their own library (raw footage, a product
+                     shoot, a big brand pack). The client can add; this is the folder their form links.
+     Final ads       approved, finished ads for the client to download and use anywhere (organic,
+                     email, site). The client can view and download. The team drops finals here after launch.
+   Runs again safely: missing subfolders are made, existing ones are kept. */
+const DRIVE_FOLDERS = [['agreements', 'Agreements'], ['inbox', 'From the client'], ['finals', 'Final ads']];
 async function stepDrive(env, r) {
   const team = safeJson(r.team_json, {});
   let url = r.drive_url;
   const out = { notes: [] };
+  const mk = (name, parent) => gapi(env, DRIVE, 'drive/v3/files?supportsAllDrives=true&fields=id', { method: 'POST', body: { name, mimeType: 'application/vnd.google-apps.folder', ...(parent ? { parents: [parent] } : {}) } });
   if (!url) {
     let parent;
     try { parent = (await gapi(env, DRIVE, `drive/v3/files/${DRIVE_TEMPLATE}?fields=parents&supportsAllDrives=true`)).parents?.[0]; }
     catch (e) { throw new Error(/sign-in failed|unauthorized_client|access_denied/i.test(e.message) ? NEEDS_DRIVE : `Google Drive: ${e.message}`); }
-    const mk = (name, p) => gapi(env, DRIVE, 'drive/v3/files?supportsAllDrives=true&fields=id', { method: 'POST', body: { name, mimeType: 'application/vnd.google-apps.folder', ...(p ? { parents: [p] } : {}) } });
     const root = await mk(r.name, parent);
     url = `https://drive.google.com/drive/folders/${root.id}`;
     await patchRun(env, r.id, { drive_url: url }); r.drive_url = url;
-    await mk('Branding', root.id);
-    const assets = await mk('Assets', root.id);
-    await mk('Ad Concepts', assets.id);
-    await mk('Client Content', assets.id);
   }
-  /* Sharing runs on every pass (a Retry after a failed share must share), and is harmless to repeat.
-     The team gets no email; the client does, because Google only lets a non-Google address in
-     with the invite email ("Notify people"), and the welcome email tells them to expect it. */
   const rootId = (/folders\/([A-Za-z0-9_-]+)/.exec(url) || [])[1];
-  const share = (email, notify) => gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role: 'writer', emailAddress: email } });
-  for (const e of teamList(team).filter(x => x !== OWNER)) await share(e, false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
-  if (emailOk(r.contact_email)) await share(r.contact_email, false).catch(() => share(r.contact_email, true)).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
-  /* The link lives in Asana (Client Resources > Google Drive) and on the brand in Locus. */
-  if (r.asana_project) {
-    const tasks = await asanaAll(env, `/projects/${r.asana_project}/tasks?opt_fields=name`);
-    const t = tasks.find(x => /^google drive/i.test(x.name || ''));
-    if (t) await asana(env, `/tasks/${t.gid}`, { method: 'PUT', body: { notes: url } }).catch(() => {});
+  /* The three folders, found by name or made. */
+  const kids = (await gapi(env, DRIVE, `drive/v3/files?supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)&q=${encodeURIComponent(`'${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`)}`)).files || [];
+  const ids = {};
+  for (const [k, name] of DRIVE_FOLDERS) ids[k] = kids.find(f => f.name === name)?.id || (await mk(name, rootId)).id;
+  const link = id => `https://drive.google.com/drive/folders/${id}`;
+  /* Sharing runs on every pass (a Retry after a failed share must share), and is harmless to repeat.
+     The team edits everything. The client can add to From the client and view Final ads; they never
+     get the root or Agreements. Google only lets a non-Google address in with the invite email. */
+  const share = (id, email, role, notify) => gapi(env, DRIVE, `drive/v3/files/${id}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role, emailAddress: email } });
+  for (const e of teamList(team).filter(x => x !== OWNER)) await share(rootId, e, 'writer', false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
+  if (emailOk(r.contact_email)) {
+    /* A folder made before 2026-10-03 shared its root with the client: take that back. */
+    const perms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress)`).catch(() => ({}))).permissions || [];
+    for (const pm of perms.filter(x => (x.emailAddress || '').toLowerCase() === r.contact_email.toLowerCase())) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
+    for (const [id, role] of [[ids.inbox, 'writer'], [ids.finals, 'reader']]) {
+      await share(id, r.contact_email, role, false).catch(() => share(id, r.contact_email, role, true)).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
+    }
   }
-  if (r.pending_act) await setDrive(env, r.act_id || r.pending_act, url);
-  return { ...out, url, text: 'Folder made and shared.' };
+  /* Asana Client Resources > Google Drive carries the two client folders; the form links From the client. */
+  if (r.asana_project) await upsertResource(env, r.asana_project, 'Google Drive', `Send us files: ${link(ids.inbox)}\nYour finished ads: ${link(ids.finals)}`).catch(() => {});
+  if (r.pending_act) await setDrive(env, r.act_id || r.pending_act, link(ids.inbox));
+  return { ...out, url, folders: ids, text: 'Folder made: Agreements (team only), From the client, Final ads.' };
 }
 
 /* ---------------- Slack ---------------- */

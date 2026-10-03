@@ -1122,3 +1122,13 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   (`aiAmend`, asks QUESTION: when facts are missing), Preview, Send for signature (`sendAmendment`). Stored as a
   p_contract row with token `<token>a<n>` (still hex, so sign.html serves it unchanged; letterhead says the number).
   The signed original never changes. Stripe is NOT changed by an amendment: a price change must be made in Stripe.
+- **Drive has three jobs (Cole, 2026-10-03: "a drive in case, but with a use case"; Frame stays review-only).**
+  Per client: `Agreements` (team only; `saveSignedToDrive` in contract.js writes every signed agreement and
+  amendment there as a Google Doc with the signature record, the moment it is signed: tested), `From the client`
+  (client can add; the form's drop link and `profile.drive` point here), `Final ads` (client can view and
+  download; the team drops approved finals after launch). The client never gets the root. Asana Client
+  Resources > Google Drive carries both client links. `stepDrive` is idempotent and also took back the root
+  share the first two clients (Ice & Gold, Yak Sports) had. Folder ids are on `steps.drive.folders`.
+- Client welcome: `member_joined_channel` (needs that bot event subscribed in the Slack app) -> IDEA_Q job
+  `{kind:'welcome'}` with `delaySeconds: 60` -> `welcomeOnJoinByChannel`; the hourly tick stays as backup.
+  `/slack/owns` answers true for a new client's channel until its welcome is posted, so the router forwards it.
