@@ -216,7 +216,7 @@ const NEEDS_DRIVE = 'Locus may only READ Google Drive today. In Google Admin (Se
      Final ads       approved, finished ads for the client to download and use anywhere (organic,
                      email, site). The client can view and download. The team drops finals here after launch.
    Runs again safely: missing subfolders are made, existing ones are kept. */
-const DRIVE_FOLDERS = [['agreements', 'Agreements'], ['inbox', 'From the client'], ['finals', 'Final ads']];
+const DRIVE_FOLDERS = [['agreements', 'Agreements'], ['inbox', 'From the client']];   // 'Final ads' dropped 2026-10-03: finished ads live in Frame and on the Your ads page
 async function stepDrive(env, r) {
   const team = safeJson(r.team_json, {});
   let url = r.drive_url;
@@ -244,19 +244,19 @@ async function stepDrive(env, r) {
      its own. Agreements = Cole + the client (view). The team works in the other two. */
   const rootPerms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress,role)`).catch(() => ({}))).permissions || [];
   for (const pm of rootPerms.filter(x => x.role !== 'owner' && x.emailAddress && x.emailAddress.toLowerCase() !== OWNER)) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
-  for (const e of teamList(team).filter(x => x !== OWNER)) for (const id of [ids.inbox, ids.finals]) await share(id, e, 'writer', false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
+  for (const e of teamList(team).filter(x => x !== OWNER)) for (const id of [ids.inbox]) await share(id, e, 'writer', false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
   if (emailOk(r.contact_email)) {
     /* A folder made before 2026-10-03 shared its root with the client: take that back. */
     const perms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress)`).catch(() => ({}))).permissions || [];
     for (const pm of perms.filter(x => (x.emailAddress || '').toLowerCase() === r.contact_email.toLowerCase())) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
-    for (const [id, role] of [[ids.inbox, 'writer'], [ids.finals, 'reader'], [ids.agreements, 'reader']]) {
+    for (const [id, role] of [[ids.inbox, 'writer'], [ids.agreements, 'reader']]) {
       await share(id, r.contact_email, role, false).catch(() => share(id, r.contact_email, role, true)).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
     }
   }
   /* Asana Client Resources > Google Drive carries the two client folders; the form links From the client. */
-  if (r.asana_project) await upsertResource(env, r.asana_project, 'Google Drive', `Send us files: ${link(ids.inbox)}\nYour finished ads: ${link(ids.finals)}`).catch(() => {});
+  if (r.asana_project) await upsertResource(env, r.asana_project, 'Google Drive', `Send us files: ${link(ids.inbox)}\nYour signed agreements: ${link(ids.agreements)}`).catch(() => {});
   if (r.pending_act) await setDrive(env, r.act_id || r.pending_act, link(ids.inbox));
-  return { ...out, url, folders: ids, text: 'Folder made: Agreements (you and the client only), From the client, Final ads.' };
+  return { ...out, url, folders: ids, text: 'Folder made: Agreements (you and the client only) and From the client.' };
 }
 
 /* ---------------- Slack ---------------- */
@@ -679,6 +679,19 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
   } catch (e) { return json({ error: e.message }, e.status && e.status !== 401 ? e.status : 500); }
 }
 
+/** The client's Your ads page: the same stable token as their report archive (worker.js reportToken). */
+async function yourAdsUrl(env, act) {
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'reportTokens'`).first().catch(() => null);
+  const tokens = safeJson(row?.value, {});
+  let tok = Object.keys(tokens).find(k => tokens[k].act_id === act);
+  if (!tok) {
+    tok = crypto.randomUUID().replace(/-/g, '');
+    tokens[tok] = { act_id: act, created: new Date().toISOString() };
+    await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('reportTokens', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(tokens)).run();
+  }
+  return `https://tools.go-mobius-digital.com/yourads/?t=${tok}`;
+}
+
 /* ---------------- the client's welcome, the moment they join their channel ----------------
    Posted as Cole (SLACK_USER_TOKEN), pinned, with every link they need. Not before they are in:
    the hourly tick looks for a member of the client channel from outside the Mobius workspace. */
@@ -709,6 +722,7 @@ async function welcomeOnJoin(env, r) {
     r.asana_url ? `• Your Asana project (every ad, before it runs): ${r.asana_url}` : null,
     r.drive_url ? `• Your Google Drive folder with us: ${r.drive_url}` : null,
     `• Book the strategy call: ${CALENDLY}`,
+    r.act_id ? `• Every ad we run for you, newest first: ${await yourAdsUrl(env, r.act_id)}` : null,
   ].filter(Boolean);
   const text = [`*Welcome, ${r.name}!* This channel is where we talk day to day. Say hi, ask anything, drop files, tag any of us.`, '',
     '*Your team at Mobius*', '• Cole Wetzler, founder, your main contact', ...people, '',

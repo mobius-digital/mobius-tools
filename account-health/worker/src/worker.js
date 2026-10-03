@@ -5995,6 +5995,50 @@ const AH_APP = {
          resolves an ad that IS in one of that client's sent reports.
        Returns the URL rather than streaming it, so the browser talks straight
        to the CDN and seeking/range requests work properly. */
+    /* ---- YOUR ADS (2026-10-03): the client's own page of every ad we ran for them.
+       tools.go-mobius-digital.com/yourads/?t=<the brand's report token> (the same stable token as their
+       report archive). Public by token, like the archive; only that brand's ads, newest first, no money.
+       /thumb serves one ad's image (cached creative), ?dl=1 as a download. ---- */
+    let yam;
+    if ((yam = path.match(/^\/api\/your-ads\/([a-f0-9]{16,})(\/thumb)?$/)) && request.method === 'GET') {
+      const actId = safeJson(await getSetting(env, 'reportTokens'), {})?.[yam[1]]?.act_id;
+      if (!actId) return json({ error: 'This link is not valid. Ask your Mobius contact for a new one.' }, 404);
+      if (yam[2]) {
+        const adId = url.searchParams.get('ad') || '';
+        const own = /^\d+$/.test(adId) && await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id = ?1 AND ad_id = ?2`).bind(actId, adId).first().catch(() => null);
+        if (!own) return new Response('not found', { status: 404, headers: CORS });
+        const c = (await adThumbnails(env, [adId], LIVE_THUMBS).catch(() => ({})))[adId];
+        const mm = /^data:([^;]+);base64,(.+)$/.exec(c?.thumb || '');
+        if (!mm) return new Response('no image', { status: 404, headers: CORS });
+        const bytes = Uint8Array.from(atob(mm[2]), ch => ch.charCodeAt(0));
+        const ext = (mm[1].split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+        return new Response(bytes, { headers: { ...CORS, 'Content-Type': mm[1], 'Cache-Control': 'public, max-age=86400',
+          ...(url.searchParams.get('dl') ? { 'Content-Disposition': `attachment; filename="ad-${adId}.${ext}"` } : {}) } });
+      }
+      const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(actId).first();
+      const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
+      const recent = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10);
+      const { results } = await env.DB.prepare(`SELECT d.ad_id, a.name, a.media_type, MIN(d.date) AS first, MAX(d.date) AS last
+          FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
+          WHERE d.act_id = ?1 AND d.date >= ?2 AND d.spend > 0 GROUP BY d.ad_id ORDER BY first DESC, last DESC LIMIT 400`).bind(actId, since).all();
+      /* Our ad names carry test numbers and format tags ("326-5 | Still"); the client reads what is left. */
+      const label = n => {
+        let t = String(n || '').replace(/^\s*(?:[A-Za-z]{2,4}_)?#?\d{1,4}(?:[-.]\s*\d+)?\s*[-:|.]?\s*/, '').split('|').map(x => x.trim()).filter(Boolean)[0] || '';
+        /* Creator uploads arrive as file names: CalebSchroeder_FairwayPalms_..._20260925_trybe=dcac0b10 */
+        t = t.replace(/(?:^|[_\s-])(?:trybe|utm_\w+|id)\s*[=:]\s*\w+/gi, '').replace(/(?:^|[_\s-])20\d{6}(?=$|[_\s-])/g, '').replace(/\.(mp4|mov|jpe?g|png|webp)$/i, '')
+          .replace(/_+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s{2,}/g, ' ').trim();
+        /* A bare format tag ("Still", "UGC") says nothing to a client: the page names it by type. */
+        return /^(still|static|ugc|video|image|carousel|gif|reel|story)$/i.test(t) ? '' : t;
+      };
+      return json({ brand: acct?.name || '', ads: (results || []).map(r => ({ id: r.ad_id, name: label(r.name), type: r.media_type || null, from: r.first, to: r.last, live: r.last >= recent })) });
+    }
+    /* Locus: the link to a brand's Your ads page (admin). */
+    if (path === '/api/your-ads-link' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const act = url.searchParams.get('act') || '';
+      if (!/^act_\d+$/.test(act)) return json({ error: 'act is required' }, 400);
+      return json({ url: `https://tools.go-mobius-digital.com/yourads/?t=${await reportToken(env, act)}` });
+    }
     if (path === '/api/ad-video') {
       const adId = url.searchParams.get('ad');
       const repTok = url.searchParams.get('report');
@@ -6016,6 +6060,11 @@ const AH_APP = {
         const hit = (safeJson(row.data_json, {}).ads || []).find(a => a.ad_id === adId);
         if (!hit) return json({ error: 'not in this set of ads' }, 404);
         hint = { video_id: hit.video_id, page_id: hit.page_id };
+      } else if (url.searchParams.get('yours')) {
+        /* The client's own Your ads page plays only that brand's ads. */
+        const actId = safeJson(await getSetting(env, 'reportTokens'), {})?.[url.searchParams.get('yours')]?.act_id;
+        const own = actId && await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id = ?1 AND ad_id = ?2`).bind(actId, adId).first().catch(() => null);
+        if (!own) return json({ error: 'not on this page' }, 404);
       } else if (url.searchParams.get('angles')) {
         // A creator link plays only the ads it shows as proof (see ad-creatives above).
         const slug = url.searchParams.get('angles');

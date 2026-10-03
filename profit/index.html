@@ -3035,7 +3035,7 @@ async function renderCreativeBrowser(host, act, range) {
           : `<b class="cb-thresh">${CB.mult ? fmtMoney(d.floor, cur) : 'any'}</b>`}</label>
       <span style="flex:1"></span>
       <label class="cb-l cb-lock" title="Locked: the client sees exactly this view, no re-sorting or filters. Off: they can explore the same ads their own way."><input type="checkbox" id="cbLock"${CB.lock ? ' checked' : ''}> Lock view</label>
-      <button class="btn" id="cbShare" title="Freezes this view as a read-only page and copies its link">Copy client link</button><span class="tiny" id="cbShareMsg"></span>
+      <button class="btn" id="cbYours" title="The client's own page of every ad we ran for them: always current, newest first, no numbers. Same link every time.">Copy "Your ads" page link</button><button class="btn" id="cbShare" title="Freezes this view as a read-only page and copies its link">Copy this view as a link</button><span class="tiny" id="cbShareMsg"></span>
     </div>
     ${(() => {
       /* THE RULE, STATED WHERE THE ADS ARE.
@@ -3198,6 +3198,15 @@ async function renderCreativeBrowser(host, act, range) {
      and says so beside itself. */
   const lockIn = $('#cbLock');
   if (lockIn) lockIn.onchange = () => { CB.lock = lockIn.checked; };
+  /* The client's Your ads page (yourads/, 2026-10-03): one stable link per brand, always current. */
+  $('#cbYours').onclick = async () => {
+    const msg = $('#cbShareMsg');
+    try {
+      const r = await apiAH(`/api/your-ads-link?act=${encodeURIComponent(act)}`);
+      try { await navigator.clipboard.writeText(r.url); msg.textContent = 'Your ads link copied'; msg.style.color = 'var(--good)'; }
+      catch { msg.innerHTML = `Copy this: <code style="user-select:all;font-size:11px">${esc(r.url)}</code>`; }
+    } catch (e) { msg.textContent = e.message; msg.style.color = 'var(--bad)'; }
+  };
   $('#cbShare').onclick = async () => {
     const b = $('#cbShare'), msg = $('#cbShareMsg');
     const flash = (t, ok) => { msg.textContent = t; msg.style.color = ok ? 'var(--good)' : 'var(--bad)'; msg.style.fontWeight = '700';

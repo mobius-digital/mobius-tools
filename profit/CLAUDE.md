@@ -1132,3 +1132,12 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
 - Client welcome: `member_joined_channel` (needs that bot event subscribed in the Slack app) -> IDEA_Q job
   `{kind:'welcome'}` with `delaySeconds: 60` -> `welcomeOnJoinByChannel`; the hourly tick stays as backup.
   `/slack/owns` answers true for a new client's channel until its welcome is posted, so the router forwards it.
+- **Your ads page (2026-10-03):** `tools.go-mobius-digital.com/yourads/?t=<the brand's report token>` (the same
+  stable token as the report archive). Every ad with spend in the last ~13 months, newest first, "Running now" when
+  it spent in the last 3 days, filters All / Running now / Videos / Images, tap to play or view, Download. No money.
+  Account-health routes: `GET /api/your-ads/:token` (list; ad names cleaned: test numbers, format tags, creator file
+  names), `/api/your-ads/:token/thumb?ad=` (cached creative image, `&dl=1` downloads), `/api/ad-video?yours=` (plays
+  only that brand's ads), `GET /api/your-ads-link?act=` (admin). Locus: Meta > Creative > "Copy Your ads page link".
+  The client's Slack welcome includes it once the brand's ad account is connected. Partnership (creator page) ads
+  cannot give us the file: they show Meta's own preview with "ask us for the file" (Grunk: 21 of 40 videos).
+  Drive: the "Final ads" folder was dropped the same day; finals live in Frame and on this page.
