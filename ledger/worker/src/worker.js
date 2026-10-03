@@ -776,6 +776,18 @@ function receiptMatch(rows, vendor, amount, date, allowTip=false) {
     && (!date || Math.abs(Date.parse(t.date)-Date.parse(date))<=12*86400e3));
   const exact=eligible.filter(t=>Math.abs(t.amount-Number(amount))<0.005);
   if(exact.length) return exact.length===1?exact[0]:null;
+  /* The receipt and the bank rarely spell a company the same way ("01TESSERACT
+   * PTE. LTD. (Atria)" vs "Atria", "Docusign Inc." vs "Docusign"). Second
+   * pass: the looser name test (one name contains a real word of the other)
+   * with the exact total inside a week, and only when exactly one charge
+   * fits. Names must still not contradict: an Anthropic receipt never lands
+   * on an OpenAI charge. Without this, two dropped PDFs were filed as NEW
+   * expenses on 2026-10-03 and September counted $74 of spending twice. */
+  if (date && Number(amount) > 0) {
+    const near = rows.filter(t => t.type==='out' && !t.expected && !t.receipt_key && looseNameMatch(t.vendor, vendor)
+      && Math.abs(t.amount-Number(amount))<0.005 && Math.abs(Date.parse(t.date)-Date.parse(date))<=7*86400e3);
+    if (near.length === 1) return near[0];
+  }
   const tips=allowTip && Number(amount)>0 ? eligible.filter(t=>t.amount>=Number(amount)/1.35 && t.amount<=Number(amount)*1.35) : [];
   return tips.length===1?tips[0]:null;
 }

@@ -165,6 +165,12 @@ async function main(){
       assert.equal(context.api.receiptMatch([...rows,{...rows[0],id:2}],'OpenAI',90,'2026-09-01'),null);
       assert.equal(context.api.receiptMatch(rows,'OpenAI',75,'2026-09-01',true).id,1);
     });
+    await check('matcher: receipt spells the company differently but exact total attaches (Atria, Docusign 2026-10-03)',()=>{
+      const rows=[{id:2021,type:'out',vendor:'Atria',amount:59,date:'2026-09-29'},{id:2031,type:'out',vendor:'Docusign',amount:15,date:'2026-09-30'}];
+      assert.equal(context.api.receiptMatch(rows,'01TESSERACT PTE. LTD. (Atria)',59,'2026-09-29',true)?.id,2021);
+      assert.equal(context.api.receiptMatch(rows,'Docusign Inc.',15,'2026-09-30',true)?.id,2031);
+      assert.equal(context.api.receiptMatch(rows,'Higgsfield',59,'2026-09-29',true),null);
+    });
     await check('held matcher: card spelling differs but amount exact attaches',()=>{
       const rows=[{id:1,type:'out',vendor:'SPO*OAXACAMARGARITABEDWARDSVILLE',amount:50.30,date:'2026-09-14'}];
       const d=context.api.heldReceiptMatch(rows,'Oaxaca Margarita Bar & Mexican Restaurant',50.30,'2026-09-12');
