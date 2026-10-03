@@ -510,7 +510,32 @@ const BUTTONS = (d) => [
     done: (r, req) => `Retainers expected for ${req.body.month}.` }),
 ];
 
+/* Fetching receipts is the one write the Controller does without an Apply
+ * tap: it only ever attaches a document to a charge that already exists, the
+ * total must agree to the cent, and every attachment can be removed in a
+ * click. Cole asked for it to just go and get them. */
+const huntDef = { name: 'find_receipts',
+  description: 'Go into Gmail and find the receipts that are missing, then attach them. Use when asked to find, fetch, get, chase or ' +
+    'track down receipts or invoices. It searches by the exact charge amount and date, reads the email or its PDF, and attaches only ' +
+    'when the total matches to the cent. Pass a month, specific transaction ids, or nothing for the last four months. It does a few ' +
+    'right away and finishes the rest in the background, posting one summary in Slack when done. Charges it cannot find in email ' +
+    'need downloading from the vendor site (it lists those with their billing links); you cannot log into vendor sites.',
+  input_schema: { type: 'object', properties: {
+    month: { type: 'string', description: "'YYYY-MM'" },
+    ids: { type: 'array', items: { type: 'integer' }, description: 'transaction ids' } } } };
+const huntRun = (d) => async (env, input, ctx) => {
+  const month = /^\d{4}-\d{2}$/.test(input?.month || '') ? input.month : null;
+  const ids = Array.isArray(input?.ids) && input.ids.length ? input.ids.map(Number).filter(Boolean) : null;
+  const origin = ctx?.channel ? { channel: ctx.channel, thread: ctx.thread || null } : null;
+  const r = await d.huntReceipts(env, { month, ids, all: !month && !ids, origin, limit: 3 });
+  if (r.error && !r.did?.length) return { is_error: true, text: r.error };
+  const lines = (r.did || []).map(x => `${x.found ? 'FOUND' : 'not found'}: ${x.vendor} $${x.amount} ${x.date}${x.found ? ' (' + x.subject + ')' : ' (' + x.why + ')'}${!x.found && x.billing_url ? ' billing page ' + x.billing_url : ''}`);
+  return { text: (lines.length ? 'Checked so far:\n' + lines.join('\n') : 'Nothing was missing a receipt in that range.') +
+    (r.left ? `\n${r.left} more queued; they finish in the background over the next while and one summary is posted in Slack${origin ? ' in this thread' : ''} when done. Tell him that in one line.` : '') };
+};
+
 const SLACK_TOOLS = (d) => [
+  { def: huntDef, run: huntRun(d) },
   { def: { name: 'send_report',
       description: 'Post the finished Profit & Loss PDF statement into this Slack channel, with the standard summary. Use this when asked for "the report", "the P&L", a statement, or a PDF. Do NOT use it for figures in the chat or a written summary; answer those yourself.',
       input_schema: { type: 'object', properties: { period: { type: 'string', enum: ['month', 'quarter', 'year'] }, anchor: { type: 'string', description: "Any month inside the period, 'YYYY-MM'." } }, required: ['period', 'anchor'] } },
@@ -534,7 +559,7 @@ const SLACK_TOOLS = (d) => [
  *           bankBalances, dashSummary, recentRevenueAvg, getMoney, getNotify
  */
 export function buildController(d) {
-  const secretKey = makeSecretKey(['plaidItems', 'driveAuth', 'driveOauthState', 'passwordHash', 'allowedEmails', 'ownerEmail', 'ownerUserId', 'stripeMap']);
+  const secretKey = makeSecretKey(['plaidItems', 'driveAuth', 'driveOauthState', 'gmailAuth', 'receiptHunt', 'passwordHash', 'allowedEmails', 'ownerEmail', 'ownerUserId', 'stripeMap']);
   let engine;
   const rawViews = buildViews(d);
   /* the findings view needs the engine, which needs the views: close the loop lazily */
@@ -558,6 +583,7 @@ export function buildController(d) {
     checks: (env, hh) => runChecks(env, hh, d),
     snapshot: (env, hh) => snapshot(env, hh, d),
     slackTools: SLACK_TOOLS(d),
+    webTools: [{ def: huntDef, run: huntRun(d) }],
     actions: [...ACTIONS(d), ...BUTTONS(d)],
     playbook: PLAYBOOK,
     slackApp: 'ledger',

@@ -18,6 +18,8 @@ import { zipStream, zipSafe } from './zip.js';
 import { buildController, applyAskEdit } from './controller.js';
 import { driveReady, driveAuthUrl, driveExchangeCode, driveListReceipts,
          driveDownload, driveFolderId } from './drive.js';
+import { gmailAuthUrl, gmailSearch, gmailMessage, gmailAttachment, gmailDay,
+         amountTerms, vendorWord } from './gmail.js';
 
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 const RECEIPT_MAX = 4 * 1024 * 1024; // 4MB post-downscale ceiling per file
@@ -849,10 +851,196 @@ function heldReceiptMatch(rows, vendor, amount, date) {
  * and the computations handed to it rather than importing back into this
  * file, so every function keeps one owner. Built once per isolate. */
 let _ctl = null;
+/* ------------------------------------------------------------------ */
+/*  Receipt hunt: go to Gmail and fetch what is missing                */
+/* ------------------------------------------------------------------ */
+/* Cole asked for the Controller to fetch receipts instead of him. The bank
+ * feed already says a charge exists, so this only ever ATTACHES, never files
+ * a new row. Per charge: search Gmail by its exact total inside a date window
+ * (the strongest key there is), then by vendor word; read the best candidate
+ * (a "receipt" PDF, then any PDF/image, then the email itself); attach only
+ * when the total agrees to the cent AND either the name agrees or no other
+ * open charge in the window has that total. A wrong attachment is worse than
+ * a missing one, so anything short of that is left for him.
+ *
+ * Volume: about seven Google/Claude calls per charge, so a request does a few
+ * and the 10-minute cron finishes the queue. Each charge is tried at most
+ * three times over three weeks, then it is a "download it from their site"
+ * row with the billing link, which is the part email cannot do. */
+const HUNT_PER_RUN = 4;
+const htmlText = html => String(html || '')
+  .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ')
+  .replace(/&nbsp;|&#8199;|&#847;|&zwnj;/gi, ' ')
+  .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+  .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&#36;/g, '$')
+  .replace(/\s+/g, ' ').trim();
+const toB64 = bytes => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
+
+async function gmailStore(env) {
+  const s = safeJson(await getSetting(env, 'gmailAuth'), null);
+  return s?.refresh ? s : null;
+}
+
+async function huntOne(env, store, t) {
+  const amt = round2(Math.abs(t.amount));
+  const terms = amountTerms(amt);
+  const after = gmailDay(addDaysYmd(t.date, -6)), before = gmailDay(addDaysYmd(t.date, 9));
+  const base = `after:${after} before:${before} -in:sent -in:chats`;
+  const word = vendorWord(t.vendor);
+  const ids = [...new Set([
+    ...await gmailSearch(env, store, `${base} (${terms.map(x => `"${x}"`).join(' OR ')})`, 5),
+    ...(word ? await gmailSearch(env, store, `${base} ${word} (receipt OR invoice OR paid OR payment OR order OR billing OR statement)`, 4) : []),
+  ])].slice(0, 6);
+  if (!ids.length) return { found: false, why: 'nothing in Gmail' };
+
+  const tried = [];
+  for (const id of ids) {
+    const m = await gmailMessage(env, store, id);
+    const body = (m.text && m.text.length > 200 ? m.text : htmlText(m.html)) || m.text || '';
+    const atts = m.attachments.filter(a => (a.mimeType === 'application/pdf' || /^image\//.test(a.mimeType || '')) && a.size < 4.5 * 1024 * 1024);
+    const named = re => atts.find(a => re.test(a.name));
+    const att = named(/receipt/i) || named(/invoice|statement|bill/i) || atts[0];
+    const amountInText = terms.some(x => body.includes(x) || m.snippet.includes(x) || m.subject.includes(x));
+    // Cheap gate before paying for a read: the total is in the text, or there
+    // is a PDF/image that might hold it (Gmail does not always index those).
+    if (!amountInText && !att) { tried.push(m.subject); continue; }
+
+    let bytes, mime, fname, ext;
+    if (att && (!amountInText || /receipt/i.test(att.name))) {
+      bytes = await gmailAttachment(env, store, id, att.attachmentId);
+      mime = att.mimeType; fname = att.name;
+      ext = await claudeExtract(env, toB64(bytes), mime);
+    }
+    if (!ext?.amount || Math.abs(round2(Math.abs(ext.amount)) - amt) >= 0.005) {
+      if (!amountInText) { tried.push(m.subject); continue; }
+      const text = [`Subject: ${m.subject}`, `From: ${m.from}`, `Date: ${m.date}`, body].join('\n');
+      ext = await claudeExtract(env, null, null, text);
+      bytes = new TextEncoder().encode(m.html || `<pre>${text.replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;')}</pre>`);
+      mime = 'text/html'; fname = (m.subject || 'email receipt').slice(0, 110) + '.html';
+    }
+    if (!ext) { tried.push(m.subject); continue; }
+    // A stacked bank confirmation lists several payments: one of them may be ours.
+    const pays = [{ vendor: ext.vendor, amount: ext.amount, date: ext.date }, ...(ext.payments || [])];
+    const pay = pays.find(p => Math.abs(round2(Math.abs(Number(p.amount))) - amt) < 0.005);
+    if (!pay) { tried.push(m.subject); continue; }
+    if (pay.date && Math.abs(Date.parse(pay.date) - Date.parse(t.date)) > 12 * 86400e3) { tried.push(m.subject); continue; }
+
+    const nameOk = sameCompany(t.vendor, pay.vendor) || looseNameMatch(t.vendor, pay.vendor)
+      || (word && (m.from + ' ' + m.subject).toLowerCase().includes(word));
+    if (!nameOk) {
+      const { results: rivals } = await env.DB.prepare(`SELECT id FROM transactions WHERE type='out' AND expected=0
+        AND receipt_key IS NULL AND id != ?1 AND ABS(ABS(amount) - ?2) < 0.005 AND date BETWEEN ?3 AND ?4`)
+        .bind(t.id, amt, addDaysYmd(t.date, -12), addDaysYmd(t.date, 12)).all();
+      if (rivals.length) { tried.push(m.subject); continue; }
+    }
+    const hash = await sha256bytes(bytes);
+    const dupe = await env.DB.prepare('SELECT id FROM transactions WHERE receipt_hash=?1').bind(hash).first();
+    if (dupe) { tried.push(m.subject + ' (already on another row)'); continue; }
+    const key = `rcpt:${t.id}:${Date.now()}`;
+    await receiptPut(env, key, bytes);
+    const done = await env.DB.prepare(`UPDATE transactions SET receipt_key=?2, receipt_name=?3, receipt_type=?4, receipt_hash=?5
+      WHERE id=?1 AND receipt_key IS NULL`).bind(t.id, key, String(fname).slice(0, 120), mime, hash).run();
+    if (!done.meta.changes) { await receiptDelete(env, key); return { found: false, why: 'already has one' }; }
+    return { found: true, subject: m.subject, from: m.from, link: m.link, kind: mime === 'text/html' ? 'email' : 'attachment' };
+  }
+  return { found: false, why: tried.length ? `looked at ${tried.length} email${tried.length > 1 ? 's' : ''}, none had this total` : 'nothing in Gmail' };
+}
+
+/**
+ * Queue charges and work through them. opts: { ids, month, all, auto, origin:{channel,thread}, limit }.
+ * Returns what this call did plus how much is still queued.
+ */
+async function huntReceipts(env, opts = {}) {
+  const store = await gmailStore(env);
+  if (!store) return { error: 'Gmail is not connected yet. Settings > Receipts from Gmail > Connect Gmail.' };
+  const state = safeJson(await getSetting(env, 'receiptHunt'), null) || { tries: {} };
+  state.tries = state.tries || {};
+  state.found = state.found || []; state.missed = state.missed || []; state.queue = state.queue || [];
+  if (opts.ids?.length || opts.month || opts.all || opts.auto) {
+    const where = [`t.type='out'`, `t.expected=0`, `t.receipt_key IS NULL`, `t.receipt_skip=0`, `t.amount > 0`];
+    const bind = [];
+    if (opts.ids?.length) { where.push(`t.id IN (${opts.ids.map(() => '?').join(',')})`); bind.push(...opts.ids.map(Number)); }
+    else if (opts.month) { where.push(`t.month = ?`); bind.push(opts.month); }
+    else { where.push(`t.date >= ?`); bind.push(addDaysYmd(centralDate(Date.now() / 1000), opts.auto ? -45 : -120)); }
+    if (opts.auto) { where.push(`t.date <= ?`); bind.push(addDaysYmd(centralDate(Date.now() / 1000), -2)); }
+    const { results } = await env.DB.prepare(`SELECT t.id FROM transactions t WHERE ${where.join(' AND ')} ORDER BY t.date DESC LIMIT 150`).bind(...bind).all();
+    const now = Date.now();
+    let ids = results.map(r => r.id);
+    // The nightly sweep is patient: a charge gets three looks, five days apart,
+    // starting two days after it posts (receipts often arrive after the charge).
+    if (opts.auto) ids = ids.filter(id => { const x = state.tries[id]; return !x || (x.n < 3 && now - x.at > 5 * 86400e3); });
+    state.queue = [...new Set([...state.queue, ...ids])];
+    if (opts.origin) { state.origin = opts.origin; state.auto = false; }
+    else if (!opts.auto) state.auto = false;
+    else if (state.auto === undefined || !state.origin) state.auto = true;
+  }
+  const did = [];
+  const limit = opts.limit || HUNT_PER_RUN;
+  while (state.queue.length && did.length < limit) {
+    const id = state.queue.shift();
+    const t = await env.DB.prepare(`SELECT t.*, v.billing_url FROM transactions t LEFT JOIN vendors v ON v.name = t.vendor WHERE t.id=?1`).bind(id).first();
+    if (!t || t.receipt_key || t.receipt_skip) continue;
+    let r;
+    try { r = await huntOne(env, store, t); }
+    catch (e) { r = { found: false, why: String(e.message || e).slice(0, 120), error: true }; }
+    if (r.error && /invalid_grant|unauthor|401|403|insufficient/i.test(r.why)) {
+      state.queue.unshift(id);
+      await putSetting(env, 'receiptHunt', JSON.stringify(state));
+      return { error: 'Gmail refused: ' + r.why + '. Reconnect it under Settings.', did, left: state.queue.length };
+    }
+    const x = state.tries[id] || { n: 0 };
+    state.tries[id] = { n: x.n + 1, at: Date.now() };
+    const line = { id, vendor: t.vendor, amount: round2(Math.abs(t.amount)), date: t.date, billing_url: t.billing_url || null, ...r };
+    (r.found ? state.found : state.missed).push(line);
+    did.push(line);
+  }
+  // keep the tries map from growing forever
+  const keys = Object.keys(state.tries);
+  if (keys.length > 600) for (const k of keys.sort((a, b) => state.tries[a].at - state.tries[b].at).slice(0, keys.length - 600)) delete state.tries[k];
+  await putSetting(env, 'gmailAuth', JSON.stringify(store));   // keep the fresh access token
+  const left = state.queue.length;
+  let reported = false;
+  if (!left && (state.found.length || state.missed.length)) {
+    reported = await huntReport(env, state).catch(e => { console.log('hunt report failed: ' + e.message); return false; });
+    state.lastRun = { at: Date.now(), found: state.found.length, missed: state.missed.length };
+    state.found = []; state.missed = []; state.origin = null; state.auto = undefined;
+  }
+  await putSetting(env, 'receiptHunt', JSON.stringify(state));
+  return { did, left, found: did.filter(d => d.found).length, reported };
+}
+
+/* One message when a hunt finishes. Found receipts are a list, not pings;
+ * what is left is split the same way the month-end nudge splits it: the ones
+ * with a billing page (a link to go and download) and the rest. */
+async function huntReport(env, state) {
+  if (!env.SLACK_BOT_TOKEN) return false;
+  const sr = safeJson(await getSetting(env, 'slackReceipts'), {}) || {};
+  const channel = state.origin?.channel || sr.channelId;
+  if (!channel) return false;
+  const found = state.found || [], missed = (state.missed || []).filter(m => m.why !== 'already has one');
+  if (state.auto && !found.length) return false;   // a quiet night says nothing
+  const money = n => '$' + Number(n).toFixed(2);
+  let text = found.length
+    ? `:mag: *Found ${found.length} receipt${found.length > 1 ? 's' : ''} in Gmail and attached ${found.length > 1 ? 'them' : 'it'}:*\n` +
+      found.slice(0, 15).map(f => `• ${f.vendor} ${money(f.amount)} · ${f.date} · <${f.link}|${(f.subject || 'email').replace(/[<>|]/g, '').slice(0, 60)}>`).join('\n') +
+      (found.length > 15 ? `\n• and ${found.length - 15} more` : '')
+    : `:mag: *Looked through Gmail and none of these were there.*`;
+  if (missed.length && !state.auto) {
+    const link = missed.filter(m => m.billing_url), rest = missed.filter(m => !m.billing_url);
+    text += `\n\n*Not in your email (${missed.length})*`;
+    if (link.length) text += `\n_Download from their site:_\n` + link.slice(0, 10).map(m => `• ${m.vendor} ${money(m.amount)} · ${m.date} · <${m.billing_url}|billing page>`).join('\n');
+    if (rest.length) text += `\n${link.length ? '_No billing link saved yet:_\n' : ''}` + rest.slice(0, 12).map(m => `• ${m.vendor} ${money(m.amount)} · ${m.date}`).join('\n') +
+      (rest.length > 12 ? `\n• and ${rest.length - 12} more` : '');
+  }
+  const r = await slack(env, 'chat.postMessage', { channel, text, unfurl_links: false, unfurl_media: false,
+    ...(state.origin?.thread ? { thread_ts: state.origin.thread } : {}) }, true);
+  return !!r?.ok;
+}
+
 function controller() {
   if (!_ctl) _ctl = buildController({
     getSetting, putSetting, safeJson, centralDate, monthOf, addMonthsYmd, validMonth, slack,
-    sendStatement, monthStatus, bucketFor, learnDefault,
+    sendStatement, monthStatus, bucketFor, learnDefault, huntReceipts,
     resolveReport, periodReport, seriesSummary, bankBalances, dashSummary, recentRevenueAvg, getMoney, getNotify,
   });
   return _ctl;
@@ -2814,6 +3002,17 @@ const LEDGER = {
       // every 10 minutes: anything new dropped in Slack #receipts
       ctx.waitUntil((async () => {
         await processSlackReceipts(env).catch(e => console.log('slack receipts failed: ' + e.message));
+        /* Receipt hunt: finish any queue a few charges at a time, and once a
+         * day (after the nightly sync has brought in yesterday's charges)
+         * queue whatever is newly missing. Silent unless it finds something. */
+        await (async () => {
+          if (!(await gmailStore(env))) return;
+          const st = safeJson(await getSetting(env, 'receiptHunt'), null) || {};
+          const auto = (Date.now() - (st.autoAt || 0) > 20 * 3600e3) && new Date().getUTCHours() >= 9;
+          if (!st.queue?.length && !auto) return;
+          if (auto) { st.autoAt = Date.now(); await putSetting(env, 'receiptHunt', JSON.stringify(st)); }
+          await huntReceipts(env, auto && !st.queue?.length ? { auto: true } : {});
+        })().catch(e => console.log('receipt hunt failed: ' + e.message));
         /* A receipt waiting on a charge should not wait until tomorrow morning
          * to find out it arrived. The bank's own copy of the account only
          * refreshes a few times a day, so checking every ten minutes does not
@@ -2922,6 +3121,12 @@ const LEDGER = {
       if (!consumed.meta.changes) return page('That link has expired', 'Connect again from Ledger.');
       try {
         const refresh = await driveExchangeCode(env, code, want.redirectUri);
+        /* Gmail rides the same callback (one redirect URI registered with
+         * Google, not two); the nonce says which connection this was. */
+        if (want.kind === 'gmail') {
+          await putSetting(env, 'gmailAuth', JSON.stringify({ refresh }));
+          return page('Gmail connected', 'Ledger can now look for missing receipts in your email. Close this tab and go back to Mobius Ledger.');
+        }
         await putSetting(env, 'driveAuth', JSON.stringify({ refresh }));
         return page('Google Drive connected', 'You can close this tab and go back to Mobius Ledger.');
       } catch (e) {
@@ -3739,6 +3944,32 @@ const LEDGER = {
       }
 
       /* ---- Google Drive import ---- */
+      if (path === '/api/gmail-status') {
+        const st = safeJson(await getSetting(env, 'receiptHunt'), null);
+        return json({ configured: driveReady(env), connected: !!(await gmailStore(env)),
+          queued: st?.queue?.length || 0, lastRun: st?.lastRun || null });
+      }
+      if (path === '/api/gmail-connect' && request.method === 'POST') {
+        if (!driveReady(env)) return json({ error: 'Google client ID/secret are not set on the worker yet' }, 400);
+        const state = crypto.randomUUID();
+        const redirectUri = `${url.origin}/api/drive-callback`;
+        await putSetting(env, 'driveOauthState',
+          JSON.stringify({ state, redirectUri, kind: 'gmail', expires: Date.now() + 15 * 60e3 }));
+        return json({ url: gmailAuthUrl(env, redirectUri, state) });
+      }
+      if (path === '/api/gmail-disconnect' && request.method === 'POST') {
+        await env.DB.prepare('DELETE FROM settings WHERE key = ?1').bind('gmailAuth').run();
+        return json({ ok: true });
+      }
+      /* Find missing receipts in Gmail. Body: { month } | { ids } | { all: true }.
+       * Does a few now and leaves the rest to the 10-minute cron. */
+      if (path === '/api/receipt-hunt' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const r = await huntReceipts(env, { month: validMonth(b.month) ? b.month : null,
+          ids: Array.isArray(b.ids) ? b.ids.slice(0, 150) : null, all: !b.month && !b.ids, limit: 3 });
+        return json(r, r.error && !r.did ? 400 : 200);
+      }
+
       if (path === '/api/drive-status') {
         const auth = safeJson(await getSetting(env, 'driveAuth'), null);
         const job = safeJson(await getSetting(env, 'driveJob'), null);

@@ -1121,7 +1121,8 @@ function txnRail(){
     <div class="card" style="margin-top:14px">
       <div style="display:flex;align-items:baseline;justify-content:space-between">
         <span class="ct">Missing a receipt · ${missing.length}</span>
-        ${missing.length ? `<button class="ctl" onclick="nudgeSlack(this)" style="color:var(--accent-ink);font-weight:700">Send list to Slack</button>` : ''}
+        ${missing.length ? `<span><button class="ctl" onclick="huntNow(this, S.month)" style="color:var(--accent-ink);font-weight:700" title="Search Gmail for these and attach what matches">Find in Gmail</button>
+          <button class="ctl" onclick="nudgeSlack(this)" style="color:var(--accent-ink);font-weight:700">Send list to Slack</button></span>` : ''}
       </div>
       <div style="margin-top:6px">${rows || '<div class="hint" style="padding:6px 0">Every expense this month has its receipt. ✓</div>'}
       ${missing.length > 8 ? `<div class="tiny" style="margin-top:6px">…and ${missing.length-8} more.</div>` : ''}</div>
@@ -2778,7 +2779,7 @@ function renderSettings(){
         connections: setConnections, notifications: () => b.slackConfigured ? notifyCard() : '<div class="card"><div class="hint">Connect Slack first (Connections).</div></div>', access: setAccess,
         controller: () => AskUI.settingsCard() })[SET.sec]()}</div>
     </div>`;
-  if (SET.sec === 'connections') renderDrive();
+  if (SET.sec === 'connections') { renderDrive(); renderGmail(); }
   if (SET.sec === 'controller') AskUI.afterSettings();
 }
 function setGeneral(){
@@ -2858,6 +2859,9 @@ function setConnections(){
         ? `Drop a receipt photo or PDF into the finance channel and Ledger reads it, matches it to the expense (or files a new one), attaches it and replies in the thread. ${b.slackInstant ? 'Receipts are handled the moment they land, with a 10-minute sweep as backup.' : 'Runs every 10 minutes; add the signing secret to make it instant.'}`
         : 'Paste the Slack bot token into <code>ledger/worker/.env</code> and have it pushed.'}</div>
       <span class="msg" id="spMsg"></span></div>
+    <div class="card" id="gmailCard">${cardH('Receipts from Gmail', 'Ledger goes and finds them for you')}
+      <div class="hint">For every charge missing a receipt, Ledger searches your email for that exact amount around that date, reads the email or its PDF, and attaches it when the total matches to the cent. Read-only: it can never send, delete or change mail. Runs by itself once a day; ask the Controller to run it any time.</div>
+      <div id="gmailBody" class="hint" style="margin-top:12px">Loading…</div></div>
     <div class="card" id="driveCard">${cardH('Import receipts from Google Drive', 'For years already filed in Taxes / 2026 / …')}
       <div class="hint">Ledger reads each PDF, works out the amount and attaches it to the matching transaction. It never creates a transaction and never changes Drive.</div>
       <div id="driveBody" class="hint" style="margin-top:12px">Loading…</div></div>`;
@@ -2875,6 +2879,51 @@ function setAccess(){
       <div class="row" style="margin:14px 0 0"><button class="btn" onclick="signOut()">${TAB_ICONS.out} Sign out</button></div></div>
     <div class="card">${cardH('Worker', 'Where the app reads the books from')}
       <div class="hint"><code>${esc(S.url)}</code> · revision ${esc(String(S.boot.revision ?? '·'))}</div></div>`;
+}
+
+/* ---- Gmail receipt hunt ---- */
+async function renderGmail(){
+  const el = $('#gmailBody'); if (!el) return;
+  let s;
+  try { s = await api('/api/gmail-status'); }
+  catch(e){ el.innerHTML = `<span class="msg bad">${esc(e.message)}</span>`; return; }
+  if (!s.configured) { el.textContent = 'Not set up · the Google client ID and secret are missing on the worker.'; return; }
+  if (!s.connected) {
+    el.innerHTML = `<button class="btn primary" onclick="gmailConnect(this)">Connect Gmail</button>
+      <span class="tiny" style="margin-left:10px">Opens Google, asks for read-only access, comes straight back.</span>`;
+    return;
+  }
+  const last = s.lastRun ? `Last run ${new Date(s.lastRun.at).toLocaleString()} · found ${s.lastRun.found}, not in email ${s.lastRun.missed}.` : 'Not run yet.';
+  el.innerHTML = `<div><span class="pill good">● Connected</span> <span class="tiny" style="margin-left:8px">${s.queued ? s.queued + ' still being searched · ' : ''}${last}</span></div>
+    <div class="row" style="margin-top:10px"><button class="btn primary" onclick="huntNow(this)">Find missing receipts now</button>
+      <button class="btn" onclick="gmailDisconnect()">Disconnect</button></div>`;
+}
+async function gmailConnect(btn){
+  btn.disabled = true;
+  try {
+    const r = await api('/api/gmail-connect', { method:'POST' });
+    window.open(r.url, '_blank', 'noopener');
+    tell('Finish in the new tab', 'Approve read-only access to Gmail, then come back here and reopen Settings.');
+  } catch(e){ tell('Could not start', e.message); }
+  btn.disabled = false;
+}
+async function gmailDisconnect(){
+  try { await api('/api/gmail-disconnect', { method:'POST' }); flash('Saved · Gmail disconnected'); renderGmail(); }
+  catch(e){ tell('Could not disconnect', e.message); }
+}
+async function huntNow(btn, month){
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Searching Gmail…';
+  try {
+    const r = await api('/api/receipt-hunt', { method:'POST', body: JSON.stringify(month ? { month } : {}) });
+    const found = (r.did||[]).filter(d => d.found).length;
+    tell(found ? `Found ${found} so far` : 'Search started',
+      `Checked ${(r.did||[]).length} charge(s) right away${found ? ', receipts attached' : ''}.` +
+      (r.left ? ` ${r.left} more are being searched in the background; a summary lands in Slack when it finishes.` : ' That was everything.'));
+    if (found && S.view !== 'settings') { S.txns = null; show(S.view); }
+  } catch(e){ tell('Could not search Gmail', e.message); }
+  btn.disabled = false; btn.textContent = label;
+  renderGmail();
 }
 
 /* ---- Drive import ---- */
