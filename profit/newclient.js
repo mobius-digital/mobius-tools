@@ -222,6 +222,7 @@ async function status(id, autorun) {
   /* Meta: Locus connects it on its own when the ad account name matches the client. When it does not
      ("Hockeyak" for Yak Sports), pick it here. */
   let metaList = null;
+  const callLine = () => { const c = contract?.call; return c?.when && !c.canceled ? `<div class="nc-step"><span class="nc-ic">📅</span><div><b>Strategy call</b><span class="tiny">Booked for ${esc(c.when)}.</span></div><span></span></div>` : `<div class="nc-step"><span class="nc-ic">○</span><div><b>Strategy call</b><span class="tiny">${c?.canceled ? 'They cancelled it. ' : ''}Shows here the moment they book it in Calendly.</span></div><span></span></div>`; };
   const metaBlock = () => {
     if (run.act_id) return `<div class="nc-step" style="border-top:1px solid var(--line)"><span class="nc-ic">✅</span><div><b>Meta ad account</b><span class="tiny">Connected. History is syncing; the brief, reports and their Your ads page fill in from it.</span></div><span></span></div>`;
     const opts = (metaList || []).map(a => `<option value="${esc(a.act_id)}">${esc(a.name)}</option>`).join('');
@@ -262,6 +263,7 @@ async function status(id, autorun) {
       <p class="hint" style="margin-bottom:8px">Each line is one thing Locus does. A warning says what is missing and what to do instead. You can close this and come back from Settings > New client.</p>
       <div id="ncStepList">${AUTO.map(row).join('')}</div>
       ${metaBlock()}
+      ${callLine()}
       <div class="nc-mail" style="margin-top:16px">
         <b style="font-size:14px">${m?.status === 'done' ? '✅ ' : '1. '}Welcome email to ${esc(run.contact_email || '')}</b>
         <p class="tiny${m?.status === 'failed' ? ' nc-bad' : ''}" style="margin:2px 0 8px">${m ? esc(m.text) : 'Send this first: it explains everything else they are about to get. Pressing Send also invites them to Asana and their Drive folders. It goes from your Gmail with your signature.'}</p>

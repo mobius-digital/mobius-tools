@@ -29,7 +29,8 @@ import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
-import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, useFetch as newClientFetch } from './newclient.js';
+import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
+import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
 import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
@@ -181,6 +182,7 @@ ideasFetch(xfetch);
 atriaFetch(xfetch);
 newClientFetch(xfetch);
 mailFetch(xfetch);
+calendlyFetch(xfetch);
 contractFetch(xfetch);
 frameFetch(xfetch);
 
@@ -5921,6 +5923,8 @@ const AH_APP = {
     /* BUTTONS ON THE SLACK CARD. Every action the Daily Brief and Reports tabs
        offer, available where the draft already is. Unauthenticated by design:
        Slack signs the request and verifySlackSig is what proves it. */
+    /* Calendly: a strategy call booked or cancelled (signed with the key Locus chose, calendly.js). */
+    if (path === '/calendly/webhook' && request.method === 'POST') return handleCalendly(request, env, onCallBooked);
     /* Stripe: the first retainer invoice was paid (signed with the endpoint secret, newclient.js). */
     if (path === '/stripe/webhook' && request.method === 'POST') return handleStripeWebhook(request, env);
     if (path === '/slack/actions' && request.method === 'POST') {

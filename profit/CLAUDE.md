@@ -1163,3 +1163,12 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   (invoice, agreement, Slack) say they tick themselves and catch up on tab focus / every 20s; `links.invoice` = the
   Stripe page; "Message the team" -> `POST /api/onboard-message` (public by token, 30s limit) posts to the internal
   channel tagging Cole. `POST /api/new-client/meta-now` runs the whole hourly new-client pass on demand.
+- **2026-10-03, last round:** the welcome email no longer mentions Drive (clients read it as "my assets go there");
+  on form submit the voice interview link goes to the client in their Slack channel as Cole (or email), once
+  (`steps.voice_sent`); 8 least-used offer questions moved to the optional `extras` step. **Calendly**
+  (`calendly.js`): with `CALENDLY_TOKEN` set, the hourly pass makes a user-scope webhook (invitee.created /
+  canceled -> `/calendly/webhook`, HMAC with a key Locus picks, `settings.calendlyHook`); only the
+  `strategy-session` event type counts; a booking by a new client's contact email ticks `st_call` (now `auto`),
+  writes Asana Call Link, shows on the setup screen and pings the internal channel tagging the strategist.
+  Nudges: 3 days unpaid / unsigned, 5 days form not sent -> one internal message with "Send a reminder"
+  (`nc_remind`: Stripe re-send, or Gmail). Self-ticking boxes are locked to the client.

@@ -31,6 +31,7 @@ import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } fro
 import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit, aiAmend, sendAmendment } from './contract.js';
 import { frameProject, frameStatus } from './frame.js';
 import { sendMail } from './mail.js';
+import { ensureCalendlyHook } from './calendly.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -363,7 +364,6 @@ function welcomeDraft(r) {
     `- Start here, your onboarding: ${link}`,
     `- Book your strategy call: ${CALENDLY}`,
     r.asana_url ? `- Your project in Asana, where you see every ad before it runs: ${r.asana_url}` : null,
-    inbox ? `- Your folder with us, for any files you want to send: ${inbox}` : null,
     r.slack_client ? `- Our shared Slack channel, #${slug}: the invite comes from Slack. Add anyone from your team once you are in.` : null,
   ].filter(Boolean).join('\n');
   return {
@@ -377,7 +377,7 @@ ${links}
 
 The onboarding link walks you through the quick admin, giving us access to each platform (click by click, with a short video for each), and a few questions about your products and customers. We filled in what we could from your website, so most of it is checking rather than typing. It saves as you go.
 
-Over the next few minutes you will also get invites from Asana, Google Drive and Slack, plus the first invoice (from Stripe) and our agreement to sign. All of them are linked inside your onboarding too, so nothing gets lost.
+Over the next few minutes you will also get invites from Asana and Slack, plus the first invoice (from Stripe) and our agreement to sign. All of them are linked inside your onboarding too, so nothing gets lost.
 
 Talk soon,`,
   };
@@ -524,7 +524,7 @@ async function contractState(env, r) {
   await ensureContractTable(env);
   const row = r.token ? await env.DB.prepare(`SELECT status, sent_at, signed_at, client_name, vars_json FROM p_contract WHERE token = ?1`).bind(r.token).first().catch(() => null) : null;
   const amendments = r.token ? ((await env.DB.prepare(`SELECT token, status, sent_at, signed_at, client_name, vars_json FROM p_contract WHERE token LIKE ?1 ORDER BY sent_at`).bind(`${r.token}a%`).all().catch(() => ({ results: [] }))).results || []).map(a => ({ n: safeJson(a.vars_json, {}).amendment, status: a.status, sent_at: a.sent_at, signed_at: a.signed_at, signed_by: a.client_name, url: `https://tools.go-mobius-digital.com/onboard/sign.html?t=${a.token}` })) : [];
-  return { amendments, defaults: contractDefaults(r), status: row?.status || null, sent_at: row?.sent_at || null, signed_at: row?.signed_at || null, signed_by: row?.client_name || null, vars: safeJson(row?.vars_json, null), url: r.token ? `https://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}` : null };
+  return { call: safeJson(r.steps_json, {}).call || null, amendments, defaults: contractDefaults(r), status: row?.status || null, sent_at: row?.sent_at || null, signed_at: row?.signed_at || null, signed_by: row?.client_name || null, vars: safeJson(row?.vars_json, null), url: r.token ? `https://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}` : null };
 }
 
 /* ---------------- summary ---------------- */
@@ -758,6 +758,26 @@ async function welcomeOnJoin(env, r) {
   return true;
 }
 
+/* ---------------- the strategy call, booked in Calendly (calendly.js) ---------------- */
+export async function onCallBooked(env, r, info) {
+  const st = safeJson(r.steps_json, {});
+  const when = info.start ? new Date(info.start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) + ' CT' : 'a time';
+  if (info.canceled) {
+    st.call = { ...(st.call || {}), canceled: new Date().toISOString() };
+    await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_remove(answers_json, '$.st_call') WHERE token = ?1`).bind(r.token || '').run().catch(() => {});
+  } else {
+    st.call = { start: info.start, when, join: info.join, booked: new Date().toISOString() };
+    await tickForm(env, r.token, 'st_call');
+    if (r.asana_project) await upsertResource(env, r.asana_project, 'Call Link', `Strategy call: ${when}${info.join ? `\n${info.join}` : ''}`).catch(() => {});
+  }
+  await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+  const team = safeJson(r.team_json, {});
+  const ids = await slackIds(env, roleList(team.strategist)).catch(() => ({}));
+  const tag = Object.values(ids).map(id => `<@${id}>`).join(' ');
+  if (r.slack_internal) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
+    text: info.canceled ? `*${r.name} cancelled the strategy call* (${when}). Their form's "book the call" box is open again.` : `*${r.name} booked the strategy call: ${when}.* ${tag ? `${tag} ` : ''}Review their answers and run Research in Locus before it.` });
+}
+
 /* ---------------- nudges: what the client has not done yet ----------------
    Invoice unpaid or agreement unsigned 3 days after it went, onboarding form not sent 5 days after the
    welcome email: Cole hears once per thing, in the internal channel, with a button that sends the reminder
@@ -882,6 +902,7 @@ export async function welcomeOnJoinByChannel(env, channel) {
 export async function newClientTick(env) {
   await ensureTable(env);
   const nudged = await nudges(env).catch(() => 0);
+  await ensureCalendlyHook(env).catch(e => console.log('calendly hook: ' + e.message));
   let welcomed = 0;
   for (const r of (await env.DB.prepare(`SELECT * FROM p_newclient WHERE slack_client IS NOT NULL AND json_extract(steps_json, '$.slack_welcome') IS NULL`).all().catch(() => ({ results: [] }))).results || []) {
     if (await welcomeOnJoin(env, r).catch(() => false)) welcomed++;
@@ -895,6 +916,16 @@ export async function newClientTick(env) {
     const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
       text: `*${r.name} sent their onboarding form.* Next: open Locus > Brand > ${r.name} > Research and press "Research this brand", then review the answers and the drafts before the strategy call${team.strategist ? ` (${team.strategist})` : ''}.` });
     if (j.ok) { steps.form_ping = { status: 'done', at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); told++; }
+    /* The voice interview, where they will see it: their Slack channel (as Cole) once they are in,
+       else email. Asana's "Help us find your voice" task already carries it and ticks itself on Finish. */
+    if (j.ok && !steps.voice_sent) {
+      const link = `https://tools.go-mobius-digital.com/onboard/voice.html?t=${r.token}`;
+      const note = `Thanks for sending the onboarding form! One more thing when you have 20 minutes (after our strategy call is perfect): your voice interview.\n${link}\n\nYou talk, we ask, then you rate a few sample lines. It becomes the guide every ad and email we write for you is checked against.`;
+      let how = null;
+      if (steps.slack_welcome && r.slack_client && env.SLACK_USER_TOKEN) { const m = await slack(env.SLACK_USER_TOKEN, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false }); if (m.ok) how = 'slack'; }
+      if (!how && emailOk(r.contact_email)) await sendMail(env, r.contact_email, `One more thing: your voice interview`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'email'; }).catch(() => {});
+      if (how) { steps.voice_sent = { how, at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); }
+    }
     /* Their content library link goes under Client Resources > Assets in Asana. */
     const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token).first().catch(() => null))?.answers_json, {});
     if (r.asana_project && /^https?:\/\//.test(ans.content_link || '')) await upsertResource(env, r.asana_project, 'Assets', ans.content_link).catch(() => {});
