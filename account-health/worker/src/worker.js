@@ -4617,7 +4617,9 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
     // place later instead of a second message piling up underneath it.
     return { ts: j.ts, channel: j.channel };
   }
-  let j = await send({ ...base, username: opts.username || 'Mobius Account Health', icon_emoji: opts.icon || ':bar_chart:' });
+  /* Locus's own notes carry the Mobius mark, not the old chart emoji. */
+  const face = opts.username === 'Locus' ? { icon_url: 'https://tools.go-mobius-digital.com/favicon.png' } : { icon_emoji: opts.icon || ':bar_chart:' };
+  let j = await send({ ...base, username: opts.username || 'Mobius Account Health', ...face });
   if (!j.ok && /missing_scope|invalid_arg/i.test(j.error || '')) j = await send(base);
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
   return { ts: j.ts, channel: j.channel };
