@@ -1719,8 +1719,10 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
+    // New-client Slack posts open a brand straight on Brand info or Research.
+    if (open === 'brand' && ['library', 'research', 'info'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view'));
     // A Slack draft notice names one specific day. Without carrying the date
     // across, the link opened whatever "yesterday" meant at the moment of
     // clicking - so reading the message the next day showed a different brief

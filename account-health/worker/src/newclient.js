@@ -818,6 +818,12 @@ async function welcomeOnJoin(env, r) {
   return true;
 }
 
+/* Where the strategist reads the answers. Once the brand is in Locus (its Meta account showed up), Brand
+   info opens straight on it; before that Locus cannot open the brand, so the link is their form itself. */
+const LOCUS_BRAND = (act, view) => `https://tools.go-mobius-digital.com/profit/?open=brand&act=${encodeURIComponent(act)}&view=${view}`;
+const answersLink = (r, view = 'info') => r.act_id ? `<${LOCUS_BRAND(r.act_id, view)}|${view === 'research' ? 'Open Research in Locus' : 'Open their answers in Locus'}>`
+  : r.token ? `<${ONBOARD_FORM}${r.token}|Open their answers> (their form; the brand opens in Locus once its Meta account shows up)` : '';
+
 /* ---------------- the strategy call, booked in Calendly (calendly.js) ---------------- */
 export async function onCallBooked(env, r, info) {
   const st = safeJson(r.steps_json, {});
@@ -835,7 +841,8 @@ export async function onCallBooked(env, r, info) {
   const ids = await slackIds(env, roleList(team.strategist)).catch(() => ({}));
   const tag = Object.values(ids).map(id => `<@${id}>`).join(' ');
   if (r.slack_internal) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
-    text: info.canceled ? `*${r.name} cancelled the strategy call* (${when}). Their form's "book the call" box is open again.` : `*${r.name} booked the strategy call: ${when}.* ${tag ? `${tag} ` : ''}Review their answers and run Research in Locus before it.` });
+    text: info.canceled ? `*${r.name} cancelled the strategy call* (${when}). Their form's "book the call" box is open again.` : `*${r.name} booked the strategy call: ${when}.* ${tag ? `${tag} ` : ''}Review their answers and run Research in Locus before it.${answersLink(r) ? `
+${answersLink(r)}` : ''}` });
 }
 
 /* ---------------- nudges: what the client has not done yet ----------------
@@ -973,7 +980,8 @@ export async function newClientTick(env) {
     if (steps.form_ping) continue;
     const team = safeJson(r.team_json, {});
     const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
-      text: `*${r.name} sent their onboarding form.* Next: open Locus > Brand > ${r.name} > Research and press "Research this brand", then review the answers and the drafts before the strategy call${team.strategist ? ` (${team.strategist})` : ''}.` });
+      text: `*${r.name} sent their onboarding form.* Next: open Locus > Brand > ${r.name} > Research and press "Research this brand", then review the answers and the drafts before the strategy call${team.strategist ? ` (${team.strategist})` : ''}.${answersLink(r, 'research') ? `
+${answersLink(r, 'research')}` : ''}` });
     if (j.ok) { await setStep(env, r.id, 'form_ping', { status: 'done', at: new Date().toISOString() }); told++; }
     /* The voice interview, where they will see it: their Slack channel (as Cole) once they are in,
        else email. Asana's "Help us find your voice" task already carries it and ticks itself on Finish. */
