@@ -82,6 +82,20 @@ const RULES = `
   rather than an exact match; LIKE already ignores case here. When a name has
   well-known variants, match them all with OR, and say which names you totalled.
 - Money is in US dollars. Round to cents. Use SQL to do the arithmetic.
+
+## Who is who, and what needs a receipt
+- Every name in the clients table is a CLIENT: money from them is revenue
+  (type 'in'). Never ask whether a client is a client, and never treat a
+  client's name as a vendor or an expense. Look in clients before asking.
+- A payment from a name that is not a client (a parent company, a person) that
+  belongs to a client gets assign_payment. "Give / put / assign $X to <client>"
+  about money in means exactly that: move that money onto that client.
+- RECEIPTS ARE ONLY FOR MONEY OUT: type='out' AND expected=0 AND receipt_key IS
+  NULL AND receipt_skip=0. Revenue, transfers and fees never need a receipt;
+  never list them as missing one.
+- Transfers between Cole's own accounts (joint account, Amex/card autopay,
+  Stripe payouts into the bank, owner draws moved between accounts) get
+  mark_transfer. They leave the P&L and need no receipt.
 `;
 
 const TABLES = ['transactions', 'vendors', 'clients', 'months', 'ledger_close_history', 'ledger_jobs',
@@ -100,6 +114,13 @@ const PLAYBOOK = `
 - Personal draws and income tax are real cash out and are never business costs. Say so when they move the cash picture.
 - Never quote a number you did not get from a query or a view. Round to cents in a total, to dollars in a sentence.
 - When something is wrong, say what to do next in one line: chase, recategorise, mark inactive, close the month.
+
+How to work with Cole (he wants you to DO it, not quiz him):
+- Look before you ask. If the books or this thread can answer it (is the payment there, is X a client, what is the retainer), query and answer it yourself.
+- Ask at most ONE question per reply, and only about something the data cannot tell you. Never re-ask something already answered in the thread.
+- When he answers, act on everything he answered in that same reply: propose every change at once (one card each) instead of confirming them back to him.
+- When he says "pick", "whatever", "split it randomly", decide, do it, and say what you chose in one line.
+- Short replies. No restating his answer back to him.
 `.trim();
 
 const VIEW_BLURBS = {
@@ -418,6 +439,65 @@ const ACTIONS = (d) => [
       return { ok: true, note: `${patch.name} updated.` };
     } },
 
+  /* Money in that arrived under the wrong name: a parent company paying for
+   * two clients, a payment split across two days because the card limit hit.
+   * Put it on the right client(s); each piece settles that client's expected
+   * retainer for the month it was paying (for_month), shrinking it when the
+   * piece is short so the rest still shows as owed. */
+  { name: 'assign_payment',
+    description: 'Put an existing money-IN row on the right client, or split it across several clients. Use when a payment came in under another name (a parent company, a person) or one payment covers several clients. ' +
+      'parts = [{client, amount, for_month?}] and must add up to the row amount; one part = the whole row goes to that client. for_month = whose retainer it pays, when it lands in a different month (e.g. the Oct 1 remainder of a September retainer). ' +
+      'It settles the matching expected retainer rows. When the person says "pick" or "split it however", choose a split that fills retainers in full first and say so.',
+    input_schema: { type: 'object', properties: {
+      id: { type: 'integer', description: 'transactions.id of the money-in row' },
+      parts: { type: 'array', items: { type: 'object', properties: { client: { type: 'string' }, amount: { type: 'number' }, for_month: { type: 'string', description: "'YYYY-MM'" } }, required: ['client', 'amount'] } },
+      summary: { type: 'string' } }, required: ['id', 'parts', 'summary'] },
+    propose: async (env, input, h) => {
+      const row = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(Number(input.id)).first();
+      if (!row) return { error: `No transaction ${input.id}.` };
+      if (row.type !== 'in' || row.expected) return { error: `Row ${input.id} is not a real money-in row (type ${row.type}${row.expected ? ', expected' : ''}).` };
+      if ((await h.monthStatus(env, row.month)) === 'closed') return { error: `${row.month} is closed. Reopen it first.` };
+      const parts = [];
+      for (const p of input.parts || []) {
+        const c = await env.DB.prepare('SELECT name FROM clients WHERE LOWER(name) = LOWER(?1)').bind(String(p.client || '')).first();
+        if (!c) return { error: `No client called "${p.client}". Read the clients view for the list.` };
+        const fm = /^\d{4}-\d{2}$/.test(p.for_month || '') ? p.for_month : row.month;
+        if (fm !== row.month && (await h.monthStatus(env, fm)) === 'closed') return { error: `${fm} is closed, so its retainer cannot be settled. Reopen it or leave for_month out.` };
+        parts.push({ client: c.name, amount: Math.round(Number(p.amount) * 100) / 100, for_month: fm });
+      }
+      if (!parts.length || parts.some(p => !(p.amount > 0))) return { error: 'Give at least one part with a positive amount.' };
+      const sum = Math.round(parts.reduce((s, p) => s + p.amount, 0) * 100) / 100;
+      if (Math.abs(sum - row.amount) >= 0.005) return { error: `Parts add up to $${sum.toFixed(2)} but the row is $${Number(row.amount).toFixed(2)}.` };
+      const lines = parts.map(p => `${p.client} $${p.amount.toFixed(2)}${p.for_month !== row.month ? ` (their ${p.for_month} retainer)` : ''}`);
+      return { summary: String(input.summary || `Assign ${row.vendor} $${row.amount}`),
+        detail: `${row.date} · ${row.vendor} · $${Number(row.amount).toFixed(2)} → ${lines.join(' + ')}. Settles the matching expected retainers.`,
+        patch: { id: row.id, payer: row.vendor, parts } };
+    },
+    apply: async (env, patch, h) => {
+      const row = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?1').bind(patch.id).first();
+      if (!row || row.type !== 'in') return { error: 'That row changed since this was proposed.' };
+      if ((await h.monthStatus(env, row.month)) === 'closed') return { error: `${row.month} has been closed since this was proposed.` };
+      const via = patch.payer && patch.payer !== patch.parts[0].client ? `Paid by ${patch.payer}` : '';
+      const noteFor = p => [via, p.for_month !== row.month ? `for the ${p.for_month} retainer` : '', patch.parts.length > 1 ? `split of #${row.id} ($${Number(row.amount).toFixed(2)})` : '']
+        .filter(Boolean).join(', ') || null;
+      const [first, ...rest] = patch.parts;
+      // the original keeps its Stripe/bank ids and fee; the other pieces are plain rows beside it
+      await env.DB.prepare(`UPDATE transactions SET vendor=?2, amount=?3, status='ok', bucket='Revenue', tax_cat='Client revenue', note=?4 WHERE id=?1`)
+        .bind(row.id, first.client, first.amount, noteFor(first)).run();
+      for (const p of rest)
+        await env.DB.prepare(`INSERT INTO transactions (date, month, type, vendor, amount, bucket, tax_cat, note, status, source)
+          VALUES (?1, ?2, 'in', ?3, ?4, 'Revenue', 'Client revenue', ?5, 'ok', 'manual')`).bind(row.date, row.month, p.client, p.amount, noteFor(p)).run();
+      const settled = [];
+      for (const p of patch.parts) {
+        const exp = await env.DB.prepare(`SELECT id, amount FROM transactions WHERE month=?1 AND vendor=?2 AND type='in' AND expected=1 ORDER BY id LIMIT 1`).bind(p.for_month, p.client).first();
+        if (!exp) continue;
+        const left = Math.round((exp.amount - p.amount) * 100) / 100;
+        if (left > 0.005) { await env.DB.prepare('UPDATE transactions SET amount=?2 WHERE id=?1').bind(exp.id, left).run(); settled.push(`${p.client} still owes $${left.toFixed(2)} for ${p.for_month}`); }
+        else { await env.DB.prepare('DELETE FROM transactions WHERE id=?1').bind(exp.id).run(); settled.push(`${p.client} ${p.for_month} paid`); }
+      }
+      return { ok: true, note: `Done: ${patch.parts.map(p => `${p.client} $${p.amount.toFixed(2)}`).join(' + ')}.${settled.length ? ' ' + settled.join('; ') + '.' : ''}` };
+    } },
+
   { name: 'set_vendor',
     description: 'Change a vendor rule: mark it inactive (it stopped billing), set the amount it usually bills, or whether it is recurring. Look the vendor up first.',
     input_schema: { type: 'object', properties: {
@@ -503,6 +583,31 @@ const BUTTONS = (d) => [
       const body = { name: cur?.name || i.name, retainer: i.retainer ?? cur?.retainer ?? 0, billing: i.billing || cur?.billing || 'retainer', pct: i.pct ?? cur?.pct, active: i.active ?? (cur ? !!cur.active : true) };
       return { summary: i.summary, detail: `${cur ? 'Change' : 'New'} client ${body.name}: ${body.billing === 'percent' ? `${body.pct}% of ad spend (est. $${body.retainer}/mo)` : `$${body.retainer}/mo retainer`}${body.active ? '' : ', inactive'}.`, request: { method: 'POST', path: '/api/client', body } };
     }, done: (r, req) => `${req.body.name} saved.` }),
+  routeAction({ name: 'mark_transfer',
+    description: 'Mark a row as a transfer between Cole\'s own accounts (joint account, card autopay, Stripe payout, owner moving money): it leaves the P&L and never needs a receipt, and the name is remembered so the bank feed catches the next one.',
+    input_schema: { type: 'object', properties: { id: { type: 'integer' }, summary: { type: 'string' } }, required: ['id', 'summary'] },
+    describe: async (env, i) => {
+      const row = await env.DB.prepare('SELECT date, vendor, amount, type FROM transactions WHERE id = ?1').bind(Number(i.id)).first();
+      if (!row) return { error: `No transaction ${i.id}.` };
+      if (row.type === 'transfer') return { error: `${row.vendor} $${row.amount} is already a transfer.` };
+      return { summary: i.summary, detail: `${row.date} · ${row.vendor} · $${Number(row.amount).toFixed(2)} becomes a transfer: out of the P&L, no receipt needed.`, request: { method: 'PUT', path: '/api/transaction', body: { id: Number(i.id), markSelfTransfer: true } } };
+    }, done: () => 'Marked as a transfer.' }),
+  routeAction({ name: 'edit_transaction',
+    description: 'Change who a row is (vendor, e.g. "WorldRemit" -> "Noma" for a contractor payout), its category, note or one-off flag. For money IN that belongs to a client, use assign_payment instead. Open months only.',
+    input_schema: { type: 'object', properties: { id: { type: 'integer' }, vendor: { type: 'string' }, tax_cat: { type: 'string' }, note: { type: 'string' }, one_time: { type: 'boolean' }, summary: { type: 'string' } }, required: ['id', 'summary'] },
+    describe: async (env, i) => {
+      const row = await env.DB.prepare('SELECT date, vendor, amount, type, tax_cat FROM transactions WHERE id = ?1').bind(Number(i.id)).first();
+      if (!row) return { error: `No transaction ${i.id}.` };
+      const taxCats = d.safeJson(await d.getSetting(env, 'taxCats'), []) || [];
+      if (i.tax_cat && !taxCats.includes(i.tax_cat)) return { error: `"${i.tax_cat}" is not a category. Use one of: ${JSON.stringify(taxCats)}` };
+      const body = { id: Number(i.id) }, ch = [];
+      if (i.vendor) { body.vendor = String(i.vendor); ch.push(`${row.vendor} → ${i.vendor}`); }
+      if (i.tax_cat) { body.tax_cat = i.tax_cat; body.status = 'ok'; ch.push(`${row.tax_cat || 'uncategorized'} → ${i.tax_cat}`); }
+      if (i.note !== undefined) { body.note = i.note; ch.push('note: ' + i.note); }
+      if (i.one_time !== undefined) { body.one_time = !!i.one_time; ch.push(i.one_time ? 'one-off' : 'recurring baseline'); }
+      if (!ch.length) return { error: 'Nothing to change.' };
+      return { summary: i.summary, detail: `${row.date} · ${row.vendor} · $${Number(row.amount).toFixed(2)}: ${ch.join(', ')}.`, request: { method: 'PUT', path: '/api/transaction', body } };
+    }, done: () => 'Updated.' }),
   routeAction({ name: 'expect_retainers',
     description: 'Pre-create this month\'s expected retainers (the "Expect this month\'s retainers" step), so who has and has not paid shows. Month must be open.',
     input_schema: { type: 'object', properties: { month: { type: 'string' }, summary: { type: 'string' } }, required: ['month', 'summary'] },
@@ -587,6 +692,13 @@ export function buildController(d) {
     actions: [...ACTIONS(d), ...BUTTONS(d)],
     playbook: PLAYBOOK,
     slackApp: 'ledger',
+    /* A month-close conversation runs long and every answer builds on the
+     * last; the defaults (4,000 chars) dropped his answers out of memory
+     * mid-thread on 2026-10-03, so it re-asked what he had just told it. */
+    threadTurns: 30, threadMsgChars: 2500, threadTotalChars: 24000,
+    /* Edits to the books go to the stronger model: Haiku turned "give $1k to
+     * SpeedIn" (a client) into a question about paying them. */
+    strongWhen: /\b(close|categori[sz]e|split|give|assign|allocate|move|put|mark|fix|sort|retainer|paid|payment|transfer|refund|receipts?|client|contractor|draw|which|what is|draft|write|plan|forecast|analy[sz]e|compare|recommend|should (we|i)|what if)\b/i,
   });
   return { engine, h, views: app };
 }
