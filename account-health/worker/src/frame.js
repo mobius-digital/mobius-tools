@@ -13,9 +13,15 @@
  *
  * API: https://api.frame.io/v4. accounts -> workspaces -> projects. The New client step
  * makes one project per client in the chosen workspace (settings `frameWorkspace`, else the
- * first) with two folders, Ad Concepts and Clips/B-Roll. V4 has no collaborator call, so the team is
- * added in Frame by hand. frameTree(env, depth) lists everything; the /api/frame/* tidy routes move,
+ * first) with two folders, Ad Concepts and Clips/B-Roll, and the picked team put on it (full access).
+ * frameTree(env, depth) lists everything; /api/frame/access says who sees what; the tidy routes move,
  * rename and create, and delete only what is empty.
+ *
+ * NEVER DELETE A FRAME PROJECT THAT HAD WORK IN IT, EVEN EMPTY (2026-10-03). Review links (shares) belong
+ * to the PROJECT, not to the files: deleting the emptied pods killed ~110 review links that creators and
+ * clients were using, and Frame has no API to restore a project (only Frame support can). Empty it and
+ * leave it, or rename it "zz old ...". Ahsan and Noma are project members, not workspace members, so a
+ * project they are not put on is invisible to them.
  *
  * LAYOUT (Cole, 2026-10-03): NO PODS. One project per current client, named like the brand; every
  * former client is a folder in "Past Clients"; "MD - Internal" and "# Cole Organic" are Mobius's own.
@@ -180,9 +186,20 @@ export async function frameProject(env, name, emails, prev = {}) {
     const root = p.data?.root_folder_id || (await frameApi(env, 'GET', `/accounts/${account}/projects/${project}`).catch(() => null))?.data?.root_folder_id;
     if (root) for (const f of ['Ad Concepts', 'Clips/B-Roll']) await frameApi(env, 'POST', `/accounts/${account}/folders/${root}/folders`, { data: { name: f } }).catch(e => notes.push(`Folder "${f}" not made: ${e.message}`));
   }
-  /* V4 has no collaborator call yet (2026-10-03: "no route found for POST .../collaborators").
-     Say so once instead of failing per person; the workspace's members already see the project. */
-  if (emails.length) notes.push(`Frame's API cannot add people to a project yet. If ${emails.join(', ')} are not workspace members, add them in Frame (Project > Share).`);
+  /* The picked team goes on the project (PATCH .../projects/{p}/users/{user}, 2026-10-03). Ahsan and Noma
+     are NOT workspace members, so without this they cannot see a new client at all. People are matched
+     by Frame account email, else first name (Frame emails differ from Asana's for Ravo and William). */
+  if (emails.length && account) {
+    const users = await all(env, `/accounts/${account}/users?page_size=100`).catch(() => []);
+    const roster = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'newClientTeam'`).first().catch(() => null))?.value, null) || [];
+    for (const e of emails) {
+      const first = (roster.find(t => String(t.email || '').toLowerCase() === e)?.name || e.split('@')[0]).toLowerCase().split(/\s+/)[0];
+      const u = users.find(x => (x.user?.email || x.email || '').toLowerCase() === e) || users.find(x => (x.user?.name || x.name || '').toLowerCase().split(/\s+/)[0] === first);
+      const uid = u?.user?.id || u?.id;
+      if (!uid) { notes.push(`${e} is not in the Frame account: invite them in Frame, then add them to the project.`); continue; }
+      await frameApi(env, 'PATCH', `/accounts/${account}/projects/${project}/users/${uid}`, { data: { role: 'full_access' } }).catch(err => notes.push(`${e} not added to the Frame project: ${err.message}`));
+    }
+  }
   return { project, url, account, notes };
 }
 
@@ -239,23 +256,43 @@ export async function handleFrame(request, env, url, path, json, isAdmin) {
     if (path === '/api/frame/move' && request.method === 'POST') {
       return json({ ok: true, folder: (await frameApi(env, 'PATCH', `/accounts/${A}/folders/${b.folder_id}/move`, { data: { parent_id: b.parent_id } })).data });
     }
-    if (path === '/api/frame/folder-delete' && request.method === 'POST') {
-      const kids = await all(env, `/accounts/${A}/folders/${b.folder_id}/children?page_size=10`);
-      if (kids.length) return json({ error: `Not empty (${kids.length} items): nothing deleted.` }, 409);
-      await frameApi(env, 'DELETE', `/accounts/${A}/folders/${b.folder_id}`);
-      return json({ ok: true });
+    /* No delete routes on purpose: a review link can point at a folder or a project, so even an empty one
+       may be carrying links people use (see the header). */
+    /* Who can see what, read-only: account members, workspace members, and each project's people. */
+    if (path === '/api/frame/access') {
+      const ws = await frameWorkspaces(env);
+      const who = u => ({ id: u.user?.id || u.id, name: u.user?.name || u.name || '', email: (u.user?.email || u.email || '').toLowerCase(), role: u.role });
+      const out = { account: (await all(env, `/accounts/${ws[0].account_id}/users?page_size=100`).catch(e => [{ name: `error: ${e.message}` }])).map(who), workspaces: [] };
+      for (const w of ws) {
+        const projects = await all(env, `/accounts/${w.account_id}/workspaces/${w.id}/projects`);
+        const pu = [];
+        for (const p of projects) pu.push({ id: p.id, name: p.name, restricted: !!p.restricted, users: (await all(env, `/accounts/${w.account_id}/projects/${p.id}/users?page_size=100`).catch(e => [{ name: `error: ${e.message}` }])).map(who) });
+        out.workspaces.push({ name: w.name, users: (await all(env, `/accounts/${w.account_id}/workspaces/${w.id}/users?page_size=100`).catch(e => [{ name: `error: ${e.message}` }])).map(who), projects: pu });
+      }
+      return json({ ok: true, ...out });
+    }
+    /* Does a review link still work? {enabled, short_url, assets} or Frame's error. */
+    if (path === '/api/frame/share' && request.method === 'POST') {
+      const s = await frameApi(env, 'GET', `/accounts/${A}/shares/${b.share_id}`).catch(e => ({ error: e.message }));
+      if (s.error) return json({ ok: false, error: s.error });
+      const assets = await frameApi(env, 'GET', `/accounts/${A}/shares/${b.share_id}/assets?page_size=5`).catch(e => ({ error: e.message }));
+      return json({ ok: true, enabled: s.data?.enabled, name: s.data?.name, url: s.data?.short_url, assets: assets.error ? assets.error : (assets.data || []).length });
+    }
+    /* Put a person on a project (or change their role). Roles: full_access, editor, edit_only, commenter, viewer. */
+    if (path === '/api/frame/project-user' && request.method === 'POST') {
+      return json({ ok: true, ...(await frameApi(env, 'PATCH', `/accounts/${A}/projects/${b.project_id}/users/${b.user_id}`, { data: { role: b.role || 'editor' } })) });
+    }
+    /* The account's audit log (experimental API, needs the api-version header), newest first. */
+    if (path === '/api/frame/audit') {
+      const tok = await frameToken(env);
+      const ws = await frameWorkspaces(env);
+      const r = await F(`${API}/accounts/${ws[0].account_id}/audit_logs?page_size=${Math.min(100, Number(url.searchParams.get('n')) || 100)}${url.searchParams.get('after') ? `&after=${encodeURIComponent(url.searchParams.get('after'))}` : ''}`, { headers: { Authorization: `Bearer ${tok}`, 'api-version': 'experimental', Accept: 'application/json' } });
+      return json({ ok: r.ok, status: r.status, ...safeJson(await r.text(), {}) });
     }
     /* One folder's children (the caller walks the tree; one request per folder keeps under the subrequest cap). */
     if (path === '/api/frame/children' && request.method === 'POST') {
       const items = await all(env, `/accounts/${A}/folders/${b.folder_id}/children?page_size=100`);
       return json({ ok: true, items: items.map(i => ({ id: i.id, name: i.name, type: i.type })) });
-    }
-    if (path === '/api/frame/project-delete' && request.method === 'POST') {
-      const p = (await frameApi(env, 'GET', `/accounts/${A}/projects/${b.project_id}`)).data;
-      const kids = p?.root_folder_id ? await all(env, `/accounts/${A}/folders/${p.root_folder_id}/children?page_size=10`) : [{}];
-      if (kids.length) return json({ error: `Not empty (${kids.length} items): nothing deleted.` }, 409);
-      await frameApi(env, 'DELETE', `/accounts/${A}/projects/${b.project_id}`);
-      return json({ ok: true });
     }
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, e.status || 500); }

@@ -1109,8 +1109,12 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   V4 has no collaborator route: the team is added in Frame by hand. Tested live on both first clients.
   **Layout since the 2026-10-03 cleanup: NO PODS.** One project per current client (Ad Concepts + Clips/B-Roll,
   made by the step), former clients are folders in "Past Clients", plus "MD - Internal" and "# Cole Organic".
-  Admin tidy routes in frame.js (`/api/frame/tree?depth=`, `move`, `rename`, `folder`, `project`, `project-update`,
-  `folder-delete` / `project-delete` only when empty). Frame allows 10 moves a minute.
+  Admin routes in frame.js: `/api/frame/tree?depth=`, `access`, `audit`, `share`, `children`, `move`, `rename`,
+  `folder`, `project`, `project-update`, `project-user`. Frame allows 10 moves a minute.
+  **NEVER DELETE A FRAME PROJECT OR FOLDER THAT HELD WORK, EVEN EMPTY.** Review links belong to the project:
+  deleting the emptied pods on 2026-10-03 killed ~110 live review links (Frame has no restore API; only Frame
+  support can restore a project). The delete routes were removed. Ahsan and Noma are PROJECT members, not
+  workspace members: the New client step puts the picked team on each new project (`project-user`).
 - Setup screen also has "Remove this client" (voids an unpaid invoice, cancels its subscription, forgets the row).
 - **2026-10-03 round (Cole's 11 points):** roles strategist / buyer / editor (Ravo) / designer (William), each a
   comma list (multi-select chips); the pickable team lives in `settings.newClientTeam` (Locus: "Edit the team list",
