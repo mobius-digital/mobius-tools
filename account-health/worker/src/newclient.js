@@ -162,10 +162,8 @@ async function stepAsana(env, r) {
       const subs = await asanaAll(env, `/tasks/${ob.gid}/subtasks?opt_fields=name`);
       for (const s of subs) await asana(env, `/tasks/${s.gid}`, { method: 'DELETE' }).catch(() => {});
       const todo = [
-        ['Send the invoice and the contract', me.gid],
-        ['Create the Frame project and add the team', me.gid],
-        ['Send the Shopify collaborator request (their store address is in the onboarding answers)', me.gid],
-        ['Once the client shares Meta: add the brand in Locus (Settings > Add a brand) and add the media buyer to the ad account and page', me.gid],
+        ['Send the Shopify collaborator request (Locus posts the store address in the internal channel the moment they type it)', me.gid],
+        ['Once Locus says they shared Meta: add the media buyer to the ad account and page in Meta Business Settings', me.gid],
         ['Before the strategy call: review the onboarding answers and the research in Locus (Brand > Brand info, Brand > Research)', gidOf(lead) || me.gid],
         ['After the voice interview: read the How we write draft in Locus and approve it', me.gid],
         ['Set the first month in Plan and turn the daily brief on (Locus)', me.gid],
@@ -500,6 +498,7 @@ export async function handleStripeWebhook(request, env) {
       steps.stripe = { ...steps.stripe, paid: true, paid_at: new Date().toISOString(), text: `First invoice PAID on ${new Date().toISOString().slice(0, 10)}. Retainer is on autopay.` };
     } catch (e) { steps.stripe = { ...steps.stripe, paid: true, paid_at: new Date().toISOString(), text: `First invoice paid, but autopay was not switched on: ${e.message}. Do it in Stripe.` }; }
     await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
+    await tickForm(env, r.token, 'st_invoice');
     if (r.slack_internal && env.SLACK_BOT_TOKEN) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: `*${r.name} paid their first invoice.* The retainer is on autopay from here. Work can start.` }).catch(() => {});
   }
   return new Response('ok', { status: 200 });
@@ -692,6 +691,13 @@ async function yourAdsUrl(env, act) {
   return `https://tools.go-mobius-digital.com/yourads/?t=${tok}`;
 }
 
+/* Ticks a box on the client's onboarding form that Locus already knows the answer to, so the
+   client is never asked to confirm what we can see ourselves (paid, in Slack). */
+async function tickForm(env, token, field) {
+  if (!token) return;
+  await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_set(answers_json, '$.' || ?2, json('true')), updated_at = datetime('now') WHERE token = ?1`).bind(token, field).run().catch(() => {});
+}
+
 /* ---------------- the client's welcome, the moment they join their channel ----------------
    Posted as Cole (SLACK_USER_TOKEN), pinned, with every link they need. Not before they are in:
    the hourly tick looks for a member of the client channel from outside the Mobius workspace. */
@@ -733,6 +739,7 @@ async function welcomeOnJoin(env, r) {
   if (!m.ok) return false;
   await slack(user, 'pins.add', { channel: r.slack_client, timestamp: m.ts }).catch(() => {});
   await patchRun(env, r.id, { steps_json: JSON.stringify({ ...st, slack_welcome: { ts: m.ts, at: new Date().toISOString() } }) });
+  await tickForm(env, r.token, 'st_slack');
   return true;
 }
 
@@ -751,6 +758,7 @@ async function shopifyHeadsUp(env) {
     const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
       text: `<@U06C37MDWD7> *${r.name}* gave their Shopify store: *${store}*${code ? `, request code *${code}*` : ''}. Send the collaborator request: partners.shopify.com > Stores > Add store > Request access to a store > paste the address${code ? ' and the code' : ''}. They approve it from their email.` });
     if (j.ok) { const steps = safeJson(r.steps_json, {}); steps.shopify_ping = { store, at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); told++; }
+    if (r.act_id) await env.DB.prepare(`UPDATE accounts SET tw_shop = ?2 WHERE act_id = ?1 AND (tw_shop IS NULL OR tw_shop = '')`).bind(r.act_id, store).run().catch(() => {});
   }
   return told;
 }

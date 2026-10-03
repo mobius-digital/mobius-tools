@@ -225,6 +225,15 @@ Mobius Digital`);
   return { url: link, hash, sent_at: now };
 }
 
+/* The internal channel hears when an agreement or amendment is signed. */
+async function signedPing(env, c) {
+  const run = await env.DB.prepare(`SELECT slack_internal FROM p_newclient WHERE token = ?1`).bind(c.token.replace(/a\d+$/, '')).first().catch(() => null);
+  if (!run?.slack_internal || !env.SLACK_BOT_TOKEN) return;
+  const v = safeJson(c.vars_json, {});
+  await F('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel: run.slack_internal, unfurl_links: false, text: `*${c.brand} signed ${v.amendment ? `Amendment No. ${v.amendment}` : 'the services agreement'}* (${c.client_name}). A copy is in their Drive under Agreements.` }) });
+}
+
 /* ---------------- the signed copy, kept in the client's Drive (Agreements) ---------------- */
 async function saveSignedToDrive(env, c) {
   const base = c.token.replace(/a\d+$/, '');
@@ -275,6 +284,7 @@ export async function handleSign(request, env, path, json) {
     for (const to of [fresh.client_email, OWNER].filter(Boolean)) { try { await gmail(env, to, `Signed: ${fresh.brand} services agreement`, note); copies++; } catch {} }
     await env.DB.prepare(`UPDATE p_contract SET copies_sent = ?2 WHERE token = ?1`).bind(row.token, copies).run();
     await saveSignedToDrive(env, fresh).catch(e => console.log('agreement to drive: ' + e.message));
+    await signedPing(env, fresh).catch(() => {});
     await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_set(answers_json, '$.st_agreement', json('true')), updated_at = datetime('now') WHERE token = ?1`).bind(row.token).run().catch(() => {});
     return json({ ok: true, ...pub(fresh) });
   }

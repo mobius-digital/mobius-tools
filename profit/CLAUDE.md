@@ -1141,3 +1141,11 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   The client's Slack welcome includes it once the brand's ad account is connected. Partnership (creator page) ads
   cannot give us the file: they show Meta's own preview with "ask us for the file" (Grunk: 21 of 40 videos).
   Drive: the "Final ads" folder was dropped the same day; finals live in Frame and on this page.
+- **Hands-off additions (2026-10-03, later):** `autoConnectMeta` (worker.js, hourly + `POST /api/new-client/meta-now`)
+  switches a pending new client's ad account on when exactly one untracked account name matches (normalised:
+  "Ice and Gold New" = Ice & Gold), after a readable-insights check; sets name, both Slack channels, tw_shop from the
+  form's store; posts to Cole in the internal channel (or tells him to assign the Mobius Tools system user when Meta
+  refuses). Ice & Gold connected this way on 2026-10-03. `shopifyHeadsUp` (newclient.js) posts the store address +
+  request code the moment the form has it (Shopify has no API for collaborator requests) and fills tw_shop.
+  The form's "Pay the first invoice" and "Say hi in Slack" boxes tick themselves (`tickForm`); the internal channel
+  hears when an agreement or amendment is signed (`signedPing`). The Asana checklist dropped the steps Locus does.
