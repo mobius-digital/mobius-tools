@@ -141,7 +141,9 @@ async function all(env, path) {
     const j = await frameApi(env, 'GET', next);
     out.push(...(Array.isArray(j.data) ? j.data : []));
     const n = j.links?.next;
-    next = n ? (n.startsWith('http') ? n.replace(API, '') : n) : null;
+    /* links.next comes back as "/v4/accounts/..." (or a full URL): strip down to the path after /v4,
+       or page 2 asked for /v4/v4/... and every folder over 100 items silently stopped at page 1. */
+    next = n ? n.replace(/^https?:\/\/[^/]+/, '').replace(/^\/?v4(?=\/)/, '') : null;
     if (next && !next.startsWith('/')) next = '/' + next;
   }
   return out;
