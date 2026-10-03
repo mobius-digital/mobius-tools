@@ -348,6 +348,10 @@ export async function handlePublic(request, env, url, path, json) {
     /* The services agreement is signed on its own page once Cole has sent it (p_contract, account-health). */
     const contract = await env.DB.prepare(`SELECT status FROM p_contract WHERE token = ?1`).bind(row.token).first().catch(() => null);
     if (contract) links.sign = `https://tools.go-mobius-digital.com/onboard/sign.html?t=${row.token}`;
+    /* The first invoice's own Stripe page, once Cole has sent it (p_newclient, account-health). */
+    const nc = await env.DB.prepare(`SELECT steps_json FROM p_newclient WHERE token = ?1`).bind(row.token).first().catch(() => null);
+    const inv = safeJson(nc?.steps_json, {}).stripe;
+    if (inv?.url && !inv.paid) links.invoice = inv.url;
     return json({ brand: row.name, links, answers: safeJson(row.answers_json, {}), prefill: safeJson(row.prefill_json, {}), status: row.status, step: row.step, submitted_at: row.submitted_at });
   }
   if (request.method === 'PUT') {

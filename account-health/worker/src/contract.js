@@ -22,6 +22,7 @@
  *   POST /api/sign/:token           { name, agree: true }  the client's signature
  */
 import { googleToken } from './asana-brand.js';
+import { sendMail } from './mail.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -185,7 +186,10 @@ const textOf = html => html.replace(/<li>/g, '- ').replace(/<\/(p|li|h1|h2)>/g, 
 
 /* ---------------- email (Cole's Gmail, same delegation as the welcome email) ---------------- */
 const b64url = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+/* Every email goes through mail.js (HTML + Cole's signature). The old plain-text sender is kept below
+   only as the fallback when that one throws. */
 async function gmail(env, to, subject, body) {
+  try { return await sendMail(env, to, subject, String(body).replace(/\n\nCole\nMobius Digital\s*$/, '\n\nThanks,')); } catch (e) { console.log('html mail: ' + e.message); }
   const tok = await googleToken(env, OWNER, 'https://www.googleapis.com/auth/gmail.send');
   const mime = [`From: Cole Wetzler <${OWNER}>`, `To: ${to}`, `Subject: =?UTF-8?B?${btoa(String.fromCharCode(...new TextEncoder().encode(subject)))}?=`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: 8bit', '', body].join('\r\n');
   const res = await F('https://www.googleapis.com/gmail/v1/users/me/messages/send', { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ raw: b64url(mime) }) });
@@ -252,6 +256,16 @@ async function saveSignedToDrive(env, c) {
   const body = `--${bnd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, mimeType: 'application/vnd.google-apps.document', parents: [folder] })}\r\n--${bnd}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n${html}\r\n--${bnd}--`;
   const res = await F('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id', { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': `multipart/related; boundary=${bnd}` }, body });
   if (!res.ok) throw new Error(`Drive ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  /* The kept copy is a PDF (Cole): Google turns the doc into one, the PDF is filed, the doc is removed. */
+  const docId = (await res.json()).id;
+  const pdf = await F(`https://www.googleapis.com/drive/v3/files/${docId}/export?mimeType=application/pdf`, { headers: { Authorization: `Bearer ${tok}` } });
+  if (!pdf.ok) return;   // the Google Doc stays as the copy
+  const bytes = new Uint8Array(await pdf.arrayBuffer());
+  const head = new TextEncoder().encode(`--${bnd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: `${name}.pdf`, mimeType: 'application/pdf', parents: [folder] })}\r\n--${bnd}\r\nContent-Type: application/pdf\r\n\r\n`);
+  const tail = new TextEncoder().encode(`\r\n--${bnd}--`);
+  const all = new Uint8Array(head.length + bytes.length + tail.length); all.set(head, 0); all.set(bytes, head.length); all.set(tail, head.length + bytes.length);
+  const up = await F('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id', { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': `multipart/related; boundary=${bnd}` }, body: all });
+  if (up.ok) await F(`https://www.googleapis.com/drive/v3/files/${docId}?supportsAllDrives=true`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok}` } }).catch(() => {});
 }
 
 /* ---------------- public routes (the client) ---------------- */

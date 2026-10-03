@@ -179,7 +179,7 @@ async function status(id, autorun) {
     if (c.status === 'signed') return `<div style="margin-top:16px"><b style="font-size:14px">✅ Agreement signed</b><span class="tiny" style="display:block">Signed by ${esc(c.signed_by || '')} on ${esc((c.signed_at || '').slice(0, 10))}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signed copy</a></span>${amendBlock(c)}</div>`;
     if (c.status === 'sent') return `<div style="margin-top:16px"><b style="font-size:14px">📨 Agreement sent, waiting for their signature</b><span class="tiny" style="display:block">Sent ${esc((c.sent_at || '').slice(0, 10))} to ${esc(run.contact_email || '')}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signing page</a></span></div>`;
     const f = (k, label, help, ta) => `<div class="ab-f" style="margin-top:8px"><label style="font-size:13px">${label}</label><p class="hint" style="margin:0 0 4px">${help}</p>${ta ? `<textarea id="cv_${k}" rows="3" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit">${esc(cv[k] || '')}</textarea>` : `<input type="text" id="cv_${k}" value="${esc(cv[k] || '')}" style="width:100%">`}</div>`;
-    return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '⏳' : '○'} Agreement</b>
+    return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '⏳' : '3.'} Agreement</b>
       <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'contract' ? 'Sending…' : esc(st?.status === 'failed' ? st.text : 'Your standard services agreement with the blanks filled in. Check them, preview, then send. The client signs on a page inside their onboarding, no DocuSign.')}</span>
       ${f('client_name', 'Who signs for the client', 'Their full name, as it appears on the agreement.')}
       <div class="nc-two">${f('start_date', 'Start date', 'YYYY-MM-DD.')}${f('term', 'Term', 'How long the agreement runs before it renews.')}</div>
@@ -219,13 +219,36 @@ async function status(id, autorun) {
       catch (e) { body.querySelector('#ncAmMsg').textContent = e.message; }
     };
   };
+  /* Meta: Locus connects it on its own when the ad account name matches the client. When it does not
+     ("Hockeyak" for Yak Sports), pick it here. */
+  let metaList = null;
+  const metaBlock = () => {
+    if (run.act_id) return `<div class="nc-step" style="border-top:1px solid var(--line)"><span class="nc-ic">✅</span><div><b>Meta ad account</b><span class="tiny">Connected. History is syncing; the brief, reports and their Your ads page fill in from it.</span></div><span></span></div>`;
+    const opts = (metaList || []).map(a => `<option value="${esc(a.act_id)}">${esc(a.name)}</option>`).join('');
+    return `<div class="nc-step" style="border-top:1px solid var(--line)"><span class="nc-ic">○</span><div><b>Meta ad account</b>
+      <span class="tiny">Connects itself within the hour after they share, when the account name matches. If it does not, pick it:</span>
+      <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><select id="ncMetaPick" style="max-width:100%"><option value="">${metaList ? 'Choose their ad account' : 'Loading accounts…'}</option>${opts}</select><button class="btn" id="ncMetaGo">Connect</button><span class="tiny" id="ncMetaMsg"></span></div></div><span></span></div>`;
+  };
+  const wireMeta = () => {
+    const go = body.querySelector('#ncMetaGo'); if (!go) return;
+    if (!metaList) ah('/api/new-client/meta-accounts').then(j => { metaList = j.accounts || []; paint(); }).catch(() => { metaList = []; });
+    go.onclick = async () => {
+      const act = body.querySelector('#ncMetaPick').value; const msg = body.querySelector('#ncMetaMsg');
+      if (!act) return msg.textContent = 'Pick the account first.';
+      const name = (metaList || []).find(a => a.act_id === act)?.name || act;
+      if (!(await confirmModal(`Connect "${name}" to ${run.name}?`, 'Locus switches it on as this brand: history starts syncing and the Slack channels are wired to it.', 'Connect'))) return;
+      go.disabled = true; msg.textContent = 'Connecting…';
+      try { await post('/api/new-client/connect-meta', { id, act }); const j = await ah('/api/new-client/run?id=' + encodeURIComponent(id)); run = j.run; paint(); }
+      catch (e) { msg.textContent = e.message; go.disabled = false; }
+    };
+  };
   /* The invoice is money, so it never runs by itself: one button, one confirm. */
   const invoiceBlock = () => {
     const st = run.steps.stripe;
     const amt = run.retainer ? `$${Number(run.retainer).toLocaleString('en-US')} a month` : '';
     if (!run.retainer) return `<div style="margin-top:16px"><b style="font-size:14px">○ First invoice</b><span class="tiny" style="display:block">Skipped: no retainer was entered. Send it from Stripe if you need one.</span></div>`;
     const sent = st?.status === 'done';
-    return `<div style="margin-top:16px"><b style="font-size:14px">${sent ? (st.paid ? '✅' : '📨') : busy === 'stripe' ? '⏳' : '○'} First invoice, ${amt}</b>
+    return `<div style="margin-top:16px"><b style="font-size:14px">${sent ? (st.paid ? '✅' : '📨') : busy === 'stripe' ? '⏳' : '2.'} First invoice, ${amt}</b>
       <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'stripe' ? 'Sending…' : esc(st?.text || `Stripe emails ${run.contact_email} the first invoice. When they pay it, their card is saved and the retainer bills itself every month from then on.`)}${st?.url ? ` <a href="${esc(st.url)}" target="_blank" rel="noopener">Open the invoice</a>` : ''}</span>
       ${sent || busy ? (sent && !st.paid ? `<button class="btn" data-go="stripe" style="margin-top:6px">Check if paid</button>` : '') : `<button class="btn primary" id="ncInvoice" style="margin-top:6px">${st?.status === 'failed' ? 'Try again' : 'Send the invoice'}</button>`}</div>`;
   };
@@ -238,11 +261,10 @@ async function status(id, autorun) {
     body.innerHTML = `<h3>${esc(run.name)}: setup</h3>
       <p class="hint" style="margin-bottom:8px">Each line is one thing Locus does. A warning says what is missing and what to do instead. You can close this and come back from Settings > New client.</p>
       <div id="ncStepList">${AUTO.map(row).join('')}</div>
-      ${invoiceBlock()}
-      ${contractBlock()}
+      ${metaBlock()}
       <div class="nc-mail" style="margin-top:16px">
-        <b style="font-size:14px">${m?.status === 'done' ? '✅ ' : ''}Welcome email to ${esc(run.contact_email || '')}</b>
-        <p class="tiny${m?.status === 'failed' ? ' nc-bad' : ''}" style="margin:2px 0 8px">${m ? esc(m.text) : 'Read it, change anything, then Send. It goes from your Gmail. Nothing is sent until you press Send.'}</p>
+        <b style="font-size:14px">${m?.status === 'done' ? '✅ ' : '1. '}Welcome email to ${esc(run.contact_email || '')}</b>
+        <p class="tiny${m?.status === 'failed' ? ' nc-bad' : ''}" style="margin:2px 0 8px">${m ? esc(m.text) : 'Send this first: it explains everything else they are about to get. Pressing Send also invites them to Asana and their Drive folders. It goes from your Gmail with your signature.'}</p>
         ${m?.status === 'done' ? '' : `<input type="text" id="ncSub" style="margin-bottom:6px">
         <textarea id="ncMsg" rows="12"></textarea>
         <div class="row" style="justify-content:flex-end;gap:8px;margin:8px 0 0">
@@ -250,11 +272,14 @@ async function status(id, autorun) {
           <button class="btn" id="ncCopy">Copy</button>
           <button class="btn primary" id="ncSend"${busy || !run.onboard_url ? ' disabled' : ''}>Send</button></div>`}
       </div>
+      ${invoiceBlock()}
+      ${contractBlock()}
       <div style="margin-top:16px"><b style="font-size:14px">Still by hand for now</b>
         <ul class="nc-list">${BY_HAND.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div class="row" style="justify-content:space-between;gap:8px;margin:14px 0 0"><button class="btn" id="ncRemove" style="color:var(--bad)">Remove this client</button><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
     wireAmend();
+    wireMeta();
     body.querySelector('#ncRemove').onclick = async () => {
       if (!(await confirmModal(`Remove ${run.name} from this list?`, 'Locus forgets this setup. Anything already made in Asana, Drive, Slack or Frame stays and is yours to delete there. An unpaid invoice is voided and its subscription cancelled.', 'Remove'))) return;
       try { await post('/api/new-client/remove', { id }); close(); } catch (e) { noteModal('Could not remove', `<p>${esc(e.message)}</p>`); }

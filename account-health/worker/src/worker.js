@@ -29,7 +29,8 @@ import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
-import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, useFetch as newClientFetch } from './newclient.js';
+import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, useFetch as newClientFetch } from './newclient.js';
+import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 
@@ -179,6 +180,7 @@ brandAsanaFetch(xfetch);
 ideasFetch(xfetch);
 atriaFetch(xfetch);
 newClientFetch(xfetch);
+mailFetch(xfetch);
 contractFetch(xfetch);
 frameFetch(xfetch);
 
@@ -392,13 +394,14 @@ async function discoverAdAccounts(env) {
    account sorts first), and the onboarding tick moves the Asana link and answers onto it. Two or more
    matches, or none, does nothing: a wrong brand is worse than a late one. Cole is told either way. */
 const COLE_SLACK = 'U06C37MDWD7';
+const NEWBIZ_CH = 'C0BV9L8NV33';   // #mobius-newbiz: questions about clients not yet tied to a channel
 const normBrand = s => String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ')
   .replace(/\b(ad|ads|account|acct|new|inc|llc|co|the|meta|facebook|fb|main|official|\d+)\b/g, ' ').replace(/\s+/g, ' ').trim();
 const myshopify = v => { const m = /([a-z0-9][a-z0-9-]*)\.myshopify\.com/i.exec(String(v || '')); return m ? `${m[1].toLowerCase()}.myshopify.com` : null; };
 async function autoConnectMeta(env) {
   const runs = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE act_id IS NULL AND slack_internal IS NOT NULL`).all().catch(() => ({ results: [] }))).results || [];
   if (!runs.length) return { waiting: 0 };
-  await discoverAccounts(env).catch(() => null);
+  const disc = await discoverAccounts(env).catch(() => null);
   const untracked = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%'`).all()).results || [];
   const out = { waiting: runs.length, connected: [] };
   for (const r of runs) {
@@ -407,27 +410,46 @@ async function autoConnectMeta(env) {
     const hits = untracked.filter(a => { const n = normBrand(a.name); return n.length >= 3 && (n === want || n.includes(want) || want.includes(n)); });
     if (hits.length !== 1) continue;
     const a = hits[0];
-    const steps = safeJson(r.steps_json, {});
-    const save = () => env.DB.prepare(`UPDATE p_newclient SET steps_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, JSON.stringify(steps)).run();
-    try { await meta(env, `${a.act_id}/insights`, { date_preset: 'last_7d', fields: 'spend', limit: 1 }); }
-    catch (e) {
-      if (!steps.meta_blocked) {
-        await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name}* shared the ad account "${a.name}", but Locus cannot read it yet. In Business Settings > Ad accounts > ${a.name} > Assign people, add the *Mobius Tools* system user. Locus switches it on within the hour after that. (Meta said: ${String(e.message).slice(0, 120)})`, null, { username: 'Locus' }).catch(() => {});
-        steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save();
-      }
-      continue;
+    const res = await connectMetaFor(env, r, a);
+    if (res.ok) out.connected.push({ client: r.name, act: a.act_id });
+  }
+  /* The name did not give it away (Yak Sports shared "Hockeyak"): any ad account that is new since the
+     last look and matched nobody is put to Cole, once, with a button per waiting client. */
+  const fresh = (disc?.fresh || []).filter(f => !out.connected.some(c => c.act === f.act_id));
+  if (fresh.length) {
+    const still = runs.filter(r => !out.connected.some(c => c.client === r.name));
+    for (const f of fresh) {
+      if (!still.length) break;
+      const text = `<@${COLE_SLACK}> A new ad account showed up in Meta: *${f.name}*. Is it one of these clients'?`;
+      const blocks = [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: still.slice(0, 5).map(r => ({ type: 'button', text: { type: 'plain_text', text: `Yes, it is ${r.name}'s` }, action_id: 'nc_meta_yes', value: JSON.stringify({ id: r.id, act: f.act_id }) })) },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Not theirs? Ignore this. You can also connect it later in Locus > Settings > New client > the client.' }] }];
+      await slackPost(env, NEWBIZ_CH, text, blocks, { username: 'Locus' }).catch(() => {});
     }
-    const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.answers_json, {});
-    const shop = myshopify(ans.shopify_url);
-    await env.DB.prepare(`UPDATE accounts SET active = 1, name = ?2, tw_shop = COALESCE(NULLIF(tw_shop, ''), ?3),
-        slack_channel = COALESCE(NULLIF(slack_channel, ''), ?4), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?5) WHERE act_id = ?1`)
-      .bind(a.act_id, r.name, shop, r.slack_internal, r.slack_client || null).run();
-    await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, a.act_id).run();
-    steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save();
-    await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name} shared Meta.* Locus switched on their ad account "${a.name}": 90 days of history are syncing now, and the daily brief, reports and their Your ads page fill in from it.${shop ? ` Triple Whale is set to ${shop}.` : ' No store address yet, so Triple Whale is not set: add it in Settings when their form has it.'} Still by hand: add the media buyer to the ad account and page in Business Settings. Wrong account? Settings > the brand > Stop tracking.`, null, { username: 'Locus' }).catch(() => {});
-    out.connected.push({ client: r.name, act: a.act_id });
   }
   return out;
+}
+
+/** Switches an ad account on as a waiting new client, after checking Locus can read it. */
+async function connectMetaFor(env, r, a) {
+  const steps = safeJson(r.steps_json, {});
+  const save = () => env.DB.prepare(`UPDATE p_newclient SET steps_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, JSON.stringify(steps)).run();
+  try { await meta(env, `${a.act_id}/insights`, { date_preset: 'last_7d', fields: 'spend', limit: 1 }); }
+  catch (e) {
+    if (!steps.meta_blocked || steps.meta_blocked.act !== a.act_id) {
+      await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name}* shared the ad account "${a.name}", but Locus cannot read it yet. In Business Settings > Ad accounts > ${a.name} > Assign people, add the *Mobius Tools* system user. Locus switches it on within the hour after that. (Meta said: ${String(e.message).slice(0, 120)})`, null, { username: 'Locus' }).catch(() => {});
+      steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save();
+    }
+    return { error: 'Locus cannot read that ad account yet: add the Mobius Tools system user to it in Business Settings.' };
+  }
+  const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.answers_json, {});
+  const shop = myshopify(ans.shopify_url);
+  await env.DB.prepare(`UPDATE accounts SET active = 1, name = ?2, tw_shop = COALESCE(NULLIF(tw_shop, ''), ?3),
+      slack_channel = COALESCE(NULLIF(slack_channel, ''), ?4), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?5) WHERE act_id = ?1`)
+    .bind(a.act_id, r.name, shop, r.slack_internal, r.slack_client || null).run();
+  await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, a.act_id).run();
+  steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save();
+  await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name} is on Meta.* Locus switched on their ad account "${a.name}": 90 days of history are syncing now, and the daily brief, reports and their Your ads page fill in from it.${shop ? ` Triple Whale is set to ${shop}.` : ' No store address yet, so Triple Whale is not set: Locus sets it when their form has it.'} Still by hand: add the media buyer to the ad account and page in Business Settings. Wrong account? Settings > the brand > Stop tracking.`, null, { username: 'Locus' }).catch(() => {});
+  return { ok: true };
 }
 
 async function discoverAccounts(env) {
@@ -5029,6 +5051,20 @@ async function handleSlackInteract(request, env, ctx) {
   const payload = safeJson(form.get('payload'), null);
   if (!payload) return ACK();
   try {
+    /* New client buttons: "is this their ad account?" here (it needs Meta), the rest in newclient.js. */
+    const nc = payload.type === 'block_actions' ? (payload.actions || []).find(a => /^nc_/.test(a.action_id || '')) : null;
+    if (nc) {
+      if (nc.action_id !== 'nc_meta_yes') return await handleNewClientAction(env, ctx, payload);
+      const v = safeJson(nc.value, {});
+      ctx.waitUntil((async () => {
+        const r = await env.DB.prepare(`SELECT * FROM p_newclient WHERE id = ?1`).bind(String(v.id || '')).first();
+        const a = await env.DB.prepare(`SELECT act_id, name, active FROM accounts WHERE act_id = ?1`).bind(String(v.act || '')).first();
+        const res = !r || !a ? { error: 'That client or ad account is gone.' } : r.act_id ? { error: `${r.name} is already connected.` } : await connectMetaFor(env, r, a);
+        if (payload.response_url) await xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ replace_original: true, text: res.error ? `Not connected: ${res.error}` : `✓ "${a.name}" connected to ${r.name}.` }) }).catch(() => {});
+      })());
+      return ACK();
+    }
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^idea_/.test(a.action_id || '')))
       return env.IDEAS_BOT === 'off' ? ACK() : await handleIdeaAction(env, ctx, payload);
@@ -5932,10 +5968,40 @@ const AH_APP = {
       const r = await handleSign(request, env, path, json);
       if (r) return r;
     }
+    /* The client's "Message the team" button on the onboarding form (public, by onboarding token). */
+    if (path === '/api/onboard-message' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({}));
+      const tok = String(b.token || '').replace(/[^a-f0-9]/g, '');
+      const msg = String(b.message || '').trim().slice(0, 1500);
+      if (!tok || !msg) return json({ error: 'Write a message first.' }, 400);
+      const o = await env.DB.prepare(`SELECT o.name, o.act_id, n.slack_internal, a.slack_channel, a.name AS acct FROM p_br_onboard o LEFT JOIN p_newclient n ON n.token = o.token LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(tok).first().catch(() => null);
+      if (!o) return json({ error: 'This link is not valid.' }, 404);
+      const last = Number((await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`obMsg:${tok}`).first().catch(() => null))?.value || 0);
+      if (Date.now() - last < 30000) return json({ error: 'Sent a moment ago. Give it a minute.' }, 429);
+      await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(`obMsg:${tok}`, String(Date.now())).run();
+      const ch = o.slack_internal || o.slack_channel || NEWBIZ_CH;
+      await slackPost(env, ch, `<@${COLE_SLACK}> *${o.acct || o.name}* sent a message from their onboarding form${b.step ? ` (step: ${String(b.step).slice(0, 60)})` : ''}:\n>${msg.replace(/\n/g, '\n>')}`, null, { username: 'Locus' });
+      return json({ ok: true });
+    }
+    if (path === '/api/new-client/connect-meta' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      const r = await env.DB.prepare(`SELECT * FROM p_newclient WHERE id = ?1`).bind(String(b.id || '')).first();
+      const a = await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(String(b.act || '')).first();
+      if (!r || !a) return json({ error: 'Unknown client or ad account.' }, 404);
+      const res = await connectMetaFor(env, r, a);
+      return json(res, res.ok ? 200 : 400);
+    }
+    if (path === '/api/new-client/meta-accounts') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const rows = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%' ORDER BY name`).all()).results || [];
+      return json({ accounts: rows });
+    }
     /* Run the "client shared Meta" check now instead of on the hour (admin). */
     if (path === '/api/new-client/meta-now' && request.method === 'POST') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
-      return json({ ok: true, ...(await autoConnectMeta(env)) });
+      /* Everything the hourly tick does for new clients: welcomes, form pings, Shopify, Meta. */
+      return json({ ok: true, tick: await newClientTick(env).catch(e => ({ error: e.message })), ...(await autoConnectMeta(env)) });
     }
     /* ---- New client: one button in Locus sets up Asana, the onboarding link, Drive and Slack (admin) ---- */
     if (path.startsWith('/api/new-client')) {

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Email signature · Mobius Digital</title>
+<style>
+/* Cole's Gmail signature. The same block Locus adds to every email it sends from his Gmail (account-health
+   src/mail.js SIGNATURE_HTML): keep the two identical. */
+body{margin:0;background:#F4F7F9;color:#13202B;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5}
+.wrap{max-width:640px;margin:0 auto;padding:32px 16px 60px}
+h1{font-size:24px;margin:0 0 6px}
+ol{padding-left:20px;margin:10px 0 22px}
+li{margin:5px 0}
+.card{background:#fff;border:1px solid #E1E8ED;border-radius:12px;padding:22px}
+button{font:inherit;font-weight:600;border:1px solid #2F9AD6;background:#2F9AD6;color:#fff;border-radius:9px;padding:9px 16px;cursor:pointer;margin-top:16px}
+.note{color:#6B7A88;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Your email signature</h1>
+  <p class="note">Emails Locus sends for you already carry this. To put it on emails you write yourself:</p>
+  <ol>
+    <li>Press <b>Copy the signature</b> below (or select the box and copy).</li>
+    <li>In Gmail: the gear, <b>See all settings</b>, then <b>Signature</b>, <b>Create new</b>, name it "Mobius".</li>
+    <li>Paste into the box, set it as the default for new emails and replies, and <b>Save Changes</b> at the bottom.</li>
+  </ol>
+  <div class="card" id="sig"><table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;color:#13202B">
+<tr><td style="padding:0 16px 0 0;border-right:2px solid #2F9AD6;vertical-align:middle"><a href="https://go-mobius-digital.com"><img src="https://tools.go-mobius-digital.com/brand/mobius-logo-email.png" width="150" alt="Mobius Digital" style="display:block;border:0;width:150px;height:auto"></a></td>
+<td style="padding:0 0 0 16px;vertical-align:middle;font-size:13px;line-height:1.5"><b style="font-size:14px">Cole Wetzler</b><br><span style="color:#6B7A88">Founder, Mobius Digital</span><br><a href="mailto:cole@go-mobius-digital.com" style="color:#2F9AD6;text-decoration:none">cole@go-mobius-digital.com</a><br><a href="https://go-mobius-digital.com" style="color:#2F9AD6;text-decoration:none">go-mobius-digital.com</a></td></tr></table></div>
+  <button id="copy">Copy the signature</button> <span class="note" id="msg"></span>
+</div>
+<script>
+document.getElementById('copy').onclick = async () => {
+  const el = document.querySelector('#sig table'); const msg = document.getElementById('msg');
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([el.outerHTML], { type: 'text/html' }), 'text/plain': new Blob([el.innerText], { type: 'text/plain' }) })]);
+    msg.textContent = 'Copied. Paste it into Gmail.';
+  } catch {
+    const r = document.createRange(); r.selectNode(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    document.execCommand('copy'); msg.textContent = 'Copied. Paste it into Gmail.';
+  }
+};
+</script>
+</body>
+</html>

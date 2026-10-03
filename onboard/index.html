@@ -97,7 +97,7 @@ textarea.in{min-height:90px;resize:vertical}
 </head>
 <body>
 <div class="wrap" id="app"><div class="center"><p class="note">Loading your form…</p></div></div>
-<script src="questions.js?v=5"></script>
+<script src="questions.js?v=7"></script>
 <script>
 'use strict';
 (function () {
@@ -176,11 +176,12 @@ function fieldHtml(f) {
 function howto(f) {
   if (!f.steps && !f.copy && !f.loom && !f.go && !f.link) return '';
   const link = f.link && St.links[f.link];
-  const go = [...(f.go || []), ...(link ? [[f.link === 'sign' ? 'Read and sign the agreement' : 'Open your Google Drive folder', link]] : []), ...(f.loom ? [['Watch the short video', f.loom]] : [])];
+  const LABEL = { sign: 'Read and sign the agreement', invoice: 'Open the invoice', drive: 'Open your Google Drive folder' };
+  const go = [...(f.go || []), ...(link ? [[LABEL[f.link] || 'Open', link]] : []), ...(f.loom ? [['Watch the short video', f.loom]] : [])];
   return `<div class="howto">
     ${f.steps ? `<ol>${f.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
     ${f.copy ? `<div class="cp">${f.copy.map(([l, v]) => `<button type="button" data-copy="${esc(v)}" title="Copy"><small>${esc(l)}</small><b>${esc(v)}</b><span class="note">Copy</span></button>`).join('')}</div>` : ''}
-    ${f.link && !link ? `<p class="note" style="margin:8px 0 0">${f.link === 'sign' ? 'The agreement is on its way by email.' : 'Your folder link is in your Asana project under Client Resources, or ask your Mobius contact.'}</p>` : ''}
+    ${f.link && !link ? `<p class="note" style="margin:8px 0 0">${f.link === 'sign' ? 'The agreement is on its way by email.' : f.link === 'invoice' ? 'The invoice is on its way by email.' : 'Your folder link is in your Asana project under Client Resources, or ask your Mobius contact.'}</p>` : ''}
     ${go.length ? `<div class="go">${go.map(([l, u]) => `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">${esc(l)}</a>`).join('')}</div>` : ''}
   </div>`;
 }
@@ -228,7 +229,9 @@ function paint() {
     <section class="step"><h2>${esc(s.title)}</h2><p class="intro">${esc(s.intro)}</p>
       ${s.fields.map(fieldHtml).join('')}</section>
     <div class="helpbox"><h3>Stuck on a question?</h3><p class="note" style="margin:0">Ask anything about this step and get an answer right away.</p>
-      <div class="row"><input class="in" id="hq" placeholder="What do you mean by landed cost?"><button class="btn" id="hgo">Ask</button></div><div id="hans"></div></div>
+      <div class="row"><input class="in" id="hq" placeholder="What do you mean by landed cost?"><button class="btn" id="hgo">Ask</button></div><div id="hans"></div>
+      <p class="note" style="margin:14px 0 0">Something not working, or rather ask a person? Message us and the team gets it in Slack straight away.</p>
+      <div class="row"><input class="in" id="mq" placeholder="I paid the invoice but the box has not ticked"><button class="btn" id="mgo">Message the team</button></div><div id="mans"></div></div>
     <div class="nav"><button class="btn" id="back" ${St.step === 0 ? 'style="visibility:hidden"' : ''}>Back</button><button class="btn pri" id="next">${St.step === STEPS.length - 1 ? 'Review and send' : 'Next'}</button></div>
     <p class="note" style="margin-bottom:40px">Never type a password here. For access, the Access step shows you how to invite us from inside each platform.</p>`;
   wire(s);
@@ -276,6 +279,7 @@ function rewireCommon(s) {
   if (next) next.onclick = () => go(St.step + 1);
   if (hgo) hgo.onclick = () => ask(s);
   const hq = $('#hq'); if (hq) hq.onkeydown = e => { if (e.key === 'Enter') ask(s); };
+  const mgo = $('#mgo'); if (mgo) mgo.onclick = () => messageTeam(s);
 }
 async function go(n) {
   St.step = Math.max(0, Math.min(STEPS.length, n));
@@ -291,6 +295,39 @@ async function ask(s) {
     out.innerHTML = `<div class="ans">${esc(j.answer || j.error || 'No answer came back. Ask your Mobius contact.')}</div>`;
   } catch { out.innerHTML = '<div class="ans">The helper is not reachable right now. Your Mobius contact can answer this.</div>'; }
 }
+/* A person, not the AI: the message lands in the brand's internal Slack channel with Cole tagged. */
+async function messageTeam(s) {
+  const m = $('#mq').value.trim(); if (!m) return;
+  const out = $('#mans'); out.innerHTML = '<div class="ans">Sending…</div>';
+  try {
+    const r = await fetch(`${AH}/api/onboard-message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: TOKEN, message: m, step: s.title }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Could not send');
+    $('#mq').value = '';
+    out.innerHTML = '<div class="ans">Sent. The team has it in Slack and will get back to you there or by email.</div>';
+  } catch (e) { out.innerHTML = `<div class="ans">${esc(e.message)}. Email cole@go-mobius-digital.com instead.</div>`; }
+}
+
+/* Boxes Locus ticks itself (paid, signed, joined Slack) catch up the moment the client comes back to
+   this tab, and every 20 seconds while it is open: no refresh, no Check button. */
+const AUTO_IDS = STEPS.flatMap(s => s.fields.filter(f => f.auto).map(f => f.id));
+async function syncTicks() {
+  if (document.hidden || !TOKEN || St.done) return;
+  try {
+    const r = await fetch(`${API}/api/onboard/${TOKEN}`); if (!r.ok) return;
+    const j = await r.json();
+    for (const id of AUTO_IDS) {
+      if (j.answers?.[id] === true && St.answers[id] !== true) {
+        St.answers[id] = true;
+        const el = document.getElementById('f_' + id); if (el) el.checked = true;
+      }
+    }
+    if (j.links) St.links = { ...St.links, ...j.links };
+  } catch {}
+}
+document.addEventListener('visibilitychange', syncTicks);
+setInterval(syncTicks, 20000);
+
 async function upload(f, el) {
   const file = el.files[0]; if (!file) return;
   if (file.size > 95 * 1024 * 1024) { status('That file is over 95MB. Send a link in the notes instead.', 'bad'); return; }

@@ -25,11 +25,11 @@ const LOOM = {
 const STEPS = [
   /* The rest of the client's Asana "Client Responsible" list. `link: 'drive'` is
      the brand's own Google Drive folder, set in Locus (Brand info > At a glance). */
-  { id: 'start', title: 'Getting started', intro: 'The quick admin first. Tick each one when it is done.',
+  { id: 'start', title: 'Getting started', intro: 'The quick admin first. Most of these tick themselves the moment they are done.',
     fields: [
-      { id: 'st_invoice', label: 'Pay the first invoice', type: 'check', steps: ['It is in your email. We start once it is paid.'] },
-      { id: 'st_agreement', label: 'Sign the agreement', type: 'check', link: 'sign', steps: ['Read it and sign it on the page linked below (also in your email). It ticks itself when you sign.'] },
-      { id: 'st_slack', label: 'Say hi in our shared Slack channel', type: 'check', steps: ['You will get an invite to a Slack channel with our team. Drop a quick hello so we know you are in.'] },
+      { id: 'st_invoice', label: 'Pay the first invoice', type: 'check', auto: true, link: 'invoice', help: 'Ticks itself the moment it is paid.', steps: ['It is in your email from Stripe, or open it with the button below. We start once it is paid.'] },
+      { id: 'st_agreement', label: 'Sign the agreement', type: 'check', auto: true, link: 'sign', help: 'Ticks itself the moment you sign.', steps: ['Read it and sign it on the page linked below (also in your email).'] },
+      { id: 'st_slack', label: 'Join our shared Slack channel', type: 'check', auto: true, help: 'Ticks itself the moment you join.', steps: ['The invite comes by email from Slack. Accept it, and say hi when you are in.'] },
       { id: 'st_call', label: 'Book your strategy call', type: 'check', steps: ['Pick a time that suits you. We go through this form together on the call.'], go: [['Book the call', MOBIUS.calendly]] },
     ] },
   /* Access, word for word from the client's Asana "Client Responsible" tasks and

@@ -65,7 +65,7 @@ const LOCUS_ID = /^(brief|report)_|^noop_open$/;
 
 /* The ideas bot's buttons (account-health ideas.js). Checked FIRST and by action id only, so
    no value shape of Ledger's can ever be mistaken for one, and none of these can reach Ledger. */
-const IDEA_ID = /^idea_/;
+const IDEA_ID = /^(idea_|nc_)/;   // nc_ = Locus's New client buttons (2026-10-03)
 
 function ownerOf(payload) {
   const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];

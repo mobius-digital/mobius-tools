@@ -30,6 +30,7 @@
 import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } from './asana-brand.js';
 import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit, aiAmend, sendAmendment } from './contract.js';
 import { frameProject, frameStatus } from './frame.js';
+import { sendMail } from './mail.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -135,14 +136,7 @@ async function stepAsana(env, r) {
   const members = [...new Set([me.gid, ...teamList(team).map(gidOf)].filter(Boolean))];
   if (members.length) await asana(env, `/projects/${gid}/addMembers`, { method: 'POST', body: { members: members.join(',') } }).catch(e => out.notes.push(`Team not added: ${e.message}`));
 
-  /* The client, by their main email. They add their own teammates later. */
-  if (emailOk(r.contact_email)) {
-    try {
-      await asana(env, `/workspaces/${ws.gid}/addUser`, { method: 'POST', body: { user: r.contact_email } }).catch(() => null);
-      await asana(env, `/projects/${gid}/addMembers`, { method: 'POST', body: { members: r.contact_email } });
-      out.client_invited = true;
-    } catch (e) { out.notes.push(`Client not invited to Asana (${e.message}). Invite ${r.contact_email} from the project's Share button.`); }
-  }
+  /* The client is invited to Asana when the welcome email goes (stepInvite): that email explains it. */
 
   /* Tidy the project: website in, Marketing Plan out, and the old checklist swapped
      for the few things a person still does. Done once. */
@@ -243,14 +237,7 @@ async function stepDrive(env, r) {
   const rootPerms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress,role)`).catch(() => ({}))).permissions || [];
   for (const pm of rootPerms.filter(x => x.role !== 'owner' && x.emailAddress && x.emailAddress.toLowerCase() !== OWNER)) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
   for (const e of teamList(team).filter(x => x !== OWNER)) for (const id of [ids.inbox]) await share(id, e, 'writer', false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
-  if (emailOk(r.contact_email)) {
-    /* A folder made before 2026-10-03 shared its root with the client: take that back. */
-    const perms = (await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&fields=permissions(id,emailAddress)`).catch(() => ({}))).permissions || [];
-    for (const pm of perms.filter(x => (x.emailAddress || '').toLowerCase() === r.contact_email.toLowerCase())) await gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions/${pm.id}?supportsAllDrives=true`, { method: 'DELETE' }).catch(() => {});
-    for (const [id, role] of [[ids.inbox, 'writer'], [ids.agreements, 'reader']]) {
-      await share(id, r.contact_email, role, false).catch(() => share(id, r.contact_email, role, true)).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
-    }
-  }
+  /* The client's two folders are shared when the welcome email goes (stepInvite). */
   /* Asana Client Resources > Google Drive carries the two client folders; the form links From the client. */
   if (r.asana_project) await upsertResource(env, r.asana_project, 'Google Drive', `Send us files: ${link(ids.inbox)}\nYour signed agreements: ${link(ids.agreements)}`).catch(() => {});
   if (r.pending_act) await setDrive(env, r.act_id || r.pending_act, link(ids.inbox));
@@ -344,30 +331,55 @@ async function stepSlack(env, r) {
   return { ...out, text: `#${slug} and #${slug}-internal made, both private${out.client_invited ? `, ${r.contact_email} invited by Slack Connect` : ''}.` };
 }
 
+/* ---------------- the client's invites: right after the welcome email ----------------
+   Cole (2026-10-03): the welcome email goes first because it explains everything else. So the
+   Asana invite and the two Drive shares wait for it and go the moment it is sent. */
+async function stepInvite(env, r) {
+  const out = { notes: [] };
+  if (!emailOk(r.contact_email)) throw new Error('No client email.');
+  if (r.asana_project) {
+    try {
+      const { ws } = await workspace(env);
+      await asana(env, `/workspaces/${ws.gid}/addUser`, { method: 'POST', body: { user: r.contact_email } }).catch(() => null);
+      await asana(env, `/projects/${r.asana_project}/addMembers`, { method: 'POST', body: { members: r.contact_email } });
+      out.asana = true;
+    } catch (e) { out.notes.push(`Not invited to Asana (${e.message}). Invite ${r.contact_email} from the project's Share button.`); }
+  }
+  const f = safeJson(r.steps_json, {}).drive?.folders || {};
+  const share = (id, role, notify) => gapi(env, DRIVE, `drive/v3/files/${id}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role, emailAddress: r.contact_email } });
+  for (const [id, role] of [[f.inbox, 'writer'], [f.agreements, 'reader']].filter(([id]) => id)) {
+    await share(id, role, false).catch(() => share(id, role, true)).then(() => { out.drive = true; }).catch(err => out.notes.push(`Drive not shared: ${err.message}`));
+  }
+  return { ...out, status: 'done', at: new Date().toISOString(), text: `Invited to ${[out.asana && 'Asana', out.drive && 'their Drive folders'].filter(Boolean).join(' and ') || 'nothing yet'}.` };
+}
+
 /* ---------------- welcome email ---------------- */
 function welcomeDraft(r) {
   const link = r.token ? ONBOARD_FORM + r.token : '(the onboarding link appears here once it is made)';
+  const st = safeJson(r.steps_json, {});
+  const inbox = st.drive?.folders?.inbox ? `https://drive.google.com/drive/folders/${st.drive.folders.inbox}` : null;
+  const slug = r.slug || slugOf(r.name);
+  const links = [
+    `- Start here, your onboarding: ${link}`,
+    `- Book your strategy call: ${CALENDLY}`,
+    r.asana_url ? `- Your project in Asana, where you see every ad before it runs: ${r.asana_url}` : null,
+    inbox ? `- Your folder with us, for any files you want to send: ${inbox}` : null,
+    r.slack_client ? `- Our shared Slack channel, #${slug}: the invite comes from Slack. Add anyone from your team once you are in.` : null,
+  ].filter(Boolean).join('\n');
   return {
     subject: `Welcome to Mobius Digital, ${firstName(r.contact_name)}`,
     body: `Hi ${firstName(r.contact_name)},
 
 Welcome aboard. We are excited to get started on ${r.name}.
 
-Everything we need from you is in one link:
-${link}
+Here is everything in one place:
+${links}
 
-It walks you through the quick admin, giving us access to each platform (click by click, with a short video for each), and a few questions about your products and customers. We filled in what we could from your website, so most of it is checking rather than typing. It saves as you go.
+The onboarding link walks you through the quick admin, giving us access to each platform (click by click, with a short video for each), and a few questions about your products and customers. We filled in what we could from your website, so most of it is checking rather than typing. It saves as you go.
 
-Three other things are on their way to this email address:
-- An invite to your project in Asana, where you will see every ad we are working on.
-- An invite to our shared Slack channel. That is the fastest way to reach us, and you can add anyone on your team once you are in.
-- Access to your Google Drive folder with us.
+Over the next few minutes you will also get invites from Asana, Google Drive and Slack, plus the first invoice (from Stripe) and our agreement to sign. All of them are linked inside your onboarding too, so nothing gets lost.
 
-When you are ready, book your strategy call here:
-${CALENDLY}
-
-Talk soon,
-Cole`,
+Talk soon,`,
   };
 }
 const b64url = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -379,10 +391,13 @@ async function stepEmail(env, r, b) {
   const body = String(b.body || '').trim();
   if (!subject || !body) throw new Error('The email needs a subject and a message.');
   if (!b.approved) throw new Error('The welcome email is only sent when you press Send on it.');
-  const mime = [`From: Cole Wetzler <${OWNER}>`, `To: ${r.contact_email}`, `Subject: =?UTF-8?B?${btoa(String.fromCharCode(...new TextEncoder().encode(subject)))}?=`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: 8bit', '', body].join('\r\n');
-  try { await gapi(env, 'https://www.googleapis.com/auth/gmail.send', 'gmail/v1/users/me/messages/send', { method: 'POST', body: { raw: b64url(mime) } }); }
-  catch (e) { throw new Error(/sign-in failed|unauthorized_client|access_denied|insufficient/i.test(e.message) ? NEEDS_GMAIL : `Gmail: ${e.message}`); }
-  return { text: `Sent to ${r.contact_email} from your Gmail.` };
+  try { await sendMail(env, r.contact_email, subject, body); }
+  catch (e) { throw new Error(/sign-in failed|unauthorized_client|access_denied|insufficient/i.test(e.message) ? NEEDS_GMAIL : e.message); }
+  /* The welcome explains the invites, so they go now, not before. */
+  const inv = await stepInvite(env, await getRun(env, r.id)).catch(e => ({ status: 'failed', text: e.message, notes: [] }));
+  const st = safeJson((await getRun(env, r.id)).steps_json, {}); st.invite = inv;
+  await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+  return { text: `Sent to ${r.contact_email} from your Gmail. ${inv.text || ''}`.trim(), notes: inv.notes || [] };
 }
 
 /* ---------------- Stripe: invoice first, then autopay ----------------
@@ -563,7 +578,7 @@ async function stepFrame(env, r) {
   if (out.url && r.asana_project) await upsertResource(env, r.asana_project, 'Frame', out.url).catch(e => out.notes.push(`Asana link not written: ${e.message}`));
   return { ...out, text: 'Frame project made.' };
 }
-const RUN = { asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, frame: stepFrame, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary };
+const RUN = { invite: stepInvite, asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, frame: stepFrame, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary };
 
 /* ---------------- routes (admin) ---------------- */
 export async function handleNewClient(request, env, path, json, isAdmin, who) {
@@ -743,6 +758,34 @@ async function welcomeOnJoin(env, r) {
   return true;
 }
 
+/* Slack buttons from Locus's New client messages (nc_*), routed here by slack-router. */
+export async function handleNewClientAction(env, ctx, payload) {
+  const act = (payload.actions || []).find(a => /^nc_/.test(a.action_id || ''));
+  if (!act || act.action_id === 'nc_open_partners') return new Response('', { status: 200 });
+  const v = safeJson(act.value, {});
+  const reply = (text) => payload.response_url && F(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }] }) }).catch(() => {});
+  if (act.action_id === 'nc_shopify_sent') {
+    ctx.waitUntil((async () => {
+      await ensureTable(env);
+      const r = await getRun(env, String(v.id || ''));
+      if (!r) return reply('That client is no longer in Locus.');
+      const st = safeJson(r.steps_json, {});
+      const store = st.shopify_ping?.store || 'your store';
+      const note = `We just sent the Shopify collaborator request for ${store}. Please approve it: open the email from Shopify, or in Shopify go to Settings > Users > Collaborators. It takes a few seconds and lets us work in your store without you making us an account.`;
+      let how = '';
+      if (st.slack_welcome && r.slack_client && env.SLACK_USER_TOKEN) {
+        const m = await slack(env.SLACK_USER_TOKEN, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false });
+        if (m.ok) how = 'in their Slack channel';
+      }
+      if (!how && emailOk(r.contact_email)) { await sendMail(env, r.contact_email, `Please approve our Shopify request for ${store}`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'by email'; }).catch(() => {}); }
+      st.shopify_ping = { ...st.shopify_ping, sent: new Date().toISOString(), told: how || null };
+      await patchRun(env, r.id, { steps_json: JSON.stringify(st) });
+      await reply(how ? `✓ Collaborator request for *${store}* sent. ${r.name} was asked to approve it ${how}.` : `✓ Marked as sent, but Locus could not reach ${r.name} (not in Slack, email failed). Tell them to approve it in Shopify > Settings > Users.`);
+    })());
+  }
+  return new Response('', { status: 200 });
+}
+
 /* Shopify has no API for a collaborator request: it is made from the Partner dashboard. So the moment
    the client types their store address (the form saves as they go), Cole gets it in the internal channel
    with the request code and the clicks, once. */
@@ -755,8 +798,16 @@ async function shopifyHeadsUp(env) {
     if (!m) continue;
     const store = `${m[1].toLowerCase()}.myshopify.com`;
     const code = String(ans.shopify_code || '').trim();
-    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
-      text: `<@U06C37MDWD7> *${r.name}* gave their Shopify store: *${store}*${code ? `, request code *${code}*` : ''}. Send the collaborator request: partners.shopify.com > Stores > Add store > Request access to a store > paste the address${code ? ' and the code' : ''}. They approve it from their email.` });
+    const text = `<@U06C37MDWD7> *${r.name}* gave their Shopify store. Send the collaborator request, then press the button and Locus tells them to approve it.`;
+    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false, text, blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text } },
+      { type: 'section', fields: [{ type: 'mrkdwn', text: `*Store*\n\`${store}\`` }, { type: 'mrkdwn', text: `*Request code*\n${code ? `\`${code}\`` : 'none needed'}` }] },
+      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Partner dashboard > *Stores* > *Add store* > *Request access to a store* > paste the store address' + (code ? ' and the code' : '') + ' > pick the permissions > *Request access*.' }] },
+      { type: 'actions', elements: [
+        { type: 'button', text: { type: 'plain_text', text: 'Open Shopify Partners' }, url: 'https://partners.shopify.com/organizations', action_id: 'nc_open_partners' },
+        { type: 'button', style: 'primary', text: { type: 'plain_text', text: 'I sent the request' }, action_id: 'nc_shopify_sent', value: JSON.stringify({ id: r.id }) },
+      ] },
+    ] });
     if (j.ok) { const steps = safeJson(r.steps_json, {}); steps.shopify_ping = { store, at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); told++; }
     if (r.act_id) await env.DB.prepare(`UPDATE accounts SET tw_shop = ?2 WHERE act_id = ?1 AND (tw_shop IS NULL OR tw_shop = '')`).bind(r.act_id, store).run().catch(() => {});
   }

@@ -1149,3 +1149,17 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   request code the moment the form has it (Shopify has no API for collaborator requests) and fills tw_shop.
   The form's "Pay the first invoice" and "Say hi in Slack" boxes tick themselves (`tickForm`); the internal channel
   hears when an agreement or amendment is signed (`signedPing`). The Asana checklist dropped the steps Locus does.
+- **2026-10-03, evening round:** welcome email FIRST: the client's Asana invite and Drive shares wait for it
+  (`stepInvite`, run by `stepEmail` after the send); the setup screen numbers Welcome 1, Invoice 2, Agreement 3.
+  All client email goes through `mail.js` `sendMail` (HTML + Cole's branded signature with
+  `brand/mobius-logo-email.png`; the Gmail API never adds Gmail's own signature). Gmail copy-paste page:
+  `brand/signature.html`. The welcome lists every link (onboarding, Calendly, Asana, From the client, Slack).
+  Signed agreements are kept in Drive as **PDF** (doc made, exported, doc deleted). Shopify heads-up is a Block Kit
+  card: store + code, "Open Shopify Partners", and **"I sent the request"** (`nc_shopify_sent`) which tells the client
+  to approve (in their Slack channel as Cole if they joined, else by email). Slack router forwards `nc_*` to Locus.
+  Meta fallback: a never-seen ad account that matches no waiting client is put to Cole in #mobius-newbiz with
+  "Yes, it is X's" buttons (`nc_meta_yes` -> `connectMetaFor`); the setup screen has a picker (`/api/new-client/
+  meta-accounts`, `/connect-meta`). Yak Sports = "Hockeyak" (connected by hand 2026-10-03). Form: `auto: true` boxes
+  (invoice, agreement, Slack) say they tick themselves and catch up on tab focus / every 20s; `links.invoice` = the
+  Stripe page; "Message the team" -> `POST /api/onboard-message` (public by token, 30s limit) posts to the internal
+  channel tagging Cole. `POST /api/new-client/meta-now` runs the whole hourly new-client pass on demand.
