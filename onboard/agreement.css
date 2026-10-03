@@ -1,12 +1,12 @@
 /* The services agreement, as the client reads and signs it (sign.html) and as Cole previews it
    in Locus (an iframe with this same sheet). Letterhead, numbered sections, a signature block
    that prints. Always light: a contract is paper. */
-.paper{--paper:#fff;--ink:#16131F;--ink-2:#3E3850;--muted:#6D6680;--line:#E6E2EF;--acc:#5B3FB0;--acc-soft:#EDE8FA;--good:#1C7A46;--good-bg:#E4F2E9;
+.paper{--paper:#fff;--ink:#13202B;--ink-2:#3B4A57;--muted:#6B7A88;--line:#E1E8ED;--acc:#2F9AD6;--acc-soft:#E6F3FB;--good:#1C7A46;--good-bg:#E4F2E9;
   --sans:'Instrument Sans',system-ui,-apple-system,Segoe UI,sans-serif;--serif:'Instrument Serif',Georgia,'Times New Roman',serif}
 .paper{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:40px clamp(20px,5vw,56px) 44px;font-family:var(--sans);font-size:14.5px;line-height:1.65;box-shadow:0 1px 2px rgba(22,19,31,.04),0 12px 40px -24px rgba(22,19,31,.25)}
 .letterhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:26px}
 .letterhead .mark{display:flex;align-items:center;gap:10px}
-.letterhead .mark img{width:34px;height:34px;border-radius:9px}
+.letterhead .mark img{height:38px;width:auto}
 .letterhead .mark b{font-family:var(--serif);font-weight:400;font-size:21px;letter-spacing:.01em}
 .letterhead .mark small{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:1px}
 .letterhead .meta{text-align:right;font-size:12.5px;color:var(--muted);line-height:1.5}

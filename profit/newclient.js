@@ -79,11 +79,11 @@ async function open() {
   try { opts = await ah('/api/new-client/options'); }
   catch (e) { return noteModal('Could not open New client', `<p>${esc(e.message)}</p>`); }
   const team = opts.team || [];
-  const pick = { strategist: '', buyer: '', editor: '', designer: '' };
-  const guess = re => team.find(t => re.test(t.name) || re.test(t.email))?.email || '';
+  const pick = { strategist: [], buyer: [], editor: [], designer: [] };
+  const guess = re => team.filter(t => re.test(t.name) || re.test(t.email)).map(t => t.email);
   pick.buyer = guess(/ahsan/i); pick.editor = guess(/ravo/i); pick.designer = guess(/william/i);
   const chips = role => team.length
-    ? `<div class="nc-chips" data-role="${role}">${team.map(t => `<button type="button" class="nc-chip" data-e="${esc(t.email)}" aria-pressed="${pick[role] === t.email}">${esc(t.name.split(' ')[0])}</button>`).join('')}</div>`
+    ? `<div class="nc-chips" data-role="${role}">${team.map(t => `<button type="button" class="nc-chip" data-e="${esc(t.email)}" aria-pressed="${pick[role].includes(t.email)}">${esc(t.name.split(' ')[0])}</button>`).join('')}</div>`
     : `<span class="tiny nc-bad">Could not read the team from Asana${opts.team_error ? ': ' + esc(opts.team_error) : ''}.</span>`;
   const f = (label, help, control) => `<div class="ab-f"><label>${label}</label><p class="hint">${help}</p>${control}</div>`;
   const today = new Date().toISOString().slice(0, 10);
@@ -107,7 +107,7 @@ async function open() {
         ${f('Monthly retainer', 'Goes into Ledger. Leave empty to skip.', '<input type="text" id="ncRet" inputmode="decimal" placeholder="e.g. 4000">')}
         ${f('Start date', 'The day the project starts.', `<input type="text" id="ncStart" value="${today}" placeholder="YYYY-MM-DD">`)}
       </div>
-      ${f('Creative strategist', 'Gets added to Asana, Slack and Drive, and is assigned the research review.', chips('strategist'))}
+      ${f('Creative strategist', 'Tap more than one if a brand needs it. Gets added to Asana, Slack and Drive, and is assigned the research review. <a href="#" id="ncTeamEdit">Edit the team list</a>', chips('strategist'))}
       ${f('Media buyer', 'Gets added to Asana, Slack and Drive.', chips('buyer'))}
       ${f('Video editor', 'Gets added to Asana, Slack, Drive and Frame. Tap again to leave empty.', chips('editor'))}
       ${f('Graphic designer', 'Gets added to Asana, Slack, Drive and Frame. Tap again to leave empty.', chips('designer'))}
@@ -125,11 +125,12 @@ async function open() {
   w.querySelectorAll('.nc-chips').forEach(g => g.onclick = e => {
     const b = e.target.closest('.nc-chip'); if (!b) return;
     const role = g.dataset.role;
-    pick[role] = pick[role] === b.dataset.e ? '' : b.dataset.e;
-    g.querySelectorAll('.nc-chip').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.e === pick[role])));
+    pick[role] = pick[role].includes(b.dataset.e) ? pick[role].filter(x => x !== b.dataset.e) : [...pick[role], b.dataset.e];
+    g.querySelectorAll('.nc-chip').forEach(x => x.setAttribute('aria-pressed', String(pick[role].includes(x.dataset.e))));
   });
   w.querySelectorAll('[data-run]').forEach(a => a.onclick = e => { e.preventDefault(); close(); status(a.dataset.run, false); });
   const fr = $$('#ncFrame'); if (fr) fr.onclick = e => { e.preventDefault(); close(); connectFrame(); };
+  const te = $$('#ncTeamEdit'); if (te) te.onclick = e => { e.preventDefault(); close(); editTeam(team); };
 
   $$('[data-m="yes"]').onclick = async () => {
     const err = $$('#ncErr'); err.textContent = '';
@@ -140,7 +141,7 @@ async function open() {
     };
     if (!body.name) return err.textContent = 'Give the brand a name.';
     if (!body.contact_email) return err.textContent = 'Add the client email. It is how they get invited to everything.';
-    if (!pick.strategist) return err.textContent = 'Pick the creative strategist.';
+    if (!pick.strategist.length) return err.textContent = 'Pick the creative strategist.';
     const ok = await confirmModal(`Set up ${body.name}?`,
       `Locus will make the Asana project, Drive folder and two private Slack channels, and invite ${body.contact_email} to all three. The welcome email waits for you to press Send.`, 'Yes, set it up');
     if (!ok) return;
@@ -349,8 +350,8 @@ async function status(id, autorun) {
 /* The preview IS the signing page: same sheet, same letterhead, same signature block. */
 function previewAgreement(html, v) {
   const today = new Date().toLocaleDateString('en-US', { dateStyle: 'long' });
-  const doc = `<!doctype html><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Caveat:wght@500&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://tools.go-mobius-digital.com/onboard/agreement.css?v=2">
-    <body style="margin:0;padding:18px;background:#F3F1FA"><div class="paper"><div class="letterhead"><div class="mark"><img src="https://tools.go-mobius-digital.com/favicon.png" alt=""><div><b>Mobius Digital</b><small>Services agreement</small></div></div><div class="meta"><b>${esc(v.company || '')}</b>Prepared ${esc(today)}<br>Awaiting signature</div></div>
+  const doc = `<!doctype html><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Caveat:wght@500&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://tools.go-mobius-digital.com/onboard/agreement.css?v=3">
+    <body style="margin:0;padding:18px;background:#F3F1FA"><div class="paper"><div class="letterhead"><div class="mark"><img src="https://tools.go-mobius-digital.com/brand/mobius-logo.webp" alt="Mobius Digital"></div><div class="meta"><b>${esc(v.company || '')}</b>Prepared ${esc(today)}<br>Awaiting signature</div></div>
     ${html}
     <div class="sig"><div class="party"><b>Provider</b><div class="name">Cole Wetzler</div><div class="meta"><span>Mobius Digital, LLC</span><br>Signed electronically when sent</div></div><div class="party"><b>Client</b><div class="name empty">Signature</div><div class="meta"><span>${esc(v.client_name || '')}</span><br>${esc(v.company || '')}</div></div></div></div></body>`;
   const w = shell(`<h3>Agreement, as the client sees it</h3><p class="hint" style="margin-bottom:10px">This is the page they open from the email. They type their name and press Sign at the bottom of it.</p>
@@ -358,6 +359,30 @@ function previewAgreement(html, v) {
     <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="ncPrevClose">Close</button></div>`, 860);
   w.querySelector('#ncPrev').srcdoc = doc;
   w.querySelector('#ncPrevClose').onclick = () => w.remove();
+}
+
+/* ---------------- the team list (who can be put on a client) ---------------- */
+function editTeam(team) {
+  css();
+  let rows = team.map(t => ({ name: t.name, email: t.email, slack: t.slack || '' }));
+  const w = shell(`<h3>The team</h3><p class="hint">Who can be picked for a client. Email = the one they use in Asana (and Drive). Slack handle is optional, only for someone whose Slack email differs.</p><div id="ncTeamRows"></div>
+    <div class="row" style="gap:8px;margin-top:10px"><button class="btn" id="ncTeamAdd">+ Add a person</button></div>
+    <p class="tiny nc-bad" id="ncTeamErr" style="min-height:16px;margin:8px 0 0"></p>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin:6px 0 0"><button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">Save</button></div>`, 620);
+  const $$ = s => w.querySelector(s);
+  const draw = () => {
+    $$('#ncTeamRows').innerHTML = rows.map((t, i) => `<div class="nc-two" style="grid-template-columns:1fr 1.4fr 1fr auto;gap:8px;margin-top:8px;align-items:center">
+      <input type="text" data-k="name" data-i="${i}" value="${esc(t.name)}" placeholder="Name"><input type="text" data-k="email" data-i="${i}" value="${esc(t.email)}" placeholder="email"><input type="text" data-k="slack" data-i="${i}" value="${esc(t.slack)}" placeholder="Slack id (optional)"><button class="btn" data-x="${i}" title="Remove">✕</button></div>`).join('');
+    w.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.i][inp.dataset.k] = inp.value; });
+    w.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.x, 1); draw(); });
+  };
+  draw();
+  $$('#ncTeamAdd').onclick = () => { rows.push({ name: '', email: '', slack: '' }); draw(); };
+  $$('[data-m="no"]').onclick = () => { w.remove(); open(); };
+  $$('[data-m="yes"]').onclick = async () => {
+    try { await post('/api/new-client/team', { team: rows }); w.remove(); open(); }
+    catch (e) { $$('#ncTeamErr').textContent = e.message; }
+  };
 }
 
 /* ---------------- Connect Frame (Adobe) ---------------- */

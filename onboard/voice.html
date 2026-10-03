@@ -14,12 +14,12 @@
    no login. The AI lives on the account-health worker (voice.js). The client
    talks, the AI asks follow-ups, then writes sample lines they rate. */
 :root{
-  --bg:#F3F1FA; --surface:#FFFFFF; --ink:#16131F; --ink-2:#433C55; --muted:#6D6680;
-  --line:#E3DEEF; --line-strong:#CBC3DE; --acc:#5B3FB0; --acc-ink:#FFFFFF; --acc-soft:#EDE8FA;
+  --bg:#F4F7F9; --surface:#FFFFFF; --ink:#13202B; --ink-2:#3B4A57; --muted:#6B7A88;
+  --line:#E1E8ED; --line-strong:#C9D4DC; --acc:#2F9AD6; --acc-ink:#FFFFFF; --acc-soft:#E6F3FB;
   --good:#1C7A46; --good-bg:#E4F2E9; --warn:#8F6412; --warn-bg:#F8EED6; --bad:#9C3A2E; --bad-bg:#F7E4E1;
   --sans:'Instrument Sans',system-ui,-apple-system,Segoe UI,sans-serif; --serif:'Instrument Serif',Georgia,serif;
 }
-@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#14111C;--surface:#1D1928;--ink:#EDEAF5;--ink-2:#C4BDD6;--muted:#9890AD;--line:#2E2940;--line-strong:#40395A;--acc:#9C84EC;--acc-ink:#14111C;--acc-soft:#2A2340;--good:#5FD292;--good-bg:#15301F;--warn:#EBBF63;--warn-bg:#33280F;--bad:#F09182;--bad-bg:#3A1C18}}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0E161C;--surface:#16212A;--ink:#EAF1F5;--ink-2:#C2CED7;--muted:#8FA0AD;--line:#243139;--line-strong:#33434E;--acc:#6CC3F0;--acc-ink:#0E161C;--acc-soft:#1B2E3B;--good:#5FD292;--good-bg:#15301F;--warn:#EBBF63;--warn-bg:#33280F;--bad:#F09182;--bad-bg:#3A1C18}}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -28,7 +28,10 @@ button{cursor:pointer}
 button:disabled{opacity:.55;cursor:default}
 .wrap{max-width:720px;margin:0 auto;padding:0 16px 60px}
 header{padding:28px 0 8px}
-.brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px}
+.brand img{height:26px;width:auto}
+.center .brand{justify-content:center}
+@media (prefers-color-scheme:dark){.brand img.l{display:none}}@media (prefers-color-scheme:light){.brand img.d{display:none}}
 h1{font-family:var(--serif);font-weight:400;font-size:clamp(30px,6vw,42px);line-height:1.08;margin:6px 0 6px;text-wrap:balance}
 .lede{color:var(--ink-2);margin:0;max-width:60ch}
 .note{font-size:12.5px;color:var(--muted)}
@@ -169,7 +172,7 @@ function paint() {
   paintInterview();
 }
 function head(first) {
-  return `<header><div class="brand">Mobius Digital · ${esc(St.brand)}</div>
+  return `<header><div class="brand"><img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital"><span>${esc(St.brand)}</span></div>
     ${first ? `<h1>Help us find your voice.</h1><p class="lede">We ask one question at a time. Just talk: tap the button and say it the way you would say it to a friend. Rambling is good, polished is not. About 20 minutes, it saves as you go, and you can stop and come back to this link any time.</p>` : ''}</header>`;
 }
 function topicsBar() {
@@ -255,7 +258,7 @@ function paintSamples() {
   $('#finish').onclick = () => act('Writing your brand guide. This can take two minutes, keep this page open…', () => call('/api/voice/finish', {}));
 }
 function paintDone() {
-  $('#app').innerHTML = `<div class="center"><div class="brand">Mobius Digital · ${esc(St.brand)}</div><h1>That is your voice. Thank you.</h1>
+  $('#app').innerHTML = `<div class="center"><div class="brand"><img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital"><span>${esc(St.brand)}</span></div><h1>That is your voice. Thank you.</h1>
     <p class="lede" style="margin:0 auto">We turn this into your writing guide, and every line we write from here on is checked against it. When you approve or reject a line later, that teaches it too.</p></div>`;
 }
 window.addEventListener('beforeunload', saveDraft);

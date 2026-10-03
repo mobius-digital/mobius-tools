@@ -42,6 +42,9 @@ const CALENDLY = 'https://calendly.com/mobius-digital/strategy-session';
 const STEPS = ['asana', 'onboard', 'drive', 'slack', 'frame', 'stripe', 'contract', 'email', 'summary'];
 const NEWBIZ = 'C0BV9L8NV33';   // #mobius-newbiz (private), 2026-09-05
 const ROLE_LABEL = { strategist: 'creative strategist', buyer: 'media buyer', editor: 'video editor', designer: 'graphic designer' };
+/* A role can hold several people: "a@x, b@y". */
+const roleList = v => String(v || '').split(/[,\s]+/).map(x => x.trim().toLowerCase()).filter(emailOk);
+const teamList = team => [...new Set(['strategist', 'buyer', 'editor', 'designer'].flatMap(k => roleList(team[k])))];
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -95,7 +98,7 @@ async function roster(env) {
   const list = safeJson(r?.value, null);
   return Array.isArray(list) && list.length ? list : ROSTER;
 }
-async function teamList(env) {
+async function teamList_(env) {
   const { ws } = await workspace(env);
   const users = await asanaAll(env, `/users?workspace=${ws.gid}&opt_fields=name,email`);
   return (await roster(env)).map(t => ({ name: t.name, email: t.email.toLowerCase(), gid: users.find(u => (u.email || '').toLowerCase() === t.email.toLowerCase())?.gid || null }));
@@ -129,7 +132,7 @@ async function stepAsana(env, r) {
   /* The team Cole picked, and nobody else. */
   const people = await asanaAll(env, `/users?workspace=${ws.gid}&opt_fields=name,email`);
   const gidOf = email => people.find(u => (u.email || '').toLowerCase() === String(email || '').toLowerCase())?.gid;
-  const members = [...new Set([me.gid, gidOf(team.strategist), gidOf(team.buyer), gidOf(team.editor), gidOf(team.designer)].filter(Boolean))];
+  const members = [...new Set([me.gid, ...teamList(team).map(gidOf)].filter(Boolean))];
   if (members.length) await asana(env, `/projects/${gid}/addMembers`, { method: 'POST', body: { members: members.join(',') } }).catch(e => out.notes.push(`Team not added: ${e.message}`));
 
   /* The client, by their main email. They add their own teammates later. */
@@ -152,7 +155,8 @@ async function stepAsana(env, r) {
     const plan = find(/^marketing plan/i);
     if (plan) await asana(env, `/tasks/${plan.gid}`, { method: 'DELETE' }).catch(() => {});
     const research = find(/^research$/i);
-    if (research && gidOf(team.strategist)) await asana(env, `/tasks/${research.gid}`, { method: 'PUT', body: { assignee: gidOf(team.strategist), notes: 'Locus > Brand > Research > "Research this brand", once the client has sent the onboarding form. Then read the drafts and approve them before the strategy call.' } }).catch(() => {});
+    const lead = roleList(team.strategist)[0];
+    if (research && gidOf(lead)) await asana(env, `/tasks/${research.gid}`, { method: 'PUT', body: { assignee: gidOf(lead), notes: 'Locus > Brand > Research > "Research this brand", once the client has sent the onboarding form. Then read the drafts and approve them before the strategy call.' } }).catch(() => {});
     const ob = tasks.find(t => /^onboarding$/i.test(t.name || '') && t.num_subtasks > 0);
     if (ob) {
       const subs = await asanaAll(env, `/tasks/${ob.gid}/subtasks?opt_fields=name`);
@@ -162,7 +166,7 @@ async function stepAsana(env, r) {
         ['Create the Frame project and add the team', me.gid],
         ['Send the Shopify collaborator request (their store address is in the onboarding answers)', me.gid],
         ['Once the client shares Meta: add the brand in Locus (Settings > Add a brand) and add the media buyer to the ad account and page', me.gid],
-        ['Before the strategy call: review the onboarding answers and the research in Locus (Brand > Brand info, Brand > Research)', gidOf(team.strategist) || me.gid],
+        ['Before the strategy call: review the onboarding answers and the research in Locus (Brand > Brand info, Brand > Research)', gidOf(lead) || me.gid],
         ['After the voice interview: read the How we write draft in Locus and approve it', me.gid],
         ['Set the first month in Plan and turn the daily brief on (Locus)', me.gid],
       ];
@@ -225,7 +229,7 @@ async function stepDrive(env, r) {
      with the invite email ("Notify people"), and the welcome email tells them to expect it. */
   const rootId = (/folders\/([A-Za-z0-9_-]+)/.exec(url) || [])[1];
   const share = (email, notify) => gapi(env, DRIVE, `drive/v3/files/${rootId}/permissions?supportsAllDrives=true&sendNotificationEmail=${notify}`, { method: 'POST', body: { type: 'user', role: 'writer', emailAddress: email } });
-  for (const e of [...new Set([team.strategist, team.buyer, team.editor, team.designer].filter(x => emailOk(x) && x.toLowerCase() !== OWNER))]) await share(e, false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
+  for (const e of teamList(team).filter(x => x !== OWNER)) await share(e, false).catch(err => { if (!/already/i.test(err.message)) out.notes.push(`Not shared with ${e}: ${err.message}`); });
   if (emailOk(r.contact_email)) await share(r.contact_email, false).catch(() => share(r.contact_email, true)).then(() => { out.client_shared = true; }).catch(err => out.notes.push(`Not shared with the client: ${err.message}`));
   /* The link lives in Asana (Client Resources > Google Drive) and on the brand in Locus. */
   if (r.asana_project) {
@@ -243,6 +247,24 @@ async function slack(token, method, body, get) {
     ? await F(`https://slack.com/api/${method}?${new URLSearchParams(body)}`, { headers: { Authorization: `Bearer ${token}` } })
     : await F(`https://slack.com/api/${method}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(body) });
   return res.json().catch(() => ({ ok: false, error: 'bad_response' }));
+}
+/** Slack user ids for a list of emails (lookup by email, then first name via the roster). */
+async function slackIds(env, emails) {
+  const bot = env.SLACK_BOT_TOKEN; const out = {};
+  if (!bot) return out;
+  const people = await roster(env);
+  let members = null;
+  for (const e of emails) {
+    const j = await slack(bot, 'users.lookupByEmail', { email: e }, true);
+    if (j.ok) { out[e] = j.user.id; continue; }
+    const who = people.find(t => t.email.toLowerCase() === e.toLowerCase());
+    if (who?.slack) { out[e] = who.slack; continue; }
+    members ||= ((await slack(bot, 'users.list', { limit: 500 }, true)).members || []).filter(m => !m.deleted && !m.is_bot);
+    const first = (who?.name || '').toLowerCase();
+    const hits = first ? members.filter(m => `${m.real_name || ''} ${m.profile?.display_name || ''}`.toLowerCase().split(/\s+/).includes(first)) : [];
+    if (hits.length === 1) out[e] = hits[0].id;
+  }
+  return out;
 }
 const SLACK_HELP = 'The Slack app may not create channels yet. At api.slack.com/apps > Mobius Digital > OAuth & Permissions, add the bot scopes groups:write and conversations.connect:write (users:read.email too if it is missing), reinstall, then press Retry.';
 
@@ -273,21 +295,9 @@ async function stepSlack(env, r) {
   if (!client) { client = await make(slug); await patchRun(env, r.id, { slack_client: client.id, slug }); r.slack_client = client.id; }
 
   /* Only the people Cole picked. */
-  const ids = [];
-  const people = await roster(env);
-  let members = null;
-  for (const e of [...new Set([OWNER, team.strategist, team.buyer, team.editor, team.designer].filter(emailOk))]) {
-    const j = await slack(bot, 'users.lookupByEmail', { email: e }, true);
-    if (j.ok) { ids.push(j.user.id); continue; }
-    /* A teammate on a different email in Slack than in Asana: find them by first name. */
-    const who = people.find(t => t.email.toLowerCase() === e.toLowerCase());
-    if (who?.slack) { ids.push(who.slack); continue; }
-    members ||= ((await slack(bot, 'users.list', { limit: 500 }, true)).members || []).filter(m => !m.deleted && !m.is_bot);
-    const first = (who?.name || '').toLowerCase();
-    const hits = first ? members.filter(m => `${m.real_name || ''} ${m.profile?.display_name || ''}`.toLowerCase().split(/\s+/).includes(first)) : [];
-    if (hits.length === 1) ids.push(hits[0].id);
-    else out.notes.push(`${who?.name || e} not found in Slack. Add them to both channels by hand.`);
-  }
+  const found = await slackIds(env, [...new Set([OWNER, ...teamList(team)])]);
+  const ids = Object.values(found);
+  for (const e of teamList(team)) if (!found[e]) out.notes.push(`${e} not found in Slack. Add them to both channels by hand.`);
   /* The bot may lack groups:write (then Cole's own token made the channels); invites follow the same rule. */
   const invite = async (ch, users) => {
     let j = await slack(bot, 'conversations.invite', { channel: ch.id, users });
@@ -311,18 +321,6 @@ async function stepSlack(env, r) {
     else out.notes.push(`Slack would not send the Slack Connect invite (${j.error}). In #${slug}: Add people > invite ${r.contact_email}.`);
   }
   await slack(bot, 'conversations.setPurpose', { channel: client.id, purpose: `${r.name} and Mobius Digital` }).catch(() => {});
-  /* The first thing the client reads when they join: who is who, and what happens next. Pinned. */
-  if (!out.welcomed && !r.slack_welcomed) {
-    const who = (await roster(env));
-    const nameOf = e => who.find(t => t.email.toLowerCase() === String(e || '').toLowerCase())?.name || e;
-    const people = [['strategist', team.strategist], ['buyer', team.buyer], ['editor', team.editor], ['designer', team.designer]].filter(([, e]) => emailOk(e)).map(([role, e]) => `• *${nameOf(e)}*, ${ROLE_LABEL[role]}`);
-    const text = [`*Welcome, ${r.name}!* This channel is where we talk day to day. Say hi, ask anything, drop files, tag any of us.`, '',
-      '*Your team at Mobius*', '• *Cole Wetzler*, founder, your main contact', ...people, '',
-      '*What happens next*', '1. Finish your onboarding link (it came by email). Giving us access to Meta, Google and Shopify is the part that unlocks everything else.', '2. Book the strategy call from that link if you have not yet. We go through your answers together.', '3. Pay the first invoice and sign the agreement, both by email.', '4. Then we start: research, first briefs, first ads. You see every ad in your Asana project before it runs.', '',
-      'Add anyone from your side to this channel any time.'].join('\n');
-    const m = await slack(bot, 'chat.postMessage', { channel: client.id, text, unfurl_links: false });
-    if (m.ok) { await slack(bot, 'pins.add', { channel: client.id, timestamp: m.ts }).catch(() => {}); out.welcomed = true; await patchRun(env, r.id, { steps_json: JSON.stringify({ ...safeJson((await getRun(env, r.id)).steps_json, {}), slack_welcome: m.ts }) }); }
-  }
   await slack(bot, 'conversations.setPurpose', { channel: internal.id, purpose: `${r.name}: Mobius team only. Drafts, alerts and ideas.` }).catch(() => {});
   /* If the brand is already in Locus, point it at the channels now; otherwise they
      land on it when its Meta account arrives (adoptNewClient in asana-brand.js). */
@@ -513,8 +511,11 @@ async function stepSummary(env, r) {
   ].filter(Boolean);
   const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: lines.join('\n'), unfurl_links: false });
   if (!j.ok) throw new Error(`Slack: ${j.error}`);
-  /* New Biz (#mobius-newbiz, made in the 2026-09-05 Slack restructure) gets the one-line news. */
-  const nb = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: NEWBIZ, unfurl_links: false, text: `*New client: ${r.name}*${r.retainer ? ` at $${Math.round(r.retainer).toLocaleString('en-US')} a month` : ''}. Strategist ${team.strategist || 'TBD'}. Set up in Asana, Drive, Slack (<#${r.slack_client}>) and Frame by Locus.` });
+  /* New Biz (#mobius-newbiz, made in the 2026-09-05 Slack restructure): the news, the people, never money. */
+  const ids = await slackIds(env, teamList(team));
+  const who = ['strategist', 'buyer', 'editor', 'designer'].map(k => { const ps = roleList(team[k]); return ps.length ? `${ROLE_LABEL[k]}: ${ps.map(e => ids[e] ? `<@${ids[e]}>` : e).join(', ')}` : null; }).filter(Boolean).join(' · ');
+  const cvars = safeJson((await env.DB.prepare(`SELECT vars_json FROM p_contract WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.vars_json, null);
+  const nb = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: NEWBIZ, unfurl_links: false, text: [`*New client: ${r.name}*${r.website ? ` (${r.website.replace(/^https?:\/\//, '')})` : ''}${r.start_date ? `, starting ${r.start_date}` : ''}.`, who ? `Team: ${who}.` : null, cvars?.term ? `Agreement: ${cvars.custom ? 'custom terms' : 'standard services'}, ${cvars.term}.` : null, `Set up in Asana, Drive, Slack (<#${r.slack_client}>) and Frame by Locus.`].filter(Boolean).join('\n') });
   return { text: `Posted in the internal channel${nb.ok ? ' and #mobius-newbiz' : ''}.` };
 }
 
@@ -539,7 +540,7 @@ async function upsertResource(env, projectGid, name, notes) {
 async function stepFrame(env, r) {
   const team = safeJson(r.team_json, {});
   const prev = safeJson(r.steps_json, {}).frame || {};
-  const emails = [...new Set([team.strategist, team.buyer, team.editor, team.designer].filter(x => emailOk(x) && x.toLowerCase() !== OWNER))];
+  const emails = teamList(team).filter(x => x !== OWNER);
   const out = await frameProject(env, r.name, emails, prev);
   if (out.url && r.asana_project) await upsertResource(env, r.asana_project, 'Frame', out.url).catch(e => out.notes.push(`Asana link not written: ${e.message}`));
   return { ...out, text: 'Frame project made.' };
@@ -554,10 +555,16 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
   const url = new URL(request.url);
   const b = request.method === 'GET' ? Object.fromEntries(url.searchParams) : await request.json().catch(() => ({}));
   try {
+    if (path === '/api/new-client/team' && request.method === 'POST') {
+      const list = (Array.isArray(b.team) ? b.team : []).map(t => ({ name: String(t.name || '').trim().slice(0, 60), email: String(t.email || '').trim().toLowerCase(), slack: String(t.slack || '').trim() || undefined })).filter(t => t.name && emailOk(t.email));
+      if (!list.length) return json({ error: 'The team needs at least one person.' }, 400);
+      await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('newClientTeam', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(list)).run();
+      return json({ ok: true, team: await teamList_(env) });
+    }
     if (path === '/api/new-client/options') {
       const runs = (await env.DB.prepare(`SELECT * FROM p_newclient ORDER BY created_at DESC LIMIT 30`).all()).results || [];
       let team = [], err = null;
-      try { team = await teamList(env); } catch (e) { err = e.message; }
+      try { team = await teamList_(env); } catch (e) { err = e.message; }
       return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS, frame: (await frameStatus(env)).connected, stripe: !!(env.STRIPE_SECRET_KEY || '').trim(), stripe_key: String(env.STRIPE_SECRET_KEY || '').replace(/[^!-~]/g, '').replace(/^(.{7}).*(.{4})$/, '$1...$2') });
     }
     if (path === '/api/new-client' && request.method === 'POST') {
@@ -571,7 +578,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       if (dupe) return json({ error: `${name} was already started. Open it from the list instead.`, id: dupe.id }, 409);
       const id = rid();
       const t = b.team || {};
-      const team = { strategist: String(t.strategist || '').toLowerCase(), buyer: String(t.buyer || '').toLowerCase(), editor: String(t.editor || '').toLowerCase(), designer: String(t.designer || '').toLowerCase() };
+      const team = Object.fromEntries(['strategist', 'buyer', 'editor', 'designer'].map(k => [k, roleList(Array.isArray(t[k]) ? t[k].join(',') : t[k]).join(',')]));
       await env.DB.prepare(`INSERT INTO p_newclient (id, name, website, contact_name, contact_email, retainer, start_date, team_json, slug, created_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
         .bind(id, name, website || null, String(b.contact_name || '').trim().slice(0, 120) || null, email || null, Number(b.retainer) || null, /^\d{4}-\d{2}-\d{2}$/.test(b.start_date || '') ? b.start_date : null, JSON.stringify(team), slugOf(b.slug || name), (who && await who(request, env).catch(() => null)) || null).run();
       return json({ ok: true, run: view(await getRun(env, id)) });
@@ -615,6 +622,19 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const now = await getRun(env, r.id);
       return json({ ok: res.status !== 'failed', step: steps[b.step], run: view(now), welcome: welcomeDraft(now), contract: await contractState(env, now) });
     }
+    /* Take back a welcome post (the bot's or Cole's) so the on-join one can go out fresh. */
+    if (path === '/api/new-client/unwelcome' && request.method === 'POST') {
+      const steps = safeJson(r.steps_json, {});
+      const ts = typeof steps.slack_welcome === 'string' ? steps.slack_welcome : steps.slack_welcome?.ts;
+      if (ts && r.slack_client) for (const tok of [env.SLACK_BOT_TOKEN, env.SLACK_USER_TOKEN].filter(Boolean)) {
+        await slack(tok, 'pins.remove', { channel: r.slack_client, timestamp: ts }).catch(() => {});
+        const d = await slack(tok, 'chat.delete', { channel: r.slack_client, ts });
+        if (d.ok) break;
+      }
+      delete steps.slack_welcome;
+      await patchRun(env, r.id, { steps_json: JSON.stringify(steps) });
+      return json({ ok: true });
+    }
     if (path === '/api/new-client/remove' && request.method === 'POST') {
       /* Forgets the row. Nothing made in Asana, Drive or Slack is deleted; an UNPAID Stripe
          subscription is cancelled so a removed client is never invoiced again. */
@@ -630,9 +650,52 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
   } catch (e) { return json({ error: e.message }, e.status && e.status !== 401 ? e.status : 500); }
 }
 
-/** On the hourly tick: tell the team the moment a new client sends the onboarding form. */
+/* ---------------- the client's welcome, the moment they join their channel ----------------
+   Posted as Cole (SLACK_USER_TOKEN), pinned, with every link they need. Not before they are in:
+   the hourly tick looks for a member of the client channel from outside the Mobius workspace. */
+async function welcomeOnJoin(env, r) {
+  const bot = env.SLACK_BOT_TOKEN, user = env.SLACK_USER_TOKEN;
+  if (!bot || !user || !r.slack_client) return false;
+  const ours = (await slack(bot, 'auth.test', {})).team_id;
+  const mem = await slack(bot, 'conversations.members', { channel: r.slack_client, limit: 200 }, true);
+  if (!mem.ok) return false;
+  let joined = false;
+  for (const id of mem.members || []) {
+    const u = await slack(bot, 'users.info', { user: id }, true);
+    if (u.ok && !u.user.is_bot && (u.user.is_stranger || (u.user.team_id && u.user.team_id !== ours))) { joined = true; break; }
+  }
+  if (!joined) return false;
+  const team = safeJson(r.team_json, {});
+  const ids = await slackIds(env, teamList(team));
+  const who = await roster(env);
+  const nameOf = e => who.find(t => t.email.toLowerCase() === e)?.name || e;
+  const people = ['strategist', 'buyer', 'editor', 'designer'].flatMap(k => roleList(team[k]).map(e => `• ${ids[e] ? `<@${ids[e]}>` : `*${nameOf(e)}*`}, ${ROLE_LABEL[k]}`));
+  const st = safeJson(r.steps_json, {});
+  const links = [
+    r.token ? `• Your onboarding link: ${ONBOARD_FORM}${r.token}` : null,
+    r.asana_url ? `• Your Asana project (every ad, before it runs): ${r.asana_url}` : null,
+    r.drive_url ? `• Your Google Drive folder with us: ${r.drive_url}` : null,
+    `• Book the strategy call: ${CALENDLY}`,
+  ].filter(Boolean);
+  const text = [`*Welcome, ${r.name}!* This channel is where we talk day to day. Say hi, ask anything, drop files, tag any of us.`, '',
+    '*Your team at Mobius*', '• Cole Wetzler, founder, your main contact', ...people, '',
+    '*Your links*', ...links, '',
+    '*What happens next*', '1. Finish the onboarding link. Giving us access to Meta, Google and Shopify is the part that unlocks everything else.', '2. Book the strategy call if you have not yet. We go through your answers together.', '3. Pay the first invoice and sign the agreement (both came by email).', '4. Then we start: research, first briefs, first ads.', '',
+    'Add anyone from your side to this channel any time.'].join('\n');
+  const m = await slack(user, 'chat.postMessage', { channel: r.slack_client, text, unfurl_links: false });
+  if (!m.ok) return false;
+  await slack(user, 'pins.add', { channel: r.slack_client, timestamp: m.ts }).catch(() => {});
+  await patchRun(env, r.id, { steps_json: JSON.stringify({ ...st, slack_welcome: { ts: m.ts, at: new Date().toISOString() } }) });
+  return true;
+}
+
+/** On the hourly tick: welcome the client when they join Slack; tell the team when the form is sent. */
 export async function newClientTick(env) {
   await ensureTable(env);
+  let welcomed = 0;
+  for (const r of (await env.DB.prepare(`SELECT * FROM p_newclient WHERE slack_client IS NOT NULL AND json_extract(steps_json, '$.slack_welcome') IS NULL`).all().catch(() => ({ results: [] }))).results || []) {
+    if (await welcomeOnJoin(env, r).catch(() => false)) welcomed++;
+  }
   const rows = (await env.DB.prepare(`SELECT n.*, o.status AS ob_status FROM p_newclient n JOIN p_br_onboard o ON o.token = n.token WHERE o.status = 'submitted' AND n.slack_internal IS NOT NULL`).all().catch(() => ({ results: [] }))).results || [];
   let told = 0;
   for (const r of rows) {
@@ -642,6 +705,9 @@ export async function newClientTick(env) {
     const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
       text: `*${r.name} sent their onboarding form.* Next: open Locus > Brand > ${r.name} > Research and press "Research this brand", then review the answers and the drafts before the strategy call${team.strategist ? ` (${team.strategist})` : ''}.` });
     if (j.ok) { steps.form_ping = { status: 'done', at: new Date().toISOString() }; await patchRun(env, r.id, { steps_json: JSON.stringify(steps) }); told++; }
+    /* Their content library link goes under Client Resources > Assets in Asana. */
+    const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token).first().catch(() => null))?.answers_json, {});
+    if (r.asana_project && /^https?:\/\//.test(ans.content_link || '')) await upsertResource(env, r.asana_project, 'Assets', ans.content_link).catch(() => {});
   }
-  return { told };
+  return { told, welcomed };
 }

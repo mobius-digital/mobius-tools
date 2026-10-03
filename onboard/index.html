@@ -13,12 +13,12 @@
 /* The client's onboarding form. One link per brand (?t=<token>), no login.
    Questions come from questions.js, shared with Locus's Brand tab. */
 :root{
-  --bg:#F3F1FA; --surface:#FFFFFF; --ink:#16131F; --ink-2:#433C55; --muted:#6D6680;
-  --line:#E3DEEF; --line-strong:#CBC3DE; --acc:#5B3FB0; --acc-ink:#FFFFFF; --acc-soft:#EDE8FA;
+  --bg:#F4F7F9; --surface:#FFFFFF; --ink:#13202B; --ink-2:#3B4A57; --muted:#6B7A88;
+  --line:#E1E8ED; --line-strong:#C9D4DC; --acc:#2F9AD6; --acc-ink:#FFFFFF; --acc-soft:#E6F3FB;
   --good:#1C7A46; --good-bg:#E4F2E9; --warn:#8F6412; --warn-bg:#F8EED6; --bad:#9C3A2E;
   --sans:'Instrument Sans',system-ui,-apple-system,Segoe UI,sans-serif; --serif:'Instrument Serif',Georgia,serif;
 }
-@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#14111C;--surface:#1D1928;--ink:#EDEAF5;--ink-2:#C4BDD6;--muted:#9890AD;--line:#2E2940;--line-strong:#40395A;--acc:#9C84EC;--acc-ink:#14111C;--acc-soft:#2A2340;--good:#5FD292;--good-bg:#15301F;--warn:#EBBF63;--warn-bg:#33280F;--bad:#F09182}}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0E161C;--surface:#16212A;--ink:#EAF1F5;--ink-2:#C2CED7;--muted:#8FA0AD;--line:#243139;--line-strong:#33434E;--acc:#6CC3F0;--acc-ink:#0E161C;--acc-soft:#1B2E3B;--good:#5FD292;--good-bg:#15301F;--warn:#EBBF63;--warn-bg:#33280F;--bad:#F09182}}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -26,7 +26,9 @@ button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
 .wrap{max-width:760px;margin:0 auto;padding:0 16px}
 header{padding:28px 0 10px}
-.brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px}
+.brand img{height:26px;width:auto}
+@media (prefers-color-scheme:dark){.brand img.l{display:none}}@media (prefers-color-scheme:light){.brand img.d{display:none}}
 h1{font-family:var(--serif);font-weight:400;font-size:clamp(30px,6vw,42px);line-height:1.08;margin:6px 0 6px;text-wrap:balance}
 .lede{color:var(--ink-2);margin:0;max-width:60ch}
 .prog{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 0 10px;border-bottom:1px solid var(--line)}
@@ -220,7 +222,7 @@ function paint() {
   if (St.step >= STEPS.length) return paintReview();
   const s = STEPS[St.step];
   $('#app').innerHTML = `
-    <header><div class="brand">Mobius Digital · ${esc(St.brand)}</div>
+    <header><div class="brand"><img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital"><span>${esc(St.brand)}</span></div>
       ${St.step === 0 ? `<h1>Welcome aboard.</h1><p class="lede">This is everything we need to start. ${STEPS.length} short steps, and it saves as you go, so you can stop and come back to this same link any time. Rough answers are fine, and "I'm not sure" is always an option: we do the deeper research on our side.</p>` : ''}</header>
     ${progress()}
     <section class="step"><h2>${esc(s.title)}</h2><p class="intro">${esc(s.intro)}</p>
@@ -303,7 +305,7 @@ async function upload(f, el) {
 }
 function paintReview() {
   const missing = STEPS.map((s, i) => ({ s, i, n: s.fields.filter(f => !f.calc && f.type !== 'check' && (St.answers[f.id] == null || St.answers[f.id] === '')).length }));
-  $('#app').innerHTML = `<header><div class="brand">Mobius Digital · ${esc(St.brand)}</div><h1>Nearly there.</h1><p class="lede">Anything left blank is fine: we will research it or ask on our kickoff call. You can come back to this link and change answers after sending, too.</p></header>
+  $('#app').innerHTML = `<header><div class="brand"><img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital"><span>${esc(St.brand)}</span></div><h1>Nearly there.</h1><p class="lede">Anything left blank is fine: we will research it or ask on our kickoff call. You can come back to this link and change answers after sending, too.</p></header>
     ${progress()}
     <section class="step">${missing.map(m => `<div class="q" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>${esc(m.s.title)}</b><div class="why">${m.n ? `${m.n} left blank` : 'All answered'}</div></div><button class="btn sm" data-go="${m.i}">${m.n ? 'Fill in' : 'Review'}</button></div>`).join('')}</section>
     <div class="nav"><button class="btn" id="back">Back</button><button class="btn pri" id="send">Send to Mobius</button></div>`;
@@ -312,7 +314,7 @@ function paintReview() {
   $('#send').onclick = async () => { $('#send').disabled = true; if (await flush({ submit: true })) { St.done = true; paint(); } else $('#send').disabled = false; };
 }
 function paintDone() {
-  $('#app').innerHTML = `<div class="center"><div class="brand">Mobius Digital · ${esc(St.brand)}</div><h1>Thank you. We have it.</h1><p class="lede" style="margin:0 auto">Your answers are with the team. We start the research now and will be in touch about the kickoff. You can reopen this link any time to add or change something.</p>
+  $('#app').innerHTML = `<div class="center"><div class="brand"><img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital"><span>${esc(St.brand)}</span></div><h1>Thank you. We have it.</h1><p class="lede" style="margin:0 auto">Your answers are with the team. We start the research now and will be in touch about the kickoff. You can reopen this link any time to add or change something.</p>
     <div class="helpbox" style="text-align:left;max-width:520px;margin:28px auto 0"><h3>One more thing: help us find your voice</h3>
       <p class="note" style="margin:0 0 10px">About 20 minutes, and you talk instead of type. We ask how your brand sounds, write a few sample lines, and you tell us which ones sound like you. It becomes the guide every ad and email is written from.</p>
       <a class="btn pri" style="display:inline-block;text-decoration:none" href="voice.html?t=${TOKEN}">Start the voice interview</a></div>

@@ -51,7 +51,7 @@ export function contractDefaults(r) {
   const amt = r.retainer > 0 ? money(r.retainer) : '[amount]';
   return {
     company: r.name, client_name: r.contact_name || '', start_date: r.start_date || new Date().toISOString().slice(0, 10),
-    term: 'three (3) months',
+    term: 'one (1) month, renewing month to month',
     payment: `A monthly retainer of ${amt}, invoiced in advance each month. The first invoice is due before work begins; from the second month the retainer is charged automatically on the same day each month to the payment method on file.`,
   };
 }
