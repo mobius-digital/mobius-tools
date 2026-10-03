@@ -983,9 +983,10 @@ async function huntReceipts(env, opts = {}) {
     const { results } = await env.DB.prepare(`SELECT t.id FROM transactions t WHERE ${where.join(' AND ')} ORDER BY t.date DESC LIMIT 150`).bind(...bind).all();
     const now = Date.now();
     let ids = results.map(r => r.id);
-    // The nightly sweep is patient: a charge gets three looks, five days apart,
-    // starting two days after it posts (receipts often arrive after the charge).
-    if (opts.auto) ids = ids.filter(id => { const x = state.tries[id]; return !x || (x.n < 3 && now - x.at > 5 * 86400e3); });
+    // The daily sweep looks ONCE, two days after a charge posts (receipts often
+    // arrive after the charge). Looking again is Cole's call: the "Check Gmail
+    // again" button on the month-end message, or asking the Controller.
+    if (opts.auto) ids = ids.filter(id => !state.tries[id]);
     state.queue = [...new Set([...state.queue, ...ids])];
     if (opts.origin) { state.origin = opts.origin; state.auto = false; }
     else if (!opts.auto) state.auto = false;
@@ -1839,6 +1840,10 @@ async function receiptNudge(env, force = false, moOverride = null) {
       text: `*Everything else still missing a receipt*` }] });
     for (const t of noLink.slice(0, 8)) blocks.push(line(t));
   }
+  /* Retries are Cole's call, not a timer's: the daily sweep looks once, and
+   * this button is how he says "look again" for whatever is still missing. */
+  if (await gmailStore(env)) blocks.splice(1, 0, { type: 'actions', elements: [{ type: 'button', action_id: 'led_hunt',
+    style: 'primary', text: { type: 'plain_text', text: 'Check Gmail again' }, value: JSON.stringify({ hunt: mo }) }] });
   const shown = Math.min(withLink.length, 8) + Math.min(noLink.length, 8);
   if (results.length > shown) blocks.push({ type: 'context',
     elements: [{ type: 'mrkdwn', text: `…and ${results.length - shown} more — the Receipts tab in the app has the full list.` }] });
@@ -3246,6 +3251,20 @@ const LEDGER = {
           respond({ replace_original: true, text: res.error
             ? '⚠️ ' + res.error
             : `✓ *${res.vendor}* $${Math.abs(res.amount).toFixed(2)} updated.` });
+          return new Response('', { status: 200 });
+        }
+        // month-end digest: "Check Gmail again" → one more search for that
+        // month's missing receipts. Answer Slack now; the search runs behind it
+        // and the 10-minute cron finishes anything left, then posts the summary
+        // in this message's thread.
+        if (val?.hunt) {
+          const month = validMonth(val.hunt) ? val.hunt : null;
+          const origin = { channel: payload.channel?.id || payload.container?.channel_id, thread: payload.message?.ts || payload.container?.message_ts };
+          respond({ replace_original: false, response_type: 'in_channel',
+            text: `:mag: Searching Gmail again for ${month ? moLabel(month) : 'the'} missing receipts. The result lands in this thread.`,
+            ...(origin.thread ? { thread_ts: origin.thread } : {}) });
+          ctx.waitUntil(huntReceipts(env, { month, all: !month, origin, limit: 2 })
+            .catch(e => console.log('hunt from button failed: ' + e.message)));
           return new Response('', { status: 200 });
         }
         // month-end digest: "No receipt — that's fine" → stop counting/chasing it
