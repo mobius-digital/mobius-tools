@@ -970,6 +970,7 @@ function packAccount(a, cur, prev, events, from, to) {
   const lines = [`## ${a.name} (${a.currency})`,
     `Window ${from}..${to}: ${stat(cur)}`,
     `Previous window (same length): ${stat(prev)}`,
+    `(Spend and CTR are Meta's. Purchases, CPA and ROAS are Triple Whale attribution, last platform click, on Meta ads. " - " means Triple Whale has not synced that window yet, so say nothing about them.)`,
     `Changes (${events.length}${events.length > 120 ? ', first 120 shown' : ''}):`];
   for (const ev of events.slice(0, 120)) {
     const tags = [ev.reason ? `reason: ${ev.reason}` : ev.suggested_reason ? `suggested reason (auto, unreviewed): ${ev.suggested_reason}` : null,
@@ -994,8 +995,10 @@ async function writeUpdate(env, { act, from, to, template }) {
       `SELECT event_time, category, summary, actor, reason, suggested_reason, note, confirmed, manual FROM activities
        WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1 ORDER BY event_time`,
     ).bind(a.act_id, from, to + 'T23:59:59').all();
-    const cur = agg((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results);
-    const prev = agg((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, prevFrom, prevTo).all()).results);
+    // Meta tab Summarise: purchases, CPA and ROAS are Triple Whale's (see twMetaDaily).
+    const tw = await twMetaDaily(env, a.act_id, prevFrom, to);
+    const cur = agg(attributeRows((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results, tw), true);
+    const prev = agg(attributeRows((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, prevFrom, prevTo).all()).results, tw), true);
     packs.push(packAccount(a, cur, prev, evs, from, to));
   }
   const text = await claude(env, {
@@ -4391,7 +4394,9 @@ async function adRows(env, acct, from, to, opts = {}) {
 
   const today = localDate(acct.tz);
   const totalSpend = results.reduce((n, r) => n + r.spend, 0);
-  const totalPurch = results.reduce((n, r) => n + r.purchases, 0);
+  // Under a Triple Whale model the account CPA (the spend bar's fallback and
+  // acct_cpa) must be built on the same attributed orders as the cards.
+  const totalPurch = results.reduce((n, r) => n + (attrBy ? (attrBy[r.ad_id]?.orders || 0) : r.purchases), 0);
   const acctCpa = totalPurch ? totalSpend / totalPurch : null;
   /* THE SPEND BAR: a multiple of the brand's GOAL CPA, set on the page.
    *
@@ -4579,8 +4584,30 @@ async function adBreakdown(env, acct, windowDays, freshDays, win = null) {
      ORDER BY spend DESC LIMIT 40`,
   ).bind(acct.act_id, from, to).all();
   if (!results.length) return null;
-  const tot = results.reduce((a, r) => ({ spend: a.spend + r.spend, purch: a.purch + r.purchases }), { spend: 0, purch: 0 });
-  const acctCpa = tot.purch ? tot.spend / tot.purch : null;
+  /* Purchases and revenue are Triple Whale's (see twMetaDaily). Per ad, a TW
+     row is matched by ad_id, so non-Meta ids never land. If any day in the
+     window that had Meta spend is not synced, every attributed figure is null. */
+  const lastDay = addDays(to, -1);
+  const synced = await twMetaDaily(env, acct.act_id, from, lastDay);
+  const { results: spentDays } = await env.DB.prepare(
+    `SELECT DISTINCT date FROM ad_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3 AND spend > 0`,
+  ).bind(acct.act_id, from, to).all();
+  const gap = spentDays.some(r => !synced[r.date]);
+  const { results: twAds } = gap ? { results: [] } : await env.DB.prepare(
+    `SELECT ad_id, SUM(revenue) AS revenue, SUM(orders) AS orders FROM tw_ad_attr
+     WHERE act_id = ?1 AND model = ?2 AND date >= ?3 AND date < ?4 AND (platform = 'meta' OR platform IS NULL)
+     GROUP BY ad_id`,
+  ).bind(acct.act_id, BRIEF_ATTR_MODEL, from, to).all();
+  const twBy = Object.fromEntries(twAds.map(r => [r.ad_id, r]));
+  for (const r of results) {
+    r.meta_purchases = r.purchases; r.meta_revenue = r.revenue;
+    const t = twBy[r.ad_id];
+    // No TW row on a synced window = a real zero for that ad, not missing data.
+    r.purchases = gap ? null : (t ? t.orders : 0);
+    r.revenue = gap ? null : (t ? t.revenue : 0);
+  }
+  const tot = results.reduce((a, r) => ({ spend: a.spend + r.spend, purch: a.purch + (r.purchases || 0) }), { spend: 0, purch: 0 });
+  const acctCpa = !gap && tot.purch ? tot.spend / tot.purch : null;
   const ads = results.map(r => {
     const cpa = r.purchases ? r.spend / r.purchases : null;
     const origin = r.created_time && r.first_spend_date && String(r.created_time).slice(0, 10) < r.first_spend_date
@@ -4593,10 +4620,12 @@ async function adBreakdown(env, acct, windowDays, freshDays, win = null) {
       else if (cpa != null && cpa >= acctCpa * 1.4) verdict = 'cut';
     }
     return { ad_id: r.ad_id, name: r.name || r.ad_id, spend: r.spend, purchases: r.purchases,
-      revenue: r.revenue, cpa, roas: r.spend ? r.revenue / r.spend : null,
+      revenue: r.revenue, cpa, roas: r.spend && r.revenue != null ? r.revenue / r.spend : null,
+      meta_purchases: r.meta_purchases, meta_revenue: r.meta_revenue,
       share: tot.spend ? r.spend / tot.spend : 0, age, fresh: age != null && age <= freshDays, verdict };
   });
-  return { window: windowDays, from, acct_cpa: acctCpa, total_spend: tot.spend, ads };
+  return { window: windowDays, from, acct_cpa: acctCpa, total_spend: tot.spend, ads,
+    attribution: `triple_whale:${BRIEF_ATTR_MODEL}`, attr_gap: gap };
 }
 
 /* `win` is {from,to} when the caller has a real date range - the shared period
@@ -4618,39 +4647,62 @@ async function creative(env, acct, freshDays, windowDays, win = null) {
   // Ads already spending when our history starts would look "brand new" - for those,
   // fall back to Meta's true creation date so their age is honest.
   const clipEdge = addDays(from, 2);
-  for (const r of rows) {
+  const ageOf = (r, date) => {
     const created = r.created_time ? String(r.created_time).slice(0, 10) : null;
     const origin = r.first_spend_date <= clipEdge && created && created < r.first_spend_date ? created : r.first_spend_date;
-    r.age = Math.max(0, ymdDiff(r.date, origin));
-  }
+    return Math.max(0, ymdDiff(date, origin));
+  };
+  for (const r of rows) r.age = ageOf(r, r.date);
+
+  /* PURCHASES ARE TRIPLE WHALE'S (see twMetaDaily), not ad_daily's Meta count.
+     Orders are dated by the order, so they are read from tw_ad_attr directly
+     (an order can land on a day its ad did not spend) and aged by that date.
+     Only Meta ads can be aged, which is also what keeps Google ids out. A
+     window or week with Meta spend on a day TW has not synced has a null CPA. */
+  const synced = await twMetaDaily(env, acct.act_id, from, today);
+  const { results: attrRows } = await env.DB.prepare(
+    `SELECT t.date, SUM(t.orders) AS orders, a.first_spend_date, a.created_time
+     FROM tw_ad_attr t JOIN ads a ON a.act_id = t.act_id AND a.ad_id = t.ad_id
+     WHERE t.act_id = ?1 AND t.model = ?2 AND t.date >= ?3 AND t.date < ?4
+       AND (t.platform = 'meta' OR t.platform IS NULL) AND a.first_spend_date IS NOT NULL
+     GROUP BY t.ad_id, t.date`,
+  ).bind(acct.act_id, BRIEF_ATTR_MODEL, from, today).all().catch(() => ({ results: [] }));
+  for (const r of attrRows) r.age = ageOf(r, r.date);
 
   const span = win ? Math.max(1, ymdDiff(win.to, win.from) + 1) : windowDays;
   const winTo = win ? win.to : addDays(today, -1);
   const winFrom = win ? win.from : addDays(today, -windowDays);
   const prevFrom = addDays(winFrom, -span);
-  const split = list => {
-    const s = { freshSpend: 0, freshPurch: 0, staleSpend: 0, stalePurch: 0, ageSpend: 0, total: 0 };
-    for (const r of list) {
+  const split = (lo, hi) => {
+    const s = { freshSpend: 0, freshPurch: 0, staleSpend: 0, stalePurch: 0, ageSpend: 0, total: 0, gap: false };
+    for (const r of rows) {
+      if (r.date < lo || r.date > hi) continue;
       s.total += r.spend; s.ageSpend += r.age * r.spend;
-      if (r.age <= freshDays) { s.freshSpend += r.spend; s.freshPurch += r.purchases; }
-      else { s.staleSpend += r.spend; s.stalePurch += r.purchases; }
+      if (!synced[r.date]) s.gap = true;
+      if (r.age <= freshDays) s.freshSpend += r.spend; else s.staleSpend += r.spend;
+    }
+    for (const r of attrRows) {
+      if (r.date < lo || r.date > hi) continue;
+      if (r.age <= freshDays) s.freshPurch += r.orders || 0; else s.stalePurch += r.orders || 0;
     }
     return s;
   };
-  const cur = split(rows.filter(r => r.date >= winFrom && r.date <= winTo));
-  const prev = split(rows.filter(r => r.date >= prevFrom && r.date < winFrom));
+  const cur = split(winFrom, winTo);
+  const prev = split(prevFrom, addDays(winFrom, -1));
 
   const weekStart = d => { const dt = new Date(d + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay()); return dt.toISOString().slice(0, 10); };
   const weeks = {};
   for (const r of rows) {
     const w = weekStart(r.date);
-    const o = weeks[w] ??= { week: w, spend: 0, purchases: 0, b: [0, 0, 0, 0, 0], freshSpend: 0 };
-    o.spend += r.spend; o.purchases += r.purchases; o.freshSpend += r.age <= freshDays ? r.spend : 0;
+    const o = weeks[w] ??= { week: w, spend: 0, purchases: 0, b: [0, 0, 0, 0, 0], freshSpend: 0, gap: false };
+    o.spend += r.spend; o.freshSpend += r.age <= freshDays ? r.spend : 0;
+    if (!synced[r.date]) o.gap = true;
     o.b[r.age <= 7 ? 0 : r.age <= 14 ? 1 : r.age <= 30 ? 2 : r.age <= 60 ? 3 : 4] += r.spend;
   }
+  for (const r of attrRows) { const o = weeks[weekStart(r.date)]; if (o) o.purchases += r.orders || 0; }
   const weekly = Object.values(weeks).sort((a, b) => a.week < b.week ? -1 : 1).map(w => ({
     week: w.week, spend: w.spend,
-    cpa: w.purchases ? w.spend / w.purchases : null,
+    cpa: !w.gap && w.purchases ? w.spend / w.purchases : null,
     freshShare: w.spend ? w.freshSpend / w.spend : 0,
     shares: w.b.map(x => w.spend ? x / w.spend : 0),
   }));
@@ -4665,9 +4717,11 @@ async function creative(env, acct, freshDays, windowDays, win = null) {
       freshShare: cur.total ? cur.freshSpend / cur.total : null,
       freshSharePrev: prev.total ? prev.freshSpend / prev.total : null,
       swAge: cur.total ? cur.ageSpend / cur.total : null,
-      freshCpa: cur.freshPurch ? cur.freshSpend / cur.freshPurch : null,
-      staleCpa: cur.stalePurch ? cur.staleSpend / cur.stalePurch : null,
+      freshCpa: !cur.gap && cur.freshPurch ? cur.freshSpend / cur.freshPurch : null,
+      staleCpa: !cur.gap && cur.stalePurch ? cur.staleSpend / cur.stalePurch : null,
+      attr_gap: cur.gap,
     },
+    attribution: `triple_whale:${BRIEF_ATTR_MODEL}`,
     weekly,
     ads: await adBreakdown(env, acct, Math.max(span, 7), freshDays, win),
     insight: half >= 3 ? {
@@ -4682,28 +4736,96 @@ async function creative(env, acct, freshDays, windowDays, win = null) {
 /*  Overview math (all clients in one table)                          */
 /* ------------------------------------------------------------------ */
 
-function agg(rows) {
+/* THE META TAB'S ATTRIBUTION IS TRIPLE WHALE'S (Cole, 2026-10-04).
+   Every purchase, revenue, ROAS and CPA on the Meta tab comes from tw_ad_attr
+   under BRIEF_ATTR_MODEL (lastPlatformClick), the same source as the briefs and
+   reports. Spend, impressions, clicks, CTR, CPM and video stay Meta's, because
+   Triple Whale does not measure delivery. Meta's own counts survive only as
+   meta_purchases / meta_revenue, which nothing renders.
+
+   WHICH ROWS ARE META ADS. tw_ad_attr holds every platform. Rows carry
+   `platform` since late July; the older rows (late May to late July or August)
+   have platform NULL for EVERY platform, so for those a row counts only when
+   its ad_id is one of this account's Meta ads. `platform = 'meta'` alone would
+   drop two months of Meta orders; a join alone would miss the few 'meta' rows
+   whose ad never reached the `ads` table.
+
+   A DAY WITH NO ROWS AT ALL IS NOT SYNCED, never zero (same rule as briefData).
+   Coverage starts 2026-05-12, and yesterday can be missing until the morning
+   brief pulls it. Any window that touches an unsynced day returns null for its
+   attributed figures rather than quietly falling back to Meta's number. */
+const TW_META_ROW = `(t.platform = 'meta' OR (t.platform IS NULL AND a.ad_id IS NOT NULL))`;
+
+/** { date: { rev, ord } } of TW attribution on this account's Meta ads, one key
+ *  per SYNCED date (a synced date with no Meta orders reads 0, a missing key is
+ *  "not synced"). `to` is inclusive. */
+async function twMetaDaily(env, actId, from, to) {
+  const { results } = await env.DB.prepare(
+    `SELECT t.date,
+            SUM(CASE WHEN ${TW_META_ROW} THEN t.revenue ELSE 0 END) AS rev,
+            SUM(CASE WHEN ${TW_META_ROW} THEN t.orders ELSE 0 END) AS ord
+     FROM tw_ad_attr t LEFT JOIN ads a ON a.act_id = t.act_id AND a.ad_id = t.ad_id
+     WHERE t.act_id = ?1 AND t.model = ?2 AND t.date >= ?3 AND t.date <= ?4
+     GROUP BY t.date`,
+  ).bind(actId, BRIEF_ATTR_MODEL, from, to).all().catch(() => ({ results: [] }));
+  return Object.fromEntries((results || []).map(r => [r.date, { rev: r.rev || 0, ord: r.ord || 0 }]));
+}
+
+/** daily_insights rows with purchases/revenue swapped for TW (null on an
+ *  unsynced day). Same shape, so the Meta tab's maths keeps working. */
+function attributeRows(rows, tw) {
+  return rows.map(r => {
+    const t = tw[r.date];
+    return { ...r, meta_purchases: r.purchases, meta_revenue: r.revenue,
+      purchases: t ? t.ord : null, revenue: t ? t.rev : null };
+  });
+}
+
+/* `attributed` = the rows went through attributeRows: one unsynced day nulls the
+   window's purchases, revenue, CPA and ROAS. Without it (Meta's own rows, the
+   retired share link) a null still adds as zero, exactly as before. */
+function agg(rows, attributed = false) {
   const s = rows.reduce((a, r) => {
     a.spend += r.spend; a.impressions += r.impressions; a.clicks += r.link_clicks || r.clicks;
-    a.purchases += r.purchases; a.revenue += r.revenue; a.video_views += r.video_views; return a;
+    a.purchases += r.purchases || 0; a.revenue += r.revenue || 0; a.video_views += r.video_views; return a;
   }, { spend: 0, impressions: 0, clicks: 0, purchases: 0, revenue: 0, video_views: 0, days: rows.length });
+  if (attributed) {
+    s.meta_purchases = rows.reduce((n, r) => n + (r.meta_purchases || 0), 0);
+    s.meta_revenue = rows.reduce((n, r) => n + (r.meta_revenue || 0), 0);
+    /* A day Triple Whale has not synced yet (yesterday, before the ~9am pull) must not
+       blank the whole window: CPA and ROAS are taken over the days it HAS, against those
+       same days' spend. The totals stay null, because a partial count would read low. */
+    const synced = rows.filter(r => r.purchases != null && r.revenue != null);
+    if (synced.length < rows.length) {
+      s.purchases = null; s.revenue = null; s.attr_missing_days = rows.length - synced.length;
+      const sp = synced.reduce((n, r) => n + r.spend, 0), pu = synced.reduce((n, r) => n + r.purchases, 0), rv = synced.reduce((n, r) => n + r.revenue, 0);
+      s._cpa = synced.length && pu ? sp / pu : null;
+      s._roas = synced.length && sp ? rv / sp : null;
+    }
+  }
+  const partial = '_cpa' in s;
+  const { _cpa, _roas, ...out } = s;
   return {
-    ...s,
+    ...out,
     spend_per_day: s.days ? s.spend / s.days : null,
-    cpa: s.purchases ? s.spend / s.purchases : null,
-    roas: s.spend ? s.revenue / s.spend : null,
+    cpa: partial ? _cpa : s.purchases ? s.spend / s.purchases : null,
+    roas: partial ? _roas : s.spend && s.revenue != null ? s.revenue / s.spend : null,
     ctr: s.impressions ? s.clicks / s.impressions : null,
     cpm: s.impressions ? s.spend / s.impressions * 1000 : null,
     thumbstop: s.impressions ? s.video_views / s.impressions : null,
   };
 }
 
-async function accountOverview(env, a) {
+/* `attr: false` keeps Meta's own purchases and revenue: only the retired share
+   link asks for that. Everything else (the Meta tab, the Strategist) gets
+   Triple Whale attribution in l7 / l30 / prev7 / prev30. */
+async function accountOverview(env, a, { attr = true } = {}) {
   const today = localDate(a.tz);
   const from = addDays(today, -70);
-  const { results: rows } = await env.DB.prepare(
+  let { results: rows } = await env.DB.prepare(
     `SELECT * FROM daily_insights WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
   ).bind(a.act_id, from).all();
+  if (attr) rows = attributeRows(rows, await twMetaDaily(env, a.act_id, from, today));
   const byDate = Object.fromEntries(rows.map(r => [r.date, r]));
   const range = (n, endOffset = 1) => {            // last n full days ending yesterday by default
     const out = [];
@@ -4731,7 +4853,8 @@ async function accountOverview(env, a) {
       projected: elapsed > 0.02 ? mtd / elapsed : null, elapsed, days_in_month: dim, day_of_month: dom,
       last_month_same_day: lastMonthSameDay, last_month_total: lastMonthTotal,
       vs_last_month_pct: lastMonthSameDay ? mtd / lastMonthSameDay - 1 : null },
-    l7: agg(range(7)), l30: agg(range(30)), prev7: agg(range(7, 8)), prev30: agg(range(30, 31)),
+    l7: agg(range(7), attr), l30: agg(range(30), attr), prev7: agg(range(7, 8), attr), prev30: agg(range(30, 31), attr),
+    attribution: attr ? `triple_whale:${BRIEF_ATTR_MODEL}` : 'meta',
     days_of_data: rows.length,
     changes_24h: (await env.DB.prepare(
       `SELECT COUNT(*) AS n FROM activities WHERE act_id = ?1 AND event_time >= ?2`,
@@ -6720,7 +6843,7 @@ const AH_APP = {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(t.act_id).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         acct.budgets = safeJson(acct.budgets_json, {});
-        const ov = await accountOverview(env, acct);
+        const ov = await accountOverview(env, acct, { attr: false });   // retired link: left exactly as it was
         const from = addDays(localDate(acct.tz), -180);
         const { results: rows } = await env.DB.prepare(
           `SELECT date, spend, impressions, clicks, link_clicks, purchases, revenue, video_views FROM daily_insights
@@ -6952,11 +7075,13 @@ const AH_APP = {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const from = addDays(localDate(acct.tz), -days);
-        const { results: rows } = await env.DB.prepare(
+        const { results: metaRows } = await env.DB.prepare(
           `SELECT * FROM daily_insights WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
         ).bind(act, from).all();
+        // Meta tab (Averages): purchases/revenue are Triple Whale's, null on a day TW has not synced.
+        const rows = attributeRows(metaRows, await twMetaDaily(env, act, from, localDate(acct.tz)));
         return json({ account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz, today: localDate(acct.tz) },
-          rows, events: await seriesEvents(env, act, from) });
+          attribution: `triple_whale:${BRIEF_ATTR_MODEL}`, rows, events: await seriesEvents(env, act, from) });
       }
 
       /* ONE LOCAL DAY, LIVE, WITH ITS HOURS. Two facts about the summary

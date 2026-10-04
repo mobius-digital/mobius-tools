@@ -1573,7 +1573,6 @@
         <div class="grp-btns">
           <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
           <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Daily Brief</span></button>
-          <button data-t="tests"><svg class="ic"><use href="#i-tests"/></svg><span>Tests</span></button>
           <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
         </div>
       </div>
@@ -1636,14 +1635,14 @@
 <nav class="tabbar" id="tabbar" aria-label="Primary">
   <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
   <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Brief</span></button>
-  <button data-t="tests"><svg class="ic"><use href="#i-tests"/></svg><span>Tests</span></button>
   <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
+  <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
   <button id="tbMore" aria-label="More destinations"><svg class="ic"><use href="#i-more"/></svg><span>More</span></button>
 </nav>
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=2"></script>
+<script src="meta.js?v=3"></script>
 <script src="amb.js?v=16"></script>
 <script src="../onboard/questions.js?v=8"></script>
 <script src="brand.js?v=8"></script>
@@ -2472,7 +2471,7 @@ const SET_ICONS = { brands: 'i-brand', sending: 'i-chat', strategist: 'i-spark',
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Tests'], meta: ['Every day', 'Meta'],
+  overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Meta &nbsp;/&nbsp; Tests'], meta: ['Every day', 'Meta'],
   reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
   studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], amb: ['Making ads', 'Brand &nbsp;/&nbsp; Creator link'],
   plan: ['Monthly and setup', 'Plan'], settings: ['Monthly and setup', 'Settings'],
@@ -2521,7 +2520,7 @@ const markTourSeen = k => { const s = tourSeen(); s[k] = 1; localStorage.setItem
 const TOURS = {
   start: { name: 'How Locus fits together', steps: [
     { body: '<b>The tabs are grouped by when you open them.</b> Every day, every week, when making ads, and once a month. This takes about a minute.' },
-    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b>: which brand needs you today. <b>Daily Brief</b>: read, fix and send the client update. <b>Tests</b>: make the calls on tests that spent enough. <b>Meta</b>: the ads themselves, matching Ads Manager.' },
+    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b>: which brand needs you today. <b>Daily Brief</b>: read, fix and send the client update. <b>Meta</b>: everything about the Meta ads, including <b>Tests</b>, where you make the calls on tests that spent enough.' },
     { sel: '#tabs .grp:nth-of-type(2)', title: 'Every week', body: '<b>Reports</b> are the weekly and monthly documents you send the client. <b>Profit</b> is whether the brand is making money, with <b>Customers</b> under it.' },
     { sel: '#tabs .grp:nth-of-type(3)', title: 'Making ads', body: '<b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk, plus the creator link.' },
     { sel: '#tabs .grp:nth-of-type(4)', title: 'Monthly and setup', body: 'On <b>Plan</b> you set next month’s number with the client. <b>Settings</b> holds goals, channels, new clients, and the data checks.' },
@@ -2975,7 +2974,7 @@ async function renderAdShare(token) {
    The ratio sorts are filtered to MATERIAL ads server-side; the footer always
    states how many were considered and how much spend is on screen, because a
    "top 8 by ROAS" that quietly dropped 90% of spend is a lie of omission. */
-const CB = { sort: 'spend', fmt: '', limit: 8, attr: localStorage.getItem('pf_cb_attr') || 'lastPlatformClick', run: 0,
+const CB = { sort: 'spend', fmt: '', limit: 8, attr: (localStorage.getItem('pf_cb_attr') || 'lastPlatformClick').replace(/^meta$/, 'lastPlatformClick'), run: 0,
   /* THE QUALIFYING THRESHOLD, as a multiple of the brand's GOAL CPA.
      A multiple rather than a dollar figure because it means the same thing in
      every account: "this ad has had enough budget to have hit target N times".
@@ -3018,8 +3017,7 @@ const CB_ATTR = [
   ['linear', 'Linear'],
   ['fullLastClick', 'Last Click'],
   ['fullFirstClick', 'First Click'],
-  ['meta', 'Meta’s own attribution'],
-];
+];   // Meta's own attribution was removed 2026-10-04: attribution is always Triple Whale (Cole's standing rule)
 /* Sorts that are a RATIO and therefore need a spend floor to mean anything.
    Kept beside the UI as well as in the worker so the page can say which rule is
    currently in force rather than leaving the reader to guess. */
@@ -3160,7 +3158,6 @@ async function renderCreativeBrowser(host, act, range) {
         <p class="tiny" style="margin:8px 0 0">Attribution refreshes every night for the last 7 days, and older history fills itself in about two weeks at a time each night, back to 120 days. This notice should get rarer on its own - press the button if you need this window now.</p>
         <div class="row" style="gap:8px;margin:10px 0 0">
           <button class="btn primary" id="cbSync">Sync attribution for this window</button>
-          <button class="btn" id="cbUseMeta">Use Meta’s figures instead</button>
           <span class="tiny" id="cbSyncMsg"></span></div></div></div>`
       : d.ads.length ? `<div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>` : '<div class="card"><span class="hint">No ads spent in this window.</span></div>'}
     <p class="tiny" style="margin-top:4px">
@@ -3178,12 +3175,6 @@ async function renderCreativeBrowser(host, act, range) {
       <b>Spend, hook, hold, CTR and CPM are always Meta’s</b>, because Triple Whale does not measure delivery.
 </p>`;
 
-  const useMeta = $('#cbUseMeta');
-  if (useMeta) useMeta.onclick = () => {
-    // A DELIBERATE switch, by him, not by the code behind his back.
-    CB.attr = 'meta'; localStorage.setItem('pf_cb_attr', 'meta');
-    renderCreativeBrowser(host, act, range);
-  };
   const syncBtn = $('#cbSync');
   if (syncBtn) syncBtn.onclick = async () => {
     const msg = $('#cbSyncMsg');
@@ -3630,6 +3621,11 @@ const SECTIONS = {
   settings: [['settings', 'Setup'], ['health', 'Data health'], ['costs', 'Costs']],
 };
 const PARENT_OF = Object.fromEntries(Object.entries(SECTIONS).flatMap(([p, kids]) => kids.map(([k]) => [k, p])));
+/* Meta is everything about Meta, Tests included (Cole, 2026-10-04). Entries starting
+   "meta:" open that meta.js sub-tab; "tests" is its own renderer (brand.js). Today
+   and Averages open from Meta Overview and light Overview while open. */
+PARENT_OF.tests = 'meta';
+const META_RAIL = [['meta:overview', 'Overview'], ['tests', 'Tests'], ['meta:creative', 'Creative'], ['meta:changelog', 'Change Log']];
 
 /* ---------- The period bar ----------
    EVERY window in this tool ends YESTERDAY. Today is partial on every source -
@@ -3825,7 +3821,7 @@ function show(tab) {
      lights up, or More does, because the open page lives behind the drawer. */
   document.querySelectorAll('#tabbar button[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === parent));
   const tbMore = document.getElementById('tbMore');
-  if (tbMore) tbMore.classList.toggle('on', !['overview','brief','tests','meta'].includes(tab));
+  if (tbMore) tbMore.classList.toggle('on', !['overview','brief','meta','tests','reports'].includes(tab));
   /* With the Meta sub-list open the tab column is taller than a laptop rail, so
      the current tab can sit outside the scrolled view. Only nudges when it is
      actually out of sight, and never scrolls the PAGE. */
@@ -3840,10 +3836,18 @@ function show(tab) {
     const pb = document.querySelector(`#tabs button[data-t="${parent}"]`);
     if (isSection && pb && pb.nextElementSibling !== sn) pb.after(sn);
     sn.style.display = isSection ? '' : 'none';
+    const host = sn.querySelector('.in');
     if (SECTIONS[parent]) {
-      const host = sn.querySelector('.in');
       host.innerHTML = SECTIONS[parent].map(([k, l]) => `<button data-s="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('');
       host.querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.s));
+    } else if (parent === 'meta') {
+      const msub = localStorage.getItem(MSUB.key) || 'overview';
+      const lit = tab === 'tests' ? 'tests' : 'meta:' + (['today', 'averages'].includes(msub) ? 'overview' : msub);
+      host.innerHTML = META_RAIL.map(([k, l]) => `<button data-s="${k}" class="${k === lit ? 'on' : ''}">${esc(l)}</button>`).join('');
+      host.querySelectorAll('button').forEach(b => b.onclick = () => {
+        const k = b.dataset.s;
+        if (k.startsWith('meta:')) { localStorage.setItem(MSUB.key, k.slice(5)); show('meta'); } else show(k);
+      });
     }
   }
   const m = $('#main');
@@ -3889,17 +3893,8 @@ async function renderMeta(first) {
   const subs = window.MetaTab.subs;
   let sub = localStorage.getItem(MSUB.key) || 'overview';
   if (!subs.some(s => s.id === sub)) sub = subs[0].id;
-  /* Only three in the rail (2026-10-04). Today and Averages are opened from the
-     Meta Overview page and light Overview while open. */
-  const railSubs = subs.filter(s => !['today', 'averages'].includes(s.id));
-  const lit = ['today', 'averages'].includes(sub) ? 'overview' : sub;
-  if (host) {
-    host.innerHTML = railSubs.map(s => `<button data-s="${s.id}" class="${s.id === lit ? 'on' : ''}">${esc(s.label)}</button>`).join('');
-    host.querySelectorAll('button').forEach(b => b.onclick = () => {
-      localStorage.setItem(MSUB.key, b.dataset.s);
-      show('meta');
-    });
-  }
+  /* The sub-tab list (Overview, Tests, Creative, Change Log) is drawn by show()
+     from META_RAIL, because Tests is a different renderer. */
   if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   await window.MetaTab.render({ tok: S.tok, act: S.act, sub });
   if (run !== RUN) return;   // a newer render started while Meta was loading
@@ -5198,7 +5193,7 @@ async function renderBriefAll(first) {
   // `#main .card` would inject this table into the previous page - or throw, when
   // that tab has no card, leaving the Brief tab unable to open at all.
   const shell = body => `${pageHead('brief', 'Daily Brief', 'Every client&rsquo;s yesterday against its plan. Pick a client top-right to read and send its brief.')}
-    <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>This is the only page that isn't Meta-reported: sales, margin and total spend come from <b>Triple Whale</b> (the whole business, every platform), because net sales and contribution margin don't exist inside Meta. Every other tab - Overview, Pacing, Averages, Change Log, Creative Rotation - is Meta-only and matches Ads Manager. Expect these numbers to differ from Meta's; that's the point.</div></div>
+    <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>Sales, margin and total spend here come from <b>Triple Whale</b> for the whole business, every platform, because net sales and contribution margin do not exist inside Meta. Expect these numbers to differ from Meta's.</div></div>
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading every client…</span></div>');
@@ -8652,7 +8647,7 @@ async function apiAH(path, opts = {}) {
   if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
   return j;
 }
-const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (Meta-reported ads)', costs: 'Costs', settings: 'Settings', health: 'Data health' };
+const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health' };
 AskUI.init({
   name: 'Strategist', api: apiAH, esc, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
   onApplied: () => { try { show(S.tab); } catch (e) {} },

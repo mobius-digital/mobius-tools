@@ -1268,3 +1268,11 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   and light Overview while open.
 - Phone bar: Overview, Brief, Tests, Meta, More. Proposal + SOP artifact:
   https://claude.ai/artifact/8P1n7XmyrCZA7g2rQy229e
+- **Later 2026-10-04 (Cole: "the Meta tab is everything Meta, and attribution is always Triple Whale"):**
+  Tests is a Meta SUB-TAB, not a top-level tab (`PARENT_OF.tests = 'meta'`, rail list `META_RAIL`
+  drawn by show(): Overview, Tests, Creative, Change Log). The Meta tab's purchases, revenue, ROAS
+  and CPA now come from Triple Whale `tw_ad_attr` lastPlatformClick (account-health `twMetaDaily`,
+  `attributeRows`, `agg(rows, true)`); spend and delivery stay Meta's. The old "Meta-reported,
+  matches Ads Manager" rule at the top of this file is RETIRED for attribution. The Creative
+  browser's "Meta's own attribution" option and "Use Meta's figures instead" button are gone.
+  A day TW has not synced yet makes totals null but CPA/ROAS are taken over the synced days.

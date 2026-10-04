@@ -931,3 +931,12 @@ Supabase Storage bucket **`creative`** (`angles/<angle id>/<name>`); the app pla
   PostgREST answers (column names are from migration 046/048 in the app repo, not from a live query), the Storage
   upload with a streamed body over 30MB, whether the app's signed-URL playback likes an object this worker wrote,
   and the app's `products` table shape for the club match (`kind=not.is.null`, `title`).
+
+## 2026-10-04: the Meta tab's attribution is Triple Whale
+`/api/overview`, `/api/series`, `/api/creative`, `/api/ads` (acct_cpa) and `/api/summarise` give
+purchases/revenue/CPA/ROAS from `tw_ad_attr` lastPlatformClick on Meta ads (platform 'meta', or
+platform NULL with an ad_id in `ads`: rows ~05-27..07-23 have NULL platform). Meta's own counts are
+kept as `meta_purchases`/`meta_revenue`, rendered nowhere. Before 2026-05-12 (no TW data) attributed
+fields are null, never Meta's. `agg()`: a window with unsynced days returns null totals but CPA/ROAS
+over the synced days. Only the retired share link passes `{attr:false}`. The Strategist's overview
+now sees TW numbers too.

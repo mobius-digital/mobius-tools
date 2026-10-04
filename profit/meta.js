@@ -13,8 +13,10 @@
  * secrets, and it already accepts the same Mobius session token. Nothing about
  * the backend moved - only the screens.
  *
- * Everything here is Meta-reported and matches Ads Manager. Blended,
- * store-level money lives on the other tabs, deliberately.
+ * Spend and delivery here are Meta's and match Ads Manager. Purchases, revenue,
+ * ROAS and CPA are Triple Whale attribution (last platform click) on Meta ads,
+ * the same source as the briefs and reports. The worker sends null where
+ * Triple Whale has not synced a day, and this file shows " - " for it.
  */
 (function () {
 'use strict';
@@ -365,8 +367,11 @@ function clDrawPanel() {
 const AV = { win: localStorage.getItem('ah_av_win') || '90' };
 const AV_METRICS = [
   { k:'spend', label:'Spend/day', num:r=>r.spend, den:()=>1, fmt:(v,c)=>fmtK(v,c), lower:false },
-  { k:'roas', label:'ROAS', num:r=>r.revenue, den:r=>r.spend, fmt:v=>fmtX(v), lower:false },
-  { k:'cpa', label:'CPA', num:r=>r.spend, den:r=>r.purchases, fmt:(v,c)=>fmtMoney(v,c), lower:true },
+  /* Attributed (Triple Whale). A day TW has not synced has null purchases and
+     revenue: it adds nothing to either side, so it can never read as zero sales
+     and a window with no synced days shows " - ". */
+  { k:'roas', label:'ROAS', num:r=>r.revenue, den:r=>r.revenue==null?0:r.spend, fmt:v=>fmtX(v), lower:false },
+  { k:'cpa', label:'CPA', num:r=>r.purchases==null?0:r.spend, den:r=>r.purchases??0, fmt:(v,c)=>fmtMoney(v,c), lower:true },
   { k:'ctr', label:'CTR', num:r=>(r.link_clicks||r.clicks), den:r=>r.impressions, fmt:v=>v==null?' - ':(v*100).toFixed(2)+'%', lower:false },
   { k:'cpm', label:'CPM', num:r=>r.spend*1000, den:r=>r.impressions, fmt:(v,c)=>fmtMoney(v,c), lower:true },
   { k:'thumbstop', label:'Thumbstop', num:r=>r.video_views, den:r=>r.impressions, fmt:v=>v==null?' - ':(v*100).toFixed(1)+'%', lower:false },
@@ -411,8 +416,8 @@ function sparkSVG(s7, s30, w = 200, h = 46) {
 
 const AV_DEFS = {
   spend: 'Ad spend per day, Meta-reported.',
-  roas: 'Revenue ÷ spend, as Meta attributes it. Higher is better.',
-  cpa: 'Spend ÷ purchases - what one purchase costs. Lower is better.',
+  roas: 'Revenue ÷ spend. Revenue is Triple Whale attribution (last platform click), spend is Meta. Higher is better.',
+  cpa: 'Spend ÷ purchases - what one purchase costs. Purchases are Triple Whale attribution (last platform click). Lower is better.',
   ctr: 'Link clicks ÷ impressions - are people clicking the ads. Higher is better.',
   cpm: 'Cost per 1,000 impressions - what Meta charges for attention. Lower is better.',
   thumbstop: '3-second video views ÷ impressions - how often people stop scrolling. Higher is better.',
@@ -568,7 +573,7 @@ async function renderAverages() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
   $('#main').innerHTML = `${mcrumb('Averages')}<p style="margin:0 0 6px"><a href="#" data-msub="overview">← Meta overview</a></p><h2>Last 7 vs 30 days</h2>
-    <p class="sub">Each card answers one question: <b>are the last 7 days better than this account's own normal (its last 30 days)?</b> The word under each card is the verdict - green words are good, red are bad. <b>Click any card</b> for the full day-by-day chart with dates and the changes we made. Meta data only; averages end yesterday because the last ~3 days of conversions are still settling.</p>
+    <p class="sub">Each card answers one question: <b>are the last 7 days better than this account's own normal (its last 30 days)?</b> The word under each card is the verdict - green words are good, red are bad. <b>Click any card</b> for the full day-by-day chart with dates and the changes we made. Spend and delivery are Meta's. ROAS and CPA are Triple Whale attribution (last platform click), same as the briefs. Averages end yesterday because the last ~3 days of conversions are still settling.</p>
     ${setupBanner()}
     <div class="row">
       <span class="tiny" style="font-weight:700" title="How far back the charts look. This only changes how much history the lines show - the cards' current values are always the last 7 days.">History shown:</span>
@@ -760,7 +765,7 @@ function crCards(d) {
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${c.swAge == null ? ' - ' : Math.round(c.swAge) + ' days'}</b>
       <div class="av-trend">average age of the ads behind the spend</div></div>
     <div class="av-card"><span class="av-label" ${lbl} title="CPA from ads ≤${d.fresh} days old ('fresh'), over the selected period">Fresh CPA (≤${d.fresh}d) <span class="info-i">i</span></span>
-      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend">${c.freshCpa == null ? 'no purchases from fresh ads in this period yet' : `CPA from ads ≤${d.fresh}d old`}</div></div>
+      <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.freshCpa, cur)}</b><div class="av-trend">${c.freshCpa == null ? (c.attr_gap ? 'Triple Whale has not synced all of this period' : 'no purchases from fresh ads in this period yet') : `CPA from ads ≤${d.fresh}d old`}</div></div>
     <div class="av-card"><span class="av-label" ${lbl} title="CPA from ads older than ${d.fresh} days ('stale'), over the selected period">Stale CPA (>${d.fresh}d) <span class="info-i">i</span></span>
       <b class="av-val" style="display:block;font-size:24px;margin:6px 0 2px">${fmtMoney(c.staleCpa, cur)}</b>
       <div class="av-trend">${verdict}</div></div>
@@ -783,7 +788,7 @@ function crAds(d) {
   return `<div class="card"><h3 style="margin-bottom:2px">Which ads are carrying the spend - and earning it?</h3>
     <p class="hint" style="margin-bottom:10px">Every ad that spent in the last ${a.window} days, biggest first. <b>Scale</b> = CPA at least 20% better than this account's ${fmtMoney(a.acct_cpa, cur)} average; <b>cut / fix</b> = 40%+ worse, or spending with no purchases at all. Judged against the account's own average, never an outside benchmark - and give new ads a few days before acting.</p>
     <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Purchases</th><th class="num">CPA <span class="tiny">vs acct</span></th><th class="num">ROAS</th><th>Read</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="tiny" style="margin-top:8px">${a.ads.length > 15 ? `Showing the top 15 of ${a.ads.length} spending ads. ` : ''}${scale} to scale · ${cut} to cut or fix. ROAS/CPA are Meta-attributed.</p></div>`;
+    <p class="tiny" style="margin-top:8px">${a.ads.length > 15 ? `Showing the top 15 of ${a.ads.length} spending ads. ` : ''}${scale} to scale · ${cut} to cut or fix. Purchases, ROAS and CPA are Triple Whale attribution (last platform click).${a.attr_gap ? ' Triple Whale has not synced every day of this window yet, so they show " - ".' : ''}</p></div>`;
 }
 
 async function renderCreative() {
@@ -878,7 +883,7 @@ function wireCreativeCharts(d) {
    against this account's own recent form. */
 async function renderMetaOverview() {
   $('#main').innerHTML = `${mcrumb('Overview')}<h2>Meta - Overview</h2>
-    <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Meta-reported, so these match Ads Manager - they will not match the blended figures on the other tabs, and are not meant to.</p>
+    <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Spend and delivery come from Meta and match Ads Manager. Purchases, ROAS and CPA are Triple Whale attribution (last platform click), same as the briefs and reports.</p>
     <div class="row" style="margin-bottom:12px"><button class="btn" data-msub="today">Today's pace</button><button class="btn" data-msub="averages">Last 7 vs 30 days</button><span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div>
     ${setupBanner()}<div class="card"><span class="hint">Loading…</span></div>`;
@@ -905,7 +910,7 @@ async function renderMetaOverview() {
   $('#main .card').innerHTML = `<div class="tbl-wrap"><table>
     <thead><tr><th>Client</th><th class="num">Today</th><th class="num">Month so far</th><th class="num">Last month (same day)</th><th class="num">CPA 7d vs 30d</th><th class="num">ROAS 7d vs 30d</th><th class="num">Spend/day 7d vs 30d</th><th class="num">CTR 7d</th><th class="num">CPM 7d</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="9" class="tiny">No data yet - the first sync may still be running.</td></tr>'}</tbody></table></div>
-    <p class="tiny" style="margin-top:10px">7d/30d windows end yesterday; the last ~3 days of conversions are still settling, so recent CPA and ROAS read slightly worse than they will finish. <b>ROAS here is Meta's own attributed figure</b> - structurally lower than blended MER, and not comparable to the MER goal on Plan.</p>`;
+    <p class="tiny" style="margin-top:10px">7d/30d windows end yesterday; the last ~3 days of conversions are still settling, so recent CPA and ROAS read slightly worse than they will finish. <b>ROAS and CPA here are Triple Whale attribution (last platform click) on Meta ads</b>, so they will not match Ads Manager's purchase counts. Platform ROAS is not blended MER and is not comparable to the MER goal on Plan. A " - " means Triple Whale has not synced that window yet.</p>`;
 }
 
 /** How far through a NORMAL day this account usually is by now - the divisor
@@ -996,7 +1001,7 @@ const META_BRIEF = {
   overview: {
     answers: 'Which Meta accounts are running hot or cold against their own normal.',
     when: 'Daily, as the ads-side companion to Overview.',
-    todo: 'Scan for red. These match Ads Manager and deliberately will not match the blended tabs.',
+    todo: 'Scan for red. Spend matches Ads Manager; ROAS and CPA are Triple Whale attribution, same as the briefs.',
   },
   today: {
     answers: 'Whether Meta is delivering right now, or has stalled.',
