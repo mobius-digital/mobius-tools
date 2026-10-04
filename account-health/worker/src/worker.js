@@ -5922,10 +5922,15 @@ async function handleSlackEvent(request, env, ctx) {
   const claim = await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`)
     .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
   if (!claim.meta?.changes) return ACK();
+  let brandRow = null;
   if (!dm) {
-    const row = await env.DB.prepare(`SELECT name FROM accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
-    if (!row) return ACK();   // not a team channel: stay silent
+    brandRow = await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
+    if (!brandRow) return ACK();   // not a team channel: stay silent
   }
+  /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
+     brand. Without this the Strategist asked "which brand?" in Lucky's own channel (2026-10-04). */
+  const screen = brandRow ? { slack_channel_brand: brandRow.name, act_id: brandRow.act_id,
+    note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.` } : null;
   const { engine, h } = strategist();
   ctx.waitUntil((async () => {
     /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
@@ -5933,7 +5938,7 @@ async function handleSlackEvent(request, env, ctx) {
     if (!dm && env.IDEAS_BOT !== 'off' && await ideaWanted(env, ev).catch(e => { console.log('ideas route: ' + e.message); return false; }))
       return ideaStart(env, ev, body);
     const findings = await engine.openFindings(env, h()).catch(() => []);
-    await engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6) });
+    await engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}) });
   })().catch(e => console.log('strategist slack: ' + e.message)));
   return ACK();
 }

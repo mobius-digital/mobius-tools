@@ -282,17 +282,21 @@ export function brandOverride(text, accounts) {
 }
 
 /* ---------------- is this mention an idea, or a question for the Strategist? ---------------- */
-const IDEA_WORDS = /\b(ideas?|brief(?: this| it)?|draft|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio|redo|revise)\b/i;
-const NUMBER_WORDS = /\b(roas|cpa|mer|spend|spent|pacing|revenue|sales|budget|ctr|cpm|numbers?|conversions?|orders)\b/i;
+/* Narrow on purpose (2026-10-04): a bare "brief" or "draft" is usually about the Daily Brief or a
+   report, which is the Strategist's. Only words that clearly mean "turn this into an ad idea". */
+const IDEA_WORDS = /\b(ideas?|brief (?:this|it)|(?:make|write) (?:a |the )?brief|draft (?:this|it)|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio)\b/i;
+const NUMBER_WORDS = /\b(roas|cpa|mer|spend|spent|pacing|revenue|sales|budget|ctr|cpm|cvr|aov|mer|traffic|sessions?|numbers?|conversions?|conversion rate|orders)\b/i;
 /**
  * A mention in a brand's internal channel is the idea bot's when:
  *   - it says "strategist": never (that is how to reach the Strategist in an idea thread);
  *   - the thread already has an idea draft (a re-tag revises it);
- *   - the mention uses an idea word (idea, brief, draft, teardown, creator link, studio...);
+ *   - the mention uses an idea word (idea, brief this, draft it, teardown, creator link, studio...)
+ *     and is not about the numbers;
  *   - the thread carries a TikTok / Instagram / YouTube link or an uploaded video;
- *   - the thread carries an image and the mention is not about the numbers;
- *   - it is a bare tag inside a thread ("read this and draft it").
- * Everything else stays the Strategist's, exactly as before.
+ *   - the thread carries an image and the mention is not about the numbers.
+ * Everything else is the Strategist's. A BARE tag in a thread with no media used to count as an idea;
+ * it was how a follow-up in a Daily Brief thread ("Lucky Golf" then a bare tag) got answered with
+ * "Questions before I draft the Lucky Golf idea" (2026-10-04). A bare tag now goes to the Strategist.
  */
 export async function ideaWanted(env, ev) {
   if (!ev || ev.type !== 'app_mention' || ev.channel_type === 'im') return false;
@@ -301,14 +305,13 @@ export async function ideaWanted(env, ev) {
   await ensureIdeaTables(env);
   const root = ev.thread_ts || ev.ts;
   if (await env.DB.prepare(`SELECT 1 AS x FROM idea_thread WHERE id = ?1`).bind(`${ev.channel}:${root}`).first()) return true;
-  if (IDEA_WORDS.test(said)) return true;
+  if (IDEA_WORDS.test(said) && !NUMBER_WORDS.test(said)) return true;
   /* "compare" (the blind model test) inside a thread, unless it is about the numbers. */
   if (ev.thread_ts && /\bcompare\b/i.test(said) && !NUMBER_WORDS.test(said)) return true;
   const own = { social: linksOf(ev.text).some(classifyLink), video: (ev.files || []).some(isVideoFile), image: (ev.files || []).some(isImageFile) };
   if (own.social || own.video) return true;
   if (own.image && !NUMBER_WORDS.test(said)) return true;
   if (!ev.thread_ts) return false;
-  if (said.length < 3) return true;
   const r = await slack(env, 'conversations.replies', { channel: ev.channel, ts: root, limit: 100 }, true);
   const msgs = (r.messages || []).filter(m => !m.bot_id);
   if (msgs.some(m => linksOf(m.text).some(classifyLink) || (m.files || []).some(isVideoFile))) return true;
