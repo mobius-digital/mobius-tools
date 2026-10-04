@@ -649,11 +649,15 @@ export async function mondayCalls(env, act) {
     const min = sets.reduce((t, a) => t + (a.min || 0), 0);
     const sc = scorecard(st, rules, bm);
     const j = judge(st, rules, sc);
-    const call = j ? j.call : 'early';
+    /* Past its days and still too little spend to judge: Meta would not spend on it.
+       Theriot's rule: after 7 days without spending, it's dead. */
+    const starved = !j && day && day > rules.judge_days;
+    const call = j ? j.call : starved ? 'loser' : 'early';
     const minOff = min > 0 && call !== 'loser' && (call !== 'early' || (day && day > rules.min_days));   // a paused test needs no minimum change
     const name = sets[0]?.name || `${n} | ${r.title}`;
     const nums = `${money(st.spend)} spent, ${st.orders || 0} sale${st.orders === 1 ? '' : 's'}${st.orders ? ` (${money(st.spend / st.orders)} each)` : ''}`;
-    const line = call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent` : `• ${name}: ${nums}`;
+    const line = call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent`
+      : starved ? `• ${name}: Meta wouldn't spend on it (${money(st.spend)} in ${day} days)` : `• ${name}: ${nums}`;
     groups[call].push(line + (minOff ? ` · *take the ${money(min)} minimum off*` : ''));
     if (call === 'loser' || minOff) { sets.forEach(a => open.add(a.id)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
     if (call === 'loser') { if (sets.length) plan.pause.push(...sets.map(a => a.id)); else plan.pauseAds.push(...(st.ad_ids || [])); }
