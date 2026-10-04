@@ -255,7 +255,8 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .an-mini button{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;width:100%}
 .an-tbl tr[data-ang]{cursor:pointer}
 .an-tbl tr[data-ang]:hover td{background:var(--brand-tint)}
-.an-tbl td .tiny{margin-top:2px;max-width:420px}
+.an-tbl td:first-child{min-width:240px;white-space:normal}
+.an-tbl td .tiny{margin-top:2px;max-width:440px;white-space:normal;overflow:visible;text-overflow:clip}
 .an-tbl .br-tag{white-space:nowrap}
 .an-bar{display:inline-block;width:64px;height:6px;border-radius:3px;background:var(--line);overflow:hidden;vertical-align:middle;margin-right:8px}
 .an-bar i{display:block;height:100%;background:var(--good)}
@@ -403,7 +404,9 @@ function statsOf(list) {
     if (o === 'loser') s.lost++;
     s.spend += b.stats.spend || 0;
     if ((b.stats.orders || 0) >= 2 && b.stats.cpa != null && (s.best == null || b.stats.cpa < s.best)) s.best = b.stats.cpa;
-    const when = b.stats.last || b.stats.first;
+    /* Last TESTED = when the newest test started spending, not when an old winner last
+       spent (evergreen ads made every angle read "yesterday"). */
+    const when = b.stats.first || (b.box === 'making' ? null : (b.created_at || '').slice(0, 10));
     if (when && (!s.last || when > s.last)) s.last = when;
   }
   return s;
