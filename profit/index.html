@@ -824,6 +824,76 @@
   .set-sec{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--ink-2);
     margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .set-sec:first-child{margin-top:4px}
+  /* SETTINGS SECTIONS (2026-10-04). A section list on the left and one section
+     at a time on the right, the same pattern as Ledger. On phones the list
+     becomes a sliding strip of pills above the section. */
+  .setwrap{display:grid;grid-template-columns:212px minmax(0,1fr);gap:26px;align-items:start;margin-top:4px}
+  .setnav{position:sticky;top:18px;display:flex;flex-direction:column;gap:3px}
+  .setnav button{display:flex;align-items:center;gap:10px;text-align:left;padding:9px 12px;border-radius:10px;
+    font-size:13.5px;font-weight:600;color:var(--muted);border:1px solid transparent;background:transparent}
+  .setnav button .ic{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .setnav button:hover{background:var(--surface);color:var(--ink)}
+  .setnav button.on{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:0 1px 6px rgba(12,22,29,.06)}
+  .setnav button.on .ic{color:var(--brand-ink)}
+  .setnav button small{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted);background:var(--bg);border-radius:99px;padding:1px 7px}
+  .setpane{min-width:0}
+  .setpane > section > .card{margin-bottom:14px}
+  .set-h{margin:2px 0 16px}
+  .set-h h3{font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.2;color:var(--ink)}
+  .set-h .hint{margin:4px 0 0;font-size:13.5px;color:var(--muted);max-width:640px}
+  .set-all{display:inline-block;margin-left:4px;font-weight:600;color:var(--brand-ink)}
+  .set-card{padding:18px 20px}
+  .set-card > h3{font-size:15px;margin-bottom:4px}
+  .set-card .set-why{margin:0 0 14px;font-size:13px;line-height:1.5;max-width:680px}
+  .set-body{min-width:0}
+  .set-card select,.set-card input[type=text]{max-width:300px}
+  /* The two ways to add a client, each with its line saying which one to use. */
+  .set-add{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 16px}
+  .set-add-o{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+  .set-add-o .tiny{margin:0;line-height:1.45;font-size:12px}
+  .set-add #brMsg:empty{display:none}
+  .set-count{margin:0 0 8px}
+  #setRollup .rollup{margin-bottom:16px}
+  /* Brand row groups: a white panel per group on the grey row body. */
+  .brow .brow-body{padding:14px 16px 6px}
+  .brow-grp{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:2px 18px;margin-bottom:12px}
+  .brow-gh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 0 10px;border-bottom:1px solid var(--line)}
+  .brow-gh b{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+  .brow-gh span{font-size:12px;color:var(--muted)}
+  .brow-grp.brow-danger{border-color:color-mix(in srgb,var(--bad) 30%,var(--line))}
+  .brow-grp.brow-danger .brow-gh b{color:var(--bad)}
+  .brow .btn-s{font-size:12px;padding:5px 10px}
+  /* The Strategist card (ask-ui.js) brings its own markup; give it the same rhythm. */
+  #askSet .lbl{display:block;font-weight:700;font-size:13.5px;margin:16px 0 2px}
+  #askSet .lbl .why{display:block;font-weight:400;font-size:12.5px;color:var(--muted);margin-top:2px}
+  #askSet textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.5;background:var(--surface);color:var(--ink);margin-top:6px;resize:vertical}
+  #askSet textarea:focus{outline:none;border-color:var(--brand-ink);box-shadow:0 0 0 3px var(--brand-soft)}
+  .setpane #askSet > .ch{display:none}
+  #askSet > .lbl:first-of-type{margin-top:0}
+  .set-list{margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55;color:var(--muted)}
+  .set-list li{margin-bottom:4px}
+  .set-list b{color:var(--ink)}
+  .set-lbl{display:block;font-weight:700;font-size:13.5px;margin-top:16px}
+  #askSet .memlist{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+  #askSet .memrow{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:8px;padding:8px 10px;font-size:13px}
+  #askSet .memrow span{flex:1;min-width:0}
+  #askSet .memrow small{color:var(--muted);font-size:11.5px;white-space:nowrap}
+  #askSet .memrow .x{color:var(--muted);padding:2px 6px;border-radius:6px}
+  #askSet .memrow .x:hover{color:var(--bad);background:var(--bad-bg)}
+  @media (max-width:980px){
+    .setwrap{grid-template-columns:minmax(0,1fr);gap:16px}
+    .setnav{position:static;flex-direction:row;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+      background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+    .setnav::-webkit-scrollbar{display:none}
+    .setnav button{flex:none;padding:8px 12px;white-space:nowrap}
+    .setnav button small{display:none}
+  }
+  @media (max-width:720px){
+    .brow .brow-body{padding:10px 10px 4px}
+    .brow-grp{padding:2px 14px}
+    .set-card{padding:15px 15px}
+    .set-card select,.set-card input[type=text]{max-width:100%}
+  }
   /* BRAND ROWS. One expandable row per brand holding everything about it,
      replacing four tables organised by SYSTEM (every ad account, Shopify,
      channels, costs) that made setting up one brand a tour of four places. */
@@ -1440,7 +1510,7 @@
 /* Settings -> Goals box (2026-10-04) */
 .gwrap{display:grid;gap:6px;max-width:440px}
 .gwrap .gh{font-weight:600;font-size:12.5px;margin-top:8px;color:var(--ink)}
-.gwrap .gl{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.gwrap .gl{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
 .gband{display:flex;height:22px;border-radius:6px;overflow:hidden;font-size:11px;font-style:normal}
 .gband i{display:flex;align-items:center;justify-content:center;font-style:normal;white-space:nowrap;overflow:hidden;padding:0 4px}
 .gband .gk{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
@@ -1474,6 +1544,10 @@
   <symbol id="i-studio" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
   <symbol id="i-amb" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
   <symbol id="i-more" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2.5 3.5h11v7.5H7l-3 2.5v-2.5H2.5z"/><path d="M5 6.5h6M5 8.5h4"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.8V8l2.2 1.6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M6.8 5.8v4.4L10.3 8z"/></symbol>
 </defs></svg>
 
 <div class="app">
@@ -2092,9 +2166,9 @@ const PAGE_BRIEF = {
     todo: 'If the verdict is broken, either fix the product costs in Triple Whale or set a flat margin here.',
   },
   settings: {
-    answers: 'Who the clients are, and where each one’s reporting is sent.',
-    when: 'Adding a client, or changing where their Slack updates go.',
-    todo: 'Add brands at the top; set the internal and client channels in the table below.',
+    answers: 'Who the clients are, what their goals are, and where each one’s reporting is sent.',
+    when: 'Adding a client, changing a goal, or changing where their Slack updates go.',
+    todo: 'Pick a section on the left. Brands holds everything about one client: open its row.',
   },
   health: {
     answers: 'Whether Triple Whale still agrees with the ad platforms - and so whether this morning’s numbers can be sent.',
@@ -2373,8 +2447,18 @@ const TAB_PURPOSE = {
   customers: 'What a new customer costs, and whether their first order pays it back. Read this before you set a plan.',
   costs:     'Whether a client’s cost data can be trusted. Everything profit-related depends on the answer, so check it here when a warning appears.',
   health:    'Whether Triple Whale still agrees with the ad platforms. Green means this morning’s numbers are safe to send; red tells you what broke and what to press.',
-  settings:  'Add clients, and choose where each brand’s reporting goes.',
+  settings:  'Set up each brand, how briefs reach Slack, the Strategist, who can sign in, and the jobs that run in the background.',
 };
+/* Settings sections: key, name in the list, one line saying what it is for. */
+const SET_SECS = [
+  ['brands', 'Brands', 'Each brand’s ad account, store, goals, Slack channels and margin. Open a row to change anything about that brand.'],
+  ['sending', 'Briefs and Slack', 'When the daily brief posts, who client messages come from, and who can send from inside Slack.'],
+  ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
+  ['team', 'Team', 'Who can sign in to Locus, and whether they can change things or only look.'],
+  ['system', 'Jobs and data', 'Whether the automatic syncs and sends are running, and one-off data fixes.'],
+  ['tours', 'Guided tours', 'Replay the walkthrough for any page.'],
+];
+const SET_ICONS = { brands: 'i-brand', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play' };
 /** Standard page heading. `extra` is for the genuinely per-page bit (which client,
  *  which month) and should stay short - it sits under the purpose, not in it. */
 /* One line, not four rows.
@@ -2493,9 +2577,9 @@ const TOURS = {
   ] },
 
   settings: { name: 'Settings', steps: [
-    { sel: '#brAdd', title: 'Adding a brand starts here', body: 'It asks the four things it needs: which Meta ad account, what to call them, their Triple Whale shop, and where their Slack reporting goes.' },
-    { sel: '.brow', title: 'One row per brand', body: 'Open a row and everything about that brand is in it - its store, both Slack channels, review-first, the daily brief, its margin. The line on the right tells you what is still missing.' },
-    { sel: '#teamCard', title: 'Who can sign in', body: 'Anyone on your domain already can. Invite anyone else by email - and make them a <b>Viewer</b> if they should watch the numbers without being able to send anything to a client.' },
+    { sel: '#setNav', title: 'Six sections', body: 'Settings is split into sections: <b>Brands</b>, <b>Briefs and Slack</b>, <b>The Strategist</b>, <b>Team</b>, <b>Jobs and data</b> and <b>Guided tours</b>. Pick one here; it remembers where you were.' },
+    { sel: '#ncOpen', title: 'A new client starts here', body: '<b>+ New client</b> sets a brand-new client up everywhere. <b>+ Add a brand</b> beside it is for a client whose Meta ad account Locus can already see.' },
+    { sel: '.brow', title: 'One row per brand', body: 'Open a row and everything about that brand is in it, in groups: the brand, its goals, Slack and sending, money, and data repairs. The line on the right tells you what is still missing.' },
   ] },
 };
 
@@ -2586,6 +2670,8 @@ function drawTour() {
 function startTour(key) {
   const t = TOURS[key]; if (!t) return;
   endTour();
+  // The Settings tour points at the Brands section; open it so the steps are visible.
+  if (key === 'settings') document.querySelector('#setNav [data-sec="brands"]')?.click();
   // Drop steps whose element is not on screen for this state, rather than
   // pointing the spotlight at nothing.
   TOUR.steps = t.steps.filter(s => !s.sel || document.querySelector(s.sel));
@@ -3503,13 +3589,12 @@ const PAGE_HELP = {
     <p><b>Why the cohort card matters most:</b> "we can pay more for customers because they come back" is the usual argument for raising CAC, and it is only true if the curve says so. If a cohort is worth barely more at ten months than at one, the first order <i>is</i> the lifetime value and every acquisition has to pay for itself immediately.</p>
     <p><b>The current month is shown but excluded from the headline</b> - its new customers have not had time to come back yet, so including it would understate repeat behavior.</p>`,
   settings: `
-    <p><b>What this page is:</b> the per-client settings that decide where a brand's reporting goes and what margin its profit is calculated on.</p>
-    <p><b>Adding a client:</b> the <b>Clients</b> table at the top of this page lists every ad account your Meta login can reach, tracked or not. Find the client's row and switch <b>Tracked</b> on, then type its Triple Whale shop - nothing blended works without that. If the account is not listed at all, press <b>Check Meta for new accounts</b>. Channels are further down; the monthly number is agreed on <b>Plan</b>.</p>
-    <p><b>Daily Brief channel:</b> where the client's morning update posts. Invite the Slack bot to the channel first or it can't post there - channels the bot hasn't joined are marked.</p>
-    <p><b>Daily Brief:</b> the client-facing forecast-vs-actual update that goes out every morning. It needs both a channel and monthly goals before it can be switched on. <b>This posts to your client</b>, so nothing sends until you turn it on deliberately.</p>
-    <p><b>Margin override:</b> a shortcut to the same setting as the Costs tab, so you can see every client's basis in one table. Blank means real per-product costs from Triple Whale.</p>
-    <p><b>Send time</b> applies to every brand at once and is set in <b>Central</b>. The trigger runs hourly and posts only in the hour you choose, so the time stays put when the clocks change.</p>
-    <p><b>Backfill 430d</b> re-pulls that client's full Triple Whale history. Run it <b>one client at a time</b> - a full pull is tens of thousands of rows. You need it once per client so sales tax is on record for every month; without it, months older than the last sync read very slightly high, because revenue is stated net of tax.</p>`,
+    <p><b>What this page is:</b> everything that is set once and then left alone, split into sections on the left.</p>
+    <p><b>Brands:</b> one row per client. Open it to set the Triple Whale shop (nothing blended works without it), the goals, both Slack channels, review-first, the daily brief and the margin override. <b>+ New client</b> sets a brand-new client up in Asana, Drive, Slack and Stripe; <b>+ Add a brand</b> is for a client whose Meta ad account Locus can already see. The monthly number is agreed on <b>Plan</b>.</p>
+    <p><b>Internal and client channels:</b> drafts and alerts go to the internal one; only an approved brief or report goes to the client one. Invite the Slack bot to a channel first or it cannot post there; channels it has not joined are marked.</p>
+    <p><b>Daily brief:</b> the client-facing forecast-vs-actual update. It needs a channel and a plan before it can be switched on, and nothing sends until you turn it on.</p>
+    <p><b>Briefs and Slack:</b> the brief send time applies to every brand and is set in <b>Central</b>, so it stays put when the clocks change. Client messages post as you, not the bot.</p>
+    <p><b>Data repairs</b> (inside a brand row): <b>Backfill 430 days</b> re-pulls that brand's full Triple Whale history so sales tax is on record for every month. Run it one brand at a time.</p>`,
 };
 
 /** Update the shared account snapshot in place, without touching the DOM.
@@ -7833,34 +7918,67 @@ async function renderSettings() {
   // previously only the ad-accounts block set it, and it ran last.
   if (window.MetaTab) window.MetaTab.setToken(S.tok);
 
-  $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ' &mdash; ' + esc(one.name) : ''}`,
-    one ? `Only <b>${esc(one.name)}</b> is shown &mdash; switch the picker top-right to <b>All clients</b> to see every brand.`
-        : 'Everything about a brand lives in one place: open its row to set its Meta account, store, Slack channels and margin.')}
-    <div id="setRollup"></div>
-    <div id="askSetSlot"></div>
-    <h3 class="set-sec">Brands</h3>
-    <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
-    <h3 class="set-sec">Team</h3>
-    <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
-    <h3 class="set-sec">Everything else</h3>
-    <div class="card"><h3 style="margin-bottom:6px">Who client messages come from</h3>
-      <p class="hint" style="margin-bottom:8px">Drafts and alerts in your <b>internal</b> channels post as the Mobius bot - they are machine output and should look like it. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.</p>
-      <div id="slackWho"><span class="hint">Checking…</span></div></div>
-    <div class="card"><h3 style="margin-bottom:6px">Acting on a draft from inside Slack</h3>
-      <p class="hint" style="margin-bottom:8px">Every draft posted to an internal channel now carries the same buttons this app has - <b>Send to client</b>, <b>Edit the wording</b>, <b>Rewrite with AI</b>, <b>Don't send</b> - so a morning brief can be dealt with without opening Locus. Whichever surface you use, the other keeps up: send it here and the Slack card stops offering a Send button.</p>
-      <div id="slackInteract"><span class="hint">Checking…</span></div></div>
-    <div class="card"><h3 style="margin-bottom:6px">Are the automatic jobs actually running?</h3>
-      <p class="hint" style="margin-bottom:8px">The briefs, the reports and the Meta sync all run on a schedule you never see. When one of them fails there is nothing on any other page to say so - for four days in August the nightly sync was syncing one brand of six and every dashboard looked normal. This is that missing page.</p>
-      <div id="schedHealth"><span class="hint">Checking…</span></div></div>
-    <div class="card"><h3 style="margin-bottom:6px">Creative formats</h3>
-      <p class="hint" style="margin-bottom:8px">Every creative card shows what Meta says the ad actually is: <b>Video</b>, <b>Static</b> or <b>Carousel</b>. Nothing is read from ad names. That format is stored the first time an ad's creative is fetched, and until then a card falls back to guessing from delivery data, which can never produce a carousel. Run this once per account to fetch the real format for every ad that is still missing one.</p>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="mtFix">Fetch missing formats</button><span class="tiny" id="mtMsg"></span></div></div>
-    <div class="card"><h3 style="margin-bottom:6px">Guided tours</h3>
-      <p class="hint" style="margin-bottom:10px">Every page has a short walkthrough, and you can replay any of them here as often as you like. Each one is on the page itself under <b>Show me</b>.</p>
-      <div class="row" style="gap:6px;flex-wrap:wrap" id="tourList"></div></div>
-    <div class="card"><h3 style="margin-bottom:6px">Daily Brief send time</h3>
-      <p class="hint" style="margin-bottom:10px">When the brief posts each morning, for <b>every</b> brand with it switched on. Set in <b>Central time</b> and honoured in Central all year, so it does not shift an hour when the clocks change. It always covers yesterday.</p>
-      <div class="row"><select id="btHour" style="max-width:190px"></select><span class="tiny" id="btMsg"></span></div></div>`;
+  /* SECTIONED (2026-10-04, Cole: "still very not good organized and formatted").
+     It was one long scroll: the Strategist's two big text boxes sat ABOVE the
+     brands, and seven unrelated cards were piled under "Everything else". Now a
+     section list on the left (a strip on phones), the same pattern as Ledger's
+     Settings, and one section shown at a time. Every section is rendered up
+     front and only hidden, so each loader below finds its host exactly as
+     before and switching is instant. */
+  const sec = window.__openGoals ? 'brands' : (SET_SECS.some(s => s[0] === localStorage.getItem('pf_set_sec')) ? localStorage.getItem('pf_set_sec') : 'brands');
+  const allNote = one ? ` <span class="set-all">Applies to every brand, not only ${esc(one.name)}.</span>` : '';
+  const sCard = (title, hint, body) => `<div class="card set-card"><h3>${title}</h3>${hint ? `<p class="hint set-why">${hint}</p>` : ''}<div class="set-body">${body}</div></div>`;
+  const secHead = k => { const s = SET_SECS.find(x => x[0] === k); return `<div class="set-h"><h3>${s[1]}</h3><p class="hint">${s[2]}${k === 'brands' ? '' : allNote}</p></div>`; };
+  $('#main').innerHTML = `${pageHead('settings', `Settings${one ? ': ' + esc(one.name) : ''}`,
+    one ? `Only <b>${esc(one.name)}</b> is shown under Brands. Switch the picker to <b>All clients</b> to see every brand.` : '')}
+    <div class="setwrap">
+      <nav class="setnav" id="setNav" aria-label="Settings sections">${SET_SECS.map(([k, l]) =>
+        `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${l}</span>${k === 'brands' ? `<small>${one ? 1 : S.accounts.length}</small>` : ''}</button>`).join('')}</nav>
+      <div class="setpane">
+        <section data-sec="brands"${sec === 'brands' ? '' : ' hidden'}>${secHead('brands')}
+          <div id="setRollup"></div>
+          <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
+        </section>
+        <section data-sec="sending"${sec === 'sending' ? '' : ' hidden'}>${secHead('sending')}
+          ${sCard('Daily Brief send time', 'When the brief posts each morning, for <b>every</b> brand with it switched on. Set in <b>Central time</b> all year, so it never shifts an hour when the clocks change. It always covers yesterday.',
+            '<div class="row" style="margin:0;gap:10px"><select id="btHour" style="max-width:200px"></select><span class="tiny" id="btMsg"></span></div>')}
+          ${sCard('Who client messages come from', 'Drafts and alerts in your <b>internal</b> channels post as the Mobius bot. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.',
+            '<div id="slackWho"><span class="hint">Checking…</span></div>')}
+          ${sCard('Acting on a draft from inside Slack', 'Every draft in an internal channel carries the same buttons as Locus: <b>Send to client</b>, <b>Edit the wording</b>, <b>Rewrite with AI</b> and <b>Don\'t send</b>. Use either place; the other keeps up.',
+            '<div id="slackInteract"><span class="hint">Checking…</span></div>')}
+        </section>
+        <section data-sec="strategist"${sec === 'strategist' ? '' : ' hidden'}>${secHead('strategist')}
+          <div id="askSetSlot"><div class="card"><span class="hint">Loading the Strategist…</span></div></div>
+        </section>
+        <section data-sec="team"${sec === 'team' ? '' : ' hidden'}>${secHead('team')}
+          <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
+        </section>
+        <section data-sec="system"${sec === 'system' ? '' : ' hidden'}>${secHead('system')}
+          ${sCard('Are the automatic jobs running?', 'The briefs, the reports and the Meta sync run on a schedule you never see. If one fails, no other page says so. This card does.',
+            '<div id="schedHealth"><span class="hint">Checking…</span></div>')}
+          ${sCard('Creative formats', 'Creative cards show what Meta says each ad is: <b>Video</b>, <b>Static</b> or <b>Carousel</b>, never a guess from the ad name. Until an ad\'s format is fetched the card guesses from delivery data, which can never find a carousel. Run this to fetch every missing one' + (one ? ' for ' + esc(one.name) : '') + '.',
+            '<div class="row" style="margin:0;gap:10px;flex-wrap:wrap"><button class="btn" id="mtFix">Fetch missing formats</button><span class="tiny" id="mtMsg"></span></div>')}
+        </section>
+        <section data-sec="tours"${sec === 'tours' ? '' : ' hidden'}>${secHead('tours')}
+          ${sCard('Replay a tour', 'Each page has a short walkthrough. It is also on the page itself under the &#9655; button, top right.',
+            '<div class="row" style="margin:0;gap:8px;flex-wrap:wrap" id="tourList"></div>')}
+        </section>
+      </div>
+    </div>`;
+
+  /* Switching sections only flips `hidden`; nothing is re-fetched or re-drawn,
+     so a half-typed field in another section survives a look elsewhere. */
+  const nav = $('#setNav');
+  nav.onclick = e => {
+    const b = e.target.closest('button[data-sec]'); if (!b) return;
+    const k = b.dataset.sec;
+    try { localStorage.setItem('pf_set_sec', k); } catch (err) {}
+    nav.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.setpane > section').forEach(s => { s.hidden = s.dataset.sec !== k; });
+    b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const top = $('.setwrap').getBoundingClientRect().top;
+    if (top < 0) window.scrollBy(0, top - 12);
+  };
 
   /* ---- the shared lookups every brand row needs ---- */
   const mApi = window.MetaTab ? window.MetaTab.api : null;
@@ -7920,41 +8038,51 @@ async function renderSettings() {
     <div class="brow-l"><label>${label}</label>${help ? `<p class="hint">${help}</p>` : ''}</div>
     <div class="brow-c">${control}</div></div>`;
 
+  /* A brand row holds ~13 settings. Ungrouped they read as one long form, so
+     they sit in five labelled groups, most used first: what the brand is,
+     its goals, where its reporting goes, its money basis, then the rare
+     data repairs and the way out. Every data-k hook is unchanged. */
+  const grp = (title, sub, inner, cls = '') => `<div class="brow-grp${cls}"><div class="brow-gh"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</div>${inner}</div>`;
   const brandRow = a => {
     const m = metaOf(a.act_id), c = connOf(a.act_id);
     return `<details class="brow" data-act="${esc(a.act_id)}"${window.__openGoals === a.act_id ? ' open' : ''}>
       <summary><span class="brow-name">${esc(a.name)}</span>${healthPill(a.cost_health)}<span class="brow-sum">${summary(a)}</span></summary>
       <div class="brow-body">
-        ${field('Meta ad account', 'A brand and its Meta ad account are the same record, so this cannot be repointed - a different ad account is a different brand.',
-          `<div class="brow-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
-            <button class="btn" data-k="sync" style="font-size:11.5px;padding:4px 8px;margin-left:8px">Sync now</button>
-            <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`)}
+        ${grp('The brand', 'Who it is and where its numbers come from', `
         ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}">`)}
-        ${field('Goals', 'The <b>one place</b> for this brand’s targets. Test calls, the green, yellow and red colors, the test list and the alerts all read these numbers. Nothing else in Locus edits them.',
-          `<div class="goals" data-goals="${esc(a.act_id)}"><span class="tiny">Loading…</span></div>`)}
-        ${field('Triple Whale shop', '<b>Every money number depends on this</b> - revenue, MER, contribution margin, every report.',
+        ${field('Meta ad account', 'A brand and its Meta ad account are the same record, so this cannot be repointed. A different ad account is a different brand.',
+          `<div class="brow-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
+            <button class="btn btn-s" data-k="sync">Sync now</button>
+            <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`)}
+        ${field('Triple Whale shop', '<b>Every money number depends on this</b>: revenue, MER, contribution margin, every report.',
           `<input type="text" data-k="tw_shop" value="${esc(m.tw_shop || '')}" placeholder="name.myshopify.com">${m.tw_shop ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ without this the brand has no revenue at all</span>'}`)}
+        ${field('Shopify', 'Only powers the lifetime-value cohorts on <b>Customers</b>. Everything else works without it.',
+          `<div class="brow-static">${c.status === 'connected' ? '<span class="pill good">Connected</span>' : c.status === 'uninstalled' ? '<span class="pill bad">Removed by client</span>' : '<span class="pill">Not connected</span>'}
+            ${c.install_url ? `<button class="btn btn-s" data-k="copy" data-url="${esc(c.install_url)}">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>` : ''}
+            ${c.status === 'connected' ? '<button class="btn btn-s" data-k="cohorts">Sync cohorts</button>' : ''}
+            <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}`)}
+        ${grp('Goals', 'The one place for this brand’s targets', `
+        ${field('Targets and test rules', 'Test calls, the green, yellow and red colors, the test list and the alerts all read these numbers. Nothing else in Locus edits them.',
+          `<div class="goals" data-goals="${esc(a.act_id)}"><span class="tiny">Loading…</span></div>`)}`)}
+        ${grp('Slack and sending', 'Where briefs and reports go, and whether you see them first', `
         ${field('Internal Slack channel', 'Your team’s. Drafts waiting for review land here, along with delivery alerts. A client never sees it.', chSelect(a, 'slack_channel', ' - not set - '))}
         ${field('Client Slack channel', 'Theirs. An approved brief or report is sent here and nothing else ever is. Leave it empty for a brand with no client chat: every brief and report is then handled automatically, with no Send button and nothing waiting on you.',
           chSelect(a, 'brief_channel', ' - not set - ') + (a.brief_channel && a.brief_channel === a.slack_channel
             ? '<br><span class="tiny" style="color:var(--warn)">⚠ this is the same as the internal channel, so reviewing before sending achieves nothing</span>' : ''))}
-        ${field('Review before sending', 'On: the daily brief and both reports draft to your internal channel and wait for you. Off: each one posts straight to the client on its own. Does nothing for a brand with no client channel - those are handled automatically.',
+        ${field('Review before sending', 'On: the daily brief and both reports draft to your internal channel and wait for you. Off: each one posts straight to the client on its own. Does nothing for a brand with no client channel; those are handled automatically.',
           `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.review_first ? 'on' : ''}" data-k="review_first"></div><span class="tiny">${a.review_first ? 'reviewed first' : 'sends itself'}</span></div>`)}
-        ${field('Daily brief', 'The morning forecast-vs-actual update. Needs a channel and a plan before it can run.',
-          `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled ? 'on' : ''}" data-k="brief_enabled"></div><span class="tiny">${a.brief_enabled ? 'running each morning' : 'off'}</span></div>`)}
-        ${field('Margin override', 'One flat margin instead of per-product costs. Leave blank to use the real Triple Whale costs.',
-          `<div class="unit-in" style="width:92px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct != null ? Math.round(a.margin_pct * 100) : ''}" placeholder="auto"><span>%</span></div>`)}
-        ${field('Shopify', 'Only powers the lifetime-value cohorts on <b>Customers</b>. Everything else works without it.',
-          `<div class="brow-static">${c.status === 'connected' ? '<span class="pill good">Connected</span>' : c.status === 'uninstalled' ? '<span class="pill bad">Removed by client</span>' : '<span class="pill">Not connected</span>'}
-            ${c.install_url ? `<button class="btn" data-k="copy" data-url="${esc(c.install_url)}" style="font-size:11.5px;padding:4px 8px;margin-left:8px">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>` : ''}
-            ${c.status === 'connected' ? '<button class="btn" data-k="cohorts" style="font-size:11.5px;padding:4px 8px;margin-left:4px">Sync cohorts</button>' : ''}
-            <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}
-        ${field('Triple Whale history', 'Re-pulls this brand’s full history. Needed once so sales tax is on record for every month. Run one brand at a time.',
-          `<div class="brow-static"><button class="btn" data-k="backfill" style="font-size:11.5px;padding:4px 8px">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
-        ${field('Ad attribution', 'Which ads Triple Whale credits each order to - what the <b>Revenue from</b> picker on Meta → Creative reads. It fills itself in nightly; this pulls 120 days at once. One brand at a time.',
-          `<div class="brow-static"><button class="btn" data-k="attr" style="font-size:11.5px;padding:4px 8px">Sync 120 days</button> <span class="tiny" data-k="attrmsg"></span></div>`)}
-        ${field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted - switch it back on any time from Add a brand.',
-          `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`).replace('class="brow-f"', 'class="brow-f brow-danger"')}
+        ${field('Daily brief', 'The morning forecast-vs-actual update. Needs a channel and a plan before it can run. The send time is under <b>Briefs and Slack</b>.',
+          `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled ? 'on' : ''}" data-k="brief_enabled"></div><span class="tiny">${a.brief_enabled ? 'running each morning' : 'off'}</span></div>`)}`)}
+        ${grp('Money', 'How profit is worked out for this brand', `
+        ${field('Margin override', 'One flat margin instead of per-product costs. Leave blank to use the real Triple Whale costs. Same setting as the <b>Costs</b> page.',
+          `<div class="unit-in" style="width:92px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct != null ? Math.round(a.margin_pct * 100) : ''}" placeholder="auto"><span>%</span></div>`)}`)}
+        ${grp('Data repairs', 'Rarely needed. Run one brand at a time', `
+        ${field('Triple Whale history', 'Re-pulls this brand’s full history. Needed once so sales tax is on record for every month.',
+          `<div class="brow-static"><button class="btn btn-s" data-k="backfill">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
+        ${field('Ad attribution', 'Which ads Triple Whale credits each order to, which the <b>Revenue from</b> picker on Meta, Creative reads. It fills itself in nightly; this pulls 120 days at once.',
+          `<div class="brow-static"><button class="btn btn-s" data-k="attr">Sync 120 days</button> <span class="tiny" data-k="attrmsg"></span></div>`)}`)}
+        ${grp('Stop tracking', '', field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted; switch it back on any time from <b>+ Add a brand</b>.',
+          `<button class="btn" data-k="off">Stop tracking ${esc(a.name)}</button>`), ' brow-danger')}
       </div></details>`;
   };
 
@@ -8030,10 +8158,14 @@ async function renderSettings() {
        forgets the state the user could see. */
     const wasOpen = new Set([...list.querySelectorAll('.brow[open]')].map(el => el.dataset.act));
     const rows = brands();
-    list.innerHTML = `<div class="row" style="margin:0 0 10px"><span class="tiny">${rows.length} brand${rows.length === 1 ? '' : 's'}${one ? '' : ' · open a row to change anything about it'}
-        &nbsp;·&nbsp; <a href="#" id="brWhy">Why don’t I see all my ad accounts?</a></span>
-        <span style="flex:1"></span><button class="btn primary" id="ncOpen" title="Sets a brand-new client up in Asana, Drive and Slack and makes their onboarding link">+ New client</button><button class="btn" id="brAdd" title="For a client whose Meta ad account Locus can already see">+ Add a brand</button><span class="tiny" id="brMsg"></span></div>
+    list.innerHTML = `<div class="set-add">
+        <div class="set-add-o"><button class="btn primary" id="ncOpen">+ New client</button>
+          <p class="tiny">A brand-new client. Sets them up in Asana, Drive, Slack and Stripe and makes their onboarding link.</p></div>
+        <div class="set-add-o"><button class="btn" id="brAdd">+ Add a brand</button>
+          <p class="tiny">A client whose Meta ad account Locus can already see. <a href="#" id="brWhy">Why don’t I see all my ad accounts?</a></p></div>
+        <span class="tiny" id="brMsg"></span></div>
       <div id="brAccess"></div>
+      <p class="tiny set-count">${rows.length} brand${rows.length === 1 ? '' : 's'}${rows.length ? ' · open a row to change anything about it' : ''}</p>
       ${rows.map(brandRow).join('') || '<div class="card"><span class="hint">No brands yet - press <b>+ Add a brand</b>.</span></div>'}
       ${conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px">⚠️<div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
         The data is being held but nothing reports on it until you point it at one.
@@ -8059,7 +8191,7 @@ async function renderSettings() {
           <div class="ru-d">${briefs === rows.length ? 'every brand posts each morning' : `${rows.length - briefs} not sending`}</div></div>
         <div class="ru"><div class="ru-l">Internal only</div>
           <div class="ru-v">${noBrief}</div>
-          <div class="ru-d">${noBrief ? 'no client channel &mdash; briefs and reports handled automatically' : 'every brand has a client channel'}</div></div>
+          <div class="ru-d">${noBrief ? 'no client channel, so briefs and reports are handled automatically' : 'every brand has a client channel'}</div></div>
         <div class="ru"><div class="ru-l">No Triple Whale shop</div>
           <div class="ru-v${noShop ? ' bad' : ''}">${noShop}</div>
           <div class="ru-d">${noShop ? 'nothing blended works without it' : 'every brand is connected'}</div></div>
@@ -8260,19 +8392,22 @@ async function renderSettings() {
     const paint = d => {
       const rows = d.members.map(mm => `<tr data-e="${esc(mm.email)}">
         <td><b>${esc(mm.email)}</b>${mm.email === d.you ? ' <span class="tiny">(you)</span>' : ''}<br><span class="tiny">${mm.guest ? 'Invited guest' : 'On your domain'}</span></td>
-        <td><select data-k="role" style="max-width:170px">
+        <td><select data-k="role" style="max-width:230px">
           <option value="admin"${mm.role === 'admin' ? ' selected' : ''}>Admin - can change things</option>
           <option value="viewer"${mm.role === 'viewer' ? ' selected' : ''}>Viewer - read only</option></select></td>
         <td>${mm.email === d.you ? '<span class="tiny"> - </span>' : '<button class="btn" data-k="remove" style="font-size:11.5px;padding:4px 8px">Remove</button>'}
           <span class="tiny" data-msg></span></td></tr>`).join('');
       host.innerHTML = `<div class="card settings">
-        <p class="hint" style="margin:0 0 10px"><b>Anyone with an @${esc(d.domain)} email can already sign in</b> - no invite needed, and they are an admin by default. Invite anyone else below.
-        <b>Admins can change anything</b>, including sending a report into a client’s Slack. <b>Viewers see every screen and can press nothing that leaves the building</b> - use it for a client, a contractor, or anyone who should watch the numbers without moving them.</p>
+        <ul class="set-list">
+          <li><b>Anyone with an @${esc(d.domain)} email can already sign in</b>, no invite needed, as an admin. Invite anyone else below.</li>
+          <li><b>Admin</b> can change anything, including sending a report into a client’s Slack.</li>
+          <li><b>Viewer</b> sees every screen and can press nothing that leaves the building. Use it for a client, a contractor, or anyone who should watch the numbers without moving them.</li></ul>
         <div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Can they change things?</th><th></th></tr></thead>
           <tbody>${rows || '<tr><td colspan="3" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody></table></div>
-        <div class="row" style="margin-top:12px;gap:8px">
+        <label class="set-lbl" for="tmEmail">Invite someone</label>
+        <div class="row" style="margin:6px 0 0;gap:8px;flex-wrap:wrap">
           <input type="text" id="tmEmail" placeholder="name@example.com" style="width:230px">
-          <select id="tmRole" style="max-width:170px"><option value="viewer">Viewer - read only</option><option value="admin">Admin - can change things</option></select>
+          <select id="tmRole" style="max-width:230px"><option value="viewer">Viewer - read only</option><option value="admin">Admin - can change things</option></select>
           <button class="btn primary" id="tmAdd">Invite</button><span class="tiny" id="tmMsg"></span></div></div>`;
       const save = async (email, body, el) => {
         if (el) el.textContent = 'Saving…';
@@ -8326,8 +8461,8 @@ async function renderSettings() {
         ${st.slackInteractive
           ? `<div class="notice" style="margin:0 0 10px">✓<div>The buttons are wired up. Slack sends every press to Locus signed, and an unsigned one is refused.</div></div>`
           : `<div class="notice warn" style="margin:0 0 10px">⚠️<div><b>The buttons will not work yet.</b> Add <code>SLACK_SIGNING_SECRET</code> in Cloudflare and point the Slack app's <b>Interactivity &amp; Shortcuts</b> Request URL at <code>https://mobius-account-health.mobius-digital.workers.dev/slack/actions</code>. Until then a press does nothing.</div></div>`}
-        <label class="tiny" style="display:block;margin-bottom:5px;font-weight:600">Who can send to clients from Slack?</label>
-        <select id="sendWho" style="padding:7px 9px;border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-size:13px">
+        <label class="set-lbl" for="sendWho" style="margin:0 0 6px">Who can send to clients from Slack?</label>
+        <select id="sendWho" style="max-width:300px">
           <option value="owner"${who === 'owner' ? ' selected' : ''}>Only me</option>
           <option value="anyone"${who === 'anyone' ? ' selected' : ''}>Anyone in the internal channel</option>
         </select>
@@ -8482,8 +8617,18 @@ renderSettings = async function(){
   await _renderSettingsBase();
   const slot = document.getElementById('askSetSlot');
   if (!slot) return;
-  slot.innerHTML = AskUI.settingsCard() + `<div class="card cardp" style="margin-top:10px"><label class="lbl">Where it briefs on Monday <span class="why">A Slack channel id (C0…) the team reads. Leave empty and the briefing stays in the app.</span></label>
-    <div class="row" style="gap:8px"><input id="askChan" placeholder="C0123ABCDEF" style="flex:1"><button class="btn" onclick="AskUI.state.api('/api/ask/channel',{method:'PUT',body:JSON.stringify({channel:document.getElementById('askChan').value})}).then(()=>AskUI.state.flash&&0)">Save</button></div></div>`;
+  slot.innerHTML = AskUI.settingsCard() + `<div class="card set-card"><h3>Where it posts the Monday briefing</h3>
+    <p class="hint set-why">A Slack channel id (starts with C0) the team reads. Leave it empty and the briefing stays in Locus.</p>
+    <div class="set-body"><div class="row" style="margin:0;gap:8px;flex-wrap:wrap"><input type="text" id="askChan" placeholder="C0123ABCDEF" style="max-width:240px">
+      <button class="btn" id="askChanSave">Save channel</button><span class="tiny" id="askChanMsg"></span></div></div></div>`;
+  const acs = document.getElementById('askChanSave');
+  if (acs) acs.onclick = async () => {
+    const msgEl = document.getElementById('askChanMsg');
+    acs.disabled = true; msgEl.textContent = 'Saving…';
+    try { await apiAH('/api/ask/channel', { method: 'PUT', body: JSON.stringify({ channel: document.getElementById('askChan').value.trim() }) }); msgEl.textContent = 'Saved ✓'; }
+    catch (e) { msgEl.textContent = e.message; }
+    acs.disabled = false;
+  };
   AskUI.afterSettings();
   try { const d = await apiAH('/api/ask/findings'); const c = document.getElementById('askChan'); if (c) c.value = d.channel || ''; } catch (e) {}
 };
