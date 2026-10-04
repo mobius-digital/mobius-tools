@@ -1101,7 +1101,7 @@ function moToday(st) {
   return `<section class="card" id="hpToday">
     <div class="row" style="margin-bottom:6px">${h}<span style="flex:1"></span>
       ${pulled ? `<span class="tiny">pulled ${pulled}</span>` : ''}<button class="btn" id="hpRefresh">Refresh</button></div>
-    <p class="hint" style="margin:0 0 8px">Through ${through}${p.account && p.account.tz ? ` (${esc(p.account.tz)})` : ''} the account has spent <b>${fmtK(p.spent, cur)}</b>. ${normal}${share != null ? ` About ${Math.round(share * 100)}% of a normal day is done.` : ''} More than 10% over is running hot, more than 10% under is running cold.</p>
+    <p class="hint" style="margin:0 0 8px">So far today the account has spent <b>${fmtK(p.spent, cur)}</b>. ${normal}${share != null ? ` About ${Math.round(share * 100)}% of a normal day is done.` : ''} More than 10% over is running hot, more than 10% under is running cold.</p>
     ${st.pErr ? `<p class="tiny" style="color:var(--bad);margin:0 0 6px">Refresh did not work: ${esc(st.pErr)}. These are the earlier numbers.</p>` : ''}
     ${canDraw ? `<div id="hpReadout" class="tiny" style="min-height:20px;font-weight:600"></div>
     ${pacingSVG(p)}

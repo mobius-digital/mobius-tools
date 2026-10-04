@@ -1811,7 +1811,7 @@
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=6"></script>
+<script src="meta.js?v=7"></script>
 <script src="amb.js?v=17"></script>
 <script src="../onboard/questions.js?v=8"></script>
 <script src="brand.js?v=14"></script>
@@ -5815,7 +5815,7 @@ async function renderBrief(first) {
   const acct = S.accounts.find(a => a.act_id === S.act);
   // Same rule as renderBriefAll: every paint re-emits the whole page. Appending to
   // whatever `#main` happens to hold would graft this brief onto the outgoing tab.
-  const shell = body => `${pageHead('brief', 'Daily Brief', `Did ${esc(acct?.name || 'this client')} beat the plan yesterday? Forecast vs actual, and the story behind it.`)}
+  const shell = body => `${pageHead('brief', 'Daily Brief', '')}
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
