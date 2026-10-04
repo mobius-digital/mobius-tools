@@ -635,9 +635,14 @@ export async function mondayCalls(env, act) {
   const groups = { loser: [], winner: [], keep: [], early: [] };
   const open = new Set(), openAds = new Set();
   const plan = { pause: [], pauseAds: [], clear: [] };
+  let old = 0;
   for (const r of rows) {
     const st = stats[r.id];
     if (!st || !(st.spend > 0)) continue;                            // not spending: not live in Meta
+    /* Only this cycle's tests: first spend within judge_days + 14 days. Older ones are
+       past tests nobody closed in Asana; judging their lifetime numbers here would
+       pause ad sets that are still selling (seen on Lucky, 2026-10-04). */
+    if (st.first && Math.round((Date.parse(`${td}T12:00:00Z`) - Date.parse(`${st.first}T12:00:00Z`)) / 864e5) + 1 > rules.judge_days + 14) { old++; continue; }
     const n = String(parseInt(r.num, 10));
     const sets = (meta.adsets || []).filter(a => a.num === n);
     const day = st.first ? Math.round((Date.parse(`${td}T12:00:00Z`) - Date.parse(`${st.first}T12:00:00Z`)) / 864e5) + 1 : null;
@@ -660,7 +665,8 @@ export async function mondayCalls(env, act) {
   if (groups.winner.length) L.push(':large_green_circle: *Keep*', ...groups.winner);
   if (groups.keep.length) L.push(':large_yellow_circle: *Give it another week*', ...groups.keep);
   if (groups.early.length) L.push(':white_circle: *Not ready yet*', ...groups.early);
-  if (!L.length) L.push('No live tests right now.');
+  if (!L.length) L.push('No tests from the last 3 weeks are running.');
+  if (old) L.push(`_${old} older test${old === 1 ? ' is' : 's are'} still open in Asana. Mark ${old === 1 ? 'it' : 'them'} done there to tidy up; this list leaves ${old === 1 ? 'it' : 'them'} alone._`);
   if (rules.min_track) for (const c of meta.campaigns || []) {
     const total = (meta.adsets || []).filter(a => a.campaign_id === c.id).reduce((t, a) => t + (a.min || 0), 0);
     const cap = c.budget * rules.min_cap_pct / 100;
@@ -672,17 +678,17 @@ export async function mondayCalls(env, act) {
   if (ids.length) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${A}&selected_adset_ids=${ids.slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
   else if (openAds.size) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/ads?act=${A}&selected_ad_ids=${[...openAds].slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
   /* Can Locus change this account? The token's own tasks on it (MANAGE / ADVERTISE). */
-  let canEdit = false;
+  let canEdit = false, scopes = null;
   try {
     const u = await (await F(`https://graph.facebook.com/v23.0/${act}?fields=user_tasks&access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
     canEdit = (u.user_tasks || []).some(t => t === 'MANAGE' || t === 'ADVERTISE');
     /* The role is not enough: the token itself must carry ads_management. */
     const perms = await (await F(`https://graph.facebook.com/v23.0/me/permissions?access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
-    if (Array.isArray(perms.data)) canEdit = canEdit && perms.data.some(x => x.permission === 'ads_management' && x.status === 'granted');
+    if (Array.isArray(perms.data)) { scopes = perms.data.filter(x => x.status === 'granted').map(x => x.permission); canEdit = canEdit && scopes.includes('ads_management'); }
   } catch {}
   const todo = plan.pause.length + plan.pauseAds.length + plan.clear.length;
   if (todo && !canEdit) L.push('_Locus can only read this ad account, so the changes are yours to make. For a Do it button the Mobius Tools system user needs "Manage campaigns" on it, with a token that includes ads_management._');
-  return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post, plan, canEdit, todo };
+  return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post, plan, canEdit, todo, scopes };
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 function doLabel(plan) {
