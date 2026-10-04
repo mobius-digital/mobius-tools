@@ -5336,6 +5336,12 @@ async function renderBrief(first) {
         ${bfSent || internalOnly ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
         <span class="tiny" id="bfMsg"></span>
       </div>
+      ${bfSent ? '' : `<div style="margin:0 0 10px">
+        <label for="bfNote" style="display:block;font-weight:600;margin-bottom:2px">What we did</label>
+        <p class="tiny" style="margin:0 0 6px">The brief's "What we're doing" comes only from this note and the Change Log, so the client never gets a promise nobody made. One line per action. Kept for 2 days.</p>
+        <textarea id="bfNote" rows="2" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--bg)" placeholder="Brought the paused campaign back with tighter caps. Holding spend flat until margin recovers."></textarea>
+        <div class="row" style="margin-top:6px"><button class="btn" id="bfNoteSave">Save note</button><span class="tiny" id="bfNoteMsg"></span></div>
+      </div>`}
       ${bfDraft?.steer ? `<p class="tiny" style="margin:-2px 0 8px;opacity:.75">Last rewrite was steered: “${esc(String(bfDraft.steer).slice(0, 240))}”</p>` : ''}
       ${bfSent
         ? slackPreview(bfSent.text, { when: 'sent ' + (bfSent.posted_at ? fmtAgo(bfSent.posted_at) : '') })
@@ -5463,6 +5469,22 @@ async function renderBrief(first) {
   if (bfEditBtn) bfEditBtn.onclick = () => bfShowEdit(true);
   const bfCancel = $('#bfCancel');
   if (bfCancel) bfCancel.onclick = () => { if ($('#bfEdit')) $('#bfEdit').value = bfDraft?.text || ''; bfShowEdit(false); $('#bfMsg').textContent = ''; };
+  // The buyer's note: loads quietly, saves on the button (and Cmd/Ctrl+Enter).
+  const bfNote = $('#bfNote');
+  if (bfNote) {
+    api('/api/brief-note?act=' + encodeURIComponent(S.act)).then(r => {
+      if (r?.note?.text && !bfNote.value) { bfNote.value = r.note.text; $('#bfNoteMsg').textContent = 'Saved ' + fmtAgo(r.note.at); }
+    }).catch(() => {});
+    const save = async () => {
+      $('#bfNoteMsg').textContent = 'Saving…';
+      try {
+        await api('/api/brief-note', { method: 'PUT', body: JSON.stringify({ act: S.act, text: bfNote.value }) });
+        $('#bfNoteMsg').textContent = bfNote.value.trim() ? 'Saved. Rewrite the brief to use it.' : 'Cleared.';
+      } catch (e) { $('#bfNoteMsg').textContent = 'Could not save: ' + e.message; }
+    };
+    $('#bfNoteSave').onclick = save;
+    bfNote.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); } };
+  }
   const bfWrite = $('#bfWrite');
   if (bfWrite) bfWrite.onclick = async () => {
     /* A first write needs no dialog. A REWRITE is the one that throws wording
