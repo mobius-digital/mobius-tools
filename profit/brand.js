@@ -1,7 +1,8 @@
 /* Locus - the Brand tab (2026-09-24).
  *
- * ASANA IS WHERE THE TEAM WORKS; THIS TAB IS THE MEMORY. Three views:
- *   Test library  every test, filed by angle (Mobius framework: Angle, Concept, What
+ * ASANA IS WHERE THE TEAM WORKS; LOCUS IS THE MEMORY. Two tabs come from this file
+ * (render's mode): the TESTS tab (mode 'tests', 2026-10-04) and the BRAND tab.
+ *   Tests         three boxes: Make a call, Running, What we learned; every test filed by angle (Mobius framework: Angle, Concept, What
  *                 We're Testing), with Triple Whale results and the media buyer's call.
  *                 It fills itself from Asana (account-health asana-brand.js); nothing is
  *                 typed here except angle renames and merges.
@@ -223,6 +224,29 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .lb-links a{text-decoration:none}
 @media (prefers-reduced-motion:no-preference){.lb-drawer{animation:lbIn .2s ease-out}@keyframes lbIn{from{transform:translateX(24px);opacity:.5}}}
 .lb-soft{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.ts{gap:18px}
+.ts-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.ts-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.ts-box.hot{border-color:var(--brand-line);box-shadow:0 0 0 3px var(--brand-soft)}
+.ts-bh{display:flex;flex-direction:column;gap:2px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--unk-bg)}
+.ts-box.hot .ts-bh{background:var(--brand-tint)}
+.ts-bh h3{margin:0;font-size:17px;display:flex;align-items:center;gap:8px}
+.ts-bh>span{font-size:13px;color:var(--muted)}
+.ts-n{font-size:12px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:1px 9px}
+.ts-body{display:flex;flex-direction:column;gap:8px;padding:12px}
+.ts-body .lb-row{border-color:transparent}
+.ts-body .lb-row:hover{border-color:var(--brand-line)}
+.ts-body .br-empty{padding:14px;color:var(--muted);font-size:14px}
+.ts-chips{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 6px}
+.ts-chip{border:1px solid var(--line-strong);border-radius:99px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center}
+.ts-chip span{font-weight:500;color:var(--muted);font-size:12px}
+.ts-chip.on{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.ts-chip.on span{color:var(--surface);opacity:.8}
+.ts-chip.ts-more{border-style:dashed;color:var(--muted)}
+.ts-read{background:transparent!important;border:1px dashed currentColor}
+.ts-foot{font-size:13px;color:var(--muted);margin:0}
+.ts-quiet{align-self:center;font-size:13px;color:var(--muted);text-decoration:underline;padding:6px}
+.ts .lb-nums span{color:var(--muted)}
 .lb-soft b{color:var(--ink);font-variant-numeric:tabular-nums}
 `;
   document.head.appendChild(st);
@@ -281,14 +305,14 @@ const angleName = id => S.d.angles.find(a => a.id === id)?.name || '';
 const conceptName = id => S.d.concepts.find(c => c.id === id)?.name || '';
 
 /* ---------------- entry ---------------- */
-async function render({ tok, url, act, accounts, pick }) {
-  Object.assign(S, { tok, url, act, accounts: accounts || [], pick });
+async function render({ tok, url, act, accounts, pick, mode }) {
+  Object.assign(S, { tok, url, act, accounts: accounts || [], pick, mode: mode === 'tests' ? 'tests' : 'brand' });
   injectCss();
   const main = $('#main');
-  if (act === 'all') return renderAll(main);
-  main.innerHTML = `<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  if (act === 'all') return S.mode === 'tests' ? renderTestsAll(main) : renderAll(main);
+  if (!S.d || S.d.account?.act_id !== act) main.innerHTML = `<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>`;
   await load();
-  S.view = localStorage.getItem(LS_VIEW) || 'library';
+  S.view = localStorage.getItem(LS_VIEW) || 'research';
   const saved = localStorage.getItem(LS_LINE + ':' + act);
   S.line = S.d.lines.some(l => l.id === saved) ? saved : (S.d.lines[0]?.id || null);
   paint();
@@ -299,7 +323,7 @@ async function renderAll(main) {
   const r = await api('/api/brand/overview');
   const ob = s => s === 'submitted' ? '<span class="pill good">Submitted</span>' : s === 'started' ? '<span class="pill warn">In progress</span>' : s === 'sent' ? '<span class="pill unk">Sent</span>' : '<span class="tiny">No link yet</span>';
   main.innerHTML = `<div class="br">
-    <div><h2>Brand</h2><p class="sub">What Locus knows about each brand, and every creative test it has run. Pick a brand to open its research, angles and roadmap.</p></div>
+    <div><h2>Brand</h2><p class="sub">Who buys each brand, why, and how it talks. Pick a brand to open its research and voice.</p></div>
     <div class="card" style="padding:0"><div class="tbl-wrap"><table>
       <thead><tr><th>Brand</th><th>Onboarding</th><th class="num">Product lines</th><th class="num">Personas</th><th class="num">Angles</th><th class="num">Batches</th><th class="num">Open tests</th><th></th></tr></thead>
       <tbody>${r.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${ob(b.onboard)}</td><td class="num">${b.lines}</td><td class="num">${b.personas_ok}/${b.personas}</td><td class="num">${b.angles}</td><td class="num">${b.batches}</td><td class="num">${b.open}</td>
@@ -315,19 +339,164 @@ async function renderAll(main) {
 function paint() {
   const main = $('#main');
   const d = S.d;
-  if (!['library', 'research', 'info'].includes(S.view)) S.view = 'library';
+  if (S.mode === 'tests') return paintTests(main);
+  if (!['research', 'info'].includes(S.view)) S.view = 'research';
   const drafts = d.personas.filter(p => p.status === 'draft').length + d.angles.filter(a => a.status === 'proposed').length;
-  const views = [['library', 'Test library'], ['research', 'Research', drafts], ['info', 'Brand info']];
+  const views = [['research', 'Research', drafts], ['info', 'Voice and brand info']];
   main.innerHTML = `<div class="br">
-    <div class="lb-head"><div><h2>${esc(d.account.name)}</h2><p class="sub" style="margin:0">Every test this brand has run, filed by angle, with Triple Whale results. It fills itself from Asana.</p></div>
+    <div class="lb-head"><div><h2>${esc(d.account.name)}</h2><p class="sub" style="margin:0">Who buys this brand, why, and how it talks. Read it before you write a brief. Tests are on the Tests tab.</p></div>
       <nav class="lb-seg" aria-label="Brand sections">${views.map(([k, l, n]) => `<button data-v="${k}" class="${S.view === k ? 'on' : ''}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav></div>
     <div id="brBody" class="br"></div></div>`;
   main.querySelectorAll('.lb-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
   const body = $('#brBody');
-  ({ library: paintLibrary, research: paintResearch, info: paintInfo })[S.view](body);
+  ({ research: paintResearch, info: paintInfo })[S.view](body);
 }
 /* Re-paint without moving the page. */
 function repaint() { const y = window.scrollY; paint(); window.scrollTo(0, y); }
+
+/* ======================================================================
+   TESTS (2026-10-04, Cole: "this needs to be stupid simple").
+   Its own tab. Three boxes in the order you act: Make a call, Running, What we
+   learned. The worker decides the box (boxOf in worker/src/brand.js); this only
+   draws it. Search replaces the boxes with one flat list.
+   ====================================================================== */
+const BOX_CALL = { winner: ['Winner', 'win'], loser: ['Loser, pause it', 'lose'], keep: ['Keep 7 more days', 'mid'], too_early: ["Meta won't spend, pause it", 'lose'] };
+function resultPill(b) {
+  if (b.verdict && RES[b.verdict]) return `<span class="br-tag ${RES[b.verdict][1]}">${RES[b.verdict][0]}</span>`;
+  if (b.box === 'call') { const c = BOX_CALL[b.suggest] || ['Make a call', 'draft']; return `<span class="br-tag ${c[1]}" title="Locus's read. The media buyer makes the call in Asana.">${c[0]}</span>`; }
+  if (b.box === 'done') {
+    const c = { winner: ['Locus: winner', 'win'], loser: ['Locus: loser', 'lose'], keep: ['Locus: mixed', 'mid'] }[b.suggest];
+    return c ? `<span class="br-tag ${c[1]} ts-read" title="No call was made in Asana. This is Locus's read of its numbers.">${c[0]}</span>` : '<span class="br-tag" title="It never spent enough to judge">Too little spend</span>';
+  }
+  if (b.asana_result === 'keep') return `<span class="br-tag mid">Keep running${b.check_again ? ' to ' + esc(b.check_again.slice(5)) : ''}</span>`;
+  return '';
+}
+function testRow(b, rules, { chips = false } = {}) {
+  const angle = S.d.angles.find(a => a.id === b.angle_id);
+  const metric = rules.target_cpa
+    ? `<b style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) + ' CPA' : 'no sales'}</b>`
+    : `<b style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null ? x2(b.stats.roas) + ' ROAS' : 'no sales'}</b>`;
+  return `<button class="lb-row" data-b="${b.id}">
+    <span class="lb-num">#${esc(shortNum(b.num))}</span>
+    <span class="lb-main"><b>${esc(b.title)}</b>
+      <span class="s">${angle ? 'Angle: ' + esc(angle.name) : '<i>no angle yet</i>'}${b.offer ? ' · ' + esc(short(b.offer, 40)) : ''}</span>
+      ${b.learning ? `<span class="learn">${esc(short(b.learning, 180))}</span>` : ''}</span>
+    <span class="lb-nums">${b.stats.spend ? `${metric}<span>${money(b.stats.spend)} spent</span>` : '<span class="tiny">no spend yet</span>'}</span>
+    <span class="lb-res">${resultPill(b)}${chips ? testChips(b, rules) : ''}</span></button>`;
+}
+function tsBox(cls, title, hint, body) {
+  return `<section class="ts-box ${cls}"><div class="ts-bh"><h3>${title}</h3><span>${hint}</span></div><div class="ts-body">${body}</div></section>`;
+}
+
+function paintTests(main) {
+  const d = S.d, rules = d.rules;
+  const asn = d.docs['']?.asana;
+  const q = (S.q || '').toLowerCase().trim();
+  const angleOf = Object.fromEntries(d.angles.map(a => [a.id, a]));
+  const by = k => d.batches.filter(b => b.box === k);
+  const call = by('call'), running = by('running'), making = by('making'), finished = by('done');
+  const hay = b => `${b.num} ${b.title} ${angleOf[b.angle_id]?.name || ''} ${b.offer || ''} ${b.hypothesis || ''} ${b.learning || ''}`.toLowerCase();
+  const rulesLine = rules.target_cpa
+    ? `Target CPA ${money(rules.target_cpa)} · judged after ${money(rules.judge_spend)} or ${rules.judge_days} days`
+    : `No target CPA yet, so Locus is not suggesting calls. <a href="#" class="go-goals">Set it in Settings</a>`;
+
+  let content;
+  if (q) {
+    const hits = d.batches.filter(b => hay(b).includes(q));
+    content = tsBox('', `${hits.length} test${hits.length === 1 ? '' : 's'} match "${esc(S.q)}"`, 'Every box, newest first.',
+      hits.length ? hits.slice(0, 200).map(b => testRow(b, rules)).join('') : '<div class="br-empty">Nothing matches. Try a shorter word.</div>');
+  } else {
+    /* What we learned: filter by angle, newest first, 30 at a time. */
+    const angCount = {};
+    for (const b of finished) if (b.angle_id) angCount[b.angle_id] = (angCount[b.angle_id] || 0) + 1;
+    const angs = d.angles.filter(a => angCount[a.id]).sort((x, y) => angCount[y.id] - angCount[x.id]);
+    if (S.ang && !angCount[S.ang]) S.ang = '';
+    /* A test that never spent enough to judge taught nothing; it stays one click away. */
+    const taught = b => b.verdict || ['winner', 'loser', 'keep'].includes(b.suggest) || b.learning;
+    const inAng = S.ang ? finished.filter(b => b.angle_id === S.ang) : finished;
+    const quiet = inAng.filter(b => !taught(b)).length;
+    const done = S.showQuiet ? inAng : inAng.filter(taught);
+    const shown = angs.slice(0, S.allAngs ? angs.length : 6);
+    const angChip = a => {
+      const st = a.stats; const won = st.judged ? ` · ${st.winners} of ${st.judged} won` : '';
+      return `<button class="ts-chip ${S.ang === a.id ? 'on' : ''}" data-a="${a.id}">${esc(a.name)}<span>${angCount[a.id]}${won}</span></button>`;
+    };
+    const lim = S.learnLim || 30;
+    content = `
+      ${tsBox('hot', `Make a call <span class="ts-n">${call.length}</span>`, "Spent enough to judge. Locus's read is on the right. Set Result in Asana and move the task to Completed.",
+        call.length ? call.map(b => testRow(b, rules)).join('') : '<div class="br-empty">Nothing to call right now.</div>')}
+      ${tsBox('', `Running <span class="ts-n">${running.length}</span>`, `Live and spending. Nothing to do until day ${rules.judge_days}.`,
+        minsBar(rules) + (running.length ? running.map(b => testRow(b, rules, { chips: true })).join('') : '<div class="br-empty">No tests running.</div>'))}
+      ${tsBox('', `What we learned <span class="ts-n">${finished.filter(b => b.verdict || ['winner', 'loser', 'keep'].includes(b.suggest) || b.learning).length}</span>`, 'Every finished test, newest first. Pick an angle to see only its tests. Read this before writing a brief.',
+        `<div class="ts-chips"><button class="ts-chip ${!S.ang ? 'on' : ''}" data-a="">All angles</button>${shown.map(angChip).join('')}${angs.length > 6 ? `<button class="ts-chip ts-more" id="tsAllAngs">${S.allAngs ? 'Fewer angles' : `${angs.length - 6} more angles`}</button>` : ''}</div>
+         ${S.ang && angleOf[S.ang] ? `<div class="lb-angcard"><b>${esc(angleOf[S.ang].name)}</b><div>${esc(angleOf[S.ang].argument || '')}</div><button class="btn" id="lbEditAng" style="margin-top:8px">Rename or merge this angle</button></div>` : ''}
+         ${done.slice(0, lim).map(b => testRow(b, rules)).join('') || '<div class="br-empty">No finished tests yet.</div>'}
+         ${done.length > lim ? `<button class="btn" id="tsMore" style="align-self:center">Show ${Math.min(30, done.length - lim)} more of ${done.length - lim}</button>` : ''}
+         ${quiet ? `<button class="ts-quiet" id="tsQuiet">${S.showQuiet ? `Hide the ${quiet} that never spent enough to judge` : `${quiet} more never spent enough to judge. Show them`}</button>` : ''}`)}`;
+  }
+
+  const ideas = making.filter(b => b.stage === 'idea').length, prod = making.length - ideas;
+  main.innerHTML = `<div class="br ts">
+    <div class="ts-head">
+      <div><h2>Tests · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">${rulesLine}. Fills itself from Asana.</p></div>
+      <div class="lb-sync">${asn?.project_gid
+        ? `<span class="tiny">Synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
+        : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>
+    </div>
+    <div class="lb-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="lbQ" placeholder="Search every test: wife, bundle, 1 star, fit" value="${esc(S.q || '')}" aria-label="Search tests"></div>
+    ${content}
+    <p class="ts-foot">${making.length ? `Being made in Asana: ${ideas} brief${ideas === 1 ? '' : 's'}, ${prod} in production. ` : ''}${asn?.url ? `<a href="${esc(asn.url)}" target="_blank" rel="noopener">Open ${esc(asn.project_name || 'the project')} in Asana</a> · ` : ''}<a href="#" id="lbTidy">${S.tidying ? 'Tidying angles…' : 'Tidy up angles'}</a></p>
+    ${untaggedCard()}
+  </div>`;
+  wireTests(main);
+}
+function wireTests(body) {
+  const d = S.d, rules = d.rules;
+  const qi = body.querySelector('#lbQ');
+  qi.oninput = () => { S.q = qi.value; clearTimeout(qi._t); qi._t = setTimeout(() => { repaint(); const n = $('#lbQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 200); };
+  body.querySelectorAll('[data-a]').forEach(c => c.onclick = () => { S.ang = c.dataset.a; S.learnLim = 30; repaint(); });
+  body.querySelectorAll('[data-b]').forEach(r => r.onclick = () => testDrawer(d.batches.find(b => b.id === r.dataset.b)));
+  body.querySelectorAll('.go-goals').forEach(l => l.onclick = e => { e.preventDefault(); window.openGoals && window.openGoals(S.act); });
+  body.querySelector('#tsAllAngs')?.addEventListener('click', () => { S.allAngs = !S.allAngs; repaint(); });
+  body.querySelector('#tsMore')?.addEventListener('click', () => { S.learnLim = (S.learnLim || 30) + 30; repaint(); });
+  body.querySelector('#tsQuiet')?.addEventListener('click', () => { S.showQuiet = !S.showQuiet; repaint(); });
+  body.querySelector('#lbEditAng')?.addEventListener('click', () => angleModal(d.angles.find(a => a.id === S.ang)));
+  body.querySelector('#lbSync')?.addEventListener('click', () => syncAsana());
+  body.querySelector('#lbConnect')?.addEventListener('click', () => connectAsana());
+  body.querySelector('#lbTidy')?.addEventListener('click', async e => {
+    e.preventDefault();
+    if (S.tidying) return;
+    S.tidying = true; repaint();
+    try {
+      const r = await ahJson('/api/brand-asana/tidy-angles', {});
+      await load();
+      helpModal(r.merged ? `Merged ${r.merged} angles` : 'Nothing to merge', r.merged ? `<p>${r.before} angles became ${r.after}. Every test moved with its angle.</p><ul>${(r.log || []).map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '<p>Every angle is already a different reason to buy.</p>');
+    } catch (err) { helpModal('Could not tidy the angles', `<p>${esc(err.message)}</p>`); }
+    S.tidying = false; repaint();
+  });
+  if (rules.min_track && (!S.mins || S.mins.act !== S.act) && !S.minsLoading) {
+    S.minsLoading = true;
+    ahJson('/api/brand-asana/mins', {}).then(m => { S.mins = { act: S.act, ...m }; }).catch(e => { S.mins = { act: S.act, error: e.message }; })
+      .finally(() => { S.minsLoading = false; if (S.mode === 'tests' && document.querySelector('.ts')) repaint(); });
+  }
+  wireUntagged(body);
+}
+
+/* All brands: one row each, the numbers that need someone. */
+async function renderTestsAll(main) {
+  main.innerHTML = '<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>';
+  const r = await api('/api/brand/tests-overview');
+  const rows = r.brands.filter(b => b.total);
+  main.innerHTML = `<div class="br">
+    <div><h2>Tests</h2><p class="sub">Which brands have tests waiting on a call. Pick a brand to open its tests.</p></div>
+    <div class="card" style="padding:0"><div class="tbl-wrap"><table>
+      <thead><tr><th>Brand</th><th class="num">Make a call</th><th class="num">Running</th><th class="num">Being made</th><th class="num">Finished</th><th></th></tr></thead>
+      <tbody>${rows.map(b => `<tr><td><b>${esc(b.name)}</b></td><td class="num">${b.call ? `<b style="color:var(--warn)">${b.call}</b>` : '0'}</td><td class="num">${b.running}</td><td class="num">${b.making}</td><td class="num">${b.done}</td>
+        <td style="text-align:right"><button class="btn ${b.call ? 'primary' : ''}" data-act="${esc(b.act_id)}">Open</button></td></tr>`).join('') || '<tr><td colspan="6" class="hint">No brand is connected to Asana yet.</td></tr>'}</tbody></table></div></div>
+  </div>`;
+  main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
+}
 
 /* ======================================================================
    TEST LIBRARY
@@ -388,86 +557,6 @@ function minsBar(rules) {
   }).join('');
 }
 
-function paintLibrary(body) {
-  const d = S.d, rules = d.rules;
-  const asn = d.docs['']?.asana;
-  const q = (S.q || '').toLowerCase().trim();
-  const f = S.res || 'all';
-  const angleOf = Object.fromEntries(d.angles.map(a => [a.id, a]));
-  let rows = d.batches.slice();
-  if (S.ang === 'none') rows = rows.filter(b => !b.angle_id);
-  else if (S.ang) rows = rows.filter(b => b.angle_id === S.ang);
-  if (f === 'winner' || f === 'loser') rows = rows.filter(b => b.verdict === f);
-  if (f === 'waiting') rows = rows.filter(b => b.needs_call);
-  if (f === 'open') rows = rows.filter(b => b.stage !== 'done');
-  if (f === 'offer') rows = rows.filter(b => b.offer);
-  if (f === 'keep') rows = rows.filter(b => !b.verdict && b.asana_result === 'keep');
-  if (q) rows = rows.filter(b => `${b.num} ${b.title} ${angleOf[b.angle_id]?.name || ''} ${conceptName(b.concept_id)} ${b.offer || ''} ${b.hypothesis || ''} ${b.learning || ''}`.toLowerCase().includes(q));
-  const count = k => k === 'all' ? d.batches.length : k === 'waiting' ? d.batches.filter(b => b.needs_call).length : k === 'open' ? d.batches.filter(b => b.stage !== 'done').length : k === 'offer' ? d.batches.filter(b => b.offer).length : k === 'keep' ? d.batches.filter(b => !b.verdict && b.asana_result === 'keep').length : d.batches.filter(b => b.verdict === k).length;
-  const angles = d.angles.filter(a => a.status !== 'proposed').sort((x, y) => y.stats.batches - x.stats.batches || x.name.localeCompare(y.name));
-  const unfiled = d.batches.filter(b => !b.angle_id).length;
-  body.innerHTML = `
-    <div class="lb-top">
-      <div class="lb-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input id="lbQ" placeholder="Search every test: wife, bundle, 1 star, fit" value="${esc(S.q || '')}" aria-label="Search tests"></div>
-      <div class="lb-sync">${asn?.project_gid
-        ? `<span class="tiny">Asana: <a href="${esc(asn.url)}" target="_blank" rel="noopener">${esc(asn.project_name)}</a> · synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
-        : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>
-    </div>
-    ${!rules.target_cpa ? `<div class="br-warn">No target CPA yet, so Locus is not suggesting calls for this brand. <a href="#" class="go-goals">Set it in Settings → Goals</a>.</div>` : ''}
-    ${minsBar(rules)}
-    <div class="br-chips">${[['all', 'All tests'], ['winner', 'Winners'], ['loser', 'Losers'], ['waiting', 'Waiting on a call'], ['keep', 'Keep running'], ['open', 'In progress'], ['offer', 'Offers']].map(([k, l]) => `<span class="br-chip ${f === k ? 'on' : ''}" data-f="${k}">${l}<span class="n">${count(k)}</span></span>`).join('')}</div>
-    <div class="lb-grid">
-      <aside class="lb-angles" aria-label="Angles">
-        <div class="lb-cap">Angles <span>${angles.length}</span></div>
-        <button class="lb-ang ${!S.ang ? 'on' : ''}" data-a=""><span class="nm">Every angle</span><span class="ct">${d.batches.length}</span></button>
-        ${angles.map(a => `<button class="lb-ang ${S.ang === a.id ? 'on' : ''}" data-a="${a.id}">
-          <span class="nm">${esc(a.name)}${a.status === 'retired' ? ' <span class="tiny">retired</span>' : ''}</span><span class="ct">${a.stats.batches}</span>
-          <span class="wr"><i style="width:${a.stats.win_rate ?? 0}%"></i></span>
-          <span class="tiny">${a.stats.judged ? `${a.stats.winners} of ${a.stats.judged} won` : 'no calls yet'}${a.stats.spend ? ` · ${money(a.stats.spend)}` : ''}</span></button>`).join('')}
-        ${unfiled ? `<button class="lb-ang ${S.ang === 'none' ? 'on' : ''}" data-a="none"><span class="nm">Not filed yet</span><span class="ct">${unfiled}</span></button>` : ''}
-        ${S.ang && S.ang !== 'none' ? '<button class="btn" id="lbEditAng" style="margin-top:8px;width:100%">Edit or merge this angle</button>' : ''}
-        <button class="btn" id="lbTidy" style="margin-top:6px;width:100%" title="Merges angles that are the same reason to buy in different words">${S.tidying ? 'Tidying…' : 'Tidy up angles'}</button>
-      </aside>
-      <section class="lb-list" aria-label="Tests">
-        ${S.ang && angleOf[S.ang] ? `<div class="lb-angcard"><b>${esc(angleOf[S.ang].name)}</b><div>${esc(angleOf[S.ang].argument || '')}</div></div>` : ''}
-        ${rows.length ? rows.slice(0, 300).map(b => `<button class="lb-row" data-b="${b.id}">
-            <span class="lb-num">${esc(shortNum(b.num))}</span>
-            <span class="lb-main"><b>${esc(b.title)}</b>
-              <span class="s">${b.angle_id ? esc(angleOf[b.angle_id]?.name || '') : '<i>not filed</i>'}${b.concept_id ? ' · ' + esc(conceptName(b.concept_id)) : ''}${b.offer ? ' · ' + esc(short(b.offer, 40)) : ''}</span>
-              ${b.learning ? `<span class="learn">${esc(short(b.learning, 160))}</span>` : ''}</span>
-            <span class="lb-nums">${b.stats.spend ? `<b>${money(b.stats.spend)}</b>${rules.target_cpa ? `<span style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) + ' CPA' : 'no sales'}</span>` : `<span style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null ? x2(b.stats.roas) + ' ROAS' : 'no sales'}</span>`}` : '<span class="tiny">no spend</span>'}</span>
-            <span class="lb-res">${resChip(b)}${testChips(b, rules)}</span></button>`).join('')
-          : `<div class="br-empty">${q ? `Nothing matches "${esc(S.q)}". Try a shorter word.` : 'No tests here yet.'}</div>`}
-      </section>
-    </div>
-    ${untaggedCard()}`;
-  const qi = body.querySelector('#lbQ');
-  qi.oninput = () => { S.q = qi.value; clearTimeout(qi._t); qi._t = setTimeout(() => { repaint(); const n = $('#lbQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 200); };
-  body.querySelectorAll('[data-f]').forEach(c => c.onclick = () => { S.res = c.dataset.f; repaint(); });
-  body.querySelectorAll('[data-a]').forEach(c => c.onclick = () => { S.ang = c.dataset.a; repaint(); });
-  body.querySelectorAll('[data-b]').forEach(r => r.onclick = () => testDrawer(d.batches.find(b => b.id === r.dataset.b)));
-  body.querySelectorAll('.go-goals').forEach(l => l.onclick = e => { e.preventDefault(); e.stopPropagation(); window.openGoals && window.openGoals(S.act); });
-  if (rules.min_track && (!S.mins || S.mins.act !== S.act) && !S.minsLoading) {
-    S.minsLoading = true;
-    ahJson('/api/brand-asana/mins', {}).then(m => { S.mins = { act: S.act, ...m }; }).catch(e => { S.mins = { act: S.act, error: e.message }; })
-      .finally(() => { S.minsLoading = false; repaint(); });
-  }
-  body.querySelector('#lbEditAng')?.addEventListener('click', () => angleModal(d.angles.find(a => a.id === S.ang)));
-  body.querySelector('#lbSync')?.addEventListener('click', () => syncAsana());
-  body.querySelector('#lbTidy')?.addEventListener('click', async () => {
-    if (S.tidying) return;
-    S.tidying = true; repaint();
-    try {
-      const r = await ahJson('/api/brand-asana/tidy-angles', {});
-      await load();
-      helpModal(r.merged ? `Merged ${r.merged} angles` : 'Nothing to merge', r.merged ? `<p>${r.before} angles became ${r.after}. Every test moved with its angle.</p><ul>${(r.log || []).map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '<p>Every angle is already a different reason to buy.</p>');
-    } catch (e) { helpModal('Could not tidy the angles', `<p>${esc(e.message)}</p>`); }
-    S.tidying = false; repaint();
-  });
-  body.querySelector('#lbConnect')?.addEventListener('click', () => connectAsana());
-  wireUntagged(body);
-}
 function ago(iso) {
   if (!iso) return 'never';
   const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
@@ -504,6 +593,7 @@ function testDrawer(b) {
     ${b.stats.impr ? `<div class="lb-soft"><span>CTR <b>${pctf(b.stats.ctr)}</b></span>${b.stats.hook != null ? `<span>Hook <b>${pctf(b.stats.hook)}</b></span>` : ''}<span>Add to carts <b>${b.stats.atc || 0}</b>${b.stats.cpatc ? ` at ${money(b.stats.cpatc)}` : ''}</span><span>CPM <b>${b.stats.cpm != null ? money(b.stats.cpm) : '-'}</b></span></div>` : ''}
     ${b.asana_result === 'keep' && !b.verdict ? `<div class="br-warn" style="background:var(--unk-bg);border-color:var(--line)">Keep running${b.keep_reason ? `: <b>${esc(b.keep_reason)}</b>` : ''}. Locus checks in again ${b.check_again ? `on ${esc(b.check_again)}` : 'in 7 days'}.</div>` : ''}
     ${b.needs_call ? `<div class="br-warn">Spent enough to judge. Locus's read: <b>${esc(SUG_L[b.suggest])}</b>. The media buyer makes the call in Asana.</div>` : ''}
+    ${b.auto_done ? `<div class="br-warn" style="background:var(--unk-bg);border-color:var(--line)">Finished: ${b.stats.last ? `its ads last spent on ${esc(b.stats.last)}` : 'its ads never spent'}. Asana still has it in ${esc(b.asana_section || 'an open column')}; move it to Completed there when you get a minute.</div>` : ''}
     ${b.thin ? `<div class="br-warn">Called on thin spend: under the ${money(rules.judge_spend)} this brand needs to judge a test.</div>` : ''}
     <label class="br-f">Angle<select class="br-in" id="tdA"><option value="">Not filed</option>${angles.map(a => `<option value="${a.id}" ${a.id === b.angle_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
     <dl class="br-kv">

@@ -567,7 +567,7 @@ function buildMomentum(fullRows, todayRow, currency) {
 async function renderAverages() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
-  $('#main').innerHTML = `${mcrumb('Averages')}<h2>Averages</h2>
+  $('#main').innerHTML = `${mcrumb('Averages')}<p style="margin:0 0 6px"><a href="#" data-msub="overview">← Meta overview</a></p><h2>Last 7 vs 30 days</h2>
     <p class="sub">Each card answers one question: <b>are the last 7 days better than this account's own normal (its last 30 days)?</b> The word under each card is the verdict - green words are good, red are bad. <b>Click any card</b> for the full day-by-day chart with dates and the changes we made. Meta data only; averages end yesterday because the last ~3 days of conversions are still settling.</p>
     ${setupBanner()}
     <div class="row">
@@ -879,7 +879,7 @@ function wireCreativeCharts(d) {
 async function renderMetaOverview() {
   $('#main').innerHTML = `${mcrumb('Overview')}<h2>Meta - Overview</h2>
     <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Meta-reported, so these match Ads Manager - they will not match the blended figures on the other tabs, and are not meant to.</p>
-    <div class="row" style="margin-bottom:12px"><span style="flex:1"></span>
+    <div class="row" style="margin-bottom:12px"><button class="btn" data-msub="today">Today's pace</button><button class="btn" data-msub="averages">Last 7 vs 30 days</button><span style="flex:1"></span>
       <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div>
     ${setupBanner()}<div class="card"><span class="hint">Loading…</span></div>`;
   if (!S.accounts.some(a => a.active)) { const c = $('#main .card'); if (c) c.remove(); return; }
@@ -931,7 +931,7 @@ function elapsedCell(p) {
    The one question Plan cannot answer: is the account delivering right now? */
 async function renderToday() {
   const single = S.act !== 'all';
-  $('#main').innerHTML = `${mcrumb('Today')}<h2>Meta - Today</h2>
+  $('#main').innerHTML = `${mcrumb('Today')}<p style="margin:0 0 6px"><a href="#" data-msub="overview">← Meta overview</a></p><h2>Meta - Today</h2>
     <p class="sub">Is today running hot or cold against a normal day? Today's cumulative Meta spend against the average shape of the last 7 days, hour by hour.</p>
     ${setupBanner()}
     <div class="row"><span style="flex:1"></span><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="today">? How to use</button></div>
@@ -971,7 +971,7 @@ async function renderToday() {
 
 /* ---------- router ---------- */
 /* The band / section / page crumb the host prints on its own pages. */
-const mcrumb = t => `<div class="ph-crumb">Daily &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${t}</b></div>`;
+const mcrumb = t => `<div class="ph-crumb">Every day &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${t}</b></div>`;
 const SUBS = [
   ['overview', 'Overview', renderMetaOverview],
   ['today', 'Today', renderToday],
@@ -1020,6 +1020,14 @@ const META_BRIEF = {
   },
 };
 
+/* Today and Averages open from Meta Overview, and link back to it (2026-10-04). */
+document.addEventListener('click', e => {
+  const m = e.target.closest('#main [data-msub]');
+  if (!m) return;
+  e.preventDefault();
+  localStorage.setItem('pf_msub', m.dataset.msub);
+  if (window.show) window.show('meta');
+});
 document.addEventListener('click', e => {
   const hb = e.target.closest('.help-btn[data-mhelp]');
   if (!hb) return;

@@ -113,6 +113,36 @@ function suggest(st, rules) {
   return 'keep';
 }
 
+/* The Tests tab's three boxes (2026-10-04). ONE place decides which box a test is in:
+     call     spent enough to judge, recent spend, no call yet, not parked on Keep running
+     running  spending now (or launched in the last STALE_DAYS and not spending yet)
+     making   still a brief or in production, never spent
+     done     a call was made, Asana says Completed, its ads stopped STALE_DAYS ago, or it
+              first spent more than judge_days + 14 days ago */
+const STALE_DAYS = 14;
+function boxOf(b, st, sug, rules) {
+  if (b.verdict || b.stage === 'done') return 'done';
+  const t = today();
+  if (st.spend > 0) {
+    if (st.last && daysBetween(st.last, t) > STALE_DAYS) return 'done';
+    /* Same window as the Monday post (account-health mondayPlan): a test that first spent
+       more than judge_days + 14 days ago is a past test nobody closed, even if its ads
+       still spend somewhere. Judging its lifetime numbers as a fresh call misleads. */
+    if (st.first && daysBetween(st.first, t) + 1 > (rules?.judge_days || 7) + 14) return 'done';
+    if (b.asana_result !== 'keep' && ['winner', 'loser', 'keep'].includes(sug)) return 'call';
+    /* Past its days and still too little to judge: Meta will not spend on it. The Monday
+       post calls that a pause ("after 7 days without spending, it's dead"). */
+    if (b.asana_result !== 'keep' && sug === 'too_early' && st.first && daysBetween(st.first, t) + 1 > (rules?.judge_days || 7)) return 'call';
+    return 'running';
+  }
+  if (b.stage === 'idea' || b.stage === 'production') return 'making';
+  /* Live in Asana but nothing ever spent: 30 days from the task's creation (the sync
+     touches updated_at every hour, so it cannot date anything). Once its ads spend,
+     the spend dates above take over. */
+  const since = (b.created_at || '').slice(0, 10);
+  return since && daysBetween(since, t) > 30 ? 'done' : 'running';
+}
+
 /* ---------------- ads ---------------- */
 async function adUniverse(env, actId) {
   const since30 = addDays(today(), -30);
@@ -191,9 +221,13 @@ async function payload(env, acct) {
   const outBatches = batches.map(b => {
     const st = finish(stats[b.id] || blank());
     const sug = suggest(st, rules);
-    return { ...b, legacy: safeJson(b.legacy_json, null), legacy_json: undefined, ad_ids: stats[b.id]?.list || [], stats: st, suggest: sug,
+    const box = boxOf(b, st, sug, rules);
+    return { ...b, legacy: safeJson(b.legacy_json, null), legacy_json: undefined, ad_ids: stats[b.id]?.list || [], stats: st, suggest: sug, box,
+      /* A test whose ads stopped spending STALE_DAYS ago is finished, whatever its Asana
+         column says (2026-10-04: 284 tests sat in Analyze Results for months). */
+      auto_done: box === 'done' && !b.verdict && b.stage !== 'done',
       /* Ready for the media buyer: spent enough, no call yet, and not parked on Keep running. */
-      needs_call: !b.verdict && b.stage !== 'done' && b.asana_result !== 'keep' && ['winner', 'loser', 'keep'].includes(sug),
+      needs_call: box === 'call',
       /* A verdict on too little spend to judge. Allowed, but the buyer sees why it is shaky. */
       thin: !!(['winner', 'loser'].includes(b.verdict) && (sug === 'too_early' || sug === 'not_live')),
       ads_manager: stats[b.id]?.list?.length ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${A.replace(/^act_/, '')}&selected_ad_ids=${stats[b.id].list.slice(0, 30).join(',')}` : null };
@@ -256,6 +290,33 @@ async function overview(env) {
      (account-health asana-brand.js section 6). */
   const pending = ((await env.DB.prepare(`SELECT act_id, name, token, status, submitted_at, json_extract(flags_json, '$.link_posted') posted FROM p_br_onboard WHERE act_id LIKE 'asana_%' ORDER BY created_at DESC`).all().catch(() => ({ results: [] }))).results || []);
   return { pending, brands: accts.map(a => ({ act_id: a.act_id, name: a.name, lines: lines[a.act_id]?.n || 0, personas: personas[a.act_id]?.n || 0, personas_ok: personas[a.act_id]?.ok || 0, angles: angles[a.act_id]?.n || 0, batches: batches[a.act_id]?.n || 0, open: batches[a.act_id]?.open || 0, onboard: onboard[a.act_id]?.status || null })) };
+}
+
+/* The Tests tab with no brand picked: per brand, how many tests sit in each box.
+   Same boxOf as a single brand, so the counts always match what the brand shows. */
+async function testsOverview(env) {
+  const accts = (await env.DB.prepare(`SELECT a.act_id, a.name, a.target_cpa, a.target_roas FROM accounts a
+    WHERE a.active = 1 AND EXISTS (SELECT 1 FROM p_br_batch b WHERE b.act_id = a.act_id) ORDER BY a.name`).all()).results || [];
+  const brands = await Promise.all(accts.map(async acct => {
+    const A = acct.act_id;
+    const [batches, doc, ads] = await Promise.all([
+      env.DB.prepare(`SELECT id, num, stage, verdict, asana_result, created_at FROM p_br_batch WHERE act_id = ?1`).bind(A).all().then(r => r.results || []),
+      env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'rules'`).bind(A).first().catch(() => null),
+      adUniverse(env, A),
+    ]);
+    const rules = rulesFor(acct, safeJson(doc?.data_json, null));
+    const byNum = Object.fromEntries(batches.map(b => [numKey(b.num), b.id]));
+    const byId = Object.fromEntries(batches.map(b => [b.id, b]));
+    const stats = {};
+    for (const a of ads) {
+      const bid = (a.tag && byId[a.tag]) ? a.tag : (a.num ? byNum[a.num] : null);
+      if (bid) addAd(stats[bid] ||= blank(), a);
+    }
+    const n = { call: 0, running: 0, making: 0, done: 0 };
+    for (const b of batches) { const st = finish(stats[b.id] || blank()); n[boxOf(b, st, suggest(st, rules), rules)]++; }
+    return { act_id: A, name: acct.name, total: batches.length, ...n };
+  }));
+  return { brands };
 }
 
 /* ---------------- writes ---------------- */
@@ -384,6 +445,7 @@ export async function handleStaff(request, env, url, path, json) {
   if (!path.startsWith('/api/brand')) return null;
   try {
     if (path === '/api/brand/overview') return json(await overview(env));
+    if (path === '/api/brand/tests-overview') return json(await testsOverview(env));
     const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
     const act = request.method === 'GET' ? url.searchParams.get('act') : body.act;
 

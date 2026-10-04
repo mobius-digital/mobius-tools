@@ -1243,3 +1243,28 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   stored as rules.acct_avg_cpa + acct_avg_month by account-health `refreshAccountAvg` (hourly; recomputes
   when the month changes, i.e. on the 1st). The yellow zone setting is only the fallback until the first
   average exists. Shown in the Monday message header and Settings → Goals.
+
+## 2026-10-04: Tests is its own tab, and the rail is grouped by WHEN you use it
+
+- Cole: "this needs to be stupid simple", "hundreds in review". Measured: 284 tests sat in Asana
+  "Analyze Results" (oldest May 2025) and read as live; only 115 of 1,241 carried a verdict.
+- **Tests tab** (`show('tests')` -> `renderTests` -> `BrandTab.render({mode:'tests'})`, same brand.js
+  closure). Three boxes in the order you act: **Make a call**, **Running**, **What we learned**
+  (angle chips, 30 at a time). Search swaps the boxes for one flat list. All brands = a table from
+  `GET /api/brand/tests-overview`. The Brand tab keeps only Research and "Voice and brand info".
+- **The worker decides the box: `boxOf()` in worker/src/brand.js** (payload field `box`, plus
+  `auto_done`). A test whose ads last spent more than `STALE_DAYS` (14) ago is DONE whatever its
+  Asana column says; never-spent live tests get 30 days from `created_at` (the hourly sync bumps
+  `updated_at`, so it dates nothing). `needs_call` = `box === 'call'`. Finished tests with no call
+  show Locus's read as a dashed "Locus: winner/loser/mixed" pill, never as the buyer's call.
+  Nothing is written to Asana or D1 by this; the Asana tasks stay where they are until Cole decides.
+- **Rail groups:** Every day (Overview, Daily Brief, Tests, Meta) / Every week (Reports, Profit) /
+  Making ads (Studio, Brand) / Monthly and setup (Plan, Settings). `SECTIONS` in index.html nests
+  pages under a parent: Profit > Customers, Brand > Creator link (amb), Settings > Data health,
+  Costs. ONE `#subtabs` nav is moved under the open parent by `show()`; Meta still fills its own.
+  Old tab ids all still route (deep links, Slack buttons).
+- **Meta shows three sub-tabs in the rail** (Overview, Creative, Change Log). Today and Averages
+  ("Last 7 vs 30 days") open from buttons on Meta Overview (`[data-msub]`, delegated in meta.js)
+  and light Overview while open.
+- Phone bar: Overview, Brief, Tests, Meta, More. Proposal + SOP artifact:
+  https://claude.ai/artifact/8P1n7XmyrCZA7g2rQy229e

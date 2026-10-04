@@ -252,7 +252,7 @@ function paint() {
   const name = d.account.name;
   if (!d.brand) {
     main.innerHTML = `<div class="am">
-      <div><h2>Ambassadors</h2><p class="sub">One living brief for ${esc(name)}'s creators, at one clean link. Angles, openers, shot plans and proof, edited here and live the moment you save.</p></div>
+      <div><h2>Creator link</h2><p class="sub">One living brief for ${esc(name)}'s creators, at one clean link. Angles, openers, shot plans and proof, edited here and live the moment you save.</p></div>
       <div class="card" style="padding:22px 24px;display:flex;flex-direction:column;gap:12px;max-width:640px">
         <h3>Set up ${esc(name)}'s creator link</h3>
         <p class="hint">Creates the page with two starter sections, Hot right now and Always works. It stays switched off until you turn it on.</p>
@@ -268,11 +268,11 @@ function paint() {
     };
     return;
   }
-  const tabs = `<nav class="am-sub" aria-label="Ambassadors sections">
+  const tabs = `<nav class="am-sub" aria-label="Creator link sections">
     <button data-v="angles" class="${S.view === 'angles' ? 'on' : ''}">Angles</button>
     <button data-v="link" class="${S.view === 'link' ? 'on' : ''}">Link and brief</button></nav>`;
   main.innerHTML = `<div class="am">
-    <div><h2>Ambassadors</h2><p class="sub">What ${esc(name)}'s creators are told to film. Everything here shows on their link the moment you save. Sales numbers stay here and never reach the link.</p></div>
+    <div><h2>Creator link</h2><p class="sub">What ${esc(name)}'s creators are told to film. Everything here shows on their link the moment you save. Sales numbers stay here and never reach the link.</p></div>
     ${tabs}
     ${linkStrip()}
     <div id="amBody"></div></div>`;
@@ -316,7 +316,7 @@ async function renderAll(main) {
   await loadIcons();
   const r = await api('/api/amb/overview');
   main.innerHTML = `<div class="am">
-    <div><h2>Ambassadors</h2><p class="sub">Every brand's creator link. Pick a brand to write its angles. Links start switched off, so nothing is public until you turn it on.</p></div>
+    <div><h2>Creator link</h2><p class="sub">Every brand's creator link. Pick a brand to write its angles. Links start switched off, so nothing is public until you turn it on.</p></div>
     <div class="card" style="padding:0">
       <div class="tbl-wrap"><table>
         <thead><tr><th>Brand</th><th>Creator link</th><th class="num">Live angles</th><th class="num">Tagged ads</th><th>Submit link</th><th></th></tr></thead>

@@ -1543,6 +1543,7 @@
   <symbol id="i-brand" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></symbol>
   <symbol id="i-studio" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
   <symbol id="i-amb" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
+  <symbol id="i-tests" viewBox="0 0 24 24"><path d="M10 2v7.5a2 2 0 0 1-.2.9L4.7 20.5a1 1 0 0 0 .9 1.5h12.8a1 1 0 0 0 .9-1.5l-5.1-10.1a2 2 0 0 1-.2-.9V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
   <symbol id="i-more" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></symbol>
   <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2.5 3.5h11v7.5H7l-3 2.5v-2.5H2.5z"/><path d="M5 6.5h6M5 8.5h4"/></symbol>
   <symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2"/></symbol>
@@ -1562,46 +1563,39 @@
     </div>
     <div class="side-scroll">
     <nav class="tabs" id="tabs" style="display:none">
-      <div class="grp"><span class="band">Daily</span>
+      <!-- 2026-10-04 (Cole: "every tab needs to be stupid simple"): groups say WHEN
+           you open a tab, not what it is about, and pages that are part of a bigger
+           question sit UNDER their parent as sub-tabs (SECTIONS in show()). One
+           #subtabs nav moves under whichever parent is open; Meta fills its own.
+           Every tab selector is scoped to `button[data-t]`, so the sub-tab buttons
+           never call show(undefined). -->
+      <div class="grp"><span class="band">Every day</span>
         <div class="grp-btns">
           <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
-          <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>Profit</span></button>
+          <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Daily Brief</span></button>
+          <button data-t="tests"><svg class="ic"><use href="#i-tests"/></svg><span>Tests</span></button>
           <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
         </div>
-        <!-- Meta's sub-tabs nest under the Meta button, which is what makes the
-             hierarchy legible without a second colour. They are still OUTSIDE
-             #main because meta.js owns that element entirely. Being inside
-             #tabs is safe only because every tab selector is scoped to
-             `button[data-t]`; a bare `#tabs button` would match these too and
-             call show(undefined). -->
-        <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
       </div>
-      <div class="grp"><span class="band">To the client</span>
+      <div class="grp"><span class="band">Every week</span>
         <div class="grp-btns">
-          <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Daily Brief</span></button>
           <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
+          <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>Profit</span></button>
         </div>
       </div>
-      <div class="grp"><span class="band">Creative</span>
+      <div class="grp"><span class="band">Making ads</span>
         <div class="grp-btns">
-          <button data-t="brand"><svg class="ic"><use href="#i-brand"/></svg><span>Brand</span></button>
           <button data-t="studio"><svg class="ic"><use href="#i-studio"/></svg><span>Studio</span></button>
-          <button data-t="amb"><svg class="ic"><use href="#i-amb"/></svg><span>Ambassadors</span></button>
+          <button data-t="brand"><svg class="ic"><use href="#i-brand"/></svg><span>Brand</span></button>
         </div>
       </div>
-      <div class="grp"><span class="band">Monthly</span>
+      <div class="grp"><span class="band">Monthly and setup</span>
         <div class="grp-btns">
           <button data-t="plan"><svg class="ic"><use href="#i-plan"/></svg><span>Plan</span></button>
-          <button data-t="customers"><svg class="ic"><use href="#i-customers"/></svg><span>Customers</span></button>
-        </div>
-      </div>
-      <div class="grp"><span class="band">Setup</span>
-        <div class="grp-btns">
-          <button data-t="health"><svg class="ic"><use href="#i-health"/></svg><span>Data Health</span></button>
-          <button data-t="costs"><svg class="ic"><use href="#i-costs"/></svg><span>Costs</span></button>
           <button data-t="settings"><svg class="ic"><use href="#i-settings"/></svg><span>Settings</span></button>
         </div>
       </div>
+      <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
     </nav>
     </div>
     <div class="side-foot">
@@ -1641,18 +1635,18 @@
      the bar exists only under 720px; tablets keep the rail (iPad convention). -->
 <nav class="tabbar" id="tabbar" aria-label="Primary">
   <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
-  <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>Profit</span></button>
-  <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
   <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Brief</span></button>
+  <button data-t="tests"><svg class="ic"><use href="#i-tests"/></svg><span>Tests</span></button>
+  <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
   <button id="tbMore" aria-label="More destinations"><svg class="ic"><use href="#i-more"/></svg><span>More</span></button>
 </nav>
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js"></script>
-<script src="amb.js?v=15"></script>
+<script src="meta.js?v=2"></script>
+<script src="amb.js?v=16"></script>
 <script src="../onboard/questions.js?v=8"></script>
-<script src="brand.js?v=7"></script>
+<script src="brand.js?v=8"></script>
 <script src="newclient.js?v=13"></script>
 <script src="studio.js?v=18"></script>
 <script>
@@ -1804,10 +1798,10 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'studio', 'amb'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
-    if (open === 'brand' && ['library', 'research', 'info'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view'));
+    if (open === 'brand' && ['research', 'info'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view'));
     // A Slack draft notice names one specific day. Without carrying the date
     // across, the link opened whatever "yesterday" meant at the moment of
     // clicking - so reading the message the next day showed a different brief
@@ -2440,6 +2434,7 @@ function addBrandModal(untracked, chList, onDiscover, total) {
 const TAB_PURPOSE = {
   overview:  'Which clients are making money right now. Start here every morning - click a client to dig into theirs.',
   profit:    "Where one client's money actually went - from revenue down to what was left after every cost.",
+  tests:     'Which creative tests need a call, which are still running, and what every finished test taught us.',
   meta:      "The ads themselves. These numbers come from Meta and match Ads Manager - on purpose, they won't match the other tabs.",
   brief:     'The short update that goes to the client every morning. Read it, adjust the wording, send it.',
   reports:   'The weekly and monthly report you walk through on calls, then send to the client.',
@@ -2474,14 +2469,14 @@ const SET_ICONS = { brands: 'i-brand', sending: 'i-chat', strategist: 'i-spark',
  * unchanged; `extra` now renders as the sub-line rather than a second
  * sentence competing with the first.
  */
-/* The crumb says which band a tab lives in (Daily / To the client / Monthly /
-   Setup) so the page names its own place in the week. Mirrors the rail. */
+/* The crumb says which band a tab lives in (Every day / Every week / Making ads /
+   Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  overview: ['Daily', 'Overview'], profit: ['Daily', 'Profit'], meta: ['Daily', 'Meta'],
-  brief: ['To the client', 'Daily Brief'], reports: ['To the client', 'Reports'],
-  brand: ['Creative', 'Brand'], studio: ['Creative', 'Studio'], amb: ['Creative', 'Ambassadors'],
-  plan: ['Monthly', 'Plan'], customers: ['Monthly', 'Customers'],
-  health: ['Setup', 'Data Health'], costs: ['Setup', 'Costs'], settings: ['Setup', 'Settings'],
+  overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Tests'], meta: ['Every day', 'Meta'],
+  reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
+  studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], amb: ['Making ads', 'Brand &nbsp;/&nbsp; Creator link'],
+  plan: ['Monthly and setup', 'Plan'], settings: ['Monthly and setup', 'Settings'],
+  health: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Data health'], costs: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Costs'],
 };
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>` : ''; };
 /** The page's own actions, in the top bar (Share with client, Save plan, Sync
@@ -2525,10 +2520,11 @@ const markTourSeen = k => { const s = tourSeen(); s[k] = 1; localStorage.setItem
 
 const TOURS = {
   start: { name: 'How Locus fits together', steps: [
-    { body: '<b>Locus answers three questions, on a rhythm.</b> You agree a number with the client once a month, you watch it every morning, and you report against it every week. The tabs are grouped that way - this takes about a minute.' },
-    { sel: '#tabs .grp:nth-of-type(3)', title: 'Once a month', body: 'On <b>Plan</b> you set next month’s revenue number with the client. <b>Customers</b> tells you what a new customer costs, which is what decides whether a bigger number is affordable. Everything else in Locus measures against what you set here.' },
-    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b> is which clients are making money. <b>Profit</b> is where one client’s money went. <b>Meta</b> is the ads behind it. They are in that order on purpose - it is a drill-down.' },
-    { sel: '#tabs .grp:nth-of-type(2)', title: 'What the client gets', body: 'The <b>Daily Brief</b> is a short morning update. <b>Reports</b> are the weekly and monthly documents you walk through on calls. Both draft to your internal Slack first - nothing reaches a client until you press send.' },
+    { body: '<b>The tabs are grouped by when you open them.</b> Every day, every week, when making ads, and once a month. This takes about a minute.' },
+    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b>: which brand needs you today. <b>Daily Brief</b>: read, fix and send the client update. <b>Tests</b>: make the calls on tests that spent enough. <b>Meta</b>: the ads themselves, matching Ads Manager.' },
+    { sel: '#tabs .grp:nth-of-type(2)', title: 'Every week', body: '<b>Reports</b> are the weekly and monthly documents you send the client. <b>Profit</b> is whether the brand is making money, with <b>Customers</b> under it.' },
+    { sel: '#tabs .grp:nth-of-type(3)', title: 'Making ads', body: '<b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk, plus the creator link.' },
+    { sel: '#tabs .grp:nth-of-type(4)', title: 'Monthly and setup', body: 'On <b>Plan</b> you set next month’s number with the client. <b>Settings</b> holds goals, channels, new clients, and the data checks.' },
     { sel: '#periodBar', title: 'What period am I looking at?', body: 'This bar is on every screen that shows data and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
@@ -3624,7 +3620,16 @@ const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 /** Tab titles, so an error page can still say which tab it is. */
 const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
-  health: 'Data Health', amb: 'Ambassadors', brand: 'Brand', studio: 'Studio' };
+  health: 'Data Health', amb: 'Creator link', brand: 'Brand', studio: 'Studio', tests: 'Tests' };
+/* Pages that are part of a bigger question live UNDER a parent in the rail
+   (2026-10-04). The parent's own id is its first page. Meta is a section too, but
+   meta.js fills its own sub-tabs. */
+const SECTIONS = {
+  profit: [['profit', 'Money'], ['customers', 'Customers']],
+  brand: [['brand', 'Research and voice'], ['amb', 'Creator link']],
+  settings: [['settings', 'Setup'], ['health', 'Data health'], ['costs', 'Costs']],
+};
+const PARENT_OF = Object.fromEntries(Object.entries(SECTIONS).flatMap(([p, kids]) => kids.map(([k]) => [k, p])));
 
 /* ---------- The period bar ----------
    EVERY window in this tool ends YESTERDAY. Today is partial on every source -
@@ -3809,16 +3814,18 @@ function show(tab) {
      are the pages, so it takes the raised `sec` treatment instead and the pill
      goes to the open sub-tab. Marking both as `on` gave two identical pills and
      neither read as the answer. */
+  const parent = PARENT_OF[tab] || tab;
+  const isSection = parent === 'meta' || !!SECTIONS[parent];
   document.querySelectorAll('#tabs button[data-t]').forEach(b => {
-    const cur = b.dataset.t === tab;
-    b.classList.toggle('on', cur && tab !== 'meta');
-    b.classList.toggle('sec', cur && tab === 'meta');
+    const cur = b.dataset.t === parent;
+    b.classList.toggle('on', cur && !isSection);
+    b.classList.toggle('sec', cur && isSection);
   });
   /* The phone tab bar mirrors the rail's answer: one of its four destinations
      lights up, or More does, because the open page lives behind the drawer. */
-  document.querySelectorAll('#tabbar button[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  document.querySelectorAll('#tabbar button[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === parent));
   const tbMore = document.getElementById('tbMore');
-  if (tbMore) tbMore.classList.toggle('on', !['overview','profit','meta','brief'].includes(tab));
+  if (tbMore) tbMore.classList.toggle('on', !['overview','brief','tests','meta'].includes(tab));
   /* With the Meta sub-list open the tab column is taller than a laptop rail, so
      the current tab can sit outside the scrolled view. Only nudges when it is
      actually out of sight, and never scrolls the PAGE. */
@@ -3829,7 +3836,16 @@ function show(tab) {
     if (r.top < s.top || r.bottom > s.bottom) cb.scrollIntoView({ block: 'nearest' });
   }
   const sn = $('#subtabs');
-  if (sn) sn.style.display = tab === 'meta' ? '' : 'none';
+  if (sn) {
+    const pb = document.querySelector(`#tabs button[data-t="${parent}"]`);
+    if (isSection && pb && pb.nextElementSibling !== sn) pb.after(sn);
+    sn.style.display = isSection ? '' : 'none';
+    if (SECTIONS[parent]) {
+      const host = sn.querySelector('.in');
+      host.innerHTML = SECTIONS[parent].map(([k, l]) => `<button data-s="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('');
+      host.querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.s));
+    }
+  }
   const m = $('#main');
   const first = !m.firstElementChild;
   if (!first) m.classList.add('busy');
@@ -3852,7 +3868,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -3873,8 +3889,12 @@ async function renderMeta(first) {
   const subs = window.MetaTab.subs;
   let sub = localStorage.getItem(MSUB.key) || 'overview';
   if (!subs.some(s => s.id === sub)) sub = subs[0].id;
+  /* Only three in the rail (2026-10-04). Today and Averages are opened from the
+     Meta Overview page and light Overview while open. */
+  const railSubs = subs.filter(s => !['today', 'averages'].includes(s.id));
+  const lit = ['today', 'averages'].includes(sub) ? 'overview' : sub;
   if (host) {
-    host.innerHTML = subs.map(s => `<button data-s="${s.id}" class="${s.id === sub ? 'on' : ''}">${esc(s.label)}</button>`).join('');
+    host.innerHTML = railSubs.map(s => `<button data-s="${s.id}" class="${s.id === lit ? 'on' : ''}">${esc(s.label)}</button>`).join('');
     host.querySelectorAll('button').forEach(b => b.onclick = () => {
       localStorage.setItem(MSUB.key, b.dataset.s);
       show('meta');
@@ -3918,6 +3938,26 @@ async function renderBrand(first) {
     });
   } catch (e) {
     if (run === RUN) $('#main').innerHTML = `<h2>Brand</h2><div class="card"><span style="color:var(--bad)">Couldn't load the Brand tab: ${esc(e.message)}</span></div>`;
+  }
+}
+
+/* ---------- Tests ----------
+   Its own tab since 2026-10-04 (was Brand > Test library). Same file as Brand
+   (brand.js, mode 'tests'): Make a call, Running, What we learned. */
+async function renderTests(first) {
+  const run = RUN;
+  if (!window.BrandTab) {
+    $('#main').innerHTML = `<h2>Tests</h2><div class="card"><span style="color:var(--bad)">The Tests section didn't load. Hard-refresh the page (Ctrl+Shift+R); if it persists, <code>brand.js</code> failed to fetch.</span></div>`;
+    return;
+  }
+  if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  try {
+    await window.BrandTab.render({
+      tok: S.tok, url: S.url, act: S.act, accounts: S.accounts, mode: 'tests',
+      pick: id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('tests'); },
+    });
+  } catch (e) {
+    if (run === RUN) $('#main').innerHTML = `<h2>Tests</h2><div class="card"><span style="color:var(--bad)">Couldn't load Tests: ${esc(e.message)}</span></div>`;
   }
 }
 
