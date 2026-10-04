@@ -1096,6 +1096,67 @@
   .cb-s b{margin-left:auto;font-variant-numeric:tabular-nums;font-size:13px}
   .cb-s b.good{color:var(--good)} .cb-s b.bad{color:var(--bad)} .cb-s b.ok{color:var(--ink)}
   .cb-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  /* 2026-10-04 redesign (Cole: "what am I looking at"): one control row, a
+     verdict chip and four numbers per card, everything else one click away. */
+  .cb-bar .cb-gap{flex:1}
+  .cb-more-btn[aria-expanded="true"]{border-color:var(--brand-ink);color:var(--brand-ink)}
+  .cb-more-btn svg,.cb-share-btn svg{margin-left:6px;vertical-align:1px}
+  .cb-more{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 22px;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin:0 0 14px}
+  .cb-more[hidden]{display:none}
+  .cb-opt{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .cb-opt > .cb-l{flex-wrap:wrap}
+  .cb-opt .tiny{line-height:1.4}
+  .cb-opt .lnk,.cb-notes .lnk{padding:0;margin-left:4px;line-height:inherit;vertical-align:baseline}
+  .cb-opt .chip{padding:5px 11px}
+  .cb-opt .chip.on{border-color:var(--brand-ink);color:var(--brand-ink);background:var(--brand-soft)}
+  .cb-share{position:relative;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cb-share-menu{display:none;position:absolute;right:0;top:calc(100% + 5px);z-index:25;width:min(300px,calc(100vw - 32px));
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;padding:5px;box-shadow:0 14px 34px rgba(12,22,29,.2)}
+  .cb-share.open .cb-share-menu{display:block}
+  .cb-share-menu button{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:6px;background:transparent;color:var(--ink);font-size:13px;font-weight:700}
+  .cb-share-menu button:hover{background:var(--brand-soft)}
+  .cb-share-menu button small{display:block;font-weight:400;font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:2px;white-space:normal}
+  #cbShareMsg{max-width:100%;overflow-wrap:anywhere}
+  #cbShareMsg code{white-space:normal;word-break:break-all}
+  .cb-legend{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+  .cb-legend b{color:var(--ink)}
+  .cb-top{display:flex;align-items:flex-start;gap:8px;min-width:0}
+  .cb-top .ad-name{flex:1;min-width:0}
+  .cb-top .vd{flex:none;margin-top:1px}
+  .cb-card .vd.watch{background:var(--warn-bg);color:var(--warn)}
+  .cb-nums{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin-top:2px}
+  .cb-n{min-width:0}
+  .cb-n span{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .cb-n b{display:block;font-size:16px;font-variant-numeric:tabular-nums;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cb-n b.good{color:var(--good)} .cb-n b.bad{color:var(--bad)}
+  .cb-count{font-size:12px;color:var(--muted);margin:2px 0 0}
+  .cb-notes{margin-top:22px;border-top:1px solid var(--line);padding-top:12px}
+  .cb-notes summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--brand-ink);list-style:none}
+  .cb-notes summary::-webkit-details-marker{display:none}
+  .cb-notes summary::before{content:'▸ '}
+  .cb-notes[open] summary::before{content:'▾ '}
+  .cb-notes-body{font-size:12.5px;color:var(--muted);max-width:820px;line-height:1.5}
+  .cb-notes-body p{margin:10px 0 0}
+  .cb-notes-body b{color:var(--ink)}
+  .cr-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;justify-content:space-between}
+  .cr-head > div:first-child{flex:1 1 320px;min-width:0}
+  .cr-head .sub{margin-bottom:14px}
+  .cr-launch{margin-top:22px}
+  .cr-launch h3{margin-bottom:10px}
+  .cr-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:10px}
+  .cr-tile{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;min-width:0}
+  .cr-tile span{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .cr-tile b{display:block;font-size:22px;letter-spacing:-.02em;line-height:1.25;margin:3px 0 2px;font-variant-numeric:tabular-nums}
+  .cr-tile small{display:block;font-size:12px;color:var(--muted);line-height:1.35}
+  .cr-launch .cr-pick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+  .cr-weeks{margin-top:12px}
+  .cr-weeks summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--brand-ink);list-style:none}
+  .cr-weeks summary::-webkit-details-marker{display:none}
+  .cr-weeks summary::before{content:'▸ '}
+  .cr-weeks[open] summary::before{content:'▾ '}
+  .cr-weeks .card{margin:12px 0 0;box-shadow:none}
+  .cr-weeks .tbl-wrap{overflow-x:auto}
   .help-btn{border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
   .help-btn + .help-btn{margin-left:6px}
   .help-btn:hover{color:var(--brand-ink);border-color:var(--brand-ink)}
@@ -1544,6 +1605,7 @@
   <symbol id="i-studio" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
   <symbol id="i-amb" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
   <symbol id="i-tests" viewBox="0 0 24 24"><path d="M10 2v7.5a2 2 0 0 1-.2.9L4.7 20.5a1 1 0 0 0 .9 1.5h12.8a1 1 0 0 0 .9-1.5l-5.1-10.1a2 2 0 0 1-.2-.9V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
+  <symbol id="i-angles" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></symbol>
   <symbol id="i-more" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></symbol>
   <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2.5 3.5h11v7.5H7l-3 2.5v-2.5H2.5z"/><path d="M5 6.5h6M5 8.5h4"/></symbol>
   <symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2"/></symbol>
@@ -1584,6 +1646,7 @@
       </div>
       <div class="grp"><span class="band">Making ads</span>
         <div class="grp-btns">
+          <button data-t="angles"><svg class="ic"><use href="#i-angles"/></svg><span>Angles</span></button>
           <button data-t="studio"><svg class="ic"><use href="#i-studio"/></svg><span>Studio</span></button>
           <button data-t="brand"><svg class="ic"><use href="#i-brand"/></svg><span>Brand</span></button>
         </div>
@@ -1642,10 +1705,10 @@
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=3"></script>
+<script src="meta.js?v=4"></script>
 <script src="amb.js?v=16"></script>
 <script src="../onboard/questions.js?v=8"></script>
-<script src="brand.js?v=9"></script>
+<script src="brand.js?v=10"></script>
 <script src="newclient.js?v=13"></script>
 <script src="studio.js?v=18"></script>
 <script>
@@ -1797,7 +1860,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'studio', 'amb'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view'));
@@ -2433,7 +2496,8 @@ function addBrandModal(untracked, chList, onDiscover, total) {
 const TAB_PURPOSE = {
   overview:  'Which clients are making money right now. Start here every morning - click a client to dig into theirs.',
   profit:    "Where one client's money actually went - from revenue down to what was left after every cost.",
-  tests:     'Which creative tests need a call, which are still running, and what every finished test taught us.',
+  tests:     'For the media buyer: which tests spent enough to make a call, and which are still running.',
+  angles:    'For the strategist: every angle we have tested, what won, and the concepts under it. Check an idea here before briefing it.',
   meta:      "The ads themselves. These numbers come from Meta and match Ads Manager - on purpose, they won't match the other tabs.",
   brief:     'The short update that goes to the client every morning. Read it, adjust the wording, send it.',
   reports:   'The weekly and monthly report you walk through on calls, then send to the client.',
@@ -2471,7 +2535,7 @@ const SET_ICONS = { brands: 'i-brand', sending: 'i-chat', strategist: 'i-spark',
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Meta &nbsp;/&nbsp; Tests'], meta: ['Every day', 'Meta'],
+  overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Meta &nbsp;/&nbsp; Test calls'], angles: ['Making ads', 'Angles'],meta: ['Every day', 'Meta'],
   reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
   studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], amb: ['Making ads', 'Brand &nbsp;/&nbsp; Creator link'],
   plan: ['Monthly and setup', 'Plan'], settings: ['Monthly and setup', 'Settings'],
@@ -2520,9 +2584,9 @@ const markTourSeen = k => { const s = tourSeen(); s[k] = 1; localStorage.setItem
 const TOURS = {
   start: { name: 'How Locus fits together', steps: [
     { body: '<b>The tabs are grouped by when you open them.</b> Every day, every week, when making ads, and once a month. This takes about a minute.' },
-    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b>: which brand needs you today. <b>Daily Brief</b>: read, fix and send the client update. <b>Meta</b>: everything about the Meta ads, including <b>Tests</b>, where you make the calls on tests that spent enough.' },
+    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b>: which brand needs you today. <b>Daily Brief</b>: read, fix and send the client update. <b>Meta</b>: everything about the Meta ads, including <b>Test calls</b>, where the media buyer judges tests that spent enough.' },
     { sel: '#tabs .grp:nth-of-type(2)', title: 'Every week', body: '<b>Reports</b> are the weekly and monthly documents you send the client. <b>Profit</b> is whether the brand is making money, with <b>Customers</b> under it.' },
-    { sel: '#tabs .grp:nth-of-type(3)', title: 'Making ads', body: '<b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk, plus the creator link.' },
+    { sel: '#tabs .grp:nth-of-type(3)', title: 'Making ads', body: '<b>Angles</b> shows what we have tested and what won, so you know what to brief next. <b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk, plus the creator link.' },
     { sel: '#tabs .grp:nth-of-type(4)', title: 'Monthly and setup', body: 'On <b>Plan</b> you set next month’s number with the client. <b>Settings</b> holds goals, channels, new clients, and the data checks.' },
     { sel: '#periodBar', title: 'What period am I looking at?', body: 'This bar is on every screen that shows data and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
@@ -3027,17 +3091,56 @@ const CB_SORTS = [
   ['hook', 'Hook rate'], ['hold', 'Hold rate'], ['ctr', 'Link CTR'], ['cpm', 'CPM'], ['newest', 'Newest'],
 ];
 
-async function renderCreativeBrowser(host, act, range) {
-  host.innerHTML = '<div class="card"><span class="hint">Loading ads…</span></div>';
+/* The brand's yellow zone (rules.yellow_pct, Settings > Goals) for the card
+   verdicts. Cached per account for the session; 30 when it cannot be read. */
+const CB_RULES = {};
+async function cbRulesFor(act) {
+  if (CB_RULES[act]) return CB_RULES[act];
+  try { const g = await api(`/api/brand/rules?act=${encodeURIComponent(act)}`); CB_RULES[act] = g.rules || {}; }
+  catch { return {}; }
+  return CB_RULES[act];
+}
+
+/* opts (all optional, remembered on the host for internal re-renders):
+   fresh: { get(), set(v) } puts the "an ad is new for" picker under More options;
+   notes: an element for the "How these numbers work" disclosure (else it goes in host). */
+async function renderCreativeBrowser(host, act, range, opts) {
+  opts = opts || host._cbOpts || {};
+  host._cbOpts = opts;
+  /* RE-RENDERS KEEP THE PAGE WHERE IT IS. Swapping the grid for a one-line
+     "Loading" card collapsed the page and threw the reader back to the top on
+     every sort change; the old cards stay, dimmed, until the new ones land. */
+  if (host.querySelector('.cb-bar')) host.style.opacity = '.55';
+  else host.innerHTML = '<div class="card"><span class="hint">Loading ads…</span></div>';
   let d;
   const q = `act=${encodeURIComponent(act)}&from=${range.from}&to=${range.to}`
     + `&sort=${CB.sort}&limit=${CB.limit}&attr=${encodeURIComponent(CB.attr)}`
     + `${CB.fmt ? '&format=' + encodeURIComponent(CB.fmt) : ''}`
     + (CB.minSpend != null ? `&min_spend=${CB.minSpend}` : `&mult=${CB.mult}`);
-  try { d = await api('/api/ads?' + q); }
-  catch (e) { host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load ads: ${esc(e.message)}</span></div>`; return; }
+  let rules = {};
+  try { [d, rules] = await Promise.all([api('/api/ads?' + q), cbRulesFor(act)]); }
+  catch (e) { host.style.opacity = ''; host.innerHTML = `<div class="card"><span style="color:var(--bad)">Couldn't load ads: ${esc(e.message)}</span></div>`; return; }
+  if (!host.isConnected) return;
+  host.style.opacity = '';
 
   const cur = d.account.currency;
+  /* THE VERDICT, against the brand's ONE goal CPA (accounts.target_cpa):
+     Scale = CPA at or under goal with 2+ purchases. Cut = CPA more than the
+     yellow zone (default 30%) over goal, or no sales after spending 1.5x goal.
+     Watch = everything between. No goal, no chip: a guess is worse than none. */
+  const goal = d.target_cpa > 0 ? +d.target_cpa : null;
+  const yp = rules.yellow_pct > 0 ? +rules.yellow_pct : 30;
+  const cutLine = goal ? goal * (1 + yp / 100) : null;
+  const verdictOf = a => {
+    if (!goal) return null;
+    const p = a.purchases || 0;
+    if (a.cpa != null && a.cpa <= goal && p >= 2) return ['scale', 'Scale', `CPA ${fmtMoney(a.cpa, cur)} is at or under the ${fmtMoney(goal, cur)} goal on ${Math.round(p * 10) / 10} sales`];
+    if (a.cpa != null && a.cpa > cutLine) return ['cut', 'Cut', `CPA ${fmtMoney(a.cpa, cur)} is more than ${yp}% over the ${fmtMoney(goal, cur)} goal`];
+    if (!p && (a.spend || 0) >= goal * 1.5) return ['cut', 'Cut', `Spent ${fmtMoney(a.spend, cur)} (1.5x the goal CPA or more) with no sales`];
+    return ['watch', 'Watch', a.cpa == null ? 'No sales yet, and not enough spend to call it'
+      : a.cpa <= goal ? `CPA ${fmtMoney(a.cpa, cur)} is at or under goal, but it needs 2 sales to call it`
+      : `CPA ${fmtMoney(a.cpa, cur)} is over the goal, but within ${yp}% of it`];
+  };
   const money = n => n == null ? ' - ' : fmtMoney(n, cur);
   const pct = n => n == null ? ' - ' : (n * 100).toFixed(1) + '%';
   /* The strong/average/low words are Motion's published benchmarks across many
@@ -3045,11 +3148,13 @@ async function renderCreativeBrowser(host, act, range) {
      reads them as a Locus opinion. */
   const band = (v, low, good) => v == null ? '' : v >= good ? ' good' : v < low ? ' bad' : ' ok';
 
-  const stat = (label, value, cls = '') =>
-    `<div class="cb-s"><span>${label}</span><b class="${cls}">${value}</b></div>`;
+  /* Four numbers per card. Hold, purchases, CTR, CPM and age live in Details. */
+  const num = (label, value, cls = '', tip = '') =>
+    `<div class="cb-n"${tip ? ` title="${esc(tip)}"` : ''}><span>${label}</span><b class="${cls}">${value}</b></div>`;
 
   const card = (a, i) => {
     const canPlay = a.is_video && a.ad_id;
+    const v = verdictOf(a);
     /* THE PLACEHOLDER MUST NOT LOOK LIKE A BUTTON. A missing image used to draw
        a big ▶ on a video card, which is indistinguishable from the play badge - 
        so a card whose creative had failed to load read as a playable video, and
@@ -3064,20 +3169,17 @@ async function renderCreativeBrowser(host, act, range) {
         ${canPlay ? '<button class="ad-play" type="button" title="Play this video ad"><i>▶</i></button>' : ''}
       </div>
       <div class="ad-body">
-        <span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>
-        <div class="cb-stats">
-          ${stat('Spend', money(a.spend))}
-          ${stat('ROAS', a.roas != null ? fmtX(a.roas) : ' - ')}
-          ${stat('CPA', a.cpa != null ? money(a.cpa) : (a.spend > 0 ? 'no sales' : ' - '), a.cpa == null && a.spend > 0 ? 'bad' : '')}
-          ${stat('Purchases', a.purchases ? (Math.round(a.purchases * 10) / 10) : '0')}
-          ${a.is_video ? stat('Hook', pct(a.hook), band(a.hook, 0.20, 0.30)) : ''}
-          ${a.is_video ? stat('Hold', pct(a.hold), band(a.hold, 0.40, 0.60)) : ''}
-          ${stat('Link CTR', pct(a.ctr))}
-          ${stat('CPM', money(a.cpm))}
+        <div class="cb-top"><span class="ad-name" title="${esc(a.name)}">${esc(a.name)}</span>${v ? `<span class="vd ${v[0]}" title="${esc(v[2])}">${v[1]}</span>` : ''}</div>
+        <div class="cb-nums">
+          ${num('Spend', money(a.spend))}
+          ${num('CPA', a.cpa != null ? money(a.cpa) : (a.spend > 0 ? 'no sales' : ' - '),
+            a.cpa == null ? (a.spend > 0 ? 'bad' : '') : goal ? (a.cpa <= goal ? 'good' : a.cpa > cutLine ? 'bad' : '') : '')}
+          ${num('ROAS', a.roas != null ? fmtX(a.roas) : ' - ')}
+          ${a.is_video ? num('Hook', pct(a.hook), band(a.hook, 0.20, 0.30).replace(' ok', '').trim(), 'Share of impressions that watched 3 seconds. 30% or more is strong, under 20% is low.')
+            : num('Link CTR', pct(a.ctr), '', 'Link clicks divided by impressions')}
         </div>
         <div class="cb-foot">${a.partnership ? `<span class="catpill part" title="A partnership ad: the creative lives on the partner's own page, not ours. Meta will not release the video file for these, so pressing play opens Meta's preview of the post instead.">Partnership</span>` : ''}
-          ${a.age != null ? `<span class="tiny">${a.age}d old</span>` : ''}
-          ${a.material_by === 'sales' ? `<span class="tiny" title="Too small to clear the spend bar, but it has made enough sales for the ratio to mean something - so it is ranked anyway">ranked on sales</span>`
+          ${a.material_by === 'sales' ? `<span class="tiny" title="Too small to clear the spend bar, but it has made enough sales for the ratio to mean something, so it is ranked anyway">ranked on sales</span>`
             : a.material ? '' : '<span class="tiny" title="Below the spend bar and under 3 sales, so it is left out of the ratio sorts">low spend</span>'}
           <span style="flex:1"></span><span class="ad-open tiny">Details →</span></div>
       </div></article>`;
@@ -3115,26 +3217,13 @@ async function renderCreativeBrowser(host, act, range) {
         : `<button type="button" role="menuitem" class="${String(v) === String(cur) ? 'on' : ''}" data-v="${esc(String(v))}">${esc(String(l))}</button>`).join('')}</span></span>`;
   };
 
-  host.innerHTML = `
-    <div class="cb-bar">
-      <label class="cb-l">Sort by ${sel('sort', CB_SORTS, CB.sort)}</label>
-      <label class="cb-l">Show ${sel('fmt', types, CB.fmt)}</label>
-      <label class="cb-l">Top ${sel('limit', [4, 8, 12, 20].map(n => [n, n + ' ads']), CB.limit)}</label>
-      <label class="cb-l">Revenue from ${sel('attr', CB_ATTR, CB.attr)}</label>
-      <label class="cb-l" title="What we WANT this brand's cost per purchase to be. Set once per brand in Settings, Goals; every screen reads that one number.">Goal CPA
-        <a href="#" class="cb-goal" data-goals="${esc(act)}">${d.target_cpa != null ? fmtMoney(d.target_cpa, cur) : 'set it'}</a></label>
-      <label class="cb-l" title="An ad has to clear this before a ratio sort will rank it - or make 3 sales, whichever comes first. Type your own figure under Custom and spend is the only test: below it, an ad never ranks, however many sales it made.">Counts at ${sel('mult', CB_MULTS, CB.minSpend != null ? 'custom' : String(CB.mult))}
-        ${CB.minSpend != null ? `<span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbMinSpend" type="text" inputmode="decimal" value="${Math.round(CB.minSpend)}"></span>`
-          : `<b class="cb-thresh">${CB.mult ? fmtMoney(d.floor, cur) : 'any'}</b>`}</label>
-      <span style="flex:1"></span>
-      <label class="cb-l cb-lock" title="Locked: the client sees exactly this view, no re-sorting or filters. Off: they can explore the same ads their own way."><input type="checkbox" id="cbLock"${CB.lock ? ' checked' : ''}> Lock view</label>
-      <button class="btn" id="cbYours" title="The client's own page of every ad we ran for them: always current, newest first, no numbers. Same link every time.">Copy "Your ads" page link</button><button class="btn" id="cbShare" title="Freezes this view as a read-only page and copies its link">Copy this view as a link</button><span class="tiny" id="cbShareMsg"></span>
-    </div>
-    ${(() => {
-      /* THE RULE, STATED WHERE THE ADS ARE.
-         It used to live in the footer under four other paragraphs, which is how
-         a $525 threshold hid a 20x campaign for three days without anyone
-         seeing why. It is one line, above the grid, always. */
+  const chev = '<svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
+  const freshNow = opts.fresh ? String(opts.fresh.get()) : null;
+  const whyBtn = '<button class="lnk" data-cbwhy type="button">Why isn’t my ad here?</button>';
+  /* THE COUNTS RULE. It used to sit above the grid as a paragraph; it now lives
+     in "How these numbers work", and the threshold itself (with "Why isn't my
+     ad here?" beside it) is under More options. */
+  const countsRule = (() => {
       const basis = d.floor_basis === 'target_cpa'
         ? `${CB.mult}× the ${fmtMoney(d.target_cpa, cur)} goal CPA`
         : d.floor_basis === 'actual_cpa'
@@ -3146,11 +3235,52 @@ async function renderCreativeBrowser(host, act, range) {
       // sentence has to say so or the number typed looks ignored.
       const salesOr = d.sales_route === false ? '' : ` <b>or</b> made <b>${d.min_purchases ?? 3} sales</b>`;
       const salesOr2 = d.sales_route === false ? '' : ` or <b>${d.min_purchases ?? 3} sales</b>`;
-      return `<p class="cb-rule">${RATIO_SORTS.has(CB.sort)
-        ? `<b>Counts:</b> an ad is ranked once it has spent <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'anything'}</b> ${d.floor > 0 ? `(${basis})` : ''}${salesOr}. ${ranked} qualify.`
-        : `<b>Counts:</b> every ad that spent is ranked on this sort. On a ratio sort (ROAS, CPA, hook…) an ad needs <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'any spend'}</b> ${d.floor > 0 ? `(${basis})` : ''}${salesOr2} - ${ranked} would qualify.`}
-        <button class="lnk" id="cbWhy" type="button">Why isn’t my ad here?</button></p>`;
-    })()}
+      return RATIO_SORTS.has(CB.sort)
+        ? `an ad is ranked once it has spent <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'anything'}</b> ${d.floor > 0 ? `(${basis})` : ''}${salesOr}. ${ranked} qualify.`
+        : `every ad that spent is ranked on this sort. On a ratio sort (ROAS, CPA, hook…) an ad needs <b>${d.floor > 0 ? fmtMoney(d.floor, cur) : 'any spend'}</b> ${d.floor > 0 ? `(${basis})` : ''}${salesOr2}; ${ranked} would qualify.`;
+    })();
+  const notesHtml = `<details class="cb-notes"${CB.notes ? ' open' : ''}><summary>How these numbers work</summary><div class="cb-notes-body">
+      <p><b>Scale, Watch, Cut</b> compare each ad’s CPA with the brand’s goal CPA${goal ? ` (${fmtMoney(goal, cur)})` : ''}. <b>Scale</b>: at or under goal with 2 or more sales. <b>Cut</b>: more than ${yp}% over goal, or no sales after spending 1.5x the goal. <b>Watch</b>: everything in between. No goal set, no verdict. The ${yp}% is the brand’s yellow zone in Settings, Goals.</p>
+      <p><b>Counts:</b> ${countsRule} ${whyBtn}</p>
+      ${d.ranked_by_sales ? `<p><b>${d.ranked_by_sales}</b> of the ranked ads ${d.ranked_by_sales === 1 ? 'is' : 'are'} ranked on sales rather than spend: a new ad proving itself before it has spent the threshold.</p>` : ''}
+      <p><b>Hook</b> is the share of impressions that watched 3 seconds, and <b>hold</b> (in Details) is how many of those kept watching. Both are judged against Motion’s published benchmarks (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account’s own history. Statics show <b>Link CTR</b> instead of hook.</p>
+      <p><b>Link CTR</b> is link clicks divided by impressions. It runs well under 1% on most accounts and is not the "CTR (all)" Ads Manager shows by default, which counts every click and reads about twice as high.</p>
+      <p><b>“no sales”</b> means the ad spent and made no purchases in this window. It is a result, not missing data.</p>
+      <p><b>Age</b> (in Details) is how long the ad has existed, not the creative: relaunching a creative as a new ad restarts it at zero days.</p>
+      <p><b>Where the numbers come from:</b> purchases, revenue, ROAS and CPA are Triple Whale (${esc(attrLabel(d.attr))}), so they will not match Ads Manager. Spend and delivery (hook, hold, CTR, CPM) are Meta.</p>
+    </div></details>`;
+
+  host.innerHTML = `
+    <div class="cb-bar">
+      <label class="cb-l">Sort by ${sel('sort', CB_SORTS, CB.sort)}</label>
+      <label class="cb-l">Show ${sel('fmt', types, CB.fmt)}</label>
+      <button type="button" class="btn cb-more-btn" id="cbMoreBtn" aria-expanded="${CB.more ? 'true' : 'false'}" aria-controls="cbMore">More options${chev}</button>
+      <span class="cb-gap"></span>
+      <span class="cb-share" id="cbShareWrap"><span class="tiny" id="cbShareMsg"></span>
+        <button type="button" class="btn cb-share-btn" id="cbShareBtn" aria-haspopup="menu" aria-expanded="false">Share${chev}</button>
+        <span class="cb-share-menu" role="menu">
+          <button type="button" role="menuitem" id="cbYours">Copy “Your ads” page link<small>The client’s own page of every ad we ran for them. Always current, newest first, no numbers. Same link every time.</small></button>
+          <button type="button" role="menuitem" id="cbShare">Copy this view as a link<small>Freezes these cards as a read-only page for the client. Lock it under More options.</small></button>
+        </span></span>
+    </div>
+    <div class="cb-more" id="cbMore"${CB.more ? '' : ' hidden'}>
+      <div class="cb-opt"><label class="cb-l">Show the top ${sel('limit', [4, 8, 12, 20].map(n => [n, n + ' ads']), CB.limit)}</label>
+        <span class="tiny">How many cards to show.</span></div>
+      <div class="cb-opt"><label class="cb-l">Revenue from ${sel('attr', CB_ATTR, CB.attr)}</label>
+        <span class="tiny">The Triple Whale attribution model. Changes purchases, revenue, ROAS and CPA.</span></div>
+      <div class="cb-opt"><label class="cb-l">Counts at ${sel('mult', CB_MULTS, CB.minSpend != null ? 'custom' : String(CB.mult))}
+        ${CB.minSpend != null ? `<span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbMinSpend" type="text" inputmode="decimal" value="${Math.round(CB.minSpend)}"></span>`
+          : `<b class="cb-thresh">${CB.mult ? fmtMoney(d.floor, cur) : 'any'}</b>`}</label>
+        <span class="tiny">Spend an ad needs before a ROAS, CPA or hook sort ranks it${d.sales_route === false ? '' : `, or ${d.min_purchases ?? 3} sales`}. ${whyBtn}</span></div>
+      ${freshNow ? `<div class="cb-opt"><span class="cb-l">An ad is new for its first</span>
+        <span class="row" style="gap:6px;margin:0">${['7', '14', '30'].map(v => `<button type="button" class="chip${freshNow === v ? ' on' : ''}" data-cbfresh="${v}">${v} days</button>`).join('')}</span>
+        <span class="tiny">Used by “Are we launching enough?” below.</span></div>` : ''}
+      <div class="cb-opt"><label class="cb-l cb-lock"><input type="checkbox" id="cbLock"${CB.lock ? ' checked' : ''}> Lock shared view</label>
+        <span class="tiny">On: a link made with Share shows exactly this view, and the client cannot re-sort or filter it.</span></div>
+    </div>
+    ${d.attr_missing ? '' : `<p class="cb-legend">${goal
+      ? `Each ad is marked <b>Scale</b>, <b>Watch</b> or <b>Cut</b> against the <a href="#" class="cb-goal" data-goals="${esc(act)}">${fmtMoney(goal, cur)} goal CPA</a>.`
+      : `<a href="#" class="cb-goal" data-goals="${esc(act)}">Set a goal CPA</a> to mark each ad Scale, Watch or Cut.`}</p>`}
     ${d.attr_missing ? `<div class="notice bad" style="margin:0 0 12px">⚠️<div>
         <b>No ${esc(attrLabel(d.attr_requested))} data for ${esc(d.account.name)} over this window.</b>
         Nothing is being shown rather than a wall of zeros, and <b>nothing has been silently swapped to Meta</b> - 
@@ -3160,20 +3290,12 @@ async function renderCreativeBrowser(host, act, range) {
           <button class="btn primary" id="cbSync">Sync attribution for this window</button>
           <span class="tiny" id="cbSyncMsg"></span></div></div></div>`
       : d.ads.length ? `<div class="ad-grid cb-grid">${d.ads.map(card).join('')}</div>` : '<div class="card"><span class="hint">No ads spent in this window.</span></div>'}
-    <p class="tiny" style="margin-top:4px">
-      Showing <b>${d.ads.length}</b> of ${d.matched} ranked ad${d.matched === 1 ? '' : 's'}${d.ads_with_spend ? ` · <b>${d.ads_with_spend}</b> ads spent in this window` : ''} ·
-      <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} ad spend on screen.
-      ${d.ranked_by_sales ? `<b>${d.ranked_by_sales}</b> of them ${d.ranked_by_sales === 1 ? 'is' : 'are'} ranked on sales rather than spend - a new ad proving itself before it has spent the threshold.` : ''}
-      ${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only, since there is nothing to watch on a static.' : ''}
-      <br><b>Link CTR</b> is link clicks ÷ impressions - Meta's link click-through rate. It runs <b>well under 1% on most accounts</b> and is <b>not</b> the "CTR (all)" Ads Manager shows by default, which counts every click including reactions and profile taps and reads roughly twice as high.
-      <b>“no sales”</b> means the ad spent and produced no purchases in this window - a result, not missing data, which is why it is not a dash.
-      <b>Age is how long the AD has existed, not the creative</b>: relaunching the same creative as a new ad restarts it at zero days, so a batch of same-day ads is normal.
-      <br>Hook and hold are judged against <b>Motion's published benchmarks</b> (hook 30%+ strong, under 20% low; hold 60%+ strong, under 40% low), not this account's own history.
-      <br>${d.attr === 'meta'
-        ? '<b>Revenue, purchases, ROAS and CPA are Meta’s own attributed figures</b> and match Ads Manager.'
-        : `<b>Revenue, purchases, ROAS and CPA come from Triple Whale</b> (${esc((CB_ATTR.find(x => x[0] === d.attr) || [, d.attr])[1].replace('Triple Whale · ', ''))}), so they will not match Ads Manager - Triple Whale’s pixel attributes differently and usually credits more.`}
-      <b>Spend, hook, hold, CTR and CPM are always Meta’s</b>, because Triple Whale does not measure delivery.
-</p>`;
+    <p class="cb-count">Showing <b>${d.ads.length}</b> of ${d.matched} ranked ad${d.matched === 1 ? '' : 's'}${d.ads_with_spend ? ` (${d.ads_with_spend} spent in this window)` : ''}:
+      <b>${fmtK(d.shown_spend, cur)}</b> of ${fmtK(d.total_spend, cur)} spend.${CB.sort === 'hook' || CB.sort === 'hold' ? ' Video ads only on this sort.' : ''}</p>
+    ${opts.notes ? '' : notesHtml}`;
+  if (opts.notes) opts.notes.innerHTML = notesHtml;
+  const notesEl = (opts.notes || host).querySelector('.cb-notes');
+  if (notesEl) notesEl.ontoggle = () => { CB.notes = notesEl.open; };
 
   const syncBtn = $('#cbSync');
   if (syncBtn) syncBtn.onclick = async () => {
@@ -3222,10 +3344,46 @@ async function renderCreativeBrowser(host, act, range) {
     });
   });
   // A click anywhere else closes them. Bound on document because the menus are
-  // inside `host`, which this render replaces wholesale on every change.
-  document.addEventListener('click', function shut(ev) {
-    if (!host.isConnected) return document.removeEventListener('click', shut);
-    if (!ev.target.closest('.cb-sel')) host.querySelectorAll('.cb-sel.open').forEach(o => o.classList.remove('open'));
+  // inside `host`, which this render replaces wholesale on every change. Bound
+  // ONCE per host: re-renders keep the same host, and a listener per render
+  // piled up on every sort change.
+  if (!host._cbShut) {
+    host._cbShut = true;
+    document.addEventListener('click', function shut(ev) {
+      if (!host.isConnected) { host._cbShut = false; return document.removeEventListener('click', shut); }
+      if (!ev.target.closest('.cb-sel')) host.querySelectorAll('.cb-sel.open').forEach(o => o.classList.remove('open'));
+      if (!ev.target.closest('.cb-share')) host.querySelectorAll('.cb-share.open').forEach(o => { o.classList.remove('open'); const b = o.querySelector('.cb-share-btn'); if (b) b.setAttribute('aria-expanded', 'false'); });
+    });
+    document.addEventListener('keydown', function escKey(ev) {
+      if (!host.isConnected) return document.removeEventListener('keydown', escKey);
+      if (ev.key === 'Escape') host.querySelectorAll('.cb-sel.open,.cb-share.open').forEach(o => o.classList.remove('open'));
+    });
+  }
+  /* More options: shown and hidden in place, no reload. Remembered for the session. */
+  const moreBtn = $('#cbMoreBtn'), moreBox = $('#cbMore');
+  if (moreBtn && moreBox) moreBtn.onclick = () => {
+    CB.more = moreBox.hidden;
+    moreBox.hidden = !CB.more;
+    moreBtn.setAttribute('aria-expanded', CB.more ? 'true' : 'false');
+  };
+  /* Share: one button, a small menu with the two copy-link actions. */
+  const shareWrap = $('#cbShareWrap'), shareBtn = $('#cbShareBtn');
+  if (shareWrap && shareBtn) {
+    shareBtn.onclick = e => {
+      e.stopPropagation();
+      const open = !shareWrap.classList.contains('open');
+      shareWrap.classList.toggle('open', open);
+      shareBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    shareWrap.querySelectorAll('.cb-share-menu button').forEach(b => b.addEventListener('click', () => {
+      shareWrap.classList.remove('open'); shareBtn.setAttribute('aria-expanded', 'false');
+    }));
+  }
+  /* "An ad is new for" lives with the other options; it only re-reads the
+     launching section below, so the cards do not reload. */
+  host.querySelectorAll('[data-cbfresh]').forEach(c => c.onclick = () => {
+    host.querySelectorAll('[data-cbfresh]').forEach(x => x.classList.toggle('on', x === c));
+    if (opts.fresh) opts.fresh.set(c.dataset.cbfresh);
   });
 
   /* Goal CPA - saved on the BRAND, not in this browser, because it is the line
@@ -3261,19 +3419,19 @@ async function renderCreativeBrowser(host, act, range) {
     minIn.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); minIn.blur(); } };
     minIn.onblur = commit;
   }
-  const why = $('#cbWhy');
-  if (why) why.onclick = () => helpModal('Why isn’t my ad here?', `
+  const whyEls = [...host.querySelectorAll('[data-cbwhy]'), ...(opts.notes ? opts.notes.querySelectorAll('[data-cbwhy]') : [])];
+  whyEls.forEach(why => why.onclick = () => helpModal('Why isn’t my ad here?', `
     <p>Sorting by a <b>ratio</b> - ROAS, CPA, CTR, CPM, hook, hold - only ranks ads there is enough evidence to judge. Two ways to earn that, and an ad needs one of them:</p>
     <p>· <b>It spent ${d.floor > 0 ? fmtMoney(d.floor, cur) : 'anything'}.</b> ${d.floor_basis === 'target_cpa'
       ? `That is ${CB.mult}× the ${fmtMoney(d.target_cpa, cur)} goal CPA - enough budget to have hit target ${CB.mult} times, whether or not it did. This is how a <i>losing</i> ad earns its place on a CPA sort: it had the money and nothing came back.`
       : d.floor_basis === 'actual_cpa'
-      ? `That is ${CB.mult}× this account's actual CPA of ${fmtMoney(d.acct_cpa, cur)}. <b>Set a goal CPA</b> in the bar above and the line moves to what you are aiming for instead of what you happen to be getting - a bar built on actual CPA rises as performance gets worse, which is exactly backwards.`
-      : 'You set that number yourself in the bar above.'}</p>
+      ? `That is ${CB.mult}× this account's actual CPA of ${fmtMoney(d.acct_cpa, cur)}. <b>Set a goal CPA</b> in Settings, Goals and the line moves to what you are aiming for instead of what you happen to be getting - a bar built on actual CPA rises as performance gets worse, which is exactly backwards.`
+      : 'You set that number yourself under More options.'}</p>
     ${d.sales_route === false
       ? `<p>· <b>Sales do not count while you have your own threshold set.</b> A typed figure is a hard floor: an ad under it does not rank, however many sales it made. Pick a multiple under <b>Counts at</b> and the sales route comes back.</p>`
       : `<p>· <b>Or it made ${d.min_purchases ?? 3} sales.</b> Sales are the other kind of evidence, and this is how a brand-new winner appears before it has spent much. Dartee's 357-13 took $79 against a $180 bar and returned 19x off 15 sales - a spend test alone would have hidden it for weeks.</p>`}
     <p>An ad with one lucky sale on $12 satisfies neither, which is the whole point: it would otherwise top every ROAS list.</p>
-    <p><b>To see everything anyway:</b> set <b>Counts at → Any spend</b>, or sort by <b>Spend</b>, <b>Purchases</b> or <b>Newest</b> - those rank every ad that spent, because they are not ratios and cannot be flattered by a tiny denominator.</p>`);
+    <p><b>To see everything anyway:</b> set <b>Counts at → Any spend</b>, or sort by <b>Spend</b>, <b>Purchases</b> or <b>Newest</b> - those rank every ad that spent, because they are not ratios and cannot be flattered by a tiny denominator.</p>`));
 
   /* COPY CLIENT LINK - instant (Cole, 2026-09-16). The snapshot is the numbers:
      up to 40 ads, the current view plus the biggest spenders under the same
@@ -3373,7 +3531,7 @@ async function renderCreativeBrowser(host, act, range) {
   host.querySelectorAll('.cb-card').forEach(el => el.onclick = e => {
     if (e.target.closest('.ad-media[data-ad]') || e.target.closest('.ad-frame')) return;
     const a = d.ads.find(x => x.ad_id === el.dataset.ad);
-    if (a) adDetailModal(a, cur);
+    if (a) adDetailModal(a.video == null ? { ...a, video: !!a.is_video } : a, cur);
   });
 }
 
@@ -3611,7 +3769,7 @@ const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 /** Tab titles, so an error page can still say which tab it is. */
 const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
-  health: 'Data Health', amb: 'Creator link', brand: 'Brand', studio: 'Studio', tests: 'Tests' };
+  health: 'Data Health', amb: 'Creator link', brand: 'Brand', studio: 'Studio', tests: 'Test calls', angles: 'Angles' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
    (2026-10-04). The parent's own id is its first page. Meta is a section too, but
    meta.js fills its own sub-tabs. */
@@ -3625,7 +3783,7 @@ const PARENT_OF = Object.fromEntries(Object.entries(SECTIONS).flatMap(([p, kids]
    "meta:" open that meta.js sub-tab; "tests" is its own renderer (brand.js). Today
    and Averages open from Meta Overview and light Overview while open. */
 PARENT_OF.tests = 'meta';
-const META_RAIL = [['meta:overview', 'Overview'], ['tests', 'Tests'], ['meta:creative', 'Creative'], ['meta:changelog', 'Change Log']];
+const META_RAIL = [['meta:overview', 'Overview'], ['tests', 'Test calls'], ['meta:creative', 'Creative'], ['meta:changelog', 'Change Log']];
 
 /* ---------- The period bar ----------
    EVERY window in this tool ends YESTERDAY. Today is partial on every source -
@@ -3872,7 +4030,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -3953,6 +4111,26 @@ async function renderTests(first) {
     });
   } catch (e) {
     if (run === RUN) $('#main').innerHTML = `<h2>Tests</h2><div class="card"><span style="color:var(--bad)">Couldn't load Tests: ${esc(e.message)}</span></div>`;
+  }
+}
+
+/* ---------- Angles ----------
+   The strategist's screen (2026-10-04): what we tested, what won, concepts and
+   variations under each angle, "Have we tested this?". brand.js mode 'angles'. */
+async function renderAngles(first) {
+  const run = RUN;
+  if (!window.BrandTab) {
+    $('#main').innerHTML = `<h2>Angles</h2><div class="card"><span style="color:var(--bad)">The Angles section didn't load. Hard-refresh the page (Ctrl+Shift+R); if it persists, <code>brand.js</code> failed to fetch.</span></div>`;
+    return;
+  }
+  if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  try {
+    await window.BrandTab.render({
+      tok: S.tok, url: S.url, act: S.act, accounts: S.accounts, mode: 'angles',
+      pick: id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('angles'); },
+    });
+  } catch (e) {
+    if (run === RUN) $('#main').innerHTML = `<h2>Angles</h2><div class="card"><span style="color:var(--bad)">Couldn't load Angles: ${esc(e.message)}</span></div>`;
   }
 }
 
@@ -6310,7 +6488,8 @@ function adDetailModal(a, cur, prevTag) {
   const line = (label, val, note) => val == null ? '' :
     `<tr><td>${label}</td><td class="num"><b>${val}</b></td><td class="tiny">${note || ''}</td></tr>`;
   const pctOr = (v, d = 0) => v == null ? null : fmtPct(v, d);
-  const days = a.created ? Math.round((Date.now() - new Date(a.created + 'T12:00:00Z')) / 86400e3) : null;
+  // The Creative browser sends `age` (days the ad has existed) rather than `created`.
+  const days = a.created ? Math.round((Date.now() - new Date(a.created + 'T12:00:00Z')) / 86400e3) : a.age != null ? a.age : null;
   const canPlay = a.video && a.ad_id;
   const body = `<div class="adm">
     <div>

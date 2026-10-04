@@ -415,6 +415,10 @@ async function tagPass(env, act, { limit = 12, warn = true } = {}) {
       WHERE act_id = ?1 AND angle_id IS NULL AND tagged_at IS NULL ORDER BY CAST(num AS INTEGER) ASC LIMIT ?2`).bind(act, limit).all()).results || [];
   if (!rows.length) return { tagged: 0, left: 0 };
   const angles = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status != 'proposed'`).bind(act).all()).results || [];
+  /* 2026-10-04: the prompt never saw the existing concepts, so almost every test got a
+     concept of its own (239 concepts for 279 Party Patch tests) and nothing grouped. */
+  const concepts = (await env.DB.prepare(`SELECT c.angle_id, c.name, COUNT(b.id) n FROM p_br_concept c LEFT JOIN p_br_batch b ON b.concept_id = c.id
+      WHERE c.act_id = ?1 GROUP BY c.id ORDER BY n DESC LIMIT 250`).bind(act).all().catch(() => ({ results: [] }))).results || [];
   const copy = await adCopyFor(env, act, rows.map(r => String(parseInt(r.num, 10))));
   const briefs = {};
   let briefErr = null;
@@ -441,10 +445,10 @@ Rules:
 - Reuse an existing angle whenever the reason to buy is the same, even in different words: put its id in angle_id and leave new_angle_name empty.
 - Only when no existing angle fits, leave angle_id empty and name a new angle in 2-5 plain words with a one-sentence argument. If several tests below share a new angle, give them the EXACT same new_angle_name.
 - A pure discount or bundle test with no reason to buy beyond the deal: level "offer", and pick the angle only if the ad clearly argues one.
-- concept: a short name for the idea, reused exactly when the same idea comes back.
+- concept: a short name for the idea. When the test is the same idea as an EXISTING CONCEPT under the same angle (a new hook, headline, person, edit or format of it), copy that concept's name EXACTLY. Only name a new concept when the idea itself is new.
 - offer: the deal named in the ad or brief, empty if none. hypothesis: one line, what this test tries to learn.
 Return one entry per test, keyed by its number. ${VOICE}`,
-    user: `EXISTING ANGLES (id | name | argument):\n${angles.map(a => `${a.id} | ${a.name} | ${clip(a.argument, 200)}`).join('\n') || 'none yet'}\n\nTESTS:\n${items}`,
+    user: `EXISTING ANGLES (id | name | argument):\n${angles.map(a => `${a.id} | ${a.name} | ${clip(a.argument, 200)}`).join('\n') || 'none yet'}\n\nEXISTING CONCEPTS (angle id | concept name | tests):\n${concepts.map(c => `${c.angle_id} | ${c.name} | ${c.n}`).join('\n') || 'none yet'}\n\nTESTS:\n${items}`,
     schema: TAG_SCHEMA, effort: 'medium',
   });
   const tags = out?.tags || [];
@@ -979,6 +983,72 @@ async function tidyAngles(env, act) {
   return { merged, before: angles.length, after: angles.length - merged, asana_updated: renamed, log };
 }
 
+/* Group concepts that are the same idea (2026-10-04). Same shape as tidyAngles: one call
+   per brand, merges only inside one angle, the kept concept is the one with most tests.
+   Tests move with their concept; nothing is written to Asana (it has no concept field). */
+const CTIDY_SCHEMA = obj({ groups: { type: 'array', items: obj({ keep_id: S, merge_ids: { type: 'array', items: S }, name: S }) } });
+async function tidyConcepts(env, act) {
+  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const rows = (await env.DB.prepare(`SELECT c.id, c.angle_id, c.name, a.name angle, COUNT(b.id) n, GROUP_CONCAT(b.title, ' / ') titles
+      FROM p_br_concept c JOIN p_br_angle a ON a.id = c.angle_id LEFT JOIN p_br_batch b ON b.concept_id = c.id
+      WHERE c.act_id = ?1 GROUP BY c.id HAVING n > 0 ORDER BY a.name, n DESC`).bind(act).all()).results || [];
+  if (rows.length < 4) return { merged: 0, concepts: rows.length };
+  const { out } = await claudeJson(env, {
+    system: `You tidy ${acct?.name || 'a brand'}'s ad concepts (Mobius framework). ANGLE = the reason to buy. CONCEPT = the idea built to deliver it (a fake 1-star review, a post-it note, a lineup video, a founder story). A VARIATION changes one piece of a concept (hook, headline, person, edit, format, offer) and belongs UNDER that concept. Rules:
+- Group concepts that are the same idea under the same angle, including ones that are only a variation of another (new hooks, a static version, new headlines, a different creator saying it).
+- Never group across angles. Different ideas stay separate even if they share a product.
+- keep_id is the concept with the most tests. Name the kept concept in 2-6 plain words that describe the idea, not the variation.
+- Only return groups that merge 2 or more concepts. ${VOICE}`,
+    user: `CONCEPTS (id | angle | tests | name | test titles):\n${rows.map(c => `${c.id} | ${c.angle} | ${c.n} | ${c.name} | ${clip(c.titles, 160)}`).join('\n')}`,
+    schema: CTIDY_SCHEMA, effort: 'medium', maxTokens: 24000,
+  });
+  const by = Object.fromEntries(rows.map(c => [c.id, c]));
+  const used = new Set();
+  let merged = 0;
+  for (const g of out?.groups || []) {
+    const keep = by[g.keep_id];
+    if (!keep || used.has(keep.id)) continue;
+    const from = (g.merge_ids || []).filter(x => by[x] && x !== keep.id && !used.has(x) && by[x].angle_id === keep.angle_id);
+    if (!from.length) continue;
+    used.add(keep.id); from.forEach(x => used.add(x));
+    const st = [];
+    for (const f of from) {
+      st.push(env.DB.prepare(`UPDATE p_br_batch SET concept_id = ?3 WHERE act_id = ?1 AND concept_id = ?2`).bind(act, f, keep.id));
+      st.push(env.DB.prepare(`DELETE FROM p_br_concept WHERE act_id = ?1 AND id = ?2`).bind(act, f));
+    }
+    if (g.name) st.push(env.DB.prepare(`UPDATE p_br_concept SET name = ?3 WHERE act_id = ?1 AND id = ?2`).bind(act, keep.id, clip(g.name, 200)));
+    await env.DB.batch(st);
+    merged += from.length;
+  }
+  /* Concepts left with no test are noise in the library. */
+  await env.DB.prepare(`DELETE FROM p_br_concept WHERE act_id = ?1 AND id NOT IN (SELECT concept_id FROM p_br_batch WHERE act_id = ?1 AND concept_id IS NOT NULL)`).bind(act).run();
+  return { merged, before: rows.length, after: rows.length - merged };
+}
+
+/* "Have we tested this?" (Angles screen, 2026-10-04). The strategist types an idea in any
+   words; the model checks it against every angle AND every past test, because the same
+   reason to buy often ran under different wording. Numbers are added by the screen. */
+const TESTED_SCHEMA = obj({ verdict: { type: 'string', enum: ['tested', 'close', 'new'] }, angle_id: S, test_nums: { type: 'array', items: S }, reason: S, already_ran: { type: 'array', items: S } });
+async function testedCheck(env, act, idea) {
+  idea = clip(String(idea || '').trim(), 600);
+  if (!idea) throw Object.assign(new Error('Type the idea first.'), { status: 400 });
+  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const angles = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status != 'proposed'`).bind(act).all()).results || [];
+  const tests = (await env.DB.prepare(`SELECT num, title, hypothesis, angle_id FROM p_br_batch WHERE act_id = ?1 AND angle_id IS NOT NULL ORDER BY CAST(num AS INTEGER) DESC LIMIT 400`).bind(act).all()).results || [];
+  const { out } = await claudeJson(env, {
+    system: `You tell ${acct?.name || 'a brand'}'s creative strategist whether an ad idea has already been tested. An ANGLE is the reason to buy; the same reason in different words IS the same angle ("1 star review from his wife" and "wife hates his old polos" are the same: the wife's reaction). Check the idea against the angles and the past tests.
+- verdict "tested": the same reason to buy already ran. angle_id = that angle. test_nums = up to 6 test numbers that are closest to the idea.
+- verdict "close": a related angle exists but this idea gives a genuinely different reason or a clearly new concept. angle_id = the related angle.
+- verdict "new": nothing like it. angle_id empty, test_nums empty.
+- reason: one plain sentence saying why.
+- already_ran: up to 4 short phrasings from past test titles that say the same thing, empty if none. ${VOICE}`,
+    user: `ANGLES (id | name | argument):\n${angles.map(a => `${a.id} | ${a.name} | ${clip(a.argument, 200)}`).join('\n')}\n\nPAST TESTS (number | angle id | title | what it tested):\n${tests.map(t => `${parseInt(t.num, 10)} | ${t.angle_id} | ${clip(t.title, 90)} | ${clip(t.hypothesis, 120)}`).join('\n')}\n\nTHE IDEA: ${idea}`,
+    schema: TESTED_SCHEMA, effort: 'low', maxTokens: 6000,
+  });
+  const ok = new Set(angles.map(a => a.id));
+  return { verdict: out?.verdict || 'new', angle_id: ok.has(out?.angle_id) ? out.angle_id : null, test_nums: (out?.test_nums || []).map(n => String(parseInt(n, 10))).filter(n => n !== 'NaN').slice(0, 6), reason: out?.reason || '', already_ran: (out?.already_ran || []).slice(0, 4) };
+}
+
 /* ---------------- the hourly tick ---------------- */
 export async function brandAsanaTick(env, canAfford = () => true) {
   if (!env.ASANA_TOKEN) return { skipped: 'no ASANA_TOKEN' };
@@ -1273,6 +1343,8 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     if (path === '/api/brand-asana/job') return json({ ok: true, job: await asana(env, `/jobs/${String(b.gid || '').replace(/\D/g, '')}`) });
     if (!b.act) return json({ error: 'act is required' }, 400);
     if (path === '/api/brand-asana/mins') return json({ ok: true, ...(await testMinimums(env, b.act)) });
+    if (path === '/api/brand-asana/tested') return json({ ok: true, ...(await testedCheck(env, b.act, b.idea)) });
+    if (path === '/api/brand-asana/tidy-concepts') return json({ ok: true, ...(await tidyConcepts(env, b.act)) });
     /* Preview by default; { post: true } sends it to the brand's internal channel now. */
     if (path === '/api/brand-asana/monday') return json({ ok: true, ...(b.post ? await postMonday(env, b.act) : await mondayCalls(env, b.act)) });
     if (path === '/api/brand-asana/connect') {

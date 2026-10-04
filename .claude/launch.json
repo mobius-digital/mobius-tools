@@ -126,6 +126,20 @@
         "profit/worker/wrangler.toml"
       ],
       "port": 8783
+    },
+    {
+      "name": "ah-worker-remote-8797",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--remote",
+        "--port",
+        "8797",
+        "--config",
+        "account-health/worker/wrangler.toml"
+      ],
+      "port": 8797
     }
   ]
 }

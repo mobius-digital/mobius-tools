@@ -1276,3 +1276,16 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   matches Ads Manager" rule at the top of this file is RETIRED for attribution. The Creative
   browser's "Meta's own attribution" option and "Use Meta's figures instead" button are gone.
   A day TW has not synced yet makes totals null but CPA/ROAS are taken over the synced days.
+- **Later still 2026-10-04: TWO JOBS, TWO SCREENS (Cole approved the mock
+  https://claude.ai/artifact/LAF9qCPR4zkfFQJWgg8pLK).** Media buyer = **Meta → Test calls**
+  (brand.js mode 'tests'): only Make a call + Running, no search, no learned list. Strategist =
+  **Making ads → Angles** (mode 'angles', `renderAngles`): "Have we tested this?" (account-health
+  `POST /api/brand-asana/tested` {idea}: model checks the idea against every angle AND past test
+  titles, returns verdict tested/close/new + angle + test numbers + phrasings that already ran),
+  then the angle scoreboard (tests, won of judged, best CPA, last tested, a "what to do" label:
+  Proven / Mixed / Not judged / Dead / Untested idea / Retired), then an angle's page = concepts,
+  each with its tests in order (First version, Variation: hook...). "Won" = the buyer's verdict,
+  else Locus's read of a FINISHED test (`outcomeOf`), dashed pill. Proven = won >= 20% of judged.
+- **Concepts were 1:1 with tests** because the tag prompt never listed existing concepts. It now
+  does (EXISTING CONCEPTS block in tagPass), and `POST /api/brand-asana/tidy-concepts` groups
+  same-idea concepts inside one angle (link on the Angles page).

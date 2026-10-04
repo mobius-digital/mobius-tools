@@ -124,13 +124,12 @@ const META_HELP = {
     <p><b>✦ Summarise:</b> Claude writes the daily standup, weekly recap, or a client-safe update from the tagged changes + performance. The more whys you tag, the smarter it reads.</p>
     <p><b>Forensics:</b> CPA spiked Tuesday? Set the dates to Tuesday and see exactly what changed.</p>`,
   creative: `
-    <p><b>The problem this page catches:</b> ads wear out. The same people see them over and over, performance slowly fades, and CPA creeps up. Teams usually notice <i>after</i> the spike. This page shows whether we're feeding the account new ads <i>before</i> that happens.</p>
-    <p><b>The four cards, in order:</b> ① how much of the budget went to new ads (the number to protect - if it keeps falling, we're coasting) · ② the average age of the ads the money ran on (creeping up = same warning) · ③ <b>Fresh CPA</b> - CPA from new ads · ④ <b>Stale CPA</b> - CPA from older ads.</p>
-    <p><b>Fresh vs stale CPA:</b> don't panic if fresh looks pricier - new ads need a few days for Meta to optimize. What matters is the pattern over weeks, which is what the highlighted sentence and the bottom chart show: when we launch more, does CPA hold or improve? If yes, there's no excuse to slow the launch cadence.</p>
-    <p><b>The ad table:</b> every ad that spent in the window, biggest spender first, with a <b>scale</b> / <b>cut or fix</b> read based on how its CPA compares to this account's own average. It's the "what do I actually do today" list - but give brand-new ads a few days before judging them.</p>
-    <p><b>The bars:</b> one bar per week, dark green = brand-new ads' share of that week's spend. Watch whether the dark green is growing or dying.</p>
-    <p><b>What's a good new-ad share?</b> Rough zones: with "new = ≤7 days" aim for ~10–20%; ≤14 days ~15–30%; ≤30 days ~25–45%. Below the zone = coasting (fatigue builds, CPA pays later). Way above it every week = churning - winners never mature, or nothing is sticking. Two overrides: scaling accounts should sit at the top of the zone or higher, and if Fresh CPA keeps beating Stale CPA, push above the band without guilt.</p>
-    <p><b>When to look:</b> Monday creative meeting, once a week. This is a weeks-scale question - daily checking tells you nothing new.</p>`,
+    <p><b>The cards:</b> your top ads for the dates at the top of the page. Each card shows the creative, a verdict and four numbers: <b>Spend</b>, <b>CPA</b>, <b>ROAS</b>, and <b>Hook</b> for videos (share of impressions that watched 3 seconds) or <b>Link CTR</b> for statics. Press <b>▶</b> to play a video in place; press anywhere else on the card for <b>Details</b>: the ad copy, purchases, hold rate, CTR, CPM and how many days it has run.</p>
+    <p><b>The verdict</b> is judged against the brand's goal CPA (Settings, Goals). <b>Scale</b>: CPA at or under goal with 2 or more sales. <b>Cut</b>: CPA more than the brand's yellow zone (30% unless changed) over goal, or no sales after spending 1.5x the goal. <b>Watch</b>: everything in between. No goal set, no verdict.</p>
+    <p><b>The controls:</b> <b>Sort by</b> picks the order, <b>Show</b> picks videos, statics or carousels. <b>More options</b> holds the rest: how many cards, which Triple Whale attribution model, how much an ad must spend before a ROAS or CPA sort ranks it, what counts as a new ad, and locking a shared view. <b>Share</b> copies either the client's always-current "Your ads" page or a frozen link to exactly these cards.</p>
+    <p><b>Are we launching enough?</b> Ads wear out: the same people see them again and again and CPA creeps up. The three tiles show the share of spend on new ads (the number to protect), the average age of the ads behind the spend, and CPA on new ads against older ones. New ads often look pricier for a few days while Meta settles them. Open <b>See it week by week</b> for the weekly charts and every ad that spent.</p>
+    <p><b>A good new-ad share:</b> roughly 10 to 20% when new means 7 days, 15 to 30% for 14 days, 25 to 45% for 30 days. Below that the account is coasting; far above it every week, winners never get to mature.</p>
+    <p><b>Where the numbers come from:</b> purchases, revenue, ROAS and CPA are Triple Whale. Spend and delivery (hook, hold, CTR, CPM) are Meta. The full rules are under <b>How these numbers work</b> at the bottom of the page.</p>`,
 };
 
 /* ---------- Change Log (Chat 1) ---------- */
@@ -785,60 +784,103 @@ function crAds(d) {
     <td class="num"><b>${fmtMoney(x.cpa, cur)}</b>${x.cpa != null && a.acct_cpa ? delta(x.cpa, a.acct_cpa, true) : ''}</td>
     <td class="num">${fmtX(x.roas)}</td>
     <td>${x.verdict === 'scale' ? '<span class="vd scale">scale</span>' : x.verdict === 'cut' ? '<span class="vd cut">cut / fix</span>' : '<span class="tiny">holding</span>'}</td></tr>`).join('');
-  return `<div class="card"><h3 style="margin-bottom:2px">Which ads are carrying the spend - and earning it?</h3>
-    <p class="hint" style="margin-bottom:10px">Every ad that spent in the last ${a.window} days, biggest first. <b>Scale</b> = CPA at least 20% better than this account's ${fmtMoney(a.acct_cpa, cur)} average; <b>cut / fix</b> = 40%+ worse, or spending with no purchases at all. Judged against the account's own average, never an outside benchmark - and give new ads a few days before acting.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Purchases</th><th class="num">CPA <span class="tiny">vs acct</span></th><th class="num">ROAS</th><th>Read</th></tr></thead><tbody>${rows}</tbody></table></div>
+  return `<div class="card"><h3 style="margin-bottom:2px">Every ad that spent, against the account average</h3>
+    <p class="hint" style="margin-bottom:10px">The last ${a.window} days, biggest spender first. This table compares each ad with this account's own ${fmtMoney(a.acct_cpa, cur)} average CPA, not the goal: <b>scale</b> is 20%+ cheaper than average, <b>cut / fix</b> is 40%+ dearer or no purchases. The cards above judge against the goal CPA.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">Spend</th><th class="num">Purchases</th><th class="num">CPA <span class="tiny">vs acct</span></th><th class="num">ROAS</th><th>vs average</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="tiny" style="margin-top:8px">${a.ads.length > 15 ? `Showing the top 15 of ${a.ads.length} spending ads. ` : ''}${scale} to scale · ${cut} to cut or fix. Purchases, ROAS and CPA are Triple Whale attribution (last platform click).${a.attr_gap ? ' Triple Whale has not synced every day of this window yet, so they show " - ".' : ''}</p></div>`;
 }
 
 async function renderCreative() {
   const active = S.accounts.filter(a => a.active);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
-  $('#main').innerHTML = `${mcrumb('Creative')}<h2>Creative</h2>
-    <p class="sub"><b>Which ads are working, and are we feeding this account new ones?</b> The cards answer the first question - sort them however you are thinking. The freshness analysis below answers the second: old ads wear out and CPA creeps up, and this shows the coasting before the spike.</p>
+  /* 2026-10-04 redesign (Cole: "what am I looking at"). Top to bottom: one
+     question, the ad cards (index.html renderCreativeBrowser), "Are we
+     launching enough?" (3 tiles + one sentence, charts folded away), and the
+     rules in one closed "How these numbers work" at the very bottom. */
+  $('#main').innerHTML = `${mcrumb('Creative')}
+    <div class="cr-head"><div><h2>Which ads are working?</h2>
+      <p class="sub">The top ads for ${esc(periodLabel())}, each marked Scale, Watch or Cut against the brand’s goal CPA.</p></div>
+      <div class="row" style="margin:0"><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="creative">? How to use</button></div></div>
     ${setupBanner()}
-    <div id="crTop"></div>
-    <div class="row" style="margin:6px 0 12px">
-      <span class="tiny" style="font-weight:700" title="An ad younger than this counts as new. This is a DEFINITION, not a date range - the date range comes from the period control at the top.">An ad is “new” for its first:</span>
-      ${['7', '14', '30'].map(v => `<button class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">${v} days</button>`).join('')}
-      <span class="tiny" style="margin-left:12px">Measured over <b>${esc(periodLabel())}</b> - change it at the top.</span>
-      <span style="flex:1"></span>
-      <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="creative">? How to use</button>
-    </div>
-    ${single ? '<div id="cbHost"></div>' : '<div class="notice">ℹ️ <div>Pick a client in the top-right to browse its ads. The freshness comparison below works across all of them.</div></div>'}
-    <div id="crBody"><div class="card"><span class="hint">Loading…</span></div></div>`;
-  document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
-    if (c.dataset.f) { CR.fresh = c.dataset.f; localStorage.setItem('ah_cr_fresh', CR.fresh); }
-    renderCreative();
+    ${single ? '<div id="cbHost"></div>' : '<div class="notice">ℹ️ <div>Pick a client in the top-right to see its ads. “Are we launching enough?” below covers every client.</div></div>'}
+    <section class="card cr-launch"><h3>Are we launching enough?</h3>
+      ${single ? '' : `<div class="cr-pick"><span class="tiny" style="font-weight:700">An ad is new for its first</span>${['7', '14', '30'].map(v => `<button type="button" class="chip ${CR.fresh === v ? 'on' : ''}" data-f="${v}">${v} days</button>`).join('')}</div>`}
+      <div id="crBody"><span class="hint">Loading…</span></div></section>
+    <div id="cbNotes"></div>`;
+  const setFresh = v => { CR.fresh = String(v); try { localStorage.setItem('ah_cr_fresh', CR.fresh); } catch { /* private mode */ } loadLaunch(); };
+  document.querySelectorAll('#main .cr-pick .chip').forEach(c => c.onclick = () => {
+    document.querySelectorAll('#main .cr-pick .chip').forEach(x => x.classList.toggle('on', x === c));
+    setFresh(c.dataset.f);
   });
   /* The live card browser, for one client at a time - "top ads by X" is not a
      question you ask of six brands at once. Rendered before the freshness
      analysis is fetched so it appears immediately. */
   if (single && window.renderCreativeBrowser && window.resolveRange) {
-    renderCreativeBrowser($('#cbHost'), single.act_id, resolveRange());
+    renderCreativeBrowser($('#cbHost'), single.act_id, resolveRange(),
+      { fresh: { get: () => CR.fresh, set: setFresh }, notes: $('#cbNotes') });
   }
   const targets = single ? [single] : active;
   if (!targets.length) { $('#crBody').innerHTML = ''; return; }
-  try {
-    const rg = window.resolveRange ? resolveRange() : null;
-    const winQ = rg ? `&from=${rg.from}&to=${rg.to}` : `&window=${CR.win}`;
-    const res = await Promise.all(targets.map(a => api(`/api/creative?act=${a.act_id}&fresh=${CR.fresh}${winQ}`)));
-    $('#crBody').innerHTML = res.map((d, i) => {
-      const head = single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`;
-      const bf = d.backfill;
-      const bfBanner = bf ? `<div class="notice warn">⏳ <div><b>Loading ad history for ${esc(targets[i].name)} - ${bf.error ? 'hit an error' : `${bf.daysDone ?? 0} of ${bf.daysTotal ?? 90} days in`}.</b> ${bf.error ? `<code>${esc(bf.error)}</code>` : 'Each refresh (and every nightly sync) pulls more; numbers firm up as it completes.'}</div></div>` : '';
-      if (d.empty) return `${head}${bfBanner || `<div class="card"><span class="hint">No ad-level data yet - hit ↻ Sync now.</span></div>`}`;
-      return `${head}${bfBanner}${single ? '' : crState(d)}
-        ${single ? crAds(d) : ''}
-        ${single ? `<div class="card"><h3 style="margin-bottom:2px">Where each week's budget went, by ad age</h3><p class="hint" style="margin-bottom:6px">Each bar is one week of spend, split by how old the ads were. <b>Dark green at the bottom = brand-new ads.</b> If the dark green keeps shrinking week after week, the account is coasting on old creative. Hover or tap a week for its numbers.</p>
+  /* Re-run on its own when the "new for" choice changes, so the cards above
+     never reload and the page never jumps. */
+  let run = 0;
+  async function loadLaunch() {
+    const mine = ++run, body = $('#crBody');
+    if (!body) return;
+    body.style.opacity = body.querySelector('.cr-tiles') ? '.55' : '';
+    try {
+      const rg = window.resolveRange ? resolveRange() : null;
+      const winQ = rg ? `&from=${rg.from}&to=${rg.to}` : `&window=${CR.win}`;
+      const res = await Promise.all(targets.map(a => api(`/api/creative?act=${a.act_id}&fresh=${CR.fresh}${winQ}`)));
+      if (mine !== run || !body.isConnected) return;
+      body.style.opacity = '';
+      body.innerHTML = res.map((d, i) => {
+        const head = single ? '' : `<div class="av-client">${esc(targets[i].name)}</div>`;
+        const bf = d.backfill;
+        const bfBanner = bf ? `<div class="notice warn">⏳ <div><b>Loading ad history for ${esc(targets[i].name)}: ${bf.error ? 'hit an error' : `${bf.daysDone ?? 0} of ${bf.daysTotal ?? 90} days in`}.</b> ${bf.error ? `<code>${esc(bf.error)}</code>` : 'Each refresh (and every nightly sync) pulls more; numbers firm up as it completes.'}</div></div>` : '';
+        if (d.empty) return `${head}${bfBanner || `<span class="hint">No ad-level data yet. Hit ↻ Sync now.</span>`}`;
+        return `${head}${bfBanner}${crLaunch(d)}
+          ${single ? `<details class="cr-weeks"${CR.weeks ? ' open' : ''}><summary>See it week by week, and every ad that spent</summary>
+          <div class="card"><h3 style="margin-bottom:2px">Where each week's budget went, by ad age</h3><p class="hint" style="margin-bottom:6px">Each bar is one week of spend, split by how old the ads were. <b>Dark green at the bottom is brand-new ads.</b> If it keeps shrinking week after week, the account is coasting on old creative. Hover or tap a week for its numbers.</p>
           <div class="tiny" id="crBarsRo" style="min-height:18px;font-weight:600"></div>${crBars(d.weekly)}
           <p class="tiny" style="margin-top:6px">${CR_LABELS.map((l, ci) => `<span style="color:${CR_COLORS[ci]}">■</span> ${l}`).join(' &nbsp; ')}</p></div>
-        <div class="card"><h3 style="margin-bottom:2px">Does launching more new ads change what a purchase costs?</h3><p class="hint" style="margin-bottom:6px"><span style="color:#1C7A46;font-weight:700">Green line</span> = cost per purchase that week. <span style="color:#C9962B;font-weight:700">Amber line</span> = share of budget on new ads that week. The thing to look for: when amber goes up, does green come down? Hover or tap for exact weeks.</p>
-          <div class="tiny" id="crDualRo" style="min-height:18px;font-weight:600"></div>${crDual(d.weekly, d.account.currency)}</div>` : ''}`;
-    }).join('');
-    const top = $('#crTop'); if (top) top.innerHTML = single && res[0] && !res[0].empty ? crState(res[0]) : '';
-    if (single && res[0] && !res[0].empty) wireCreativeCharts(res[0]);
-  } catch (e) { $('#crBody').innerHTML = `<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`; }
+          <div class="card"><h3 style="margin-bottom:2px">Does launching more new ads change what a purchase costs?</h3><p class="hint" style="margin-bottom:6px"><span style="color:#1C7A46;font-weight:700">Green line</span>: cost per purchase that week. <span style="color:#C9962B;font-weight:700">Amber line</span>: share of budget on new ads that week. When amber goes up, does green come down? Hover or tap for exact weeks.</p>
+          <div class="tiny" id="crDualRo" style="min-height:18px;font-weight:600"></div>${crDual(d.weekly, d.account.currency)}</div>
+          ${crAds(d)}</details>` : ''}`;
+      }).join('');
+      const wk = body.querySelector('.cr-weeks');
+      if (wk) wk.ontoggle = () => { CR.weeks = wk.open; };
+      if (single && res[0] && !res[0].empty) wireCreativeCharts(res[0]);
+    } catch (e) { if (mine === run) { body.style.opacity = ''; body.innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; } }
+  }
+  loadLaunch();
+}
+
+/** "Are we launching enough?" in three plain tiles and one sentence: the share
+ *  of spend on new ads, how old the ads behind the spend are, and what a sale
+ *  costs on new ads against older ones. Replaces the wide freshness panel. */
+function crLaunch(d) {
+  const c = d.cards, cur = d.account.currency, ins = d.insight, share = c.freshShare;
+  const dpp = share != null && c.freshSharePrev != null ? (share - c.freshSharePrev) * 100 : null;
+  // Red below the low end of the healthy zone for this "new" definition (see the help).
+  const lo = ({ 7: 0.10, 14: 0.15, 30: 0.25 })[+d.fresh] ?? 0.15;
+  const tone = share == null ? '' : share < lo ? 'bad' : 'good';
+  const read = ins
+    ? (ins.topCpa <= ins.botCpa * 0.95 ? `Launching more has been working here: weeks heavy on new ads averaged ${fmtMoney(ins.topCpa, cur)} per sale, against ${fmtMoney(ins.botCpa, cur)} in quiet weeks.`
+      : ins.topCpa >= ins.botCpa * 1.05 ? `Heavy launch weeks ran a little pricier here (${fmtMoney(ins.topCpa, cur)} per sale against ${fmtMoney(ins.botCpa, cur)}), which is normal while new ads settle, so judge them in their second week.`
+      : `Launching more has not cost this account anything: about ${fmtMoney(ins.topCpa, cur)} per sale in heavy launch weeks and ${fmtMoney(ins.botCpa, cur)} in quiet ones.`)
+    : share == null ? 'No ad-level data in this window yet.'
+    : share < lo ? 'This account is leaning on older ads, which wear out and push CPA up, so it needs new ones.'
+    : 'This account is being fed new ads.';
+  const tile = (label, value, note, cls = '') => `<div class="cr-tile"><span>${label}</span><b class="${cls}" style="${cls ? `color:var(--${cls})` : ''}">${value}</b><small>${note}</small></div>`;
+  return `<div class="cr-tiles">
+      ${tile('Spend on new ads', share == null ? ' - ' : (share * 100).toFixed(0) + '%',
+        `ads under ${d.fresh} days old${dpp == null ? '' : `, ${dpp >= 0 ? 'up' : 'down'} ${Math.abs(dpp).toFixed(1)} pts on the period before`}`, tone)}
+      ${tile('Average ad age', c.swAge == null ? ' - ' : Math.round(c.swAge) + ' days', 'of the ads the money ran on')}
+      ${tile('CPA, new vs older ads', `${fmtMoney(c.freshCpa, cur)} <small style="display:inline;font-size:13px">vs</small> ${fmtMoney(c.staleCpa, cur)}`,
+        c.freshCpa == null && c.attr_gap ? 'Triple Whale has not synced all of this period' : `new is under ${d.fresh} days old`)}
+    </div>
+    <p class="hint" style="margin:0">${read}</p>`;
 }
 
 /** Crosshair readouts for the Creative Rotation charts - hover and tap both work. */
@@ -994,7 +1036,7 @@ function periodLabel() {
 }
 
 const HELP_TITLES = { overview: 'Meta at a glance', today: 'Today', changelog: 'The Change Log',
-  averages: 'Averages', creative: 'Creative Rotation' };
+  averages: 'Averages', creative: 'Creative' };
 /* Same short-first shape as the host page's help - see PAGE_BRIEF there for
    why. The host owns `helpModalFor`; this file only supplies the briefs. */
 const META_BRIEF = {
@@ -1019,9 +1061,9 @@ const META_BRIEF = {
     todo: 'Ignore moves under ~5%. Trust the 7-vs-30 read; the last 3 days are still settling.',
   },
   creative: {
-    answers: 'Whether you are feeding the account new ads or coasting on old ones.',
-    when: 'Weekly, with your creative strategist.',
-    todo: 'Check the share of spend going to new ads. Falling week after week means fatigue is building.',
+    answers: 'Which ads to scale, watch or cut, and whether we are launching enough new ones.',
+    when: 'Weekly, with your creative strategist, or before you touch budgets.',
+    todo: 'Read the chip on each card. Scale the green ones, cut the red ones, and keep the share of spend on new ads from falling.',
   },
 };
 
