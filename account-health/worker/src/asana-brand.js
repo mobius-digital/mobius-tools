@@ -676,9 +676,12 @@ export async function mondayCalls(env, act) {
   try {
     const u = await (await F(`https://graph.facebook.com/v23.0/${act}?fields=user_tasks&access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
     canEdit = (u.user_tasks || []).some(t => t === 'MANAGE' || t === 'ADVERTISE');
+    /* The role is not enough: the token itself must carry ads_management. */
+    const perms = await (await F(`https://graph.facebook.com/v23.0/me/permissions?access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
+    if (Array.isArray(perms.data)) canEdit = canEdit && perms.data.some(x => x.permission === 'ads_management' && x.status === 'granted');
   } catch {}
   const todo = plan.pause.length + plan.pauseAds.length + plan.clear.length;
-  if (todo && !canEdit) L.push('_Locus can only read this ad account, so the changes are yours to make. To get a Do it button, give the Mobius system user "Manage campaigns" on this ad account in Meta Business Settings._');
+  if (todo && !canEdit) L.push('_Locus can only read this ad account, so the changes are yours to make. For a Do it button the Mobius Tools system user needs "Manage campaigns" on it, with a token that includes ads_management._');
   return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post, plan, canEdit, todo };
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
