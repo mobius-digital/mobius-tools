@@ -342,7 +342,7 @@ const resChip = b => b.verdict && RES[b.verdict] ? `<span class="br-tag ${RES[b.
 const tone = (r, rules) => r == null ? 'var(--muted)' : r >= rules.win_roas ? 'var(--good)' : r < rules.lose_roas ? 'var(--bad)' : 'var(--warn)';
 const shortNum = n => String(parseInt(n, 10) || n);
 const pctf = x => x == null ? '-' : (x * 100).toFixed(1) + '%';
-const cpaTone = (cpa, rules) => cpa == null || !rules.target_cpa ? 'var(--ink)' : cpa <= rules.target_cpa ? 'var(--good)' : cpa <= rules.target_cpa * (1 + (rules.yellow_pct || 30) / 100) ? 'var(--warn)' : 'var(--bad)';
+const cpaTone = (cpa, rules) => cpa == null || !rules.target_cpa ? 'var(--ink)' : cpa <= rules.target_cpa ? 'var(--good)' : cpa <= (rules.acct_avg || rules.target_cpa * (1 + (rules.yellow_pct || 30) / 100)) ? 'var(--warn)' : 'var(--bad)';
 
 /* Monday view (2026-10-04): where each live test is in its 7 days, and whether its
    ad set still carries a minimum spend. Days count from the first day it spent,
@@ -1241,7 +1241,8 @@ function paintProfile(body) {
         <dl class="br-kv">
           <dt>Goal cost per sale</dt><dd>${r.target_cpa ? money(r.target_cpa) : '<b>not set</b>'}</dd>
           <dt>Judge after</dt><dd>${money(r.judge_spend)} spent, or ${r.judge_days} days</dd>
-          <dt>Yellow zone</dt><dd>up to ${r.yellow_pct}% over goal${r.target_cpa ? ` (${money(r.target_cpa * (1 + r.yellow_pct / 100))})` : ''}</dd>
+          <dt>Winner</dt><dd>${r.target_cpa ? money(r.target_cpa) : '-'} or less per sale, 2+ sales</dd>
+          <dt>Keep</dt><dd>up to the account average${r.acct_avg ? ` (${money(r.acct_avg)}, ${esc(r.acct_avg_month || '')})` : ' (set on the 1st)'}, 2+ sales</dd>
           <dt>Test minimums</dt><dd>${r.min_track ? `${money(r.min_spend)}/day for ${r.min_days} days, all together max ${r.min_cap_pct}% of budget` : 'not tracked'}</dd>
         </dl></div>
     </div>

@@ -87,6 +87,8 @@ export function rulesFor(acct, doc) {
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
   for (const k of Object.keys(TEST_KEYS)) if (doc && +doc[k] > 0) r[k] = +doc[k];
   r.min_track = !!(doc && +doc.min_track > 0);
+  r.acct_avg = doc && +doc.acct_avg_cpa > 0 ? +doc.acct_avg_cpa : null;   // set monthly by account-health refreshAccountAvg
+  r.acct_avg_month = doc?.acct_avg_month || null;
   r.monday_post = !!(doc && +doc.monday_post > 0);
   r.judge_spend_auto = !(doc && +doc.judge_spend > 0);
   if (r.judge_spend_auto) r.judge_spend = r.target_cpa ? Math.round(r.target_cpa * 3) : DEFAULT_RULES.judge_spend;
@@ -100,8 +102,9 @@ function suggest(st, rules) {
   if (!enough) return 'too_early';
   if (rules.target_cpa) {
     const cpa = st.orders > 0 ? st.spend / st.orders : null;
-    if (cpa != null && cpa <= rules.target_cpa) return 'winner';
-    if (cpa != null && cpa <= rules.target_cpa * (1 + rules.yellow_pct / 100)) return 'keep';
+    const two = (st.orders || 0) >= 2;   // one sale is noise
+    if (two && cpa != null && cpa <= rules.target_cpa) return 'winner';
+    if (two && cpa != null && cpa <= (rules.acct_avg || rules.target_cpa * (1 + rules.yellow_pct / 100))) return 'keep';
     return 'loser';
   }
   const roas = st.spend > 0 ? st.rev / st.spend : 0;

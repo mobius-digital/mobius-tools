@@ -561,6 +561,11 @@ function rulesOf(acct, doc) {
   else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
   for (const k of ['judge_spend', 'judge_days', 'yellow_pct', 'min_spend', 'min_days', 'min_cap_pct', 'min_track', 'monday_post']) if (doc && +doc[k] > 0) r[k] = +doc[k];
+  /* TWO LINES (Cole, 2026-10-04): Winner <= goal, Keep <= the account's own average.
+     The average is trailing-30-day Meta spend / Triple Whale orders, refreshed on the
+     1st of each month by refreshAccountAvg, so the keep line tightens as the account improves. */
+  r.acct_avg = doc && +doc.acct_avg_cpa > 0 ? +doc.acct_avg_cpa : null;
+  r.acct_avg_month = doc?.acct_avg_month || null;
   if (!(doc && +doc.judge_spend > 0) && r.target_cpa) r.judge_spend = Math.round(r.target_cpa * 3);
   return r;
 }
@@ -632,7 +637,7 @@ export async function mondayCalls(env, act) {
   let meta = { adsets: [], campaigns: [] };
   try { meta = await testMinimums(env, act); } catch (e) { meta.error = e.message; }
   const td = today();
-  const groups = { loser: [], winner: [], keep: [], early: [] };
+  const groups = { loser: [], winner: [], avg: [], keep: [], early: [] };
   const open = new Set(), openAds = new Set();
   const plan = { pause: [], pauseAds: [], clear: [] };
   let old = 0;
@@ -652,7 +657,7 @@ export async function mondayCalls(env, act) {
     /* Past its days and still too little spend to judge: Meta would not spend on it.
        Theriot's rule: after 7 days without spending, it's dead. */
     const starved = !j && day && day > rules.judge_days;
-    const call = j ? j.call : starved ? 'loser' : 'early';
+    const call = j ? (j.call === 'keep' && j.reason === 'avg' ? 'avg' : j.call) : starved ? 'loser' : 'early';
     const minOff = min > 0 && call !== 'loser' && (call !== 'early' || (day && day > rules.min_days));   // a paused test needs no minimum change
     const name = sets[0]?.name || `${n} | ${r.title}`;
     const nums = `${money(st.spend)} spent, ${st.orders || 0} sale${st.orders === 1 ? '' : 's'}${st.orders ? ` (${money(st.spend / st.orders)} each)` : ''}`;
@@ -664,10 +669,12 @@ export async function mondayCalls(env, act) {
     else if (minOff) plan.clear.push(...sets.filter(a => a.min > 0).map(a => a.id));
   }
   const L = [];
-  const head = `*${acct.name} · this week's test calls* (goal ${money(rules.target_cpa)} per sale)`;
+  const keepLine = rules.acct_avg ? `${money(rules.acct_avg)} account average${rules.acct_avg_month ? ` (${rules.acct_avg_month})` : ''}` : `${money(rules.target_cpa * (1 + rules.yellow_pct / 100))}`;
+  const head = `*${acct.name} · this week's test calls*\nWinner: ${money(rules.target_cpa)} or less per sale · Keep: up to ${keepLine} · both need 2+ sales`;
   if (groups.loser.length) L.push(':red_circle: *Pause*', ...groups.loser);
-  if (groups.winner.length) L.push(':large_green_circle: *Keep*', ...groups.winner);
-  if (groups.keep.length) L.push(':large_yellow_circle: *Give it another week*', ...groups.keep);
+  if (groups.winner.length) L.push(':trophy: *Winner: keep it and make variations*', ...groups.winner);
+  if (groups.avg.length) L.push(':large_green_circle: *Keep*', ...groups.avg);
+  if (groups.keep.length) L.push(':large_yellow_circle: *Another week* (strong clicks and add to carts)', ...groups.keep);
   if (groups.early.length) L.push(':white_circle: *Not ready yet*', ...groups.early);
   if (!L.length) L.push('No tests from the last 3 weeks are running.');
   if (old) L.push(`_${old} older test${old === 1 ? ' is' : 's are'} still open in Asana. Mark ${old === 1 ? 'it' : 'them'} done there to tidy up; this list leaves ${old === 1 ? 'it' : 'them'} alone._`);
@@ -750,6 +757,32 @@ export async function postMonday(env, act) {
     body: JSON.stringify({ channel: m.channel, text: m.text, blocks, unfurl_links: false, unfurl_media: false }) })).json();
   return { ...m, posted: !!r.ok, error: r.ok ? undefined : r.error };
 }
+/** The account's own cost per sale: last 30 days of Meta spend / Triple Whale
+ *  orders (last platform click). Stored in the brand's rules doc once a month. */
+export async function accountAvg(env, act) {
+  const since = addDays(today(), -30);
+  const s = await env.DB.prepare(`SELECT SUM(spend) spend FROM ad_daily WHERE act_id = ?1 AND date >= ?2`).bind(act, since).first();
+  const o = await env.DB.prepare(`SELECT SUM(orders) orders FROM tw_ad_attr WHERE act_id = ?1 AND model = 'lastPlatformClick' AND date >= ?2`).bind(act, since).first();
+  return s?.spend > 0 && o?.orders > 0 ? Math.round((s.spend / o.orders) * 100) / 100 : null;
+}
+/** Hourly: on the 1st of the month (or when a brand has none yet), set each brand's account average. */
+export async function refreshAccountAvg(env, { force = false } = {}) {
+  const p = centralParts();
+  const month = `${p.year}-${p.month}`;
+  const rows = (await env.DB.prepare(`SELECT a.act_id, d.data_json FROM accounts a LEFT JOIN p_br_doc d ON d.act_id = a.act_id AND d.line_id = '' AND d.key = 'rules'
+      WHERE a.active = 1 AND a.target_cpa > 0`).all().catch(() => ({ results: [] }))).results || [];
+  const out = {};
+  for (const r of rows) {
+    const doc = safeJson(r.data_json, {});
+    if (!force && doc.acct_avg_month === month) continue;
+    const avg = await accountAvg(env, r.act_id);
+    if (!avg) continue;
+    await putDoc(env, r.act_id, 'rules', { ...doc, acct_avg_cpa: avg, acct_avg_month: month });
+    out[r.act_id] = avg;
+  }
+  return out;
+}
+
 /** Hourly: Mondays at 8am Central, once per brand per week. */
 export async function mondayTick(env) {
   const p = centralParts();
@@ -787,9 +820,11 @@ function judge(st, r, sc) {
   const strong = [sc.r_ctr, sc.r_hook, sc.r_cpatc].filter(x => x === 'top').length;
   if (r.target_cpa) {
     const T = r.target_cpa;
-    if (sc.cpa != null && sc.cpa <= T) return { call: 'winner', read: `CPA ${money(sc.cpa)} is at or under the ${money(T)} target.` };
+    const two = (st.orders || 0) >= 2;
+    const K = r.acct_avg || T * (1 + r.yellow_pct / 100);                // keep line; old yellow zone only until the first average exists
+    if (two && sc.cpa != null && sc.cpa <= T) return { call: 'winner', read: `CPA ${money(sc.cpa)} on ${st.orders} sales is at or under the ${money(T)} goal. Make variations of it.` };
     if (strong >= 2 && (sc.cpa == null || sc.cpa <= T * 2)) return { call: 'keep', reason: 'tof', read: `CPA is ${sc.cpa ? money(sc.cpa) : 'not there yet'} against a ${money(T)} target, but people are clicking, watching and adding to cart. Looks like a top of funnel ad doing its job.` };
-    if (sc.cpa != null && sc.cpa <= T * (1 + r.yellow_pct / 100)) return { call: 'keep', reason: 'data', read: `CPA ${money(sc.cpa)} is close to the ${money(T)} target. Worth more spend before calling it.` };
+    if (two && sc.cpa != null && sc.cpa <= K) return { call: 'keep', reason: 'avg', read: `CPA ${money(sc.cpa)} on ${st.orders} sales is at or under the account average (${money(K)}). It doesn't make the account worse; leave it running.` };
     return { call: 'loser', read: sc.cpa == null ? `No sales on ${money(st.spend)}, and the clicks and add to carts are not strong enough to carry it.` : `CPA ${money(sc.cpa)} is well above the ${money(T)} target.` };
   }
   if (sc.roas >= r.win_roas) return { call: 'winner', read: `ROAS ${sc.roas.toFixed(2)} is at or above the ${r.win_roas} target.` };
@@ -853,7 +888,7 @@ async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
     const WORD = { top: 'top third for this brand', mid: 'average for this brand', low: 'bottom third for this brand' };
     const li = (mark, label, v, note) => `<li>${mark} <strong>${label}:</strong> ${v}${note ? ` · ${note}` : ''}</li>`;
     const T = rules.target_cpa;
-    const cpaMark = !sc?.cpa ? '❌' : sc.cpa <= T ? '✅' : sc.cpa <= T * (1 + rules.yellow_pct / 100) ? '⚠️' : '❌';
+    const cpaMark = !sc?.cpa ? '❌' : sc.cpa <= T ? '✅' : sc.cpa <= (rules.acct_avg || T * (1 + rules.yellow_pct / 100)) ? '⚠️' : '❌';
     const CALL = { winner: '✅ Suggested: Winner', keep: '⏳ Suggested: Keep running', loser: '❌ Suggested: Loser' };
     try {
       if (Object.keys(cf).length) await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: cf } });

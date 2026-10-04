@@ -8118,8 +8118,8 @@ async function renderSettings() {
     catch (e) { box.innerHTML = `<span class="tiny" style="color:var(--bad)">${esc(e.message)}</span>`; return; }
     const r = g.rules, cur = a.currency;
     const num = (k, label, v, unit, ph) => `<label class="gl"><span>${label}</span><span class="unit-in" style="width:116px">${unit === '$' ? `<span>${sym(cur)}</span>` : ''}<input type="text" inputmode="decimal" data-g="${k}" value="${v == null ? '' : v}" placeholder="${ph || ''}">${unit && unit !== '$' ? `<span>${unit}</span>` : ''}</span></label>`;
-    const T = r.target_cpa, Y = r.yellow_pct;
-    const band = T ? `<div class="gband"><i class="gk" style="flex:100">keep up to ${fmtMoney(T, cur)}</i><i class="gw" style="flex:${Math.max(Y, 12)}">wait up to ${fmtMoney(T * (1 + Y / 100), cur)}</i><i class="gp" style="flex:40">pause</i></div>` : '';
+    const T = r.target_cpa, Y = r.yellow_pct, K = r.acct_avg || (T ? T * (1 + Y / 100) : null);
+    const band = T ? `<div class="gband"><i class="gk" style="flex:100">winner up to ${fmtMoney(T, cur)}</i><i class="gw" style="flex:${Math.max(Math.round(((K - T) / T) * 100), 18)}">keep up to ${fmtMoney(K, cur)}</i><i class="gp" style="flex:40">pause</i></div><span class="tiny">Winner and keep both need 2+ sales.</span>` : '';
     box.innerHTML = `<div class="gwrap">
       <div class="gh">Targets</div>
       ${num('target_cpa', 'Goal cost per sale', T != null ? Math.round(T) : '', '$', 'not set')}
@@ -8127,7 +8127,7 @@ async function renderSettings() {
       <div class="gh">Judging tests</div>
       ${num('judge_spend', 'Judge after spending', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? `${Math.round(T * 3)} (3x goal)` : '150')}
       ${num('judge_days', 'Or after', r.judge_days, 'days')}
-      ${num('yellow_pct', 'Yellow zone above goal', Y, '%')}
+      <label class="gl"><span>Keep line: account average <span class="tiny">(last 30 days, updates on the 1st)</span></span><b>${r.acct_avg ? fmtMoney(r.acct_avg, cur) + (r.acct_avg_month ? ' · ' + esc(r.acct_avg_month) : '') : 'not set yet'}</b></label>
       ${band}
       <div class="gh">Test minimums <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.min_track ? 'on' : ''}" data-g="min_track"></span><span class="tiny">${r.min_track ? 'shown on the test list' : 'off'}</span></span></div>
       ${num('min_spend', 'Minimum per new test', r.min_spend, '$')}
@@ -8159,7 +8159,7 @@ async function renderSettings() {
       try {
         await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, target_cpa: cpa }) });
         if (mApi) await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
-        const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: n('yellow_pct') || 30,
+        const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: Y || 30,
           min_track: tg.classList.contains('on') ? 1 : 0, monday_post: mp.classList.contains('on') ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25 };
         await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
         await refreshAccounts().catch(() => {});

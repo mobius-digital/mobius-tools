@@ -1236,3 +1236,10 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   loser ad sets (or ads when no ad set matched) and set `daily_min_spend_target=0` on keeps past their
   minimum days. The plan is frozen at post time in `settings.mondayPlan:<act>:<date>`; a second press
   says who already did it. Read-only accounts get a line saying to grant "Manage campaigns" instead.
+- **Two lines (2026-10-04, Cole).** Winner = cost per sale <= goal AND 2+ sales (make variations, minimum
+  off). Keep = <= the account average AND 2+ sales (leave running, minimum off). Pause = above the average or
+  under 2 sales once judged. Exception kept from 2026-09-24: 2+ soft metrics in the top third and CPA <= 2x
+  goal = "Another week". Account average = trailing 30-day Meta spend / Triple Whale last-click orders,
+  stored as rules.acct_avg_cpa + acct_avg_month by account-health `refreshAccountAvg` (hourly; recomputes
+  when the month changes, i.e. on the 1st). The yellow zone setting is only the fallback until the first
+  average exists. Shown in the Monday message header and Settings → Goals.
