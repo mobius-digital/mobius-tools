@@ -438,7 +438,7 @@ function paintAngles(main) {
       <p class="sub" style="margin:0">Every reason to buy we have tested, what won, and the concepts under it. Check an idea here before you brief it.</p></div></div>
     <section class="ts-box hot"><div class="ts-bh"><h3>Have we tested this?</h3><span>Type the idea in your own words. Locus checks it against every angle and every past test, so the same idea in different words still counts.</span></div>
       <div class="ts-body"><form class="an-ask" id="anAsk"><input class="br-in" id="anIdea" style="margin:0" placeholder="e.g. golfers who hate paying for a logo" value="${esc(S.idea || '')}" aria-label="Your idea"><button class="btn primary" type="submit">${S.checking ? 'Checking…' : 'Check'}</button></form>
-      <div id="anAnswer">${S.answer ? answerHtml(S.answer) : ''}</div></div></section>
+      <div id="anAnswer">${S.answer ? testedHtml(S.answer) : ''}</div></div></section>
     <section class="ts-box"><div class="ts-bh"><h3>All angles <span class="ts-n">${rows.length}</span></h3><span>Best first. Click one to see its concepts and what each variation did. Green: build on it. Red: skip it.</span></div>
       <div class="tbl-wrap"><table class="an-tbl"><thead><tr><th>Angle</th><th class="num">Tests</th><th>Won</th><th class="num">Best CPA</th><th class="num">Last tested</th><th>What to do</th></tr></thead><tbody>
       ${rows.map(({ a, s, r }) => `<tr data-ang="${a.id}"><td><b>${esc(a.name)}</b>${a.argument ? `<div class="tiny">${esc(short(a.argument, 110))}</div>` : ''}</td>
@@ -453,7 +453,7 @@ function paintAngles(main) {
   wireAngleTools(main);
 }
 
-function answerHtml(r) {
+function testedHtml(r) {
   const d = S.d;
   if (r.error) return `<div class="br-warn">${esc(r.error)}</div>`;
   const a = d.angles.find(x => x.id === r.angle_id);
