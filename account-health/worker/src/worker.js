@@ -26,7 +26,7 @@ import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
-import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, useFetch as brandAsanaFetch } from './asana-brand.js';
+import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
@@ -5899,6 +5899,7 @@ const AH_APP = {
            result comment once a test has spent enough. Before the Meta sync so a
            slow sync cannot starve it; it stops itself when the budget runs low. */
         ran.goals = await unifyGoals(env).catch(e => ({ error: e.message }));
+        ran.monday = await mondayTick(env).catch(e => ({ error: e.message }));
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));

@@ -1224,3 +1224,10 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   and, when min_track is on, `Min $X on` / `Min $X on, take off` read LIVE from Meta via
   account-health `POST /api/brand-asana/mins` (ad sets matched by the leading number, numOf), plus a
   per-campaign line: minimums vs min_cap_pct of the campaign budget, with the budget that would fit.
+- **Monday test calls (2026-10-04, "stupid simple for the media buyer").** account-health `mondayTick`
+  (hourly cron, acts Mondays 8am Central, once per brand per week, `settings.mondayCalls:<act>`)
+  posts ONE Slack message to the brand's internal channel: live tests sorted Pause / Keep / Another
+  week / Not ready (same `judge` as the Asana scorecards), "take the $X minimum off" on lines past
+  min_days, minimum-cap warning, and one Ads Manager link selecting exactly the ad sets to change.
+  Per-brand switch `rules.monday_post` in Settings → Goals, with "Preview this week's message"
+  (`POST /api/brand-asana/monday`, `{post:true}` sends now). The media buyer needs nothing else.

@@ -556,11 +556,11 @@ function third(list, v, lowerBetter = false) {
    account, because it is the number Cole set by hand on 2026-09-24.
    Same rule as rulesFor in profit/worker/src/brand.js; change both together. */
 function rulesOf(acct, doc) {
-  const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2, yellow_pct: 30 };
+  const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2, yellow_pct: 30, min_spend: 20, min_days: 7, min_cap_pct: 25, min_track: 0, monday_post: 0 };
   if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;
   else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
-  for (const k of ['judge_spend', 'judge_days', 'yellow_pct']) if (doc && +doc[k] > 0) r[k] = +doc[k];
+  for (const k of ['judge_spend', 'judge_days', 'yellow_pct', 'min_spend', 'min_days', 'min_cap_pct', 'min_track', 'monday_post']) if (doc && +doc[k] > 0) r[k] = +doc[k];
   if (!(doc && +doc.judge_spend > 0) && r.target_cpa) r.judge_spend = Math.round(r.target_cpa * 3);
   return r;
 }
@@ -612,6 +612,91 @@ async function testMinimums(env, act) {
     adsets: sets.map(a => ({ id: a.id, name: a.name, campaign_id: a.campaign_id, num: numOf(a.name), min: +(a.daily_min_spend_target || 0) / 100, created: a.created_time })),
   };
 }
+
+/* MONDAY TEST CALLS (Cole, 2026-10-04: "this needs to be stupid simple for the media
+   buyer"). One Slack message per brand, Monday 8am Central, in the brand's internal
+   channel: every live test sorted into Pause / Keep / Another week / Not ready, with
+   "take the minimum off" on the lines whose minimum days are up, and ONE Ads Manager
+   link that opens exactly those ad sets. The buyer reads it, clicks, acts. Nothing
+   else to open. Switched on per brand in Settings -> Goals (rules.monday_post). */
+const centralParts = (d = new Date()) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit' })
+  .formatToParts(d).map(p => [p.type, p.value]));
+export async function mondayCalls(env, act) {
+  const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, slack_channel FROM accounts WHERE act_id = ?1`).bind(act).first();
+  if (!acct) return { error: 'unknown account' };
+  const rules = rulesOf(acct, await getDoc(env, act, 'rules'));
+  if (!rules.target_cpa) return { error: 'Set a goal cost per sale in Settings → Goals first.' };
+  const rows = (await env.DB.prepare(`SELECT id, num, title FROM p_br_batch WHERE act_id = ?1 AND stage = 'live' AND verdict IS NULL`).bind(act).all()).results || [];
+  const stats = rows.length ? await batchStats(env, act, rows) : {};
+  const bm = await benchmarks(env, act);
+  let meta = { adsets: [], campaigns: [] };
+  try { meta = await testMinimums(env, act); } catch (e) { meta.error = e.message; }
+  const td = today();
+  const groups = { loser: [], winner: [], keep: [], early: [] };
+  const open = new Set(), openAds = new Set();
+  for (const r of rows) {
+    const st = stats[r.id];
+    if (!st || !(st.spend > 0)) continue;                            // not spending: not live in Meta
+    const n = String(parseInt(r.num, 10));
+    const sets = (meta.adsets || []).filter(a => a.num === n);
+    const day = st.first ? Math.round((Date.parse(`${td}T12:00:00Z`) - Date.parse(`${st.first}T12:00:00Z`)) / 864e5) + 1 : null;
+    const min = sets.reduce((t, a) => t + (a.min || 0), 0);
+    const sc = scorecard(st, rules, bm);
+    const j = judge(st, rules, sc);
+    const call = j ? j.call : 'early';
+    const minOff = min > 0 && (call !== 'early' || (day && day > rules.min_days));
+    const name = sets[0]?.name || `${n} | ${r.title}`;
+    const nums = `${money(st.spend)} spent, ${st.orders || 0} sale${st.orders === 1 ? '' : 's'}${st.orders ? ` (${money(st.spend / st.orders)} each)` : ''}`;
+    const line = call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent` : `• ${name}: ${nums}`;
+    groups[call].push(line + (minOff ? ` · *take the ${money(min)} minimum off*` : ''));
+    if (call === 'loser' || minOff) { sets.forEach(a => open.add(a.id)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
+  }
+  const L = [];
+  const head = `*${acct.name} · this week's test calls* (goal ${money(rules.target_cpa)} per sale)`;
+  if (groups.loser.length) L.push(':red_circle: *Pause*', ...groups.loser);
+  if (groups.winner.length) L.push(':large_green_circle: *Keep*', ...groups.winner);
+  if (groups.keep.length) L.push(':large_yellow_circle: *Give it another week*', ...groups.keep);
+  if (groups.early.length) L.push(':white_circle: *Not ready yet*', ...groups.early);
+  if (!L.length) L.push('No live tests right now.');
+  if (rules.min_track) for (const c of meta.campaigns || []) {
+    const total = (meta.adsets || []).filter(a => a.campaign_id === c.id).reduce((t, a) => t + (a.min || 0), 0);
+    const cap = c.budget * rules.min_cap_pct / 100;
+    if (total > cap) L.push(`:warning: ${c.name}: minimums are ${money(total)}/day, over the ${money(cap)} cap (${rules.min_cap_pct}% of ${money(c.budget)}). Take minimums off, or raise the budget to ${money(Math.ceil(total / (rules.min_cap_pct / 100) / 10) * 10)}/day.`);
+  }
+  if (meta.error) L.push(`_(Couldn't read minimums from Meta: ${meta.error})_`);
+  const ids = [...open];
+  const A = act.replace(/^act_/, '');
+  if (ids.length) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${A}&selected_adset_ids=${ids.slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
+  else if (openAds.size) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/ads?act=${A}&selected_ad_ids=${[...openAds].slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
+  return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post };
+}
+async function postMonday(env, act) {
+  const m = await mondayCalls(env, act);
+  if (m.error) return m;
+  if (!m.channel || !env.SLACK_BOT_TOKEN) return { ...m, error: 'This brand has no internal Slack channel (Settings).' };
+  const r = await (await F('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel: m.channel, text: m.text, unfurl_links: false, unfurl_media: false }) })).json();
+  return { ...m, posted: !!r.ok, error: r.ok ? undefined : r.error };
+}
+/** Hourly: Mondays at 8am Central, once per brand per week. */
+export async function mondayTick(env) {
+  const p = centralParts();
+  if (p.weekday !== 'Mon' || +p.hour !== 8) return { skipped: 'not Monday 8am' };
+  const week = `${p.year}-${p.month}-${p.day}`;
+  const docs = (await env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'rules'`).all().catch(() => ({ results: [] }))).results || [];
+  const out = {};
+  for (const d of docs) {
+    if (!(+safeJson(d.data_json, {}).monday_post > 0)) continue;
+    const key = `mondayCalls:${d.act_id}`;
+    const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
+    if (last?.value === week) continue;
+    const r = await postMonday(env, d.act_id).catch(e => ({ error: e.message }));
+    if (r.posted) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, week).run();
+    out[d.act_id] = r.posted ? 'posted' : (r.error || 'not posted');
+  }
+  return out;
+}
+
 function scorecard(st, rules, bm) {
   const cpa = st.orders > 0 ? st.spend / st.orders : null;
   return {
@@ -1081,6 +1166,8 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     if (path === '/api/brand-asana/job') return json({ ok: true, job: await asana(env, `/jobs/${String(b.gid || '').replace(/\D/g, '')}`) });
     if (!b.act) return json({ error: 'act is required' }, 400);
     if (path === '/api/brand-asana/mins') return json({ ok: true, ...(await testMinimums(env, b.act)) });
+    /* Preview by default; { post: true } sends it to the brand's internal channel now. */
+    if (path === '/api/brand-asana/monday') return json({ ok: true, ...(b.post ? await postMonday(env, b.act) : await mondayCalls(env, b.act)) });
     if (path === '/api/brand-asana/connect') {
       try { return json({ ok: true, asana: await connect(env, b.act, b.project_gid) }); }
       catch (e) { return json({ error: e.message, projects: e.projects || null }, e.status || 500); }

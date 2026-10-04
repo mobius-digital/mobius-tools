@@ -79,7 +79,7 @@ function cleanRow(kind, b) {
    Brand info copy; it wins until account-health's unifyGoals moves it onto the
    account (hourly). Same rule as rulesOf in account-health asana-brand.js. */
 const DEFAULT_RULES = { target_cpa: 0, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
-export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_track: 0, min_spend: 20, min_days: 7, min_cap_pct: 25 };
+export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_track: 0, min_spend: 20, min_days: 7, min_cap_pct: 25, monday_post: 0 };
 export function rulesFor(acct, doc) {
   const r = { ...DEFAULT_RULES, ...TEST_KEYS, target_cpa: null };
   if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;
@@ -87,6 +87,7 @@ export function rulesFor(acct, doc) {
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
   for (const k of Object.keys(TEST_KEYS)) if (doc && +doc[k] > 0) r[k] = +doc[k];
   r.min_track = !!(doc && +doc.min_track > 0);
+  r.monday_post = !!(doc && +doc.monday_post > 0);
   r.judge_spend_auto = !(doc && +doc.judge_spend > 0);
   if (r.judge_spend_auto) r.judge_spend = r.target_cpa ? Math.round(r.target_cpa * 3) : DEFAULT_RULES.judge_spend;
   r.set = !!(doc && Object.keys(TEST_KEYS).some(k => +doc[k] > 0));

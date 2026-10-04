@@ -1446,6 +1446,7 @@
 .gband .gk{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
 .gband .gw{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
 .gband .gp{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.gprev{white-space:pre-wrap;font:12.5px/1.5 var(--mono,ui-monospace,monospace);background:var(--surface-2,#f6f6f4);border:1px solid var(--line);border-radius:8px;padding:10px;margin:4px 0 0;max-height:320px;overflow:auto}
 </style>
 <!-- Phone sheet behaviour, shared with Ledger. After this page's <style> so
      its class-gated rules win the ties they are meant to win. The script is
@@ -7982,10 +7983,23 @@ async function renderSettings() {
       ${num('min_spend', 'Minimum per new test', r.min_spend, '$')}
       ${num('min_days', 'Minimum stays on', r.min_days, 'days')}
       ${num('min_cap_pct', 'All minimums together, max', r.min_cap_pct, '%')}
+      <div class="gh">Monday test calls in Slack <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.monday_post ? 'on' : ''}" data-g="monday_post"></span><span class="tiny">${r.monday_post ? 'posts Mondays 8am to the internal channel' : 'off'}</span></span></div>
+      <div class="row" style="margin:2px 0 0;gap:10px"><button class="btn" data-g="preview">Preview this week's message</button></div>
+      <pre class="gprev" data-g="prev" hidden></pre>
       <div class="row" style="margin:10px 0 0;gap:10px"><button class="btn primary" data-g="save">Save goals</button><span class="tiny" data-g="msg"></span></div></div>`;
     const v = k => box.querySelector(`[data-g="${k}"]`);
     const tg = v('min_track');
     tg.onclick = () => { tg.classList.toggle('on'); tg.nextElementSibling.textContent = tg.classList.contains('on') ? 'shown on the test list' : 'off'; };
+    const mp = v('monday_post');
+    mp.onclick = () => { mp.classList.toggle('on'); mp.nextElementSibling.textContent = mp.classList.contains('on') ? 'posts Mondays 8am to the internal channel' : 'off'; };
+    v('preview').onclick = async () => {
+      const pre = v('prev'); pre.hidden = false; pre.textContent = 'Building…';
+      try {
+        const res = await fetch(AH_URL + '/api/brand-asana/monday', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: a.act_id }) });
+        const j = await res.json().catch(() => ({}));
+        pre.textContent = j.error ? j.error : j.text.replace(/<([^|>]+)\|([^>]+)>/g, '$2').replace(/:[a-z_]+: /g, '');
+      } catch (e) { pre.textContent = e.message; }
+    };
     v('save').onclick = async () => {
       const n = k => { const raw = v(k).value.replace(/[^0-9.]/g, ''); return raw === '' ? '' : +raw; };
       const msg = v('msg');
@@ -7996,7 +8010,7 @@ async function renderSettings() {
         await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, target_cpa: cpa }) });
         if (mApi) await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
         const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: n('yellow_pct') || 30,
-          min_track: tg.classList.contains('on') ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25 };
+          min_track: tg.classList.contains('on') ? 1 : 0, monday_post: mp.classList.contains('on') ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25 };
         await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
         await refreshAccounts().catch(() => {});
         await loadGoals(box, a);
