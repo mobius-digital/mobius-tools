@@ -33,6 +33,8 @@ const PROXY_PATHS = new Set([
   '/api/report-send', '/api/report-link', '/api/brief-text', '/api/brief-draft',
   // "Don't send this one" — marks a day handled so the catch-up stops carrying it.
   '/api/brief-skip',
+  // The buyer's note: what we actually did, the only source for a v2 brief's What we're doing.
+  '/api/brief-note',
   /* Data Health: does Triple Whale still agree with the ad platforms? The
      check reads tw_daily and daily_insights, both written by the
      account-health worker, and Rebuild regenerates a draft there. */
