@@ -1436,6 +1436,16 @@
     nav.subtabs::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
     nav.subtabs button,.chips .chip{flex:none}
   }
+
+/* Settings -> Goals box (2026-10-04) */
+.gwrap{display:grid;gap:6px;max-width:440px}
+.gwrap .gh{font-weight:600;font-size:12.5px;margin-top:8px;color:var(--ink)}
+.gwrap .gl{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.gband{display:flex;height:22px;border-radius:6px;overflow:hidden;font-size:11px;font-style:normal}
+.gband i{display:flex;align-items:center;justify-content:center;font-style:normal;white-space:nowrap;overflow:hidden;padding:0 4px}
+.gband .gk{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.gband .gw{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
+.gband .gp{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
 </style>
 <!-- Phone sheet behaviour, shared with Ledger. After this page's <style> so
      its class-gated rules win the ties they are meant to win. The script is
@@ -1567,7 +1577,7 @@
 <script src="meta.js"></script>
 <script src="amb.js?v=15"></script>
 <script src="../onboard/questions.js?v=8"></script>
-<script src="brand.js?v=6"></script>
+<script src="brand.js?v=7"></script>
 <script src="newclient.js?v=13"></script>
 <script src="studio.js?v=18"></script>
 <script>
@@ -3030,8 +3040,8 @@ async function renderCreativeBrowser(host, act, range) {
       <label class="cb-l">Show ${sel('fmt', types, CB.fmt)}</label>
       <label class="cb-l">Top ${sel('limit', [4, 8, 12, 20].map(n => [n, n + ' ads']), CB.limit)}</label>
       <label class="cb-l">Revenue from ${sel('attr', CB_ATTR, CB.attr)}</label>
-      <label class="cb-l" title="What we WANT this account's cost per purchase to be. The qualifying threshold is a multiple of it, and it is saved on the brand, so everyone judging these ads uses the same line.">Goal CPA
-        <span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbGoalCpa" type="text" inputmode="decimal" value="${d.target_cpa != null ? Math.round(d.target_cpa) : ''}" placeholder="${d.acct_cpa != null ? Math.round(d.acct_cpa) : 'set'}"></span></label>
+      <label class="cb-l" title="What we WANT this brand's cost per purchase to be. Set once per brand in Settings, Goals; every screen reads that one number.">Goal CPA
+        <a href="#" class="cb-goal" data-goals="${esc(act)}">${d.target_cpa != null ? fmtMoney(d.target_cpa, cur) : 'set it'}</a></label>
       <label class="cb-l" title="An ad has to clear this before a ratio sort will rank it - or make 3 sales, whichever comes first. Type your own figure under Custom and spend is the only test: below it, an ad never ranks, however many sales it made.">Counts at ${sel('mult', CB_MULTS, CB.minSpend != null ? 'custom' : String(CB.mult))}
         ${CB.minSpend != null ? `<span class="unit-in cb-in"><span>${sym(cur)}</span><input id="cbMinSpend" type="text" inputmode="decimal" value="${Math.round(CB.minSpend)}"></span>`
           : `<b class="cb-thresh">${CB.mult ? fmtMoney(d.floor, cur) : 'any'}</b>`}</label>
@@ -3147,7 +3157,8 @@ async function renderCreativeBrowser(host, act, range) {
   /* Goal CPA - saved on the BRAND, not in this browser, because it is the line
      the whole team judges ads against. Commits on Enter or on leaving the box;
      an unchanged value never writes. */
-  const goalIn = $('#cbGoalCpa');
+  host.querySelectorAll('.cb-goal').forEach(l => l.onclick = e => { e.preventDefault(); openGoals(l.dataset.goals); });
+  const goalIn = null;   /* Goal CPA is edited only in Settings now (2026-10-04) */
   if (goalIn) {
     const before = goalIn.value.trim();
     const commit = async () => {
@@ -3693,6 +3704,14 @@ function renderPeriodBar(tab) {
   if (f) f.onchange = commit;
   if (t) t.onchange = commit;
 }
+
+/* ONE PLACE FOR GOALS (Cole, 2026-10-04). Every goal link in Locus lands here:
+   Settings, with this brand's row open on its Goals box. */
+function openGoals(act) {
+  window.__openGoals = act;
+  show('settings');
+}
+window.openGoals = openGoals;
 
 function show(tab) {
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
@@ -7902,7 +7921,7 @@ async function renderSettings() {
 
   const brandRow = a => {
     const m = metaOf(a.act_id), c = connOf(a.act_id);
-    return `<details class="brow" data-act="${esc(a.act_id)}">
+    return `<details class="brow" data-act="${esc(a.act_id)}"${window.__openGoals === a.act_id ? ' open' : ''}>
       <summary><span class="brow-name">${esc(a.name)}</span>${healthPill(a.cost_health)}<span class="brow-sum">${summary(a)}</span></summary>
       <div class="brow-body">
         ${field('Meta ad account', 'A brand and its Meta ad account are the same record, so this cannot be repointed - a different ad account is a different brand.',
@@ -7910,6 +7929,8 @@ async function renderSettings() {
             <button class="btn" data-k="sync" style="font-size:11.5px;padding:4px 8px;margin-left:8px">Sync now</button>
             <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`)}
         ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}">`)}
+        ${field('Goals', 'The <b>one place</b> for this brand’s targets. Test calls, the green, yellow and red colors, the test list and the alerts all read these numbers. Nothing else in Locus edits them.',
+          `<div class="goals" data-goals="${esc(a.act_id)}"><span class="tiny">Loading…</span></div>`)}
         ${field('Triple Whale shop', '<b>Every money number depends on this</b> - revenue, MER, contribution margin, every report.',
           `<input type="text" data-k="tw_shop" value="${esc(m.tw_shop || '')}" placeholder="name.myshopify.com">${m.tw_shop ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ without this the brand has no revenue at all</span>'}`)}
         ${field('Internal Slack channel', 'Your team’s. Drafts waiting for review land here, along with delivery alerts. A client never sees it.', chSelect(a, 'slack_channel', ' - not set - '))}
@@ -7935,6 +7956,54 @@ async function renderSettings() {
           `<button class="btn" data-k="off" style="font-size:12px">Stop tracking ${esc(a.name)}</button>`).replace('class="brow-f"', 'class="brow-f brow-danger"')}
       </div></details>`;
   };
+
+  /* Goals box (2026-10-04, ONE PLACE FOR GOALS): goal CPA and ROAS are saved on the
+     account (client-settings / Meta accounts), the test settings in the brand's rules
+     doc. One Save writes all three. */
+  async function loadGoals(box, a) {
+    box.dataset.loaded = '1';
+    let g;
+    try { g = await api(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`); }
+    catch (e) { box.innerHTML = `<span class="tiny" style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+    const r = g.rules, cur = a.currency;
+    const num = (k, label, v, unit, ph) => `<label class="gl"><span>${label}</span><span class="unit-in" style="width:116px">${unit === '$' ? `<span>${sym(cur)}</span>` : ''}<input type="text" inputmode="decimal" data-g="${k}" value="${v == null ? '' : v}" placeholder="${ph || ''}">${unit && unit !== '$' ? `<span>${unit}</span>` : ''}</span></label>`;
+    const T = r.target_cpa, Y = r.yellow_pct;
+    const band = T ? `<div class="gband"><i class="gk" style="flex:100">keep up to ${fmtMoney(T, cur)}</i><i class="gw" style="flex:${Math.max(Y, 12)}">wait up to ${fmtMoney(T * (1 + Y / 100), cur)}</i><i class="gp" style="flex:40">pause</i></div>` : '';
+    box.innerHTML = `<div class="gwrap">
+      <div class="gh">Targets</div>
+      ${num('target_cpa', 'Goal cost per sale', T != null ? Math.round(T) : '', '$', 'not set')}
+      ${num('target_roas', 'Goal ROAS', g.goal_roas, 'x', 'not set')}
+      <div class="gh">Judging tests</div>
+      ${num('judge_spend', 'Judge after spending', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? `${Math.round(T * 3)} (3x goal)` : '150')}
+      ${num('judge_days', 'Or after', r.judge_days, 'days')}
+      ${num('yellow_pct', 'Yellow zone above goal', Y, '%')}
+      ${band}
+      <div class="gh">Test minimums <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.min_track ? 'on' : ''}" data-g="min_track"></span><span class="tiny">${r.min_track ? 'shown on the test list' : 'off'}</span></span></div>
+      ${num('min_spend', 'Minimum per new test', r.min_spend, '$')}
+      ${num('min_days', 'Minimum stays on', r.min_days, 'days')}
+      ${num('min_cap_pct', 'All minimums together, max', r.min_cap_pct, '%')}
+      <div class="row" style="margin:10px 0 0;gap:10px"><button class="btn primary" data-g="save">Save goals</button><span class="tiny" data-g="msg"></span></div></div>`;
+    const v = k => box.querySelector(`[data-g="${k}"]`);
+    const tg = v('min_track');
+    tg.onclick = () => { tg.classList.toggle('on'); tg.nextElementSibling.textContent = tg.classList.contains('on') ? 'shown on the test list' : 'off'; };
+    v('save').onclick = async () => {
+      const n = k => { const raw = v(k).value.replace(/[^0-9.]/g, ''); return raw === '' ? '' : +raw; };
+      const msg = v('msg');
+      const cpa = n('target_cpa'), roas = n('target_roas');
+      if (cpa !== '' && !(cpa > 0)) { msg.textContent = 'Goal cost per sale must be above 0, or blank.'; return; }
+      v('save').disabled = true; msg.textContent = 'Saving…';
+      try {
+        await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, target_cpa: cpa }) });
+        if (mApi) await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
+        const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: n('yellow_pct') || 30,
+          min_track: tg.classList.contains('on') ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25 };
+        await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
+        await refreshAccounts().catch(() => {});
+        await loadGoals(box, a);
+        const m2 = box.querySelector('[data-g="msg"]'); if (m2) m2.textContent = 'Saved. Every screen uses these now.';
+      } catch (e) { v('save').disabled = false; msg.textContent = e.message; }
+    };
+  }
 
   const list = $('#brandList');
   const drawBrands = () => {
@@ -7996,6 +8065,12 @@ async function renderSettings() {
 
     list.querySelectorAll('.brow').forEach(row => {
       const a = S.accounts.find(x => x.act_id === row.dataset.act); if (!a) return;
+      const gBox = row.querySelector('.goals');
+      if (gBox) {
+        if (row.open) loadGoals(gBox, a);
+        row.addEventListener('toggle', () => { if (row.open && !gBox.dataset.loaded) loadGoals(gBox, a); });
+        if (window.__openGoals === a.act_id) { window.__openGoals = null; setTimeout(() => gBox.scrollIntoView({ block: 'center' }), 60); }
+      }
       const m = metaOf(a.act_id);
       const q = k => row.querySelector(`[data-k="${k}"]`);
 

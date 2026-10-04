@@ -548,13 +548,69 @@ function third(list, v, lowerBetter = false) {
   const good = lowerBetter ? 1 - pct : pct;
   return good >= 0.67 ? 'top' : good <= 0.33 ? 'low' : 'mid';
 }
+/* ONE PLACE FOR GOALS (Cole, 2026-10-04: "I don't want the same KPI stuff in
+   different places"). Goal CPA and ROAS live on the account row and are edited only
+   in Settings -> brand -> Goals. The `rules` doc holds the test settings (judge
+   after, yellow zone, test minimums) and nothing else. A doc that still carries a
+   target_cpa is the old Brand info copy: it wins until unifyGoals moves it onto the
+   account, because it is the number Cole set by hand on 2026-09-24.
+   Same rule as rulesFor in profit/worker/src/brand.js; change both together. */
 function rulesOf(acct, doc) {
-  const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
-  if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
+  const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2, yellow_pct: 30 };
+  if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;
+  else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
-  for (const k of Object.keys(r)) if (doc && +doc[k] > 0) r[k] = +doc[k];
+  for (const k of ['judge_spend', 'judge_days', 'yellow_pct']) if (doc && +doc[k] > 0) r[k] = +doc[k];
   if (!(doc && +doc.judge_spend > 0) && r.target_cpa) r.judge_spend = Math.round(r.target_cpa * 3);
   return r;
+}
+/** Moves any old Brand info target CPA onto the account (the one place), once. */
+export async function unifyGoals(env) {
+  const rows = (await env.DB.prepare(`SELECT d.act_id, d.data_json, a.target_cpa FROM p_br_doc d JOIN accounts a ON a.act_id = d.act_id
+      WHERE d.line_id = '' AND d.key = 'rules'`).all().catch(() => ({ results: [] }))).results || [];
+  const moved = [];
+  for (const r of rows) {
+    const doc = safeJson(r.data_json, {});
+    if (!('target_cpa' in doc) && !('win_roas' in doc) && !('lose_roas' in doc)) continue;
+    const cpa = +doc.target_cpa > 0 ? +doc.target_cpa : null;
+    delete doc.target_cpa; delete doc.win_roas; delete doc.lose_roas;
+    const st = [env.DB.prepare(`UPDATE p_br_doc SET data_json = ?2, updated_at = datetime('now') WHERE act_id = ?1 AND line_id = '' AND key = 'rules'`).bind(r.act_id, JSON.stringify(doc))];
+    if (cpa) st.push(env.DB.prepare(`UPDATE accounts SET target_cpa = ?2 WHERE act_id = ?1`).bind(r.act_id, cpa));
+    await env.DB.batch(st);
+    moved.push({ act: r.act_id, was: r.target_cpa ?? null, now: cpa ?? r.target_cpa ?? null, at: new Date().toISOString() });
+  }
+  if (moved.length) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('goalUnify', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(moved)).run().catch(() => {});
+  return { moved: moved.length };
+}
+
+/* Live ad set minimums for the Brand tab's test list (2026-10-04). Read straight
+   from Meta when the page opens: which test ad sets still carry a minimum spend,
+   and how the total compares with each campaign's budget. Read-only. */
+async function graphAll(env, path, params) {
+  const url = new URL(`https://graph.facebook.com/v23.0/${path}`);
+  for (const [k, v] of Object.entries({ limit: '200', ...params })) url.searchParams.set(k, typeof v === 'string' ? v : JSON.stringify(v));
+  url.searchParams.set('access_token', env.META_TOKEN);
+  const out = [];
+  let next = url.toString();
+  for (let i = 0; next && i < 10; i++) {
+    const j = await (await F(next)).json();
+    if (j.error) throw new Error(j.error.message);
+    out.push(...(j.data || []));
+    next = j.paging?.next;
+  }
+  return out;
+}
+async function testMinimums(env, act) {
+  if (!env.META_TOKEN) return { error: 'META_TOKEN is not set' };
+  const live = [{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }];
+  const [sets, camps] = await Promise.all([
+    graphAll(env, `${act}/adsets`, { fields: 'name,campaign_id,daily_min_spend_target,created_time', filtering: live }),
+    graphAll(env, `${act}/campaigns`, { fields: 'name,daily_budget', filtering: live }),
+  ]);
+  return {
+    campaigns: camps.filter(c => +c.daily_budget > 0).map(c => ({ id: c.id, name: c.name, budget: +c.daily_budget / 100 })),
+    adsets: sets.map(a => ({ id: a.id, name: a.name, campaign_id: a.campaign_id, num: numOf(a.name), min: +(a.daily_min_spend_target || 0) / 100, created: a.created_time })),
+  };
 }
 function scorecard(st, rules, bm) {
   const cpa = st.orders > 0 ? st.spend / st.orders : null;
@@ -576,7 +632,7 @@ function judge(st, r, sc) {
     const T = r.target_cpa;
     if (sc.cpa != null && sc.cpa <= T) return { call: 'winner', read: `CPA ${money(sc.cpa)} is at or under the ${money(T)} target.` };
     if (strong >= 2 && (sc.cpa == null || sc.cpa <= T * 2)) return { call: 'keep', reason: 'tof', read: `CPA is ${sc.cpa ? money(sc.cpa) : 'not there yet'} against a ${money(T)} target, but people are clicking, watching and adding to cart. Looks like a top of funnel ad doing its job.` };
-    if (sc.cpa != null && sc.cpa <= T * 1.3) return { call: 'keep', reason: 'data', read: `CPA ${money(sc.cpa)} is close to the ${money(T)} target. Worth more spend before calling it.` };
+    if (sc.cpa != null && sc.cpa <= T * (1 + r.yellow_pct / 100)) return { call: 'keep', reason: 'data', read: `CPA ${money(sc.cpa)} is close to the ${money(T)} target. Worth more spend before calling it.` };
     return { call: 'loser', read: sc.cpa == null ? `No sales on ${money(st.spend)}, and the clicks and add to carts are not strong enough to carry it.` : `CPA ${money(sc.cpa)} is well above the ${money(T)} target.` };
   }
   if (sc.roas >= r.win_roas) return { call: 'winner', read: `ROAS ${sc.roas.toFixed(2)} is at or above the ${r.win_roas} target.` };
@@ -593,7 +649,7 @@ const esc = x => String(x ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&
 async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
   const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas FROM accounts WHERE act_id = ?1`).bind(act).first();
   const rules = rulesOf(acct, await getDoc(env, act, 'rules'));
-  if (!rules.target_cpa) return { posted: 0, skipped: 'Set a target CPA in Brand info to switch on result calls.' };
+  if (!rules.target_cpa) return { posted: 0, skipped: 'Set a goal cost per sale in Settings → this brand → Goals to switch on result calls.' };
   const rows = (await env.DB.prepare(`SELECT b.id, b.num, b.title, b.asana_gid, b.assignee_gid, b.result_posted, b.asana_result, b.check_again, b.hypothesis, b.offer, a.name AS angle
       FROM p_br_batch b LEFT JOIN p_br_angle a ON a.id = b.angle_id
       WHERE b.act_id = ?1 AND b.asana_gid IS NOT NULL AND b.stage = 'live' AND b.verdict IS NULL`).bind(act).all()).results || [];
@@ -640,7 +696,7 @@ async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
     const WORD = { top: 'top third for this brand', mid: 'average for this brand', low: 'bottom third for this brand' };
     const li = (mark, label, v, note) => `<li>${mark} <strong>${label}:</strong> ${v}${note ? ` · ${note}` : ''}</li>`;
     const T = rules.target_cpa;
-    const cpaMark = !sc?.cpa ? '❌' : sc.cpa <= T ? '✅' : sc.cpa <= T * 1.3 ? '⚠️' : '❌';
+    const cpaMark = !sc?.cpa ? '❌' : sc.cpa <= T ? '✅' : sc.cpa <= T * (1 + rules.yellow_pct / 100) ? '⚠️' : '❌';
     const CALL = { winner: '✅ Suggested: Winner', keep: '⏳ Suggested: Keep running', loser: '❌ Suggested: Loser' };
     try {
       if (Object.keys(cf).length) await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { custom_fields: cf } });
@@ -1024,6 +1080,7 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     }
     if (path === '/api/brand-asana/job') return json({ ok: true, job: await asana(env, `/jobs/${String(b.gid || '').replace(/\D/g, '')}`) });
     if (!b.act) return json({ error: 'act is required' }, 400);
+    if (path === '/api/brand-asana/mins') return json({ ok: true, ...(await testMinimums(env, b.act)) });
     if (path === '/api/brand-asana/connect') {
       try { return json({ ok: true, asana: await connect(env, b.act, b.project_gid) }); }
       catch (e) { return json({ error: e.message, projects: e.projects || null }, e.status || 500); }

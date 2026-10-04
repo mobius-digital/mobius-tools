@@ -73,14 +73,23 @@ function cleanRow(kind, b) {
    CPA first, like the team judges (keep in step with account-health asana-brand.js,
    which posts the same suggestion into Asana with the soft metrics beside it).
    ROAS is only the fallback for a brand with no target CPA. */
+/* ONE PLACE FOR GOALS (Cole, 2026-10-04). Goal CPA and ROAS live on the account
+   row, edited only in Settings -> brand -> Goals. The `rules` doc holds the TEST
+   settings and nothing else (TEST_KEYS). A doc still carrying target_cpa is the old
+   Brand info copy; it wins until account-health's unifyGoals moves it onto the
+   account (hourly). Same rule as rulesOf in account-health asana-brand.js. */
 const DEFAULT_RULES = { target_cpa: 0, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
-function rulesFor(acct, doc) {
-  const r = { ...DEFAULT_RULES, target_cpa: null };
-  if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
+export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_track: 0, min_spend: 20, min_days: 7, min_cap_pct: 25 };
+export function rulesFor(acct, doc) {
+  const r = { ...DEFAULT_RULES, ...TEST_KEYS, target_cpa: null };
+  if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;
+  else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
-  for (const k of Object.keys(DEFAULT_RULES)) if (doc && +doc[k] > 0) r[k] = +doc[k];
-  if (!(doc && +doc.judge_spend > 0) && r.target_cpa) r.judge_spend = Math.round(r.target_cpa * 3);
-  r.set = !!(doc && Object.keys(DEFAULT_RULES).some(k => +doc[k] > 0));
+  for (const k of Object.keys(TEST_KEYS)) if (doc && +doc[k] > 0) r[k] = +doc[k];
+  r.min_track = !!(doc && +doc.min_track > 0);
+  r.judge_spend_auto = !(doc && +doc.judge_spend > 0);
+  if (r.judge_spend_auto) r.judge_spend = r.target_cpa ? Math.round(r.target_cpa * 3) : DEFAULT_RULES.judge_spend;
+  r.set = !!(doc && Object.keys(TEST_KEYS).some(k => +doc[k] > 0));
   return r;
 }
 function suggest(st, rules) {
@@ -91,7 +100,7 @@ function suggest(st, rules) {
   if (rules.target_cpa) {
     const cpa = st.orders > 0 ? st.spend / st.orders : null;
     if (cpa != null && cpa <= rules.target_cpa) return 'winner';
-    if (cpa != null && cpa <= rules.target_cpa * 1.3) return 'keep';
+    if (cpa != null && cpa <= rules.target_cpa * (1 + rules.yellow_pct / 100)) return 'keep';
     return 'loser';
   }
   const roas = st.spend > 0 ? st.rev / st.spend : 0;
@@ -387,6 +396,21 @@ export async function handleStaff(request, env, url, path, json) {
     const back = async (extra = {}) => json({ ...(await payload(env, acct)), ...extra });
 
     if (path === '/api/brand' && request.method === 'GET') return back();
+
+    /* Settings -> brand -> Goals reads and writes the test rules here (light: no
+       payload). Goal CPA/ROAS are NOT in this doc; Settings saves them on the account. */
+    if (path === '/api/brand/rules') {
+      const row = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'rules'`).bind(A).first();
+      let doc = safeJson(row?.data_json, {});
+      if (request.method === 'PUT') {
+        const next = {};
+        for (const k of Object.keys(TEST_KEYS)) if (k in (body.rules || {})) { const v = +body.rules[k]; if (Number.isFinite(v) && v >= 0) next[k] = v; }
+        doc = { ...doc, ...next };
+        delete doc.target_cpa; delete doc.win_roas; delete doc.lose_roas;
+        await putDoc(env, A, '', 'rules', doc, 'approved', 'staff');
+      }
+      return json({ ok: true, rules: rulesFor(acct, doc), goal_roas: acct.target_roas > 0 ? +acct.target_roas : null });
+    }
 
     if (path === '/api/brand/save' && request.method === 'POST') {
       const id = await save(env, A, body.kind, body.row || {});

@@ -208,7 +208,8 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .lb-main .learn{font-size:12.5px;color:var(--ink-2);border-left:2px solid var(--good);padding-left:8px;margin-top:4px}
 .lb-nums{display:flex;flex-direction:column;align-items:flex-end;font-size:12.5px;font-variant-numeric:tabular-nums}
 .lb-nums b{font-size:14px}
-.lb-res{display:flex;justify-content:flex-end}
+.lb-res{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.lb-chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px}
 .lb-scrim{position:fixed;inset:0;background:rgba(12,22,29,.35);z-index:60}
 .lb-drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--surface);z-index:61;padding:24px;overflow:auto;display:flex;flex-direction:column;gap:16px;box-shadow:-24px 0 60px -30px rgba(12,22,29,.5)}
 .lb-x{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:9px;font-size:22px;color:var(--muted)}
@@ -341,7 +342,51 @@ const resChip = b => b.verdict && RES[b.verdict] ? `<span class="br-tag ${RES[b.
 const tone = (r, rules) => r == null ? 'var(--muted)' : r >= rules.win_roas ? 'var(--good)' : r < rules.lose_roas ? 'var(--bad)' : 'var(--warn)';
 const shortNum = n => String(parseInt(n, 10) || n);
 const pctf = x => x == null ? '-' : (x * 100).toFixed(1) + '%';
-const cpaTone = (cpa, rules) => cpa == null || !rules.target_cpa ? 'var(--ink)' : cpa <= rules.target_cpa ? 'var(--good)' : cpa <= rules.target_cpa * 1.3 ? 'var(--warn)' : 'var(--bad)';
+const cpaTone = (cpa, rules) => cpa == null || !rules.target_cpa ? 'var(--ink)' : cpa <= rules.target_cpa ? 'var(--good)' : cpa <= rules.target_cpa * (1 + (rules.yellow_pct || 30) / 100) ? 'var(--warn)' : 'var(--bad)';
+
+/* Monday view (2026-10-04): where each live test is in its 7 days, and whether its
+   ad set still carries a minimum spend. Days count from the first day it spent,
+   the same clock the judging uses. Minimums are read live from Meta. */
+function dayOf(b) {
+  if (!b.stats?.first) return null;
+  return Math.round((Date.parse(new Date().toISOString().slice(0, 10) + 'T12:00:00Z') - Date.parse(b.stats.first + 'T12:00:00Z')) / 864e5) + 1;
+}
+function minsFor(b) {
+  if (!S.mins || S.mins.act !== S.act || !S.mins.adsets) return [];
+  const n = shortNum(b.num);
+  return S.mins.adsets.filter(a => a.num === n && a.min > 0);
+}
+function testChips(b, rules) {
+  const out = [];
+  const live = !b.verdict && b.stage !== 'done' && b.stats?.spend > 0;
+  const day = dayOf(b);
+  if (live && day) out.push(`<span class="br-tag ${day >= rules.judge_days ? 'mid' : ''}" title="Days since this test first spent">Day ${day} of ${rules.judge_days}</span>`);
+  if (rules.min_track) {
+    const sets = minsFor(b);
+    if (sets.length) {
+      const total = sets.reduce((t, a) => t + a.min, 0);
+      const due = !live || (day && day > rules.min_days);
+      out.push(`<span class="br-tag ${due ? 'lose' : 'ai'}" title="${due ? 'Its days are up: take the minimum off in Ads Manager' : 'Minimum spend on this test ad set'}">Min ${money(total)} on${due ? ', take off' : ''}</span>`);
+    }
+  }
+  return out.length ? `<span class="lb-chips">${out.join('')}</span>` : '';
+}
+function minsBar(rules) {
+  if (!rules.min_track) return '';
+  if (!S.mins || S.mins.act !== S.act) return '<div class="tiny" style="margin:4px 0 8px">Checking test minimums in Meta…</div>';
+  if (S.mins.error) return `<div class="br-warn">Could not read minimums from Meta: ${esc(S.mins.error)}</div>`;
+  const rows = S.mins.campaigns.map(c => {
+    const sets = S.mins.adsets.filter(a => a.campaign_id === c.id && a.min > 0);
+    const total = sets.reduce((t, a) => t + a.min, 0);
+    return { c, total, cap: c.budget * rules.min_cap_pct / 100, n: sets.length };
+  }).filter(x => x.n);
+  if (!rows.length) return '<div class="tiny" style="margin:4px 0 8px">No test minimums on right now.</div>';
+  return rows.map(x => {
+    const over = x.total > x.cap;
+    const fit = Math.ceil(x.total / (rules.min_cap_pct / 100) / 10) * 10;
+    return `<div class="${over ? 'br-warn' : 'tiny'}" style="margin:4px 0 8px">${esc(x.c.name)}: minimums <b>${money(x.total)}/day</b> of ${money(x.cap)} allowed (${rules.min_cap_pct}% of ${money(x.c.budget)})${over ? `. Over: take minimums off finished tests, or raise the budget to ${money(fit)}/day.` : ''}</div>`;
+  }).join('');
+}
 
 function paintLibrary(body) {
   const d = S.d, rules = d.rules;
@@ -369,7 +414,8 @@ function paintLibrary(body) {
         ? `<span class="tiny">Asana: <a href="${esc(asn.url)}" target="_blank" rel="noopener">${esc(asn.project_name)}</a> · synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
         : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>
     </div>
-    ${!rules.target_cpa ? `<div class="br-warn">No target CPA yet, so Locus is not suggesting calls for this brand. Set it in <b>Brand info → Test rules</b>.</div>` : ''}
+    ${!rules.target_cpa ? `<div class="br-warn">No target CPA yet, so Locus is not suggesting calls for this brand. <a href="#" class="go-goals">Set it in Settings → Goals</a>.</div>` : ''}
+    ${minsBar(rules)}
     <div class="br-chips">${[['all', 'All tests'], ['winner', 'Winners'], ['loser', 'Losers'], ['waiting', 'Waiting on a call'], ['keep', 'Keep running'], ['open', 'In progress'], ['offer', 'Offers']].map(([k, l]) => `<span class="br-chip ${f === k ? 'on' : ''}" data-f="${k}">${l}<span class="n">${count(k)}</span></span>`).join('')}</div>
     <div class="lb-grid">
       <aside class="lb-angles" aria-label="Angles">
@@ -391,7 +437,7 @@ function paintLibrary(body) {
               <span class="s">${b.angle_id ? esc(angleOf[b.angle_id]?.name || '') : '<i>not filed</i>'}${b.concept_id ? ' · ' + esc(conceptName(b.concept_id)) : ''}${b.offer ? ' · ' + esc(short(b.offer, 40)) : ''}</span>
               ${b.learning ? `<span class="learn">${esc(short(b.learning, 160))}</span>` : ''}</span>
             <span class="lb-nums">${b.stats.spend ? `<b>${money(b.stats.spend)}</b>${rules.target_cpa ? `<span style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) + ' CPA' : 'no sales'}</span>` : `<span style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null ? x2(b.stats.roas) + ' ROAS' : 'no sales'}</span>`}` : '<span class="tiny">no spend</span>'}</span>
-            <span class="lb-res">${resChip(b)}</span></button>`).join('')
+            <span class="lb-res">${resChip(b)}${testChips(b, rules)}</span></button>`).join('')
           : `<div class="br-empty">${q ? `Nothing matches "${esc(S.q)}". Try a shorter word.` : 'No tests here yet.'}</div>`}
       </section>
     </div>
@@ -401,6 +447,12 @@ function paintLibrary(body) {
   body.querySelectorAll('[data-f]').forEach(c => c.onclick = () => { S.res = c.dataset.f; repaint(); });
   body.querySelectorAll('[data-a]').forEach(c => c.onclick = () => { S.ang = c.dataset.a; repaint(); });
   body.querySelectorAll('[data-b]').forEach(r => r.onclick = () => testDrawer(d.batches.find(b => b.id === r.dataset.b)));
+  body.querySelectorAll('.go-goals').forEach(l => l.onclick = e => { e.preventDefault(); e.stopPropagation(); window.openGoals && window.openGoals(S.act); });
+  if (rules.min_track && (!S.mins || S.mins.act !== S.act) && !S.minsLoading) {
+    S.minsLoading = true;
+    ahJson('/api/brand-asana/mins', {}).then(m => { S.mins = { act: S.act, ...m }; }).catch(e => { S.mins = { act: S.act, error: e.message }; })
+      .finally(() => { S.minsLoading = false; repaint(); });
+  }
   body.querySelector('#lbEditAng')?.addEventListener('click', () => angleModal(d.angles.find(a => a.id === S.ang)));
   body.querySelector('#lbSync')?.addEventListener('click', () => syncAsana());
   body.querySelector('#lbTidy')?.addEventListener('click', async () => {
@@ -1184,15 +1236,14 @@ function paintProfile(body) {
           <dt>Never</dt><dd>${esc(p.donts || a.dos_donts || '-')}</dd>
           <dt>Notes</dt><dd>${esc(p.notes || '-')}</dd>
         </dl></div>
-      <div class="card"><div class="br-bar"><h3 class="br-h">Test rules</h3></div>
-        <p class="hint" style="margin:6px 0 10px">When a test has spent enough to judge, and the CPA it is judged against. Sales are Triple Whale attribution. Locus suggests Winner, Keep running or Loser in Asana with the soft metrics beside it; the media buyer makes the call.</p>
-        <div class="br-form">
-          ${inp('rC', 'Target CPA', r.target_cpa || '', { type: 'number', hint: 'the cost per sale you want' })}
-          ${inp('rS', 'Judge after spending', r.judge_spend, { type: 'number', hint: 'about 3x the target CPA' })}
-          ${inp('rD', 'Or after this many days', r.judge_days, { type: 'number' })}
-
-        </div>
-        <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn primary" id="brRules">Save rules</button><span class="br-msg" id="brRulesMsg"></span></div></div>
+      <div class="card"><div class="br-bar"><h3 class="br-h">Test rules</h3><button class="btn" id="brRules">Edit in Settings</button></div>
+        <p class="hint" style="margin:6px 0 10px">Set once per brand in Settings → Goals. Sales are Triple Whale attribution. Locus suggests Winner, Keep running or Loser in Asana; the media buyer makes the call.</p>
+        <dl class="br-kv">
+          <dt>Goal cost per sale</dt><dd>${r.target_cpa ? money(r.target_cpa) : '<b>not set</b>'}</dd>
+          <dt>Judge after</dt><dd>${money(r.judge_spend)} spent, or ${r.judge_days} days</dd>
+          <dt>Yellow zone</dt><dd>up to ${r.yellow_pct}% over goal${r.target_cpa ? ` (${money(r.target_cpa * (1 + r.yellow_pct / 100))})` : ''}</dd>
+          <dt>Test minimums</dt><dd>${r.min_track ? `${money(r.min_spend)}/day for ${r.min_days} days, all together max ${r.min_cap_pct}% of budget` : 'not tracked'}</dd>
+        </dl></div>
     </div>
     <div class="card"><div class="br-bar"><h3 class="br-h">Brand voice ${voice._status === 'draft' ? '<span class="br-tag draft">Draft from the website</span>' : ''}</h3><div>${voice._status === 'draft' ? `<button class="btn" id="brVoiceOk">Approve</button>` : ''}<button class="btn" id="brVoice">Edit</button></div></div>
       <dl class="br-kv" style="margin-top:10px">
@@ -1213,13 +1264,7 @@ function paintProfile(body) {
     await putDoc('', 'profile', { ...p, website: val(w, 'pW'), drive: val(w, 'pDr'), current_offer: val(w, 'pO'), free_ship: val(w, 'pF'), dos: val(w, 'pDo'), donts: val(w, 'pDn'), notes: val(w, 'pN') });
     ctl.close(); repaint();
   }) });
-  body.querySelector('#brRules').onclick = async () => {
-    const m = $('#brRulesMsg');
-    try {
-      await putDoc('', 'rules', { ...(S.d.docs['']?.rules || {}), target_cpa: +val(body, 'rC') || 0, judge_spend: +val(body, 'rS'), judge_days: +val(body, 'rD') });
-      repaint(); const m2 = $('#brRulesMsg'); if (m2) { m2.textContent = 'Saved. The roadmap uses these now.'; m2.className = 'br-msg ok'; }
-    } catch (e) { m.textContent = e.message; m.className = 'br-msg bad'; }
-  };
+  body.querySelector('#brRules').onclick = () => window.openGoals && window.openGoals(S.act);
   body.querySelector('#brVoice').onclick = () => docModal('', 'voice', 'Brand voice', [['summary', 'In short', 2], ['traits', 'Traits (one per line)', 3], ['say', 'Words they use (one per line)', 3], ['avoid', 'Words to avoid (one per line)', 3], ['examples', 'Examples, verbatim (one per line)', 4]], { ...voice, traits: lines(voice.traits), say: lines(voice.say), avoid: lines(voice.avoid), examples: lines(voice.examples) });
   body.querySelector('#brVoiceOk')?.addEventListener('click', async () => { await putDoc('', 'voice', voice, 'approved'); repaint(); });
 }

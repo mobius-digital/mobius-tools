@@ -1206,3 +1206,21 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   #mobius-newbiz.
 - Not changed on purpose: the Your ads page shares the report-archive token (that token only opens the client's
   own SENT reports, which they already received). The Shopify heads-up is hourly, not instant (copy says so).
+
+### 2026-10-04: ONE PLACE FOR GOALS + the Monday test view. Read before touching targets.
+
+- Cole: "I don't want the same KPI stuff in different places." **Goal CPA and goal ROAS live only on
+  `accounts.target_cpa / target_roas`, edited only in Settings → brand → Goals** (`loadGoals` in
+  index.html). The Creative browser "Goal CPA" and Brand info "Test rules" are read-only links to it
+  (`openGoals(act)`). The AI Strategist may still PUT the same account column (same value, not a copy).
+- The brand `rules` doc (p_br_doc '' 'rules') holds TEST settings only: `TEST_KEYS` in
+  profit/worker/src/brand.js = judge_spend (0 = 3x goal), judge_days, yellow_pct (30), min_track,
+  min_spend (20), min_days (7), min_cap_pct (25). Light route `GET/PUT /api/brand/rules`.
+- The old doc copy of target_cpa wins until account-health `unifyGoals` (hourly cron) moves it onto
+  the account and strips it; log in `settings.goalUnify`. rulesFor (profit) and rulesOf
+  (asana-brand.js) must stay identical. The 1.3 yellow multiplier is now `1 + yellow_pct/100`
+  everywhere (suggest, judge, Asana ✅/⚠️/❌, cpaTone).
+- Test library rows show `Day N of judge_days` (from the first day of spend, same clock as judging)
+  and, when min_track is on, `Min $X on` / `Min $X on, take off` read LIVE from Meta via
+  account-health `POST /api/brand-asana/mins` (ad sets matched by the leading number, numOf), plus a
+  per-campaign line: minimums vs min_cap_pct of the campaign budget, with the budget that would fit.

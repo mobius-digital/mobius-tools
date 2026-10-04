@@ -173,12 +173,12 @@ export async function brandBrain(env, act, opts = {}) {
     const claimRules = list(safeJson(amb?.rules_json, []));
     if (claimRules.length) r.push(`Claim and filming rules (from the creator link, apply to every ad):\n${claimRules.map(x => `- ${one(x, 300)}`).join('\n')}`);
     const tr = data('', 'rules');
-    if (tr && (tr.target_cpa > 0 || tr.judge_spend > 0)) r.push(`How tests are judged: ${tr.target_cpa > 0 ? `target CPA ${money(tr.target_cpa)}` : 'no target CPA'}${tr.judge_spend > 0 ? `, judged after ${money(tr.judge_spend)} spend` : ''}${tr.judge_days > 0 ? ` or ${tr.judge_days} days` : ''}.`);
+    if (tr && (acct.target_cpa > 0 || tr.judge_spend > 0)) r.push(`How tests are judged: ${acct.target_cpa > 0 ? `goal CPA ${money(acct.target_cpa)}` : 'no goal CPA'}${tr.judge_spend > 0 ? `, judged after ${money(tr.judge_spend)} spend` : ''}${tr.judge_days > 0 ? ` or ${tr.judge_days} days` : ''}.`);
     sec('rules', 'Staff rules (these outrank everything, including the brief)', r.join('\n'));
     if (!profile.dos && !profile.donts && !claimRules.length) gaps.push(data('', 'viktor_notes')?.md
       ? 'No staff rules on claims (Brand info > Profile: always / never); the client guardrails and claim checks in Viktor\'s notes above are the best guide until staff confirm them.'
       : 'No staff rules on claims (Brand info > Profile: always / never).');
-    if (!(acct.target_cpa > 0) && !(tr?.target_cpa > 0)) gaps.push('No target CPA, so no test has a suggested call.');
+    if (!(acct.target_cpa > 0) && !(tr?.target_cpa > 0)) gaps.push('No goal CPA (Settings → Goals), so no test has a suggested call.');
   }
 
   /* ---- 2b. Viktor's brand research notes (guardrails and flags first; ad history is Meta-reported) ---- */
