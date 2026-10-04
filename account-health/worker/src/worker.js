@@ -2129,7 +2129,7 @@ function buildBriefTextV2(data, dates, narrative) {
   // The model's first line is the headline; everything after it is the narrative.
   let headline = null, body = narrative || '';
   const m = body.match(/^\s*Headline:\s*(.+)\n?/i);
-  if (m) { headline = m[1].replace(/^\*+|\*+$/g, '').trim(); body = body.slice(m[0].length).trim(); }
+  if (m) { headline = m[1].replace(/^\*+|\*+$/g, '').trim().replace(/\.$/, ''); body = body.slice(m[0].length).trim(); }
   // Section titles bold, so the three parts are findable at a glance.
   body = body.split('\n').map(l => V2_TITLES.includes(l.replace(/\*/g, '').trim()) ? `*${l.replace(/\*/g, '').trim()}*` : l).join('\n');
 
@@ -2141,7 +2141,11 @@ function buildBriefTextV2(data, dates, narrative) {
   const rowFor = (label, aV, fV, fmtV) => {
     if (aV == null && fV == null) return;
     let tail = '';
-    if (aV != null && fV) {
+    if (aV != null && fV && (aV < 0 || fV < 0) && fmtV === fm) {
+      // A percentage across zero ("-207%") means nothing to a reader. Say the gap in money.
+      const g = aV - fV;
+      tail = ` (${fm(Math.abs(g))} ${g < 0 ? 'under' : 'over'} the ${fmtV(fV)} plan)`;
+    } else if (aV != null && fV) {
       const r = Math.round((aV / fV - 1) * 100);
       tail = ` (${r > 0 ? '+' : ''}${r}% vs ${fmtV(fV)} plan)`;
     } else if (fV != null) tail = ` (${fmtV(fV)} planned)`;
@@ -2221,7 +2225,8 @@ WHAT IT MEANS: 2 or 3 sentences, no figures at all. The one thing about yesterda
 WHAT WE'RE DOING: built ONLY from (a) THE BUYER'S NOTE and (b) the Change Log, both given to you. Never invent an action, a plan, a date or a promise that is not in one of them.
 - Turn each real action into a short bullet in plain words, past tense for what was done ("We switched the three restarted ads back on with tighter daily caps.").
 - If the buyer's note states a plan, keep it as written in meaning, tidied, never extended.
-- If there is no note and nothing in the Change Log, write exactly one bullet: "• No changes to the ads yesterday." and, only if the data clearly supports it, one bullet starting "We're watching" that names what we will look at next, with no promise or deadline.
+- Leave out housekeeping: renames, drafts, test campaigns or test ads, deleting old test items, system events. They are not client news.
+- If there is no note and no real change, write exactly the bullet "• No changes to the ads yesterday." with nothing added to it, and, only if the data clearly supports it, one bullet starting "We're watching" that names what we will look at next, with no promise or deadline.
 - Never promise to agree, set or discuss a target. Targets are handled outside this message.
 
 WRITING RULES:
