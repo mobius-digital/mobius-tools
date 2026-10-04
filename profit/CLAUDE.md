@@ -1231,3 +1231,8 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   min_days, minimum-cap warning, and one Ads Manager link selecting exactly the ad sets to change.
   Per-brand switch `rules.monday_post` in Settings → Goals, with "Preview this week's message"
   (`POST /api/brand-asana/monday`, `{post:true}` sends now). The media buyer needs nothing else.
+- **Do it button (2026-10-04).** When the Meta token has MANAGE/ADVERTISE on the account (`user_tasks`),
+  the Monday message carries one button (`tests_do`) that makes exactly the listed changes: pause the
+  loser ad sets (or ads when no ad set matched) and set `daily_min_spend_target=0` on keeps past their
+  minimum days. The plan is frozen at post time in `settings.mondayPlan:<act>:<date>`; a second press
+  says who already did it. Read-only accounts get a line saying to grant "Manage campaigns" instead.

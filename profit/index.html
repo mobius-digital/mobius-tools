@@ -7997,7 +7997,7 @@ async function renderSettings() {
       try {
         const res = await fetch(AH_URL + '/api/brand-asana/monday', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: a.act_id }) });
         const j = await res.json().catch(() => ({}));
-        pre.textContent = j.error ? j.error : j.text.replace(/<([^|>]+)\|([^>]+)>/g, '$2').replace(/:[a-z_]+: /g, '');
+        pre.textContent = j.error ? j.error : j.text.replace(/<([^|>]+)\|([^>]+)>/g, '$2').replace(/:[a-z_]+: /g, '') + (j.todo ? (j.canEdit ? `\n\n[ Do it button: ${j.todo} change${j.todo === 1 ? '' : 's'} ]` : '') : '');
       } catch (e) { pre.textContent = e.message; }
     };
     v('save').onclick = async () => {

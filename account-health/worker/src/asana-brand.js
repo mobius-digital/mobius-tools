@@ -634,6 +634,7 @@ export async function mondayCalls(env, act) {
   const td = today();
   const groups = { loser: [], winner: [], keep: [], early: [] };
   const open = new Set(), openAds = new Set();
+  const plan = { pause: [], pauseAds: [], clear: [] };
   for (const r of rows) {
     const st = stats[r.id];
     if (!st || !(st.spend > 0)) continue;                            // not spending: not live in Meta
@@ -644,12 +645,14 @@ export async function mondayCalls(env, act) {
     const sc = scorecard(st, rules, bm);
     const j = judge(st, rules, sc);
     const call = j ? j.call : 'early';
-    const minOff = min > 0 && (call !== 'early' || (day && day > rules.min_days));
+    const minOff = min > 0 && call !== 'loser' && (call !== 'early' || (day && day > rules.min_days));   // a paused test needs no minimum change
     const name = sets[0]?.name || `${n} | ${r.title}`;
     const nums = `${money(st.spend)} spent, ${st.orders || 0} sale${st.orders === 1 ? '' : 's'}${st.orders ? ` (${money(st.spend / st.orders)} each)` : ''}`;
     const line = call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent` : `• ${name}: ${nums}`;
     groups[call].push(line + (minOff ? ` · *take the ${money(min)} minimum off*` : ''));
     if (call === 'loser' || minOff) { sets.forEach(a => open.add(a.id)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
+    if (call === 'loser') { if (sets.length) plan.pause.push(...sets.map(a => a.id)); else plan.pauseAds.push(...(st.ad_ids || [])); }
+    else if (minOff) plan.clear.push(...sets.filter(a => a.min > 0).map(a => a.id));
   }
   const L = [];
   const head = `*${acct.name} · this week's test calls* (goal ${money(rules.target_cpa)} per sale)`;
@@ -668,14 +671,70 @@ export async function mondayCalls(env, act) {
   const A = act.replace(/^act_/, '');
   if (ids.length) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${A}&selected_adset_ids=${ids.slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
   else if (openAds.size) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/ads?act=${A}&selected_ad_ids=${[...openAds].slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
-  return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post };
+  /* Can Locus change this account? The token's own tasks on it (MANAGE / ADVERTISE). */
+  let canEdit = false;
+  try {
+    const u = await (await F(`https://graph.facebook.com/v23.0/${act}?fields=user_tasks&access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
+    canEdit = (u.user_tasks || []).some(t => t === 'MANAGE' || t === 'ADVERTISE');
+  } catch {}
+  const todo = plan.pause.length + plan.pauseAds.length + plan.clear.length;
+  if (todo && !canEdit) L.push('_Locus can only read this ad account, so the changes are yours to make. To get a Do it button, give the Mobius system user "Manage campaigns" on this ad account in Meta Business Settings._');
+  return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post, plan, canEdit, todo };
 }
-async function postMonday(env, act) {
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+function doLabel(plan) {
+  const p = plan.pause.length + plan.pauseAds.length, c = plan.clear.length;
+  return ['Do it:', p ? `pause ${plural(p, plan.pause.length ? 'ad set' : 'ad')}` : '', p && c ? '+' : '', c ? `take ${plural(c, 'minimum')} off` : ''].filter(Boolean).join(' ');
+}
+/* Slack section text tops out at 3000 characters: split on lines. */
+function sections(text) {
+  const out = []; let cur = '';
+  for (const line of text.split('\n')) {
+    if ((cur + '\n' + line).length > 2900) { out.push(cur); cur = line; } else cur = cur ? cur + '\n' + line : line;
+  }
+  if (cur) out.push(cur);
+  return out.map(t => ({ type: 'section', text: { type: 'mrkdwn', text: t } }));
+}
+/** The Do it button: makes exactly the changes the message listed, nothing re-judged. */
+export async function runMondayPlan(env, payload) {
+  const tap = (payload.actions || []).find(a => a.action_id === 'tests_do');
+  const v = safeJson(tap?.value, {});
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`mondayPlan:${v.a}:${v.w}`).first().catch(() => null);
+  const plan = safeJson(row?.value, null);
+  const say = body => payload.response_url ? F(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
+  if (!plan) return say({ response_type: 'ephemeral', replace_original: false, text: 'That list is out of date. Next Monday brings a fresh one.' });
+  if (plan.done) return say({ response_type: 'ephemeral', replace_original: false, text: `Already done by ${plan.done}.` });
+  const post = async (id, params) => {
+    const body = new URLSearchParams({ ...params, access_token: env.META_TOKEN });
+    const j = await (await F(`https://graph.facebook.com/v23.0/${id}`, { method: 'POST', body })).json();
+    if (j.error) throw new Error(j.error.error_user_msg || j.error.message);
+  };
+  const ok = { paused: 0, cleared: 0 }, bad = [];
+  for (const id of [...plan.pause, ...plan.pauseAds]) { try { await post(id, { status: 'PAUSED' }); ok.paused++; } catch (e) { bad.push(`pause ${id}: ${e.message}`); } }
+  for (const id of plan.clear) { try { await post(id, { daily_min_spend_target: '0' }); ok.cleared++; } catch (e) { bad.push(`minimum ${id}: ${e.message}`); } }
+  const who = payload.user?.id ? `<@${payload.user.id}>` : 'someone';
+  plan.done = who;
+  await env.DB.prepare(`UPDATE settings SET value = ?2 WHERE key = ?1`).bind(`mondayPlan:${v.a}:${v.w}`, JSON.stringify(plan)).run().catch(() => {});
+  const result = `${bad.length ? ':warning:' : ':white_check_mark:'} Done by ${who}: ${plural(ok.paused, 'pause')}, ${plural(ok.cleared, 'minimum')} taken off.${bad.length ? `\nDidn't work:\n• ${bad.join('\n• ')}` : ''}`;
+  return say({ replace_original: true, text: `${plan.text}\n${result}`, blocks: [...sections(plan.text), { type: 'context', elements: [{ type: 'mrkdwn', text: result }] }] });
+}
+export async function postMonday(env, act) {
   const m = await mondayCalls(env, act);
   if (m.error) return m;
   if (!m.channel || !env.SLACK_BOT_TOKEN) return { ...m, error: 'This brand has no internal Slack channel (Settings).' };
+  const p = centralParts();
+  const w = `${p.year}-${p.month}-${p.day}`;
+  const blocks = sections(m.text);
+  if (m.todo && m.canEdit) {
+    await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .bind(`mondayPlan:${act}:${w}`, JSON.stringify({ ...m.plan, text: m.text })).run();
+    blocks.push({ type: 'actions', elements: [{ type: 'button', action_id: 'tests_do', style: 'primary', text: { type: 'plain_text', text: doLabel(m.plan) },
+      value: JSON.stringify({ a: act, w }),
+      confirm: { title: { type: 'plain_text', text: 'Make these changes?' }, text: { type: 'mrkdwn', text: `${doLabel(m.plan).replace('Do it: ', '')} in Meta, exactly as listed. Keep and not-ready tests are not touched.` },
+        confirm: { type: 'plain_text', text: 'Do it' }, deny: { type: 'plain_text', text: 'Cancel' } } }] });
+  }
   const r = await (await F('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ channel: m.channel, text: m.text, unfurl_links: false, unfurl_media: false }) })).json();
+    body: JSON.stringify({ channel: m.channel, text: m.text, blocks, unfurl_links: false, unfurl_media: false }) })).json();
   return { ...m, posted: !!r.ok, error: r.ok ? undefined : r.error };
 }
 /** Hourly: Mondays at 8am Central, once per brand per week. */

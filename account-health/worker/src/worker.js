@@ -26,7 +26,7 @@ import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
-import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, useFetch as brandAsanaFetch } from './asana-brand.js';
+import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, useFetch as brandAsanaFetch } from './asana-brand.js';
 import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
@@ -2088,6 +2088,181 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/*  Daily Brief v2 (2026-10-04)                                        */
+/* ------------------------------------------------------------------ */
+/* Built from a side-by-side with CTC's daily updates. What we kept from v1:
+   one line per metric with the gap stated, plain English, no jargon. What v2
+   takes from CTC and then goes past it:
+ - a one-line HEADLINE verdict above the numbers, so a client who reads one
+     line still knows how the day went (CTC has none);
+ - a deterministic MONTH SO FAR block, because "a shade under last month's
+     pace" is not a number and the month is what the client is judged on;
+ - What we saw is a FIXED set of bullets with bold lead-ins in a fixed order,
+     so the client learns where to look and can skim the lead-ins alone;
+ - exact figures, never "about" or "roughly", when we have the exact figure;
+ - What we're doing comes ONLY from what the buyer wrote and the Change Log.
+     v1 let the model invent actions with days on them, and all three briefs on
+     2026-10-03 promised the same "agree your October target with you".
+   The "To finish on plan" line now waits until day 7: on day 3 it told one
+   client to more than double spend, and it printed "$9/day of spend (0.02x)"
+   when repeat buyers alone nearly covered the target. */
+
+/** The buyer's note for this brief: anything written in the 2 days before it builds. */
+async function briefNoteFor(env, actId, date) {
+  const n = safeJson(await getSetting(env, `briefNote:${actId}`).catch(() => null), null);
+  if (!n?.text || !n.at) return null;
+  const age = (Date.parse(date + 'T12:00:00Z') + 36 * 3600e3) - Date.parse(n.at);
+  return age >= 0 && age <= 72 * 3600e3 ? n.text : null;
+}
+
+const V2_TITLES = ['What we saw', "What we're doing", 'What it means'];
+
+function buildBriefTextV2(data, dates, narrative) {
+  const cur = data.account.currency;
+  const list = Array.isArray(dates) ? dates : [dates];
+  const fm = n => n == null ? ' - ' : new Intl.NumberFormat('en-US',
+    { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
+  const fx = n => n == null ? ' - ' : `${n.toFixed(2)}x`;
+  const cmOk = data.cogs_quality?.verdict !== 'broken' && data.cogs_quality?.verdict !== 'none';
+
+  // The model's first line is the headline; everything after it is the narrative.
+  let headline = null, body = narrative || '';
+  const m = body.match(/^\s*Headline:\s*(.+)\n?/i);
+  if (m) { headline = m[1].replace(/^\*+|\*+$/g, '').trim(); body = body.slice(m[0].length).trim(); }
+  // Section titles bold, so the three parts are findable at a glance.
+  body = body.split('\n').map(l => V2_TITLES.includes(l.replace(/\*/g, '').trim()) ? `*${l.replace(/\*/g, '').trim()}*` : l).join('\n');
+
+  const span = list.length === 1 ? prettyDate(list[0])
+    : list.map(prettyDate).slice(0, -1).join(', ') + ' and ' + prettyDate(list[list.length - 1]);
+  const L = [`Hey Team :wave: Here's the Daily Update for ${span} →`];
+  if (headline) L.push(`*${headline}*`);
+
+  const rowFor = (label, aV, fV, fmtV) => {
+    if (aV == null && fV == null) return;
+    let tail = '';
+    if (aV != null && fV) {
+      const r = Math.round((aV / fV - 1) * 100);
+      tail = ` (${r > 0 ? '+' : ''}${r}% vs ${fmtV(fV)} plan)`;
+    } else if (fV != null) tail = ` (${fmtV(fV)} planned)`;
+    L.push(`${label}: *${fmtV(aV)}*${tail}`);
+  };
+
+  for (const d of list) {
+    const day = data.days.find(x => x.date === d);
+    if (!day?.a) continue;
+    const f = day.f || {}, a = day.a;
+    L.push('', `*${prettyDate(d)}*`);
+    rowFor(a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', a.sales, f.sales, fm);
+    rowFor('Ad Spend', a.spend, f.spend, fm);
+    rowFor('MER', a.mer, f.mer, fx);
+    rowFor('aMER', a.amer, f.amer, fx);
+    if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
+  }
+
+  // MONTH SO FAR: the same rows, summed. Deterministic, never left to the model.
+  const mt = data.mtd || {};
+  const elapsed = data.days.filter(x => x.date <= data.up_to && x.a).length;
+  const dim = data.days.length;
+  if (mt.sales != null && elapsed > 1) {
+    L.push('', `*${MONTH_NAMES[+data.month.slice(5, 7) - 1]} so far* (day ${elapsed} of ${dim})`);
+    rowFor('Net Sales', mt.sales, mt.sales_f, fm);
+    rowFor('Ad Spend', mt.spend, mt.spend_f, fm);
+    if (cmOk) rowFor('Contribution Margin', mt.cm, mt.cm_f, fm);
+  }
+
+  const th = data.to_hit;
+  if (th && th.days_elapsed >= 7 && th.days_remaining > 0) {
+    const days = `the last ${th.days_remaining} day${th.days_remaining === 1 ? '' : 's'}`;
+    const mostlyRepeat = th.covered_by_returning || (th.revenue_per_day > 0 && th.new_per_day / th.revenue_per_day < 0.15);
+    if (th.already_there) {
+      L.push('', `*To finish on plan:* the month's target is already banked.`);
+    } else if (mostlyRepeat) {
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${days}. Repeat customers are bringing in ${fm(th.returning_per_day)}/day on their own, so today's spend covers it.`);
+    } else if (th.spend_per_day != null && th.spend_ramp != null && th.spend_ramp <= 1.05) {
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${days}, which today's ${fm(th.spend_now_per_day)}/day of spend covers if results hold.`);
+    } else if (th.spend_per_day != null) {
+      L.push('', `*To finish on plan:* ${fm(th.revenue_per_day)}/day over ${days}, which takes about *${fm(th.spend_per_day)}/day of spend* (${fm(th.spend_now_per_day)}/day now).`);
+      if (th.spend_ramp > 1.5) L.push(`_That is a big step up, and bigger budgets usually bring back less per dollar. Worth agreeing a revised number rather than spending into it._`);
+    }
+  }
+
+  let out = L.join('\n') + (body ? `\n\n${body}` : '');
+  if (data.goals && data.goals_planned === false) {
+    out += `\n\n_No ${MONTH_OF(data.month).split(' ')[0]} target is set yet, so "plan" here is ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from).split(' ')[0] : "last month"}'s pace._`;
+  }
+  return out;
+}
+
+const BRIEF_SYSTEM_V2 = `You are a senior media buyer at Mobius Digital writing a client's daily performance brief for Slack. The system prints the numbers block (each metric with its gap to plan) and a month-so-far block. You write the headline and the three sections below. The reader owns the business, skims on a phone, and should get the day from the headline and the bold lead-ins alone.
+
+OUTPUT EXACTLY THIS SHAPE:
+Headline: <one sentence, at most 14 words: how the day went and the main reason. At most one figure. No bold, no emoji.>
+What we saw
+• *Profit:* <one sentence>
+• *Trend:* <one sentence>
+• *New vs repeat:* <one sentence>
+• *Channels:* <one sentence>
+What it means
+<2 or 3 sentences>
+What we're doing
+• <bullet>
+
+THE FOUR BULLETS, always in this order, always with these exact bold lead-ins:
+- Profit: what the day left after ads and costs, and why. If contribution margin is unavailable (you will be told), use the lead-in *Sales:* instead and talk about sales.
+- Trend: how yesterday compares with the days just before it (a streak, a turn, the best or worst day since a date).
+- New vs repeat: money from people who had never bought before against money from returning customers, and what changed.
+- Channels: Meta and Google in ONE sentence, each as Triple Whale's return on its spend, e.g. "Meta brought back 1.52 per dollar on $668, Google 7.83 on $158." If a channel's read is n/a, say its orders have not landed yet and give its spend.
+On the Monday brief (you will be given THE WEEK THAT JUST CLOSED) add a fifth bullet, *Last week:*, with net sales against plan and the best day.
+Each bullet: ONE sentence, at most 25 words, at most two figures, and the conclusion before the evidence. Use the exact figure from the data, never "about", "roughly", "around", "nearly" or "a shade". Never repeat a figure already in the numbers or month-so-far blocks.
+
+WHAT IT MEANS: 2 or 3 sentences, no figures at all. The one thing about yesterday that matters most for their money, why it happened, and what usually comes next. If it is the same story as recent briefs, say in one sentence that it has not changed and spend the rest on what is new.
+
+WHAT WE'RE DOING: built ONLY from (a) THE BUYER'S NOTE and (b) the Change Log, both given to you. Never invent an action, a plan, a date or a promise that is not in one of them.
+- Turn each real action into a short bullet in plain words, past tense for what was done ("We switched the three restarted ads back on with tighter daily caps.").
+- If the buyer's note states a plan, keep it as written in meaning, tidied, never extended.
+- If there is no note and nothing in the Change Log, write exactly one bullet: "• No changes to the ads yesterday." and, only if the data clearly supports it, one bullet starting "We're watching" that names what we will look at next, with no promise or deadline.
+- Never promise to agree, set or discuss a target. Targets are handled outside this message.
+
+WRITING RULES:
+NO ABBREVIATIONS: write "month to date", "Wednesday", "September 8". Money always as "$36" with the account's currency symbol, whole units. Percentages as "64%". Channel returns as a plain number like 1.52 (that is dollars back per dollar spent).
+NEVER print a raw ad or campaign name. NO EM DASHES, EVER. Slack bold is *single asterisks*; never ** or markdown headers. No greeting, no sign-off.
+${PLAIN_VOICE}
+Use ONLY the numbers provided. Meta and Google returns are Triple Whale's pixel attribution and the last day or two keep settling, so if a read is weak on very few orders, say so in a few words. MER and aMER are store-wide (all sales or new-customer sales over all ad spend), never call them a platform number. There is no channel ROAS target; never call a channel's return a missed goal. Keep everything under 170 words.`;
+
+async function writeBriefNarrativeV2(env, acct, data, date, steer) {
+  const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
+  const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
+    `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} ${['Meta', 'Google'].map(P => { const r = x.a?.[`${P.toLowerCase()}_roas`], n = x.a?.[`${P.toLowerCase()}_purchases`]; return `${P}Return ${!x.a?.attr_source ? 'n/a (not synced)' : r == null ? 'n/a (no spend)' : n < 2 ? `n/a (only ${n} order)` : `${f2(r)} off ${n} orders`}`; }).join(' ')}`);
+  const { results: evs } = await env.DB.prepare(
+    `SELECT event_time, category, summary, reason, note FROM activities
+     WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
+  ).bind(acct.act_id, addDays(date, -2)).all();
+  const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
+  const { results: recent } = await env.DB.prepare(
+    `SELECT date, text FROM briefs WHERE act_id = ?1 AND date < ?2 AND text IS NOT NULL ORDER BY date DESC LIMIT 3`,
+  ).bind(acct.act_id, date).all().catch(() => ({ results: [] }));
+  const recentBlock = recent.map(r => {
+    const i = r.text.indexOf('What we saw');
+    return i < 0 ? null : `--- brief for ${r.date} ---\n${r.text.slice(i, i + 1500)}`;
+  }).filter(Boolean);
+  const cmBad = data.cogs_quality && (data.cogs_quality.verdict === 'broken' || data.cogs_quality.verdict === 'none');
+  return claude(env, {
+    system: BRIEF_SYSTEM_V2,
+    maxTokens: 6000,
+    user: `Client: ${data.account.name} (currency ${data.account.currency}). The brief covers ${(data.covering || [date]).join(' and ')}; if more than one day, cover them together and name the day when it matters.\n` +
+      `Goals this month: ${JSON.stringify(data.goals)}.${data.goals && data.goals_planned === false ? ' (Carried over from last month; call it last month\'s pace, never "plan".)' : ''}\n` +
+      (cmBad ? `CONTRIBUTION MARGIN IS UNAVAILABLE for this client (cost data unreliable). Never mention margin or profit; use the *Sales:* lead-in.\n` : '') +
+      `\nLast ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth to date: ${JSON.stringify(data.mtd)}\n\n` +
+      (data.week ? `THE WEEK THAT JUST CLOSED (${data.week.from} to ${data.week.to}): ${JSON.stringify(data.week)}\n\n` : '') +
+      `THE BUYER'S NOTE (what the media buyer actually did or plans, in their words):\n${data.buyer_note ? `<<<${data.buyer_note}>>>` : '(none)'}\n\n` +
+      `Changes we made in the last 2 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}` +
+      (recentBlock.length ? `\n\nWHAT WE ALREADY TOLD THIS CLIENT recently. Do not reuse these sentences or retell the same story:\n${recentBlock.join('\n\n')}` : '') +
+      (await styleBlock(env, 'brief', acct.act_id)) +
+      steerBlock(steer),
+  });
+}
+
 /** Build the full brief for one account+day. Returns {data, text} or {data, error}.
  *  When `date` is a Sunday the Monday-morning send adds a week-in-review block. */
 /** Which days should this brief cover? Normally just yesterday - but if a send was
@@ -2135,7 +2310,12 @@ async function coverageDates(env, acct, date, data) {
   return out.length ? out : [date];
 }
 
-async function makeBrief(env, acct, date, { steer } = {}) {
+async function makeBrief(env, acct, date, { steer, format } = {}) {
+  /* FORMAT SWITCH (2026-10-04). v2 is the skimmable rebuild (headline, month so
+     far, fixed lead-in bullets, actions only from what the buyer actually did).
+     It ships dark: the `briefFormat` setting decides, and until it says 'v2'
+     every real brief stays on v1. /api/brief-preview can ask for either. */
+  const fmt = format || (await getSetting(env, 'briefFormat').catch(() => null)) || 'v1';
   /* Channel ROAS and orders are Triple Whale attribution, and the nightly
      attribution sync runs at 03:30 UTC - still the evening before in the
      brands' own zones - so it never holds the brief's day. Pull the last three
@@ -2153,11 +2333,13 @@ async function makeBrief(env, acct, date, { steer } = {}) {
   }
   data.covering = dates;
   let narrative = null, narrative_error = null;
-  try { narrative = await writeBriefNarrative(env, acct, data, date, steer); } catch (e) { narrative_error = e.message; }
+  if (fmt === 'v2') data.buyer_note = await briefNoteFor(env, acct.act_id, date);
+  try { narrative = fmt === 'v2' ? await writeBriefNarrativeV2(env, acct, data, date, steer) : await writeBriefNarrative(env, acct, data, date, steer); } catch (e) { narrative_error = e.message; }
   /* Only the days this brief actually reports on can block it. A bad day
      earlier in the month is the Data Health tab's problem, not this send's. */
   const health = briefHealth(data, dates);
-  return { data, dates, text: buildBriefText(data, dates, narrative), narrative_error, health, steer: steer || null };
+  const text = fmt === 'v2' ? buildBriefTextV2(data, dates, narrative) : buildBriefText(data, dates, narrative);
+  return { data, dates, text, narrative_error, health, steer: steer || null, format: fmt };
 }
 
 /** The health of the days a brief covers: what stops it going to a client. */
@@ -5074,6 +5256,11 @@ async function handleSlackInteract(request, env, ctx) {
       })());
       return ACK();
     }
+    /* Monday test calls: the Do it button (asana-brand.js). Acknowledged now, done after. */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => a.action_id === 'tests_do')) {
+      ctx.waitUntil(runMondayPlan(env, payload).catch(() => {}));
+      return ACK();
+    }
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^idea_/.test(a.action_id || '')))
       return env.IDEAS_BOT === 'off' ? ACK() : await handleIdeaAction(env, ctx, payload);
@@ -7231,9 +7418,21 @@ const AH_APP = {
         const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
-        const r = await makeBrief(env, acct, date);
+        const r = await makeBrief(env, acct, date, { format: b.format === 'v2' || b.format === 'v1' ? b.format : undefined });
         if (r.error) return json({ error: r.error }, 400);
-        return json({ ok: true, date, text: r.text, narrative_error: r.narrative_error ?? null });
+        return json({ ok: true, date, format: r.format, text: r.text, narrative_error: r.narrative_error ?? null });
+      }
+      /* What the buyer actually did, in their own words. v2 briefs build
+         "What we're doing" from this plus the Change Log and nothing else, so
+         the client is never promised something nobody planned. */
+      if (path === '/api/brief-note' && (request.method === 'GET' || request.method === 'PUT')) {
+        const act = request.method === 'GET' ? url.searchParams.get('act') : null;
+        if (request.method === 'GET') return json({ note: safeJson(await getSetting(env, `briefNote:${act}`), null) });
+        const b = await request.json().catch(() => ({}));
+        if (!b.act) return json({ error: 'act is required' }, 400);
+        const text = String(b.text || '').trim().slice(0, 1500);
+        await putSetting(env, `briefNote:${b.act}`, JSON.stringify({ text, at: new Date().toISOString() }));
+        return json({ ok: true });
       }
       if (path === '/api/brief-send' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
