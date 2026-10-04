@@ -842,7 +842,10 @@ const esc = x => String(x ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&
 /* A brand needs a target CPA before Locus suggests calls: the whole judgement starts
    from it. `quiet` posts without @mentioning anyone (a new brand's backlog catch-up,
    so nobody gets twenty notifications at once). */
-async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
+/* `rejudge` (2026-10-04): re-posts ONLY tests whose earlier call no longer matches the
+   numbers (the goal CPA changed after the call, e.g. Lucky $30 -> $52, so a $44 test
+   sat as "Loser" with a learning saying it did not sell). It overwrites the learning. */
+async function resultsPass(env, act, { limit = 8, quiet = false, rejudge = false } = {}) {
   const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas FROM accounts WHERE act_id = ?1`).bind(act).first();
   const rules = rulesOf(acct, await getDoc(env, act, 'rules'));
   if (!rules.target_cpa) return { posted: 0, skipped: 'Set a goal cost per sale in Settings → this brand → Goals to switch on result calls.' };
@@ -860,16 +863,21 @@ async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
   for (const r of rows) {
     if (posted >= limit) break;
     const recheck = r.asana_result === 'keep' && r.check_again && r.check_again <= td;
-    if (r.asana_result === 'keep' && !recheck) continue;           // waiting for its check-again date
-    if (r.result_posted && !recheck) continue;                      // already suggested; the buyer has it
+    if (rejudge) {
+      if (recheck || !r.result_posted || !['winner', 'loser'].includes(r.asana_result)) continue;
+    } else {
+      if (r.asana_result === 'keep' && !recheck) continue;           // waiting for its check-again date
+      if (r.result_posted && !recheck) continue;                      // already suggested; the buyer has it
+    }
     if (recheck && r.result_posted === `recheck:${r.check_again}`) continue;
     const st = stats[r.id];
     const sc = st ? scorecard(st, rules, bm) : null;
     let j = sc ? judge(st, rules, sc) : null;
     if (!j && !recheck) continue;                                   // not enough spend yet
+    if (rejudge && j.call === r.asana_result) continue;             // the earlier call still stands
     if (!j) j = { call: 'keep', reason: 'data', read: `Still only ${money(st?.spend || 0)} spent. Not enough to judge.` };
     let learning = '';
-    if (j.call !== 'keep') {
+    if (j.call !== 'keep' || rejudge) {
       const { out } = await claudeJson(env, {
         system: `Write ONE line (under 25 words) a media buyer would log as the learning from this ad test: what it tells the next strategist. Base it only on the numbers and the test description. ${VOICE}`,
         user: `Test ${parseInt(r.num, 10)}: ${r.title}\nAngle: ${r.angle || 'none'}\nWhat it tested: ${r.hypothesis || 'not written'}\nOffer: ${r.offer || 'none'}\nResult: ${money(st.spend)} spent, ${st.orders} orders${sc.cpa ? `, CPA ${money(sc.cpa)}` : ''}, ROAS ${sc.roas.toFixed(2)}, CTR ${pct(sc.ctr)}, hook ${pct(sc.hook)}, ${st.atc} add to carts. ${j.read} Call: ${L[j.call]}.`,
@@ -908,7 +916,7 @@ async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
       const next = j.call === 'keep'
         ? `Agree? Leave it, Locus checks back on ${nextCheck}. Disagree? Change Result above.`
         : 'Agree? Move this task to Completed. Disagree? Change Result or Learning above first.';
-      const html = `<body>${who}<strong>Test ${parseInt(r.num, 10)} ${recheck ? 'check-in' : 'scorecard'}</strong>
+      const html = `<body>${who}<strong>Test ${parseInt(r.num, 10)} ${rejudge ? `updated call (was ${L[r.asana_result]}; the goal or the numbers changed since)` : recheck ? 'check-in' : 'scorecard'}</strong>
 <strong>${CALL[j.call]}</strong>${j.call === 'keep' ? ` (${KR[j.reason]})` : ''}
 <ul>${rows}</ul><strong>Why:</strong> ${esc(j.read)}${learning ? `
 <strong>Learning:</strong> ${esc(learning)}` : ''}
@@ -916,8 +924,8 @@ async function resultsPass(env, act, { limit = 8, quiet = false } = {}) {
 <strong>Your move:</strong> ${next}
 <em>Sales: Triple Whale. Delivery: Meta.</em></body>`;
       await asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { html_text: html } });
-      await env.DB.prepare(`UPDATE p_br_batch SET result_posted = ?2, asana_result = ?3, check_again = ?4, learning = COALESCE(learning, NULLIF(?5, '')), updated_at = datetime('now') WHERE id = ?1`)
-        .bind(r.id, recheck ? `recheck:${r.check_again}` : j.call, j.call, j.call === 'keep' ? nextCheck : r.check_again, learning).run();
+      await env.DB.prepare(`UPDATE p_br_batch SET result_posted = ?2, asana_result = ?3, check_again = ?4, learning = CASE WHEN ?6 = 1 AND ?5 != '' THEN ?5 ELSE COALESCE(learning, NULLIF(?5, '')) END, updated_at = datetime('now') WHERE id = ?1`)
+        .bind(r.id, recheck ? `recheck:${r.check_again}` : j.call, j.call, j.call === 'keep' ? nextCheck : r.check_again, learning, rejudge ? 1 : 0).run();
       posted++;
     } catch (e) { /* one bad task must not stop the rest */ }
   }
@@ -1356,7 +1364,7 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     if (path === '/api/brand-asana/hook') return json({ ok: true, made: await ensureHook(env, b.act, doc), hook_gid: doc.hook_gid });
     if (path === '/api/brand-asana/sync') return json({ ok: true, ...(await syncTasks(env, b.act, doc, { full: !!b.full })) });
     if (path === '/api/brand-asana/tag') return json({ ok: true, ...(await tagPass(env, b.act, { limit: Math.min(15, +b.limit || 12), warn: b.warn !== false && b.warn !== 'false' })) });
-    if (path === '/api/brand-asana/results') return json({ ok: true, ...(await resultsPass(env, b.act, { limit: Math.min(30, +b.limit || 10), quiet: !!b.quiet })) });
+    if (path === '/api/brand-asana/results') return json({ ok: true, ...(await resultsPass(env, b.act, { limit: Math.min(30, +b.limit || 10), quiet: !!b.quiet, rejudge: !!b.rejudge })) });
     /* After an angle is renamed or merged in Locus, open tasks show the current name. */
     if (path === '/api/brand-asana/refresh-angles') return json({ ok: true, updated: await refreshAngleNames(env, b.act) });
     if (path === '/api/brand-asana/tidy-angles') return json({ ok: true, ...(await tidyAngles(env, b.act)) });

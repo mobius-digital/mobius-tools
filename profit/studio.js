@@ -198,7 +198,7 @@ async function render({ tok, url, act, accounts, pick }) {
   injectCss();
   const main = $('#main');
   if (act === 'all') {
-    main.innerHTML = `<div class="st"><div><h2>Studio</h2><p class="sub">Batches of ads made with AI, straight from the brief. Pick a brand.</p></div>
+    main.innerHTML = `<div class="st"><div>${typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('studio')}</div>` : ''}<h2>Studio</h2><p class="sub">Batches of ads made with AI, straight from the brief. Pick a brand.</p></div>
       <div class="card"><div class="st-chips">${S.accounts.filter(a => a.act_id !== 'all').map(a => `<button class="st-chip" data-act="${esc(a.act_id)}">${esc(a.name)}</button>`).join('')}</div></div></div>`;
     main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
     return;
@@ -221,7 +221,7 @@ function paint() {
   const main = $('#main'), d = S.d, y = window.scrollY;
   const loose = live(adsOf(null));
   main.innerHTML = `<div class="st">
-    <div class="st-bar"><div style="display:block"><h2>Studio · ${esc(d.account?.name || '')}</h2><p class="sub" style="margin:0">Make a batch straight from the brief: one ad per line, the product checked against the real photos, then send it to Canva.</p></div>
+    <div class="st-bar"><div style="display:block">${typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('studio')}</div>` : ''}<h2>Studio · ${esc(d.account?.name || '')}</h2><p class="sub" style="margin:0">Make a batch straight from the brief: one ad per line, the product checked against the real photos, then send it to Canva.</p></div>
       <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span><button class="btn" id="stKey">Image AI key</button>` : ''}<button class="btn" id="stAtria" title="Lets the Slack ideas bot open Atria ad links">${S.atria?.connected ? 'Atria connected' : 'Connect Atria'}</button><button class="btn" id="stCanva">${d.canva?.connected ? 'Canva connected' : 'Connect Canva'}</button><button class="btn" id="stHf" title="The video AI">${S.hf?.connected ? 'Higgsfield connected' : 'Connect Higgsfield'}</button></div></div>
     ${d.has_key ? '' : keyCard()}
     <div class="st-layout">

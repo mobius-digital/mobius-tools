@@ -9,7 +9,7 @@
  * the Slack app, and is the auth server every Mobius tool delegates to.
  *
  * Two doors: the Locus dashboard, and an @-mention in a brand's INTERNAL
- * Slack channel, so Ahsan, Noma and Robbo get answers without going through
+ * Slack channel, so Ahsan and Noma get answers without going through
  * Cole. The client channel is never one of its doors.
  *
  * The rules it is born with (Cole's, and not negotiable):
@@ -24,7 +24,7 @@ import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 
 const WHO = `
 You are the Strategist for Mobius Digital, a marketing agency run by Cole
-with a team of account strategists (Ahsan, Noma, Robbo). You work inside
+with a team of account strategists (Ahsan, Noma) and a video editor (Ravo). You work inside
 Locus, the platform that watches every client brand. You answer for the
 whole book of clients or for one brand: is the brand making money, are the
 ads working, what changed on the account and who changed it, what we told
@@ -90,7 +90,7 @@ const RULES = `
 const TABLES = ['accounts', 'daily_insights', 'hourly_insights', 'tw_daily', 'activities', 'ads', 'ad_daily', 'briefs', 'reports',
                 'p_plan', 'p_cohorts', 'p_sku_costs', 'p_cost_health', 'p_profit_share', 'p_ad_share'];
 
-const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brands (Dartee, Grunk Dolfer, Party Patch, Galway Bay, Lucky Golf, InStyler and others). Each brand has a Meta ad account, a Triple Whale store, an internal Slack channel for the team and a client channel. Every morning a Daily Brief goes to each client; every week and month a report. Strategists (Ahsan, Noma, Robbo) run the accounts day to day and log what they change and why. The plan per brand sets a monthly sales and spend goal; the target ROAS and CPA are the client's own lines.`;
+const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brands (Dartee, Grunk Dolfer, Party Patch, Galway Bay, Lucky Golf, InStyler and others). Each brand has a Meta ad account, a Triple Whale store, an internal Slack channel for the team and a client channel. Every morning a Daily Brief goes to each client; every week and month a report. Strategists (Ahsan, Noma) run the accounts day to day and log what they change and why. The plan per brand sets a monthly sales and spend goal; the target ROAS and CPA are the client's own lines.`;
 
 /* How a good strategist thinks. Read before every answer; the copy in
  * Settings wins over this one. The creative half is Mobius's own framework

@@ -324,6 +324,7 @@ const verdictTag = v => v ? `<span class="br-tag ${v === 'winner' ? 'win' : v ==
 const statusTag = s => s === 'draft' ? '<span class="br-tag draft">Draft</span>' : s === 'proposed' ? '<span class="br-tag ai">AI idea</span>' : s === 'retired' ? '<span class="br-tag">Retired</span>' : '';
 const lineName = id => S.d.lines.find(l => l.id === id)?.name || '';
 const personaName = id => S.d.personas.find(p => p.id === id)?.name || '';
+const crumb = t => typeof window.crumbFor === 'function' && window.crumbFor(t) ? `<div class="ph-crumb">${window.crumbFor(t)}</div>` : '';
 const angleName = id => S.d.angles.find(a => a.id === id)?.name || '';
 const conceptName = id => S.d.concepts.find(c => c.id === id)?.name || '';
 
@@ -369,7 +370,7 @@ function paint() {
   const drafts = d.personas.filter(p => p.status === 'draft').length + d.angles.filter(a => a.status === 'proposed').length;
   const views = [['research', 'Research', drafts], ['info', 'Voice and brand info']];
   main.innerHTML = `<div class="br">
-    <div class="lb-head"><div><h2>${esc(d.account.name)}</h2><p class="sub" style="margin:0">Who buys this brand, why, and how it talks. Read it before you write a brief. Tests are on the Tests tab.</p></div>
+    <div class="lb-head"><div>${crumb('brand')}<h2>Brand · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">Who buys this brand, why, and how it talks. Read it before you write a brief. Past tests and what won are on Angles.</p></div>
       <nav class="lb-seg" aria-label="Brand sections">${views.map(([k, l, n]) => `<button data-v="${k}" class="${S.view === k ? 'on' : ''}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav></div>
     <div id="brBody" class="br"></div></div>`;
   main.querySelectorAll('.lb-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
@@ -391,6 +392,9 @@ function outcomeOf(b) {
   if (b.verdict === 'winner' || b.verdict === 'loser') return b.verdict;
   if (b.verdict) return null;
   if (b.box !== 'done') return null;
+  /* The call Locus already posted in Asana (or the buyer set there) comes first, so the
+     pill never disagrees with the learning written for that call. */
+  if (b.asana_result === 'winner' || b.asana_result === 'loser') return b.asana_result;
   return { winner: 'winner', loser: 'loser', keep: 'mixed' }[b.suggest] || null;
 }
 const OUT_PILL = { winner: ['Winner', 'win'], loser: ['Loser', 'lose'], mixed: ['Mixed', 'mid'] };
@@ -434,7 +438,7 @@ function paintAngles(main) {
     .sort((x, y) => READS[x.r][2] - READS[y.r][2] || (y.s.won / (y.s.judged || 1)) - (x.s.won / (x.s.judged || 1)) || y.s.tests - x.s.tests);
   const unfiled = d.batches.filter(b => !b.angle_id).length;
   main.innerHTML = `<div class="br ts">
-    <div class="ts-head"><div><h2>Angles · ${esc(d.account.name)}</h2>
+    <div class="ts-head"><div>${crumb('angles')}<h2>Angles · ${esc(d.account.name)}</h2>
       <p class="sub" style="margin:0">Every reason to buy we have tested, what won, and the concepts under it. Check an idea here before you brief it.</p></div></div>
     <section class="ts-box hot"><div class="ts-bh"><h3>Have we tested this?</h3><span>Type the idea in your own words. Locus checks it against every angle and every past test, so the same idea in different words still counts.</span></div>
       <div class="ts-body"><form class="an-ask" id="anAsk"><input class="br-in" id="anIdea" style="margin:0" placeholder="e.g. golfers who hate paying for a logo" value="${esc(S.idea || '')}" aria-label="Your idea"><button class="btn primary" type="submit">${S.checking ? 'Checking…' : 'Check'}</button></form>
@@ -543,7 +547,7 @@ function wireAngleTools(main) {
 const BOX_CALL = { winner: ['Winner', 'win'], loser: ['Loser, pause it', 'lose'], keep: ['Keep 7 more days', 'mid'], too_early: ["Meta won't spend, pause it", 'lose'] };
 function resultPill(b) {
   if (b.verdict && RES[b.verdict]) return `<span class="br-tag ${RES[b.verdict][1]}">${RES[b.verdict][0]}</span>`;
-  if (b.box === 'call') { const c = BOX_CALL[b.suggest] || ['Make a call', 'draft']; return `<span class="br-tag ${c[1]}" title="Locus's read. The media buyer makes the call in Asana.">${c[0]}</span>`; }
+  if (b.box === 'call') { const c = BOX_CALL[['winner', 'loser'].includes(b.asana_result) ? b.asana_result : b.suggest] || ['Make a call', 'draft']; return `<span class="br-tag ${c[1]}" title="Locus's read. The media buyer makes the call in Asana.">${c[0]}</span>`; }
   if (b.box === 'done') {
     const c = { winner: ['Locus: winner', 'win'], loser: ['Locus: loser', 'lose'], keep: ['Locus: mixed', 'mid'] }[b.suggest];
     return c ? `<span class="br-tag ${c[1]} ts-read" title="No call was made in Asana. This is Locus's read of its numbers.">${c[0]}</span>` : '<span class="br-tag" title="It never spent enough to judge">Too little spend</span>';
@@ -586,7 +590,7 @@ function paintTests(main) {
   const ideas = making.filter(b => b.stage === 'idea').length, prod = making.length - ideas;
   main.innerHTML = `<div class="br ts">
     <div class="ts-head">
-      <div><h2>Test calls · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">${rulesLine}. Fills itself from Asana.</p></div>
+      <div>${crumb('tests')}<h2>Test calls · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">${rulesLine}. Fills itself from Asana.</p></div>
       <div class="lb-sync">${asn?.project_gid
         ? `<span class="tiny">Synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
         : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>

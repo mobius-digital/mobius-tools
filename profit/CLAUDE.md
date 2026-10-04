@@ -1289,3 +1289,21 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
 - **Concepts were 1:1 with tests** because the tag prompt never listed existing concepts. It now
   does (EXISTING CONCEPTS block in tagPass), and `POST /api/brand-asana/tidy-concepts` groups
   same-idea concepts inside one angle (link on the Angles page).
+
+## 2026-10-04 (night): every page says who it is for; the rail filters by role; in-app guide
+
+- Cole: "my team is not going to know what each one of these tabs do." `TAB_WHO` (index.html) maps
+  each tab to everyone / buyer / strategist / owner. `crumbFor()` appends a "For the media buyer"
+  chip; brand.js, studio.js, amb.js and meta.js read it through `window.crumbFor` / `window.whoChip`
+  so EVERY page carries the same crumb + who chip. A new tab must be added to TAB_WHO and TAB_CRUMB.
+- Rail: "Show tabs for" (Everyone / Buyer / Strategist), stored in `pf_role`, `applyRole()` hides the
+  other tabs (the open tab always stays). `ROLE_TABS` is the list per role.
+- **How to use Locus** (`show('guide')`, button in the rail foot, `GUIDE` array): the SOP by role,
+  steps in order, each with an Open button (`data-go="tab"` or `"meta:sub"`). Keep GUIDE in step with
+  the rail whenever a tab moves.
+- Header buttons are words now (Tour, Metrics, Help), not icons. The fixed-window note above the
+  crumb (PB_FIXED) is no longer drawn.
+- Angles/Test calls pills use the call already POSTED in Asana (`asana_result`) before Locus's
+  recomputed read, so a pill never contradicts its learning. account-health
+  `POST /api/brand-asana/results {rejudge:true, quiet:true}` re-posts only tests whose posted call no
+  longer matches the numbers (the goal CPA changed after the call) and overwrites the learning.

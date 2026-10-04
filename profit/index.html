@@ -139,6 +139,26 @@
   /* The picker carries a caption because an unlabelled dark box reading
      "Party Patch" does not say that it scopes the entire app. */
   .side-client{padding:10px 9px;border-bottom:1px solid var(--hd-line);margin-bottom:9px}
+  /* "Show tabs for": the rail only lists the tabs that role uses (2026-10-04). */
+  .side-role{padding:0 12px 8px;display:flex;flex-direction:column;gap:5px;flex:none}
+  .side-role .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:#0E1A23;border:1px solid var(--hd-line);border-radius:9px;padding:2px}
+  .side-role .seg button{font-size:11.5px;font-weight:600;color:#9FB4C4;padding:5px 2px;border-radius:7px;white-space:nowrap}
+  .side-role .seg button.on{background:#22384A;color:#fff}
+  .side-role .seg button:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  #tabs button[data-t].role-off,#tabs .grp.role-off{display:none}
+  .ph-who{font-weight:600;color:var(--brand-ink);background:var(--brand-soft);border-radius:99px;padding:1px 8px;margin-left:8px;white-space:nowrap;letter-spacing:0;text-transform:none}
+  .gd{display:flex;flex-direction:column;gap:18px;max-width:880px}
+  .gd-role{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .gd-role>header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 18px;background:var(--unk-bg);border-bottom:1px solid var(--line)}
+  .gd-role h3{margin:0;font-size:17px}
+  .gd-role header span{font-size:13px;color:var(--muted)}
+  .gd-when{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:14px 18px 4px}
+  .gd-step{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 18px}
+  .gd-step i{font-style:normal;font-weight:700;font-size:12px;width:24px;height:24px;border-radius:99px;background:var(--brand-soft);color:var(--brand-ink);display:grid;place-items:center}
+  .gd-step b{display:block;font-size:14px}
+  .gd-step span{font-size:13px;color:var(--muted)}
+  .gd-role .gd-step:last-child{padding-bottom:16px}
+  @media (max-width:560px){.gd-step{grid-template-columns:28px minmax(0,1fr)}.gd-step .btn{grid-column:2;justify-self:start}}
   .side-cap{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     color:#4B6072;display:block;margin-bottom:5px;user-select:none}
   .side-client select{width:100%}
@@ -593,7 +613,7 @@
 
   /* An icon-sized help affordance. The words "Show me / Metrics / ? How to
      use" took a whole row on every page to say the same three things. */
-  .ph-ico{width:26px;height:26px;border-radius:99px;border:1px solid var(--line-strong);
+  .ph-ico{height:26px;padding:0 10px!important;border-radius:99px;border:1px solid var(--line-strong);
     background:var(--surface);color:var(--muted);font-size:12px;line-height:1;cursor:pointer;
     display:inline-flex;align-items:center;justify-content:center;flex:none;padding:0;font-family:inherit}
   .ph-ico:hover{border-color:var(--brand-ink);color:var(--brand-ink);background:var(--brand-soft)}
@@ -1623,6 +1643,14 @@
       <span class="side-cap">Client</span>
       <select id="clientPick" style="display:none"></select>
     </div>
+    <div class="side-role" id="roleSeg" style="display:none">
+      <span class="side-cap">Show tabs for</span>
+      <div class="seg" role="group" aria-label="Show tabs for">
+        <button data-role="all" title="Every tab">Everyone</button>
+        <button data-role="buyer" title="Only the tabs a media buyer uses">Buyer</button>
+        <button data-role="strategist" title="Only the tabs a creative strategist uses">Strategist</button>
+      </div>
+    </div>
     <div class="side-scroll">
     <nav class="tabs" id="tabs" style="display:none">
       <!-- 2026-10-04 (Cole: "every tab needs to be stupid simple"): groups say WHEN
@@ -1662,6 +1690,7 @@
     </div>
     <div class="side-foot">
       <button class="askbtn" onclick="AskUI.open()" title="Ask the Strategist (Ctrl+K)" style="margin-bottom:8px;width:100%;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 4.5 16.8L21 21l-1.2-4.5A9 9 0 0 0 12 3Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3 2.45V13"/><path d="M12.5 16h.01"/></svg>Ask the Strategist</button>
+      <button class="askbtn" id="btnGuide" style="margin-bottom:8px;width:100%;justify-content:center;display:none" title="What each tab is for, and what to do each day">How to use Locus</button>
       <span class="hd-chip" id="connChip">…</span>
       <button class="hd-btn" id="btnOut" style="display:none">Sign out</button>
     </div>
@@ -1688,7 +1717,7 @@
     <div class="pbar" id="periodBar" style="display:none"><div class="in" id="pbIn"></div></div>
 
     <main id="main"></main>
-    <footer id="foot"><b>Locus</b> by Mobius Digital · store-level money across <b>every</b> channel (Shopify via Triple Whale + all ad platforms), plus the <b>Meta</b> tab for platform-reported numbers that match Ads Manager. Plan in <code>profit/PRD.md</code>.</footer>
+    <footer id="foot"><b>Locus</b> by Mobius Digital · sales and attribution from Triple Whale, spend and delivery from each ad platform. New here? Press <b>How to use Locus</b> in the left menu.</footer>
   </div>
 </div>
 
@@ -1705,12 +1734,12 @@
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=4"></script>
-<script src="amb.js?v=16"></script>
+<script src="meta.js?v=5"></script>
+<script src="amb.js?v=17"></script>
 <script src="../onboard/questions.js?v=8"></script>
-<script src="brand.js?v=12"></script>
+<script src="brand.js?v=13"></script>
 <script src="newclient.js?v=13"></script>
-<script src="studio.js?v=18"></script>
+<script src="studio.js?v=19"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -1792,6 +1821,8 @@ function chrome(on) {
   set('#subtabs', 'none');            // never restored here; renderMeta owns it
   set('#clientPick', on ? '' : 'none');
   set('#btnOut', on ? '' : 'none');
+  set('#roleSeg', on ? '' : 'none');
+  set('#btnGuide', on ? '' : 'none');
   if (!on) set('#periodBar', 'none');
 }
 
@@ -2541,7 +2572,44 @@ const TAB_CRUMB = {
   plan: ['Monthly and setup', 'Plan'], settings: ['Monthly and setup', 'Settings'],
   health: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Data health'], costs: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Costs'],
 };
-const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>` : ''; };
+/* Who opens each page. Shown beside the crumb on every page and used by the rail's
+   "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
+const TAB_WHO = { overview: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
+  angles: 'strategist', studio: 'strategist', brand: 'strategist', amb: 'strategist',
+  profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
+const WHO_LABEL = { everyone: 'For everyone', buyer: 'For the media buyer', strategist: 'For the strategist', owner: 'For Cole' };
+const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[tab]]}</span>` : '';
+const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
+window.crumbFor = crumbFor; window.whoChip = whoChip;
+/* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
+const ROLE_TABS = { buyer: ['overview', 'brief', 'meta', 'reports'], strategist: ['overview', 'angles', 'studio', 'brand', 'meta'] };
+function applyRole() {
+  let role = 'all';
+  try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
+  if (!ROLE_TABS[role]) role = 'all';
+  const cur = (typeof PARENT_OF !== 'undefined' && PARENT_OF[S.tab]) || S.tab;
+  document.querySelectorAll('#roleSeg [data-role]').forEach(b => b.classList.toggle('on', b.dataset.role === role));
+  document.querySelectorAll('#tabs .grp').forEach(g => {
+    let any = false;
+    g.querySelectorAll('button[data-t]').forEach(b => {
+      const off = role !== 'all' && !ROLE_TABS[role].includes(b.dataset.t) && b.dataset.t !== cur;
+      b.classList.toggle('role-off', off);
+      if (!off) any = true;
+    });
+    g.classList.toggle('role-off', !any);
+  });
+}
+document.addEventListener('click', e => {
+  const r = e.target.closest('#roleSeg [data-role]');
+  if (r) { try { localStorage.setItem('pf_role', r.dataset.role); } catch {} applyRole(); return; }
+  if (e.target.closest('#btnGuide')) { show('guide'); return; }
+  const go = e.target.closest('[data-go]');
+  if (go) {
+    const k = go.dataset.go;
+    if (k.startsWith('meta:')) { localStorage.setItem('pf_msub', k.slice(5)); show('meta'); } else show(k);
+    window.scrollTo(0, 0);
+  }
+});
 /** The page's own actions, in the top bar (Share with client, Save plan, Sync
  *  now). Call with '' to clear. Renderers own it; show() clears it on switch. */
 function pageActions(html) { const h = $('#hdActions'); if (h) h.innerHTML = html || ''; }
@@ -2556,9 +2624,9 @@ function pageHead(tab, title, extra) {
         ${purpose ? `<p class="ph-sub">${purpose}</p>` : ''}
       </div>
       <div class="ph-r">
-        <button class="ph-ico" data-tour="${tab}" title="Show me round this page">&#9655;</button>
-        <button class="ph-ico" data-gloss="1" title="What every metric means">&#8801;</button>
-        <button class="ph-ico" data-help="${tab}" title="How to use this page">?</button>
+        <button class="ph-ico" data-tour="${tab}" title="Show me round this page">Tour</button>
+        <button class="ph-ico" data-gloss="1" title="What every metric means">Metrics</button>
+        <button class="ph-ico" data-help="${tab}" title="How to use this page">Help</button>
       </div>
     </div>
     ${extra ? `<p class="ph-sub" style="margin:-8px 0 18px">${extra}</p>` : ''}`;
@@ -3769,7 +3837,7 @@ const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 /** Tab titles, so an error page can still say which tab it is. */
 const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
-  health: 'Data Health', amb: 'Creator link', brand: 'Brand', studio: 'Studio', tests: 'Test calls', angles: 'Angles' };
+  health: 'Data Health', amb: 'Creator link', brand: 'Brand', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
    (2026-10-04). The parent's own id is its first page. Meta is a section too, but
    meta.js fills its own sub-tabs. */
@@ -3876,8 +3944,10 @@ function renderPeriodBar(tab) {
   /* A screen with a FIXED window says so in one quiet line rather than a
      full-width strip - it is a fact about the page, not a control. */
   if (!interactive) {
+    /* 2026-10-04: the one-line note about a fixed window sat above the crumb and read
+       as a stray sentence. Each of those pages already says its window itself. */
     hd.style.display = 'none';
-    if (bar) { bar.style.display = ''; inn.innerHTML = `<span class="pb-fixed">${esc(PB_FIXED[tab] || '')}</span>`; }
+    if (bar) bar.style.display = 'none';
     return;
   }
   if (bar) bar.style.display = 'none';
@@ -3970,6 +4040,7 @@ function show(tab) {
      neither read as the answer. */
   const parent = PARENT_OF[tab] || tab;
   const isSection = parent === 'meta' || !!SECTIONS[parent];
+  applyRole();
   document.querySelectorAll('#tabs button[data-t]').forEach(b => {
     const cur = b.dataset.t === parent;
     b.classList.toggle('on', cur && !isSection);
@@ -4030,7 +4101,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, guide: renderGuide })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4112,6 +4183,62 @@ async function renderTests(first) {
   } catch (e) {
     if (run === RUN) $('#main').innerHTML = `<h2>Tests</h2><div class="card"><span style="color:var(--bad)">Couldn't load Tests: ${esc(e.message)}</span></div>`;
   }
+}
+
+/* ---------- How to use Locus ----------
+   The team SOP inside the app (2026-10-04, Cole: "my team is not going to know what each
+   one of these tabs do"). One block per role, steps in the order you do them, each with a
+   button that opens the screen. Keep it in step with TAB_WHO and the rail. */
+const GUIDE = [
+  { role: 'buyer', name: 'Media buyer', sub: 'Run the accounts and keep the client updated.', parts: [
+    ['Every morning', [
+      ['Overview', 'Which brand needs you today. Red and yellow first.', 'overview'],
+      ['Daily Brief', 'Read each brand’s brief, add what you changed under What we did, press Send.', 'brief'],
+      ['Meta, Test calls', 'Everything under Make a call spent enough to judge. Set Result in Asana and move the task to Completed.', 'tests'],
+      ['Meta, Creative', 'Ads marked Cut are over the goal CPA. Ads marked Scale are under it.', 'meta:creative'],
+      ['Meta, Change Log', 'Add the reason next to anything you changed in Ads Manager.', 'meta:changelog'],
+    ]],
+    ['Every Monday, and the 1st of the month', [
+      ['Reports', 'The weekly or monthly report is drafted for you. Read it, fix the wording, press Send to client.', 'reports'],
+    ]],
+  ] },
+  { role: 'strategist', name: 'Creative strategist', sub: 'Decide what to test next and brief it.', parts: [
+    ['Before every brief', [
+      ['Angles', 'Start with the angles marked Proven. Skip the ones marked Dead.', 'angles'],
+      ['Have we tested this?', 'Type your idea in your own words at the top of Angles. It tells you if it already ran under different wording.', 'angles'],
+      ['Open the angle', 'See which concepts won. Brief a variation of a winner, or a new concept under a proven angle.', 'angles'],
+      ['Brand', 'Who buys, what they say in their own words, and how the brand talks.', 'brand'],
+      ['Meta, Creative', 'What is working in the account right now.', 'meta:creative'],
+    ]],
+    ['Making it', [
+      ['Write the brief in Asana', 'Same as always. Locus files the test under its angle and concept by itself.', null],
+      ['Studio', 'For statics: New batch, pick the Asana brief, review, send to Canva.', 'studio'],
+    ]],
+  ] },
+  { role: 'owner', name: 'Cole', sub: 'Is each brand making money, and is it set up right.', parts: [
+    ['Every week', [
+      ['Profit', 'Revenue down to what was left after every cost, against the plan.', 'profit'],
+      ['Reports', 'What went to each client.', 'reports'],
+    ]],
+    ['End of the month', [
+      ['Plan', 'Set next month’s revenue, spend and MER with the client.', 'plan'],
+      ['Settings', 'Goals, Slack channels, new clients, and whether the data can be trusted.', 'settings'],
+    ]],
+  ] },
+];
+function renderGuide() {
+  let role = 'all';
+  try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
+  const order = GUIDE.slice().sort((a, b) => (b.role === role) - (a.role === role));
+  $('#main').innerHTML = `<div class="gd">
+    <div><h2>How to use Locus</h2><p class="sub" style="margin:0">What each tab is for and what to do, in order. Find your role, follow the steps. The left menu can show only your tabs: use <b>Show tabs for</b> at the top of it.</p></div>
+    ${order.map(g => `<section class="gd-role"><header><div><h3>${esc(g.name)}</h3><span>${esc(g.sub)}</span></div>
+        ${ROLE_TABS[g.role] ? `<button class="btn" data-setrole="${g.role}">Show only these tabs</button>` : ''}</header>
+      ${g.parts.map(([when, steps]) => `<div class="gd-when">${esc(when)}</div>${steps.map(([t, d, go], i) => `<div class="gd-step"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(d)}</span></div>${go ? `<button class="btn" data-go="${go}">Open</button>` : '<span></span>'}</div>`).join('')}`).join('')}
+    </section>`).join('')}
+    <p class="hint" style="margin:0">Stuck on a number? Press <b>Ask the Strategist</b> in the left menu and ask in plain words.</p>
+  </div>`;
+  $('#main').querySelectorAll('[data-setrole]').forEach(b => b.onclick = () => { try { localStorage.setItem('pf_role', b.dataset.setrole); } catch {} applyRole(); b.textContent = 'Done. Your menu now shows only these'; });
 }
 
 /* ---------- Angles ----------

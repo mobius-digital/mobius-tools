@@ -1018,7 +1018,7 @@ async function renderToday() {
 
 /* ---------- router ---------- */
 /* The band / section / page crumb the host prints on its own pages. */
-const mcrumb = t => `<div class="ph-crumb">Every day &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${t}</b></div>`;
+const mcrumb = t => `<div class="ph-crumb">Every day &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${t}</b>${typeof window.whoChip === 'function' ? window.whoChip('meta') : ''}</div>`;
 const SUBS = [
   ['overview', 'Overview', renderMetaOverview],
   ['today', 'Today', renderToday],
