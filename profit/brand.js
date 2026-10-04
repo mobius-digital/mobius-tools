@@ -271,6 +271,36 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .ts .lb-nums{min-width:0}
 @media (max-width:640px){.ts .lb-row{grid-template-columns:44px minmax(0,1fr)}}
 .lb-soft b{color:var(--ink);font-variant-numeric:tabular-nums}
+.rs-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px}
+.rs-tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.rs-tile b{font-size:17px;line-height:1.25;overflow-wrap:anywhere}
+.rs-tile .tiny{overflow-wrap:anywhere}
+.rs-tile .btn{align-self:flex-start;margin-top:6px}
+.rs-sec{scroll-margin-top:16px}
+.rs-sec > .br-bar{align-items:flex-start}
+.rs-sec > .br-bar > div:first-child{display:block;min-width:0}
+.rs-sec h3{margin:3px 0 0;font-size:17px;font-weight:700}
+.rs-sec .br-lbl{margin:0}
+.rs-body{margin-top:12px;min-width:0}
+.rs-body .br-kv{max-width:96ch}
+.rs-read{max-width:76ch;font-size:14px;line-height:1.55;overflow-wrap:anywhere;white-space:pre-wrap}
+.rs-clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.rs-q{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:underline;padding:4px 6px;background:none;border:0;cursor:pointer}
+.rs-q:hover{color:var(--ink)}
+.rs-more{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.rs-quotes{display:flex;flex-direction:column;gap:10px;max-width:86ch}
+.rs-qrow{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.rs-qrow .br-quote{flex:1;min-width:0;overflow-wrap:anywhere}
+.rs-qrow .acts{display:flex;gap:6px;flex:none}
+.rs-grp{margin:6px 0 0}
+.rs-idea{padding:10px 0;border-top:1px solid var(--line);max-width:86ch}
+.rs-idea:first-child{border-top:0;padding-top:0}
+.rs-idea .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.rs-tools{display:flex;flex-direction:column;gap:12px}
+.rs-tools .grp{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.rs-tools .grp > .br-lbl{min-width:120px}
+.rs-step{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+.rs-step:first-of-type{border-top:0}
 `;
   document.head.appendChild(st);
 }
@@ -773,10 +803,13 @@ function testDrawer(b) {
 /* ======================================================================
    BRAND INFO: test rules, voice, onboarding, all on one page
    ====================================================================== */
+/* Order (2026-10-04): how the brand talks first, then the brand facts and test
+   rules (a read-only link to Settings, Goals), then the client's onboarding answers. */
 function paintInfo(body) {
-  body.innerHTML = '<div id="biProfile" class="br"></div><div id="biVoice" class="br"></div><div id="biOnboard" class="br"></div>';
-  paintProfile(body.querySelector('#biProfile'));
+  body.innerHTML = '<div id="biTalk" class="br"></div><div id="biVoice" class="br"></div><div id="biProfile" class="br"></div><div id="biOnboard" class="br"></div>';
+  paintTalk(body.querySelector('#biTalk'));
   paintVoice(body.querySelector('#biVoice'));
+  paintProfile(body.querySelector('#biProfile'));
   paintOnboarding(body.querySelector('#biOnboard'));
 }
 
@@ -896,97 +929,221 @@ function localMatches(row, exclude) {
 /* ======================================================================
    RESEARCH
    ====================================================================== */
-function paintResearch(body) {
+/* 2026-10-04: the page is for a strategist about to write a brief. Order: who
+   buys, what they say, what we could say, then the market, the mechanism,
+   competitors and the website. Every long section opens collapsed; the staff
+   chores (run the AI, add by hand, approve, remove) sit behind Research tools,
+   a quiet Edit, or the one Approve all drafts button. Nothing was removed. */
+function rsState() {
+  if (!S.rs || S.rs.act !== S.act) S.rs = { act: S.act, open: {}, edit: {}, tools: false };
+  return S.rs;
+}
+/* One section: the old name as the small label, the question it answers as the heading. */
+function rsSec(key, label, question, right, inner, more) {
+  return `<div class="card rs-sec" data-sec="${key}"><div class="br-bar"><div><p class="br-lbl">${label}</p><h3>${question}</h3></div><div>${right || ''}</div></div>
+    <div class="rs-body">${inner}</div>${more ? `<div class="rs-more">${more}</div>` : ''}</div>`;
+}
+const rsToggle = (key, open, closedLabel, openLabel = 'Show less') => `<button class="btn" data-rs-open="${key}" aria-expanded="${open ? 'true' : 'false'}">${open ? openLabel : closedLabel}</button>`;
+const rsDraftTag = s => s === 'draft' ? ' <span class="br-tag draft">Draft</span>' : '';
+/* Every AI draft on this product line that one press can approve. Angle ideas are
+   not drafts: each one is a yes or no, so they are never in here. */
+function rsDrafts(L) {
   const d = S.d;
+  const ok = (kind, list) => list.filter(x => x.line_id === L && x.status === 'draft').map(x => ({ kind, row: { id: x.id, status: 'approved' } }));
+  const personas = ok('persona', d.personas), quotes = ok('voc', d.voc), comps = ok('comp', d.comps);
+  const docs = [[L, 'market', 'the market read'], [L, 'mechanism', 'the mechanism'], ['', 'brand_facts', 'the website notes']].filter(([ln, k]) => d.docs[ln]?.[k]?._status === 'draft');
+  const parts = [[personas.length, 'persona'], [quotes.length, 'customer quote'], [comps.length, 'competitor']].filter(([n]) => n).map(([n, w]) => `${n} ${w}${n === 1 ? '' : 's'}`).concat(docs.map(x => x[2]));
+  return { rows: [...personas, ...quotes, ...comps], docs, parts, n: personas.length + quotes.length + comps.length + docs.length };
+}
+async function rsApproveAll(L) {
+  const dr = rsDrafts(L);
+  if (!dr.n) return;
+  const ok = await modal('Approve all drafts', `<p class="hint">This approves ${dr.n} draft${dr.n === 1 ? '' : 's'} on this product line: ${esc(dr.parts.join(', '))}.</p>
+    <p class="hint">Angle ideas are not touched. Each one still needs its own yes or no.</p>`, { cta: `Approve ${dr.n}`, wide: false });
+  if (!ok) return;
+  try {
+    for (let i = 0; i < dr.rows.length; i += 150) S.d = await post('/api/brand/save-many', { rows: dr.rows.slice(i, i + 150) });
+    for (const [ln, key] of dr.docs) await putDoc(ln, key, S.d.docs[ln]?.[key] || {}, 'approved');
+  } catch (e) { await load().catch(() => {}); helpModal('Could not approve everything', `<p>${esc(e.message)}</p>`); }
+  repaint();
+}
+/* The want customers repeat most: the biggest theme among their desire quotes,
+   else the market read, else the biggest theme of any kind. Never made up. */
+function rsTopWant(voc, m) {
+  const count = list => { const by = {}; for (const v of list) { const k = String(v.theme || '').trim(); if (!k) continue; (by[k.toLowerCase()] ||= { name: k, n: 0 }).n++; } return Object.values(by).sort((a, b) => b.n - a.n)[0]; };
+  const want = count(voc.filter(v => v.kind === 'desire'));
+  if (want && (want.n > 1 || !m.mass_desire)) return { label: 'What they want most', text: want.name, sub: `${want.n} customer quote${want.n === 1 ? '' : 's'} on this` };
+  if (m.mass_desire) return { label: 'What they want most', text: short(m.mass_desire, 110), sub: 'From the market read' };
+  const any = count(voc);
+  if (any) return { label: 'What they talk about most', text: any.name, sub: `${any.n} customer quote${any.n === 1 ? '' : 's'} on this` };
+  return null;
+}
+
+function paintResearch(body) {
+  const d = S.d, R = rsState();
   const line = d.lines.find(l => l.id === S.line);
   const facts = d.docs['']?.brand_facts;
+  if (S.running) R.tools = true;
+  const runs = d.runs || [];
   body.innerHTML = `
-    <div class="card">
-      <div class="br-bar"><div><h3 class="br-h">Research</h3><p class="hint" style="margin:4px 0 0;max-width:760px">Research is done per product line: products bought for the same reason. The AI reads the website, finds the competitors, collects what real customers say across reviews, Reddit, YouTube and forums, then drafts personas, the market read and angle ideas. You approve each line before it counts.</p></div>
-        <div>${S.running ? `<button class="btn" id="brStop">Stop</button>` : `<button class="btn primary" id="brRunAll">Research this brand</button>`}</div></div>
-      ${S.log.length ? `<div class="br-log" id="brLog" style="margin-top:12px">${S.log.map(l => l).join('\n')}</div>` : ''}
-      ${!S.running && d.runs.length ? `<p class="tiny" style="margin:8px 0 0">Last run: ${esc(d.runs[0].step)} ${esc(d.runs[0].status)} ${esc((d.runs[0].finished_at || d.runs[0].started_at || '').slice(0, 16))} UTC · ${d.runs.filter(r => r.status === 'done').length} steps done so far</p>` : ''}
-    </div>
     <div class="br-bar"><div class="br-chips">${d.lines.map(l => `<span class="br-chip ${l.id === S.line ? 'on' : ''}" data-line="${l.id}">${esc(l.name)}</span>`).join('')}<span class="br-chip" id="brAddLine">+ Product line</span></div>
-      ${line ? `<div><button class="btn" id="brEditLine">Edit line</button>${S.running ? '' : `<button class="btn" id="brRunLine">Research this line</button>`}</div>` : ''}</div>
-    ${line ? `<div id="brLine" class="br"></div>` : `<div class="card br-empty">${d.lines.length ? 'Pick a product line.' : `No product lines yet. <b>Research this brand</b> reads the website and sets them up for you, or add one yourself.${facts ? '' : ''}`}</div>`}
+      <div><button class="btn" id="rsTools" aria-expanded="${R.tools ? 'true' : 'false'}">${R.tools ? 'Hide research tools' : 'Research tools'}</button></div></div>
+    ${R.tools ? `<div class="card rs-tools">
+      <p class="hint" style="margin:0;max-width:76ch">Research is done per product line: products bought for the same reason. The AI reads the website, finds the competitors, collects what real customers say across reviews, Reddit, YouTube and forums, then drafts personas, the market read and angle ideas. Everything comes back as a draft for you to approve.</p>
+      <div class="grp"><span class="br-lbl">Run the AI</span>${S.running ? `<button class="btn" id="brStop">Stop</button><span class="tiny">Running. Keep this tab open.</span>` : `<button class="btn primary" id="brRunAll">Research this brand</button>${line ? `<button class="btn" id="brRunLine">Research this line</button><button class="btn" data-step="voc">Re-run customer research</button><button class="btn" data-step="competitors">Re-run competitors</button><button class="btn" data-step="synthesis">Re-run personas and angles</button>` : ''}`}</div>
+      ${line ? `<div class="grp"><span class="br-lbl">Add by hand</span><button class="btn" data-rs-add="persona">+ Persona</button><button class="btn" data-rs-add="quote">+ Quote</button><button class="btn" data-rs-add="comp">+ Competitor</button></div>
+      <div class="grp"><span class="br-lbl">This product line</span><button class="btn" id="brEditLine">Edit line</button><span class="tiny">Rename it, change what is in it, or delete it.</span></div>` : ''}
+      ${S.log.length ? `<div class="br-log" id="brLog">${S.log.map(l => l).join('\n')}</div>` : ''}
+      ${!S.running && runs.length ? `<p class="tiny" style="margin:0">Last run: ${esc(runs[0].step)} ${esc(runs[0].status)} ${esc((runs[0].finished_at || runs[0].started_at || '').slice(0, 16))} UTC · ${runs.filter(r => r.status === 'done').length} steps done so far</p>` : ''}
+    </div>` : ''}
+    ${line ? `<div id="brLine" class="br"></div>` : `<div class="card br-empty">${d.lines.length ? 'Pick a product line.' : 'No product lines yet. Open <b>Research tools</b> and press <b>Research this brand</b>: it reads the website and sets them up for you. Or add one yourself with + Product line.'}</div>`}
     ${facts ? factsCard(facts) : ''}`;
   body.querySelectorAll('[data-line]').forEach(c => c.onclick = () => { S.line = c.dataset.line; localStorage.setItem(LS_LINE + ':' + S.act, S.line); repaint(); });
   body.querySelector('#brAddLine').onclick = () => lineModal(null);
+  body.querySelector('#rsTools').onclick = () => { R.tools = !R.tools; repaint(); };
   body.querySelector('#brEditLine')?.addEventListener('click', () => lineModal(line));
   body.querySelector('#brRunAll')?.addEventListener('click', () => runResearch('all'));
   body.querySelector('#brRunLine')?.addEventListener('click', () => runResearch('line'));
   body.querySelector('#brStop')?.addEventListener('click', () => { S.running?.abort(); });
   const log = body.querySelector('#brLog'); if (log) log.scrollTop = log.scrollHeight;
   if (line) paintLine(body.querySelector('#brLine'), line);
+  body.querySelectorAll('[data-step]').forEach(b => b.onclick = () => runResearch('one', b.dataset.step));
+  if (line) body.querySelectorAll('[data-rs-add]').forEach(b => b.onclick = () => ({ persona: () => personaModal(null, line.id), quote: () => quoteModal(line.id), comp: () => compModal(null, line.id) })[b.dataset.rsAdd]());
+  /* Open or close a section in place. Closing a long one brings its heading back into view. */
+  body.querySelectorAll('[data-rs-open]').forEach(b => b.onclick = () => {
+    const k = b.dataset.rsOpen, was = !!R.open[k];
+    R.open[k] = !was; if (was) R.edit[k] = false;
+    repaint();
+    if (was) { const s = document.querySelector(`.rs-sec[data-sec="${k}"]`); if (s && s.getBoundingClientRect().top < 0) s.scrollIntoView({ block: 'start' }); }
+  });
   body.querySelectorAll('[data-approve-doc]').forEach(b => b.onclick = async () => { const [ln, key] = b.dataset.approveDoc.split('|'); await putDoc(ln, key, d.docs[ln]?.[key] || {}, 'approved'); repaint(); });
 }
 
 function factsCard(f) {
-  return `<div class="card"><div class="br-bar"><h3 class="br-h">What the website says ${f._status === 'draft' ? '<span class="br-tag draft">Draft</span>' : ''}</h3>${f._status === 'draft' ? `<button class="btn" data-approve-doc="|brand_facts">Approve</button>` : ''}</div>
-    <dl class="br-kv" style="margin-top:10px">
+  const open = !!rsState().open.facts, draft = f._status === 'draft';
+  const counts = [[f.products, 'product'], [f.claims, 'claim'], [f.offers, 'offer']].filter(([l]) => l?.length).map(([l, w]) => `${l.length} ${w}${l.length === 1 ? '' : 's'}`);
+  const has = f.uvp || counts.length;
+  return rsSec('facts', `The website${rsDraftTag(f._status)}`, 'What does the website say?',
+    draft ? `<button class="btn" data-approve-doc="|brand_facts">Approve</button>` : '',
+    !has ? '<p class="hint" style="margin:0">Nothing read from the website yet.</p>' : open ? `<dl class="br-kv">
       ${f.uvp ? `<dt>Value proposition</dt><dd>${esc(f.uvp)}</dd>` : ''}
       ${f.products?.length ? `<dt>Products</dt><dd>${f.products.map(p => `${esc(p.name)}${p.price ? ' · ' + esc(p.price) : ''}`).join('\n')}</dd>` : ''}
       ${f.claims?.length ? `<dt>Claims and proof</dt><dd>${f.claims.map(c => `${esc(c.claim)}${c.proof ? ` (${esc(c.proof)})` : ''}`).join('\n')}</dd>` : ''}
       ${f.offers?.length ? `<dt>Offers</dt><dd>${f.offers.map(esc).join('\n')}</dd>` : ''}
-    </dl></div>`;
+    </dl>` : `${f.uvp ? `<div class="rs-read rs-clamp">${esc(f.uvp)}</div>` : ''}${counts.length ? `<div class="tiny" style="margin-top:6px">Also on the site: ${counts.join(' · ')}</div>` : ''}`,
+    has ? rsToggle('facts', open, 'Show all website notes') : '');
 }
 
 function paintLine(el, line) {
-  const d = S.d, L = line.id;
+  const d = S.d, L = line.id, R = rsState();
   const docs = d.docs[L] || {};
   const m = docs.market || {}, mech = docs.mechanism || {};
-  const personas = d.personas.filter(p => p.line_id === L);
+  const draftLast = (a, b) => (a.status === 'draft') - (b.status === 'draft');
+  const personas = d.personas.filter(p => p.line_id === L).sort(draftLast);
   const voc = d.voc.filter(v => v.line_id === L);
-  const comps = d.comps.filter(c => c.line_id === L);
+  const comps = d.comps.filter(c => c.line_id === L).sort(draftLast);
   const ideas = d.angles.filter(a => a.status === 'proposed' && (a.line_id === L || !a.line_id));
   const Qo = Q();
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+  /* ---- at a glance ---- */
+  const dr = rsDrafts(L), want = rsTopWant(voc, m);
+  const tiles = `<div class="rs-tiles">
+    <div class="rs-tile"><span class="br-lbl">Who buys</span><b>${personas.length ? plural(personas.length, 'persona') : 'No personas yet'}</b><span class="tiny">${personas.length ? `Top: ${esc(personas[0].name)}` : 'Research tools can draft them.'}</span></div>
+    <div class="rs-tile"><span class="br-lbl">${want ? want.label : 'What they want most'}</span><b>${want ? esc(want.text) : 'No customer quotes yet'}</b><span class="tiny">${want ? esc(want.sub) : 'Research tools can collect them.'}</span></div>
+    <div class="rs-tile"><span class="br-lbl">Main competitor</span><b>${comps.length ? esc(comps[0].name) : 'None listed yet'}</b><span class="tiny">${comps.length ? `${plural(comps.length, 'competitor')} on the list` : 'Research tools can find them.'}</span></div>
+    <div class="rs-tile"><span class="br-lbl">Waiting for approval</span><b>${dr.n ? plural(dr.n, 'draft') : 'Nothing waiting'}</b><span class="tiny">${ideas.length ? `${plural(ideas.length, 'angle idea')} ${ideas.length === 1 ? 'needs' : 'need'} a yes or no` : dr.n ? 'AI drafts a person has not checked yet' : 'Everything here has been checked'}</span>${dr.n ? `<button class="btn" id="rsOkAll">Approve all drafts</button>` : ''}</div>
+  </div>`;
+
+  /* ---- who buys this? ---- */
+  const pOpen = !!R.open.personas;
+  const pCard = p => { const x = p.data || {}; return `<div class="br-pcard" data-p="${p.id}"><div class="br-bar"><h4>${esc(p.name)}</h4><div>${statusTag(p.status)}${x.awareness ? `<span class="br-tag">${esc(AW()[x.awareness] || '')}</span>` : ''}</div></div>
+    ${x.demo ? `<div class="tiny">${esc(x.demo)}</div>` : ''}<div style="font-size:13.5px;overflow-wrap:anywhere">${esc(pOpen ? (x.summary || x.desire || '') : short(x.summary || x.desire, 180))}</div>
+    ${pOpen ? Qo.PERSONA_Q.filter(([k]) => !['summary', 'demo'].includes(k) && x[k] && !(k === 'desire' && !x.summary)).map(([k, l]) => `<div class="tiny" style="overflow-wrap:anywhere"><b>${esc(l)}:</b> ${esc(x[k])}</div>`).join('')
+      : x.push || x.anxiety ? `<div class="tiny"><b>Push:</b> ${esc(short(x.push, 80))}<br><b>Anxiety:</b> ${esc(short(x.anxiety, 80))}</div>` : ''}
+    <div><span class="rs-q" style="padding-left:0">${p.status === 'draft' ? 'Edit or approve' : 'Edit'}</span></div></div>`; };
+  const secPersonas = rsSec('personas', `Personas · ${personas.length}`, 'Who buys this?', '',
+    personas.length ? `<div class="br-g3">${(pOpen ? personas : personas.slice(0, 3)).map(pCard).join('')}</div>` : '<p class="hint" style="margin:0">No personas yet. Research tools can draft them, or add one by hand there.</p>',
+    personas.length ? rsToggle('personas', pOpen, personas.length > 3 ? `Show all ${personas.length} personas in full` : 'Show the full personas') : '');
+
+  /* ---- what do they say? ---- */
   const kinds = [['all', 'All'], ['pain', 'Pains'], ['desire', 'Desires'], ['objection', 'Objections'], ['failed', 'Tried and failed'], ['trigger', 'Triggers'], ['transformation', 'Transformations']];
+  const kindL = Object.fromEntries(kinds);
+  if (S.vocKind !== 'all' && !voc.some(v => v.kind === S.vocKind)) S.vocKind = 'all';
   const vk = S.vocKind;
-  const vrows = voc.filter(v => vk === 'all' || v.kind === vk);
-  const stepBtn = (step, label) => S.running ? '' : `<button class="btn" style="padding:4px 10px;font-size:12px" data-step="${step}">${label}</button>`;
-  el.innerHTML = `
-    <div class="br-g2">
-      <div class="card"><div class="br-bar"><h3 class="br-h">The market ${m._status === 'draft' ? '<span class="br-tag draft">Draft</span>' : ''}</h3><div>${m._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|market">Approve</button>` : ''}<button class="btn" id="brEditMarket">Edit</button></div></div>
-        <dl class="br-kv" style="margin-top:10px">
-          <dt>What they want</dt><dd>${esc(m.mass_desire || '-')}</dd>
-          <dt>Awareness</dt><dd>${esc(AW()[m.awareness] || '-')}${m.awareness_why ? `\n<span class="tiny">${esc(m.awareness_why)}</span>` : ''}</dd>
-          <dt>Market stage</dt><dd>${esc(Qo.STAGES.find(s => s[0] === String(m.stage))?.[1] || '-')}${m.stage_why ? `\n<span class="tiny">${esc(m.stage_why)}</span>` : ''}</dd>
-          <dt>Already claimed</dt><dd>${lines(m.claims_made).map(esc).join('\n') || '-'}</dd>
-          <dt>Open ground</dt><dd>${lines(m.open_ground).map(esc).join('\n') || '-'}</dd>
-        </dl></div>
-      <div class="card"><div class="br-bar"><h3 class="br-h">The mechanism ${mech._status === 'draft' ? '<span class="br-tag draft">Draft</span>' : ''}</h3><div>${mech._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|mechanism">Approve</button>` : ''}<button class="btn" id="brEditMech">Edit</button></div></div>
-        <dl class="br-kv" style="margin-top:10px"><dt>Why what they tried failed</dt><dd>${esc(mech.problem || '-')}</dd><dt>Why this works</dt><dd>${esc(mech.solution || '-')}</dd></dl></div>
-    </div>
+  /* Best first: approved before drafts, golden nuggets before the rest. */
+  const rank = v => (v.status === 'draft' ? 2 : 0) + (v.nugget ? 0 : 1);
+  const vAll = voc.filter(v => vk === 'all' || v.kind === vk).sort((a, b) => rank(a) - rank(b));
+  const vDrafts = voc.filter(v => v.status === 'draft').length;
+  const vOpen = !!R.open.voc, vEdit = vOpen && !!R.edit.voc;
+  const qRow = v => `<div class="rs-qrow"><div class="br-quote ${esc(v.kind)}">${v.nugget ? '★ ' : ''}"${esc(v.quote)}"<div class="tiny">${esc(kindL[v.kind] || v.kind || '')}${v.theme ? ' · ' + esc(v.theme) : ''} · ${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.source || 'source')}</a>` : esc(v.source || 'no source')}${rsDraftTag(v.status)}</div></div>
+    ${vEdit ? `<div class="acts">${v.status === 'draft' ? `<button class="btn" style="padding:3px 9px" data-vok="${v.id}">Keep</button>` : ''}<button class="btn" style="padding:3px 9px" data-vdel="${v.id}">Remove</button></div>` : ''}</div>`;
+  const known = new Set(kinds.map(k => k[0]));
+  const groups = vOpen && vk === 'all' ? [...kinds.slice(1).map(([k, l]) => [l, vAll.filter(v => v.kind === k)]), ['Other', vAll.filter(v => !known.has(v.kind))]].filter(g => g[1].length) : null;
+  const secVoc = rsSec('voc', `Voice of customer · ${plural(voc.length, 'quote')}${vDrafts ? `, ${plural(vDrafts, 'draft')}` : ''}`, 'What do they say?',
+    voc.length ? `<button class="rs-q" data-rs-edit="voc">${vEdit ? 'Done editing' : 'Edit quotes'}</button>` : '',
+    voc.length ? `<div class="br-chips" style="margin-bottom:12px">${kinds.filter(([k]) => k === 'all' || voc.some(v => v.kind === k)).map(([k, l]) => `<span class="br-chip ${vk === k ? 'on' : ''}" data-vk="${k}">${l}<span class="n">${k === 'all' ? voc.length : voc.filter(v => v.kind === k).length}</span></span>`).join('')}</div>
+      <div class="rs-quotes">${groups ? groups.map(([l, list]) => `<p class="br-lbl rs-grp">${l} · ${list.length}</p>${list.map(qRow).join('')}`).join('') : (vOpen ? vAll : vAll.slice(0, 6)).map(qRow).join('')}</div>`
+      : '<p class="hint" style="margin:0">No customer quotes yet. Research tools can collect them, or add one by hand there.</p>',
+    `${vAll.length > 6 || vOpen ? rsToggle('voc', vOpen, `Show all ${vAll.length}${vk === 'all' ? '' : ' ' + kindL[vk].toLowerCase()} quotes`, 'Show only the best 6') : ''}${vEdit ? `${vDrafts ? `<button class="btn" id="brVocOk">Approve all ${vDrafts} quote drafts</button>` : ''}<button class="btn" data-rs-add="quote">+ Quote</button>` : ''}`);
 
-    <div class="card"><div class="br-bar"><h3 class="br-h">Personas <span class="tiny">${personas.length}</span></h3><div>${stepBtn('synthesis', 'Re-run personas and angles')}<button class="btn" id="brAddP">+ Persona</button></div></div>
-      ${personas.length ? `<div class="br-g3" style="margin-top:12px">${personas.map(p => `<div class="br-pcard" data-p="${p.id}"><div class="br-bar"><h4>${esc(p.name)}</h4><div>${statusTag(p.status)}${p.data.awareness ? `<span class="br-tag">${esc(AW()[p.data.awareness] || '')}</span>` : ''}</div></div>
-        <div class="tiny">${esc(p.data.demo || '')}</div><div style="font-size:13.5px">${esc(short(p.data.summary || p.data.desire, 180))}</div>
-        ${p.data.push || p.data.anxiety ? `<div class="tiny"><b>Push:</b> ${esc(short(p.data.push, 80))}<br><b>Anxiety:</b> ${esc(short(p.data.anxiety, 80))}</div>` : ''}</div>`).join('')}</div>` : '<p class="hint" style="margin-top:8px">No personas yet.</p>'}</div>
+  /* ---- what could we say to them? ---- */
+  const iOpen = !!R.open.ideas;
+  const secIdeas = rsSec('ideas', `Angle ideas · ${ideas.length} waiting for a yes or no`, 'What could we say to them?', '',
+    ideas.length ? (iOpen ? ideas : ideas.slice(0, 3)).map(a => `<div class="rs-idea"><b>${esc(a.name)}</b> <span class="tiny">${esc(personaName(a.persona_id))}${a.awareness ? ' · ' + esc(AW()[a.awareness] || '') : ''}</span>
+        <div class="rs-read ${iOpen ? '' : 'rs-clamp'}" style="font-size:13.5px;margin-top:2px">${esc(a.argument || '')}</div>${iOpen && a.lead ? `<div class="tiny">Opens with: ${esc(a.lead)}</div>` : ''}${a.note && (iOpen || /Looks like the existing/.test(a.note)) ? `<div class="tiny" style="${/Looks like the existing/.test(a.note) ? 'color:var(--warn)' : ''}">${esc(a.note)}</div>` : ''}
+        ${R.edit['idea:' + a.id] ? `<div class="btns"><button class="btn primary" data-accept="${a.id}">Add to library</button><button class="btn" data-edit-a="${a.id}">Edit</button><button class="btn" data-dismiss="${a.id}">Dismiss</button></div>` : `<button class="rs-q" style="padding-left:0" data-rs-idea="${a.id}">Yes or no</button>`}</div>`).join('')
+      : '<p class="hint" style="margin:0">No ideas waiting. The research drafts them once it has personas.</p>',
+    ideas.length ? rsToggle('ideas', iOpen, ideas.length > 3 ? `Show all ${ideas.length} ideas in full` : 'Show the ideas in full') : '');
 
-    <div class="card"><div class="br-bar"><h3 class="br-h">Angle ideas <span class="tiny">${ideas.length} waiting for a yes or no</span></h3><div>${stepBtn('synthesis', 'Re-run personas and angles')}</div></div>
-      ${ideas.length ? ideas.map(a => `<div class="br-call"><div><b>${esc(a.name)}</b> <span class="tiny">${esc(personaName(a.persona_id))}${a.awareness ? ' · ' + esc(AW()[a.awareness]) : ''}</span><div style="font-size:13.5px;margin-top:2px">${esc(a.argument)}</div>${a.lead ? `<div class="tiny">Opens with: ${esc(a.lead)}</div>` : ''}${a.note ? `<div class="tiny" style="${/Looks like the existing/.test(a.note) ? 'color:var(--warn)' : ''}">${esc(a.note)}</div>` : ''}</div>
-        <div class="btns"><button class="btn primary" data-accept="${a.id}">Add to library</button><button class="btn" data-edit-a="${a.id}">Edit</button><button class="btn" data-dismiss="${a.id}">Dismiss</button></div></div>`).join('') : '<p class="hint" style="margin-top:8px">No ideas waiting. The research drafts them once it has personas.</p>'}</div>
+  /* ---- what have they already heard? ---- */
+  const mOpen = !!R.open.market;
+  const stage = Qo.STAGES.find(s => s[0] === String(m.stage))?.[1];
+  const mHas = m.mass_desire || m.awareness || stage || lines(m.claims_made).length || lines(m.open_ground).length;
+  const secMarket = rsSec('market', `The market${rsDraftTag(m._status)}`, 'What have they already heard?',
+    `${m._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|market">Approve</button>` : ''}<button class="rs-q" id="brEditMarket">Edit</button>`,
+    !mHas ? '<p class="hint" style="margin:0">No market read yet. Research tools can draft it, or press Edit to write it.</p>' : mOpen ? `<dl class="br-kv">
+        <dt>What they want</dt><dd>${esc(m.mass_desire || '-')}</dd>
+        <dt>Awareness</dt><dd>${esc(AW()[m.awareness] || '-')}${m.awareness_why ? `\n<span class="tiny">${esc(m.awareness_why)}</span>` : ''}</dd>
+        <dt>Market stage</dt><dd>${esc(stage || '-')}${m.stage_why ? `\n<span class="tiny">${esc(m.stage_why)}</span>` : ''}</dd>
+        <dt>Already claimed</dt><dd>${lines(m.claims_made).map(esc).join('\n') || '-'}</dd>
+        <dt>Open ground</dt><dd>${lines(m.open_ground).map(esc).join('\n') || '-'}</dd>
+      </dl>` : `<div class="rs-read rs-clamp">${esc(m.mass_desire || lines(m.open_ground)[0] || '')}</div>
+      <div class="tiny" style="margin-top:6px">${[m.awareness && AW()[m.awareness] ? `Awareness: ${esc(AW()[m.awareness])}` : '', stage ? `Market stage: ${esc(stage)}` : '', lines(m.claims_made).length ? `${plural(lines(m.claims_made).length, 'claim')} already made` : '', lines(m.open_ground).length ? `${plural(lines(m.open_ground).length, 'open gap')}` : ''].filter(Boolean).join(' · ')}</div>`,
+    mHas ? rsToggle('market', mOpen, 'Show the full market read') : '');
 
-    <div class="card"><div class="br-bar"><h3 class="br-h">Voice of customer <span class="tiny">${voc.length} quotes, ${voc.filter(v => v.status === 'draft').length} drafts</span></h3>
-      <div>${stepBtn('voc', 'Re-run customer research')}${voc.some(v => v.status === 'draft') ? `<button class="btn" id="brVocOk">Approve all drafts</button>` : ''}<button class="btn" id="brAddQ">+ Quote</button></div></div>
-      <div class="br-chips" style="margin:10px 0">${kinds.map(([k, l]) => `<span class="br-chip ${vk === k ? 'on' : ''}" data-vk="${k}">${l}<span class="n">${k === 'all' ? voc.length : voc.filter(v => v.kind === k).length}</span></span>`).join('')}</div>
-      ${vrows.length ? `<div style="display:flex;flex-direction:column;gap:10px">${vrows.slice(0, 150).map(v => `<div class="br-bar" style="align-items:flex-start"><div class="br-quote ${esc(v.kind)}" style="flex:1;min-width:240px">${v.nugget ? '★ ' : ''}"${esc(v.quote)}"<div class="tiny">${esc(v.kind)}${v.theme ? ' · ' + esc(v.theme) : ''} · ${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.source || 'source')}</a>` : esc(v.source || 'no source')} ${v.status === 'draft' ? '<span class="br-tag draft">Draft</span>' : ''}</div></div>
-        <div>${v.status === 'draft' ? `<button class="btn" style="padding:3px 9px" data-vok="${v.id}">Keep</button>` : ''}<button class="btn" style="padding:3px 9px" data-vdel="${v.id}">Remove</button></div></div>`).join('')}</div>` : '<p class="hint">No quotes here yet.</p>'}</div>
+  /* ---- why does it work? ---- */
+  const kOpen = !!R.open.mech;
+  const kHas = mech.problem || mech.solution;
+  const secMech = rsSec('mech', `The mechanism${rsDraftTag(mech._status)}`, 'Why does it work?',
+    `${mech._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|mechanism">Approve</button>` : ''}<button class="rs-q" id="brEditMech">Edit</button>`,
+    !kHas ? '<p class="hint" style="margin:0">Not written yet. Research tools can draft it, or press Edit to write it.</p>' : kOpen
+      ? `<dl class="br-kv"><dt>Why what they tried failed</dt><dd>${esc(mech.problem || '-')}</dd><dt>Why this works</dt><dd>${esc(mech.solution || '-')}</dd></dl>`
+      : `<div class="rs-read rs-clamp">${esc(mech.solution || mech.problem || '')}</div>`,
+    kHas ? rsToggle('mech', kOpen, 'Show the full mechanism') : '');
 
-    <div class="card"><div class="br-bar"><h3 class="br-h">Competitors <span class="tiny">${comps.length}</span></h3><div>${stepBtn('competitors', 'Re-run competitors')}<button class="btn" id="brAddComp">+ Competitor</button></div></div>
-      ${comps.length ? `<div class="br-g3" style="margin-top:12px">${comps.map(c => `<div class="br-pcard" data-comp="${c.id}"><div class="br-bar"><h4>${esc(c.name)}</h4>${statusTag(c.status)}</div>
-        ${c.url ? `<div class="tiny">${esc(short(c.url, 50))}</div>` : ''}${c.data.price ? `<div class="tiny">${esc(c.data.price)}</div>` : ''}
-        <div style="font-size:13px"><b>Promise:</b> ${esc(short(c.data.promise, 120))}</div>${c.data.mechanism ? `<div style="font-size:13px"><b>Mechanism:</b> ${esc(short(c.data.mechanism, 100))}</div>` : ''}
-        ${(c.data.complaints || []).length ? `<div class="tiny"><b>Their buyers complain:</b> ${esc(short(lines(c.data.complaints).join(' · '), 160))}</div>` : ''}</div>`).join('')}</div>` : '<p class="hint" style="margin-top:8px">No competitors yet.</p>'}</div>`;
+  /* ---- who else are they looking at? ---- */
+  const cOpen = !!R.open.comps;
+  const cCard = c => { const x = c.data || {}; const cut = (s, n) => cOpen ? String(s || '') : short(s, n); return `<div class="br-pcard" data-comp="${c.id}"><div class="br-bar"><h4>${esc(c.name)}</h4>${statusTag(c.status)}</div>
+    ${c.url ? `<div class="tiny" style="overflow-wrap:anywhere">${esc(short(c.url, 50))}</div>` : ''}${x.price ? `<div class="tiny">${esc(x.price)}</div>` : ''}
+    <div style="font-size:13px;overflow-wrap:anywhere"><b>Promise:</b> ${esc(cut(x.promise, 120))}</div>${x.mechanism ? `<div style="font-size:13px;overflow-wrap:anywhere"><b>Mechanism:</b> ${esc(cut(x.mechanism, 100))}</div>` : ''}
+    ${lines(x.complaints).length ? `<div class="tiny" style="overflow-wrap:anywhere"><b>Their buyers complain:</b> ${esc(cut(lines(x.complaints).join(' · '), 160))}</div>` : ''}
+    ${cOpen ? `${x.offer ? `<div class="tiny"><b>Offer:</b> ${esc(x.offer)}</div>` : ''}${lines(x.ad_themes).length ? `<div class="tiny" style="overflow-wrap:anywhere"><b>Their ads keep saying:</b> ${esc(lines(x.ad_themes).join(' · '))}</div>` : ''}${x.strengths ? `<div class="tiny"><b>Strengths:</b> ${esc(x.strengths)}</div>` : ''}${x.weaknesses ? `<div class="tiny"><b>Weaknesses:</b> ${esc(x.weaknesses)}</div>` : ''}` : ''}
+    <div><span class="rs-q" style="padding-left:0">${c.status === 'draft' ? 'Edit or approve' : 'Edit'}</span></div></div>`; };
+  const secComps = rsSec('comps', `Competitors · ${comps.length}`, 'Who else are they looking at?', '',
+    comps.length ? `<div class="br-g3">${(cOpen ? comps : comps.slice(0, 3)).map(cCard).join('')}</div>` : '<p class="hint" style="margin:0">No competitors yet. Research tools can find them, or add one by hand there.</p>',
+    comps.length ? rsToggle('comps', cOpen, comps.length > 3 ? `Show all ${comps.length} competitors in full` : 'Show the competitors in full') : '');
 
+  el.innerHTML = tiles + secPersonas + secVoc + secIdeas + secMarket + secMech + secComps;
+
+  el.querySelector('#rsOkAll')?.addEventListener('click', () => rsApproveAll(L));
   el.querySelector('#brEditMarket').onclick = () => marketModal(L, m);
   el.querySelector('#brEditMech').onclick = () => docModal(L, 'mechanism', 'The mechanism', [['problem', 'Why what they tried before failed', 3], ['solution', 'Why this product works', 3]], mech);
-  el.querySelector('#brAddP').onclick = () => personaModal(null, L);
   el.querySelectorAll('[data-p]').forEach(c => c.onclick = () => personaModal(d.personas.find(p => p.id === c.dataset.p), L));
   el.querySelectorAll('[data-comp]').forEach(c => c.onclick = () => compModal(d.comps.find(x => x.id === c.dataset.comp), L));
-  el.querySelector('#brAddComp').onclick = () => compModal(null, L);
   el.querySelectorAll('[data-vk]').forEach(c => c.onclick = () => { S.vocKind = c.dataset.vk; repaint(); });
+  el.querySelectorAll('[data-rs-edit]').forEach(b => b.onclick = () => { const k = b.dataset.rsEdit; const on = !(R.open[k] && R.edit[k]); R.edit[k] = on; if (on) R.open[k] = true; repaint(); });
+  el.querySelectorAll('[data-rs-idea]').forEach(b => b.onclick = () => { R.edit['idea:' + b.dataset.rsIdea] = true; repaint(); });
   el.querySelectorAll('[data-vok]').forEach(b => b.onclick = async () => { await saveRow('voc', { id: b.dataset.vok, status: 'approved' }); repaint(); });
   el.querySelectorAll('[data-vdel]').forEach(b => b.onclick = async () => { await delRow('voc', b.dataset.vdel); repaint(); });
   el.querySelector('#brVocOk')?.addEventListener('click', async e => {
@@ -995,11 +1152,9 @@ function paintLine(el, line) {
     for (let i = 0; i < rows.length; i += 150) S.d = await post('/api/brand/save-many', { rows: rows.slice(i, i + 150) });
     repaint();
   });
-  el.querySelector('#brAddQ').onclick = () => quoteModal(L);
   el.querySelectorAll('[data-accept]').forEach(b => b.onclick = async () => { await saveRow('angle', { id: b.dataset.accept, status: 'active', source: 'ai' }); repaint(); });
   el.querySelectorAll('[data-dismiss]').forEach(b => b.onclick = async () => { await delRow('angle', b.dataset.dismiss); repaint(); });
   el.querySelectorAll('[data-edit-a]').forEach(b => b.onclick = () => angleModal(d.angles.find(a => a.id === b.dataset.editA)));
-  el.querySelectorAll('[data-step]').forEach(b => b.onclick = () => runResearch('one', b.dataset.step));
 }
 
 function lineModal(line) {
@@ -1165,6 +1320,8 @@ function paintOnboarding(body) {
   const all = Qo.STEPS.flatMap(s => s.fields.filter(f => !f.calc));
   const done = all.filter(f => answerHtml(f, a[f.id]) != null).length;
   const pct = Math.round((done / Math.max(1, all.length)) * 100);
+  /* Which onboarding steps are open, kept while you are on this brand. */
+  const OB = S.ob && S.ob.act === S.act ? S.ob : (S.ob = { act: S.act, open: {} });
   body.innerHTML = `
     <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><p class="br-lbl">Onboarding link · ${o.status === 'submitted' ? `<span style="color:var(--good)">submitted ${esc((o.submitted_at || '').slice(0, 10))}</span>` : o.status === 'started' ? '<span style="color:var(--warn)">in progress</span>' : 'not opened yet'}</p>
         <b style="word-break:break-all">${esc(link.replace('https://', ''))}</b>
@@ -1172,12 +1329,17 @@ function paintOnboarding(body) {
       <div><button class="btn" id="brCopy">Copy link</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open the form</a><button class="btn" id="brPrefill">${S.prefilling ? 'Reading the website…' : 'Pre-fill from website'}</button></div></div>
       <p class="tiny" style="margin:8px 0 0">Pre-fill reads the brand's website and puts suggested answers in front of the client, so they confirm instead of typing. To change an answer yourself, open the form: it saves the same way.</p>
       <div id="brPfLog"></div></div>
-    ${Qo.STEPS.map(s => `<div class="card"><h3 class="br-h">${esc(s.title)}</h3>${s.fields.map(f => {
-      const v = f.calc ? Qo.calc(f.id, a) : a[f.id];
-      const h = f.calc ? (v != null ? money(v) : null) : answerHtml(f, v);
-      const sug = h == null && pf[f.id] != null ? answerHtml(f, pf[f.id], false) : null;
-      return `<div class="br-ans"><div class="l">${esc(f.label)}</div><div class="v ${h == null ? 'none' : ''}">${h ?? 'Not answered'}</div>${sug ? `<div class="sug">Suggested from the website: ${sug}</div>` : ''}</div>`;
-    }).join('')}</div>`).join('')}`;
+    <div class="card"><h3 class="br-h">What the client told us</h3><p class="hint" style="margin:4px 0 8px">Their onboarding answers, step by step. Open a step to read it.</p>
+    ${Qo.STEPS.map((s, i) => {
+      const qs = s.fields.filter(f => !f.calc), n = qs.filter(f => answerHtml(f, a[f.id]) != null).length, open = !!OB.open[i];
+      return `<div class="rs-step"><div><b>${esc(s.title)}</b> <span class="tiny">${n} of ${qs.length} answered</span></div><button class="btn" data-ob="${i}" aria-expanded="${open ? 'true' : 'false'}">${open ? 'Hide answers' : 'Show answers'}</button></div>${open ? `<div style="max-width:86ch;padding-bottom:6px">${s.fields.map(f => {
+        const v = f.calc ? Qo.calc(f.id, a) : a[f.id];
+        const h = f.calc ? (v != null ? money(v) : null) : answerHtml(f, v);
+        const sug = h == null && pf[f.id] != null ? answerHtml(f, pf[f.id], false) : null;
+        return `<div class="br-ans"><div class="l">${esc(f.label)}</div><div class="v ${h == null ? 'none' : ''}">${h ?? 'Not answered'}</div>${sug ? `<div class="sug">Suggested from the website: ${sug}</div>` : ''}</div>`;
+      }).join('')}</div>` : ''}`;
+    }).join('')}</div>`;
+  body.querySelectorAll('[data-ob]').forEach(b => b.onclick = () => { OB.open[b.dataset.ob] = !OB.open[b.dataset.ob]; repaint(); });
   body.querySelector('#brCopy').onclick = async e => { try { await navigator.clipboard.writeText(link); e.target.textContent = 'Copied'; } catch { helpModal('Copy this link', `<p><code style="user-select:all">${esc(link)}</code></p>`); } };
   body.querySelector('#brPrefill').onclick = async () => {
     if (S.prefilling) return;
@@ -1453,7 +1615,6 @@ function paintVoice(body) {
 function paintProfile(body) {
   const d = S.d, Qo = Q();
   const p = d.docs['']?.profile || {};
-  const voice = d.docs['']?.voice || {};
   const a = d.onboard?.answers || {};
   const r = d.rules;
   const be = Qo.calc('breakeven', a);
@@ -1482,15 +1643,7 @@ function paintProfile(body) {
           <dt>Keep</dt><dd>up to the account average${r.acct_avg ? ` (${money(r.acct_avg)}, ${esc(r.acct_avg_month || '')})` : ' (set on the 1st)'}, 2+ sales</dd>
           <dt>Test minimums</dt><dd>${r.min_track ? `${money(r.min_spend)}/day for ${r.min_days} days, all together max ${r.min_cap_pct}% of budget` : 'not tracked'}</dd>
         </dl></div>
-    </div>
-    <div class="card"><div class="br-bar"><h3 class="br-h">Brand voice ${voice._status === 'draft' ? '<span class="br-tag draft">Draft from the website</span>' : ''}</h3><div>${voice._status === 'draft' ? `<button class="btn" id="brVoiceOk">Approve</button>` : ''}<button class="btn" id="brVoice">Edit</button></div></div>
-      <dl class="br-kv" style="margin-top:10px">
-        <dt>In short</dt><dd>${esc(voice.summary || '-')}</dd>
-        <dt>Traits</dt><dd>${lines(voice.traits).map(esc).join(' · ') || '-'}</dd>
-        <dt>Words they use</dt><dd>${lines(voice.say).map(esc).join(' · ') || '-'}</dd>
-        <dt>Words to avoid</dt><dd>${lines(voice.avoid).map(esc).join(' · ') || '-'}</dd>
-        <dt>Examples</dt><dd>${lines(voice.examples).map(x => `"${esc(x)}"`).join('\n') || '-'}</dd>
-      </dl></div>`;
+    </div>`;
   body.querySelector('#brEditProf').onclick = () => modal('At a glance', `<div class="br-form">
       ${inp('pW', 'Website', p.website || a.website, { type: 'url', full: true })}
       ${inp('pDr', 'Google Drive client folder', p.drive, { type: 'url', full: true, hint: 'the onboarding link shows it to the client' })}
@@ -1503,6 +1656,20 @@ function paintProfile(body) {
     ctl.close(); repaint();
   }) });
   body.querySelector('#brRules').onclick = () => window.openGoals && window.openGoals(S.act);
+}
+
+/* How the brand talks, in short. First thing on Voice and brand info. */
+function paintTalk(body) {
+  const voice = S.d.docs['']?.voice || {};
+  body.innerHTML = `
+    <div class="card"><div class="br-bar"><h3 class="br-h">Brand voice ${voice._status === 'draft' ? '<span class="br-tag draft">Draft from the website</span>' : ''}</h3><div>${voice._status === 'draft' ? `<button class="btn" id="brVoiceOk">Approve</button>` : ''}<button class="btn" id="brVoice">Edit</button></div></div>
+      <dl class="br-kv" style="margin-top:10px">
+        <dt>In short</dt><dd>${esc(voice.summary || '-')}</dd>
+        <dt>Traits</dt><dd>${lines(voice.traits).map(esc).join(' · ') || '-'}</dd>
+        <dt>Words they use</dt><dd>${lines(voice.say).map(esc).join(' · ') || '-'}</dd>
+        <dt>Words to avoid</dt><dd>${lines(voice.avoid).map(esc).join(' · ') || '-'}</dd>
+        <dt>Examples</dt><dd>${lines(voice.examples).map(x => `"${esc(x)}"`).join('\n') || '-'}</dd>
+      </dl></div>`;
   body.querySelector('#brVoice').onclick = () => docModal('', 'voice', 'Brand voice', [['summary', 'In short', 2], ['traits', 'Traits (one per line)', 3], ['say', 'Words they use (one per line)', 3], ['avoid', 'Words to avoid (one per line)', 3], ['examples', 'Examples, verbatim (one per line)', 4]], { ...voice, traits: lines(voice.traits), say: lines(voice.say), avoid: lines(voice.avoid), examples: lines(voice.examples) });
   body.querySelector('#brVoiceOk')?.addEventListener('click', async () => { await putDoc('', 'voice', voice, 'approved'); repaint(); });
 }

@@ -27,7 +27,12 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 
 /* Local state. The host passes the signed-in token and the selected client in on
    every render, so this file never reaches into the host page's globals. */
-const S = { url: AH_URL, tok: '', act: 'all', accounts: [], overview: null, health: null };
+const S = { url: AH_URL, tok: '', act: 'all', accounts: [], overview: null, health: null, run: 0 };
+
+/* The host page's render ticket (`RUN` in index.html, bumped by every show()).
+   render() notes it on the way in; an async paint that finds it has moved on
+   belongs to a tab the reader already left, and must not touch #main. */
+const hostRun = () => { try { return typeof RUN === 'number' ? RUN : 0; } catch { return 0; } };
 
 async function api(path, opts = {}) {
   /* An empty token sends "Bearer " and comes back as a bare 401 "unauthorized",
@@ -422,18 +427,28 @@ const AV_DEFS = {
   thumbstop: '3-second video views ÷ impressions - how often people stop scrolling. Higher is better.',
 };
 
-/** rows must be full days only (today excluded). interactive = clickable cards (single-client view). */
-function buildAvCards(rows, currency, interactive = false) {
+/** The Meta Overview's verdict: the last 7 days against the last 30, in plain words. */
+function weekLabel(d730, lower) {
+  if (d730 == null) return { t: 'not enough history yet', cls: 'unk' };
+  if (Math.abs(d730) < 0.05) return { t: 'normal', cls: 'unk' };
+  return (lower ? d730 < 0 : d730 > 0) ? { t: 'better than normal', cls: 'good' } : { t: 'worse than normal', cls: 'bad' };
+}
+
+/** rows must be full days only (today excluded). interactive = clickable cards (single-client view).
+ *  week = judge the last 7 days against the last 30 (Meta Overview) instead of the last 3 against the last 7. */
+function buildAvCards(rows, currency, interactive = false, week = false) {
   return `<div class="av-grid">` + AV_METRICS.map(m => {
     const s7 = maSeries(rows, m, 7), s30 = maSeries(rows, m, 30), s3 = maSeries(rows, m, 3);
     const v7 = lastVal(s7), v30 = lastVal(s30), v3 = lastVal(s3);
     const d37 = v3 != null && v7 ? v3 / v7 - 1 : null;
     const d730 = v7 != null && v30 ? v7 / v30 - 1 : null;
-    const tr = trendLabel(d37, d730, m.lower);
+    const tr = week ? weekLabel(d730, m.lower) : trendLabel(d37, d730, m.lower);
     return `<div class="av-card ${tr.cls}${interactive ? ' clickable' : ''}" ${interactive ? `data-m="${m.k}" title="Click for the full day-by-day ${m.label} chart with dates and changes"` : ''}>
       <div class="av-top"><span class="av-label">${m.label} <span class="info-i" title="${esc(AV_DEFS[m.k])} The big number is the 7-day average; the blue line is that average over time vs the gray 30-day baseline.">i</span></span><span style="text-align:right"><b class="av-val">${m.fmt(v7, currency)}</b><br><span class="tiny">7-day avg</span></span></div>
       ${sparkSVG(s7, s30)}
-      <div class="av-trend ${tr.cls}" title="Compares the average of the last 3 days against the last 7 - an early read on whether the metric just turned">${tr.t}${d37 != null ? ` · last 3d vs last 7d: ${fmtPct(d37)}` : ''}</div>
+      ${week
+        ? `<div class="av-trend ${tr.cls}" title="Compares the average of the last 7 days against the last 30, this account's own normal">${tr.t}${d730 != null ? ` · last 7 days vs last 30: ${fmtPct(d730, 0)}` : ''}</div>`
+        : `<div class="av-trend ${tr.cls}" title="Compares the average of the last 3 days against the last 7 - an early read on whether the metric just turned">${tr.t}${d37 != null ? ` · last 3d vs last 7d: ${fmtPct(d37)}` : ''}</div>`}
     </div>`;
   }).join('') + `</div>`;
 }
@@ -479,16 +494,16 @@ function focusSVG(rows, events, m, currency) {
   </svg>`;
 }
 
-function avFocus(mKey) {
-  const d = AV.cur; if (!d) return;
-  const m = AV_METRICS.find(xx => xx.k === mKey);
+function avFocus(mKey, quiet = false) {
+  const d = AV.cur; if (!d || !$('#avFocus')) return;
+  const m = AV_METRICS.find(xx => xx.k === mKey); if (!m) return;
   const cur = d.account.currency;
   $('#avFocus').innerHTML = `<div class="card" style="border-color:var(--brand)">
     <div class="row" style="margin-bottom:2px"><h3>${m.label}, day by day</h3><span style="flex:1"></span><button class="btn" id="avFocusClose">✕ Close</button></div>
     <p class="hint" style="margin-bottom:6px">${esc(AV_DEFS[m.k])} Thin line = each single day (bumpy is normal). <span style="color:#14608C;font-weight:700">Blue</span> = 7-day average, <span style="color:#8195A2;font-weight:700">gray</span> = 30-day baseline - both are <b>per-day averages</b> over the window ending at that date (never totals; CPA/ROAS are blended from the window's total spend and purchases). A " - " means there isn't enough history before that date yet. Hover or tap for exact values; dots on the bottom rail are changes we made.</p>
     <div id="fxReadout" style="font-size:13px;height:52px;overflow:hidden;background:var(--bg);border-radius:8px;padding:7px 11px;margin-bottom:8px">Hover or tap anywhere on the chart…</div>
     ${focusSVG(d.rows, d.events, m, cur)}</div>`;
-  $('#avFocus').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (!quiet) $('#avFocus').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   $('#avFocusClose').onclick = () => { $('#avFocus').innerHTML = ''; };
   /* crosshair: works on hover AND tap, names every line with its value */
   const svg = $('#avFocus svg'), guide = svg.querySelector('.fx-guide'), ro = $('#fxReadout');
@@ -924,35 +939,283 @@ function wireCreativeCharts(d) {
    What stays is the part that is genuinely Meta's - delivery and efficiency
    against this account's own recent form. */
 async function renderMetaOverview() {
-  $('#main').innerHTML = `${mcrumb('Overview')}<h2>Meta - Overview</h2>
-    <p class="sub">Every client's Meta account at a glance: what it spent, and whether the last 7 days beat its own last 30. Spend and delivery come from Meta and match Ads Manager. Purchases, ROAS and CPA are Triple Whale attribution (last platform click), same as the briefs and reports.</p>
-    <div class="row" style="margin-bottom:12px"><button class="btn" data-msub="today">Today's pace</button><button class="btn" data-msub="averages">Last 7 vs 30 days</button><span style="flex:1"></span>
-      <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div>
-    ${setupBanner()}<div class="card"><span class="hint">Loading…</span></div>`;
-  if (!S.accounts.some(a => a.active)) { const c = $('#main .card'); if (c) c.remove(); return; }
-  let data;
-  try { data = (await api('/api/overview')).accounts; }
-  catch (e) { $('#main .card').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; return; }
-  S.overview = data;
-  const rows = (S.act === 'all' ? data : data.filter(a => a.act_id === S.act)).map(a => {
-    const m = a.mtd;
-    const stale = a.last_sync_insights && (Date.now() - parseTs(a.last_sync_insights)) > 36*3600e3;
-    return `<tr>
-      <td><b>${esc(a.name)}</b><br><span class="tiny">${a.last_error ? `<span style="color:var(--bad)">⚠ ${esc(a.last_error).slice(0,60)}</span>` : `synced ${fmtAgo(a.last_sync_insights)}${stale?' ⚠':''} · ${a.changes_24h} changes/24h`}</span></td>
+  if (S.act !== 'all') return renderMetaOne();
+  /* Every paint writes ALL of #main (shell + body), and only while the reader is
+     still on this tab - see "RUN ticket" in CLAUDE.md. */
+  const ticket = S.run;
+  const shell = body => `${mcrumb('Overview')}<div class="cr-head"><div><h2>Meta · All brands</h2>
+      <p class="sub">Every brand's Meta account in one table: what it spent, and whether the last 7 days beat its own last 30. Pick a brand in the top-right for its one-look page.</p></div>
+      <div class="row" style="margin:0"><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div></div>
+    <div class="row" style="margin-bottom:12px"><button class="btn" data-msub="today">Today's pace</button><button class="btn" data-msub="averages">Last 7 vs 30 days</button></div>
+    ${setupBanner()}${body}`;
+  const paint = body => { if (hostRun() !== ticket || S.act !== 'all') return; $('#main').innerHTML = shell(body); };
+  if (!S.accounts.some(a => a.active)) { paint(''); return; }
+  const table = data => {
+    const rows = data.map(a => {
+      const m = a.mtd || {}, l7 = a.l7 || {}, l30 = a.l30 || {};
+      const stale = a.last_sync_insights && (Date.now() - parseTs(a.last_sync_insights)) > 36*3600e3;
+      return `<tr>
+      <td><b>${esc(a.name)}</b><br><span class="tiny">${a.last_error ? `<span style="color:var(--bad)">⚠ ${esc(a.last_error).slice(0,60)}</span>` : `synced ${fmtAgo(a.last_sync_insights)}${stale?' ⚠':''} · ${a.changes_24h ?? 0} changes/24h`}</span></td>
       <td class="num">${fmtK(a.today_spend, a.currency)}</td>
       <td class="num"><b>${fmtK(m.spend, a.currency)}</b><br><span class="tiny">this month so far</span></td>
       <td class="num">${fmtK(m.last_month_same_day, a.currency)}${delta(m.spend, m.last_month_same_day)}<br><span class="tiny">full month ${fmtK(m.last_month_total, a.currency)}</span></td>
-      <td class="num">${fmtMoney(a.l7.cpa, a.currency)}${delta(a.l7.cpa, a.l30.cpa, true)}<br><span class="tiny">30d ${fmtMoney(a.l30.cpa, a.currency)}</span></td>
-      <td class="num">${fmtX(a.l7.roas)}${delta(a.l7.roas, a.l30.roas)}<br><span class="tiny">30d ${fmtX(a.l30.roas)}</span></td>
-      <td class="num">${fmtK(a.l7.spend_per_day, a.currency)}${delta(a.l7.spend_per_day, a.l30.spend_per_day)}<br><span class="tiny">30d ${fmtK(a.l30.spend_per_day, a.currency)}</span></td>
-      <td class="num">${a.l7.ctr==null?' - ':(a.l7.ctr*100).toFixed(2)+'%'}${delta(a.l7.ctr, a.l30.ctr)}</td>
-      <td class="num">${fmtMoney(a.l7.cpm, a.currency)}${delta(a.l7.cpm, a.l30.cpm, true)}</td>
+      <td class="num">${fmtMoney(l7.cpa, a.currency)}${delta(l7.cpa, l30.cpa, true)}<br><span class="tiny">30d ${fmtMoney(l30.cpa, a.currency)}</span></td>
+      <td class="num">${fmtX(l7.roas)}${delta(l7.roas, l30.roas)}<br><span class="tiny">30d ${fmtX(l30.roas)}</span></td>
+      <td class="num">${fmtK(l7.spend_per_day, a.currency)}${delta(l7.spend_per_day, l30.spend_per_day)}<br><span class="tiny">30d ${fmtK(l30.spend_per_day, a.currency)}</span></td>
+      <td class="num">${l7.ctr==null?' - ':(l7.ctr*100).toFixed(2)+'%'}${delta(l7.ctr, l30.ctr)}</td>
+      <td class="num">${fmtMoney(l7.cpm, a.currency)}${delta(l7.cpm, l30.cpm, true)}</td>
     </tr>`;
-  }).join('');
-  $('#main .card').innerHTML = `<div class="tbl-wrap"><table>
-    <thead><tr><th>Client</th><th class="num">Today</th><th class="num">Month so far</th><th class="num">Last month (same day)</th><th class="num">CPA 7d vs 30d</th><th class="num">ROAS 7d vs 30d</th><th class="num">Spend/day 7d vs 30d</th><th class="num">CTR 7d</th><th class="num">CPM 7d</th></tr></thead>
+    }).join('');
+    return `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Brand</th><th class="num">Today</th><th class="num">Month so far</th><th class="num">Last month (same day)</th><th class="num">CPA 7d vs 30d</th><th class="num">ROAS 7d vs 30d</th><th class="num">Spend/day 7d vs 30d</th><th class="num">CTR 7d</th><th class="num">CPM 7d</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="9" class="tiny">No data yet - the first sync may still be running.</td></tr>'}</tbody></table></div>
-    <p class="tiny" style="margin-top:10px">7d/30d windows end yesterday; the last ~3 days of conversions are still settling, so recent CPA and ROAS read slightly worse than they will finish. <b>ROAS and CPA here are Triple Whale attribution (last platform click) on Meta ads</b>, so they will not match Ads Manager's purchase counts. Platform ROAS is not blended MER and is not comparable to the MER goal on Plan. A " - " means Triple Whale has not synced that window yet.</p>`;
+    <p class="tiny" style="margin-top:10px">Spend and delivery are Meta's and match Ads Manager. <b>ROAS and CPA are Triple Whale attribution (last platform click) on Meta ads</b>, so they will not match Ads Manager's purchase counts, and they are not the blended MER goal on Plan. 7d and 30d windows end yesterday; the last 3 days of sales are still settling. A " - " means Triple Whale has not synced that window yet.</p></div>`;
+  };
+  /* A copy from earlier in the session shows at once and is replaced when the fresh one lands. */
+  paint(Array.isArray(S.overview) ? table(S.overview) : '<div class="card"><span class="hint">Loading…</span></div>');
+  let data;
+  try { data = (await api('/api/overview')).accounts || []; }
+  catch (e) { paint(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+  S.overview = data;
+  paint(table(data));
+}
+
+/* ---------- Overview, ONE brand (2026-10-04, Cole: "stupid simple") ----------
+   The page a media buyer opens every morning: is this Meta account OK, in one
+   look. Top to bottom: a verdict line, four tiles each with a plain verdict word,
+   today's pace curve, the last 7 days against the last 30, and where to go next.
+   It reuses the Today and Averages builders, so those screens and this one can
+   never disagree.
+
+   Three fetches run side by side (overview, live pacing, daily series) and each
+   one repaints ALL of #main from `st` when it lands - never a fragment, and never
+   once the reader has left (live()). */
+const MO_DAYS = 60;                 // history behind the 7 vs 30 cards and their full chart
+const MO_YELLOW = 0.3;              // "just over goal" = within 30% of it, the brands' default yellow zone
+const moTone = t => (t === 'good' || t === 'warn' || t === 'bad') ? `var(--${t})` : 'var(--muted)';
+
+function moTile(t) {
+  return `<div class="cr-tile" style="border-top:3px solid ${t.tone ? moTone(t.tone) : 'var(--line-strong)'}"><span>${t.label}</span><b>${t.value}</b>
+    <em style="display:block;font-style:normal;font-size:13px;font-weight:700;line-height:1.3;color:${moTone(t.tone)}">${t.word}</em>
+    <small style="margin-top:3px">${t.note}</small></div>`;
+}
+
+/** The four tiles as data: value, verdict word, tone, one line of context, and
+ *  `say` - the clause the verdict line at the top uses when the tile is not green. */
+function moReads(st) {
+  const a = st.ov || {}, p = st.p;
+  const cur = a.currency || (st.acct && st.acct.currency) || 'USD';
+  const l7 = a.l7 || {}, l30 = a.l30 || {}, m = a.mtd || {};
+  const out = [];
+
+  /* 1. Spend today, against a normal day by this hour (live pacing when it has landed). */
+  const t1 = { label: 'Spend today', value: '-', word: '', tone: '', note: '', say: '' };
+  if (p && p.spent != null) {
+    const v = p.vs_pace ?? null, share = dayShare(p);
+    t1.value = fmtK(p.spent, cur);
+    if (v == null) t1.word = 'Nothing to compare yet';
+    else if (p.spent === 0 && p.l7_by_now >= 25) { t1.word = 'Not spending'; t1.tone = 'bad'; t1.say = 'nothing has spent today'; }
+    else if (share != null && share < 0.1) t1.word = 'Too early to tell';
+    else if (v < -0.5) { t1.word = 'Barely spending'; t1.tone = 'bad'; t1.say = 'today is barely spending'; }
+    else if (v < -0.1) { t1.word = 'Running cold'; t1.tone = 'warn'; t1.say = 'today is running cold'; }
+    else if (v > 0.1) { t1.word = 'Running hot'; t1.tone = 'warn'; t1.say = 'today is running hot'; }
+    else { t1.word = 'On pace'; t1.tone = 'good'; }
+    t1.note = v == null ? 'Meta spend so far today' : `${fmtK(p.l7_by_now, cur)} is normal by this hour (${fmtPct(v, 0)})`;
+  } else {
+    if (a.today_spend != null) t1.value = fmtK(a.today_spend, cur);
+    t1.word = st.pBusy ? 'Checking the pace' : 'Pace did not load';
+    t1.note = st.pBusy ? 'Pulling today&rsquo;s hours from Meta' : 'This is spend as of the last sync. Press Refresh below to try again.';
+  }
+  out.push(t1);
+
+  /* 2. Spend this month. More or less spend is not good or bad by itself, so no colour. */
+  const dm = m.spend != null && m.last_month_same_day ? m.spend / m.last_month_same_day - 1 : null;
+  out.push({ label: 'Spend this month', value: m.spend == null ? '-' : fmtK(m.spend, cur), tone: '', say: '',
+    word: dm == null ? 'No last month to compare' : Math.abs(dm) < 0.05 ? 'Level with last month' : dm > 0 ? 'Ahead of last month' : 'Behind last month',
+    note: dm == null ? 'Meta spend, month so far' : `${fmtK(m.last_month_same_day, cur)} by this day last month (${fmtPct(dm, 0)})` });
+
+  /* 3 + 4. CPA and ROAS, last 7 full days. Triple Whale attribution: null = not synced, never zero. */
+  const gap = l7.attr_missing_days > 0 ? ` Triple Whale is missing ${l7.attr_missing_days} of the 7 days.` : '';
+  const goal = a.target_cpa > 0 ? a.target_cpa : null;
+  const t3 = { label: 'CPA, last 7 days', value: '-', word: 'No read yet', tone: '', note: 'Triple Whale has not synced yet', say: '' };
+  if (l7.cpa != null) {
+    const d = l30.cpa ? l7.cpa / l30.cpa - 1 : null;
+    t3.value = fmtMoney(l7.cpa, cur);
+    if (goal) {
+      const r = l7.cpa / goal;
+      if (r <= 1) { t3.word = 'At goal'; t3.tone = 'good'; }
+      else if (r <= 1 + MO_YELLOW) { t3.word = 'Just over goal'; t3.tone = 'warn'; t3.say = 'CPA is just over goal'; }
+      else { t3.word = 'Over goal'; t3.tone = 'bad'; t3.say = 'CPA is over goal'; }
+    } else if (d == null) t3.word = 'No 30 days to compare';
+    else if (Math.abs(d) < 0.05) { t3.word = 'Normal'; t3.tone = 'good'; }
+    else if (d < 0) { t3.word = 'Better than normal'; t3.tone = 'good'; }
+    else if (d <= 0.15) { t3.word = 'A little worse than normal'; t3.tone = 'warn'; t3.say = 'CPA is a little worse than normal'; }
+    else { t3.word = 'Worse than normal'; t3.tone = 'bad'; t3.say = 'CPA is worse than normal'; }
+    t3.note = [goal ? `Goal ${fmtMoney(goal, cur)}` : 'No goal CPA set',
+      l30.cpa != null ? `last 30 days ${fmtMoney(l30.cpa, cur)}${d != null ? ` (${fmtPct(d, 0)})` : ''}` : ''].filter(Boolean).join(', ') + '.' + gap;
+  } else if (l7.purchases === 0 && l7.spend > 0) {
+    t3.word = 'No sales'; t3.tone = 'bad'; t3.say = 'no sales in the last 7 days';
+    t3.note = 'Triple Whale shows no sales from Meta ads in the last 7 days.';
+  }
+  out.push(t3);
+
+  const t4 = { label: 'ROAS, last 7 days', value: '-', word: 'No read yet', tone: '', note: 'Triple Whale has not synced yet', say: '' };
+  if (l7.roas != null) {
+    const d = l30.roas ? l7.roas / l30.roas - 1 : null;
+    t4.value = fmtX(l7.roas);
+    if (d == null) t4.word = 'No 30 days to compare';
+    else if (Math.abs(d) < 0.05) { t4.word = 'Normal'; t4.tone = 'good'; }
+    else if (d > 0) { t4.word = 'Better than normal'; t4.tone = 'good'; }
+    else if (d >= -0.15) { t4.word = 'A little worse than normal'; t4.tone = 'warn'; t4.say = 'ROAS is a little worse than normal'; }
+    else { t4.word = 'Worse than normal'; t4.tone = 'bad'; t4.say = 'ROAS is worse than normal'; }
+    t4.note = (l30.roas != null ? `Last 30 days ${fmtX(l30.roas)}${d != null ? ` (${fmtPct(d, 0)})` : ''}.` : 'Revenue per dollar of Meta spend.') + gap;
+  }
+  out.push(t4);
+  return out;
+}
+
+/** The one sentence under the heading: is the account OK, and if not, why. */
+function moVerdict(reads, st) {
+  const bad = reads.filter(r => r.tone === 'bad' && r.say), warn = reads.filter(r => r.tone === 'warn' && r.say);
+  const list = arr => { const s = arr.map(r => r.say).join(', '); return s.charAt(0).toUpperCase() + s.slice(1) + '.'; };
+  const wait = st.pBusy && !st.p ? ' Still checking today&rsquo;s pace.' : '';
+  if (bad.length) return `<b style="color:var(--bad)">Needs a look.</b> ${list(bad.concat(warn))}${wait}`;
+  if (warn.length) return `<b style="color:var(--warn)">Worth a look.</b> ${list(warn)}${wait}`;
+  if (reads.filter(r => r.tone === 'good').length >= 2) return `<b style="color:var(--good)">Looks OK.</b> Nothing here needs you right now.${wait}`;
+  return `Not enough data yet to say if this account is OK.${wait}`;
+}
+
+/** "Is today running hot or cold?" - the Today screen's curve, inline. */
+function moToday(st) {
+  const p = st.p, h = '<h3 style="margin:0">Is today running hot or cold?</h3>';
+  if (!p) return `<section class="card" id="hpToday"><div class="row" style="margin-bottom:6px">${h}<span style="flex:1"></span>${st.pBusy ? '' : '<button class="btn" id="hpRefresh">Refresh</button>'}</div>
+    ${st.pBusy ? '<span class="hint">Pulling today&rsquo;s hourly spend from Meta…</span>'
+      : `<span style="color:var(--bad)">Today's hourly spend did not load: ${esc(st.pErr || 'no answer from Meta')}</span>`}</section>`;
+  const cur = (p.account && p.account.currency) || 'USD', share = dayShare(p);
+  const through = String(Math.max(0, (+p.hour || 0) - 1)).padStart(2, '0') + ':59';
+  const pulled = p.pulled_at ? new Date(p.pulled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  const canDraw = p.account && Array.isArray(p.today_cum) && Array.isArray(p.l7_cum);
+  const normal = p.l7_by_now != null
+    ? `A normal day (the average of the last 7) is at <b>${fmtK(p.l7_by_now, cur)}</b> by this hour${p.l7_daily_avg != null ? ` and finishes near <b>${fmtK(p.l7_daily_avg, cur)}</b>` : ''}.`
+    : 'There is no normal day to compare with yet.';
+  return `<section class="card" id="hpToday">
+    <div class="row" style="margin-bottom:6px">${h}<span style="flex:1"></span>
+      ${pulled ? `<span class="tiny">pulled ${pulled}</span>` : ''}<button class="btn" id="hpRefresh">Refresh</button></div>
+    <p class="hint" style="margin:0 0 8px">Through ${through}${p.account && p.account.tz ? ` (${esc(p.account.tz)})` : ''} the account has spent <b>${fmtK(p.spent, cur)}</b>. ${normal}${share != null ? ` About ${Math.round(share * 100)}% of a normal day is done.` : ''} More than 10% over is running hot, more than 10% under is running cold.</p>
+    ${st.pErr ? `<p class="tiny" style="color:var(--bad);margin:0 0 6px">Refresh did not work: ${esc(st.pErr)}. These are the earlier numbers.</p>` : ''}
+    ${canDraw ? `<div id="hpReadout" class="tiny" style="min-height:20px;font-weight:600"></div>
+    ${pacingSVG(p)}
+    <p class="tiny" style="margin-top:4px"><span style="color:#14608C;font-weight:700">━</span> today so far &nbsp;·&nbsp; <span style="color:#9FB0BC;font-weight:700">━</span> a normal day (average of the last 7) &nbsp;·&nbsp; hover or tap the chart for exact hours. Meta reports today with a small lag, so treat the newest hour as approximate.</p>` : ''}
+  </section>`;
+}
+
+/** "Is the last week better than normal?" - the Averages cards, judged 7 days against 30. */
+function moWeek(st) {
+  const h = '<h3 style="font-size:15px;font-weight:700;margin:20px 0 4px">Is the last week better than normal?</h3>';
+  let body;
+  if (st.s) {
+    body = st.s.rows.length < 7
+      ? '<div class="card"><span class="hint">Not enough history yet. This needs at least a week of data.</span></div>'
+      : `<p class="sub" style="margin-bottom:10px">Each card is the last 7 days (the big number and the blue line) against this account's own last 30 days (the gray line). The word under each card is the verdict. Click a card for the full chart. <a href="#" data-msub="averages">See every number day by day</a></p>
+        ${buildAvCards(st.s.rows, st.s.currency, true, true)}<div id="avFocus"></div>`;
+  } else if (st.sBusy) body = '<div class="card"><span class="hint">Loading the last 30 days…</span></div>';
+  else body = `<div class="card"><span style="color:var(--bad)">The last 30 days did not load: ${esc(st.sErr || 'no answer')}</span></div>`;
+  return `<section id="moWeek">${h}${body}</section>`;
+}
+
+/** Where the buyer goes from here: three plain buttons, one line each. */
+function moNext() {
+  const go = (attr, label, line) => `<div><button class="btn" ${attr}>${label}</button><p class="tiny" style="margin:6px 0 0;line-height:1.45">${line}</p></div>`;
+  return `<section style="margin-top:22px"><h3 style="font-size:15px;font-weight:700;margin:0 0 10px">Where to go next</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px 18px">
+      ${go('id="moTests"', 'Test calls', 'Decide which tests to pause, keep or give another week.')}
+      ${go('data-msub="creative"', 'Creative', 'See which ads to scale, watch or cut, and whether we are launching enough new ones.')}
+      ${go('data-msub="changelog"', 'Change Log', 'A number moved? See what was changed in the account, and when.')}
+    </div></section>`;
+}
+
+function moPage(st) {
+  const a = st.ov, name = (st.acct && st.acct.name) || (a && a.name) || 'This brand';
+  const head = sub => `${mcrumb('Overview')}<div class="cr-head"><div><h2>Meta · ${esc(name)}</h2><p class="sub">${sub}</p></div>
+    <div class="row" style="margin:0"><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="overview">? How to use</button></div></div>`;
+  if (st.off) return head('Is this Meta account OK today?')
+    + (setupBanner() || '<div class="notice warn">ℹ️ <div>This brand has no Meta account switched on, so there is nothing to show yet. Turn it on in <b>Settings</b>.</div></div>')
+    + moNext();
+  let top;
+  if (a) {
+    const reads = moReads(st);
+    const stale = a.last_sync_insights && (Date.now() - parseTs(a.last_sync_insights)) > 36*3600e3;
+    const ch = a.changes_24h ?? 0;
+    top = head(moVerdict(reads, st)) + setupBanner()
+      + (a.last_error ? `<div class="notice bad">⚠️ <div><b>The last Meta sync failed</b>, so these numbers may be old. ${esc(String(a.last_error).slice(0, 160))}</div></div>` : '')
+      + `<div class="cr-tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${reads.map(t => moTile(t)).join('')}</div>
+      <p class="tiny" style="margin:0 0 18px">Spend is Meta's and matches Ads Manager. CPA and ROAS are Triple Whale (last platform click) over the 7 full days ending yesterday. Synced ${fmtAgo(a.last_sync_insights)}${stale ? ', which is older than it should be' : ''}. ${ch} ${ch === 1 ? 'change' : 'changes'} to the account in the last 24 hours.</p>`;
+  } else {
+    top = head('Is this Meta account OK today?') + setupBanner()
+      + (st.ovErr ? `<div class="card"><p style="color:var(--bad);margin:0 0 10px">The account numbers did not load: ${esc(st.ovErr)}</p><button class="btn" id="moRetry">Try again</button></div>`
+        : st.ovDone ? '<div class="notice warn">ℹ️ <div>No numbers for this brand yet. The first sync may still be running.</div></div>'
+        : '<div class="card"><span class="hint">Loading…</span></div>');
+  }
+  return top + moToday(st) + moWeek(st) + moNext();
+}
+
+function moWire(st, reloadPacing) {
+  const t = $('#moTests'); if (t) t.onclick = () => { if (window.show) window.show('tests'); };
+  const rt = $('#moRetry'); if (rt) rt.onclick = () => { if (window.show) window.show('meta'); };
+  const r = $('#hpRefresh');
+  if (r) r.onclick = () => { const c = $('#hpToday'); if (c) c.style.opacity = '.5'; r.disabled = true; reloadPacing(); };
+  if (st.p && $('#hpToday svg') && $('#hpReadout')) wireTodayChart(st.p);
+  /* Click a card for the full chart. The open chart is remembered in st.focus so a
+     later paint (pacing landing, a Refresh) puts it back without scrolling. */
+  const openFocus = (k, quiet) => {
+    st.focus = k; avFocus(k, quiet);
+    const x = $('#avFocusClose'); if (x) x.addEventListener('click', () => { st.focus = null; });
+  };
+  document.querySelectorAll('#moWeek .av-card[data-m]').forEach(c => c.onclick = () => openFocus(c.dataset.m, false));
+  if (st.focus && st.s && $('#avFocus')) openFocus(st.focus, true);
+}
+
+async function renderMetaOne() {
+  const act = S.act, ticket = S.run;
+  const live = () => hostRun() === ticket && S.act === act;
+  const acct = S.accounts.find(a => a.act_id === act) || null;
+  const st = { acct, ov: (Array.isArray(S.overview) ? S.overview : []).find(a => a.act_id === act) || null, ovDone: false, ovErr: '',
+    p: null, pErr: '', pBusy: true, s: null, sErr: '', sBusy: true, focus: null, off: false };
+  const paint = () => {
+    if (!live()) return;
+    const sc = document.scrollingElement, y = sc ? sc.scrollTop : 0;
+    $('#main').innerHTML = moPage(st);
+    moWire(st, loadPacing);
+    if (sc && sc.scrollTop !== y) sc.scrollTop = y;      // a data update never moves the reader
+  };
+  function loadPacing() {
+    st.pBusy = true;
+    return api('/api/pacing?act=' + encodeURIComponent(act))
+      .then(p => { st.p = p; st.pErr = ''; }, e => { st.pErr = e.message; })
+      .then(() => { st.pBusy = false; paint(); });
+  }
+  if (!acct || !acct.active) { st.off = true; st.pBusy = st.sBusy = false; paint(); return; }
+  paint();
+  loadPacing();
+  api(`/api/series?act=${encodeURIComponent(act)}&days=${MO_DAYS + 32}`).then(s => {
+    if (!live()) return;
+    const today = s.account && s.account.today;
+    const full = (Array.isArray(s.rows) ? s.rows : []).filter(r => !today || r.date < today);   // full days only
+    const rows = full.slice(-MO_DAYS);
+    const currency = (s.account && s.account.currency) || acct.currency;
+    st.s = { rows, currency };
+    AV.cur = { rows, events: s.events || [], account: s.account || { currency } };   // what avFocus draws from
+  }, e => { st.sErr = e.message; }).then(() => { st.sBusy = false; paint(); });
+  /* Only the account numbers are awaited: the host un-dims the page when this
+     returns, and the two slower sections fill in on their own. */
+  try {
+    const data = (await api('/api/overview')).accounts || [];
+    S.overview = data;
+    st.ov = data.find(a => a.act_id === act) || null;
+    st.ovErr = '';
+  } catch (e) { st.ovErr = e.message; }
+  st.ovDone = true;
+  paint();
 }
 
 /** How far through a NORMAL day this account usually is by now - the divisor
@@ -1112,12 +1375,15 @@ window.MetaTab = {
   async render(ctx) {
     S.tok = ctx.tok;
     S.act = ctx.act || 'all';
+    const ticket = S.run = hostRun();
     const entry = SUBS.find(s => s[0] === ctx.sub) || SUBS[0];
     try { await ensureAccounts(); }
     catch (e) {
+      if (hostRun() !== ticket) return;   // the reader already left Meta
       $('#main').innerHTML = `<h2>Meta</h2><div class="card"><span style="color:var(--bad)">Couldn&rsquo;t reach the Meta service: ${esc(e.message)}</span></div>`;
       return;
     }
+    if (hostRun() !== ticket) return;     // the reader already left Meta
     await entry[2]();
   },
   /* Used by the merged Settings tab, which lives in the host page. */

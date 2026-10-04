@@ -541,6 +541,36 @@
   .ov-cards .big{font-size:24px;font-weight:700;letter-spacing:-.03em;line-height:1.15;margin:3px 0 4px}
   .ov-cards .big .tiny{font-weight:600;letter-spacing:0}
   @media (max-width:980px){.ov-cards{grid-template-columns:1fr}}
+  /* TODAY (Overview, 2026-10-04). The to-do list the page opens with: one column
+     per role, one line per job, the count first. A line with nothing waiting stays
+     in place in a quiet style so the list never jumps about. */
+  .ov-today{padding:14px 16px 12px;margin-bottom:14px}
+  .ovd-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .ovd-h h3{margin:0}
+  .ovd-h .hint{margin:0}
+  .ovd-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 22px}
+  .ovd-cols.one{grid-template-columns:minmax(0,1fr)}
+  .ovd-col{min-width:0}
+  .ovd-who{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:2px 0 4px;padding-left:10px}
+  .ovd-line{display:flex;align-items:center;gap:10px;width:100%;min-width:0;min-height:38px;text-align:left;padding:6px 10px;
+    border-radius:9px;border:1px solid transparent;background:transparent;font-size:13.5px;color:var(--ink)}
+  button.ovd-line{cursor:pointer}
+  button.ovd-line:hover,button.ovd-line:focus-visible{background:var(--brand-soft);border-color:var(--line)}
+  .ovd-n{flex:none;min-width:26px;text-align:center;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;color:var(--brand-ink)}
+  .ovd-t{flex:1;min-width:0;font-weight:600;line-height:1.35}
+  .ovd-t small{display:block;font-weight:400;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ovd-go{flex:none;font-size:12px;font-weight:600;color:var(--brand-ink);white-space:nowrap}
+  .ovd-line.zero .ovd-t,.ovd-line.zero .ovd-go{font-weight:400;color:var(--muted)}
+  .ovd-line.zero .ovd-n{color:var(--good);font-size:13px}
+  @media (max-width:720px){.ovd-cols{grid-template-columns:minmax(0,1fr)}}
+  @media (max-width:520px){.ovd-go{display:none}}
+  /* The Strategist card with nothing to say is one line, so it never pushes the
+     numbers below the fold. Its markup comes from ask-ui.js; renderOverview's
+     wrapper swaps in the short form. */
+  #main .askcard.loading{padding:10px 16px;margin-bottom:14px}
+  #main .askcard.quiet{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;padding:9px 16px;margin-bottom:14px}
+  #main .askcard.quiet .hint{flex:1;min-width:200px;margin:0}
+  #main .askcard.quiet .btn{padding:5px 11px;font-size:12.5px}
   .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));
     gap:12px;margin-bottom:26px}
   .sc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
@@ -692,9 +722,47 @@
 
   /* --- The three plan boxes --- */
   .pf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
-  /* Daily Brief, Phase 3a: strip first, brief left, verdict + chart + plan right. */
+  /* Daily Brief + Reports (2026-10-04, "stupid simple"): the thing you send
+     comes first. One status line answers "can I send this?", then the brief
+     and its actions, then the numbers as context, then closed disclosures. */
   .brief-two{gap:11px;margin-top:2px}
   .brief-two .card{margin-bottom:11px}
+  .bf-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:10px}
+  .bf-head label{font-size:13px;font-weight:600}
+  .btn.quiet{border-color:transparent;background:transparent;color:var(--ink-2);padding:8px 9px}
+  .btn.quiet:hover{border-color:var(--line-strong);color:var(--ink)}
+  .st-line{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;border:1px solid var(--line);
+    border-left:4px solid var(--line-strong);border-radius:var(--radius);background:var(--surface);
+    padding:11px 15px;margin-bottom:11px;font-size:13.5px;line-height:1.5}
+  .st-line.ok{border-left-color:var(--good)}
+  .st-line.wn{border-left-color:var(--warn)}
+  .st-line.bd{border-left-color:var(--bad)}
+  .st-line .st-t{flex:1 1 320px;min-width:0}
+  .st-line .st-t h2{display:inline;margin:0 8px 0 0}
+  .st-line .st-t .st-v{font-weight:700;font-size:15px;margin-right:6px}
+  .st-line .st-t .st-d{color:var(--ink-2)}
+  .st-line .st-a{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .bf-main{padding:17px 19px}
+  .bf-main .slackmsg{font-size:15px;line-height:1.65;padding:16px 18px 18px}
+  .bf-main .bf-note{margin:14px 0 0}
+  .bf-main .bf-note textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:var(--bg)}
+  .bf-acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+  .bf-sec{font-size:15px;font-weight:700;margin:20px 0 8px}
+  .bf-flag{font-size:12.5px;line-height:1.5;color:var(--ink-2);margin:0 0 8px;padding:1px 0 1px 10px;border-left:3px solid var(--warn)}
+  .bf-flag.bad{border-left-color:var(--bad)}
+  .bf-flag .btn{padding:3px 9px;font-size:12px;margin-left:4px}
+  .rh-wrap .fold-body{padding:0 18px 15px}
+  /* Reports: the sticky "Jump to" row. Shared by the internal page and the
+     client's archive link because reportBodyHTML draws both. */
+  .rp-pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .rp-pick label{font-size:12.5px;font-weight:600;color:var(--muted)}
+  .rp-jump{position:sticky;top:8px;z-index:15;display:flex;gap:6px;align-items:center;overflow-x:auto;
+    scrollbar-width:none;padding:7px 10px;margin:0 0 11px;border:1px solid var(--line);border-radius:12px;
+    background:var(--surface);box-shadow:0 6px 18px -10px rgba(12,22,29,.25)}
+  .rp-jump::-webkit-scrollbar{display:none}
+  .rp-jump .rp-jump-l{flex:none;font-size:11.5px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
+  .rp-jump .chip{flex:none;padding:5px 11px;font-size:12px}
+  .rp-sec{scroll-margin-top:78px}
   /* Plan, Phase 2 (2026-09-12): the three levers read as Revenue = Spend x MER,
      the calculated one tinted; below it two columns. */
   .pf-grid.pf-eq{grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr) 34px minmax(0,1fr);gap:0;align-items:stretch;margin-bottom:12px}
@@ -856,6 +924,13 @@
   .setnav button.on{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:0 1px 6px rgba(12,22,29,.06)}
   .setnav button.on .ic{color:var(--brand-ink)}
   .setnav button small{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted);background:var(--bg);border-radius:99px;padding:1px 7px}
+  /* Data health and Costs sit in the same list but open their own page, so a
+     hairline sets them apart; each of those pages carries the way back. */
+  .setnav button.setnav-brk{margin-top:9px;position:relative}
+  .setnav button.setnav-brk::before{content:"";position:absolute;left:12px;right:12px;top:-6px;border-top:1px solid var(--line)}
+  .set-back{margin:0 0 10px}
+  .set-back button{font-size:13px;font-weight:600;color:var(--brand-ink);padding:4px 0;background:transparent;border:0}
+  .set-back button:hover{text-decoration:underline}
   .setpane{min-width:0}
   .setpane > section > .card{margin-bottom:14px}
   .set-h{margin:2px 0 16px}
@@ -907,6 +982,8 @@
     .setnav::-webkit-scrollbar{display:none}
     .setnav button{flex:none;padding:8px 12px;white-space:nowrap}
     .setnav button small{display:none}
+    .setnav button.setnav-brk{margin-top:0;margin-left:9px}
+    .setnav button.setnav-brk::before{left:-6px;right:auto;top:8px;bottom:8px;border-top:0;border-left:1px solid var(--line)}
   }
   @media (max-width:720px){
     .brow .brow-body{padding:10px 10px 4px}
@@ -1734,10 +1811,10 @@
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=5"></script>
+<script src="meta.js?v=6"></script>
 <script src="amb.js?v=17"></script>
 <script src="../onboard/questions.js?v=8"></script>
-<script src="brand.js?v=13"></script>
+<script src="brand.js?v=14"></script>
 <script src="newclient.js?v=13"></script>
 <script src="studio.js?v=19"></script>
 <script>
@@ -2547,7 +2624,12 @@ const SET_SECS = [
   ['system', 'Jobs and data', 'Whether the automatic syncs and sends are running, and one-off data fixes.'],
   ['tours', 'Guided tours', 'Replay the walkthrough for any page.'],
 ];
-const SET_ICONS = { brands: 'i-brand', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play' };
+/* The last two entries of the same list are whole pages, not sections: they open
+   show('health') / show('costs'), and each of those pages has a link back here. */
+const SET_PAGES = [['health', 'Data health'], ['costs', 'Costs']];
+const SET_ICONS = { brands: 'i-brand', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
+/** The way back, at the top of Data health and Costs. */
+const backToSettings = () => `<p class="set-back"><button type="button" class="link" data-go="settings">&larr; Settings</button></p>`;
 /** Standard page heading. `extra` is for the genuinely per-page bit (which client,
  *  which month) and should stay short - it sits under the purpose, not in it. */
 /* One line, not four rows.
@@ -2704,7 +2786,7 @@ const TOURS = {
   ] },
 
   settings: { name: 'Settings', steps: [
-    { sel: '#setNav', title: 'Six sections', body: 'Settings is split into sections: <b>Brands</b>, <b>Briefs and Slack</b>, <b>The Strategist</b>, <b>Team</b>, <b>Jobs and data</b> and <b>Guided tours</b>. Pick one here; it remembers where you were.' },
+    { sel: '#setNav', title: 'One menu for all of Settings', body: 'Settings is split into sections: <b>Brands</b>, <b>Briefs and Slack</b>, <b>The Strategist</b>, <b>Team</b>, <b>Jobs and data</b> and <b>Guided tours</b>. Pick one here; it remembers where you were. <b>Data health</b> and <b>Costs</b> at the end open their own pages, each with a link back to Settings.' },
     { sel: '#ncOpen', title: 'A new client starts here', body: '<b>+ New client</b> sets a brand-new client up everywhere. <b>+ Add a brand</b> beside it is for a client whose Meta ad account Locus can already see.' },
     { sel: '.brow', title: 'One row per brand', body: 'Open a row and everything about that brand is in it, in groups: the brand, its goals, Slack and sending, money, and data repairs. The line on the right tells you what is still missing.' },
   ] },
@@ -3844,9 +3926,13 @@ const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief:
 const SECTIONS = {
   profit: [['profit', 'Money'], ['customers', 'Customers']],
   brand: [['brand', 'Research and voice'], ['amb', 'Creator link']],
-  settings: [['settings', 'Setup'], ['health', 'Data health'], ['costs', 'Costs']],
 };
 const PARENT_OF = Object.fromEntries(Object.entries(SECTIONS).flatMap(([p, kids]) => kids.map(([k]) => [k, p])));
+/* Settings has ONE menu: its own section list (SET_SECS), which also opens Data
+   health and Costs. So Settings is not in SECTIONS (the rail draws no sub-tabs
+   for it), but the two pages still belong to it, which keeps Settings lit in the
+   rail while either is open. */
+PARENT_OF.health = PARENT_OF.costs = 'settings';
 /* Meta is everything about Meta, Tests included (Cole, 2026-10-04). Entries starting
    "meta:" open that meta.js sub-tab; "tests" is its own renderer (brand.js). Today
    and Averages open from Meta Overview and light Overview while open. */
@@ -4509,6 +4595,131 @@ function triage(a) {
   return { g: !trusted && g === 'ok' ? 'wn' : g, off, state, act: null };
 }
 
+/* ---------- Overview: Today ----------
+   Cole, 2026-10-04: the team opens Locus and does not know what to do. So the
+   Overview opens with a short to-do list by role, each line a count and a button
+   to the screen where that job is done.
+
+   The counts come from the calls the other tabs already make, judged the same way
+   those tabs judge them, so this card can never disagree with the page it opens:
+     briefs   /api/briefs   a brand's newest brief is still a 'draft'
+     reports  /api/reports  the newest weekly / monthly is a 'draft' (Reports' "Waiting on you")
+     tests    /api/brand/tests-overview   `call` and `making` per brand (boxOf on the worker)
+     research /api/brand/overview         personas minus personas_ok
+   A brand with NO client channel is handled automatically and never counts as
+   waiting (Cole, 2026-09-10). A call that fails leaves its line as a plain link
+   with no number; nothing here ever shows an error.
+
+   The Overview paints first and this fills in afterwards, in place. OVD keeps the
+   last answer per client so a sort or a role switch repaints without a refetch. */
+const OVD = { key: null, at: 0, n: null };
+const ovRole = () => { let r = 'all'; try { r = localStorage.getItem('pf_role') || 'all'; } catch {} return r === 'buyer' || r === 'strategist' ? r : 'all'; };
+
+function ovTodayHtml(n) {
+  const role = ovRole(), loading = !n, allBrands = S.act === 'all';
+  const who = c => {
+    if (!allBrands || !c || !c.who || !c.who.length) return '';
+    const shown = c.who.slice(0, 3).map(esc).join(', ');
+    return `<small>${shown}${c.who.length > 3 ? ` and ${c.who.length - 3} more` : ''}</small>`;
+  };
+  /* One line. `c` is { n, who } or null when its call failed. `go` is the tab the
+     line opens; a line without one is information, not a button. */
+  const line = (c, many, one, none, plain, go, open) => {
+    const v = loading ? undefined : c ? c.n : null;
+    const txt = v == null ? plain : v === 0 ? none : v === 1 ? one : many;
+    const num = v === undefined ? '&hellip;' : v == null ? '' : v === 0 ? '&#10003;' : v;
+    const tag = go ? 'button' : 'div';
+    return `<${tag} class="ovd-line${v === 0 ? ' zero' : ''}"${go ? ` type="button" data-go="${go}"` : ''}>
+      <span class="ovd-n">${num}</span><span class="ovd-t">${txt}${v ? who(c) : ''}</span>${go ? `<span class="ovd-go">${open}</span>` : ''}</${tag}>`;
+  };
+  const buyer = `<div class="ovd-col"><div class="ovd-who">Media buyer</div>
+      ${line(n && n.briefs, 'briefs to read and send', 'brief to read and send', 'No briefs to read and send', 'Read and send the daily briefs', 'brief', 'Open Daily Brief')}
+      ${line(n && n.calls, 'tests need a call', 'test needs a call', 'No tests need a call', 'Make the test calls', 'tests', 'Open Test calls')}
+      ${line(n && n.reports, 'reports waiting to send', 'report waiting to send', 'No reports waiting to send', 'Read and send the reports', 'reports', 'Open Reports')}
+    </div>`;
+  const strat = `<div class="ovd-col"><div class="ovd-who">Strategist</div>
+      ${line(n && n.making, 'tests being made in Asana', 'test being made in Asana', 'No tests being made in Asana', 'Tests being made are in Asana', null)}
+      ${line(n && n.drafts, 'research drafts to approve', 'research draft to approve', 'No research drafts to approve', 'Approve the research drafts', 'brand', 'Open Brand')}
+      <button class="ovd-line" type="button" data-go="angles"><span class="ovd-n"></span><span class="ovd-t">Check an idea before you brief it</span><span class="ovd-go">Open Angles</span></button>
+    </div>`;
+  /* The headline counts only what somebody has to DO: tests being made are
+     information, and a line whose number could not be had says nothing either way. */
+  const mine = !n ? [] : role === 'buyer' ? [n.briefs, n.calls, n.reports] : role === 'strategist' ? [n.drafts] : [n.briefs, n.calls, n.reports, n.drafts];
+  const total = mine.reduce((t, c) => t + (c ? c.n : 0), 0);
+  const scope = allBrands ? `across ${S.accounts.length} brand${S.accounts.length === 1 ? '' : 's'}` : `for ${esc((S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand')}`;
+  const say = loading ? `Counting what is waiting ${scope}&hellip;`
+    : total ? `${total} thing${total === 1 ? '' : 's'} waiting ${scope}.`
+    : mine.every(Boolean) ? `Nothing needs you right now.`
+    : `What to do today, ${scope}.`;
+  return `<div class="card ov-today" id="ovToday">
+    <div class="ovd-h"><h3>Today</h3><span class="hint">${say}</span></div>
+    <div class="ovd-cols${role === 'all' ? '' : ' one'}">${role === 'strategist' ? '' : buyer}${role === 'buyer' ? '' : strat}</div>
+  </div>`;
+}
+
+/** The four counts, for the brands on screen. Never throws: a failed call is a null. */
+async function ovTodayLoad(all) {
+  const nameOf = Object.fromEntries(all.map(a => [a.act_id, a.name]));
+  const client = Object.fromEntries(all.map(a => [a.act_id, !!a.brief_channel]));   // no client channel = handled automatically
+  const q = S.act === 'all' ? 'all' : encodeURIComponent(S.act);
+  const [bf, rp, ts, br] = await Promise.allSettled([
+    api('/api/briefs?act=' + q), api('/api/reports?act=' + q),
+    api('/api/brand/tests-overview'), api('/api/brand/overview'),
+  ]);
+  const ok = r => r.status === 'fulfilled' && r.value ? r.value : null;
+  const tally = () => ({ n: 0, who: [] });
+  const add = (t, act, k) => { if (k > 0) { t.n += k; if (nameOf[act] && !t.who.includes(nameOf[act])) t.who.push(nameOf[act]); } };
+
+  /* Briefs: rows arrive newest first, so the first row seen per brand is its
+     latest brief. Older than a week is history, not something to send today. */
+  let briefs = null;
+  if (ok(bf)) {
+    briefs = tally();
+    const seen = new Set(), since = ymd(new Date(Date.now() - 7 * 86400000));
+    for (const row of (ok(bf).rows || [])) {
+      if (seen.has(row.act_id)) continue;
+      seen.add(row.act_id);
+      if (client[row.act_id] && row.status === 'draft' && String(row.date || '') >= since) add(briefs, row.act_id, 1);
+    }
+  }
+  /* Reports: the newest weekly and the newest monthly per brand, exactly as the
+     all-brands Reports view groups "Waiting on you". */
+  let reports = null;
+  if (ok(rp)) {
+    reports = tally();
+    const seen = new Set();
+    for (const row of (ok(rp).rows || [])) {
+      const k = row.act_id + '|' + row.period;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (client[row.act_id] && row.status === 'draft') add(reports, row.act_id, 1);
+    }
+  }
+  let calls = null, making = null;
+  if (ok(ts)) {
+    calls = tally(); making = tally();
+    for (const b of (ok(ts).brands || [])) {
+      if (!(b.act_id in nameOf)) continue;
+      add(calls, b.act_id, b.call || 0); add(making, b.act_id, b.making || 0);
+    }
+  }
+  let drafts = null;
+  if (ok(br)) {
+    drafts = tally();
+    for (const b of (ok(br).brands || [])) {
+      if (!(b.act_id in nameOf)) continue;
+      add(drafts, b.act_id, Math.max(0, (b.personas || 0) - (b.personas_ok || 0)));
+    }
+  }
+  return { briefs, reports, calls, making, drafts };
+}
+/* Switching "Show tabs for" in the rail changes which column shows, in place. */
+document.addEventListener('click', e => {
+  if (!e.target.closest('#roleSeg [data-role]') || S.tab !== 'overview') return;
+  const el = document.getElementById('ovToday');
+  if (el) el.outerHTML = ovTodayHtml(OVD.key === S.act ? OVD.n : null);
+});
+
 async function renderOverview() {
   const all = S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act);
 
@@ -4651,7 +4862,7 @@ async function renderOverview() {
     ${OV_SORT.map(([k, l]) => `<button data-s="${k}" class="${k === sortKey ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   const table = all.length ? `<div class="card key" style="padding-bottom:4px">
       <div class="ovt-hd"><h3>Where each brand stands</h3>
-        <span class="hint">Every figure is blended across ads, email, organic and direct over ${esc(rangeLabel())}. <b>MTD vs plan</b> compares month to date with this month&rsquo;s plan pro-rated to today.</span>
+        <span class="hint">Every channel, blended, over ${esc(rangeLabel())}. <b>MTD vs plan</b> is month to date against this month&rsquo;s plan, pro-rated to today.</span>
         ${seg}</div>
       <div class="tbl-wrap"><table class="ovt">
         <thead><tr><th>Brand</th><th>Trend</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>aMER</th><th>New %</th><th>Contribution margin</th><th>Costs</th></tr></thead>
@@ -4681,7 +4892,10 @@ async function renderOverview() {
           : 'Every brand&rsquo;s profit figure is measured, not estimated.'}</p></div>
     </div>` : '';
 
-  $('#main').innerHTML = `${pageHead('overview', 'Overview')}
+  /* The purpose line under the title is dropped here: the Today card says what
+     to do with this page better than a sentence about it. */
+  $('#main').innerHTML = `${pageHead('overview', 'Overview').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}
+    ${ovTodayHtml(OVD.key === S.act ? OVD.n : null)}
     ${rollup()}
     ${table}
     ${cards}
@@ -4704,6 +4918,19 @@ async function renderOverview() {
     localStorage.setItem('pf_ov_sort', b.dataset.s);
     inPlace(async () => renderOverview());
   });
+
+  /* Today's counts, AFTER the paint and never awaited: this renderer stays
+     synchronous. show() has already bumped RUN, so the ticket read here drops a
+     late answer that would otherwise land on another tab or another client. */
+  if (all.length && (OVD.key !== S.act || Date.now() - OVD.at > 60000)) {
+    const run = RUN, key = S.act;
+    ovTodayLoad(all).then(n => {
+      OVD.key = key; OVD.at = Date.now(); OVD.n = n;
+      if (run !== RUN || S.tab !== 'overview' || S.act !== key) return;
+      const el = document.getElementById('ovToday');
+      if (el) el.outerHTML = ovTodayHtml(n);
+    }).catch(() => {});
+  }
 }
 
 /** A timestamp as Central wall-clock, the only clock this tool speaks. */
@@ -5169,7 +5396,7 @@ const HEALTH_PILL = { ok: ['good', '✓ Agrees'], warn: ['warn', '⚠ Check'], b
 
 async function renderHealth(first) {
   const run = ++RUN;
-  $('#main').innerHTML = `${pageHead('health', 'Data Health')}<div class="card"><p class="hint">Checking every brand against Meta and the other platforms…</p></div>`;
+  $('#main').innerHTML = `${backToSettings()}${pageHead('health', 'Data Health')}<div class="card"><p class="hint">Checking every brand against Meta and the other platforms…</p></div>`;
   const d = await api('/api/data-health?act=all&days=14');
   if (run !== RUN) return;
   let brands = d.brands || [];
@@ -5284,7 +5511,7 @@ async function renderHealth(first) {
     paintBar();
   };
 
-  $('#main').innerHTML = `${pageHead('health', 'Data Health')}
+  $('#main').innerHTML = `${backToSettings()}${pageHead('health', 'Data Health')}
     <div id="hlTop">${topHtml()}</div>
     <div class="row" id="hlBar" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
     <p class="hint" style="margin:0 0 14px">Every blended number in Locus comes through Triple Whale. This checks it against the one source that owes it nothing - <b>Meta’s own API</b> - and watches every other platform for a connection that has gone quiet. Covering the last 14 complete days. Each brand runs on its own, so you can start several at once without waiting.</p>
@@ -5393,7 +5620,7 @@ const prettyDay = ymd => ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('
 
 async function renderCosts(first) {
   if (S.act === 'all') {
-    $('#main').innerHTML = `${pageHead('costs', 'Costs', 'Product costs <i>and</i> delivery, per client.')}
+    $('#main').innerHTML = `${backToSettings()}${pageHead('costs', 'Costs', 'Product costs <i>and</i> delivery, per client.')}
       
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfilment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfilment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
@@ -5426,7 +5653,7 @@ async function renderCosts(first) {
   const r = u.retail || null;   // margin measured only on days cost and revenue agree
   const winSales = (d.rows || []).reduce((a, x) => a + (x.sales || 0), 0);
 
-  $('#main').innerHTML = `${pageHead('costs', `Costs &mdash; ${esc(d.account.name)}`, 'Last 60 days of daily margin, which is what reveals whether the cost data holds up.')}
+  $('#main').innerHTML = `${backToSettings()}${pageHead('costs', `Costs: ${esc(d.account.name)}`,'Last 60 days of daily margin, which is what reveals whether the cost data holds up.')}
     <div class="row" style="margin-bottom:12px">${healthPill(h)}${shipPill(d.shipping, true)}<span style="flex:1"></span></div>
     ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> - the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost - not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
       : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
@@ -5497,8 +5724,7 @@ async function renderBriefAll(first) {
   // On a tab switch #main still holds the OUTGOING tab's DOM, so writing into
   // `#main .card` would inject this table into the previous page - or throw, when
   // that tab has no card, leaving the Brief tab unable to open at all.
-  const shell = body => `${pageHead('brief', 'Daily Brief', 'Every client&rsquo;s yesterday against its plan. Pick a client top-right to read and send its brief.')}
-    <div class="notice"><b>Store numbers, not Meta numbers.</b> <div>Sales, margin and total spend here come from <b>Triple Whale</b> for the whole business, every platform, because net sales and contribution margin do not exist inside Meta. Expect these numbers to differ from Meta's.</div></div>
+  const shell = body => `${pageHead('brief', 'Daily Brief', 'Every client&rsquo;s brief for yesterday: sent, waiting on you, or handled automatically. Open one to read and send it.')}
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading every client…</span></div>');
@@ -5514,21 +5740,40 @@ async function renderBriefAll(first) {
     const cls = off == null ? 'unk' : (fx2 ? a2 >= f2 : off >= 0) ? 'good' : Math.abs(off) <= 0.15 ? 'warn' : 'bad';
     return `<td class="num"><b>${fmt(a2)}</b> <span class="tiny">plan ${fmt(f2)}</span>${off != null ? `<span class="pill ${cls}" style="margin-left:6px">${fmtPct(off, 0)}</span>` : ''}</td>`;
   };
-  const rows = active.map((a, i) => {
-    const d = data[i];
+  /* ONE STATUS AND ONE ACTION PER BRAND (2026-10-04). The row used to bury
+     the only thing this list is for ("last: draft 2026-10-03" in grey under
+     the name) beneath four number columns. Status is now its own column,
+     the brands waiting on you sort to the top, and each row has one button.
+     Same rule as the single-brand page: no client channel = handled, never
+     waiting. Spend and aMER left the table; they are one click away. */
+  const stOf = (a, d) => {
+    if (!d) return { r: 5, cls: 'unk', label: 'Could not load' };
+    const row = (d.history || []).find(h => h.date === d.date);
+    const auto = !a.brief_channel;
+    if (row?.status === 'sent') return { r: 2, cls: 'good', label: 'Sent' };
+    if (row && (row.status === 'handled' || (row.status === 'draft' && auto))) return { r: 3, cls: 'good', label: 'Handled automatically' };
+    if (row?.status === 'draft') return { r: 0, cls: 'warn', label: 'Waiting on you' };
+    if (row?.status === 'error') return { r: 1, cls: 'bad', label: 'Failed to write' };
+    if (row?.status === 'skipped') return { r: 3, cls: 'unk', label: 'Not sent (skipped)' };
+    return { r: 4, cls: 'unk', label: 'Not written yet' };
+  };
+  const rows = active.map((a, i) => ({ a, d: data[i], st: stOf(a, data[i]) }))
+    .sort((x, y) => x.st.r - y.st.r || x.a.name.localeCompare(y.a.name))
+    .map(({ a, d, st }) => {
     const day = d?.days?.find(x => x.date === d.date);
-    const enabled = d?.brief_enabled;
-    const last = d?.history?.[0];
+    const gaps = [d && !d.goals ? 'no goals yet' : '', d && !d.brief_enabled ? 'morning run is off' : ''].filter(Boolean).join(' · ');
     return `<tr data-id="${a.act_id}" style="cursor:pointer">
-      <td><b>${esc(a.name)}</b><br><span class="tiny">${d?.goals ? 'goals set' : 'no goals yet'} · auto-post ${enabled ? 'on' : 'off'}${last ? ` · last: ${esc(last.status)} ${esc(last.date)}` : ''}</span></td>
-      ${d && day?.a ? ((d.cogs_quality?.verdict === 'broken' || d.cogs_quality?.verdict === 'none') ? `<td class="num"><span class="tiny" title="${esc(d.cogs_quality?.reason || 'no cost data')}">cost data ⚠</span></td>` : cell(day.a.cm, day.f.cm, a.currency)) + cell(day.a.sales, day.f.sales, a.currency) + cell(day.a.spend, day.f.spend, a.currency) + cell(day.a.amer, day.f.amer, a.currency, true)
-        : `<td colspan="4"><span class="tiny">${d ? 'no Triple Whale data for yesterday - open the client and hit “Refresh Triple Whale data”' : 'couldn’t load'}</span></td>`}
+      <td><b>${esc(a.name)}</b>${gaps ? `<br><span class="tiny">${gaps}</span>` : ''}</td>
+      <td><span class="pill ${st.cls}">${st.label}</span></td>
+      ${d && day?.a ? ((d.cogs_quality?.verdict === 'broken' || d.cogs_quality?.verdict === 'none') ? `<td class="num"><span class="tiny" title="${esc(d.cogs_quality?.reason || 'no cost data')}">cost data ⚠</span></td>` : cell(day.a.cm, day.f.cm, a.currency)) + cell(day.a.sales, day.f.sales, a.currency)
+        : `<td colspan="2"><span class="tiny">${d ? 'no Triple Whale data for yesterday yet' : 'couldn’t load'}</span></td>`}
+      <td class="num"><button class="btn${st.r === 0 ? ' primary' : ''}" type="button" style="white-space:nowrap">${st.r === 0 ? 'Review and send' : 'Open brief'}</button></td>
     </tr>`;
   }).join('');
   $('#main').innerHTML = shell(`<div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th>Client</th><th class="num">CM yesterday</th><th class="num">Net Sales</th><th class="num">Total Spend</th><th class="num">aMER</th></tr></thead>
+    <thead><tr><th>Client</th><th>Yesterday&rsquo;s brief</th><th class="num">CM yesterday</th><th class="num">Net Sales</th><th></th></tr></thead>
     <tbody>${rows || '<tr><td class="tiny">No active clients.</td></tr>'}</tbody></table></div>
-    <p class="tiny" style="margin-top:10px">Net Sales, spend and aMER come from Triple Whale (all platforms); aMER = new-customer revenue ÷ total ad spend. Click a client to open its brief.</p></div>`);
+    <p class="tiny" style="margin-top:10px">Store numbers from Triple Whale (every platform), so they will not match Meta's own.</p></div>`);
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -5621,22 +5866,40 @@ async function renderBrief(first) {
     <details style="margin:6px 0"><summary style="cursor:pointer;font-size:13px"><b>${esc(hh.date)}</b> · <span class="pill ${histPill(hh.status)}">${esc(histLabel(hh.status))}</span>${hh.posted_at ? ` <span class="tiny">${fmtAgo(hh.posted_at)}</span>` : ''}</summary>
     <div style="margin-top:6px">${slackPreview(hh.text, { when: hh.posted_at ? fmtAgo(hh.posted_at) : '' })}</div></details>`).join('');
 
-  $('#main').innerHTML = shell(`
-    <div class="row" style="margin-bottom:12px">
-      <label class="tiny">day</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
-      <button class="btn" id="bfTwSync">↻ Refresh Triple Whale data</button>
-      <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet - hit refresh'}</span>
+  /* PAGE ORDER (2026-10-04, "stupid simple"): the buyer's morning job is read,
+     fix, add What we did, Send. So: day picker, ONE status line, the brief with
+     its actions, then the numbers as context, then closed disclosures. The
+     pieces are built in the order they were written and composed at the end. */
+  const headHtml = `<div class="bf-head">
+      <label for="bfDate">Brief for</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
       <span style="flex:1"></span>
-    </div>
-    ${d.goals && d.goals_planned === false ? `<div class="notice warn">⚠️ <div><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure below is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so out loud. <button class="btn" id="bfToPlan2" style="margin-left:6px">Set ${esc(monthLabel(d.month))}'s plan</button></div></div>` : ''}
-    ${!d.goals ? `<div class="notice warn">ℹ️ <div><b>No goals set for ${d.month}.</b> Set them on the <b>Plan</b> tab - the forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</div></div>` : ''}
-    ${noTw && d.goals ? `<div class="notice warn">⚠️ <div>No Triple Whale sales data for ${d.date} yet - hit “Refresh Triple Whale data”, and check the shop domain in Settings if it persists.</div></div>` : ''}
-    ${(d.health?.by_date?.[d.date] || []).some(i => i.severity === 'broken') ? `<div class="notice bad">🚨 <div><b>The data behind this day is wrong - it cannot be sent.</b>
-      ${esc((d.health.by_date[d.date].find(i => i.severity === 'broken')).what)}.
-      ${esc((d.health.by_date[d.date].find(i => i.severity === 'broken')).fix)}
-      Spend below has been rebuilt from the platforms' own reporting where a second source exists.
-      <button class="btn" id="bfToHealth" style="margin-left:6px">Open Data Health</button></div></div>` : ''}
-    ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<div class="notice bad">⚠️ <div><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. A wrong profit number in front of a client is worse than none, so CM is left out of the brief entirely - every other metric still works. <b>Two ways to fix it:</b> set this client's real COGS in Triple Whale (Settings → Costs), or set a flat <b>margin %</b> on the <b>Costs</b> tab instead.</div></div>` : cq.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is a little noisy</b> - ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab overrides it with a stable rate.</div></div>` : ''}
+      <span class="tiny" id="bfTwMsg">${d.tw_last_sync ? 'TW data synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet - hit refresh'}</span>
+      <button class="btn quiet" id="bfTwSync" title="Pull the last 70 days from Triple Whale again, then redraw this page.">↻ Refresh Triple Whale data</button>
+    </div>`;
+  /* ONE STATUS LINE that answers "can I send this?": the data-health verdict
+     the Send button already obeys, merged with where this day's brief stands
+     (sent, waiting on you, handled automatically). It replaced a Data health
+     card in the side column and a red banner above everything. */
+  const hIss = d.health?.by_date?.[d.date] || [];
+  const hBad = hIss.find(i => i.severity === 'broken'), hWarn = hIss.find(i => i.severity === 'warn');
+  const hTxt = !d.health ? 'The data for this day has not been checked yet.'
+    : hBad ? `The data behind this day is wrong, so it cannot be sent. ${esc(hBad.what)}. ${esc(hBad.fix || '')}`
+    : hWarn ? `Check the numbers before sending: ${esc(hWarn.what)}.`
+    : 'Data checked, safe to send.';
+  const bName = esc(acct?.name || 'This brand');
+  const st = bfSent ? { tone: 'ok', v: 'Sent to the client' + (bfSent.posted_at ? ' ' + fmtAgo(bfSent.posted_at) : ''), d: 'This is the record of what they received, so it cannot be edited.' }
+    : hBad ? { tone: 'bd', v: 'Blocked', d: hTxt + ' Spend below has been rebuilt from the platforms where a second source exists. <button class="btn" id="bfToHealth" style="padding:3px 9px;font-size:12px;margin-left:4px">Open Data Health</button>' }
+    : bfDraft && internalOnly ? { tone: hWarn ? 'wn' : 'ok', v: 'Handled automatically', d: `${bName} has no client channel, so this brief is for your team only and nothing goes out.${hWarn ? ' ' + hTxt : ''}` }
+    : bfDraft && !bfCanSend ? { tone: 'bd', v: 'Nowhere to send', d: `The client channel saved for ${bName} no longer exists. Pick one in Settings and Send to client appears here.` }
+    : bfDraft ? { tone: hWarn || !d.health ? 'wn' : 'ok', v: 'Waiting on you', d: hTxt }
+    : bfRow?.status === 'skipped' ? { tone: '', v: 'Not sent', d: 'You chose not to send this day. Write the brief again if you changed your mind.' }
+    : { tone: hWarn ? 'wn' : '', v: 'Not written yet', d: (internalOnly ? `${bName} has no client channel, so the brief is handled as soon as it is written. ` : 'Nothing reaches the client until you send it. ') + hTxt };
+  const statusHtml = `<div class="st-line ${st.tone}"><div class="st-t"><span class="st-v">${st.v}</span><span class="st-d">${st.d}</span></div></div>`;
+  const numsHtml = `
+    ${d.goals && d.goals_planned === false ? `<p class="bf-flag"><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure here is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so. <button class="btn" id="bfToPlan2">Set ${esc(monthLabel(d.month))}'s plan</button></p>` : ''}
+    ${!d.goals ? `<p class="bf-flag"><b>No goals set for ${esc(monthLabel(d.month))}.</b> Set them on the <b>Plan</b> tab. The forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</p>` : ''}
+    ${noTw && d.goals ? `<p class="bf-flag">No Triple Whale sales data for ${d.date} yet. Press “Refresh Triple Whale data” at the top, and check the shop domain in Settings if it stays empty.</p>` : ''}
+    ${cq.verdict === 'broken' || cq.verdict === 'none' ? `<p class="bf-flag bad"><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. It is left out of the brief and every other metric still works. To fix it, set real COGS in Triple Whale or a flat <b>margin %</b> on the <b>Costs</b> tab.</p>` : cq.verdict === 'noisy' ? `<p class="bf-flag"><b>Cost data is a little noisy:</b> ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab gives it a stable rate.</p>` : ''}
     <div class="rollup">
       ${(cq.verdict === 'broken' || cq.verdict === 'none') ? `
       <div class="ru" style="opacity:.72">
@@ -5653,66 +5916,49 @@ async function renderBrief(first) {
           Customers both already carry. One line under the stats instead - the
           only part that is NOT elsewhere on this page is the channel split. */''}
     <p class="tiny" style="margin:-4px 0 14px">${a.new_rev != null ? `<b>${fmtMoney(a.new_rev, cur)}</b> from new customers${a.new_share != null ? ` (${Math.round(a.new_share * 100)}%)` : ''} · <b>${fmtMoney(a.ret_rev, cur)}</b> returning` : 'No new-vs-returning split available'}${[['Meta', a.meta_spend, a.meta_roas, a.meta_purchases], ['Google', a.google_spend, a.google_roas, a.google_purchases]].filter(r => r[1] != null && r[1] > 0).map(([n, sp, r, o], i) => `${i ? ' · ' : ' &nbsp;·&nbsp; '}${n} ${fmtMoney(sp, cur)}${!a.attr_source ? '' : o != null && o < 2 ? ` (${o ? 'one order' : 'no orders'} yet)` : r != null ? ` at ${fx(r)} off ${Math.round(o)} orders` : ''}`).join('')}${a.attr_source && (a.meta_spend || a.google_spend) ? ' <span class="info-i" title="ROAS and orders per channel are Triple Whale attribution (last platform click), not the Meta or Google dashboards. Spend comes from each platform. Recent days keep settling for a few days as customer journeys resolve.">i</span>' : ''}</p>
-    <div class="two brief-two">
-    <div>
-    <!-- The draft is the job; the numbers underneath are context. This card
-         used to sit below the stat cards, the chart and the plan, so reviewing
-         a brief meant scrolling past everything else first. -->
-    <div class="card"><h3 style="margin-bottom:6px">The brief itself</h3>
-      <p class="hint" style="margin-bottom:8px">${bfDraft && internalOnly
-        ? '<b>Handled automatically.</b> ' + esc(acct?.name || 'This brand') + ' has no client channel, so this brief is for your team only - it posted to your internal channel and nothing goes out. Edit or rewrite it whenever you like.'
-        : bfDraft
-        ? 'This is the draft for ' + esc(d.date) + '. <b>Edit it however you like</b> - it sends exactly as written, so nothing you change gets regenerated away.'
-        : bfSent
-        ? 'Sent to the client. This is a record of exactly what they received, so it cannot be edited.'
-        : internalOnly
-        ? 'The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What&rsquo;s Next? from the numbers and the Change Log (~20s). This brand has no client channel, so the brief is for your team only and is handled as soon as it is written.'
-        : 'The numbers block is instant; “Write the brief” has Claude add Notes → So What? → What&rsquo;s Next? from the numbers and the Change Log (~20s). Nothing reaches the client until you send it.'}</p>
-      <div class="row" style="margin-bottom:8px">
-        ${bfSent ? '' : `<button class="btn ${bfDraft ? '' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(d.date)}</button>`}
-        ${bfDraft ? '<button class="btn" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn" id="bfCancel" style="display:none">Cancel</button>' : ''}
+  `;
+  /* The draft is the job; the numbers are context. ONE primary button (Send
+     to client, or Write the brief when there is nothing yet); everything else
+     is a quiet secondary. The long explainer that sat above the buttons is
+     gone: the status line says the same thing in one sentence. */
+  const bfActs = `<div class="bf-acts">
         <button class="btn primary" id="bfPost" style="display:${bfDraft && bfCanSend ? '' : 'none'}">Send to client</button>
-        <button class="btn" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
-        ${bfSent || internalOnly ? '' : `<span style="flex:1"></span><button class="btn" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
+        ${bfDraft ? '<button class="btn quiet" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn quiet" id="bfCancel" style="display:none">Cancel</button>' : ''}
+        ${bfSent ? '' : `<button class="btn ${bfDraft ? 'quiet' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log. Takes about 20 seconds.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(d.date)}</button>`}
+        <button class="btn quiet" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
         <span class="tiny" id="bfMsg"></span>
-      </div>
-      ${bfSent ? '' : `<div style="margin:0 0 10px">
+        ${bfSent || internalOnly ? '' : `<span style="flex:1"></span><button class="btn quiet" id="bfSkip" title="Mark this day handled without messaging the client, so it stops being carried into later briefs">Don't send this one</button>`}
+      </div>`;
+  const bfNoteHtml = bfSent ? '' : `<div class="bf-note">
         <label for="bfNote" style="display:block;font-weight:600;margin-bottom:2px">What we did</label>
-        <p class="tiny" style="margin:0 0 6px">The brief's "What we're doing" comes only from this note and the Change Log, so the client never gets a promise nobody made. One line per action. Kept for 2 days.</p>
-        <textarea id="bfNote" rows="2" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--bg)" placeholder="Brought the paused campaign back with tighter caps. Holding spend flat until margin recovers."></textarea>
-        <div class="row" style="margin-top:6px"><button class="btn" id="bfNoteSave">Save note</button><span class="tiny" id="bfNoteMsg"></span></div>
-      </div>`}
-      ${bfDraft?.steer ? `<p class="tiny" style="margin:-2px 0 8px;opacity:.75">Last rewrite was steered: “${esc(String(bfDraft.steer).slice(0, 240))}”</p>` : ''}
+        <p class="tiny" style="margin:0 0 6px">One line per action. The brief's "What we're doing" is written only from this note and the Change Log. Kept for 2 days.</p>
+        <textarea id="bfNote" rows="2" placeholder="Brought the paused campaign back with tighter caps. Holding spend flat until margin recovers."></textarea>
+        <div class="row" style="margin:6px 0 0"><button class="btn" id="bfNoteSave">Save note</button><span class="tiny" id="bfNoteMsg"></span></div>
+      </div>`;
+  const briefCard = `<div class="card bf-main">
+      <h3 style="margin-bottom:10px">The brief for ${esc(d.date)}</h3>
+      ${bfDraft?.steer ? `<p class="tiny" style="margin:-4px 0 8px;opacity:.75">Last rewrite was steered: “${esc(String(bfDraft.steer).slice(0, 240))}”</p>` : ''}
       ${bfSent
         ? slackPreview(bfSent.text, { when: 'sent ' + (bfSent.posted_at ? fmtAgo(bfSent.posted_at) : '') })
         : bfDraft
         ? `<div id="bfPreview">${slackPreview(bfDraft.text)}</div>
            <textarea id="bfEdit" style="display:none;width:100%;min-height:360px;border:1px solid var(--line-strong);border-radius:8px;padding:12px;font:inherit;font-size:13px;line-height:1.6;background:var(--bg)">${esc(bfDraft.text || '')}</textarea>
            <p class="tiny" id="bfEditHint" style="display:none;margin-top:6px">Slack formatting: <code>*bold*</code>, <code>_italic_</code>, <code>:wave:</code> for emoji. Save to see it rendered.</p>`
-        : `<div id="bfPreview"></div>`}</div>
-    ${hist ? `<div class="card"><h3 style="margin-bottom:4px">${internalOnly ? 'Past briefs' : 'Sent briefs'}</h3>${hist}</div>` : ''}
-    </div>
-    <div>
-    ${(() => {
-      /* The verdict the send button already obeys, as a card the reader sees
-         first: what blocks a send, what merely needs a look, or a clean bill. */
-      const iss = d.health?.by_date?.[d.date] || [];
-      const bad = iss.find(i => i.severity === 'broken'), warn = iss.find(i => i.severity === 'warn');
-      const tone = !d.health ? 'un' : bad ? 'bd' : warn ? 'wn' : 'ok';
-      const big = !d.health ? 'Not checked' : bad ? 'Blocked' : warn ? 'Check before sending' : 'Safe to send';
-      const hint = !d.health ? 'No data check has run for this day yet.'
-        : bad ? `${esc(bad.what)}. ${esc(bad.fix || '')} A brief is refused while this stands.`
-        : warn ? `${esc(warn.what)}. The send still works; read the numbers first.`
-        : 'Every channel reported, Meta ties to its own API, and no cost line is missing.';
-      return `<div class="card sc ${tone}"><div class="mini">Data health &middot; ${esc(d.date)}</div><div class="big" style="font-size:17px">${big}</div><p class="hint">${hint}</p></div>`;
-    })()}
+        : `<div id="bfPreview"><p class="hint">No brief has been written for this day yet. Press <b>Write the brief</b> and Claude turns the numbers and the Change Log into the update (about 20 seconds).</p></div>`}
+      ${bfNoteHtml}
+      ${bfActs}</div>`;
+  const histN = (d.history || []).length;
+  const histFold = hist ? `<details class="rh-wrap"><summary>Past briefs <span class="tiny">&middot; ${histN} on file, newest first</span></summary><div class="fold-body">${hist}</div></details>` : '';
+  const chartCard = `
     <div class="card"><h3 style="margin-bottom:2px">The month vs the plan</h3>
       <p class="hint" style="margin-bottom:6px">Cumulative net sales: <span style="color:#14608C;font-weight:700">blue</span> = actual, <span style="color:#8195A2;font-weight:700">dashed gray</span> = the plan. Forecast weighting: ${esc(d.weights)}.${d.mtd.sales != null && d.mtd.sales_f ? ` So far: <b>${fmtK(d.mtd.sales, cur)}</b> vs <b>${fmtK(d.mtd.sales_f, cur)}</b> planned (${fmtPct(d.mtd.sales / d.mtd.sales_f - 1, 0)}).` : ''}</p>
       <div id="bfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart for exact values…</div>
       ${chart.svg}
-      ${catchUpLine(d.to_hit ? { to_hit: d.to_hit } : null, n => fmtMoney(n, cur))}</div>
-    <div class="card"><h3 style="margin-bottom:6px">The plan this is measured against</h3>
-      <p class="hint" style="margin-bottom:10px">Set on the <b>Plan</b> tab, once a month, with the client. Nothing here changes it - this page only reports against it.</p>
+      ${catchUpLine(d.to_hit ? { to_hit: d.to_hit } : null, n => fmtMoney(n, cur))}</div>`;
+  /* Closed by default: the plan is set on the Plan tab and the two switches
+     are set once. The summary carries their state so nothing is hidden. */
+  const planFold = `<details class="rh-wrap"><summary>The plan this is measured against <span class="tiny">&middot; revenue goal ${g.sales != null ? fmtMoney(g.sales, cur) : 'not set'} &middot; runs every morning: <span id="bfAutoLbl">${d.brief_enabled ? 'on' : 'off'}</span>${internalOnly ? ' &middot; internal only' : ` &middot; review before sending: <span id="bfReviewLbl">${acct?.review_first ? 'on' : 'off'}</span>`}</span></summary><div class="fold-body">
+      <p class="hint" style="margin-bottom:10px;color:var(--muted);font-size:13px">Set on the <b>Plan</b> tab, once a month, with the client. This page only reports against it.</p>
       <div class="row" style="gap:22px;flex-wrap:wrap">
         <div><div class="tiny">Revenue goal</div><div style="font-size:19px;font-weight:700">${g.sales != null ? fmtMoney(g.sales, cur) : ' - '}</div></div>
         <div><div class="tiny">Ad spend</div><div style="font-size:19px;font-weight:700">${g.spend != null ? fmtMoney(g.spend, cur) : ' - '}</div></div>
@@ -5736,13 +5982,20 @@ async function renderBrief(first) {
         <span style="font-size:13.5px;max-width:660px">
           <b>Review before it goes to the client.</b> On: each morning the brief is drafted and posted to this brand's
           <b>internal channel</b>${acct?.slack_channel ? '' : ' (<b>none set</b> - pick one in Settings)'} - you read it, reword anything, then press
-          <b>Send to client</b> below. Off: it posts straight to the client channel with no stop.
+          <b>Send to client</b> at the top. Off: it posts straight to the client channel with no stop.
           <span class="tiny" style="display:block;margin-top:3px">This switch is per client and covers the weekly and monthly reports too.</span>
-          <span class="tiny" style="display:block;margin-top:3px">This replaces copy-pasting: same review, but Slack formatting survives and what you sent is recorded.</span>
         </span>
-      </div>`}</div>
-    </div>
-    </div>
+      </div>`}</div></details>`;
+
+  $('#main').innerHTML = shell(`
+    ${headHtml}
+    ${statusHtml}
+    ${briefCard}
+    <h3 class="bf-sec">The numbers behind it</h3>
+    ${numsHtml}
+    ${chartCard}
+    ${histFold}
+    ${planFold}
   `);
 
   /* chart crosshair - hover AND tap */
@@ -5789,6 +6042,7 @@ async function renderBrief(first) {
     try {
       await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: S.act, brief_enabled: on }) });
       if (acct) acct.brief_enabled = on;
+      const al = $('#bfAutoLbl'); if (al) al.textContent = on ? 'on' : 'off';
       refreshAccounts();                    // keep the Settings tab in step
     } catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); e.target.classList.toggle('on', !on); }
   };
@@ -5887,7 +6141,7 @@ async function renderBrief(first) {
     const covered = (bfDraft?.text || '').match(/covering ([^\n→]+)/i);
     if (!(await confirmModal(`Don't send the brief for ${d.date}?`,
       `<p>This marks the day <b>handled</b> without messaging the client. Nothing is sent, and it stops being carried into later briefs${covered ? ` - this draft currently covers <b>${esc(covered[1].trim())}</b>` : ''}.</p>
-       <p class="tiny">The numbers are not lost: this day still counts everywhere on Profit, Plan and the chart above. You are only saying the client does not need a message about it.</p>
+       <p class="tiny">The numbers are not lost: this day still counts everywhere on Profit, Plan and the chart on this page. You are only saying the client does not need a message about it.</p>
        <p class="tiny">Changed your mind later? Press <b>Write the brief</b> on this date and it drafts again.</p>`,
       'Don\'t send it'))) return;
     $('#bfMsg').textContent = 'Skipping…';
@@ -5904,6 +6158,7 @@ async function renderBrief(first) {
     try {
       await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: S.act, review_first: on }) });
       if (acct) acct.review_first = on;
+      const rl = $('#bfReviewLbl'); if (rl) rl.textContent = on ? 'on' : 'off';
       refreshAccounts();
       $('#gMsg').textContent = on ? 'Drafts will wait for you each morning.' : 'Briefs will post straight to the client.';
     } catch (e) { bfRev.classList.toggle('on', !on); noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
@@ -6120,7 +6375,7 @@ function reportBodyHTML(d, summary, opts = {}) {
       <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Summary</h3><span style="flex:1"></span>${opts.editable ? '<button class="btn" id="rpEditSum" style="font-size:12px;padding:5px 9px">✎ Edit</button>' : ''}</div>
       <div id="rpSumBox" class="rp-sum">${sumFmt(summary)}</div></div>`
     : opts.editable ? `<div class="card" style="border-left:3px solid var(--warn)"><h3 style="margin-bottom:4px">Summary</h3>
-      <p class="hint">No narrative was written (the Claude call failed at generation time). Hit ↻ Regenerate to retry.</p></div>` : '';
+      <p class="hint">No narrative was written (the Claude call failed at generation time). Press <b>Rewrite with AI</b> at the top to retry.</p></div>` : '';
 
   const kpis = [
     kpi('Revenue', t.sales, money, f.sales, p.sales, false, 'Shopify Total Sales minus sales tax - every channel (paid, organic, email, direct), after discounts and returns, including shipping charged to customers. Not any ad platform’s attributed number.'),
@@ -6342,7 +6597,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     // snapshot, so it says which it is. Internal only - a client has no
     // Regenerate button and the report they were sent is the one they get.
     const stale = opts.internal && !A.top.some(a => a.ad_id)
-      ? `<div class="notice warn" style="margin:12px 0">⚠️ <div><b>This report predates the creative upgrade.</b> It was generated before cover art, inline playback and ad copy existed, so the cards below show numbers only. Hit <b>↻ Regenerate</b> above to rebuild it - the ads, the money and the summary all refresh together.</div></div>`
+      ? `<div class="notice warn" style="margin:12px 0">⚠️ <div><b>This report predates the creative upgrade.</b> It was generated before cover art, inline playback and ad copy existed, so the cards below show numbers only. Press <b>Rewrite with AI</b> at the top to rebuild it - the ads, the money and the summary all refresh together.</div></div>`
       : '';
     return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went <span class="info-i" title="${esc(metricInfo)}">i</span></h4>
       ${stale}
@@ -6477,16 +6732,41 @@ function reportBodyHTML(d, summary, opts = {}) {
      position on the right, then every platform at FULL WIDTH so the creative
      grid gets four across, then the smaller channels side by side. */
   const chans = (d.channels || []);
-  const metaHtml = chans.filter(c => c.id === 'meta').map(chCard).join('');
-  const otherHtml = chans.filter(c => c.id !== 'meta').map(chCard).filter(Boolean);
-  return `<div class="rollup rp-kpis">${kpis}</div>
+  /* THE "JUMP TO" ROW. The report is long by design (it is the document walked
+     through on a call), so the fix is navigation, not cutting content. Every
+     section that EXISTS in this report gets an id and a chip; a chip for a
+     section this report does not have would be a control that does nothing.
+     `sec()` stamps the id onto the card's own opening tag rather than wrapping
+     it, so no layout (the two columns, the channel grid) gains a new box.
+     Drawn here because this function renders BOTH the internal page and the
+     client's archive link; `wireReportJump()` is called by both renderers. */
+  const jump = [];
+  const sec = (id, label, html) => {
+    if (!html) return '';
+    jump.push([id, label]);
+    return html.replace('<div class="card', `<div id="rpsec-${id}" class="card rp-sec`);
+  };
+  const CH_SHORT = { meta: 'Meta', google: 'Google', email: 'Email', tiktok: 'TikTok', amazon: 'Amazon', pinterest: 'Pinterest' };
+  const sumSec = sec('summary', 'Summary', sumHtml);
+  const chartSec = sec('days', 'Day by day', chartHtml);
+  // "Month" lands on where the month stands; on a report with no pacing card it
+  // lands on the week-by-week table, which is the same question.
+  const paceSec = sec('month', 'Month', pacingHtml);
+  const splitSec = sec('customers', 'Customers', splitHtml);
+  const weeksSec = pacingHtml ? weeksHtml : sec('month', 'Month', weeksHtml);
+  const metaHtml = chans.filter(c => c.id === 'meta').map(c => sec('meta', 'Meta', chCard(c))).join('');
+  const otherHtml = chans.filter(c => c.id !== 'meta').map(c => sec(c.id, CH_SHORT[c.id] || c.label || c.id, chCard(c))).filter(Boolean);
+  const changesSec = sec('changes', 'Changes', changesHtml);
+  const jumpHtml = jump.length > 1 ? `<nav class="rp-jump" aria-label="Jump to a section of this report"><span class="rp-jump-l">Jump to</span>${
+    jump.map(([id, label]) => `<button class="chip" type="button" data-jump="rpsec-${esc(id)}">${esc(label)}</button>`).join('')}</nav>` : '';
+  return `${jumpHtml}<div class="rollup rp-kpis">${kpis}</div>
     <div class="two rp-two">
-      <div>${sumHtml}${chartHtml}</div>
-      <div>${pacingHtml}${splitHtml}${weeksHtml}</div>
+      <div>${sumSec}${chartSec}</div>
+      <div>${paceSec}${splitSec}${weeksSec}</div>
     </div>
     ${attrHtml}${metaHtml}
     ${otherHtml.length ? `<div class="rp-grid">${otherHtml.join('')}</div>` : ''}
-    ${changesHtml}
+    ${changesSec}
     <p class="tiny"><b>Revenue, MER, aMER${t.cm != null ? ', Contribution Margin' : ''} and New-customer CPA are blended</b> - real store revenue and real total ad spend, with no platform's attribution involved - which is why they will not match what Meta or Google report on their own dashboards. The platform sections show each platform's own attributed numbers, and those are directional.</p>`;
 }
 
@@ -6518,6 +6798,19 @@ async function channelUsable(id) {
   await channelName(id);
   if (!CHAN_CACHE || !Object.keys(CHAN_CACHE).length) return true;
   return !!CHAN_CACHE[id];
+}
+
+/** Wire the sticky "Jump to" chips. Called by BOTH report renderers after paint.
+ *  Listeners go on the chips (replaced with every render), never on #main. The
+ *  target cards carry `scroll-margin-top` (.rp-sec) so a heading is never left
+ *  hidden under the sticky row. This is the one place a click scrolls the page,
+ *  because scrolling is the thing the reader asked for. */
+function wireReportJump() {
+  const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('#main .rp-jump [data-jump]').forEach(b => b.onclick = () => {
+    const el = document.getElementById(b.dataset.jump);
+    if (el) el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+  });
 }
 
 /** Attach the day-by-day crosshair. Called by BOTH report renderers after paint,
@@ -6875,7 +7168,7 @@ function wireAdCards(ads, cur, prevTag) {
  * than a late report, because nothing tells you it happened.
  */
 async function renderReportsAll(first) {
-  const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically &mdash; Monday covers last Mon&ndash;Sun, the 1st covers last month. Nothing reaches a client until you send it.')}
+  const shell = body => `${pageHead('reports', 'Reports', 'Drafted automatically: Monday covers last Mon&ndash;Sun, the 1st covers last month. Nothing reaches a client until you send it.')}
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -6975,12 +7268,12 @@ async function renderReportsAll(first) {
         <div class="ru-d">weekly on Monday, monthly on the 1st</div></div>
       <div class="ru"><div class="ru-l">Setup gaps</div>
         <div class="ru-v${gaps ? ' bad' : ''}">${gaps}</div>
-        <div class="ru-d">${gaps ? 'no internal channel &mdash; drafts post nowhere' : 'every brand has an internal channel'}</div></div>
+        <div class="ru-d">${gaps ? 'no internal channel, so drafts post nowhere' : 'every brand has an internal channel'}</div></div>
     </div>
     ${groups}
     <details class="footnote"><summary>How reports are drafted and sent</summary>
-      <div class="fn-body">A <b>draft</b> is internal &mdash; it posts to the brand's internal channel and the client has not seen it. <b>Sent</b> reports are frozen at the moment they go out and live on the client's archive link, so what they opened last month is exactly what they can still open today; nothing about a sent report can be edited afterwards. A brand with <b>no client channel</b> has nothing to send, so its reports are marked <b>handled</b> the moment they are written &mdash; still editable, never waiting.<br><br>
-      Weekly reports draft automatically on Monday covering last Monday to Sunday; monthly ones draft on the 1st covering the month just finished. Both post to <b>report_channel</b>, which is deliberately internal with no fallback &mdash; a brand with no internal channel set gets a draft that reaches nobody rather than one that reaches the client by accident.</div></details>`);
+      <div class="fn-body">A <b>draft</b> is internal: it posts to the brand's internal channel and the client has not seen it. <b>Sent</b> reports are frozen at the moment they go out and live on the client's archive link, so what they opened last month is exactly what they can still open today; nothing about a sent report can be edited afterwards. A brand with <b>no client channel</b> has nothing to send, so its reports are marked <b>handled</b> the moment they are written. They stay editable and are never waiting.<br><br>
+      Weekly reports draft automatically on Monday covering last Monday to Sunday; monthly ones draft on the 1st covering the month just finished. Both post to <b>report_channel</b>, which is deliberately internal with no fallback, so a brand with no internal channel set gets a draft that reaches nobody rather than one that reaches the client by accident.</div></details>`);
 
   const open = id => {
     S.act = id; localStorage.setItem(LS.act, S.act);
@@ -6998,7 +7291,7 @@ async function renderReports(first) {
   if (S.act === 'all') return renderReportsAll(first);
   const acct = S.accounts.find(a => a.act_id === S.act);
   if (RP.act !== S.act) { RP.act = S.act; RP.period = null; RP.start = null; }
-  const shell = body => `${pageHead('reports', `Reports &mdash; ${esc(acct?.name || '')}`, 'Each report is frozen when generated, so what you review here is exactly what the client opens.')}
+  const shell = body => `${pageHead('reports', `Reports: ${esc(acct?.name || '')}`, 'Each report is frozen when generated, so what you review here is exactly what the client opens.')}
     ${body}`;
   const run = ++RUN;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
@@ -7019,14 +7312,26 @@ async function renderReports(first) {
      the moment it is generated (status 'handled'; an older 'draft' reads the
      same). Editable and rewritable, never sendable. Cole, 2026-09-10. */
   const internalOnly = !acct?.brief_channel;
-  const chips = rows.slice(0, 12).map(x =>
-    `<button class="chip ${x.period === RP.period && x.period_start === RP.start ? 'on' : ''}" data-rp="${x.period}|${x.period_start}">${x.period === 'weekly' ? 'Week' : 'Month'} · ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}${x.status === 'sent' || x.status === 'handled' ? ' ✓' : ''}</button>`).join('');
+  /* THE PICKER: the latest four as chips, everything older behind one labelled
+     dropdown. Twelve chips wrapped to three rows above the report, and nobody
+     opens a nine-week-old report often enough to earn a permanent button. */
+  const repName = x => `${x.period === 'weekly' ? 'Week' : 'Month'} · ${repRangeLabel({ period: x.period, start: x.period_start, end: x.period_end })}${x.status === 'sent' || x.status === 'handled' ? ' ✓' : ''}`;
+  const isCur = x => x.period === RP.period && x.period_start === RP.start;
+  const older = rows.slice(4);
+  const chips = rows.slice(0, 4).map(x =>
+    `<button class="chip ${isCur(x) ? 'on' : ''}" data-rp="${x.period}|${x.period_start}">${repName(x)}</button>`).join('')
+    + (older.length ? `<label for="rpOlder" style="margin-left:6px">Older reports</label>
+      <select id="rpOlder"${older.some(isCur) ? ' style="border-color:var(--hd);font-weight:600"' : ''}>
+        <option value="">${older.length} more&hellip;</option>
+        ${older.map(x => `<option value="${x.period}|${x.period_start}"${isCur(x) ? ' selected' : ''}>${repName(x)}</option>`).join('')}
+      </select>` : '');
 
   const cfg = acct?.report_config || {};
   const hide = Array.isArray(cfg.hide) ? cfg.hide : [];
   const CHS = [['meta', 'Meta'], ['google', 'Google'], ['tiktok', 'TikTok'], ['amazon', 'Amazon'], ['pinterest', 'Pinterest'], ['email', 'Email (Klaviyo)']];
-  const configCard = `<div class="card"><h3 style="margin-bottom:4px">What goes in ${esc(acct?.name || 'this brand')}'s reports</h3>
-    <p class="hint" style="margin-bottom:10px">Platform sections appear automatically whenever a platform has data - untick one to leave it out of every future report for this brand (already-generated reports don't change). ${internalOnly
+  // Closed by default: set once per brand, not part of reading a report.
+  const configCard = `<details class="rh-wrap" style="margin-top:14px"><summary>What goes in ${esc(acct?.name || 'this brand')}'s reports <span class="tiny">&middot; platform sections and the weekly and monthly schedule</span></summary><div class="fold-body">
+    <p class="hint" style="margin-bottom:10px;color:var(--muted);font-size:13px">Platform sections appear automatically whenever a platform has data - untick one to leave it out of every future report for this brand (already-generated reports don't change). ${internalOnly
       ? `Each report posts to this brand's <b>internal channel</b>${acct?.slack_channel ? '' : ' - <b>none is set yet</b>, so reports only appear here'} and is <b>handled automatically</b>: there is no client channel, so nothing is ever sent and there is no Send button. Set a client channel in Settings if that should change.`
       : `Drafts post to this brand's <b>internal channel</b>${acct?.slack_channel ? '' : ' - <b>none is set yet</b>, so drafts only appear here'}, and <b>Send to client</b> posts to its <b>client channel</b>. Both are set in Settings.`}</p>
     <div class="row" style="gap:14px;margin-bottom:8px">
@@ -7036,43 +7341,74 @@ async function renderReports(first) {
       <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><div class="toggle ${cfg.weekly === false ? '' : 'on'}" data-cfg="weekly"></div> Draft a weekly report every Monday</label>
       <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><div class="toggle ${cfg.monthly === false ? '' : 'on'}" data-cfg="monthly"></div> Draft a monthly report on the 1st</label>
       <span class="tiny" id="rpCfgMsg"></span>
-    </div></div>`;
+    </div></div></details>`;
 
   const d = rep?.data;
   let warn = '';
   if (d) {
-    if (d.missing_days > 0) warn += `<div class="notice warn">⚠️ <div>Triple Whale data was missing for <b>${d.missing_days}</b> day(s) of this period when it was generated, so the totals understate it. Refresh the data (Daily Brief tab → Refresh Triple Whale data) and hit ↻ Regenerate.</div></div>`;
-    if (!d.cm_ok) warn += `<div class="notice warn">ℹ️ <div><b>Contribution margin is left out of this report</b> - ${esc(d.cogs_quality?.reason || 'no trustworthy cost data')}. Every other number still works. Fix COGS in Triple Whale or set a flat margin on the Costs tab, then Regenerate.</div></div>`;
+    if (d.missing_days > 0) warn += `<div class="notice warn">⚠️ <div>Triple Whale data was missing for <b>${d.missing_days}</b> day(s) of this period when it was generated, so the totals understate it. Refresh the data (Daily Brief tab → Refresh Triple Whale data), then press Rewrite with AI.</div></div>`;
+    if (!d.cm_ok) warn += `<div class="notice warn">ℹ️ <div><b>Contribution margin is left out of this report</b> - ${esc(d.cogs_quality?.reason || 'no trustworthy cost data')}. Every other number still works. Fix COGS in Triple Whale or set a flat margin on the Costs tab, then press Rewrite with AI.</div></div>`;
     const unplanned = Object.entries(d.forecast?.months || {}).filter(([, m]) => !m.planned && m.has_goals).map(([ym]) => monthLabel(ym));
-    if (unplanned.length && rep.status !== 'sent') warn += `<div class="notice warn">⚠️ <div><b>No plan was actually set for ${esc(unplanned.join(', '))}</b> - every "vs plan" figure is inherited from an earlier month. Set the real plan on the Plan tab and Regenerate before sending, or the client is being measured against a number nobody agreed.</div></div>`;
+    if (unplanned.length && rep.status !== 'sent') warn += `<div class="notice warn">⚠️ <div><b>No plan was actually set for ${esc(unplanned.join(', '))}</b> - every "vs plan" figure is inherited from an earlier month. Set the real plan on the Plan tab and press Rewrite with AI before sending, or the client is being measured against a number nobody agreed.</div></div>`;
   }
 
   const sent = rep?.status === 'sent';
   /* A set-but-dead channel must read as "not set", not as "ready to send". */
   const clientChan = acct?.brief_channel;
   const canSend = !internalOnly && await channelUsable(clientChan);
-  const banner = rep ? (sent
-    ? `<div class="notice good">✓ <div><b>Sent to the client</b>${rep.sent_at ? ` ${fmtAgo(rep.sent_at)}` : ''}. This report is frozen - it can't be regenerated or edited, so the numbers on the client's link never shift under them. <button class="btn" id="rpLink" style="margin-left:8px">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`
-    : internalOnly
-    ? `<div class="notice good">✓ <div><b>Handled automatically - internal only.</b> ${esc(acct?.name || 'This brand')} has no client channel, so there is nothing to send and nothing waiting on you. Edit the summary or rewrite it whenever you like. <button class="btn" id="rpRegen" style="margin-left:8px" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <span class="tiny" id="rpMsg"></span></div></div>`
-    : `<div class="notice">📝 <div><b>Internal draft - the client has not seen this.</b> ${canSend
-        ? `Review it, edit the summary if you want, then send it to ${esc(acct?.name || 'the client')}'s Slack. <button class="btn primary" id="rpSend" style="margin-left:8px">Send to client</button>`
-        : `Review it and edit the summary freely. <b>${esc(acct?.name || 'This brand')} ${clientChan ? 'points at a Slack channel that no longer exists' : 'has no client channel set'}</b>, so there is nowhere to send it${clientChan ? ` (the saved channel <code>${esc(clientChan)}</code> has been archived or deleted)` : ''} - pick one in Settings under <b>Client channel</b> and the Send button appears here. A send never falls back to an internal channel.`} <button class="btn" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button> <button class="btn" id="rpLink">Copy client link</button> <span class="tiny" id="rpMsg"></span></div></div>`) : '';
+  /* ONE LINE AT THE TOP: which report this is, where it stands, and ONE
+     primary action (Send to client). Rewrite, Edit and the client link are
+     quiet secondaries. It replaced a banner, a separate heading and a
+     "Generated..." line that said the same thing in three places. A sent
+     report still offers no Rewrite or Edit, and an internal-only brand still
+     has no Send. */
+  const regenBtn = '<button class="btn quiet" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button>';
+  const editTop = rep?.summary ? '<button class="btn quiet" id="rpEditTop" title="Change the wording of the summary before it goes out.">✎ Edit summary</button>' : '';
+  const linkBtnHtml = '<button class="btn quiet" id="rpLink" title="One stable link per brand. It opens their archive of sent reports; drafts never show on it.">Copy client link</button>';
+  const rpSt = !rep ? null
+    : sent ? { tone: 'ok', pill: ['good', 'Sent' + (rep.sent_at ? ' ' + fmtAgo(rep.sent_at) : '')], d: 'Frozen: it cannot be rewritten or edited, so the numbers on the client\'s link never change.', a: linkBtnHtml }
+    : internalOnly ? { tone: 'ok', pill: ['good', 'Handled automatically'], d: `${esc(acct?.name || 'This brand')} has no client channel, so nothing goes out and nothing is waiting on you.`, a: regenBtn + editTop }
+    : canSend ? { tone: 'wn', pill: ['warn', rep.status === 'skipped' ? 'Skipped, not sent' : 'Draft, waiting on you'], d: 'The client has not seen this.', a: '<button class="btn primary" id="rpSend">Send to client</button>' + regenBtn + editTop + linkBtnHtml }
+    : { tone: 'bd', pill: ['bad', 'Draft, nowhere to send'], d: `${esc(acct?.name || 'This brand')} ${clientChan ? `points at a Slack channel that no longer exists (<code>${esc(clientChan)}</code> was archived or deleted)` : 'has no client channel set'}. Pick one in Settings under <b>Client channel</b> and Send to client appears here. A send never falls back to an internal channel.`, a: regenBtn + editTop + linkBtnHtml };
+  const banner = rpSt ? `<div class="st-line ${rpSt.tone}">
+      <div class="st-t"><h2>${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'}, ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
+        <span class="pill ${rpSt.pill[0]}">${rpSt.pill[1]}</span>
+        <div class="st-d" style="margin-top:3px">${rpSt.d}${rep.generated_at ? ` Generated ${fmtAgo(rep.generated_at)}.` : ''} <span class="tiny" id="rpMsg"></span></div></div>
+      <div class="st-a">${rpSt.a}</div>
+    </div>` : '';
 
   const body = rep
-    ? `${banner}${warn}<h2 style="margin-top:6px">${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'} - ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
-       <p class="sub">Generated ${rep.generated_at ? fmtAgo(rep.generated_at) : ''}.</p>
-       ${reportBodyHTML(d || {}, rep.summary, { internal: true, editable: !sent, attr: attrOf(cfg) })}`
+    ? `${warn}${reportBodyHTML(d || {}, rep.summary, { internal: true, editable: !sent, attr: attrOf(cfg) })}`
     : `<div class="card"><h3 style="margin-bottom:4px">No reports yet</h3>
        <p class="hint">${repErr ? esc(repErr) + ' - ' : ''}Hit <b>Generate last week</b> to build the first one. From next Monday they draft themselves.</p></div>`;
 
   pageActions(`<button class="btn" id="rpGenW">Generate last week</button><button class="btn" id="rpGenM">Generate last month</button>`);
   $('#main').innerHTML = shell(`
-    ${chips ? `<div class="row" style="margin-bottom:12px">${chips}<span class="tiny" id="rpGenMsg"></span></div>` : `<p class="tiny" id="rpGenMsg" style="margin-bottom:10px"></p>`}
+    ${banner}
+    ${chips ? `<div class="rp-pick">${chips}<span class="tiny" id="rpGenMsg"></span></div>` : `<p class="tiny" id="rpGenMsg" style="margin-bottom:10px"></p>`}
     ${body}
     ${configCard}`);
 
   if (d) { wireReportChart(d, acct?.currency, true); wireAdCards(d.ads, acct?.currency, d.period === 'weekly' ? 'week' : 'month'); }
+  wireReportJump();
+  /* Older reports: same action as a chip, from the dropdown. */
+  const olderSel = $('#rpOlder');
+  if (olderSel) olderSel.onchange = () => {
+    if (!olderSel.value) return;
+    const [pp, ss] = olderSel.value.split('|');
+    RP.period = pp; RP.start = ss;
+    inPlace(() => renderReports());
+  };
+  /* The top "Edit summary" opens the same editor as the button on the Summary
+     card, and brings the card into view only if it is off screen. */
+  const editTopBtn = $('#rpEditTop');
+  if (editTopBtn) editTopBtn.onclick = () => {
+    const eb = $('#rpEditSum'); if (!eb) return;
+    // Already editing: a second press must not reset what has been typed.
+    if ($('#rpSumTa')) $('#rpSumTa').focus({ preventScroll: true }); else eb.click();
+    const card = document.getElementById('rpsec-summary');
+    if (card) card.scrollIntoView({ block: 'nearest' });
+  };
 
   /* The attribution control re-renders IN PLACE. Everything it changes is
      already in the frozen snapshot, so there is nothing to fetch and no reason
@@ -7228,6 +7564,7 @@ async function renderReportsShare(token, sel) {
     ${picker}
     ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, { attr: attrOf({ attr: d.attr }), client: true })}`;
   wireReportChart(r.data || {}, cur, false);
+  wireReportJump();
   wireAdCards(r.data?.ads, cur, r.period === 'weekly' ? 'week' : 'month');
   const pk = $('#rsPick');
   if (pk) pk.onchange = () => { const [pp, ss] = pk.value.split('|'); renderReportsShare(token, { period: pp, start: ss }); };
@@ -8296,7 +8633,8 @@ async function renderSettings() {
     one ? `Only <b>${esc(one.name)}</b> is shown under Brands. Switch the picker to <b>All clients</b> to see every brand.` : '')}
     <div class="setwrap">
       <nav class="setnav" id="setNav" aria-label="Settings sections">${SET_SECS.map(([k, l]) =>
-        `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${l}</span>${k === 'brands' ? `<small>${one ? 1 : S.accounts.length}</small>` : ''}</button>`).join('')}</nav>
+        `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${l}</span>${k === 'brands' ? `<small>${one ? 1 : S.accounts.length}</small>` : ''}</button>`).join('')}${SET_PAGES.map(([k, l], i) =>
+        `<button type="button" data-page="${k}" class="${i ? '' : 'setnav-brk'}" title="${esc(TAB_PURPOSE[k] || '')}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${l}</span></button>`).join('')}</nav>
       <div class="setpane">
         <section data-sec="brands"${sec === 'brands' ? '' : ' hidden'}>${secHead('brands')}
           <div id="setRollup"></div>
@@ -8333,6 +8671,9 @@ async function renderSettings() {
      so a half-typed field in another section survives a look elsewhere. */
   const nav = $('#setNav');
   nav.onclick = e => {
+    // Data health and Costs are pages of their own; each has a link back here.
+    const pg = e.target.closest('button[data-page]');
+    if (pg) { show(pg.dataset.page); window.scrollTo(0, 0); return; }
     const b = e.target.closest('button[data-sec]'); if (!b) return;
     const k = b.dataset.sec;
     try { localStorage.setItem('pf_set_sec', k); } catch (err) {}
@@ -8973,7 +9314,15 @@ const _renderOverviewBase = renderOverview;
 renderOverview = async function(){
   await _renderOverviewBase();
   if (S.tab !== 'overview') return;
-  AskUI.mount(document.querySelector('#main .ph'));
+  /* Under the Today card, above the numbers. With no findings and no briefing it
+     collapses to one line so it never pushes the numbers below the fold. */
+  const done = AskUI.mount(document.querySelector('#ovToday') || document.querySelector('#main .ph'));
+  if (done && done.then) done.then(() => {
+    const c = document.getElementById('askCard');
+    if (!c || S.tab !== 'overview' || c.querySelector('.find, .brief')) return;
+    c.classList.add('quiet');
+    c.innerHTML = `<b>The Strategist</b><span class="hint">The nightly checks found nothing that needs you.</span><button class="btn" onclick="AskUI.open()">Ask the Strategist</button>`;
+  }).catch(() => {});
 };
 const _renderSettingsBase = renderSettings;
 renderSettings = async function(){

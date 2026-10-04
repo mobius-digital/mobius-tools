@@ -1307,3 +1307,25 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   recomputed read, so a pill never contradicts its learning. account-health
   `POST /api/brand-asana/results {rejudge:true, quiet:true}` re-posts only tests whose posted call no
   longer matches the numbers (the goal CPA changed after the call) and overwrites the learning.
+
+## 2026-10-04 (late): page-by-page hierarchy pass
+
+- **Overview** opens with a **Today** card: per role, counts that open the screen (briefs to send
+  from `/api/briefs`, tests needing a call + being made from `/api/brand/tests-overview`, reports
+  waiting from `/api/reports`, research drafts from `/api/brand/overview`). Internal-only brands never
+  count. Loaded after paint, cached 60s, honours `pf_role`. The Strategist card is one line when empty.
+- **Settings is ONE menu**: `settings` left SECTIONS; Data health and Costs are entries in the
+  Settings page list (`SET_PAGES`), `PARENT_OF.health/costs = 'settings'`, each has "← Settings".
+  (Supersedes the earlier note that they nest in the rail.)
+- **Daily Brief** order: date + quiet refresh, ONE status line (send state + data health, `.st-line`),
+  the brief with What we did and one primary Send, then "The numbers behind it", then closed
+  disclosures (Past briefs, The plan). All-brands view: status pill + one button per row.
+- **Reports**: status line with one primary Send, latest 4 report chips + "Older reports", sticky
+  "Jump to" row inside `reportBodyHTML` (so the client archive has it too; `wireReportJump()`),
+  config in a closed disclosure.
+- **Meta Overview, one brand**: verdict sentence, four tiles (spend today from `/api/pacing`, month,
+  CPA and ROAS 7d from `/api/overview`), today's pace chart and the 7 vs 30 cards inline, then
+  "Where to go next". All brands keeps the table.
+- **Brand Research**: At a glance tiles, sections as questions in strategist order (Who buys,
+  What do they say, angle ideas, market, mechanism, competitors, website), collapsed by default,
+  staff actions inside "Research tools" or quiet Edit links. 152 buttons became about 19.
