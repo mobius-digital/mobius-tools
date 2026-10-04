@@ -247,6 +247,10 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .ts-foot{font-size:13px;color:var(--muted);margin:0}
 .ts-quiet{align-self:center;font-size:13px;color:var(--muted);text-decoration:underline;padding:6px}
 .ts .lb-nums span{color:var(--muted)}
+.ts .lb-row{grid-template-columns:52px minmax(0,1fr) 110px minmax(150px,auto)}
+.ts .lb-res .br-tag{white-space:nowrap}
+.ts .lb-nums{min-width:0}
+@media (max-width:640px){.ts .lb-row{grid-template-columns:44px minmax(0,1fr)}}
 .lb-soft b{color:var(--ink);font-variant-numeric:tabular-nums}
 `;
   document.head.appendChild(st);
