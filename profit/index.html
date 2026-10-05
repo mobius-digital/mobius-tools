@@ -1607,7 +1607,11 @@
   .rp-ks{font-size:11px;color:var(--on-ink-2);display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;line-height:1.5}
   .rp-kpi .info-i{border-color:var(--ink-panel-2);color:var(--on-ink-2)}
   .rp-two{gap:11px}
-  .rp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:11px;margin-bottom:11px;align-items:start}
+  /* Phone width: the Strategist card (shared ask.css) and this grid pushed the page sideways. */
+  .askcard{min-width:0}
+  .askcard .brief,.askcard .find .ft{overflow-wrap:anywhere}
+  @media (max-width:560px){.askcard .find{grid-template-columns:auto minmax(0,1fr)}.askcard .find>:last-child{grid-column:2;justify-self:start}}
+  .rp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:11px;margin-bottom:11px;align-items:start}
   .rp-grid .card{margin-bottom:0}
   /* Customers, Phase 4. */
   .cu-two{gap:11px}
@@ -7718,7 +7722,10 @@ async function renderPlan(first) {
   if (run !== RUN) return;
   const cur = p.account.currency;
   const hist = p.history.filter(h => !h.empty);
-  const saved = p.plan;
+  /* An agreement with no numbers behind it is not an agreement: Lucky's October row had
+     only the Agreed switch flipped (2026-09-12) and the page said "no plan yet" and
+     "Agreed" at once. A month with no plan of its own reads as not agreed. */
+  const saved = p.plan && !p.planned && p.status !== 'past' ? { ...p.plan, agreed_at: null } : p.plan;
   const editable = p.status !== 'past';
   const nowYm = p.current_month;
   // The three numbers the plan ASSUMES, as live values rather than frozen constants.
