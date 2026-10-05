@@ -104,10 +104,27 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 .st-li b{font-size:13px;line-height:1.3}
 .st-li span{font-size:11.5px;color:var(--muted)}
 .st-step{display:flex;gap:10px;align-items:center}
+.st-steps{display:flex;gap:6px 16px;flex-wrap:wrap;align-items:center;list-style:none;margin:0;padding:0;font-size:12.5px;font-weight:600;color:var(--muted)}
+.st-steps li{display:flex;gap:6px;align-items:center}
+.st-steps .n{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--line);color:var(--ink-2);flex:none}
+.st-steps li.done{color:var(--ink-2)}
+.st-steps li.done .n{background:var(--good-bg);color:var(--good)}
+.st-steps li.now{color:var(--ink);font-weight:700}
+.st-steps li.now .n{background:var(--brand-ink);color:var(--surface)}
+.st-lw{display:grid;gap:2px}
+.st-lw .btn{justify-self:start;padding:4px 10px;font-size:12px;margin:0 0 4px 10px}
+.st-li .dup{color:var(--warn)}
+.st-crow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+.st-crow:first-child{border-top:0}
+.st-crow b{font-size:13.5px}
+.st-crow .tiny{display:block;margin-top:2px}
+@media (max-width:520px){.st-crow{grid-template-columns:1fr}.st-crow .btn{justify-self:start}}
+.st-how summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)}
+.st-how p{margin:6px 0 0}
 .st-step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--brand-tint);color:var(--brand-ink);flex:none}
-.st-line{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}
-.st-line:first-child{border-top:0}
-.st-line .k{font-weight:700;color:var(--muted);padding-top:9px;text-align:right}
+.st-bl{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}
+.st-bl:first-child{border-top:0}
+.st-bl .k{font-weight:700;color:var(--muted);padding-top:9px;text-align:right}
 .st-thumbs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .st-thumbs button.t{padding:0;border:2px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;line-height:0;position:relative}
 .st-thumbs button.t.on{border-color:var(--brand-ink)}
@@ -143,9 +160,10 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 .st-zoom{position:fixed;inset:0;z-index:70;background:rgba(6,13,18,.85);display:grid;place-items:center;padding:20px;cursor:zoom-out}
 .st-zoom img{max-height:92vh;max-width:92vw;object-fit:contain;border-radius:6px}
 .st-zoom video{max-height:92vh;max-width:92vw;border-radius:8px;background:#000;cursor:auto}
-.st-vid{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:8px;background:var(--brand-tint);font-size:12px}
+.st-vid{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;padding:6px 8px;border-radius:8px;background:var(--brand-tint);font-size:12px}
 .st-vid.bad{background:var(--bad-bg,#F7E3DF)}
 .st-vid .btn{padding:4px 8px;font-size:11.5px}
+.st-vid .bs{display:flex;gap:4px;flex-wrap:wrap}
 .st-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
 .st-vt{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
 .st-vt .pv{aspect-ratio:9/16;background:#0c161d;display:grid;place-items:center;color:#cfe3ee;font-size:12px;text-align:center;padding:10px;position:relative}
@@ -220,13 +238,23 @@ const live = ads => ads.filter(a => a.status !== 'deleted');
 function paint() {
   const main = $('#main'), d = S.d, y = window.scrollY;
   const loose = live(adsOf(null));
+  /* Newest first, and two batches read from the same brief are told apart by when they were made
+     and how many ads they hold. An empty copy gets a quiet Archive button; nothing is removed for you. */
+  const batches = (d.batches || []).slice().sort((p, q) => String(q.created_at || '').localeCompare(String(p.created_at || '')));
+  const dupKey = b => `${b.num || ''}|${(b.name || b.brief?.angle || '').trim().toLowerCase()}`;
+  const seen = {}; batches.forEach(b => { seen[dupKey(b)] = (seen[dupKey(b)] || 0) + 1; });
+  const li = b => {
+    const n = live(adsOf(b)).length, dup = seen[dupKey(b)] > 1;
+    return `<div class="st-lw"><button class="st-li ${S.cur?.id === b.id ? 'on' : ''}" data-b="${b.id}"><b>${batchTitle(b)}</b><span>${n ? `${n} ad${n === 1 ? '' : 's'}` : 'No ads yet'} · ${(b.brief?.lines || []).length} lines${madeOn(b) ? ` · made ${esc(madeOn(b))}` : ''}</span>${dup ? `<span class="dup">${n ? 'Same brief as another batch' : 'Empty copy of another batch'}</span>` : ''}</button>${dup && !n ? `<button class="btn" data-barch="${b.id}">Archive this empty copy</button>` : ''}</div>`;
+  };
   main.innerHTML = `<div class="st">
-    <div class="st-bar"><div style="display:block">${typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('studio')}</div>` : ''}<h2>Studio · ${esc(d.account?.name || '')}</h2><p class="sub" style="margin:0">Make a batch straight from the brief: one ad per line, the product checked against the real photos, then send it to Canva.</p></div>
-      <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span><button class="btn" id="stKey">Image AI key</button>` : ''}<button class="btn" id="stAtria" title="Lets the Slack ideas bot open Atria ad links">${S.atria?.connected ? 'Atria connected' : 'Connect Atria'}</button><button class="btn" id="stCanva">${d.canva?.connected ? 'Canva connected' : 'Connect Canva'}</button><button class="btn" id="stHf" title="The video AI">${S.hf?.connected ? 'Higgsfield connected' : 'Connect Higgsfield'}</button></div></div>
+    <div class="st-bar"><div style="display:block">${typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('studio')}</div>` : ''}<h2>Studio · ${esc(d.account?.name || '')}</h2><p class="sub" style="margin:0">Make a batch of ads from the brief, one ad per line, then send it to Canva.</p></div>
+      <div>${d.has_key ? `<span class="tiny">This month: $${(d.spent_month || 0).toFixed(2)}</span>` : ''}<button class="btn" id="stConn">Connections</button></div></div>
     ${d.has_key ? '' : keyCard()}
     <div class="st-layout">
-      <div class="card" style="padding:12px"><div class="st-bar" style="margin-bottom:8px"><h3 class="st-h">Batches</h3><button class="btn primary" id="stNew">New batch</button></div>
-        <div class="st-list">${(d.batches || []).map(b => `<button class="st-li ${S.cur?.id === b.id ? 'on' : ''}" data-b="${b.id}"><b>${b.num ? `#${esc(b.num)} · ` : ''}${esc(b.name || b.brief?.angle || 'Untitled batch')}</b><span>${esc(testingLabel(b.brief?.testing))} · ${(b.brief?.lines || []).length} lines · ${live(adsOf(b)).length} ads</span></button>`).join('') || '<p class="st-msg">No batches yet.</p>'}
+      <div class="card" style="padding:12px"><div class="st-bar" style="margin-bottom:8px"><h3 class="st-h">Batches</h3><button class="btn" id="stNew">New batch</button></div>
+        <p class="tiny" style="margin:0 0 6px">Newest first.</p>
+        <div class="st-list">${batches.map(li).join('') || '<p class="st-msg">No batches yet.</p>'}
           ${loose.length ? `<button class="st-li ${S.cur?.id === 'loose' ? 'on' : ''}" data-b="loose"><b>Earlier ads</b><span>${loose.length} made before batches</span></button>` : ''}</div></div>
       <div id="stMain" class="st">${S.cur?.id === 'loose' ? looseView(loose) : S.cur ? batchView(S.cur) : startView()}</div>
     </div></div>`;
@@ -236,29 +264,74 @@ function paint() {
   else if (S.cur) wireBatch();
   else wireStart();
 }
-const testingLabel = k => (TESTING.find(t => t[0] === k) || [0, 'Concepts'])[1] + ' test';
+const batchTitle = b => `${b.num ? `#${esc(b.num)} · ` : ''}${esc(b.name || b.brief?.angle || 'Untitled batch')}`;
+/* created_at comes from the database as UTC "YYYY-MM-DD HH:MM:SS". */
+const madeOn = b => { const s = String(b.created_at || ''); if (!s) return ''; const t = new Date(/Z$|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(' ', 'T') + 'Z'); return isNaN(t) ? '' : t.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+
+/* ---------------- the five steps, in words ---------------- */
+const STEPS = ['Pick the brief', 'Check the plan', 'Make the ads', 'Review', 'Send to Canva'];
+const STEP_NOW = ['', 'Check the brief and choose the product, then press Plan the ads.', 'Read the plan and fix anything you like, then press Make.', 'The ads are being made. Keep this page open.', 'Approve the ads you want, change or redo the rest, then send them to Canva.', 'Every ad is approved. Send them to Canva.'];
+function stepsBar(now) {
+  return `<ol class="st-steps" aria-label="The steps">${STEPS.map((t, i) => `<li class="${i + 1 < now ? 'done' : i + 1 === now ? 'now' : ''}"${i + 1 === now ? ' aria-current="step"' : ''}><span class="n">${i + 1}</span>${t}</li>`).join('')}</ol>`;
+}
+function stepNow(b) {
+  const ads = live(adsOf(b));
+  if (S.makingAll) return 3;
+  if (!ads.length) return b.plan ? 2 : 1;
+  return ads.every(a => a.status === 'approved') ? 5 : 4;
+}
 
 /* ---------------- key + canva ---------------- */
 function keyCard() {
-  return `<div class="card"><h3 class="st-h">Connect the image AI</h3>
-    <p class="hint" style="margin:6px 0 10px">Studio uses ChatGPT's image model. Paste an OpenAI API key (platform.openai.com/api-keys, with billing on). Locus keeps it on the server and never shows it again.</p>
+  return `<div class="card" style="border-left:4px solid var(--warn)"><h3 class="st-h">Studio cannot make ads yet: the image AI is not connected</h3>
+    <p class="hint" style="margin:6px 0 10px">Paste an OpenAI API key (platform.openai.com/api-keys, with billing on). Locus keeps it on the server and never shows it again.</p>
     <div style="display:flex;gap:8px;align-items:flex-end"><label class="st-f" style="flex:1">OpenAI API key<input class="st-in" id="stKeyIn" type="password" autocomplete="off" placeholder="sk-..."></label><button class="btn primary" id="stKeySave">Connect</button></div>
     <p class="st-msg" id="stKeyMsg"></p></div>`;
 }
 function wireTop() {
-  const hf = $('#stHf'); if (hf) hf.onclick = hfSetup;
+  $('#stConn').onclick = connections;
   const save = $('#stKeySave');
   if (save) save.onclick = async () => {
     const m = $('#stKeyMsg'); m.textContent = 'Checking the key with OpenAI…'; m.className = 'st-msg';
     try { await post('/api/studio/key', { key: $('#stKeyIn').value }); await reload(); }
     catch (e) { m.textContent = e.message; m.className = 'st-msg bad'; }
   };
-  const k = $('#stKey');
-  if (k) k.onclick = () => modal('Image AI key', `<p class="hint" style="margin:0 0 10px">A key is connected. Paste a new one to replace it, or leave it empty and save to disconnect.</p><label class="st-f">New OpenAI API key<input class="st-in" id="k2" type="password" autocomplete="off" placeholder="sk-..."></label>`, { onOpen: (w, ctl) => w.onSubmit(async () => { await post('/api/studio/key', { key: w.querySelector('#k2').value }); ctl.close(true); reload(); }) });
-  $('#stCanva').onclick = canvaSetup;
-  $('#stAtria').onclick = atriaSetup;
   $('#stNew').onclick = () => newBatch();
   document.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { S.cur = b.dataset.b === 'loose' ? { id: 'loose' } : S.d.batches.find(x => x.id === b.dataset.b); S.err = ''; paint(); });
+  document.querySelectorAll('[data-barch]').forEach(x => x.onclick = () => archiveEmpty(S.d.batches.find(b => b.id === x.dataset.barch)));
+}
+/* Connections (2026-10-05): the four connect buttons left the top of the page for one panel.
+   Each row opens the same setup window as before; only the image AI key is needed to make ads,
+   and the page itself warns when that one is missing (keyCard). */
+function connections() {
+  const d = S.d, c = d.canva || {};
+  const rows = [
+    ['key', 'Image AI (OpenAI)', 'Needed to make ads.', !!d.has_key, d.has_key ? 'Connected' : 'Not connected. Studio cannot make ads.', d.has_key ? 'Change the key' : 'Connect', true],
+    ['canva', 'Canva', 'Send to Canva puts a batch in a Canva folder. Without it the ads download instead.', !!c.connected, c.connected ? 'Connected' : c.configured ? 'App saved, not signed in yet' : 'Not connected', c.connected ? 'Manage' : 'Connect'],
+    ['hf', 'Higgsfield', 'The video AI. Needed only for Make a video.', !!S.hf?.connected, S.hf?.connected ? 'Connected' : 'Not connected', S.hf?.connected ? 'Manage' : 'Connect'],
+    ['atria', 'Atria', 'Lets the Slack ideas bot open Atria ad links. One connection for every brand.', !!S.atria?.connected, S.atria?.connected ? 'Connected' : 'Not connected', S.atria?.connected ? 'Manage' : 'Connect'],
+  ];
+  modal('Connections', `<div>${rows.map(([k, name, what, on, state, cta, need]) => `<div class="st-crow"><div><b>${name}</b> <span class="pill ${on ? 'good' : need ? 'warn' : ''}"${on || need ? '' : ' style="background:var(--line);color:var(--ink-2)"'}>${state}</span><span class="tiny">${what}</span></div><button class="btn ${!on && need ? 'primary' : ''}" data-conn="${k}">${cta}</button></div>`).join('')}</div>`,
+  { cta: null, onOpen: (w, ctl) => {
+    const open = { key: keySetup, canva: canvaSetup, hf: hfSetup, atria: atriaSetup };
+    w.querySelectorAll('[data-conn]').forEach(x => x.onclick = () => { ctl.close(); open[x.dataset.conn](); });
+  } });
+}
+function keySetup() {
+  const on = !!S.d.has_key;
+  modal('Image AI key', `<p class="hint" style="margin:0 0 10px">${on ? 'A key is connected. Paste a new one to replace it, or leave it empty and save to disconnect.' : 'Paste an OpenAI API key (platform.openai.com/api-keys, with billing on). Locus keeps it on the server and never shows it again.'}</p><label class="st-f">${on ? 'New OpenAI API key' : 'OpenAI API key'}<input class="st-in" id="k2" type="password" autocomplete="off" placeholder="sk-..."></label>`,
+  { cta: on ? 'Save' : 'Connect', onOpen: (w, ctl) => w.onSubmit(async () => { await post('/api/studio/key', { key: w.querySelector('#k2').value }); ctl.close(true); reload(); }) });
+}
+/* An empty copy of a batch (same number and name as another, no ads) can be archived from the list.
+   Same save as the Archive button on the batch, asked first because the list is one click away. */
+function archiveEmpty(b) {
+  if (!b) return;
+  modal('Archive this empty batch?', `<p class="hint" style="margin:0">${batchTitle(b)}${madeOn(b) ? `, made ${esc(madeOn(b))}` : ''}, has no ads. It leaves this list. The other batch with the same name is not touched.</p>`,
+  { cta: 'Archive it', onOpen: (w, ctl) => w.onSubmit(async () => {
+    if (S.cur?.id === b.id) { clearTimeout(saveT); S.cur = null; }
+    await post('/api/studio/batch/save', { batch: { ...b, status: 'archived' } });
+    ctl.close(true); reload();
+  }) });
 }
 /* Atria (2026-09-29): one workspace-wide sign-in so the Slack ideas bot can open Atria ad links.
    The whole OAuth dance lives on the account-health worker (atria.js); nothing secret comes here. */
@@ -271,7 +344,8 @@ async function atriaCall(path, method = 'GET') {
 function atriaSetup() {
   const on = !!S.atria?.connected;
   modal('Connect Atria', `
-    <p class="hint" style="margin:0 0 8px">Paste an Atria ad link (or a Meta Ad Library link) in a brand's internal Slack channel and tag @Mobius Digital: the ideas bot opens the ad in Atria, watches the video, reads the copy, the landing page and how long it has been running, and drafts the brief from it.</p>
+    <p class="hint" style="margin:0 0 8px">Lets the Slack ideas bot open Atria ad links and draft a brief from them.</p>
+    <details class="st-how" style="margin-bottom:8px"><summary>How this works</summary><p class="hint">Paste an Atria ad link (or a Meta Ad Library link) in a brand's internal Slack channel and tag @Mobius Digital. The ideas bot opens the ad in Atria, watches the video, reads the copy, the landing page and how long it has been running, and drafts the brief from it.</p></details>
     ${on ? `<p class="st-msg ok" style="margin-bottom:8px">Connected${S.atria.since ? ` since ${esc(new Date(S.atria.since).toLocaleDateString())}` : ''}. One connection covers every brand.</p>`
       : `<ol class="st-ol"><li>Click <b>Connect Atria</b>. Atria's sign-in opens in a new tab.</li><li>Sign in with the Atria account the team uses and allow <b>read</b> access.</li><li>Come back here and refresh the page.</li></ol>`}
     <p class="hint" style="margin:8px 0 0">Locus only reads from Atria. It never saves, follows or changes anything there.</p>
@@ -346,9 +420,11 @@ function canvaSetup() {
 
 /* ---------------- start / new batch ---------------- */
 function startView() {
-  return `<div class="card"><h3 class="st-h">Start a batch</h3>
-    <p class="hint" style="margin:6px 0 12px">A batch is one test: the angle, what you're testing, and numbered lines. Studio makes one ad per line.</p>
-    <div class="st-chips"><button class="st-chip" data-start="asana"><b>From Asana</b><small>pick the brief your team already wrote</small></button><button class="st-chip" data-start="paste"><b>Paste a brief or a plan</b><small>one brief, or a whole BFCM doc for many batches</small></button><button class="st-chip" data-start="blank"><b>Start blank</b><small>type the angle and lines here</small></button></div></div>
+  return `<div class="card"><h3 class="st-h">Make a batch of ads</h3>
+    <div style="margin:10px 0">${stepsBar(1)}</div>
+    <p class="hint" style="margin:0 0 12px">Start with the brief your team wrote in Asana. Studio makes one ad per line of it.</p>
+    <button class="btn primary" data-start="asana">Pick the brief from Asana</button>
+    <div style="display:flex;gap:4px 8px;align-items:center;flex-wrap:wrap;margin-top:12px"><span class="tiny">No Asana brief?</span><button class="btn quiet" data-start="paste" title="One brief, or a whole plan that becomes many batches">Paste a brief or a plan</button><button class="btn quiet" data-start="blank" title="Type the angle and the lines yourself">Start blank</button></div></div>
     ${videosCard(null)}`;
 }
 function wireStart() { document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => newBatch(b.dataset.start)); wireVideos(); }
@@ -363,7 +439,7 @@ async function newBatch(mode = null) {
       : '<p class="hint">No open Asana tests for this brand yet.</p>'}</div>
     <div data-pane="paste" ${paste ? '' : 'hidden'}><p class="hint" style="margin:0 0 8px">Paste one brief (Angle, Testing, 1-2-3) or a whole plan in any format, text or CSV. A plan with many angles becomes many batches.</p>
       <textarea class="st-in" id="nbText" rows="12" placeholder="ANGLE: The gift that actually fixes their game&#10;TESTING: concepts&#10;1. Unboxing the Carver on Christmas morning&#10;2. Before and after: chunked chip vs clean chip&#10;3. 'Stop buying him socks' in bold type"></textarea></div>`,
-  { cta: 'Read it', wide: true, onOpen: (w, ctl) => {
+  { cta: 'Read the brief', wide: true, onOpen: (w, ctl) => {
     w.querySelectorAll('[data-tab]').forEach(t => t.onclick = () => { w.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === t)); w.querySelectorAll('[data-pane]').forEach(p => { p.hidden = p.dataset.pane !== t.dataset.tab; }); });
     w.onSubmit(async () => {
       const onAsana = !w.querySelector('[data-pane="asana"]').hidden;
@@ -394,8 +470,13 @@ function batchView(b) {
   const lines = br.lines || [];
   const ads = live(adsOf(b));
   const n = plan?.ads?.length || 0;
+  const now = stepNow(b), ok = ads.filter(a => a.status === 'approved').length;
   return `
-  <div class="card"><div class="st-bar"><div class="st-step"><span class="n">1</span><h3 class="st-h">The brief</h3></div><div><label class="st-f" style="display:flex;gap:6px;align-items:center">Batch #<input class="st-in" data-bf="num" value="${esc(b.num)}" style="width:80px;margin:0"></label><button class="btn" id="bDel">Archive</button></div></div>
+  <div class="card"><div class="st-bar"><h3 class="st-h">${batchTitle(b)}</h3>${madeOn(b) ? `<span class="tiny">Made ${esc(madeOn(b))}</span>` : ''}</div>
+    <div style="margin:10px 0 8px">${stepsBar(now)}</div>
+    <p class="hint" style="margin:0"><b>Now:</b> ${STEP_NOW[now]}</p></div>
+
+  <div class="card"><div class="st-bar"><div class="st-step"><span class="n">1</span><h3 class="st-h">The brief</h3></div><div><label class="st-f" style="display:flex;gap:6px;align-items:center">Batch #<input class="st-in" data-bf="num" value="${esc(b.num)}" style="width:80px;margin:0"></label><button class="btn quiet" id="bDel">Archive this batch</button></div></div>
     <div class="st-g2" style="margin-top:10px">
       <label class="st-f">Angle<small>the argument, one sentence</small><textarea class="st-in" data-bf="angle" rows="2">${esc(br.angle)}</textarea></label>
       <label class="st-f">Why<small>what we believe about the customer</small><textarea class="st-in" data-bf="why" rows="2">${esc(br.why)}</textarea></label>
@@ -405,38 +486,39 @@ function batchView(b) {
     <p class="st-lbl" style="margin-top:12px">What we're testing</p>
     <div class="st-chips">${TESTING.map(([k, l, h]) => `<button class="st-chip ${br.testing === k ? 'on' : ''}" data-test="${k}">${l}<small>${h}</small></button>`).join('')}</div>
     <p class="st-lbl" style="margin-top:12px">Lines · one ad each</p>
-    <div>${lines.map((l, i) => `<div class="st-line"><span class="k">${i + 1}</span>
+    <div>${lines.map((l, i) => `<div class="st-bl"><span class="k">${i + 1}</span>
       <div style="display:grid;gap:6px"><textarea class="st-in" style="margin:0" data-line="${i}" rows="2" placeholder="The concept or piece for this ad, in the team's words">${esc(l.text)}</textarea>
-        <div class="st-thumbs"><span class="tiny">Make it look like this:</span>${(l.inspo || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmli="${i}:${k}" role="button" aria-label="Remove">×</span></button>`).join('')}${(l.inspo || []).length < 2 ? `<button class="st-add" data-addli="${i}">Add image</button>` : ''}</div></div>
-      <button class="btn" data-rmline="${i}" title="Remove this line" aria-label="Remove line ${i + 1}">×</button></div>`).join('')}</div>
+        <div class="st-thumbs"><span class="tiny">Make it look like this:</span>${(l.inspo || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmli="${i}:${k}" role="button" aria-label="Remove" title="Remove">×</span></button>`).join('')}${(l.inspo || []).length < 2 ? `<button class="st-add" data-addli="${i}">Add image</button>` : ''}</div></div>
+      <button class="btn quiet" data-rmline="${i}" title="Remove this line" aria-label="Remove line ${i + 1}">Remove</button></div>`).join('')}</div>
     <button class="btn" id="bAddLine" style="margin-top:8px">Add a line</button>
   </div>
 
-  <div class="card"><div class="st-step"><span class="n">2</span><h3 class="st-h">Product and inspiration</h3></div>
+  <div class="card"><div class="st-step"><span class="n">1</span><h3 class="st-h">Product and inspiration</h3><span class="tiny">still step 1</span></div>
     <div class="st-g2" style="margin-top:10px">
-      <div><b style="font-size:13px">Product</b><div class="hint">The AI draws it from the photos you tick, then checks every ad against them and redoes any that look off.</div>
+      <div><b style="font-size:13px">Product</b><div class="hint">Tick clean studio photos. The AI draws from them and checks every ad against them.</div>
         ${(su.products || []).map((p, pi) => `<div style="margin-top:8px"><div class="st-bar"><b style="font-size:13px">${esc(p.title)}</b><button class="btn" data-rmprod="${pi}">Remove</button></div>
           <div class="st-thumbs" style="margin-top:4px">${(p.all || []).map(u => `<button class="t ${(su.images || []).includes(u) ? 'on' : ''}" data-img="${esc(u)}" title="${(su.images || []).includes(u) ? 'Used' : 'Not used'}"><img src="${esc(thumb(u))}" alt=""></button>`).join('')}</div>
           <label class="st-f" style="margin-top:8px">Product fingerprint<small>what makes it ours; the AI must match every line. Fix anything wrong.</small>${p.dna == null ? '<span class="st-busy" style="display:flex;margin-top:6px"><span class="st-spin"></span>Reading the product photos…</span>' : `<textarea class="st-in" data-dna="${pi}" rows="5">${esc(p.dna)}</textarea>`}</label>
           <button class="btn" data-redna="${pi}" style="margin-top:6px">Read the photos again</button></div>`).join('')}
         <button class="btn" id="bProd" style="margin-top:8px" ${(su.products || []).length >= 4 ? 'disabled' : ''}>${(su.products || []).length ? 'Add another product' : 'Choose the product'}</button>
 </div>
-      <div><b style="font-size:13px">Swipe file</b><div class="hint">Ads you like, for range and ideas. Nothing gets copied; the art director picks styles from it. Up to 12. Drop, click, or paste a screenshot.</div>
-        <div class="st-thumbs" style="margin-top:8px">${(su.swipe || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(u)}" alt=""><span class="st-x" data-rmsw="${k}" role="button" aria-label="Remove">×</span></button>`).join('')}${(su.swipe || []).length < 12 ? '<button class="st-add" id="bSwipe">Add images</button>' : ''}</div></div>
+      <div><b style="font-size:13px">Swipe file</b><div class="hint">Ads you like, for style ideas. Nothing is copied. Up to 12: drop, click or paste.</div>
+        <div class="st-thumbs" style="margin-top:8px">${(su.swipe || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(u)}" alt=""><span class="st-x" data-rmsw="${k}" role="button" aria-label="Remove" title="Remove">×</span></button>`).join('')}${(su.swipe || []).length < 12 ? '<button class="st-add" id="bSwipe">Add images</button>' : ''}</div></div>
     </div>
     <input type="file" id="bFile" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
 
-  <div class="card"><div class="st-bar"><div class="st-step"><span class="n">3</span><h3 class="st-h">The plan</h3></div><div>${S.busy === 'plan' ? '<span class="st-busy"><span class="st-spin"></span>The art director is planning. About a minute.</span>' : ''}<button class="btn ${plan ? '' : 'primary'}" id="bPlan" ${S.busy || S.making ? 'disabled' : ''}>${plan ? 'Plan again' : 'Plan the ads'}</button></div></div>
+  <div class="card"><div class="st-bar"><div class="st-step"><span class="n">2</span><h3 class="st-h">The plan</h3></div><div>${S.busy === 'plan' ? '<span class="st-busy"><span class="st-spin"></span>The art director is planning. About a minute.</span>' : ''}<button class="btn ${plan ? 'quiet' : 'primary'}" id="bPlan" ${S.busy || S.making ? 'disabled' : ''}>${plan ? 'Plan again' : 'Plan the ads'}</button></div></div>
     ${plan ? `<p class="hint" style="margin:6px 0 10px">${plan.variation ? `Testing ${esc(br.testing)} inside one concept: ad 1 is made, and the others change only the words.` : 'Each ad is its own idea. Change anything before you make them.'}</p><div class="st-plan">${plan.ads.map((a, i) => planRow(a, i, plan)).join('')}</div>`
-      : `<p class="hint" style="margin:6px 0 0">The art director reads the brief, the product and any inspiration, then writes each ad: the words (in the brand's voice, keeping yours where you gave them), the look, the type style, and which inspiration it follows. You check it before anything is made.</p>`}
+      : `<p class="hint" style="margin:6px 0 0">The art director writes each ad from the brief and the product. Nothing is made until you have checked it.</p>
+      <details class="st-how" style="margin-top:6px"><summary>How this works</summary><p class="hint">It reads the brief, the product and any inspiration, then writes each ad: the words (in the brand's voice, keeping yours where you gave them), the look, the type style, and which inspiration it follows.</p></details>`}
   </div>
 
-  <div class="card"><div class="st-bar"><div class="st-step"><span class="n">4</span><h3 class="st-h">The ads</h3></div>
+  <div class="card"><div class="st-bar"><div class="st-step"><span class="n">${ads.length ? 4 : 3}</span><h3 class="st-h">${ads.length ? 'Review the ads' : 'Make the ads'}</h3></div>
     <div>${S.making ? `<span class="st-busy"><span class="st-spin"></span>${esc(S.making)}</span>` : ''}
-      ${plan ? `<button class="btn ${ads.length ? '' : 'primary'}" id="bMake" ${S.making || S.busy ? 'disabled' : ''}>Make ${n} ad${n === 1 ? '' : 's'} · about $${(n * PER_AD).toFixed(2)}</button>` : ''}
-      ${ads.length ? `<button class="btn" id="bDl" ${S.making ? 'disabled' : ''}>Download all</button><button class="btn primary" id="bCanva" ${S.making ? 'disabled' : ''}>Send to Canva</button>` : ''}</div></div>
+      ${plan ? `<button class="btn ${ads.length ? '' : 'primary'}" id="bMake" ${S.making || S.busy ? 'disabled' : ''}>${ads.length ? `Make all ${n} again` : `Make ${n} ad${n === 1 ? '' : 's'}`} · about $${(n * PER_AD).toFixed(2)}</button>` : ''}
+      ${ads.length ? `<button class="btn quiet" id="bDl" ${S.making ? 'disabled' : ''}>Download all</button><button class="btn ${now === 5 ? 'primary' : ''}" id="bCanva" ${S.making ? 'disabled' : ''}>${ok ? `Send ${ok} approved to Canva` : `Send all ${ads.length} to Canva`}</button>` : ''}</div></div>
     <p class="st-msg bad" style="margin-top:6px">${esc(S.err || '')}</p>
-    ${ads.length ? `<div class="st-board" style="margin-top:10px">${ads.slice().sort((p, q) => (p.line ?? 99) - (q.line ?? 99)).map(a => adCard(a)).join('')}</div>` : plan ? '<div class="st-empty">Press Make when the plan looks right.</div>' : '<div class="st-empty">Plan the ads first.</div>'}
+    ${ads.length ? `<div class="st-board" style="margin-top:10px">${ads.slice().sort((p, q) => (p.line ?? 99) - (q.line ?? 99)).map(a => adCard(a)).join('')}</div>` : plan ? '<div class="st-empty">Press Make when the plan looks right.</div>' : '<div class="st-empty">Plan the ads first (step 2).</div>'}
   </div>
   ${videosCard(b)}`;
 }
@@ -470,15 +552,15 @@ const LOOKS = [['auto', 'Let the AI decide', 'it picks the format'], ['ugc', 'UG
   ['animated', 'Animated 3D', 'Pixar-style characters'], ['clay', 'Claymation', 'stop-motion clay'], ['motion', 'Motion graphics', 'moving text and shapes'], ['recreate', 'Recreate a reference', 'copy a video you upload']];
 function videosCard(b) {
   const list = (S.vids || []).filter(v => v.kind === 'create' && (b ? v.batch_id === b.id : !v.batch_id));
-  return `<div class="card"><div class="st-bar"><div><h3 class="st-h">Videos</h3><p class="hint" style="margin:2px 0 0">Any AI video: UGC, product shots, Pixar or claymation, motion graphics, or a copy of a reference video. ${b ? 'Uses this batch\u2019s brief and product.' : 'For one batch\u2019s brief, open the batch.'}</p></div>
-    <button class="btn primary" data-vnew="${b ? b.id : ''}">Make a video</button></div>
+  return `<div class="card"><div class="st-bar"><div><h3 class="st-h">Videos</h3><p class="hint" style="margin:2px 0 0">${b ? 'Optional. An AI video from this batch\u2019s brief and product.' : 'Optional. Any AI video: UGC, product shots, animation or a copy of a reference.'}</p></div>
+    <button class="btn" data-vnew="${b ? b.id : ''}">Make a video</button></div>
     ${list.length ? `<div class="st-vgrid">${list.map(vidTile).join('')}</div>` : ''}</div>`;
 }
 function vidTile(v) {
   const pv = v.status === 'ready' ? `<video src="${esc(v.url)}" muted loop playsinline preload="metadata"></video>` : v.status === 'failed' ? esc(v.error || 'It failed.') : '<span class="st-busy"><span class="st-spin"></span>Making it. 2 to 6 minutes.</span>';
   return `<div class="st-vt"><div class="pv" ${v.status === 'ready' ? `data-vplay="${v.id}" style="cursor:pointer"` : ''}>${pv}</div>
     <div class="mt"><b>${esc(v.title || 'Video')}</b><span class="tiny">${v.seconds || ''}s${v.cost ? ` \u00b7 $${(+v.cost).toFixed(2)}` : ''}</span>
-      <div class="acts">${v.status === 'ready' ? `<button class="btn" data-vplay="${v.id}">Play</button><button class="btn" data-vdl="${v.id}">Download</button>` : ''}${v.status !== 'working' ? `<button class="btn" data-vagain="${v.id}">${v.status === 'failed' ? 'Try again' : 'Make another'}</button>` : ''}<button class="btn" data-vrm="${v.id}" title="Delete">\u00d7</button></div></div></div>`;
+      <div class="acts">${v.status === 'ready' ? `<button class="btn" data-vplay="${v.id}">Play</button><button class="btn" data-vdl="${v.id}">Download</button>` : ''}${v.status !== 'working' ? `<button class="btn" data-vagain="${v.id}">${v.status === 'failed' ? 'Try again' : 'Make another'}</button>` : ''}<button class="btn" data-vrm="${v.id}">Delete</button></div></div></div>`;
 }
 function wireVideos() {
   document.querySelectorAll('[data-vnew]').forEach(x => x.onclick = () => makeAnyVideo(x.dataset.vnew ? S.d.batches.find(b => b.id === x.dataset.vnew) : null));
@@ -505,8 +587,8 @@ async function makeAnyVideo(b, again = null) {
     <label class="st-f">What's the video?<small>plain words. For example: "A golfer pulls a ball marker off his belt mid-round and says why he'll never go back to pockets" or "Claymation: a sock monster eats tees until our belt saves the day"</small><textarea class="st-in" id="vIdea" rows="3">${esc(st.idea || '')}</textarea></label>
     <p class="st-lbl" style="margin-top:8px">Look</p><div class="st-chips" data-grp="look">${chips(LOOKS, st.look, 'lk')}</div>
     <p class="st-lbl" style="margin-top:10px">Product and references</p>
-    <div class="st-thumbs">${st.images.map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmimg="${k}" role="button" aria-label="Remove">\u00d7</span></button>`).join('')}
-      ${st.videos.map((u, k) => `<span class="st-chip on" style="cursor:default">Reference video ${k + 1} <span data-rmvid="${k}" style="cursor:pointer;margin-left:4px">\u00d7</span></span>`).join('')}
+    <div class="st-thumbs">${st.images.map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmimg="${k}" role="button" aria-label="Remove" title="Remove">\u00d7</span></button>`).join('')}
+      ${st.videos.map((u, k) => `<span class="st-chip on" style="cursor:default">Reference video ${k + 1} <span data-rmvid="${k}" role="button" style="cursor:pointer;margin-left:6px;text-decoration:underline">Remove</span></span>`).join('')}
       <select class="st-in" id="vProd" style="width:auto;margin:0"><option value="">Add a product\u2019s photos\u2026</option>${(S.products || []).map((p, i) => `<option value="${i}">${esc(p.title)}</option>`).join('')}</select>
       <button class="st-add" id="vAddImg">Add image</button><button class="st-add" id="vAddVid">Add video</button></div>
     <input type="file" id="vFile" hidden>
@@ -576,7 +658,7 @@ function vidStrip(a) {
   const v = vidOf(a); if (!v) return '';
   if (v.status === 'working') return `<div class="st-vid"><span class="st-busy"><span class="st-spin"></span>Making the video. About 2 minutes.</span></div>`;
   if (v.status === 'failed') return `<div class="st-vid bad"><span>${esc(v.error || 'The video failed.')}</span><button class="btn" data-vid="${a.id}">Try again</button></div>`;
-  return `<div class="st-vid"><b>Video ready</b><span><button class="btn" data-vplay="${v.id}">Play</button><button class="btn" data-vdl="${v.id}">Download</button><button class="btn" data-vrm="${v.id}" title="Delete the video">×</button></span></div>`;
+  return `<div class="st-vid"><b>Video ready</b><span class="bs"><button class="btn" data-vplay="${v.id}">Play</button><button class="btn" data-vdl="${v.id}">Download</button><button class="btn" data-vrm="${v.id}" title="Delete the video">Delete</button></span></div>`;
 }
 let vidT = null;
 function watchVids() {
@@ -605,7 +687,7 @@ async function frame916(a) {
 function makeVideo(a) {
   let motion = 'push', quality = 'fast';
   const chips = (list, cur, attr) => list.map(([k, l, h]) => `<button class="st-chip ${k === cur ? 'on' : ''}" data-${attr}="${k}">${esc(l)}<small>${esc(h)}</small></button>`).join('');
-  modal('Make a video from this ad', `<p class="hint" style="margin:0 0 10px">An 8-second vertical (9:16) video of this ad for Reels and Stories. The words and the product stay put; only motion is added. About 2 minutes. Check the text and the product before you use it.</p>
+  modal('Make a video from this ad', `<p class="hint" style="margin:0 0 10px">An 8-second vertical video of this ad. Only motion is added. About 2 minutes; check the words and the product before you use it.</p>
     <p class="st-lbl">How it moves</p><div class="st-chips" id="vMo">${chips(VID_MOTIONS, motion, 'mo')}</div>
     <label class="st-f" style="margin-top:10px">Anything else?<small>optional, for example "the grass sways" or "steam rises from the cup"</small><input class="st-in" id="vNote" maxlength="300"></label>
     <p class="st-lbl" style="margin-top:10px">Quality</p><div class="st-chips" id="vQ">${chips(vidQ(), quality, 'q')}</div>`,
@@ -892,7 +974,7 @@ function specOf(b, a) {
 async function makeBatch() {
   const b = S.cur, plan = b.plan;
   if (!plan?.ads?.length) return;
-  if (!b.setup.images.length && !plan.ads.some(a => a.ref_url)) { S.err = 'Choose the product first (step 2).'; return paint(); }
+  if (!b.setup.images.length && !plan.ads.some(a => a.ref_url)) { S.err = 'Choose the product first (under the brief).'; return paint(); }
   S.err = '';
   const total = plan.ads.length; let done = 0, failed = 0;
   const tick = () => { S.making = `Made ${done} of ${total}${failed ? `, ${failed} failed` : ''}. Keep this page open.`; paint(); };
@@ -905,7 +987,7 @@ async function makeBatch() {
       done++; tick(); return ad;
     } catch (e) { failed++; S.err = e.message; tick(); return null; }
   };
-  tick();
+  S.makingAll = true; tick();
   if (plan.variation) {
     const base = await one(0);
     if (base) for (let i = 1; i < total; i++) {
@@ -919,7 +1001,7 @@ async function makeBatch() {
     await Promise.all([lane(), lane()]);
   }
   b.status = 'made'; await saveCur();
-  S.making = ''; await reload();
+  S.making = ''; S.makingAll = false; await reload();
 }
 window.addEventListener('beforeunload', e => { if (S.making) { e.preventDefault(); e.returnValue = ''; } });
 function wireAds() {
@@ -955,7 +1037,7 @@ async function redo(a) {
   S.making = ''; await reload();
 }
 function change(a) {
-  modal('Change with AI', `<p class="hint" style="margin:0 0 8px">Say what to change. The AI redraws this ad with only that change, and the words keep their look. About 25¢ and 40 seconds. The old version goes to Deleted.</p>
+  modal('Change with AI', `<p class="hint" style="margin:0 0 8px">Say what to change. Only that changes. About 25¢ and 40 seconds; the old version goes to Deleted.</p>
     <textarea class="st-in" id="chIn" rows="3" placeholder="Move the headline to the top · Remove the 25% off label · Change the headline to Stop buying him socks · Make the background darker"></textarea>`,
   { cta: 'Make the change', onOpen: (w, ctl) => w.onSubmit(async () => {
     const t = w.querySelector('#chIn').value.trim(); if (!t) throw new Error('Say what to change.');

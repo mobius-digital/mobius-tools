@@ -771,6 +771,18 @@
   .pf-eq .pf-val{font-size:30px;letter-spacing:-.03em;line-height:1.1;margin:8px 0 4px;color:var(--brand-ink)}
   .pf-eq .pf-in input{font-size:24px;font-weight:700;letter-spacing:-.02em}
   .pf-op{display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted);font-weight:600}
+  /* Plan, 2026-10-05: the three numbers, the one-line verdict and Save share
+     ONE card, so the decision and the button that commits it sit together. */
+  .pl-main{padding:16px 17px 15px}
+  .pl-quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .pl-verdict{margin:0 0 13px;padding:10px 13px;border-radius:8px;border:1px solid var(--line);
+    border-left:4px solid var(--line-strong);background:var(--bg);font-size:13.5px;line-height:1.6;color:var(--ink-2)}
+  .pl-verdict.ok{border-left-color:var(--good)}
+  .pl-verdict.wn{border-left-color:var(--warn)}
+  .pl-verdict.bd{border-left-color:var(--bad)}
+  .pl-verdict .pill{margin-right:6px}
+  .pl-save{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+  .pl-save .tiny{flex:1 1 220px;min-width:0}
   .pl-two{gap:11px}
   .pl-two .card,.pl-two .cu{margin-bottom:11px}
   .pl-two .asm-card{margin-bottom:0}
@@ -1126,7 +1138,8 @@
     padding:13px 18px;border-bottom:1px solid var(--line);font-size:14px;background:transparent}
   .pf-pick:last-child{border-bottom:0}
   .pf-pick:hover{background:var(--brand-soft)}
-  .pf-pick-n{font-weight:700;font-size:15px}
+  .pf-pick-r{flex:none;width:18px;color:var(--muted);font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums}
+  .pf-pick-n{font-weight:700;font-size:15px;min-width:0}
   .pf-pick-v{margin-left:auto;font-variant-numeric:tabular-nums}
   .pf-pick-go{color:var(--muted);flex:none}
   .pf-pick:hover .pf-pick-go{color:var(--brand-ink)}
@@ -1811,12 +1824,12 @@
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=7"></script>
+<script src="meta.js?v=8"></script>
 <script src="amb.js?v=17"></script>
 <script src="../onboard/questions.js?v=8"></script>
 <script src="brand.js?v=14"></script>
 <script src="newclient.js?v=13"></script>
-<script src="studio.js?v=19"></script>
+<script src="studio.js?v=20"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -2609,7 +2622,7 @@ const TAB_PURPOSE = {
   meta:      "The ads themselves. These numbers come from Meta and match Ads Manager - on purpose, they won't match the other tabs.",
   brief:     'The short update that goes to the client every morning. Read it, adjust the wording, send it.',
   reports:   'The weekly and monthly report you walk through on calls, then send to the client.',
-  plan:      "Set next month's revenue number with the client. Every other tab measures against what you set here.",
+  plan:      "Set the month's revenue number with the client. Every other tab measures against what you save here.",
   customers: 'What a new customer costs, and whether their first order pays it back. Read this before you set a plan.',
   costs:     'Whether a client’s cost data can be trusted. Everything profit-related depends on the answer, so check it here when a warning appears.',
   health:    'Whether Triple Whale still agrees with the ad platforms. Green means this morning’s numbers are safe to send; red tells you what broke and what to press.',
@@ -2757,7 +2770,7 @@ const TOURS = {
 
   plan: { name: 'Planning the month', steps: [
     { sel: '#main h2', title: 'This is where the number gets set', body: 'Once a month, with the client, before the month starts. Every other tab reports against what you save here.' },
-    { sel: '#main .card', title: 'Type two, not three', body: '<b>Revenue = MER × spend.</b> Fill in any two and the third is arithmetic - the greyed one is the one being calculated. Press <b>calculate this instead</b> to move which.' },
+    { sel: '#main .card', title: 'Type two, not three', body: '<b>Revenue = MER × spend.</b> Fill in any two and the third is arithmetic - the one tagged calculated is the result. Press <b>make this the result</b> on another box to move which.' },
     { sel: '#main .card', title: 'Check the verdict line', body: 'Any plan implies a rate of buying new customers. Locus compares that with what this client has actually managed in the last 28 days and says whether the plan is achievable, a stretch, or unrealistic.' },
     { sel: '#main .card', title: 'Then agree it', body: '<b>Client link</b> is a read-only page with just this plan on it, for the call. Flip <b>agreed</b> once they say yes - and changing the numbers afterwards clears that, so a plan cannot drift after sign-off.' },
   ] },
@@ -3851,7 +3864,8 @@ const PAGE_HELP = {
     <p><b>The summary</b> is written by Claude from the numbers plus the Change Log, in three parts: the period in brief, what mattered, what's next. Edit it freely before sending - it's your voice on the report.</p>`,
   plan: `
     <p><b>What this page is:</b> the monthly conversation with your client, turned into the number everything else is measured against. A forecast nobody agreed to is just a guess.</p>
-    <p><b>Why there are three boxes:</b> revenue, ad spend and MER are one equation - <b>revenue = MER × spend</b>. Fix any two and the third is decided for you. So you type into two of them, and the grayed-out one does the arithmetic. Press <b>calculate this instead</b> on a box to move which one is derived.</p>
+    <p><b>Why there are three boxes:</b> revenue, ad spend and MER are one equation - <b>revenue = MER × spend</b>. Fix any two and the third is decided for you. So you type into two of them, and the one tagged calculated does the arithmetic. Press <b>make this the result</b> on a box to move which one is derived.</p>
+    <p><b>Which month it opens on:</b> the month in progress while that month has no plan of its own, because the Daily Brief is measuring against it every day. Otherwise next month. A month with no plan starts from holding flat on the last complete month, and says so until you save.</p>
     <p><b>The three ways people actually plan:</b><br>
     · <i>"We want $100k and we'll spend $40k"</i> - type revenue and spend, read the MER it needs.<br>
     · <i>"We have $40k and need 2.5x"</i> - type spend and MER, read the revenue it buys.<br>
@@ -5053,20 +5067,26 @@ function renderProfitAll() {
     const v = x => cmTrusted(x.cost_health) ? (x.window.cm ?? -Infinity) : -Infinity;
     return v(b) - v(a);
   });
-  $('#main').innerHTML = `${pageHead('profit', 'Profit', 'Pick a brand to see where its money went, from revenue down to what was left.')}
-    
-    <div class="card" style="padding:6px 0"><div id="pfPick">
-      ${ranked.map(a => {
+  /* A ranked list and nothing else: position, brand, what it kept. The window
+     is named once, above the list, because "kept" without a period is not a
+     figure. One sub-line (the page purpose) and no second one. */
+  $('#main').innerHTML = `${pageHead('profit', 'Profit')}
+
+    <div class="card" style="padding:6px 0">
+      <div class="mini" style="padding:9px 18px 7px">Ranked by what each brand kept &middot; ${esc(rangeLabel())}</div>
+      <div id="pfPick">
+      ${ranked.map((a, i) => {
         const w = a.window, trusted = cmTrusted(a.cost_health);
         return `<button class="pf-pick" data-id="${a.act_id}">
+          <span class="pf-pick-r">${i + 1}</span>
           <span class="pf-pick-n">${esc(a.name)}</span>
           <span class="pf-pick-v">${trusted
             ? `<b style="color:${w.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(w.cm, a.currency)}</b> <span class="tiny">kept</span>`
-            : '<span class="tiny">cost data unreliable - see Costs</span>'}</span>
+            : '<span class="tiny">cost data unreliable, see Costs</span>'}</span>
           <span class="pf-pick-go">→</span></button>`;
       }).join('') || '<p class="hint" style="padding:14px 18px">No brands yet.</p>'}
     </div></div>
-    <p class="tiny" style="margin-top:12px">Ordered by what each brand kept. <b>To compare brands side by side, use Overview</b> - it carries the same figures for every client at once, and sorts.</p>`;
+    <p class="tiny" style="margin-top:12px">Kept means contribution margin: revenue minus product costs, fees and ad spend. Click a brand to see where its money went. To compare brands side by side, use <b>Overview</b>.</p>`;
   // On the list, not #main - #main survives re-renders and would stack a
   // listener per visit.
   $('#pfPick').addEventListener('click', e => {
@@ -5264,7 +5284,10 @@ async function renderProfit(first) {
 
   pageActions(`${healthPill(h)}<button class="btn" id="pfShare">↗ Client link</button>`);
 
-  $('#main').innerHTML = `${pageHead('profit', `Profit &mdash; ${esc(d.account.name)}`, '<b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; the same line on every tab.')}
+  /* ONE sub-line (the page purpose pageHead already prints). The revenue
+     definition that sat under it lives where it is looked up: the info icon on
+     the Net Sales + Shipping tile, Metrics, and Help. */
+  $('#main').innerHTML = `${pageHead('profit', `Profit: ${esc(d.account.name)}`)}
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn">⚠️ <div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See the <b>Costs</b> tab for what that is worth.</div></div>`
       : ''}
     ${!trusted ? `<div class="notice bad">⚠️ <div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency below are still accurate - only the cost-based rows are hidden. Open the <b>Costs</b> tab to fix it.</div></div>` : ''}
@@ -5278,10 +5301,10 @@ async function renderProfit(first) {
       ${statCard('aMER', fmtX(t.amer), `${fmtPct(t.new_share)} of revenue was new customers`, 'Acquisition MER = new-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it, so it isolates whether the ads are actually buying customers.')}
       ${trusted ? statCard('Contribution Margin', fmtMoney(t.cm, cur), `margin ${fmtPct(t.margin)} before ad spend`, 'What’s left after product costs, payment fees and all ad spend. NOT net profit - it ignores fixed costs like rent, salaries and software. It answers: did the marketing make money on the margin?', t.cm == null ? '' : t.cm >= 0 ? 'good' : 'bad') : ''}
     </div>
-    <div class="two even pf-two">
+    <div class="two pf-two">
     <div>
     ${trusted ? `<div class="card key"><h3 style="margin-bottom:2px">Where the money went</h3>
-      <p class="hint" style="margin-bottom:8px">Every variable cost, in the order it leaves the business.</p>
+      <p class="hint" style="margin-bottom:8px">Revenue at the top, every variable cost in the order it leaves, what was kept at the bottom.</p>
       <div class="tbl-wrap"><table><tbody>
         ${step('Net Sales', t.net_sales, 'products only, after discounts and returns - matches Shopify’s Net Sales')}
         ${t.ship_rev ? step('Shipping charged to customers', t.ship_rev, 'what customers paid for delivery') : ''}
@@ -5295,18 +5318,19 @@ async function renderProfit(first) {
         ${step('Ad spend', t.spend, 'every platform', true)}
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${t.cm>=0?'var(--good)':'var(--bad)'}">${fmtMoney(t.cm, cur)}</b></td><td class="tiny">${t.sales?fmtPct(t.cm/t.sales):' - '} of revenue</td></tr>
       </tbody></table></div>
-      <p class="tiny" style="margin-top:8px">This is CTC's definition: revenue minus <b>every variable cost</b> - product, fulfilment, handling, payment fees and ad spend. Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?"${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</p></div>` : ''}
+      <details class="footnote" style="margin-top:12px"><summary>What contribution margin counts, and what it leaves out</summary>
+        <div class="fn-body">This is CTC's definition: revenue minus <b>every variable cost</b> (product, fulfilment, handling, payment fees and ad spend). Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?"${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</div></details></div>` : ''}
     ${fc && fc.mtd ? forecastCard(fc, cur) : ''}
     </div>
     <div>
     ${single ? hourlyCard(d, cur, !!asOf, asOf) : `<div class="card"><h3 style="margin-bottom:2px">Revenue vs ad spend, day by day</h3>
-      <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue - everything the store sold that day, from every channel. <span style="color:#C08A2E;font-weight:700">Amber</span> is ad spend across every platform. The gap between the lines is what was left after advertising, before product costs, fulfilment and payment fees come out of it - so it is <b>not</b> gross profit, which subtracts those but not the ads. Hover or tap for exact values.</p>
+      <p class="hint" style="margin-bottom:6px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue from every channel. <span style="color:#C08A2E;font-weight:700">Amber</span> is ad spend on every platform. The gap is what was left after ads, before product costs and fees.</p>
       <div id="pfReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap the chart…</div>
       ${chart.svg}</div>`}
     <div class="card"><h3 style="margin-bottom:6px">New vs returning</h3>
       <p class="hint" style="margin-bottom:0"><b>${fmtMoney(t.new_rev, cur)}</b> came from customers buying for the first time (<b>${fmtPct(t.new_share)}</b> of revenue) and <b>${fmtMoney(t.ret_rev, cur)}</b> from people coming back.</p>
       ${t.new_share != null ? `<div class="nr-bar"><div style="width:${Math.max(0, Math.min(100, t.new_share * 100)).toFixed(1)}%"></div><div style="flex:1"></div></div>` : ''}
-      <p class="hint" style="margin-bottom:0">A healthy month grows the first number without the second one shrinking. What that customer <i>cost</i>, what their first order is worth and whether it pays back live on <b>Customers</b>.</p></div>
+      <p class="hint" style="margin-bottom:0">What a new customer cost, and whether the first order pays it back, is on <b>Customers</b>.</p></div>
     ${costCard}
     </div>
     </div>`;
@@ -6028,7 +6052,7 @@ async function renderBrief(first) {
   briefTimeLabel();
 
   const toPlan = $('#gToPlan');
-  const openPlan = () => { PL.month = d.month; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null; show('plan'); };
+  const openPlan = () => { PL.month = d.month; PL.auto = false; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null; show('plan'); };
   if (toPlan) toPlan.onclick = openPlan;
   const toPlan2 = $('#bfToPlan2');
   if (toPlan2) toPlan2.onclick = openPlan;
@@ -7646,9 +7670,24 @@ function retroCard(p, cur, saved) {
   </div>`;
 }
 
+/** Which month the Plan page opens on when nobody picked one.
+ *  The month IN PROGRESS wins while it has no plan of its own: the Daily Brief
+ *  is measuring every day against it, so it is the hole to fill first. Once it
+ *  is planned, the page opens on next month as before. `planned` is the API's
+ *  flag (an explicit goals_json entry for that month, never the default). */
+function planDefaultPick(curP, nextP) {
+  if (curP && curP.status === 'current' && !curP.planned) return curP;
+  // The browser's clock ran ahead of the brand's: its "this month" is the
+  // brand's next month, which is the one to plan anyway.
+  if (curP && curP.status === 'future') return curP;
+  return nextP || curP;
+}
+
 async function renderPlan(first) {
   if (S.act === 'all') return renderPlanAll();
-  if (!PL.month) PL.month = shiftMonth(ymdLocal(new Date()).slice(0, 7), 1);
+  // A month the page chose itself is re-chosen per brand; a month the reader
+  // clicked (or another tab asked for) is kept.
+  const autoPick = !PL.month || (PL.auto && PL.mAct !== S.act && PL.month === PL.autoMonth);
 
   // Switching month refetches, but blanking to a spinner loses your place and reads
   // as a page reload. Keep what is on screen, dim the month chips, swap when ready.
@@ -7656,7 +7695,19 @@ async function renderPlan(first) {
   if (first) $('#main').innerHTML = `<h2>Plan</h2><div class="card"><span class="hint">Loading…</span></div>`;
   else $('#main').querySelectorAll('[data-m]').forEach(b => { b.style.opacity = '.45'; b.disabled = true; });
   let p;
-  try { p = await api(`/api/plan?act=${S.act}&month=${PL.month}`); }
+  try {
+    if (autoPick) {
+      const thisYm = ymdLocal(new Date()).slice(0, 7);
+      const [curP, nextP] = await Promise.all([
+        api(`/api/plan?act=${S.act}&month=${thisYm}`),
+        api(`/api/plan?act=${S.act}&month=${shiftMonth(thisYm, 1)}`),
+      ]);
+      if (run !== RUN) return;
+      p = planDefaultPick(curP, nextP);
+      PL.month = p.month; PL.auto = true; PL.autoMonth = p.month; PL.mAct = S.act;
+      PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null; PL.aAct = null;
+    } else p = await api(`/api/plan?act=${S.act}&month=${PL.month}`);
+  }
   catch (e) {
     if (run !== RUN) return;
     // Replace ALL of #main: on a tab switch `#main .card` still belongs to the
@@ -7693,10 +7744,22 @@ async function renderPlan(first) {
   // efficiency this client has actually been running.
   // Re-seed whenever the values on screen belong to a DIFFERENT client. Keying only
   // on `PL.sales == null` meant the picker carried one brand's plan into the next.
+  /* ONLY A PLAN SAVED FOR THIS MONTH SEEDS THE BOXES. `p.goals` is merged with
+     goals_json.default, and every save overwrites that default, so an unplanned
+     month used to open on whatever was saved LAST for some other month: October
+     2026 opened on a goal 99% above September and a red "unrealistic" verdict
+     before anyone had typed. An unplanned month now starts from holding flat on
+     the basis month, with the spend that buys it at the trailing aMER (so the
+     verdict starts at achievable), and the page says that is where it started. */
+  const plannedAtLoad = !!p.planned;
+  const ownGoals = p.planned && p.goals ? p.goals : null;
+  const inheritedSales = !p.planned && p.goals && p.goals.sales != null ? p.goals.sales : null;
   if (PL.sales == null || PL.act !== S.act) {
-    const base = (p.goals && p.goals.sales) || (p.basis ? p.basis.sales * 1.1 : null);
-    const seedSpend = (p.goals && p.goals.spend)
-      || (base != null && p.ctx.amer ? Math.max(0, base - expRet) / p.ctx.amer : null);
+    const base = (ownGoals && ownGoals.sales) || (p.basis ? p.basis.sales : null);
+    const basisHist = p.basis ? hist.find(h => h.month === p.basis.month) : null;
+    const amerSpend = base != null && p.ctx.amer ? Math.max(0, base - expRet) / p.ctx.amer : null;
+    const seedSpend = (ownGoals && ownGoals.spend)
+      || (amerSpend ? amerSpend : (basisHist && basisHist.spend) || null);
     PL.sales = base;
     PL.spend = seedSpend;
     PL.mer = base != null && seedSpend ? base / seedSpend : null;
@@ -7734,15 +7797,17 @@ async function renderPlan(first) {
   let c = calc();
 
   const verdictHtml = x => {
-    if (!x || x.impliedAmer == null || !x.trailing) return '';
+    if (!x || x.impliedAmer == null || !x.trailing) return '<span class="pill unk">No verdict</span> There is not enough recent data to judge this plan.';
     const pctOver = Math.round((x.impliedAmer / x.trailing - 1) * 100);
+    // ONE line: the word, then the one reason. The window is always named.
+    const win = `the last ${src.trailing_days || 28} days`;
     if (x.verdict === 'ok') {
-      return `<span class="pill good">achievable</span> This plan needs new customers at <b>${fmtX(x.impliedAmer)}</b>. The last 28 days ran at <b>${fmtX(x.trailing)}</b>, so it asks for no more efficiency than the client is already getting.`;
+      return `<span class="pill good">Achievable</span> It needs new customers at <b>${fmtX(x.impliedAmer)}</b> per ad dollar, and ${win} ran at <b>${fmtX(x.trailing)}</b>.`;
     }
     if (x.verdict === 'stretch') {
-      return `<span class="pill warn">a stretch</span> This plan needs new customers at <b>${fmtX(x.impliedAmer)}</b>, about <b>${pctOver}% better</b> than the <b>${fmtX(x.trailing)}</b> of the last 28 days. Reachable, but it assumes the ads improve - not just that they keep going.`;
+      return `<span class="pill warn">A stretch</span> It needs new customers at <b>${fmtX(x.impliedAmer)}</b> per ad dollar, <b>${pctOver}% better</b> than the <b>${fmtX(x.trailing)}</b> of ${win}.`;
     }
-    return `<span class="pill bad">unrealistic</span> This plan needs new customers at <b>${fmtX(x.impliedAmer)}</b>, <b>${pctOver}% better</b> than the <b>${fmtX(x.trailing)}</b> the client has actually been getting. Either raise the spend, lower the revenue goal, or accept a lower MER.`;
+    return `<span class="pill bad">Unrealistic</span> It needs new customers at <b>${fmtX(x.impliedAmer)}</b> per ad dollar, <b>${pctOver}% better</b> than the <b>${fmtX(x.trailing)}</b> of ${win}. Raise the spend or lower the revenue goal.`;
   };
 
   // Every derived number states its own window. The mix is deliberate: efficiency
@@ -7783,9 +7848,9 @@ async function renderPlan(first) {
     const saved = p.plan.updated_at ? String(p.plan.updated_at).slice(0, 10) : null;
     return `<div class="notice warn">&#9888;&#65039; <div><b>This plan was built on a number that has since changed.</b>
       It was saved${saved ? ' on ' + esc(saved) : ''} against a basis of <b>${fmtMoney(was, cur)}</b>, but
-      ${p.basis.month ? esc(monthLabel(p.basis.month)) : 'that month'} is now measured at <b>${fmtMoney(now, cur)}</b> - 
+      ${p.basis.month ? esc(monthLabel(p.basis.month)) : 'that month'} is now measured at <b>${fmtMoney(now, cur)}</b>,
       <b>${fmtSigned(off)}</b>. The saved target still reflects the old figure, so everything reporting
-      &ldquo;vs plan&rdquo; is measuring against a stale number. Pick a growth chip below and <b>Save</b> to bring it in line.</div></div>`;
+      &ldquo;vs plan&rdquo; is measuring against a stale number. Pick a quick fill below and <b>Save</b> to bring it in line.</div></div>`;
   };
 
   /* Catch-up: what it takes FROM HERE.
@@ -7805,22 +7870,25 @@ async function renderPlan(first) {
    */
   const catchUpCard = () => {
     const t = p.to_hit, pace = p.pace;
-    if (!t || !pace || p.status !== 'current') return '';
+    // `to_hit` is priced against the goal the server had at load. With no plan
+    // saved for this month that goal is the inherited default, and "behind plan"
+    // against a number nobody set for this month is not a catch-up.
+    if (!t || !pace || p.status !== 'current' || !plannedAtLoad) return '';
     const floor = A.spend_floor_per_day;
     if (t.already_there) {
       return `<div class="cu" style="margin-bottom:14px"><div class="cu-hd">Ahead of plan</div>
-        <div class="cu-sub">${fmtMoney(pace.mtd_sales, cur)} banked with ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'} to go &mdash; the month's goal of <b>${fmtMoney(p.goals.sales, cur)}</b> is already met. Nothing to make up.</div></div>`;
+        <div class="cu-sub">${fmtMoney(pace.mtd_sales, cur)} banked with ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'} to go. The month's goal of <b>${fmtMoney(p.goals.sales, cur)}</b> is already met. Nothing to make up.</div></div>`;
     }
     if (t.covered_by_returning) {
       return `<div class="cu" style="margin-bottom:14px"><div class="cu-hd">On track without extra spend</div>
-        <div class="cu-sub">What is left of the goal is covered by returning revenue alone over the remaining ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'}. Hold the current budget${floor != null ? ` &mdash; and not below the ${fmtMoney(floor, cur)}/day floor` : ''}.</div></div>`;
+        <div class="cu-sub">What is left of the goal is covered by returning revenue alone over the remaining ${pace.days_remaining} day${pace.days_remaining === 1 ? '' : 's'}. Hold the current budget${floor != null ? `, and not below the${fmtMoney(floor, cur)}/day floor` : ''}.</div></div>`;
     }
     const ramp = t.spend_ramp;
     const tone = ramp == null ? '' : ramp <= 1.2 ? '' : ramp <= 1.5 ? 'warn' : 'bad';
     const head = ramp == null ? 'To still hit the goal'
-      : ramp <= 1.2 ? 'Slightly behind &mdash; here is the catch-up'
-      : ramp <= 1.5 ? 'Behind plan &mdash; this is the ask'
-      : 'Behind plan &mdash; this needs re-agreeing, not more spend';
+      : ramp <= 1.2 ? 'Slightly behind: here is the catch-up'
+      : ramp <= 1.5 ? 'Behind plan: this is the ask'
+      : 'Behind plan: this needs re-agreeing, not more spend';
     const need = t.spend_per_day;
     const belowFloor = floor != null && need != null && need < floor;
 
@@ -7836,11 +7904,11 @@ async function renderPlan(first) {
         : null;
       const shortBy = landsAt != null ? p.goals.sales - landsAt : null;
       return `<div class="cu ${shortBy != null && p.goals.sales && shortBy > p.goals.sales * 0.05 ? 'warn' : ''}" style="margin-bottom:14px">
-        <div class="cu-hd">Behind plan &mdash; and the budget is fixed</div>
+        <div class="cu-hd">Behind plan, and the budget is fixed</div>
         ${landsAt != null ? `<div class="cu-big">At ${fmtMoney(budgetDay, cur)}/day the month lands near ${fmtMoney(landsAt, cur)}</div>` : ''}
         <div class="cu-sub">
           ${fmtMoney(pace.mtd_sales, cur)} banked of <b>${fmtMoney(p.goals.sales, cur)}</b> after ${pace.days_elapsed} of ${pace.days_in_month} days.
-          ${need != null ? `Closing the gap would take <b>${fmtMoney(need, cur)} a day</b>${budgetDay ? ` against the ${fmtMoney(budgetDay, cur)} the budget allows` : ''} &mdash; <b>which this plan does not permit.</b>` : ''}
+          ${need != null ? `Closing the gap would take <b>${fmtMoney(need, cur)} a day</b>${budgetDay ? ` against the ${fmtMoney(budgetDay, cur)} the budget allows` : ''}, <b>which this plan does not permit.</b>` : ''}
           ${shortBy != null && shortBy > 0 ? `<br>So the decision is whether <b>${fmtMoney(p.goals.sales, cur)}</b> still stands or the month re-cuts to about <b>${fmtMoney(landsAt, cur)}</b>. Raising the budget is a separate conversation with the client, not a catch-up.` : ''}
           ${floor != null && budgetDay != null && budgetDay < floor ? `<br><b>Below your hard deck.</b> The budget works out at ${fmtMoney(budgetDay, cur)}/day against a ${fmtMoney(floor, cur)}/day floor.` : ''}
         </div>
@@ -7853,7 +7921,7 @@ async function renderPlan(first) {
         ${fmtMoney(pace.mtd_sales, cur)} banked of <b>${fmtMoney(p.goals.sales, cur)}</b> after ${pace.days_elapsed} of ${pace.days_in_month} days.
         ${need != null && pace.spend_per_day ? `That is <b>${fmtX(ramp)}</b> the ${fmtMoney(pace.spend_per_day, cur)}/day you are spending now, at the ${fmtX(A.amer)} acquisition efficiency assumed below.` : ''}
         ${ramp != null && ramp > 1.5 ? `<br><b>A ramp this size is not a delivery problem.</b> Tripling budget with two weeks left buys colder traffic at worse efficiency than the ${fmtX(A.amer)} this figure assumes, so the honest move is to agree a revised number with the client rather than spend into it.` : ''}
-        ${belowFloor ? `<br><b>Below your hard deck.</b> The maths only asks for ${fmtMoney(need, cur)}/day, but the floor is ${fmtMoney(floor, cur)}/day &mdash; hold the floor. Cutting acquisition to hit a ratio costs next month too.` : ''}
+        ${belowFloor ? `<br><b>Below your hard deck.</b> The maths only asks for ${fmtMoney(need, cur)}/day, but the floor is ${fmtMoney(floor, cur)}/day. Hold the floor. Cutting acquisition to hit a ratio costs next month too.` : ''}
       </div>
     </div>`;
   };
@@ -7876,25 +7944,25 @@ async function renderPlan(first) {
    */
   const shortD = d => `${MONTHS[+d.slice(5, 7) - 1].slice(0, 3)} ${+d.slice(8, 10)}`;
   const trailWin = src.trailing_from && src.trailing_to
-    ? `last ${src.trailing_days || 28} days &middot; ${shortD(src.trailing_from)} &ndash; ${shortD(src.trailing_to)}`
+    ? `last ${src.trailing_days || 28} days &middot; ${shortD(src.trailing_from)} to ${shortD(src.trailing_to)}`
     : 'the trailing window';
 
   const ASSUMPS = [
     { key: 'returning_per_day', label: 'Returning revenue', unit: 'money', perDay: true,
-      srcTxt: `Measured from your own data &mdash; ${trailWin}, scaled to ${p.ctx.days_in_month} days.`,
+      srcTxt: `Measured from your own data: ${trailWin}, scaled to ${p.ctx.days_in_month} days.`,
       caveat: 'The plan treats this as arriving <b>without ad spend</b>, so only the gap above it is costed. Some returning buyers may have come back after seeing an ad, which would mean the plan asks for less spend than it really needs.',
       info: 'What repeat customers are expected to bring in this month on their own. Everything above this figure has to be bought with the ad budget, so raising it LOWERS the spend the plan asks for.' },
     { key: 'amer', label: 'Acquisition efficiency (aMER)', unit: 'x',
-      srcTxt: `Measured from your own data &mdash; ${trailWin}${src.trailing_spend_per_day ? `, at ${fmtMoney(src.trailing_spend_per_day, cur)} a day of spend` : ''}.`,
-      caveat: '<b>Efficiency usually falls as spend rises</b> &mdash; you buy colder audiences. If this plan spends materially more than the window above, lower this by hand rather than assuming the current rate holds.',
+      srcTxt: `Measured from your own data: ${trailWin}${src.trailing_spend_per_day ? `, at ${fmtMoney(src.trailing_spend_per_day, cur)} a day of spend` : ''}.`,
+      caveat: '<b>Efficiency usually falls as spend rises</b>, because you buy colder audiences. If this plan spends materially more than the window above, lower this by hand rather than assuming the current rate holds.',
       info: 'New-customer revenue per dollar of ad spend. This is the rate the plan buys growth at: halve it and the same revenue goal costs twice the budget.' },
     { key: 'margin', label: 'Product margin', unit: 'pct',
-      srcTxt: src.margin_month ? `Measured from your own data &mdash; ${esc(monthLabel(src.margin_month))} actual.` : 'Measured from the last complete month.',
+      srcTxt: src.margin_month ? `Measured from your own data: ${esc(monthLabel(src.margin_month))} actual.` : 'Measured from the last complete month.',
       caveat: '',
       info: 'Gross margin before ad spend: revenue less product cost, fulfilment, handling and payment fees. Only used to work out the expected contribution margin - it does not change the revenue or spend numbers.' },
   ];
 
-  const asmShow = (a, v) => v == null ? '&mdash;'
+  const asmShow = (a, v) => v == null ? 'not measured'
     : a.unit === 'pct' ? fmtPct(v) : a.unit === 'x' ? fmtX(v) : `${fmtMoney(v, cur)}/day`;
   const asmRaw = (a, v) => v == null ? ''
     : a.unit === 'pct' ? (Math.round(v * 1000) / 10).toFixed(1)
@@ -7913,7 +7981,7 @@ async function renderPlan(first) {
         <span class="tiny asm-eq" id="asmv_${a.key}">${a.perDay && v != null ? `= ${fmtMoney(v * p.ctx.days_in_month, cur)} this month` : ''}</span>
         ${over ? `<button class="btn asm-reset" data-reset="${a.key}">Use measured (${asmShow(a, MEAS[a.key])})</button>` : ''}
       </div>
-      <div class="tiny asm-src">${over ? `<b>Your figure, not ours.</b> The measured value was ${asmShow(a, MEAS[a.key])} &mdash; ${trailWin}.` : a.srcTxt}</div>
+      <div class="tiny asm-src">${over ? `<b>Your figure, not ours.</b> The measured value was ${asmShow(a, MEAS[a.key])} (${a.key === 'margin' ? (src.margin_month ? esc(monthLabel(src.margin_month)) + ' actual' : 'the last complete month') : trailWin}).` : a.srcTxt}</div>
       ${a.caveat ? `<div class="tiny asm-cav">${a.caveat}</div>` : ''}
     </div>`;
   };
@@ -7921,13 +7989,13 @@ async function renderPlan(first) {
   const basisNote = () => {
     const n = ['returning_per_day', 'amer', 'margin'].filter(isOver).length;
     return `<details class="asm-card"${n ? ' open' : ''}>
-    <summary><span><b>What this plan assumes</b> <span class="tiny" style="color:var(--muted)">&mdash; ${n ? `${n} changed by you` : 'all three measured from your own data'}</span></span><span class="asm-chev">&#9662;</span></summary>
+    <summary><span><b>What this plan assumes</b> <span class="tiny" style="color:var(--muted)">&middot; ${n ? `${n} changed by you` : 'all three measured from your own data'}</span></span><span class="asm-chev">&#9662;</span></summary>
     <div class="asm-body">
-      <p class="tiny" style="margin:0 0 13px;color:var(--muted);line-height:1.6">Every forecast rests on assumptions &mdash; these are this one's. Each is pre-filled with what your data measured, and <b>each can be changed</b>. Anything you change is labelled as yours here and on the client link, so the plan can always say where its numbers came from.</p>
+      <p class="tiny" style="margin:0 0 13px;color:var(--muted);line-height:1.6">Each is pre-filled with what your data measured, and <b>each can be changed</b>. Anything you change is labelled as yours here and on the client link.</p>
       ${ASSUMPS.map(assumpRow).join('')}
       <div class="asm-row asm-floor${A.spend_floor_per_day != null ? ' over' : ''}">
         <div class="asm-head">
-          <span class="asm-lbl">Spend floor &mdash; the hard deck <span class="info-i" title="The least you keep spending per day, whatever the month does. Not part of the arithmetic - a guardrail. If the plan or the catch-up maths ever asks for less than this, the page says so instead of letting spend drift down quietly.">i</span></span>
+          <span class="asm-lbl">Spend floor (the hard deck) <span class="info-i" title="The least you keep spending per day, whatever the month does. Not part of the arithmetic - a guardrail. If the plan or the catch-up maths ever asks for less than this, the page says so instead of letting spend drift down quietly.">i</span></span>
           <span class="asm-tag${A.spend_floor_per_day != null ? ' mine' : ''}">${A.spend_floor_per_day != null ? 'set' : 'optional'}</span>
         </div>
         <div class="asm-ctl">
@@ -7936,7 +8004,7 @@ async function renderPlan(first) {
         </div>
         <div class="tiny asm-src">The minimum daily spend you hold to even in a bad month. <b>Stopping compounds:</b> today's new customers are next month's returning revenue, so cutting budget the moment efficiency dips turns one bad week into a bad quarter. Set it and the plan warns instead of quietly asking for less.</div>
       </div>
-      <div class="tiny" style="margin-top:13px;color:var(--muted);line-height:1.6">The revenue basis is <b>${src.basis_month ? esc(monthLabel(src.basis_month)) + ' actual' : 'the last complete month'}</b> &mdash; that is history rather than an assumption, so it is not editable here. Changes save with the plan.</div>
+      <div class="tiny" style="margin-top:13px;color:var(--muted);line-height:1.6">The revenue basis is <b>${src.basis_month ? esc(monthLabel(src.basis_month)) + ' actual' : 'the last complete month'}</b>. That is history rather than an assumption, so it is not editable here. Changes save with the plan.</div>
     </div>
   </details>`;
   };
@@ -7984,14 +8052,14 @@ async function renderPlan(first) {
     const x = calc();
     if (!x) return '';
     if (budgetMoves()) {
-      return `<div class="st-note"><b>The budget moves.</b> ${fmtMoney(x.spend, cur)} is what the goal takes at ${fmtX(x.mer)} &mdash; not a cap.
+      return `<div class="st-note"><b>The budget moves.</b> ${fmtMoney(x.spend, cur)} is what the goal takes at ${fmtX(x.mer)}, not a cap.
         If the month runs cold we spend more to chase <b>${fmtMoney(x.sales, cur)}</b>, and the <b>${fmtX(x.mer)} MER is the limit</b> that stops us chasing it too far.
-        <span class="st-alt">Want a fixed budget instead? Type the spend and press <b>calculate this instead</b> on Revenue or MER.</span></div>`;
+        <span class="st-alt">Want a fixed budget instead? Press <b>make this the result</b> on Revenue goal or MER, then type the spend.</span></div>`;
     }
     const derivedName = PL.derive === 'sales' ? 'Revenue' : 'MER';
-    return `<div class="st-note"><b>The budget is fixed at ${fmtMoney(x.spend, cur)}.</b> ${derivedName} is the result, not a second promise &mdash; ${fmtMoney(x.sales, cur)} at ${fmtX(x.mer)} is what this budget buys if efficiency holds.
-      If the month runs cold, <b>revenue lands lower and the budget holds</b>. There is nothing to pull.
-      <span class="st-alt">Want the budget to move to chase the revenue goal? Press <b>calculate this instead</b> on Ad spend.</span></div>`;
+    return `<div class="st-note"><b>The budget is fixed at ${fmtMoney(x.spend, cur)}.</b> ${derivedName} is the result, not a second promise.
+      If the month runs cold, <b>revenue lands lower and the budget holds</b>.
+      <span class="st-alt">Want the budget to move to chase the revenue goal? Press <b>make this the result</b> on Ad spend.</span></div>`;
   };
 
   /* Three boxes, and one of them is visibly not like the others.
@@ -8016,95 +8084,91 @@ async function renderPlan(first) {
     </div>`;
   };
 
-  /* The achievability verdict as a card: tone and word come from the same
-     calc() the sentence does, so the three can never disagree. */
+  /* The achievability verdict is ONE line under the three numbers: the tone
+     comes from the same calc() the sentence does, so they can never disagree. */
   const verdictTone = x => !x || !x.verdict ? 'un' : x.verdict === 'ok' ? 'ok' : x.verdict === 'stretch' ? 'wn' : 'bd';
-  const verdictWord = x => !x || !x.verdict ? 'Not enough data' : x.verdict === 'ok' ? 'Realistic' : x.verdict === 'stretch' ? 'A stretch' : 'Unrealistic';
 
+  /* The six-month table: context you read, closed by default, drawn once and
+     used by both the editable page and a finished month. The summary names the
+     basis month, read from the same place the plan reads it. */
+  const basisLbl = p.basis ? monthLabel(p.basis.month) : null;
+  const recentHtml = `<details class="rh-wrap"><summary>The last six months${editable && p.basis ? ` <span class="tiny">&middot; this plan builds from ${esc(basisLbl)}, ${fmtMoney(p.basis.sales, cur)}</span>` : ' <span class="tiny">&middot; what actually happened</span>'}</summary><div class="fold-body">
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Month</th>
+          <th class="num">Revenue <span class="info-i" title="Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel (paid, organic, email, direct), never a platform's attributed revenue. The same line used on every tab.">i</span></th>
+          <th class="num">Ad spend <span class="info-i" title="Every ad platform combined for the month, from Triple Whale: Meta plus Google plus anything else running. Not Meta alone.">i</span></th>
+          <th class="num">MER <span class="info-i" title="Marketing Efficiency Ratio = all store revenue divided by all ad spend. Blended on both sides, so it is not ROAS and it is not platform-attributed. 3.00x means three dollars came into the store for every dollar spent on ads.">i</span></th>
+          <th class="num">aMER <span class="info-i" title="Acquisition MER = NEW-customer revenue divided by that same total ad spend. Repeat buyers and email cannot flatter it, so it isolates whether the ads are actually buying customers.">i</span></th>
+          <th class="num">Margin <span class="info-i" title="Gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of revenue. This is not contribution margin, because ad spend has not been taken off yet.">i</span></th></tr></thead>
+        <tbody>${hist.slice(-6).map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
+          <td><b>${esc(monthLabel(h.month))}</b>${h.partial ? ` <span class="tiny">(${h.days} of ${h.days_in_month} days)</span>` : ''}</td>
+          <td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td>
+          <td class="num">${fmtX(h.mer)}</td><td class="num">${fmtX(h.amer)}</td><td class="num">${fmtPct(h.margin)}</td></tr>`).join('')}
+        </tbody></table></div>
+      <p class="tiny" style="margin:8px 0 0">Context you read. The plan is not an average of it.</p></div></details>`;
+
+  /* A month with no plan of its own says so in one line, and says where the
+     numbers on screen started. Removed in place the moment the plan is saved. */
+  const noPlanLine = editable && c && !p.planned
+    ? `<div class="st-line ${p.status === 'current' ? 'wn' : ''}" id="plNoPlan"><div class="st-t"><b>${esc(monthLabel(p.month))} has no plan yet.${p.status === 'current' ? ' Set it first.' : ''}</b>
+        <span class="st-d">${basisLbl ? `These numbers start flat on ${esc(basisLbl)}. ` : ''}${p.status === 'current' && inheritedSales != null
+          ? `Until you save, the Daily Brief measures against the last plan on file (${fmtMoney(inheritedSales, cur)}).`
+          : 'Nothing is saved until you press Save.'}</span></div></div>`
+    : '';
+
+  const saveLbl = `Save ${esc(monthLabel(p.month))} plan`;
   pageActions(editable && c
-    ? `<button class="btn" id="plShare">↗ Client link</button><button class="btn primary" id="plSave">Save ${esc(monthLabel(p.month))} plan</button>`
+    ? `<button class="btn" id="plShare">↗ Client link</button><button class="btn primary" id="plSave">${saveLbl}</button>`
     : '');
 
-  $('#main').innerHTML = `${pageHead('plan', `Plan &mdash; ${esc(p.account.name)}`, p.status === 'past'
-      ? 'This month has already finished &mdash; what was planned, and what actually happened.'
-      : 'Revenue = MER &times; spend, so you choose <b>two</b> and the third follows.')}
+  $('#main').innerHTML = `${pageHead('plan', `Plan: ${esc(p.account.name)}`)}
     <div class="row" style="margin-bottom:12px;flex-wrap:wrap">
       ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
       <span id="plChip">${statusPill}</span>
-      <span style="flex:1"></span>
-      ${editable && c ? `<span class="tiny">Growth on ${p.basis ? esc(monthLabel(p.basis.month)) : 'last month'}</span>
-        ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}` : ''}
     </div>
+    ${noPlanLine}
 
     ${p.status === 'past' && p.actual ? retroCard(p, cur, saved) : ''}
 
     ${editable && c ? `
       ${staleBasis()}
-      <div id="plFields" class="pf-grid pf-eq">${fieldsHtml()}</div>
-      <div class="two even pl-two">
-        <div>
-          <div class="card sc ${verdictTone(c)}" id="plVerdictCard">
-            <div class="mini">Achievability</div>
-            <div class="big" id="plVerdictBig" style="font-size:22px">${verdictWord(c)}</div>
-            <div class="tiny" style="line-height:1.7;color:var(--ink-2)" id="plVerdict">${verdictHtml(c)}</div>
-          </div>
-          <div class="card key"><h3 style="margin-bottom:2px">What this plan leaves the business</h3>
-            <p class="hint" style="margin-bottom:10px">Returning customers should bring in about <b>${fmtMoney(expRet, cur)}</b> on their own; everything above that has to be bought with the ad spend.</p>
-            <div class="row" style="gap:22px;flex-wrap:wrap;align-items:flex-start;margin:0">
-              <div><div class="tiny">Expected contribution margin</div><div style="font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.15" id="plCm">${fmtMoney(c.cm, cur)}</div><div class="tiny" id="plCmSub">${c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : ''}</div></div>
-              <div style="flex:1;min-width:200px;line-height:1.6" class="tiny" id="plCmNote">${cmHtml(c)}</div>
-            </div>
-            <div id="plStruct">${structureHtml()}</div>
-          </div>
-          <div id="plCatchUp">${catchUpCard()}</div>
-          <div id="plAssump" style="margin-bottom:11px">${basisNote()}</div>
-        </div>
-        <div>
-          <div class="card sc ${saved && saved.agreed_at ? 'ok' : 'un'}">
-            <div class="mini">Agreement</div>
-            <div class="row" style="margin:6px 0 6px;gap:10px;align-items:center">
-              <div class="toggle ${saved && saved.agreed_at ? 'on' : ''}" id="plAgreed"></div>
-              <span style="font-weight:700;font-size:15px" id="plAgreedLbl">${saved && saved.agreed_at ? `Agreed ${esc(String(saved.agreed_at).slice(0, 10))}` : 'Not yet agreed'}</span>
-            </div>
-            <p class="hint"><b>Save</b> (top right) makes this the month&rsquo;s target; every daily update then measures against it. <b>Client link</b> is a read-only page with just this plan on it, to send or screen-share. <b>Agreed</b> records that they said yes, and the date; change the numbers later and it clears itself.</p>
-            <span class="tiny" id="plMsg"></span>
-          </div>
-          <div id="plQuarter"></div>
-    <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
-      <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> - the plan below is not an average of it.</p>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>Month</th>
-          <th class="num">Revenue <span class="info-i" title="Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel - paid, organic, email, direct - not any platform\’s attributed revenue. The same line used on every tab.">i</span></th>
-          <th class="num">Ad spend <span class="info-i" title="Every ad platform combined for the month, from Triple Whale - Meta plus Google plus anything else running. Not Meta alone.">i</span></th>
-          <th class="num">MER <span class="info-i" title="Marketing Efficiency Ratio = all store revenue divided by all ad spend. Blended on both sides, so it is not ROAS and it is not platform-attributed. 3.00x means three dollars came into the store for every dollar spent on ads.">i</span></th>
-          <th class="num">aMER <span class="info-i" title="Acquisition MER = NEW-customer revenue divided by that same total ad spend. Repeat buyers and email cannot flatter it, so it isolates whether the ads are actually buying customers.">i</span></th>
-          <th class="num">Margin <span class="info-i" title="Gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of revenue. This is not contribution margin - ad spend has not been taken off yet.">i</span></th></tr></thead>
-        <tbody>${hist.slice(-6).map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
-          <td><b>${esc(monthLabel(h.month))}</b>${h.partial ? ` <span class="tiny">(${h.days} of ${h.days_in_month} days)</span>` : ''}</td>
-          <td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td>
-          <td class="num">${fmtX(h.mer)}</td><td class="num">${fmtX(h.amer)}</td><td class="num">${fmtPct(h.margin)}</td></tr>`).join('')}
-        </tbody></table></div>
-      ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> - ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>
+      <div class="card key pl-main">
+        <div class="pl-quick"><span class="tiny">Quick fill the revenue goal from ${p.basis ? `${esc(basisLbl)} (${fmtMoney(p.basis.sales, cur)})` : 'last month'}</span>
+          ${[0, 0.1, 0.2, 0.3].map(g => `<button class="chip ${c.growth != null && Math.abs(c.growth - g) < 0.005 ? 'on' : ''}" data-g="${g}">${g === 0 ? 'Hold flat' : '+' + Math.round(g * 100) + '%'}</button>`).join('')}</div>
+        <div id="plFields" class="pf-grid pf-eq">${fieldsHtml()}</div>
+        <div class="pl-verdict ${verdictTone(c)}" id="plVerdictCard"><span id="plVerdict">${verdictHtml(c)}</span></div>
+        <div class="pl-save">
+          <button class="btn primary" id="plSave2">${saveLbl}</button>
+          <button class="btn" id="plShare2" title="A read-only page with just this plan on it, to send or screen-share.">↗ Client link</button>
+          <span class="tiny" id="plMsg">Saving makes this the month&rsquo;s target. The Daily Brief measures every day against it.</span>
         </div>
       </div>
+      <div id="plCatchUp">${catchUpCard()}</div>
+      <div class="two even pl-two">
+        <div class="card"><h3 style="margin-bottom:8px">What this plan leaves the business</h3>
+          <div class="row" style="gap:22px;flex-wrap:wrap;align-items:flex-start;margin:0">
+            <div><div class="tiny">Expected contribution margin</div><div style="font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.15" id="plCm">${fmtMoney(c.cm, cur)}</div><div class="tiny" id="plCmSub">${c.cmPct != null ? `${fmtPct(c.cmPct)} of revenue` : ''}</div></div>
+            <div style="flex:1;min-width:200px;line-height:1.6" class="tiny" id="plCmNote">${cmHtml(c)}</div>
+          </div>
+          <div id="plStruct">${structureHtml()}</div>
+        </div>
+        <div class="card sc ${saved && saved.agreed_at ? 'ok' : 'un'}">
+          <div class="mini">Agreed with the client</div>
+          <div class="row" style="margin:6px 0 6px;gap:10px;align-items:center">
+            <div class="toggle ${saved && saved.agreed_at ? 'on' : ''}" id="plAgreed"></div>
+            <span style="font-weight:700;font-size:15px" id="plAgreedLbl">${saved && saved.agreed_at ? `Agreed ${esc(String(saved.agreed_at).slice(0, 10))}` : 'Not yet agreed'}</span>
+          </div>
+          <p class="hint" style="margin:0">Switch this on once the client says yes. It records the date, and clears itself if the numbers change later.</p>
+        </div>
+      </div>
+      <div id="plQuarter"></div>
+      <div id="plAssump" style="margin-bottom:11px">${basisNote()}</div>
+      ${recentHtml}
       <div id="plRhythm"></div>`
     : editable ? '<div class="card"><span class="hint">Not enough history to propose a number for this client yet.</span></div><div id="plQuarter"></div><div id="plRhythm"></div>'
-    : `<div id="plQuarter"></div><div id="plRhythm"></div>
-    <div class="card"><h3 style="margin-bottom:6px">Recent months</h3>
-      <p class="hint" style="margin-bottom:10px">What actually happened, so the next number is grounded in this client rather than a wish. <b>This table is context you read</b> - the plan below is not an average of it.</p>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>Month</th>
-          <th class="num">Revenue <span class="info-i" title="Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel - paid, organic, email, direct - not any platform\’s attributed revenue. The same line used on every tab.">i</span></th>
-          <th class="num">Ad spend <span class="info-i" title="Every ad platform combined for the month, from Triple Whale - Meta plus Google plus anything else running. Not Meta alone.">i</span></th>
-          <th class="num">MER <span class="info-i" title="Marketing Efficiency Ratio = all store revenue divided by all ad spend. Blended on both sides, so it is not ROAS and it is not platform-attributed. 3.00x means three dollars came into the store for every dollar spent on ads.">i</span></th>
-          <th class="num">aMER <span class="info-i" title="Acquisition MER = NEW-customer revenue divided by that same total ad spend. Repeat buyers and email cannot flatter it, so it isolates whether the ads are actually buying customers.">i</span></th>
-          <th class="num">Margin <span class="info-i" title="Gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of revenue. This is not contribution margin - ad spend has not been taken off yet.">i</span></th></tr></thead>
-        <tbody>${hist.slice(-6).map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
-          <td><b>${esc(monthLabel(h.month))}</b>${h.partial ? ` <span class="tiny">(${h.days} of ${h.days_in_month} days)</span>` : ''}</td>
-          <td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td>
-          <td class="num">${fmtX(h.mer)}</td><td class="num">${fmtX(h.amer)}</td><td class="num">${fmtPct(h.margin)}</td></tr>`).join('')}
-        </tbody></table></div>
-      ${editable && p.basis ? `<p class="tiny" style="margin-top:8px">Building from <b>${esc(monthLabel(p.basis.month))}</b> - ${fmtMoney(p.basis.sales, cur)}.</p>` : ''}</div>`}`;
+    : `<div id="plQuarter"></div>
+    ${recentHtml}
+    <div id="plRhythm"></div>`}`;
 
   const repaint = () => {
     c = calc();
@@ -8123,8 +8187,7 @@ async function renderPlan(first) {
       b.classList.toggle('on', c.growth != null && Math.abs(c.growth - +b.dataset.g) < 0.005));
     const sn = $('#plStruct'); if (sn) sn.innerHTML = structureHtml();
     const v = $('#plVerdict'); if (v) v.innerHTML = verdictHtml(c);
-    const vc = $('#plVerdictCard'); if (vc) vc.className = `card sc ${verdictTone(c)}`;
-    const vb = $('#plVerdictBig'); if (vb) vb.textContent = verdictWord(c);
+    const vc = $('#plVerdictCard'); if (vc) vc.className = `pl-verdict ${verdictTone(c)}`;
     const n = $('#plCmNote'); if (n) n.innerHTML = cmHtml(c);
   };
 
@@ -8223,6 +8286,7 @@ async function renderPlan(first) {
   $('#main').querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
     if (b.dataset.m === PL.month) return;
     PL.month = b.dataset.m; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null; PL.aAct = null;
+    PL.auto = false;                      // the reader chose this month; keep it
     inPlace(() => renderPlan(false));
   });
 
@@ -8265,7 +8329,7 @@ async function renderPlan(first) {
           <div class="ru-v${q.cm == null ? '' : q.cm >= 0 ? ' good' : ' bad'}">${fmtMoney(q.cm, cur)}</div>
           <div class="ru-d">${q.sales ? fmtPct(q.cm / q.sales) + ' of revenue' : ''}</div></div>
         <div class="ru"><div class="ru-l">Quarter target</div>
-          <div class="ru-v">${q.goal_sales != null ? fmtMoney(q.goal_sales, cur) : '&mdash;'}</div>
+          <div class="ru-v">${q.goal_sales != null ? fmtMoney(q.goal_sales, cur) : 'Not set'}</div>
           <div class="ru-d">${q.unplanned.length ? `${3 - q.unplanned.length} of 3 months planned` : 'all three months planned'}</div></div>
       </div>
       <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Agreed</th><th class="num">Actual</th><th class="num">vs plan</th></tr></thead>
@@ -8289,13 +8353,16 @@ async function renderPlan(first) {
       <div class="rh-body">${rhythmCard(rh, p.account.currency, false)}</div></details>`;
   }).catch(() => { /* context, never a blocker */ });
 
-  const sv = $('#plSave');
-  if (sv) sv.onclick = async () => {
+  // Save sits WITH the numbers (#plSave2) and stays in the top bar (#plSave):
+  // one handler, two buttons.
+  const savePlan = async () => {
     const cc = calc();
     if (!cc || cc.sales == null) return;
     $('#plMsg').textContent = 'Saving…';
     try {
-      const changed = p.goals && p.goals.sales != null && Math.abs(p.goals.sales - cc.sales) > 1;
+      // "Changed" means changed against a plan saved for THIS month. The
+      // inherited default is not a plan, so a first save never needs re-agreeing.
+      const changed = !!p.planned && p.goals && p.goals.sales != null && Math.abs(p.goals.sales - cc.sales) > 1;
       await api('/api/plan', { method: 'PUT', body: JSON.stringify({
         act: S.act, month: p.month, sales: Math.round(cc.sales),
         spend: cc.spend != null ? Math.round(cc.spend) : null,
@@ -8314,18 +8381,21 @@ async function renderPlan(first) {
         } }) });
       p.goals = Object.assign({}, p.goals || {}, { sales: Math.round(cc.sales) });
       p.planned = true;
+      // The month has a plan of its own now: the "no plan yet" line goes, in place.
+      const np = $('#plNoPlan'); if (np) np.remove();
       if (changed) {
         const t = $('#plAgreed'); if (t) t.classList.remove('on');
-        $('#plAgreedLbl').textContent = 'not yet agreed';
+        $('#plAgreedLbl').textContent = 'Not yet agreed';
       }
       if (!(saved && saved.agreed_at) || changed) $('#plChip').innerHTML = '<span class="pill warn">saved, not agreed</span>';
-      $('#plMsg').textContent = changed ? 'Saved ✓ - numbers moved, so it needs agreeing again.' : 'Saved ✓';
+      $('#plMsg').textContent = changed ? 'Saved ✓ The numbers moved, so it needs agreeing again.' : 'Saved ✓';
       // The quarter card rolls up this very plan, and Overview + Daily Brief read the
       // goals out of S.accounts. Both refresh in place - no re-render, no scroll jump.
       loadQuarter();
       refreshAccounts();
     } catch (e) { $('#plMsg').textContent = e.message; }
   };
+  ['#plSave', '#plSave2'].forEach(s => { const b = $(s); if (b) b.onclick = savePlan; });
 
   const ag = $('#plAgreed');
   if (ag) ag.onclick = async () => {
@@ -8334,7 +8404,7 @@ async function renderPlan(first) {
     $('#plMsg').textContent = '';
     try {
       const r = await api('/api/plan-agree', { method: 'POST', body: JSON.stringify({ act: S.act, month: p.month, agreed: on }) });
-      $('#plAgreedLbl').textContent = on && r.agreed_at ? `agreed ${String(r.agreed_at).slice(0, 10)}` : 'not yet agreed';
+      $('#plAgreedLbl').textContent = on && r.agreed_at ? `Agreed ${String(r.agreed_at).slice(0, 10)}` : 'Not yet agreed';
       $('#plChip').innerHTML = on && r.agreed_at
         ? `<span class="pill good">agreed ${esc(String(r.agreed_at).slice(0, 10))}</span>`
         : '<span class="pill warn">saved, not agreed</span>';
@@ -8344,35 +8414,41 @@ async function renderPlan(first) {
     }
   };
 
-  const sh = $('#plShare');
-  if (sh) sh.onclick = async () => {
+  const sharePlan = async () => {
     try {
       const r = await api('/api/plan-share', { method: 'POST', body: JSON.stringify({ act: S.act, month: p.month }) });
       // A blocked clipboard must not surface as an unhandled rejection - the URL is on screen regardless.
       if (navigator.clipboard) navigator.clipboard.writeText(r.url).catch(() => {});
-      noteModal('Client link ready', `<p>A read-only page showing just this plan - no other client, no internal notes.</p><p><code style="word-break:break-all">${esc(r.url)}</code></p><p class="tiny">Copied to your clipboard.</p>`);
+      noteModal('Client link ready', `<p>A read-only page showing just this plan. No other client, no internal notes.</p><p><code style="word-break:break-all">${esc(r.url)}</code></p><p class="tiny">Copied to your clipboard.</p>`);
     } catch (e) { $('#plMsg').textContent = e.message; }
   };
+  ['#plShare', '#plShare2'].forEach(s => { const b = $(s); if (b) b.onclick = sharePlan; });
 }
 
 /** All clients at a glance: who still needs next month agreed. */
 async function renderPlanAll() {
-  const next = shiftMonth(ymdLocal(new Date()).slice(0, 7), 1);
-  $('#main').innerHTML = `${pageHead('plan', 'Plan', 'A forecast nobody agreed to is just a guess. Set it once a month, then leave it alone.')}
+  /* TWO MONTHS, because two can be missing. The table used to show next month
+     only, so a month IN PROGRESS with no plan (October 2026, with the Daily
+     Brief warning about it every morning) was invisible here. The month in
+     progress comes first: it is the one being measured right now. */
+  const now = ymdLocal(new Date()).slice(0, 7);
+  const next = shiftMonth(now, 1);
+  const cols = [[now, 'now'], [next, 'next']];
+  $('#main').innerHTML = `${pageHead('plan', 'Plan')}
+    <div id="plWarn"></div>
     <div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th class="num">${esc(monthLabel(next))} goal</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Brand</th><th>${esc(monthLabel(now))} <span class="tiny">in progress</span></th><th>${esc(monthLabel(next))}</th><th></th></tr></thead>
       <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer">
         <td><b>${esc(a.name)}</b></td>
-        <td class="num" data-goal="${a.act_id}">…</td>
-        <td data-agreed="${a.act_id}">…</td>
-        <td><button class="btn">Plan it</button></td></tr>`).join('')}
+        ${cols.map(([, k]) => `<td data-pl="${k}-${a.act_id}">…</td>`).join('')}
+        <td class="num"><button class="btn">Open plan</button></td></tr>`).join('')}
       </tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Showing <b>${esc(monthLabel(next))}</b> - the month you would actually be planning right now. Open a client to plan a different one.</p></div>
-    <div id="plWarn"></div>`;
+      <p class="tiny" style="margin-top:10px">Open a brand to set or change a plan. It opens on ${esc(monthLabel(now))} while that month has no plan, otherwise on ${esc(monthLabel(next))}.</p></div>`;
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
-    PL.month = next; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null;
+    // No month: renderPlan picks the one that needs a plan first.
+    PL.month = null; PL.auto = false; PL.sales = null; PL.spend = null; PL.mer = null; PL.act = null;
     $('#clientPick').value = S.act; show('plan');
   });
   const run = ++RUN;
@@ -8380,31 +8456,42 @@ async function renderPlanAll() {
   // without an explicit plan silently inherits the previous month's numbers.
   const startsOn = new Date(`${next}-01T12:00:00Z`);
   const daysToGo = Math.max(0, Math.round((startsOn - new Date(ymdLocal(new Date()) + 'T12:00:00Z')) / 86400000));
-  const unplanned = [];
+  const missing = { now: [], next: [] };
   let answered = 0;
   const drawWarn = () => {
-    const el = $('#plWarn'); if (!el || answered < S.accounts.length) return;
-    if (!unplanned.length) {
-      el.innerHTML = `<div class="notice">✓ <div>Every client has a plan for <b>${esc(monthLabel(next))}</b>.</div></div>`;
+    const el = $('#plWarn'); if (!el || answered < S.accounts.length * 2) return;
+    const names = k => missing[k].map(x => esc(x)).join(', ');
+    const count = k => `${missing[k].length} brand${missing[k].length === 1 ? ' has' : 's have'}`;
+    if (missing.now.length) {
+      el.innerHTML = `<div class="notice warn">⚠️ <div><b>${esc(monthLabel(now))} is in progress and ${count('now')} no plan for it:</b> ${names('now')}.
+        Until one is saved, the Daily Brief measures each day against the last plan on file. Set these first.${missing.next.length ? ` ${esc(monthLabel(next))} is still open for ${count('next').replace(/ ha(s|ve)$/, '')} too.` : ''}</div></div>`;
       return;
     }
-    const names = unplanned.map(x => esc(x)).join(', ');
+    if (!missing.next.length) {
+      el.innerHTML = `<div class="notice">✓ <div>Every brand has a plan for <b>${esc(monthLabel(now))}</b> and <b>${esc(monthLabel(next))}</b>.</div></div>`;
+      return;
+    }
     el.innerHTML = `<div class="notice ${daysToGo <= 10 ? 'warn' : ''}">${daysToGo <= 10 ? '⚠️' : 'ℹ️'} <div>
-      <b>${esc(monthLabel(next))} starts in ${daysToGo} day${daysToGo === 1 ? '' : 's'} and ${unplanned.length} client${unplanned.length === 1 ? ' has' : 's have'} no plan for it:</b> ${names}.
-      <br>A month nobody plans doesn't go blank - it quietly reuses the last plan on file, and the Daily Brief will measure against that. Set them here and the brief has a real target to compare with.</div></div>`;
+      <b>${esc(monthLabel(next))} starts in ${daysToGo} day${daysToGo === 1 ? '' : 's'} and ${count('next')} no plan for it:</b> ${names('next')}.
+      A month nobody plans quietly reuses the last plan on file, and the Daily Brief measures against that.</div></div>`;
   };
 
   for (const a of S.accounts) {
-    api(`/api/plan?act=${a.act_id}&month=${next}`).then(p => {
-      if (run !== RUN) return;
-      if (!p.planned) unplanned.push(a.name);
-      answered++; drawWarn();
-      const gc = $(`[data-goal="${a.act_id}"]`), ag = $(`[data-agreed="${a.act_id}"]`);
-      if (gc) gc.innerHTML = p.planned && p.goals && p.goals.sales != null ? `<b>${fmtK(p.goals.sales, a.currency)}</b>` : '<span class="tiny">not set</span>';
-      if (ag) ag.innerHTML = p.plan && p.plan.agreed_at
-        ? '<span class="pill good">agreed</span>'
-        : p.planned ? '<span class="pill warn">needs agreeing</span>' : '<span class="pill unk">not planned</span>';
-    }).catch(() => { if (run === RUN) { answered++; drawWarn(); } });
+    for (const [ym, k] of cols) {
+      api(`/api/plan?act=${a.act_id}&month=${ym}`).then(p => {
+        if (run !== RUN) return;
+        if (!p.planned) missing[k].push(a.name);
+        answered++; drawWarn();
+        const cell = $(`[data-pl="${k}-${a.act_id}"]`);
+        if (cell) cell.innerHTML = p.planned && p.goals && p.goals.sales != null
+          ? `<b>${fmtK(p.goals.sales, a.currency)}</b> ${p.plan && p.plan.agreed_at ? '<span class="pill good">agreed</span>' : '<span class="pill warn">needs agreeing</span>'}`
+          : `<span class="pill ${k === 'now' ? 'bad' : 'unk'}">no plan</span>`;
+      }).catch(() => {
+        if (run !== RUN) return;
+        answered++; drawWarn();
+        const cell = $(`[data-pl="${k}-${a.act_id}"]`); if (cell) cell.innerHTML = '<span class="tiny">could not load</span>';
+      });
+    }
   }
 }
 
@@ -8420,8 +8507,8 @@ async function renderPlanAll() {
 function cohortCard(co, cur) {
   if (!co) return '';
   if (!co.connected) {
-    return `<div class="card"><h3 style="margin-bottom:6px">Lifetime value by cohort</h3>
-      <p class="hint" style="margin-bottom:0">Not available for this client yet - it needs Shopify connected, because Triple Whale has no per-customer history. Everything above still works; this adds true lifetime value, the retention curve, and LTV against CAC.</p></div>`;
+    return `<div class="card"><h3 style="margin-bottom:6px">Do customers get more valuable over time?</h3>
+      <p class="hint" style="margin-bottom:0">Not answerable for this client yet. Lifetime value by cohort needs Shopify connected, because Triple Whale has no per-customer history. Everything else on this page still works.</p></div>`;
   }
   const sm = co.summary;
   // Share of a matured cohort's purchases that came AFTER the first order. Measured
@@ -8451,8 +8538,8 @@ function cohortCard(co, cur) {
     `<div class="ru"><div class="ru-l">${label}${info ? ` <span class="info-i ru-i" title="${esc(info)}">i</span>` : ''}</div>` +
     `<div class="ru-v">${value}</div><div class="ru-d">${sub}</div></div>`;
 
-  return `<div class="card"><h3 style="margin-bottom:2px">Lifetime value by cohort <span class="info-i" title="Customers grouped by the month they FIRST bought, then followed forward. This is true cohort analysis and it comes from Shopify, not Triple Whale. A cohort's lifetime value only means something once it has had time to mature, so anything under nine months old is faded and left out of the averages.">i</span></h3>
-    <p class="hint" style="margin-bottom:10px">Each row is everyone who first bought in that month, and what they have been worth since. Recent cohorts are faded - they have not had time to come back yet, and reading them as if they had is the classic way to misjudge a retention curve.</p>
+  return `<div class="card"><h3 style="margin-bottom:2px">Do customers get more valuable over time? <span class="info-i" title="Customers grouped by the month they FIRST bought, then followed forward. This is true cohort analysis and it comes from Shopify, not Triple Whale. A cohort's lifetime value only means something once it has had time to mature, so anything under nine months old is faded and left out of the averages.">i</span></h3>
+    <p class="hint" style="margin-bottom:10px">Lifetime value by cohort: each row is everyone who first bought in that month, and what they have been worth since. Faded rows are too young to judge.</p>
     ${verdict}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:14px 0">
       ${card('Lifetime value', fmtMoney(sm.mature_ltv, cur), 'matured cohorts, 9 months or older', 'What a customer has actually been worth, averaged across cohorts old enough to have finished maturing. Real spend from Shopify, not a projection.')}
@@ -8464,21 +8551,21 @@ function cohortCard(co, cur) {
     <div class="tbl-wrap"><table>
       <thead><tr><th>First bought</th><th class="num">Customers</th><th class="num">Came back</th><th class="num">Worth since</th><th class="num">Cost to acquire</th><th class="num">LTV:CAC</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    <p class="tiny" style="margin-top:8px">Lifetime value and repeat rates come from Shopify; cost to acquire is that month's blended ad spend from Triple Whale over its new customers. Neither source can produce both halves, which is why this needs the Shopify connection.</p>
+    <p class="tiny" style="margin-top:8px">Lifetime value and repeat rates come from Shopify. Cost to acquire is that month's blended ad spend from Triple Whale over its new customers.</p>
   </div>`;
 }
 
 async function renderCustomersAll() {
-  $('#main').innerHTML = `${pageHead('customers', 'Customers', '<b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder.')}
-    
-    <div class="card"><div class="tbl-wrap"><table>
+  $('#main').innerHTML = `${pageHead('customers', 'Customers')}
+
+    <div class="card"><h3 style="margin-bottom:8px">Does a new customer pay for themselves?</h3><div class="tbl-wrap"><table>
       <thead><tr><th>Client</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
       <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer"><td><b>${esc(a.name)}</b></td>
         <td class="num" data-c="cac-${a.act_id}">…</td><td class="num" data-c="aov-${a.act_id}"></td>
         <td class="num" data-c="gp-${a.act_id}"></td><td class="num" data-c="pb-${a.act_id}"></td>
         <td class="num" data-c="rp-${a.act_id}"></td></tr>`).join('')}
       </tbody></table></div>
-      <p class="tiny" style="margin-top:10px">Whole months only, up to six. CAC is blended - all ad spend over all new customers, not a platform's reported figure. Payback is the first order's product margin divided by CAC. Click a client for the month-by-month trend.</p></div>`;
+      <p class="tiny" style="margin-top:10px"><b>Payback over 1.0x</b> means the brand profits on the first order and can afford to bid harder. Payback is the first order's product margin divided by CAC. CAC is blended: all ad spend over all new customers, not a platform's reported figure. Whole months only, up to six. Click a brand for the month-by-month trend.</p></div>`;
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -8503,8 +8590,10 @@ async function renderCustomers(first) {
   if (S.act === 'all') return renderCustomersAll();
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
-  const shell = body => `${pageHead('customers', `Customers &mdash; ${esc(acct?.name || '')}`, 'Not a true lifetime value &mdash; Triple Whale gives us no per-customer history.')}
-    
+  // One sub-line (the page purpose). The "not cohort analysis" statement stays
+  // on the page, in the footer, where it always was.
+  const shell = body => `${pageHead('customers', `Customers: ${esc(acct?.name || '')}`)}
+
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
@@ -8541,10 +8630,17 @@ async function renderCustomers(first) {
   const payWord = !d.cm_ok ? 'Payback not stated' : pb == null ? 'No payback figure yet'
     : pb >= 1 ? `Pays back on order one, ${pb.toFixed(2)}x` : `Needs a second order, ${pb.toFixed(2)}x`;
   const payInner = verdict.replace(/^<div class="notice[^"]*">[^<]*<div>/, '').replace(/<\/div><\/div>\s*$/, '');
-  const payCard = verdict ? `<div class="card sc ${payTone}"><div class="mini">Payback</div><div class="big" style="font-size:17px">${payWord}</div><p class="hint" style="color:var(--ink-2)">${payInner}</p></div>` : '';
+  /* THE question this page exists to answer, so it sits first and full width:
+     the question as the title, the answer as the big line, and the sentences
+     that carry the working behind one closed disclosure. Same numbers, same
+     branches as before. */
+  const payCard = verdict ? `<div class="card sc ${payTone}"><h3 style="margin-bottom:2px">Does a new customer pay for themselves?</h3>
+      <div class="big" style="font-size:20px">${payWord}</div>
+      <details class="footnote" style="margin-top:8px;padding-top:9px"><summary>The numbers behind that answer</summary><div class="fn-body" style="color:var(--ink-2);font-size:13px">${payInner}</div></details></div>` : '';
 
   $('#main').innerHTML = shell(`
-    ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> CAC and payback swing hard on small numbers - widen the range picker, or read the month-by-month table below instead of the headline.</div></div>` : ''}
+    ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> CAC and payback swing hard on small numbers. Widen the range picker, or read the month-by-month table below instead of the headline.</div></div>` : ''}
+    ${payCard}
     <div class="rollup">
       ${card('Cost to acquire', fmtMoney(h.cac, cur), `${h.new_orders} new customers`, 'All ad spend across every platform divided by the number of genuinely new customers. Blended, so it is not any single platform\u2019s reported cost per acquisition and will not match Ads Manager.')}
       ${card('First order value', fmtMoney(h.new_aov, cur), 'average, new customers', 'What a new customer spends on their first order, before any costs. Revenue from new customers divided by new-customer orders.')}
@@ -8562,31 +8658,31 @@ async function renderCustomers(first) {
     <div>
     ${cohortCard(co, cur)}
 
-    <div class="card"><h3 style="margin-bottom:8px">Month by month</h3>
+    <div class="card"><h3 style="margin-bottom:8px">Is it getting better or worse, month by month?</h3>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Month</th><th class="num">New customers</th><th class="num">CAC</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Payback</th><th class="num">Repeat share</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      <p class="tiny" style="margin-top:8px">Whole months, so this stays put when you change the range picker above - it is the trend, not the current reading. The month in progress is faded because it is incomplete.</p></div>
+      <p class="tiny" style="margin-top:8px">Whole months, so this does not move with the range picker. The month in progress is faded because it is incomplete.</p></div>
     </div>
     <div>
-    ${payCard}
-    ${h.repeat_share != null ? `<div class="card"><div class="mini">Repeat buyers</div><p class="hint" style="margin-top:4px;color:var(--ink-2)">${
+    ${h.repeat_share != null ? `<div class="card"><h3 style="margin-bottom:4px">Do customers come back?</h3><p class="hint" style="margin-top:4px;color:var(--ink-2)">${
       h.repeat_share < 0.2
-        ? `<b>Growth here is expensive.</b> Only ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so roughly ${fmtPct(1 - h.repeat_share)} of every month has to be bought again with ad spend. Nothing carries over - if spend stops, revenue stops with it.`
+        ? `<b>Growth here is expensive.</b> Only ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so roughly ${fmtPct(1 - h.repeat_share)} of every month has to be bought again with ad spend. Nothing carries over: if spend stops, revenue stops with it.`
         : h.repeat_share >= 0.35
         ? `<b>A real base is carrying this brand.</b> ${fmtPct(h.repeat_share)} of orders come from people who had bought before, so a good chunk of each month arrives without ad spend behind it. That is what lets a brand survive a soft acquisition month.`
         : `<b>Part-bought, part-carried.</b> ${fmtPct(h.repeat_share)} of orders come from previous customers, so most of each month still has to be bought with ad spend, but the base is doing real work.`}</p></div>` : ''}
-    ${h.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New vs returning, in revenue <span class="info-i" title="Repeat share above counts ORDERS; this counts MONEY. They differ when returning customers spend more or less per order than first-time buyers. A high returning share with weak new revenue means the ads have stopped acquiring and the list is carrying the store - MER holds up while aMER quietly falls.">i</span></h3>
+    ${h.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">Who is the revenue coming from? <span class="info-i" title="Repeat share above counts ORDERS; this counts MONEY. They differ when returning customers spend more or less per order than first-time buyers. A high returning share with weak new revenue means the ads have stopped acquiring and the list is carrying the store - MER holds up while aMER quietly falls.">i</span></h3>
       <p style="font-size:14px;margin:4px 0"><b>${fmtMoney(h.new_rev, cur)}</b> from new customers (<b>${fmtPct(h.new_rev_share)}</b> of revenue) · <b>${fmtMoney(h.returning_rev, cur)}</b> returning.
       ${h.new_rev_share != null && h.repeat_share != null ? `Returning customers placed <b>${fmtPct(h.repeat_share)}</b> of orders but produced <b>${fmtPct(1 - h.new_rev_share)}</b> of revenue - ${(1 - h.new_rev_share) > h.repeat_share + 0.02 ? 'they spend <b>more</b> per order than first-time buyers' : (1 - h.new_rev_share) < h.repeat_share - 0.02 ? 'they spend <b>less</b> per order than first-time buyers' : 'they spend about the same per order as first-time buyers'}.` : ''}</p>
       <div style="height:10px;border-radius:99px;overflow:hidden;display:flex;margin-top:8px">
         <div style="width:${((h.new_rev_share || 0) * 100).toFixed(1)}%;background:var(--brand-ink)"></div>
         <div style="flex:1;background:var(--line-strong)"></div></div>
-      <p class="tiny" style="margin-top:8px">A high returning share with weak new revenue means the list is carrying the store - MER looks fine while aMER quietly collapses.</p></div>` : ''}
+      <p class="tiny" style="margin-top:8px">Dark is new customers, light is returning.</p></div>` : ''}
 
     </div>
     </div>
-    <p class="tiny"><b>This is not cohort analysis.</b> Triple Whale provides no cohort table or per-customer history, so we cannot follow one month's customers through the year or state a true lifetime value. These are monthly averages. Where a real LTV would change a decision - a long payback business, a subscription - treat these as directional and go to the Shopify data.</p>`);
+    <details class="footnote" style="margin-top:14px"><summary><b>These are monthly averages, not cohort analysis.</b> Why, and when it matters</summary>
+      <div class="fn-body">Triple Whale provides no cohort table or per-customer history, so we cannot follow one month's customers through the year or state a true lifetime value. Where a real LTV would change a decision (a long payback business, a subscription), treat these as directional and go to the Shopify data.</div></details>`);
 }
 
 /* ---------- Settings ---------- */

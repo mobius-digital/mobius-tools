@@ -1329,3 +1329,20 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
 - **Brand Research**: At a glance tiles, sections as questions in strategist order (Who buys,
   What do they say, angle ideas, market, mechanism, competitors, website), collapsed by default,
   staff actions inside "Research tools" or quiet Edit links. 152 buttons became about 19.
+
+## 2026-10-05: second hierarchy pass (Plan, Profit, Customers, Change Log, Studio)
+
+- **Plan opens on the month IN PROGRESS when it has no plan of its own** (`planned` false), else next
+  month (supersedes "Plan defaults to NEXT month"). An unplanned month seeds at hold flat on the basis
+  month, never from `goals_json.default` (that default is still overwritten on every save and merged
+  under every month by the API: the $99,967 "Unrealistic" October was the last plan saved for another
+  month). Save sits with the three numbers; explanations are closed disclosures. Titles use a colon,
+  never an em dash ("Plan: Lucky Golf").
+- **Customers** leads with "Does a new customer pay for themselves?"; sections are questions.
+- **Change Log** ("What changed on the account"): "Changes that matter" (budget, new_campaign,
+  campaign_paused, campaign_relaunched, bid_strategy, targeting, new_creative, new_adset, manual)
+  grouped by day, then "Everything else (N)" closed. "Add why" is one dialog; ✓ is "Use this reason",
+  ✗ is "Hide". Same-object same-minute rows fold. Its CSS ships inside meta.js.
+- **Studio**: connections live behind one "Connections" button (Atria included; `#stAtria` is gone
+  from the top bar); five steps in words; one primary button per screen; Studio's brief-line class is
+  `.st-bl` because `.st-line` is the Daily Brief status line in index.html.

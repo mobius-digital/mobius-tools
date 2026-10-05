@@ -123,11 +123,12 @@ const META_HELP = {
     <p><b>Why there is no monthly pacing here any more:</b> the month is planned and forecast in <b>Plan</b>, against blended revenue and total spend across every platform. A second, Meta-only version of the same question disagreed with it and was the noisier of the two. What survives is the part Plan genuinely cannot see: what is happening in the last few hours.</p>
     <p><b>Meta only</b> - every figure here matches Ads Manager.</p>`,
   changelog: `
-    <p><b>What this page is:</b> the permanent record of what we changed, when, who, and why - pulled from Meta automatically every night. Nobody has to write anything down.</p>
-    <p><b>Daily habit (optional, ~3 clicks):</b> when you make a move that matters - budget change, kill, launch - find it here and tag the <b>why</b>. Amber suggestions are pre-filled guesses; ✓ accepts one. Use <b>+ note</b> for context worth remembering.</p>
-    <p><b>✗</b> hides junk from summaries. <b>+ Add change</b> records things Meta can't see (promo started, landing page swapped, tracking fixed).</p>
-    <p><b>✦ Summarise:</b> Claude writes the daily standup, weekly recap, or a client-safe update from the tagged changes + performance. The more whys you tag, the smarter it reads.</p>
-    <p><b>Forensics:</b> CPA spiked Tuesday? Set the dates to Tuesday and see exactly what changed.</p>`,
+    <p><b>What this page is:</b> the record of what was changed on the account, when, and by whom, pulled from Meta automatically. Nobody has to write the changes down.</p>
+    <p><b>Changes that matter:</b> budgets, campaigns and ad sets, bid strategy, targeting, new ads, and anything added by hand, grouped by day. Press <b>Add why</b> on each one, pick a reason or write your own, and add a note if it helps. The client's Daily Brief writes "What we're doing" only from these reasons.</p>
+    <p><b>Suggested reasons</b> show in amber, and <b>Use this reason</b> accepts one. <b>Hide</b> keeps a noisy change out of summaries and reports; <b>Show again</b> brings it back. <b>Everything else</b> is housekeeping (status updates, renames, billing, single ads switched on or off) and stays closed until you open it.</p>
+    <p><b>+ Add a change</b> records things Meta can't see (promo started, landing page swapped, tracking fixed).</p>
+    <p><b>Summarise:</b> Claude writes the daily standup, weekly recap, or a client-safe update from the changes and performance. The more reasons you add, the better it reads.</p>
+    <p><b>A number moved?</b> CPA spiked Tuesday? Set Period to Custom dates, pick Tuesday, and see exactly what changed.</p>`,
   creative: `
     <p><b>The cards:</b> your top ads for the dates at the top of the page. Each card shows the creative, a verdict and four numbers: <b>Spend</b>, <b>CPA</b>, <b>ROAS</b>, and <b>Hook</b> for videos (share of impressions that watched 3 seconds) or <b>Link CTR</b> for statics. Press <b>▶</b> to play a video in place; press anywhere else on the card for <b>Details</b>: the ad copy, purchases, hold rate, CTR, CPM and how many days it has run.</p>
     <p><b>The verdict</b> is judged against the brand's goal CPA (Settings, Goals). <b>Scale</b>: CPA at or under goal with 2 or more sales. <b>Cut</b>: CPA more than the brand's yellow zone (30% unless changed) over goal, or no sales after spending 1.5x the goal. <b>Watch</b>: everything in between. No goal set, no verdict.</p>
@@ -141,11 +142,126 @@ const META_HELP = {
 const CL = {
   range: localStorage.getItem('ah_cl_range') || '7',
   from: null, to: null,           // used when range === 'custom'
-  q: '', hide: new Set(),         // hidden categories
+  q: '', type: '',                // search text, "Filter by type" category ('' = all)
   rows: [], truncated: false, panel: null,   // panel: 'add' | 'sum' | null
+  seq: 0,                         // newest load wins (two quick period changes)
+  mainShown: 100, restShown: 50,  // "Show 50 more"
+  restOpen: null,                 // Everything else: null = closed unless a search needs it
+  open: new Set(),                // lead ids whose related changes are expanded
+  rel: new Map(),                 // lead id -> related count, as last drawn
 };
+if (!['today','yday','7','30','custom'].includes(CL.range)) CL.range = '7';   // 14 and 90 days were dropped
+const CL_RANGES = [['7','Last 7 days'],['today','Today'],['yday','Yesterday'],['30','Last 30 days'],['custom','Custom dates']];
 const CL_REASONS = ['Positive performance','Negative performance','Testing','Creative refresh','Budget cap','Client request','Promo / seasonal','Housekeeping','Revert / mistake'];
 const CL_ADD_CATS = ['budget','new_creative','new_adset','new_campaign','ad_paused','ad_relaunched','campaign_paused','campaign_relaunched','bid_strategy','targeting','optimisation','schedule','other'];
+/* Plain names for the worker's category keys (CATEGORIES in account-health). */
+const CL_CAT_LABEL = { budget:'Budget', new_campaign:'New campaign', campaign_paused:'Campaign or ad set paused',
+  campaign_relaunched:'Campaign or ad set turned back on', bid_strategy:'Bid strategy', targeting:'Targeting',
+  new_creative:'New ad', new_adset:'New ad set', ad_paused:'Ad paused', ad_relaunched:'Ad turned back on',
+  optimisation:'Optimisation', schedule:'Schedule', name:'Rename', review:'Ad review', billing:'Billing', other:'Other' };
+const clCatLabel = c => CL_CAT_LABEL[c] || String(c || 'other').replace(/_/g, ' ').replace(/^./, m => m.toUpperCase());
+
+/* cl-pure:start  Sorting changes into the two groups. No DOM in here, so a node
+   harness can run it with fake rows. */
+/* The moves a media buyer has to explain: the client's Daily Brief writes "What
+   we're doing" from the reasons on these. Manual entries always count. */
+const CL_MATTER = new Set(['budget','new_campaign','campaign_paused','campaign_relaunched','bid_strategy','targeting','new_creative','new_adset']);
+/* These never fold under another row: each one needs its own why. */
+const CL_ALONE = new Set(['budget','bid_strategy','targeting']);
+/* When several launch/status rows hit one object in one minute, which one leads. */
+const CL_LEAD = ['new_campaign','campaign_relaunched','campaign_paused','new_adset','new_creative'];
+const clTime = r => { const t = parseTs(String(r.event_time || '')).getTime(); return isNaN(t) ? 0 : t; };
+/** Hidden rows (confirmed -1) are noise by the buyer's own call, whatever their type. */
+function clMatters(r) { return r.confirmed !== -1 && (!!r.manual || CL_MATTER.has(r.category)); }
+/** rows -> { main: [{lead, related[]}], rest: [row] }, both newest first.
+ *  Rows on the SAME object in the SAME minute on the same account are one action:
+ *  one lead row, the others ride along as "related". A group with nothing that
+ *  matters goes to rest row by row. Every row lands in exactly one place. */
+function clSplit(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const obj = r.object_id || r.object_name;
+    const k = obj && !r.manual ? [r.act_id, String(r.event_time).slice(0, 16), obj].join('|') : 'solo|' + r.id;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const main = [], rest = [];
+  for (const g of groups.values()) {
+    const mat = g.filter(clMatters);
+    if (!mat.length) { rest.push(...g); continue; }
+    const alone = r => !!r.manual || CL_ALONE.has(r.category);
+    const fam = mat.filter(r => !alone(r)).sort((a, b) => CL_LEAD.indexOf(a.category) - CL_LEAD.indexOf(b.category));
+    const items = [];
+    if (fam.length) items.push({ lead: fam[0], related: fam.slice(1) });
+    mat.filter(alone).forEach(r => items.push({ lead: r, related: [] }));
+    for (const r of g) {
+      if (clMatters(r)) continue;
+      if (r.confirmed === -1) rest.push(r); else items[0].related.push(r);
+    }
+    main.push(...items);
+  }
+  main.sort((a, b) => clTime(b.lead) - clTime(a.lead));
+  rest.sort((a, b) => clTime(b) - clTime(a));
+  return { main, rest };
+}
+/** Consecutive runs of one local day: [{ key:'2026-10-04', label:'Sunday, Oct 4', items }]. */
+function clByDay(list, rowOf) {
+  const days = [];
+  for (const it of list) {
+    const d = parseTs(String(rowOf(it).event_time || ''));
+    const key = isNaN(d) ? '' : [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    if (!days.length || days[days.length - 1].key !== key) {
+      days.push({ key, label: isNaN(d) ? 'No date' : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }), items: [] });
+    }
+    days[days.length - 1].items.push(it);
+  }
+  return days;
+}
+/* cl-pure:end */
+
+/* The page's own styles ride in with every paint (index.html is not this file's
+   to edit). Rows are a three-column grid that stacks on phones. */
+const CL_CSS = `<style>
+  .cl2-ctl{gap:10px 12px}
+  .cl2-lbl{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+  .cl2-ctl .search{min-width:170px}
+  .cl2-sec h3{margin-bottom:2px}
+  .cl2-day{font-size:12px;font-weight:700;color:var(--ink-2);background:var(--bg);border-radius:7px;padding:6px 10px;margin:16px 0 2px}
+  .cl2-item{border-bottom:1px solid var(--line)}
+  .cl2-item:last-child{border-bottom:0}
+  .cl2-row{display:grid;grid-template-columns:128px minmax(0,1fr) minmax(0,auto);gap:6px 18px;padding:12px 0;align-items:start;font-size:13.5px;line-height:1.5}
+  .cl2-row.dim .cl2-when,.cl2-row.dim .cl2-what{opacity:.5}
+  .cl2-when{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+  .cl2-when b{display:block;color:var(--ink);font-weight:600;font-size:12.5px}
+  .cl2-what{min-width:0;overflow-wrap:anywhere}
+  .cl2-client{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);background:var(--unk-bg);border-radius:6px;padding:2px 7px;margin-right:7px;white-space:nowrap}
+  .cl2-type{font-size:11.5px;color:var(--muted);white-space:nowrap;margin-left:6px}
+  .cl2-note{color:var(--muted);font-size:12px;font-style:italic;margin-top:3px}
+  .cl2-acts{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:flex-end;max-width:400px;min-width:0}
+  .cl2-reason{font-size:12.5px;color:var(--ink);overflow-wrap:anywhere;min-width:0}
+  .cl2-reason i{font-style:normal;color:var(--muted);margin-right:5px}
+  .cl2-sugg{font-size:12.5px;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:2px 8px;overflow-wrap:anywhere;min-width:0}
+  .cl2-btn{border:1px solid var(--line-strong);border-radius:7px;padding:5px 10px;font-size:12.5px;font-weight:600;background:var(--surface);white-space:nowrap}
+  .cl2-btn:hover{border-color:var(--brand-ink)}
+  .cl2-btn.go{border-color:var(--brand-ink);color:var(--brand-ink)}
+  .cl2-link{font-size:12.5px;font-weight:600;color:var(--brand-ink);padding:5px 2px;white-space:nowrap}
+  .cl2-link:hover{text-decoration:underline}
+  .cl2-link.q{color:var(--muted)}
+  .cl2-rel{margin:0 0 10px 14px;padding-left:14px;border-left:2px solid var(--line)}
+  .cl2-rel .cl2-row{padding:8px 0}
+  .cl2-fold{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;font-size:15px;font-weight:700}
+  .cl2-fold span{font-size:12.5px;font-weight:600;color:var(--brand-ink);white-space:nowrap}
+  .cl2-more{margin-top:12px}
+  .cl2-why .cl2-wl{display:block;font-size:12.5px;font-weight:700;margin:12px 0 6px}
+  .cl2-why-chips{display:flex;flex-wrap:wrap;gap:6px}
+  @media (max-width:720px){
+    .cl2-row{grid-template-columns:minmax(0,1fr);gap:4px}
+    .cl2-when b{display:inline;margin-right:6px}
+    .cl2-acts{justify-content:flex-start;max-width:none}
+    .cl2-lbl{white-space:normal;flex-wrap:wrap}
+    .cl2-ctl .search{min-width:0;flex:1 1 100%}
+  }
+</style>`;
 const ymdLocal = d => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 function clDates() {
   const shift = n => ymdLocal(new Date(Date.now() - n*86400e3));
@@ -156,139 +272,216 @@ function clDates() {
 }
 
 async function renderChangeLog() {
+  /* Ticket: the host's render run, the brand, and this load. An answer that comes
+     back after the reader left the tab, switched brand or picked another period
+     must not paint. */
+  const act = S.act, ticket = S.run, seq = ++CL.seq;
+  const live = () => hostRun() === ticket && S.act === act && seq === CL.seq && !!$('#clFeed');
   const [from, to] = clDates();
-  $('#main').innerHTML = `${mcrumb('Change Log')}<h2>Change Log</h2>
-    <p class="sub">Every change on the account - Meta's activity log plus manual entries - with why it was made. Tag a reason on the moves that matter and let Claude write the update. ✓ and ✗ are optional: ✓ locks in a change (and accepts an amber suggested reason), ✗ hides noise from summaries.</p>
+  const today = ymdLocal(new Date());
+  CL.mainShown = 100; CL.restShown = 50; CL.restOpen = null; CL.open = new Set();
+  $('#main').innerHTML = `${CL_CSS}${mcrumb('Change Log')}<div class="cr-head"><div><h2>What changed on the account</h2>
+      <p class="sub">Add why to the changes that matter. The client's Daily Brief writes "What we're doing" only from these reasons.</p></div>
+      <div class="row" style="margin:0"><button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="changelog">? How to use</button></div></div>
     ${setupBanner()}
-    <div class="row">
-      ${[['today','Today'],['yday','Yesterday'],['7','7 days'],['14','14 days'],['30','30 days'],['90','90 days']].map(([v,l]) =>
-        `<button class="chip ${CL.range===v?'on':''}" data-r="${v}">${l}</button>`).join('')}
-      <input type="date" id="clFrom" value="${from}" max="${ymdLocal(new Date())}">
-      <span class="tiny">→</span>
-      <input type="date" id="clTo" value="${to}" max="${ymdLocal(new Date())}">
+    <div class="row cl2-ctl">
+      <label class="cl2-lbl">Period <select id="clRange">${CL_RANGES.map(([v, l]) => `<option value="${v}" ${CL.range === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${CL.range === 'custom' ? `<label class="cl2-lbl">From <input type="date" id="clFrom" value="${from}" max="${today}"></label>
+      <label class="cl2-lbl">To <input type="date" id="clTo" value="${to}" max="${today}"></label>` : ''}
+      <input class="search" id="clQ" placeholder="Search changes" aria-label="Search changes" value="${esc(CL.q)}">
+      <label class="cl2-lbl">Filter by type <select id="clType"><option value="">All types</option></select></label>
       <span style="flex:1"></span>
-      <input class="search" id="clQ" placeholder="Search changes…" value="${esc(CL.q)}">
-      <button class="help-btn" data-gloss="1">Metrics</button><button class="help-btn" data-mhelp="changelog">? How to use</button>
-      <button class="btn" id="clAddBtn">+ Add change</button>
-      <button class="btn primary" id="clSumBtn">✦ Summarise</button>
+      <button class="btn" id="clAddBtn">+ Add a change</button>
+      <button class="btn primary" id="clSumBtn">Summarise</button>
     </div>
     <div id="clPanel"></div>
-    <div class="row" id="clCats" style="gap:6px"></div>
-    <div class="card" id="clFeed"><span class="hint">Loading…</span></div>`;
+    <div id="clFeed"><div class="card"><span class="hint">Loading changes…</span></div></div>`;
 
-  document.querySelectorAll('#main .chip').forEach(c => c.onclick = () => {
-    CL.range = c.dataset.r; localStorage.setItem('ah_cl_range', CL.range); renderChangeLog();
-  });
+  $('#clRange').onchange = () => {
+    const v = $('#clRange').value;
+    if (v === 'custom') [CL.from, CL.to] = clDates();   // start Custom from the dates on screen
+    CL.range = v; localStorage.setItem('ah_cl_range', CL.range); renderChangeLog();
+  };
   const onDate = () => {
-    CL.range = 'custom'; CL.from = $('#clFrom').value; CL.to = $('#clTo').value;
+    CL.from = $('#clFrom').value; CL.to = $('#clTo').value;
     if (CL.from && CL.to && CL.from <= CL.to) renderChangeLog();
   };
-  $('#clFrom').onchange = onDate; $('#clTo').onchange = onDate;
-  $('#clQ').oninput = () => { CL.q = $('#clQ').value; clDrawFeed(); };
+  if ($('#clFrom')) { $('#clFrom').onchange = onDate; $('#clTo').onchange = onDate; }
+  const refilter = () => { CL.mainShown = 100; CL.restShown = 50; CL.restOpen = null; clDrawFeed(); };
+  $('#clQ').oninput = () => { CL.q = $('#clQ').value; refilter(); };
+  $('#clType').onchange = () => { CL.type = $('#clType').value; refilter(); };
   $('#clAddBtn').onclick = () => { CL.panel = CL.panel === 'add' ? null : 'add'; clDrawPanel(); };
   $('#clSumBtn').onclick = () => { CL.panel = CL.panel === 'sum' ? null : 'sum'; clDrawPanel(); };
   clDrawPanel();
 
-  try {
-    const { rows } = await api(`/api/activities?act=${S.act}&from=${from}&to=${to}T23:59:59&limit=2000`);
-    CL.rows = rows; CL.truncated = rows.length >= 2000;
-    clDrawFeed();
-  } catch (e) { $('#clFeed').innerHTML = `<span style="color:var(--bad)">${esc(e.message)}</span>`; }
-
-  /* row actions: reason select, note, confirm */
-  $('#clFeed').addEventListener('change', async e => {
-    const sel = e.target.closest('select[data-id]'); if (!sel) return;
-    const r = CL.rows.find(x => x.id === sel.dataset.id); if (!r) return;
-    if (sel.value === '__custom') {
-      const v = await modal({
-        title: 'Custom reason',
-        hint: 'Your own "why" for when the presets don\'t fit - e.g. "iOS update broke tracking". It\'s saved as this change\'s reason and Claude uses it in updates just like a preset one.',
-        placeholder: 'Why was this change made?',
-        value: r.reason && !CL_REASONS.includes(r.reason) ? r.reason : '',
-      });
-      if (v == null || !v.trim()) return clDrawFeed();   // cancelled - restore display
-      r.reason = v.trim();
-    } else if (sel.value === '__sugg') {
-      r.reason = r.suggested_reason;                     // picking the suggestion accepts it
-    } else {
-      r.reason = sel.value || null;
-    }
-    await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify({ reason: r.reason || '' }) }).catch(err => mnote(err.message));
-    clDrawFeed();
-  });
+  /* Row actions. The listener sits on #clFeed, which every paint of #main
+     replaces. Saving redraws ONE row (clPatchRow), never the list, so the page
+     does not jump under the reader. */
   $('#clFeed').addEventListener('click', async e => {
-    const btn = e.target.closest('[data-id][data-do]'); if (!btn) return;
+    const btn = e.target.closest('[data-do]'); if (!btn) return;
+    const what = btn.dataset.do;
+    if (what === 'rest') { CL.restOpen = btn.getAttribute('aria-expanded') !== 'true'; return clDrawFeed(); }
+    if (what === 'more-main') { CL.mainShown += 50; return clDrawFeed(); }
+    if (what === 'more-rest') { CL.restShown += 50; return clDrawFeed(); }
     const r = CL.rows.find(x => x.id === btn.dataset.id); if (!r) return;
-    if (btn.dataset.do === 'note') {
-      const v = await modal({
-        title: r.note ? 'Edit note' : 'Add a note',
-        hint: 'Extra context that travels with this change - it shows in italics underneath, and Claude reads it when writing updates. The "why?" dropdown is the reason; a note is anything extra worth remembering.',
-        placeholder: 'e.g. ROAS held 3 days - revisit Friday before scaling further',
-        value: r.note || '', multiline: true,
-      });
-      if (v == null) return;
-      r.note = v;
-      await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify({ note: v }) }).catch(err => mnote(err.message));
-      return clDrawFeed();
+    const patch = body => api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify(body) });
+    if (what === 'rel') {
+      CL.open.has(r.id) ? CL.open.delete(r.id) : CL.open.add(r.id);
+      const box = [...document.querySelectorAll('#clFeed [data-rel]')].find(x => x.dataset.rel === r.id);
+      if (box) box.hidden = !CL.open.has(r.id);
+      return clPatchRow(r.id);
     }
-    if (btn.dataset.do === 'ok') {
+    if (what === 'why') {
+      const v = await clWhyModal(r);
+      if (!v) return;
+      const was = { reason: r.reason, note: r.note }, body = {};
+      if ((v.reason || '') !== (r.reason || '')) body.reason = v.reason || '';
+      if ((v.note || '') !== (r.note || '')) body.note = v.note || '';
+      if (!Object.keys(body).length) return;
+      r.reason = v.reason || null; r.note = v.note || '';
+      clPatchRow(r.id);
+      try { await patch(body); }
+      catch (err) { r.reason = was.reason; r.note = was.note; clPatchRow(r.id); mnote(err.message); }
+      return;
+    }
+    if (what === 'ok') {
       const acceptSugg = r.confirmed !== 1 && !r.reason && r.suggested_reason;
       r.confirmed = r.confirmed === 1 ? 0 : 1;
       const body = { confirmed: r.confirmed === 1 };
-      if (acceptSugg && r.confirmed === 1) { r.reason = r.suggested_reason; body.reason = r.reason; }  // ✓ accepts the suggested why
-      await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify(body) }).catch(err => mnote(err.message));
-      clDrawFeed();
+      if (acceptSugg && r.confirmed === 1) { r.reason = r.suggested_reason; body.reason = r.reason; }  // "Use this reason" accepts the suggested why
+      await patch(body).catch(err => mnote(err.message));
+      clPatchRow(r.id);
     }
-    if (btn.dataset.do === 'no') {
+    if (what === 'no') {
       const dis = r.confirmed !== -1;
       r.confirmed = dis ? -1 : 0;
-      await api('/api/activities/'+encodeURIComponent(r.id), { method:'PATCH', body: JSON.stringify({ dismissed: dis }) }).catch(err => mnote(err.message));
-      clDrawFeed();
+      await patch({ dismissed: dis }).catch(err => mnote(err.message));
+      clPatchRow(r.id);
     }
+  });
+
+  try {
+    const { rows } = await api(`/api/activities?act=${act}&from=${from}&to=${to}T23:59:59&limit=2000`);
+    if (!live()) return;
+    CL.rows = rows; CL.truncated = rows.length >= 2000;
+    const cats = [...new Set(rows.map(r => r.category || 'other'))].sort((a, b) => clCatLabel(a).localeCompare(clCatLabel(b)));
+    if (CL.type && !cats.includes(CL.type)) CL.type = '';
+    $('#clType').innerHTML = `<option value="">All types</option>` + cats.map(c =>
+      `<option value="${esc(c)}" ${CL.type === c ? 'selected' : ''}>${esc(clCatLabel(c))}</option>`).join('');
+    clDrawFeed();
+  } catch (e) {
+    if (!live()) return;
+    $('#clFeed').innerHTML = `<div class="card"><span style="color:var(--bad)">Could not load the changes: ${esc(e.message)}</span></div>`;
+  }
+}
+
+/** The one "why" dialog: pick a reason or write one, plus an optional note.
+ *  Resolves { reason, note } or null when cancelled. */
+function clWhyModal(r) {
+  return new Promise(resolve => {
+    const start = r.reason || r.suggested_reason || '';
+    let pick = CL_REASONS.includes(start) ? start : '';
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal cl2-why">
+      <h3>Why was this change made?</h3>
+      <p class="hint">${esc(r.summary || r.translated || r.event_type || '')}</p>
+      <span class="cl2-wl">Pick a reason</span>
+      <div class="cl2-why-chips">${CL_REASONS.map(x => `<button type="button" class="chip ${x === pick ? 'on' : ''}" data-why="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <label class="cl2-wl" for="clWhyOwn">Or write your own</label>
+      <input id="clWhyOwn" type="text" placeholder="e.g. Tracking broke after the site update">
+      <label class="cl2-wl" for="clWhyNote">Note for the team (optional)</label>
+      <textarea id="clWhyNote" placeholder="e.g. ROAS held 3 days, look again Friday before scaling further"></textarea>
+      <p class="hint" style="margin:10px 0 0">The reason is what the client's Daily Brief is written from. Leave both reason boxes empty to clear it.</p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0">
+        <button class="btn" data-m="cancel">Cancel</button>
+        <button class="btn primary" data-m="ok">Save</button>
+      </div></div>`;
+    document.body.appendChild(w);
+    const own = w.querySelector('#clWhyOwn'), note = w.querySelector('#clWhyNote');
+    own.value = pick ? '' : start;
+    note.value = r.note || '';
+    const paint = () => w.querySelectorAll('[data-why]').forEach(c => c.classList.toggle('on', c.dataset.why === pick));
+    w.querySelectorAll('[data-why]').forEach(c => c.onclick = () => { pick = pick === c.dataset.why ? '' : c.dataset.why; own.value = ''; paint(); });
+    own.oninput = () => { if (own.value.trim()) { pick = ''; paint(); } };
+    const done = v => { w.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const save = () => done({ reason: own.value.trim() || pick, note: note.value.trim() });
+    const onKey = e => {
+      if (e.key === 'Escape') done(null);
+      if (e.key === 'Enter' && (e.target === own || e.ctrlKey || e.metaKey)) save();
+    };
+    document.addEventListener('keydown', onKey);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
+    w.querySelector('[data-m="ok"]').onclick = save;
+    w.querySelector('[data-m="cancel"]').onclick = () => done(null);
   });
 }
 
 function clSearched() {
   const q = CL.q.trim().toLowerCase();
-  return CL.rows.filter(r => !q || [r.summary, r.object_name, r.actor, r.note, r.reason, r.account_name, r.category]
+  return CL.rows.filter(r => !q || [r.summary, r.object_name, r.actor, r.note, r.reason, r.account_name, r.category, clCatLabel(r.category)]
     .some(v => v && String(v).toLowerCase().includes(q)));
 }
-function clDrawFeed() {
-  const searched = clSearched();
 
-  const counts = {};
-  searched.forEach(r => counts[r.category] = (counts[r.category] || 0) + 1);
-  $('#clCats').innerHTML = Object.entries(counts).sort((a,b) => b[1]-a[1]).map(([c,n]) =>
-    `<button class="catpill ${CL.hide.has(c)?'off':''}" data-c="${c}">${esc(c.replace(/_/g,' '))}<i>${n}</i></button>`).join('');
-  document.querySelectorAll('#clCats .catpill').forEach(p => p.onclick = () => {
-    CL.hide.has(p.dataset.c) ? CL.hide.delete(p.dataset.c) : CL.hide.add(p.dataset.c);
-    clDrawFeed();
-  });
-
-  const rows = searched.filter(r => !CL.hide.has(r.category));
-  if (!rows.length) { $('#clFeed').innerHTML = `<span class="hint">${CL.rows.length ? 'Nothing matches the current filters.' : 'No changes in this window.'}</span>`; return; }
-
-  const showClient = S.act === 'all';
-  let html = '';
-  for (const r of rows) {
-    const d = parseTs(r.event_time);
-    html += `<div class="cl-it ${r.confirmed === -1 ? 'dim' : ''}">
-      <div class="who"><b>${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</b><br>${d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}<br>${esc(r.actor || '')}${r.manual ? ' · manual' : ''}</div>
-      <div class="what">
-        ${showClient ? `<span class="client">${esc(r.account_name || '')}</span>` : ''}<span class="cat">${esc((r.category||'other').replace(/_/g,' '))}</span><span class="txt">${esc(r.summary || r.translated || r.event_type || '')}</span>
-        ${r.note ? `<div class="note" data-id="${esc(r.id)}" data-do="note" title="Click to edit this note">“${esc(r.note)}”</div>` : ''}
+/** One change. `rel` = how many related changes fold under it (0 for none). */
+function clRowHtml(r, rel) {
+  const d = parseTs(String(r.event_time || ''));
+  const id = esc(r.id), hidden = r.confirmed === -1, open = CL.open.has(r.id);
+  const why = r.reason
+    ? `<span class="cl2-reason"><i>Why</i>${esc(r.reason)}</span><button class="cl2-link" data-id="${id}" data-do="why">Edit why</button>`
+    : (r.suggested_reason
+      ? `<span class="cl2-sugg">Suggested: ${esc(r.suggested_reason)}</span><button class="cl2-btn" data-id="${id}" data-do="ok">Use this reason</button>` : '')
+      + `<button class="cl2-btn go" data-id="${id}" data-do="why">Add why</button>`;
+  return `<div class="cl2-row ${hidden ? 'dim' : ''}" data-row="${id}">
+      <div class="cl2-when"><b>${isNaN(d) ? '' : d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</b>${esc(r.actor || '')}${r.manual ? ' · added by hand' : ''}</div>
+      <div class="cl2-what">
+        ${S.act === 'all' ? `<span class="cl2-client">${esc(r.account_name || '')}</span>` : ''}<span>${esc(r.summary || r.translated || r.event_type || '')}</span><span class="cl2-type">${esc(clCatLabel(r.category))}</span>
+        ${r.note ? `<div class="cl2-note">Note: ${esc(r.note)}</div>` : ''}
+        ${rel ? `<div><button class="cl2-link" data-id="${id}" data-do="rel" aria-expanded="${open}">${open ? 'Close the' : 'and'} ${rel} related change${rel === 1 ? '' : 's'}</button></div>` : ''}
       </div>
-      <div class="acts">
-        <select data-id="${esc(r.id)}" class="${r.reason ? 'set' : (r.suggested_reason ? 'sugg' : '')}">${!r.reason && r.suggested_reason
-          ? `<option value="__sugg" selected>${esc(r.suggested_reason)} · suggested</option>` : `<option value="">why?</option>`}${CL_REASONS.map(x =>
-          `<option ${r.reason===x?'selected':''}>${x}</option>`).join('')}${r.reason && !CL_REASONS.includes(r.reason) ? `<option selected>${esc(r.reason)}</option>` : ''}<option value="__custom">Custom…</option></select>
-        <button class="note-btn" data-id="${esc(r.id)}" data-do="note" title="Extra context that rides along with this change - Claude reads it too">${r.note ? 'edit note' : '+ note'}</button>
-        <button class="icon-btn ok ${r.confirmed === 1 ? 'on' : ''}" data-id="${esc(r.id)}" data-do="ok" title="${r.confirmed === 1 ? 'Confirmed - we meant to do this' : 'Confirm: deliberate, goes in updates'}">✓</button>
-        <button class="icon-btn no ${r.confirmed === -1 ? 'on' : ''}" data-id="${esc(r.id)}" data-do="no" title="${r.confirmed === -1 ? 'Dismissed - excluded from summaries (click to undo)' : 'Dismiss: noise, keep out of summaries'}">✗</button>
-      </div>
+      <div class="cl2-acts">${why}<button class="cl2-link q" data-id="${id}" data-do="no" title="${hidden ? 'Hidden changes are left out of summaries and reports' : 'Noise? Hide it from summaries and reports'}">${hidden ? 'Show again' : 'Hide'}</button></div>
     </div>`;
+}
+function clItemHtml(it) {
+  const rel = it.related;
+  return `<div class="cl2-item">${clRowHtml(it.lead, rel.length)}${rel.length
+    ? `<div class="cl2-rel" data-rel="${esc(it.lead.id)}" ${CL.open.has(it.lead.id) ? '' : 'hidden'}>${rel.map(r => clRowHtml(r, 0)).join('')}</div>` : ''}</div>`;
+}
+function clDaysHtml(list, rowOf, htmlOf) {
+  return clByDay(list, rowOf).map(day => `<div class="cl2-day">${esc(day.label)}</div>${day.items.map(htmlOf).join('')}`).join('');
+}
+/** Redraw one row where it stands (after a save, Hide, or opening its related changes). */
+function clPatchRow(id) {
+  const r = CL.rows.find(x => x.id === id);
+  const el = [...document.querySelectorAll('#clFeed [data-row]')].find(x => x.dataset.row === id);
+  if (r && el) el.outerHTML = clRowHtml(r, CL.rel.get(id) || 0);
+}
+
+function clDrawFeed() {
+  const feed = $('#clFeed'); if (!feed) return;
+  const rows = clSearched().filter(r => !CL.type || (r.category || 'other') === CL.type);
+  if (!rows.length) {
+    feed.innerHTML = `<div class="card"><span class="hint">${CL.rows.length ? 'Nothing matches your search or filter.' : 'No changes in this period.'}</span></div>`;
+    return;
   }
-  $('#clFeed').innerHTML = html + (CL.truncated ? `<p class="tiny" style="margin-top:10px">Showing the most recent 2,000 changes - narrow the window to see everything.</p>` : '');
+  const { main, rest } = clSplit(rows);
+  CL.rel = new Map(main.filter(it => it.related.length).map(it => [it.lead.id, it.related.length]));
+  /* Everything else stays closed until asked for, unless a search or a type
+     filter would otherwise hide the only matches. */
+  const restOpen = CL.restOpen ?? (!!CL.q.trim() || (!!CL.type && !main.length));
+  const mainNow = main.slice(0, CL.mainShown), restNow = restOpen ? rest.slice(0, CL.restShown) : [];
+  feed.innerHTML = `<div class="card cl2-sec"><h3>Changes that matter</h3>
+      <p class="hint">Budgets, campaigns and ad sets, bid strategy, targeting, new ads, and anything added by hand.</p>
+      ${main.length ? clDaysHtml(mainNow, it => it.lead, clItemHtml) : `<p class="hint" style="margin-top:10px">Nothing in this group for this period.</p>`}
+      ${main.length > mainNow.length ? `<button class="btn cl2-more" data-do="more-main">Show 50 more</button>` : ''}
+    </div>
+    ${rest.length ? `<div class="card cl2-sec">
+      <button class="cl2-fold" data-do="rest" aria-expanded="${restOpen}">Everything else (${rest.length})<span>${restOpen ? 'Close' : 'Open'}</span></button>
+      <p class="hint">Status updates, renames, billing, single ads switched on or off, and anything you hid. Here for reference.</p>
+      ${restOpen ? clDaysHtml(restNow, r => r, r => clItemHtml({ lead: r, related: [] })) : ''}
+      ${restOpen && rest.length > restNow.length ? `<button class="btn cl2-more" data-do="more-rest">Show 50 more</button>` : ''}
+    </div>` : ''}
+    ${CL.truncated ? `<p class="tiny" style="margin-top:10px">Showing the most recent 2,000 changes. Pick a shorter period to see everything.</p>` : ''}`;
 }
 
 function clDrawPanel() {
@@ -298,15 +491,15 @@ function clDrawPanel() {
   const active = S.accounts.filter(a => a.active);
   if (CL.panel === 'add') {
     el.innerHTML = `<div class="card"><h3>Add a change</h3>
-      <p class="hint" style="margin-bottom:10px">For things Meta's log can't see - landing page swaps, promo starts, tracking fixes.</p>
+      <p class="hint" style="margin-bottom:10px">For things Meta's log can't see: landing page swaps, promo starts, tracking fixes. It lands in Changes that matter.</p>
       <div class="row">
         <select id="adAct">${active.map(a => `<option value="${a.act_id}" ${a.act_id===S.act?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
         <input type="datetime-local" id="adTime" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60e3).toISOString().slice(0,16)}">
-        <select id="adCat">${CL_ADD_CATS.map(c => `<option value="${c}">${c.replace(/_/g,' ')}</option>`).join('')}</select>
+        <select id="adCat" aria-label="Type of change">${CL_ADD_CATS.map(c => `<option value="${c}">${clCatLabel(c)}</option>`).join('')}</select>
       </div>
       <div class="row">
         <input class="search" id="adSum" placeholder="What changed? e.g. Launched 20% off promo on site" style="flex:1;min-width:240px">
-        <select id="adWhy"><option value="">why?</option>${CL_REASONS.map(x => `<option>${x}</option>`).join('')}<option value="__custom">Custom…</option></select>
+        <select id="adWhy" aria-label="Why"><option value="">Why (optional)</option>${CL_REASONS.map(x => `<option>${x}</option>`).join('')}<option value="__custom">Write your own</option></select>
         <button class="btn primary" id="adGo">Save</button>
       </div><span class="tiny" id="adMsg"></span></div>`;
     $('#adWhy').onchange = async () => {
@@ -314,7 +507,7 @@ function clDrawPanel() {
       if (sel.value !== '__custom') return;
       const v = await modal({
         title: 'Custom reason',
-        hint: 'Your own "why" for when the presets don\'t fit. It\'s saved as this change\'s reason and Claude uses it in updates.',
+        hint: 'Your own reason for when the list does not fit. It is saved as the why for this change.',
         placeholder: 'Why was this change made?',
       });
       if (v && v.trim()) {
@@ -340,7 +533,7 @@ function clDrawPanel() {
   if (CL.panel === 'sum') {
     const scope = S.act === 'all' ? 'all clients' : (active.find(a => a.act_id === S.act)?.name || 'this client');
     el.innerHTML = `<div class="card"><h3>Summarise with Claude</h3>
-      <p class="hint" style="margin-bottom:10px">Writes from the tagged changes + performance for <b>${esc(scope)}</b>, ${from} → ${to}. Reasons and notes you've tagged make it noticeably better; ✗-dismissed changes are left out.</p>
+      <p class="hint" style="margin-bottom:10px">Writes from the changes and performance for <b>${esc(scope)}</b>, ${from} to ${to}. The reasons and notes you added make it noticeably better. Hidden changes are left out.</p>
       <div class="row">
         <select id="sumTpl">
           <option value="daily">Daily standup (internal)</option>
@@ -360,7 +553,7 @@ function clDrawPanel() {
         $('#sumMsg').textContent = '';
         $('#sumOut').innerHTML = `<div class="sum-out" id="sumTxt">${esc(r.text)}</div>
           <div class="row" style="margin:10px 0 0"><button class="btn" id="sumCopy">Copy</button><span class="tiny">${esc(r.model)}</span></div>`;
-        $('#sumCopy').onclick = () => { navigator.clipboard.writeText($('#sumTxt').textContent); $('#sumCopy').textContent = 'Copied ✓'; setTimeout(() => $('#sumCopy').textContent = 'Copy', 1500); };
+        $('#sumCopy').onclick = () => { navigator.clipboard.writeText($('#sumTxt').textContent); $('#sumCopy').textContent = 'Copied'; setTimeout(() => $('#sumCopy').textContent = 'Copy', 1500); };
       } catch (e) { $('#sumMsg').textContent = e.message; }
       $('#sumGo').disabled = false;
     };
@@ -1316,7 +1509,7 @@ const META_BRIEF = {
   changelog: {
     answers: 'What was changed in the account, and when.',
     when: 'When a number moved and you want to know what you did.',
-    todo: 'Find the change near the date that moved, and tag it with a reason - the daily brief reads those.',
+    todo: 'Press Add why on each change that matters. The client\'s Daily Brief is written from those reasons.',
   },
   averages: {
     answers: 'Whether the last 7 days beat this account’s own last 30.',
