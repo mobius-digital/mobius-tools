@@ -1608,6 +1608,7 @@
   .rp-kpi .info-i{border-color:var(--ink-panel-2);color:var(--on-ink-2)}
   .rp-two{gap:11px}
   /* Phone width: the Strategist card (shared ask.css) and this grid pushed the page sideways. */
+  .two>*{min-width:0}   /* a table inside a column must scroll in its own box, not widen the page */
   .askcard{min-width:0}
   .askcard .brief,.askcard .find .ft{overflow-wrap:anywhere}
   @media (max-width:560px){.askcard .find{grid-template-columns:auto minmax(0,1fr)}.askcard .find>:last-child{grid-column:2;justify-self:start}}
