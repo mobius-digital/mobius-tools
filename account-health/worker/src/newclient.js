@@ -164,7 +164,7 @@ async function stepAsana(env, r) {
       const todo = [
         ['Send the Shopify collaborator request (Locus posts the store address in the internal channel within the hour of them typing it)', me.gid],
         ['Once Locus says they shared Meta: add the media buyer to the ad account and page in Meta Business Settings', me.gid],
-        ['Before the strategy call: review the onboarding answers and the research in Locus (Brand > Brand info, Brand > Research)', gidOf(lead) || me.gid],
+        ['Before the strategy call: open Locus > Brand > Client answers (the call sheet) and Brand > Research', gidOf(lead) || me.gid],
         ['After the voice interview: read the How we write draft in Locus and approve it', me.gid],
         ['Set the first month in Plan and turn the daily brief on (Locus)', me.gid],
       ];
@@ -585,7 +585,7 @@ async function stepSummary(env, r) {
     safeJson(r.steps_json, {}).frame?.url ? `• Frame project: ${safeJson(r.steps_json, {}).frame.url}` : null,
     safeJson(r.steps_json, {}).stripe?.url ? `• First invoice: ${safeJson(r.steps_json, {}).stripe.url}` : null,
     `• Team: strategist ${team.strategist || 'not picked'}, media buyer ${team.buyer || 'not picked'}, editor ${team.editor || 'not picked'}, designer ${team.designer || 'not picked'}`,
-    `Their onboarding answers show up in Locus > Brand > ${r.name} > Brand info as they fill the form in. Locus posts here when they send it.`,
+    `Their onboarding answers show up in Locus > Brand > ${r.name} > Client answers as they fill the form in (a call sheet builds itself). Locus posts here when they send it.`,
   ].filter(Boolean);
   const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: lines.join('\n'), unfurl_links: false });
   if (!j.ok) throw new Error(`Slack: ${j.error}`);

@@ -218,3 +218,21 @@ CREATE TABLE IF NOT EXISTS idea_run (id TEXT PRIMARY KEY, idea_id TEXT, act_id T
   g_in INTEGER NOT NULL DEFAULT 0, g_out INTEGER NOT NULL DEFAULT 0, downloads INTEGER NOT NULL DEFAULT 0,
   videos_new INTEGER NOT NULL DEFAULT 0, videos_cached INTEGER NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0, error TEXT,
   started_at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT);
+
+-- Customer history from Triple Whale's journeys (2026-10-05): one row per order with the
+-- customer, the day, the money, the cart's products and the last-platform-click source.
+-- Written by syncTwAttribution (same response, no extra call) and backfilled 400 days one
+-- slice a night. Customers (profit) reads it for cohorts, LTV, LTV:CAC and the product journey.
+CREATE TABLE IF NOT EXISTS tw_orders (
+  act_id        TEXT NOT NULL,
+  order_id      TEXT NOT NULL,
+  customer_id   TEXT,
+  date          TEXT NOT NULL,                 -- YYYY-MM-DD, shop timezone
+  total         REAL NOT NULL DEFAULT 0,
+  currency      TEXT,
+  products_json TEXT,                          -- product ids added to the cart before the order
+  source        TEXT,                          -- meta | google | ... | organic (lastPlatformClick)
+  synced_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, order_id)
+);
+CREATE INDEX IF NOT EXISTS tw_orders_cust ON tw_orders (act_id, customer_id, date);

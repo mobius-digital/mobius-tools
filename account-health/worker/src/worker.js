@@ -1095,7 +1095,62 @@ const TW_ATTR_HISTORY_DAYS = 120;
 
 /** Pull journeys for a window and roll them up to (date, ad_id, model).
  *  Pass {from,to} to pull an explicit range; otherwise the last `days`. */
-async function syncTwAttribution(env, acct, days = 7, range = null) {
+/* ORDERS, per customer (2026-10-05). The same journeys response carries order_id, customer_id,
+   total_price and the cart events, which is everything a cohort needs: who bought first when,
+   whether they came back, how long it took, what they put in the cart. Stored in tw_orders so
+   Customers can state a real LTV and LTV:CAC without a Shopify install. Backfilled 400 days,
+   one slice a night (`twOrdersCursor:<act>`); nothing extra is fetched for the rolling window. */
+const TW_ORDERS_HISTORY_DAYS = 400;
+let ordersTabled = false;
+async function ensureOrdersTable(env) {
+  if (ordersTabled) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tw_orders (act_id TEXT NOT NULL, order_id TEXT NOT NULL, customer_id TEXT, date TEXT NOT NULL,
+    total REAL NOT NULL DEFAULT 0, currency TEXT, products_json TEXT, source TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (act_id, order_id))`).run();
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS tw_orders_cust ON tw_orders (act_id, customer_id, date)`).run().catch(() => {});
+  ordersTabled = true;
+}
+async function storeTwOrders(env, acct, list) {
+  if (!list.length) return 0;
+  await ensureOrdersTable(env);
+  // 8 columns -> 12 rows a chunk under D1's 100 bound parameters.
+  for (let i = 0; i < list.length; i += 12) {
+    const chunk = list.slice(i, i + 12);
+    const sql = `INSERT INTO tw_orders (act_id, order_id, customer_id, date, total, currency, products_json, source) VALUES `
+      + chunk.map((_, n) => `(?${n * 8 + 1},?${n * 8 + 2},?${n * 8 + 3},?${n * 8 + 4},?${n * 8 + 5},?${n * 8 + 6},?${n * 8 + 7},?${n * 8 + 8})`).join(',')
+      + ` ON CONFLICT(act_id, order_id) DO UPDATE SET customer_id = excluded.customer_id, date = excluded.date, total = excluded.total, currency = excluded.currency, products_json = excluded.products_json, source = excluded.source, synced_at = datetime('now')`;
+    const binds = [];
+    for (const o of chunk) binds.push(acct.act_id, o.order_id, o.customer_id, o.date, o.total, o.currency, o.products_json, o.source);
+    await env.DB.prepare(sql).bind(...binds).run();
+  }
+  return list.length;
+}
+/* One older slice per brand per night, walking back from the first stored day to
+   TW_ORDERS_HISTORY_DAYS (or Triple Whale's own earliest date). Resumable; `slices` lets an
+   admin call run several at once. */
+async function backfillTwOrders(env, acct, slices = 1) {
+  if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop' };
+  const doneKey = `twOrdersDone:${acct.act_id}`, curKey = `twOrdersCursor:${acct.act_id}`;
+  if (await getSetting(env, doneKey)) return { name: acct.name, done: true };
+  const today = localDate(acct.tz);
+  const floor = addDays(today, -TW_ORDERS_HISTORY_DAYS);
+  let cursor = await getSetting(env, curKey) || addDays(today, -7);   // the rolling window already holds the last 7 days
+  const out = { name: acct.name, slices: [] };
+  for (let i = 0; i < slices; i++) {
+    const to = addDays(cursor, -1);
+    if (to <= floor) { await putSetting(env, doneKey, today); out.done = true; break; }
+    const from = addDays(to, -13) < floor ? floor : addDays(to, -13);
+    const r = await syncTwAttribution(env, acct, 0, { from, to }, { ordersOnly: true });
+    out.slices.push({ from, to, orders: r.orders, pages: r.pages, earliest: r.earliest });
+    cursor = from;
+    await putSetting(env, curKey, cursor);
+    /* `earliestDate` in the response is the oldest order ON THAT PAGE, not where Triple
+       Whale's history starts (it read 2026-09-17 for a slice that returned 130 orders), so it
+       never ends the walk. Only the floor does; an empty slice costs one call. */
+  }
+  return out;
+}
+
+async function syncTwAttribution(env, acct, days = 7, range = null, opts = {}) {
   if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY not set' };
   if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop' };
   const today = localDate(acct.tz);
@@ -1104,13 +1159,15 @@ async function syncTwAttribution(env, acct, days = 7, range = null) {
 
   const agg = new Map();                       // `${date}|${ad}|${model}` -> {rev, ord}
   const seenModels = new Set();                // what TW ACTUALLY sends, not what we assumed
-  let page = 1, orders = 0, pages = 0;
+  const orderRows = [];                        // one per order, for tw_orders
+  let page = 1, orders = 0, pages = 0, earliest = null;
   // Capped: this runs nightly for six brands and a runaway page loop would
   // spend the whole invocation budget on one of them.
   while (page <= 40) {
     const body = await twJourneys(env, acct.tw_shop, start, end, page);
     const rows = body.ordersWithJourneys || [];
     pages++;
+    if (body.earliestDate && /^\d{4}-\d{2}-\d{2}/.test(String(body.earliestDate))) earliest = String(body.earliestDate).slice(0, 10);
     for (const o of rows) {
       orders++;
       const rev = +o.total_price || 0;
@@ -1119,6 +1176,15 @@ async function syncTwAttribution(env, acct, days = 7, range = null) {
       // money did, which is what every other figure in Locus is dated by.
       const date = String(o.created_at || '').slice(0, 10);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (o.order_id) {
+        /* Products = what the journey put in the cart before this order (add-to-cart events,
+           oldest first, no repeats). Not the receipt, but the only product signal TW gives. */
+        const seen = new Set(); const prods = [];
+        for (const ev of (o.journey || []).slice().reverse()) if (ev && ev.event === 'add2c' && ev.productId != null && !seen.has(String(ev.productId))) { seen.add(String(ev.productId)); prods.push(String(ev.productId)); }
+        const lpc = (o.attribution?.lastPlatformClick || []).find(t => t && t.source);
+        orderRows.push({ order_id: String(o.order_id), customer_id: o.customer_id != null ? String(o.customer_id) : null, date, total: rev, currency: o.currency || acct.currency || null,
+          products_json: prods.length ? JSON.stringify(prods.slice(0, 12)) : null, source: lpc ? (twPlatform(lpc.source) || String(lpc.source).slice(0, 40)) : 'organic' });
+      }
       for (const k of Object.keys(o.attribution || {})) seenModels.add(k);
       for (const model of TW_ATTR_MODELS) {
         const tps = (o.attribution?.[model] || []).filter(t => t && t.adId);
@@ -1157,6 +1223,9 @@ async function syncTwAttribution(env, acct, days = 7, range = null) {
     page++;
   }
 
+  const stored = await storeTwOrders(env, acct, orderRows).catch(e => { console.log('tw_orders: ' + e.message); return 0; });
+  if (opts.ordersOnly) return { name: acct.name, from: start, to: end, orders, pages, stored, earliest };
+
   /* Replace the window wholesale rather than upserting: attribution RESTATES as
      journeys resolve, so an order that moved from one ad to another must not
      leave its old credit behind. Deleting the window first makes the sync
@@ -1177,7 +1246,7 @@ async function syncTwAttribution(env, acct, days = 7, range = null) {
     }
     await env.DB.prepare(sql).bind(...binds).run();
   }
-  return { name: acct.name, from: start, to: end, orders, pages, rows: rows.length,
+  return { name: acct.name, from: start, to: end, orders, pages, rows: rows.length, stored, earliest,
     models_seen: [...seenModels].sort(), models_stored: TW_ATTR_MODELS };
 }
 
@@ -6201,6 +6270,15 @@ async function nightly(env) {
   }
   out.twAttr = twAttr;
 
+  /* Customer history: one older 14-day slice of orders per brand per night until 400
+     days are in (see backfillTwOrders). Cheap: a few pages and a dozen writes. */
+  const twOrders = [];
+  for (const a of accounts) {
+    if (!subCanAfford(costOf('attr', COST_SYNC_BRAND))) { twOrders.push({ name: a.name, deferred: 'out of budget' }); break; }
+    twOrders.push(await backfillTwOrders(env, a, 1).catch(e => ({ name: a.name, error: e.message })));
+  }
+  out.twOrders = twOrders;
+
   /* The ad-level walk, once a day, here and nowhere else. Rate-limited by Meta
      rather than by us, so it is also the first thing to yield when Meta is
      unhappy - `metaBackedOff` short-circuits the whole pass. */
@@ -6966,6 +7044,32 @@ const AH_APP = {
 
     /* Backfill attribution on demand - the nightly pass only covers 7 days,
        and a new brand or a longer look-back needs more than that. */
+    /* What one Triple Whale journey order actually carries (fields, not numbers): used once to
+       decide what the customers table can hold. Admin only, one page, nothing stored. */
+    if (path === '/api/tw-probe') {
+      const act = url.searchParams.get('act');
+      const a = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act || '').first();
+      if (!a?.tw_shop) return json({ error: 'no shop' }, 404);
+      const day = url.searchParams.get('date') || addDays(localDate(a.tz), -3);
+      const body = await twJourneys(env, a.tw_shop, day, day, 1);
+      const rows = body.ordersWithJourneys || [];
+      const o = rows[0] || null;
+      const shape = v => v == null ? null : Array.isArray(v) ? `array(${v.length})${v.length ? ':' + shape(v[0]) : ''}` : typeof v === 'object' ? '{' + Object.keys(v).join(',') + '}' : typeof v;
+      return json({ day, count: body.count, orders: rows.length, top_keys: Object.keys(body), order_keys: o ? Object.keys(o) : [], order_shape: o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, k === 'attribution' ? 'attribution' : shape(v)])) : null,
+        sample: o ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'attribution').map(([k, v]) => [k, typeof v === 'string' ? v.slice(0, 120) : Array.isArray(v) ? v.slice(0, 2) : v])) : null });
+    }
+    /* Pull customer history now instead of waiting a month of nights: N slices of 14 days for one
+       brand (or all). Admin. */
+    if (path === '/api/tw-orders-backfill' && request.method === 'POST') {
+      const act = url.searchParams.get('act');
+      const slices = Math.min(+url.searchParams.get('slices') || 4, 40);
+      const list = act && act !== 'all'
+        ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
+        : await listAccounts(env, true);
+      const out = [];
+      for (const a of list) out.push(await backfillTwOrders(env, a, slices).catch(e => ({ name: a.name, error: e.message })));
+      return json({ ok: true, results: out });
+    }
     if (path === '/api/tw-attr-sync' && request.method === 'POST') {
       const act = url.searchParams.get('act');
       const days = Math.min(+url.searchParams.get('days') || 30, TW_ATTR_HISTORY_DAYS);

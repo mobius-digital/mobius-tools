@@ -1,14 +1,20 @@
-/* Locus - the Brand tab (2026-09-24).
+/* Locus - the Brand tab (2026-09-24; views rebuilt 2026-10-05).
  *
- * ASANA IS WHERE THE TEAM WORKS; LOCUS IS THE MEMORY. Two tabs come from this file
- * (render's mode): the TESTS tab (mode 'tests', 2026-10-04) and the BRAND tab.
- *   Tests         three boxes: Make a call, Running, What we learned; every test filed by angle (Mobius framework: Angle, Concept, What
- *                 We're Testing), with Triple Whale results and the media buyer's call.
- *                 It fills itself from Asana (account-health asana-brand.js); nothing is
- *                 typed here except angle renames and merges.
- *   Research      per product line: market, mechanism, personas, voice of customer,
- *                 competitors, angle ideas. The AI drafts, a person approves.
- *   Brand info    profile, voice, test rules (CPA first), the client's onboarding answers.
+ * ASANA IS WHERE THE TEAM WORKS; LOCUS IS THE MEMORY. Three tabs come from this file
+ * (render's mode): Test calls (mode 'tests'), Angles (mode 'angles') and the BRAND tab.
+ * Brand = who this brand is, in three views a strategist opens for three reasons:
+ *   Client answers   before a strategy call: a one-screen call sheet built from the
+ *                    onboarding form (who, what they sell, numbers, offers, what they want,
+ *                    access, open questions), the full answers step by step, and the voice
+ *                    interview transcript. Nothing here is typed by us.
+ *   Research         before a brief, per product line: personas, voice of customer, angle
+ *                    ideas, market, mechanism, competitors, website. The AI drafts, a person
+ *                    approves.
+ *   Voice            when writing: brand voice, How we write (interview, guide, skill) and
+ *                    the copy desk. Keep / reject teaches it.
+ * The "At a glance" strip (website, Drive, offer, do and never) sits above all three. Test
+ * rules live in Settings, Goals (one place for every target) and are only linked from here.
+ * The creator link is its own tab (amb.js) since 2026-10-05.
  *
  * Own file and own closure, like amb.js and meta.js. Questions and persona fields
  * come from ../onboard/questions.js so the client's form and this screen never drift.
@@ -28,7 +34,7 @@ const x2 = n => n == null ? '-' : (+n).toFixed(2);
 const short = (s, n = 140) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const lines = v => Array.isArray(v) ? v : String(v || '').split('\n').map(s => s.trim()).filter(Boolean);
 
-const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, d: null, view: 'library', line: null, vocKind: 'all', stage: 'all', angleFilter: '', search: '', running: null, log: [] };
+const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, d: null, view: 'research', line: null, vocKind: 'all', stage: 'all', angleFilter: '', search: '', running: null, log: [] };
 const LS_VIEW = 'br_view', LS_LINE = 'br_line';
 
 /* ---------------- api ---------------- */
@@ -172,6 +178,26 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-prog i{display:block;height:100%;background:var(--good)}
 
 .lb-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.br-glance{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;padding:10px 16px}
+.gl-i{display:flex;flex-direction:column;gap:1px;min-width:0;max-width:340px}
+.gl-l{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.gl-v{font-size:13px;overflow-wrap:anywhere}
+.gl-act{margin-left:auto}
+.br-steps ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px}
+.br-steps li{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--ink-2)}
+.br-steps li b{font-size:13px;color:var(--ink)}
+.br-steps li.done{border-color:var(--good);background:var(--good-bg,transparent)}
+.br-steps li.done b::after{content:' ✓';color:var(--good)}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:10px}
+.cs-blk{border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
+.cs-blk h4{margin:0 0 4px;font-size:13px;font-weight:700}
+.cs-blk.cs-open{border-color:var(--warn);background:var(--warn-bg)}
+.cs-row{padding:5px 0;border-top:1px solid var(--line)}
+.cs-row:first-of-type{border-top:0}
+.cs-l{font-size:11.5px;font-weight:700;color:var(--muted)}
+.cs-v{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cs-v .sug{color:#6A4FB3}
+@media print{.side,#subtabs,.lb-seg,.br-glance,#biOnboard,.btn{display:none !important}.cs-grid{grid-template-columns:1fr 1fr}}
 .lb-head h2{margin:0}
 .lb-seg{display:inline-flex;background:var(--unk-bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
 .lb-seg button{padding:7px 14px;border-radius:9px;font-weight:600;color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center}
@@ -367,7 +393,7 @@ async function render({ tok, url, act, accounts, pick, mode }) {
   if (S.d && S.d.account?.act_id !== act) { S.angOpen = null; S.answer = null; S.idea = ''; }
   if (!S.d || S.d.account?.act_id !== act) main.innerHTML = `<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>`;
   await load();
-  S.view = localStorage.getItem(LS_VIEW) || 'research';
+  S.view = ({ info: 'voice', library: 'research', onboarding: 'client' })[localStorage.getItem(LS_VIEW)] || localStorage.getItem(LS_VIEW) || 'research';
   const saved = localStorage.getItem(LS_LINE + ':' + act);
   S.line = S.d.lines.some(l => l.id === saved) ? saved : (S.d.lines[0]?.id || null);
   paint();
@@ -396,16 +422,21 @@ function paint() {
   const d = S.d;
   if (S.mode === 'tests') return paintTests(main);
   if (S.mode === 'angles') return paintAngles(main);
-  if (!['research', 'info'].includes(S.view)) S.view = 'research';
+  if (!['client', 'research', 'voice'].includes(S.view)) S.view = 'research';
   const drafts = d.personas.filter(p => p.status === 'draft').length + d.angles.filter(a => a.status === 'proposed').length;
-  const views = [['research', 'Research', drafts], ['info', 'Voice and brand info']];
+  const o = d.onboard, sub = o?.status === 'submitted';
+  const views = [['client', 'Client answers', null, sub ? 'What they told us in the onboarding form and the voice interview' : o ? 'Their onboarding form is not finished yet' : 'No onboarding link yet'],
+    ['research', 'Research', drafts, 'What our research found: who buys, what they say, who else they look at'],
+    ['voice', 'Voice', null, 'How the brand talks, and the copy desk that writes in it']];
   main.innerHTML = `<div class="br">
-    <div class="lb-head"><div>${crumb('brand')}<h2>Brand · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">Who buys this brand, why, and how it talks. Read it before you write a brief. Past tests and what won are on Angles.</p></div>
-      <nav class="lb-seg" aria-label="Brand sections">${views.map(([k, l, n]) => `<button data-v="${k}" class="${S.view === k ? 'on' : ''}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav></div>
+    <div class="lb-head"><div>${crumb('brand')}<h2>Brand · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">Who this brand is. <b>Client answers</b> before a call, <b>Research</b> before a brief, <b>Voice</b> when writing. What we tested and what won is on Angles.</p></div>
+      <nav class="lb-seg" aria-label="Brand sections">${views.map(([k, l, n, t]) => `<button data-v="${k}" class="${S.view === k ? 'on' : ''}" title="${esc(t)}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav></div>
+    <div id="brGlance"></div>
     <div id="brBody" class="br"></div></div>`;
   main.querySelectorAll('.lb-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
+  glanceStrip($('#brGlance'));
   const body = $('#brBody');
-  ({ research: paintResearch, info: paintInfo })[S.view](body);
+  ({ client: paintClient, research: paintResearch, voice: paintVoiceView })[S.view](body);
 }
 /* Re-paint without moving the page. */
 function repaint() { const y = window.scrollY; paint(); window.scrollTo(0, y); }
@@ -801,15 +832,72 @@ function testDrawer(b) {
 }
 
 /* ======================================================================
-   BRAND INFO: test rules, voice, onboarding, all on one page
+   VOICE: how the brand talks, how the guide gets built, the copy desk
    ====================================================================== */
-/* Order (2026-10-04): how the brand talks first, then the brand facts and test
-   rules (a read-only link to Settings, Goals), then the client's onboarding answers. */
-function paintInfo(body) {
-  body.innerHTML = '<div id="biTalk" class="br"></div><div id="biVoice" class="br"></div><div id="biProfile" class="br"></div><div id="biOnboard" class="br"></div>';
+function paintVoiceView(body) {
+  const d = S.d, iv = d.docs['']?.voice_interview || {}, g = d.docs['']?.voice_guide || {}, sk = d.docs['']?.voice_skill || {};
+  const bank = d.docs['']?.voice_bank?.items || [];
+  const done = [!!(iv.turns || []).length, !!g.md, !!(sk.instructions || g.md), bank.length > 0];
+  const steps = [['The client talks', 'Voice interview, from the onboarding link. They talk, it asks follow-ups, they rate sample lines.'],
+    ['We write the guide', 'How we write: drafted from the interview, approved by us.'],
+    ['The skill', 'The full copy skill Claude writes with: instructions, facts, how customers talk.'],
+    ['It learns', 'Every line kept or rejected on the copy desk teaches the next one.']];
+  body.innerHTML = `<div class="card br-steps"><p class="br-lbl" style="margin:0 0 6px">How the voice gets built</p><ol>${steps.map(([t, x], i) => `<li class="${done[i] ? 'done' : ''}"><b>${i + 1}. ${t}</b><span>${x}</span></li>`).join('')}</ol></div>
+    <div id="biTalk" class="br"></div><div id="biVoice" class="br"></div>`;
   paintTalk(body.querySelector('#biTalk'));
   paintVoice(body.querySelector('#biVoice'));
-  paintProfile(body.querySelector('#biProfile'));
+}
+
+/* ======================================================================
+   CLIENT ANSWERS: the call sheet, the full answers, the interview
+   ====================================================================== */
+/* The strategist's question before a call is "what did they tell us, in one screen". The
+   call sheet is built straight from the form (no AI, no cost): the same answers the full
+   list below carries, grouped the way a strategist reads them, with the gaps named. */
+const CALL_SHEET = [
+  ['Who', [['company', 'Company'], ['website', 'Website'], ['contact_name', 'Main contact'], ['contact_email', 'Email'], ['contact_phone', 'Phone'], ['approver', 'Who approves ads'], ['socials', 'Socials']]],
+  ['What they sell', [['best_sellers', 'Best sellers'], ['focus_ranges', 'Ranges to focus on'], ['categories', 'Categories'], ['cross_sells', 'Sell well together'], ['regions', 'Ships to'], ['product_count', 'Products'], ['variants', 'Variants']]],
+  ['Why people buy', [['solves', 'What it solves'], ['uvp', 'What makes them different'], ['why_you', 'Why them over competitors'], ['personas', 'Their customer types'], ['faqs', 'Questions customers ask']]],
+  ['The numbers', [['ad_spend', 'Ad spend a month'], ['aov', 'Average order'], ['cogs', 'Cost of that order'], ['ship_cost', 'Shipping cost per order'], ['breakeven', 'Break-even cost per sale'], ['target_cpa', 'Cost per sale they want'], ['target_cpa_how', 'How they got there'], ['product_costs', 'Cost and price per product']]],
+  ['Offers and retention', [['offers', 'Best offers'], ['codes', 'Codes running'], ['free_ship', 'Free shipping over'], ['bundle_upsell', 'Buy more, save more'], ['upsell_bundle', 'Bundles'], ['returning_offers', 'Offers for existing customers'], ['reorder_cycle', 'How often they reorder'], ['loyalty', 'Loyalty']]],
+  ['What they want from us', [['success_90', 'A successful 90 days'], ['tried_failed', 'Tried in ads, did not work'], ['key_dates', 'Launches and key dates']]],
+  ['Brand rules', [['dos_donts', "Do's and don'ts"], ['admired', 'Brands they look up to'], ['brand_guide', 'Brand guide'], ['logo', 'Logo'], ['fonts', 'Fonts'], ['colors', 'Colours']]],
+  ['Competitors and content', [['competitors', 'Competitors'], ['best_ads', 'Best ads they have run'], ['influencers', 'Influencers'], ['content_counts', 'Content they have'], ['ugc_rights', 'UGC rights'], ['content_link', 'Content library']]],
+];
+const ACCESS_KEYS = [['acc_meta', 'Meta'], ['acc_google', 'Google Ads'], ['acc_shopify', 'Shopify'], ['acc_tw', 'Triple Whale'], ['acc_klaviyo', 'Klaviyo'], ['acc_tiktok', 'TikTok'], ['content_shared', 'Content library shared']];
+const IMPORTANT = ['best_sellers', 'solves', 'uvp', 'ad_spend', 'aov', 'target_cpa', 'offers', 'success_90', 'competitors', 'dos_donts', 'personas'];
+function callSheet(d) {
+  const Qo = Q(), o = d.onboard, a = o?.answers || {}, pf = o?.prefill || {};
+  const F = Object.fromEntries(Qo.STEPS.flatMap(st => st.fields.map(f => [f.id, f])));
+  const cell = (id, label) => {
+    const f = F[id]; if (!f) return '';
+    const v = f.calc ? Qo.calc(id, a) : a[id];
+    let h = f.calc ? (v != null ? money(v) : null) : answerHtml(f, v, false);
+    const sug = h == null && pf[id] != null ? answerHtml(f, pf[id], false) : null;
+    if (h == null && !sug) return '';
+    if (h && h.length > 700 && !/<table/.test(h)) h = h.slice(0, 700) + '…';
+    return `<div class="cs-row"><div class="cs-l">${esc(label)}</div><div class="cs-v">${h ?? `<span class="sug">From the website, unconfirmed: ${sug}</span>`}</div></div>`;
+  };
+  const access = ACCESS_KEYS.map(([k, l]) => { const v = a[k]; const ok = v === true || v === 'yes'; return `<span class="pill ${ok ? 'good' : 'unk'}">${ok ? '✓' : '○'} ${esc(l)}</span>`; }).join(' ');
+  const unsure = Object.keys(a).filter(k => a[k] === '__unsure' && F[k]).map(k => F[k].label);
+  const missing = IMPORTANT.filter(k => F[k] && answerHtml(F[k], a[k], false) == null && a[k] !== '__unsure').map(k => F[k].label);
+  const blocks = CALL_SHEET.map(([title, keys]) => { const rows = keys.map(([id, l]) => cell(id, l)).filter(Boolean).join(''); return rows ? `<div class="cs-blk"><h4>${esc(title)}</h4>${rows}</div>` : ''; }).filter(Boolean);
+  return `<div class="card"><div class="br-bar"><div><h3 class="br-h">Before the call: what they told us</h3><span class="tiny">Built from their onboarding answers, grouped the way you read them on a call. The full answers, step by step, are below.</span></div>
+      <div><button class="btn" id="csPrint">Print</button></div></div>
+    <div class="cs-grid">${blocks.join('')}
+      <div class="cs-blk"><h4>Access</h4><div class="br-chips" style="margin-top:4px">${access}</div></div>
+      ${unsure.length || missing.length ? `<div class="cs-blk cs-open"><h4>Ask them on the call</h4>${unsure.length ? `<div class="cs-row"><div class="cs-l">They said “not sure”</div><div class="cs-v">${unsure.map(esc).join('<br>')}</div></div>` : ''}${missing.length ? `<div class="cs-row"><div class="cs-l">Left blank</div><div class="cs-v">${missing.map(esc).join('<br>')}</div></div>` : ''}</div>` : ''}
+    </div></div>`;
+}
+function paintClient(body) {
+  const d = S.d, o = d.onboard;
+  const iv = d.docs['']?.voice_interview || {}, turns = iv.turns || [];
+  const answered = o && Object.keys(o.answers || {}).some(k => o.answers[k] != null && o.answers[k] !== '');
+  body.innerHTML = `${answered ? '<div id="csSheet"></div>' : ''}<div id="biOnboard" class="br"></div>
+    ${turns.length ? `<div class="card"><h3 class="br-h">What they said in the voice interview <span class="tiny">(${turns.length} answers${iv.stage === 'done' ? ', finished' : ', in progress'})</span></h3>
+      <p class="hint" style="margin:4px 0 8px">Their own words, verbatim. The guide on the Voice view is written from this.</p>
+      <details><summary class="tiny" style="cursor:pointer">Read the transcript</summary><div class="br-voicetx">${turns.map(t => `<p><b>${esc(t.q)}</b><br>${esc(t.a || 'Skipped')}</p>`).join('')}</div></details></div>` : ''}`;
+  if (answered) { body.querySelector('#csSheet').innerHTML = callSheet(d); body.querySelector('#csPrint').onclick = () => window.print(); }
   paintOnboarding(body.querySelector('#biOnboard'));
 }
 
@@ -886,7 +974,7 @@ function angleModal(a, { quick = false } = {}) {
           checked = true;
           if (m.matches.length) {
             w.querySelector('#aDup').innerHTML = `<div class="br-warn"><b>This looks like an angle you already have.</b>${m.matches.map(x => `<div style="margin-top:6px"><b>${esc(x.name)}</b>: ${esc(x.why || '')} <button class="btn" style="padding:2px 9px;margin-left:6px" data-use="${esc(x.id)}">Use this one</button></div>`).join('')}<div class="tiny" style="margin-top:8px">If it really is a different reason to buy, press Save again.</div></div>`;
-            w.querySelectorAll('[data-use]').forEach(x => x.onclick = () => { ctl.close(); resolve(x.dataset.use); if (!quick) { S.view = 'library'; S.ang = x.dataset.use; repaint(); } });
+            w.querySelectorAll('[data-use]').forEach(x => x.onclick = () => { ctl.close(); resolve(x.dataset.use); if (!quick) { S.view = 'research'; S.ang = x.dataset.use; repaint(); } });
             w.querySelector('[data-m="yes"]').textContent = 'It is new, save it';
             ctl.msg('');
             return;
@@ -1310,7 +1398,7 @@ function paintOnboarding(body) {
   const Qo = Q();
   if (!o) {
     body.innerHTML = `<div class="card" style="max-width:720px;display:flex;flex-direction:column;gap:10px"><h3 class="br-h">Send ${esc(d.account.name)} their onboarding link</h3>
-      <p class="hint">One link, no login. It walks the client through ${Qo.STEPS.length} short steps (getting started, team, products, numbers, offers, customers, brand, competitors, access), saves as they go, explains why each question matters and has a help box for anything they are unsure of. "I'm not sure" is always allowed; it flags the question for our research instead.</p>
+      <p class="hint">One link, no login. It walks the client through ${Qo.STEPS.length} short steps (${Qo.STEPS.map(x => x.title.toLowerCase()).join(', ')}), saves as they go, explains why each question matters and has a help box for anything they are unsure of. "I'm not sure" is always allowed; it flags the question for our research instead.</p>
       <div><button class="btn primary" id="brMkLink">Create the link</button></div></div>`;
     body.querySelector('#brMkLink').onclick = async () => { S.d = await post('/api/brand/onboard', {}); repaint(); };
     return;
@@ -1329,7 +1417,7 @@ function paintOnboarding(body) {
       <div><button class="btn" id="brCopy">Copy link</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open the form</a><button class="btn" id="brPrefill">${S.prefilling ? 'Reading the website…' : 'Pre-fill from website'}</button></div></div>
       <p class="tiny" style="margin:8px 0 0">Pre-fill reads the brand's website and puts suggested answers in front of the client, so they confirm instead of typing. To change an answer yourself, open the form: it saves the same way.</p>
       <div id="brPfLog"></div></div>
-    <div class="card"><h3 class="br-h">What the client told us</h3><p class="hint" style="margin:4px 0 8px">Their onboarding answers, step by step. Open a step to read it.</p>
+    <div class="card"><h3 class="br-h">Every answer, step by step</h3><p class="hint" style="margin:4px 0 8px">The form as they filled it in. Open a step to read it.</p>
     ${Qo.STEPS.map((s, i) => {
       const qs = s.fields.filter(f => !f.calc), n = qs.filter(f => answerHtml(f, a[f.id]) != null).length, open = !!OB.open[i];
       return `<div class="rs-step"><div><b>${esc(s.title)}</b> <span class="tiny">${n} of ${qs.length} answered</span></div><button class="btn" data-ob="${i}" aria-expanded="${open ? 'true' : 'false'}">${open ? 'Hide answers' : 'Show answers'}</button></div>${open ? `<div style="max-width:86ch;padding-bottom:6px">${s.fields.map(f => {
@@ -1400,7 +1488,7 @@ function skillFile(name, guide, bank) {
     '',
     'Read the whole guide below before writing a word. It wins on how the copy SOUNDS. The approved lines show the feel: match it, never reuse their phrases. The rejected lines, and the reasons, are what to avoid. Never invent a product fact, price, number or review; if you need one you do not have, ask. No em dashes.',
     '',
-    'When the user approves or rejects a line, suggest they add it in Locus > Brand > Brand info > Copy desk, so the guide keeps learning.',
+    'When the user approves or rejects a line, suggest they add it in Locus > Brand > Voice > Copy desk, so the guide keeps learning.',
     '',
     guide || '(No guide yet. Run the voice interview first.)',
     '',
@@ -1436,7 +1524,7 @@ function skillPackage(name, sk, guideMd, bank) {
   const slug = sk.name || `${slugOf(name)}-copy`;
   const row = x => `- [${x.format}] ${x.text}${x.why ? ` (why: ${x.why})` : ''}`;
   const yes = bank.filter(x => x.verdict === 'yes'), no = bank.filter(x => x.verdict === 'no');
-  const bankMd = `# ${name}: lines the brand kept and rejected\n\nFrom Locus (Brand info > Copy desk and the voice interview). Match the feel of the kept lines, never reuse their phrases; the rejected ones, and why, are what to avoid.\n\n## Kept (${yes.length})\n${yes.map(row).join('\n') || '- none yet'}\n\n## Rejected (${no.length})\n${no.map(row).join('\n') || '- none yet'}\n`;
+  const bankMd = `# ${name}: lines the brand kept and rejected\n\nFrom Locus (Brand > Voice > Copy desk and the voice interview). Match the feel of the kept lines, never reuse their phrases; the rejected ones, and why, are what to avoid.\n\n## Kept (${yes.length})\n${yes.map(row).join('\n') || '- none yet'}\n\n## Rejected (${no.length})\n${no.map(row).join('\n') || '- none yet'}\n`;
   const files = sk.instructions
     ? [{ path: `${slug}/SKILL.md`, md: `---\nname: ${slug}\ndescription: ${sk.description || `Write copy in the ${name} brand voice.`}\n---\n${sk.instructions}${sk.source === 'repo' ? '' : '\n\nAlso read `references/examples.md`: the lines the brand kept and rejected.\n'}` },
        ...(sk.files || []).map(f => ({ path: `${slug}/${f.path}`, md: f.md }))]
@@ -1472,7 +1560,7 @@ function paintVoice(body) {
           ${o ? `<b style="word-break:break-all;font-size:13px">${esc(link.replace('https://', ''))}</b>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" id="vCopy">Copy link</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open it</a></div>
             <p class="tiny" style="margin:8px 0 0">Send it after the strategy call. The onboarding form's thank-you screen offers it too. About 20 minutes: they talk, it asks follow-ups, then they rate sample lines.</p>
-            ${turns.length ? `<details style="margin-top:10px"><summary class="tiny" style="cursor:pointer">Read the interview (${turns.length} answers)</summary><div class="br-voicetx">${turns.map(t => `<p><b>${esc(t.q)}</b><br>${esc(t.a || 'Skipped')}</p>`).join('')}</div></details>` : ''}`
+            ${turns.length ? `<p class="tiny" style="margin:8px 0 0">The transcript (${turns.length} answers) is under <b>Client answers</b>.</p>` : ''}`
             : `<p class="tiny">The interview uses the onboarding link's code.</p><button class="btn" id="vMk">Create the links</button>`}
         </div>
         <div><p class="br-lbl">Example bank · ${yesN} kept · ${noN} rejected</p>
@@ -1612,38 +1700,28 @@ function paintVoice(body) {
 /* ======================================================================
    PROFILE
    ====================================================================== */
-function paintProfile(body) {
+/* The strip above every view: the four facts you need in every conversation about the brand,
+   plus where the targets live. One line each; Edit opens the same profile doc as before. */
+function glanceStrip(body) {
   const d = S.d, Qo = Q();
   const p = d.docs['']?.profile || {};
   const a = d.onboard?.answers || {};
-  const r = d.rules;
+  const r = d.rules || {};
   const be = Qo.calc('breakeven', a);
-  body.innerHTML = `
-    <div class="br-g2">
-      <div class="card"><div class="br-bar"><h3 class="br-h">At a glance</h3><button class="btn" id="brEditProf">Edit</button></div>
-        <dl class="br-kv" style="margin-top:10px">
-          <dt>Website</dt><dd>${esc(p.website || a.website || '-')}</dd>
-          <dt>Google Drive</dt><dd>${p.drive ? `<a href="${esc(p.drive)}" target="_blank" rel="noopener">Client folder</a>` : '<span class="tiny">not set: the onboarding link cannot show the client their folder</span>'}</dd>
-          <dt>Current offer</dt><dd>${esc(p.current_offer || a.offers || '-')}</dd>
-          <dt>Free shipping over</dt><dd>${p.free_ship || a.free_ship ? money(+(p.free_ship || a.free_ship)) : '-'}</dd>
-          <dt>Average order</dt><dd>${a.aov ? money(+a.aov) : '-'}${be != null ? ` · break-even cost per sale ${money(be)}` : ''}</dd>
-          <dt>Product lines</dt><dd>${d.lines.map(l => esc(l.name)).join(', ') || '-'}</dd>
-          <dt>Research</dt><dd>${d.personas.filter(x => x.status === 'approved').length} approved personas · ${d.voc.length} customer quotes · ${d.comps.length} competitors</dd>
-          <dt>Tests</dt><dd>${d.batches.length} batches · ${d.angles.filter(x => x.status === 'active').length} angles in use</dd>
-          <dt>Do</dt><dd>${esc(p.dos || '-')}</dd>
-          <dt>Never</dt><dd>${esc(p.donts || a.dos_donts || '-')}</dd>
-          <dt>Notes</dt><dd>${esc(p.notes || '-')}</dd>
-        </dl></div>
-      <div class="card"><div class="br-bar"><h3 class="br-h">Test rules</h3><button class="btn" id="brRules">Edit in Settings</button></div>
-        <p class="hint" style="margin:6px 0 10px">Set once per brand in Settings → Goals. Sales are Triple Whale attribution. Locus suggests Winner, Keep running or Loser in Asana; the media buyer makes the call.</p>
-        <dl class="br-kv">
-          <dt>Goal cost per sale</dt><dd>${r.target_cpa ? money(r.target_cpa) : '<b>not set</b>'}</dd>
-          <dt>Judge after</dt><dd>${money(r.judge_spend)} spent, or ${r.judge_days} days</dd>
-          <dt>Winner</dt><dd>${r.target_cpa ? money(r.target_cpa) : '-'} or less per sale, 2+ sales</dd>
-          <dt>Keep</dt><dd>up to the account average${r.acct_avg ? ` (${money(r.acct_avg)}, ${esc(r.acct_avg_month || '')})` : ' (set on the 1st)'}, 2+ sales</dd>
-          <dt>Test minimums</dt><dd>${r.min_track ? `${money(r.min_spend)}/day for ${r.min_days} days, all together max ${r.min_cap_pct}% of budget` : 'not tracked'}</dd>
-        </dl></div>
-    </div>`;
+  const site = p.website || a.website || '';
+  const item = (l, v, title) => v ? `<div class="gl-i" ${title ? `title="${esc(title)}"` : ''}><span class="gl-l">${l}</span><span class="gl-v">${v}</span></div>` : '';
+  body.innerHTML = `<div class="card br-glance">
+    ${item('Website', site ? `<a href="${esc(/^https?:/.test(site) ? site : 'https://' + site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>` : '')}
+    ${item('Drive', p.drive ? `<a href="${esc(p.drive)}" target="_blank" rel="noopener">Client folder</a>` : '<span class="tiny">not set</span>')}
+    ${item('Offer now', esc(short(p.current_offer || a.offers || '', 90)))}
+    ${item('Free shipping', p.free_ship || a.free_ship ? 'over ' + money(+(p.free_ship || a.free_ship)) : '')}
+    ${item('Average order (their number)', a.aov ? money(+a.aov) + (be != null ? ` · break-even ${money(be)} per sale` : '') : '', 'What the client typed in onboarding. The measured AOV is on Profit.')}
+    ${item('Goal cost per sale', r.target_cpa ? `${money(r.target_cpa)} <button type="button" class="link" id="brRules">test rules</button>` : `<button type="button" class="link" id="brRules">not set, set it in Settings</button>`, 'Targets live in Settings, Goals: one place for every number Locus judges against.')}
+    ${item('Do', esc(short(p.dos || '', 120)))}
+    ${item('Never', esc(short(p.donts || a.dos_donts || '', 120)))}
+    ${p.notes ? item('Notes', esc(short(p.notes, 120))) : ''}
+    <div class="gl-i gl-act"><button class="btn" id="brEditProf">Edit</button></div>
+  </div>`;
   body.querySelector('#brEditProf').onclick = () => modal('At a glance', `<div class="br-form">
       ${inp('pW', 'Website', p.website || a.website, { type: 'url', full: true })}
       ${inp('pDr', 'Google Drive client folder', p.drive, { type: 'url', full: true, hint: 'the onboarding link shows it to the client' })}
@@ -1655,7 +1733,7 @@ function paintProfile(body) {
     await putDoc('', 'profile', { ...p, website: val(w, 'pW'), drive: val(w, 'pDr'), current_offer: val(w, 'pO'), free_ship: val(w, 'pF'), dos: val(w, 'pDo'), donts: val(w, 'pDn'), notes: val(w, 'pN') });
     ctl.close(); repaint();
   }) });
-  body.querySelector('#brRules').onclick = () => window.openGoals && window.openGoals(S.act);
+  const rl = body.querySelector('#brRules'); if (rl) rl.onclick = () => window.openGoals && window.openGoals(S.act);
 }
 
 /* How the brand talks, in short. First thing on Voice and brand info. */

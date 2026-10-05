@@ -388,8 +388,11 @@ function dayEconomics(piv, meta, date, marginPct) {
   const variableCosts = cogs != null ? cogs + shipCost + handling + (fees ?? 0) : null;
   const grossProfit = marginPct != null ? sales * marginPct
     : variableCosts != null ? sales - variableCosts : null;
+  const orders = piv.totalOrders?.[date] ?? null;
+  const newOrders = piv.newCustomersOrders?.[date] ?? null;
   return {
     date, sales, total_sales: totalSales, tax, net_sales: netSales, ship_rev: shipRev, spend,
+    orders, new_orders: newOrders, email_rev: piv.klaviyoPlacedOrderSales?.[date] ?? null,
     new_rev: newRev,
     ret_rev: newShare != null ? sales * (1 - newShare) : rawRet,
     new_share: newShare,
@@ -532,8 +535,15 @@ const sum = (rows, get) => {
 function totals(rows) {
   const sales = sum(rows, r => r.sales), spend = sum(rows, r => r.spend);
   const newRev = sum(rows, r => r.new_rev), gp = sum(rows, r => r.gross_profit);
+  const orders = sum(rows, r => r.orders), newOrders = sum(rows, r => r.new_orders), emailRev = sum(rows, r => r.email_rev);
   return {
     days: rows.length, sales, spend, new_rev: newRev, ret_rev: sum(rows, r => r.ret_rev),
+    /* Orders and AOV (2026-10-05, Cole: "surprised the app doesn't have AOV"). One definition,
+       the same as Reports and the Strategist: AOV = revenue / Triple Whale totalOrders. */
+    orders, new_orders: newOrders, aov: orders ? sales / orders : null,
+    new_aov: newOrders ? (newRev ?? 0) / newOrders : null,
+    cac: spend != null && newOrders ? spend / newOrders : null,
+    email_rev: emailRev, email_share: emailRev != null && sales > 0 ? emailRev / sales : null,
     total_sales: sum(rows, r => r.total_sales), tax: sum(rows, r => r.tax),
     net_sales: sum(rows, r => r.net_sales), ship_rev: sum(rows, r => r.ship_rev),
     cogs: sum(rows, r => r.cogs), ship_cost: sum(rows, r => r.ship_cost),
@@ -1078,6 +1088,153 @@ async function customerEconomics(env, acct, months = 6, days = 30, range = null)
       thin: agg.newOrders < 50,
     },
     series,
+  };
+}
+
+/* ---------------- the customer journey (2026-10-05) ----------------
+ * Built on tw_orders: one row per order from Triple Whale's journeys (customer, day, money,
+ * the cart's products, the last-platform-click source), written by the account-health worker
+ * and backfilled 400 days. It answers what the Customers page is for, as a CMO asks it:
+ *   what is a customer worth over time (LTV at 30/60/90/180/365 days), against what we paid
+ *   for them (CAC), how many come back and how fast, what they buy first and next, and whether
+ *   repeat orders arrive on their own or are bought again with ads.
+ * Rules: a customer is "matured" for a horizon only when that many days have passed since the
+ * first order, so young cohorts never drag an average down. Customers first seen in the first
+ * 60 days of history may have bought before the data starts, so they are kept out of the
+ * averages (uncertain) and the page says so. Guest orders (no customer id) count as orders but
+ * cannot join a cohort. Products are the cart's add-to-cart events, not the receipt: a signal,
+ * labelled as one, until Shopify is connected.
+ */
+const LTV_HORIZONS = [30, 60, 90, 180, 365];
+async function productTitles(env, acct, ids) {
+  if (!acct.tw_shop || !ids.length) return {};
+  const key = `productTitles:${acct.act_id}`;
+  let cache = null;
+  try { const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first(); cache = row ? JSON.parse(row.value) : null; } catch { cache = null; }
+  /* Retired products (an old Carver id with 2,000 first orders) are not in the public
+     listing. settings productNames:<act> = {"<id>": "name"} names them by hand and wins. */
+  let manual = {};
+  try { const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`productNames:${acct.act_id}`).first(); manual = row ? JSON.parse(row.value) : {}; } catch { manual = {}; }
+  const fresh = cache && cache.at && Date.now() - cache.at < 24 * 3600e3 && ids.every(id => id in cache.map || id in manual);
+  if (fresh) return { ...cache.map, ...manual };
+  const map = { ...(cache?.map || {}) };
+  for (let page = 1; page <= 4; page++) {
+    const r = await fetch(`https://${acct.tw_shop}/products.json?limit=250&page=${page}`, { headers: { 'User-Agent': 'Mozilla/5.0 Locus' } }).catch(() => null);
+    if (!r || !r.ok) break;
+    const j = await r.json().catch(() => ({}));
+    const ps = j.products || [];
+    for (const p of ps) if (p.id != null) map[String(p.id)] = p.title || '';
+    if (ps.length < 250) break;
+  }
+  try { await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ at: Date.now(), map })).run(); } catch { /* cache only */ }
+  return { ...map, ...manual };
+}
+const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const dayDiff = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86400e3);
+
+async function customerJourney(env, acct, winFrom, winTo) {
+  const { results } = await env.DB.prepare(`SELECT order_id, customer_id, date, total, products_json, source FROM tw_orders WHERE act_id = ?1 ORDER BY date, order_id`)
+    .bind(acct.act_id).all().catch(() => ({ results: [] }));
+  const rows = results || [];
+  if (!rows.length) return { have: false, reason: 'No order history from Triple Whale yet. It fills in overnight once the brand has a Triple Whale shop.' };
+  const histFrom = rows[0].date, histTo = rows[rows.length - 1].date;
+  const histDays = dayDiff(histFrom, histTo) + 1;
+  const reliableFrom = addDays(histFrom, 60);
+  const today = localDate(acct.tz);
+
+  const cust = new Map(); let guestOrders = 0, guestRev = 0;
+  for (const r of rows) {
+    if (!r.customer_id) { guestOrders++; guestRev += r.total || 0; continue; }
+    let c = cust.get(r.customer_id);
+    if (!c) { c = { id: r.customer_id, orders: [] }; cust.set(r.customer_id, c); }
+    c.orders.push({ date: r.date, total: r.total || 0, products: r.products_json ? JSON.parse(r.products_json) : [], source: r.source || 'organic' });
+  }
+  const people = [...cust.values()];
+  for (const c of people) {
+    c.first = c.orders[0].date; c.n = c.orders.length; c.rev = c.orders.reduce((a, o) => a + o.total, 0);
+    c.certain = c.first >= reliableFrom;
+    c.age = dayDiff(c.first, histTo);
+    c.gap = c.n > 1 ? dayDiff(c.first, c.orders[1].date) : null;
+    c.at = {}; for (const h of LTV_HORIZONS) c.at[h] = c.age >= h ? c.orders.filter(o => dayDiff(c.first, o.date) <= h).reduce((a, o) => a + o.total, 0) : null;
+    c.repeatAt = {}; for (const h of LTV_HORIZONS) c.repeatAt[h] = c.age >= h ? c.orders.some((o, i) => i > 0 && dayDiff(c.first, o.date) <= h) : null;
+  }
+  const certain = people.filter(c => c.certain);
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+
+  /* The curve: what a customer is worth N days in, among customers old enough to know. */
+  const curve = LTV_HORIZONS.map(h => { const m = certain.filter(c => c.at[h] != null); return { days: h, customers: m.length, ltv: avg(m.map(c => c.at[h])), repeat_rate: m.length ? m.filter(c => c.repeatAt[h]).length / m.length : null }; });
+  const firstAov = avg(certain.map(c => c.orders[0].total));
+  const repeatOrders = certain.flatMap(c => c.orders.slice(1));
+  const returningAov = avg(repeatOrders.map(o => o.total));
+  const repeaters = certain.filter(c => c.n > 1);
+  const gapMedian = median(repeaters.map(c => c.gap));
+  const ordersPerCustomer365 = (() => { const m = certain.filter(c => c.at[365] != null); return m.length ? avg(m.map(c => c.orders.filter(o => dayDiff(c.first, o.date) <= 365).length)) : null; })();
+
+  /* CAC by the month the customer was acquired: Triple Whale spend over its new customers,
+     the same figure as everywhere else in Locus. */
+  const piv = await pivot(env, acct.act_id, `${monthOf(histFrom)}-01`, today);
+  const monthly = {};
+  for (const [m, k] of [['blendedAds', 'spend'], ['newCustomersOrders', 'newOrders']]) for (const [d, v] of Object.entries(piv[m] || {})) (monthly[monthOf(d)] ??= { spend: 0, newOrders: 0 })[k] += v || 0;
+  const cacOf = ym => { const mm = monthly[ym]; return mm && mm.newOrders > 0 ? mm.spend / mm.newOrders : null; };
+
+  /* Cohorts by first-order month. */
+  const byMonth = {};
+  for (const c of people) (byMonth[monthOf(c.first)] ??= []).push(c);
+  const cohorts = Object.keys(byMonth).sort().map(ym => {
+    const cs = byMonth[ym], cert = cs.filter(c => c.certain);
+    const at = h => { const m = cert.filter(c => c.at[h] != null); return m.length ? avg(m.map(c => c.at[h])) : null; };
+    const cac = cacOf(ym);
+    const ltv365 = at(365), ltv90 = at(90);
+    const rev = cs.reduce((a, c) => a + c.rev, 0);
+    return { month: ym, customers: cs.length, uncertain: cert.length < cs.length, repeat_customers: cs.filter(c => c.n > 1).length, repeat_rate: cs.length ? cs.filter(c => c.n > 1).length / cs.length : null,
+      orders: cs.reduce((a, c) => a + c.n, 0), revenue: rev, ltv_now: cs.length ? rev / cs.length : null, ltv_90: ltv90, ltv_365: ltv365, cac,
+      ltv_cac_90: ltv90 != null && cac ? ltv90 / cac : null, ltv_cac_365: ltv365 != null && cac ? ltv365 / cac : null, age_days: dayDiff(`${ym}-01`, histTo) };
+  });
+  /* Headline LTV:CAC: weighted over the months that have a 365-day (else 90-day) read. */
+  const weighted = (key, cacKey) => { let lv = 0, cc = 0, n = 0; for (const co of cohorts) { if (co[key] == null || co.cac == null || co.uncertain) continue; const m = certain.filter(c => monthOf(c.first) === co.month && c.at[cacKey] != null).length; lv += co[key] * m; cc += co.cac * m; n += m; } return n ? { ltv: lv / n, cac: cc / n, ratio: cc ? lv / cc : null, customers: n } : null; };
+  const lc365 = weighted('ltv_365', 365), lc90 = weighted('ltv_90', 90);
+
+  /* What they buy first, and what the same people put in the cart next. */
+  const firstCount = {}, nextCount = {}, nextBy = {};
+  for (const c of certain) {
+    for (const p of c.orders[0].products) { firstCount[p] = (firstCount[p] || 0) + 1; }
+    if (c.n > 1) for (const p of c.orders[1].products) { nextCount[p] = (nextCount[p] || 0) + 1; for (const f of c.orders[0].products) { if (f === p) continue; ((nextBy[f] ??= {})[p] = (nextBy[f]?.[p] || 0) + 1); } }
+  }
+  const top = (o, n) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, n);
+  const firstTop = top(firstCount, 8), nextTop = top(nextCount, 8);
+  const ids = [...new Set([...firstTop.map(x => x[0]), ...nextTop.map(x => x[0]), ...firstTop.flatMap(([f]) => top(nextBy[f] || {}, 3).map(x => x[0]))])];
+  const titles = await productTitles(env, acct, ids).catch(() => ({}));
+  const name = id => titles[id] || `Retired product (${id})`;
+  const firstOrdersWithProducts = certain.filter(c => c.orders[0].products.length).length;
+  const products = {
+    coverage: certain.length ? firstOrdersWithProducts / certain.length : null,
+    first: firstTop.map(([id, n]) => ({ id, name: name(id), customers: n, share: firstOrdersWithProducts ? n / firstOrdersWithProducts : null,
+      then: top(nextBy[id] || {}, 3).map(([id2, n2]) => ({ id: id2, name: name(id2), customers: n2 })),
+      repeat_rate: (() => { const m = certain.filter(c => c.orders[0].products.includes(id) && c.at[90] != null); return m.length >= 10 ? m.filter(c => c.repeatAt[90]).length / m.length : null; })() })),
+    next: nextTop.map(([id, n]) => ({ id, name: name(id), customers: n })),
+  };
+
+  /* Where orders come from: first orders vs repeat orders, by last-platform-click source,
+     grouped into what a strategist decides on: paid (which platform), email and SMS, or on
+     their own. Triple Whale's raw source names are many (organic_and_social, direct, shop_app,
+     judgeme, afterpay...); everything that is not an ad platform or an owned message is "own". */
+  const srcGroup = raw => { const x = String(raw || 'organic').toLowerCase(); if (/^(meta|facebook|instagram)/.test(x)) return 'meta'; if (/google|youtube/.test(x)) return 'google'; if (/tiktok/.test(x)) return 'tiktok'; if (/pinterest|snapchat|reddit|microsoft|bing|applovin|taboola|outbrain|criteo/.test(x)) return 'other_ads'; if (/klaviyo|attentive|postscript|sms|email|notify|mailchimp|omnisend|yotpo/.test(x)) return 'email'; return 'own'; };
+  const mix = list => { const o = {}; for (const x of list) { const g = srcGroup(x.source); o[g] = (o[g] || 0) + 1; } const n = list.length || 1; return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([s, k]) => ({ source: s, orders: k, share: k / n })); };
+  const sources = { first: mix(certain.map(c => c.orders[0])), repeat: mix(repeatOrders) };
+
+  /* The selected window, by PEOPLE: of the orders in it, how many came from someone who had
+     bought before the window opened. */
+  let winOrders = 0, winReturning = 0, winRev = 0, winRetRev = 0;
+  for (const c of people) for (let i = 0; i < c.orders.length; i++) { const o = c.orders[i]; if (o.date < winFrom || o.date > winTo) continue; winOrders++; winRev += o.total; if (i > 0 && c.orders[0].date < winFrom) { winReturning++; winRetRev += o.total; } }
+  const win = { from: winFrom, to: winTo, orders: winOrders, returning_orders: winReturning, returning_share: winOrders ? winReturning / winOrders : null, revenue: winRev, returning_revenue: winRetRev };
+
+  return {
+    have: true, history: { from: histFrom, to: histTo, days: histDays, reliable_from: reliableFrom, complete: histDays >= 390 },
+    customers: people.length, certain_customers: certain.length, guest_orders: guestOrders, guest_revenue: guestRev, orders: rows.length,
+    first_aov: firstAov, returning_aov: returningAov, repeat_rate_ever: certain.length ? repeaters.length / certain.length : null,
+    days_to_second: gapMedian, orders_per_customer_365: ordersPerCustomer365,
+    curve, ltv_cac: lc365 ? { horizon: 365, ...lc365 } : lc90 ? { horizon: 90, ...lc90 } : null,
+    cohorts: cohorts.slice(-14), products, sources, window: win,
   };
 }
 
@@ -2187,8 +2344,11 @@ export default {
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(act).first().catch(() => null);
         const r = await customerEconomics(env, acct, Math.min(+url.searchParams.get('months') || 6, 12),
           Math.min(+url.searchParams.get('days') || 30, 180), (qFrom || qTo) ? windowFor(acct) : null);
+        /* The journey (LTV, repeat, products) rides on the same call; a failure there never
+           hides the unit economics. */
+        const journey = url.searchParams.get('journey') === '0' ? null : await customerJourney(env, acct, r.window.from, r.window.to).catch(e => ({ have: false, reason: e.message }));
         // Margin drives first-order CM, so the same trust gate applies.
-        return json({ ...r, cm_ok: r.margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none') });
+        return json({ ...r, journey, cm_ok: r.margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none') });
       }
 
       /* Weekday rhythm: what a week actually looks like for this client. */
