@@ -1419,3 +1419,23 @@ every thread reply", and Yak Sports asked to change the agreement before signing
   signing page sends `hash` and `POST /api/sign` refuses (409 `updated`) a signature on an
   older text and reloads the page. `contractState` returns `html`, `version`, `history`
   (without html). Signed rows are untouched: amendments as before.
+
+### 2026-10-05 (night): read it like a client. Copy desk is its own tab.
+Cole: "formatting issues, spacing issues, a lot of it doesn't make sense, especially Customers;
+why is the copy desk in the brand thing". Fixed by reading every screen at 1280 wide:
+- **Customers copy**: every label is a sentence ("Cost to get a new customer", "Left after costs
+  on that order", "Spent in their first 90 days", "Order again"); the verdict reads "Yes, but
+  not by much: 1.8x over their first 90 days" and explains dollars back per dollar. The bar
+  chart is a four-row table (days after first order / spent so far / ordered again / counted)
+  with one plain sentence under it; the two month tables are one ("Each month's new customers,
+  followed since", with Back per $1). "This window, by people" is gone. Customers is one column
+  (`.cu-two`), so no table scrolls sideways.
+- **Stat strip** (`.rollup`) is a grid of separate dark tiles with a 5px gap, not a wrapping
+  flex bar: seven tiles on P&L had put Contribution margin alone on a full-width second row.
+  `td.tiny` note columns wrap instead of forcing a horizontal scroll.
+- **Copy desk is its own rail tab** under Making ads (`show('copy')` -> `renderCopy` ->
+  `BrandTab.render({mode:'copy'})` -> `paintDesk` in brand.js). Brand > Voice keeps the
+  interview, guide and skill (how the voice was built); the desk is where you WRITE. Call
+  sheet blocks are two columns max and keep their tables inside (`.cs-blk{overflow:hidden}`).
+- Screens that proxy account-health (Daily Brief, Reports, Meta) cannot be audited on the local
+  dev pair (401 on the dev token): audit those on prod.

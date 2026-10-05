@@ -396,6 +396,8 @@
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   th{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
   td{padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+  /* Note columns wrap instead of pushing the table into a horizontal scroll. */
+  td.tiny{white-space:normal;min-width:150px;line-height:1.4}
   tr:last-child td{border-bottom:none}
   td.num,th.num{text-align:right}
   td b{font-weight:700}
@@ -480,9 +482,17 @@
      ============================================================ */
 
   /* ---- the dark roll-up ---- */
-  .rollup{display:flex;align-items:stretch;color:var(--on-ink);overflow:hidden;margin-bottom:22px;flex-wrap:wrap}
-  .ru{padding:15px 20px 16px;border-left:1px solid var(--ink-panel-2);flex:1 1 160px;min-width:0}
+  /* A grid, not a wrapping flex row (2026-10-05): with seven tiles the flex version put the
+     seventh alone on a full-width second row, which read as a layout bug. Tiles now keep one
+     width and a second row lines up under the first. */
+  .rollup{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:stretch;color:var(--on-ink);overflow:hidden;margin-bottom:18px}
+  .ru{padding:15px 20px 16px;border-left:1px solid var(--ink-panel-2);border-top:1px solid var(--ink-panel-2);min-width:0}
   .ru:first-child{border-left:none}
+  /* Tiles are their own dark cards with a hairline gap, so a wrapped row leaves blank page,
+     not an empty dark bar. */
+  .rollup{gap:5px;background:transparent;overflow:visible;border-radius:0}
+  .ru{background:var(--ink-panel);border:0;border-radius:12px}
+  .ru:first-child{border-left:0}
   .ru-l{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     color:var(--on-ink-2);margin-bottom:6px}
   .ru-v{font-family:var(--display);font-weight:700;font-size:clamp(24px,2.4vw,29px);
@@ -1615,7 +1625,10 @@
   .rp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:11px;margin-bottom:11px;align-items:start}
   .rp-grid .card{margin-bottom:0}
   /* Customers, Phase 4. */
-  .cu-two{gap:11px}
+  /* One column: the cohort table and the product journey both need the full width to read
+     without a horizontal scroll (2026-10-05). */
+  .cu-two{gap:11px;grid-template-columns:1fr}
+  .ltv-tbl td:first-child,.ltv-tbl th:first-child{white-space:nowrap}
   .ltv-curve{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;align-items:end}
   .ltv-bar{display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
   .ltv-v{font-weight:700;font-size:13px;margin-bottom:4px}
@@ -1791,6 +1804,7 @@
           <button data-t="angles"><svg class="ic"><use href="#i-angles"/></svg><span>Angles</span></button>
           <button data-t="studio"><svg class="ic"><use href="#i-studio"/></svg><span>Studio</span></button>
           <button data-t="brand"><svg class="ic"><use href="#i-brand"/></svg><span>Brand</span></button>
+          <button data-t="copy"><svg class="ic"><use href="#i-chat"/></svg><span>Copy desk</span></button>
           <button data-t="amb"><svg class="ic"><use href="#i-amb"/></svg><span>Creator link</span></button>
         </div>
       </div>
@@ -1852,7 +1866,7 @@
 <script src="meta.js?v=9"></script>
 <script src="amb.js?v=17"></script>
 <script src="../onboard/questions.js?v=8"></script>
-<script src="brand.js?v=15"></script>
+<script src="brand.js?v=16"></script>
 <script src="newclient.js?v=14"></script>
 <script src="studio.js?v=21"></script>
 <script>
@@ -2006,7 +2020,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
@@ -2651,6 +2665,7 @@ const TAB_PURPOSE = {
   customers: 'What a customer is worth over time against what we paid for them, how many come back and how fast, and what they buy first and next. Read it before you set a plan or a post-purchase flow.',
   brand:     'Who this brand is: what the client told us, what our research found, and how the brand talks. Read it before a strategy call or a brief.',
   amb:       "The page the brand's creators read instead of a PDF brief: sections, angles, openers, proof. Edit it here; they see it at the public link.",
+  copy:      "Write lines in this brand's voice for one job at a time. Keep the ones that sound like them, reject the rest: that is how it learns.",
   studio:    'Make a batch of ads from a brief: the AI drafts the whole ad, you fix only what you want, then it goes to Canva.',
   costs:     'Whether a client’s cost data can be trusted. Everything profit-related depends on the answer, so check it here when a warning appears.',
   health:    'Whether Triple Whale still agrees with the ad platforms. Green means this morning’s numbers are safe to send; red tells you what broke and what to press.',
@@ -2691,21 +2706,21 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 const TAB_CRUMB = {
   overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Meta &nbsp;/&nbsp; Test calls'], angles: ['Making ads', 'Angles'],meta: ['Every day', 'Meta'],
   reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit &nbsp;/&nbsp; P&amp;L'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
-  studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], amb: ['Making ads', 'Creator link'],
+  studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], copy: ['Making ads', 'Copy desk'], amb: ['Making ads', 'Creator link'],
   plan: ['Monthly and setup', 'Plan'], settings: ['Monthly and setup', 'Settings'],
   health: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Data health'], costs: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Costs'],
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
 const TAB_WHO = { overview: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
-  angles: 'strategist', studio: 'strategist', brand: 'strategist', amb: 'strategist',
+  angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'For everyone', buyer: 'For the media buyer', strategist: 'For the strategist', owner: 'For Cole' };
 const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[tab]]}</span>` : '';
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
-const ROLE_TABS = { buyer: ['overview', 'brief', 'meta', 'reports'], strategist: ['overview', 'angles', 'studio', 'brand', 'amb', 'meta'] };
+const ROLE_TABS = { buyer: ['overview', 'brief', 'meta', 'reports'], strategist: ['overview', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta'] };
 function applyRole() {
   let role = 'all';
   try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
@@ -3983,7 +3998,7 @@ const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 /** Tab titles, so an error page can still say which tab it is. */
 const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
-  health: 'Data Health', amb: 'Creator link', brand: 'Brand', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
+  health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
    (2026-10-04). The parent's own id is its first page. Meta is a section too, but
    meta.js fills its own sub-tabs. */
@@ -4180,6 +4195,7 @@ function openGoals(act) {
 }
 window.openGoals = openGoals;
 
+window.showTab = tab => show(tab);
 function show(tab) {
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
@@ -4253,7 +4269,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, guide: renderGuide })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, guide: renderGuide })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4320,6 +4336,15 @@ async function renderBrand(first) {
 /* ---------- Tests ----------
    Its own tab since 2026-10-04 (was Brand > Test library). Same file as Brand
    (brand.js, mode 'tests'): Make a call, Running, What we learned. */
+async function renderCopy(first) {
+  const run = RUN;
+  if (!window.BrandTab) { $('#main').innerHTML = `<h2>Copy desk</h2><div class="card"><span style="color:var(--bad)">The Copy desk didn't load. Hard-refresh the page (Ctrl+Shift+R).</span></div>`; return; }
+  if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  try {
+    await window.BrandTab.render({ tok: S.tok, url: S.url, act: S.act, accounts: S.accounts, mode: 'copy',
+      pick: id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('copy'); } });
+  } catch (e) { if (run === RUN) $('#main').innerHTML = `<h2>Copy desk</h2><div class="card"><span style="color:var(--bad)">Couldn't load the Copy desk: ${esc(e.message)}</span></div>`; }
+}
 async function renderTests(first) {
   const run = RUN;
   if (!window.BrandTab) {
@@ -4366,6 +4391,7 @@ const GUIDE = [
     ['Making it', [
       ['Write the brief in Asana', 'Same as always. Locus files the test under its angle and concept by itself.', null],
       ['Studio', 'For statics: New batch, pick the Asana brief, review, send to Canva.', 'studio'],
+      ['Copy desk', "Headlines, hooks, subject lines in the brand's voice. Keep or reject each line; it learns from the calls.", 'copy'],
     ]],
   ] },
   { role: 'owner', name: 'Cole', sub: 'Is each brand making money, and is it set up right.', parts: [
@@ -8555,98 +8581,108 @@ async function renderPlanAll() {
 }
 
 /* ---------- Customers ----------
-   REBUILT 2026-10-05 (Cole: "what's the point of the customers tab... LTV to CAC, when people
-   buy, what they buy first, what they buy afterward"). One question, read the way a CMO reads
-   it: is a customer worth more than they cost, and how does that value arrive?
-   Data: `journey` from /api/customers is built on tw_orders (Triple Whale's per-order journeys,
-   backfilled 400 days by the account-health worker): real customers followed forward, so LTV
-   at 30/60/90/180/365 days, repeat rate, time to the second order, first and next products and
-   whether repeat orders are bought with ads or arrive on their own. `headline` / `series` are
-   the unit economics that were already here (CAC, first-order margin, payback), unchanged. */
+   REBUILT 2026-10-05, REWRITTEN THE SAME NIGHT after Cole read it: "does the customer pay back
+   what it costs to buy them, I'm not sure what that means". Every label is now a sentence a
+   client could read. One question, answered first: is a customer worth more than they cost
+   to get. Then how that value arrives (first order, then repeat), what they buy first and
+   next, and whether repeat orders need ads. Data: `journey` from /api/customers (tw_orders,
+   Triple Whale's per-order journeys, 400 days) plus the window's unit economics (`headline`). */
 const ltvTone = r => r == null ? 'un' : r >= 3 ? 'ok' : r >= 1.5 ? 'wn' : 'bd';
-const srcLabel = s => ({ meta: 'Meta ads', google: 'Google ads', tiktok: 'TikTok ads', other_ads: 'Other ads', email: 'Email and SMS', own: 'On their own (organic, direct, social)' })[s] || s;
-const fmtDays = n => n == null ? ' - ' : n < 1 ? 'same day' : n < 2 ? '1 day' : `${Math.round(n)} days`;
+const srcLabel = s => ({ meta: 'Meta ads', google: 'Google ads', tiktok: 'TikTok ads', other_ads: 'Other ads', email: 'Email and SMS', own: 'On their own' })[s] || s;
+const fmtDays = n => n == null ? ' - ' : n < 1 ? 'the same day' : n < 2 ? '1 day' : `${Math.round(n)} days`;
+const fmtN = n => n == null ? ' - ' : Math.round(n).toLocaleString('en-US');
 
-/** The one-line answer and the sentences behind it. */
-function ltvVerdict(j, h, cur, cmOk) {
+/** The answer in one line, and the plain-English working under it. */
+function ltvVerdict(j, h, cur, cmOk, brand) {
   const lc = j && j.have ? j.ltv_cac : null;
-  const pb = h.payback;
   if (!lc) {
     if (!j || !j.have) return { tone: 'un', word: 'Not enough history yet', body: j && j.reason ? esc(j.reason) : 'Customer history from Triple Whale fills in overnight.' };
-    return { tone: 'un', word: 'Too early to say', body: `${j.certain_customers} customers are on record, but none is old enough to read a 90-day value yet. The first-order numbers below still hold.` };
+    return { tone: 'un', word: 'Too early to say', body: `${fmtN(j.certain_customers)} customers are on record, but none is old enough yet to read 90 days of buying. The first-order numbers below still hold.` };
   }
-  const yr = lc.horizon === 365;
-  const word = `${lc.ratio.toFixed(1)}x ${yr ? 'over a year' : 'in 90 days'}`;
+  const yr = lc.horizon === 365, span = yr ? 'first year' : 'first 90 days';
   const tone = ltvTone(lc.ratio);
-  const body = `A customer acquired for <b>${fmtMoney(lc.cac, cur)}</b> is worth <b>${fmtMoney(lc.ltv, cur)}</b> within ${yr ? '365' : '90'} days (${lc.customers} customers old enough to judge). ${
-    cmOk && pb != null ? (pb >= 1 ? `The first order alone pays that back (<b>${pb.toFixed(2)}x</b> on its margin), so repeat buying is upside.` : `The first order covers <b>${pb.toFixed(2)}x</b> of it on its margin; the rest has to come from repeat buying.`) : ''} ${
-    j.repeat_rate_ever != null ? `<b>${fmtPct(j.repeat_rate_ever)}</b> of customers have bought again${j.days_to_second != null ? `, typically after <b>${fmtDays(j.days_to_second)}</b>` : ''}.` : ''} ${
-    tone === 'ok' ? 'Above 3x there is room to pay more for a customer than the first order justifies.' : tone === 'wn' ? 'Between 1.5x and 3x: fine, but every rise in CAC comes straight out of the margin.' : 'Under 1.5x the brand is buying revenue, not profit. Lower CAC or lift repeat before scaling.'}`;
+  const word = `${tone === 'ok' ? 'Yes' : tone === 'wn' ? 'Yes, but not by much' : 'No'}: ${lc.ratio.toFixed(1)}x over their ${span}`;
+  const first = h.new_aov != null ? h.new_aov : j.first_aov;
+  const left = cmOk && h.first_order_gp != null ? h.first_order_gp : null;
+  const body = `A new ${esc(brand)} customer costs <b>${fmtMoney(lc.cac, cur)}</b> in ads to get. Over their ${span} they spend <b>${fmtMoney(lc.ltv, cur)}</b> with the brand: <b>${lc.ratio.toFixed(1)} dollars back for every dollar</b> spent getting them (${fmtN(lc.customers)} customers old enough to count). ${
+    first != null ? `Most of that is the first order, <b>${fmtMoney(first, cur)}</b> on average${left != null ? `, which leaves <b>${fmtMoney(left, cur)}</b> after product, shipping and fees` : ''}.` : ''} ${
+    j.repeat_rate_ever != null ? `<b>${fmtPct(j.repeat_rate_ever)}</b> of customers order again${j.days_to_second != null ? `, usually after ${fmtDays(j.days_to_second)}` : ''}.` : ''} ${
+    tone === 'ok' ? 'Above 3x there is room to pay more for a customer than the first order alone would justify.' : tone === 'wn' ? 'Between 1.5x and 3x it works, but any rise in the cost to get a customer comes straight out of the margin.' : 'Under 1.5x the brand is buying revenue, not profit: lower the cost to get a customer, or get more of them to order again, before spending more.'}`;
   return { tone, word, body };
 }
 
-/** The 30 to 365 day curve as bars: how value arrives over time. */
+/** How value arrives: what a customer has spent by day 30, 60, 90, 180, 365. */
 function ltvCurve(j, cur) {
   const pts = (j.curve || []).filter(p => p.ltv != null);
   if (!pts.length) return '';
-  const max = Math.max(...pts.map(p => p.ltv)) || 1;
-  return `<div class="card"><h3 style="margin-bottom:2px">How a customer grows in value</h3>
-    <p class="hint" style="margin-bottom:10px">Revenue per customer N days after their first order, counting only customers old enough to have reached that day.</p>
-    <div class="ltv-curve">${pts.map(p => `<div class="ltv-bar"><div class="ltv-v">${fmtMoney(p.ltv, cur)}</div><div class="ltv-col"><i style="height:${Math.max(4, Math.round(p.ltv / max * 100))}%"></i></div><div class="ltv-l">${p.days} days</div><div class="tiny">${p.repeat_rate != null ? `${fmtPct(p.repeat_rate)} came back` : ''}</div><div class="tiny" style="color:var(--muted)">${p.customers} people</div></div>`).join('')}</div>
-    ${j.first_aov != null && j.returning_aov != null ? `<p class="tiny" style="margin-top:10px">A first order averages <b>${fmtMoney(j.first_aov, cur)}</b>; a repeat order <b>${fmtMoney(j.returning_aov, cur)}</b>${j.orders_per_customer_365 != null ? ` · a customer places <b>${j.orders_per_customer_365.toFixed(2)}</b> orders in their first year` : ''}.</p>` : ''}</div>`;
+  const last = pts[pts.length - 1];
+  const added = j.first_aov != null && last.ltv != null ? last.ltv - j.first_aov : null;
+  const read = added == null ? '' : added < j.first_aov * 0.1
+    ? `<b>Almost all of a customer's value is the first order.</b> ${last.days} days in, repeat buying has added only <b>${fmtMoney(added, cur)}</b> per customer. Plan on the first order paying for the customer; treat repeat as a bonus.`
+    : added < j.first_aov * 0.4
+    ? `<b>Repeat buying adds a modest amount.</b> ${last.days} days in it has added <b>${fmtMoney(added, cur)}</b> per customer on top of the first order. Real, but not enough to carry a higher cost per customer on its own.`
+    : `<b>Customers keep spending.</b> ${last.days} days in, repeat buying has added <b>${fmtMoney(added, cur)}</b> per customer on top of the first order. That is what lets the brand pay more for a customer than the first order alone would justify.`;
+  return `<div class="card"><h3 style="margin-bottom:2px">How much they spend after the first order</h3>
+    <p class="hint" style="margin-bottom:10px">What the average customer has spent with the brand by each point after their first order. Only customers old enough to reach that point are counted.</p>
+    <div class="tbl-wrap"><table class="ltv-tbl"><thead><tr><th>After their first order</th><th class="num">Spent so far, per customer</th><th class="num">Have ordered again</th><th class="num">Customers counted</th></tr></thead>
+      <tbody>${pts.map(p => `<tr><td><b>${p.days} days</b></td><td class="num"><b>${fmtMoney(p.ltv, cur)}</b></td><td class="num">${fmtPct(p.repeat_rate)}</td><td class="num" style="color:var(--muted)">${fmtN(p.customers)}</td></tr>`).join('')}</tbody></table></div>
+    <p style="margin:10px 0 0;font-size:13.5px;color:var(--ink-2)">${read}${j.first_aov != null && j.returning_aov != null ? ` A first order averages ${fmtMoney(j.first_aov, cur)}; a repeat order ${fmtMoney(j.returning_aov, cur)}.` : ''}</p></div>`;
 }
 
-/** First product, then what the same people put in the cart next. */
+/** First product, then what the same people buy next. */
 function journeyCard(j, cur) {
   const p = j.products || {};
   const first = p.first || [];
-  if (!first.length) return `<div class="card"><h3 style="margin-bottom:4px">What they buy first, then next</h3><p class="hint" style="margin:0">No product signal yet. Triple Whale records what a journey put in the cart; once more orders carry it, this fills in.</p></div>`;
-  return `<div class="card"><h3 style="margin-bottom:2px">What they buy first, then next <span class="info-i" title="Products are what the customer's journey put in the cart before the order (Triple Whale's add-to-cart events), not the receipt line by line. Treat it as the shape of the journey, not an exact count. Shopify order lines would make it exact.">i</span></h3>
-    <p class="hint" style="margin-bottom:8px">The first product a new customer takes, how many of them come back within 90 days, and what the ones who return reach for next.${p.coverage != null && p.coverage < 0.9 ? ` Cart data exists for ${fmtPct(p.coverage)} of first orders.` : ''}</p>
-    <div class="jr-list">${first.map(f => `<div class="jr-row"><div class="jr-first"><b>${esc(f.name)}</b><span class="tiny">${f.customers} first orders${f.share != null ? ` · ${fmtPct(f.share)}` : ''}${f.repeat_rate != null ? ` · <b>${fmtPct(f.repeat_rate)}</b> come back in 90 days` : ''}</span></div>
-      <div class="jr-then">${f.then.length ? f.then.map(t => `<span class="pill">${esc(t.name)} <span class="tiny">${t.customers}</span></span>`).join('') : '<span class="tiny">no second order yet</span>'}</div></div>`).join('')}</div>
-    <p class="tiny" style="margin-top:8px">Left: the first product. Right: what the same customers put in the cart on their second order. Use it for the post-purchase flow in Klaviyo and for which product to lead with.</p></div>`;
+  if (!first.length) return `<div class="card"><h3 style="margin-bottom:4px">What they buy first, and what they buy next</h3><p class="hint" style="margin:0">No product detail yet. Triple Whale records what each shopper put in the cart; once more orders carry it, this fills in.</p></div>`;
+  return `<div class="card"><h3 style="margin-bottom:2px">What they buy first, and what they buy next <span class="info-i" title="Products come from what the shopper put in the cart before each order (Triple Whale's add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey. Connecting Shopify would make them exact.">i</span></h3>
+    <p class="hint" style="margin-bottom:8px">Each row is a product new customers start with. Under it: how many of those customers order again within 90 days, and what the ones who come back choose next.${p.coverage != null && p.coverage < 0.9 ? ` (Cart detail exists for ${fmtPct(p.coverage)} of first orders.)` : ''}</p>
+    <div class="jr-list">${first.map(f => `<div class="jr-row"><div class="jr-first"><b>${esc(f.name)}</b><span class="tiny">${fmtN(f.customers)} customers started here${f.share != null ? ` (${fmtPct(f.share)} of new customers)` : ''}${f.repeat_rate != null ? ` · <b>${fmtPct(f.repeat_rate)}</b> order again within 90 days` : ''}</span></div>
+      <div class="jr-then"><span class="tiny" style="margin-right:4px">then:</span>${f.then.length ? f.then.map(t => `<span class="pill">${esc(t.name)} <span class="tiny">${t.customers}</span></span>`).join('') : '<span class="tiny">nobody has ordered again yet</span>'}</div></div>`).join('')}</div>
+    <p class="tiny" style="margin-top:8px">Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.</p></div>`;
 }
 
-/** Do repeat orders arrive on their own, or are they bought again with ads? */
+/** Do repeat orders need ads, or do they arrive on their own? */
 function sourcesCard(j) {
   const s = j.sources || {};
   if (!(s.first || []).length) return '';
-  const row = (label, list) => `<div class="src-row"><div class="src-l">${label}</div><div class="src-bar">${list.map(x => `<i class="src-${esc(x.source)}" style="width:${(x.share * 100).toFixed(1)}%" title="${esc(srcLabel(x.source))} ${fmtPct(x.share)}"></i>`).join('')}</div><div class="tiny">${list.slice(0, 3).map(x => `${esc(srcLabel(x.source).split(' (')[0])} ${fmtPct(x.share)}`).join(' · ')}</div></div>`;
+  const row = (label, list) => `<div class="src-row"><div class="src-l">${label}</div><div class="src-bar">${list.map(x => `<i class="src-${esc(x.source)}" style="width:${(x.share * 100).toFixed(1)}%" title="${esc(srcLabel(x.source))} ${fmtPct(x.share)}"></i>`).join('')}</div><div class="tiny">${list.slice(0, 4).map(x => `${esc(srcLabel(x.source))} ${fmtPct(x.share)}`).join(' · ')}</div></div>`;
   const own = (s.repeat || []).filter(x => x.source === 'own' || x.source === 'email').reduce((a, x) => a + x.share, 0);
-  const rep = (s.repeat || []).length ? { share: own } : null;
-  return `<div class="card"><h3 style="margin-bottom:2px">Do repeat orders come on their own?</h3>
-    <p class="hint" style="margin-bottom:10px">Where the last paid click came from, first orders against repeat orders (Triple Whale, last platform click).</p>
+  return `<div class="card"><h3 style="margin-bottom:2px">Do repeat orders need ads?</h3>
+    <p class="hint" style="margin-bottom:10px">What the shopper last clicked before buying (Triple Whale). "On their own" means they came straight to the site or from organic social; "Email and SMS" means a Klaviyo or SMS message.</p>
     ${row('First orders', s.first)}${row('Repeat orders', s.repeat || [])}
-    <p class="tiny" style="margin-top:8px">${rep && rep.share >= 0.6 ? `<b>${fmtPct(rep.share)} of repeat orders arrive without a paid click.</b> The list and the product are doing the work; retargeting spend on past customers is mostly paying for orders that would have come anyway.` : rep ? `Only <b>${fmtPct(rep.share)}</b> of repeat orders arrive without a paid click: this brand is paying ads to bring customers back. Email flows are the cheaper way to do that.` : 'Repeat orders are all traced to a paid click.'}</p></div>`;
+    <p style="margin:10px 0 0;font-size:13.5px;color:var(--ink-2)">${own >= 0.6 ? `<b>${fmtPct(own)} of repeat orders arrive without an ad click.</b> The product and the emails are bringing people back; retargeting past customers is mostly paying for orders that would have come anyway.` : `<b>Only ${fmtPct(own)} of repeat orders arrive without an ad click.</b> The brand is paying ads to bring its own customers back. Email and SMS flows do that for a fraction of the cost.`}</p></div>`;
 }
 
-/** Month by month: who was acquired when, what they cost, what they are worth now. */
+/** Each month's new customers: what they cost, what they have spent since. */
 function cohortTable(j, cur) {
   const rows = (j.cohorts || []).slice().reverse();
   if (!rows.length) return '';
-  return `<div class="card"><h3 style="margin-bottom:2px">Month by month: what each month's customers are worth</h3>
-    <p class="hint" style="margin-bottom:8px">Everyone who bought for the first time in that month, followed since. A month needs 90 days to show a 90-day value and a year for a yearly one.</p>
+  const anyYear = rows.some(r => r.ltv_365 != null);
+  return `<div class="card"><h3 style="margin-bottom:2px">Each month's new customers, followed since</h3>
+    <p class="hint" style="margin-bottom:8px">Everyone who bought for the first time in that month. "Back per $1" is what they have spent in their first 90 days${anyYear ? ' (or first year, where a year has passed)' : ''} for every dollar it cost to get them. A month needs 90 days to show a figure.</p>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>First bought</th><th class="num">Customers</th><th class="num">Came back</th><th class="num">Cost to acquire</th><th class="num">Worth in 90 days</th><th class="num">Worth in a year</th><th class="num">LTV:CAC</th></tr></thead>
-      <tbody>${rows.map(r => { const lc = r.ltv_cac_365 ?? r.ltv_cac_90; const yr = r.ltv_cac_365 != null; return `<tr${r.uncertain ? ' style="opacity:.55"' : ''}>
-        <td><b>${esc(monthLabel(r.month))}</b>${r.uncertain ? ' <span class="tiny" title="History starts just before this month, so some of these customers may have bought earlier">history edge</span>' : ''}</td>
-        <td class="num">${r.customers}</td><td class="num">${fmtPct(r.repeat_rate)}</td><td class="num">${fmtMoney(r.cac, cur)}</td>
-        <td class="num">${r.ltv_90 != null ? fmtMoney(r.ltv_90, cur) : '<span class="tiny">too young</span>'}</td>
-        <td class="num">${r.ltv_365 != null ? fmtMoney(r.ltv_365, cur) : '<span class="tiny">too young</span>'}</td>
-        <td class="num">${lc != null ? `<span class="pill ${lc >= 3 ? 'good' : lc >= 1.5 ? 'warn' : 'bad'}">${lc.toFixed(1)}x${yr ? '' : ' <span class="tiny">90d</span>'}</span>` : ' - '}</td></tr>`; }).join('')}</tbody></table></div>
-    <p class="tiny" style="margin-top:8px">Cost to acquire is that month's blended ad spend over its new customers (Triple Whale), the same CAC as everywhere else in Locus.</p></div>`;
+      <thead><tr><th>First bought</th><th class="num">New customers</th><th class="num">Cost to get each</th><th class="num">Spent in 90 days</th>${anyYear ? '<th class="num">Spent in a year</th>' : ''}<th class="num">Back per $1</th><th class="num">Ordered again</th></tr></thead>
+      <tbody>${rows.map(r => { const lc = r.ltv_cac_365 ?? r.ltv_cac_90; return `<tr${r.uncertain ? ' style="opacity:.55"' : ''}>
+        <td><b>${esc(monthLabel(r.month))}</b>${r.uncertain ? ' <span class="tiny" title="Our history starts just before this month, so some of these people may have bought earlier">first months on record</span>' : ''}</td>
+        <td class="num">${fmtN(r.customers)}</td><td class="num">${fmtMoney(r.cac, cur)}</td>
+        <td class="num">${r.ltv_90 != null ? fmtMoney(r.ltv_90, cur) : '<span class="tiny">under 90 days old</span>'}</td>
+        ${anyYear ? `<td class="num">${r.ltv_365 != null ? fmtMoney(r.ltv_365, cur) : '<span class="tiny">under a year old</span>'}</td>` : ''}
+        <td class="num">${lc != null ? `<span class="pill ${lc >= 3 ? 'good' : lc >= 1.5 ? 'warn' : 'bad'}">${lc.toFixed(1)}x</span>` : ' - '}</td>
+        <td class="num">${fmtPct(r.repeat_rate)}</td></tr>`; }).join('')}</tbody></table></div>
+    <p class="tiny" style="margin-top:8px">Cost to get each = that month's ad spend across every platform ÷ its new customers (Triple Whale). Green is 3x or more, amber 1.5x to 3x, red under 1.5x.</p></div>`;
 }
 
 async function renderCustomersAll() {
   $('#main').innerHTML = `${pageHead('customers', 'Customers')}
-    <div class="card"><h3 style="margin-bottom:8px">Is a customer worth more than they cost?</h3><div class="tbl-wrap"><table>
-      <thead><tr><th>Client</th><th class="num">Cost to acquire</th><th class="num">First order</th><th class="num">Pays back on order one</th><th class="num">Worth in 90 days</th><th class="num">LTV:CAC</th><th class="num">Come back</th></tr></thead>
+    <div class="card"><h3 style="margin-bottom:2px">Is a customer worth more than they cost to get?</h3>
+      <p class="hint" style="margin-bottom:8px">Per brand, the selected window. "Back per $1" is what a customer spends in their first 90 days (or year) for every dollar of ads it took to get them: 3x or more is comfortable, under 1.5x is thin.</p>
+      <div class="tbl-wrap"><table>
+      <thead><tr><th>Client</th><th class="num">Cost to get a customer</th><th class="num">First order</th><th class="num">Left after costs on it</th><th class="num">Spent in 90 days</th><th class="num">Back per $1</th><th class="num">Order again</th></tr></thead>
       <tbody>${S.accounts.map(a => `<tr data-id="${a.act_id}" style="cursor:pointer"><td><b>${esc(a.name)}</b></td>
-        <td class="num" data-c="cac-${a.act_id}">…</td><td class="num" data-c="aov-${a.act_id}"></td><td class="num" data-c="pb-${a.act_id}"></td>
+        <td class="num" data-c="cac-${a.act_id}">…</td><td class="num" data-c="aov-${a.act_id}"></td><td class="num" data-c="gp-${a.act_id}"></td>
         <td class="num" data-c="l90-${a.act_id}"></td><td class="num" data-c="lc-${a.act_id}"></td><td class="num" data-c="rp-${a.act_id}"></td></tr>`).join('')}
       </tbody></table></div>
-      <p class="tiny" style="margin-top:10px"><b>LTV:CAC</b> is what a customer is worth within a year (or 90 days where the history is shorter) over what it cost to acquire them. Above 3x is healthy; under 1.5x the brand is buying revenue, not profit. Click a brand for how that value arrives.</p></div>`;
+      <p class="tiny" style="margin-top:10px">Click a brand to see how that value arrives, what they buy first and next, and whether repeat orders need ads.</p></div>`;
   $('#main tbody').addEventListener('click', e => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -8659,11 +8695,11 @@ async function renderCustomersAll() {
       const h = r.headline, j = r.journey, set = (k, v) => { const el = $(`[data-c="${k}-${a.act_id}"]`); if (el) el.innerHTML = v; };
       set('cac', `<b>${fmtMoney(h.cac, a.currency)}</b>`);
       set('aov', fmtMoney(h.new_aov, a.currency));
-      set('pb', r.cm_ok && h.payback != null ? `<span class="pill ${h.payback >= 1 ? 'good' : h.payback >= 0.7 ? 'warn' : 'bad'}">${h.payback.toFixed(2)}x</span>` : ' - ');
+      set('gp', r.cm_ok && h.first_order_gp != null ? `${fmtMoney(h.first_order_gp, a.currency)}${h.payback != null ? ` <span class="tiny">(${fmtPct(Math.min(h.payback, 9.99))} of the cost)</span>` : ''}` : '<span class="tiny">needs cost data</span>');
       const c90 = j && j.have ? (j.curve || []).find(p => p.days === 90) : null;
-      set('l90', c90 && c90.ltv != null ? fmtMoney(c90.ltv, a.currency) : '<span class="tiny">too young</span>');
+      set('l90', c90 && c90.ltv != null ? fmtMoney(c90.ltv, a.currency) : '<span class="tiny">under 90 days of history</span>');
       const lc = j && j.have ? j.ltv_cac : null;
-      set('lc', lc ? `<b><span class="pill ${lc.ratio >= 3 ? 'good' : lc.ratio >= 1.5 ? 'warn' : 'bad'}">${lc.ratio.toFixed(1)}x</span></b>${lc.horizon === 365 ? '' : ' <span class="tiny">90d</span>'}` : ' - ');
+      set('lc', lc ? `<b><span class="pill ${lc.ratio >= 3 ? 'good' : lc.ratio >= 1.5 ? 'warn' : 'bad'}">${lc.ratio.toFixed(1)}x</span></b>` : ' - ');
       set('rp', j && j.have && j.repeat_rate_ever != null ? fmtPct(j.repeat_rate_ever) : fmtPct(h.repeat_share));
     }).catch(() => { if (run === RUN) { const el = $(`[data-c="cac-${a.act_id}"]`); if (el) el.innerHTML = '<span class="tiny"> - </span>'; } });
   }
@@ -8674,7 +8710,6 @@ async function renderCustomers(first) {
   const run = ++RUN;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const shell = body => `${pageHead('customers', `Customers: ${esc(acct?.name || '')}`)}
-
     ${body}`;
   if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading…</span></div>');
   let d;
@@ -8683,51 +8718,33 @@ async function renderCustomers(first) {
   if (run !== RUN) return;
   const cur = d.account.currency, h = d.headline, j = d.journey;
   const have = !!(j && j.have);
-  const pb = h.payback;
-  const v = ltvVerdict(j, h, cur, d.cm_ok);
+  const v = ltvVerdict(j, h, cur, d.cm_ok, acct?.name || 'this brand');
   const c90 = have ? (j.curve || []).find(p => p.days === 90) : null;
   const c365 = have ? (j.curve || []).find(p => p.days === 365) : null;
   const card = (label, value, sub, info) =>
     `<div class="ru"><div class="ru-l">${label}${info ? ` <span class="info-i ru-i" title="${esc(info)}">i</span>` : ''}</div>` +
     `<div class="ru-v">${value}</div><div class="ru-d">${sub}</div></div>`;
+  const pb = h.payback;
 
-  const rows = d.series.filter(x => !x.empty).map(x => `<tr${x.partial ? ' style="opacity:.6"' : ''}>
-    <td><b>${esc(monthLabel(x.month))}</b>${x.partial ? ' <span class="tiny">(so far)</span>' : ''}</td>
-    <td class="num">${x.new_orders}</td>
-    <td class="num"><b>${fmtMoney(x.cac, cur)}</b></td>
-    <td class="num">${fmtMoney(x.new_aov, cur)}</td>
-    <td class="num">${d.cm_ok ? fmtMoney(x.first_order_gp, cur) : ' - '}</td>
-    <td class="num">${d.cm_ok && x.payback != null ? `<span class="pill ${x.payback >= 1 ? 'good' : x.payback >= 0.7 ? 'warn' : 'bad'}">${x.payback.toFixed(2)}x</span>` : ' - '}</td>
-    <td class="num">${fmtPct(x.repeat_share)}</td></tr>`).join('');
-
-  const win = have ? j.window : null;
   $('#main').innerHTML = shell(`
-    ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> Cost to acquire and payback swing on small numbers. Widen the date range, or read the month-by-month tables instead of the tiles.</div></div>` : ''}
-    <div class="card sc ${v.tone}"><h3 style="margin-bottom:2px">Is a customer worth more than they cost?</h3>
+    ${h.thin ? `<div class="notice warn">⚠️ <div><b>Only ${h.new_orders} new customers in this window.</b> The cost to get a customer swings on small numbers. Widen the date range, or read the month-by-month table.</div></div>` : ''}
+    <div class="card sc ${v.tone}"><h3 style="margin-bottom:2px">Is a customer worth more than they cost to get?</h3>
       <div class="big" style="font-size:22px">${v.word}</div>
-      <p style="margin:6px 0 0;color:var(--ink-2);font-size:13.5px;max-width:86ch">${v.body}</p></div>
+      <p style="margin:6px 0 0;color:var(--ink-2);font-size:13.5px;max-width:86ch;line-height:1.55">${v.body}</p></div>
     <div class="rollup">
-      ${card('Cost to acquire', fmtMoney(h.cac, cur), `${h.new_orders} new customers in the window`, 'All ad spend across every platform divided by the number of first-time customers (Triple Whale). The same CAC as Reports call New-customer CPA.')}
-      ${card('First order', fmtMoney(h.new_aov, cur), 'what a new customer spends first', 'Revenue from new customers divided by their orders, in the selected window.')}
-      ${d.cm_ok ? card('Pays back on order one', pb != null ? pb.toFixed(2) + 'x' : ' - ', pb != null && pb >= 1 ? 'the first order covers the CAC' : `first-order margin ${fmtMoney(h.first_order_gp, cur)} vs CAC`, 'The first order’s margin (after product, fulfilment and fees) divided by CAC. Above 1.0x the customer is paid for on day one.') : card('Pays back on order one', ' - ', 'needs trusted cost data (Costs)', 'Payback needs a product margin this client’s cost data does not support yet.')}
-      ${card('Worth in 90 days', c90 && c90.ltv != null ? fmtMoney(c90.ltv, cur) : '<span class="tiny">too young</span>', c90 && c90.ltv != null ? `${c90.customers} customers old enough` : 'needs 90 days of history', 'Revenue per customer in the 90 days after their first order, from Triple Whale order history.')}
-      ${card('Worth in a year', c365 && c365.ltv != null ? fmtMoney(c365.ltv, cur) : '<span class="tiny">too young</span>', c365 && c365.ltv != null ? `${c365.customers} customers old enough` : 'needs a year of history', 'Revenue per customer in the 365 days after their first order.')}
-      ${card('Come back', have && j.repeat_rate_ever != null ? fmtPct(j.repeat_rate_ever) : fmtPct(h.repeat_share), have && j.days_to_second != null ? `second order after ${fmtDays(j.days_to_second)} (median)` : have ? 'of customers ever bought again' : 'of orders were repeat orders', have ? 'Share of customers (people, not orders) who placed a second order, and how long the typical one took. Time the post-purchase email flow to land just before that.' : 'Share of orders placed by someone who had bought before.')}
+      ${card('Cost to get a new customer', fmtMoney(h.cac, cur), `ad spend ÷ ${fmtN(h.new_orders)} new customers, ${esc(rangeLabel())}`, 'All ad spend across every platform divided by the number of first-time customers in the window (Triple Whale). Reports call this New-customer CPA; it is the same number.')}
+      ${card('Their first order', fmtMoney(h.new_aov, cur), 'what a new customer spends first', 'Revenue from new customers divided by their orders, in the selected window.')}
+      ${d.cm_ok ? card('Left after costs on that order', fmtMoney(h.first_order_gp, cur), pb != null ? (pb >= 1 ? `covers the cost to get them, with ${fmtMoney(h.first_order_gp - h.cac, cur)} to spare` : `covers ${fmtPct(pb)} of the cost to get them`) : 'after product, shipping and fees', 'The first order after product costs, fulfilment and payment fees. When this is bigger than the cost to get the customer, the brand is in profit on day one.') : card('Left after costs on that order', ' - ', 'needs trusted cost data (Settings, Costs)', 'Needs a product margin this brand’s cost data does not support yet.')}
+      ${card('Spent in their first 90 days', c90 && c90.ltv != null ? fmtMoney(c90.ltv, cur) : '<span class="tiny">under 90 days of history</span>', c90 && c90.ltv != null ? `per customer, ${fmtN(c90.customers)} old enough to count` : 'needs 90 days of history', 'Everything the average customer has spent in the 90 days after their first order, from Triple Whale order history.')}
+      ${card('Spent in their first year', c365 && c365.ltv != null ? fmtMoney(c365.ltv, cur) : '<span class="tiny">under a year of history</span>', c365 && c365.ltv != null ? `per customer, ${fmtN(c365.customers)} old enough to count` : 'needs a year of history', 'Everything the average customer has spent in the 365 days after their first order.')}
+      ${card('Order again', have && j.repeat_rate_ever != null ? fmtPct(j.repeat_rate_ever) : fmtPct(h.repeat_share), have && j.days_to_second != null ? `the second order usually comes after ${fmtDays(j.days_to_second)}` : have ? 'of customers ever place a second order' : 'of orders were from past customers', have ? 'Share of customers who placed a second order, and how long the typical one took. Time the post-purchase emails to land just before that.' : 'Share of orders placed by someone who had bought before.')}
     </div>
     ${have ? `<div class="two cu-two">
       <div>${ltvCurve(j, cur)}${cohortTable(j, cur)}</div>
-      <div>${journeyCard(j, cur)}${sourcesCard(j)}
-        ${win && win.orders ? `<div class="card"><h3 style="margin-bottom:4px">This window, by people</h3>
-          <p style="font-size:14px;margin:4px 0"><b>${fmtPct(win.returning_share)}</b> of the ${win.orders} orders in this window came from someone who was already a customer before it opened (<b>${fmtMoney(win.returning_revenue, cur)}</b> of ${fmtMoney(win.revenue, cur)}).</p>
-          <p class="tiny" style="margin:4px 0 0">Counts people, not orders: a customer who bought three times is one returning person here. The order-based repeat share in the table below is Triple Whale’s own split.</p></div>` : ''}
-      </div></div>` : `<div class="card"><h3 style="margin-bottom:4px">Lifetime value, repeat buying and the product journey</h3><p class="hint" style="margin:0">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'} Until then this page shows the unit economics only.</p></div>`}
-    <div class="card"><h3 style="margin-bottom:8px">Is it getting better or worse, month by month?</h3>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>Month</th><th class="num">New customers</th><th class="num">Cost to acquire</th><th class="num">First order</th><th class="num">Margin on it</th><th class="num">Pays back</th><th class="num">Repeat share of orders</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
-      <p class="tiny" style="margin-top:8px">Whole months, so this does not move with the range picker. The month in progress is faded because it is incomplete.</p></div>
-    <details class="footnote" style="margin-top:14px"><summary>Where these numbers come from, and what is approximate</summary>
-      <div class="fn-body">Cost to acquire, first order and payback are Triple Whale store totals for the window. Lifetime value, repeat rate, time to second order and the product journey follow real customers through Triple Whale’s order history${have ? ` (${j.history.days} days on record, ${j.customers} customers, ${j.guest_orders} guest orders that cannot be followed)` : ''}. A customer first seen in the first 60 days of that history may have bought before it starts, so those are left out of the averages. Products are what the journey put in the cart, not the receipt. Connect Shopify (Settings) for exact order lines.</div></details>`);
+      <div>${journeyCard(j, cur)}${sourcesCard(j)}</div></div>`
+    : `<div class="card"><h3 style="margin-bottom:4px">What they spend over time, and what they buy</h3><p class="hint" style="margin:0">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'} Until then this page shows the first-order numbers only.</p></div>`}
+    <details class="footnote"><summary>Where these numbers come from, and what is approximate</summary>
+      <div class="fn-body">The cost to get a customer and the first-order figures are Triple Whale store totals for the selected window. Spend over time, who orders again, how fast, and what they buy follow real customers through Triple Whale’s order history${have ? ` (${j.history.days} days on record, ${fmtN(j.customers)} customers; ${fmtN(j.guest_orders)} guest orders cannot be followed)` : ''}. People first seen in the first 60 days of that history may have bought before it starts, so they are left out of the averages. Products are what the shopper put in the cart, not the receipt. Connect Shopify (Settings) for exact order lines.</div></details>`);
 }
 
 /* ---------- Settings ---------- */

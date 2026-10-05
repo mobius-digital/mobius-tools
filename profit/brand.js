@@ -188,8 +188,10 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-steps li b{font-size:13px;color:var(--ink)}
 .br-steps li.done{border-color:var(--good);background:var(--good-bg,transparent)}
 .br-steps li.done b::after{content:' ✓';color:var(--good)}
-.cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:10px}
-.cs-blk{border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:12px;margin-top:10px}
+.cs-blk{border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0;overflow:hidden}
+.cs-v .br-mini{display:block;max-width:100%;overflow-x:auto;white-space:normal}
+.cs-v .br-mini td,.cs-v .br-mini th{white-space:normal;min-width:70px}
 .cs-blk h4{margin:0 0 4px;font-size:13px;font-weight:700}
 .cs-blk.cs-open{border-color:var(--warn);background:var(--warn-bg)}
 .cs-row{padding:5px 0;border-top:1px solid var(--line)}
@@ -386,10 +388,10 @@ const conceptName = id => S.d.concepts.find(c => c.id === id)?.name || '';
 
 /* ---------------- entry ---------------- */
 async function render({ tok, url, act, accounts, pick, mode }) {
-  Object.assign(S, { tok, url, act, accounts: accounts || [], pick, mode: ['tests', 'angles'].includes(mode) ? mode : 'brand' });
+  Object.assign(S, { tok, url, act, accounts: accounts || [], pick, mode: ['tests', 'angles', 'copy'].includes(mode) ? mode : 'brand' });
   injectCss();
   const main = $('#main');
-  if (act === 'all') return S.mode === 'tests' ? renderTestsAll(main) : S.mode === 'angles' ? renderAnglesAll(main) : renderAll(main);
+  if (act === 'all') return S.mode === 'tests' ? renderTestsAll(main) : S.mode === 'angles' ? renderAnglesAll(main) : S.mode === 'copy' ? renderCopyAll(main) : renderAll(main);
   if (S.d && S.d.account?.act_id !== act) { S.angOpen = null; S.answer = null; S.idea = ''; }
   if (!S.d || S.d.account?.act_id !== act) main.innerHTML = `<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>`;
   await load();
@@ -397,6 +399,12 @@ async function render({ tok, url, act, accounts, pick, mode }) {
   const saved = localStorage.getItem(LS_LINE + ':' + act);
   S.line = S.d.lines.some(l => l.id === saved) ? saved : (S.d.lines[0]?.id || null);
   paint();
+}
+
+function renderCopyAll(main) {
+  main.innerHTML = `<div class="br"><div>${crumb('copy')}<h2>Copy desk</h2><p class="sub">Pick a brand. The desk writes in that brand's voice.</p></div>
+    <div class="card"><div class="br-chips">${S.accounts.map(a => `<button class="br-chip" data-act="${esc(a.act_id)}">${esc(a.name)}</button>`).join('')}</div></div></div>`;
+  main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
 }
 
 async function renderAll(main) {
@@ -422,6 +430,7 @@ function paint() {
   const d = S.d;
   if (S.mode === 'tests') return paintTests(main);
   if (S.mode === 'angles') return paintAngles(main);
+  if (S.mode === 'copy') return paintDesk(main);
   if (!['client', 'research', 'voice'].includes(S.view)) S.view = 'research';
   const drafts = d.personas.filter(p => p.status === 'draft').length + d.angles.filter(a => a.status === 'proposed').length;
   const o = d.onboard, sub = o?.status === 'submitted';
@@ -841,7 +850,7 @@ function paintVoiceView(body) {
   const steps = [['The client talks', 'Voice interview, from the onboarding link. They talk, it asks follow-ups, they rate sample lines.'],
     ['We write the guide', 'How we write: drafted from the interview, approved by us.'],
     ['The skill', 'The full copy skill Claude writes with: instructions, facts, how customers talk.'],
-    ['It learns', 'Every line kept or rejected on the copy desk teaches the next one.']];
+    ['It learns', 'Every line kept or rejected on the Copy desk tab (under Making ads) teaches the next one.']];
   body.innerHTML = `<div class="card br-steps"><p class="br-lbl" style="margin:0 0 6px">How the voice gets built</p><ol>${steps.map(([t, x], i) => `<li class="${done[i] ? 'done' : ''}"><b>${i + 1}. ${t}</b><span>${x}</span></li>`).join('')}</ol></div>
     <div id="biTalk" class="br"></div><div id="biVoice" class="br"></div>`;
   paintTalk(body.querySelector('#biTalk'));
@@ -1543,7 +1552,6 @@ function paintVoice(body) {
   const link = o ? VOICE_BASE + o.token : '';
   const turns = iv.turns || [];
   const st = !turns.length ? 'not started' : iv.stage === 'done' ? `finished ${esc((iv.finished_at || '').slice(0, 10))}` : iv.stage === 'samples' ? `rating samples, round ${iv.round || 1}` : `talking, ${turns.length} answers`;
-  const desk = S.desk && S.desk.act === S.act ? S.desk : (S.desk = { act: S.act, format: DESK_FORMATS[0], brief: '', n: 5, lines: [], busy: false, err: '' });
   const yesN = bank.filter(x => x.verdict === 'yes').length, noN = bank.length - yesN;
   const sk = d.docs['']?.voice_skill || {};
   const synced = sk.source === 'repo';
@@ -1581,23 +1589,6 @@ function paintVoice(body) {
           <button class="btn" id="skAsk" ${o ? '' : 'disabled title="Create the links first"'}>Ask the client these</button> <span class="tiny">They go to the front of the client's voice interview (same link). Rebuild the skill once they answer.</span></div>` : ''}
       </div>
       ${g.md ? `<details style="margin-top:14px" ${S.vgOpen ? 'open' : ''} id="vgD"><summary style="cursor:pointer;font-weight:600">Read the guide</summary><div class="br-md">${mdHtml(g.md)}</div></details>` : ''}
-    </div>
-    <div class="card"><div class="br-bar"><h3 class="br-h">Copy desk</h3><span class="tiny">${sk.instructions ? 'Writes with the full copy skill' : 'Writes from the guide'} plus the bank. Keep or reject each line: that is how it learns.</span></div>
-      <div class="br-form" style="margin-top:10px">
-        ${sel('dF', 'Format', desk.format, DESK_FORMATS.map(f => [f, f]), { blank: null })}
-        ${inp('dN', 'How many', desk.n, { type: 'number' })}
-        ${inp('dB', 'Brief', desk.brief, { rows: 3, full: true, ph: 'The product, the angle, the offer. For example: Carver 02 Black, angle "nobody sees it coming", no discount.' })}
-        ${inp('dA', "Who's it for, and where are they?", desk.audience, { full: true, hint: 'optional: it talks to one real person', ph: 'A 40-year-old weekend golfer scrolling Instagram in the clubhouse after a bad short game day' })}
-      </div>
-      <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn primary" id="dGo" ${desk.busy ? 'disabled' : ''}>${desk.busy ? 'Writing…' : 'Write lines'}</button><span class="br-msg bad">${esc(desk.err || '')}</span></div>
-      ${desk.spoken ? `<details class="br-spoken"><summary>What it said out loud first (the lines are cut from this)</summary><p>${esc(desk.spoken)}</p></details>` : ''}
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${desk.lines.map(l => `<div class="br-desk ${l.done ? 'done' : ''}" data-l="${esc(l.id)}">
-        <textarea class="br-in" rows="${Math.min(6, Math.max(2, Math.ceil(l.text.length / 80)))}" data-t aria-label="The line; edit it before keeping if you like">${esc(l.text)}</textarea>
-        ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}${l.redone ? `<div class="tiny" style="margin-top:2px">Said again on read-back${l.why ? `: ${esc(l.why)}` : ''}</div>` : ''}${(l.tells || []).length ? `<div class="tiny" style="margin-top:2px;color:var(--warn)">Still reads like writing: ${esc(l.tells.join(', '))}</div>` : ''}
-        ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : l.done === 'said' ? 'Your version is in the bank, paired with this one' : 'Rejected: in the bank'}</div>` : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-k="yes">Keep</button><button class="btn" data-say>Say it your way</button><input class="br-in" data-why placeholder="Or: why it misses" aria-label="Why it misses" style="flex:1;min-width:180px;margin:0"><button class="btn" data-k="no">Reject</button></div>
-        <div class="br-say" hidden><textarea class="br-in" rows="2" data-said placeholder="How would you actually say it? Talk or type." aria-label="How you would say it"></textarea><div style="display:flex;gap:8px;margin-top:6px">${window.SpeechRecognition || window.webkitSpeechRecognition ? '<button class="btn" data-mic>Tap and talk</button>' : ''}<button class="btn primary" data-k="said">Save my version</button></div></div>`}
-      </div>`).join('')}</div>
-      ${desk.lines.length && !desk.busy ? `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input class="br-in" id="dRev" placeholder="Change something: shorter, more like #2, lead with the price, less jokey..." aria-label="Change something" style="flex:1;min-width:240px;margin:0"><button class="btn" id="dRevGo">Rewrite with this note</button></div>` : ''}
     </div>`;
   const msg = (t, ok) => { const m = $('#vgMsg'); if (m) { m.textContent = t; m.className = 'br-msg ' + (ok ? 'ok' : 'bad'); } };
   body.querySelector('#vMk')?.addEventListener('click', async () => { S.d = await post('/api/brand/onboard', {}); repaint(); });
@@ -1653,6 +1644,41 @@ function paintVoice(body) {
     b.disabled = true;
     try { await ahJson('/api/voice/staff/bank', { remove: b.dataset.rm }); await load(); repaint(); } catch (e) { msg(e.message); }
   });
+}
+
+/* ======================================================================
+   COPY DESK: its own tab (Making ads > Copy desk, 2026-10-05). Write lines in the brand's voice
+   for one job (an ad headline, an email subject, a hook), keep or reject each one; every verdict
+   lands in the example bank the guide and the next desk run read.
+   ====================================================================== */
+function paintDesk(body) {
+  const d = S.d;
+  const sk = d.docs['']?.voice_skill || {}, g = d.docs['']?.voice_guide || {};
+  const bank = d.docs['']?.voice_bank?.items || [];
+  const yesN = bank.filter(x => x.verdict === 'yes').length;
+  const desk = S.desk && S.desk.act === S.act ? S.desk : (S.desk = { act: S.act, format: DESK_FORMATS[0], brief: '', n: 5, lines: [], busy: false, err: '' });
+  const ready = !!(sk.instructions || g.md);
+  body.innerHTML = `<div class="br">
+    <div class="lb-head"><div>${crumb('copy')}<h2>Copy desk · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">Lines in this brand's voice, for one job at a time: an ad headline, an email subject, a hook. Pick a format, say what it is for, press Write lines. Keep the ones that sound like them and reject the rest with a word on why. Every call teaches it.</p></div>
+      <div class="row" style="gap:8px;align-items:center"><span class="tiny">${ready ? (sk.instructions ? 'Writes with the full copy skill' : 'Writes from the How we write guide') + ` and ${yesN} kept lines` : 'No voice guide yet: it writes from the website only'}</span><button class="btn" id="dkVoice">How the voice was built</button></div></div>
+    <div class="card">
+      <div class="br-form" style="margin-top:10px">
+        ${sel('dF', 'Format', desk.format, DESK_FORMATS.map(f => [f, f]), { blank: null })}
+        ${inp('dN', 'How many', desk.n, { type: 'number' })}
+        ${inp('dB', 'Brief', desk.brief, { rows: 3, full: true, ph: 'The product, the angle, the offer. For example: Carver 02 Black, angle "nobody sees it coming", no discount.' })}
+        ${inp('dA', "Who's it for, and where are they?", desk.audience, { full: true, hint: 'optional: it talks to one real person', ph: 'A 40-year-old weekend golfer scrolling Instagram in the clubhouse after a bad short game day' })}
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn primary" id="dGo" ${desk.busy ? 'disabled' : ''}>${desk.busy ? 'Writing…' : 'Write lines'}</button><span class="br-msg bad">${esc(desk.err || '')}</span></div>
+      ${desk.spoken ? `<details class="br-spoken"><summary>What it said out loud first (the lines are cut from this)</summary><p>${esc(desk.spoken)}</p></details>` : ''}
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${desk.lines.map(l => `<div class="br-desk ${l.done ? 'done' : ''}" data-l="${esc(l.id)}">
+        <textarea class="br-in" rows="${Math.min(6, Math.max(2, Math.ceil(l.text.length / 80)))}" data-t aria-label="The line; edit it before keeping if you like">${esc(l.text)}</textarea>
+        ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}${l.redone ? `<div class="tiny" style="margin-top:2px">Said again on read-back${l.why ? `: ${esc(l.why)}` : ''}</div>` : ''}${(l.tells || []).length ? `<div class="tiny" style="margin-top:2px;color:var(--warn)">Still reads like writing: ${esc(l.tells.join(', '))}</div>` : ''}
+        ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : l.done === 'said' ? 'Your version is in the bank, paired with this one' : 'Rejected: in the bank'}</div>` : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-k="yes">Keep</button><button class="btn" data-say>Say it your way</button><input class="br-in" data-why placeholder="Or: why it misses" aria-label="Why it misses" style="flex:1;min-width:180px;margin:0"><button class="btn" data-k="no">Reject</button></div>
+        <div class="br-say" hidden><textarea class="br-in" rows="2" data-said placeholder="How would you actually say it? Talk or type." aria-label="How you would say it"></textarea><div style="display:flex;gap:8px;margin-top:6px">${window.SpeechRecognition || window.webkitSpeechRecognition ? '<button class="btn" data-mic>Tap and talk</button>' : ''}<button class="btn primary" data-k="said">Save my version</button></div></div>`}
+      </div>`).join('')}</div>
+      ${desk.lines.length && !desk.busy ? `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input class="br-in" id="dRev" placeholder="Change something: shorter, more like #2, lead with the price, less jokey..." aria-label="Change something" style="flex:1;min-width:240px;margin:0"><button class="btn" id="dRevGo">Rewrite with this note</button></div>` : ''}
+    </div>`;
+  body.querySelector('#dkVoice').onclick = () => { S.view = 'voice'; localStorage.setItem(LS_VIEW, 'voice'); if (window.showTab) window.showTab('brand'); };
   const grab = () => { desk.format = val(body, 'dF'); desk.brief = val(body, 'dB'); desk.audience = val(body, 'dA'); desk.n = Math.max(1, Math.min(10, +val(body, 'dN') || 5)); };
   body.querySelectorAll('.br-desk [data-say]').forEach(b => b.onclick = () => { const s2 = b.closest('.br-desk').querySelector('.br-say'); s2.hidden = !s2.hidden; if (!s2.hidden) s2.querySelector('textarea').focus(); });
   body.querySelectorAll('.br-desk [data-mic]').forEach(b => b.onclick = () => {
