@@ -2823,6 +2823,38 @@ function periodTotals(rows) {
   };
 }
 
+/** Store-level numbers for one brand over a date range, the way a strategist reads them: revenue,
+ *  orders, average order, new vs returning (customers and money), cost to acquire a new customer,
+ *  email's share. One source for the Strategist's `store` view and the screens; built on the same
+ *  econDay rows as the reports, so it can never disagree with them. `from`..`to` inclusive. */
+async function storePeriod(env, acct, from, to) {
+  const { results: twRows } = await env.DB.prepare(`SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(acct.act_id, from, to).all();
+  const piv = {};
+  for (const r of twRows || []) (piv[r.metric] ??= {})[r.date] = r.value;
+  const { results: metaRows } = await env.DB.prepare(`SELECT date, spend, impressions, clicks, link_clicks, purchases, revenue FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(acct.act_id, from, to).all();
+  const metaBy = Object.fromEntries((metaRows || []).map(r => [r.date, r]));
+  const cmPct = goalsFor(acct, monthOf(to))?.cm_pct ?? null;
+  const rows = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct); if (r) rows.push(r); }
+  const t = periodTotals(rows);
+  const sumM = k => { let s = 0, any = false; for (const d in (piv[k] || {})) if (d >= from && d <= to && piv[k][d] != null) { s += piv[k][d]; any = true; } return any ? s : null; };
+  const email = sumM('klaviyoPlacedOrderSales');
+  const retOrders = t.orders != null && t.new_orders != null ? t.orders - t.new_orders : null;
+  return {
+    from, to, days: rows.length, currency: acct.currency,
+    revenue: t.sales, ad_spend: t.spend, meta_spend: t.meta_spend, google_spend: t.google_spend,
+    mer: t.mer, amer: t.amer, contribution_margin: t.cm, gross_margin_pct: t.margin,
+    orders: t.orders, aov: t.aov,
+    new_customers: t.new_orders, new_customer_revenue: t.new_rev, new_customer_aov: t.new_orders ? (t.new_rev ?? 0) / t.new_orders : null,
+    returning_orders: retOrders, returning_revenue: t.ret_rev, returning_aov: retOrders ? (t.ret_rev ?? 0) / retOrders : null,
+    new_customer_share_of_revenue: t.new_share,
+    cac: t.ncpa,
+    first_order_margin: t.new_orders && t.margin != null ? ((t.new_rev ?? 0) / t.new_orders) * t.margin : null,
+    email_revenue: email, email_share_of_revenue: email != null && t.sales > 0 ? email / t.sales : null,
+    how_to_read: 'All Triple Whale store-level (blended), revenue = Shopify total sales less tax. aov = revenue / orders. new_customers = first-time orders (TW newCustomersOrders); cac = ad_spend / new_customers (the same number Reports call New-customer CPA and Customers calls Cost to acquire). first_order_margin = new_customer_aov x gross margin: the money the first order leaves to pay back the cac. email_revenue is Klaviyo-attributed and overlaps new and returning, never added to them. A null means Triple Whale has not synced that metric for the range.',
+  };
+}
+
 /** Per-platform sections, this period vs the prior one. A channel only appears
  *  when it has data in either window (and is not on the client's hide list) - 
  *  a section full of zeros is worse than no section. Meta reads daily_insights
@@ -4980,11 +5012,15 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
  *  Slack-level error, because most callers here are best-effort cosmetics. */
 async function slackApi(env, method, body) {
   if (!env.SLACK_BOT_TOKEN) return { ok: false, error: 'no_bot_token' };
-  return xfetch(`https://slack.com/api/${method}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify(body),
-  }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+  /* READ methods refuse a JSON body (Slack answers ok:false). conversations.replies sent as JSON is
+     why the Strategist answered a thread reply with no memory of the thread (found 2026-10-05):
+     the engine swallowed the error and sent the bare question. Reads go form-encoded. */
+  const read = /^(conversations\.(replies|history|info|members|list)|users\.(info|list|lookupByEmail)|reactions\.get|team\.info)$/.test(method);
+  const init = read
+    ? { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(Object.entries(body || {}).filter(([, v]) => v != null).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)])).toString() }
+    : { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(body) };
+  return xfetch(`https://slack.com/api/${method}`, init).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
 }
 
 /** Rewrite a card in place. Silent on failure: a card we cannot update is a
@@ -5990,7 +6026,7 @@ async function syncPass(env) {
 let _strat = null;
 function strategist() {
   if (!_strat) _strat = buildStrategist({
-    getSetting, putSetting, safeJson, listAccounts, overview, briefData, dataHealth,
+    getSetting, putSetting, safeJson, listAccounts, overview, briefData, dataHealth, storePeriod,
     localDate, addDays, ymdDiff, daysInMonth, briefHour, slack: slackApi,
     claude: (env, args) => claude(env, args),
   });
@@ -6055,8 +6091,20 @@ async function handleSlackEvent(request, env, ctx) {
   const okSubtype = !ev?.subtype || (ev.type === 'app_mention' && /^(file_share|thread_broadcast)$/.test(ev.subtype));
   if (body?.type !== 'event_callback' || !ev || ev.bot_id || !okSubtype) return ACK();
   const dm = ev.channel_type === 'im';
-  const mentioned = ev.type === 'app_mention';
-  if (!dm && !mentioned) return ACK();
+  /* A mention inside a channel thread arrives TWICE: as app_mention and as a plain message whose
+     text carries <@bot>. Both count as a mention; the claim below keeps one. */
+  const botId = body?.authorizations?.[0]?.user_id || null;
+  const mentioned = ev.type === 'app_mention' || (!!botId && String(ev.text || '').includes(`<@${botId}>`));
+  const inThread = !!ev.thread_ts && ev.thread_ts !== ev.ts;
+  if (!dm && !mentioned) {
+    /* A plain reply in a thread. Cole (2026-10-05): "if I reply in a thread to the Strategist I
+       shouldn't have to mention it again." It answers when the thread is OPEN: the Strategist
+       was mentioned in it before, or it started the thread itself. Every other thread in the
+       channel is the team's own, and a reply there never reaches a model. Decided BEFORE
+       claiming the message, so a bowed-out plain copy cannot swallow its app_mention twin. */
+    if (ev.type !== 'message' || !inThread || !ev.user) return ACK();
+    if (!(await strategistThreadOpen(env, ev.channel, ev.thread_ts))) return ACK();
+  }
   const claim = await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`)
     .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
   if (!claim.meta?.changes) return ACK();
@@ -6073,12 +6121,34 @@ async function handleSlackEvent(request, env, ctx) {
   ctx.waitUntil((async () => {
     /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
        or "idea"/"brief" in the tag) drafts a brief instead. Everything else is the Strategist's. */
-    if (!dm && env.IDEAS_BOT !== 'off' && await ideaWanted(env, ev).catch(e => { console.log('ideas route: ' + e.message); return false; }))
+    if (!dm && mentioned && env.IDEAS_BOT !== 'off' && await ideaWanted(env, { ...ev, type: 'app_mention' }).catch(e => { console.log('ideas route: ' + e.message); return false; }))
       return ideaStart(env, ev, body);
+    /* From here on the thread is a conversation with the Strategist: replies need no tag. */
+    if (!dm) await openStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
     const findings = await engine.openFindings(env, h()).catch(() => []);
     await engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}) });
   })().catch(e => console.log('strategist slack: ' + e.message)));
   return ACK();
+}
+
+/* A thread is "open" (the Strategist answers plain replies in it) once it was mentioned there,
+   or when it posted the thread's first message itself (a finding, a briefing, an answer). The
+   mark lives in settings as askThread:<channel>:<ts> = 1; a thread checked and found not to be
+   the Strategist's is marked 0 so the root is read from Slack only once. A later mention flips it. */
+async function openStrategistThread(env, channel, ts) {
+  if (!channel || !ts) return;
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '1') ON CONFLICT(key) DO UPDATE SET value = '1'`).bind(`askThread:${channel}:${ts}`).run();
+}
+async function strategistThreadOpen(env, channel, ts) {
+  const key = `askThread:${channel}:${ts}`;
+  const have = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
+  if (have) return have.value === '1';
+  /* Not seen before: is the thread's first message the Strategist's own? */
+  const r = await slackApi(env, 'conversations.replies', { channel, ts, limit: 1, inclusive: true });
+  const root = (r?.messages || [])[0];
+  const mine = !!root && !!root.bot_id && /^strategist$/i.test(String(root.username || root.bot_profile?.name || ''));
+  await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`).bind(key, mine ? '1' : '0').run().catch(() => {});
+  return mine;
 }
 
 async function nightly(env) {

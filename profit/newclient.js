@@ -173,14 +173,22 @@ async function status(id, autorun) {
   };
   /* The agreement: the blanks are editable until it is sent; after that it is frozen. */
   const readCv = () => { const g = k => body.querySelector('#cv_' + k)?.value; cv = { ...(cv || {}), client_name: g('client_name') ?? cv?.client_name, start_date: g('start_date') ?? cv?.start_date, term: g('term') ?? cv?.term, payment: g('payment') ?? cv?.payment, ...(cv?.html ? { html: cv.html } : {}) }; };
+  /* Sent but not signed: the text can still change (Yak Sports asked for an amendment before
+     signing, 2026-10-05). "Change it before they sign" opens the same form on the text that was
+     sent; sending again withdraws the old version (kept in the record) and emails a fresh link. */
+  let editSent = false;
   const contractBlock = () => {
     const c = contract || {}; const st = run.steps.contract;
     if (!cv) cv = { ...(c.defaults || {}), ...(c.vars || {}) };
     if (c.status === 'signed') return `<div style="margin-top:16px"><b style="font-size:14px">✅ Agreement signed</b><span class="tiny" style="display:block">Signed by ${esc(c.signed_by || '')} on ${esc((c.signed_at || '').slice(0, 10))}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signed copy</a></span>${amendBlock(c)}</div>`;
-    if (c.status === 'sent') return `<div style="margin-top:16px"><b style="font-size:14px">📨 Agreement sent, waiting for their signature</b><span class="tiny" style="display:block">Sent ${esc((c.sent_at || '').slice(0, 10))} to ${esc(run.contact_email || '')}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signing page</a></span></div>`;
+    const history = (c.history || []).length ? `<span class="tiny" style="display:block;margin-top:4px">Earlier versions, withdrawn: ${c.history.map(h => `v${esc(h.version)} sent ${esc((h.sent_at || '').slice(0, 10))}${h.custom ? ' (custom text)' : ''}`).join(' · ')}</span>` : '';
+    if (c.status === 'sent' && !editSent) return `<div style="margin-top:16px"><b style="font-size:14px">📨 Agreement sent, waiting for their signature${c.version > 1 ? ` <span class="tiny">(version ${esc(c.version)})</span>` : ''}</b><span class="tiny" style="display:block">Sent ${esc((c.sent_at || '').slice(0, 10))} to ${esc(run.contact_email || '')}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signing page</a> · <a href="#" id="ncCvChange">Change it before they sign</a></span>
+      <span class="tiny" style="display:block;margin-top:4px">They asked for a change? Change it here while it is unsigned: they get a new email and the old version is withdrawn. Once they sign, changes become an amendment instead.</span>${history}</div>`;
     const f = (k, label, help, ta) => `<div class="ab-f" style="margin-top:8px"><label style="font-size:13px">${label}</label><p class="hint" style="margin:0 0 4px">${help}</p>${ta ? `<textarea id="cv_${k}" rows="3" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit">${esc(cv[k] || '')}</textarea>` : `<input type="text" id="cv_${k}" value="${esc(cv[k] || '')}" style="width:100%">`}</div>`;
-    return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '⏳' : '3.'} Agreement</b>
-      <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'contract' ? 'Sending…' : esc(st?.status === 'failed' ? st.text : 'Your standard services agreement with the blanks filled in. Check them, preview, then send. The client signs on a page inside their onboarding, no DocuSign.')}</span>
+    const changing = c.status === 'sent' && editSent;
+    return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '⏳' : changing ? '✎' : '3.'} ${changing ? `Change the agreement (version ${esc((c.version || 1) + 1)})` : 'Agreement'}</b>
+      <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'contract' ? 'Sending…' : esc(st?.status === 'failed' ? st.text : changing ? `This starts from the text sent on ${(c.sent_at || '').slice(0, 10)}. Say what changes in plain words below, preview, then send: ${run.contact_email || 'the client'} gets a new email and the earlier version is withdrawn.` : 'Your standard services agreement with the blanks filled in. Check them, preview, then send. The client signs on a page inside their onboarding, no DocuSign.')}</span>
+      ${changing ? '<p class="tiny" style="margin:4px 0 0"><a href="#" id="ncCvCancel">Cancel, keep what was sent</a></p>' : ''}
       ${f('client_name', 'Who signs for the client', 'Their full name, as it appears on the agreement.')}
       <div class="nc-two">${f('start_date', 'Start date', 'YYYY-MM-DD.')}${f('term', 'Term', 'How long the agreement runs before it renews.')}</div>
       ${cv.html ? `<p class="tiny" style="margin-top:8px">✎ This agreement has custom text from your edits. The fields above no longer apply to it. <a href="#" id="ncCvReset">Back to the standard text</a></p>` : f('payment', 'Payment terms', 'The one paragraph that changes per client.', true)}
@@ -188,7 +196,21 @@ async function status(id, autorun) {
         <textarea id="ncCvAsk" rows="2" placeholder="What should be different?" oninput="this.dataset.v=this.value" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit"></textarea>
         <div class="row" style="gap:8px;margin-top:6px"><button class="btn" id="ncCvAi">Apply with AI</button><span class="tiny" id="ncCvAiMsg"></span></div></div>
       <p class="tiny nc-bad" id="ncCvErr" style="min-height:16px;margin:4px 0 0"></p>
-      <div class="row" style="gap:8px;margin-top:4px"><button class="btn" id="ncContractPreview">Preview</button><button class="btn primary" id="ncContractSend"${busy || !run.onboard_url ? ' disabled' : ''}>Send for signature</button>${run.onboard_url ? '' : '<span class="tiny">Needs the onboarding link first.</span>'}</div></div>`;
+      <div class="row" style="gap:8px;margin-top:4px"><button class="btn" id="ncContractPreview">Preview</button><button class="btn primary" id="ncContractSend"${busy || !run.onboard_url ? ' disabled' : ''}>${changing ? 'Send the updated agreement' : 'Send for signature'}</button>${run.onboard_url ? '' : '<span class="tiny">Needs the onboarding link first.</span>'}</div></div>`;
+  };
+  const wireChange = () => {
+    const ch = body.querySelector('#ncCvChange');
+    if (ch) ch.onclick = e => {
+      e.preventDefault();
+      const c = contract || {};
+      /* Start from what was sent: the fields, plus the custom text when the AI rewrote it. */
+      cv = { ...(c.defaults || {}), ...(c.vars || {}) };
+      if (c.vars?.custom && c.html) cv.html = c.html; else delete cv.html;
+      delete cv.history; delete cv.version; delete cv.changed_at;
+      editSent = true; paint();
+    };
+    const cc = body.querySelector('#ncCvCancel');
+    if (cc) cc.onclick = e => { e.preventDefault(); editSent = false; cv = null; paint(); };
   };
   /* Something changed after signing (a new service, a new price): an amendment, drafted by AI from
      plain words, previewed, then signed the same way. The signed original never changes. */
@@ -281,6 +303,7 @@ async function status(id, autorun) {
       <div class="row" style="justify-content:space-between;gap:8px;margin:14px 0 0"><button class="btn" id="ncRemove" style="color:var(--bad)">Remove this client</button><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
     wireAmend();
+    wireChange();
     wireMeta();
     body.querySelector('#ncRemove').onclick = async () => {
       if (!(await confirmModal(`Remove ${run.name} from this list?`, 'Locus forgets this setup. Anything already made in Asana, Drive, Slack or Frame stays and is yours to delete there. An unpaid invoice is voided and its subscription cancelled (Locus checks Stripe first; a paid one is left alone).', 'Remove'))) return;
@@ -290,8 +313,12 @@ async function status(id, autorun) {
     if (cs) cs.onclick = async () => {
       readCv();
       if (!cv.client_name || cv.client_name.trim().split(/\s+/).length < 2) return body.querySelector('#ncCvErr').textContent = 'The agreement needs the client\'s full name, first and last.';
-      if (!(await confirmModal('Send the agreement for signature?', `You sign it now; ${run.contact_email} gets an email with the signing page. The text cannot change after this.`, 'Send for signature'))) return;
-      await go('contract');
+      const changing = contract?.status === 'sent' && editSent;
+      if (changing) { if (!(await confirmModal('Send the updated agreement?', `${run.contact_email} gets a new email with the new text. The version sent on ${(contract.sent_at || '').slice(0, 10)} is withdrawn and kept in the record; a signature on the old text is refused.`, 'Send the updated agreement'))) return; }
+      else if (!(await confirmModal('Send the agreement for signature?', `You sign it now; ${run.contact_email} gets an email with the signing page. You can still change it until they sign.`, 'Send for signature'))) return;
+      const ok = await go('contract');
+      if (ok) { editSent = false; cv = null; paint(); }
+      else if (changing) { editSent = true; paint(); }
     };
     const askBox = body.querySelector('#ncCvAsk'); if (askBox) { askBox.value = cv.ask || ''; askBox.oninput = () => { cv.ask = askBox.value; }; }
     const ai = body.querySelector('#ncCvAi');

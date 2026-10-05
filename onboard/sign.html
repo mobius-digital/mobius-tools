@@ -111,9 +111,15 @@ async function sign() {
   if (!$('#agree').checked) return err.textContent = 'Tick the box to confirm you agree to sign electronically.';
   const btn = $('#sign'); btn.disabled = true; btn.textContent = 'Signing…';
   try {
-    const r = await fetch(`${AH}/api/sign/${TOKEN}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, agree: true }) });
+    /* The fingerprint of the text on screen goes with the signature: if the agreement was updated
+       while this page was open, the server refuses and the new text is shown instead. */
+    const r = await fetch(`${AH}/api/sign/${TOKEN}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, agree: true, hash: D.hash }) });
     const j = await r.json();
-    if (!r.ok) { if (j.status === 'signed') { D = j; return paint(); } throw new Error(j.error || 'Could not sign. Try again.'); }
+    if (!r.ok) {
+      if (j.status === 'signed') { D = j; return paint(); }
+      if (j.updated && j.html) { D = j; paint(); window.scrollTo({ top: 0, behavior: 'smooth' }); $('#err').textContent = j.error; return; }
+      throw new Error(j.error || 'Could not sign. Try again.');
+    }
     D = j; paint(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   } catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = 'Sign the agreement'; }
 }

@@ -561,9 +561,15 @@ async function markPaid(env, r, subId, inv) {
 /** What the setup screen shows for the agreement: the blanks to edit, or where it stands. */
 async function contractState(env, r) {
   await ensureContractTable(env);
-  const row = r.token ? await env.DB.prepare(`SELECT status, sent_at, signed_at, client_name, vars_json FROM p_contract WHERE token = ?1`).bind(r.token).first().catch(() => null) : null;
+  const row = r.token ? await env.DB.prepare(`SELECT status, sent_at, signed_at, client_name, vars_json, html FROM p_contract WHERE token = ?1`).bind(r.token).first().catch(() => null) : null;
+  const rv = safeJson(row?.vars_json, null);
+  /* Before it is signed the text can still change: the screen gets the current text to edit from,
+     and the earlier versions (what was sent when) without their full text. */
+  const history = (rv?.history || []).map(h => ({ version: h.version, sent_at: h.sent_at, custom: !!h.custom, term: h.term }));
   const amendments = r.token ? ((await env.DB.prepare(`SELECT token, status, sent_at, signed_at, client_name, vars_json FROM p_contract WHERE token LIKE ?1 ORDER BY sent_at`).bind(`${r.token}a%`).all().catch(() => ({ results: [] }))).results || []).map(a => ({ n: safeJson(a.vars_json, {}).amendment, status: a.status, sent_at: a.sent_at, signed_at: a.signed_at, signed_by: a.client_name, url: `https://tools.go-mobius-digital.com/onboard/sign.html?t=${a.token}` })) : [];
-  return { call: safeJson(r.steps_json, {}).call || null, amendments, defaults: contractDefaults(r), status: row?.status || null, sent_at: row?.sent_at || null, signed_at: row?.signed_at || null, signed_by: row?.client_name || null, vars: safeJson(row?.vars_json, null), url: r.token ? `https://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}` : null };
+  return { call: safeJson(r.steps_json, {}).call || null, amendments, defaults: contractDefaults(r), status: row?.status || null, sent_at: row?.sent_at || null, signed_at: row?.signed_at || null, signed_by: row?.client_name || null,
+    vars: rv ? Object.fromEntries(Object.entries(rv).filter(([k]) => k !== 'history')) : null, html: row?.status === 'sent' ? row.html : null, version: rv?.version || (row ? 1 : null), history,
+    url: r.token ? `https://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}` : null };
 }
 
 /* ---------------- summary ---------------- */

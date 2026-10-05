@@ -200,8 +200,8 @@ async function gmail(env, to, subject, body) {
 export async function sendContract(env, r, vars, ip) {
   await ensureContractTable(env);
   if (!r.token) throw new Error('Make the onboarding link first: the agreement is signed inside it.');
-  const have = await env.DB.prepare(`SELECT status FROM p_contract WHERE token = ?1`).bind(r.token).first();
-  if (have?.status === 'signed') throw new Error('This agreement is already signed. It cannot be changed.');
+  const have = await env.DB.prepare(`SELECT status, html, hash, sent_at, vars_json FROM p_contract WHERE token = ?1`).bind(r.token).first();
+  if (have?.status === 'signed') throw new Error('This agreement is already signed. It cannot be changed: send an amendment instead.');
   const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(vars || {}).filter(([k, x]) => ['client_name', 'company', 'start_date', 'term', 'payment'].includes(k) && String(x || '').trim()).map(([k, x]) => [k, String(x).trim().slice(0, 2000)])) };
   if (!v.client_name) throw new Error('The agreement needs the client\'s full name (the person signing).');
   /* A text the AI edited for this client replaces the generated one, as is. */
@@ -210,13 +210,35 @@ export async function sendContract(env, r, vars, ip) {
   const html = custom || contractHtml(v);
   const hash = await sha256(textOf(html));
   const now = new Date().toISOString();
+  /* A re-send BEFORE signing (the client asked for a change, 2026-10-05) replaces the text but
+     keeps every earlier version in the record, so what was sent on which day is never lost.
+     The client gets a fresh email and the signing page refuses a signature on the old text. */
+  const prev = have ? safeJson(have.vars_json, {}) : null;
+  const resend = !!have && have.hash !== hash;
+  if (have && have.hash === hash) throw new Error('Nothing changed: the agreement already sent reads exactly like this.');
+  if (resend) {
+    v.version = (prev.version || 1) + 1;
+    v.history = [...(prev.history || []), { version: prev.version || 1, sent_at: have.sent_at, hash: have.hash, html: have.html, term: prev.term, payment: prev.payment, custom: !!prev.custom }].slice(-10);
+    v.changed_at = now;
+  }
   await env.DB.prepare(`INSERT INTO p_contract (token, act_id, brand, vars_json, html, hash, status, sent_at, provider_name, provider_ip, provider_at, client_email)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sent', ?7, ?8, ?9, ?7, ?10)
     ON CONFLICT(token) DO UPDATE SET act_id = excluded.act_id, vars_json = excluded.vars_json, html = excluded.html, hash = excluded.hash, status = 'sent', sent_at = excluded.sent_at, provider_name = excluded.provider_name, provider_ip = excluded.provider_ip, provider_at = excluded.provider_at, client_email = excluded.client_email`)
     .bind(r.token, r.act_id || r.pending_act || null, r.name, JSON.stringify(v), html, hash, now, PROVIDER, ip || null, r.contact_email || null).run();
   const link = SIGN_PAGE + r.token;
-  await gmail(env, r.contact_email, `Your agreement with Mobius Digital: please sign`,
-`Hi ${(v.client_name || '').split(/\s+/)[0] || 'there'},
+  const first = (v.client_name || '').split(/\s+/)[0] || 'there';
+  if (resend) await gmail(env, r.contact_email, `Your updated agreement with Mobius Digital: please sign`,
+`Hi ${first},
+
+We have updated our services agreement for ${v.company} with the change we discussed. The earlier version is withdrawn; this is the one to sign:
+${link}
+
+Read it, type your name, tick the box, press Sign. You get a copy by email the moment it is signed.
+
+Cole
+Mobius Digital`);
+  else await gmail(env, r.contact_email, `Your agreement with Mobius Digital: please sign`,
+`Hi ${first},
 
 Here is our services agreement for ${v.company}. Read it and sign it here:
 ${link}
@@ -225,7 +247,7 @@ It takes a minute: read, type your name, tick the box, press Sign. You get a cop
 
 Cole
 Mobius Digital`);
-  return { url: link, hash, sent_at: now };
+  return { url: link, hash, sent_at: now, version: v.version || 1, resend };
 }
 
 /* An amendment's token is `<base>a<n>`, but a base token is hex and can itself end in "a" + digits,
@@ -277,8 +299,9 @@ export async function handleSign(request, env, path, json) {
   await ensureContractTable(env);
   const row = await env.DB.prepare(`SELECT * FROM p_contract WHERE token = ?1`).bind(m[1]).first();
   if (!row) return json({ error: 'There is no agreement on this link yet. Ask your Mobius contact.' }, 404);
-  const pub = r => ({ brand: r.brand, html: r.html, hash: r.hash, status: r.status, sent_at: r.sent_at, provider: { name: r.provider_name, at: r.provider_at },
-    client: r.status === 'signed' ? { name: r.client_name, email: r.client_email, at: r.signed_at, ip: r.client_ip } : null, vars: safeJson(r.vars_json, {}) });
+  /* The client never sees earlier versions: only the text that is current. */
+  const pub = r => { const { history, ...vars } = safeJson(r.vars_json, {}); return { brand: r.brand, html: r.html, hash: r.hash, status: r.status, sent_at: r.sent_at, provider: { name: r.provider_name, at: r.provider_at },
+    client: r.status === 'signed' ? { name: r.client_name, email: r.client_email, at: r.signed_at, ip: r.client_ip } : null, vars }; };
   if (request.method === 'GET') return json(pub(row));
   if (request.method === 'POST') {
     if (row.status === 'signed') return json({ error: 'This agreement is already signed.', ...pub(row) }, 409);
@@ -286,6 +309,9 @@ export async function handleSign(request, env, path, json) {
     const name = String(b.name || '').trim().replace(/\s+/g, ' ').slice(0, 120);
     if (name.split(' ').length < 2) return json({ error: 'Type your full name, first and last, exactly as you want it on the agreement.' }, 400);
     if (b.agree !== true) return json({ error: 'Tick the box to confirm you agree to sign electronically.' }, 400);
+    /* The page sends back the fingerprint of the text it showed. If the agreement was updated
+       while the page was open, the signature is refused and the page reloads the new text. */
+    if (b.hash && b.hash !== row.hash) return json({ error: 'This agreement was updated after you opened this page. It has been reloaded: please read the new version and sign that one.', updated: true, ...pub(row) }, 409);
     /* The text is checked against its hash first: a signature on altered text is refused. */
     if ((await sha256(textOf(row.html))) !== row.hash) return json({ error: 'This agreement does not match its record. Ask your Mobius contact for a fresh one.' }, 409);
     const ip = request.headers.get('CF-Connecting-IP') || '';

@@ -46,9 +46,13 @@ daily_insights  Meta-reported, one row per account per day: date, spend,
 tw_daily        Triple Whale, one row per account per day per metric: date,
                 metric, value. Store-level metrics: netSales, totalSales,
                 newCustomerSales, blendedAds (all ad spend), ga_adCost,
-                grossProfit, totalProductCosts. Per-channel attributed
+                grossProfit, totalProductCosts, totalOrders (store orders),
+                newCustomersOrders (first-time customers = their first orders),
+                klaviyoPlacedOrderSales (email revenue). Per-channel attributed
                 purchases and revenue live here too under the pixel model.
                 Pivot with SUM(CASE WHEN metric = 'netSales' THEN value END).
+                For AOV, orders, CAC, new vs returning and email share over a
+                range, read the store view instead of summing by hand.
 activities      the change log: event_time, category ('budget', 'new_campaign',
                 'campaign_paused', 'bid_strategy', 'targeting', ...), summary,
                 actor, object_name, reason, note, confirmed (-1 = dismissed)
@@ -79,6 +83,14 @@ const RULES = `
 - MER = netSales / blendedAds. AMER = newCustomerSales / blendedAds.
   CPA = spend / purchases. ROAS is attributed revenue / spend, and for a
   channel it is only ever Triple Whale attributed.
+- STORE METRICS, one definition each (the store view gives them ready-made):
+  AOV (average order value) = revenue / totalOrders. New-customer AOV =
+  newCustomerSales / newCustomersOrders. CAC = blendedAds / newCustomersOrders
+  (Reports call it New-customer CPA, Customers calls it Cost to acquire: same
+  number). Returning orders = totalOrders - newCustomersOrders. LTV comes from
+  Shopify cohorts (p_cohorts: lifetime_spend / customers), LTV:CAC = that / CAC.
+  Never answer "AOV" with a Meta-only revenue-per-purchase unless asked about
+  Meta ads specifically; the store AOV is the blended one.
 - Money is in the account's currency (accounts.currency). Never add across
   currencies without saying so.
 - "This month" is the account's own calendar month in its timezone.
@@ -126,6 +138,7 @@ const VIEW_BLURBS = {
   accounts: 'every client brand with its targets, budget, channels, whether the brief is on, and when it last synced. Start here to resolve a brand name to an account.',
   overview: 'the Overview tab: each active brand over the window with sales, spend, MER, AMER, new-customer revenue and contribution margin, all blended (Triple Whale). Use it for "how is the book doing".',
   account: 'one brand, the same numbers the Daily Brief is built from: month to date and last month, sales, spend, MER, per-channel attributed revenue (Triple Whale), pace against the plan. Pass the brand name or act_id in `brand`.',
+  store: 'one brand over a range, store-level (Triple Whale, blended): revenue, orders, AOV, new customers and their AOV, returning orders and AOV, CAC (cost to acquire a new customer), first-order margin, MER, aMER, contribution margin, email (Klaviyo) revenue and share. THE view for "what is the AOV", "how many orders", "what does a new customer cost", "how much is email". Pass `brand` and either `days` (default 30, ends yesterday), `month` (YYYY-MM) or `from` + `to` (YYYY-MM-DD). Pass `compare: true` to get the prior period of the same length beside it.',
   series: 'one brand day by day over a range: Meta spend, impressions, clicks, and Triple Whale netSales and blendedAds per day. Pass `brand` and `days` (default 30).',
   changes: 'what was changed on one account and by whom: budgets, campaigns paused or launched, bid strategy, targeting. Pass `brand` and `days`.',
   creatives: 'the ads on one account over the last days: spend, Meta-reported clicks and CTR, thruplays, with the last 3 days against the prior 14 so fatigue shows. Pass `brand` and `days`.',
@@ -167,6 +180,20 @@ function buildViews(d) {
       const acct = await need(env, a);
       const today = d.localDate(acct.tz);
       return { account: strip(acct), brief_numbers: await d.briefData(env, acct, today), how_to_read: 'These are the numbers the Daily Brief uses, with Triple Whale attribution per channel. mtd = month to date, lm = last month to the same day.' };
+    },
+    store: async (env, a) => {
+      const acct = await need(env, a);
+      const today = d.localDate(acct.tz), yesterday = d.addDays(today, -1);
+      let from, to;
+      if (/^\d{4}-\d{2}$/.test(a.month || '')) { from = `${a.month}-01`; const dim = d.daysInMonth(`${a.month}-15`); to = `${a.month}-${String(dim).padStart(2, '0')}`; if (to > yesterday) to = yesterday; }
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(a.from || '') && /^\d{4}-\d{2}-\d{2}$/.test(a.to || '')) { from = a.from; to = a.to > yesterday ? yesterday : a.to; }
+      else { const days = Math.min(400, Math.max(1, Number(a.days) || 30)); to = yesterday; from = d.addDays(to, -days + 1); }
+      if (from > to) throw new Error('That range has no finished days yet (Triple Whale lands a day in arrears).');
+      const cur = await d.storePeriod(env, acct, from, to);
+      const out = { brand: acct.name, period: cur };
+      if (a.compare) { const len = d.ymdDiff(from, to) + 1; out.prior = await d.storePeriod(env, acct, d.addDays(from, -len), d.addDays(from, -1)); }
+      out.how_to_read = cur.how_to_read + ' Quote the period you are answering for.';
+      return out;
     },
     series: async (env, a) => {
       const acct = await need(env, a);
@@ -688,8 +715,14 @@ export function buildStrategist(d) {
   });
   d.h = h;
   engine = createAssistant({
-    name: 'Strategist', app: 'Locus', memoryPrefix: 'strategist', repoPath: 'profit/ for the screens (index.html, meta.js, amb.js), account-health/worker/src for the data and this assistant',
+    name: 'Strategist', app: 'Locus', memoryPrefix: 'strategist', owner: 'Cole', repoPath: 'profit/ for the screens (index.html, meta.js, amb.js), account-health/worker/src for the data and this assistant',
     slackName: 'Strategist',
+    /* A Slack thread is the conversation: keep enough of it that a follow-up ("and last month?")
+       lands on what was said. The engine default (12 turns, 600 chars each) lost the Monday
+       message and the brief card the thread hangs off. Same as the Controller's. */
+    threadTurns: 30, threadMsgChars: 2500, threadTotalChars: 24000,
+    /* Money questions a strategist asks get the stronger model too, not only "draft" and "plan". */
+    strongWhen: /\b(draft|write|compose|create|make|generate|build|plan|forecast|project|research|angles?|hooks?|rewrite|brief|analy[sz]e|compare|strategy|recommend|should (we|i)|what if|why|aov|ltv|cac|payback|cohort|retention|repeat|journey|scale|cut|pause)\b/i,
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],
     brief: DEFAULT_BRIEF,
