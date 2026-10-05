@@ -733,7 +733,9 @@ function wireBatch() {
   document.querySelectorAll('[data-line]').forEach(el => el.oninput = () => { br.lines[+el.dataset.line].text = el.value; queueSave(); });
   document.querySelectorAll('[data-rmline]').forEach(el => el.onclick = () => { br.lines.splice(+el.dataset.rmline, 1); if (b.plan) b.plan = null; queueSave(); paint(); });
   $('#bAddLine').onclick = () => { if (br.lines.length >= 12) return; br.lines.push({ text: '', inspo: [] }); if (b.plan) b.plan = null; queueSave(); paint(); };
-  $('#bDel').onclick = async () => { b.status = 'archived'; await saveCur(); S.cur = null; reload(); };
+  /* Archiving has no undo in the UI, so it asks first (2026-10-05). */
+  $('#bDel').onclick = () => modal('Archive this batch?', `<p class="hint" style="margin:0">${batchTitle(b)} leaves the Batches list, with its ads. Nothing is deleted from Canva or Meta.</p>`,
+    { cta: 'Archive it', onOpen: (w, ctl) => w.onSubmit(async () => { b.status = 'archived'; await saveCur(); S.cur = null; ctl.close(true); reload(); }) });
   const file = $('#bFile'); let target = null;
   document.querySelectorAll('[data-addli]').forEach(el => el.onclick = () => { target = { line: +el.dataset.addli }; file.click(); });
   const sw = $('#bSwipe'); if (sw) sw.onclick = () => { target = { swipe: true }; file.click(); };

@@ -1237,7 +1237,7 @@ function moReads(st) {
     if (goal) {
       const r = l7.cpa / goal;
       if (r <= 1) { t3.word = 'At goal'; t3.tone = 'good'; }
-      else if (r <= 1 + MO_YELLOW) { t3.word = 'Just over goal'; t3.tone = 'warn'; t3.say = 'CPA is just over goal'; }
+      else if (r <= 1 + (+a.yellow_pct > 0 ? a.yellow_pct / 100 : MO_YELLOW)) { t3.word = 'Just over goal'; t3.tone = 'warn'; t3.say = 'CPA is just over goal'; }
       else { t3.word = 'Over goal'; t3.tone = 'bad'; t3.say = 'CPA is over goal'; }
     } else if (d == null) t3.word = 'No 30 days to compare';
     else if (Math.abs(d) < 0.05) { t3.word = 'Normal'; t3.tone = 'good'; }

@@ -1606,9 +1606,21 @@ async function dataHealth(env, acct, { days = 14, upTo = null } = {}) {
 }
 
 /** Month goals for an account: month override merged over "default". Null if none set. */
+/* What an unplanned month inherits (2026-10-05): the most recent month BEFORE it that has
+   its own plan. `default` is overwritten by every save, so saving November made October
+   inherit November's goal; it is now only the fallback when no dated month exists at all.
+   The margin override (cm_pct) still carries forward from wherever it was last set. */
+function inheritedGoals(g, ym) {
+  const months = Object.keys(g).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
+  const prior = months.filter(k => k < ym).pop();
+  if (prior) return g[prior] || {};
+  const d = g.default || {};
+  if (months.some(k => k > ym)) return d.cm_pct != null ? { cm_pct: d.cm_pct } : {};
+  return d;
+}
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  const m = { ...(g.default || {}), ...(g[ym] || {}) };
+  const m = { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
   return m.sales != null || m.spend != null ? m : null;
 }
 
@@ -4843,9 +4855,12 @@ async function accountOverview(env, a, { attr = true } = {}) {
   const elapsed = (dom - 1 + localHourFrac(a.tz) / 24) / dim;    // fraction of month elapsed
   const budget = a.budgets?.[ym] ?? a.monthly_budget ?? null;
   const expected = budget != null ? budget * elapsed : null;
+  const rulesDoc = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'rules'`).bind(a.act_id).first().catch(() => null);
+  const yellowPct = +(safeJson(rulesDoc?.data_json, {}).yellow_pct) > 0 ? +safeJson(rulesDoc.data_json, {}).yellow_pct : 30;
   return {
     act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, today,
     target_cpa: a.target_cpa ?? null, target_roas: a.target_roas ?? null, slack_channel: a.slack_channel ?? null,
+    yellow_pct: yellowPct,   // the brand's own "just over goal" zone (Settings, Goals), for the Meta Overview tile
     last_sync_insights: a.last_sync_insights, last_sync_activities: a.last_sync_activities, last_error: a.last_error,
     today_spend: byDate[today]?.spend ?? null,
     // Meta only, everywhere on these pages: spend here must always match Ads Manager.

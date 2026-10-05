@@ -303,9 +303,21 @@ async function listAccounts(env, activeOnly = true, demoMode = false) {
   ).all();
   return results.map(a => ({ ...a, goals: safeJson(a.goals_json, {}) }));
 }
+/* What an unplanned month inherits (2026-10-05): the most recent month BEFORE it that has
+   its own plan. `default` is overwritten by every save, so saving November made October
+   inherit November's goal; it is now only the fallback when no dated month exists at all.
+   The margin override (cm_pct) still carries forward from wherever it was last set. */
+function inheritedGoals(g, ym) {
+  const months = Object.keys(g).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
+  const prior = months.filter(k => k < ym).pop();
+  if (prior) return g[prior] || {};
+  const d = g.default || {};
+  if (months.some(k => k > ym)) return d.cm_pct != null ? { cm_pct: d.cm_pct } : {};
+  return d;
+}
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  return { ...(g.default || {}), ...(g[ym] || {}) };
+  return { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
 }
 const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
 const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
@@ -620,7 +632,7 @@ function planMath(mode, value, ctx, basisSales) {
   } else if (mode === 'mer') {
     if (amer == null || value <= amer) {
       unreachable = amer != null
-        ? `A ${value.toFixed(2)}x MER is not reachable while acquisition runs at ${amer.toFixed(2)}x — blended MER can only exceed aMER by whatever returning customers add on top.`
+        ? `A ${value.toFixed(2)}x MER is not reachable while acquisition runs at ${amer.toFixed(2)}x: blended MER can only exceed aMER by whatever returning customers add on top.`
         : 'No acquisition efficiency measured yet, so a MER target cannot be costed.';
       requiredSpend = null; goalSales = null;
     } else {
@@ -1217,17 +1229,17 @@ function judgeCosts(rows) {
   if (heavilyContaminated || (blended != null && blended <= 0.15) || spread > 0.6) {
     out.verdict = 'broken';
     out.reason = heavilyContaminated
-      ? `${negatives} of ${n} days record more ${costWord} than the store took in — typically wholesale orders paid outside Shopify, or an inventory delivery booked as one day's cost`
+      ? `${negatives} of ${n} days record more ${costWord} than the store took in, typically wholesale orders paid outside Shopify, or an inventory delivery booked as one day's cost`
       : blended != null && blended <= 0.15
       ? `trailing margin of ${Math.round(blended * 100)}% is implausibly thin for this kind of product`
       : `daily margin swings ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}%, which no real product mix does`;
   } else if (negatives > 0) {
     // Reported, not suppressed: the figures stand and the odd day is named.
     out.verdict = 'noisy';
-    out.reason = `${negatives} of ${n} days record more ${costWord} than the store took in — almost always a wholesale order paid outside Shopify or an inventory delivery booked to one day. The other ${n - negatives} days are consistent, so the profit figures still stand`;
+    out.reason = `${negatives} of ${n} days record more ${costWord} than the store took in, almost always a wholesale order paid outside Shopify or an inventory delivery booked to one day. The other ${n - negatives} days are consistent, so the profit figures still stand`;
   } else if (spread > 0.4) {
     out.verdict = 'noisy';
-    out.reason = `daily margin ranges ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}% — likely a few products missing COGS`;
+    out.reason = `daily margin ranges ${Math.round(p10 * 100)}% to ${Math.round(p90 * 100)}%, likely a few products missing COGS`;
   }
   return out;
 }

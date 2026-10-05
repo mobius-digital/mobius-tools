@@ -1829,12 +1829,12 @@
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=8"></script>
+<script src="meta.js?v=9"></script>
 <script src="amb.js?v=17"></script>
 <script src="../onboard/questions.js?v=8"></script>
 <script src="brand.js?v=14"></script>
 <script src="newclient.js?v=13"></script>
-<script src="studio.js?v=20"></script>
+<script src="studio.js?v=21"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -2756,15 +2756,15 @@ const TOURS = {
     { sel: '#tabs .grp:nth-of-type(2)', title: 'Every week', body: '<b>Reports</b> are the weekly and monthly documents you send the client. <b>Profit</b> is whether the brand is making money, with <b>Customers</b> under it.' },
     { sel: '#tabs .grp:nth-of-type(3)', title: 'Making ads', body: '<b>Angles</b> shows what we have tested and what won, so you know what to brief next. <b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk, plus the creator link.' },
     { sel: '#tabs .grp:nth-of-type(4)', title: 'Monthly and setup', body: 'On <b>Plan</b> you set next month’s number with the client. <b>Settings</b> holds goals, channels, new clients, and the data checks.' },
-    { sel: '#periodBar', title: 'What period am I looking at?', body: 'This bar is on every screen that shows data and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
+    { sel: '#hdPeriod', title: 'What period am I looking at?', body: 'This control is on every screen that follows a date range and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
 
   overview: { name: 'The Overview', steps: [
-    { sel: '#main h2', title: 'Start here every morning', body: 'One row per client, showing what their business actually did - not what any ad platform claims.' },
-    { sel: '#main tbody tr', title: 'Contribution margin is the column that matters', body: 'It is what was left after product costs, fees <i>and</i> ad spend. A client can grow revenue and go backwards here.' },
-    { sel: '#periodBar', title: 'Change the window here', body: 'Yesterday, last 7, month to date, last month, or any custom range. The dates on the right are always the real ones.' },
-    { sel: '#main tbody tr', title: 'Click any client', body: 'That opens their Profit page - the full waterfall from revenue down to what was kept.' },
+    { sel: '.ovd-cols', title: 'Start with Today', body: 'What is waiting, by role. The number is how many; the words on the right open the screen where you deal with it. A tick means nothing is waiting.' },
+    { sel: '#main tbody tr', title: 'Then the brands', body: 'One row per client, showing what their business actually did. <b>Contribution margin</b> is the column that matters: what was left after product costs, fees <i>and</i> ad spend.' },
+    { sel: '#hdPeriod', title: 'Change the window here', body: 'Yesterday, last 7, month to date, last month, or any custom range. The dates shown are always the real ones.' },
+    { sel: '#main tbody tr', title: 'Click any client', body: 'That opens their Profit page: revenue down to what was kept.' },
   ] },
 
   profit: { name: 'The Profit page', steps: [
@@ -2774,27 +2774,28 @@ const TOURS = {
   ] },
 
   plan: { name: 'Planning the month', steps: [
-    { sel: '#main h2', title: 'This is where the number gets set', body: 'Once a month, with the client, before the month starts. Every other tab reports against what you save here.' },
-    { sel: '#main .card', title: 'Type two, not three', body: '<b>Revenue = MER × spend.</b> Fill in any two and the third is arithmetic - the one tagged calculated is the result. Press <b>make this the result</b> on another box to move which.' },
-    { sel: '#main .card', title: 'Check the verdict line', body: 'Any plan implies a rate of buying new customers. Locus compares that with what this client has actually managed in the last 28 days and says whether the plan is achievable, a stretch, or unrealistic.' },
-    { sel: '#main .card', title: 'Then agree it', body: '<b>Client link</b> is a read-only page with just this plan on it, for the call. Flip <b>agreed</b> once they say yes - and changing the numbers afterwards clears that, so a plan cannot drift after sign-off.' },
+    { sel: '#main h2', title: 'This is where the number gets set', body: 'Once a month, with the client. The page opens on the month in progress if it has no plan yet, otherwise on next month. Every other tab reports against what you save here.' },
+    { sel: '.pl-main', title: 'Type two, not three', body: '<b>Revenue = MER × spend.</b> Fill in any two and the third is arithmetic. Press <b>make this the result</b> on another box to move which one is calculated.' },
+    { sel: '#plVerdictCard', title: 'Check the verdict line', body: 'Locus compares the plan with what this client actually managed in the last 28 days and says whether it is achievable, a stretch, or unrealistic.' },
+    { sel: '#plSave', title: 'Save, then agree it', body: '<b>Save</b> makes it the month’s target. <b>Client link</b> is a read-only page with just this plan on it, for the call. Flip <b>Agreed</b> once they say yes; changing the numbers afterwards clears it.' },
   ] },
 
   brief: { name: 'The Daily Brief', steps: [
     { sel: '#main h2', title: 'The client’s morning update', body: 'Yesterday against the plan, written as something a person would read. It drafts itself overnight.' },
-    { sel: '#main .card', title: 'The draft sits at the top', body: 'Read it as the client will see it. <b>Edit wording</b> to change anything - what you send is exactly what you approved, never a regenerated version.' },
-    { sel: '#main .card', title: 'Nothing sends itself', body: 'With review on, the brief waits for you every morning. <b>Send to client</b> posts it to their Slack channel and freezes it.' },
+    { sel: '.st-line', title: 'Can I send this?', body: 'One line: whether it is waiting on you, already sent, or handled automatically, and whether the data behind it is safe to send.' },
+    { sel: '#bfPreview', title: 'Read it as the client will', body: '<b>Edit wording</b> changes anything. Add what you changed on the account under <b>What we did</b>; the brief’s "What we’re doing" is written only from that and the Change Log.' },
+    { sel: '#bfPost', title: 'Nothing sends itself', body: '<b>Send to client</b> posts it to their Slack channel and freezes it. The numbers and past briefs are further down the page.' },
   ] },
 
   reports: { name: 'Reports', steps: [
     { sel: '#main h2', title: 'The weekly and monthly review', body: 'A draft appears every Monday for last week, and on the 1st for last month. This is the document you walk through on calls.' },
-    { sel: '#main .card', title: 'Reports are frozen', body: 'The numbers are captured when the report is generated, so what you read on Monday is exactly what the client opens on Thursday. Once sent it can never change.' },
-    { sel: '#main .card', title: 'Edit the summary, then send', body: 'The written summary is yours to change. <b>Send to client</b> posts the headline numbers and their permanent archive link into their Slack.' },
+    { sel: '.st-line', title: 'Which report, and its state', body: 'Draft, sent, or handled automatically. <b>Send to client</b> posts the headline numbers and their permanent link into their Slack. Once sent a report can never change.' },
+    { sel: '.rp-jump', title: 'Jump to a section', body: 'The report is long. These buttons take you straight to Summary, Meta, Google and the rest.' },
   ] },
 
   customers: { name: 'The Customers page', steps: [
     { sel: '#main h2', title: 'Can this client afford to spend more?', body: 'That is the whole question. Read this before you set a plan, not after.' },
-    { sel: '#main .card', title: 'Payback is the number', body: '<b>Above 1.0x</b> the client profits on the first order and can afford to bid harder for customers. Below it, the business depends on people coming back - which makes repeat share the number that has to hold up.' },
+    { sel: '#main .card', title: 'Does a new customer pay for themselves?', body: '<b>Above 1.0x</b> the client profits on the first order and can afford to bid harder. Below it, the business depends on people coming back.' },
   ] },
 
   costs: { name: 'The Costs page', steps: [
@@ -3854,7 +3855,7 @@ const PAGE_HELP = {
     <p><b>The forecast:</b> your monthly goal spread across the days of the month using the account's own trailing 28-day weekday pattern (weekends and weekdays get their real shares). Spend is forecast flat. The plan is frozen for the month - it doesn't drift to flatter us.</p>
     <p><b>The narrative:</b> Claude writes Notes → So What? → What's Next? from the numbers <i>plus the Change Log</i> - so the more whys you tag there, the sharper the story ("CPA recovered after Tuesday's budget trim"), exactly like an analyst who was watching all day.</p>
     <p><b>The one distinction that matters:</b> <b>ROAS is attributed</b> - Meta and Google each claim credit for sales using their own rules, and they double-count each other. <b>MER and aMER are blended</b> - real Shopify revenue over real total spend, so nothing can be claimed twice. That's why this page leads with MER/aMER and shows platform ROAS only as a supporting detail in the channel line. It's also why this page's numbers will never match Ads Manager, and shouldn't - the Meta-only pages are where you go for that.</p>
-    <p><b>Auto-post:</b> flip the toggle and the brief posts to the brand's Slack channel every morning at the time set on the Settings tab (default <b>9:00 AM Central</b>), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
+    <p><b>Auto-post:</b> open <b>The plan this is measured against</b> at the bottom of the page, flip the toggle there, and the brief posts to the brand's Slack channel every morning at the time set on the Settings tab (default <b>9:00 AM Central</b>), covering yesterday. Preview and post manually any time from here. Numbers hedge: Meta-attributed conversions keep settling for ~72h; net sales don't.</p>`,
   reports: `
     <p><b>What this page is:</b> the weekly and monthly client reports - the ones you walk through on calls and send into the client's Slack. Where the Daily Brief is a quick morning pulse, these are the sit-down review of a whole week or month.</p>
     <p><b>The flow:</b> every <b>Monday</b> morning a draft of last week (Mon–Sun) is generated per brand, and on the <b>1st</b> a draft of last month. Each draft posts to that brand's <b>Report drafts channel</b> (internal - set it in Settings) with a link back here. You review it, edit the summary if you want, then hit <b>Send to client</b> - that posts the headline numbers and the client's link into their Slack channel. <b>Nothing ever reaches a client automatically.</b></p>

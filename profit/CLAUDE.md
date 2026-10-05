@@ -1346,3 +1346,9 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
 - **Studio**: connections live behind one "Connections" button (Atria included; `#stAtria` is gone
   from the top bar); five steps in words; one primary button per screen; Studio's brief-line class is
   `.st-bl` because `.st-line` is the Daily Brief status line in index.html.
+- **2026-10-05 fixes:** an unplanned month now inherits from the latest PRIOR month with its own plan
+  (`inheritedGoals()` in both workers' `goalsFor`); `goals_json.default` is only the fallback when no
+  dated month exists. Tours rewritten for the new layouts (selectors `.ovd-cols`, `.st-line`,
+  `#bfPreview`, `#bfPost`, `.rp-jump`, `.pl-main`, `#plVerdictCard`, `#plSave`, `#hdPeriod`). Studio's
+  Archive this batch asks first. `/api/overview` returns the brand's `yellow_pct` for the Meta
+  Overview CPA tile. The Change Log's bare "confirm" tick was dropped on purpose (no homework buttons).
