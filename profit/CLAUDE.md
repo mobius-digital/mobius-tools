@@ -1352,3 +1352,70 @@ touching the creator link, Studio batches or Asana briefs from anywhere else.
   `#bfPreview`, `#bfPost`, `.rp-jump`, `.pl-main`, `#plVerdictCard`, `#plSave`, `#hdPeriod`). Studio's
   Archive this batch asks first. `/api/overview` returns the brand's `yellow_pct` for the Meta
   Overview CPA tile. The Change Log's bare "confirm" tick was dropped on purpose (no homework buttons).
+
+## 2026-10-05: Customers = LTV:CAC and the journey; Brand = Client answers / Research / Voice; threads; AOV
+
+Cole's audit: "what's the point of the money tab and the customers tab", "I'm surprised the app
+doesn't have AOV", "the Brand tab is confusing, why is the creator link under Brand, where are
+the onboarding answers", "the Strategist couldn't answer what's the AOV", "I have to tag it in
+every thread reply", and Yak Sports asked to change the agreement before signing.
+
+- **tw_orders (account-health, shared D1).** One row per order from the Triple Whale journeys
+  response the attribution sync already pulls: `order_id, customer_id, date, total, currency,
+  products_json (add-to-cart product ids, oldest first), source (twPlatform of the
+  lastPlatformClick touch, else the raw source, else 'organic')`. `storeTwOrders` runs inside
+  `syncTwAttribution` (no extra API call); `backfillTwOrders` walks back 14 days a night per
+  brand to `TW_ORDERS_HISTORY_DAYS` (400) via settings `twOrdersCursor:<act>` /
+  `twOrdersDone:<act>`; `POST /api/tw-orders-backfill?act=&slices=N` (admin) runs slices now.
+  The response's `earliestDate` is the oldest order ON THAT PAGE, never a history limit: do not
+  stop the walk on it. `GET /api/tw-probe?act=` shows one order's fields. The journeys endpoint
+  carries NO line items: products are the cart's add-to-cart events. Shopify stays the path to
+  exact receipts; `p_shopify` is empty on 2026-10-05 (no store has the app installed).
+- **Customers (profit worker `customerJourney`, rides on `/api/customers` as `journey`;
+  `&journey=0` skips it).** Customers followed from their first order: LTV at 30/60/90/180/365
+  days (only customers old enough for the horizon), repeat rate, median days to the second
+  order, first vs repeat AOV, cohorts by first-order month with that month's CAC
+  (blendedAds / newCustomersOrders) and LTV:CAC, first product -> next product (titles from
+  the store's public products.json, cached 24h in settings `productTitles:<act>`;
+  retired products are named by hand in settings `productNames:<act>` = {"id":"name"}), order
+  sources grouped paid / email / own (`srcGroup`), and the window by people. Customers first
+  seen in the first 60 days of history are `uncertain` and left out of averages. Guest orders
+  (no customer_id) count as orders only. The page (`renderCustomers`) leads with "Is a customer
+  worth more than they cost?" and the LTV:CAC verdict (3x / 1.5x lines), then tiles, curve,
+  cohort table, journey, sources. The old Shopify `p_cohorts` card is gone from the page
+  (route kept). Lucky, measured: LTV90 $165 vs first order $154, 9% ever repeat, 1.7x in 90d.
+- **Orders and AOV** on P&L tiles, from `dayEconomics` (`orders`, `new_orders`, `email_rev`)
+  and `totals` (`orders, aov, new_aov, cac, email_rev, email_share`). ONE definition: AOV =
+  revenue / Triple Whale totalOrders, the same as Reports and the Strategist's `store` view.
+  Labels matched: "Revenue" and "Ad spend" on Overview, P&L and the Daily Brief; Overview's
+  "New customer MER" is "aMER". Profit's sub-tabs are **P&L** and **Customers**.
+- **Brand tab** (brand.js): views **Client answers** (call sheet `callSheet()` built from the
+  onboarding form by `CALL_SHEET` groups, access ticks, "ask them on the call" = not-sure and
+  blank `IMPORTANT` fields; then every answer step by step; then the voice interview
+  transcript), **Research** (unchanged), **Voice** (how the voice gets built strip, brand
+  voice, How we write, copy desk). `glanceStrip()` above all three replaces the profile card;
+  test rules are only a link to Settings > Goals. Stored `br_view` values info/library map to
+  the new names. **Creator link is its own rail tab** under Making ads (`SECTIONS.brand`
+  removed; `amb` in ROLE_TABS.strategist).
+- **Strategist threads (account-health `handleSlackEvent`).** A plain reply in a thread is
+  answered without a tag when the thread is OPEN: `askThread:<channel>:<ts>` = 1, set when
+  the Strategist answers a mention there or when the thread's root message is its own
+  (username Strategist); a thread checked and not its own is marked 0 (one Slack read, once).
+  A mention's plain-message twin counts as a mention (`<@bot>` in the text). The ideas bot
+  still needs a tag. The open-thread check runs BEFORE the claim so the plain copy cannot
+  swallow its app_mention twin. **Slack read methods go form-encoded** (`slackApi`):
+  conversations.replies refused the JSON body, so `threadTranscript` had silently returned
+  nothing. Strategist config: owner Cole, 30 turns / 2500 / 24000 chars, `strongWhen` adds
+  why|aov|ltv|cac|payback|cohort|retention|repeat|journey|scale|cut|pause. Needs the Slack app
+  subscribed to `message.groups` (the -internal channels are private) and `message.channels`.
+- **Strategist `store` view** (`storePeriod` in worker.js): revenue, orders, AOV, new vs
+  returning (customers and money), CAC, first-order margin, MER, aMER, CM, email share over
+  `days` / `month` / `from`+`to`, `compare: true` for the prior period. RULES define AOV, CAC,
+  LTV, LTV:CAC once.
+- **Agreement before signing** (contract.js / newclient.js): a `sent` row can be re-sent with
+  new text ("Change it before they sign" on the setup screen; starts from the stored html when
+  custom). `vars.version` + `vars.history[{version, sent_at, hash, html, term, payment,
+  custom}]` keep every earlier version; the client gets an "updated agreement" email; the
+  signing page sends `hash` and `POST /api/sign` refuses (409 `updated`) a signature on an
+  older text and reloads the page. `contractState` returns `html`, `version`, `history`
+  (without html). Signed rows are untouched: amendments as before.
