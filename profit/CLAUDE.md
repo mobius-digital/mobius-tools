@@ -785,6 +785,15 @@ profit/
   Bulk import on 2026-10-06 ran through the local `ah-worker-dev` (Cloudflare 403s a Python user agent;
   send a browser one). Public proof is video only; the Open beat is hidden in the editor because step 1
   "The first second" is the same thing.
+- **v17 (same day): First seconds.** Fourth tab on the link: the bank of ways to open a video,
+  `p_amb_brand.hooks_json` = [{title, how, kind 'shared'|'brand', url, clip (a stored upload proof id)}],
+  seeded per brand from scratchpad hook_bank.py (16 shared openers copied into every brand + 6 made for
+  each brand; clips attached where a stored Atria clip matched). Shared rows are COPIES per brand on
+  purpose: rewording one changes one brand. Each idea has `alt_hooks_json` ([string], 2 alternates)
+  shown under step 1 as "Or open with", with a link to the tab. Editors: Link and brief ("First seconds:
+  ways to open a video", one row each) and the idea editor ("Or open with", one per line). The pinned
+  lane reads "Film these first" (it used to claim "What's working"). Each brand was trimmed to 20 LIVE
+  ideas on 2026-10-06; the other 9 or 10 are `status='draft'` in Locus, not deleted.
 - **The v11 page** (`angles/app.src.js`), top to bottom (superseded by v12 above): jump links; **Film this one** (one idea at
   a time, Hot first then sections, opens on a random one so creators do not all film the same idea,
   "Show me another" deals the next: the Lucky hub's NextVideo); **What's working right now** = the
