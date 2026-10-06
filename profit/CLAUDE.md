@@ -750,6 +750,35 @@ profit/
   and writes the REAL shared D1. The Browser pane stops painting once scrolled; hide
   the content above instead of scrolling to screenshot lower sections.
 
+### 2026-10-06: the creator link rebuild (read before touching angles/ or the Ambassadors tab)
+
+- **Why.** Cole: creators get a wall of sub-sections and samey angles, the copy reads like AI, most ideas
+  have no video behind them, and nobody is taught how to hold attention. Our own numbers agree: TRYBE
+  creator videos were the worst ad type on Party Patch (0.13 to 0.65x), Grunk and Dartee (about $75 a
+  purchase vs $35 in-house) and the BEST on Ice & Gold (3.3x). Research per brand plus a cross-category
+  hooks study is in `docs/research-2026-10-06/` (one doc per brand, plus `hooks-and-rehooks.md`).
+- **Schema** (`migrations/amb-003.sql`): `p_amb_angle.visual_hook` (what is physically on screen in
+  the first second), `rehook` (what happens at 3 to 8 seconds to keep them), `why` (the proven shape
+  it is built on), `inspo_json` ([{brand, what, url}], other brands' videos to steal the shape from);
+  `p_amb_brand.guide_json` ([{title, text}], the "How to keep them watching" card). All public.
+- **The page** (`angles/app.src.js`, v11), top to bottom: jump links; **Film this one** (one idea at
+  a time, Hot first then sections, opens on a random one so creators do not all film the same idea,
+  "Show me another" deals the next: the Lucky hub's NextVideo); **What's working right now** = the
+  pinned Hot lane, every card shows up to three playable proof thumbs (`proofStrip`, covers loaded in
+  one `loadCovers(proof)` call); **How to keep them watching** (the brand guide, folds after 4);
+  season + about; stop filming + rules (`#rules`); then the section lanes. The format pill row is
+  GONE: tapping a format chip on a card filters and shows one "Skit x" pill to clear it. The angle
+  page adds "The first second" / "Keep them past 3 seconds" cards, "Why it works", and "Steal the
+  shape from these" (inspo). Cards show the visual hook under the title.
+- **Staff editor** (`profit/amb.js`): the four new angle fields (inspiration as brand / what / link
+  rows) and the guide editor on Link and brief (title + one line per rule).
+- **Seeding**: `migrations/amb_seed_lib.py` + one `seed_amb_<slug>.py` per brand builds a SPEC and
+  writes SQL. It REPLACES sections and angles, keeps the brand row (slug, live, submit link, PDF),
+  the pinned Hot section, and any old proof named in a new angle's `keep_from` (old angle title).
+  `check()` refuses a spec with em dashes, more than 6 sections, fewer than 3 openers or shots, or an
+  angle with no proof and no inspiration. `create: True` makes the brand row for a brand with no
+  page (Ice & Gold). Run each SQL once; never re-run after the team edits in Locus.
+
 ## Brand: research, angles and the creative roadmap (2026-09-24)
 
 - **What it is.** The Brand tab (Creative group in the rail) replaces each brand's Google Sheet.

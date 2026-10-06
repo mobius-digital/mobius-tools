@@ -10,7 +10,7 @@ Run:  python angles/build.py
 import json, os, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-SLUGS = ['party-patch', 'grunk-dolfer', 'dartee', 'hiden']   # add a brand here for a clean link preview
+SLUGS = ['party-patch', 'grunk-dolfer', 'dartee', 'hiden', 'ice-and-gold']   # add a brand here for a clean link preview
 V = '11'
 
 icons = json.load(open(os.path.join(HERE, 'icons.json'), encoding='utf-8'))
