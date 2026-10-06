@@ -1,13 +1,16 @@
-/* Locus - the Season tab (2026-10-05; goals, results, desk and swipe 2026-10-06;
- * reorganised around THE OFFERS the same night, after Cole: "I still don't see what our offers are").
+/* Locus - the Season tab.
+ * 2026-10-05 built; 2026-10-06 goals, results, desk, swipe; same night rebuilt twice after Cole:
+ * "I still don't see what our offers are", "it's a long scroll", "the season bar looks like Canva".
  *
- * The BFCM plan, in Locus instead of the standalone Q4 Playbook. Screens:
- *   All clients   Offers (default): one wide card per brand, the Black Friday deal in big
- *                 type, November and December beside it, a season bar, the goal.
- *                 This week (what is due, tick it; the status board), Week by week, Desk.
- *   One brand     The season bar, then the offers as a numbered list (Black Friday
- *                 highlighted), then goals + ladder, still needed, desk, weeks, call sheet.
- *   Client link   ?season=<token>: offers, dates, results and what we did, read only.
+ * Shape now:
+ *   All clients   The offers (default): one card per brand, Black Friday deal in big type,
+ *                 November and December beside it, a season bar with hover. Then This week,
+ *                 Week by week, Desk as segments.
+ *   One brand     Strip, then THE PLAN IN ONE READ (numbered sentences + "why this offer"),
+ *                 the season timeline (one row per phase, hover for the deal), then five
+ *                 in-page tabs: Offers, Goals and results, Desk, To-do, Call sheet. No long scroll.
+ *   Swipe file    Opens as a modal, never injected into the page.
+ *   Client link   ?season=<token>: plan, timeline, offers, results and what we did, read only.
  *
  * Dates for every deliverable are DERIVED from the phase dates by the worker
  * (briefs 23 days before live, built 9, loaded 4), so moving a launch moves its work.
@@ -18,8 +21,8 @@
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, data: null, view: 'offers', deskDate: null, live: {} };
-const LS_VIEW = 'se_view2';
+const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, data: null, view: 'offers', btab: 'offers', deskDate: null, live: {} };
+const LS_VIEW = 'se_view3', LS_BTAB = 'se_btab';
 const AH = 'https://mobius-account-health.mobius-digital.workers.dev';
 
 async function api(path, opts = {}, base) {
@@ -75,103 +78,128 @@ function injectCss() {
   const st = document.createElement('style');
   st.id = 'seCss';
   st.textContent = `
-  .se{--se-nov:#2F6F9F;--se-bf:#1E7A45;--se-dec:#A8801F;--se-late:#9A3F2E;--se-vday:#A0435E}
+  .se{--se-nov:#2F6F9F;--se-bf:#1E7A45;--se-dec:#A8801F;--se-late:#9A3F2E;--se-vday:#A0435E;--se-line:var(--line,#E3E8EC);--se-muted:var(--muted,#5F6F7B);--se-surface:var(--surface,#fff);--se-wash:var(--wash,#F3F6F8)}
   .se .card{margin-bottom:16px}
   .se .se-key{border-color:var(--brand,#1F6F8B);box-shadow:0 0 0 3px rgba(var(--brand-rgb,31,111,139),.14)}
   .se-verdict{font-family:var(--serif,Georgia,serif);font-size:19px;line-height:1.35;margin:0 0 12px}
-  .se-seg{display:inline-flex;gap:4px;border:1px solid var(--line,#ddd);border-radius:99px;padding:3px;margin:0 0 14px;background:var(--bg,#fff);flex-wrap:wrap}
-  .se-seg button{border:0;background:transparent;border-radius:99px;padding:6px 14px;font:600 13px var(--sans,system-ui);color:var(--muted,#667);cursor:pointer}
+  .se-seg{display:inline-flex;gap:4px;border:1px solid var(--se-line);border-radius:99px;padding:3px;margin:0 0 14px;background:var(--bg,#fff);flex-wrap:wrap}
+  .se-seg button{border:0;background:transparent;border-radius:99px;padding:7px 15px;font:600 13px var(--sans,system-ui);color:var(--se-muted);cursor:pointer}
   .se-seg button.on{background:var(--ink,#111);color:var(--on-ink,#fff)}
+  .se-seg button b{font-weight:700;margin-left:4px;opacity:.7}
+  /* the plan in one read */
+  .se-plan{display:grid;grid-template-columns:1.25fr 1fr;gap:20px}
+  .se-plan ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .se-plan li{display:grid;grid-template-columns:26px 1fr;gap:10px;font-size:15px;line-height:1.45}
+  .se-plan li i{width:24px;height:24px;border-radius:50%;background:var(--ink,#111);color:var(--on-ink,#fff);font:700 12px var(--sans,system-ui);font-style:normal;display:grid;place-items:center;margin-top:1px}
+  .se-plan li b{font-weight:700}
+  .se-plan li.bf b{color:var(--se-bf)}
+  .se-plan li .d{color:var(--se-muted);font-size:13px}
+  .se-why{background:var(--se-wash);border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.5;white-space:pre-line;min-width:0;max-height:420px;overflow:auto}
+  .se-why .lab{font:600 10.5px var(--sans,system-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--se-muted);display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .se-why.none{color:var(--se-muted);font-style:italic}
+  /* timeline (one row per phase) */
+  .se-gantt{position:relative;display:grid;grid-template-columns:200px 1fr;column-gap:14px;row-gap:0;font-size:13px}
+  .se-gantt .gh{display:contents}
+  .se-gantt .gh .lbl{height:30px}
+  .se-gantt .gh .axis{position:relative;height:30px;border-bottom:1px solid var(--se-line)}
+  .se-gantt .axis span{position:absolute;bottom:6px;font:600 10.5px var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--se-muted);transform:translateX(-50%)}
+  .se-gantt .gr{display:contents}
+  .se-gantt .gr .lbl{display:flex;align-items:center;gap:8px;height:34px;border-bottom:1px solid var(--se-line);min-width:0}
+  .se-gantt .gr .lbl b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .se-gantt .gr .lbl i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+  .se-gantt .gr .trk{position:relative;height:34px;border-bottom:1px solid var(--se-line)}
+  .se-gantt .grid{position:absolute;top:0;bottom:0;border-left:1px dashed var(--se-line)}
+  .se-gantt .bar{position:absolute;top:7px;height:20px;border-radius:6px;background:var(--c);color:#fff;font:600 11px var(--sans,system-ui);line-height:20px;padding:0 8px;white-space:nowrap;box-sizing:border-box;cursor:default;min-width:6px;transition:transform .12s}
+  .se-gantt .bar .in{display:block;overflow:hidden;text-overflow:ellipsis}
+  .se-gantt .bar:hover{transform:translateY(-1px);box-shadow:0 4px 12px -4px rgba(0,0,0,.35)}
+  .se-gantt .bar.draft{background:repeating-linear-gradient(135deg,var(--c) 0 6px,color-mix(in srgb,var(--c) 70%,#fff) 6px 12px)}
+  .se-gantt .bar.missing{background:transparent;border:1.5px dashed var(--c);color:var(--c)}
+  .se-gantt .bar .after{position:absolute;left:100%;top:0;padding-left:8px;color:var(--ink,#111);font-weight:500;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+  .se-gantt .mk{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--m);pointer-events:none}
+  .se-gantt .mk b{position:absolute;top:4px;left:-1px;transform:translateX(-50%);font:700 9.5px var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--m);border-radius:4px;padding:2px 6px;white-space:nowrap}
+  .se-gantt .mk.dim{border-left-style:dashed}
+  .se-tip{position:fixed;z-index:95;max-width:300px;background:var(--ink,#111);color:var(--on-ink,#fff);border-radius:10px;padding:10px 12px;font:13px/1.45 var(--sans,system-ui);box-shadow:0 10px 30px -8px rgba(0,0,0,.4);pointer-events:none}
+  .se-tip b{display:block;font-size:14px;margin-bottom:2px}
+  .se-tip .m{opacity:.75;font-size:12px}
   /* offers, all clients */
-  .se-off{display:grid;grid-template-columns:190px 1fr;gap:18px;padding:18px 20px;border:1px solid var(--line,#e5e5e5);border-radius:14px;background:var(--surface,#fff);margin-bottom:12px;cursor:pointer;min-width:0}
+  .se-off{display:grid;grid-template-columns:200px 1fr;gap:18px;padding:18px 20px;border:1px solid var(--se-line);border-radius:14px;background:var(--se-surface);margin-bottom:12px;cursor:pointer;min-width:0}
   .se-off:hover{border-color:var(--brand,#1F6F8B)}
   .se-off .who{display:flex;flex-direction:column;gap:6px;min-width:0}
   .se-off .who b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:22px;line-height:1.1}
-  .se-off .who .m{font-size:12px;color:var(--muted,#667);line-height:1.45}
-  .se-off .body{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:16px;min-width:0}
+  .se-off .who .m{font-size:12px;color:var(--se-muted);line-height:1.45}
+  .se-off .body{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;min-width:0}
   .se-off .col{min-width:0}
-  .se-off .lab{font:600 10.5px var(--sans,system-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#667);display:flex;gap:8px;align-items:center;margin-bottom:5px}
-  .se-off .deal{font-family:var(--display,var(--sans,system-ui));font-weight:700;font-size:19px;line-height:1.25;letter-spacing:-.01em}
-  .se-off .deal.small{font-size:14.5px;font-weight:600}
+  .se-off .lab{font:600 10.5px var(--sans,system-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--se-muted);display:flex;gap:8px;align-items:center;margin-bottom:5px}
+  .se-off .deal{font-family:var(--display,var(--sans,system-ui));font-weight:700;font-size:20px;line-height:1.25;letter-spacing:-.01em}
+  .se-off .deal.small{font-size:14px;font-weight:600}
   .se-off .deal.none{font-weight:400;font-style:italic;color:var(--bad,#B03A2E);font-size:15px}
-  .se-off .sub{font-size:12px;color:var(--muted,#667);margin:4px 0 0;line-height:1.4}
+  .se-off .sub{font-size:12px;color:var(--se-muted);margin:4px 0 0;line-height:1.4}
+  .se-off .mini{margin:0 0 8px}
   .se-off .bar{grid-column:1/-1}
-  /* season bar */
-  .se-tl{position:relative;height:34px;margin-top:6px}
-  .se-tl .months{display:flex;position:absolute;inset:0 0 auto 0;height:12px;font:600 10px var(--sans,system-ui);color:var(--muted,#667);letter-spacing:.06em;text-transform:uppercase}
-  .se-tl .months span{position:absolute;top:0;border-left:1px solid var(--line,#e5e5e5);padding-left:4px;height:34px;line-height:12px}
-  .se-tl .seg{position:absolute;top:16px;height:14px;border-radius:4px;background:var(--c);opacity:.9;min-width:3px;color:#fff;font:600 10px var(--sans,system-ui);line-height:14px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
-  .se-tl .seg.ghost{opacity:.28}
-  .se-tl .today{position:absolute;top:12px;bottom:0;width:2px;background:var(--ink,#111)}
-  .se-tl .today i{position:absolute;top:-12px;left:-14px;font:700 9px var(--sans,system-ui);font-style:normal;letter-spacing:.06em}
-  .se-tl .months span{height:var(--h,34px)}
-  .se-tl.big .seg{height:16px;line-height:16px;font-size:11px}
-  /* offers, one brand (numbered list) */
-  .se-deal{display:grid;grid-template-columns:230px 1fr auto;gap:16px;padding:16px 18px;border:1px solid var(--line,#e5e5e5);border-left:6px solid var(--c);border-radius:12px;background:var(--surface,#fff);margin-bottom:10px;min-width:0;align-items:start}
+  /* offers, one brand */
+  .se-deal{display:grid;grid-template-columns:230px 1fr auto;gap:16px;padding:16px 18px;border:1px solid var(--se-line);border-left:6px solid var(--c);border-radius:12px;background:var(--se-surface);margin-bottom:10px;min-width:0;align-items:start}
   .se-deal.key{box-shadow:0 0 0 3px rgba(30,122,69,.14);border-color:var(--c)}
   .se-deal .n{display:flex;gap:10px;align-items:flex-start}
   .se-deal .num{width:26px;height:26px;flex:none;border-radius:50%;background:var(--ink,#111);color:var(--on-ink,#fff);font:700 12px var(--sans,system-ui);display:grid;place-items:center}
   .se-deal .nm{font-family:var(--serif,Georgia,serif);font-size:17px;line-height:1.2}
-  .se-deal .dt{font-size:12px;color:var(--muted,#667);margin-top:3px;line-height:1.4}
+  .se-deal .dt{font-size:12px;color:var(--se-muted);margin-top:3px;line-height:1.4}
   .se-deal .big{font-family:var(--display,var(--sans,system-ui));font-weight:700;font-size:19px;line-height:1.25;letter-spacing:-.01em}
-  .se-deal .big.none{font-weight:400;font-style:italic;color:var(--muted,#667);font-size:15px}
-  .se-deal .x{font-size:13px;color:var(--muted,#667);line-height:1.45;margin-top:6px;white-space:pre-line}
-  .se-deal .res{font-size:12.5px;line-height:1.45;background:var(--wash,#f4f6f8);border-radius:8px;padding:7px 9px;margin-top:8px}
+  .se-deal .big.none{font-weight:400;font-style:italic;color:var(--se-muted);font-size:15px}
+  .se-deal .x{font-size:13px;color:var(--se-muted);line-height:1.45;margin-top:6px;white-space:pre-line}
+  .se-deal .res{font-size:12.5px;line-height:1.45;background:var(--se-wash);border-radius:8px;padding:7px 9px;margin-top:8px}
   .se-deal .res b{font-size:13px}
   .se-deal .act{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
-  .se-swipe{border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:12px;background:var(--surface,#fff);margin-bottom:10px}
-  .se-swipe .h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;font-size:13px;flex-wrap:wrap}
-  .se-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
-  .se-ad{display:block;border:1px solid var(--line,#e5e5e5);border-radius:10px;overflow:hidden;background:var(--wash,#f4f6f8);color:inherit;text-decoration:none;min-width:0}
+  .se-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .se-ad{display:block;border:1px solid var(--se-line);border-radius:10px;overflow:hidden;background:var(--se-wash);color:inherit;text-decoration:none;min-width:0}
   .se-ad img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;background:#ddd}
   .se-ad .c{padding:6px 8px;font-size:11.5px;line-height:1.3}
   .se-ad .c b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* tasks */
-  .se-task{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--line,#e5e5e5)}
+  .se-task{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--se-line)}
   .se-task:last-child{border-bottom:0}
   .se-task input{margin:4px 0 0;width:16px;height:16px;accent-color:var(--good,#1E7A45);cursor:pointer}
   .se-task .n{font-size:14px;line-height:1.4}
-  .se-task .n small{display:block;color:var(--muted,#667);font-size:12px;margin-top:1px}
-  .se-task.done .n{color:var(--muted,#667);text-decoration:line-through}
+  .se-task .n small{display:block;color:var(--se-muted);font-size:12px;margin-top:1px}
+  .se-task.done .n{color:var(--se-muted);text-decoration:line-through}
   .se-task.done .n small{text-decoration:none}
-  .se-task .r{text-align:right;font-size:12px;color:var(--muted,#667);white-space:nowrap;line-height:1.4}
+  .se-task .r{text-align:right;font-size:12px;color:var(--se-muted);white-space:nowrap;line-height:1.4}
   .se-task .r b{display:block;font-size:12.5px;color:var(--ink,#111)}
   .se-task.over .r b{color:var(--bad,#B03A2E)}
-  .se-brand{display:inline-block;font:600 11px var(--sans,system-ui);letter-spacing:.02em;border-radius:6px;padding:1px 7px;margin-right:6px;background:var(--wash,#eef1f4);color:var(--ink,#111);vertical-align:1px}
+  .se-brand{display:inline-block;font:600 11px var(--sans,system-ui);letter-spacing:.02em;border-radius:6px;padding:1px 7px;margin-right:6px;background:var(--se-wash);color:var(--ink,#111);vertical-align:1px}
   .se-brand.link{cursor:pointer}
-  .se-when{font:600 11px var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#667);margin:14px 0 4px}
+  .se-when{font:600 11px var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--se-muted);margin:14px 0 4px}
   .se-when:first-child{margin-top:0}
   .se-board{width:100%;border-collapse:collapse;font-size:13.5px;table-layout:fixed}
   .se-board col.c-brand{width:150px}.se-board col.c-need{width:128px}
-  .se-board th{text-align:left;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#667);padding:6px 10px;border-bottom:1px solid var(--line,#e5e5e5);white-space:nowrap}
-  .se-board td{padding:10px;border-bottom:1px solid var(--line,#e5e5e5);vertical-align:top;white-space:normal;overflow-wrap:anywhere}
+  .se-board th{text-align:left;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--se-muted);padding:6px 10px;border-bottom:1px solid var(--se-line);white-space:nowrap}
+  .se-board td{padding:10px;border-bottom:1px solid var(--se-line);vertical-align:top;white-space:normal;overflow-wrap:anywhere}
   .se-board tr:last-child td{border-bottom:0}
   .se-board tr.rowlink{cursor:pointer}
-  .se-board tr.rowlink:hover td{background:var(--wash,#f4f6f8)}
+  .se-board tr.rowlink:hover td{background:var(--se-wash)}
   .se-board .bn{font-weight:700}
-  .se-board .cell small{display:block;color:var(--muted,#667);font-size:11.5px;margin-top:3px;line-height:1.3}
+  .se-board .cell small{display:block;color:var(--se-muted);font-size:11.5px;margin-top:3px;line-height:1.3}
   .se-weeks{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
-  .se-wk{border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:10px 12px;background:var(--surface,#fff);min-width:0}
+  .se-wk{border:1px solid var(--se-line);border-radius:12px;padding:10px 12px;background:var(--se-surface);min-width:0}
   .se-wk.now{border-color:var(--good,#1E7A45);box-shadow:0 0 0 3px rgba(30,122,69,.14)}
   .se-wk.past{opacity:.72}
   .se-wk .h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
   .se-wk .h b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:16px}
-  .se-wk .h span{font-size:11.5px;color:var(--muted,#667);white-space:nowrap}
+  .se-wk .h span{font-size:11.5px;color:var(--se-muted);white-space:nowrap}
   .se-wk .se-task{padding:5px 0}
   .se-kv{display:grid;grid-template-columns:170px 1fr auto;gap:8px 14px;align-items:start;font-size:14px}
-  .se-kv .k{color:var(--muted,#667);font-size:12.5px;padding-top:2px}
+  .se-kv .k{color:var(--se-muted);font-size:12.5px;padding-top:2px}
   .se-kv .v{white-space:pre-line;line-height:1.45;min-width:0}
-  .se-kv .v.none{color:var(--muted,#667);font-style:italic}
+  .se-kv .v.none{color:var(--se-muted);font-style:italic}
   .se-kv .e{justify-self:end}
-  .se-kv .sep{grid-column:1/-1;border-top:1px solid var(--line,#e5e5e5);margin:2px 0}
+  .se-kv .sep{grid-column:1/-1;border-top:1px solid var(--se-line);margin:2px 0}
   .se-need{display:flex;flex-direction:column;gap:6px}
-  .se-need div{display:grid;grid-template-columns:1fr auto;gap:10px;font-size:14px;padding:7px 10px;border-radius:8px;background:var(--wash,#f4f6f8)}
-  .se-need div span:last-child{color:var(--muted,#667);font-size:12px;white-space:nowrap}
-  .se-in{width:100%;border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 10px;font:14px var(--sans,system-ui);background:var(--surface,#fff);color:inherit;box-sizing:border-box}
+  .se-need div{display:grid;grid-template-columns:1fr auto;gap:10px;font-size:14px;padding:7px 10px;border-radius:8px;background:var(--se-wash)}
+  .se-need div span:last-child{color:var(--se-muted);font-size:12px;white-space:nowrap}
+  .se-in{width:100%;border:1px solid var(--se-line);border-radius:8px;padding:8px 10px;font:14px var(--sans,system-ui);background:var(--se-surface);color:inherit;box-sizing:border-box}
   textarea.se-in{min-height:84px;resize:vertical;line-height:1.45}
   .se-f{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
   .se-f label{font-size:12.5px;font-weight:600}
-  .se-f small{color:var(--muted,#667);font-size:11.5px}
+  .se-f small{color:var(--se-muted);font-size:11.5px}
   .se-f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .se-link{background:none;border:0;padding:0;font:inherit;color:var(--brand,#1F6F8B);cursor:pointer;text-decoration:underline}
   .se-mini{font-size:12.5px;padding:5px 10px}
@@ -182,68 +210,85 @@ function injectCss() {
   .se-strip .ru-d{font-size:11px;opacity:.8;margin-top:5px;line-height:1.4}
   .se-strip .ru-v.bad{color:#F2A197}.se-strip .ru-v.warn{color:#E9CC7A}.se-strip .ru-v.good{color:#8FD8A8}
   .se-goals{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
-  .se-g{border:1px solid var(--line,#e5e5e5);border-radius:10px;padding:8px 10px;min-width:0}
-  .se-g .l{font-size:11px;color:var(--muted,#667);letter-spacing:.04em;text-transform:uppercase}
+  .se-g{border:1px solid var(--se-line);border-radius:10px;padding:8px 10px;min-width:0}
+  .se-g .l{font-size:11px;color:var(--se-muted);letter-spacing:.04em;text-transform:uppercase}
   .se-g .v{font-family:var(--display,var(--sans,system-ui));font-weight:700;font-size:20px;line-height:1.2;margin-top:2px}
-  .se-g .v.none{color:var(--muted,#667);font-weight:400;font-size:14px;font-style:italic}
+  .se-g .v.none{color:var(--se-muted);font-weight:400;font-size:14px;font-style:italic}
   .se-ladder{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-  .se-ladder span{font-size:12px;border-radius:99px;padding:3px 10px;background:var(--wash,#f4f6f8)}
+  .se-ladder span{font-size:12px;border-radius:99px;padding:3px 10px;background:var(--se-wash)}
   .se-days{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
-  .se-days button{border:1px solid var(--line,#ddd);background:var(--surface,#fff);border-radius:99px;padding:5px 12px;font:600 12.5px var(--sans,system-ui);cursor:pointer;color:inherit}
+  .se-days button{border:1px solid var(--se-line);background:var(--se-surface);border-radius:99px;padding:5px 12px;font:600 12.5px var(--sans,system-ui);cursor:pointer;color:inherit}
   .se-days button.on{background:var(--ink,#111);color:var(--on-ink,#fff);border-color:var(--ink,#111)}
-  .se-desk{border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:12px 14px;background:var(--surface,#fff);margin-bottom:10px}
+  .se-desk{border:1px solid var(--se-line);border-radius:12px;padding:12px 14px;background:var(--se-surface);margin-bottom:10px}
   .se-desk .h{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
   .se-desk .h b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:18px;cursor:pointer}
-  .se-desk .live{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted,#667)}
+  .se-desk .live{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--se-muted)}
   .se-desk .live b{color:var(--ink,#111);font-size:15px}
-  .se-slot{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px dashed var(--line,#e5e5e5)}
+  .se-slot{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px dashed var(--se-line)}
   .se-slot .s{font-weight:700;font-size:13px}
   .se-slot .did{font-size:13.5px;line-height:1.4}
-  .se-slot .did small{display:block;color:var(--muted,#667);font-size:11.5px}
+  .se-slot .did small{display:block;color:var(--se-muted);font-size:11.5px}
   .se-slot input.se-in{padding:6px 9px;font-size:13px}
-  .se-more summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-  .se-more summary::-webkit-details-marker{display:none}
-  .se-more summary h3{margin:0}
-  .se-more summary .tiny::after{content:" +"}
-  .se-more[open] summary .tiny::after{content:" close"}
+  .se-res-tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+  .se-res-tbl th{text-align:left;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--se-muted);padding:6px 8px;border-bottom:1px solid var(--se-line)}
+  .se-res-tbl td{padding:8px;border-bottom:1px solid var(--se-line);font-variant-numeric:tabular-nums}
+  .se-res-tbl td.num{text-align:right;white-space:nowrap}
   .se-share{max-width:900px;margin:0 auto}
-  @media (max-width:980px){.se-off{grid-template-columns:1fr}.se-off .body{grid-template-columns:1fr}.se-deal{grid-template-columns:1fr}.se-deal .act{flex-direction:row;align-items:center}}
+  @media (max-width:980px){.se-off{grid-template-columns:1fr}.se-off .body{grid-template-columns:1fr}.se-deal{grid-template-columns:1fr}.se-deal .act{flex-direction:row;align-items:center}.se-plan{grid-template-columns:1fr}.se-gantt{grid-template-columns:120px 1fr}}
   @media (max-width:820px){.se-kv{grid-template-columns:1fr}.se-kv .e{justify-self:start}.se-f2{grid-template-columns:1fr}.se-task .r{text-align:left;grid-column:2}.se-slot{grid-template-columns:1fr}}
   `;
   document.head.appendChild(st);
 }
 
-/* ---------- the season bar ---------- */
+/* ---------- tooltips (one element, moved around) ---------- */
+let TIP = null;
+function tipShow(html, x, y) {
+  if (!TIP) { TIP = document.createElement('div'); TIP.className = 'se-tip'; document.body.appendChild(TIP); }
+  TIP.innerHTML = html; TIP.style.display = 'block';
+  const w = TIP.offsetWidth, h = TIP.offsetHeight;
+  let left = x + 14, top = y + 14;
+  if (left + w > innerWidth - 10) left = x - w - 14;
+  if (top + h > innerHeight - 10) top = y - h - 14;
+  TIP.style.left = left + 'px'; TIP.style.top = top + 'px';
+}
+function tipHide() { if (TIP) TIP.style.display = 'none'; }
+function wireTips(root) {
+  root.querySelectorAll('[data-tip]').forEach(el => {
+    el.onmouseenter = e => tipShow(el.dataset.tip, e.clientX, e.clientY);
+    el.onmousemove = e => tipShow(el.dataset.tip, e.clientX, e.clientY);
+    el.onmouseleave = tipHide;
+  });
+}
+const phaseTip = p => `<b>${esc(p.name)}</b><span class="m">${esc(fmtRange(p.start, p.end))}${p.who ? ' · ' + esc(p.who) : ''} · ${STATUS[p.status]?.[0] || ''}</span><div style="margin-top:6px">${esc(p.offer || 'No offer written yet.')}</div>`;
+
+/* ---------- the timeline: one row per phase ---------- */
 const TL_FROM = '2026-10-05', TL_TO = '2027-02-08';
-function seasonBar(a, today, big) {
-  const span = daysBetween(TL_FROM, TL_TO);
-  const pct = iso => Math.max(0, Math.min(100, daysBetween(TL_FROM, iso) / span * 100));
-  const months = [['2026-11-01', 'Nov'], ['2026-12-01', 'Dec'], ['2027-01-01', 'Jan'], ['2027-02-01', 'Feb']];
-  const monthsHtml = `<span style="left:0">Oct</span>` + months.map(([d, l]) => `<span style="left:${pct(d)}%">${l}</span>`).join('');
-  /* Greedy lanes: each phase takes the first row where it does not overlap another, so
-     labels never sit on top of one another; the compact bar is one row and drops the
-     Black Friday pieces that live inside the weekend anyway. */
-  const show = a.phases.filter(p => p.start && p.status !== 'skip' && (big || !['access', 'planb', 'cm', 'boxing'].includes(p.key)))
-    .map(p => ({ p, l: pct(p.start), r: Math.max(pct(addDays(p.end || p.start, 1)), pct(p.start) + 0.8) }))
-    .sort((x, y) => x.l - y.l || y.r - x.r);
-  const laneEnd = [];
-  for (const s of show) {
-    let lane = 0;
-    if (big) { while (laneEnd[lane] != null && laneEnd[lane] > s.l - 0.6) lane++; laneEnd[lane] = s.r; }
-    s.lane = lane;
-  }
-  const rows = big ? Math.max(1, laneEnd.length) : 1;
-  const segs = show.map(({ p, l, r, lane }) => {
-    const top = 16 + lane * 19;
-    const ghost = p.status === 'missing' ? ' ghost' : '';
+const tlPct = iso => Math.max(0, Math.min(100, daysBetween(TL_FROM, iso) / daysBetween(TL_FROM, TL_TO) * 100));
+const MONTHS_TL = [['2026-11-01', 'Nov'], ['2026-12-01', 'Dec'], ['2027-01-01', 'Jan'], ['2027-02-01', 'Feb']];
+function gantt(phases, today) {
+  const rows = phases.filter(p => p.start && p.status !== 'skip');
+  const grid = MONTHS_TL.map(([d]) => `<i class="grid" style="left:${tlPct(d)}%"></i>`).join('');
+  const marks = `<div class="mk" style="left:${tlPct(BF)}%;--m:var(--se-bf)"><b>Black Friday</b></div>${today >= TL_FROM && today <= TL_TO ? `<div class="mk dim" style="left:${tlPct(today)}%;--m:var(--ink,#111)"><b>Today</b></div>` : ''}`;
+  const head = `<div class="gh"><div class="lbl"></div><div class="axis"><span style="left:${tlPct('2026-10-15')}%">Oct</span>${MONTHS_TL.map(([d, l]) => `<span style="left:${tlPct(addDays(d, 14))}%">${l}</span>`).join('')}</div></div>`;
+  const body = rows.map(p => {
+    const l = tlPct(p.start), r = Math.max(tlPct(addDays(p.end || p.start, 1)), l + 0.8);
     const w = r - l;
-    const label = w > 7 ? esc(p.name) : (w > 3 ? esc(p.name.split(/[\s:]/)[0]) : '');
-    return `<div class="seg${ghost}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};left:${l}%;width:${w}%;top:${top}px" title="${esc(p.name)}: ${esc(fmtRange(p.start, p.end))}${p.offer ? ' · ' + esc(p.offer) : ''}">${label}</div>`;
+    const c = GRP[p.grp]?.[1] || 'var(--se-bf)';
+    const inside = w > 10 ? `<span class="in">${esc(p.offer || p.name)}</span>` : '';
+    const after = w <= 10 ? `<span class="after">${esc((p.offer || '').slice(0, 60))}</span>` : '';
+    return `<div class="gr"><div class="lbl" style="--c:${c}"><i></i><b title="${esc(p.name)}">${esc(p.name)}</b></div><div class="trk">${grid}<div class="bar ${p.status}" style="--c:${c};left:${l}%;width:${w}%" data-tip="${esc(phaseTip(p))}">${inside}${after}</div></div></div>`;
   }).join('');
-  const h = 16 + rows * 19 + 2;
-  const todayHtml = today >= TL_FROM && today <= TL_TO ? `<div class="today" style="left:${pct(today)}%"><i>TODAY</i></div>` : '';
-  const bfHtml = `<div class="today" style="left:${pct(BF)}%;background:var(--se-bf)"><i style="left:-4px">BF</i></div>`;
-  return `<div class="se-tl ${big ? 'big' : ''}" style="height:${h}px"><div class="months" style="--h:${h}px">${monthsHtml}</div>${segs}${bfHtml}${todayHtml}</div>`;
+  /* The markers sit in an overlay that covers only the track column (label column is 200px + 14px gap). */
+  return `<div class="se-gantt">${head}${body}<div class="gr"><div class="lbl" style="border:0;height:14px"></div><div class="trk" style="border:0;height:14px"></div></div><div style="position:absolute;left:214px;right:0;top:0;bottom:0;pointer-events:none">${marks}</div></div>`;
+}
+/* Compact bar for the all-clients card: one row, hover for the deal. */
+function miniBar(a, today) {
+  const show = a.phases.filter(p => p.start && p.status !== 'skip' && !['access', 'planb', 'cm', 'boxing'].includes(p.key));
+  const segs = show.map(p => {
+    const l = tlPct(p.start), r = Math.max(tlPct(addDays(p.end || p.start, 1)), l + 0.8);
+    return `<div class="bar ${p.status}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};left:${l}%;width:${r - l}%;top:12px;height:14px;line-height:14px;font-size:10px;padding:0 6px" data-tip="${esc(phaseTip(p))}">${r - l > 9 ? `<span class="in">${esc(p.name)}</span>` : ''}</div>`;
+  }).join('');
+  return `<div class="se-gantt" style="grid-template-columns:1fr;column-gap:0"><div class="gr"><div class="trk" style="height:30px;border:0">${MONTHS_TL.map(([d, l]) => `<i class="grid" style="left:${tlPct(d)}%"></i><span style="position:absolute;left:${tlPct(d)}%;top:0;font:600 9.5px var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--se-muted);padding-left:4px">${l}</span>`).join('')}${segs}<div class="mk" style="left:${tlPct(BF)}%;--m:var(--se-bf)"></div>${today >= TL_FROM && today <= TL_TO ? `<div class="mk dim" style="left:${tlPct(today)}%;--m:var(--ink,#111)"></div>` : ''}</div></div></div>`;
 }
 
 /* ---------- small modal: fields in, object out (or null) ---------- */
@@ -254,7 +299,7 @@ function formModal({ title, hint, fields, cta = 'Save', danger }) {
     const f = fields.map(fd => {
       const id = 'sf_' + fd.k;
       let ctl;
-      if (fd.type === 'textarea') ctl = `<textarea class="se-in" id="${id}" placeholder="${esc(fd.ph || '')}">${esc(fd.value || '')}</textarea>`;
+      if (fd.type === 'textarea') ctl = `<textarea class="se-in" id="${id}" placeholder="${esc(fd.ph || '')}" ${fd.rows ? `style="min-height:${fd.rows * 22}px"` : ''}>${esc(fd.value || '')}</textarea>`;
       else if (fd.type === 'select') ctl = `<select class="se-in" id="${id}">${fd.options.map(([v, l]) => `<option value="${esc(v)}" ${v === fd.value ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
       else ctl = `<input class="se-in" id="${id}" type="${fd.type || 'text'}" value="${esc(fd.value ?? '')}" placeholder="${esc(fd.ph || '')}" ${fd.step ? `step="${fd.step}"` : ''}>`;
       return `<div class="se-f"><label for="${id}">${esc(fd.label)}</label>${ctl}${fd.hint ? `<small>${esc(fd.hint)}</small>` : ''}</div>`;
@@ -264,7 +309,7 @@ function formModal({ title, hint, fields, cta = 'Save', danger }) {
       if (fields[i].half && fields[i + 1]?.half) { body += `<div class="se-f2">${f[i]}${f[i + 1]}</div>`; i += 2; }
       else { body += f[i]; i++; }
     }
-    w.innerHTML = `<div class="modal" style="max-width:580px"><h3>${esc(title)}</h3>${hint ? `<p class="hint">${esc(hint)}</p>` : ''}
+    w.innerHTML = `<div class="modal" style="max-width:600px"><h3>${esc(title)}</h3>${hint ? `<p class="hint">${esc(hint)}</p>` : ''}
       <div style="margin-top:12px">${body}</div>
       <div class="row" style="justify-content:flex-end;gap:8px;margin:6px 0 0">
         ${danger ? `<button class="btn" data-m="del" style="margin-right:auto;color:var(--bad)">${esc(danger)}</button>` : ''}
@@ -279,6 +324,19 @@ function formModal({ title, hint, fields, cta = 'Save', danger }) {
     w.querySelector('[data-m="yes"]').onclick = () => done(Object.fromEntries(fields.map(fd => [fd.k, w.querySelector('#sf_' + fd.k).value.trim()])));
     const first = w.querySelector('.se-in'); if (first && !matchMedia('(max-width:720px)').matches) setTimeout(() => first.focus(), 30);
   });
+}
+/* A wide read-only modal (the swipe file). Returns the body element to fill. */
+function panelModal(title, bodyHtml) {
+  const w = document.createElement('div');
+  w.className = 'modal-wrap';
+  w.innerHTML = `<div class="modal" style="max-width:980px;width:100%"><div class="row" style="justify-content:space-between;align-items:baseline;margin-bottom:6px"><h3 style="margin:0">${esc(title)}</h3><button class="btn se-mini" data-m="no">Close</button></div><div class="se-panel-body">${bodyHtml}</div></div>`;
+  document.body.appendChild(w);
+  const done = () => { w.remove(); document.removeEventListener('keydown', k); };
+  const k = e => { if (e.key === 'Escape') done(); };
+  document.addEventListener('keydown', k);
+  w.addEventListener('mousedown', e => { if (e.target === w) done(); });
+  w.querySelector('[data-m="no"]').onclick = done;
+  return w.querySelector('.se-panel-body');
 }
 function toast(msg, bad) {
   const t = document.createElement('div');
@@ -304,6 +362,7 @@ function counts(a, today) {
   const open = a.tasks.filter(t => !t.done && t.due);
   return { over: open.filter(t => t.due < today).length, week: open.filter(t => t.due >= wk0 && t.due <= wk1).length, locked: a.phases.filter(p => p.status === 'locked').length, counted: a.phases.filter(p => p.status !== 'skip' && !p.optional).length };
 }
+const goalLine = g => { const parts = []; if (g.early != null) parts.push(`Nov ${moneyK(g.early)}`); if (g.bf != null) parts.push(`BF weekend ${moneyK(g.bf)}`); if (g.dec != null) parts.push(`Dec ${moneyK(g.dec)}`); if (g.total != null && !parts.length) parts.push(`Season ${moneyK(g.total)}`); return parts.length ? 'Goal: ' + parts.join(' · ') : 'No revenue goal yet'; };
 
 /* ---------- task rows ---------- */
 function taskRow(t, a, today, showBrand) {
@@ -384,7 +443,7 @@ function deskCard(a, date, today) {
   const liveErr = e => /400|unknown|no shop|tw_shop/i.test(e) ? 'No Triple Whale store connected for this brand yet (Settings > Brands).' : e;
   const liveHtml = !isToday ? `<span>Live numbers show on today only. The log below is what was done.</span>`
     : !live ? `<span>Loading live numbers…</span>`
-    : live.error ? `<span style="color:var(--muted)">${esc(liveErr(live.error))}</span>`
+    : live.error ? `<span style="color:var(--se-muted)">${esc(liveErr(live.error))}</span>`
     : `<span>Last 3 hours <b>${x2(live.last3?.mer)}</b> on ${money(live.last3?.spend)}</span><span>Today so far <b>${x2(live.today?.mer)}</b> · ${money(live.today?.sales)} revenue · ${money(live.today?.spend)} spend</span><span>as of ${esc(clock(live.as_of))}</span>`;
   const verdict = isToday && lad ? `<span class="pill ${lad.cls}" title="Breakeven ${a.goals.be ?? '?'} · target ${a.goals.target ?? '?'} · 50% at ${a.goals.s50 ?? '?'} · 100% at ${a.goals.s100 ?? '?'}">${esc(lad.text)}</span>` : (isToday && !ladderDone(a.goals) ? `<span class="pill unk">Set the ladder on the brand page</span>` : '');
   const slots = SLOTS.map(([key, label]) => {
@@ -445,32 +504,27 @@ function wireDeskSection(root, brands, today, repaint) {
   }
 }
 
-/* ---------- swipe file (Atria boards) ---------- */
-async function showSwipe(host, board, title) {
-  host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b><span class="tiny">Loading from Atria…</span></div></div>`;
-  host.scrollIntoView({ block: 'nearest' });
+/* ---------- swipe file (Atria boards), in a modal ---------- */
+async function showSwipe(board, title) {
+  const body = panelModal(title, `<p class="hint" style="margin:0">Loading from Atria…</p>`);
   try {
     const r = await api('/api/atria/board?board_id=' + encodeURIComponent(board.id), {}, AH);
-    if (r.reason === 'not_connected') { host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b></div><p class="hint" style="margin:0">Atria is not connected. Studio > Connections > Connect Atria, then this fills itself.</p></div>`; return; }
+    if (r.reason === 'not_connected') { body.innerHTML = `<p class="hint" style="margin:0">Atria is not connected. Studio > Connections > Connect Atria, then this fills itself.</p>`; return; }
     const ads = r.ads || [];
-    host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b><span class="tiny">${ads.length} saved in Atria under <b>${esc(board.name)}</b>. Save more there and they show here.</span><button class="se-link se-mini" data-close="1">close</button></div>
-      ${ads.length ? `<div class="se-ads">${ads.map(a => `<a class="se-ad" href="${esc(a.url)}" target="_blank" rel="noopener">${a.img ? `<img src="${esc(a.img)}" alt="" referrerpolicy="no-referrer">` : '<div style="aspect-ratio:4/5"></div>'}<div class="c"><b>${esc(a.advertiser || '')}</b>${esc((a.title || a.body || '').slice(0, 70))}</div></a>`).join('')}</div>` : '<p class="hint" style="margin:0">Nothing saved to this board yet. In Atria, save an ad into it and it shows here.</p>'}</div>`;
-    host.querySelector('[data-close]').onclick = () => { host.innerHTML = ''; };
-  } catch (e) { host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b></div><p class="hint" style="margin:0;color:var(--bad)">${esc(e.message)}</p></div>`; }
+    body.innerHTML = `<p class="hint" style="margin:0 0 12px">${ads.length} ad${ads.length === 1 ? '' : 's'} saved in Atria under <b>${esc(board.name)}</b>. Save more into that board in Atria and they show here. Click one to open it in Atria.</p>
+      ${ads.length ? `<div class="se-ads">${ads.map(a => `<a class="se-ad" href="${esc(a.url)}" target="_blank" rel="noopener">${a.img ? `<img src="${esc(a.img)}" alt="" referrerpolicy="no-referrer">` : '<div style="aspect-ratio:4/5"></div>'}<div class="c"><b>${esc(a.advertiser || '')}</b>${esc((a.title || a.body || '').slice(0, 70))}${a.format === 'video' ? ' · video' : ''}</div></a>`).join('')}</div>` : '<p class="hint" style="margin:0">Nothing saved to this board yet.</p>'}`;
+  } catch (e) { body.innerHTML = `<p class="hint" style="margin:0;color:var(--bad)">${esc(e.message)}</p>`; }
 }
 
 /* ---------- ALL CLIENTS ---------- */
 function crumb() { return typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('season')}</div>` : ''; }
 function head(title, sub) { return `<div>${crumb()}<h2>${title}</h2><p class="sub">${sub}</p></div>`; }
-const goalLine = g => { const parts = []; if (g.early != null) parts.push(`Nov ${moneyK(g.early)}`); if (g.bf != null) parts.push(`BF weekend ${moneyK(g.bf)}`); if (g.dec != null) parts.push(`Dec ${moneyK(g.dec)}`); if (g.total != null && !parts.length) parts.push(`Season ${moneyK(g.total)}`); return parts.length ? 'Goal: ' + parts.join(' · ') : 'No revenue goal yet'; };
 
-/* One brand's offers in one card: Black Friday big, November and December beside it. */
 function offerCard(a, today) {
   const st = brandState(a);
   const bf = keyPhase(a, 'bf'), access = keyPhase(a, 'access'), early = keyPhase(a, 'early');
-  const decs = a.phases.filter(p => p.grp === 'dec' && p.status !== 'skip');
-  const late = a.phases.filter(p => (p.grp === 'late' || p.grp === 'vday') && p.status !== 'skip' && p.status !== 'missing');
-  const deal = (p, big) => !p ? '' : p.status === 'skip' ? `<div class="deal small none" style="color:var(--muted)">Not running</div>`
+  const rest = a.phases.filter(p => (p.grp === 'dec' || p.grp === 'late' || p.grp === 'vday') && p.status !== 'skip' && !(p.status === 'missing' && p.grp !== 'dec'));
+  const deal = (p, big) => !p ? '' : p.status === 'skip' ? `<div class="deal small" style="color:var(--se-muted);font-weight:400">Not running</div>`
     : p.offer ? `<div class="deal ${big ? '' : 'small'}">${esc(p.offer)}</div>` : `<div class="deal none">No offer written yet</div>`;
   const line = p => p ? `<div class="sub">${esc(fmtRange(p.start, p.end))}${p.who ? ` · ${esc(p.who)}` : ''}</div>` : '';
   const c = counts(a, today);
@@ -478,10 +532,10 @@ function offerCard(a, today) {
     <div class="who"><b>${esc(a.name)}</b><span class="pill ${st[0] === 'ok' ? 'good' : st[0] === 'warn' ? 'warn' : 'bad'}" style="align-self:flex-start">${esc(st[1])}</span>
       <span class="m">${esc(goalLine(a.goals || {}))}<br>${esc(a.answers.strategist || 'Ahsan')} briefs · ${esc(a.answers.approver || 'client')} approves${c.over ? `<br><b style="color:var(--bad)">${c.over} overdue</b>` : ''}${c.week ? `<br>${c.week} due this week` : ''}</span></div>
     <div class="body">
-      <div class="col"><div class="lab">Black Friday weekend ${bf ? pill(bf.status) : ''}</div>${deal(bf, true)}${line(bf)}${access && access.status !== 'skip' && (access.offer || access.status !== 'missing') ? `<div class="sub" style="margin-top:8px"><b>Thursday:</b> ${esc(access.offer || 'early access, details to come')} <span class="tiny">(${esc(access.who || 'list')})</span></div>` : ''}</div>
-      <div class="col"><div class="lab">November ${early ? pill(early.status) : ''}</div>${early ? `<div class="sub" style="margin:0 0 2px;font-weight:600;color:var(--ink)">${esc(early.name)}</div>` : ''}${deal(early, false)}${line(early)}</div>
-      <div class="col"><div class="lab">December and after</div>${decs.length ? decs.map(p => `<div class="sub" style="margin:0 0 6px"><b style="color:var(--ink)">${esc(p.name)}</b> ${pill(p.status)}<br>${p.offer ? esc(p.offer) : '<i>no offer yet</i>'} <span class="tiny">· ${esc(fmtRange(p.start, p.end))}</span></div>`).join('') : '<div class="deal none">Nothing planned</div>'}${late.map(p => `<div class="sub" style="margin:0 0 6px"><b style="color:var(--ink)">${esc(p.name)}</b> ${pill(p.status)}<br>${esc(p.offer || '')} <span class="tiny">· ${esc(fmtRange(p.start, p.end))}</span></div>`).join('')}</div>
-      <div class="bar">${seasonBar(a, today, false)}</div>
+      <div class="col"><div class="lab">Black Friday weekend ${bf ? pill(bf.status) : ''}</div>${deal(bf, true)}${line(bf)}${access && access.status !== 'skip' && (access.offer || access.status !== 'missing') ? `<div class="sub" style="margin-top:8px"><b>Thursday first:</b> ${esc(access.offer || 'early access, details to come')} <span class="tiny">(${esc(access.who || 'list')})</span></div>` : ''}
+        <div class="lab" style="margin-top:12px">November ${early ? pill(early.status) : ''}</div>${early ? `<div class="sub" style="margin:0 0 2px;font-weight:600;color:var(--ink)">${esc(early.name)}</div>` : ''}${deal(early, false)}${line(early)}</div>
+      <div class="col"><div class="lab">After the weekend</div>${rest.length ? rest.map(p => `<div class="sub mini"><b style="color:var(--ink)">${esc(p.name)}</b> ${pill(p.status)}<br>${p.offer ? esc(p.offer) : '<i>no offer yet</i>'} <span class="tiny">· ${esc(fmtRange(p.start, p.end))}</span></div>`).join('') : '<div class="deal none">Nothing planned</div>'}</div>
+      <div class="bar">${miniBar(a, today)}</div>
     </div>
   </div>`;
 }
@@ -519,12 +573,11 @@ function paintAll() {
     <div class="ru"><div class="ru-l">Overdue</div><div class="ru-v ${overdue.length ? 'bad' : 'good'}">${overdue.length}</div><div class="ru-d">${overdue.length ? 'Past due and not ticked.' : 'Nothing slipping.'}</div></div>
   </div>`;
 
-  const seg = `<div class="se-seg" role="tablist"><button data-v="offers" class="${S.view === 'offers' ? 'on' : ''}">The offers</button><button data-v="now" class="${S.view === 'now' ? 'on' : ''}">This week</button><button data-v="cal" class="${S.view === 'cal' ? 'on' : ''}">Week by week</button><button data-v="desk" class="${S.view === 'desk' ? 'on' : ''}">Desk</button></div>`;
+  const seg = `<div class="se-seg" role="tablist"><button data-v="offers" class="${S.view === 'offers' ? 'on' : ''}">The offers</button><button data-v="now" class="${S.view === 'now' ? 'on' : ''}">This week<b>${thisWeek.length + overdue.length || ''}</b></button><button data-v="cal" class="${S.view === 'cal' ? 'on' : ''}">Week by week</button><button data-v="desk" class="${S.view === 'desk' ? 'on' : ''}">Desk</button></div>`;
 
   let body = '';
   if (S.view === 'offers') {
     const order = brands.slice().sort((x, y) => ['bad', 'warn', 'ok'].indexOf(brandState(x)[0]) - ['bad', 'warn', 'ok'].indexOf(brandState(y)[0]) || x.name.localeCompare(y.name));
-    body += `<p class="hint" style="margin:-4px 0 12px">One card per brand. The Black Friday deal is the big line; November and December beside it; the bar is the whole season with today marked. Brands with nothing written come first. Click a card to open the brand and edit.</p>`;
     body += order.map(a => offerCard(a, today)).join('');
     if (off.length) body += `<p class="tiny" style="margin:4px 0 0">Not running a season: ${esc(off.map(a => a.name).join(', '))}. Open the brand and switch it on if that changes.</p>`;
   } else if (S.view === 'now') {
@@ -542,7 +595,7 @@ function paintAll() {
         const grpCell = (g) => { const ps = a.phases.filter(p => p.grp === g && p.key !== 'access' && !(g === 'bf' && p.key === 'planb')); if (!ps.length) return '<span class="tiny">none</span>'; const m = ps.find(p => p.key === 'bf') || ps[0]; return `<div class="cell">${pill(m.status)}<small>${esc(fmtRange(m.start, m.end))}${ps.length > 1 ? ` · ${ps.length - 1} more` : ''}</small></div>`; };
         return `<tr class="rowlink" data-pick="${esc(a.act_id)}"><td class="bn">${esc(a.name)}<br><span class="pill ${st[0] === 'ok' ? 'good' : st[0] === 'warn' ? 'warn' : 'bad'}">${st[1]}</span></td>
           <td>${grpCell('nov')}</td><td>${cell(keyPhase(a, 'access'))}</td><td>${cell(keyPhase(a, 'bf'))}</td><td>${grpCell('dec')}</td>
-          <td><small style="display:block;color:var(--muted);font-size:12px;line-height:1.4">${c.over ? `<b style="color:var(--bad)">${c.over} overdue</b><br>` : ''}${a.goals.bf == null && a.goals.total == null ? `<b style="color:var(--warn)">no goal</b><br>` : ''}${!ladderDone(a.goals) ? `no ladder<br>` : ''}${c.week} due this week</small></td></tr>`;
+          <td><small style="display:block;color:var(--se-muted);font-size:12px;line-height:1.4">${c.over ? `<b style="color:var(--bad)">${c.over} overdue</b><br>` : ''}${a.goals.bf == null && a.goals.total == null ? `<b style="color:var(--warn)">no goal</b><br>` : ''}${!ladderDone(a.goals) ? `no ladder<br>` : ''}${c.week} due this week</small></td></tr>`;
       }).join('')}</tbody></table></div></div>`;
   } else if (S.view === 'cal') {
     const wks = weeksOf(brands, today);
@@ -552,11 +605,11 @@ function paintAll() {
     body += deskSection(brands, today, 'The desk: every brand, three times a day');
   }
 
-  main.innerHTML = `<div class="se">${head('Season', 'What every brand is offering from Black Friday to Valentine\'s, when it runs, what is due this week, and over the weekend what the ladder says. Click a brand to edit it.')}
+  main.innerHTML = `<div class="se">${head('Season', 'What every brand is offering from Black Friday to Valentine\'s, when it runs, what is due this week, and over the weekend what the ladder says. Click a brand to open it.')}
     ${strip}<p class="se-verdict">${esc(verdict)}</p>${seg}${body}</div>`;
   main.querySelectorAll('.se-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paintAll(); window.scrollTo(0, 0); });
   main.querySelectorAll('.se-off, tr.rowlink').forEach(el => el.onclick = e => { if (e.target.closest('a,button,input')) return; S.pick && S.pick(el.dataset.pick); });
-  wireTasks(main);
+  wireTasks(main); wireTips(main);
   if (S.view === 'desk') wireDeskSection(main, brands, today, paintAll);
   if (typeof window.pageActions === 'function') window.pageActions('');
 }
@@ -567,6 +620,7 @@ async function renderBrand() {
   const main = $('#main');
   main.innerHTML = `<div class="se"><div class="card"><span class="hint">Loading…</span></div></div>`;
   await load(S.act);
+  S.btab = localStorage.getItem(LS_BTAB) || 'offers';
   paintBrand();
 }
 const SHEET = [
@@ -590,6 +644,15 @@ const GOAL_FIELDS = [
   ['early', 'November revenue goal', 'money'], ['bf', 'Black Friday weekend goal', 'money'], ['dec', 'December goal', 'money'], ['total', 'Nov + Dec total', 'money'],
   ['be', 'Breakeven MER', 'x'], ['target', 'Target MER', 'x'], ['s50', 'Scale 50% at', 'x'], ['s100', 'Scale 100% at', 'x'], ['start', 'Starting daily budget', 'money'], ['cap', 'Meta daily limit', 'money'],
 ];
+/* The plan as sentences a new person can read in 20 seconds. */
+function planLines(a) {
+  return a.phases.filter(p => p.status !== 'skip' && p.start).map(p => {
+    const when = p.end && p.end !== p.start ? `${fmtD(p.start)} to ${fmtD(p.end)}` : fmtDow(p.start);
+    const who = p.who && !/^everyone$/i.test(p.who) ? ` For ${p.who.charAt(0).toLowerCase() + p.who.slice(1)}.` : '';
+    const offer = p.offer ? p.offer.replace(/\.?$/, '.') : 'Offer not decided yet.';
+    return { p, when, text: `<b>${esc(p.name)}.</b> ${esc(offer)}${esc(who)}${p.status === 'draft' ? ' <span class="pill warn">proposal</span>' : ''}${p.status === 'missing' ? ' <span class="pill bad">missing</span>' : ''}` };
+  });
+}
 function paintBrand() {
   const main = $('#main');
   const d = S.data; const a = d.accounts[0];
@@ -605,7 +668,7 @@ function paintBrand() {
   const drafts = a.phases.filter(p => p.status === 'draft');
   if (drafts.length === 1) need.push([`${drafts[0].name}: lock it with ${a.answers.approver || 'the client'}`, fmtRange(drafts[0].start, drafts[0].end)]);
   else if (drafts.length > 1) need.push([`${drafts.length} phases are proposals, not agreed: lock them with ${a.answers.approver || 'the client'}`, drafts.map(p => p.name).join(', ')]);
-  if (g.bf == null && g.total == null) need.push(['A revenue goal for the weekend or the season', 'Goals card']);
+  if (g.bf == null && g.total == null) need.push(['A revenue goal for the weekend or the season', 'Goals tab']);
   if (!ladderDone(g)) need.push(['The ladder: breakeven, target, scale 50 and 100 lines', 'by Nov 13']);
   if (!a.answers.cutoffs) need.push(['Shipping cutoffs from the client', 'sets December']);
   if (!a.answers.gift_cards) need.push(['Gift cards: set up and tested?', 'by Dec 1']);
@@ -619,68 +682,87 @@ function paintBrand() {
     <div class="ru"><div class="ru-l">Overdue</div><div class="ru-v ${overdue.length ? 'bad' : 'good'}">${overdue.length}</div><div class="ru-d">${overdue.length ? esc(overdue[0].name) : 'Nothing slipping.'}</div></div>
   </div>`;
 
-  const resLine = p => {
-    if (!p.results) return '';
-    const r = p.results; const goal = r.goal;
-    const vs = goal ? ` · ${Math.round(r.sales / goal * 100)}% of the ${moneyK(goal)} goal` : '';
-    return `<div class="res"><b>${money(r.sales)}</b> revenue so far on ${money(r.spend)} spend${r.mer != null ? ` · ${x2(r.mer)}` : ''}${r.orders ? ` · ${Math.round(r.orders)} orders` : ''}${vs}<br><span class="tiny">${esc(fmtD(r.from))} to ${esc(fmtD(r.to))}, same revenue line as P&L.</span></div>`;
-  };
-  const live = a.phases.filter(p => p.status !== 'skip');
-  const dealRow = (p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
-    <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
-    <div><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">${pill(p.status)}${p.goal_key && g[p.goal_key] != null ? `<span class="tiny">goal ${moneyK(g[p.goal_key])}</span>` : ''}</div>
-      <div class="big ${p.offer ? '' : 'none'}">${esc(p.offer || (p.hint || 'No offer written yet.'))}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}${resLine(p)}</div>
-    <div class="act"><button class="btn primary se-mini" data-edit-phase="${esc(p.key)}">Edit</button>${p.swipe ? `<button class="btn se-mini" data-swipe="${esc(p.key)}">Swipe file</button>` : ''}</div>
-  </div>`;
-  const skipped = a.phases.filter(p => p.status === 'skip');
+  /* The plan in one read */
+  const lines = planLines(a);
+  const plan = `<div class="card se-key"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">${esc(a.name)}: the plan in one read</h3><span class="tiny">${lines.length} parts · ${esc(goalLine(g))}</span></div>
+    <div class="se-plan">
+      <ol>${lines.map((l, i) => `<li class="${l.p.key === 'bf' ? 'bf' : ''}"><i>${i + 1}</i><div><div class="d">${esc(l.when)}</div><div>${l.text}</div></div></li>`).join('')}</ol>
+      <div class="se-why ${a.answers.strategy_note ? '' : 'none'}"><div class="lab"><span>Why this offer, and the risk</span><button class="se-link se-mini" data-edit-answer="strategy_note">Edit</button></div>${esc(a.answers.strategy_note || 'Nobody has written why this is the plan. Two or three short paragraphs: what worked before, what the client wants, where the risk is.')}</div>
+    </div></div>`;
 
-  const goalsHtml = `<div class="se-goals">${GOAL_FIELDS.slice(0, 4).map(([k, l]) => `<div class="se-g"><div class="l">${esc(l)}</div><div class="v ${g[k] == null ? 'none' : ''}">${g[k] == null ? 'not set' : moneyK(g[k])}</div></div>`).join('')}</div>
-    <div class="se-ladder">${[['be', 'Breakeven'], ['target', 'Target'], ['s50', 'Scale 50% at'], ['s100', 'Scale 100% at']].map(([k, l]) => `<span>${l}: <b>${g[k] == null ? 'not set' : x2(g[k])}</b></span>`).join('')}<span>Start: <b>${g.start == null ? 'not set' : money(g.start)}/day</b></span><span>Meta cap: <b>${g.cap == null ? 'not set' : money(g.cap)}/day</b></span>${g.start && g.cap ? `<span>Headroom <b>${(g.cap / g.start).toFixed(1)}x</b>${g.cap / g.start < 4 ? ' (tight: ask Meta for a higher limit)' : ''}</span>` : ''}</div>
-    ${g.note ? `<p class="tiny" style="margin:8px 0 0">${esc(g.note)}</p>` : ''}`;
+  /* Timeline */
+  const timeline = `<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:4px"><h3 style="margin:0">The season</h3><span class="tiny">Solid = locked · striped = proposal · outline = nothing written. Hover a bar for the deal.</span></div>${gantt(a.phases, today)}</div>`;
 
-  const sheetRows = SHEET.map(([k, label, hint]) => `<div class="k">${esc(label)}</div><div class="v ${a.answers[k] ? '' : 'none'}">${esc(a.answers[k] || hint)}</div><div class="e"><button class="btn se-mini" data-edit-answer="${k}">Edit</button></div>`).join('');
-  const setupRows = SETUP.map(([k, label, type, opts]) => `<div class="k">${esc(label)}</div><div class="v ${a.answers[k] ? '' : 'none'}">${esc(type === 'select' ? (opts.find(o => o[0] === a.shape)?.[1] || '') : (a.answers[k] || (k === 'email_owner' ? 'Nick' : 'Ahsan')))}</div><div class="e"><button class="btn se-mini" data-edit-answer="${k}">Edit</button></div>`).join('');
+  /* Tabs */
+  const tabs = [['offers', 'Offers'], ['goals', 'Goals and results'], ['desk', 'Desk'], ['todo', `To-do`], ['sheet', 'Call sheet']];
+  const seg = `<div class="se-seg" role="tablist">${tabs.map(([k, l]) => `<button data-b="${k}" class="${S.btab === k ? 'on' : ''}">${l}${k === 'todo' && open.length ? `<b>${open.length}</b>` : ''}${k === 'offers' && need.length ? `<b style="color:var(--warn)">${need.length}</b>` : ''}</button>`).join('')}</div>`;
 
-  const wks = weeksOf([a], today).filter(w => w.items.length || w.lives.length);
-  const upcoming = wks.filter(w => !w.past), past = wks.filter(w => w.past);
-
-  main.innerHTML = `<div class="se">${head(`${esc(a.name)}: the season`, 'The offer for every part of the season, in order. Then the goal and ladder, what still needs an answer, the desk, and what is due week by week. Click Edit on anything.')}
-    ${strip}
-    <div class="card"><h3 style="margin:0 0 2px">The season at a glance</h3><p class="hint" style="margin:0 0 6px">Every phase on one bar. Faded means no offer yet. Today and Black Friday are marked.</p>${seasonBar(a, today, true)}</div>
-    <div style="margin-bottom:16px"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">The offers, in order</h3><div style="display:flex;gap:8px">${a.swipe_brand ? `<button class="btn se-mini" id="seBrandSwipe">This brand's swipe file</button>` : ''}<button class="btn se-mini" id="seAddPhase">+ Add a phase</button></div></div>
-      <div id="seSwipeHost"></div>
-      ${live.map(dealRow).join('')}
-      ${skipped.length ? `<p class="tiny" style="margin:4px 0 0">Not running: ${skipped.map(p => `${esc(p.name)} <button class="se-link se-mini" data-edit-phase="${esc(p.key)}">edit</button>`).join(' · ')}</p>` : ''}</div>
-    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Goals and the ladder</h3><button class="btn se-mini" id="seGoals">Edit</button></div>
+  let body = '';
+  if (S.btab === 'offers') {
+    const resLine = p => {
+      if (!p.results) return '';
+      const r = p.results; const goal = r.goal;
+      const vs = goal ? ` · ${Math.round(r.sales / goal * 100)}% of the ${moneyK(goal)} goal` : '';
+      return `<div class="res"><b>${money(r.sales)}</b> revenue so far on ${money(r.spend)} spend${r.mer != null ? ` · ${x2(r.mer)}` : ''}${r.orders ? ` · ${Math.round(r.orders)} orders` : ''}${vs}<br><span class="tiny">${esc(fmtD(r.from))} to ${esc(fmtD(r.to))}, same revenue line as P&L.</span></div>`;
+    };
+    const live = a.phases.filter(p => p.status !== 'skip');
+    const skipped = a.phases.filter(p => p.status === 'skip');
+    body += need.length ? `<div class="card" style="border-left:4px solid var(--warn)"><h3 style="margin:0 0 6px">Still needed</h3><div class="se-need">${need.map(n => `<div><span>${esc(n[0])}</span><span>${esc(n[1])}</span></div>`).join('')}</div></div>` : `<div class="card" style="border-left:4px solid var(--good)"><b>Nothing missing.</b> Every phase has an offer, the goal and ladder are set, and the dates that drive December are in.</div>`;
+    body += `<div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Each offer, in order</h3><div style="display:flex;gap:8px">${a.swipe_brand ? `<button class="btn se-mini" id="seBrandSwipe">This brand's swipe file</button>` : ''}<button class="btn se-mini" id="seAddPhase">+ Add a phase</button></div></div>`;
+    body += live.map((p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
+      <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
+      <div><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">${pill(p.status)}${p.goal_key && g[p.goal_key] != null ? `<span class="tiny">goal ${moneyK(g[p.goal_key])}</span>` : ''}</div>
+        <div class="big ${p.offer ? '' : 'none'}">${esc(p.offer || (p.hint || 'No offer written yet.'))}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}${resLine(p)}</div>
+      <div class="act"><button class="btn primary se-mini" data-edit-phase="${esc(p.key)}">Edit</button>${p.swipe ? `<button class="btn se-mini" data-swipe="${esc(p.key)}">Swipe file</button>` : ''}</div>
+    </div>`).join('');
+    if (skipped.length) body += `<p class="tiny" style="margin:4px 0 12px">Not running: ${skipped.map(p => `${esc(p.name)} <button class="se-link se-mini" data-edit-phase="${esc(p.key)}">edit</button>`).join(' · ')}</p>`;
+  } else if (S.btab === 'goals') {
+    const started = a.phases.filter(p => p.results);
+    body += `<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Goals and the ladder</h3><button class="btn primary se-mini" id="seGoals">Edit</button></div>
       <p class="hint" style="margin:0 0 12px">The revenue goals each phase is graded against, and the MER lines the desk uses: at or above the 100% line we double, above the 50% line we add half, at target we hold, under target we pull back, under breakeven we rework.</p>
-      ${goalsHtml}</div>
-    ${need.length ? `<div class="card se-key"><h3 style="margin:0 0 4px">Still needed</h3><p class="hint" style="margin:0 0 8px">Nothing below can be briefed or graded until it is answered.</p><div class="se-need">${need.map(n => `<div><span>${esc(n[0])}</span><span>${esc(n[1])}</span></div>`).join('')}</div></div>` : `<div class="card" style="border-left:4px solid var(--good)"><b>Nothing missing.</b> Every phase has an offer, the goal and ladder are set, and the dates that drive December are in.</div>`}
-    ${deskSection([a], today, 'The desk')}
-    <details class="card se-more" ${upcoming.some(w => w.now) ? 'open' : ''}><summary><h3>What is due, week by week</h3><span class="tiny">${open.length} open</span></summary>
-      <p class="hint" style="margin:8px 0 12px">Briefs, built, loaded and live dates follow each phase's start date. Tick when done; the tick is shared with everyone. <button class="se-link" id="seAddTask">Add a task</button></p>
+      <div class="se-goals">${GOAL_FIELDS.slice(0, 4).map(([k, l]) => `<div class="se-g"><div class="l">${esc(l)}</div><div class="v ${g[k] == null ? 'none' : ''}">${g[k] == null ? 'not set' : moneyK(g[k])}</div></div>`).join('')}</div>
+      <div class="se-ladder">${[['be', 'Breakeven'], ['target', 'Target'], ['s50', 'Scale 50% at'], ['s100', 'Scale 100% at']].map(([k, l]) => `<span>${l}: <b>${g[k] == null ? 'not set' : x2(g[k])}</b></span>`).join('')}<span>Start: <b>${g.start == null ? 'not set' : money(g.start)}/day</b></span><span>Meta cap: <b>${g.cap == null ? 'not set' : money(g.cap)}/day</b></span>${g.start && g.cap ? `<span>Headroom <b>${(g.cap / g.start).toFixed(1)}x</b>${g.cap / g.start < 4 ? ' (tight: ask Meta for a higher limit)' : ''}</span>` : ''}</div>
+      ${g.note ? `<p class="tiny" style="margin:8px 0 0">${esc(g.note)}</p>` : ''}</div>`;
+    body += `<div class="card"><h3 style="margin:0 0 4px">Results so far</h3><p class="hint" style="margin:0 0 10px">Every phase that has started, same revenue line as P&L, through yesterday.</p>
+      ${started.length ? `<div class="tbl-wrap" style="overflow-x:auto"><table class="se-res-tbl"><thead><tr><th>Phase</th><th>Days</th><th class="num">Revenue</th><th class="num">Spend</th><th class="num">MER</th><th class="num">Orders</th><th class="num">Goal</th></tr></thead><tbody>
+        ${started.map(p => `<tr><td><b>${esc(p.name)}</b><br><span class="tiny">${esc(fmtD(p.results.from))} to ${esc(fmtD(p.results.to))}</span></td><td>${p.results.days}</td><td class="num">${money(p.results.sales)}</td><td class="num">${money(p.results.spend)}</td><td class="num">${x2(p.results.mer)}</td><td class="num">${p.results.orders ? Math.round(p.results.orders) : '-'}</td><td class="num">${p.results.goal ? `${Math.round(p.results.sales / p.results.goal * 100)}% of ${moneyK(p.results.goal)}` : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<p class="hint" style="margin:0">Nothing has started yet. The first phase opens ' + esc(fmtDow((a.phases.filter(p => p.start && p.status !== 'skip').sort((x, y) => x.start.localeCompare(y.start))[0] || {}).start)) + '.</p>'}</div>`;
+  } else if (S.btab === 'desk') {
+    body += deskSection([a], today, 'The desk');
+  } else if (S.btab === 'todo') {
+    const wks = weeksOf([a], today).filter(w => w.items.length || w.lives.length);
+    const upcoming = wks.filter(w => !w.past), past = wks.filter(w => w.past);
+    body += `<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">What is due, week by week</h3><button class="btn se-mini" id="seAddTask">+ Add a task</button></div>
+      <p class="hint" style="margin:0 0 12px">Briefs, built, loaded and live dates follow each phase's start date. Tick when done; the tick is shared with everyone.</p>
       <div class="se-weeks">${upcoming.map(w => weekBox(w, today, false)).join('') || '<div class="tiny">No dated phases yet.</div>'}</div>
-      ${past.length ? `<details style="margin-top:12px"><summary class="tiny" style="cursor:pointer">Past weeks (${past.length})</summary><div class="se-weeks" style="margin-top:10px">${past.map(w => weekBox(w, today, false)).join('')}</div></details>` : ''}</details>
-    <details class="card se-more"><summary><h3>Call sheet and who does what</h3><span class="tiny">${SHEET.filter(s => a.answers[s[0]]).length} of ${SHEET.length} answered</span></summary>
-      <p class="hint" style="margin:8px 0 12px">The answers that set the dates and the offer, and who briefs, buys and emails for this brand.</p>
-      <div class="se-kv">${sheetRows}<div class="sep"></div>${setupRows}</div></details>
-    <p class="tiny"><button class="se-link" id="seToggleSeason">${a.in_season ? 'This brand is not running a season this year' : 'Put this brand back on the season board'}</button></p>
-  </div>`;
+      ${past.length ? `<details style="margin-top:12px"><summary class="tiny" style="cursor:pointer">Past weeks (${past.length})</summary><div class="se-weeks" style="margin-top:10px">${past.map(w => weekBox(w, today, false)).join('')}</div></details>` : ''}</div>`;
+  } else {
+    const sheetRows = SHEET.map(([k, label, hint]) => `<div class="k">${esc(label)}</div><div class="v ${a.answers[k] ? '' : 'none'}">${esc(a.answers[k] || hint)}</div><div class="e"><button class="btn se-mini" data-edit-answer="${k}">Edit</button></div>`).join('');
+    const setupRows = SETUP.map(([k, label, type, opts]) => `<div class="k">${esc(label)}</div><div class="v ${a.answers[k] ? '' : 'none'}">${esc(type === 'select' ? (opts.find(o => o[0] === a.shape)?.[1] || '') : (a.answers[k] || (k === 'email_owner' ? 'Nick' : 'Ahsan')))}</div><div class="e"><button class="btn se-mini" data-edit-answer="${k}">Edit</button></div>`).join('');
+    body += `<div class="card"><h3 style="margin:0 0 4px">Call sheet and who does what</h3><p class="hint" style="margin:0 0 12px">The answers that set the dates and the offer, and who briefs, buys and emails for this brand.</p>
+      <div class="se-kv">${sheetRows}<div class="sep"></div>${setupRows}</div></div>
+      <p class="tiny"><button class="se-link" id="seToggleSeason">${a.in_season ? 'This brand is not running a season this year' : 'Put this brand back on the season board'}</button></p>`;
+  }
+
+  main.innerHTML = `<div class="se">${head(`${esc(a.name)}: the season`, 'The plan in one read, the season on one timeline, then the offers, goals, desk, to-dos and call sheet as tabs. Click Edit on anything.')}
+    ${strip}${plan}${timeline}${seg}${body}</div>`;
 
   if (typeof window.pageActions === 'function') window.pageActions(`<button class="btn" id="seCopy">Copy offer sheet</button><button class="btn primary" id="seShare">Client link</button>`);
+  main.querySelectorAll('.se-seg button[data-b]').forEach(b => b.onclick = () => { S.btab = b.dataset.b; localStorage.setItem(LS_BTAB, S.btab); const y = window.scrollY; paintBrand(); window.scrollTo(0, y); });
   const share = document.getElementById('seShare'); if (share) share.onclick = async () => {
     try { const r = await put('/api/season-share', { act: a.act_id }, 'POST'); await navigator.clipboard.writeText(r.url).catch(() => {}); toast('Client link copied'); window.open(r.url, '_blank', 'noopener'); } catch (e) { toast(e.message, true); }
   };
   const copy = document.getElementById('seCopy'); if (copy) copy.onclick = async () => {
-    const lines = [`${a.name} BFCM 2026 (Black Friday is Fri Nov 27)`, ''];
-    live.forEach((p, i) => { lines.push(`${i + 1}. ${p.name} (${fmtRange(p.start, p.end)}${p.who ? `, ${p.who}` : ''}): ${p.offer || 'offer not set'}${p.status !== 'locked' ? ` [${STATUS[p.status][0].toLowerCase()}]` : ''}`); if (p.detail) lines.push(`   ${p.detail.replace(/\n+/g, ' ')}`); });
-    if (g.bf != null || g.total != null) lines.push('', goalLine(g));
-    if (a.answers.cutoffs) lines.push(`Shipping cutoffs: ${a.answers.cutoffs}`);
-    if (a.answers.gift_cards) lines.push(`Gift cards: ${a.answers.gift_cards}`);
-    try { await navigator.clipboard.writeText(lines.join('\n')); toast('Offer sheet copied'); } catch { toast('Could not copy here', true); }
+    const out = [`${a.name} BFCM 2026 (Black Friday is Fri Nov 27)`, ''];
+    lines.forEach((l, i) => { out.push(`${i + 1}. ${l.when}: ${l.p.name}. ${l.p.offer || 'offer not decided yet'}${l.p.who ? ` (${l.p.who})` : ''}${l.p.status !== 'locked' ? ` [${STATUS[l.p.status][0].toLowerCase()}]` : ''}`); if (l.p.detail) out.push(`   ${l.p.detail.replace(/\n+/g, ' ')}`); });
+    if (g.bf != null || g.total != null) out.push('', goalLine(g));
+    if (a.answers.cutoffs) out.push(`Shipping cutoffs: ${a.answers.cutoffs}`);
+    if (a.answers.gift_cards) out.push(`Gift cards: ${a.answers.gift_cards}`);
+    if (a.answers.strategy_note) out.push('', 'Why this offer:', a.answers.strategy_note);
+    try { await navigator.clipboard.writeText(out.join('\n')); toast('Offer sheet copied'); } catch { toast('Could not copy here', true); }
   };
   main.querySelectorAll('[data-edit-phase]').forEach(b => b.onclick = () => editPhase(a, b.dataset.editPhase));
-  main.querySelectorAll('[data-swipe]').forEach(b => b.onclick = () => { const p = a.phases.find(x => x.key === b.dataset.swipe); if (p?.swipe) showSwipe(document.getElementById('seSwipeHost'), p.swipe, `Swipe file: ${p.name}`); });
-  const bs = document.getElementById('seBrandSwipe'); if (bs) bs.onclick = () => showSwipe(document.getElementById('seSwipeHost'), a.swipe_brand, `${a.name}'s own swipe file`);
+  main.querySelectorAll('[data-swipe]').forEach(b => b.onclick = () => { const p = a.phases.find(x => x.key === b.dataset.swipe); if (p?.swipe) showSwipe(p.swipe, `Swipe file: ${p.name}`); });
+  const bs = document.getElementById('seBrandSwipe'); if (bs) bs.onclick = () => showSwipe(a.swipe_brand, `${a.name}'s own swipe file`);
   const ap = document.getElementById('seAddPhase'); if (ap) ap.onclick = () => editPhase(a, null);
   const at = document.getElementById('seAddTask'); if (at) at.onclick = () => editTask(a.act_id, null);
   const eg = document.getElementById('seGoals'); if (eg) eg.onclick = () => editGoals(a);
@@ -690,8 +772,8 @@ function paintBrand() {
     if (!ok) return;
     try { await put('/api/season/answer', { act: a.act_id, key: 'in_season', value: a.in_season ? 'no' : 'yes' }); await refresh(); } catch (e) { toast(e.message, true); }
   };
-  wireTasks(main);
-  wireDeskSection(main, [a], today, paintBrand);
+  wireTasks(main); wireTips(main);
+  if (S.btab === 'desk') wireDeskSection(main, [a], today, paintBrand);
 }
 async function editGoals(a) {
   const g = a.goals || {};
@@ -735,6 +817,12 @@ async function editPhase(a, key) {
   } catch (e) { toast(e.message, true); }
 }
 async function editAnswer(a, key) {
+  if (key === 'strategy_note') {
+    const r = await formModal({ title: `${a.name}: why this offer, and the risk`, hint: 'Plain words. What worked before, what the client wants, where the risk is, what we do if it misses. Shows on the plan card and in the copied offer sheet.', fields: [{ k: 'v', label: 'The thinking', type: 'textarea', value: a.answers.strategy_note || '', rows: 14 }], cta: 'Save' });
+    if (!r) return;
+    try { await put('/api/season/answer', { act: a.act_id, key, value: r.v }); await refresh(); } catch (e) { toast(e.message, true); }
+    return;
+  }
   const sheet = SHEET.find(s => s[0] === key); const setup = SETUP.find(s => s[0] === key);
   const label = sheet ? sheet[1] : setup[1];
   const field = setup && setup[2] === 'select'
@@ -762,10 +850,13 @@ async function renderShare(token, url) {
   const DL = { cutoffs: 'Shipping cutoffs', returns: 'Return window', gift_cards: 'Gift cards' };
   const byDay = {};
   (d.checkins || []).forEach(c => (byDay[c.date] = byDay[c.date] || []).push(c));
+  const fake = { name: d.account.name, phases: d.phases, answers: {} };
+  const lines = planLines(fake);
   main.innerHTML = `<div class="se se-share">
     <h2>${esc(d.account.name)}: the season, start to finish</h2>
-    <p class="sub">What runs when, who gets it, and what the deal is. ${days > 0 ? `${days} days to Black Friday (Fri Nov 27).` : ''} Anything marked Draft is still being decided together. Once a phase is live, its revenue so far shows on the card.</p>
-    <div class="card">${seasonBar({ phases: d.phases }, d.today, true)}</div>
+    <p class="sub">What runs when, who gets it, and what the deal is. ${days > 0 ? `${days} days to Black Friday (Fri Nov 27).` : ''} Anything marked proposal is still being decided together. Once a phase is live, its revenue so far shows on the card.</p>
+    <div class="card"><h3 style="margin:0 0 10px">The plan in one read</h3><div class="se-plan" style="grid-template-columns:1fr"><ol>${lines.map((l, i) => `<li class="${l.p.key === 'bf' ? 'bf' : ''}"><i>${i + 1}</i><div><div class="d">${esc(l.when)}</div><div>${l.text}</div></div></li>`).join('')}</ol></div></div>
+    <div class="card"><h3 style="margin:0 0 4px">The season</h3>${gantt(d.phases, d.today)}</div>
     ${d.phases.map((p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};grid-template-columns:230px 1fr">
       <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
       <div>${p.status === 'locked' ? '' : `<div style="margin-bottom:4px">${pill(p.status)}</div>`}<div class="big ${p.offer ? '' : 'none'}">${esc(p.offer || 'Being decided.')}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}
@@ -775,6 +866,7 @@ async function renderShare(token, url) {
     ${d.asks?.length ? `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 8px">What we need from you</h3>${d.asks.map(x => `<div class="se-task"><span></span><div class="n">${esc(x.name)}<small>${esc(x.phase || '')}</small></div><div class="r"><b>${esc(x.due ? fmtDow(x.due) : '')}</b></div></div>`).join('')}</div>` : ''}
     <p class="tiny" style="margin-top:16px">Prepared by Mobius Digital. This page updates as the plan does.</p>
   </div>`;
+  wireTips(main);
 }
 
 /* ---------- entry ---------- */
