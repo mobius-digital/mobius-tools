@@ -761,7 +761,18 @@ profit/
   the first second), `rehook` (what happens at 3 to 8 seconds to keep them), `why` (the proven shape
   it is built on), `inspo_json` ([{brand, what, url}], other brands' videos to steal the shape from);
   `p_amb_brand.guide_json` ([{title, text}], the "How to keep them watching" card). All public.
-- **The page** (`angles/app.src.js`, v11), top to bottom: jump links; **Film this one** (one idea at
+- **v12 (same day, after Cole read v11 as a creator: "all over the place"):** THREE SCREENS, one job
+  each, as tabs under the top bar: **Ideas** (intro, "Pick one for me" = a random idea leaning to Hot,
+  the What's working lane, lane pills, the lanes), **Watch examples** (every proof video and every
+  other-brand reference in one grid, each naming its idea), **Before you film** (what it is, say it
+  right, stop filming these, keep them watching, the season). An idea page reads in the order a
+  creator works: idea, Watch first, How to film it as numbered steps (The first second, Say this
+  first, At 3 seconds, Middle, Close), text on screen, other lines, do / don't, why. The deck card and
+  the guide card on the Ideas screen are gone. **Public proof is VIDEO only** (`publicPayload` drops
+  Meta ads whose `media_type` is image; staff scores still count them). Routes: `#ideas` `#watch`
+  `#rules` `#a=<id>` (`&pick` marks a random pick). `visual_hook` / `rehook` are written as plain
+  instructions ("Open on...", "At 3 seconds, ...") after Cole could not follow the camera-note versions.
+- **The v11 page** (`angles/app.src.js`), top to bottom (superseded by v12 above): jump links; **Film this one** (one idea at
   a time, Hot first then sections, opens on a random one so creators do not all film the same idea,
   "Show me another" deals the next: the Lucky hub's NextVideo); **What's working right now** = the
   pinned Hot lane, every card shows up to three playable proof thumbs (`proofStrip`, covers loaded in

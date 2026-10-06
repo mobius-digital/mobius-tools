@@ -377,6 +377,62 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .inspo li .btn{width:100%}
 }
 
+
+/* ---------- 2026-10-06 v12: three screens (Ideas / Watch examples / Before you film) ---------- */
+.tabs{position:sticky;top:60px;z-index:29;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.tabs .wrap{display:flex;gap:4px;height:46px;align-items:stretch}
+.tab{display:inline-flex;align-items:center;padding:0 14px;font-size:14px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.intro-link{display:block;margin-top:6px;font-weight:600;color:var(--acc-ink);text-decoration:underline;text-underline-offset:3px}
+.pickme{margin-top:18px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;background:radial-gradient(520px 200px at 100% 0%,var(--glow),transparent 70%),var(--card)}
+.pick-t{font-weight:700;font-size:16px}
+.pick-s{font-size:13px;color:var(--muted);margin-top:2px;max-width:560px}
+.pickme .btn{flex:none;min-height:44px}
+.filters{top:106px}
+.small{font-size:12.5px}
+.ang-foot .open svg{margin-left:4px}
+.wsec{margin-top:8px}
+.wgrid{margin-top:12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.wtile{display:flex;flex-direction:column;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:0;transition:border-color .15s;padding:0}
+.wtile:hover{border-color:var(--line2)}
+.wtile .well{aspect-ratio:9/12}
+.wcap{display:flex;flex-direction:column;gap:5px;padding:10px 12px 12px;min-width:0}
+.wcap .tag{align-self:flex-start;font-size:9.5px}
+.wname{font-size:13px;font-weight:600;color:var(--ink);line-height:1.35;display:block}
+.wname:hover{text-decoration:underline;text-underline-offset:3px}
+.inspo .wname{margin-top:4px;color:var(--muted);font-size:12.5px}
+.det-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.picked{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--acc-ink);font-weight:600}
+.lead-line{font-size:17px;margin-top:10px;max-width:680px}
+.steps.big{margin-top:12px;gap:10px}
+.steps.big li{padding:14px 16px;align-items:flex-start;gap:14px}
+.steps.big .n{width:28px;height:28px;font-size:13px;margin-top:2px}
+.steps.big .lbl{font-size:10px}
+.steps.big p{margin-top:4px;font-size:15px;line-height:1.5}
+.steps.big p.hook{font-size:17px}
+.why{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);margin-top:18px;max-width:680px}
+.why svg{margin-top:3px;color:var(--acc-ink);flex:none}
+.why b{color:var(--ink)}
+.det-side .btn-full{margin-top:0}
+.rules-end{margin-top:14px;padding:16px 20px;font-size:14px}
+.rules-end a{font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.rules .lbl,.about .lbl{font-size:12px;color:var(--ink)}
+.about{margin-top:18px}
+.filmcard .btn-full + .btn-full{margin-top:8px}
+@media (max-width:1099px){.wgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:699px){
+  .tabs{top:56px}
+  .tabs .wrap{height:44px;padding:0 8px;overflow-x:auto;scrollbar-width:none}
+  .tab{padding:0 12px;font-size:13.5px;white-space:nowrap}
+  .filters{top:100px}
+  .pickme{flex-direction:column;align-items:stretch;padding:14px}
+  .pickme .btn{width:100%}
+  .wgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .lead-line{font-size:15px}
+  .ang-line{display:block}
+}
+
 /* Staff preview of a switched-off link */
 .pv-bar{background:#FFF4D6;border-bottom:1px solid #F0D48A;color:#6B4A00;font-size:13px;line-height:1.4}
 .pv-bar .wrap{padding-top:9px;padding-bottom:9px}

@@ -141,6 +141,15 @@ async function publicPayload(env, slug, preview = false) {
   const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(b.act_id).first();
   if (!b.live && !preview) return { status: 200, body: { live: false, brand: { display_name: b.display_name || acct?.name || '', accent: b.accent, logo_url: b.logo_url } } };
   const { sections, angles, proof } = await loadAll(env, b.act_id);
+  // Cole, 2026-10-06: creators make videos, so only VIDEO ads are proof on the link. Statics keep
+  // their staff-side scores but never show as "ran as an ad" here.
+  const metaIds = [...new Set(proof.filter(p => p.kind === 'meta' && p.ad_id).map(p => p.ad_id))];
+  const isImage = new Set();
+  for (let i = 0; i < metaIds.length; i += 80) {
+    const part = metaIds.slice(i, i + 80);
+    const { results } = await env.DB.prepare(`SELECT ad_id, media_type FROM ads WHERE act_id = ?1 AND ad_id IN (${part.map((_, k) => `?${k + 2}`).join(',')})`).bind(b.act_id, ...part).all().catch(() => ({ results: [] }));
+    for (const r of results || []) if (/image|static|photo/i.test(r.media_type || '')) isImage.add(r.ad_id);
+  }
   const onSecs = sections.filter(s => s.enabled);
   const secIds = new Set(onSecs.map(s => s.id));
   const liveAngles = angles.filter(a => a.status === 'live' && (secIds.has(a.section_id) || a.hot));
@@ -148,6 +157,7 @@ async function publicPayload(env, slug, preview = false) {
   for (const p of proof) {
     if (!p.shown) continue;
     if (p.kind === 'inspo' && !b.show_inspo) continue;
+    if (p.kind === 'meta' && isImage.has(p.ad_id)) continue;
     const item = { id: p.id, kind: p.kind, who: p.who, note: p.note, url: p.kind === 'upload' ? null : p.url, thumb: p.thumb };
     if (p.kind === 'meta') item.ad_id = p.ad_id;
     if (p.kind === 'upload') item.file = `/api/angles-file/${p.id}`;
