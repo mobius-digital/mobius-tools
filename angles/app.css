@@ -333,11 +333,11 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .lanes-top .lane{margin-top:18px}
 .ang-vh{display:flex;gap:7px;align-items:flex-start;font-size:13px;color:var(--ink);line-height:1.4}
 .ang-vh svg{margin-top:2px;color:var(--t-ink,var(--muted));flex:none}
-.pstrip{display:flex;gap:6px;align-items:center;margin-top:2px}
-.pthumb{position:relative;width:46px;height:58px;border-radius:8px;overflow:hidden;background:#0a0b0d;display:inline-flex;align-items:center;justify-content:center;flex:none;color:#fff;padding:0;border:0}
+.pstrip{display:flex;gap:8px;align-items:center;margin-top:4px}
+.pthumb{position:relative;width:60px;height:78px;border-radius:8px;overflow:hidden;background:#0a0b0d;display:inline-flex;align-items:center;justify-content:center;flex:none;color:#fff;padding:0;border:0}
 .pthumb .well{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;background:transparent}
 .pthumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.pbtn.sm{width:26px;height:26px}
+.pbtn.sm{width:28px;height:28px}
 .pmore{font-size:12px;font-weight:700;color:var(--muted);padding:0 6px}
 .guide{margin-top:18px;padding:20px 22px 18px}
 .guide-list{margin-top:4px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 22px}
