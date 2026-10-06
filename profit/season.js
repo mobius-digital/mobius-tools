@@ -1,18 +1,16 @@
-/* Locus - the Season tab (2026-10-05; goals, results, desk and swipe 2026-10-06).
+/* Locus - the Season tab (2026-10-05; goals, results, desk and swipe 2026-10-06;
+ * reorganised around THE OFFERS the same night, after Cole: "I still don't see what our offers are").
  *
  * The BFCM plan, in Locus instead of the standalone Q4 Playbook. Screens:
- *   All clients   Now (what is due this week, tick it; the board: brand x phase),
- *                 Week by week (every brand), Desk (three check-ins a day against the
- *                 ladder, with live Triple Whale numbers and what was done).
- *   One brand     The offers phase by phase with results once live, goals and the
- *                 ladder, what is still needed, this brand's weeks, the call sheet,
- *                 its own desk. Edit in place.
+ *   All clients   Offers (default): one wide card per brand, the Black Friday deal in big
+ *                 type, November and December beside it, a season bar, the goal.
+ *                 This week (what is due, tick it; the status board), Week by week, Desk.
+ *   One brand     The season bar, then the offers as a numbered list (Black Friday
+ *                 highlighted), then goals + ladder, still needed, desk, weeks, call sheet.
  *   Client link   ?season=<token>: offers, dates, results and what we did, read only.
  *
  * Dates for every deliverable are DERIVED from the phase dates by the worker
- * (briefs 23 days before live, built 9, loaded 4), so moving a launch moves its
- * work. Nothing here is typed twice: briefs live in Asana, this is the calendar.
- *
+ * (briefs 23 days before live, built 9, loaded 4), so moving a launch moves its work.
  * Own file and closure like amb.js. The host hands in token, URL, client, accounts.
  */
 (function () {
@@ -20,8 +18,8 @@
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, data: null, view: 'now', deskDate: null, live: {} };
-const LS_VIEW = 'se_view';
+const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, data: null, view: 'offers', deskDate: null, live: {} };
+const LS_VIEW = 'se_view2';
 const AH = 'https://mobius-account-health.mobius-digital.workers.dev';
 
 async function api(path, opts = {}, base) {
@@ -53,13 +51,11 @@ const clock = iso => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d
 const GRP = { nov: ['November', 'var(--se-nov)'], bf: ['Black Friday', 'var(--se-bf)'], dec: ['December', 'var(--se-dec)'], late: ['After Christmas', 'var(--se-late)'], vday: ['Valentine\'s', 'var(--se-vday)'] };
 const STATUS = { locked: ['Locked', 'good'], draft: ['Draft', 'warn'], missing: ['Missing', 'bad'], skip: ['Skipped', 'unk'] };
 const pill = st => { const s = STATUS[st] || STATUS.missing; return `<span class="pill ${s[1]}">${s[0]}</span>`; };
-const COLS = [['nov', 'November'], ['access', 'Thursday'], ['bf', 'Black Friday'], ['dec', 'December']];
 const SLOTS = [['8am', '8:00 AM'], ['4pm', '4:00 PM'], ['12am', 'Midnight']];
 const DESK_DAYS = ['2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30'];
+const BF = '2026-11-27';
 
-/* The scaling ladder, the 2025 sheet's rule in code. A verdict needs real spend behind it:
-   $20 at 5am with no sales is not "turn the ads off", it is night. The floor is three hours
-   of the starting budget at half pace, never under $100. */
+/* The scaling ladder, the 2025 sheet's rule in code. A verdict needs real spend behind it. */
 function spendFloor(goals) { return Math.max(100, ((goals && goals.start) || 0) * 3 / 24 * 0.5); }
 function ladderOf(goals, mer, spent) {
   if (!goals || goals.be == null || goals.target == null) return { ok: false, text: 'Set the ladder on the brand page', cls: 'unk' };
@@ -86,6 +82,52 @@ function injectCss() {
   .se-seg{display:inline-flex;gap:4px;border:1px solid var(--line,#ddd);border-radius:99px;padding:3px;margin:0 0 14px;background:var(--bg,#fff);flex-wrap:wrap}
   .se-seg button{border:0;background:transparent;border-radius:99px;padding:6px 14px;font:600 13px var(--sans,system-ui);color:var(--muted,#667);cursor:pointer}
   .se-seg button.on{background:var(--ink,#111);color:var(--on-ink,#fff)}
+  /* offers, all clients */
+  .se-off{display:grid;grid-template-columns:190px 1fr;gap:18px;padding:18px 20px;border:1px solid var(--line,#e5e5e5);border-radius:14px;background:var(--surface,#fff);margin-bottom:12px;cursor:pointer;min-width:0}
+  .se-off:hover{border-color:var(--brand,#1F6F8B)}
+  .se-off .who{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .se-off .who b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:22px;line-height:1.1}
+  .se-off .who .m{font-size:12px;color:var(--muted,#667);line-height:1.45}
+  .se-off .body{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:16px;min-width:0}
+  .se-off .col{min-width:0}
+  .se-off .lab{font:600 10.5px var(--sans,system-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#667);display:flex;gap:8px;align-items:center;margin-bottom:5px}
+  .se-off .deal{font-family:var(--display,var(--sans,system-ui));font-weight:700;font-size:19px;line-height:1.25;letter-spacing:-.01em}
+  .se-off .deal.small{font-size:14.5px;font-weight:600}
+  .se-off .deal.none{font-weight:400;font-style:italic;color:var(--bad,#B03A2E);font-size:15px}
+  .se-off .sub{font-size:12px;color:var(--muted,#667);margin:4px 0 0;line-height:1.4}
+  .se-off .bar{grid-column:1/-1}
+  /* season bar */
+  .se-tl{position:relative;height:34px;margin-top:6px}
+  .se-tl .months{display:flex;position:absolute;inset:0 0 auto 0;height:12px;font:600 10px var(--sans,system-ui);color:var(--muted,#667);letter-spacing:.06em;text-transform:uppercase}
+  .se-tl .months span{position:absolute;top:0;border-left:1px solid var(--line,#e5e5e5);padding-left:4px;height:34px;line-height:12px}
+  .se-tl .seg{position:absolute;top:16px;height:14px;border-radius:4px;background:var(--c);opacity:.9;min-width:3px;color:#fff;font:600 10px var(--sans,system-ui);line-height:14px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+  .se-tl .seg.ghost{opacity:.28}
+  .se-tl .today{position:absolute;top:12px;bottom:0;width:2px;background:var(--ink,#111)}
+  .se-tl .today i{position:absolute;top:-12px;left:-14px;font:700 9px var(--sans,system-ui);font-style:normal;letter-spacing:.06em}
+  .se-tl.big{height:92px}
+  .se-tl.big .months span{height:92px}
+  .se-tl.big .seg{height:16px;line-height:16px;font-size:11px}
+  /* offers, one brand (numbered list) */
+  .se-deal{display:grid;grid-template-columns:230px 1fr auto;gap:16px;padding:16px 18px;border:1px solid var(--line,#e5e5e5);border-left:6px solid var(--c);border-radius:12px;background:var(--surface,#fff);margin-bottom:10px;min-width:0;align-items:start}
+  .se-deal.key{box-shadow:0 0 0 3px rgba(30,122,69,.14);border-color:var(--c)}
+  .se-deal .n{display:flex;gap:10px;align-items:flex-start}
+  .se-deal .num{width:26px;height:26px;flex:none;border-radius:50%;background:var(--ink,#111);color:var(--on-ink,#fff);font:700 12px var(--sans,system-ui);display:grid;place-items:center}
+  .se-deal .nm{font-family:var(--serif,Georgia,serif);font-size:17px;line-height:1.2}
+  .se-deal .dt{font-size:12px;color:var(--muted,#667);margin-top:3px;line-height:1.4}
+  .se-deal .big{font-family:var(--display,var(--sans,system-ui));font-weight:700;font-size:19px;line-height:1.25;letter-spacing:-.01em}
+  .se-deal .big.none{font-weight:400;font-style:italic;color:var(--muted,#667);font-size:15px}
+  .se-deal .x{font-size:13px;color:var(--muted,#667);line-height:1.45;margin-top:6px;white-space:pre-line}
+  .se-deal .res{font-size:12.5px;line-height:1.45;background:var(--wash,#f4f6f8);border-radius:8px;padding:7px 9px;margin-top:8px}
+  .se-deal .res b{font-size:13px}
+  .se-deal .act{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .se-swipe{border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:12px;background:var(--surface,#fff);margin-bottom:10px}
+  .se-swipe .h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;font-size:13px;flex-wrap:wrap}
+  .se-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+  .se-ad{display:block;border:1px solid var(--line,#e5e5e5);border-radius:10px;overflow:hidden;background:var(--wash,#f4f6f8);color:inherit;text-decoration:none;min-width:0}
+  .se-ad img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;background:#ddd}
+  .se-ad .c{padding:6px 8px;font-size:11.5px;line-height:1.3}
+  .se-ad .c b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* tasks */
   .se-task{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--line,#e5e5e5)}
   .se-task:last-child{border-bottom:0}
   .se-task input{margin:4px 0 0;width:16px;height:16px;accent-color:var(--good,#1E7A45);cursor:pointer}
@@ -107,9 +149,8 @@ function injectCss() {
   .se-board tr:last-child td{border-bottom:0}
   .se-board tr.rowlink{cursor:pointer}
   .se-board tr.rowlink:hover td{background:var(--wash,#f4f6f8)}
-  .se-board .bn{font-weight:700;white-space:normal}
+  .se-board .bn{font-weight:700}
   .se-board .cell small{display:block;color:var(--muted,#667);font-size:11.5px;margin-top:3px;line-height:1.3}
-  .se-board .cell .o{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;margin-top:3px;line-height:1.35}
   .se-weeks{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
   .se-wk{border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:10px 12px;background:var(--surface,#fff);min-width:0}
   .se-wk.now{border-color:var(--good,#1E7A45);box-shadow:0 0 0 3px rgba(30,122,69,.14)}
@@ -118,26 +159,6 @@ function injectCss() {
   .se-wk .h b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:16px}
   .se-wk .h span{font-size:11.5px;color:var(--muted,#667);white-space:nowrap}
   .se-wk .se-task{padding:5px 0}
-  .se-phases{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-  .se-ph{border:1px solid var(--line,#e5e5e5);border-top:4px solid var(--c);border-radius:12px;padding:12px 14px;background:var(--surface,#fff);display:flex;flex-direction:column;gap:6px;min-width:0}
-  .se-ph.skip{opacity:.55}
-  .se-ph .t{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-  .se-ph .t b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:17px;line-height:1.2}
-  .se-ph .d{font-size:12px;color:var(--muted,#667)}
-  .se-ph .o{font-size:14.5px;font-weight:600;line-height:1.35}
-  .se-ph .o.none{font-weight:400;color:var(--muted,#667);font-style:italic}
-  .se-ph .x{font-size:12.5px;color:var(--muted,#667);line-height:1.45;white-space:pre-line}
-  .se-ph .res{font-size:12.5px;line-height:1.45;background:var(--wash,#f4f6f8);border-radius:8px;padding:7px 9px}
-  .se-ph .res b{font-size:13px}
-  .se-ph .f{display:flex;gap:8px;align-items:center;margin-top:auto;padding-top:6px;flex-wrap:wrap}
-  .se-ph .f .who{font-size:12px;color:var(--muted,#667);margin-right:auto}
-  .se-swipe{grid-column:1/-1;border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:12px;background:var(--surface,#fff)}
-  .se-swipe .h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;font-size:13px}
-  .se-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
-  .se-ad{display:block;border:1px solid var(--line,#e5e5e5);border-radius:10px;overflow:hidden;background:var(--wash,#f4f6f8);color:inherit;text-decoration:none;min-width:0}
-  .se-ad img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;background:#ddd}
-  .se-ad .c{padding:6px 8px;font-size:11.5px;line-height:1.3}
-  .se-ad .c b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .se-kv{display:grid;grid-template-columns:170px 1fr auto;gap:8px 14px;align-items:start;font-size:14px}
   .se-kv .k{color:var(--muted,#667);font-size:12.5px;padding-top:2px}
   .se-kv .v{white-space:pre-line;line-height:1.45;min-width:0}
@@ -178,14 +199,40 @@ function injectCss() {
   .se-desk .live b{color:var(--ink,#111);font-size:15px}
   .se-slot{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px dashed var(--line,#e5e5e5)}
   .se-slot .s{font-weight:700;font-size:13px}
-  .se-slot .by{font-size:11.5px;color:var(--muted,#667);white-space:nowrap}
   .se-slot .did{font-size:13.5px;line-height:1.4}
   .se-slot .did small{display:block;color:var(--muted,#667);font-size:11.5px}
   .se-slot input.se-in{padding:6px 9px;font-size:13px}
+  .se-more summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .se-more summary::-webkit-details-marker{display:none}
+  .se-more summary h3{margin:0}
+  .se-more summary .tiny::after{content:" +"}
+  .se-more[open] summary .tiny::after{content:" close"}
   .se-share{max-width:900px;margin:0 auto}
+  @media (max-width:980px){.se-off{grid-template-columns:1fr}.se-off .body{grid-template-columns:1fr}.se-deal{grid-template-columns:1fr}.se-deal .act{flex-direction:row;align-items:center}}
   @media (max-width:820px){.se-kv{grid-template-columns:1fr}.se-kv .e{justify-self:start}.se-f2{grid-template-columns:1fr}.se-task .r{text-align:left;grid-column:2}.se-slot{grid-template-columns:1fr}}
   `;
   document.head.appendChild(st);
+}
+
+/* ---------- the season bar ---------- */
+const TL_FROM = '2026-10-19', TL_TO = '2027-02-08';
+function seasonBar(a, today, big) {
+  const span = daysBetween(TL_FROM, TL_TO);
+  const pct = iso => Math.max(0, Math.min(100, daysBetween(TL_FROM, iso) / span * 100));
+  const months = [['2026-11-01', 'Nov'], ['2026-12-01', 'Dec'], ['2027-01-01', 'Jan'], ['2027-02-01', 'Feb']];
+  const monthsHtml = `<span style="left:0">Oct</span>` + months.map(([d, l]) => `<span style="left:${pct(d)}%">${l}</span>`).join('');
+  /* Lanes by group so the overlapping Black Friday pieces do not pile on one another. */
+  const lanes = { nov: 0, bf: 1, dec: 2, late: 3, vday: 3 };
+  const show = a.phases.filter(p => p.start && p.status !== 'skip' && (big || !['access', 'planb', 'cm', 'boxing'].includes(p.key)));
+  const segs = show.map(p => {
+    const l = pct(p.start), r = pct(addDays(p.end || p.start, 1));
+    const top = big ? 16 + lanes[p.grp] * 19 : 16;
+    const ghost = p.status === 'missing' ? ' ghost' : '';
+    return `<div class="seg${ghost}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};left:${l}%;width:${Math.max(r - l, 0.6)}%;top:${top}px" title="${esc(p.name)}: ${esc(fmtRange(p.start, p.end))}${p.offer ? ' · ' + esc(p.offer) : ''}">${big || r - l > 9 ? esc(p.name) : ''}</div>`;
+  }).join('');
+  const todayHtml = today >= TL_FROM && today <= TL_TO ? `<div class="today" style="left:${pct(today)}%"><i>TODAY</i></div>` : '';
+  const bfHtml = `<div class="today" style="left:${pct(BF)}%;background:var(--se-bf)"><i style="left:-4px">BF</i></div>`;
+  return `<div class="se-tl ${big ? 'big' : ''}"><div class="months">${monthsHtml}</div>${segs}${bfHtml}${todayHtml}</div>`;
 }
 
 /* ---------- small modal: fields in, object out (or null) ---------- */
@@ -306,14 +353,14 @@ function weeksOf(accounts, today, from = '2026-10-05', to = '2027-02-08') {
 function weekBox(wk, today, showBrand) {
   const open = wk.items.filter(r => !r.t.done).length;
   const label = wk.now ? 'This week' : `Week of ${fmtD(wk.start)}`;
-  const big = wk.start <= '2026-11-27' && wk.end >= '2026-11-27';
+  const big = wk.start <= BF && wk.end >= BF;
   return `<div class="se-wk ${wk.now ? 'now' : ''} ${wk.past ? 'past' : ''}"><div class="h"><b>${big ? 'BLACK FRIDAY · ' : ''}${label}</b><span>${wk.items.length ? `${open} open of ${wk.items.length}` : 'nothing due'}</span></div>
     ${wk.lives.length ? `<div class="tiny" style="margin-bottom:6px">Goes live: ${esc(wk.lives.join(' · '))}</div>` : ''}
     ${wk.items.map(r => taskRow(r.t, r.a, today, showBrand)).join('') || '<div class="tiny">Nothing scheduled.</div>'}
   </div>`;
 }
 
-/* ---------- the desk: three check-ins a day against the ladder ---------- */
+/* ---------- the desk ---------- */
 function deskDates(brands, today) {
   const set = new Set([today, ...DESK_DAYS]);
   brands.forEach(a => (a.checkins || []).forEach(c => set.add(c.date)));
@@ -390,11 +437,12 @@ function wireDeskSection(root, brands, today, repaint) {
 /* ---------- swipe file (Atria boards) ---------- */
 async function showSwipe(host, board, title) {
   host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b><span class="tiny">Loading from Atria…</span></div></div>`;
+  host.scrollIntoView({ block: 'nearest' });
   try {
     const r = await api('/api/atria/board?board_id=' + encodeURIComponent(board.id), {}, AH);
     if (r.reason === 'not_connected') { host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b></div><p class="hint" style="margin:0">Atria is not connected. Studio > Connections > Connect Atria, then this fills itself.</p></div>`; return; }
     const ads = r.ads || [];
-    host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b><span class="tiny">${ads.length} saved in Atria · <b>${esc(board.name)}</b> · save more there and they show here</span><button class="se-link se-mini" data-close="1">close</button></div>
+    host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b><span class="tiny">${ads.length} saved in Atria under <b>${esc(board.name)}</b>. Save more there and they show here.</span><button class="se-link se-mini" data-close="1">close</button></div>
       ${ads.length ? `<div class="se-ads">${ads.map(a => `<a class="se-ad" href="${esc(a.url)}" target="_blank" rel="noopener">${a.img ? `<img src="${esc(a.img)}" alt="" referrerpolicy="no-referrer">` : '<div style="aspect-ratio:4/5"></div>'}<div class="c"><b>${esc(a.advertiser || '')}</b>${esc((a.title || a.body || '').slice(0, 70))}</div></a>`).join('')}</div>` : '<p class="hint" style="margin:0">Nothing saved to this board yet. In Atria, save an ad into it and it shows here.</p>'}</div>`;
     host.querySelector('[data-close]').onclick = () => { host.innerHTML = ''; };
   } catch (e) { host.innerHTML = `<div class="se-swipe"><div class="h"><b>${esc(title)}</b></div><p class="hint" style="margin:0;color:var(--bad)">${esc(e.message)}</p></div>`; }
@@ -403,12 +451,35 @@ async function showSwipe(host, board, title) {
 /* ---------- ALL CLIENTS ---------- */
 function crumb() { return typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('season')}</div>` : ''; }
 function head(title, sub) { return `<div>${crumb()}<h2>${title}</h2><p class="sub">${sub}</p></div>`; }
+const goalLine = g => { const parts = []; if (g.early != null) parts.push(`Nov ${moneyK(g.early)}`); if (g.bf != null) parts.push(`BF weekend ${moneyK(g.bf)}`); if (g.dec != null) parts.push(`Dec ${moneyK(g.dec)}`); if (g.total != null && !parts.length) parts.push(`Season ${moneyK(g.total)}`); return parts.length ? 'Goal: ' + parts.join(' · ') : 'No revenue goal yet'; };
+
+/* One brand's offers in one card: Black Friday big, November and December beside it. */
+function offerCard(a, today) {
+  const st = brandState(a);
+  const bf = keyPhase(a, 'bf'), access = keyPhase(a, 'access'), early = keyPhase(a, 'early');
+  const decs = a.phases.filter(p => p.grp === 'dec' && p.status !== 'skip');
+  const late = a.phases.filter(p => (p.grp === 'late' || p.grp === 'vday') && p.status !== 'skip' && p.status !== 'missing');
+  const deal = (p, big) => !p ? '' : p.status === 'skip' ? `<div class="deal small none" style="color:var(--muted)">Not running</div>`
+    : p.offer ? `<div class="deal ${big ? '' : 'small'}">${esc(p.offer)}</div>` : `<div class="deal none">No offer written yet</div>`;
+  const line = p => p ? `<div class="sub">${esc(fmtRange(p.start, p.end))}${p.who ? ` · ${esc(p.who)}` : ''}</div>` : '';
+  const c = counts(a, today);
+  return `<div class="se-off" data-pick="${esc(a.act_id)}">
+    <div class="who"><b>${esc(a.name)}</b><span class="pill ${st[0] === 'ok' ? 'good' : st[0] === 'warn' ? 'warn' : 'bad'}" style="align-self:flex-start">${esc(st[1])}</span>
+      <span class="m">${esc(goalLine(a.goals || {}))}<br>${esc(a.answers.strategist || 'Ahsan')} briefs · ${esc(a.answers.approver || 'client')} approves${c.over ? `<br><b style="color:var(--bad)">${c.over} overdue</b>` : ''}${c.week ? `<br>${c.week} due this week` : ''}</span></div>
+    <div class="body">
+      <div class="col"><div class="lab">Black Friday weekend ${bf ? pill(bf.status) : ''}</div>${deal(bf, true)}${line(bf)}${access && access.status !== 'skip' && (access.offer || access.status !== 'missing') ? `<div class="sub" style="margin-top:8px"><b>Thursday:</b> ${esc(access.offer || 'early access, details to come')} <span class="tiny">(${esc(access.who || 'list')})</span></div>` : ''}</div>
+      <div class="col"><div class="lab">November ${early ? pill(early.status) : ''}</div>${early ? `<div class="sub" style="margin:0 0 2px;font-weight:600;color:var(--ink)">${esc(early.name)}</div>` : ''}${deal(early, false)}${line(early)}</div>
+      <div class="col"><div class="lab">December and after</div>${decs.length ? decs.map(p => `<div class="sub" style="margin:0 0 6px"><b style="color:var(--ink)">${esc(p.name)}</b> ${pill(p.status)}<br>${p.offer ? esc(p.offer) : '<i>no offer yet</i>'} <span class="tiny">· ${esc(fmtRange(p.start, p.end))}</span></div>`).join('') : '<div class="deal none">Nothing planned</div>'}${late.map(p => `<div class="sub" style="margin:0 0 6px"><b style="color:var(--ink)">${esc(p.name)}</b> ${pill(p.status)}<br>${esc(p.offer || '')} <span class="tiny">· ${esc(fmtRange(p.start, p.end))}</span></div>`).join('')}</div>
+      <div class="bar">${seasonBar(a, today, false)}</div>
+    </div>
+  </div>`;
+}
 
 async function renderAll() {
   const main = $('#main');
   main.innerHTML = `<div class="se"><div class="card"><span class="hint">Loading…</span></div></div>`;
   await load('all');
-  S.view = localStorage.getItem(LS_VIEW) || 'now';
+  S.view = localStorage.getItem(LS_VIEW) || 'offers';
   paintAll();
 }
 function paintAll() {
@@ -424,40 +495,44 @@ function paintAll() {
   const openAll = brands.flatMap(a => a.tasks.filter(t => !t.done && t.due).map(t => ({ t, a })));
   const overdue = openAll.filter(r => r.t.due < today);
   const thisWeek = openAll.filter(r => r.t.due >= wk0 && r.t.due <= wk1);
-  const verdict = noOffer.length
-    ? `${noOffer.length} of ${brands.length} brands ${noOffer.length === 1 ? 'has' : 'have'} no Black Friday offer yet (${noOffer.map(a => a.name).join(', ')}). ${thisWeek.length} thing${thisWeek.length === 1 ? '' : 's'} due this week${overdue.length ? `, ${overdue.length} overdue` : ''}.`
-    : `Every brand has a Black Friday offer. ${thisWeek.length} thing${thisWeek.length === 1 ? '' : 's'} due this week${overdue.length ? `, ${overdue.length} overdue` : ''}.`;
+  const drafts = brands.filter(a => brandState(a)[0] === 'warn');
+  const verdict = noOffer.length || drafts.length
+    ? `${lockedN} of ${brands.length} brands locked. ${drafts.length ? `${drafts.map(a => a.name).join(', ')} ${drafts.length === 1 ? 'has' : 'have'} a proposal waiting on the client. ` : ''}${noOffer.length ? `${noOffer.map(a => a.name).join(', ')} ${noOffer.length === 1 ? 'has' : 'have'} nothing written yet. ` : ''}${thisWeek.length} thing${thisWeek.length === 1 ? '' : 's'} due this week${overdue.length ? `, ${overdue.length} overdue` : ''}.`
+    : `Every brand is locked. ${thisWeek.length} thing${thisWeek.length === 1 ? '' : 's'} due this week${overdue.length ? `, ${overdue.length} overdue` : ''}.`;
 
   const strip = `<div class="se-strip">
     <div class="ru"><div class="ru-l">Black Friday</div><div class="ru-v">${days} days</div><div class="ru-d">Fri Nov 27. Cyber Monday Nov 30.</div></div>
-    <div class="ru"><div class="ru-l">Offers locked</div><div class="ru-v ${lockedN === brands.length ? 'good' : lockedN ? 'warn' : 'bad'}">${lockedN} of ${brands.length}</div><div class="ru-d">Black Friday weekend locked with the client.</div></div>
+    <div class="ru"><div class="ru-l">Offers locked</div><div class="ru-v ${lockedN === brands.length ? 'good' : lockedN ? 'warn' : 'bad'}">${lockedN} of ${brands.length}</div><div class="ru-d">Black Friday weekend agreed with the client.</div></div>
     <div class="ru"><div class="ru-l">Goals set</div><div class="ru-v ${noGoal.length ? 'warn' : 'good'}">${brands.length - noGoal.length} of ${brands.length}</div><div class="ru-d">${noGoal.length ? 'Missing: ' + esc(noGoal.map(a => a.name).join(', ')) : 'Every brand has a revenue goal.'}</div></div>
     <div class="ru"><div class="ru-l">Due this week</div><div class="ru-v">${thisWeek.length}</div><div class="ru-d">Mon ${fmtD(wk0)} to Sun ${fmtD(wk1)}, every brand.</div></div>
     <div class="ru"><div class="ru-l">Overdue</div><div class="ru-v ${overdue.length ? 'bad' : 'good'}">${overdue.length}</div><div class="ru-d">${overdue.length ? 'Past due and not ticked.' : 'Nothing slipping.'}</div></div>
   </div>`;
 
-  const seg = `<div class="se-seg" role="tablist"><button data-v="now" class="${S.view === 'now' ? 'on' : ''}">Now</button><button data-v="cal" class="${S.view === 'cal' ? 'on' : ''}">Week by week</button><button data-v="desk" class="${S.view === 'desk' ? 'on' : ''}">Desk</button></div>`;
+  const seg = `<div class="se-seg" role="tablist"><button data-v="offers" class="${S.view === 'offers' ? 'on' : ''}">The offers</button><button data-v="now" class="${S.view === 'now' ? 'on' : ''}">This week</button><button data-v="cal" class="${S.view === 'cal' ? 'on' : ''}">Week by week</button><button data-v="desk" class="${S.view === 'desk' ? 'on' : ''}">Desk</button></div>`;
 
   let body = '';
-  if (S.view === 'now') {
+  if (S.view === 'offers') {
+    const order = brands.slice().sort((x, y) => ['bad', 'warn', 'ok'].indexOf(brandState(x)[0]) - ['bad', 'warn', 'ok'].indexOf(brandState(y)[0]) || x.name.localeCompare(y.name));
+    body += `<p class="hint" style="margin:-4px 0 12px">One card per brand. The Black Friday deal is the big line; November and December beside it; the bar is the whole season with today marked. Brands with nothing written come first. Click a card to open the brand and edit.</p>`;
+    body += order.map(a => offerCard(a, today)).join('');
+    if (off.length) body += `<p class="tiny" style="margin:4px 0 0">Not running a season: ${esc(off.map(a => a.name).join(', '))}. Open the brand and switch it on if that changes.</p>`;
+  } else if (S.view === 'now') {
     const group = (rows) => { const by = {}; rows.forEach(r => (by[r.a.act_id] = by[r.a.act_id] || { a: r.a, rows: [] }).rows.push(r)); return Object.values(by).sort((x, y) => x.a.name.localeCompare(y.a.name)); };
     const list = (rows) => group(rows).map(g => `<div class="se-when">${esc(g.a.name)}</div>${g.rows.map(r => taskRow(r.t, r.a, today, false)).join('')}`).join('');
     body += `<div class="card se-key"><h3 style="margin:0 0 4px">This week</h3><p class="hint" style="margin:0 0 8px">Tick it when it is done. Overdue first. Click a brand name to open its season.</p>
       ${overdue.length ? `<div class="se-when" style="color:var(--bad)">Overdue</div>${overdue.sort((x, y) => x.t.due.localeCompare(y.t.due)).map(r => taskRow(r.t, r.a, today, true)).join('')}` : ''}
       ${thisWeek.length ? list(thisWeek.sort((x, y) => x.t.due.localeCompare(y.t.due))) : '<p class="hint" style="margin:8px 0 0">Nothing due this week.</p>'}
     </div>`;
-    body += `<div class="card"><h3 style="margin:0 0 4px">The board</h3><p class="hint" style="margin:0 0 10px">One row per brand, one column per part of the season. Click a row to open it and see the full offer.</p>
-      <div class="tbl-wrap" style="overflow-x:auto"><table class="se-board"><colgroup><col class="c-brand">${COLS.map(() => '<col>').join('')}<col class="c-need"></colgroup><thead><tr><th>Brand</th>${COLS.map(c => `<th>${c[1]}</th>`).join('')}<th>Needed</th></tr></thead><tbody>
+    body += `<div class="card"><h3 style="margin:0 0 4px">Status board</h3><p class="hint" style="margin:0 0 10px">Where each brand stands, one column per part of the season. Click a row to open it.</p>
+      <div class="tbl-wrap" style="overflow-x:auto"><table class="se-board"><colgroup><col class="c-brand"><col><col><col><col><col class="c-need"></colgroup><thead><tr><th>Brand</th><th>November</th><th>Thursday</th><th>Black Friday</th><th>December</th><th>Needed</th></tr></thead><tbody>
       ${brands.map(a => {
         const st = brandState(a); const c = counts(a, today);
-        const cell = (p) => p ? `<div class="cell">${pill(p.status)}${p.status !== 'skip' ? `<span class="o">${esc(p.offer || '')}</span><small>${esc(fmtRange(p.start, p.end))}</small>` : ''}</div>` : '<span class="tiny">none</span>';
-        const grpCell = (g) => { const ps = a.phases.filter(p => p.grp === g && p.key !== 'access' && !(g === 'bf' && p.key === 'planb')); if (!ps.length) return '<span class="tiny">none</span>'; const main = ps.find(p => p.key === 'bf') || ps[0]; return `<div class="cell">${pill(main.status)}<span class="o">${esc(main.offer || '')}</span><small>${esc(fmtRange(main.start, main.end))}${ps.length > 1 ? ` · ${ps.length - 1} more` : ''}</small></div>`; };
+        const cell = (p) => p ? `<div class="cell">${pill(p.status)}<small>${esc(fmtRange(p.start, p.end))}</small></div>` : '<span class="tiny">none</span>';
+        const grpCell = (g) => { const ps = a.phases.filter(p => p.grp === g && p.key !== 'access' && !(g === 'bf' && p.key === 'planb')); if (!ps.length) return '<span class="tiny">none</span>'; const m = ps.find(p => p.key === 'bf') || ps[0]; return `<div class="cell">${pill(m.status)}<small>${esc(fmtRange(m.start, m.end))}${ps.length > 1 ? ` · ${ps.length - 1} more` : ''}</small></div>`; };
         return `<tr class="rowlink" data-pick="${esc(a.act_id)}"><td class="bn">${esc(a.name)}<br><span class="pill ${st[0] === 'ok' ? 'good' : st[0] === 'warn' ? 'warn' : 'bad'}">${st[1]}</span></td>
           <td>${grpCell('nov')}</td><td>${cell(keyPhase(a, 'access'))}</td><td>${cell(keyPhase(a, 'bf'))}</td><td>${grpCell('dec')}</td>
-          <td><small style="display:block;color:var(--muted);font-size:12px;line-height:1.4">${c.over ? `<b style="color:var(--bad)">${c.over} overdue</b><br>` : ''}${a.goals.bf == null && a.goals.total == null ? `<b style="color:var(--warn)">no goal</b><br>` : ''}${!ladderDone(a.goals) ? `no ladder<br>` : ''}${c.week} due this week<br>${esc(a.answers.strategist || 'Ahsan')} briefs</small></td></tr>`;
-      }).join('')}</tbody></table></div>
-      ${off.length ? `<p class="tiny" style="margin:10px 0 0">Not running a season: ${esc(off.map(a => a.name).join(', '))}. Open the brand and switch it on if that changes.</p>` : ''}
-    </div>`;
+          <td><small style="display:block;color:var(--muted);font-size:12px;line-height:1.4">${c.over ? `<b style="color:var(--bad)">${c.over} overdue</b><br>` : ''}${a.goals.bf == null && a.goals.total == null ? `<b style="color:var(--warn)">no goal</b><br>` : ''}${!ladderDone(a.goals) ? `no ladder<br>` : ''}${c.week} due this week</small></td></tr>`;
+      }).join('')}</tbody></table></div></div>`;
   } else if (S.view === 'cal') {
     const wks = weeksOf(brands, today);
     body += `<div class="card"><h3 style="margin:0 0 4px">Week by week, every brand</h3><p class="hint" style="margin:0 0 12px">Each box is a week. The green one is now. Dates come from each brand's phase dates: briefs 23 days before a launch, built 9 days before, loaded 4 days before.</p>
@@ -466,10 +541,10 @@ function paintAll() {
     body += deskSection(brands, today, 'The desk: every brand, three times a day');
   }
 
-  main.innerHTML = `<div class="se">${head('Season', 'Black Friday to Valentine\'s, every brand: what the offer is, when it runs, what is due this week, and over the weekend what the ladder says. Pick a client at the top to edit a brand.')}
+  main.innerHTML = `<div class="se">${head('Season', 'What every brand is offering from Black Friday to Valentine\'s, when it runs, what is due this week, and over the weekend what the ladder says. Click a brand to edit it.')}
     ${strip}<p class="se-verdict">${esc(verdict)}</p>${seg}${body}</div>`;
-  main.querySelectorAll('.se-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paintAll(); });
-  main.querySelectorAll('tr.rowlink').forEach(tr => tr.onclick = e => { if (e.target.closest('a,button,input')) return; S.pick && S.pick(tr.dataset.pick); });
+  main.querySelectorAll('.se-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paintAll(); window.scrollTo(0, 0); });
+  main.querySelectorAll('.se-off, tr.rowlink').forEach(el => el.onclick = e => { if (e.target.closest('a,button,input')) return; S.pick && S.pick(el.dataset.pick); });
   wireTasks(main);
   if (S.view === 'desk') wireDeskSection(main, brands, today, paintAll);
   if (typeof window.pageActions === 'function') window.pageActions('');
@@ -484,7 +559,7 @@ async function renderBrand() {
   paintBrand();
 }
 const SHEET = [
-  ['goal', 'Revenue goal, in words', 'The number and where it came from. The figures themselves go in Goals above.'],
+  ['goal', 'Revenue goal, in words', 'The number and where it came from. The figures themselves go in Goals.'],
   ['last_year', 'Last year by window', 'Early BF, the weekend, December. Year one: say so.'],
   ['winning_offer', 'Offers that have worked', 'The winner gets rebranded per holiday, not replaced.'],
   ['floor', 'Discount floor', 'The deepest discount that still clears margin.'],
@@ -539,14 +614,16 @@ function paintBrand() {
     const vs = goal ? ` · ${Math.round(r.sales / goal * 100)}% of the ${moneyK(goal)} goal` : '';
     return `<div class="res"><b>${money(r.sales)}</b> revenue so far on ${money(r.spend)} spend${r.mer != null ? ` · ${x2(r.mer)}` : ''}${r.orders ? ` · ${Math.round(r.orders)} orders` : ''}${vs}<br><span class="tiny">${esc(fmtD(r.from))} to ${esc(fmtD(r.to))}, same revenue line as P&L.</span></div>`;
   };
-  const phaseCard = p => `<div class="se-ph ${p.status === 'skip' ? 'skip' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
-    <div class="t"><b>${esc(p.name)}</b>${pill(p.status)}</div>
-    <div class="d">${esc(fmtRange(p.start, p.end))}${p.who ? ` · ${esc(p.who)}` : ''}</div>
-    ${p.status === 'skip' ? '' : `<div class="o ${p.offer ? '' : 'none'}">${esc(p.offer || (p.hint || 'No offer written yet.'))}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}${resLine(p)}`}
-    <div class="f"><span class="who"></span>${p.swipe && p.status !== 'skip' ? `<button class="btn se-mini" data-swipe="${esc(p.key)}">Swipe file</button>` : ''}<button class="btn se-mini" data-edit-phase="${esc(p.key)}">Edit</button></div>
+  const live = a.phases.filter(p => p.status !== 'skip');
+  const dealRow = (p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
+    <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
+    <div><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">${pill(p.status)}${p.goal_key && g[p.goal_key] != null ? `<span class="tiny">goal ${moneyK(g[p.goal_key])}</span>` : ''}</div>
+      <div class="big ${p.offer ? '' : 'none'}">${esc(p.offer || (p.hint || 'No offer written yet.'))}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}${resLine(p)}</div>
+    <div class="act"><button class="btn primary se-mini" data-edit-phase="${esc(p.key)}">Edit</button>${p.swipe ? `<button class="btn se-mini" data-swipe="${esc(p.key)}">Swipe file</button>` : ''}</div>
   </div>`;
+  const skipped = a.phases.filter(p => p.status === 'skip');
 
-  const goalsHtml = `<div class="se-goals">${GOAL_FIELDS.slice(0, 4).map(([k, l, t]) => `<div class="se-g"><div class="l">${esc(l)}</div><div class="v ${g[k] == null ? 'none' : ''}">${g[k] == null ? 'not set' : moneyK(g[k])}</div></div>`).join('')}</div>
+  const goalsHtml = `<div class="se-goals">${GOAL_FIELDS.slice(0, 4).map(([k, l]) => `<div class="se-g"><div class="l">${esc(l)}</div><div class="v ${g[k] == null ? 'none' : ''}">${g[k] == null ? 'not set' : moneyK(g[k])}</div></div>`).join('')}</div>
     <div class="se-ladder">${[['be', 'Breakeven'], ['target', 'Target'], ['s50', 'Scale 50% at'], ['s100', 'Scale 100% at']].map(([k, l]) => `<span>${l}: <b>${g[k] == null ? 'not set' : x2(g[k])}</b></span>`).join('')}<span>Start: <b>${g.start == null ? 'not set' : money(g.start)}/day</b></span><span>Meta cap: <b>${g.cap == null ? 'not set' : money(g.cap)}/day</b></span>${g.start && g.cap ? `<span>Headroom <b>${(g.cap / g.start).toFixed(1)}x</b>${g.cap / g.start < 4 ? ' (tight: ask Meta for a higher limit)' : ''}</span>` : ''}</div>
     ${g.note ? `<p class="tiny" style="margin:8px 0 0">${esc(g.note)}</p>` : ''}`;
 
@@ -556,22 +633,25 @@ function paintBrand() {
   const wks = weeksOf([a], today).filter(w => w.items.length || w.lives.length);
   const upcoming = wks.filter(w => !w.past), past = wks.filter(w => w.past);
 
-  main.innerHTML = `<div class="se">${head(`${esc(a.name)} season`, 'The offer for every part of the season, the goal and the ladder, what still needs an answer, and what is due week by week. Edit anything in place; the client link shows offers, dates and results only.')}
+  main.innerHTML = `<div class="se">${head(`${esc(a.name)}: the season`, 'The offer for every part of the season, in order. Then the goal and ladder, what still needs an answer, the desk, and what is due week by week. Click Edit on anything.')}
     ${strip}
-    ${need.length ? `<div class="card se-key"><h3 style="margin:0 0 4px">Still needed</h3><p class="hint" style="margin:0 0 8px">Nothing below can be briefed or graded until it is answered.</p><div class="se-need">${need.map(n => `<div><span>${esc(n[0])}</span><span>${esc(n[1])}</span></div>`).join('')}</div></div>` : `<div class="card" style="border-left:4px solid var(--good)"><b>Nothing missing.</b> Every phase has an offer, the goal and ladder are set, and the dates that drive December are in.</div>`}
-    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">The offers, phase by phase</h3><div style="display:flex;gap:8px">${a.swipe_brand ? `<button class="btn se-mini" id="seBrandSwipe">This brand's swipe file</button>` : ''}<button class="btn se-mini" id="seAddPhase">+ Add a phase</button></div></div>
-      <p class="hint" style="margin:0 0 12px">When it runs, who gets it, the deal. Locked means the client said yes. Skip hides a phase this brand is not running. Once a phase is live its revenue shows on the card.</p>
-      <div class="se-phases" id="sePhases">${a.phases.map(phaseCard).join('')}</div><div id="seSwipeHost" style="margin-top:10px"></div></div>
+    <div class="card"><h3 style="margin:0 0 2px">The season at a glance</h3><p class="hint" style="margin:0 0 6px">Every phase on one bar. Faded means no offer yet. Today and Black Friday are marked.</p>${seasonBar(a, today, true)}</div>
+    <div style="margin-bottom:16px"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">The offers, in order</h3><div style="display:flex;gap:8px">${a.swipe_brand ? `<button class="btn se-mini" id="seBrandSwipe">This brand's swipe file</button>` : ''}<button class="btn se-mini" id="seAddPhase">+ Add a phase</button></div></div>
+      <div id="seSwipeHost"></div>
+      ${live.map(dealRow).join('')}
+      ${skipped.length ? `<p class="tiny" style="margin:4px 0 0">Not running: ${skipped.map(p => `${esc(p.name)} <button class="se-link se-mini" data-edit-phase="${esc(p.key)}">edit</button>`).join(' · ')}</p>` : ''}</div>
     <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Goals and the ladder</h3><button class="btn se-mini" id="seGoals">Edit</button></div>
-      <p class="hint" style="margin:0 0 12px">The revenue goals the phases are graded against, and the MER lines the desk uses over the weekend: at or above the 100% line we double, above the 50% line we add half, at target we hold, under target we pull back, under breakeven we rework. Target MER elsewhere in Locus is Settings &gt; Goals; this ladder is for the season only.</p>
+      <p class="hint" style="margin:0 0 12px">The revenue goals each phase is graded against, and the MER lines the desk uses: at or above the 100% line we double, above the 50% line we add half, at target we hold, under target we pull back, under breakeven we rework.</p>
       ${goalsHtml}</div>
+    ${need.length ? `<div class="card se-key"><h3 style="margin:0 0 4px">Still needed</h3><p class="hint" style="margin:0 0 8px">Nothing below can be briefed or graded until it is answered.</p><div class="se-need">${need.map(n => `<div><span>${esc(n[0])}</span><span>${esc(n[1])}</span></div>`).join('')}</div></div>` : `<div class="card" style="border-left:4px solid var(--good)"><b>Nothing missing.</b> Every phase has an offer, the goal and ladder are set, and the dates that drive December are in.</div>`}
     ${deskSection([a], today, 'The desk')}
-    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">What is due</h3><button class="btn se-mini" id="seAddTask">+ Add a task</button></div>
-      <p class="hint" style="margin:0 0 12px">Briefs, built, loaded and live dates follow each phase's start date. Tick when done; the tick is shared with everyone.</p>
-      <div class="se-weeks">${upcoming.map(w => weekBox(w, today, false)).join('') || '<div class="tiny">No dated phases yet. Set a start date on a phase to see its work.</div>'}</div>
-      ${past.length ? `<details style="margin-top:12px"><summary class="tiny" style="cursor:pointer">Past weeks (${past.length})</summary><div class="se-weeks" style="margin-top:10px">${past.map(w => weekBox(w, today, false)).join('')}</div></details>` : ''}</div>
-    <div class="card"><h3 style="margin:0 0 4px">Call sheet</h3><p class="hint" style="margin:0 0 12px">The answers that set the dates and the offer. Fill them on the call; leave the rest to the call.</p>
-      <div class="se-kv">${sheetRows}<div class="sep"></div>${setupRows}</div></div>
+    <details class="card se-more" ${upcoming.some(w => w.now) ? 'open' : ''}><summary><h3>What is due, week by week</h3><span class="tiny">${open.length} open</span></summary>
+      <p class="hint" style="margin:8px 0 12px">Briefs, built, loaded and live dates follow each phase's start date. Tick when done; the tick is shared with everyone. <button class="se-link" id="seAddTask">Add a task</button></p>
+      <div class="se-weeks">${upcoming.map(w => weekBox(w, today, false)).join('') || '<div class="tiny">No dated phases yet.</div>'}</div>
+      ${past.length ? `<details style="margin-top:12px"><summary class="tiny" style="cursor:pointer">Past weeks (${past.length})</summary><div class="se-weeks" style="margin-top:10px">${past.map(w => weekBox(w, today, false)).join('')}</div></details>` : ''}</details>
+    <details class="card se-more"><summary><h3>Call sheet and who does what</h3><span class="tiny">${SHEET.filter(s => a.answers[s[0]]).length} of ${SHEET.length} answered</span></summary>
+      <p class="hint" style="margin:8px 0 12px">The answers that set the dates and the offer, and who briefs, buys and emails for this brand.</p>
+      <div class="se-kv">${sheetRows}<div class="sep"></div>${setupRows}</div></details>
     <p class="tiny"><button class="se-link" id="seToggleSeason">${a.in_season ? 'This brand is not running a season this year' : 'Put this brand back on the season board'}</button></p>
   </div>`;
 
@@ -581,8 +661,8 @@ function paintBrand() {
   };
   const copy = document.getElementById('seCopy'); if (copy) copy.onclick = async () => {
     const lines = [`${a.name} BFCM 2026 (Black Friday is Fri Nov 27)`, ''];
-    a.phases.filter(p => p.status !== 'skip').forEach((p, i) => { lines.push(`${i + 1}. ${p.name} (${fmtRange(p.start, p.end)}${p.who ? `, ${p.who}` : ''}): ${p.offer || 'offer not set'}${p.status !== 'locked' ? ` [${STATUS[p.status][0].toLowerCase()}]` : ''}`); if (p.detail) lines.push(`   ${p.detail.replace(/\n+/g, ' ')}`); });
-    if (g.bf != null || g.total != null) lines.push('', `Goal: ${g.bf != null ? `BF weekend ${money(g.bf)}` : ''}${g.dec != null ? `, December ${money(g.dec)}` : ''}${g.total != null ? `, season ${money(g.total)}` : ''}`);
+    live.forEach((p, i) => { lines.push(`${i + 1}. ${p.name} (${fmtRange(p.start, p.end)}${p.who ? `, ${p.who}` : ''}): ${p.offer || 'offer not set'}${p.status !== 'locked' ? ` [${STATUS[p.status][0].toLowerCase()}]` : ''}`); if (p.detail) lines.push(`   ${p.detail.replace(/\n+/g, ' ')}`); });
+    if (g.bf != null || g.total != null) lines.push('', goalLine(g));
     if (a.answers.cutoffs) lines.push(`Shipping cutoffs: ${a.answers.cutoffs}`);
     if (a.answers.gift_cards) lines.push(`Gift cards: ${a.answers.gift_cards}`);
     try { await navigator.clipboard.writeText(lines.join('\n')); toast('Offer sheet copied'); } catch { toast('Could not copy here', true); }
@@ -674,11 +754,11 @@ async function renderShare(token, url) {
   main.innerHTML = `<div class="se se-share">
     <h2>${esc(d.account.name)}: the season, start to finish</h2>
     <p class="sub">What runs when, who gets it, and what the deal is. ${days > 0 ? `${days} days to Black Friday (Fri Nov 27).` : ''} Anything marked Draft is still being decided together. Once a phase is live, its revenue so far shows on the card.</p>
-    <div class="se-phases">${d.phases.map(p => `<div class="se-ph" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
-      <div class="t"><b>${esc(p.name)}</b>${p.status === 'locked' ? '' : pill(p.status)}</div>
-      <div class="d">${esc(fmtRange(p.start, p.end))}${p.who ? ` · ${esc(p.who)}` : ''}</div>
-      <div class="o ${p.offer ? '' : 'none'}">${esc(p.offer || 'Being decided.')}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}
-      ${p.results ? `<div class="res"><b>${money(p.results.sales)}</b> revenue so far${p.results.orders ? ` · ${Math.round(p.results.orders)} orders` : ''}<br><span class="tiny">${esc(fmtD(p.results.from))} to ${esc(fmtD(p.results.to))}</span></div>` : ''}</div>`).join('')}</div>
+    <div class="card">${seasonBar({ phases: d.phases }, d.today, true)}</div>
+    ${d.phases.map((p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};grid-template-columns:230px 1fr">
+      <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
+      <div>${p.status === 'locked' ? '' : `<div style="margin-bottom:4px">${pill(p.status)}</div>`}<div class="big ${p.offer ? '' : 'none'}">${esc(p.offer || 'Being decided.')}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}
+      ${p.results ? `<div class="res"><b>${money(p.results.sales)}</b> revenue so far${p.results.orders ? ` · ${Math.round(p.results.orders)} orders` : ''}<br><span class="tiny">${esc(fmtD(p.results.from))} to ${esc(fmtD(p.results.to))}</span></div>` : ''}</div></div>`).join('')}
     ${dates.length ? `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 8px">Dates that matter</h3><div class="se-kv" style="grid-template-columns:170px 1fr">${dates.map(([k, v]) => `<div class="k">${esc(DL[k] || k)}</div><div class="v">${esc(v)}</div>`).join('')}</div></div>` : ''}
     ${Object.keys(byDay).length ? `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 8px">What we did, check-in by check-in</h3>${Object.keys(byDay).sort().map(day => `<div class="se-when">${esc(fmtDow(day))}</div>${byDay[day].map(c => `<div class="se-slot" style="grid-template-columns:90px 1fr"><div class="s">${esc(SLOTS.find(s => s[0] === c.slot)?.[1] || c.slot)}</div><div class="did">${esc(c.action)}<small>${esc(c.by || 'Mobius')}</small></div></div>`).join('')}`).join('')}</div>` : ''}
     ${d.asks?.length ? `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 8px">What we need from you</h3>${d.asks.map(x => `<div class="se-task"><span></span><div class="n">${esc(x.name)}<small>${esc(x.phase || '')}</small></div><div class="r"><b>${esc(x.due ? fmtDow(x.due) : '')}</b></div></div>`).join('')}</div>` : ''}
