@@ -217,6 +217,12 @@ export async function handlePublic(request, env, url, path, json, CORS, isStaff 
       headers: { 'Content-Type': 'application/json', 'Cache-Control': signed ? 'private, no-store' : 'public, max-age=30', ...CORS },
     });
   }
+  // The preview frame stored beside a clip (same key, .jpg). Public like the clip itself.
+  if ((m = path.match(/^\/api\/angles-thumb\/([a-f0-9]{16})$/)) && (request.method === 'GET' || request.method === 'HEAD')) {
+    const p = await env.DB.prepare(`SELECT file_key FROM p_amb_proof WHERE id = ?1 AND kind = 'upload' AND shown = 1`).bind(m[1]).first();
+    if (!p?.file_key || !env.MEDIA) return json({ error: 'not found' }, 404);
+    return serveObject(env, request, p.file_key.replace(/\.[a-z0-9]+$/, '') + '.jpg');
+  }
   if ((m = path.match(/^\/api\/angles-file\/([a-f0-9]{16})$/)) && (request.method === 'GET' || request.method === 'HEAD')) {
     const p = await env.DB.prepare(
       `SELECT p.file_key FROM p_amb_proof p JOIN p_amb_brand b ON b.act_id = p.act_id

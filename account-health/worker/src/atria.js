@@ -303,13 +303,49 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
         await env.MEDIA.put(key, buf, { httpMetadata: { contentType: res.headers.get('content-type')?.split(';')[0] || 'video/mp4' } });
       }
       const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+      const thumb = await storePreview(env, ad, key) ? `${PROFIT_URL}/api/angles-thumb/${id}` : null;
       const who = clip(String(b.who || ad.advertiser_name || 'Another brand').trim(), 80) || 'Another brand';
       const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) + 1 n FROM p_amb_proof WHERE angle_id = ?1`).bind(angleId).first();
-      await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, url, file_key, who, note, shown, sort) VALUES (?1, ?2, ?3, 'upload', ?4, ?5, ?6, ?7, 1, ?8)`)
-        .bind(id, act, angleId, link, key, `${who} (inspiration)`, clip(String(b.note || ''), 300) || null, 100 + (mx?.n || 1)).run();
+      await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, url, file_key, who, note, thumb, shown, sort) VALUES (?1, ?2, ?3, 'upload', ?4, ?5, ?6, ?7, ?8, 1, ?9)`)
+        .bind(id, act, angleId, link, key, `${who} (inspiration)`, clip(String(b.note || ''), 300) || null, thumb, 100 + (mx?.n || 1)).run();
       await env.DB.prepare(`UPDATE p_amb_brand SET updated_at = datetime('now') WHERE act_id = ?1`).bind(act).run().catch(() => {});
       return json({ ok: true, proof_id: id, who, advertiser: ad.advertiser_name || '' });
     }
+    /* Backfill: give one stored Atria clip its preview image (first frame substitute), by proof id. */
+    if (path === '/api/atria/clip-thumb' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({}));
+      const pid = String(b.proof_id || '');
+      if (!/^[a-f0-9]{16}$/.test(pid)) return json({ error: 'proof_id is required' }, 400);
+      const p = await env.DB.prepare(`SELECT id, url, file_key, thumb FROM p_amb_proof WHERE id = ?1 AND kind = 'upload'`).bind(pid).first();
+      if (!p?.file_key || !/tryatria\.com\/ad\/([mt]\d+)/.test(p.url || '')) return json({ error: 'not an Atria clip' }, 404);
+      if (p.thumb && !b.force) return json({ ok: true, already: true });
+      const adId = p.url.match(/tryatria\.com\/ad\/([mt]\d+)/)[1];
+      const a = await atriaAd(env, adId);
+      if (!a.ok) return json({ ok: false, reason: a.reason, error: a.message || a.reason }, 502);
+      const ok = await storePreview(env, a.ad, p.file_key);
+      if (!ok) return json({ ok: false, reason: 'no_preview' });
+      await env.DB.prepare(`UPDATE p_amb_proof SET thumb = ?2 WHERE id = ?1`).bind(pid, `${PROFIT_URL}/api/angles-thumb/${pid}`).run();
+      return json({ ok: true });
+    }
   } catch (e) { return json({ error: e.message || 'Something went wrong.' }, 502); }
   return null;
+}
+
+const PROFIT_URL = 'https://mobius-profit.mobius-digital.workers.dev';
+/** The ad's preview frame, copied into R2 next to the clip (same key, .jpg). Meta's CDN links expire; ours do not. */
+async function storePreview(env, ad, clipKey) {
+  const v = (ad.videos || [])[0] || {};
+  const cands = [v.preview_image_url, v.thumbnail_url, v.thumbnail, v.poster, ad.preview_image_url, ad.thumbnail_url, (ad.images || [])[0]?.url, (ad.images || [])[0]]
+    .map(x => (typeof x === 'string' ? x : x?.url)).filter(u => /^https:\/\//.test(u || ''));
+  if (!cands.length) return false;
+  const key = clipKey.replace(/\.[a-z0-9]+$/, '') + '.jpg';
+  for (const u of cands.slice(0, 3)) {
+    const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => null);
+    if (!r?.ok || !/^image\//.test(r.headers.get('content-type') || '')) continue;
+    const buf = await r.arrayBuffer();
+    if (buf.byteLength < 500) continue;
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType: r.headers.get('content-type').split(';')[0] } });
+    return true;
+  }
+  return false;
 }
