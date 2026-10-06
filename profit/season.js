@@ -57,10 +57,14 @@ const COLS = [['nov', 'November'], ['access', 'Thursday'], ['bf', 'Black Friday'
 const SLOTS = [['8am', '8:00 AM'], ['4pm', '4:00 PM'], ['12am', 'Midnight']];
 const DESK_DAYS = ['2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30'];
 
-/* The scaling ladder, the 2025 sheet's rule in code. */
-function ladderOf(goals, mer) {
+/* The scaling ladder, the 2025 sheet's rule in code. A verdict needs real spend behind it:
+   $20 at 5am with no sales is not "turn the ads off", it is night. The floor is three hours
+   of the starting budget at half pace, never under $100. */
+function spendFloor(goals) { return Math.max(100, ((goals && goals.start) || 0) * 3 / 24 * 0.5); }
+function ladderOf(goals, mer, spent) {
   if (!goals || goals.be == null || goals.target == null) return { ok: false, text: 'Set the ladder on the brand page', cls: 'unk' };
   if (mer == null) return { ok: true, text: 'No spend yet', cls: 'unk' };
+  if (spent != null && spent < spendFloor(goals)) return { ok: false, text: `Too early to grade: ${money(spent)} spent in 3 hours (needs ${money(spendFloor(goals))})`, cls: 'unk' };
   if (goals.s100 != null && mer >= goals.s100) return { ok: true, text: 'Scale by 100%', cls: 'good', key: 'scale100' };
   if (goals.s50 != null && mer >= goals.s50) return { ok: true, text: 'Scale by 50%', cls: 'good', key: 'scale50' };
   if (mer >= goals.target) return { ok: true, text: 'Hold', cls: 'unk', key: 'hold' };
@@ -318,10 +322,11 @@ function deskDates(brands, today) {
 function deskCard(a, date, today) {
   const live = S.live[a.act_id];
   const isToday = date === today;
-  const lad = live && !live.error ? ladderOf(a.goals, live.last3?.mer) : null;
+  const lad = live && !live.error ? ladderOf(a.goals, live.last3?.mer, live.last3?.spend) : null;
+  const liveErr = e => /400|unknown|no shop|tw_shop/i.test(e) ? 'No Triple Whale store connected for this brand yet (Settings > Brands).' : e;
   const liveHtml = !isToday ? `<span>Live numbers show on today only. The log below is what was done.</span>`
     : !live ? `<span>Loading live numbers…</span>`
-    : live.error ? `<span style="color:var(--bad)">${esc(live.error)}</span>`
+    : live.error ? `<span style="color:var(--muted)">${esc(liveErr(live.error))}</span>`
     : `<span>Last 3 hours <b>${x2(live.last3?.mer)}</b> on ${money(live.last3?.spend)}</span><span>Today so far <b>${x2(live.today?.mer)}</b> · ${money(live.today?.sales)} revenue · ${money(live.today?.spend)} spend</span><span>as of ${esc(clock(live.as_of))}</span>`;
   const verdict = isToday && lad ? `<span class="pill ${lad.cls}" title="Breakeven ${a.goals.be ?? '?'} · target ${a.goals.target ?? '?'} · 50% at ${a.goals.s50 ?? '?'} · 100% at ${a.goals.s100 ?? '?'}">${esc(lad.text)}</span>` : (isToday && !ladderDone(a.goals) ? `<span class="pill unk">Set the ladder on the brand page</span>` : '');
   const slots = SLOTS.map(([key, label]) => {
@@ -339,7 +344,7 @@ function wireDesk(root, date, today) {
   root.querySelectorAll('.se-slot [data-save]').forEach(b => b.onclick = async () => {
     const row = b.closest('.se-slot'); const inp = row.querySelector('input'); const act = row.dataset.act; const slot = row.dataset.slot;
     const text = inp.value.trim(); if (!text) return toast('Write what you did first', true);
-    const a = brandOf(act); const live = S.live[act]; const lad = live && !live.error ? ladderOf(a.goals, live.last3?.mer) : null;
+    const a = brandOf(act); const live = S.live[act]; const lad = live && !live.error ? ladderOf(a.goals, live.last3?.mer, live.last3?.spend) : null;
     try {
       const r = await put('/api/season/checkin', { act, date, slot, action: text, roas: live?.last3?.mer ?? null, mer_day: live?.today?.mer ?? null, revenue: live?.today?.sales ?? null, spend: live?.today?.spend ?? null, verdict: lad?.ok ? lad.text : null });
       a.checkins = (a.checkins || []).filter(c => !(c.date === date && c.slot === slot)).concat([{ date, slot, action: text, roas: live?.last3?.mer ?? null, verdict: lad?.ok ? lad.text : null, by: r.by, at: r.at }]);
@@ -511,7 +516,9 @@ function paintBrand() {
 
   const need = [];
   for (const p of a.phases) if (p.status === 'missing' && !p.optional) need.push([`${p.name}: no offer written`, fmtRange(p.start, p.end)]);
-  for (const p of a.phases) if (p.status === 'draft') need.push([`${p.name}: lock it with ${a.answers.approver || 'the client'}`, fmtRange(p.start, p.end)]);
+  const drafts = a.phases.filter(p => p.status === 'draft');
+  if (drafts.length === 1) need.push([`${drafts[0].name}: lock it with ${a.answers.approver || 'the client'}`, fmtRange(drafts[0].start, drafts[0].end)]);
+  else if (drafts.length > 1) need.push([`${drafts.length} phases are proposals, not agreed: lock them with ${a.answers.approver || 'the client'}`, drafts.map(p => p.name).join(', ')]);
   if (g.bf == null && g.total == null) need.push(['A revenue goal for the weekend or the season', 'Goals card']);
   if (!ladderDone(g)) need.push(['The ladder: breakeven, target, scale 50 and 100 lines', 'by Nov 13']);
   if (!a.answers.cutoffs) need.push(['Shipping cutoffs from the client', 'sets December']);
