@@ -778,6 +778,13 @@ profit/
   `check()` refuses a spec with em dashes, more than 6 sections, fewer than 3 openers or shots, or an
   angle with no proof and no inspiration. `create: True` makes the brand row for a brand with no
   page (Ice & Gold). Run each SQL once; never re-run after the team edits in Locus.
+- **Seeds RUN on 2026-10-06 (do NOT re-run any of them):** `seed_amb_dartee` (6 lanes, 30 ideas),
+  `seed_amb_grunk_dolfer` (6 lanes, 29), `seed_amb_party_patch` (6 lanes, 29), `seed_amb_ice_and_gold`
+  (6 lanes, 30, brand row created, `live = 0`, no TRYBE link yet; `ice-and-gold` is in build.py SLUGS).
+  Grunk's old Masters section and Party Patch's Halloween six were folded in or dropped; the old seeds
+  (`seed_party_patch.py`, `seed_grunk_dolfer.py`, `seed_dartee.py`) are history only. D1 refuses
+  `BEGIN TRANSACTION`, so the lib emits no transaction; wrangler runs a `--file` as one batch.
+- Atria note for the team: `creator-links/rebuild-2026-10-06.md` (Atria notes, read by its agent).
 
 ## Brand: research, angles and the creative roadmap (2026-09-24)
 
