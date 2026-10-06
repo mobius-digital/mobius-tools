@@ -1614,3 +1614,19 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
   15 ads" / "15 ads built". The Asana BFCM projects for the other six brands were created from the
   Lucky one with the same counts and the same date rule (briefs -23d, built -9d, loaded -4d); GIDs
   are in the bfcm-2026 memory. Asana stays the only place production is typed; Locus derives.
+
+## 2026-10-06: real photos in Studio (the ad IS the photo), own photos as the product
+- **A line can carry a photo that IS the ad** (`brief.lines[i].photo`): the image maker keeps it exactly
+  as shot and adds only the words and whatever small change the plan asks for (`basePrompt` in
+  worker/src/studio.js, `spec.base`; sent alone with `input_fidelity: high`; no product score, the card
+  says "Real product photo"). On the batch: "Use as the ad" under a line's inspiration image, × puts it
+  back. Plan rows show the photo and the look field reads "What to add or change on the photo". This is
+  the realism lever Cole asked for: nothing is rendered, so the product and scene are real.
+- **"Add your own photos"** under Product: a shoot not on Shopify yet becomes a product ("Your photos",
+  handle `upload`), drawn from, checked against and fingerprinted like Shopify photos. Products that
+  arrive with photos and no fingerprint (pushed from Slack) are fingerprinted on open (`FP_RUNNING`).
+- **Uploads are shrunk in the browser** (`shrinkImage`, 1568px, JPEG stays JPEG, PNG/WebP -> WebP so a
+  cut-out keeps alpha) and a batch's existing images are shrunk the first time it is planned
+  (`repairRefs`): a 6000px camera photo on a line killed the whole plan on 2026-10-06.
+- Testing chip "Format" = one idea, different layouts. The brief reader and the ideas bot read "N
+  variations of this" as a format test.

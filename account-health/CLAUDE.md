@@ -940,3 +940,34 @@ kept as `meta_purchases`/`meta_revenue`, rendered nowhere. Before 2026-05-12 (no
 fields are null, never Meta's. `agg()`: a window with unsynced days returns null totals but CPA/ROAS
 over the synced days. Only the retired share link passes `{attr:false}`. The Strategist's overview
 now sees TW numbers too.
+
+## 2026-10-06: Ahsan's first live run, the reply gate, Drive, photos into Studio
+What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e and the one after):
+- **Routing words:** inspo / ideate / recreate / "make N ads" / "ads for this" are idea words. A bare
+  tag with none of them and no media still goes to the Strategist.
+- **Two names, one app.** The Strategist posts as "Strategist", the ideas bot as "Ideas" (both via
+  `username`, falling back to the app name). The team sees which brain answered.
+- **Reply gate (`replyForStrategist`, worker.js).** A plain reply in an OPEN Strategist thread is
+  answered only when it is for the Strategist: a reply that tags a person is skipped outright; else
+  Haiku 4.5 reads the last 8 messages + the new one and answers YES/NO (unsure = YES). An idea thread is
+  closed to the Strategist (`closeStrategistThread`) the moment the ideas bot takes it, and
+  `strategistThreadOpen` also refuses any thread in `idea_thread`. `file_share` replies now pass the
+  subtype filter for plain messages too (Ahsan's untagged "Approve." + screenshots was dropped).
+- **Google Drive opens** (`expandDrive`, ideas.js): a file or folder link becomes real images and
+  videos read as Cole or Ahsan through `GOOGLE_SA_KEY` (`BRIEF_READERS`, exported from asana-brand.js),
+  images via Drive's `thumbnailLink` at `=s1024`, videos via `alt=media`; labels and message tags are
+  redone so V1/I1 still match the transcript. Google Docs in a thread are read with `readDoc` and put in
+  the prompt. `UNOPENABLE` = Air, Dropbox, WeTransfer (no key we hold). Drive videos store clips like
+  Slack uploads (`clipSource` drive branch; `media_json.file.drive` keeps the reader).
+- **Images are read from Slack's `thumb_1024`** (8 max, was 4; `MAX_IMAGE_BYTES` only bites on
+  originals), and the same 1024px copy goes to Studio. Studio's planner reads header dims from R2
+  (`fitRefs`/`imageDims`) and leaves out anything over 2000px with a status line instead of failing.
+- **The model sorts every image** (`IDEA_SCHEMA.images`: inspiration / product_studio /
+  product_lifestyle / other; team words win). `pushStudio` turns product photos into the batch's
+  product ("Photos from the Slack thread", handle `thread:<id>`, fingerprinted on open), inspiration
+  goes on the lines (copy) or the swipe file, and `studio.use_photos` makes each lifestyle photo the
+  ad itself (`line.photo`). "N variations of this" = testing `format` (one layout per line), never a
+  words test, in both the ideas prompt and the Studio brief reader.
+- **Problems view** on the Strategist (idea_run failures + `app_log` Studio errors + last sync error
+  + known fixes) and a RULE to read it first when someone says something is broken. `studio-ai.js`
+  writes `app_log` on every streamed failure (`logProblem`).
