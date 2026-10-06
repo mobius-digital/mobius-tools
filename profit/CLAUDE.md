@@ -1511,6 +1511,17 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
   - **Yak Sports and Ice & Gold** got draft phases marked "Proposed by Mobius" (gift-with-purchase
     and bundles for Yak, list + tiered spend + gift sets for Ice & Gold) and call-sheet answers from
     the Oct 1 and Oct 2 calls and the catalogs. They are proposals until Cole presents them.
+- **2026-10-06 (later): THE OFFERS COME FIRST.** Cole: "I still don't even see what our offers are."
+  The all-clients page had led with tasks and hidden the deal in clamped board cells. Now the
+  default view is **The offers**: one wide `.se-off` card per brand (name + state + goal + who
+  on the left; Black Friday deal in big type, November and December beside it, a compact season
+  bar underneath), brands with nothing written first; the task list and the status board moved to
+  **This week**; Week by week and Desk unchanged. The brand page leads with the big season bar
+  (`seasonBar(a, today, true)`: greedy lanes so phases never overlap, faded = missing, TODAY and
+  BF marked) and **the offers as a numbered list** (`.se-deal`, Black Friday ringed), then goals
+  + ladder, Still needed, the desk, and the weeks and call sheet as closed `<details>`. The
+  client link uses the same bar and list. `LS_VIEW` is `se_view2` so old saved views do not
+  land people on the task list.
 - **Not built yet:** Asana project per brand from the Lucky BFCM 2026 template read back into an
   Ads plan; "Use in Studio" from a swipe board; the desk dry run (Nov 14 to 15); retiring
   2026-q4-playbook (redirect to Locus Season) after the season.
