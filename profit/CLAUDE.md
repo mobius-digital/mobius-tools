@@ -1525,3 +1525,28 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
 - **Not built yet:** Asana project per brand from the Lucky BFCM 2026 template read back into an
   Ads plan; "Use in Studio" from a swipe board; the desk dry run (Nov 14 to 15); retiring
   2026-q4-playbook (redirect to Locus Season) after the season.
+- **2026-10-06 (night): the real redesign, after "it's a long scroll, swipe files load weird, the bar
+  looks like Canva, I can't hover anything".** season.js v10+.
+  - Brand page order: strip, **the plan in one read** (`planLines()`: one numbered sentence per
+    phase, Black Friday in green, plus the `strategy_note` answer as "Why this offer, and the
+    risk", editable), **The season** (`gantt()`: one row per phase, month grid, TODAY and BLACK
+    FRIDAY markers, solid = locked / striped = draft / dashed outline = missing, the deal written
+    inside or after the bar, `data-tip` hover via one shared `.se-tip` element), then five in-page
+    tabs (`S.btab`, saved in `se_btab`): Offers (Still needed + the numbered `.se-deal` list),
+    Goals and results, Desk, To-do (week boxes, past weeks folded), Call sheet. Nothing below the
+    tabs scrolls forever any more.
+  - All clients: same segments as before; the per-brand card's bar is `miniBar()` (same hover).
+  - **Swipe file is a modal** (`panelModal` + `showSwipe`), never injected at the top of the page.
+    Cards with no preview say the advertiser instead of a grey box. Footer link opens
+    `showFormats()`: the 17 Black Friday ad formats from Cole's TikTok drop (`FORMATS`, 16 named,
+    the 17th never shows on screen), each with a no-discount reading. Also "Ad formats to steal"
+    on the brand Offers tab.
+  - Atria boards were cleaned: the 7 generic ads unsaved; real golf BF references (Stix, Macade,
+    Takomo) moved into "Black Friday weekend", STAX into "BFCM Sign Up".
+  - **Lucky's offer analysis** is seeded as the `strategy_note` answer
+    (`migrations/season-seed-003-lucky-note.sql`, INSERT OR REPLACE, do not re-run after edits):
+    2024 vs 2025 numbers, what sold, competitors, the verdict (the hat alone is the smallest BF
+    offer Lucky has run; Plan B is the real Black Friday offer), and the recommendation (bundle
+    from Friday 8am, a Cyber Monday step-up, giveaway entries as the KPI, $100k weekend goal with
+    the ladder, wedge-only markdown as the last fallback).
+  - `LS_VIEW` is now `se_view3`.

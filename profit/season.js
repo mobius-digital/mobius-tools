@@ -504,6 +504,33 @@ function wireDeskSection(root, brands, today, repaint) {
   }
 }
 
+/* ---------- formats to steal (Cole's TikTok drop, @marketingmei "Black Friday ad formats", 2026-10-05) ----------
+ * The format is the vehicle; the deal rides in it. Each line: the format, then how it reads for a
+ * brand that does not cut the price (Lucky), since that is the hard case. */
+const FORMATS = [
+  ['Offer-first banner', 'The deal is the first frame and the whole frame. "Any club, free hat. Prices never drop."'],
+  ['Notes app', 'A phone Notes screenshot: "Black Friday picks" with the three products and what comes free.'],
+  ['Google search', 'A search bar typing "is Lucky Golf doing Black Friday", the answer appears under it.'],
+  ['Meme', 'A known template with the offer as the punchline. Keep the product in the last frame.'],
+  ['Countdown clock', 'Hours left, or units left: "312 of 400 polos left".'],
+  ['Flip phone text', 'An old-phone text thread announcing the drop, deliberately low-fi.'],
+  ['Email screenshot', 'The email we sent the list, screenshotted, as the ad. Subject line does the work.'],
+  ['Strikethrough', '10% off, 20% off, 30% off struck out, then the real line: "Free hat. We never cut the club."'],
+  ['Reply to comment', 'A real comment ("are you doing Black Friday?") pinned on screen, the founder answers it.'],
+  ['Tweet', 'A tweet card with the offer in one sentence and the product photo under it.'],
+  ['Apology note', '"We are sorry": the finance team is not happy about the free polos. Ends Monday.'],
+  ['Value stack', 'Everything in the box listed with its value, the total, then what you pay.'],
+  ['"Do not buy this"', '"Do not buy this at full price" turned: "Do not buy this without the free hat."'],
+  ['Sticky notes on product', 'A handwritten sticky note with the deal stuck to the wedge or the box.'],
+  ['Reddit post', 'A PSA-style post, upvotes and all: "PSA: the free hat deal is live".'],
+  ['Fake text thread', 'An iMessage thread between two friends about the deal, the link shared at the end.'],
+  ['Number 17', 'Mei says a seventeenth on camera but it never shows on screen. Watch the video for it: tiktok.com/t/ZPLLoKHUB'],
+];
+function showFormats() {
+  panelModal('Black Friday ad formats worth stealing', `<p class="hint" style="margin:0 0 12px">From the TikTok Cole dropped in #bfcm-2026 (Mei, "Black Friday ad formats, rapid fire edition"). Each one with how it reads for a brand that never cuts the price. Brief any of these in Asana; make the static version in Studio.</p>
+    <ol style="margin:0;padding-left:22px;columns:2;column-gap:28px;font-size:13.5px;line-height:1.45">${FORMATS.map(([n, h]) => `<li style="break-inside:avoid;margin-bottom:8px"><b>${esc(n)}.</b> ${esc(h)}</li>`).join('')}</ol>`);
+}
+
 /* ---------- swipe file (Atria boards), in a modal ---------- */
 async function showSwipe(board, title) {
   const body = panelModal(title, `<p class="hint" style="margin:0">Loading from Atria…</p>`);
@@ -513,6 +540,8 @@ async function showSwipe(board, title) {
     const ads = r.ads || [];
     body.innerHTML = `<p class="hint" style="margin:0 0 12px">${ads.length} ad${ads.length === 1 ? '' : 's'} saved in Atria under <b>${esc(board.name)}</b>. Save more into that board in Atria and they show here. Click one to open it in Atria.</p>
       ${ads.length ? `<div class="se-ads">${ads.map(a => `<a class="se-ad" href="${esc(a.url)}" target="_blank" rel="noopener">${a.img ? `<img src="${esc(a.img)}" alt="" referrerpolicy="no-referrer">` : `<div style="aspect-ratio:4/5;display:grid;place-items:center;padding:12px;text-align:center;font:600 13px/1.3 var(--sans,system-ui);color:var(--se-muted)">${esc(a.advertiser || 'Open in Atria')}<br><span style="font-weight:400;font-size:11px">${a.format === 'video' ? 'video, no still' : 'no preview'}</span></div>`}<div class="c"><b>${esc(a.advertiser || '')}</b>${esc((a.title || a.body || '').slice(0, 70))}${a.format === 'video' ? ' · video' : ''}</div></a>`).join('')}</div>` : '<p class="hint" style="margin:0">Nothing saved to this board yet.</p>'}`;
+    body.insertAdjacentHTML('beforeend', `<p class="tiny" style="margin:14px 0 0">Need a format, not a reference? <button class="se-link" data-formats="1">The 17 Black Friday ad formats</button></p>`);
+    body.querySelector('[data-formats]').onclick = showFormats;
   } catch (e) { body.innerHTML = `<p class="hint" style="margin:0;color:var(--bad)">${esc(e.message)}</p>`; }
 }
 
@@ -708,7 +737,7 @@ function paintBrand() {
     const live = a.phases.filter(p => p.status !== 'skip');
     const skipped = a.phases.filter(p => p.status === 'skip');
     body += need.length ? `<div class="card" style="border-left:4px solid var(--warn)"><h3 style="margin:0 0 6px">Still needed</h3><div class="se-need">${need.map(n => `<div><span>${esc(n[0])}</span><span>${esc(n[1])}</span></div>`).join('')}</div></div>` : `<div class="card" style="border-left:4px solid var(--good)"><b>Nothing missing.</b> Every phase has an offer, the goal and ladder are set, and the dates that drive December are in.</div>`;
-    body += `<div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Each offer, in order</h3><div style="display:flex;gap:8px">${a.swipe_brand ? `<button class="btn se-mini" id="seBrandSwipe">This brand's swipe file</button>` : ''}<button class="btn se-mini" id="seAddPhase">+ Add a phase</button></div></div>`;
+    body += `<div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Each offer, in order</h3><div style="display:flex;gap:8px"><button class="btn se-mini" id="seFormats">Ad formats to steal</button>${a.swipe_brand ? `<button class="btn se-mini" id="seBrandSwipe">This brand's swipe file</button>` : ''}<button class="btn se-mini" id="seAddPhase">+ Add a phase</button></div></div>`;
     body += live.map((p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
       <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
       <div><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">${pill(p.status)}${p.goal_key && g[p.goal_key] != null ? `<span class="tiny">goal ${moneyK(g[p.goal_key])}</span>` : ''}</div>
@@ -763,6 +792,7 @@ function paintBrand() {
   main.querySelectorAll('[data-edit-phase]').forEach(b => b.onclick = () => editPhase(a, b.dataset.editPhase));
   main.querySelectorAll('[data-swipe]').forEach(b => b.onclick = () => { const p = a.phases.find(x => x.key === b.dataset.swipe); if (p?.swipe) showSwipe(p.swipe, `Swipe file: ${p.name}`); });
   const bs = document.getElementById('seBrandSwipe'); if (bs) bs.onclick = () => showSwipe(a.swipe_brand, `${a.name}'s own swipe file`);
+  const fm = document.getElementById('seFormats'); if (fm) fm.onclick = showFormats;
   const ap = document.getElementById('seAddPhase'); if (ap) ap.onclick = () => editPhase(a, null);
   const at = document.getElementById('seAddTask'); if (at) at.onclick = () => editTask(a.act_id, null);
   const eg = document.getElementById('seGoals'); if (eg) eg.onclick = () => editGoals(a);
