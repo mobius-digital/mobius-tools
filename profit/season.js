@@ -47,7 +47,9 @@ const daysBetween = (a, b) => Math.round((toD(b) - toD(a)) / 86400000);
 const GRP = { nov: ['November', 'var(--se-nov)'], bf: ['Black Friday', 'var(--se-bf)'], dec: ['December', 'var(--se-dec)'], late: ['After Christmas', 'var(--se-late)'], vday: ['Valentine\'s', 'var(--se-vday)'] };
 const STATUS = { locked: ['Locked', 'good'], draft: ['Draft', 'warn'], missing: ['Missing', 'bad'], skip: ['Skipped', 'unk'] };
 const pill = st => { const s = STATUS[st] || STATUS.missing; return `<span class="pill ${s[1]}">${s[0]}</span>`; };
-const COLS = [['nov', 'Early BF'], ['access', 'Thursday'], ['bf', 'Black Friday'], ['dec', 'December'], ['late', 'After']];
+/* Four columns, not six: the board must fit 1280 wide without a sideways scroll.
+   Boxing Day, New Year and Valentine's are on the brand page. */
+const COLS = [['nov', 'November'], ['access', 'Thursday'], ['bf', 'Black Friday'], ['dec', 'December']];
 
 /* ---------- css ---------- */
 function injectCss() {
@@ -76,7 +78,8 @@ function injectCss() {
   .se-brand.link{cursor:pointer}
   .se-when{font:600 11px var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#667);margin:14px 0 4px}
   .se-when:first-child{margin-top:0}
-  .se-board{width:100%;border-collapse:collapse;font-size:13.5px}
+  .se-board{width:100%;border-collapse:collapse;font-size:13.5px;table-layout:fixed}
+  .se-board col.c-brand{width:150px}.se-board col.c-need{width:128px}
   .se-board th{text-align:left;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#667);padding:6px 10px;border-bottom:1px solid var(--line,#e5e5e5);white-space:nowrap}
   .se-board td{padding:10px;border-bottom:1px solid var(--line,#e5e5e5);vertical-align:top}
   .se-board tr:last-child td{border-bottom:0}
@@ -84,7 +87,8 @@ function injectCss() {
   .se-board tr.rowlink:hover td{background:var(--wash,#f4f6f8)}
   .se-board .bn{font-weight:700;white-space:nowrap}
   .se-board .cell small{display:block;color:var(--muted,#667);font-size:11.5px;margin-top:3px;line-height:1.3}
-  .se-board .cell .o{display:block;font-size:12.5px;margin-top:3px;line-height:1.35;max-width:260px}
+  .se-board .cell .o{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;margin-top:3px;line-height:1.35}
+  .se-board .bn{white-space:normal}
   .se-weeks{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
   .se-wk{border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:10px 12px;background:var(--surface,#fff);min-width:0}
   .se-wk.now{border-color:var(--good,#1E7A45);box-shadow:0 0 0 3px rgba(30,122,69,.14)}
@@ -306,13 +310,13 @@ function paintAll() {
       ${thisWeek.length ? list(thisWeek.sort((x, y) => x.t.due.localeCompare(y.t.due))) : '<p class="hint" style="margin:8px 0 0">Nothing due this week.</p>'}
     </div>`;
     body += `<div class="card"><h3 style="margin:0 0 4px">The board</h3><p class="hint" style="margin:0 0 10px">One row per brand, one column per part of the season. Click a row to open it.</p>
-      <div class="tbl-wrap" style="overflow-x:auto"><table class="se-board"><thead><tr><th>Brand</th>${COLS.map(c => `<th>${c[1]}</th>`).join('')}<th>Needed</th></tr></thead><tbody>
+      <div class="tbl-wrap" style="overflow-x:auto"><table class="se-board"><colgroup><col class="c-brand">${COLS.map(() => '<col>').join('')}<col class="c-need"></colgroup><thead><tr><th>Brand</th>${COLS.map(c => `<th>${c[1]}</th>`).join('')}<th>Needed</th></tr></thead><tbody>
       ${brands.map(a => {
         const st = brandState(a); const c = counts(a, today);
         const cell = (p) => p ? `<div class="cell">${pill(p.status)}${p.status !== 'skip' ? `<span class="o">${esc(p.offer || '')}</span><small>${esc(fmtRange(p.start, p.end))}</small>` : ''}</div>` : '<span class="tiny">none</span>';
         const grpCell = (g) => { const ps = a.phases.filter(p => p.grp === g && p.key !== 'access' && !(g === 'bf' && p.key === 'planb')); if (!ps.length) return '<span class="tiny">none</span>'; const main = ps.find(p => p.key === 'bf') || ps[0]; return `<div class="cell">${pill(main.status)}<span class="o">${esc(main.offer || '')}</span><small>${esc(fmtRange(main.start, main.end))}${ps.length > 1 ? ` · ${ps.length - 1} more` : ''}</small></div>`; };
         return `<tr class="rowlink" data-pick="${esc(a.act_id)}"><td class="bn">${esc(a.name)}<br><span class="pill ${st[0] === 'ok' ? 'good' : st[0] === 'warn' ? 'warn' : 'bad'}">${st[1]}</span></td>
-          <td>${grpCell('nov')}</td><td>${cell(keyPhase(a, 'access'))}</td><td>${cell(keyPhase(a, 'bf'))}</td><td>${grpCell('dec')}</td><td>${grpCell('late')}</td>
+          <td>${grpCell('nov')}</td><td>${cell(keyPhase(a, 'access'))}</td><td>${cell(keyPhase(a, 'bf'))}</td><td>${grpCell('dec')}</td>
           <td><small style="display:block;color:var(--muted);font-size:12px;line-height:1.4">${c.over ? `<b style="color:var(--bad)">${c.over} overdue</b><br>` : ''}${c.week} due this week<br>${esc(a.answers.strategist || 'Ahsan')} briefs</small></td></tr>`;
       }).join('')}</tbody></table></div>
       ${off.length ? `<p class="tiny" style="margin:10px 0 0">Not running a season: ${esc(off.map(a => a.name).join(', '))}. Open the brand and switch it on if that changes.</p>` : ''}
