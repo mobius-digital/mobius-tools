@@ -299,14 +299,18 @@ const TABS = [['ideas', 'Ideas'], ['watch', 'Watch examples'], ['rules', 'Before
 function proofTile(p, a, small) {
   const inspo = p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
   const out = p.kind === 'post' || p.kind === 'typed' || p.kind === 'inspo';
-  const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}" data-cover="${esc(p.ad_id)}"` : p.kind === 'upload' ? `data-play-file="${esc(p.file)}"` : '';
-  const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : '';
+  /* The cover goes INSIDE the well (data-cover on the well, never on the tile), or loadCovers drops the
+     image above the box and the tile stretches. A stored clip shows its own first frame as the preview. */
+  const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}"` : p.kind === 'upload' ? `data-play-file="${esc(p.file)}"` : '';
+  const wellAttrs = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
+  const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
+    : p.kind === 'upload' ? `<video class="pv" src="${esc(API + p.file)}#t=0.5" preload="metadata" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
   const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? (String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, 'Another brand') || 'Another brand') : p.kind === 'upload' ? 'Clip' : 'Creator post';
   const cls = small ? 'pthumb' : 'wtile';
   const cap = small ? '' : `<span class="wcap"><span class="tag ${p.kind === 'meta' ? 'tag-green' : 'tag-chip'}">${esc(lbl)}</span>${a ? `<a class="wname" href="#a=${esc(a.id)}">${esc(a.title)}</a>` : ''}</span>`;
   return out
     ? `<a class="${cls}" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(lbl)}"><span class="well">${img}<span class="pbtn sm">${ic('external-link', 14)}</span></span>${cap}</a>`
-    : `<button class="${cls}" ${attrs} title="${esc(lbl)}"><span class="well">${img}<span class="pbtn sm">${ic('play', 14)}</span></span>${cap}</button>`;
+    : `<button class="${cls}" ${attrs} title="${esc(lbl)}"><span class="well" ${wellAttrs}>${img}<span class="pbtn sm">${ic('play', 14)}</span></span>${cap}</button>`;
 }
 const isTheirs = p => p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
 /* Watch first, in two groups: videos that ran for the brand, then other brands' videos we pulled in. */
