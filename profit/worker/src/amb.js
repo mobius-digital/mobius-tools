@@ -69,6 +69,8 @@ function shapeAngle(a) {
     title: a.title, argument: a.argument, who: a.who, products: a.products, format: a.format, lever: a.lever,
     openers: safeJson(a.openers_json, []), shots: safeJson(a.shots_json, []), on_screen: a.on_screen,
     do_text: a.do_text, dont_text: a.dont_text, trend: a.trend, updated_at: a.updated_at,
+    // 2026-10-06: how to hold attention, and what to steal when we have no proof of our own.
+    visual_hook: a.visual_hook, rehook: a.rehook, why: a.why, inspo: safeJson(a.inspo_json, []),
   };
 }
 function shapeBrand(b, acct) {
@@ -80,6 +82,7 @@ function shapeBrand(b, acct) {
     avoid: safeJson(b.avoid_json, []), rules: safeJson(b.rules_json, []), season: safeJson(b.season_json, null),
     show_inspo: !!b.show_inspo, updated_at: b.updated_at,
     pdf: safeJson(b.pdf_json, null),
+    guide: safeJson(b.guide_json, []),          // "How to keep them watching", [{title, text}]
   };
 }
 
@@ -322,7 +325,7 @@ export async function handleStaff(request, env, url, path, json) {
       await env.DB.prepare(
         `UPDATE p_amb_brand SET slug=?2, live=?3, display_name=?4, intro=?5, about=?6, audience=?7, accent=?8, logo_url=?9,
            submit_platform=?10, submit_url=?11, submit_label=?12, avoid_json=?13, rules_json=?14, season_json=?15,
-           show_inspo=?16, pdf_json=?17, updated_at=datetime('now') WHERE act_id=?1`,
+           show_inspo=?16, pdf_json=?17, guide_json=?18, updated_at=datetime('now') WHERE act_id=?1`,
       ).bind(acct.act_id, slug,
         has('live') ? (body.live ? 1 : 0) : cur.live,
         v('display_name', 80, cur.display_name), v('intro', 1200, cur.intro), v('about', 800, cur.about),
@@ -346,6 +349,7 @@ export async function handleStaff(request, env, url, path, json) {
           line1: clip(body.pdf.line1, 60), line2: clip(body.pdf.line2, 60), intro: clip(body.pdf.intro, 400),
           cta: clip(body.pdf.cta, 60), note: clip(body.pdf.note, 120), steps: arr(body.pdf.steps, 3, 80),
         }) : null) : cur.pdf_json,
+        has('guide') ? JSON.stringify((Array.isArray(body.guide) ? body.guide : []).map(x => ({ title: clip(x.title, 120), text: clip(x.text, 500) })).filter(x => x.title || x.text).slice(0, 14)) : cur.guide_json,
       ).run();
       return json(await staffPayload(env, acct));
     }
@@ -407,10 +411,12 @@ export async function handleStaff(request, env, url, path, json) {
         if (!s) return json({ error: 'unknown section' }, 400);
       }
       const shots = (Array.isArray(body.shots) ? body.shots : []).map(s => ({ label: clip(s.label, 40), text: clip(s.text, 400) })).filter(s => s.text).slice(0, 6);
+      const inspo = (Array.isArray(body.inspo) ? body.inspo : []).map(x => ({ brand: clip(x.brand, 80), what: clip(x.what, 300), url: /^https:\/\/\S+$/i.test(x.url || '') ? clip(x.url, 500) : null })).filter(x => x.brand || x.what).slice(0, 6);
       const vals = [clip(body.section_id, 40), body.hot ? 1 : 0, body.status === 'draft' ? 'draft' : 'live', clip(body.title, 120),
         clip(body.argument, 300), clip(body.who, 400), clip(body.products, 160), clip(body.format, 60), clip(body.lever, 60),
         JSON.stringify(arr(body.openers, 8, 200)), JSON.stringify(shots), clip(body.on_screen, 200),
-        clip(body.do_text, 400), clip(body.dont_text, 400), clip(body.trend, 300)];
+        clip(body.do_text, 400), clip(body.dont_text, 400), clip(body.trend, 300),
+        clip(body.visual_hook, 400), clip(body.rehook, 400), clip(body.why, 400), JSON.stringify(inspo)];
       let id = body.id;
       if (id) {
         const cur = await env.DB.prepare(`SELECT id, hot FROM p_amb_angle WHERE id = ?1 AND act_id = ?2`).bind(id, acct.act_id).first();
@@ -420,15 +426,16 @@ export async function handleStaff(request, env, url, path, json) {
         await env.DB.prepare(
           `UPDATE p_amb_angle SET section_id=?3, hot=?4, status=?5, title=?6, argument=?7, who=?8, products=?9, format=?10, lever=?11,
              openers_json=?12, shots_json=?13, on_screen=?14, do_text=?15, dont_text=?16, trend=?17,
-             hot_sort=COALESCE(?18, hot_sort), updated_at=datetime('now') WHERE id=?1 AND act_id=?2`,
+             visual_hook=?18, rehook=?19, why=?20, inspo_json=?21,
+             hot_sort=COALESCE(?22, hot_sort), updated_at=datetime('now') WHERE id=?1 AND act_id=?2`,
         ).bind(id, acct.act_id, ...vals, hotSort).run();
       } else {
         id = rid();
         const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort),0)+1 n, (SELECT COALESCE(MAX(hot_sort),0)+1 FROM p_amb_angle WHERE act_id = ?1 AND hot = 1) h FROM p_amb_angle WHERE act_id = ?1`).bind(acct.act_id).first();
         await env.DB.prepare(
           `INSERT INTO p_amb_angle (id, act_id, section_id, hot, status, title, argument, who, products, format, lever,
-             openers_json, shots_json, on_screen, do_text, dont_text, trend, sort, hot_sort)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)`,
+             openers_json, shots_json, on_screen, do_text, dont_text, trend, visual_hook, rehook, why, inspo_json, sort, hot_sort)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23)`,
         ).bind(id, acct.act_id, ...vals, mx?.n || 1, mx?.h || 1).run();
       }
       const out = await staffPayload(env, acct);

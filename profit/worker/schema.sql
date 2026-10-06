@@ -216,6 +216,12 @@ CREATE INDEX IF NOT EXISTS p_amb_proof_angle ON p_amb_proof (angle_id, sort);
 CREATE INDEX IF NOT EXISTS p_amb_proof_ad ON p_amb_proof (ad_id);
 -- Ambassadors: editable text for the one-page brief PDF, per brand (2026-09-16).
 ALTER TABLE p_amb_brand ADD COLUMN pdf_json TEXT;
+-- amb-003 (2026-10-06): attention coaching per angle, guide per brand.
+ALTER TABLE p_amb_angle ADD COLUMN visual_hook TEXT;
+ALTER TABLE p_amb_angle ADD COLUMN rehook TEXT;
+ALTER TABLE p_amb_angle ADD COLUMN why TEXT;
+ALTER TABLE p_amb_angle ADD COLUMN inspo_json TEXT;
+ALTER TABLE p_amb_brand ADD COLUMN guide_json TEXT;
 -- Studio (2026-09-26): AI makes the whole ad, people approve or fix only what they want.
 -- One row per ad. Images live in R2 (binding MEDIA) under studio/<act>/<id>/<kind>.png.
 CREATE TABLE IF NOT EXISTS p_studio_ad (

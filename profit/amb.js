@@ -160,6 +160,7 @@ function injectCss() {
 .am-list-edit{display:flex;flex-direction:column;gap:8px}
 .am-list-edit .am-li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px;align-items:start}
 .am-list-edit .am-li.one{grid-template-columns:minmax(0,1fr) auto}
+.am-list-edit .am-li.three{grid-template-columns:minmax(0,.7fr) minmax(0,1.6fr) minmax(0,1fr) auto}
 .am-bars{display:flex;align-items:flex-end;gap:3px;height:110px}
 .am-bars div{flex:1;border-radius:3px 3px 0 0;background:#CBD5DE;min-height:3px}
 .am-bars div.hi{background:var(--brand-lo)}
@@ -591,6 +592,14 @@ function paintEditor(body) {
       <label class="am-f">Trend or sound to ride <small>optional</small><input class="am-in" id="eTrend" value="${esc(a.trend || '')}" placeholder="Any trending split-screen or transition sound"></label>
     </div>
     <div class="am-g2">
+      <label class="am-f">The first second <small>what is physically happening on screen before anyone talks. Creators see this on the card and in Film this one.</small><textarea class="am-in" id="eVis" style="min-height:60px" placeholder="Dump the whole bundle onto the kitchen counter, then look up at the camera.">${esc(a.visual_hook || '')}</textarea></label>
+      <label class="am-f">Keep them past 3 seconds <small>the thing that happens at 3 to 8 seconds so they do not scroll: a reveal, a second question, a cut to a new place, a count that changes</small><textarea class="am-in" id="eRe" style="min-height:60px" placeholder="At 3 seconds cut to the clock on the wall, then back to you with the patch half on.">${esc(a.rehook || '')}</textarea></label>
+    </div>
+    <label class="am-f">Why it works <small>one sentence creators see: the proven shape this is built on</small><input class="am-in" id="eWhy" value="${esc(a.why || '')}" placeholder="Price shock then reveal is the best-selling creator shape in this account."></label>
+    <div class="am-f">Steal the shape from these <small>other brands' videos that do this well. Shown on the idea page as Inspiration. Brand, what to steal, and a link if you have one.</small>
+      <div class="am-list-edit" id="eInspo">${(a.inspo || []).map(inspoRow).join('')}</div>
+      <div><button class="btn" id="eInspoAdd" type="button">${ic('plus', 13)} Add one</button></div></div>
+    <div class="am-g2">
       <label class="am-f" style="color:var(--good)">Do<textarea class="am-in" id="eDo" style="min-height:60px">${esc(a.do_text || '')}</textarea></label>
       <label class="am-f" style="color:var(--bad)">Don't<textarea class="am-in" id="eDont" style="min-height:60px">${esc(a.dont_text || '')}</textarea></label>
     </div>
@@ -599,6 +608,8 @@ function paintEditor(body) {
   <div class="am-save"><span class="am-msg" id="eMsg"></span><button class="btn" id="eCancel">Cancel</button><button class="btn primary" id="eSave">${isNew ? 'Save angle' : 'Save changes'}</button></div>`;
 
   $('#amBack').onclick = $('#eCancel').onclick = () => { S.edit = null; paint(); };
+  $('#eInspoAdd').onclick = () => { $('#eInspo').insertAdjacentHTML('beforeend', inspoRow({})); autoGrow($('#eInspo')); };
+  body.addEventListener('click', e => { const r = e.target.closest('#eInspo [data-rm]'); if (r) r.closest('.am-li').remove(); });
   $('#eAddShot').onclick = () => {
     const host = $('#eShots'); const i = host.children.length;
     if (i >= 6) return;
@@ -614,6 +625,8 @@ function paintEditor(body) {
       who: $('#eWho').value.trim(), openers: $('#eOpen').value.split('\n').map(s => s.trim()).filter(Boolean),
       shots: shotsOut, on_screen: $('#eOver').value.trim(), trend: $('#eTrend').value.trim(),
       do_text: $('#eDo').value.trim(), dont_text: $('#eDont').value.trim(),
+      visual_hook: $('#eVis').value.trim(), rehook: $('#eRe').value.trim(), why: $('#eWhy').value.trim(),
+      inspo: [...body.querySelectorAll('#eInspo .am-li')].map(li => ({ brand: li.querySelector('[data-ib]').value.trim(), what: li.querySelector('[data-iw]').value.trim(), url: li.querySelector('[data-iu]').value.trim() })).filter(x => x.brand || x.what),
     };
     try {
       const r = await post('/api/amb/angle', payload);
@@ -860,6 +873,12 @@ function paintLink(body) {
       </div>
 
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+        <div><h3>How to keep them watching</h3><p class="hint" style="margin:0">A numbered card on the link, under What's working. Short rules on holding attention: the first second, the 3-second rehook, the close. One rule per row: a bold title and one line of plain explanation. Empty rows are skipped; no rows hides the card.</p></div>
+        <div class="am-list-edit" id="lGuide">${(b.guide?.length ? b.guide : [{ title: '', text: '' }]).map(x => guideRow(x)).join('')}</div>
+        <div><button class="btn" id="lGuideAdd" type="button">${ic('plus', 13)} Add a rule</button></div>
+      </div>
+
+      <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <div><h3 style="color:var(--bad)">Please stop filming these</h3><p class="hint" style="margin:0">A red card near the top of the link. Name the video everyone keeps sending, and say why.</p></div>
         <div class="am-list-edit" id="lAvoid">${avoid.map(x => avoidRow(x)).join('')}</div>
         <div><button class="btn" id="lAvoidAdd" type="button">${ic('plus', 13)} Add one</button></div>
@@ -883,6 +902,7 @@ function paintLink(body) {
   $('#lAcc').oninput = e => { accent = e.target.value.toUpperCase(); syncSw(); };
   $('#lAvoidAdd').onclick = () => { $('#lAvoid').insertAdjacentHTML('beforeend', avoidRow({})); autoGrow($('#lAvoid')); };
   $('#lRuleAdd').onclick = () => { $('#lRules').insertAdjacentHTML('beforeend', ruleRow('')); autoGrow($('#lRules')); };
+  $('#lGuideAdd').onclick = () => { $('#lGuide').insertAdjacentHTML('beforeend', guideRow({})); autoGrow($('#lGuide')); };
   body.addEventListener('click', e => { const r = e.target.closest('[data-rm]'); if (r) r.closest('.am-li').remove(); });
   $('#lTxt').onclick = async e => {
     const btn = e.currentTarget;
@@ -1025,6 +1045,7 @@ function paintLink(body) {
       submit_platform: $('#lPlat').value.trim() || 'TRYBE', submit_url: $('#lSubmit').value.trim(), submit_label: $('#lBtn').value.trim(),
       logo_url: $('#lLogo').value.trim(), accent, intro: $('#lIntro').value.trim(), about: $('#lAbout').value.trim(), audience: $('#lAud').value.trim(),
       avoid: avoidOut, rules: rulesOut, show_inspo: $('#lInspo').checked,
+      guide: [...body.querySelectorAll('#lGuide .am-li')].map(li => ({ title: li.querySelector('[data-gt]').value.trim(), text: li.querySelector('[data-gx]').value.trim() })).filter(x => x.title || x.text),
       pdf: {
         line1: $('#pL1').value.trim(), line2: $('#pL2').value.trim(), intro: $('#pIntro').value.trim(),
         cta: $('#pCta').value.trim(), note: $('#pNote').value.trim(),
@@ -1038,6 +1059,8 @@ function paintLink(body) {
   };
 }
 const avoidRow = x => `<div class="am-li"><textarea class="am-in grow" rows="1" data-at placeholder="What to stop filming">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-aw placeholder="Why, in one line">${esc(x.why || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
+const guideRow = x => `<div class="am-li"><textarea class="am-in grow" rows="1" data-gt placeholder="Rule, e.g. Do something with your hands in the first second">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-gx placeholder="One line of why, with an example">${esc(x.text || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
+const inspoRow = x => `<div class="am-li three"><textarea class="am-in grow" rows="1" data-ib placeholder="Brand">${esc(x.brand || '')}</textarea><textarea class="am-in grow" rows="1" data-iw placeholder="What to steal, in one line">${esc(x.what || '')}</textarea><textarea class="am-in grow" rows="1" data-iu placeholder="https:// link, optional">${esc(x.url || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
 const ruleRow = x => `<div class="am-li one"><textarea class="am-in grow" rows="1" data-r placeholder="e.g. Say 'for a better next day', never 'cures hangovers'">${esc(x || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
 
 /* ---------- PDF + QR ---------- */

@@ -286,9 +286,28 @@ function aboutCard() {
 }
 
 /* ---------- list ---------- */
+/* Proof thumbnails on a card. A creator should SEE that an idea has real videos
+   behind it before opening it, so up to three play on the card itself. */
+function proofStrip(a) {
+  const pr = (a.proof || []).slice(0, 3);
+  if (!pr.length) return '';
+  const tile = p => {
+    const inspo = p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
+    const out = p.kind === 'post' || p.kind === 'typed' || p.kind === 'inspo';
+    const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}" data-cover="${esc(p.ad_id)}"` : p.kind === 'upload' ? `data-play-file="${esc(p.file)}"` : '';
+    const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : '';
+    const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? 'Inspiration' : p.kind === 'upload' ? 'Clip' : 'Post';
+    return out
+      ? `<a class="pthumb" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(lbl)}">${img}<span class="pbtn sm">${ic('external-link', 13)}</span></a>`
+      : `<button class="pthumb" ${attrs} title="${esc(lbl)}">${img}<span class="pbtn sm">${ic('play', 13)}</span></button>`;
+  };
+  const more = (a.proof || []).length - pr.length;
+  return `<div class="pstrip">${pr.map(tile).join('')}${more > 0 ? `<a class="pmore" href="#a=${esc(a.id)}">+${more}</a>` : ''}</div>`;
+}
+
 function card(a, lane) {
   /* The colour chip is ALWAYS the angle's own group, never the lane it is being
-     shown in: inside Hot right now the lane header already says Hot, so
+     shown in: inside What's working the lane header already says so, so
      repeating it there costs a chip and tells the creator nothing. */
   const own = sectionOf(a) || (lane && !lane.pinned ? lane : null);
   const p = shortProd(a.products);
@@ -299,16 +318,18 @@ function card(a, lane) {
       ? `<span class="tag tag-chip" title="${esc(a.products)}">${esc(p)}</span>` : '',
   ].filter(Boolean).join('');
   const n = a.proof.length;
+  // Cole, 2026-10-02: never announce that nobody has filmed an angle yet (any brand). No examples = say nothing.
   const score = [
-    // Cole, 2026-10-02: never announce that nobody has filmed an angle yet (any brand). No examples = say nothing.
     n ? `<span><b>${n}</b> example${n === 1 ? '' : 's'}</span>` : '',
     a.ads ? `<span><b>${a.ads}</b> ran as ads</span>` : '',
   ].join('');
   return `<article class="card ang" data-open="${esc(a.id)}">
     <div class="ang-top">${chips}</div>
     <a class="disp ang-title" href="#a=${esc(a.id)}">${esc(a.title)}</a>
+    ${a.visual_hook ? `<p class="ang-vh">${ic('video', 13)}<span>${esc(a.visual_hook)}</span></p>` : ''}
     ${a.openers?.[0] ? `<p class="hook">&ldquo;${esc(a.openers[0])}&rdquo;</p>` : ''}
     ${a.argument ? `<p class="ang-line">${esc(a.argument)}</p>` : ''}
+    ${proofStrip(a)}
     <div class="score">${score}</div>
     <div class="ang-foot"><a class="open" href="#a=${esc(a.id)}">Open</a>${filmBtn(a, 'btn-line btn-sm')}</div>
   </article>`;
@@ -317,26 +338,97 @@ function card(a, lane) {
 function lane(s) {
   const list = s.angles.filter(a => F.fmt === 'all' || a.format === F.fmt);
   if (!list.length) return '';
-  const cut = isPhone() ? 3 : 6;
+  // What's working shows every one of its (few) ideas; the others fold after a row or two.
+  const cut = s.pinned ? 99 : isPhone() ? 3 : 6;
   const extra = list.length > cut ? list.length - cut : 0;
+  const name = s.pinned ? "What's working right now" : s.name;
+  const line = s.pinned ? (s.line || 'The ideas we want most this week. Start here if you are not sure.') : s.line;
   return `<section class="lane ${s.pinned ? 'lane-hot' : ''}" id="s-${esc(s.id)}" style="${toneVars(s.color)}">
     <div class="lane-h">
-      <div class="lane-t"><span class="badge">${svgI(s.icon_svg, 16)}</span><h2 class="disp">${esc(s.name)}</h2><span class="num">${list.length}</span></div>
-      ${s.line ? `<span class="lane-s">${esc(s.line)}</span>` : ''}
+      <div class="lane-t"><span class="badge">${svgI(s.icon_svg, 16)}</span><h2 class="disp">${esc(name)}</h2><span class="num">${list.length}</span></div>
+      ${line ? `<span class="lane-s">${esc(line)}</span>` : ''}
     </div>
     <div class="grid">${list.map((a, i) => i >= cut ? card(a, s).replace('<article class="card ang"', '<article hidden class="card ang"') : card(a, s)).join('')}</div>
     ${extra ? `<button class="btn btn-line btn-full more" data-more>${extra} more ${ic('chevron-down', 15)}</button>` : ''}
   </section>`;
 }
 
+/* ---------- the deck: one idea, ready to film ---------- */
+/* Modelled on the Lucky Golf hub (2026-09-30): no choosing from a wall of cards.
+   Hot ideas come first, then the sections in order; the page opens on a random
+   one so two creators do not film the same idea, and Show me another deals
+   the next. */
+let DECK = null, DECK_AT = 0;
+function deck() {
+  if (DECK) return DECK;
+  const hot = D.hot ? D.hot.angles : [];
+  const seen = new Set(hot.map(a => a.id));
+  const rest = D.sections.flatMap(s => s.angles).filter(a => !seen.has(a.id) && seen.add(a.id));
+  DECK = [...hot, ...rest];
+  DECK_AT = DECK.length ? Math.floor(Math.random() * DECK.length) : 0;
+  return DECK;
+}
+function deckCard() {
+  const list = deck();
+  if (!list.length) return '';
+  const a = list[DECK_AT % list.length];
+  const s = sectionOf(a);
+  const steps = (a.shots || []).map(x => x.text).filter(Boolean);
+  const why = a.hot ? 'The team wants this one most this week.' : s ? `From ${s.name}.` : '';
+  return `<section class="card deck" style="${s ? toneVars(s.color) : ''}" aria-label="One idea, ready to film" id="deck">
+    <div class="deck-top">
+      <p class="lbl acc">${ic('sparkles', 13)} Film this one</p>
+      <span class="deck-n">${(DECK_AT % list.length) + 1} of ${list.length}</span>
+    </div>
+    <div class="deck-grid">
+      <div class="deck-main">
+        <div class="ang-top">${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Hot</span>` : ''}${s ? `<span class="tag" style="${toneVars(s.color)}">${svgI(s.icon_svg, 12)}${esc(s.name)}</span>` : ''}${a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : ''}</div>
+        <h2 class="disp deck-t"><a href="#a=${esc(a.id)}">${esc(a.title)}</a></h2>
+        ${a.argument ? `<p class="deck-line">${esc(a.argument)}</p>` : ''}
+        ${a.visual_hook ? `<p class="lbl deck-l">First thing on screen</p><p class="deck-vh">${esc(a.visual_hook)}</p>` : ''}
+        ${a.openers?.[0] ? `<p class="lbl deck-l">Say this first</p><p class="hook lead deck-hook">&ldquo;${esc(a.openers[0])}&rdquo;</p>` : ''}
+        ${why ? `<p class="deck-why">${esc(why)}</p>` : ''}
+      </div>
+      ${steps.length ? `<div class="deck-side"><p class="lbl deck-l">Then film this</p><ol class="steps">${steps.map((t, i) => `<li><span class="n">${i + 1}</span><span>${esc(t)}</span></li>`).join('')}</ol>${a.rehook ? `<p class="deck-rh">${ic('refresh-cw', 13)}<span><b>Keep them past 3 seconds:</b> ${esc(a.rehook)}</span></p>` : ''}</div>` : ''}
+    </div>
+    <div class="deck-btns">
+      ${filmBtn(a, 'btn-hero deck-film')}
+      ${list.length > 1 ? `<button class="btn btn-line" data-deal>${ic('shuffle', 15)} Show me another</button>` : ''}
+      <a class="deck-more" href="#a=${esc(a.id)}">All the lines and examples ${ic('arrow-right', 14)}</a>
+    </div>
+  </section>`;
+}
+function wireDeck() {
+  const btn = app.querySelector('[data-deal]');
+  if (!btn) return;
+  btn.onclick = () => {
+    DECK_AT = (DECK_AT + 1) % deck().length;
+    const old = app.querySelector('#deck');
+    old.outerHTML = deckCard();
+    wireDeck(); wireFilm();
+  };
+}
+
+/* ---------- how to keep them watching ---------- */
+function guideCard() {
+  const g = D.brand.guide || [];
+  if (!g.length) return '';
+  const cut = isPhone() ? 3 : 4;
+  const item = (x, i) => `<li ${i >= cut ? 'hidden' : ''}><span class="n">${i + 1}</span><div>${x.title ? `<b>${esc(x.title)}</b>` : ''}${x.text ? `<span>${esc(x.text)}</span>` : ''}</div></li>`;
+  return `<section class="card guide" id="guide">
+    <div class="lane-h"><div class="lane-t"><span class="badge">${ic('eye', 16)}</span><h2 class="disp">How to keep them watching</h2></div><span class="lane-s">Talking to the camera is fine. Talking to the camera while nothing happens is not.</span></div>
+    <ol class="guide-list">${g.map(item).join('')}</ol>
+    ${g.length > cut ? `<button class="btn btn-line btn-sm" data-guide-more>All ${g.length} ${ic('chevron-down', 14)}</button>` : ''}
+  </section>`;
+}
+
 function filters() {
   const ls = lanes();
-  const fmts = [...new Set(uniq().map(a => a.format).filter(Boolean))];
-  const secPills = `<button class="pill ${F.sec === 'all' ? 'on' : ''}" data-sec="all">All angles</button>` + ls.map(s => `<button class="pill ${F.sec === s.id ? 'on' : ''}" data-sec="${esc(s.id)}" style="${toneVars(s.color)}"><i class="dot"></i>${esc(s.name)}</button>`).join('');
-  const fmtPills = `<button class="pill ${F.fmt === 'all' ? 'on' : ''}" data-fmt="all">Any format</button>` + fmts.map(f => `<button class="pill ${F.fmt === f ? 'on' : ''}" data-fmt="${esc(f)}">${esc(f)}</button>`).join('');
-  return `<div class="filters"><div class="wrap">
-    <div class="frow"><span class="flbl">Section</span><div class="prow" role="group" aria-label="Sections">${secPills}</div></div>
-    ${fmts.length > 1 ? `<div class="frow"><span class="flbl">Format</span><div class="prow" role="group" aria-label="Formats">${fmtPills}</div></div>` : ''}
+  const secPills = `<button class="pill ${F.sec === 'all' ? 'on' : ''}" data-sec="all">All ideas</button>` + ls.map(s => `<button class="pill ${F.sec === s.id ? 'on' : ''}" data-sec="${esc(s.id)}" style="${toneVars(s.color)}"><i class="dot"></i>${esc(s.pinned ? "What's working" : s.name)}</button>`).join('');
+  // The format filter only appears once a creator tapped a format chip on a card.
+  const fmt = F.fmt !== 'all' ? `<button class="pill on fmt-on" data-fmt="${esc(F.fmt)}" title="Show every format again">${esc(F.fmt)} ${ic('x', 13)}</button>` : '';
+  return `<div class="filters" id="ideas"><div class="wrap">
+    <div class="frow"><span class="flbl">Show</span><div class="prow" role="group" aria-label="Sections">${secPills}${fmt}</div></div>
   </div></div>`;
 }
 
@@ -345,37 +437,48 @@ function renderList() {
   document.title = `${b.display_name} · What to film`;
   const shown = lanes().filter(s => F.sec === 'all' || s.id === F.sec);
   const body = shown.map(lane).join('');
+  const nav = [['#deck', 'Film this one'], D.hot?.angles.length ? [`#s-${D.hot.id}`, "What's working"] : null, (b.guide || []).length ? ['#guide', 'Keep them watching'] : null, ['#ideas', 'All ideas'], (b.rules || []).length || (b.avoid || []).length ? ['#rules', 'Rules'] : null].filter(Boolean);
   app.innerHTML = `${topbar()}
   <main>
     <div class="wrap">
       <div class="page-h">
-        <p class="lbl acc">${esc(b.display_name)} · creator angles</p>
-        <h1 class="disp">Pick one. Film it. Submit it.</h1>
-        <p class="intro">${esc(b.intro || 'Every angle here is what we want filmed right now. Steal the opener word for word or bend it.')}</p>
+        <p class="lbl acc">${esc(b.display_name)} · creators</p>
+        <h1 class="disp">What to film this week</h1>
+        <p class="intro">${esc(b.intro || 'Every idea here is what we want filmed right now. Steal the opener word for word or bend it.')}</p>
+        <nav class="jump" aria-label="On this page">${nav.map(([h, t]) => `<a href="${h}">${esc(t)}</a>`).join('')}</nav>
       </div>
+      ${deckCard()}
+    </div>
+    <div class="wrap lanes lanes-top">${D.hot && D.hot.angles.length && (F.sec === 'all') ? lane(D.hot) : ''}</div>
+    <div class="wrap">
+      ${guideCard()}
       <div class="top-grid">
         ${seasonCard()}
         ${aboutCard()}
       </div>
-      ${avoidCard()}
-      ${rulesCard()}
+      <div id="rules">${avoidCard()}${rulesCard()}</div>
     </div>
     ${filters()}
     <div class="wrap lanes">
-      ${body || `<div class="card empty">Nothing matches. <button class="btn btn-line btn-sm" data-reset>Show everything</button></div>`}
+      ${shown.filter(s => !(s.pinned && F.sec === 'all')).map(lane).join('') || (body ? '' : `<div class="card empty">Nothing matches. <button class="btn btn-line btn-sm" data-reset>Show everything</button></div>`)}
     </div>
   </main>
   <div class="dock">${filmBtn(null, 'btn-hero btn-full')}</div>
   ${footer()}`;
 
   app.querySelectorAll('[data-sec]').forEach(p => p.onclick = () => { F.sec = p.dataset.sec; rerender(); });
-  app.querySelectorAll('[data-fmt]').forEach(p => p.onclick = () => { F.fmt = F.fmt === p.dataset.fmt ? 'all' : p.dataset.fmt; rerender(); });
+  app.querySelectorAll('[data-fmt]').forEach(p => p.onclick = e => { e.stopPropagation(); F.fmt = F.fmt === p.dataset.fmt ? 'all' : p.dataset.fmt; rerender(); });
   app.querySelector('[data-reset]')?.addEventListener('click', () => { F.sec = 'all'; F.fmt = 'all'; rerender(); });
   app.querySelectorAll('[data-more]').forEach(btn => btn.onclick = () => { btn.closest('.lane').querySelectorAll('[hidden]').forEach(x => x.hidden = false); btn.remove(); });
+  app.querySelector('[data-guide-more]')?.addEventListener('click', e => { app.querySelectorAll('.guide-list [hidden]').forEach(x => x.hidden = false); e.currentTarget.remove(); });
   app.querySelectorAll('[data-open]').forEach(c => c.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = 'a=' + c.dataset.open; }));
   app.querySelector('[data-home]').onclick = e => { e.preventDefault(); scrollTo({ top: 0, behavior: 'smooth' }); };
+  app.querySelectorAll('.jump a').forEach(l => l.onclick = e => { const t = app.querySelector(l.getAttribute('href')); if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+  wirePlay(app);
   wireFilm();
+  wireDeck();
   wireChart();
+  loadCovers(uniq().flatMap(a => a.proof));
 }
 /* Re-render in place: the filter bar stays where the thumb is. */
 function rerender() {
@@ -386,6 +489,11 @@ function rerender() {
   const nb = app.querySelector('.filters');
   if (nb) scrollTo(0, scrollY + nb.getBoundingClientRect().top - before);
   app.querySelectorAll('.prow').forEach((r, i) => { r.scrollLeft = rows[i] || 0; });
+}
+/* Any play button, on a card strip or an angle page. */
+function wirePlay(root) {
+  root.querySelectorAll('[data-play-ad]').forEach(el => el.onclick = e => { e.stopPropagation(); playAd(el.dataset.playAd); });
+  root.querySelectorAll('[data-play-file]').forEach(el => el.onclick = e => { e.stopPropagation(); playFile(API + el.dataset.playFile); });
 }
 
 /* ---------- one angle ---------- */
@@ -416,6 +524,13 @@ function proofItem(p) {
     : `<button class="proof-i" ${attrs}>${inner}</button>`;
 }
 
+function inspoList(a) {
+  const list = (a.inspo || []).filter(x => x.brand || x.what);
+  if (!list.length) return '';
+  return `<h2 class="disp sec-t">Steal the shape from these</h2><p class="sec-s">Other brands' videos that do this well. Take the move, not the product.</p>
+    <ul class="inspo">${list.map(x => `<li class="card">${ic('lightbulb', 16)}<div>${x.brand ? `<b>${esc(x.brand)}</b>` : ''}${x.what ? `<span>${esc(x.what)}</span>` : ''}</div>${x.url ? `<a class="btn btn-line btn-sm" href="${esc(x.url)}" target="_blank" rel="noopener">Watch ${ic('external-link', 13)}</a>` : ''}</li>`).join('')}</ul>`;
+}
+
 function renderAngle(id) {
   const a = findAngle(id);
   if (!a) { history.replaceState(null, '', location.pathname + location.search); return renderList(); }
@@ -433,15 +548,19 @@ function renderAngle(id) {
   </div>`;
   const film = `<div class="card filmcard">
       ${filmBtn(a, 'btn-hero btn-full')}
-      <p>${D.brand.submit_url ? `Opens the ${esc(D.brand.display_name)} campaign on ${esc(plat())} and copies the angle name for your submission note.` : `Submit on ${esc(plat())} like always, with the angle name in your note.`}</p>
+      <p>${D.brand.submit_url ? `Opens the ${esc(D.brand.display_name)} campaign on ${esc(plat())} and copies the idea's name for your submission note.` : `Submit on ${esc(plat())} like always, with the idea's name in your note.`}</p>
     </div>`;
+  const attention = (a.visual_hook || a.rehook) ? `<div class="att">
+      ${a.visual_hook ? `<div class="card att-c"><p class="lbl">${ic('video', 12)} The first second</p><p>${esc(a.visual_hook)}</p></div>` : ''}
+      ${a.rehook ? `<div class="card att-c"><p class="lbl">${ic('refresh-cw', 12)} Keep them past 3 seconds</p><p>${esc(a.rehook)}</p></div>` : ''}
+    </div>` : '';
   app.innerHTML = `${topbar()}
   <main class="detail">
     <div class="wrap det">
       <div class="det-main" style="${s ? toneVars(s.color) : ''}">
         <a class="back" href="#" data-back>${ic('arrow-left', 15)}What to film</a>
         <div class="tags">
-          ${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}${esc(D.hot.name)}</span>` : ''}
+          ${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Hot right now</span>` : ''}
           ${s ? `<span class="tag" style="${toneVars(s.color)}">${svgI(s.icon_svg, 12)}${esc(s.name)}</span>` : ''}
           ${a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : ''}
           ${a.products ? `<span class="tag tag-chip">${esc(a.products)}</span>` : ''}
@@ -451,17 +570,20 @@ function renderAngle(id) {
         <div class="only-narrow">${stats}${film}</div>
         ${a.argument ? `<p class="para"><b>The idea.</b> ${esc(a.argument)}</p>` : ''}
         ${a.who ? `<p class="para"><b>Who it is for.</b> ${esc(a.who)}</p>` : ''}
+        ${a.why ? `<p class="para"><b>Why it works.</b> ${esc(a.why)}</p>` : ''}
         ${a.trend ? `<p class="para"><b>Trend to ride.</b> ${esc(a.trend)}</p>` : ''}
+        ${attention}
 
-        ${(a.openers || []).length ? `<h2 class="disp sec-t">Openers you can steal</h2><p class="sec-s">The first line decides everything. Word for word or bend them, they are yours.</p>
+        ${(a.openers || []).length ? `<h2 class="disp sec-t">Say this first</h2><p class="sec-s">The first line decides everything. Word for word or bend them, they are yours.</p>
         <ul class="openers">${a.openers.map((o, k) => `<li class="card"><span class="hook">&ldquo;${esc(o)}&rdquo;</span><button class="iconbtn" data-copy="${k}" aria-label="Copy this opener">${ic('copy', 16)}</button></li>`).join('')}</ul>` : ''}
 
         ${(a.shots || []).length ? `<h2 class="disp sec-t">What to film</h2>
         <div class="shots">${a.shots.map(x => `<div class="card"><p class="lbl">${esc(x.label)}</p><p>${esc(x.text)}</p></div>`).join('')}</div>` : ''}
         ${a.on_screen ? `<div class="card overlay"><div><p class="lbl">Text on screen</p><p>${esc(a.on_screen)}</p></div><button class="iconbtn" data-copytext aria-label="Copy the text">${ic('copy', 16)}</button></div>` : ''}
 
-        ${n ? `<h2 class="disp sec-t">Proof it works</h2><p class="sec-s">Videos made on this angle. The label on each one says where it came from.</p>
+        ${n ? `<h2 class="disp sec-t">Proof it works</h2><p class="sec-s">Videos made on this idea. The label on each one says where it came from.</p>
         <div class="proof">${a.proof.map(proofItem).join('')}</div>` : ''}
+        ${inspoList(a)}
 
         ${(a.do_text || a.dont_text) ? `<div class="dd">
           ${a.do_text ? `<div class="card do"><p class="lbl">Do</p><p>${esc(a.do_text)}</p></div>` : ''}
@@ -470,17 +592,17 @@ function renderAngle(id) {
 
         <div class="pn">
           <a class="card pn-a" href="#a=${esc(prev.id)}">${ic('arrow-left', 16)}<span><span class="lbl">Previous</span><b>${esc(prev.title)}</b></span></a>
-          <a class="card pn-a r" href="#a=${esc(next.id)}"><span><span class="lbl">Next angle</span><b>${esc(next.title)}</b></span>${ic('arrow-right', 16)}</a>
+          <a class="card pn-a r" href="#a=${esc(next.id)}"><span><span class="lbl">Next idea</span><b>${esc(next.title)}</b></span>${ic('arrow-right', 16)}</a>
         </div>
       </div>
       <aside class="det-side">
-        <div class="side-stats"><p class="lbl">This angle so far</p>${stats}</div>
+        <div class="side-stats"><p class="lbl">This idea so far</p>${stats}</div>
         ${film}
-        <a class="card pn-a" href="#a=${esc(next.id)}"><span><span class="lbl">Next angle</span><b>${esc(next.title)}</b></span>${ic('chevron-right', 16)}</a>
+        <a class="card pn-a" href="#a=${esc(next.id)}"><span><span class="lbl">Next idea</span><b>${esc(next.title)}</b></span>${ic('chevron-right', 16)}</a>
       </aside>
     </div>
   </main>
-  <div class="dock">${filmBtn(a, 'btn-hero btn-full')}<a class="btn btn-line dock-next" href="#a=${esc(next.id)}" aria-label="Next angle">${ic('arrow-right', 18)}</a></div>
+  <div class="dock">${filmBtn(a, 'btn-hero btn-full')}<a class="btn btn-line dock-next" href="#a=${esc(next.id)}" aria-label="Next idea">${ic('arrow-right', 18)}</a></div>
   ${footer()}`;
 
   app.querySelectorAll('[data-copy]').forEach(el => el.onclick = async () => {
@@ -490,10 +612,9 @@ function renderAngle(id) {
   const toList = e => { e.preventDefault(); history.pushState(null, '', location.pathname + location.search); route(); };
   app.querySelector('[data-back]').onclick = toList;
   app.querySelector('[data-home]').onclick = toList;
-  app.querySelectorAll('[data-play-ad]').forEach(el => el.onclick = () => playAd(el.dataset.playAd));
-  app.querySelectorAll('[data-play-file]').forEach(el => el.onclick = () => playFile(API + el.dataset.playFile));
+  wirePlay(app);
   wireFilm();
-  loadCovers(a);
+  loadCovers(a.proof);
   swipe(app.querySelector('.det-main'), prev.id, next.id);
   scrollTo(0, 0);
 }
@@ -510,14 +631,15 @@ function swipe(el, prevId, nextId) {
   }, { passive: true });
 }
 
-async function loadCovers(a) {
-  const ids = a.proof.filter(p => p.kind === 'meta' && !p.thumb).map(p => p.ad_id);
+async function loadCovers(proof) {
+  const ids = [...new Set((proof || []).filter(p => p.kind === 'meta' && !p.thumb).map(p => p.ad_id))].filter(id => !document.querySelector(`[data-cover="${CSS.escape(id)}"] img`));
   if (!ids.length) return;
   try {
     // A preview page is not live, so the slug does not authorise its ads yet: use the staff session.
+    const q = encodeURIComponent(ids.slice(0, 80).join(','));
     const r = await (D.preview
-      ? fetch(`${API}/api/ad-creatives?ads=${encodeURIComponent(ids.join(','))}`, authed())
-      : fetch(`${API}/api/ad-creatives?angles=${encodeURIComponent(SLUG)}&ads=${encodeURIComponent(ids.join(','))}`)).then(x => x.json());
+      ? fetch(`${API}/api/ad-creatives?ads=${q}`, authed())
+      : fetch(`${API}/api/ad-creatives?angles=${encodeURIComponent(SLUG)}&ads=${q}`)).then(x => x.json());
     for (const [id, v] of Object.entries(r.assets || {})) {
       if (!v.thumb) continue;
       document.querySelectorAll(`[data-cover="${CSS.escape(id)}"]`).forEach(m => { if (!m.querySelector('img')) m.insertAdjacentHTML('afterbegin', `<img src="${esc(v.thumb)}" alt="" loading="lazy">`); });
