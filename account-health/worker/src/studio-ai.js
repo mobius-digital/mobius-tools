@@ -79,13 +79,15 @@ function imageDims(buf) {
    max allowed size for many-image requests", Grunk 2026-10-06). The browser shrinks uploads now; this
    is the net: an image still over the limit is left out with a status line, and planning goes on. */
 const MAX_REF_PX = 2000;
-async function fitRefs(urls, put, what) {
+async function fitRefs(env, urls, put, what) {
   const ok = [];
   for (const u of urls) {
     try {
-      const r = await fetch(u, { headers: { Range: 'bytes=0-1048575' } });
-      if (!r.ok) { put({ type: 'status', text: `Leaving out a ${what} image that would not open` }); continue; }
-      const d = imageDims(await r.arrayBuffer());
+      /* Studio references live in the R2 bucket this worker also binds (studio/ref/<id>.<ext>), so the
+         header is read straight from R2: no Worker-to-Worker fetch. Anything else is passed through. */
+      const key = (String(u).match(/\/api\/studio\/ref\/([a-f0-9]{24}\.(?:png|jpg|webp))$/) || [])[1];
+      const obj = key && env.MEDIA ? await env.MEDIA.get(`studio/ref/${key}`, { range: { offset: 0, length: 1048576 } }) : null;
+      const d = obj ? imageDims(await obj.arrayBuffer()) : null;
       if (d && Math.max(d.w, d.h) > MAX_REF_PX) { put({ type: 'status', text: `Leaving out a ${what} image at ${d.w}x${d.h}: too big to read. Remove it and add it again and Studio shrinks it.` }); continue; }
       ok.push(u);
     } catch { ok.push(u); }
@@ -205,10 +207,10 @@ RULES:
       const v = (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = ?1`).bind(`dna:${A}:${h}`).first().catch(() => null))?.value;
       if (v) dnas.push(v);
     }
-    const cutouts = await fitRefs((Array.isArray(b.cutouts) ? b.cutouts : []).filter(u => /^https:\/\//.test(u)).slice(0, 8), put, 'product');
+    const cutouts = await fitRefs(env, (Array.isArray(b.cutouts) ? b.cutouts : []).filter(u => /^https:\/\//.test(u)).slice(0, 8), put, 'product');
     const exact = !!b.exact && cutouts.length > 0;
-    const swipeOk = await fitRefs(swipe, put, 'swipe file');
-    for (const l of lines) l.inspo = (l.inspo || []).length ? await fitRefs(l.inspo.filter(u => /^https:\/\//.test(u)).slice(0, 2), put, 'line inspiration') : [];
+    const swipeOk = await fitRefs(env, swipe, put, 'swipe file');
+    for (const l of lines) l.inspo = (l.inspo || []).length ? await fitRefs(env, l.inspo.filter(u => /^https:\/\//.test(u)).slice(0, 2), put, 'line inspiration') : [];
     cutouts.forEach((u, i) => { content.push({ type: 'text', text: `PRODUCT PHOTO ${i + 1} (a real photo of the product, cut out; it goes into the ad exactly as shot, at this angle):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
     swipeOk.forEach((u, i) => { content.push({ type: 'text', text: `SWIPE FILE image ${i + 1}:` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
     lines.forEach((l, i) => l.inspo.forEach((u, k) => { content.push({ type: 'text', text: `LINE ${i + 1} INSPIRATION ${k + 1} (make it look like this):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); }));
