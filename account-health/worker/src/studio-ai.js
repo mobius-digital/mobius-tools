@@ -27,18 +27,70 @@ const obj = p => ({ type: 'object', additionalProperties: false, required: Objec
 const TESTING = ['concepts', 'headlines', 'visuals', 'offer', 'reviews', 'hooks', 'copy', 'format'];
 const STYLES = ['auto', 'bold', 'clean', 'serif', 'hand', 'luxe', 'native'];
 
-function streamed(ctx, work) {
+function streamed(ctx, work, onError) {
   const { readable, writable } = new TransformStream();
   const w = writable.getWriter(); const enc = new TextEncoder();
   const put = o => w.write(enc.encode(JSON.stringify(o) + '\n')).catch(() => {});
   const run = (async () => {
     const ping = setInterval(() => put({ type: 'ping' }), 10000);
     try { put({ type: 'done', ...(await work(o => put(o))) }); }
-    catch (e) { put({ type: 'error', text: e.message || 'Something went wrong. Try again.' }); }
+    catch (e) { put({ type: 'error', text: e.message || 'Something went wrong. Try again.' }); await onError?.(e); }
     finally { clearInterval(ping); await w.close().catch(() => {}); }
   })();
   ctx?.waitUntil?.(run);
   return new Response(readable, { headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' } });
+}
+/* Every Studio failure is written down (table app_log) so the Strategist's `problems` view can explain
+   it in Slack to whoever hit it, instead of the error living only in one person's browser. */
+let logReady = false;
+async function logProblem(env, actId, where, message) {
+  try {
+    if (!logReady) { await env.DB.prepare(`CREATE TABLE IF NOT EXISTS app_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL DEFAULT (datetime('now')), app TEXT NOT NULL, act_id TEXT, where_ TEXT, message TEXT)`).run(); logReady = true; }
+    await env.DB.prepare(`INSERT INTO app_log (app, act_id, where_, message) VALUES ('studio', ?1, ?2, ?3)`).bind(actId || null, where.replace('/api/studio-ai/', ''), clip(String(message || ''), 600)).run();
+  } catch { /* never in the way of the answer */ }
+}
+/* Width and height from the first bytes of a PNG / JPEG / WebP, without decoding. */
+function imageDims(buf) {
+  const b = new Uint8Array(buf), dv = new DataView(buf);
+  try {
+    if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50) return { w: dv.getUint32(16), h: dv.getUint32(20) };
+    if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
+      let i = 2;
+      while (i + 9 < b.length) {
+        if (b[i] !== 0xff) { i++; continue; }
+        const mk = b[i + 1];
+        if (mk === 0xff) { i++; continue; }
+        if (mk === 0xd8 || mk === 0x01 || (mk >= 0xd0 && mk <= 0xd7)) { i += 2; continue; }
+        if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) return { h: dv.getUint16(i + 5), w: dv.getUint16(i + 7) };
+        i += 2 + dv.getUint16(i + 2);
+      }
+    }
+    if (b.length > 30 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
+      const tag = String.fromCharCode(b[12], b[13], b[14], b[15]);
+      if (tag === 'VP8 ') return { w: dv.getUint16(26, true) & 0x3fff, h: dv.getUint16(28, true) & 0x3fff };
+      if (tag === 'VP8L') { const x = dv.getUint32(21, true); return { w: (x & 0x3fff) + 1, h: ((x >>> 14) & 0x3fff) + 1 }; }
+      if (tag === 'VP8X') return { w: (b[24] | b[25] << 8 | b[26] << 16) + 1, h: (b[27] | b[28] << 8 | b[29] << 16) + 1 };
+    }
+  } catch { /* unreadable header: treat as unknown */ }
+  return null;
+}
+/* Reference images the art director is shown. Anthropic reads at most 2000px a side once a request
+   carries many images, and one oversized swipe image failed the whole plan ("image dimensions exceed
+   max allowed size for many-image requests", Grunk 2026-10-06). The browser shrinks uploads now; this
+   is the net: an image still over the limit is left out with a status line, and planning goes on. */
+const MAX_REF_PX = 2000;
+async function fitRefs(urls, put, what) {
+  const ok = [];
+  for (const u of urls) {
+    try {
+      const r = await fetch(u, { headers: { Range: 'bytes=0-1048575' } });
+      if (!r.ok) { put({ type: 'status', text: `Leaving out a ${what} image that would not open` }); continue; }
+      const d = imageDims(await r.arrayBuffer());
+      if (d && Math.max(d.w, d.h) > MAX_REF_PX) { put({ type: 'status', text: `Leaving out a ${what} image at ${d.w}x${d.h}: too big to read. Remove it and add it again and Studio shrinks it.` }); continue; }
+      ok.push(u);
+    } catch { ok.push(u); }
+  }
+  return ok;
 }
 const docId = s => (String(s || '').match(/docs\.google\.com\/document\/d\/([A-Za-z0-9_-]{20,})/) || [])[1];
 
@@ -62,6 +114,7 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
   const acct = b.act && await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(b.act).first();
   if (!acct) return json({ error: 'pick a brand first' }, 400);
   const A = acct.act_id;
+  const stream = work => streamed(ctx, work, e => logProblem(env, A, path, e.message));
 
   /* ---- Make video (Veo, studio-video.js) ---- */
   const run = async f => { try { return json(await f()); } catch (e) { return json({ error: e.message || 'Something went wrong.' }, 400); } };
@@ -74,7 +127,7 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
   if (path === '/api/studio-ai/higgsfield') return run(() => hfSave(env, b));
 
   /* ---- read briefs into batches ---- */
-  if (path === '/api/studio-ai/brief') return streamed(ctx, async put => {
+  if (path === '/api/studio-ai/brief') return stream(async put => {
     const parts = [];
     for (const id of (Array.isArray(b.br_batch_ids) ? b.br_batch_ids : []).slice(0, 12)) {
       const r = await env.DB.prepare(`SELECT num, title, brief_text FROM p_br_batch WHERE id = ?1 AND act_id = ?2`).bind(id, A).first();
@@ -118,7 +171,7 @@ RULES:
   });
 
   /* ---- the art director ---- */
-  if (path === '/api/studio-ai/plan') return streamed(ctx, async put => {
+  if (path === '/api/studio-ai/plan') return stream(async put => {
     const bt = b.batch || {};
     const lines = (Array.isArray(bt.lines) ? bt.lines : []).slice(0, 12);
     if (!lines.length) throw new Error('The batch has no lines.');
@@ -152,11 +205,13 @@ RULES:
       const v = (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = ?1`).bind(`dna:${A}:${h}`).first().catch(() => null))?.value;
       if (v) dnas.push(v);
     }
-    const cutouts = (Array.isArray(b.cutouts) ? b.cutouts : []).filter(u => /^https:\/\//.test(u)).slice(0, 8);
+    const cutouts = await fitRefs((Array.isArray(b.cutouts) ? b.cutouts : []).filter(u => /^https:\/\//.test(u)).slice(0, 8), put, 'product');
     const exact = !!b.exact && cutouts.length > 0;
+    const swipeOk = await fitRefs(swipe, put, 'swipe file');
+    for (const l of lines) l.inspo = (l.inspo || []).length ? await fitRefs(l.inspo.filter(u => /^https:\/\//.test(u)).slice(0, 2), put, 'line inspiration') : [];
     cutouts.forEach((u, i) => { content.push({ type: 'text', text: `PRODUCT PHOTO ${i + 1} (a real photo of the product, cut out; it goes into the ad exactly as shot, at this angle):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
-    swipe.forEach((u, i) => { content.push({ type: 'text', text: `SWIPE FILE image ${i + 1}:` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
-    lines.forEach((l, i) => (l.inspo || []).slice(0, 2).forEach((u, k) => { content.push({ type: 'text', text: `LINE ${i + 1} INSPIRATION ${k + 1} (make it look like this):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); }));
+    swipeOk.forEach((u, i) => { content.push({ type: 'text', text: `SWIPE FILE image ${i + 1}:` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
+    lines.forEach((l, i) => l.inspo.forEach((u, k) => { content.push({ type: 'text', text: `LINE ${i + 1} INSPIRATION ${k + 1} (make it look like this):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); }));
     content.push({ type: 'text', text: `THE BATCH
 Angle: ${clip(bt.angle, 600)}
 Why: ${clip(bt.why, 600)}
@@ -195,7 +250,7 @@ ${SPECIFICITY}` }],
     const nd = v => typeof v === 'string' ? v.replace(/\s*—\s*/g, ', ') : Array.isArray(v) ? v.map(nd) : v;
     const ads = (jsonOf(m).ads || []).slice(0, lines.length).map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, nd(v)]))).map((a, i) => {
       const sw = (a.ref.match(/swipe\s*(\d+)/i) || [])[1];
-      const ref_url = a.ref === 'line' ? (lines[i].inspo || [])[0] || '' : sw ? swipe[+sw - 1] || '' : '';
+      const ref_url = a.ref === 'line' ? (lines[i].inspo || [])[0] || '' : sw ? swipeOk[+sw - 1] || '' : '';
       const photo = exact && a.photo >= 1 && a.photo <= cutouts.length ? a.photo : 0;
       return { ...a, callouts: (a.callouts || []).slice(0, 4), ref_url, ref_use: ref_url ? a.ref_use : 'none', photo };
     });

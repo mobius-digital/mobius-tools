@@ -98,7 +98,8 @@ const wantsCompare = text => /\bcompare\b/i.test(stripTags(text));
 export const DEFAULT_APPROVERS = 'U06C37MDWD7,U06K732S4BD';   // Cole, Ahsan
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const ANGLES = 'https://tools.go-mobius-digital.com/angles/';
-const MAX_VIDEOS = 3, MAX_IMAGES = 4, MAX_VIDEO_BYTES = 300e6, MAX_IMAGE_BYTES = 3.7e6;
+/* Images are read from Slack's 1024px copies (parseThread), about 1,000 tokens each, so eight is cheap. */
+const MAX_VIDEOS = 3, MAX_IMAGES = 8, MAX_VIDEO_BYTES = 300e6, MAX_IMAGE_BYTES = 3.7e6;
 /* A reference clip kept for the creator link: same cap as an Ambassadors-tab upload (amb.js MAX_UPLOAD).
    Up to CLIP_BUFFER_BYTES the file is read into memory first, so a storage hiccup never costs the watch. */
 const MAX_CLIP_BYTES = 95 * 1024 * 1024, CLIP_BUFFER_BYTES = 30 * 1024 * 1024;
@@ -128,7 +129,7 @@ const DRAFT_KEY = { creator_link: 'creator_link', lucky_creators: 'creator_link'
 const MODE = { as_is: 'Use it as is', style: 'Borrow the style', hook_only: 'Just the hook', mixed: 'A mix' };
 const TEST_TYPE = { angle: 'angle test', concept: 'concept test', iteration: 'iteration test' };
 const STUDIO_TESTING = ['concepts', 'headlines', 'visuals', 'offer', 'reviews', 'hooks', 'copy', 'format'];
-const PLATFORM = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', slack: 'uploaded', atria: 'Atria' };
+const PLATFORM = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', slack: 'uploaded', atria: 'Atria', drive: 'Google Drive' };
 /* A reference shown on the PUBLIC creator link must open for anyone: an Atria link needs an Atria
    login, so a Meta ad ("m" + id) goes on as its public Meta Ad Library page instead. */
 export function publicRef(u) {
@@ -217,6 +218,10 @@ export function classifyLink(u) {
   if (m) return { platform: 'atria', key: `atria:m${m[1]}`, atria: `m${m[1]}`, url: `https://www.facebook.com/ads/library/?id=${m[1]}`, link: url };
   m = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(reels?|p|tv)\/([A-Za-z0-9_-]+)/i.exec(url);
   if (m) { const kind = m[1].toLowerCase() === 'p' ? 'p' : 'reel'; return { platform: 'instagram', key: `ig:${m[2]}`, url: `https://www.instagram.com/${kind}/${m[2]}/`, link: url }; }
+  /* One Google Drive FILE (image or video), fetched through the direct-download door; it opens only
+     when the file is shared as "anyone with the link". Folders are UNOPENABLE. */
+  m = /drive\.google\.com\/(?:file\/d\/|open\?(?:[^#]*&)?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{20,})/.exec(url);
+  if (m) return { platform: 'drive', key: `drive:${m[1]}`, url: `https://drive.google.com/uc?export=download&id=${m[1]}`, link: url };
   return null;
 }
 const isVideoFile = f => /^video\//.test(f?.mimetype || '');
@@ -255,7 +260,10 @@ export function parseThread(messages, { botUser = null, names = {} } = {}) {
       const key = `slack:${f.id}`;
       if (seen.has(key)) continue;
       if (isVideoFile(f)) { seen.add(key); videos.push({ platform: 'slack', key, label: `V${videos.length + 1}`, from: m.ts, file: { id: f.id, name: f.name, mimetype: f.mimetype, size: f.size || 0, url: f.url_private_download || f.url_private } }); tags.push(videos[videos.length - 1].label); }
-      else if (isImageFile(f)) { seen.add(key); images.push({ key, label: `I${images.length + 1}`, from: m.ts, file: { id: f.id, name: f.name, mimetype: f.mimetype, size: f.size || 0, url: f.url_private_download || f.url_private } }); tags.push(images[images.length - 1].label); }
+      /* thumb = Slack's own 1024px copy (only present when the original is bigger). It is what gets read
+         and copied into Studio: a 4MB camera photo at 6000px is over Claude's size and pixel limits
+         and would cost ten times the tokens for nothing (Grunk, 2026-10-06). */
+      else if (isImageFile(f)) { seen.add(key); images.push({ key, label: `I${images.length + 1}`, from: m.ts, file: { id: f.id, name: f.name, mimetype: f.mimetype, size: f.size || 0, url: f.url_private_download || f.url_private, thumb: f.thumb_1024 || f.thumb_960 || f.thumb_720 || null } }); tags.push(images[images.length - 1].label); }
     }
     msgs.push({ ts: m.ts, user: m.user || null, name: names[m.user] || 'Someone', text: cleanText(m.text, botUser, names), tags, links: linksOf(m.text) });
   }
@@ -284,7 +292,13 @@ export function brandOverride(text, accounts) {
 /* ---------------- is this mention an idea, or a question for the Strategist? ---------------- */
 /* Narrow on purpose (2026-10-04): a bare "brief" or "draft" is usually about the Daily Brief or a
    report, which is the Strategist's. Only words that clearly mean "turn this into an ad idea". */
-const IDEA_WORDS = /\b(ideas?|brief (?:this|it)|(?:make|write) (?:a |the )?brief|draft (?:this|it)|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio)\b/i;
+/* 2026-10-06: Ahsan's "here is an inspo ad ... can you ideate some ads for it" went to the
+   Strategist (which cannot open links) because neither "inspo" nor "ideate" was an idea word. */
+const IDEA_WORDS = /\b(ideas?|ideate|inspo|inspiration|recreate|mock-?ups?|brief (?:this|it)|(?:make|write) (?:a |the )?brief|draft (?:this|it)|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio|(?:make|create|design|build|come up with) (?:me )?(?:some |a few |a couple of |\d+ )?(?:ads?|statics?|concepts?|creatives?|visuals?)|ads? (?:for|like) (?:it|this|that|these|the|our))\b/i;
+/* Links the bot cannot open (they need a login): a tag with one is still an idea, and the card says
+   to upload the files instead. A Drive link to ONE file shared as "anyone with the link" does work. */
+export const UNOPENABLE = /drive\.google\.com\/drive\/folders|docs\.google\.com\/|app\.air\.inc\/|dropbox\.com\/|wetransfer\.com\/|we\.tl\//i;
+const hasRef = text => linksOf(text).some(u => classifyLink(u) || UNOPENABLE.test(u));
 const NUMBER_WORDS = /\b(roas|cpa|mer|spend|spent|pacing|revenue|sales|budget|ctr|cpm|cvr|aov|mer|traffic|sessions?|numbers?|conversions?|conversion rate|orders)\b/i;
 /**
  * A mention in a brand's internal channel is the idea bot's when:
@@ -308,13 +322,13 @@ export async function ideaWanted(env, ev) {
   if (IDEA_WORDS.test(said) && !NUMBER_WORDS.test(said)) return true;
   /* "compare" (the blind model test) inside a thread, unless it is about the numbers. */
   if (ev.thread_ts && /\bcompare\b/i.test(said) && !NUMBER_WORDS.test(said)) return true;
-  const own = { social: linksOf(ev.text).some(classifyLink), video: (ev.files || []).some(isVideoFile), image: (ev.files || []).some(isImageFile) };
+  const own = { social: hasRef(ev.text), video: (ev.files || []).some(isVideoFile), image: (ev.files || []).some(isImageFile) };
   if (own.social || own.video) return true;
   if (own.image && !NUMBER_WORDS.test(said)) return true;
   if (!ev.thread_ts) return false;
   const r = await slack(env, 'conversations.replies', { channel: ev.channel, ts: root, limit: 100 }, true);
   const msgs = (r.messages || []).filter(m => !m.bot_id);
-  if (msgs.some(m => linksOf(m.text).some(classifyLink) || (m.files || []).some(isVideoFile))) return true;
+  if (msgs.some(m => hasRef(m.text) || (m.files || []).some(isVideoFile))) return true;
   return msgs.some(m => (m.files || []).some(isImageFile)) && !NUMBER_WORDS.test(said);
 }
 
@@ -541,6 +555,13 @@ export async function videoFacts(env, v, meter, act = null) {
         res = await F(v.file.url, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
         if (!res.ok || /text\/html/.test(res.headers.get('content-type') || '')) return { note: `I could not download ${what} from Slack (the app needs the files:read scope).` };
         mime = geminiMime(v.file.mimetype); size = v.file.size || +(res.headers.get('content-length') || 0);
+      } else if (v.platform === 'drive') {
+        res = await F(v.url, { redirect: 'follow' });
+        const ct = (res.headers.get('content-type') || '').split(';')[0].trim();
+        if (!res.ok || /text\/html/.test(ct)) return { note: `I could not open ${what}: Google Drive would not hand it over. Share it as "anyone with the link", or upload the file into this thread and tag me again.` };
+        if (/^image\//.test(ct)) return { image_url: v.url };
+        if (!/^video\//.test(ct)) return { note: `${what} is not a video or an image (${ct || 'unknown type'}), so I skipped it.` };
+        mime = geminiMime(ct); size = +(res.headers.get('content-length') || 0);
       } else {
         const s = await fetchSocialVideo(v.link || v.url, env);
         if (s.reason !== 'no_key') meter.downloads++;
@@ -1121,7 +1142,9 @@ export async function runIdeaJob(env, job) {
       if (r.note) notes.push(r.note);
     }
     if (t.videos.length > MAX_VIDEOS) notes.push(`Only the first ${MAX_VIDEOS} videos were watched.`);
-    for (const im of t.images) imgs.push({ label: im.label, url: im.file.url, slack: true });
+    for (const im of t.images) imgs.push({ label: im.label, url: im.file.thumb || im.file.url, slack: true });
+    const dead = [...new Set(t.msgs.flatMap(m => m.links || []).filter(u => UNOPENABLE.test(u)))];
+    if (dead.length) notes.push(`I can't open ${dead.length === 1 ? 'that link' : `${dead.length} of those links`} (Google Drive folders, Docs, Air, Dropbox and WeTransfer need a login). Upload the files into this thread and tag me again; a Drive link to one file works when it is shared as "anyone with the link".`);
     const imageBlocks = [];
     for (const im of imgs.slice(0, MAX_IMAGES)) {
       const r = await imageBlock(env, im.url, im.slack);
@@ -1604,7 +1627,8 @@ async function studioRefs(env, row) {
   try {
     const rep = await slack(env, 'conversations.replies', { channel: row.channel, ts: row.thread_ts, limit: 200 }, true);
     const t = parseThread(rep.messages || []);
-    for (const im of t.images) srcs.push({ url: im.file.url, slack: true });
+    for (const im of t.images) srcs.push({ url: im.file.thumb || im.file.url, slack: true });
+    for (const v of t.videos.filter(v => v.platform === 'drive')) srcs.push({ url: v.url, slack: false });
     for (const v of t.videos.filter(v => v.platform === 'atria')) {
       const hit = await env.DB.prepare(`SELECT facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
       const a = safeJson(hit?.facts_json, {})?.atria;

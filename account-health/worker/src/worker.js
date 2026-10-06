@@ -6156,8 +6156,10 @@ async function handleSlackEvent(request, env, ctx) {
     ctx.waitUntil((env.IDEA_Q ? env.IDEA_Q.send(job, { delaySeconds: 60 }) : new Promise(r => setTimeout(r, 8000)).then(() => welcomeOnJoinByChannel(env, ev.channel))).catch(e => console.log('welcome on join: ' + e.message)));
     return ACK();
   }
-  /* A mention that uploads a clip or image arrives with subtype file_share; the ideas bot wants those. */
-  const okSubtype = !ev?.subtype || (ev.type === 'app_mention' && /^(file_share|thread_broadcast)$/.test(ev.subtype));
+  /* A message that uploads a clip or image arrives with subtype file_share; the ideas bot wants those,
+     and so does an open Strategist thread (Ahsan's untagged "Approve." with screenshots was dropped
+     here on 2026-10-06 because only app_mention passed). */
+  const okSubtype = !ev?.subtype || /^(file_share|thread_broadcast)$/.test(ev.subtype);
   if (body?.type !== 'event_callback' || !ev || ev.bot_id || !okSubtype) return ACK();
   const dm = ev.channel_type === 'im';
   /* A mention inside a channel thread arrives TWICE: as app_mention and as a plain message whose
@@ -6190,8 +6192,12 @@ async function handleSlackEvent(request, env, ctx) {
   ctx.waitUntil((async () => {
     /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
        or "idea"/"brief" in the tag) drafts a brief instead. Everything else is the Strategist's. */
-    if (!dm && mentioned && env.IDEAS_BOT !== 'off' && await ideaWanted(env, { ...ev, type: 'app_mention' }).catch(e => { console.log('ideas route: ' + e.message); return false; }))
+    if (!dm && mentioned && env.IDEAS_BOT !== 'off' && await ideaWanted(env, { ...ev, type: 'app_mention' }).catch(e => { console.log('ideas route: ' + e.message); return false; })) {
+      /* An idea thread belongs to the ideas bot from here: plain replies in it are the team's
+         (and the bot's cost gate is the tag), so the Strategist stops answering them. */
+      await closeStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
       return ideaStart(env, ev, body);
+    }
     /* From here on the thread is a conversation with the Strategist: replies need no tag. */
     if (!dm) await openStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
     const findings = await engine.openFindings(env, h()).catch(() => []);
@@ -6208,7 +6214,13 @@ async function openStrategistThread(env, channel, ts) {
   if (!channel || !ts) return;
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '1') ON CONFLICT(key) DO UPDATE SET value = '1'`).bind(`askThread:${channel}:${ts}`).run();
 }
+async function closeStrategistThread(env, channel, ts) {
+  if (!channel || !ts) return;
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '0') ON CONFLICT(key) DO UPDATE SET value = '0'`).bind(`askThread:${channel}:${ts}`).run();
+}
 async function strategistThreadOpen(env, channel, ts) {
+  /* An idea thread is never the Strategist's, whatever happened in it before the ideas bot took over. */
+  if (await env.DB.prepare(`SELECT 1 AS x FROM idea_thread WHERE id = ?1`).bind(`${channel}:${ts}`).first().catch(() => null)) return false;
   const key = `askThread:${channel}:${ts}`;
   const have = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
   if (have) return have.value === '1';

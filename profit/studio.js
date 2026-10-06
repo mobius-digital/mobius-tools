@@ -774,19 +774,61 @@ document.addEventListener('paste', e => {
   const f = [...(e.clipboardData?.files || [])].filter(x => x.type.startsWith('image/'));
   if (f.length) { e.preventDefault(); upload(f, { swipe: true }); }
 });
+/* Reference images are shrunk in the browser before they go anywhere. The art director (Claude) reads
+   at most 2000px a side once a request carries many images and charges by the pixel, and GPT Image
+   never needs more than this; 1568px is Anthropic's own "nothing gained past here" size. A full-size
+   camera photo in a swipe file killed a whole plan on 2026-10-06. JPEG stays JPEG; PNG and WebP
+   become WebP so a cut-out keeps its transparency. */
+const REF_MAX = 1568;
+async function shrinkImage(file) {
+  const bmp = await createImageBitmap(file).catch(() => null);
+  if (!bmp) return file;
+  const big = Math.max(bmp.width, bmp.height);
+  if (big <= REF_MAX && file.size <= 2.5e6) { bmp.close?.(); return file; }
+  const k = Math.min(1, REF_MAX / big), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.();
+  const type = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp';
+  const blob = await new Promise(r => c.toBlob(r, type, 0.9));
+  return blob && blob.size ? blob : file;
+}
+async function putRef(blob) {
+  const res = await fetch(S.url.replace(/\/+$/, '') + '/api/studio/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': blob.type }, body: blob });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.url) throw new Error(j.error || 'Upload failed');
+  return j.url;
+}
 async function upload(files, target) {
   const b = S.cur, su = b.setup, br = b.brief;
   for (const file of files.filter(f => /^image\/(png|jpeg|webp)$/.test(f.type))) {
     if (target?.line == null && su.swipe.length >= 12) break;
     if (target?.line != null && (br.lines[target.line].inspo || []).length >= 2) break;
     try {
-      const res = await fetch(S.url.replace(/\/+$/, '') + '/api/studio/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': file.type }, body: file });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || 'Upload failed');
-      if (target?.line != null) (br.lines[target.line].inspo = br.lines[target.line].inspo || []).push(j.url); else su.swipe.push(j.url);
+      const url = await putRef(await shrinkImage(file));
+      refChecked.add(url);
+      if (target?.line != null) (br.lines[target.line].inspo = br.lines[target.line].inspo || []).push(url); else su.swipe.push(url);
     } catch (e) { S.err = e.message; }
   }
   await saveCur(); paint();
+}
+/* Images already on a batch (older uploads, the copies the Slack ideas bot drops in) get the same
+   treatment the first time the batch is planned: anything over REF_MAX is shrunk, re-uploaded, and
+   the batch points at the small copy. Each URL is checked once per page load. */
+const refChecked = new Set();
+async function repairRefs(b) {
+  const su = b.setup, br = b.brief;
+  const fix = async u => {
+    if (!u || refChecked.has(u) || !/\/api\/studio\/ref\//.test(u)) return u;
+    refChecked.add(u);
+    try {
+      const blob = await (await fetch(u)).blob();
+      const small = await shrinkImage(blob);
+      if (small === blob) return u;
+      const url = await putRef(small); refChecked.add(url); return url;
+    } catch { return u; }
+  };
+  su.swipe = await Promise.all((su.swipe || []).map(fix));
+  for (const l of br.lines || []) if ((l.inspo || []).length) l.inspo = await Promise.all(l.inspo.map(fix));
 }
 async function pickProduct() {
   if (!S.products) {
@@ -825,8 +867,9 @@ async function planAds() {
   if (!br.lines.some(l => (l.text || '').trim())) { S.err = 'Write at least one line first.'; return paint(); }
   S.busy = 'plan'; S.err = ''; paint();
   try {
-    await saveCur();
     br.lines = br.lines.filter(l => (l.text || '').trim());
+    await repairRefs(b);
+    await saveCur();
     const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: false, cutouts: [] });
     b.plan = { ads: r.ads, variation: r.variation, exact: !!r.exact }; b.status = 'planned';
     await saveCur();

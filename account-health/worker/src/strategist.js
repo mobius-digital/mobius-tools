@@ -97,6 +97,14 @@ const RULES = `
 - The Golf Sock is a paused test account. Never flag it, never list it as a
   problem, and leave it out of totals unless asked by name.
 - When comparing periods, name both periods.
+- WHEN SOMETHING IS BROKEN ("not working", "error", "failed", "doesn't work",
+  a screenshot of an error, "why did it skip"): read the problems view FIRST,
+  then explain in plain words what happened, what they can do right now, and
+  whether Cole has to fix it. Never guess at a cause the view does not show.
+- You cannot open links or files (Drive, Air, Dropbox, screenshots in Slack).
+  An ask to turn an inspiration ad, a video or product photos into ads or a
+  brief is the ideas bot's: tell them to tag @Mobius Digital again with the
+  word "idea" and the files uploaded into the thread.
 `;
 
 const TABLES = ['accounts', 'daily_insights', 'hourly_insights', 'tw_daily', 'activities', 'ads', 'ad_daily', 'briefs', 'reports',
@@ -152,6 +160,7 @@ const VIEW_BLURBS = {
   writing_style: 'the standing direction for how Daily Briefs and weekly/monthly reports are written, for every brand and for one (pass `brand`), plus which report sections and periods are switched off for that brand. Read it before changing how briefs or reports read.',
   findings: 'everything the nightly checks currently have open.',
   config: 'how the Strategist is set up: which Slack channel it briefs in, the brief hour.',
+  problems: 'what went wrong lately: failed ideas-bot runs in Slack, Studio errors (brief / plan / make), the last sync error, each with when (UTC) and the error text. Pass `brand` (optional; without it, every brand). THE view to read when someone says something is broken, failed, not working, or shows an error.',
 };
 
 /* ------------------------------------------------------------------ */
@@ -234,6 +243,19 @@ function buildViews(d) {
       return { brand: acct.name, reports: results || [], how_to_read: VIEW_BLURBS.reports };
     },
     data_health: async (env, a) => { const acct = await need(env, a); return { brand: acct.name, health: await d.dataHealth(env, acct), how_to_read: VIEW_BLURBS.data_health }; },
+    /* So a strategist can ask "why didn't the planner work?" in Slack and get the real reason, instead
+       of going through Cole (Ahsan, 2026-10-06). Studio writes app_log; the ideas bot writes idea_run. */
+    problems: async (env, a) => {
+      const acct = (a.brand || a.id || a.account || a.q) ? await need(env, a) : null;
+      const q = (sql, limit) => { const s = env.DB.prepare(sql.replace('{W}', acct ? 'AND act_id = ?1' : '')); return (acct ? s.bind(acct.act_id) : s).all().then(r => r.results || []).catch(() => []); };
+      const ideas = await q(`SELECT finished_at AS at_utc, kind, error FROM idea_run WHERE status = 'failed' AND error IS NOT NULL {W} ORDER BY finished_at DESC LIMIT 10`);
+      const studio = await q(`SELECT at AS at_utc, where_ AS step, message FROM app_log WHERE app = 'studio' {W} ORDER BY at DESC LIMIT 10`);
+      return { brand: acct?.name || 'all brands', ideas_bot_failures: ideas, studio_errors: studio, last_sync_error: acct?.last_error || null,
+        known_fixes: ['"image dimensions exceed max allowed size" = a reference image on the batch was bigger than the model reads; fixed 2026-10-06, Studio now shrinks images on upload and when planning, so planning the batch again works.',
+          '"invalid_blocks" = the Slack card could not be drawn; press Redo on the idea.',
+          '"could not open" / "needs the files:read scope" = a file or link the bot cannot reach; upload the file into the thread.'],
+        how_to_read: VIEW_BLURBS.problems + ' Say in plain words what happened, what the person can do right now, and whether Cole has to fix it (a bug, a missing key). Never guess at a cause this view does not show.' };
+    },
     plan: async (env, a) => {
       const acct = await need(env, a);
       const { results } = await env.DB.prepare(`SELECT * FROM p_plan WHERE act_id = ?1 ORDER BY 2 DESC LIMIT 24`).bind(acct.act_id).all().catch(() => ({ results: [] }));
