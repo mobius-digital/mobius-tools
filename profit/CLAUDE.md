@@ -1439,3 +1439,53 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
   sheet blocks are two columns max and keep their tables inside (`.cs-blk{overflow:hidden}`).
 - Screens that proxy account-health (Daily Brief, Reports, Meta) cannot be audited on the local
   dev pair (401 on the dev token): audit those on prod.
+
+## 2026-10-05 (night): Season tab, the BFCM plan in Locus. The Q4 Playbook is to be retired.
+
+- **Why.** The standalone Q4 Playbook (`2026-q4-playbook/`, Apps Script + Sheet "Q4 Playbook DB")
+  was a sixth place to look and died: last edit Aug 25, zero checklist items launched, weekend
+  numbers never set, Noma never given access. Cole: "should this be in Locus?" Yes. One tab,
+  under Every week, for everyone. Strategy page: https://claude.ai/artifact/VWugT2XKbjmkcEAeDMVVsu
+- **Files.** `season.js` (own closure, `window.SeasonTab.render/renderShare`, like amb.js),
+  `worker/src/season.js` (template, derived tasks, routes), `worker/migrations/season-001.sql`
+  (tables, also in schema.sql), `worker/migrations/season-seed-2026.sql` (what we knew on
+  2026-10-05; INSERT OR REPLACE, so DO NOT re-run after people edit in Locus).
+- **Tables.** `p_season_phase` (act, season, key, name, start, end, grp nov|bf|dec|late|vday,
+  who, offer, detail, status missing|draft|locked|skip, sort), `p_season_answer` (call sheet:
+  goal, last_year, winning_offer, floor, inventory, cutoffs, returns, gift_cards, approver; setup:
+  shape standard|blacknov|access, strategist, buyer, email_owner, in_season), `p_season_task`
+  (only rows that were ticked, re-dated, renamed, or custom), `p_season_share` (client token).
+- **The template is code, the brand is data.** `templatePhases(shape)` in worker/src/season.js is
+  the season every brand follows (early, access, bf, planb, drop, xmas, gift, boxing, ny, vday,
+  all anchored to BF = 2026-11-27). A stored row overrides a template phase by key; rows with a
+  key not in the template are custom phases (Dartee and Grunk have `cm`, Cyber Monday). Template
+  phases cannot be deleted, only skipped.
+- **Tasks are DERIVED, never typed twice.** `tasksFor()` makes, per non-skipped phase with a start
+  date: Offer locked (-30d, Cole; ticks itself when status = locked), Briefs due (-23d,
+  strategist), Ads built (-9d, strategist), Ads loaded (-4d, buyer), Live (0, buyer; auto-done 3
+  days after), plus phase extras (bf: ops -17d, spend limit + backup card -14d, ladder -10d,
+  emails -7d, site -7d; access: lock test -3d; drop: segment -7d; xmas: countdown -1d). Moving a
+  phase's start date moves all of them. Names come from the brand's answers (strategist, buyer,
+  email_owner), so change the owner there, not per task. Custom tasks: id `c:<hex>`, custom = 1.
+- **Routes** (authed, `handleSeason`): GET /api/season?act=all|<act>; PUT /api/season/phase;
+  DELETE /api/season/phase (custom only); PUT /api/season/answer; PUT /api/season/task (upsert,
+  `done_by` from the session email); DELETE /api/season/task (custom only); POST /api/season-share.
+  Public, before the auth gate: GET /api/season/:token -> phases (not skipped), the three date
+  answers, and tasks whose owner reads "Client". Same contract as the plan link: one brand, nothing
+  internal. Frontend `?season=<token>` renders `SeasonTab.renderShare` with chrome off.
+- **Screens.** All clients: strip (days to BF, offers locked, due this week, overdue), one verdict
+  sentence, Now (This week: overdue first, then by brand, tick to complete; the board: brand x
+  November / Thursday / Black Friday / December, FOUR columns on purpose so it fits 1280 wide with
+  no sideways scroll) or Week by week (every brand, the green box is now). One brand: strip,
+  Still needed (missing/draft phases + missing cutoffs/gift cards/goal), offer cards with Edit,
+  What is due by week with Add a task, the call sheet with Edit, "not running a season" toggle.
+  Top-bar actions: Copy offer sheet (plain text for Slack/Nick), Client link.
+- **Brand state** = is the Black Friday weekend locked (and November not missing). `in_season =
+  'no'` hides a brand from the board (The Golf Sock). Ice & Gold and Yak Sports sit on the board
+  with template phases; Cole switches them off from the brand page if they are out of scope.
+- **Not built yet (in that order):** Asana project per brand from the Lucky BFCM 2026 template,
+  created from Locus and read back into the Ads plan; Atria phase boards as the swipe file with
+  "Use in Studio"; the weekend desk (Nov 26 to 30: live TW ROAS vs the ladder from Settings >
+  Goals, What we did log) by Nov 13 with a dry run Nov 14 to 15; then retire 2026-q4-playbook
+  (redirect to Locus Season) after the season. Ladder numbers (scale-50, scale-100, starting
+  budget) belong on the account goals, one place for goals, when the desk is built.
