@@ -87,7 +87,7 @@ const EXTRA = {
 const DEFAULT_OWNER = { cole: 'Cole', buyer: 'Ahsan', strat: 'Ahsan', email: 'Nick' };
 /* How many ads each phase needs (the 90-per-brand season plan, 2026-10-06). Shows in the
    briefs/built task names so "This week" reads as a quota, not a vague to-do. */
-const ADS = { early: 15, putters: 10, access: 3, bf: 25, planb: 5, cm: 5, drop: 10, xmas: 10, gift: 5, boxing: 10, ny: 5, vday: 10 };
+const ADS = { giveaway: 8, early: 15, putters: 10, list: 3, access: 3, bf: 25, planb: 5, cm: 5, drop: 10, xmas: 10, gift: 5, boxing: 10, ny: 5, vday: 10 };
 function ownerName(role, answers) {
   if (role === 'strat') return answers.strategist || DEFAULT_OWNER.strat;
   if (role === 'buyer') return answers.buyer || DEFAULT_OWNER.buyer;
