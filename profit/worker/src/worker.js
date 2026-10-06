@@ -1837,7 +1837,7 @@ export default {
        brand, nothing internal. The token is the auth, like the plan link. */
     let sq;
     if ((sq = path.match(/^\/api\/season\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
-      try { return await seasonPublic(env, sq[1]); } catch (e) { return json({ error: e.message }, 500); }
+      try { return await seasonPublic(env, sq[1], (acct, from, to) => seriesFor(env, acct, from, to)); } catch (e) { return json({ error: e.message }, 500); }
     }
 
     /* Cover images for a client's shared ad set - same arrangement as the
@@ -2505,7 +2505,12 @@ export default {
 
       /* Season (2026-10-05): the BFCM plan per brand. Routes live in season.js. */
       if (path.startsWith('/api/season')) {
-        const sr = await handleSeason({ path, request, env, accountsFor, email: await sessionEmail(env, request) });
+        const sr = await handleSeason({
+          path, request, env, accountsFor, email: await sessionEmail(env, request),
+          series: (acct, from, to) => seriesFor(env, acct, from, to),
+          /* Today's hourly shape from Triple Whale, the same call the Profit Today preset makes. */
+          live: async (acct) => { const date = localDate(acct.tz); const day = await twDay(env, request, acct, date); return { date, hours: hoursOf(day), as_of: day.as_of }; },
+        });
         if (sr) return sr;
       }
       return json({ error: 'not found' }, 404);

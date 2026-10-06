@@ -256,6 +256,23 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
     if (path === '/api/atria/status' && request.method === 'GET') return json(await atriaStatus(env));
     if (path === '/api/atria/start' && request.method === 'POST') return json(await start(env, url.origin));
     if (path === '/api/atria/disconnect' && request.method === 'POST') { await disconnect(env); return json({ ok: true, connected: false }); }
+    /* The ads saved into one Atria board, for the Season tab's swipe file (2026-10-06). Read only. */
+    if (path === '/api/atria/board' && request.method === 'GET') {
+      const id = url.searchParams.get('board_id');
+      if (!id) return json({ error: 'board_id is required' }, 400);
+      const mcp = mcpSession(env);
+      let r;
+      try {
+        r = await mcp.call('search_library_ads', { scope: 'ad_board', ad_board_id: id, page_size: 20,
+          fields: ['ad_id', 'advertiser_name', 'title', 'body_excerpt', 'media_format', 'preview_image_url', 'days_running'] });
+      } catch (e) {
+        if (e.atria === 'not_connected') return json({ ok: false, reason: 'not_connected', ads: [] });
+        return json({ error: e.message || 'Atria did not answer' }, 502);
+      }
+      const ads = (r?.ads || []).map(a => ({ ad_id: a.ad_id, advertiser: a.advertiser_name || '', title: a.title || '', body: a.body_excerpt || '',
+        format: a.media_format || '', img: a.preview_image_url || null, days: a.days_running ?? null, url: `https://app.tryatria.com/ad/${a.ad_id}` }));
+      return json({ ok: true, ads });
+    }
   } catch (e) { return json({ error: e.message || 'Something went wrong.' }, 502); }
   return null;
 }
