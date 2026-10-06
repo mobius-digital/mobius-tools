@@ -64,7 +64,7 @@
  */
 import { claude, jsonOf, clip, safeJson } from './research.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
-import { asana, numOf } from './asana-brand.js';
+import { asana, numOf, googleToken, BRIEF_READERS, readDoc } from './asana-brand.js';
 import { atriaAd } from './atria.js';
 
 /* Outbound HTTP goes through the worker's metered fetch (xfetch). worker.js hands it in. */
@@ -185,7 +185,13 @@ async function slack(env, method, body, form = false) {
     : { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(body) };
   return F(`https://slack.com/api/${method}`, init).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
 }
-const say = (env, channel, thread_ts, text, blocks) => slack(env, 'chat.postMessage', { channel, thread_ts, text, unfurl_links: false, unfurl_media: false, ...(blocks ? { blocks } : {}) });
+/* Posts carry the name "Ideas" so the thread shows which brain answered (the Strategist posts as
+   "Strategist"; both live in the one @Mobius Digital app). Refused by Slack = the app's own name. */
+const say = async (env, channel, thread_ts, text, blocks) => {
+  const params = { channel, thread_ts, text, unfurl_links: false, unfurl_media: false, ...(blocks ? { blocks } : {}) };
+  const r = await slack(env, 'chat.postMessage', { ...params, username: 'Ideas', icon_emoji: ':bulb:' });
+  return r?.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || '')) ? slack(env, 'chat.postMessage', params) : r;
+};
 const whisper = (env, channel, user, text, thread_ts) => channel && user ? slack(env, 'chat.postEphemeral', { channel, user, text, ...(thread_ts ? { thread_ts } : {}) }) : null;
 /* What a Slack error means for the person reading the thread. */
 function slackWhy(err) {
@@ -218,11 +224,81 @@ export function classifyLink(u) {
   if (m) return { platform: 'atria', key: `atria:m${m[1]}`, atria: `m${m[1]}`, url: `https://www.facebook.com/ads/library/?id=${m[1]}`, link: url };
   m = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(reels?|p|tv)\/([A-Za-z0-9_-]+)/i.exec(url);
   if (m) { const kind = m[1].toLowerCase() === 'p' ? 'p' : 'reel'; return { platform: 'instagram', key: `ig:${m[2]}`, url: `https://www.instagram.com/${kind}/${m[2]}/`, link: url }; }
-  /* One Google Drive FILE (image or video), fetched through the direct-download door; it opens only
-     when the file is shared as "anyone with the link". Folders are UNOPENABLE. */
-  m = /drive\.google\.com\/(?:file\/d\/|open\?(?:[^#]*&)?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{20,})/.exec(url);
-  if (m) return { platform: 'drive', key: `drive:${m[1]}`, url: `https://drive.google.com/uc?export=download&id=${m[1]}`, link: url };
+  /* Google Drive: a file or a whole folder. A placeholder here; expandDrive turns it into the real
+     images and videos (read as Cole or Ahsan through the service account). */
+  m = /drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]{10,})/.exec(url);
+  if (m) return { platform: 'drive', kind: 'folder', id: m[1], key: `drive:${m[1]}`, url, link: url };
+  m = /drive\.google\.com\/(?:file\/d\/|open\?(?:[^#]*&)?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{10,})/.exec(url);
+  if (m) return { platform: 'drive', kind: 'file', id: m[1], key: `drive:${m[1]}`, url, link: url };
   return null;
+}
+
+/* ---------------- Google Drive (as Cole or Ahsan, through the service account) ---------------- */
+const DRIVE = 'https://www.googleapis.com/drive/v3';
+const driveMediaUrl = id => `${DRIVE}/files/${id}?alt=media&supportsAllDrives=true`;
+/** The first reader who can see the file, with a token and the file's metadata; null when nobody can. */
+async function driveReader(env, id) {
+  if (!env.GOOGLE_SA_KEY) return null;
+  for (const sub of BRIEF_READERS) {
+    try {
+      const tok = await googleToken(env, sub);
+      const r = await F(`${DRIVE}/files/${id}?fields=id,name,mimeType,size,thumbnailLink&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${tok}` } });
+      if (r.ok) return { sub, tok, meta: await r.json() };
+      if (r.status !== 403 && r.status !== 404) return null;
+    } catch (e) { if (/Google sign-in failed/.test(e.message)) return null; }
+  }
+  return null;
+}
+async function driveList(tok, folderId) {
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+  const r = await F(`${DRIVE}/files?q=${q}&fields=files(id,name,mimeType,size,thumbnailLink)&pageSize=60&orderBy=name&supportsAllDrives=true&includeItemsFromAllDrives=true`, { headers: { Authorization: `Bearer ${tok}` } });
+  const j = await r.json().catch(() => ({}));
+  return r.ok ? j.files || [] : [];
+}
+/* Drive's own 1024px copy of an image (credentialed fetch); the original can be a 6000px camera file. */
+const driveThumb = f => f.thumbnailLink ? f.thumbnailLink.replace(/=s\d+(-[a-z]+)?$/, '=s1024') : null;
+/** Headers for a media fetch: Slack's bot token, a Drive token for the reader who can see it, or none. */
+async function authHeaders(env, auth) {
+  if (!auth) return {};
+  if (auth.kind === 'slack') return { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` };
+  if (auth.kind === 'drive') return { Authorization: `Bearer ${await googleToken(env, auth.sub)}` };
+  return {};
+}
+const authOf = file => file?.drive ? { kind: 'drive', sub: file.drive } : { kind: 'slack' };
+/**
+ * Drive links in the thread become real images and videos: a file link is the one file, a folder link
+ * is everything in it (images and videos only; sub-folders are skipped). Needs the file shared with
+ * Cole or Ahsan. Labels (V1, I1) and the messages' tags are redone afterwards so they still line up.
+ */
+export async function expandDrive(env, t, notes = []) {
+  const drive = t.videos.filter(v => v.platform === 'drive' && v.kind);
+  if (!drive.length) return t;
+  const keyOfLabel = new Map([...t.videos, ...t.images].map(x => [x.label, x.key]));
+  for (const m of t.msgs) m.tags = (m.tags || []).map(l => keyOfLabel.get(l) || l);
+  for (const d of drive) {
+    const rd = await driveReader(env, d.id).catch(() => null);
+    const add = [];
+    if (rd) {
+      const folder = rd.meta.mimeType === 'application/vnd.google-apps.folder';
+      const files = folder ? await driveList(rd.tok, d.id).catch(() => []) : [rd.meta];
+      for (const f of files) {
+        const file = { id: f.id, name: f.name, mimetype: f.mimeType, size: +f.size || 0, url: driveMediaUrl(f.id), drive: rd.sub };
+        if (/^image\/(png|jpe?g|gif|webp)$/.test(f.mimeType || '')) add.push({ image: true, key: `drive:${f.id}`, from: d.from, file: { ...file, thumb: driveThumb(f) } });
+        else if (/^video\//.test(f.mimeType || '')) add.push({ image: false, platform: 'drive', key: `drive:${f.id}`, from: d.from, url: d.link, link: d.link, file });
+      }
+      if (!add.length) notes.push(`The Google Drive ${folder ? 'folder' : 'file'} "${rd.meta.name}" has no images or videos I can read (sub-folders are skipped).`);
+    } else notes.push(`I could not open the Google Drive link ${d.link}: share it with cole@go-mobius-digital.com or ahsan@go-mobius-digital.com and tag me again.`);
+    const at = t.videos.indexOf(d);
+    t.videos.splice(at, 1, ...add.filter(x => !x.image));
+    t.images.push(...add.filter(x => x.image));
+    const m = t.msgs.find(x => x.ts === d.from);
+    if (m) m.tags = m.tags.filter(k => k !== d.key).concat(add.map(x => x.key));
+  }
+  t.videos.forEach((v, i) => { v.label = `V${i + 1}`; });
+  t.images.forEach((im, i) => { im.label = `I${i + 1}`; });
+  const labelOfKey = new Map([...t.videos, ...t.images].map(x => [x.key, x.label]));
+  for (const m of t.msgs) m.tags = m.tags.map(k => labelOfKey.get(k) || k).filter((x, i, a) => a.indexOf(x) === i);
+  return t;
 }
 const isVideoFile = f => /^video\//.test(f?.mimetype || '');
 const isImageFile = f => /^image\/(png|jpe?g|gif|webp)$/.test(f?.mimetype || '');
@@ -295,9 +371,10 @@ export function brandOverride(text, accounts) {
 /* 2026-10-06: Ahsan's "here is an inspo ad ... can you ideate some ads for it" went to the
    Strategist (which cannot open links) because neither "inspo" nor "ideate" was an idea word. */
 const IDEA_WORDS = /\b(ideas?|ideate|inspo|inspiration|recreate|mock-?ups?|brief (?:this|it)|(?:make|write) (?:a |the )?brief|draft (?:this|it)|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio|(?:make|create|design|build|come up with) (?:me )?(?:some |a few |a couple of |\d+ )?(?:ads?|statics?|concepts?|creatives?|visuals?)|ads? (?:for|like) (?:it|this|that|these|the|our))\b/i;
-/* Links the bot cannot open (they need a login): a tag with one is still an idea, and the card says
-   to upload the files instead. A Drive link to ONE file shared as "anyone with the link" does work. */
-export const UNOPENABLE = /drive\.google\.com\/drive\/folders|docs\.google\.com\/|app\.air\.inc\/|dropbox\.com\/|wetransfer\.com\/|we\.tl\//i;
+/* Links the bot cannot open (they need a login and have no door we hold a key to): a tag with one is
+   still an idea, and the card says to upload the files instead. Google Drive files, folders and Docs
+   DO open, as Cole or Ahsan through the service account (expandDrive, readDoc). */
+export const UNOPENABLE = /app\.air\.inc\/|dropbox\.com\/|wetransfer\.com\/|we\.tl\//i;
 const hasRef = text => linksOf(text).some(u => classifyLink(u) || UNOPENABLE.test(u));
 const NUMBER_WORDS = /\b(roas|cpa|mer|spend|spent|pacing|revenue|sales|budget|ctr|cpm|cvr|aov|mer|traffic|sessions?|numbers?|conversions?|conversion rate|orders)\b/i;
 /**
@@ -443,6 +520,12 @@ async function clipSource(env, v, facts, meter) {
     if (!res.ok || /text\/html/.test(res.headers.get('content-type') || '')) throw new Error('Slack would not hand the file over');
     return { res, mime: geminiMime(v.file.mimetype), size: v.file.size || +(res.headers.get('content-length') || 0) };
   }
+  if (v.platform === 'drive') {
+    if (!v.file?.drive) throw new Error('the Google Drive file is not shared with us');
+    const res = await F(v.file.url, { headers: await authHeaders(env, authOf(v.file)) });
+    if (!res.ok) throw new Error(`Google Drive would not hand the file over (${res.status})`);
+    return { res, mime: geminiMime(v.file.mimetype), size: v.file.size || +(res.headers.get('content-length') || 0) };
+  }
   if (v.platform === 'atria') {
     let vid = facts?.atria?.video_url || '';
     if (!vid) { const a = await atriaAd(env, v.atria); vid = ((a.ad?.videos || [])[0] || {}).url || ''; }
@@ -556,12 +639,10 @@ export async function videoFacts(env, v, meter, act = null) {
         if (!res.ok || /text\/html/.test(res.headers.get('content-type') || '')) return { note: `I could not download ${what} from Slack (the app needs the files:read scope).` };
         mime = geminiMime(v.file.mimetype); size = v.file.size || +(res.headers.get('content-length') || 0);
       } else if (v.platform === 'drive') {
-        res = await F(v.url, { redirect: 'follow' });
-        const ct = (res.headers.get('content-type') || '').split(';')[0].trim();
-        if (!res.ok || /text\/html/.test(ct)) return { note: `I could not open ${what}: Google Drive would not hand it over. Share it as "anyone with the link", or upload the file into this thread and tag me again.` };
-        if (/^image\//.test(ct)) return { image_url: v.url };
-        if (!/^video\//.test(ct)) return { note: `${what} is not a video or an image (${ct || 'unknown type'}), so I skipped it.` };
-        mime = geminiMime(ct); size = +(res.headers.get('content-length') || 0);
+        if (!v.file?.drive) return { note: `I could not open ${what}: share it with cole@go-mobius-digital.com and tag me again.` };
+        res = await F(v.file.url, { headers: await authHeaders(env, authOf(v.file)) });
+        if (!res.ok) return { note: `I could not download ${what} ("${v.file.name}") from Google Drive (${res.status}).` };
+        mime = geminiMime(v.file.mimetype); size = v.file.size || +(res.headers.get('content-length') || 0);
       } else {
         const s = await fetchSocialVideo(v.link || v.url, env);
         if (s.reason !== 'no_key') meter.downloads++;
@@ -665,10 +746,10 @@ function b64(buf) {
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return btoa(s);
 }
-async function imageBlock(env, url, slackFile) {
-  const r = await F(url, slackFile ? { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } } : {}).catch(() => null);
+async function imageBlock(env, url, auth) {
+  const r = await F(url, { headers: await authHeaders(env, auth).catch(() => ({})) }).catch(() => null);
   const type = (r?.headers.get('content-type') || '').split(';')[0].trim();
-  if (!r?.ok || !/^image\/(png|jpeg|gif|webp)$/.test(type)) return { note: slackFile ? 'I could not open an attached image (the app needs the files:read scope).' : 'I could not open an image from that post.' };
+  if (!r?.ok || !/^image\/(png|jpeg|gif|webp)$/.test(type)) return { note: auth?.kind === 'slack' ? 'I could not open an attached image (the app needs the files:read scope).' : auth?.kind === 'drive' ? 'I could not open an image from Google Drive.' : 'I could not open an image from that post.' };
   const buf = await r.arrayBuffer();
   if (buf.byteLength > MAX_IMAGE_BYTES) return { note: 'An attached image is over 3.7MB, so I skipped it.' };
   return { block: { type: 'image', source: { type: 'base64', media_type: type, data: b64(buf) } } };
@@ -688,7 +769,8 @@ export const IDEA_SCHEMA = obj({
     openers: arr(S), shots: arr(obj({ label: S, text: S })), on_screen: S, do_text: S, dont_text: S, proof_note: S }),
   asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, testing: S,
     ads: arr(S), creator: S, script: S, primary_text: S, headline: S, offer: S }),
-  studio: obj({ name: S, angle: S, why: S, concept: S, testing: en(...STUDIO_TESTING), post_copy: S, lines: arr(S) }),
+  studio: obj({ name: S, angle: S, why: S, concept: S, testing: en(...STUDIO_TESTING), post_copy: S, use_photos: B, lines: arr(S) }),
+  images: arr(obj({ label: S, kind: en('inspiration', 'product_studio', 'product_lifestyle', 'other'), note: S })),
 });
 
 function systemText(brand, lucky) {
@@ -706,6 +788,8 @@ READING THE THREAD
 - A breakdown with an "atria" part is an ad from the Atria ad library (it runs on Meta): its advertiser, copy, CTA, landing page, transcript and creative tags are facts. How long it has been running is a signal it makes money for that advertiser, not proof; say so if you lean on it.
 - The reference is usually another brand's ad. Take its structure, never its claims, product or words.
 
+IMAGES: for every image in the thread (I1, I2...) say in \`images\` what it is: another brand's ad or a reference to copy (inspiration), a clean studio shot of OUR product on a plain background (product_studio), a real photo of our product in use or in a scene (product_lifestyle), or other (a screenshot of a chat, a spec sheet). What the team wrote wins ("here are the product photos", "this one is the inspo"). Studio draws the product from product photos and checks every ad against them, and uses inspiration only for the look, so this sorting decides what the ads look like.
+
 TEARDOWN: why the reference works for its audience: the awareness stage, the sophistication stage, the desire it hits, the mechanism, the proof it uses, and why the hook stops the scroll. Then what is weak or not worth copying. ONE short sentence per field (summary may be two). Specific to this reference: if a sentence would fit any ad, cut it. A typed idea with no reference gets the same treatment for the idea itself.
 
 QUESTIONS: 0 to 3, only when the brand brain AND the thread truly lack something you need (for example which persona or which product). blocking = true only when any draft would be a guess without the answer.
@@ -718,7 +802,7 @@ DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATOR
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
 - creator_link is read by a creator on a phone, so it is SHORT and every word is specific (from the persona, a quote, a product fact; fewer words, never vaguer ones). HARD CAPS, the code cuts anything longer: title up to 6 words; argument (the pitch) up to 25 words; who up to 15 words; openers EXACTLY 2, up to 18 words each, lines a creator could say out loud; shots up to 3, each up to 20 words in plain language (label up to 3 words); on_screen up to 3 short lines, one per line; do_text and dont_text up to 3 items each, one per line, up to 10 words each; format up to 3 words; products up to 3 words; proof_note one short sentence on what to take from the reference. It follows the hierarchy rule: the section answers "why would a creator film this today" (Hot right now, a dated window, a product line, or a standing theme); format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
 - asana is the team's brief template, kept simple: title (a few words), angle (one sentence), why (one sentence) and test_type. testing is ONE short line saying what changes and, inside a proven concept, on which ad, like "3 new concepts", "3 headlines on 412-3", "2 redesigns of 412-3", "3 hooks on 290-1". Then 3 to 5 ads unless the thread asks otherwise, one line each: a different idea when testing concepts, otherwise the one piece that changes (the new hook, the new headline, what the redesign changes), enough for the designer or editor to build it. kind is video for anything filmed, static for images. For video also creator and script (one per ad if they are different videos); for static leave those empty. Copy fields only when you have something real to say.
-- studio: static ads only, one line per ad: the words on the ad plus a short note on the look. testing is what changes across the lines. 3 to 6 lines unless the thread asks for a number (up to 12).
+- studio: static ads only, one line per ad: the words on the ad plus a short note on the look. testing is what changes across the lines. 3 to 6 lines unless the thread asks for a number (up to 12). "N variations" or "N versions" of ONE reference or idea with no named piece (no "headlines", no "offers") is testing "format": one layout type per line, named in the line (review card, native phone post, comparison, bold type offer, product hero, founder note, lifestyle shot), never a words-only test. use_photos = true only when the thread's product_lifestyle photos are good enough to BE the ads (a real shot with room for words) and nobody asked for a redesign: Studio then keeps each photo exactly as shot and adds the words; the line says what words go on and any small change (water droplets on the club, a darker sky).
 
 ${SPECIFICITY}
 
@@ -1130,6 +1214,7 @@ export async function runIdeaJob(env, job) {
     const t = parseThread(rep.messages, { botUser: job.bot, names });
     if (!t.msgs.length) throw Object.assign(new Error('There is nothing in this thread for me to read yet.'), { plain: true });
     const notes = [];
+    await expandDrive(env, t, notes).catch(e => notes.push(`Google Drive: ${e.message}`));
 
     /* Videos: each watched once, ever. */
     const breakdowns = [], imgs = [], seenFacts = [];
@@ -1137,17 +1222,24 @@ export async function runIdeaJob(env, job) {
       const r = await videoFacts(env, v, meter, acct.act_id);
       if (r.facts) seenFacts.push({ label: v.label, facts: r.facts });
       if (r.facts) breakdowns.push(`${v.label} (${PLATFORM[v.platform]}${v.url ? ` ${v.url}` : ''}${r.cached ? ', read before' : ''}):\n${clip(JSON.stringify(r.facts), 12000)}`);
-      else if (r.image_url) imgs.push({ label: v.label, url: r.image_url, slack: false });
-      (r.image_urls || []).forEach((u, i) => imgs.push({ label: r.image_urls.length > 1 ? `${v.label}.${i + 1}` : v.label, url: u, slack: false }));
+      else if (r.image_url) imgs.push({ label: v.label, url: r.image_url, auth: null });
+      (r.image_urls || []).forEach((u, i) => imgs.push({ label: r.image_urls.length > 1 ? `${v.label}.${i + 1}` : v.label, url: u, auth: null }));
       if (r.note) notes.push(r.note);
     }
     if (t.videos.length > MAX_VIDEOS) notes.push(`Only the first ${MAX_VIDEOS} videos were watched.`);
-    for (const im of t.images) imgs.push({ label: im.label, url: im.file.thumb || im.file.url, slack: true });
+    for (const im of t.images) imgs.push({ label: im.label, url: im.file.thumb || im.file.url, auth: authOf(im.file) });
     const dead = [...new Set(t.msgs.flatMap(m => m.links || []).filter(u => UNOPENABLE.test(u)))];
-    if (dead.length) notes.push(`I can't open ${dead.length === 1 ? 'that link' : `${dead.length} of those links`} (Google Drive folders, Docs, Air, Dropbox and WeTransfer need a login). Upload the files into this thread and tag me again; a Drive link to one file works when it is shared as "anyone with the link".`);
+    if (dead.length) notes.push(`I can't open ${dead.length === 1 ? 'that link' : `${dead.length} of those links`} (Air, Dropbox and WeTransfer need a login I do not have). Upload the files into this thread, or put them in Google Drive shared with cole@go-mobius-digital.com, and tag me again.`);
+    /* Google Docs in the thread (a brief, notes) are read as text, as Cole or Ahsan. */
+    const docTexts = [];
+    for (const id of [...new Set(t.msgs.flatMap(m => m.links || []).map(u => (u.match(/docs\.google\.com\/document\/d\/([\w-]{20,})/) || [])[1]).filter(Boolean))].slice(0, 3)) {
+      const txt = await readDoc(env, id).catch(() => null);
+      if (txt) docTexts.push(`GOOGLE DOC (docs.google.com/document/d/${id}):\n${clip(txt, 12000)}`);
+      else notes.push(`I could not read the Google Doc docs.google.com/document/d/${id}: share it with cole@go-mobius-digital.com and tag me again.`);
+    }
     const imageBlocks = [];
     for (const im of imgs.slice(0, MAX_IMAGES)) {
-      const r = await imageBlock(env, im.url, im.slack);
+      const r = await imageBlock(env, im.url, im.auth);
       if (r.block) imageBlocks.push({ type: 'text', text: `IMAGE ${im.label}:` }, r.block);
       if (r.note) notes.push(r.note);
     }
@@ -1168,6 +1260,7 @@ export async function runIdeaJob(env, job) {
     const user = [
       { type: 'text', text: `BRAND: ${acct.name}\n\nTHE THREAD (oldest first; V1, V2 are the videos broken down below, I1, I2 the images attached):\n${clip(transcriptOf(t), 30000)}\n\nTHE TAG THAT CALLED YOU: "${clip(stripTags(job.text), 600) || '(just the tag)'}"` },
       ...(breakdowns.length ? [{ type: 'text', text: `VIDEO BREAKDOWNS (facts from a video model):\n\n${breakdowns.join('\n\n')}` }] : []),
+      ...(docTexts.length ? [{ type: 'text', text: `GOOGLE DOCS LINKED IN THE THREAD:\n\n${docTexts.join('\n\n')}` }] : []),
       ...(notes.length ? [{ type: 'text', text: `MEDIA I COULD NOT READ (work from the thread's words for these):\n${notes.join('\n')}` }] : []),
       ...imageBlocks,
       { type: 'text', text: hubText(hub) },
@@ -1194,7 +1287,7 @@ export async function runIdeaJob(env, job) {
     const refs = t.videos.filter(v => v.platform !== 'slack').map(v => v.link || v.url);
     /* The thread's videos, enough to find each one's stored clip later (the Creator link button). */
     const media = t.videos.slice(0, MAX_VIDEOS).map(v => ({ label: v.label, platform: v.platform, key: v.key, url: v.url || null, link: v.link || null, atria: v.atria || null,
-      ...(v.file ? { file: { id: v.file.id, name: v.file.name, mimetype: v.file.mimetype, size: v.file.size, url: v.file.url } } : {}) }));
+      ...(v.file ? { file: { id: v.file.id, name: v.file.name, mimetype: v.file.mimetype, size: v.file.size, url: v.file.url, ...(v.file.drive ? { drive: v.file.drive } : {}) } } : {}) }));
     const from = t.msgs[0]?.name || 'the team';
     const status = blocking ? 'questions' : (prevStatus === 'pushed' ? 'pushed' : 'drafted');
     /* A fresh draft may pick another section; a "Make ... draft" press keeps what someone chose. */
@@ -1627,18 +1720,18 @@ async function studioRefs(env, row) {
   try {
     const rep = await slack(env, 'conversations.replies', { channel: row.channel, ts: row.thread_ts, limit: 200 }, true);
     const t = parseThread(rep.messages || []);
-    for (const im of t.images) srcs.push({ url: im.file.thumb || im.file.url, slack: true });
-    for (const v of t.videos.filter(v => v.platform === 'drive')) srcs.push({ url: v.url, slack: false });
+    await expandDrive(env, t).catch(() => {});
+    for (const im of t.images) srcs.push({ label: im.label, url: im.file.thumb || im.file.url, auth: authOf(im.file) });
     for (const v of t.videos.filter(v => v.platform === 'atria')) {
       const hit = await env.DB.prepare(`SELECT facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
       const a = safeJson(hit?.facts_json, {})?.atria;
-      if (a && !a.video_url) (a.image_urls || []).forEach(u => srcs.push({ url: u, slack: false }));
+      if (a && !a.video_url) (a.image_urls || []).forEach(u => srcs.push({ label: v.label, url: u, auth: null }));
     }
   } catch { return []; }
   const out = [];
-  for (const s of srcs.slice(0, 6)) {
+  for (const s of srcs.slice(0, 12)) {
     try {
-      const res = await F(s.url, s.slack ? { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } } : {});
+      const res = await F(s.url, { headers: await authHeaders(env, s.auth).catch(() => ({})) });
       const type = (res.headers.get('content-type') || '').split(';')[0];
       const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[type];
       if (!res.ok || !ext) continue;
@@ -1646,7 +1739,7 @@ async function studioRefs(env, row) {
       if (buf.byteLength > 12e6) continue;
       const key = `${hex24()}.${ext}`;
       await env.MEDIA.put(`studio/ref/${key}`, buf, { httpMetadata: { contentType: type } });
-      out.push(STUDIO_REF + key);
+      out.push({ label: s.label, url: STUDIO_REF + key });
     } catch { /* skipped */ }
   }
   return out;
@@ -1659,16 +1752,29 @@ export async function pushStudio(env, row, acct, d, pushed) {
   const s = d.studio || {};
   if (!(s.lines || []).length) return { ok: false, text: 'The draft has no Studio lines. Press Redo, or tag me and say it is for Studio.' };
   const id = hex24();
-  const refs = await studioRefs(env, row);
-  const copyLook = ['as_is', 'style'].includes(d.transfer?.mode) && refs.length > 0;
+  const all = await studioRefs(env, row);
+  /* The model sorted the thread's images (IDEA_SCHEMA.images): our product photos become the batch's
+     product (drawn from and checked against, like Shopify photos); inspiration goes on the lines or
+     into the swipe file; "use_photos" makes each lifestyle photo the ad itself. */
+  const kinds = new Map((Array.isArray(d.images) ? d.images : []).map(x => [x.label, x.kind]));
+  const of = k => all.filter(r => kinds.get(r.label) === k).map(r => r.url);
+  const studioShots = of('product_studio'), lifestyle = of('product_lifestyle');
+  const refs = all.filter(r => !['product_studio', 'product_lifestyle', 'other'].includes(kinds.get(r.label))).map(r => r.url);
+  const product = [...studioShots, ...lifestyle].slice(0, 8);
+  const usePhotos = !!s.use_photos && lifestyle.length > 0;
+  const copyLook = !usePhotos && ['as_is', 'style'].includes(d.transfer?.mode) && refs.length > 0;
   const brief = { angle: s.angle || '', why: s.why || '', concept: s.concept || '', post_copy: s.post_copy || '',
-    testing: STUDIO_TESTING.includes(s.testing) ? s.testing : 'concepts', lines: s.lines.slice(0, 12).map(text => ({ text: clip(text, 1200), inspo: copyLook ? [refs[0]] : [] })),
+    testing: STUDIO_TESTING.includes(s.testing) ? s.testing : 'concepts',
+    lines: s.lines.slice(0, 12).map((text, i) => ({ text: clip(text, 1200), inspo: copyLook ? [refs[0]] : [], photo: usePhotos ? lifestyle[i % lifestyle.length] : '' })),
     source: 'slack idea', reference: safeJson(row.refs_json, []) || [] };
   const swipe = copyLook ? refs.slice(1) : refs;
+  const setup = { products: product.length ? [{ title: 'Photos from the Slack thread', handle: `thread:${id}`, all: product, dna: null }] : [], images: product, swipe };
   const name = clip(s.name || s.angle || 'Idea from Slack', 200);
   await env.DB.prepare(`INSERT INTO p_studio_batch (id, act_id, num, br_batch_id, name, brief_json, setup_json, plan_json, status) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, NULL, 'draft')`)
-    .bind(id, acct.act_id, pushed.asana_brief?.num ? String(pushed.asana_brief.num) : null, name, JSON.stringify(brief), JSON.stringify({ products: [], images: [], swipe })).run();
+    .bind(id, acct.act_id, pushed.asana_brief?.num ? String(pushed.asana_brief.num) : null, name, JSON.stringify(brief), JSON.stringify(setup)).run();
   pushed.studio = { id, name, at: new Date().toISOString() };
   const inspo = !refs.length ? '' : copyLook ? ' The inspiration is on every line as "make it look like this".' : ` The inspiration is in its swipe file (${refs.length} image${refs.length === 1 ? '' : 's'}).`;
-  return { text: `Studio batch "${name}" is waiting in Locus Studio for ${acct.name} (${brief.lines.length} ad${brief.lines.length === 1 ? '' : 's'}).${inspo} Pick the product there and make it: ${LOCUS}` };
+  const prod = product.length ? ` ${product.length} product photo${product.length === 1 ? '' : 's'} from this thread ${product.length === 1 ? 'is' : 'are'} on it as the product.` : '';
+  const photos = usePhotos ? ` The lifestyle photos ARE the ads: Studio keeps each one as shot and adds the words.` : '';
+  return { text: `Studio batch "${name}" is waiting in Locus Studio for ${acct.name} (${brief.lines.length} ad${brief.lines.length === 1 ? '' : 's'}).${prod}${photos}${inspo} ${product.length ? 'Check the product fingerprint there and make it' : 'Pick the product there and make it'}: ${LOCUS}` };
 }

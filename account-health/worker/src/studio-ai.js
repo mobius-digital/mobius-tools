@@ -163,6 +163,7 @@ RULES:
 - Keep the team's own words exactly in each line's text (headlines, offers, codes, notes on the look). Never polish them.
 - If a brief gives an angle and ideas but no numbered lines, make one line per idea.
 - A line that asks for N versions or iterations becomes N lines (same text, marked "iteration 1 of N" and so on).
+- "N variations", "N versions" or "different takes" of ONE reference or idea, with no named piece (no "headlines", no "offers"), is testing "format": one line per layout type (review card, native phone post, comparison, bold type offer, product hero, founder note, lifestyle shot), named in the line. Never read it as a words-only test: five near-copies teach nothing and Meta treats them as duplicates.
 - The post's own copy (primary text, body, caption, landing page, "ad copy for both versions") is NOT an ad: put it in post_copy, never in a line. Lines are only the images to make.
 - "why" is what the team believes about the customer, if the brief says; otherwise one short line inferred from the angle, naming the persona, customer quote or past test from the brand brain it rests on (or saying plainly that the brain has nothing on it).
 - name: 2 to 5 words, e.g. "Gift angle, 3 concepts".`,
@@ -211,16 +212,20 @@ RULES:
     const exact = !!b.exact && cutouts.length > 0;
     const swipeOk = await fitRefs(env, swipe, put, 'swipe file');
     for (const l of lines) l.inspo = (l.inspo || []).length ? await fitRefs(env, l.inspo.filter(u => /^https:\/\//.test(u)).slice(0, 2), put, 'line inspiration') : [];
+    /* A line can carry a real photograph that IS the ad (a shoot photo from Slack, or picked on the
+       batch): it is kept as shot and only the words, and any small change asked for, go on it. */
+    for (const l of lines) l.photo = typeof l.photo === 'string' && /^https:\/\//.test(l.photo) ? (await fitRefs(env, [l.photo], put, 'line photo'))[0] || '' : '';
     cutouts.forEach((u, i) => { content.push({ type: 'text', text: `PRODUCT PHOTO ${i + 1} (a real photo of the product, cut out; it goes into the ad exactly as shot, at this angle):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
     swipeOk.forEach((u, i) => { content.push({ type: 'text', text: `SWIPE FILE image ${i + 1}:` }); content.push({ type: 'image', source: { type: 'url', url: u } }); });
     lines.forEach((l, i) => l.inspo.forEach((u, k) => { content.push({ type: 'text', text: `LINE ${i + 1} INSPIRATION ${k + 1} (make it look like this):` }); content.push({ type: 'image', source: { type: 'url', url: u } }); }));
+    lines.forEach((l, i) => { if (l.photo) { content.push({ type: 'text', text: `LINE ${i + 1} PHOTO (this photograph IS the ad: it stays exactly as shot; only the words, and any small change the line asks for, are added):` }); content.push({ type: 'image', source: { type: 'url', url: l.photo } }); } });
     content.push({ type: 'text', text: `THE BATCH
 Angle: ${clip(bt.angle, 600)}
 Why: ${clip(bt.why, 600)}
 ${bt.concept ? `Concept: ${clip(bt.concept, 600)}\n` : ''}Testing: ${bt.testing || 'concepts'}
 Products: ${products.join(', ') || '(none picked)'}${dnas.length ? `\nProduct fingerprint (the product must match this exactly in every ad):\n${dnas.join('\n\n')}` : ''}
 Lines:
-${lines.map((l, i) => `${i + 1}. ${clip(l.text, 1200)}${(l.inspo || []).length ? ' [has its own inspiration above]' : ''}`).join('\n')}
+${lines.map((l, i) => `${i + 1}. ${clip(l.text, 1200)}${l.photo ? ' [this photo is the ad]' : (l.inspo || []).length ? ' [has its own inspiration above]' : ''}`).join('\n')}
 
 YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad per line, in order.
 - WORDS: keep any headline, line, offer or code the brief gives, exactly. Where a line gives no words, write them as the brand speaker would say them to the person the angle is for. Headline a few words. Smaller line optional. Callouts only when the line or angle calls for them, max 4. Button text short or empty.
@@ -230,6 +235,7 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
 - HOUSE STYLE: ${nWin ? 'the best-selling ads above are what works for this brand. Match their level of restraint, realism and type quality; take their confidence, not their layouts.' : 'restrained, real, confident.'} It must never look like an AI ad: real photography, flat and crisp typography, one clear headline, few elements, no glossy badges, no fake 3D, no clutter.
 - LOOK: a concrete scene, mood, light and camera a photographer could shoot, plus the layout (where the product and words sit). Keep all words inside the centred square of the 4:5 frame.
 - INSPIRATION: a line with its own inspiration copies that layout and type treatment closely ("copy"). The swipe file is for range, never copied: when it helps, point a line at the swipe image whose style fits and use it as a loose mood reference ("vibe"). With no inspiration, choose varied, strong formats yourself (product hero, lifestyle, native phone post, bold type, comparison, founder note, review card).
+- PHOTO LINES: a line marked [this photo is the ad] keeps its photograph exactly as shot. Its look is ONLY what to add or change on that photo: where the words sit (in the photo's empty space, never over the product or a face) and any small change the line asks for (water droplets on the club, a darker sky). ref none; pick the type style that suits the photo.
 - ART: title art is only for a launch or drop where the brief wants ONE word (or two) drawn as lettering art, like a product name. Otherwise leave art empty. Never put a description or idea in art.
 - CALLOUTS: short enough to fit a small badge, about 6 words each; keep the team's words, but split a long one into two.
 - CALLOUTS THAT NAME A PART of the product (heel, toe, face, sole, neck) must be planned as pointers on that exact part of the product, so the look must show that part clearly. On a club the heel is the shaft end, the toe the far end.
@@ -252,9 +258,10 @@ ${SPECIFICITY}` }],
     const nd = v => typeof v === 'string' ? v.replace(/\s*—\s*/g, ', ') : Array.isArray(v) ? v.map(nd) : v;
     const ads = (jsonOf(m).ads || []).slice(0, lines.length).map(x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, nd(v)]))).map((a, i) => {
       const sw = (a.ref.match(/swipe\s*(\d+)/i) || [])[1];
-      const ref_url = a.ref === 'line' ? (lines[i].inspo || [])[0] || '' : sw ? swipeOk[+sw - 1] || '' : '';
+      const photo_url = lines[i].photo || '';
+      const ref_url = photo_url ? '' : a.ref === 'line' ? (lines[i].inspo || [])[0] || '' : sw ? swipeOk[+sw - 1] || '' : '';
       const photo = exact && a.photo >= 1 && a.photo <= cutouts.length ? a.photo : 0;
-      return { ...a, callouts: (a.callouts || []).slice(0, 4), ref_url, ref_use: ref_url ? a.ref_use : 'none', photo };
+      return { ...a, callouts: (a.callouts || []).slice(0, 4), ref_url, ref_use: ref_url ? a.ref_use : 'none', photo, photo_url };
     });
     return { ads, variation, exact };
   });

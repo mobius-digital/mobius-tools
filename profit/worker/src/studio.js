@@ -142,13 +142,33 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
   throw new Error('The image model kept rejecting the request.');
 }
 
-function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
+const TYPE_RULES = 'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges. Labels and callouts are simple flat shapes or plain text.';
+function textLines(spec) {
   const lines = [];
   if (spec.headline) lines.push(`Headline: "${spec.headline}"`);
   if (spec.subline) lines.push(`Smaller line: "${spec.subline}"`);
   for (const c of spec.callouts || []) lines.push(`Callout (a small badge, label or pointer near the part of the product it describes): "${c}"`);
   if (spec.cta) lines.push(`Button (a clean pill or label shape): "${spec.cta}"`);
   if (spec.art && spec.art.trim().split(/\s+/).length <= 3) lines.push(`Title art: "${spec.art}" as custom stylised lettering that is part of the scene itself`);
+  return lines;
+}
+/* A line whose photograph IS the ad (a real shot from the brand's own shoot, 2026-10-06): the picture
+   is kept and only the words, and whatever small change the plan asks for, go on. Realism comes free,
+   because nothing is rendered. */
+function basePrompt(spec, brand) {
+  const lines = textLines(spec);
+  return [
+    `The attached photograph is the finished picture for a Meta feed ad for ${brand}. It is a real photo of the real product and it must stay exactly as shot: the same scene, product, people, light, colours, grain and framing. Do not restage, redraw, move, resize, recolour or add anything to the scene except what is asked below. The output is SQUARE (the safe area of a 4:5 ad, extended above and below later): if the photo is not square, crop to the square that keeps the product whole and leaves natural room for the words.`,
+    spec.look ? `Change only this on the photo: ${spec.look}` : '',
+    lines.length ? `Add exactly this text, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Add no text.',
+    'Put the words in the photo\'s empty space (sky, wall, table, floor, a blank area), never over the product or a face, with a small margin from every edge, sized so every word fits completely.',
+    `Typography: ${STYLES[spec.style] || STYLES.auto}`,
+    TYPE_RULES,
+    'No watermark, no extra logos, no made-up words, no product name unless it is in the text above, no price unless it is in the text above.',
+  ].filter(Boolean).join('\n\n');
+}
+function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
+  const lines = textLines(spec);
   const names = (spec.products || []).map(p => p.title).filter(Boolean);
   const many = names.length > 1;
   const which = counts.prod && counts.inspo
@@ -173,7 +193,7 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     lines.length ? `Put exactly this text on the ad, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Put no text on the ad.',
     'Keep every word and the whole product inside this square with a small margin from every edge.',
     'A callout that names a part of the product (heel, toe, face, sole, neck, grip, crown, collar and so on) must point at that exact part of the product itself, never at anything else in the scene. On a golf club the heel is the end nearest the shaft and the toe is the far end.',
-    'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges. Labels and callouts are simple flat shapes or plain text.',
+    TYPE_RULES,
     'It must look like a real photograph with real design on top, not a CGI render: natural light, real materials, real depth of field.',
     spec.notes ? `Also: ${spec.notes}` : '',
     'The scene and look notes above are directions for you. Never write any of them on the ad; the only words on the ad are the ones listed.',
@@ -268,9 +288,11 @@ const getAd = (env, id) => env.DB.prepare(`SELECT * FROM p_studio_ad WHERE id = 
 const keyOf = (row, kind) => `studio/${row.act_id}/${row.id}/${kind}.png`;
 
 async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts, where = {}) {
-  const prompt = adPrompt(spec, brand, k, n, counts);
+  const prompt = counts.base ? basePrompt(spec, brand) : adPrompt(spec, brand, k, n, counts);
   let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: '1024x1024' });
   let cost = COST.image, check = null;
+  /* The photo IS the ad: the product in it is real, so there is nothing to score. */
+  if (counts.base) return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check: { ok: true, exact: true, issue: '' }, parent, ...where });
   /* One image per ad, no automatic retries (Cole: retries waste credits). The product is scored
      0-10 against the real photos (about 1 cent) and the score is shown on the card; a low score is
      the team's cue to press Redo. */
@@ -333,7 +355,7 @@ function cleanSpec(s = {}) {
   if (!products.length && s.product) products = [{ title: clip(s.product, 200), handle: clip(s.product_handle, 200) }];
   return {
     products, product: products.map(p => p.title).join(' + '),
-    images: urls(s.images, 8), inspo: urls(s.inspo, 3),
+    images: urls(s.images, 8), inspo: urls(s.inspo, 3), base: urls([s.base], 1)[0] || '',
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
     callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
     art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
@@ -523,18 +545,21 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!key) return needKey();
     if (!env.MEDIA) return json({ error: 'Image storage is not set up on this worker.' }, 500);
     const spec = cleanSpec(body.spec);
-    if (!spec.images.length && !spec.inspo.length) return json({ error: 'Pick a product or add an inspiration image.' }, 400);
+    if (!spec.images.length && !spec.inspo.length && !spec.base) return json({ error: 'Pick a product or add an inspiration image.' }, 400);
     const n = Math.max(1, Math.min(4, +body.n || 1));
     const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
     if (!acct) return json({ error: 'unknown brand' }, 404);
     return stream(CORS, async send => {
       const m = await models(key);
       send({ type: 'status', text: `Making ${n} version${n > 1 ? 's' : ''} with ${m.image}. About a minute.` });
-      const prod = await refImages(env, spec.images, 8), insp = await refImages(env, spec.inspo, 3);
-      if (!prod.length && !insp.length) throw new Error('Could not load the photos.');
-      const counts = { prod: prod.length, inspo: insp.length };
+      /* spec.base = a real photograph that IS the ad: it is the only image sent, kept as shot. */
+      const base = spec.base ? await refImages(env, [spec.base], 1) : [];
+      if (spec.base && !base.length) throw new Error('Could not load the photo for this ad.');
+      const prod = base.length ? [] : await refImages(env, spec.images, 8), insp = base.length ? [] : await refImages(env, spec.inspo, 3);
+      if (!base.length && !prod.length && !insp.length) throw new Error('Could not load the photos.');
+      const counts = { prod: prod.length, inspo: insp.length, base: base.length };
       const results = await Promise.allSettled(Array.from({ length: n }, (_, k) =>
-        makeOne(env, key, m, act, acct.name, spec, [...prod, ...insp], k, n, body.parent_id, counts, { batch_id: clip(body.batch_id, 40) || null, line: Number.isInteger(body.line) ? body.line : null }).then(ad => { send({ type: 'ad', ad }); return ad; })));
+        makeOne(env, key, m, act, acct.name, spec, [...base, ...prod, ...insp], k, n, body.parent_id, counts, { batch_id: clip(body.batch_id, 40) || null, line: Number.isInteger(body.line) ? body.line : null }).then(ad => { send({ type: 'ad', ad }); return ad; })));
       const ok = results.filter(r => r.status === 'fulfilled').map(r => r.value);
       const bad = results.filter(r => r.status === 'rejected').map(r => r.reason?.message || 'failed');
       if (!ok.length) throw new Error(bad[0] || 'Nothing came back.');

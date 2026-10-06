@@ -22,7 +22,7 @@
 'use strict';
 
 const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
-const TESTING = [['concepts', 'Concepts', 'different ideas'], ['headlines', 'Headlines', 'same ad, new words'], ['visuals', 'Looks', 'same words, new looks'], ['offer', 'Offer', 'same ad, offer framing'], ['reviews', 'Reviews', 'same ad, review quote'], ['hooks', 'Hooks', 'the opening line'], ['copy', 'Copy', 'the body words'], ['format', 'Format', 'layout type']];
+const TESTING = [['concepts', 'Concepts', 'different ideas'], ['headlines', 'Headlines', 'same ad, new words'], ['visuals', 'Looks', 'same words, new looks'], ['offer', 'Offer', 'same ad, offer framing'], ['reviews', 'Reviews', 'same ad, review quote'], ['hooks', 'Hooks', 'the opening line'], ['copy', 'Copy', 'the body words'], ['format', 'Format', 'one idea, different layouts']];
 const STYLES = [['auto', 'AI picks'], ['bold', 'Bold condensed'], ['clean', 'Clean modern'], ['serif', 'Elegant serif'], ['hand', 'Handwritten'], ['luxe', 'Thin luxe'], ['native', 'Native social']];
 const PER_AD = 0.36;
 
@@ -488,7 +488,9 @@ function batchView(b) {
     <p class="st-lbl" style="margin-top:12px">Lines · one ad each</p>
     <div>${lines.map((l, i) => `<div class="st-bl"><span class="k">${i + 1}</span>
       <div style="display:grid;gap:6px"><textarea class="st-in" style="margin:0" data-line="${i}" rows="2" placeholder="The concept or piece for this ad, in the team's words">${esc(l.text)}</textarea>
-        <div class="st-thumbs"><span class="tiny">Make it look like this:</span>${(l.inspo || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmli="${i}:${k}" role="button" aria-label="Remove" title="Remove">×</span></button>`).join('')}${(l.inspo || []).length < 2 ? `<button class="st-add" data-addli="${i}">Add image</button>` : ''}</div></div>
+        <div class="st-thumbs">${l.photo
+          ? `<span class="tiny">This photo is the ad (kept as shot, words added):</span><button class="t on" data-zu="${esc(l.photo)}"><img src="${esc(thumb(l.photo))}" alt=""><span class="st-x" data-rmph="${i}" role="button" aria-label="Not the ad" title="Back to inspiration">×</span></button>`
+          : `<span class="tiny">Make it look like this:</span>${(l.inspo || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmli="${i}:${k}" role="button" aria-label="Remove" title="Remove">×</span></button><button class="st-add" data-useph="${i}:${k}" title="A real photo of our product: keep it exactly as shot and only add the words">Use as the ad</button>`).join('')}${(l.inspo || []).length < 2 ? `<button class="st-add" data-addli="${i}">Add image</button>` : ''}`}</div></div>
       <button class="btn quiet" data-rmline="${i}" title="Remove this line" aria-label="Remove line ${i + 1}">Remove</button></div>`).join('')}</div>
     <button class="btn" id="bAddLine" style="margin-top:8px">Add a line</button>
   </div>
@@ -501,6 +503,7 @@ function batchView(b) {
           <label class="st-f" style="margin-top:8px">Product fingerprint<small>what makes it ours; the AI must match every line. Fix anything wrong.</small>${p.dna == null ? '<span class="st-busy" style="display:flex;margin-top:6px"><span class="st-spin"></span>Reading the product photos…</span>' : `<textarea class="st-in" data-dna="${pi}" rows="5">${esc(p.dna)}</textarea>`}</label>
           <button class="btn" data-redna="${pi}" style="margin-top:6px">Read the photos again</button></div>`).join('')}
         <button class="btn" id="bProd" style="margin-top:8px" ${(su.products || []).length >= 4 ? 'disabled' : ''}>${(su.products || []).length ? 'Add another product' : 'Choose the product'}</button>
+        <button class="btn" id="bPhotos" style="margin-top:8px;margin-left:6px" title="Photos from a shoot that are not on Shopify yet. The AI draws from them and checks against them like Shopify photos.">Add your own photos</button>
 </div>
       <div><b style="font-size:13px">Swipe file</b><div class="hint">Ads you like, for style ideas. Nothing is copied. Up to 12: drop, click or paste.</div>
         <div class="st-thumbs" style="margin-top:8px">${(su.swipe || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(u)}" alt=""><span class="st-x" data-rmsw="${k}" role="button" aria-label="Remove" title="Remove">×</span></button>`).join('')}${(su.swipe || []).length < 12 ? '<button class="st-add" id="bSwipe">Add images</button>' : ''}</div></div>
@@ -524,13 +527,13 @@ function batchView(b) {
 }
 function planRow(a, i, plan) {
   const lock = plan.variation && i > 0;
-  const ref = a.ref_url ? `<div class="st-thumbs"><button class="t" data-zu="${esc(a.ref_url)}"><img src="${esc(thumb(a.ref_url))}" alt=""></button><select class="st-in" style="width:auto;margin:0" data-pf="${i}:ref_use" ${lock ? 'disabled' : ''}><option value="copy" ${a.ref_use === 'copy' ? 'selected' : ''}>Look like this</option><option value="vibe" ${a.ref_use === 'vibe' ? 'selected' : ''}>Just the vibe</option><option value="none" ${a.ref_use === 'none' ? 'selected' : ''}>Ignore it</option></select></div>` : '<span class="tiny">No inspiration</span>';
+  const ref = a.photo_url ? `<div class="st-thumbs"><span class="tiny">This photo is the ad</span><button class="t on" data-zu="${esc(a.photo_url)}"><img src="${esc(thumb(a.photo_url))}" alt=""></button></div>` : a.ref_url ? `<div class="st-thumbs"><button class="t" data-zu="${esc(a.ref_url)}"><img src="${esc(thumb(a.ref_url))}" alt=""></button><select class="st-in" style="width:auto;margin:0" data-pf="${i}:ref_use" ${lock ? 'disabled' : ''}><option value="copy" ${a.ref_use === 'copy' ? 'selected' : ''}>Look like this</option><option value="vibe" ${a.ref_use === 'vibe' ? 'selected' : ''}>Just the vibe</option><option value="none" ${a.ref_use === 'none' ? 'selected' : ''}>Ignore it</option></select></div>` : '<span class="tiny">No inspiration</span>';
   return `<div class="st-prow"><div class="top"><b>Ad ${i + 1}${plan.variation && i === 0 ? ' · the base' : ''}</b><span class="tiny">${esc(a.note || '')}</span></div>
     <div class="st-g3"><label class="st-f">Headline<input class="st-in" data-pf="${i}:headline" value="${esc(a.headline)}"></label>
       <label class="st-f">Smaller line<input class="st-in" data-pf="${i}:subline" value="${esc(a.subline)}"></label>
       <label class="st-f">Button<input class="st-in" data-pf="${i}:cta" value="${esc(a.cta)}"></label></div>
     <div class="st-g2"><label class="st-f">Callouts<small>one per line</small><textarea class="st-in" data-pf="${i}:callouts" rows="2">${esc((a.callouts || []).join('\n'))}</textarea></label>
-      <label class="st-f">The look${lock ? '<small>same as ad 1 in this test</small>' : ''}<textarea class="st-in" data-pf="${i}:look" rows="2" ${lock ? 'disabled' : ''}>${esc(a.look)}</textarea></label></div>
+      <label class="st-f">${a.photo_url ? 'What to add or change on the photo' : 'The look'}${lock ? '<small>same as ad 1 in this test</small>' : ''}<textarea class="st-in" data-pf="${i}:look" rows="2" ${lock ? 'disabled' : ''}>${esc(a.look)}</textarea></label></div>
     ${plan.exact ? `<div class="st-bar"><div class="st-thumbs"><span class="tiny">Product</span><select class="st-in" style="width:auto;margin:0" data-pf="${i}:photo" ${lock ? 'disabled' : ''}><option value="0" ${!a.photo ? 'selected' : ''}>AI-drawn (check the details)</option>${(S.cur.setup.cutouts || []).map((c, k) => `<option value="${k + 1}" ${+a.photo === k + 1 ? 'selected' : ''}>Real photo ${k + 1}</option>`).join('')}</select>${a.photo ? `<button class="t" data-zu="${esc((S.cur.setup.cutouts || [])[a.photo - 1]?.url || '')}"><img src="${esc((S.cur.setup.cutouts || [])[a.photo - 1]?.url || '')}" alt="" style="object-fit:contain;background:#fff"></button>` : ''}</div>
       <div><select class="st-in" style="width:auto;margin:0" data-pf="${i}:place" ${lock ? 'disabled' : ''}>${['center', 'left', 'right', 'lower', 'upper'].map(v => `<option ${a.place === v ? 'selected' : ''}>${v}</option>`).join('')}</select><select class="st-in" style="width:auto;margin:0" data-pf="${i}:size" ${lock ? 'disabled' : ''}>${['small', 'medium', 'large'].map(v => `<option ${a.size === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>` : ''}
     <div class="st-bar"><div><span class="tiny">Type</span><select class="st-in" style="width:auto;margin:0" data-pf="${i}:style" ${lock ? 'disabled' : ''}>${STYLES.map(([k, l]) => `<option value="${k}" ${a.style === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>${ref}</div></div>`;
@@ -739,8 +742,14 @@ function wireBatch() {
   const file = $('#bFile'); let target = null;
   document.querySelectorAll('[data-addli]').forEach(el => el.onclick = () => { target = { line: +el.dataset.addli }; file.click(); });
   const sw = $('#bSwipe'); if (sw) sw.onclick = () => { target = { swipe: true }; file.click(); };
+  const ph = $('#bPhotos'); if (ph) ph.onclick = () => { target = { product: true }; file.click(); };
   file.onchange = () => { upload([...file.files], target); file.value = ''; };
   document.querySelectorAll('[data-rmli]').forEach(el => el.onclick = e => { e.stopPropagation(); const [i, k] = el.dataset.rmli.split(':').map(Number); br.lines[i].inspo.splice(k, 1); queueSave(); paint(); });
+  /* A real photo of our product can BE the ad: the image maker keeps it as shot and adds the words. */
+  document.querySelectorAll('[data-useph]').forEach(el => el.onclick = e => { e.stopPropagation(); const [i, k] = el.dataset.useph.split(':').map(Number); br.lines[i].photo = br.lines[i].inspo.splice(k, 1)[0]; if (b.plan) b.plan = null; queueSave(); paint(); });
+  document.querySelectorAll('[data-rmph]').forEach(el => el.onclick = e => { e.stopPropagation(); const l = br.lines[+el.dataset.rmph]; l.inspo = [...(l.inspo || []), l.photo].slice(0, 2); l.photo = ''; if (b.plan) b.plan = null; queueSave(); paint(); });
+  /* A product that arrived with photos but no fingerprint yet (pushed from Slack, or just uploaded) reads them now. */
+  su.products.forEach(p => { if (p.dna == null && (p.all || []).length && !FP_RUNNING.has(p.handle)) { FP_RUNNING.add(p.handle); fingerprint(p).finally(() => FP_RUNNING.delete(p.handle)); } });
   document.querySelectorAll('[data-rmsw]').forEach(el => el.onclick = e => { e.stopPropagation(); su.swipe.splice(+el.dataset.rmsw, 1); queueSave(); paint(); });
   const main = $('#stMain');
   main.ondragover = e => e.preventDefault();
@@ -798,18 +807,27 @@ async function putRef(blob) {
   if (!res.ok || !j.url) throw new Error(j.error || 'Upload failed');
   return j.url;
 }
+const FP_RUNNING = new Set();
 async function upload(files, target) {
   const b = S.cur, su = b.setup, br = b.brief;
+  let own = null;
   for (const file of files.filter(f => /^image\/(png|jpeg|webp)$/.test(f.type))) {
-    if (target?.line == null && su.swipe.length >= 12) break;
-    if (target?.line != null && (br.lines[target.line].inspo || []).length >= 2) break;
+    if (target?.product) { own = own || su.products.find(p => p.handle === 'upload'); if (((own || {}).all || []).length >= 8) break; }
+    else if (target?.line != null) { if ((br.lines[target.line].inspo || []).length >= 2) break; }
+    else if (su.swipe.length >= 12) break;
     try {
       const url = await putRef(await shrinkImage(file));
       refChecked.add(url);
-      if (target?.line != null) (br.lines[target.line].inspo = br.lines[target.line].inspo || []).push(url); else su.swipe.push(url);
+      if (target?.product) {
+        /* Your own photos (a shoot not on Shopify yet) become a product like any Shopify one: drawn from, checked against, fingerprinted. */
+        if (!own) { own = { title: 'Your photos', handle: 'upload', all: [], dna: null }; su.products.push(own); }
+        own.all.push(url); su.images = [...su.images, url].slice(-8);
+      } else if (target?.line != null) (br.lines[target.line].inspo = br.lines[target.line].inspo || []).push(url);
+      else su.swipe.push(url);
     } catch (e) { S.err = e.message; }
   }
   await saveCur(); paint();
+  if (own && !FP_RUNNING.has(own.handle)) { FP_RUNNING.add(own.handle); fingerprint(own, true).finally(() => FP_RUNNING.delete(own.handle)); }
 }
 /* Images already on a batch (older uploads, the copies the Slack ideas bot drops in) get the same
    treatment the first time the batch is planned: anything over REF_MAX is shrunk, re-uploaded, and
@@ -1012,14 +1030,14 @@ async function extend(ad) {
 const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => rej(new Error('Could not load the image.')); i.src = src; });
 function specOf(b, a) {
   const su = b.setup, ref = a.ref_url && a.ref_use !== 'none' ? [a.ref_url] : [];
-  return { products: su.products.map(p => ({ title: p.title, handle: p.handle })), images: su.images.slice(), inspo: ref, ref_use: a.ref_use,
+  return { products: su.products.map(p => ({ title: p.title, handle: p.handle })), images: su.images.slice(), inspo: ref, ref_use: a.ref_use, base: a.photo_url || '',
     headline: a.headline, subline: a.subline, callouts: a.callouts || [], cta: a.cta, art: a.art || '', look: a.look, style: a.style || 'auto', note: a.note,
     who: b.brief.why || '', dna: su.products.map(p => p.dna ? `${p.title}:\n${p.dna}` : '').filter(Boolean).join('\n\n') };
 }
 async function makeBatch() {
   const b = S.cur, plan = b.plan;
   if (!plan?.ads?.length) return;
-  if (!b.setup.images.length && !plan.ads.some(a => a.ref_url)) { S.err = 'Choose the product first (under the brief).'; return paint(); }
+  if (!b.setup.images.length && !plan.ads.some(a => a.ref_url || a.photo_url)) { S.err = 'Choose the product first (under the brief).'; return paint(); }
   S.err = '';
   const total = plan.ads.length; let done = 0, failed = 0;
   const tick = () => { S.making = `Made ${done} of ${total}${failed ? `, ${failed} failed` : ''}. Keep this page open.`; paint(); };

@@ -6175,6 +6175,11 @@ async function handleSlackEvent(request, env, ctx) {
        claiming the message, so a bowed-out plain copy cannot swallow its app_mention twin. */
     if (ev.type !== 'message' || !inThread || !ev.user) return ACK();
     if (!(await strategistThreadOpen(env, ev.channel, ev.thread_ts))) return ACK();
+    /* Cole (2026-10-06): "what if I'm talking to Ahsan in the thread?" A reply that tags a person
+       is theirs (the bot's own tag was handled above, so any tag left is a human). Anything else
+       is read once by a small model that says whether it is for the Strategist. */
+    if (/<@U[A-Z0-9]+/.test(ev.text || '')) return ACK();
+    if (!(await replyForStrategist(env, ev).catch(e => { console.log('reply gate: ' + e.message); return true; }))) return ACK();
   }
   const claim = await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`)
     .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
@@ -6213,6 +6218,31 @@ async function handleSlackEvent(request, env, ctx) {
 async function openStrategistThread(env, channel, ts) {
   if (!channel || !ts) return;
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '1') ON CONFLICT(key) DO UPDATE SET value = '1'`).bind(`askThread:${channel}:${ts}`).run();
+}
+/* Does a plain reply in an open thread want the Strategist? Haiku reads the last few messages and
+   the new one. A question or instruction aimed at nobody in particular, or a follow-up to what the
+   Strategist said, is YES; teammates talking to each other (a named person, a plan, a status, a
+   thanks) is NO. Unsure = YES, so a real question is never left hanging. About a tenth of a cent. */
+const GATE_SYSTEM = `You decide whether an AI assistant called the Strategist, which sits in a marketing team's Slack thread, should answer the newest message.
+YES when the message is for the Strategist: a question or an instruction aimed at nobody in particular, a follow-up to something the Strategist said, a correction of it, or an answer to a question the Strategist asked.
+NO when teammates are talking to each other: the message names or addresses a specific person, or it is a plan, a status update, an agreement, a thanks or small talk between people.
+When unsure, YES. Reply with exactly one word: YES or NO.`;
+async function replyForStrategist(env, ev) {
+  if (!env.ANTHROPIC_API_KEY) return true;
+  const r = await slackApi(env, 'conversations.replies', { channel: ev.channel, ts: ev.thread_ts, limit: 12, latest: ev.ts, inclusive: true });
+  const msgs = (r?.messages || []).filter(m => m.ts !== ev.ts).slice(-8);
+  const who = m => m.bot_id || m.subtype === 'bot_message' ? `${m.username || m.bot_profile?.name || 'bot'} (assistant)` : m.user === ev.user ? 'the same person who wrote the newest message' : `teammate ${m.user || '?'}`;
+  const text = m => String(m.text || '').replace(/<@([A-Z0-9]+)(?:\|[^>]*)?>/g, '@$1').slice(0, 700);
+  const transcript = msgs.map(m => `${who(m)}: ${text(m)}`).join('\n');
+  const res = await xfetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST', headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 5, system: GATE_SYSTEM,
+      messages: [{ role: 'user', content: `THREAD SO FAR:\n${transcript || '(nothing before this)'}\n\nNEWEST MESSAGE: ${text(ev)}\n\nYES or NO?` }] }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error?.message || `Claude API HTTP ${res.status}`);
+  const a = (j.content || []).map(b => b.text || '').join('').trim().toUpperCase();
+  return !/^NO\b/.test(a);
 }
 async function closeStrategistThread(env, channel, ts) {
   if (!channel || !ts) return;

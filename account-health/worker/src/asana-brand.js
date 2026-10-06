@@ -1377,4 +1377,4 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
 export { readDoc, asana };
 
 /* Shared with newclient.js (Locus's New client button). */
-export { asanaAll, googleToken, setDrive, PENDING };
+export { asanaAll, googleToken, setDrive, PENDING, BRIEF_READERS };
