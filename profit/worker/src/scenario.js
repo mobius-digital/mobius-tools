@@ -6,7 +6,10 @@
  *   PUT    /api/scenario   { id?, act, kind, name, inputs, note }   -> the row (upsert)
  *   DELETE /api/scenario?id=
  */
-const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } });
+/* Same CORS as the host worker's json(): the dashboard is on another origin (GitHub Pages,
+   or localhost in the dev pair), so a response without these headers reads as "Failed to fetch". */
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, POST, PATCH, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
+const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', ...CORS } });
 const KINDS = new Set(['leads', 'roas']);
 const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, n);
 
