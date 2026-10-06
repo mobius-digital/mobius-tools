@@ -214,7 +214,7 @@ function injectCss() {
 }
 
 /* ---------- the season bar ---------- */
-const TL_FROM = '2026-10-19', TL_TO = '2027-02-08';
+const TL_FROM = '2026-10-05', TL_TO = '2027-02-08';
 function seasonBar(a, today, big) {
   const span = daysBetween(TL_FROM, TL_TO);
   const pct = iso => Math.max(0, Math.min(100, daysBetween(TL_FROM, iso) / span * 100));
