@@ -162,6 +162,7 @@ function injectCss() {
 .am-list-edit{display:flex;flex-direction:column;gap:8px}
 .am-list-edit .am-li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px;align-items:start}
 .am-list-edit .am-li.one{grid-template-columns:minmax(0,1fr) auto}
+.am-list-edit .am-li.hook{grid-template-columns:minmax(0,.8fr) minmax(0,1.6fr) 150px minmax(0,.9fr) auto}
 .am-list-edit .am-li.three{grid-template-columns:minmax(0,.6fr) minmax(0,1.4fr) minmax(0,1fr) auto}
 .am-bars{display:flex;align-items:flex-end;gap:3px;height:110px}
 .am-bars div{flex:1;border-radius:3px 3px 0 0;background:#CBD5DE;min-height:3px}
@@ -595,6 +596,7 @@ function paintEditor(body) {
     <h3>How to film it</h3>
     <p class="hint" style="margin:-6px 0 0">Numbered on the page, in this order. Write each one as an instruction to the creator: "Open on...", "Say...", "At 3 seconds, cut to...".</p>
     <label class="am-f"><b>1.</b> The first second <small>what is physically on screen before anyone talks</small><textarea class="am-in" id="eVis" style="min-height:56px" placeholder="Open on her holding the box, him not in frame yet.">${esc(a.visual_hook || '')}</textarea></label>
+    <label class="am-f">Or open with <small>two more ways in, one per row. Creators see them under step 1 with a link to the First seconds page. Lean on the bank on Link and brief.</small><textarea class="am-in" id="eAlt" style="min-height:56px" placeholder="Phone on the floor at 0.5x, reach down for the belt.\nShe films it, not you: her first line is the opener.">${esc((a.alt_hooks || []).join('\n'))}</textarea></label>
     <label class="am-f"><b>2.</b> Say this first <small>one line per row. The first row is the line on the card; the rest show as "Other lines you can say".</small><textarea class="am-in" id="eOpen" style="min-height:74px" placeholder="Let's see how long it takes him to notice what the buckle does.">${esc((a.openers || []).join('\n'))}</textarea></label>
     <label class="am-f"><b>3.</b> At 3 seconds <small>what happens next so they keep watching: a cut, a question, a count, a second person</small><textarea class="am-in" id="eRe" style="min-height:56px" placeholder="At 3 seconds, hand it over and stay on his face. Cut on his 'Wait a second.'">${esc(a.rehook || '')}</textarea></label>
     <div class="am-f"><b>4.</b> Then <small>the rest of the shots, one box per beat (Middle, Close)</small>
@@ -662,6 +664,7 @@ function paintEditor(body) {
       shots: shotsOut, on_screen: $('#eOver').value.trim(), trend: $('#eTrend').value.trim(),
       do_text: $('#eDo').value.trim(), dont_text: $('#eDont').value.trim(),
       visual_hook: $('#eVis').value.trim(), rehook: $('#eRe').value.trim(), why: $('#eWhy').value.trim(),
+      alt_hooks: $('#eAlt').value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 4),
       inspo: [...body.querySelectorAll('#eInspo .am-li')].map(li => ({ brand: li.querySelector('[data-ib]').value.trim(), what: li.querySelector('[data-iw]').value.trim(), url: li.querySelector('[data-iu]').value.trim() })).filter(x => x.brand || x.what),
     };
     try {
@@ -909,6 +912,12 @@ function paintLink(body) {
       </div>
 
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+        <div><h3>First seconds: ways to open a video</h3><p class="hint" style="margin:0">The "First seconds" tab on the link. One row per opener: a short name, one line of how to do it, whether it is made for this brand or works for any brand, and an example (an Atria link, or the id of a stored clip from one of this brand's ideas). Shared rows are copied per brand, so rewording one here changes it only for this brand.</p></div>
+        <div class="am-list-edit" id="lHooks">${(b.hooks?.length ? b.hooks : [{ title: '', how: '', kind: 'brand' }]).map(x => hookRow(x)).join('')}</div>
+        <div><button class="btn" id="lHookAdd" type="button">${ic('plus', 13)} Add an opener</button></div>
+      </div>
+
+      <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <div><h3>How to keep them watching</h3><p class="hint" style="margin:0">A numbered card on the link, under What's working. Short rules on holding attention: the first second, the 3-second rehook, the close. One rule per row: a bold title and one line of plain explanation. Empty rows are skipped; no rows hides the card.</p></div>
         <div class="am-list-edit" id="lGuide">${(b.guide?.length ? b.guide : [{ title: '', text: '' }]).map(x => guideRow(x)).join('')}</div>
         <div><button class="btn" id="lGuideAdd" type="button">${ic('plus', 13)} Add a rule</button></div>
@@ -939,6 +948,7 @@ function paintLink(body) {
   $('#lAvoidAdd').onclick = () => { $('#lAvoid').insertAdjacentHTML('beforeend', avoidRow({})); autoGrow($('#lAvoid')); };
   $('#lRuleAdd').onclick = () => { $('#lRules').insertAdjacentHTML('beforeend', ruleRow('')); autoGrow($('#lRules')); };
   $('#lGuideAdd').onclick = () => { $('#lGuide').insertAdjacentHTML('beforeend', guideRow({})); autoGrow($('#lGuide')); };
+  $('#lHookAdd').onclick = () => { $('#lHooks').insertAdjacentHTML('beforeend', hookRow({ kind: 'brand' })); autoGrow($('#lHooks')); };
   body.addEventListener('click', e => { const r = e.target.closest('[data-rm]'); if (r) r.closest('.am-li').remove(); });
   $('#lTxt').onclick = async e => {
     const btn = e.currentTarget;
@@ -1082,6 +1092,7 @@ function paintLink(body) {
       logo_url: $('#lLogo').value.trim(), accent, intro: $('#lIntro').value.trim(), about: $('#lAbout').value.trim(), audience: $('#lAud').value.trim(),
       avoid: avoidOut, rules: rulesOut, show_inspo: $('#lInspo').checked,
       guide: [...body.querySelectorAll('#lGuide .am-li')].map(li => ({ title: li.querySelector('[data-gt]').value.trim(), text: li.querySelector('[data-gx]').value.trim() })).filter(x => x.title || x.text),
+      hooks: [...body.querySelectorAll('#lHooks .am-li')].map(li => ({ title: li.querySelector('[data-ht]').value.trim(), how: li.querySelector('[data-hh]').value.trim(), kind: li.querySelector('[data-hk]').value, url: li.querySelector('[data-hu]').value.trim(), clip: (li.querySelector('[data-hu]').value.trim().match(/^[a-f0-9]{16}$/) || [])[0] || null })).map(x => (x.clip ? { ...x, url: '' } : x)).filter(x => x.title || x.how),
       pdf: {
         line1: $('#pL1').value.trim(), line2: $('#pL2').value.trim(), intro: $('#pIntro').value.trim(),
         cta: $('#pCta').value.trim(), note: $('#pNote').value.trim(),
@@ -1095,6 +1106,7 @@ function paintLink(body) {
   };
 }
 const avoidRow = x => `<div class="am-li"><textarea class="am-in grow" rows="1" data-at placeholder="What to stop filming">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-aw placeholder="Why, in one line">${esc(x.why || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
+const hookRow = x => `<div class="am-li hook"><textarea class="am-in grow" rows="1" data-ht placeholder="Short name, e.g. Dump it on the counter">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-hh placeholder="How to do it, one line">${esc(x.how || '')}</textarea><select class="am-in" data-hk><option value="brand" ${x.kind === 'brand' ? 'selected' : ''}>Made for this brand</option><option value="shared" ${x.kind !== 'brand' ? 'selected' : ''}>Any brand</option></select><textarea class="am-in grow" rows="1" data-hu placeholder="Atria link, or a stored clip id">${esc(x.clip || x.url || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
 const guideRow = x => `<div class="am-li"><textarea class="am-in grow" rows="1" data-gt placeholder="Rule, e.g. Do something with your hands in the first second">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-gx placeholder="One line of why, with an example">${esc(x.text || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
 const inspoRow = (x, pulled) => `<div class="am-li three"><textarea class="am-in grow" rows="1" data-ib placeholder="Brand">${esc(x.brand || '')}</textarea><textarea class="am-in grow" rows="1" data-iw placeholder="What to steal, in one line">${esc(x.what || '')}</textarea><textarea class="am-in grow" rows="1" data-iu placeholder="https://app.tryatria.com/ad/m...">${esc(x.url || '')}</textarea><span style="display:flex;gap:6px">${pulled ? `<span class="am-chip" style="background:#E7F6EE;color:var(--good)" title="The video is stored and plays on the page">${ic('check', 12)} Video in</span>` : `<button class="btn" type="button" data-pull title="Store this ad's video so it plays on the page">${ic('download', 13)} Pull the video in</button>`}<button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></span></div>`;
 const ruleRow = x => `<div class="am-li one"><textarea class="am-in grow" rows="1" data-r placeholder="e.g. Say 'for a better next day', never 'cures hangovers'">${esc(x || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;

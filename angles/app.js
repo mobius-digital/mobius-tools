@@ -293,7 +293,7 @@ function aboutCard() {
      Before you film  what it is, say it right, stop filming these, keep them watching, the season.
    An idea page reads in the order a creator works: the idea, watch first, how to film it
    (first second, say this, at 3 seconds, then, close, text on screen), more lines, do / don't. */
-const TABS = [['ideas', 'Ideas'], ['watch', 'Watch examples'], ['rules', 'Before you film']];
+const TABS = [['ideas', 'Ideas'], ['watch', 'Watch examples'], ['hooks', 'First seconds'], ['rules', 'Before you film']];
 
 /* Proof thumbnails on a card. A creator should SEE that an idea has real videos behind it. */
 function proofTile(p, a, small) {
@@ -353,8 +353,8 @@ function lane(s) {
   if (!list.length) return '';
   const cut = s.pinned ? 99 : isPhone() ? 3 : 6;
   const extra = list.length > cut ? list.length - cut : 0;
-  const name = s.pinned ? "What's working right now" : s.name;
-  const line = s.pinned ? (s.line || 'Film one of these first. They are the ideas we want most this week.') : s.line;
+  const name = s.pinned ? 'Film these first' : s.name;
+  const line = s.pinned ? (s.line || 'The ideas we want most this week.') : s.line;
   return `<section class="lane ${s.pinned ? 'lane-hot' : ''}" id="s-${esc(s.id)}" style="${toneVars(s.color)}">
     <div class="lane-h">
       <div class="lane-t"><span class="badge">${svgI(s.icon_svg, 16)}</span><h2 class="disp">${esc(name)}</h2><span class="num">${list.length}</span></div>
@@ -389,7 +389,7 @@ function renderIdeas() {
   const b = D.brand;
   const ls = lanes();
   const shown = ls.filter(s => F.sec === 'all' || s.id === F.sec);
-  const pills = `<button class="pill ${F.sec === 'all' ? 'on' : ''}" data-sec="all">All ideas</button>` + ls.map(s => `<button class="pill ${F.sec === s.id ? 'on' : ''}" data-sec="${esc(s.id)}" style="${toneVars(s.color)}"><i class="dot"></i>${esc(s.pinned ? "What's working" : s.name)}</button>`).join('');
+  const pills = `<button class="pill ${F.sec === 'all' ? 'on' : ''}" data-sec="all">All ideas</button>` + ls.map(s => `<button class="pill ${F.sec === s.id ? 'on' : ''}" data-sec="${esc(s.id)}" style="${toneVars(s.color)}"><i class="dot"></i>${esc(s.pinned ? 'Film these first' : s.name)}</button>`).join('');
   shell('ideas', `
     <div class="wrap">
       <div class="page-h">
@@ -449,6 +449,31 @@ function renderWatch() {
   loadCovers(vids.map(([p]) => p));
 }
 
+/* First seconds: the bank of ways to open a video. This brand's own first, then the shared ones.
+   An entry with a stored clip plays it; one with only a link opens the ad. */
+function hookTile(h, i) {
+  const media = h.file ? `<button class="hk-play" data-play-file="${esc(h.file)}" aria-label="Play an example"><span class="well"><video class="pv" data-src="${esc(API + h.file)}#t=0.5" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video><span class="pbtn sm">${ic('play', 14)}</span></span></button>`
+    : h.url ? `<a class="hk-play" href="${esc(h.url)}" target="_blank" rel="noopener" aria-label="See an example"><span class="well"><span class="pbtn sm">${ic('external-link', 14)}</span></span></a>` : '';
+  return `<li class="card hk ${media ? 'has-media' : ''}"><span class="n">${i + 1}</span><div class="hk-body"><b>${esc(h.title)}</b><p>${esc(h.how)}</p>${media ? `<span class="tiny">${h.file ? 'Tap to watch an example' : 'See an example'}</span>` : ''}</div>${media}</li>`;
+}
+function renderHooks() {
+  const hs = D.brand.hooks || [];
+  const shared = hs.filter(h => h.kind !== 'brand');
+  const own = hs.filter(h => h.kind === 'brand');
+  shell('hooks', `
+    <div class="wrap">
+      <div class="page-h">
+        <p class="lbl acc">${esc(D.brand.display_name)} · creators</p>
+        <h1 class="disp">First seconds</h1>
+        <p class="intro">The first second decides whether there is a second second. Every idea on this page can open with any of these. Pick one, or make up your own and send it to us.</p>
+      </div>
+      ${own.length ? `<h2 class="disp sec-t">Made for ${esc(D.brand.display_name)}</h2><p class="sec-s">Openers built around this product.</p><ol class="hk-list">${own.map(hookTile).join('')}</ol>` : ''}
+      ${shared.length ? `<h2 class="disp sec-t">Ways to open any video</h2><p class="sec-s">They work for every brand. The product changes, the move does not.</p><ol class="hk-list">${shared.map(hookTile).join('')}</ol>` : ''}
+      ${!hs.length ? '<div class="card empty">The team is still writing these.</div>' : ''}
+      <section class="card rules-end"><p>Ready? <a href="#ideas">Pick an idea</a>. Each one suggests an opener and two more ways in.</p></section>
+    </div>`);
+}
+
 function renderRules() {
   const b = D.brand;
   const g = b.guide || [];
@@ -465,7 +490,7 @@ function renderRules() {
       ${g.length ? `<section class="card guide"><div class="lane-h"><div class="lane-t"><span class="badge">${ic('eye', 16)}</span><h2 class="disp">How to keep them watching</h2></div><span class="lane-s">Talking to the camera is fine. Talking to the camera while nothing happens is not.</span></div>
         <ol class="guide-list">${g.map((x, i) => `<li><span class="n">${i + 1}</span><div>${x.title ? `<b>${esc(x.title)}</b>` : ''}${x.text ? `<span>${esc(x.text)}</span>` : ''}</div></li>`).join('')}</ol></section>` : ''}
       ${seasonCard()}
-      <section class="card rules-end"><p>Ready? <a href="#ideas">Pick an idea</a> or <a href="#watch">watch the examples</a>.</p></section>
+      <section class="card rules-end"><p>Ready? <a href="#ideas">Pick an idea</a>, <a href="#watch">watch the examples</a>, or see the <a href="#hooks">ways to open a video</a>.</p></section>
     </div>`);
   wireChart();
 }
@@ -497,8 +522,9 @@ function renderAngle(id, picked) {
   const shots = (a.shots || []).filter(x => x.text);
   // The first shot usually restates the first second; drop it when we have a first second of our own.
   const rest = a.visual_hook && shots.length && /^open/i.test(shots[0].label || '') ? shots.slice(1) : shots;
+  const alts = (a.alt_hooks || []).filter(Boolean);
   const steps = [
-    a.visual_hook ? ['The first second', a.visual_hook] : null,
+    a.visual_hook ? ['The first second', a.visual_hook, alts] : null,
     a.openers?.[0] ? ['Say this first', `“${a.openers[0]}”`] : null,
     a.rehook ? ['At 3 seconds', a.rehook] : null,
     ...rest.map(x => [x.label && !/^open/i.test(x.label) ? x.label : 'Then', x.text]),
@@ -509,7 +535,7 @@ function renderAngle(id, picked) {
       <div class="det-main" style="${s ? toneVars(s.color) : ''}">
         <div class="det-top"><a class="back" href="#ideas">${ic('arrow-left', 15)}All ideas</a>${picked ? `<span class="picked">${ic('shuffle', 13)} Picked at random for you</span>` : ''}</div>
         <div class="tags">
-          ${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}What's working</span>` : ''}
+          ${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Film these first</span>` : ''}
           ${s ? `<span class="tag" style="${toneVars(s.color)}">${svgI(s.icon_svg, 12)}${esc(s.name)}</span>` : ''}
           ${a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : ''}
         </div>
@@ -522,7 +548,7 @@ function renderAngle(id, picked) {
         ${watchBlock(a, false)}
 
         <h2 class="disp sec-t">How to film it</h2><p class="sec-s">In order. Your hands do something before you talk.</p>
-        <ol class="steps big">${steps.map(([l, t], k) => `<li><span class="n">${k + 1}</span><div><span class="lbl">${esc(l)}</span><p class="${/^Say/.test(l) ? 'hook' : ''}">${esc(t)}</p></div></li>`).join('')}</ol>
+        <ol class="steps big">${steps.map(([l, t, al], k) => `<li><span class="n">${k + 1}</span><div><span class="lbl">${esc(l)}</span><p class="${/^Say/.test(l) ? 'hook' : ''}">${esc(t)}</p>${al && al.length ? `<div class="alts"><span class="lbl">Or open with</span><ul>${al.map(x => `<li>${esc(x)}</li>`).join('')}</ul><a href="#hooks">All the ways to open a video ${ic('arrow-right', 12)}</a></div>` : (k === 0 && (D.brand.hooks || []).length ? `<div class="alts"><a href="#hooks">Other ways to open it ${ic('arrow-right', 12)}</a></div>` : '')}</div></li>`).join('')}</ol>
         ${a.on_screen ? `<div class="card overlay"><div><p class="lbl">Text on screen</p><p>${esc(a.on_screen)}</p></div><button class="iconbtn" data-copytext aria-label="Copy the text">${ic('copy', 16)}</button></div>` : ''}
 
         ${more.length ? `<h2 class="disp sec-t">Other lines you can say</h2><p class="sec-s">Word for word or bend them.</p>
@@ -635,6 +661,7 @@ function route() {
   if (m) return renderAngle(m[1], !!m[2]);
   if (h === 'watch') { renderWatch(); scrollTo(0, 0); return; }
   if (h === 'rules') { renderRules(); scrollTo(0, 0); return; }
+  if (h === 'hooks') { renderHooks(); scrollTo(0, 0); return; }
   renderIdeas();
   if (LIST_Y) { scrollTo(0, LIST_Y); LIST_Y = 0; }
 }
