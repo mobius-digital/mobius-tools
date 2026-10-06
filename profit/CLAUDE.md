@@ -772,6 +772,19 @@ profit/
   Meta ads whose `media_type` is image; staff scores still count them). Routes: `#ideas` `#watch`
   `#rules` `#a=<id>` (`&pick` marks a random pick). `visual_hook` / `rehook` are written as plain
   instructions ("Open on...", "At 3 seconds, ...") after Cole could not follow the camera-note versions.
+- **v13 (same day): other brands' videos play on the page.** account-health `POST /api/atria/clip-to-angle`
+  {act, angle_id, ad_id (m...), who, note} (admin; atria.js) reads the ad through the Atria MCP, downloads
+  its video into R2 `amb/<act>/atria-<ad>.mp4` (95MB cap) and files it as `p_amb_proof` kind `upload` with
+  `url` = the Atria link and `who` = "<brand> (inspiration)". Idempotent per angle + link. The public
+  payload hides an `inspo` link once a clip with the same `url` exists, and the page shows "Watch first"
+  in two groups: From <brand> (meta + uploads + posts) and Other brands doing the shape well (clips).
+  The Watch examples screen does the same across every idea. Staff: the idea editor's inspiration rows
+  have a **Pull the video in** button (calls account-health directly with the session token, like
+  brand.js) and show "Video in" once stored. The editor itself is laid out in the page's reading order
+  (The idea, How to film it 1 to 4, Watch first, Why it works) with the same labels as the page.
+  Bulk import on 2026-10-06 ran through the local `ah-worker-dev` (Cloudflare 403s a Python user agent;
+  send a browser one). Public proof is video only; the Open beat is hidden in the editor because step 1
+  "The first second" is the same thing.
 - **The v11 page** (`angles/app.src.js`), top to bottom (superseded by v12 above): jump links; **Film this one** (one idea at
   a time, Hot first then sections, opens on a random one so creators do not all film the same idea,
   "Show me another" deals the next: the Lucky hub's NextVideo); **What's working right now** = the
