@@ -1562,3 +1562,8 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
   https://claude.ai/artifact/2KAw7y5U9HJsXpyqkp8V1V. Lesson for any MER quoted anywhere in Locus:
   Shopify net sales over Meta + Google only; the ledger's whole marketing line (Mobius, Klaviyo,
   Vibe, affiliates) understates efficiency by about 0.5x.
+- **2026-10-06 (night): ad counts in the task names.** `ADS` in worker/src/season.js (per phase key;
+  `putters` is Lucky's custom launch phase) renames the derived briefs/built rows to "Briefs due:
+  15 ads" / "15 ads built". The Asana BFCM projects for the other six brands were created from the
+  Lucky one with the same counts and the same date rule (briefs -23d, built -9d, loaded -4d); GIDs
+  are in the bfcm-2026 memory. Asana stays the only place production is typed; Locus derives.

@@ -85,6 +85,9 @@ const EXTRA = {
   xmas: [['bar', 'Countdown bar on', -1, 'cole']],
 };
 const DEFAULT_OWNER = { cole: 'Cole', buyer: 'Ahsan', strat: 'Ahsan', email: 'Nick' };
+/* How many ads each phase needs (the 90-per-brand season plan, 2026-10-06). Shows in the
+   briefs/built task names so "This week" reads as a quota, not a vague to-do. */
+const ADS = { early: 15, putters: 10, access: 3, bf: 25, planb: 5, cm: 5, drop: 10, xmas: 10, gift: 5, boxing: 10, ny: 5, vday: 10 };
 function ownerName(role, answers) {
   if (role === 'strat') return answers.strategist || DEFAULT_OWNER.strat;
   if (role === 'buyer') return answers.buyer || DEFAULT_OWNER.buyer;
@@ -111,7 +114,9 @@ export function tasksFor(phases, answers, stored, today, goals) {
       // auto-closes; everything else waits for a tick, because "built" that nobody
       // confirmed is exactly the thing this screen exists to catch.
       if (kind === 'live' && !s && today > addDays(due, 3)) { done = true; auto = 1; }
-      out.push({ id, phase_key: p.key, phase: p.name, kind, name: s?.name || label, due, owner: s?.owner || ownerName(role, answers), done, done_by: s?.done_by || null, done_at: s?.done_at || null, note: s?.note || null, custom: 0, auto });
+      const n = ADS[p.key];
+      const named = n && kind === 'briefs' ? `Briefs due: ${n} ads` : n && kind === 'built' ? `${n} ads built` : label;
+      out.push({ id, phase_key: p.key, phase: p.name, kind, name: s?.name || named, due, owner: s?.owner || ownerName(role, answers), done, done_by: s?.done_by || null, done_at: s?.done_at || null, note: s?.note || null, custom: 0, auto });
     }
   }
   for (const s of stored || []) {
