@@ -1483,9 +1483,34 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
 - **Brand state** = is the Black Friday weekend locked (and November not missing). `in_season =
   'no'` hides a brand from the board (The Golf Sock). Ice & Gold and Yak Sports sit on the board
   with template phases; Cole switches them off from the brand page if they are out of scope.
-- **Not built yet (in that order):** Asana project per brand from the Lucky BFCM 2026 template,
-  created from Locus and read back into the Ads plan; Atria phase boards as the swipe file with
-  "Use in Studio"; the weekend desk (Nov 26 to 30: live TW ROAS vs the ladder from Settings >
-  Goals, What we did log) by Nov 13 with a dry run Nov 14 to 15; then retire 2026-q4-playbook
-  (redirect to Locus Season) after the season. Ladder numbers (scale-50, scale-100, starting
-  budget) belong on the account goals, one place for goals, when the desk is built.
+- **2026-10-06: goals, results, the desk, swipe files.** Cole: "anything for KPI goals? anything
+  that marks the day of automatically and tells us to scale?" Added:
+  - **Goals card** (brand page): answer key `goals` = JSON {early, bf, dec, total, be, target,
+    s50, s100, start, cap, note}; `goalsOf()` parses it, falling back to `accounts.target_roas`
+    for the target. The ladder is SEASON-ONLY on purpose (the account's target_roas stays the one
+    place for the everyday goal); the bf:ladder task ticks itself when the four lines exist. Seeded
+    from the 2025 budget sheet in `migrations/season-seed-002.sql`, every note says confirm by Nov 13.
+  - **Results per phase**: `seasonData(env, accounts, {series})` sums the host's `seriesFor` rows
+    (same revenue line as P&L) from the phase start to min(end, yesterday); `GOAL_OF` maps phases
+    to a goal (early -> early; access/bf/planb/cm -> bf; drop/xmas/gift/boxing -> dec). Only on
+    a brand page or with `?results=1`; never today.
+  - **The desk** (`deskSection` in season.js; All clients seg "Desk" + a card on every brand):
+    date chips (today + Nov 26 to 30 + any day with a check-in), three slots (8am, 4pm, 12am
+    Central), `GET /api/season/live?act=` = `twDay` for the brand's local today -> `hoursOf` ->
+    `liveFrom()`: today so far + the trailing 3 hours with data, blended MER. `ladderOf()` grades
+    the 3-hour MER (>= s100 scale 100%, >= s50 scale 50%, >= target hold, >= be pull back, else
+    rework). `PUT /api/season/checkin` upserts p_season_checkin (action, the numbers at the time,
+    the verdict, by, at). The client link shows the action lines, never the numbers or the ladder.
+  - **Swipe files**: `SWIPE` (phase -> Atria board) and `SWIPE_BRAND` (act -> "BFCM / Brands / X")
+    in worker/src/season.js; "Swipe file" on a phase card and "This brand's swipe file" load
+    account-health `GET /api/atria/board?board_id=` (new, in atria.js: `search_library_ads`
+    scope ad_board, 20 ads, links to app.tryatria.com/ad/<id>). Save ads into the board in Atria
+    and they show here. Boards made 2026-10-06 under the existing "BFCM" board: Black Friday
+    weekend, Post-BFCM drop, Order by Christmas, Gift cards, Boxing Day and New Year, Valentine's,
+    plus Brands / Yak Sports and Brands / Ice & Gold. Foreplay is no longer used (Cole).
+  - **Yak Sports and Ice & Gold** got draft phases marked "Proposed by Mobius" (gift-with-purchase
+    and bundles for Yak, list + tiered spend + gift sets for Ice & Gold) and call-sheet answers from
+    the Oct 1 and Oct 2 calls and the catalogs. They are proposals until Cole presents them.
+- **Not built yet:** Asana project per brand from the Lucky BFCM 2026 template read back into an
+  Ads plan; "Use in Studio" from a swipe board; the desk dry run (Nov 14 to 15); retiring
+  2026-q4-playbook (redirect to Locus Season) after the season.
