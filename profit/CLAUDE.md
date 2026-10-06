@@ -1652,3 +1652,31 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
   (`repairRefs`): a 6000px camera photo on a line killed the whole plan on 2026-10-06.
 - Testing chip "Format" = one idea, different layouts. The brief reader and the ideas bot read "N
   variations of this" as a format test.
+
+## 2026-10-06 (late): Scenarios tab (the lead math and the ROAS math, inside Locus)
+
+- Cole: the Playbook's lead-gen calculator and the public ROAS calculator both belong in Locus,
+  prefilled with the brand's numbers, with saved scenarios, something visual, and a way to "just
+  say" a what-if. `profit/calc.js` (own closure, `window.CalcTab.render`), rail tab **Scenarios**
+  under Monthly and setup (`show('calc')`, for everyone), `worker/src/scenario.js` + table
+  `p_scenario` (`migrations/scenario-001.sql`; `GET/PUT/DELETE /api/scenario`).
+- **Leads** = the Goldilocks question. Columns (up to 4) of spend / cost per lead / % who buy /
+  AOV / margin before ads; outputs leads, orders, revenue, ROAS on the lead spend, contribution,
+  money left after the lead spend, cost per order won, and the two numbers that do not depend
+  on the budget: **pay up to $X a lead for the target ROAS** (cvr x aov / target) and the
+  **breakeven CPL** (cvr x aov x margin). Chart = ROAS vs CPL for the focus column's conversion
+  rate (and half / double), target and breakeven lines, shaded "pay up to" band. "Set as this
+  brand's lead KPI" writes `p_season_answer` key `lead_kpi` (JSON), which the Season brand page
+  shows on Goals and results; the Season Offers tab has a "Lead math" button into the tab.
+- **ROAS** = the public `/roas-calculator` model ported verbatim in spirit (modes spend+ROAS /
+  spend+orders / revenue goal+ROAS; processing, pick-pack-ship, fixed costs, rev share, agency
+  fee toggles; breakeven ROAS on contribution and net, breakeven CPA, waterfall, profit-vs-ROAS
+  curve). The public page stays as the free tool and is linked.
+- **Prefill** from `/api/customers?act&days=90&journey=0` headline (new-customer AOV, returning
+  AOV, margin before ads, CAC) + the account's `target_roas` as the target; "Put these in every
+  column". All clients = no prefill, defaults.
+- **Say it in words:** account-health `POST /api/scenario-parse` {text, kind, context} (admin;
+  Haiku 4.5, about a cent) returns up to 4 scenarios as numbers + one line of reading; the browser
+  fills the columns, nothing is stored until Save. Examples under the box are clickable.
+- `inPlace()` keeps focus on the input being typed in across a repaint (number inputs cannot
+  restore a caret, so they only re-focus).

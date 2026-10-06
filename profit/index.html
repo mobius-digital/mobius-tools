@@ -1743,6 +1743,7 @@
   <symbol id="i-meta" viewBox="0 0 16 16"><path d="M2 11c1.6-5 3.2-6.4 4.6-6.4C9 4.6 10 11 12.4 11c1 0 1.6-1 1.6-2.4C14 6 12.8 4.6 11.4 4.6 9 4.6 8 11 5.6 11 4.6 11 4 10 4 8.6"/></symbol>
   <symbol id="i-brief" viewBox="0 0 16 16"><path d="M3 3.5h10v9H3z"/><path d="M5.5 6.5h5M5.5 9.5h3"/></symbol>
   <symbol id="i-reports" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/><path d="M6.5 9.5v2M8 8v3.5M9.5 10v1.5"/></symbol>
+  <symbol id="i-calc" viewBox="0 0 16 16"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M5.5 5h5M5.5 8h2M8.5 8h2M5.5 11h2M8.5 11h2"/></symbol>
   <symbol id="i-plan" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></symbol>
   <symbol id="i-customers" viewBox="0 0 16 16"><circle cx="6" cy="6" r="2.4"/><path d="M2 13c0-2.2 1.8-3.6 4-3.6S10 10.8 10 13"/><path d="M10.6 4.2a2.4 2.4 0 0 1 0 4.3M11.5 9.7c1.6.4 2.5 1.6 2.5 3.3"/></symbol>
   <symbol id="i-health" viewBox="0 0 16 16"><path d="M8 13.5S2.5 10.4 2.5 6.6A3.1 3.1 0 0 1 8 4.8a3.1 3.1 0 0 1 5.5 1.8c0 3.8-5.5 6.9-5.5 6.9Z"/></symbol>
@@ -1813,6 +1814,7 @@
       <div class="grp"><span class="band">Monthly and setup</span>
         <div class="grp-btns">
           <button data-t="plan"><svg class="ic"><use href="#i-plan"/></svg><span>Plan</span></button>
+          <button data-t="calc"><svg class="ic"><use href="#i-calc"/></svg><span>Scenarios</span></button>
           <button data-t="settings"><svg class="ic"><use href="#i-settings"/></svg><span>Settings</span></button>
         </div>
       </div>
@@ -1871,7 +1873,8 @@
 <script src="brand.js?v=16"></script>
 <script src="newclient.js?v=14"></script>
 <script src="studio.js?v=21"></script>
-<script src="season.js?v=12"></script>
+<script src="season.js?v=13"></script>
+<script src="calc.js?v=1"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -2023,7 +2026,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
@@ -2660,6 +2663,7 @@ function addBrandModal(untracked, chList, onDiscover, total) {
    Keep them ONE sentence. The detail already has three other homes. */
 const TAB_PURPOSE = {
   overview:  'Which clients are making money right now. Start here every morning - click a client to dig into theirs.',
+  calc:      'The lead math and the ROAS math with the brand's own numbers in the boxes: what a lead can cost, what a plan returns, where breakeven sits. Scenarios save per brand.',
   season:    'The BFCM plan for every brand: the offer for each part of the season, when it runs, and what is due this week. Tick things off here; the briefs themselves stay in Asana.',
   profit:    "Did this brand make money in the window: revenue, orders, average order, every cost, what was left. Same numbers as the Daily Brief and Reports.",
   tests:     'For the media buyer: which tests spent enough to make a call, and which are still running.',
@@ -2713,12 +2717,12 @@ const TAB_CRUMB = {
   overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Meta &nbsp;/&nbsp; Test calls'], angles: ['Making ads', 'Angles'],meta: ['Every day', 'Meta'],
   season: ['Every week', 'Season'], reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit &nbsp;/&nbsp; P&amp;L'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
   studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], copy: ['Making ads', 'Copy desk'], amb: ['Making ads', 'Creator link'],
-  plan: ['Monthly and setup', 'Plan'], settings: ['Monthly and setup', 'Settings'],
+  plan: ['Monthly and setup', 'Plan'], calc: ['Monthly and setup', 'Scenarios'], settings: ['Monthly and setup', 'Settings'],
   health: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Data health'], costs: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Costs'],
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { overview: 'everyone', season: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'For everyone', buyer: 'For the media buyer', strategist: 'For the strategist', owner: 'For Cole' };
@@ -2726,7 +2730,7 @@ const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
-const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'reports'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta'] };
+const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'reports', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'calc'] };
 function applyRole() {
   let role = 'all';
   try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
@@ -4002,7 +4006,7 @@ let RUN = 0;
    rather than left visible and inert - a control that does nothing reads as broken. */
 const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { season: 'Season', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
+const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4275,7 +4279,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, guide: renderGuide })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4301,6 +4305,19 @@ async function renderMeta(first) {
   if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   await window.MetaTab.render({ tok: S.tok, act: S.act, sub });
   if (run !== RUN) return;   // a newer render started while Meta was loading
+}
+
+/* ---------- Scenarios ----------
+   The lead and ROAS calculators (2026-10-06), in calc.js (own closure). */
+async function renderCalc(first) {
+  const run = RUN;
+  if (!window.CalcTab) {
+    $('#main').innerHTML = `<h2>Scenarios</h2><div class="card"><span style="color:var(--bad)">The Scenarios section didn't load. Hard-refresh the page (Ctrl+Shift+R); if it persists, <code>calc.js</code> failed to fetch.</span></div>`;
+    return;
+  }
+  if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  await window.CalcTab.render({ tok: S.tok, url: S.url, act: S.act, accounts: S.accounts });
+  if (run !== RUN) return;
 }
 
 /* ---------- Season ----------

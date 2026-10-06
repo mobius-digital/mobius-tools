@@ -6534,6 +6534,37 @@ const AH_APP = {
       const res = await connectMetaFor(env, r, a);
       return json(res, res.ok ? 200 : 400);
     }
+    /* Scenarios (2026-10-06): plain words -> calculator inputs for Locus's Scenarios tab.
+       Haiku, about a cent. Returns 1 to 4 scenarios as numbers plus one line of reading;
+       nothing is stored here, the browser fills the columns and the person decides. */
+    if (path === '/api/scenario-parse' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      const text = String(b.text || '').slice(0, 2000).trim();
+      if (!text) return json({ error: 'Describe the scenario first.' }, 400);
+      const kind = b.kind === 'roas' ? 'roas' : 'leads';
+      const ctx = b.context && typeof b.context === 'object' ? b.context : {};
+      const fields = kind === 'leads'
+        ? 'spend (dollars of lead-gen ad spend), cpl (dollars per lead), cvr (percent of leads that buy in the window, 0 to 100), aov (dollars per order), margin (percent contribution margin before ad spend, 0 to 100), target_roas (optional)'
+        : 'aov (dollars), margin (percent gross margin 0 to 100), mode ("roas" | "orders" | "revenue"), spend (dollars of ad spend), roas (number), orders (count), revenue (dollars goal), fulfillment (dollars per order), processing_pct (percent), fixed (dollars per month)';
+      const system = `You turn a marketer's plain-English what-if into calculator inputs. Output ONLY JSON: {"scenarios":[{"name":"...", ${kind === 'leads' ? '"spend":0,"cpl":0,"cvr":0,"aov":0,"margin":0,"target_roas":0' : '"aov":0,"margin":0,"mode":"roas","spend":0,"roas":0,"orders":0,"revenue":0,"fulfillment":0,"processing_pct":0,"fixed":0'}}], "reading":"one sentence"}.
+Fields: ${fields}. Rules: when the person gives a range or says "compare", make one scenario per case (max 4), named by what differs ("$2 a lead", "$4 a lead"). When a number is not given, use the brand context below, and if the context lacks it use a sensible default (leads: cpl 3, cvr 10, margin 55; roas: fulfillment 0, processing 3, fixed 0) and say so in "reading". Percentages are plain numbers (10 means 10%). Never invent revenue history. No prose outside the JSON.`;
+      const user = `Brand context: ${JSON.stringify(ctx)}\n\nWhat they said: ${text}`;
+      try {
+        const res = await xfetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 900, system, messages: [{ role: 'user', content: user }] }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return json({ error: body.error?.message || `Claude HTTP ${res.status}` }, 502);
+        const raw = body.content.filter(x => x.type === 'text').map(x => x.text).join('\n');
+        const m = raw.match(/\{[\s\S]*\}/);
+        const out = m ? JSON.parse(m[0]) : null;
+        if (!out || !Array.isArray(out.scenarios)) return json({ error: 'Could not read that into numbers. Try saying the spend, the cost per lead and how many buy.' }, 422);
+        return json({ scenarios: out.scenarios.slice(0, 4), reading: String(out.reading || '') });
+      } catch (e) { return json({ error: e.message }, 502); }
+    }
     if (path === '/api/new-client/meta-accounts') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const rows = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%' ORDER BY name`).all()).results || [];

@@ -22,6 +22,7 @@ import { handlePublic as studioPublic, handleStaff as studioStaff } from './stud
 
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
+import { handleScenario } from './scenario.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -2503,6 +2504,11 @@ export default {
         return json({ ok: true, results: await refreshCostHealth(env) });
       }
 
+      /* Scenarios (2026-10-06): saved what-ifs for the lead and ROAS calculators (calc.js). */
+      if (path === '/api/scenario') {
+        const sc = await handleScenario({ path, request, env, email: await sessionEmail(env, request) });
+        if (sc) return sc;
+      }
       /* Season (2026-10-05): the BFCM plan per brand. Routes live in season.js. */
       if (path.startsWith('/api/season')) {
         const sr = await handleSeason({
