@@ -104,8 +104,7 @@ function injectCss() {
   .se-tl .seg.ghost{opacity:.28}
   .se-tl .today{position:absolute;top:12px;bottom:0;width:2px;background:var(--ink,#111)}
   .se-tl .today i{position:absolute;top:-12px;left:-14px;font:700 9px var(--sans,system-ui);font-style:normal;letter-spacing:.06em}
-  .se-tl.big{height:92px}
-  .se-tl.big .months span{height:92px}
+  .se-tl .months span{height:var(--h,34px)}
   .se-tl.big .seg{height:16px;line-height:16px;font-size:11px}
   /* offers, one brand (numbered list) */
   .se-deal{display:grid;grid-template-columns:230px 1fr auto;gap:16px;padding:16px 18px;border:1px solid var(--line,#e5e5e5);border-left:6px solid var(--c);border-radius:12px;background:var(--surface,#fff);margin-bottom:10px;min-width:0;align-items:start}
@@ -221,18 +220,30 @@ function seasonBar(a, today, big) {
   const pct = iso => Math.max(0, Math.min(100, daysBetween(TL_FROM, iso) / span * 100));
   const months = [['2026-11-01', 'Nov'], ['2026-12-01', 'Dec'], ['2027-01-01', 'Jan'], ['2027-02-01', 'Feb']];
   const monthsHtml = `<span style="left:0">Oct</span>` + months.map(([d, l]) => `<span style="left:${pct(d)}%">${l}</span>`).join('');
-  /* Lanes by group so the overlapping Black Friday pieces do not pile on one another. */
-  const lanes = { nov: 0, bf: 1, dec: 2, late: 3, vday: 3 };
-  const show = a.phases.filter(p => p.start && p.status !== 'skip' && (big || !['access', 'planb', 'cm', 'boxing'].includes(p.key)));
-  const segs = show.map(p => {
-    const l = pct(p.start), r = pct(addDays(p.end || p.start, 1));
-    const top = big ? 16 + lanes[p.grp] * 19 : 16;
+  /* Greedy lanes: each phase takes the first row where it does not overlap another, so
+     labels never sit on top of one another; the compact bar is one row and drops the
+     Black Friday pieces that live inside the weekend anyway. */
+  const show = a.phases.filter(p => p.start && p.status !== 'skip' && (big || !['access', 'planb', 'cm', 'boxing'].includes(p.key)))
+    .map(p => ({ p, l: pct(p.start), r: Math.max(pct(addDays(p.end || p.start, 1)), pct(p.start) + 0.8) }))
+    .sort((x, y) => x.l - y.l || y.r - x.r);
+  const laneEnd = [];
+  for (const s of show) {
+    let lane = 0;
+    if (big) { while (laneEnd[lane] != null && laneEnd[lane] > s.l - 0.6) lane++; laneEnd[lane] = s.r; }
+    s.lane = lane;
+  }
+  const rows = big ? Math.max(1, laneEnd.length) : 1;
+  const segs = show.map(({ p, l, r, lane }) => {
+    const top = 16 + lane * 19;
     const ghost = p.status === 'missing' ? ' ghost' : '';
-    return `<div class="seg${ghost}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};left:${l}%;width:${Math.max(r - l, 0.6)}%;top:${top}px" title="${esc(p.name)}: ${esc(fmtRange(p.start, p.end))}${p.offer ? ' · ' + esc(p.offer) : ''}">${big || r - l > 9 ? esc(p.name) : ''}</div>`;
+    const w = r - l;
+    const label = w > 7 ? esc(p.name) : (w > 3 ? esc(p.name.split(/[\s:]/)[0]) : '');
+    return `<div class="seg${ghost}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};left:${l}%;width:${w}%;top:${top}px" title="${esc(p.name)}: ${esc(fmtRange(p.start, p.end))}${p.offer ? ' · ' + esc(p.offer) : ''}">${label}</div>`;
   }).join('');
+  const h = 16 + rows * 19 + 2;
   const todayHtml = today >= TL_FROM && today <= TL_TO ? `<div class="today" style="left:${pct(today)}%"><i>TODAY</i></div>` : '';
   const bfHtml = `<div class="today" style="left:${pct(BF)}%;background:var(--se-bf)"><i style="left:-4px">BF</i></div>`;
-  return `<div class="se-tl ${big ? 'big' : ''}"><div class="months">${monthsHtml}</div>${segs}${bfHtml}${todayHtml}</div>`;
+  return `<div class="se-tl ${big ? 'big' : ''}" style="height:${h}px"><div class="months" style="--h:${h}px">${monthsHtml}</div>${segs}${bfHtml}${todayHtml}</div>`;
 }
 
 /* ---------- small modal: fields in, object out (or null) ---------- */
