@@ -21,6 +21,7 @@ import { handlePublic as brandPublic, handleStaff as brandStaff } from './brand.
 import { handlePublic as studioPublic, handleStaff as studioStaff } from './studio.js';
 
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
+import { handleSeason, seasonPublic } from './season.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -1832,6 +1833,13 @@ export default {
       return new Response(await res.text(), { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
+    /* The client's read-only SEASON page (?season=<token>): offers and dates for one
+       brand, nothing internal. The token is the auth, like the plan link. */
+    let sq;
+    if ((sq = path.match(/^\/api\/season\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
+      try { return await seasonPublic(env, sq[1]); } catch (e) { return json({ error: e.message }, 500); }
+    }
+
     /* Cover images for a client's shared ad set - same arrangement as the
        video above: forwarded here, before the auth gate, when it carries a
        share token; account-health validates the token against the snapshot. */
@@ -2495,6 +2503,11 @@ export default {
         return json({ ok: true, results: await refreshCostHealth(env) });
       }
 
+      /* Season (2026-10-05): the BFCM plan per brand. Routes live in season.js. */
+      if (path.startsWith('/api/season')) {
+        const sr = await handleSeason({ path, request, env, accountsFor, email: await sessionEmail(env, request) });
+        if (sr) return sr;
+      }
       return json({ error: 'not found' }, 404);
     } catch (e) {
       return json({ error: e.message }, 500);

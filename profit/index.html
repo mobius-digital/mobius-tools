@@ -1758,6 +1758,7 @@
   <symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2"/></symbol>
   <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.8V8l2.2 1.6"/></symbol>
   <symbol id="i-play" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M6.8 5.8v4.4L10.3 8z"/></symbol>
+  <symbol id="i-season" viewBox="0 0 16 16"><path d="M2.5 2.5h5.2l6 6-5.2 5.2-6-6z"/><circle cx="5.6" cy="5.6" r="1"/></symbol>
 </defs></svg>
 
 <div class="app">
@@ -1795,6 +1796,7 @@
       </div>
       <div class="grp"><span class="band">Every week</span>
         <div class="grp-btns">
+          <button data-t="season"><svg class="ic"><use href="#i-season"/></svg><span>Season</span></button>
           <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
           <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>Profit</span></button>
         </div>
@@ -1869,6 +1871,7 @@
 <script src="brand.js?v=16"></script>
 <script src="newclient.js?v=14"></script>
 <script src="studio.js?v=21"></script>
+<script src="season.js?v=1"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -2020,7 +2023,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
@@ -2036,6 +2039,8 @@ async function boot() {
   if (planTok) return renderPlanShare(planTok);
   const perfTok = new URLSearchParams(location.search).get('perf');
   if (perfTok) return renderPerfShare(perfTok);
+  const seasonTok = new URLSearchParams(location.search).get('season');
+  if (seasonTok) { chrome(false); return window.SeasonTab ? window.SeasonTab.renderShare(seasonTok, S.url) : ($('#main').innerHTML = '<div class="gate"><h1>Season plan unavailable</h1><p>season.js did not load. Refresh.</p></div>'); }
   const connected = new URLSearchParams(location.search).get('connected');
   if (connected) return renderConnected(connected);
   if (!S.tok) return renderGate();
@@ -2333,7 +2338,7 @@ document.addEventListener('click', e => {
   const hb = e.target.closest('[data-help]');
   if (hb) {
     const k = hb.dataset.help;
-    helpModalFor(k, { overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings', health:'Data Health' }[k] || 'This page', PAGE_HELP[k]);
+    helpModalFor(k, { season:'The Season', overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings', health:'Data Health' }[k] || 'This page', PAGE_HELP[k]);
   }
 });
 
@@ -2655,6 +2660,7 @@ function addBrandModal(untracked, chList, onDiscover, total) {
    Keep them ONE sentence. The detail already has three other homes. */
 const TAB_PURPOSE = {
   overview:  'Which clients are making money right now. Start here every morning - click a client to dig into theirs.',
+  season:    'The BFCM plan for every brand: the offer for each part of the season, when it runs, and what is due this week. Tick things off here; the briefs themselves stay in Asana.',
   profit:    "Did this brand make money in the window: revenue, orders, average order, every cost, what was left. Same numbers as the Daily Brief and Reports.",
   tests:     'For the media buyer: which tests spent enough to make a call, and which are still running.',
   angles:    'For the strategist: every angle we have tested, what won, and the concepts under it. Check an idea here before briefing it.',
@@ -2705,14 +2711,14 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
   overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Meta &nbsp;/&nbsp; Test calls'], angles: ['Making ads', 'Angles'],meta: ['Every day', 'Meta'],
-  reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit &nbsp;/&nbsp; P&amp;L'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
+  season: ['Every week', 'Season'], reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit &nbsp;/&nbsp; P&amp;L'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
   studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], copy: ['Making ads', 'Copy desk'], amb: ['Making ads', 'Creator link'],
   plan: ['Monthly and setup', 'Plan'], settings: ['Monthly and setup', 'Settings'],
   health: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Data health'], costs: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Costs'],
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { overview: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { overview: 'everyone', season: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'For everyone', buyer: 'For the media buyer', strategist: 'For the strategist', owner: 'For Cole' };
@@ -2720,7 +2726,7 @@ const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
-const ROLE_TABS = { buyer: ['overview', 'brief', 'meta', 'reports'], strategist: ['overview', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta'] };
+const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'reports'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta'] };
 function applyRole() {
   let role = 'all';
   try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
@@ -3996,7 +4002,7 @@ let RUN = 0;
    rather than left visible and inert - a control that does nothing reads as broken. */
 const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
+const TAB_TITLE = { season: 'Season', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4269,7 +4275,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, guide: renderGuide })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, guide: renderGuide })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4295,6 +4301,23 @@ async function renderMeta(first) {
   if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
   await window.MetaTab.render({ tok: S.tok, act: S.act, sub });
   if (run !== RUN) return;   // a newer render started while Meta was loading
+}
+
+/* ---------- Season ----------
+   The BFCM plan (2026-10-05), in season.js (own closure). Replaces the standalone
+   Q4 Playbook at /2026-q4-playbook, which is to be retired after the season. */
+async function renderSeason(first) {
+  const run = RUN;
+  if (!window.SeasonTab) {
+    $('#main').innerHTML = `<h2>Season</h2><div class="card"><span style="color:var(--bad)">The Season section didn't load. Hard-refresh the page (Ctrl+Shift+R); if it persists, <code>season.js</code> failed to fetch.</span></div>`;
+    return;
+  }
+  if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  await window.SeasonTab.render({
+    tok: S.tok, url: S.url, act: S.act, accounts: S.accounts,
+    pick: id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('season'); },
+  });
+  if (run !== RUN) return;
 }
 
 /* ---------- Ambassadors ----------
@@ -4371,6 +4394,7 @@ const GUIDE = [
     ['Every morning', [
       ['Overview', 'Which brand needs you today. Red and yellow first.', 'overview'],
       ['Daily Brief', 'Read each brand’s brief, add what you changed under What we did, press Send.', 'brief'],
+      ['Season', 'What is due this week for Black Friday, per brand. Tick what you loaded.', 'season'],
       ['Meta, Test calls', 'Everything under Make a call spent enough to judge. Set Result in Asana and move the task to Completed.', 'tests'],
       ['Meta, Creative', 'Ads marked Cut are over the goal CPA. Ads marked Scale are under it.', 'meta:creative'],
       ['Meta, Change Log', 'Add the reason next to anything you changed in Ads Manager.', 'meta:changelog'],
@@ -4381,6 +4405,7 @@ const GUIDE = [
   ] },
   { role: 'strategist', name: 'Creative strategist', sub: 'Decide what to test next and brief it.', parts: [
     ['Before every brief', [
+      ['Season', 'Which brand needs briefs this week, and the offer they must carry.', 'season'],
       ['Angles', 'Start with the angles marked Proven. Skip the ones marked Dead.', 'angles'],
       ['Have we tested this?', 'Type your idea in your own words at the top of Angles. It tells you if it already ran under different wording.', 'angles'],
       ['Open the angle', 'See which concepts won. Brief a variation of a winner, or a new concept under a proven angle.', 'angles'],
