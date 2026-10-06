@@ -301,12 +301,24 @@ function proofTile(p, a, small) {
   const out = p.kind === 'post' || p.kind === 'typed' || p.kind === 'inspo';
   const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}" data-cover="${esc(p.ad_id)}"` : p.kind === 'upload' ? `data-play-file="${esc(p.file)}"` : '';
   const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : '';
-  const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? 'Another brand' : p.kind === 'upload' ? 'Clip' : 'Creator post';
+  const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? (String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, 'Another brand') || 'Another brand') : p.kind === 'upload' ? 'Clip' : 'Creator post';
   const cls = small ? 'pthumb' : 'wtile';
   const cap = small ? '' : `<span class="wcap"><span class="tag ${p.kind === 'meta' ? 'tag-green' : 'tag-chip'}">${esc(lbl)}</span>${a ? `<a class="wname" href="#a=${esc(a.id)}">${esc(a.title)}</a>` : ''}</span>`;
   return out
     ? `<a class="${cls}" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(lbl)}"><span class="well">${img}<span class="pbtn sm">${ic('external-link', 14)}</span></span>${cap}</a>`
     : `<button class="${cls}" ${attrs} title="${esc(lbl)}"><span class="well">${img}<span class="pbtn sm">${ic('play', 14)}</span></span>${cap}</button>`;
+}
+const isTheirs = p => p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
+/* Watch first, in two groups: videos that ran for the brand, then other brands' videos we pulled in. */
+function watchBlock(a, withNames) {
+  const ours = a.proof.filter(p => !isTheirs(p));
+  const theirs = a.proof.filter(p => isTheirs(p) && p.kind !== 'inspo');
+  const links = inspoList(a);
+  if (!ours.length && !theirs.length && !links) return '';
+  return `<h2 class="disp sec-t">Watch first</h2><p class="sec-s">Get the shape, then make your version.</p>
+    ${ours.length ? `<p class="lbl grp">From ${esc(D.brand.display_name)}</p><div class="wgrid">${ours.map(p => proofTile(p, withNames ? a : null, false)).join('')}</div>` : ''}
+    ${theirs.length ? `<p class="lbl grp">Other brands doing the shape well</p><div class="wgrid">${theirs.map(p => proofTile(p, withNames ? a : null, false)).join('')}</div>` : ''}
+    ${links}`;
 }
 function proofStrip(a) {
   const pr = (a.proof || []).slice(0, 3);
@@ -407,7 +419,8 @@ function rerender() {
 
 function renderWatch() {
   const all = uniq();
-  const vids = all.flatMap(a => a.proof.filter(p => p.kind !== 'inspo').map(p => [p, a]));
+  const vids = all.flatMap(a => a.proof.filter(p => p.kind !== 'inspo' && !isTheirs(p)).map(p => [p, a]));
+  const theirs = all.flatMap(a => a.proof.filter(p => p.kind === 'upload' && isTheirs(p)).map(p => [p, a]));
   const refs = [];
   const seen = new Set();
   for (const a of all) {
@@ -423,9 +436,11 @@ function renderWatch() {
       </div>
       ${vids.length ? `<section class="wsec"><h2 class="disp sec-t">Videos that ran for ${esc(D.brand.display_name)} <span class="num">${vids.length}</span></h2><p class="sec-s">Tap to play. The name under each one is the idea it came from.</p>
         <div class="wgrid">${vids.map(([p, a]) => proofTile(p, a, false)).join('')}</div></section>` : ''}
-      ${refs.length ? `<section class="wsec"><h2 class="disp sec-t">Steal the shape from other brands <span class="num">${refs.length}</span></h2><p class="sec-s">Take the move, not the product. Each one says which idea it belongs to.</p>
+      ${theirs.length ? `<section class="wsec"><h2 class="disp sec-t">Other brands doing the shape well <span class="num">${theirs.length}</span></h2><p class="sec-s">Tap to play. Take the move, not the product.</p>
+        <div class="wgrid">${theirs.map(([p, a]) => proofTile(p, a, false)).join('')}</div></section>` : ''}
+      ${refs.length ? `<section class="wsec"><h2 class="disp sec-t">More references (links) <span class="num">${refs.length}</span></h2><p class="sec-s">Ads we could not pull in yet. Each one says which idea it belongs to.</p>
         <ul class="inspo">${refs.map(([x, a]) => `<li class="card">${ic('lightbulb', 16)}<div>${x.brand ? `<b>${esc(x.brand)}</b>` : ''}${x.what ? `<span>${esc(x.what)}</span>` : ''}<a class="wname" href="#a=${esc(a.id)}">For: ${esc(a.title)}</a></div>${x.url ? `<a class="btn btn-line btn-sm" href="${esc(x.url)}" target="_blank" rel="noopener">Watch ${ic('external-link', 13)}</a>` : ''}</li>`).join('')}</ul></section>` : ''}
-      ${!vids.length && !refs.length ? '<div class="card empty">No examples yet. Yours could be the first.</div>' : ''}
+      ${!vids.length && !theirs.length && !refs.length ? '<div class="card empty">No examples yet. Yours could be the first.</div>' : ''}
     </div>`);
   loadCovers(vids.map(([p]) => p));
 }
@@ -477,7 +492,6 @@ function renderAngle(id, picked) {
     ...rest.map(x => [x.label && !/^open/i.test(x.label) ? x.label : 'Then', x.text]),
   ].filter(Boolean);
   const more = (a.openers || []).slice(1);
-  const watch = a.proof.length || (a.inspo || []).length;
   shell('ideas', `
     <div class="wrap det">
       <div class="det-main" style="${s ? toneVars(s.color) : ''}">
@@ -493,8 +507,7 @@ function renderAngle(id, picked) {
         ${a.products ? `<p class="para"><b>Show.</b> ${esc(a.products)}</p>` : ''}
         <div class="only-narrow"><div class="card filmcard">${filmBtn(a, 'btn-hero btn-full')}${other ? `<a class="btn btn-line btn-full" href="#a=${esc(other.id)}&pick">${ic('shuffle', 15)} Pick another</a>` : ''}</div></div>
 
-        ${watch ? `<h2 class="disp sec-t">Watch first</h2><p class="sec-s">Real videos on this idea, and other brands doing the shape well. Get the shape, make your version.</p>
-        <div class="wgrid">${a.proof.filter(p => p.kind !== 'inspo').map(p => proofTile(p, null, false)).join('')}</div>${inspoList(a)}` : ''}
+        ${watchBlock(a, false)}
 
         <h2 class="disp sec-t">How to film it</h2><p class="sec-s">In order. Your hands do something before you talk.</p>
         <ol class="steps big">${steps.map(([l, t], k) => `<li><span class="n">${k + 1}</span><div><span class="lbl">${esc(l)}</span><p class="${/^Say/.test(l) ? 'hook' : ''}">${esc(t)}</p></div></li>`).join('')}</ol>

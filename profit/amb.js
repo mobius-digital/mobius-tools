@@ -18,6 +18,8 @@
 'use strict';
 
 const PUBLIC_BASE = 'https://tools.go-mobius-digital.com/angles/';
+/* The account-health worker holds the Atria connection: "Pull the video in" on an inspiration row goes there. */
+const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 const LUCIDE_URL = 'https://cdn.jsdelivr.net/npm/lucide-static@1.46.0/icon-nodes.json';
 const LUCIDE_TAGS = 'https://cdn.jsdelivr.net/npm/lucide-static@1.46.0/tags.json';
 const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
@@ -160,7 +162,7 @@ function injectCss() {
 .am-list-edit{display:flex;flex-direction:column;gap:8px}
 .am-list-edit .am-li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px;align-items:start}
 .am-list-edit .am-li.one{grid-template-columns:minmax(0,1fr) auto}
-.am-list-edit .am-li.three{grid-template-columns:minmax(0,.7fr) minmax(0,1.6fr) minmax(0,1fr) auto}
+.am-list-edit .am-li.three{grid-template-columns:minmax(0,.6fr) minmax(0,1.4fr) minmax(0,1fr) auto}
 .am-bars{display:flex;align-items:flex-end;gap:3px;height:110px}
 .am-bars div{flex:1;border-radius:3px 3px 0 0;background:#CBD5DE;min-height:3px}
 .am-bars div.hi{background:var(--brand-lo)}
@@ -557,10 +559,13 @@ async function sectionModal(sec) {
 function paintEditor(body) {
   const d = S.data;
   const isNew = S.edit === 'new';
-  const a = isNew ? { title: '', section_id: d.sections.find(s => !s.pinned)?.id || '', hot: false, status: 'live', openers: [], shots: [{ label: 'Open · 0 to 3s', text: '' }, { label: 'Middle', text: '' }, { label: 'Close', text: '' }] } : d.angles.find(x => x.id === S.edit);
+  const a = isNew ? { title: '', section_id: d.sections.find(s => !s.pinned)?.id || '', hot: false, status: 'live', openers: [], shots: [{ label: 'Middle', text: '' }, { label: 'Close', text: '' }] } : d.angles.find(x => x.id === S.edit);
   const secOpts = d.sections.filter(s => !s.pinned).map(s => `<option value="${esc(s.id)}" ${s.id === a.section_id ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
   const fmtList = [...new Set([...FORMATS, ...d.angles.map(x => x.format).filter(Boolean)])];
-  const shots = (a.shots?.length ? a.shots : [{ label: 'Open · 0 to 3s', text: '' }, { label: 'Middle', text: '' }, { label: 'Close', text: '' }]);
+  // The page shows "The first second" as step 1, so an "Open" beat here is the same thing twice: hide it.
+  const shots = (a.shots?.length ? a.shots.filter(x => !/^open/i.test(x.label || '')) : []);
+  if (!shots.length) shots.push({ label: 'Middle', text: '' }, { label: 'Close', text: '' });
+  const clips = new Set(d.proof.filter(p => p.angle_id === a.id && p.kind === 'upload' && p.url).map(p => p.url));
   body.innerHTML = `
   <div class="am-bar">
     <div><button class="btn" id="amBack">${ic('arrow-left', 14)} All angles</button></div>
@@ -569,46 +574,77 @@ function paintEditor(body) {
       ${!isNew ? `<button class="btn" id="amDelAng" style="color:var(--bad)">${ic('trash', 14)} Delete</button>` : ''}
     </div>
   </div>
+  <p class="hint" style="margin:0 0 4px">Fill it in the order a creator reads it. Every box below is a box on the public page, with the same name.</p>
+
   <div class="card" style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
-    <h3>${isNew ? 'New angle' : 'Edit angle'}</h3>
+    <h3>${isNew ? 'New idea' : 'The idea'}</h3>
     <div class="am-g4">
-      <label class="am-f" style="grid-column:span 2">Title <small>what creators see on the card</small><input class="am-in" id="eTitle" value="${esc(a.title)}" placeholder="Tonight / Tomorrow: soccer mom"></label>
-      <label class="am-f">Section<select class="am-in" id="eSec"><option value="">No section</option>${secOpts}</select></label>
-      <label class="am-f">Format<input class="am-in" id="eFmt" list="amFmts" value="${esc(a.format || '')}" placeholder="Split screen"><datalist id="amFmts">${fmtList.map(f => `<option value="${esc(f)}">`).join('')}</datalist></label>
+      <label class="am-f" style="grid-column:span 2">Title <small>the big line on the card</small><input class="am-in" id="eTitle" value="${esc(a.title)}" placeholder="Let's see how long it takes him to notice"></label>
+      <label class="am-f">Lane <small>why film it today</small><select class="am-in" id="eSec"><option value="">No lane</option>${secOpts}</select></label>
+      <label class="am-f">Format <small>the shape of the video</small><input class="am-in" id="eFmt" list="amFmts" value="${esc(a.format || '')}" placeholder="Reaction"><datalist id="amFmts">${fmtList.map(f => `<option value="${esc(f)}">`).join('')}</datalist></label>
     </div>
-    <label class="am-f">The idea in one sentence <small>the reason to buy, said to one person. Creators see this.</small><input class="am-in" id="eArg" value="${esc(a.argument || '')}" placeholder="Your calendar doesn't care what you did last night, so wear a patch and keep tomorrow."></label>
-    <div class="am-g3">
-      <label class="am-f">Products <small>free text</small><input class="am-in" id="eProd" value="${esc(a.products || '')}" placeholder="Halloween bundle"></label>
-      <label class="am-f">Lever <small>staff only</small><input class="am-in" id="eLever" list="amLevers" value="${esc(a.lever || '')}" placeholder="Relief"><datalist id="amLevers">${LEVERS.map(f => `<option value="${esc(f)}">`).join('')}</datalist></label>
-      <div class="am-f">Status<div style="display:flex;gap:16px;align-items:center;min-height:38px">${sw('eHot', a.hot, 'Hot right now')}${sw('eLive', a.status !== 'draft', 'Live')}</div></div>
+    <label class="am-f">The idea in one sentence <small>the reason to buy, said to one person</small><input class="am-in" id="eArg" value="${esc(a.argument || '')}" placeholder="She gives him the belt and the video waits for the moment he finds the marker in the buckle."></label>
+    <div class="am-g2">
+      <label class="am-f">Who it is for<textarea class="am-in" id="eWho" style="min-height:56px" placeholder="Partners who film each other.">${esc(a.who || '')}</textarea></label>
+      <label class="am-f">Show <small>the product or line to film, in plain words</small><textarea class="am-in" id="eProd" style="min-height:56px" placeholder="Any Muni belt, in the box">${esc(a.products || '')}</textarea></label>
     </div>
-    <label class="am-f">Who it is for<textarea class="am-in" id="eWho" style="min-height:60px" placeholder="The mom of two whose Saturday starts at 7am on a soccer sideline.">${esc(a.who || '')}</textarea></label>
-    <label class="am-f">Openers <small>one per line, creators see these word for word</small><textarea class="am-in" id="eOpen" placeholder="POV: girls night was last night and soccer is at 8.">${esc((a.openers || []).join('\n'))}</textarea></label>
-    <div class="am-f">What to film <small>one box per beat</small>
-      <div class="am-g3" id="eShots">${shots.map((s, i) => `<div style="display:flex;flex-direction:column;gap:6px"><input class="am-in" data-shl="${i}" value="${esc(s.label || '')}" placeholder="Beat name"><textarea class="am-in" data-sht="${i}" style="min-height:74px">${esc(s.text || '')}</textarea></div>`).join('')}</div>
+    <div class="am-f">Where it shows<div style="display:flex;gap:16px;align-items:center;min-height:38px">${sw('eHot', a.hot, "What's working right now (the top of the page)")}${sw('eLive', a.status !== 'draft', 'Live on the link')}</div></div>
+  </div>
+
+  <div class="card" style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+    <h3>How to film it</h3>
+    <p class="hint" style="margin:-6px 0 0">Numbered on the page, in this order. Write each one as an instruction to the creator: "Open on...", "Say...", "At 3 seconds, cut to...".</p>
+    <label class="am-f"><b>1.</b> The first second <small>what is physically on screen before anyone talks</small><textarea class="am-in" id="eVis" style="min-height:56px" placeholder="Open on her holding the box, him not in frame yet.">${esc(a.visual_hook || '')}</textarea></label>
+    <label class="am-f"><b>2.</b> Say this first <small>one line per row. The first row is the line on the card; the rest show as "Other lines you can say".</small><textarea class="am-in" id="eOpen" style="min-height:74px" placeholder="Let's see how long it takes him to notice what the buckle does.">${esc((a.openers || []).join('\n'))}</textarea></label>
+    <label class="am-f"><b>3.</b> At 3 seconds <small>what happens next so they keep watching: a cut, a question, a count, a second person</small><textarea class="am-in" id="eRe" style="min-height:56px" placeholder="At 3 seconds, hand it over and stay on his face. Cut on his 'Wait a second.'">${esc(a.rehook || '')}</textarea></label>
+    <div class="am-f"><b>4.</b> Then <small>the rest of the shots, one box per beat (Middle, Close)</small>
+      <div class="am-g2" id="eShots">${shots.map((s, i) => `<div style="display:flex;flex-direction:column;gap:6px"><input class="am-in" data-shl="${i}" value="${esc(s.label || '')}" placeholder="Middle"><textarea class="am-in" data-sht="${i}" style="min-height:64px">${esc(s.text || '')}</textarea></div>`).join('')}</div>
       <div><button class="btn" id="eAddShot" type="button">${ic('plus', 13)} Add a beat</button></div></div>
+    <label class="am-f">Text on screen <small>optional</small><input class="am-in" id="eOver" value="${esc(a.on_screen || '')}" placeholder="Let's see how long it takes him"></label>
     <div class="am-g2">
-      <label class="am-f">Text on screen <small>optional</small><input class="am-in" id="eOver" value="${esc(a.on_screen || '')}" placeholder="TONIGHT: girls night / TOMORROW: 8AM soccer"></label>
-      <label class="am-f">Trend or sound to ride <small>optional</small><input class="am-in" id="eTrend" value="${esc(a.trend || '')}" placeholder="Any trending split-screen or transition sound"></label>
-    </div>
-    <div class="am-g2">
-      <label class="am-f">The first second <small>what is physically happening on screen before anyone talks. Creators see this on the card and in Film this one.</small><textarea class="am-in" id="eVis" style="min-height:60px" placeholder="Dump the whole bundle onto the kitchen counter, then look up at the camera.">${esc(a.visual_hook || '')}</textarea></label>
-      <label class="am-f">Keep them past 3 seconds <small>the thing that happens at 3 to 8 seconds so they do not scroll: a reveal, a second question, a cut to a new place, a count that changes</small><textarea class="am-in" id="eRe" style="min-height:60px" placeholder="At 3 seconds cut to the clock on the wall, then back to you with the patch half on.">${esc(a.rehook || '')}</textarea></label>
-    </div>
-    <label class="am-f">Why it works <small>one sentence creators see: the proven shape this is built on</small><input class="am-in" id="eWhy" value="${esc(a.why || '')}" placeholder="Price shock then reveal is the best-selling creator shape in this account."></label>
-    <div class="am-f">Steal the shape from these <small>other brands' videos that do this well. Shown on the idea page as Inspiration. Brand, what to steal, and a link if you have one.</small>
-      <div class="am-list-edit" id="eInspo">${(a.inspo || []).map(inspoRow).join('')}</div>
-      <div><button class="btn" id="eInspoAdd" type="button">${ic('plus', 13)} Add one</button></div></div>
-    <div class="am-g2">
-      <label class="am-f" style="color:var(--good)">Do<textarea class="am-in" id="eDo" style="min-height:60px">${esc(a.do_text || '')}</textarea></label>
-      <label class="am-f" style="color:var(--bad)">Don't<textarea class="am-in" id="eDont" style="min-height:60px">${esc(a.dont_text || '')}</textarea></label>
+      <label class="am-f" style="color:var(--good)">Do<textarea class="am-in" id="eDo" style="min-height:56px">${esc(a.do_text || '')}</textarea></label>
+      <label class="am-f" style="color:var(--bad)">Don't<textarea class="am-in" id="eDont" style="min-height:56px">${esc(a.dont_text || '')}</textarea></label>
     </div>
   </div>
-  ${isNew ? '<div class="card" style="padding:16px 18px"><p class="hint" style="margin:0">Save the angle first, then add proof: tag Meta ads, paste creator posts or upload clips.</p></div>' : proofCards(a)}
-  <div class="am-save"><span class="am-msg" id="eMsg"></span><button class="btn" id="eCancel">Cancel</button><button class="btn primary" id="eSave">${isNew ? 'Save angle' : 'Save changes'}</button></div>`;
+
+  ${isNew ? '<div class="card" style="padding:16px 18px"><p class="hint" style="margin:0">Save the idea first, then add the videos creators should watch: tag a Meta ad, paste a creator post, upload a clip, or pull in another brand&#39;s ad from Atria.</p></div>' : `
+  <div class="card" style="padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+    <h3>Watch first: other brands doing the shape well</h3>
+    <p class="hint" style="margin:-6px 0 0">Brand, what to steal in one line, and the Atria link (app.tryatria.com/ad/m...). <b>Pull the video in</b> stores the ad's video so it plays on the page like one of ours; until then the page shows a link. Save the idea after editing rows.</p>
+    <div class="am-list-edit" id="eInspo">${(a.inspo || []).map(x => inspoRow(x, clips.has(x.url))).join('')}</div>
+    <div><button class="btn" id="eInspoAdd" type="button">${ic('plus', 13)} Add one</button></div>
+  </div>
+  ${proofCards(a)}`}
+
+  <div class="card" style="padding:18px 22px;display:flex;flex-direction:column;gap:12px">
+    <h3>Why it works <small style="font-weight:400;color:var(--muted)">(one line, creators see it at the bottom of the idea)</small></h3>
+    <input class="am-in" id="eWhy" value="${esc(a.why || '')}" placeholder="The wife-with-a-phone gift reveal is the number one ad in golf apparel right now.">
+    <div class="am-g2">
+      <label class="am-f">Trend or sound to ride <small>optional</small><input class="am-in" id="eTrend" value="${esc(a.trend || '')}"></label>
+      <label class="am-f">Lever <small>staff only, never shown</small><input class="am-in" id="eLever" list="amLevers" value="${esc(a.lever || '')}" placeholder="Relief"><datalist id="amLevers">${LEVERS.map(f => `<option value="${esc(f)}">`).join('')}</datalist></label>
+    </div>
+  </div>
+  <div class="am-save"><span class="am-msg" id="eMsg"></span><button class="btn" id="eCancel">Cancel</button><button class="btn primary" id="eSave">${isNew ? 'Save idea' : 'Save changes'}</button></div>`;
 
   $('#amBack').onclick = $('#eCancel').onclick = () => { S.edit = null; paint(); };
-  $('#eInspoAdd').onclick = () => { $('#eInspo').insertAdjacentHTML('beforeend', inspoRow({})); autoGrow($('#eInspo')); };
+  $('#eInspoAdd')?.addEventListener('click', () => { $('#eInspo').insertAdjacentHTML('beforeend', inspoRow({})); autoGrow($('#eInspo')); });
+  body.addEventListener('click', async e => {
+    const btn = e.target.closest('#eInspo [data-pull]');
+    if (!btn) return;
+    const li = btn.closest('.am-li');
+    const url = li.querySelector('[data-iu]').value.trim();
+    const m = url.match(/tryatria\.com\/ad\/([mt]\d+)/);
+    if (!m) { helpModal('Needs an Atria link', '<p>Paste the ad&#39;s Atria link first, like https://app.tryatria.com/ad/m123456789.</p>'); return; }
+    btn.disabled = true; btn.textContent = 'Pulling in...';
+    try {
+      const res = await fetch(AH_URL + '/api/atria/clip-to-angle', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ act: S.act, angle_id: a.id, ad_id: m[1], who: li.querySelector('[data-ib]').value.trim(), note: li.querySelector('[data-iw]').value.trim() }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Atria did not answer.');
+      S.data = await api(`/api/amb?act=${encodeURIComponent(S.act)}`);
+      paint();
+    } catch (err) { btn.disabled = false; btn.innerHTML = `${ic('download', 13)} Pull the video in`; helpModal('Could not pull the video in', `<p>${esc(err.message)}</p>`); }
+  });
   body.addEventListener('click', e => { const r = e.target.closest('#eInspo [data-rm]'); if (r) r.closest('.am-li').remove(); });
   $('#eAddShot').onclick = () => {
     const host = $('#eShots'); const i = host.children.length;
@@ -1060,7 +1096,7 @@ function paintLink(body) {
 }
 const avoidRow = x => `<div class="am-li"><textarea class="am-in grow" rows="1" data-at placeholder="What to stop filming">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-aw placeholder="Why, in one line">${esc(x.why || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
 const guideRow = x => `<div class="am-li"><textarea class="am-in grow" rows="1" data-gt placeholder="Rule, e.g. Do something with your hands in the first second">${esc(x.title || '')}</textarea><textarea class="am-in grow" rows="1" data-gx placeholder="One line of why, with an example">${esc(x.text || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
-const inspoRow = x => `<div class="am-li three"><textarea class="am-in grow" rows="1" data-ib placeholder="Brand">${esc(x.brand || '')}</textarea><textarea class="am-in grow" rows="1" data-iw placeholder="What to steal, in one line">${esc(x.what || '')}</textarea><textarea class="am-in grow" rows="1" data-iu placeholder="https:// link, optional">${esc(x.url || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
+const inspoRow = (x, pulled) => `<div class="am-li three"><textarea class="am-in grow" rows="1" data-ib placeholder="Brand">${esc(x.brand || '')}</textarea><textarea class="am-in grow" rows="1" data-iw placeholder="What to steal, in one line">${esc(x.what || '')}</textarea><textarea class="am-in grow" rows="1" data-iu placeholder="https://app.tryatria.com/ad/m...">${esc(x.url || '')}</textarea><span style="display:flex;gap:6px">${pulled ? `<span class="am-chip" style="background:#E7F6EE;color:var(--good)" title="The video is stored and plays on the page">${ic('check', 12)} Video in</span>` : `<button class="btn" type="button" data-pull title="Store this ad's video so it plays on the page">${ic('download', 13)} Pull the video in</button>`}<button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></span></div>`;
 const ruleRow = x => `<div class="am-li one"><textarea class="am-in grow" rows="1" data-r placeholder="e.g. Say 'for a better next day', never 'cures hangovers'">${esc(x || '')}</textarea><button class="btn" type="button" data-rm aria-label="Remove">${ic('x', 14)}</button></div>`;
 
 /* ---------- PDF + QR ---------- */

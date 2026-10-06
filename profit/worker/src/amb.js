@@ -154,11 +154,14 @@ async function publicPayload(env, slug, preview = false) {
   const secIds = new Set(onSecs.map(s => s.id));
   const liveAngles = angles.filter(a => a.status === 'live' && (secIds.has(a.section_id) || a.hot));
   const proofBy = new Map();
+  // Inspiration links that were pulled in as clips (atria clip-to-angle) carry the Atria link in `url`;
+  // the page then plays the clip and hides the duplicate link.
+  const clipped = new Set(proof.filter(p => p.kind === 'upload' && p.url && p.shown).map(p => p.url));
   for (const p of proof) {
     if (!p.shown) continue;
     if (p.kind === 'inspo' && !b.show_inspo) continue;
     if (p.kind === 'meta' && isImage.has(p.ad_id)) continue;
-    const item = { id: p.id, kind: p.kind, who: p.who, note: p.note, url: p.kind === 'upload' ? null : p.url, thumb: p.thumb };
+    const item = { id: p.id, kind: p.kind, who: p.who, note: p.note, url: p.kind === 'upload' ? null : p.url, thumb: p.thumb, source: p.kind === 'upload' && p.url ? p.url : null };
     if (p.kind === 'meta') item.ad_id = p.ad_id;
     if (p.kind === 'upload') item.file = `/api/angles-file/${p.id}`;
     if ((p.kind === 'post' || p.kind === 'typed') && p.views) item.views = p.views;   // views yes, sales never
@@ -168,6 +171,7 @@ async function publicPayload(env, slug, preview = false) {
     const s = shapeAngle(a);
     delete s.lever; delete s.status; delete s.sort; delete s.hot_sort;
     const pr = proofBy.get(a.id) || [];
+    s.inspo = (s.inspo || []).filter(x => !(x.url && clipped.has(x.url)));
     return { ...s, proof: pr, ads: pr.filter(p => p.kind === 'meta').length };
   };
   const hot = liveAngles.filter(a => a.hot).sort((x, y) => x.hot_sort - y.hot_sort).map(pub);

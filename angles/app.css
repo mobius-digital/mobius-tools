@@ -121,7 +121,7 @@ main{padding:28px 0 64px}
 .filters .wrap{display:flex;flex-direction:column;gap:8px;padding-top:12px;padding-bottom:12px}
 .frow{display:flex;align-items:center;gap:12px;min-width:0}
 .flbl{width:60px;flex:none;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;font-variation-settings:"wdth" 112;color:var(--faint)}
-.prow{display:flex;gap:8px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);padding-right:40px}
+.prow{display:flex;gap:8px;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;scroll-snap-type:x proximity;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);padding:3px 40px 3px 0;margin:-3px 0}
 .prow::-webkit-scrollbar{display:none}
 
 /* lanes */
@@ -393,10 +393,12 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .small{font-size:12.5px}
 .ang-foot .open svg{margin-left:4px}
 .wsec{margin-top:8px}
-.wgrid{margin-top:12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.lbl.grp{margin-top:14px;color:var(--ink);font-size:11.5px}
+.lbl.grp + .wgrid{margin-top:8px}
+.wgrid{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .wtile{display:flex;flex-direction:column;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:0;transition:border-color .15s;padding:0}
 .wtile:hover{border-color:var(--line2)}
-.wtile .well{aspect-ratio:9/12}
+.wtile .well{aspect-ratio:3/4;width:100%}
 .wcap{display:flex;flex-direction:column;gap:5px;padding:10px 12px 12px;min-width:0}
 .wcap .tag{align-self:flex-start;font-size:9.5px}
 .wname{font-size:13px;font-weight:600;color:var(--ink);line-height:1.35;display:block}
@@ -415,12 +417,14 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .why svg{margin-top:3px;color:var(--acc-ink);flex:none}
 .why b{color:var(--ink)}
 .det-side .btn-full{margin-top:0}
+.season{margin-top:14px}
+main .top-grid .season{margin-top:0}
 .rules-end{margin-top:14px;padding:16px 20px;font-size:14px}
 .rules-end a{font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .rules .lbl,.about .lbl{font-size:12px;color:var(--ink)}
 .about{margin-top:18px}
 .filmcard .btn-full + .btn-full{margin-top:8px}
-@media (max-width:1099px){.wgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:1099px){.wgrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 @media (max-width:699px){
   .tabs{top:56px}
   .tabs .wrap{height:44px;padding:0 8px;overflow-x:auto;scrollbar-width:none}
@@ -428,7 +432,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .filters{top:100px}
   .pickme{flex-direction:column;align-items:stretch;padding:14px}
   .pickme .btn{width:100%}
-  .wgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .wgrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   .lead-line{font-size:15px}
   .ang-line{display:block}
 }

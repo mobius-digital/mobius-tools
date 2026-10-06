@@ -273,6 +273,43 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
         format: a.media_format || '', img: a.preview_image_url || null, days: a.days_running ?? null, url: `https://app.tryatria.com/ad/${a.ad_id}` }));
       return json({ ok: true, ads });
     }
+    /* Creator link, 2026-10-06 (Cole: "I actually want the videos to be embedded there"): pull an Atria
+       ad's video into the Ambassadors bucket and file it as an inspiration clip on one angle, so it plays
+       on the public page like any upload. Idempotent per angle + ad: a second call returns the same proof. */
+    if (path === '/api/atria/clip-to-angle' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({}));
+      const act = String(b.act || ''), angleId = String(b.angle_id || ''), adId = String(b.ad_id || '').trim();
+      if (!/^act_|^asana_/.test(act) || !/^[a-f0-9]{16}$/.test(angleId) || !/^[mt]\d{6,}$/.test(adId)) return json({ error: 'act, angle_id and an Atria ad id (m...) are required' }, 400);
+      if (!env.MEDIA) return json({ error: 'File storage is not connected.' }, 503);
+      const ang = await env.DB.prepare(`SELECT id FROM p_amb_angle WHERE id = ?1 AND act_id = ?2`).bind(angleId, act).first();
+      if (!ang) return json({ error: 'That idea is not on this brand.' }, 404);
+      const link = `https://app.tryatria.com/ad/${adId}`;
+      const have = await env.DB.prepare(`SELECT id FROM p_amb_proof WHERE angle_id = ?1 AND kind = 'upload' AND url = ?2`).bind(angleId, link).first();
+      if (have) return json({ ok: true, proof_id: have.id, already: true });
+      const a = await atriaAd(env, adId);
+      if (!a.ok) return json({ ok: false, reason: a.reason, error: a.reason === 'not_connected' ? 'Atria is not connected.' : a.reason === 'not_found' ? 'Atria does not have that ad.' : (a.message || 'Atria did not answer') }, a.reason === 'not_connected' ? 503 : 404);
+      const ad = a.ad;
+      const vid = (ad.videos || []).map(v => v?.url || v).find(u => /^https:\/\//.test(u || ''));
+      if (!vid) return json({ ok: false, reason: 'not_video', error: 'That ad has no video (it is an image ad).' }, 400);
+      const key = `amb/${act}/atria-${adId}.mp4`;
+      const existing = await env.MEDIA.head(key).catch(() => null);
+      if (!existing) {
+        const res = await fetch(vid, { headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => null);
+        if (!res?.ok || /text\/html|json/.test(res.headers.get('content-type') || '')) return json({ ok: false, reason: 'download', error: 'The video file would not download from Meta right now. Try again later.' }, 502);
+        const size = +(res.headers.get('content-length') || 0);
+        if (size > 95 * 1024 * 1024) return json({ ok: false, reason: 'too_big', error: 'That video is over 95MB.' }, 413);
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > 95 * 1024 * 1024) return json({ ok: false, reason: 'too_big', error: 'That video is over 95MB.' }, 413);
+        await env.MEDIA.put(key, buf, { httpMetadata: { contentType: res.headers.get('content-type')?.split(';')[0] || 'video/mp4' } });
+      }
+      const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+      const who = clip(String(b.who || ad.advertiser_name || 'Another brand').trim(), 80) || 'Another brand';
+      const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) + 1 n FROM p_amb_proof WHERE angle_id = ?1`).bind(angleId).first();
+      await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, url, file_key, who, note, shown, sort) VALUES (?1, ?2, ?3, 'upload', ?4, ?5, ?6, ?7, 1, ?8)`)
+        .bind(id, act, angleId, link, key, `${who} (inspiration)`, clip(String(b.note || ''), 300) || null, 100 + (mx?.n || 1)).run();
+      await env.DB.prepare(`UPDATE p_amb_brand SET updated_at = datetime('now') WHERE act_id = ?1`).bind(act).run().catch(() => {});
+      return json({ ok: true, proof_id: id, who, advertiser: ad.advertiser_name || '' });
+    }
   } catch (e) { return json({ error: e.message || 'Something went wrong.' }, 502); }
   return null;
 }
