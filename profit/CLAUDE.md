@@ -1550,3 +1550,15 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
     from Friday 8am, a Cyber Monday step-up, giveaway entries as the KPI, $100k weekend goal with
     the ladder, wedge-only markdown as the last fallback).
   - `LS_VIEW` is now `se_view3`.
+- **2026-10-06 (later still): Lucky's plan, forecast and build live in the data, not the code.**
+  `migrations/season-seed-004..006` (INSERT OR REPLACE / UPDATE, run once each, never re-run):
+  004 = the first analysis note + goals; 005 = round two (no store lockdown: members-first by
+  private link; goals to the sheet; the `access` phase rewritten); 006 = "everything lands
+  mid-November, build it": new phase key `putters` (Eclipse Black launch Nov 19/20), driver +
+  irons first sale on Thursday/Friday inside the bundle, `planb` = wedge-only 30% fallback,
+  apparel Dec 4, `boxing` locked, `ny` = "New year: the full bag" (draft), goals $400k.
+  The working sheet (deals in the customer's words, per-order money, recalculating season model,
+  lockdown evidence, paid-only MER history) is a claude.ai artifact linked from the note:
+  https://claude.ai/artifact/2KAw7y5U9HJsXpyqkp8V1V. Lesson for any MER quoted anywhere in Locus:
+  Shopify net sales over Meta + Google only; the ledger's whole marketing line (Mobius, Klaviyo,
+  Vibe, affiliates) understates efficiency by about 0.5x.
