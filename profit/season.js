@@ -81,7 +81,7 @@ function injectCss() {
   .se-board{width:100%;border-collapse:collapse;font-size:13.5px;table-layout:fixed}
   .se-board col.c-brand{width:150px}.se-board col.c-need{width:128px}
   .se-board th{text-align:left;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#667);padding:6px 10px;border-bottom:1px solid var(--line,#e5e5e5);white-space:nowrap}
-  .se-board td{padding:10px;border-bottom:1px solid var(--line,#e5e5e5);vertical-align:top}
+  .se-board td{padding:10px;border-bottom:1px solid var(--line,#e5e5e5);vertical-align:top;white-space:normal;overflow-wrap:anywhere}
   .se-board tr:last-child td{border-bottom:0}
   .se-board tr.rowlink{cursor:pointer}
   .se-board tr.rowlink:hover td{background:var(--wash,#f4f6f8)}
