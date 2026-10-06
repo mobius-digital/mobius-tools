@@ -304,7 +304,7 @@ function proofTile(p, a, small) {
   const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}"` : p.kind === 'upload' ? `data-play-file="${esc(p.file)}"` : '';
   const wellAttrs = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
   const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
-    : p.kind === 'upload' ? `<video class="pv" src="${esc(API + p.file)}#t=0.5" preload="metadata" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
+    : p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + p.file)}#t=0.5" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
   const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? (String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, 'Another brand') || 'Another brand') : p.kind === 'upload' ? 'Clip' : 'Creator post';
   const cls = small ? 'pthumb' : 'wtile';
   const cap = small ? '' : `<span class="wcap"><span class="tag ${p.kind === 'meta' ? 'tag-green' : 'tag-chip'}">${esc(lbl)}</span>${a ? `<a class="wname" href="#a=${esc(a.id)}">${esc(a.title)}</a>` : ''}</span>`;
@@ -470,8 +470,16 @@ function renderRules() {
   wireChart();
 }
 
+/* First frames: a clip's <video> gets its src only when it is near the screen. */
+const previewIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => {
+  for (const e of es) { if (!e.isIntersecting) continue; const v = e.target; if (v.dataset.src) { v.src = v.dataset.src; v.preload = 'metadata'; delete v.dataset.src; } previewIO.unobserve(v); }
+}, { rootMargin: '400px 0px' }) : null;
+function wirePreviews(root) {
+  root.querySelectorAll('video.pv[data-src]').forEach(v => { if (previewIO) previewIO.observe(v); else { v.src = v.dataset.src; v.preload = 'metadata'; } });
+}
 /* Any play button, on a card strip or an angle page. */
 function wirePlay(root) {
+  wirePreviews(root);
   root.querySelectorAll('[data-play-ad]').forEach(el => el.onclick = e => { e.stopPropagation(); playAd(el.dataset.playAd); });
   root.querySelectorAll('[data-play-file]').forEach(el => el.onclick = e => { e.stopPropagation(); playFile(API + el.dataset.playFile); });
 }
