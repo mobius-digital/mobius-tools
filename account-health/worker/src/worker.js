@@ -35,6 +35,7 @@ import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
+import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch } from './klaviyo.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -186,6 +187,7 @@ mailFetch(xfetch);
 calendlyFetch(xfetch);
 contractFetch(xfetch);
 frameFetch(xfetch);
+klaviyoFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -7060,9 +7062,21 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const prev = safeJson((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'links'`).bind(acct.act_id).first())?.data_json, {}) || {};
       const next = { ...prev };
       for (const k of ['drive', 'frame']) if (b[k] !== undefined) { const v = String(b[k] || '').trim(); if (v && !/^https?:\/\//.test(v)) return json({ error: `${k} must be a full link (https://...)` }, 400); next[k] = v || undefined; }
-      await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'links', ?2, 'approved', 'staff', datetime('now'))
+      /* The Klaviyo private key: verified against the account before it is kept, never echoed back. */
+      let klaviyo = null;
+      if (b.klaviyo_key !== undefined) {
+        if (!String(b.klaviyo_key || '').trim()) await klaviyoForget(env, acct.act_id);
+        else { try { klaviyo = await klaviyoStore(env, acct.act_id, b.klaviyo_key); } catch (e) { return json({ error: e.message }, 400); } }
+      }
+      /* The Triple Whale shop domain, the same column Settings > Brands writes. */
+      if (b.tw_shop !== undefined) {
+        const v = String(b.tw_shop || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        if (v && !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(v)) return json({ error: 'The store domain looks like brand.myshopify.com' }, 400);
+        await env.DB.prepare(`UPDATE accounts SET tw_shop = ?2 WHERE act_id = ?1`).bind(acct.act_id, v || null).run();
+      }
+      if (b.drive !== undefined || b.frame !== undefined) await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'links', ?2, 'approved', 'staff', datetime('now'))
         ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(acct.act_id, JSON.stringify(next)).run();
-      return json({ ok: true, links: next });
+      return json({ ok: true, links: next, ...(klaviyo ? { klaviyo: { company: klaviyo.company, account_id: klaviyo.account_id } } : {}) });
     }
     if (path === '/api/schedule-health' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);

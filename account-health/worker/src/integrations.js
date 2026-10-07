@@ -67,7 +67,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
   const ids = accounts.map(a => a.act_id);
   const IN = ids.map((_, i) => `?${i + 1}`).join(',');
   const byAct = rows => Object.fromEntries(rows.map(r => [r.act_id, r]));
-  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs] = await Promise.all([
+  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs, klDocs] = await Promise.all([
     q(`SELECT act_id, MAX(date) AS latest FROM daily_insights WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest FROM tw_daily WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest, COUNT(*) AS n FROM tw_orders WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
@@ -84,8 +84,55 @@ export async function integrationsReport(env, { brand = null } = {}) {
     /* Brands onboarded before New client existed: their Drive folder and Frame project live outside
        Locus until someone pastes the links (PUT /api/brand-links -> p_br_doc key 'links'). */
     q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'links' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
+    /* The brand's Klaviyo private key (klaviyo.js). Only its presence, company and date leave this function. */
+    q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'klaviyo' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => { const d = safeJson(r.data_json, {}) || {}; return [r.act_id, { has: !!d.key, company: d.company, verified_at: d.verified_at }]; }))),
   ]);
-  const C = (key, name, state, note, fix = '') => ({ key, name, state, note, fix });
+  /* Every item carries the exact steps a person follows when it is off (Cole, 2026-10-07: "it tells me
+     exactly what to do, how to do it, what to name things"), and `input` when the fix is a thing to
+     paste (a link, a key). The page draws them; PUT /api/brand-links takes the paste. */
+  const C = (key, name, state, note, fix = '', extra = {}) => ({ key, name, state, note, fix, ...extra });
+  const BM = '695359915477596';
+  const STEPS = {
+    meta: [
+      { t: 'The client opens Meta Business Settings > Users > Partners > Add > "Give a partner access to your assets".', u: 'https://business.facebook.com/settings/partners' },
+      { t: `They paste Mobius's Business ID ${BM}, then tick the AD ACCOUNT (Manage campaigns), the PAGE (Full control), the PIXEL / dataset and the CATALOG.` },
+      { t: 'Partner access covers that asset from then on; a NEW ad account they add later must be shared the same way (it is per asset, not "all future").' },
+      { t: 'Locus discovers the account within the hour and switches it on by name for a waiting New client, or asks you in #mobius-newbiz. Older brands: Settings > Brands > + Add a brand.' },
+    ],
+    tw: [
+      { t: 'The client opens Triple Whale > Settings > Team and adds cole@go-mobius-digital.com (and ahsan@) as admins.', u: 'https://app.triplewhale.com' },
+      { t: 'Paste the store domain (xxx.myshopify.com) here. The nightly sync starts within the hour and backfills 400 days of orders one slice a night.' },
+    ],
+    shopify: [
+      { t: 'Send the client the install link below. They sign in to their store admin and approve the Mobius Digital app (read orders, customers, products, reports).' },
+      { t: 'Blocked today: Shopify paused the app review on 2026-08-31 until the post-install page shows a real report. Being fixed; until it passes, Triple Whale carries the store numbers.' },
+    ],
+    asana: [
+      { t: 'New client makes the project from "MD - Template 2026 v2". For an older brand: Brand tab > Brand info > Connect Asana picks the project by the brand name, or choose it by hand.' },
+      { t: 'The team writes every brief in the project\'s Creative Brief column; Locus numbers it, files the angle and judges the test. No webhook = hourly sync only, which is fine.' },
+    ],
+    slack_internal: [
+      { t: 'New client makes "<brand>-internal" (private). For an older brand: open the channel in Slack > channel name > About > copy the Channel ID (starts with C).' },
+      { t: 'Settings > Brands > the brand row > Team channel: paste the id. Invite @Mobius Digital to the channel (type /invite @Mobius Digital in it).' },
+    ],
+    slack_client: [
+      { t: 'The client channel is where the Daily Brief and reports go. New client makes "<brand>" (private) and invites the client via Slack Connect.' },
+      { t: 'Settings > Brands > the brand row > Client channel: paste the id. Leave it empty on purpose for a brand with no client channel (briefs are then auto-handled, never sent).' },
+    ],
+    drive: [{ t: 'New client makes the folder (Agreements + From the client). For an older brand, open the brand\'s folder in Drive, copy the link from the address bar and paste it here.', u: 'https://drive.google.com/drive/my-drive' }],
+    frame: [{ t: 'New client makes the review project. For an older brand, open the project in Frame (next.frame.io), copy the link and paste it here.', u: 'https://next.frame.io' }],
+    hub: [{ t: 'Creator link tab > pick the brand > set the intro, sections and angles > switch Live on. Lucky Golf uses its own creator app instead.' }],
+    onboarding: [{ t: 'Brand tab > Client answers > send the onboarding link (new clients only; long-standing clients are pre-filled from research, never sent the form).' }],
+    google_ads: [
+      { t: 'The client opens Triple Whale > Integrations > Google Ads > Connect and signs in with the Google account that owns the ad account.', u: 'https://app.triplewhale.com' },
+      { t: 'Locus reads Google spend and attribution through Triple Whale within a day. (Direct Google Ads access for deeper questions needs a developer token on our MCC: on the list.)' },
+    ],
+    klaviyo: [
+      { t: 'In the client\'s Klaviyo: Settings > API keys > Create Private API Key. Name it "Locus (Mobius)". Scopes: READ on Accounts, Campaigns, Flows, Lists, Segments, Metrics, Profiles, Events (add write scopes later if we build segments from Locus).', u: 'https://www.klaviyo.com/settings/account/api-keys' },
+      { t: 'Paste the key (pk_...) here. Locus checks it against the account before saving and never shows it again.' },
+      { t: 'Also make sure Klaviyo is connected inside the client\'s Triple Whale (Integrations) so email revenue lands on the P&L.' },
+    ],
+  };
   const brands = accounts.map(a => {
     const id = a.act_id, doc = asanaDocs[id], n = nc[id], hub = hubs[id], ob = onb[id], sh = shops[id];
     const steps = safeJson(n?.steps_json, {}) || {};
@@ -94,34 +141,39 @@ export async function integrationsReport(env, { brand = null } = {}) {
     const driveUrl = n?.drive_url || links.drive || null;
     const legacy = !n && !ob;   // a brand set up before New client and the onboarding link existed
     const metaAge = daysAgo(metaD[id]?.latest), twAge = daysAgo(twD[id]?.latest), attrAge = daysAgo(twA[id]?.latest);
+    const kd = klDocs[id];
     const items = [
       C('meta', 'Meta ad account', a.last_error ? 'bad' : metaAge == null ? 'off' : metaAge > 2 ? 'warn' : 'ok',
         a.last_error ? `Sync failing: ${String(a.last_error).slice(0, 120)}` : metaAge == null ? 'No Meta data yet.' : `Data through ${metaD[id].latest} (synced ${String(a.last_sync_insights || '').slice(0, 16) || 'never'}).`,
-        a.last_error ? 'Check the token still sees this ad account (Meta Business > System users > assets), then Settings > Jobs and data.' : 'Add the brand in Settings > Brands (the ad account is the brand).'),
+        a.last_error ? 'Check the token still sees this ad account (Meta Business > System users > assets), then Settings > Jobs and data.' : 'Partner access from the client, then the brand in Settings > Brands.', { steps: STEPS.meta }),
       C('tw', 'Triple Whale', !set(a.tw_shop) ? 'off' : twAge == null ? 'bad' : twAge > 2 ? 'warn' : 'ok',
         !set(a.tw_shop) ? 'No shop set.' : twAge == null ? `Shop ${a.tw_shop} set, no data landed.` : `${a.tw_shop}: store data through ${twD[id].latest}${attrAge != null ? `, attribution through ${twA[id].latest}` : ', no attribution rows'}${twO[id] ? `, ${twO[id].n} orders stored` : ''}.`,
-        'Settings > Brands > open the brand > Triple Whale shop (the client adds cole@go-mobius-digital.com to their Triple Whale first).'),
+        'The client adds us to their Triple Whale, then the shop domain goes on the brand.', { steps: STEPS.tw, input: set(a.tw_shop) ? null : { key: 'tw_shop', label: 'Store domain', placeholder: 'brand.myshopify.com' } }),
       C('shopify', 'Shopify store', sh?.access_token && !sh.uninstalled_at ? 'ok' : sh?.uninstalled_at ? 'bad' : 'off',
         sh?.access_token && !sh.uninstalled_at ? `${sh.shop} installed ${String(sh.installed_at).slice(0, 10)}${sh.last_sync_at ? `, cohorts ${String(sh.last_sync_at).slice(0, 10)}` : ''}.` : sh?.uninstalled_at ? `${sh.shop} removed the app ${String(sh.uninstalled_at).slice(0, 10)}.` : 'Not installed (Triple Whale carries the store numbers; Shopify adds real cohorts, product names and receipts).',
-        'Settings > Brands > the brand row > Install the Mobius Digital app (the client approves it as a collaborator). Blocked until Shopify finishes reviewing the app.'),
+        'The client installs the Mobius Digital app from the link. Blocked until Shopify finishes reviewing the app.', { steps: STEPS.shopify }),
       C('asana', 'Asana project', doc?.project_gid ? (doc.hook_gid ? 'ok' : 'warn') : 'off',
         doc?.project_gid ? `${doc.project_name || doc.project_gid}, synced ${String(doc.last_sync || '').slice(0, 16) || 'never'}${doc.hook_gid ? '' : ', no webhook (hourly sync only)'}.` : 'Not connected: briefs are not read, nothing is numbered.',
-        'Brand tab > Brand info > Connect Asana (picks the project by the brand name).'),
+        'Brand tab > Brand info > Connect Asana (picks the project by the brand name).', { steps: STEPS.asana }),
       C('slack_internal', 'Slack internal channel', set(a.slack_channel) ? 'ok' : 'off', set(a.slack_channel) ? `${a.slack_channel}${n?.slack_internal && n.slack_internal !== a.slack_channel ? ` (New client made ${n.slack_internal})` : ''}: drafts, the Strategist, the ideas pipeline.` : 'No team channel: the Strategist and the ideas bot cannot be tagged for this brand.',
-        'Settings > Brands > the brand > Team channel (the -internal channel id).'),
+        'Settings > Brands > the brand > Team channel (the -internal channel id).', { steps: STEPS.slack_internal }),
       C('slack_client', 'Slack client channel', set(a.brief_channel) ? 'ok' : 'off', set(a.brief_channel) ? `${a.brief_channel}: the Daily Brief and reports go here.` : 'No client channel: briefs and reports are drafted and auto-handled, never sent.',
-        'Settings > Brands > the brand > Client channel. Leave empty on purpose for a brand with no client channel.'),
-      C('drive', 'Google Drive folder', set(driveUrl) ? 'ok' : 'off', set(driveUrl) ? driveUrl : legacy ? 'This brand was set up before New client existed, so its Drive folder is not recorded here. Paste the link below.' : 'No folder recorded.',
-        legacy ? 'Paste the brand\'s Drive folder link here (saved on the brand).' : 'Settings > New client > Drive step makes it.'),
-      C('frame', 'Frame.io project', set(frameUrl) ? 'ok' : 'off', set(frameUrl) ? frameUrl : legacy ? 'Set up before New client existed: its Frame project is not recorded here. Paste the link below.' : 'No review project recorded.',
-        legacy ? 'Paste the brand\'s Frame project link here (saved on the brand).' : 'Settings > New client > Frame step (Frame must be connected agency-wide).'),
-      C('hub', 'Creator link', hub ? (hub.live ? 'ok' : 'warn') : 'off', hub ? `/angles/${hub.slug}, ${hubN[id]?.n || 0} live angle${hubN[id]?.n === 1 ? '' : 's'}${hub.live ? '' : ', link not live'}.` : 'No creator link (Lucky Golf uses its own creator app).', 'Ambassadors tab > set up the brand, switch Live on.'),
+        'Settings > Brands > the brand > Client channel. Leave empty on purpose for a brand with no client channel.', { steps: STEPS.slack_client }),
+      C('drive', 'Google Drive folder', set(driveUrl) ? 'ok' : 'off', set(driveUrl) ? driveUrl : legacy ? 'Set up before New client existed, so the folder is not recorded here.' : 'No folder recorded.',
+        legacy ? 'Paste the brand\'s Drive folder link.' : 'Settings > New client > Drive step makes it.', { steps: STEPS.drive, input: { key: 'drive', label: 'Drive folder link', placeholder: 'https://drive.google.com/drive/folders/...' } }),
+      C('frame', 'Frame.io project', set(frameUrl) ? 'ok' : 'off', set(frameUrl) ? frameUrl : legacy ? 'Set up before New client existed, so the project is not recorded here.' : 'No review project recorded.',
+        legacy ? 'Paste the brand\'s Frame project link.' : 'Settings > New client > Frame step (Frame must be connected agency-wide).', { steps: STEPS.frame, input: { key: 'frame', label: 'Frame project link', placeholder: 'https://next.frame.io/project/...' } }),
+      C('hub', 'Creator link', hub ? (hub.live ? 'ok' : 'warn') : 'off', hub ? `/angles/${hub.slug}, ${hubN[id]?.n || 0} live angle${hubN[id]?.n === 1 ? '' : 's'}${hub.live ? '' : ', link not live'}.` : 'No creator link (Lucky Golf uses its own creator app).', 'Creator link tab > set up the brand, switch Live on.', { steps: STEPS.hub }),
       /* Cole, 2026-10-07: long-standing clients are never sent the onboarding form. Their answers come from
          research, Asana and the website pre-fill (Brand tab > Client answers > Pre-fill), so this is "ok". */
       C('onboarding', 'Onboarding answers', ob ? (ob.status === 'submitted' ? 'ok' : 'warn') : legacy ? 'ok' : 'off', ob ? `${ob.status}${ob.submitted_at ? ' ' + String(ob.submitted_at).slice(0, 10) : ''}.` : legacy ? 'Long-standing client: no onboarding form, on purpose. Client answers are filled from research, Asana and the website pre-fill.' : 'No onboarding link sent.',
-        legacy ? 'Nothing to do. To fill the call sheet without the client: Brand tab > Client answers > Pre-fill.' : 'Brand tab > Client answers > send the onboarding link.'),
-      C('google_ads', 'Google Ads (via Triple Whale)', (ga[id]?.v || 0) > 0 ? 'ok' : 'off', (ga[id]?.v || 0) > 0 ? `Spend in the last 14 days: ${Math.round(ga[id].v)}.` : 'No Google spend in the last 14 days (either not running, or Google Ads is not connected in the client\'s Triple Whale).', 'The client connects Google Ads inside Triple Whale (Integrations). Nothing to set in Locus.'),
-      C('klaviyo', 'Klaviyo (via Triple Whale)', (kl[id]?.v || 0) > 0 ? 'ok' : 'off', (kl[id]?.v || 0) > 0 ? `Email revenue in the last 14 days: ${Math.round(kl[id].v)}.` : 'No Klaviyo revenue in the last 14 days (not connected in the client\'s Triple Whale, or no email sales).', 'The client connects Klaviyo inside Triple Whale (Integrations). Nothing to set in Locus.'),
+        legacy ? 'Nothing to do. To fill the call sheet without the client: Brand tab > Client answers > Pre-fill.' : 'Brand tab > Client answers > send the onboarding link.', { steps: STEPS.onboarding }),
+      C('google_ads', 'Google Ads (via Triple Whale)', (ga[id]?.v || 0) > 0 ? 'ok' : 'off', (ga[id]?.v || 0) > 0 ? `Spend in the last 14 days: ${Math.round(ga[id].v)}.` : 'No Google spend in the last 14 days (either not running, or Google Ads is not connected in the client\'s Triple Whale).', 'The client connects Google Ads inside Triple Whale.', { steps: STEPS.google_ads }),
+      /* Klaviyo is a DIRECT connection now (klaviyo.js): the private key per brand. The Triple Whale side
+         (email revenue on the P&L) is reported in the note, not as the connection. */
+      C('klaviyo', 'Klaviyo', kd?.has ? 'ok' : 'off',
+        kd?.has ? `Connected as ${kd.company || 'the account'} (key verified ${String(kd.verified_at || '').slice(0, 10)}). ${(kl[id]?.v || 0) > 0 ? `Email revenue in Triple Whale, last 14 days: ${Math.round(kl[id].v)}.` : 'No email revenue in Triple Whale in the last 14 days: connect Klaviyo inside the client\'s Triple Whale too.'}` : `Not connected. ${(kl[id]?.v || 0) > 0 ? 'Triple Whale carries the email revenue, but lists, segments, flows and campaigns need the brand\'s own key.' : 'No Klaviyo revenue in Triple Whale either.'}`,
+        'Paste the brand\'s private API key.', { steps: STEPS.klaviyo, input: kd?.has ? null : { key: 'klaviyo_key', label: 'Private API key', placeholder: 'pk_...', secret: true } }),
     ];
     const needs = items.filter(i => i.state === 'bad' || i.state === 'warn').length, off = items.filter(i => i.state === 'off').length;
     return { act_id: id, name: a.name, studio_batches: studioN[id]?.n || 0, items, summary: needs ? `${needs} to look at` : off ? `${off} not set up` : 'all connected' };

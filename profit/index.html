@@ -978,6 +978,8 @@
   .cn-chip.off{opacity:.65}
   .cn-chip.on{outline:2px solid var(--accent, #62BDEA);outline-offset:1px;opacity:1}
   .cn-detail{margin-top:8px;padding:10px 12px;border-radius:9px;background:var(--bg)}
+  .cn-steps{margin:8px 0 0;padding-left:20px;font-size:12.5px;color:var(--ink-2)}
+  .cn-steps li{margin:3px 0}
   .cn-det{max-width:820px}
   .set-card > h3{font-size:15px;margin-bottom:4px}
   .set-card .set-why{margin:0 0 14px;font-size:13px;line-height:1.5;max-width:680px}
@@ -9456,15 +9458,22 @@ async function renderSettings() {
       cell.classList.add('on'); row.hidden = false; row.dataset.k = it.key;
       const sh = it.key === 'shopify' ? shopBy[b.act_id] : null;
       const extra = sh?.install_url && it.state !== 'ok' ? `<div class="tiny" style="margin-top:6px">Install link for the client: ${link(sh.install_url)}</div>` : '';
-      /* Older brands: the Drive folder and Frame project links are pasted here and saved on the brand. */
-      const paste = (it.key === 'drive' || it.key === 'frame') ? `<div class="row" style="margin:8px 0 0;gap:8px;flex-wrap:wrap"><input type="url" id="cnLink" placeholder="https://..." value="${/^https?:/.test(it.note) ? esc(it.note) : ''}" style="max-width:420px"><button class="btn" id="cnSave">Save link</button><span class="tiny" id="cnMsg"></span></div>` : '';
-      row.innerHTML = `<div class="cn-det"><div><b>${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>Fix:</b> ${esc(it.fix)}</div>`}${extra}${paste}</div>`;
+      /* The exact steps a person follows (links included), and a paste box when the fix is a thing to
+         paste: a Drive or Frame link, the Triple Whale shop, the brand's Klaviyo key (never shown again). */
+      const steps = (it.steps || []).length && it.state !== 'ok' ? `<ol class="cn-steps">${it.steps.map(s => `<li>${esc(s.t)}${s.u ? ` <a href="${esc(s.u)}" target="_blank" rel="noopener">Open</a>` : ''}</li>`).join('')}</ol>` : '';
+      const inp = it.input;
+      const paste = inp ? `<div class="row" style="margin:8px 0 0;gap:8px;flex-wrap:wrap;align-items:center"><label class="tiny" for="cnLink">${esc(inp.label)}</label><input type="${inp.secret ? 'password' : 'text'}" id="cnLink" placeholder="${esc(inp.placeholder || '')}" value="${!inp.secret && /^https?:/.test(it.note) ? esc(it.note) : ''}" style="max-width:420px" autocomplete="off"><button class="btn primary" id="cnSave">${inp.secret ? 'Check and save' : 'Save'}</button><span class="tiny" id="cnMsg"></span></div>` : '';
+      row.innerHTML = `<div class="cn-det"><div><b>${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>What to do:</b> ${esc(it.fix)}</div>`}${steps}${extra}${paste}</div>`;
       const save = row.querySelector('#cnSave');
       if (save) save.onclick = async () => {
         const v = row.querySelector('#cnLink').value.trim(), msg = row.querySelector('#cnMsg');
-        save.disabled = true; msg.textContent = 'Saving…';
-        try { await mApi('/api/brand-links', { method: 'PUT', body: JSON.stringify({ act: b.act_id, [it.key]: v }) }); it.state = v ? 'ok' : 'off'; it.note = v || 'No link.'; cell.className = `cn-chip ${it.state} on`; cell.querySelector('.cn-mark').textContent = MARK[it.state]; msg.textContent = 'Saved.'; }
-        catch (err) { msg.textContent = err.message; }
+        save.disabled = true; msg.textContent = inp.secret ? 'Checking with Klaviyo…' : 'Saving…';
+        try {
+          const r = await mApi('/api/brand-links', { method: 'PUT', body: JSON.stringify({ act: b.act_id, [inp.key]: v }) });
+          it.state = v ? 'ok' : 'off'; it.note = r.klaviyo ? `Connected as ${r.klaviyo.company || 'the account'}.` : (v || 'Not set.'); it.input = v && inp.secret ? null : inp;
+          cell.className = `cn-chip ${it.state} on`; cell.querySelector('.cn-mark').textContent = MARK[it.state]; msg.textContent = r.klaviyo ? `Saved. Connected as ${r.klaviyo.company || 'the account'}.` : 'Saved.';
+          if (inp.secret) row.querySelector('#cnLink').value = '';
+        } catch (err) { msg.textContent = err.message; }
         save.disabled = false;
       };
     };

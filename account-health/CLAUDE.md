@@ -989,3 +989,16 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   Strategist view. Reads env secrets for presence only (never values), `p_studio_cfg` (openai_key,
   canva_*), atriaStatus / frameStatus, and per-brand tables; every per-brand query is wrapped so a
   missing table (p_newclient before first use, p_shopify) reads as "not set up", never an error.
+- **Klaviyo direct (2026-10-07, `src/klaviyo.js`).** Every brand uses Klaviyo and Triple Whale only
+  carries totals, so each brand gets its own PRIVATE key (no agency-wide Klaviyo exists): pasted on
+  Locus Settings > Connections (`PUT /api/brand-links {act, klaviyo_key}`), verified against
+  `GET /api/accounts/` before it is stored in `p_br_doc` key `klaviyo` {key, account_id, company,
+  verified_at}, never echoed (the report shows company + date; `data_json` is a blob column, so the
+  Strategist's SQL cannot read it). Reads: lists, segments (profile counts), flows, campaigns with
+  `campaign-values-reports` results, metrics; Strategist view `klaviyo` (`what`). Revision
+  2025-07-15. Writes (segments, flows) not built. The same route takes `tw_shop`, `drive`, `frame`.
+- **Connection steps.** Every per-brand item in `integrations.js` carries `steps` (exact clicks,
+  names and links: Meta partner access with Business ID 695359915477596 per asset, not "all future";
+  TW team invite; Klaviyo key scopes) and `input` when the fix is a paste. The Strategist's nightly
+  `connections` check turns a missing or failing Meta / TW / Asana / internal channel / Klaviyo into
+  a finding (one per brand per month) with the first step, so it reaches Slack.

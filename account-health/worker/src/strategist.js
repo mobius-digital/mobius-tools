@@ -24,6 +24,7 @@ import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 import { asana, asanaAll, numOf } from './asana-brand.js';
 import { nextNumber, ideaStart } from './ideas.js';
 import { integrationsReport } from './integrations.js';
+import { klaviyoView } from './klaviyo.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -250,6 +251,7 @@ const VIEW_BLURBS = {
   customers: 'who the customers are and what they do next, from Triple Whale orders (400 days): customers, orders, revenue, repeat rate, orders per customer, revenue by order number (1st, 2nd, 3rd+), time from first to second order in buckets, where first orders came from (last platform click), the products most often in a first cart and in a second cart (product ids; the Shopify product titles are not in Locus yet). Pass `brand` and `days` (default 365). THE view for retention, LTV shape, journey and "what do they buy next" questions; query tw_orders for anything it does not give.',
   scenarios: 'the saved what-if scenarios from the lead-gen and ROAS calculators for one brand (or agency-wide): name, kind, inputs, note, the share link. Pass `brand` (optional). Read it before build_scenario so you extend what exists instead of duplicating it.',
   integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Asana, Slack, Google, Atria, Frame, Studio image key, Canva, Gemini, downloader, Stripe, Lucky creator app) and PER BRAND ones (ad account, Triple Whale shop, Shopify install, Asana project, Slack channels, Drive folder, Frame project, creator link, onboarding, Google Ads and Klaviyo via Triple Whale). Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
+  klaviyo: 'the brand\'s Klaviyo, read live with its own key: pass `brand` and `what` = overview (counts, live flows, biggest lists and segments), lists, segments (with profile counts), flows (status and trigger), campaigns (last 30 sent with open, click, conversion rate and revenue) or metrics. THE view for email questions: how many segments, which flows are live or dead, how the last sends did, who is in what. Not connected = the reply says how to connect it (Settings > Connections).',
   brain: 'the BRAND BRAIN: everything Locus knows about one brand for strategy and creative work in one document: products, offers, facts, staff rules and claim rules, product lines with market stage and awareness, personas, customer quotes, competitors, the angle library with every test and result, research notes, the creator link, how the brand sounds, and GAPS. About 60k characters, so it comes in parts: pass `brand` and `part` (1, 2, 3...; the reply says how many). Read part 1 at least before any creative judgement, brief, review or angle. The brand_context view is a short summary of the same.',
 };
 
@@ -458,6 +460,11 @@ function buildViews(d) {
       const r = await integrationsReport(env, { brand: acct?.act_id || null });
       return { ...r, how_to_read: VIEW_BLURBS.integrations + ' state: ok, warn (connected but stale or half set up), bad (failing), off (not set up). Quote the fix text when something is off; the agency ones are Cole\'s to fix, the per-brand ones the team can do in Locus.' };
     },
+    klaviyo: async (env, a) => {
+      const acct = await need(env, a);
+      const r = await klaviyoView(env, acct.act_id, String(a.what || 'overview').toLowerCase());
+      return { brand: acct.name, ...r, how_to_read: (r.how_to_read ? r.how_to_read + ' ' : '') + 'Klaviyo\'s own numbers (its Placed Order attribution), not Triple Whale: say so when quoting revenue. Judge gaps: no live welcome, abandoned cart, post-purchase or winback flow; a list that never gets a campaign; segments nobody uses.' };
+    },
     brain: async (env, a) => {
       const acct = await need(env, a);
       const brain = await brandBrain(env, acct.act_id, { creator: true }).catch(() => ({ md: '' }));
@@ -517,6 +524,24 @@ async function runChecks(env, h, d) {
   const out = [];
   const accounts = (await d.listAccounts(env, true)).filter(a => !PAUSED.test(a.name));
   const all = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).all()).results || [];
+  /* 0. Connections (2026-10-07, Cole: "make sure all these things are connected", reminded in Slack).
+     Once a night, every brand's missing or failing connection is a finding with the first step to
+     take, so it reaches the team channel and the Monday briefing. One finding per brand per month. */
+  try {
+    const rep = await integrationsReport(env);
+    const CARE = new Set(['meta', 'tw', 'asana', 'slack_internal', 'klaviyo', 'shopify']);
+    for (const b of rep.brands) {
+      if (PAUSED.test(b.name)) continue;
+      const miss = b.items.filter(i => CARE.has(i.key) && (i.state === 'bad' || i.state === 'off') && !(i.key === 'shopify' && i.state === 'off'));
+      if (!miss.length) continue;
+      const ym = d.localDate(accounts.find(a => a.act_id === b.act_id)?.tz || 'America/Chicago').slice(0, 7);
+      const bad = miss.some(i => i.state === 'bad');
+      out.push({ key: `connections:${b.act_id}:${ym}`, kind: 'connections', severity: bad ? 'high' : 'med', amount: null, month: ym,
+        title: `${b.name}: ${miss.length === 1 ? miss[0].name + ' is' : miss.length + ' connections are'} ${bad ? 'failing' : 'not set up'} (${miss.map(i => i.name).join(', ')})`,
+        detail: miss.map(i => `${i.name}: ${i.note} First step: ${(i.steps || [])[0]?.t || i.fix}`).join('\n').slice(0, 1500) + '\nAll of it, with links: Locus > Settings > Connections.',
+        evidence: { items: miss.map(i => ({ key: i.key, state: i.state })) } });
+    }
+  } catch (e) { console.log('connections check: ' + e.message); }
   for (const a of accounts) {
     const today = d.localDate(a.tz), ym = today.slice(0, 7), dom = Number(today.slice(8));
     const cur = a.currency;
@@ -1153,7 +1178,7 @@ export function buildStrategist(d) {
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',
-    checkKinds: ['sync', 'brief-missing', 'pacing', 'roas', 'fatigue'],
+    checkKinds: ['sync', 'brief-missing', 'pacing', 'roas', 'fatigue', 'connections'],
     checks: (env, hh) => runChecks(env, hh, d),
     snapshot: (env, hh) => snapshot(env, hh, d),
     briefingHow: `- Slack mrkdwn: *bold* with single asterisks, bullets are "• ", no headings, no tables.
