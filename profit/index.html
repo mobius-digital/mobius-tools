@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-ui="v2">
 <head>
 <meta charset="utf-8">
 <!-- viewport-fit=cover or env(safe-area-inset-*) is always 0, and the phone
@@ -21,10 +21,11 @@
 <meta name="theme-color" content="#0C161D">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet">
 <!-- The shared Mobius design system. Loaded BEFORE this page's own <style>, so
      anything Locus still defines locally deliberately wins over it. -->
 <link rel="stylesheet" href="/mobius.css">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("pf_theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
 <link rel="stylesheet" href="/ask/ask.css?v=9">
 <style>
   /* ============================================================
@@ -187,7 +188,6 @@
     opacity:.7;transition:transform .16s ease}
   nav.tabs .grp.open .band{color:#BFD3E1}
   nav.tabs .grp.open .band .chev{transform:rotate(180deg)}
-  nav.tabs .grp:not(.open):not(.solo) .grp-btns{display:none}
   nav.tabs .grp.solo{margin-top:6px;padding-top:6px;border-top:1px solid var(--hd-line)}
   nav.tabs{gap:2px}
   nav.tabs .grp-btns{display:flex;flex-direction:column;gap:1px;padding:1px 0 5px}
@@ -554,7 +554,7 @@
   /* Profit, Phase 1b: two columns, the new/returning split as a bar. */
   .pf-two{gap:11px}
   .pf-two .card:last-child{margin-bottom:0}
-  .nr-bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:#DFE7EC;margin:9px 0 8px}
+  .nr-bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--line);margin:9px 0 8px}
   .nr-bar>div:first-child{background:#14608C}
   .nr-bar>div+div{background:#9FC9DE}
   .card .mini{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
@@ -926,7 +926,7 @@
   .cu-big{font-size:clamp(17px,2vw,21px);font-weight:700;margin:3px 0 4px}
   .cu-sub{line-height:1.65;color:var(--muted)}
   .unit-in input,.unit-in input[type=text],.unit-in input[type=number]{border:none;border-radius:0;padding:6px 3px;width:100%;min-width:0;background:transparent;outline:none}
-  .toggle{width:38px;height:22px;border-radius:99px;background:#C9D5DD;position:relative;transition:.15s;flex:none}
+  .toggle{width:38px;height:22px;border-radius:99px;background:var(--line-strong);position:relative;transition:.15s;flex:none}
   .toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
   .toggle.on{background:var(--good)} .toggle.on::after{left:19px}
 
@@ -1857,6 +1857,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
+<link rel="stylesheet" href="v2.css?v=3">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=6"></script>
 <body>
@@ -1913,67 +1914,43 @@
     </div>
     <div class="side-scroll">
     <nav class="tabs" id="tabs" style="display:none">
-      <!-- 2026-10-07, the hub: groups are the QUESTION you walk in with (Home, Paid ads,
-           Email and SMS, Store, Creative, Reports, Money and plan), not when you look.
-           Only the open group shows its pages; the other headings fold, so the rail
-           never needs a scroll on a laptop. Settings is one row at the bottom. Every tab
-           selector stays scoped to `button[data-t]`; the band is `button.band[data-grp]`. -->
-      <div class="grp" data-g="home"><button class="band" type="button" data-grp="home"><span>Home</span><svg class="chev"><use href="#i-chev"/></svg></button>
-        <div class="grp-btns">
-          <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
-          <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Daily Brief</span></button>
-        </div>
-      </div>
-      <div class="grp" data-g="paid"><button class="band" type="button" data-grp="paid"><span>Paid ads</span><svg class="chev"><use href="#i-chev"/></svg></button>
-        <div class="grp-btns">
+      <!-- Locus v2 (2026-10-07): ONE level. A heading per question, the screens under it,
+           always visible. Platform jobs (Meta: Overview, Campaigns, Creative, Tests, Changes)
+           are a switcher at the top of the screen (#v2seg), never sub-tabs in the rail.
+           Settings lives in the foot. Every tab selector stays scoped to `button[data-t]`. -->
+      <div class="grp" data-g="home"><span class="band">Home</span><div class="grp-btns">
+          <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button></div></div>
+      <div class="grp" data-g="paid"><span class="band">Paid</span><div class="grp-btns">
           <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
           <button data-t="google"><svg class="ic"><use href="#i-google"/></svg><span>Google</span></button>
           <button data-t="tiktok"><svg class="ic"><use href="#i-tiktok"/></svg><span>TikTok</span></button>
-        </div>
-      </div>
-      <div class="grp" data-g="email"><button class="band" type="button" data-grp="email"><span>Email &amp; SMS</span><svg class="chev"><use href="#i-chev"/></svg></button>
-        <div class="grp-btns">
-          <button data-t="email"><svg class="ic"><use href="#i-email"/></svg><span>Klaviyo</span></button>
-        </div>
-      </div>
-      <div class="grp" data-g="store"><button class="band" type="button" data-grp="store"><span>Store</span><svg class="chev"><use href="#i-chev"/></svg></button>
-        <div class="grp-btns">
+          <button data-t="channels"><svg class="ic"><use href="#i-reports"/></svg><span>All channels</span></button></div></div>
+      <div class="grp" data-g="email"><span class="band">Email</span><div class="grp-btns">
+          <button data-t="email"><svg class="ic"><use href="#i-email"/></svg><span>Klaviyo</span></button></div></div>
+      <div class="grp" data-g="store"><span class="band">Store</span><div class="grp-btns">
           <button data-t="store"><svg class="ic"><use href="#i-store"/></svg><span>Sales</span></button>
-          <button data-t="customers"><svg class="ic"><use href="#i-customers"/></svg><span>Customers</span></button>
-        </div>
-      </div>
-      <div class="grp" data-g="creative"><button class="band" type="button" data-grp="creative"><span>Creative</span><svg class="chev"><use href="#i-chev"/></svg></button>
-        <div class="grp-btns">
+          <button data-t="customers"><svg class="ic"><use href="#i-customers"/></svg><span>Customers</span></button></div></div>
+      <div class="grp" data-g="money"><span class="band">Money</span><div class="grp-btns">
+          <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>P&amp;L</span></button>
+          <button data-t="plan"><svg class="ic"><use href="#i-plan"/></svg><span>Plan</span></button></div></div>
+      <div class="grp" data-g="creative"><span class="band">Creative</span><div class="grp-btns">
+          <button data-t="angles"><svg class="ic"><use href="#i-angles"/></svg><span>Tests and angles</span></button>
           <button data-t="studio"><svg class="ic"><use href="#i-studio"/></svg><span>Studio</span></button>
           <button data-t="brand"><svg class="ic"><use href="#i-brand"/></svg><span>Brand</span></button>
-          <button data-t="angles"><svg class="ic"><use href="#i-angles"/></svg><span>Tests and angles</span></button>
           <button data-t="copy"><svg class="ic"><use href="#i-chat"/></svg><span>Copy desk</span></button>
-          <button data-t="amb"><svg class="ic"><use href="#i-amb"/></svg><span>Creator link</span></button>
-        </div>
-      </div>
-      <div class="grp" data-g="reports"><button class="band" type="button" data-grp="reports"><span>Reports</span><svg class="chev"><use href="#i-chev"/></svg></button>
-        <div class="grp-btns">
+          <button data-t="amb"><svg class="ic"><use href="#i-amb"/></svg><span>Creator link</span></button></div></div>
+      <div class="grp" data-g="reports"><span class="band">Reports</span><div class="grp-btns">
+          <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Daily Brief</span></button>
           <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Weekly and monthly</span></button>
           <button data-t="dash"><svg class="ic"><use href="#i-overview"/></svg><span>Dashboards</span></button>
           <button data-t="season"><svg class="ic"><use href="#i-season"/></svg><span>Season</span></button>
-          <button data-t="calc"><svg class="ic"><use href="#i-calc"/></svg><span>Scenarios</span></button>
-        </div>
-      </div>
-      <div class="grp" data-g="money"><button class="band" type="button" data-grp="money"><span>Money &amp; plan</span><svg class="chev"><use href="#i-chev"/></svg></button>
-        <div class="grp-btns">
-          <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>Profit</span></button>
-          <button data-t="plan"><svg class="ic"><use href="#i-plan"/></svg><span>Plan</span></button>
-        </div>
-      </div>
-      <div class="grp solo" data-g="settings">
-        <div class="grp-btns">
-          <button data-t="settings"><svg class="ic"><use href="#i-settings"/></svg><span>Settings</span></button>
-        </div>
-      </div>
+          <button data-t="calc"><svg class="ic"><use href="#i-calc"/></svg><span>Scenarios</span></button></div></div>
       <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
     </nav>
     </div>
     <div class="side-foot">
+      <button class="v2settings" type="button" data-t="settings" id="railSettings"><svg viewBox="0 0 16 16"><use href="#i-settings"/></svg>Settings</button>
+      <div class="v2theme" role="group" aria-label="Theme"><button type="button" data-theme-pick="dark">Dark</button><button type="button" data-theme-pick="light">Light</button></div>
       <button class="askbtn" onclick="AskUI.open()" title="Ask the Strategist (Ctrl+K)" style="margin-bottom:8px;width:100%;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 4.5 16.8L21 21l-1.2-4.5A9 9 0 0 0 12 3Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3 2.45V13"/><path d="M12.5 16h.01"/></svg>Ask the Strategist</button>
       <button class="askbtn" id="btnGuide" style="margin-bottom:8px;width:100%;justify-content:center;display:none" title="What each tab is for, and what to do each day">How to use Locus</button>
       <span class="hd-chip" id="connChip">…</span>
@@ -1992,7 +1969,10 @@
       <div class="hd-title" id="hdTitle"></div>
       <div class="hd-right">
         <div class="hd-actions" id="hdActions"></div>
+        <div class="hd-today" id="hdToday" hidden title="So far today, live from Triple Whale; refreshed each time a page opens"></div>
         <div class="hd-period" id="hdPeriod" style="display:none"></div>
+        <label class="hd-model" id="hdModel" hidden title="Which attribution model credits revenue to a channel, campaign or ad. Spend and delivery are always the platform's own.">Attribution
+          <select id="hdModelSel"><option value="lastPlatformClick">Triple Whale · last platform click</option><option value="fullFirstClick">Triple Whale · first click</option><option value="fullLastClick">Triple Whale · last click</option><option value="linear">Triple Whale · linear (paid)</option><option value="linearAll">Triple Whale · linear (all)</option><option value="platform">Platform reported</option></select></label>
       </div>
     </div>
     <!-- The fixed-window line is a FACT about the page, not a control, so it
@@ -2001,6 +1981,7 @@
          screens toggle #periodBar. -->
     <div class="pbar" id="periodBar" style="display:none"><div class="in" id="pbIn"></div></div>
 
+    <div class="v2seg" id="v2seg" hidden></div>
     <main id="main"></main>
     <footer id="foot"><b>Locus</b> by Mobius Digital · sales and attribution from Triple Whale, spend and delivery from each ad platform. New here? Press <b>How to use Locus</b> in the left menu.</footer>
   </div>
@@ -2011,8 +1992,8 @@
      the bar exists only under 720px; tablets keep the rail (iPad convention). -->
 <nav class="tabbar" id="tabbar" aria-label="Primary">
   <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
-  <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Brief</span></button>
-  <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Paid</span></button>
+  <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
+  <button data-t="store"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
   <button data-t="email"><svg class="ic"><use href="#i-email"/></svg><span>Email</span></button>
   <button id="tbMore" aria-label="More destinations"><svg class="ic"><use href="#i-more"/></svg><span>More</span></button>
 </nav>
@@ -2020,13 +2001,14 @@
 <div class="nav-scrim" id="navScrim" hidden></div>
 
 <script src="meta.js?v=9"></script>
-<script src="amb.js?v=17"></script>
+<script src="amb.js?v=18"></script>
 <script src="../onboard/questions.js?v=8"></script>
 <script src="brand.js?v=17"></script>
 <script src="newclient.js?v=14"></script>
 <script src="studio.js?v=21"></script>
-<script src="season.js?v=13"></script>
-<script src="calc.js?v=6"></script>
+<script src="season.js?v=14"></script>
+<script src="calc.js?v=7"></script>
+<script src="v2.js?v=3"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -2131,6 +2113,8 @@ const S = {
      window, yoy = the same dates a year earlier, none. Home and the Email screen read it. */
   cmp: (() => { try { return ['prev', 'yoy', 'none'].includes(localStorage.getItem('pf_cmp')) ? localStorage.getItem('pf_cmp') : 'prev'; } catch { return 'prev'; } })(),
   accounts: [],
+  /* Locus v2: the attribution model every credited number follows (top bar switch). */
+  model: (() => { try { const m = localStorage.getItem('pf_model'); return ['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linear', 'linearAll', 'platform'].includes(m) ? m : 'lastPlatformClick'; } catch { return 'lastPlatformClick'; } })(),
 };
 
 async function api(path, opts = {}) {
@@ -2181,7 +2165,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
@@ -2866,7 +2850,7 @@ const TAB_PURPOSE = {
   profit:    "Did this brand make money in the window: revenue, orders, average order, every cost, what was left. Same numbers as the Daily Brief and Reports.",
   tests:     'For the media buyer: which tests spent enough to make a call, and which are still running.',
   angles:    'For the strategist: every angle we have tested, what won, and the concepts under it. Check an idea here before briefing it.',
-  meta:      "The ads themselves. These numbers come from Meta and match Ads Manager - on purpose, they won't match the other tabs.",
+  meta:      "The Meta account. Spend and delivery are Meta's own; revenue and purchases follow the attribution switch in the top bar, Triple Whale last platform click unless you change it.",
   brief:     'The short update that goes to the client every morning. Read it, adjust the wording, send it.',
   reports:   'The weekly and monthly report you walk through on calls, then send to the client.',
   plan:      "Set the month's revenue number with the client. Every other tab measures against what you save here.",
@@ -2918,18 +2902,19 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  overview: ['Home', 'Overview'], brief: ['Home', 'Daily Brief'],
-  meta: ['Paid ads', 'Meta'], tests: ['Paid ads', 'Meta &nbsp;/&nbsp; Test calls'], google: ['Paid ads', 'Google'], tiktok: ['Paid ads', 'TikTok'],
-  email: ['Email &amp; SMS', 'Klaviyo'],
+  overview: ['Home', 'Overview'], brief: ['Reports', 'Daily Brief'],
+  meta: ['Paid', 'Meta'], tests: ['Paid', 'Meta &nbsp;/&nbsp; Tests'], campaigns: ['Paid', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Paid', 'Meta &nbsp;/&nbsp; Creative'], changes: ['Paid', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Paid', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Paid', 'Meta &nbsp;/&nbsp; Creative browser'],
+  google: ['Paid', 'Google'], tiktok: ['Paid', 'TikTok'], channels: ['Paid', 'All channels'],
+  email: ['Email', 'Klaviyo'],
   store: ['Store', 'Sales'], customers: ['Store', 'Customers'],
   studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], angles: ['Creative', 'Tests and angles'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
   reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'], season: ['Reports', 'Season'], calc: ['Reports', 'Scenarios'],
-  profit: ['Money &amp; plan', 'Profit'], plan: ['Money &amp; plan', 'Plan'],
+  profit: ['Money', 'P&amp;L'], plan: ['Money', 'Plan'],
   settings: ['Settings', 'Settings'], health: ['Settings', 'Data health'], costs: ['Settings', 'Costs'],
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', channels: 'buyer', campaigns: 'buyer', adcreative: 'everyone', changes: 'buyer', mtoday: 'buyer', mbrowser: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
@@ -2937,7 +2922,7 @@ const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
-const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'email', 'store', 'reports', 'dash', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'store', 'dash', 'calc'] };
+const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'channels', 'email', 'store', 'reports', 'dash', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'store', 'dash', 'calc'] };
 /* Where a role lands (the hub, 2026-10-07): the media buyer on Test calls, the strategist on
    Tests and angles, everyone else on Home. Used when the role switch is pressed and the open
    page is not one of that role's. */
@@ -3010,11 +2995,13 @@ const markTourSeen = k => { const s = tourSeen(); s[k] = 1; localStorage.setItem
 
 const TOURS = {
   start: { name: 'How Locus fits together', steps: [
-    { body: '<b>The menu is grouped by the question you walk in with.</b> Home, Paid ads, Email and SMS, Store, Creative, Reports, Money and plan. Only the open group shows its pages; click a heading to look inside another. This takes about a minute.' },
-    { sel: '#tabs .grp[data-g="home"]', title: 'Home', body: '<b>Overview</b>: the brand or the whole agency at a glance, with the read at the top saying what is happening and what to do. <b>Daily Brief</b>: read, fix and send the client update.' },
-    { sel: '#tabs .grp[data-g="paid"]', title: 'Paid ads', body: 'One screen per platform, all built the same way. <b>Meta</b> has Overview, Test calls, Creative and Change Log. <b>Google</b> and <b>TikTok</b> show what Triple Whale sees today and what connecting them directly adds.' },
-    { sel: '#tabs .grp[data-g="creative"]', title: 'Creative', body: '<b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk. <b>Tests and angles</b> is what we have tested and what won. <b>Creator link</b> is the page the brand\'s creators read.' },
-    { sel: '#tabs .grp[data-g="money"]', title: 'Money and plan', body: '<b>Profit</b> is whether the brand is making money after every cost. On <b>Plan</b> you set the month\'s number with the client. <b>Settings</b>, at the bottom, holds brands, connections, goals and the team.' },
+    { body: '<b>The menu is grouped by the question you walk in with.</b> Home, Paid, Email, Store, Money, Creative and Reports, all on one level. Pick a brand at the top, or leave it on All brands for the agency view. This takes about a minute.' },
+    { sel: '#tabs .grp[data-g="home"]', title: 'Home', body: '<b>Overview</b>: the brand or the whole agency at a glance. The read at the top says what is happening and what to do; the tiles, the channel split and the chart sit under it.' },
+    { sel: '#tabs .grp[data-g="paid"]', title: 'Paid', body: 'One screen per platform, built the same way. <b>Meta</b> switches between Overview, Campaigns, Creative, Test calls and Change Log at the top of the screen. <b>Google</b> and <b>TikTok</b> show what Triple Whale sees. <b>All channels</b> puts every source side by side.' },
+    { body: '<b>Whose credit?</b> On the Paid screens a switch in the top bar picks who counts revenue and purchases per platform: the platform itself or a Triple Whale model. Revenue and purchases per platform can be counted by the platform itself or by any Triple Whale model. Switch it here; every Paid screen follows, and the gap between the platform and Triple Whale is shown beside it.' },
+    { sel: '#tabs .grp[data-g="creative"]', title: 'Creative', body: '<b>Tests and angles</b> is what we have tested and what won. <b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk. <b>Creator link</b> is the page the creators read.' },
+    { sel: '#tabs .grp[data-g="reports"]', title: 'Reports', body: '<b>Daily Brief</b> and <b>Weekly and monthly</b> go to clients. <b>Dashboards</b> are yours: build one by hand or ask the Strategist, and it can post itself to Slack. <b>Season</b> is the BFCM plan, <b>Scenarios</b> the what-if math.' },
+    { sel: '#tabs .grp[data-g="money"]', title: 'Money', body: '<b>P&amp;L</b> is whether the brand makes money after every cost. On <b>Plan</b> you set the month with the client. <b>Settings</b>, at the bottom, holds brands, connections, goals and the team.' },
     { sel: '#hdPeriod', title: 'What period am I looking at?', body: 'This control is on every screen that follows a date range and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
@@ -4215,9 +4202,13 @@ let RUN = 0;
 
 /* Tabs whose data actually follows the range picker. Everywhere else it is hidden
    rather than left visible and inert - a control that does nothing reads as broken. */
-const RANGE_TABS = new Set(['overview', 'profit', 'customers', 'email', 'google', 'tiktok', 'store']);
+const RANGE_TABS = new Set(['overview', 'profit', 'customers', 'email', 'google', 'tiktok', 'store', 'meta', 'campaigns', 'adcreative', 'channels']);
+/* Screens where a credited number appears, so the attribution switch shows (Locus v2). */
+const MODEL_TABS = new Set(['overview', 'meta', 'campaigns', 'adcreative', 'google', 'tiktok', 'channels']);
+/* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
+const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Creative'], ['tests', 'Tests'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales',
+const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4236,7 +4227,7 @@ PARENT_OF.health = PARENT_OF.costs = 'settings';
 /* Meta is everything about Meta, Tests included (Cole, 2026-10-04). Entries starting
    "meta:" open that meta.js sub-tab; "tests" is its own renderer (brand.js). Today
    and Averages open from Meta Overview and light Overview while open. */
-PARENT_OF.tests = 'meta';
+PARENT_OF.tests = PARENT_OF.campaigns = PARENT_OF.adcreative = PARENT_OF.changes = PARENT_OF.mtoday = PARENT_OF.mbrowser = 'meta';
 const META_RAIL = [['meta:overview', 'Overview'], ['tests', 'Test calls'], ['meta:creative', 'Creative'], ['meta:changelog', 'Change Log']];
 
 /* ---------- The period bar ----------
@@ -4435,7 +4426,7 @@ function show(tab) {
      goes to the open sub-tab. Marking both as `on` gave two identical pills and
      neither read as the answer. */
   const parent = PARENT_OF[tab] || tab;
-  const isSection = parent === 'meta' || !!SECTIONS[parent];
+  const isSection = false;   // v2: one-level rail; platform jobs live in #v2seg
   applyRole();
   document.querySelectorAll('#tabs button[data-t]').forEach(b => {
     const cur = b.dataset.t === parent;
@@ -4445,8 +4436,9 @@ function show(tab) {
   /* The phone tab bar mirrors the rail's answer: one of its four destinations
      lights up, or More does, because the open page lives behind the drawer. */
   document.querySelectorAll('#tabbar button[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === parent));
+  const rsb = document.getElementById('railSettings'); if (rsb) rsb.classList.toggle('on', parent === 'settings');
   const tbMore = document.getElementById('tbMore');
-  if (tbMore) tbMore.classList.toggle('on', !['overview','brief','meta','tests','email'].includes(tab));
+  if (tbMore) tbMore.classList.toggle('on', !['overview','meta','store','email'].includes(parent));
   /* The hub rail (2026-10-07): the group holding the open page unfolds, every other
      group folds to its heading. A heading click (wired in railGroups) opens a group
      to browse it; the next page change folds it again. */
@@ -4460,8 +4452,18 @@ function show(tab) {
     const r = cb.getBoundingClientRect(), s = sc.getBoundingClientRect();
     if (r.top < s.top || r.bottom > s.bottom) cb.scrollIntoView({ block: 'nearest' });
   }
+  /* Locus v2: the jobs switcher, the attribution switch and today so far. */
+  const seg = $('#v2seg');
+  if (seg) {
+    const jobs = parent === 'meta' ? META_JOBS : null;
+    seg.hidden = !jobs;
+    if (jobs) { seg.innerHTML = jobs.map(([k, l]) => `<button type="button" data-job="${k}" class="${k === tab ? 'on' : ''}">${l}</button>`).join('') + '<em>The jobs on this platform.</em>'; seg.querySelectorAll('[data-job]').forEach(b => b.onclick = () => show(b.dataset.job)); }
+  }
+  const hm = $('#hdModel'); if (hm) { hm.hidden = !MODEL_TABS.has(tab); const sel = $('#hdModelSel'); if (sel) sel.value = S.model; }
+  todayChip(tab);
   const sn = $('#subtabs');
-  if (sn) {
+  if (sn) sn.style.display = 'none';
+  if (false) {
     const pb = document.querySelector(`#tabs button[data-t="${parent}"]`);
     if (isSection && pb && pb.nextElementSibling !== sn) pb.after(sn);
     sn.style.display = isSection ? '' : 'none';
@@ -4501,7 +4503,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, google: f => renderPlatform('google', f), tiktok: f => renderPlatform('tiktok', f), email: renderEmail, dash: renderDash, store: renderStore })[tab](first); }
+  try { r = ({ overview: f => V2R('overview', f), profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), google: f => V2R('google', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4528,6 +4530,53 @@ async function renderMeta(first) {
   await window.MetaTab.render({ tok: S.tok, act: S.act, sub });
   if (run !== RUN) return;   // a newer render started while Meta was loading
 }
+
+/* ---------- Locus v2 host (2026-10-07) ----------
+   v2.js renders Home, Paid (Meta Overview / Campaigns / Creative, Google, TikTok, All channels),
+   Store > Sales and Email in the v2 system. It gets the host's helpers here rather than reading
+   globals, because most of them are `const` and never reach `window`. */
+function V2R(tab, first) {
+  if (!window.V2) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">The v2 screens did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
+  return window.V2.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, RUN: () => RUN }, first);
+}
+/* Meta jobs still drawn by meta.js (Changes, Today, the creative browser). */
+async function metaSub(sub, first) {
+  localStorage.setItem(MSUB.key, sub);
+  if (!window.MetaTab) { $('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">meta.js did not load. Hard-refresh.</span></div>'; return; }
+  const run = RUN;
+  if (first) $('#main').innerHTML = '<div class="card"><span class="hint">Loading…</span></div>';
+  await window.MetaTab.render({ tok: S.tok, act: S.act, sub });
+  if (run !== RUN) return;
+}
+/* Today so far, in the control bar: live revenue and spend for the brand (or the book). */
+const TODAY = { key: null, at: 0, html: '' };
+function todayChip(tab) {
+  const el = $('#hdToday'); if (!el) return;
+  const want = ['overview', 'meta', 'store', 'channels', 'campaigns', 'google', 'tiktok'].includes(tab) && S.tok && S.kind !== 'demo';
+  el.hidden = !want; if (!want) return;
+  const key = S.act;
+  if (TODAY.key === key && Date.now() - TODAY.at < 5 * 60e3) { el.innerHTML = TODAY.html; return; }
+  el.innerHTML = '<i></i> Today…';
+  api(`/api/hub/today?act=${encodeURIComponent(S.act)}`).then(d => {
+    const bs = (d.brands || []).filter(b => b.sales != null); const curs = [...new Set(bs.map(b => b.currency))];
+    if (!bs.length || curs.length > 1) { el.hidden = true; return; }
+    const sales = bs.reduce((s, b) => s + (b.sales || 0), 0), spend = bs.reduce((s, b) => s + (b.spend || 0), 0);
+    const asOf = bs.map(b => b.as_of).filter(Boolean).sort().pop();
+    TODAY.key = key; TODAY.at = Date.now();
+    TODAY.html = `<i></i>Today <b>${fmtK(sales, curs[0])}</b> · spend <b>${fmtK(spend, curs[0])}</b>${asOf ? ` · ${fmtCentralTime(asOf).replace(' Central', '')}` : ''}`;
+    if (S.act === key) el.innerHTML = TODAY.html;
+  }).catch(() => { el.hidden = true; });
+}
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'hdModelSel') { S.model = e.target.value; try { localStorage.setItem('pf_model', S.model); } catch {} show(S.tab); }
+});
+function paintTheme() { const t = document.documentElement.dataset.theme || 'dark'; document.querySelectorAll('[data-theme-pick]').forEach(b => b.classList.toggle('on', b.dataset.themePick === t)); }
+document.addEventListener('click', e => {
+  const tp = e.target.closest('[data-theme-pick]');
+  if (tp) { document.documentElement.dataset.theme = tp.dataset.themePick; try { localStorage.setItem('pf_theme', tp.dataset.themePick); } catch {} paintTheme(); if (['overview', 'meta', 'campaigns', 'adcreative', 'google', 'tiktok', 'channels', 'store', 'email'].includes(S.tab)) show(S.tab); return; }
+  const rs = e.target.closest('#railSettings'); if (rs) { show('settings'); }
+});
+paintTheme();
 
 /* ---------- Scenarios ----------
    The lead and ROAS calculators (2026-10-06), in calc.js (own closure). */
@@ -4635,8 +4684,10 @@ const GUIDE = [
       ['Daily Brief', 'Read each brand’s brief, add what you changed under What we did, press Send.', 'brief'],
       ['Season', 'What is due this week for Black Friday, per brand. Tick what you loaded.', 'season'],
       ['Meta, Test calls', 'Everything under Make a call spent enough to judge. Set Result in Asana and move the task to Completed.', 'tests'],
-      ['Meta, Creative', 'Ads marked Cut are over the goal CPA. Ads marked Scale are under it.', 'meta:creative'],
-      ['Meta, Change Log', 'Add the reason next to anything you changed in Ads Manager.', 'meta:changelog'],
+      ['Meta, Campaigns', 'Every campaign, ad set and ad with spend, CPA and ROAS under the attribution you picked. Open a row to go one level down.', 'campaigns'],
+      ['Meta, Creative', 'Which ads hook and hold, which are tiring, and how often new ones launch. Open an ad to see its orders.', 'adcreative'],
+      ['Meta, Changes', 'Add the reason next to anything you changed in Ads Manager.', 'changes'],
+      ['All channels', 'Every source side by side: spend, revenue, ROAS, and the gap between the platform and Triple Whale.', 'channels'],
     ]],
     ['Every Monday, and the 1st of the month', [
       ['Reports', 'The weekly or monthly report is drafted for you. Read it, fix the wording, press Send to client.', 'reports'],
@@ -4650,7 +4701,7 @@ const GUIDE = [
       ['Open the angle', 'See which concepts won. Brief a variation of a winner, or a new concept under a proven angle.', 'angles'],
       ['Brand', 'What the client told us, who buys, what they say in their own words, and how the brand talks.', 'brand'],
       ['Creator link', "What the brand's creators are being asked to film right now. Keep it current.", 'amb'],
-      ['Meta, Creative', 'What is working in the account right now.', 'meta:creative'],
+      ['Meta, Creative', 'What is working in the account right now: hook and hold, fatigue, and the angles and formats that pay.', 'adcreative'],
     ]],
     ['Making it', [
       ['Write the brief in Asana', 'Same as always. Locus files the test under its angle and concept by itself.', null],
@@ -4663,6 +4714,7 @@ const GUIDE = [
       ['Profit', 'Revenue, orders, average order, every cost, what was left, against the plan.', 'profit'],
       ['Customers (under Store)', 'What a customer is worth over time against what we paid, and what they buy first and next.', 'customers'],
       ['Reports', 'What went to each client.', 'reports'],
+      ['Dashboards', 'Your own views. Build one by hand or ask the Strategist, and have it post to Slack each morning.', 'dash'],
     ]],
     ['End of the month', [
       ['Plan', 'Set next month’s revenue, spend and MER with the client.', 'plan'],
@@ -5627,6 +5679,60 @@ function dashBlockHtml(b, all, spec, cur) {
   if (b.type === 'note') return `<div class="card ds-note">${h}<p>${esc(b.text || '')}</p></div>`;
   return '';
 }
+/* Build or edit a dashboard by hand (Locus v2): name, scope, range, compare, and the blocks
+   in order. Same spec the Strategist writes (DASH vocabulary), saved through PUT /api/dashboard. */
+const DASH_BLOCK_L = { tiles: 'Number tiles', brands: 'One row per brand', channels: 'Where the money came from', daily: 'Revenue and spend by day', email: 'Email and SMS', note: 'A note' };
+function dashEditor(d) {
+  const spec = JSON.parse(JSON.stringify(d?.spec || { scope: S.act, range: '7', compare: 'prev', blocks: [{ type: 'tiles', title: 'The numbers', metrics: ['revenue', 'spend', 'mer', 'cac'] }] }));
+  const state = { name: d?.name || '', for_who: d?.for_who || '', spec };
+  const wrap = document.createElement('div'); wrap.className = 'modal-wrap';
+  const draw = () => {
+    const blocks = state.spec.blocks;
+    wrap.innerHTML = `<div class="modal" style="max-width:640px;width:100%"><h3>${d ? 'Edit the dashboard' : 'Build a dashboard'}</h3>
+      <p class="hint">Pick what goes on it, in the order you want to read it. It draws live every time it opens.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <label class="hint" style="margin:0">Name<input type="text" id="deName" value="${esc(state.name)}" placeholder="Ahsan every morning"></label>
+        <label class="hint" style="margin:0">For<input type="text" id="deFor" value="${esc(state.for_who)}" placeholder="Ahsan"></label>
+        <label class="hint" style="margin:0">Brand<select id="deScope"><option value="all">All brands</option>${S.accounts.map(a => `<option value="${a.act_id}" ${state.spec.scope === a.act_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+        <label class="hint" style="margin:0">Range<select id="deRange">${Object.entries(DASH_RANGE_L).map(([k, l]) => `<option value="${k}" ${String(state.spec.range) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="hint" style="margin:0">Compare with<select id="deCmp">${[['prev', 'The period before'], ['yoy', 'Same time last year'], ['none', 'Nothing']].map(([k, l]) => `<option value="${k}" ${(state.spec.compare || 'prev') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      </div>
+      <div class="v2ed">${blocks.map((b, i) => `<div class="row"><span class="ty">${esc(DASH_BLOCK_L[b.type] || b.type)}</span>
+          <div><input type="text" data-bt="${i}" value="${esc(b.title || '')}" placeholder="Title (optional)" style="width:100%">
+            ${b.type === 'tiles' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_TILES).map(([k, v]) => `<label><input type="checkbox" data-bm="${i}" value="${k}" ${(b.metrics || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
+            ${b.type === 'brands' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_COLS).map(([k, v]) => `<label><input type="checkbox" data-bc="${i}" value="${k}" ${(b.columns || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
+            ${b.type === 'note' ? `<textarea data-bn="${i}" placeholder="What the reader should know" style="margin-top:6px">${esc(b.text || '')}</textarea>` : ''}</div>
+          <span class="acts"><button type="button" data-up="${i}" title="Move up">↑</button><button type="button" data-dn="${i}" title="Move down">↓</button><button type="button" data-rm="${i}" title="Remove">✕</button></span></div>`).join('')}
+        <div class="row" style="grid-template-columns:auto 1fr auto"><span class="ty">Add</span><select id="deAdd">${Object.entries(DASH_BLOCK_L).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><button type="button" class="btn" id="deAddB">Add block</button></div></div>
+      <p class="tiny" id="deMsg" style="min-height:16px;margin:10px 0 0"></p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn" type="button" id="deCancel">Cancel</button><button class="btn primary" type="button" id="deSave">Save</button></div></div>`;
+    const sync = () => {
+      state.name = wrap.querySelector('#deName').value; state.for_who = wrap.querySelector('#deFor').value;
+      state.spec.scope = wrap.querySelector('#deScope').value; state.spec.range = wrap.querySelector('#deRange').value; state.spec.compare = wrap.querySelector('#deCmp').value;
+      wrap.querySelectorAll('[data-bt]').forEach(el => { state.spec.blocks[+el.dataset.bt].title = el.value; });
+      wrap.querySelectorAll('[data-bn]').forEach(el => { state.spec.blocks[+el.dataset.bn].text = el.value; });
+      state.spec.blocks.forEach((b, i) => { if (b.type === 'tiles') b.metrics = [...wrap.querySelectorAll(`[data-bm="${i}"]:checked`)].map(x => x.value); if (b.type === 'brands') b.columns = [...wrap.querySelectorAll(`[data-bc="${i}"]:checked`)].map(x => x.value); });
+    };
+    const move = (i, j) => { sync(); const a = state.spec.blocks; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; draw(); };
+    wrap.querySelectorAll('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, +b.dataset.up - 1));
+    wrap.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => move(+b.dataset.dn, +b.dataset.dn + 1));
+    wrap.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { sync(); state.spec.blocks.splice(+b.dataset.rm, 1); draw(); });
+    wrap.querySelector('#deAddB').onclick = () => { sync(); const t = wrap.querySelector('#deAdd').value; state.spec.blocks.push(t === 'tiles' ? { type: t, title: '', metrics: ['revenue', 'spend'] } : t === 'brands' ? { type: t, title: '', columns: ['revenue', 'spend', 'mer', 'mtd_vs_plan'] } : { type: t, title: '' }); draw(); };
+    wrap.querySelector('#deCancel').onclick = () => wrap.remove();
+    wrap.querySelector('#deSave').onclick = async () => {
+      sync(); const msg = wrap.querySelector('#deMsg');
+      if (!state.name.trim()) { msg.textContent = 'Give it a name.'; return; }
+      if (!state.spec.blocks.length) { msg.textContent = 'Add at least one block.'; return; }
+      msg.textContent = 'Saving…';
+      try { const r = await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d?.id, name: state.name, for_who: state.for_who, act: state.spec.scope, spec: state.spec, schedule: d?.schedule || '', channel: d?.channel || '', pinned: true }) });
+        wrap.remove(); DS.id = r.id; try { localStorage.setItem('pf_dash', r.id); } catch {} show('dash'); }
+      catch (e) { msg.textContent = e.message; }
+    };
+  };
+  draw(); document.body.appendChild(wrap);
+  wrap.addEventListener('click', e => { if (e.target === wrap) wrap.remove(); });
+}
+
 async function renderDash(first) {
   const run = ++RUN;
   const shell = body => `${pageHead('dash', 'Dashboards')}${body}`;
@@ -5644,9 +5750,10 @@ async function renderDash(first) {
       </button>`;
     $('#main').innerHTML = shell(`<div class="card hm-soon"><div class="hm-soon-h"><h3>Ask for a dashboard in words</h3></div>
         <p class="hint">Tell the Strategist what you look at every day and who it is for. It builds the dashboard, you press Apply, and it lands here. Say "post it to our channel every morning" and it will.</p>
-        <div class="row" style="margin:10px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="dsNew">Ask the Strategist for one</button><span class="tiny">Try: "Build Ahsan a dashboard: spend, revenue and MER per brand against last week, plus Meta and Google side by side, every morning in #mobius-internal."</span></div></div>
+        <div class="row" style="margin:10px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="dsNew">Ask the Strategist for one</button><button class="btn" type="button" id="dsMake">Build one by hand</button><span class="tiny">Try: "Build Ahsan a dashboard: spend, revenue and MER per brand against last week, plus Meta and Google side by side, every morning in #mobius-internal."</span></div></div>
       ${mine.length ? `<div class="ds-grid">${mine.map(card).join('')}</div>` : `<div class="card"><p class="hint">No dashboards yet${S.act === 'all' ? '' : ' for this brand'}.</p></div>`}`);
     $('#dsNew').onclick = () => AskUI.open(`Build ${S.act === 'all' ? 'us' : (S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand'} a dashboard that shows `);
+    const mk = $('#dsMake'); if (mk) mk.onclick = () => dashEditor(null);
     $('#main').querySelectorAll('[data-open]').forEach(b => b.onclick = () => { DS.id = b.dataset.open; try { localStorage.setItem('pf_dash', DS.id); } catch {} show('dash'); });
     return;
   }
@@ -5670,6 +5777,7 @@ async function renderDash(first) {
       <span class="ds-ctl"><label>Posts to Slack <select id="dsSched">${Object.entries(DASH_SCHED_L).map(([k, l]) => `<option value="${k}" ${k === (d.schedule || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label>Channel <select id="dsChan">${chanOpts.map(([v, l]) => `<option value="${esc(v)}" ${v === (d.channel || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <button class="btn" type="button" id="dsPost">Post to Slack now</button>
+        <button class="btn" type="button" id="dsEdit">Edit</button>
         <button class="btn" type="button" id="dsDel" style="color:var(--bad)">Delete</button></span>
     </div>
     <p class="tiny" id="dsMsg" style="min-height:16px;margin:-6px 0 10px">${d.last_posted ? `Last posted ${esc(String(d.last_posted).slice(0, 16).replace('T', ' '))} UTC.` : ''}</p>
@@ -5680,6 +5788,7 @@ async function renderDash(first) {
   const save = async () => { try { await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d.id, name: d.name, act: d.act || 'all', spec, schedule: $('#dsSched').value, channel: $('#dsChan').value, for_who: d.for_who, pinned: d.pinned }) }); msg($('#dsSched').value ? `Saved. Posts ${DASH_SCHED_L[$('#dsSched').value].toLowerCase()} at 8am Central${$('#dsChan').value ? '.' : ', once a channel is set.'}` : 'Saved. It will not post itself.'); } catch (e) { msg(e.message); } };
   $('#dsSched').onchange = save; $('#dsChan').onchange = save;
   $('#dsPost').onclick = async () => { const b = $('#dsPost'); b.disabled = true; msg('Posting…'); try { const r = await apiAH('/api/dashboard-post', { method: 'POST', body: JSON.stringify({ id: d.id, channel: $('#dsChan').value }) }); msg(r.error || `Posted to Slack (${r.brands} brand${r.brands === 1 ? '' : 's'}).`); } catch (e) { msg(e.message); } b.disabled = false; };
+  $('#dsEdit').onclick = () => dashEditor(d);
   $('#dsDel').onclick = async () => { if (!(await confirmModal('Delete this dashboard?', 'It disappears from Locus and stops posting to Slack. The Strategist can build it again from the same words.', 'Delete'))) return; try { await api(`/api/dashboard?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' }); DS.id = ''; localStorage.setItem('pf_dash', ''); show('dash'); } catch (e) { msg(e.message); } };
   $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
 }

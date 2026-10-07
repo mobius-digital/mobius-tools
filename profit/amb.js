@@ -261,7 +261,7 @@ function paint() {
         <h3>Set up ${esc(name)}'s creator link</h3>
         <p class="hint">Creates the page with two starter sections, Hot right now and Always works. It stays switched off until you turn it on.</p>
         <label class="am-f">Link address <small>lowercase letters, numbers and dashes</small>
-          <div style="display:flex;align-items:center;gap:0"><span class="am-in" style="width:auto;border-radius:8px 0 0 8px;background:#F1F5F8;color:var(--muted);border-right:none;white-space:nowrap">${esc(PUBLIC_BASE.replace('https://', ''))}</span><input class="am-in" id="amSlug" style="border-radius:0 8px 8px 0" value="${esc(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))}"></div></label>
+          <div style="display:flex;align-items:center;gap:0"><span class="am-in" style="width:auto;border-radius:8px 0 0 8px;background:var(--surface-2,#F1F5F8);color:var(--muted);border-right:none;white-space:nowrap">${esc(PUBLIC_BASE.replace('https://', ''))}</span><input class="am-in" id="amSlug" style="border-radius:0 8px 8px 0" value="${esc(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))}"></div></label>
         <div><button class="btn primary" id="amSetup">Set up the creator link</button> <span class="am-msg" id="amSetupMsg"></span></div>
       </div></div>`;
     $('#amSetup').onclick = async () => {
@@ -885,7 +885,7 @@ function paintLink(body) {
       <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <h3>The link</h3>
         <label class="am-f">Address <small>set it once. Changing it breaks the link in any PDF already uploaded.</small>
-          <div style="display:flex"><span class="am-in" style="width:auto;border-radius:8px 0 0 8px;background:#F1F5F8;color:var(--muted);border-right:none;white-space:nowrap">${esc(PUBLIC_BASE.replace('https://', ''))}</span><input class="am-in" id="lSlug" style="border-radius:0 8px 8px 0;font-weight:700" value="${esc(b.slug)}"></div></label>
+          <div style="display:flex"><span class="am-in" style="width:auto;border-radius:8px 0 0 8px;background:var(--surface-2,#F1F5F8);color:var(--muted);border-right:none;white-space:nowrap">${esc(PUBLIC_BASE.replace('https://', ''))}</span><input class="am-in" id="lSlug" style="border-radius:0 8px 8px 0;font-weight:700" value="${esc(b.slug)}"></div></label>
         <label class="am-f">Name creators see<input class="am-in" id="lName" value="${esc(b.display_name || '')}"></label>
       </div>
 

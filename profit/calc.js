@@ -52,7 +52,7 @@ function injectCss() {
   .cc .mono{font-family:var(--cc-mono);font-variant-numeric:tabular-nums}
   .cc-seg{display:inline-flex;gap:4px;border:1px solid var(--cc-line);border-radius:99px;padding:3px;margin:0 0 14px;background:var(--bg,#fff)}
   .cc-seg button{border:0;background:transparent;border-radius:99px;padding:7px 15px;font:600 13px var(--sans,system-ui);color:var(--cc-muted);cursor:pointer}
-  .cc-seg button.on{background:var(--ink,#111);color:var(--on-ink,#fff)}
+  .cc-seg button.on{background:var(--ink,#111);color:var(--bg,#fff)}
   /* hero */
   .cc-hero{background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--cc-acc) 28%,var(--cc-panel)) 0%,var(--cc-panel) 55%);color:var(--cc-on);border-radius:18px;padding:22px 26px 20px;margin-bottom:14px;position:relative;overflow:hidden}
   .cc-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 40%);pointer-events:none}
@@ -178,7 +178,7 @@ function injectCss() {
   /* roas extras */
   .cc-mode{display:inline-flex;gap:4px;border:1px solid var(--cc-line);border-radius:9px;padding:3px}
   .cc-mode button{border:0;background:transparent;border-radius:7px;padding:5px 10px;font:600 12px var(--sans,system-ui);color:var(--cc-muted);cursor:pointer}
-  .cc-mode button.on{background:var(--ink,#111);color:var(--on-ink,#fff)}
+  .cc-mode button.on{background:var(--ink,#111);color:var(--bg,#fff)}
   .cc-togs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:6px}
   .cc-tg{border:1px solid var(--cc-line);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12.5px}
   .cc-tg.off{opacity:.55}

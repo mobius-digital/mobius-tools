@@ -306,8 +306,8 @@ function channelRows(ctx, a, w, meta, g, t, piv, ncBy) {
     { id: 'google', label: 'Google', spend: g.cur.spend, revenue: g.cur.revenue, purchases: g.cur.purchases, platform_revenue: g.cur.platform_revenue, prev_revenue: g.prev?.revenue ?? null, prev_spend: g.prev?.spend ?? null, nc: ncBy.google || 0 },
     { id: 'tiktok', label: 'TikTok', spend: t.cur.spend, revenue: t.cur.revenue, purchases: t.cur.purchases, platform_revenue: t.cur.platform_revenue, prev_revenue: t.prev?.revenue ?? null, prev_spend: t.prev?.spend ?? null, nc: ncBy.tiktok || 0 },
     { id: 'pinterest', label: 'Pinterest', spend: cr.pin, revenue: null, purchases: null, platform_revenue: null, prev_revenue: null, prev_spend: pr?.pin ?? null, nc: ncBy.pinterest || 0 },
-    { id: 'amazon', label: 'Amazon ads', spend: cr.amzSpend, revenue: cr.amzRev, purchases: null, platform_revenue: cr.amzRev, prev_revenue: pr?.amzRev ?? null, prev_spend: pr?.amzSpend ?? null, nc: 0 },
-    { id: 'email', label: 'Email and SMS', spend: null, revenue: cr.email, purchases: null, platform_revenue: cr.email, prev_revenue: pr?.email ?? null, prev_spend: null, campaigns: cr.camp, flows: cr.flows, nc: ncBy.klaviyo || 0 },
+    { id: 'amazon', label: 'Amazon ads', spend: cr.amzSpend, revenue: cr.amzRev, purchases: null, platform_revenue: null, prev_revenue: pr?.amzRev ?? null, prev_spend: pr?.amzSpend ?? null, nc: 0 },
+    { id: 'email', label: 'Email and SMS', spend: null, revenue: cr.email, purchases: null, platform_revenue: null, prev_revenue: pr?.email ?? null, prev_spend: null, campaigns: cr.camp, flows: cr.flows, nc: ncBy.klaviyo || 0 },
   ].filter(r => (r.spend || 0) > 0 || (r.revenue || 0) > 0);
   const credited = rows.reduce((s, r) => s + (r.revenue || 0), 0);
   rows.push({ id: 'rest', label: 'Everything else', spend: null, revenue: Math.max(0, cr.revenue - credited), purchases: null, platform_revenue: null, prev_revenue: null, prev_spend: null, nc: ncBy.organic || 0 });

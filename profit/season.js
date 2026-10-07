@@ -84,7 +84,7 @@ function injectCss() {
   .se-verdict{font-family:var(--serif,Georgia,serif);font-size:19px;line-height:1.35;margin:0 0 12px}
   .se-seg{display:inline-flex;gap:4px;border:1px solid var(--se-line);border-radius:99px;padding:3px;margin:0 0 14px;background:var(--bg,#fff);flex-wrap:wrap}
   .se-seg button{border:0;background:transparent;border-radius:99px;padding:7px 15px;font:600 13px var(--sans,system-ui);color:var(--se-muted);cursor:pointer}
-  .se-seg button.on{background:var(--ink,#111);color:var(--on-ink,#fff)}
+  .se-seg button.on{background:var(--ink,#111);color:var(--bg,#fff)}
   .se-seg button b{font-weight:700;margin-left:4px;opacity:.7}
   /* the plan in one read */
   .se-plan{display:grid;grid-template-columns:1.25fr 1fr;gap:20px}
@@ -218,7 +218,7 @@ function injectCss() {
   .se-ladder span{font-size:12px;border-radius:99px;padding:3px 10px;background:var(--se-wash)}
   .se-days{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
   .se-days button{border:1px solid var(--se-line);background:var(--se-surface);border-radius:99px;padding:5px 12px;font:600 12.5px var(--sans,system-ui);cursor:pointer;color:inherit}
-  .se-days button.on{background:var(--ink,#111);color:var(--on-ink,#fff);border-color:var(--ink,#111)}
+  .se-days button.on{background:var(--ink,#111);color:var(--bg,#fff);border-color:var(--ink,#111)}
   .se-desk{border:1px solid var(--se-line);border-radius:12px;padding:12px 14px;background:var(--se-surface);margin-bottom:10px}
   .se-desk .h{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
   .se-desk .h b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:18px;cursor:pointer}
