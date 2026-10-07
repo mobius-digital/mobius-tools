@@ -1483,7 +1483,30 @@ async function storeTouches(env, acct, start, end, list) {
 }
 
 async function twWindow(env, shopDomain, start, end) {
-  return twSummary(env, shopDomain, addDays(start, 1), addDays(end, 1));
+  const k = await twShift(env, shopDomain);
+  return twSummary(env, shopDomain, addDays(start, k), addDays(end, k));
+}
+/* MEASURED, NOT ASSUMED (2026-10-07). Triple Whale's summary period used to come back one day
+   early (fact 1 above), and every period total asked for [start+1, end+1]. On 2026-10-07 it
+   stopped: asking 10-06 returned 10-06 (fb_ads_spend matched Meta's 10-06 to the cent), so the
+   +1 asked for tomorrow and the live Today chip read $0. The shift is now read from TW itself,
+   once a day per shop: ask a 3-day window ending two days ago and see which day-of-year the
+   daily chart starts on. 0 = correct, 1 = one day early. Unknown = 0 (current behaviour). */
+async function twShift(env, shopDomain) {
+  const key = `twShift:${shopDomain}`, today = new Date().toISOString().slice(0, 10);
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
+  try { const v = JSON.parse(row?.value || 'null'); if (v && v.date === today) return v.shift; } catch {}
+  let shift = 0;
+  try {
+    const a = addDays(today, -4), b = addDays(today, -2);
+    const { raw } = await twSummary(env, shopDomain, a, b);
+    let minX = null;
+    for (const m of raw?.metrics || []) { const xs = (m.charts?.current || []).map(p => +p.x).filter(Number.isFinite); if (xs.length) { minX = Math.min(...xs); break; } }
+    const doy = Math.round((Date.parse(a) - Date.parse(a.slice(0, 4) + '-01-01')) / 864e5) + 1;
+    if (minX != null && a.slice(5) > '01-05') shift = Math.max(0, Math.min(1, doy - minX));
+  } catch { return 0; }
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ date: today, shift })).run().catch(() => {});
+  return shift;
 }
 
 async function twSummary(env, shopDomain, start, end) {
@@ -7670,7 +7693,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const today = localDate(acct.tz);
         const want = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : today;
         if (want > today) return json({ error: 'that day has not happened yet' }, 400);
-        const ask = addDays(want, 1);                    // see fact 1 above
+        const ask = addDays(want, await twShift(env, acct.tw_shop)); // see twShift: measured daily
         const { map, raw } = await twSummary(env, acct.tw_shop, ask, ask);
         const HOURLY = ['netSales', 'totalSales', 'totalNetTaxes', 'blendedAds', 'newCustomerSales', 'fb_ads_spend', 'ga_adCost', 'orders'];
         const hours = {};

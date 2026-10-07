@@ -67,6 +67,18 @@ export async function forgetKey(env, act) {
   await env.DB.prepare(`DELETE FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'klaviyo'`).bind(act).run();
 }
 
+/* Klaviyo (2026-10) refuses additional-fields=profile_count on the LIST and SEGMENT collections;
+   it is only on the single-object route. So counts are read one by one for the few that show. */
+/* That route allows 1 call a second when profile_count is asked for, so they run one at a time. */
+async function withCounts(key, kind, rows, max = 8) {
+  const out = [];
+  for (const [i, x] of rows.slice(0, max).entries()) {
+    if (i) await new Promise(r => setTimeout(r, 1050));
+    try { const r = await klaviyo(key, `/api/${kind}s/${x.id}/?fields[${kind}]=name&additional-fields[${kind}]=profile_count`); out.push({ ...x, profiles: r.data?.attributes?.profile_count ?? null }); }
+    catch { out.push({ ...x, profiles: null }); }
+  }
+  return out.concat(rows.slice(max).map(x => ({ ...x, profiles: null })));
+}
 const ago = iso => iso ? Math.round((Date.now() - Date.parse(iso)) / 864e5) : null;
 /**
  * What the Strategist reads. `what`: overview (counts + the account), lists, segments, flows,
@@ -79,11 +91,11 @@ async function cached(env, key, fn) {
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
   if (row?.value) { try { const v = JSON.parse(row.value); if (v.at && Date.now() - Date.parse(v.at) < KLV_TTL) return { ...v.data, cached_at: v.at }; } catch {} }
   const data = await fn();
-  if (!data?.error) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ at: new Date().toISOString(), data })).run().catch(() => {});
+  if (!data?.error && !/could not be read/i.test(data?.results_note || '')) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ at: new Date().toISOString(), data })).run().catch(() => {});
   return data;
 }
 export async function klaviyoView(env, act, what = 'overview') {
-  if (what === 'campaigns' || what === 'flows_report') return cached(env, `klv:${act}:${what}`, () => klaviyoViewRaw(env, act, what));
+  if (what === 'campaigns' || what === 'flows_report' || what === 'overview') return cached(env, `klv:${act}:${what}`, () => klaviyoViewRaw(env, act, what));
   return klaviyoViewRaw(env, act, what);
 }
 async function klaviyoViewRaw(env, act, what = 'overview') {
@@ -92,12 +104,14 @@ async function klaviyoViewRaw(env, act, what = 'overview') {
   const k = doc.key;
   const base = { company: doc.company, account_id: doc.account_id, verified_at: doc.verified_at };
   if (what === 'lists') {
-    const rows = await all(k, '/api/lists/?fields[list]=name,created,updated,opt_in_process&additional-fields[list]=profile_count');
-    return { ...base, lists: rows.map(x => ({ id: x.id, name: x.attributes?.name, profiles: x.attributes?.profile_count ?? null, opt_in: x.attributes?.opt_in_process, created: x.attributes?.created?.slice(0, 10) })) };
+    const rows = await all(k, '/api/lists/?fields[list]=name,created,updated,opt_in_process');
+    const lists = await withCounts(k, 'list', rows.map(x => ({ id: x.id, name: x.attributes?.name, opt_in: x.attributes?.opt_in_process, created: x.attributes?.created?.slice(0, 10) })), 15);
+    return { ...base, lists };
   }
   if (what === 'segments') {
-    const rows = await all(k, '/api/segments/?fields[segment]=name,created,updated,is_active,is_processing,is_starred&additional-fields[segment]=profile_count');
-    return { ...base, segments: rows.map(x => ({ id: x.id, name: x.attributes?.name, profiles: x.attributes?.profile_count ?? null, active: x.attributes?.is_active, starred: x.attributes?.is_starred, updated: x.attributes?.updated?.slice(0, 10) })) };
+    const rows = await all(k, '/api/segments/?fields[segment]=name,created,updated,is_active,is_processing,is_starred');
+    const sorted = rows.map(x => ({ id: x.id, name: x.attributes?.name, active: x.attributes?.is_active, starred: x.attributes?.is_starred, updated: x.attributes?.updated?.slice(0, 10) })).sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0));
+    return { ...base, segments: await withCounts(k, 'segment', sorted, 15) };
   }
   if (what === 'flows') {
     const rows = await all(k, '/api/flows/?fields[flow]=name,status,archived,created,updated,trigger_type');
@@ -105,12 +119,12 @@ async function klaviyoViewRaw(env, act, what = 'overview') {
       how_to_read: 'status live = sending, manual = built but off, draft = unfinished. A brand with no live abandoned-cart, welcome, post-purchase or winback flow has a gap worth naming.' };
   }
   if (what === 'campaigns') {
-    const rows = await all(k, `/api/campaigns/?filter=${encodeURIComponent("equals(messages.channel,'email')")}&fields[campaign]=name,status,send_time,created,updated&sort=-send_time`, 2);
-    const sent = rows.filter(x => x.attributes?.send_time).slice(0, 30);
+    const rows = await all(k, `/api/campaigns/?filter=${encodeURIComponent("equals(messages.channel,'email')")}&fields[campaign]=name,status,send_time,created_at,updated_at&sort=-scheduled_at`, 3);
+    const sent = rows.filter(x => x.attributes?.send_time && /^sent$/i.test(x.attributes?.status || '')).sort((a, b) => String(b.attributes.send_time).localeCompare(String(a.attributes.send_time))).slice(0, 30);
     let results = {};
     try {
       const metric = await placedOrderMetric(k);
-      const filter = 'any(campaign_id,[' + sent.map(x => JSON.stringify(x.id)).join(',') + '])';
+      const filter = 'contains-any(campaign_id,[' + sent.map(x => JSON.stringify(x.id)).join(',') + '])';
       const attributes = { statistics: ['recipients', 'open_rate', 'click_rate', 'conversion_rate', 'conversion_value', 'unsubscribe_rate'], timeframe: { key: 'last_90_days' }, conversion_metric_id: metric, filter };
       const r = await klaviyo(k, '/api/campaign-values-reports/', { method: 'POST', body: { data: { type: 'campaign-values-report', attributes } } });
       for (const row of r.data?.attributes?.results || []) results[row.groupings?.campaign_id] = row.statistics;
@@ -146,13 +160,16 @@ async function klaviyoViewRaw(env, act, what = 'overview') {
     const rows = await all(k, '/api/metrics/?fields[metric]=name,integration', 3);
     return { ...base, metrics: rows.map(x => ({ id: x.id, name: x.attributes?.name, integration: x.attributes?.integration?.name })) };
   }
-  const [lists, segments, flows] = await Promise.all([
-    all(k, '/api/lists/?fields[list]=name&additional-fields[list]=profile_count', 2), all(k, '/api/segments/?fields[segment]=name,is_active&additional-fields[segment]=profile_count', 3), all(k, '/api/flows/?fields[flow]=name,status,archived,trigger_type', 3),
+  const [lists0, segments0, flows] = await Promise.all([
+    all(k, '/api/lists/?fields[list]=name', 2), all(k, '/api/segments/?fields[segment]=name,is_active,is_starred', 3), all(k, '/api/flows/?fields[flow]=name,status,archived,trigger_type', 3),
   ]);
+  /* Counts only for the lists and the starred / first segments (one call each, cached 6h). */
+  const lists = await withCounts(k, 'list', lists0.map(x => ({ id: x.id, attributes: x.attributes })), 5);
+  const segments = await withCounts(k, 'segment', segments0.map(x => ({ id: x.id, attributes: x.attributes })).sort((a, b) => (b.attributes?.is_starred ? 1 : 0) - (a.attributes?.is_starred ? 1 : 0)), 4);
   const live = flows.filter(f => !f.attributes?.archived && f.attributes?.status === 'live');
   return { ...base, lists: lists.length, segments: segments.length, flows_total: flows.filter(f => !f.attributes?.archived).length, flows_live: live.length,
-    live_flows: live.map(f => f.attributes?.name), biggest_lists: lists.map(x => ({ name: x.attributes?.name, profiles: x.attributes?.profile_count ?? null })).sort((a, b) => (b.profiles || 0) - (a.profiles || 0)).slice(0, 5),
-    biggest_segments: segments.map(x => ({ name: x.attributes?.name, profiles: x.attributes?.profile_count ?? null })).sort((a, b) => (b.profiles || 0) - (a.profiles || 0)).slice(0, 8),
+    live_flows: live.map(f => f.attributes?.name), biggest_lists: lists.map(x => ({ name: x.attributes?.name, profiles: x.profiles })).sort((a, b) => (b.profiles || 0) - (a.profiles || 0)).slice(0, 5),
+    biggest_segments: segments.map(x => ({ name: x.attributes?.name, profiles: x.profiles })).sort((a, b) => (b.profiles || 0) - (a.profiles || 0)).slice(0, 8),
     how_to_read: `Connected as ${doc.company || 'the account'} (verified ${String(doc.verified_at || '').slice(0, 10)}, key age ${ago(doc.verified_at) ?? '?'} days). Ask for what=lists, segments, flows, campaigns or metrics for the full lists.` };
 }
 async function placedOrderMetric(k) {
