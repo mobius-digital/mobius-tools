@@ -49,6 +49,9 @@ const DEFAULTS = {
   model: 'claude-haiku-4-5-20251001',
   strongModel: 'claude-sonnet-5',
   briefingModel: 'claude-sonnet-5',
+  /* The deep tier (Opus) for judgement; an app sets deepWhen to switch it on (see pickModel). */
+  deepModel: 'claude-opus-5-5',
+  deepWhen: null,
   strongWhen: /\b(draft|write|compose|create|make|generate|build|plan|forecast|project|research|angles?|hooks?|rewrite|brief|analy[sz]e|compare|strategy|recommend|should (we|i)|what if)\b/i,
   maxRounds: 5,
   maxRows: 60,
@@ -458,20 +461,28 @@ export function createAssistant(config) {
 
   /* ---------------- the model ---------------- */
 
-  /* A question goes to the cheap model; drafting, planning and creative work
-   * go to the strong one. Decided once per conversation turn from the words
-   * of the question, so a lookup never pays for a writer. */
-  const pickModel = q => (C.strongWhen && C.strongWhen.test(String(q || ''))) ? C.strongModel : C.model;
+  /* THREE TIERS, picked automatically from the words of the question, never asked (Cole,
+   * 2026-10-07: "it needs to know when it uses what"). A lookup goes to the cheap model; drafting,
+   * planning and creative work to the strong one; judgement (a review, an audit, a strategy, a
+   * recommendation, gaps, a custom report, "why") to the deep one. "quick" in the question forces
+   * the cheap model, "deep" / "think hard" forces the deep one. Decided once per turn. */
+  const pickModel = q => {
+    const s = String(q || '');
+    if (/\bquick(ly)?\b/i.test(s)) return C.model;
+    if (C.deepModel && (/\b(deep|think (hard|harder|carefully)|thorough)\b/i.test(s) || (C.deepWhen && C.deepWhen.test(s)))) return C.deepModel;
+    return (C.strongWhen && C.strongWhen.test(s)) ? C.strongModel : C.model;
+  };
 
   async function callClaude(env, system, messages, tools, model = C.model) {
     const strong = model !== C.model;
+    const deep = !!C.deepModel && model === C.deepModel;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       /* Top-level cache_control caches the conversation so far: every round of
        * the tool loop re-sends it, and each round now reads it back at a tenth
        * of the price instead of paying for it again. */
-      body: JSON.stringify({ model, max_tokens: strong ? 4000 : 1200, system, messages, ...(tools ? { tools } : {}), cache_control: { type: 'ephemeral' } }),
+      body: JSON.stringify({ model, max_tokens: deep ? 8000 : strong ? 4000 : 1200, system, messages, ...(tools ? { tools } : {}), cache_control: { type: 'ephemeral' } }),
     });
     const body = typeof r.text === 'function' ? await r.text().catch(() => '') : JSON.stringify(await r.json().catch(() => ({})));
     let j; try { j = JSON.parse(body); } catch { j = {}; }

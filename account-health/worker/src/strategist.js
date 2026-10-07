@@ -1167,6 +1167,10 @@ export function buildStrategist(d) {
     threadTurns: 30, threadMsgChars: 2500, threadTotalChars: 24000,
     /* Money questions a strategist asks get the stronger model too, not only "draft" and "plan". */
     strongWhen: /\b(draft|write|compose|create|make|generate|build|plan|forecast|project|research|angles?|hooks?|rewrite|brief|analy[sz]e|compare|strategy|recommend|should (we|i)|what if|why|aov|ltv|cac|payback|cohort|retention|repeat|journey|scale|cut|pause)\b/i,
+    /* Judgement goes to Opus 5.5 (engine pickModel): reviewing a brief or a batch, an audit, a
+       strategy, a recommendation, gaps, a diagnosis, a custom report or dashboard. Lookups stay
+       on Haiku, drafting on Sonnet. About $0.10 to $0.30 a deep answer. */
+    deepWhen: /\b(review|audit|critique|grade|judge|strateg(y|ic)|recommend(ation)?s?|gaps?|diagnos(e|is)|what should (we|i)|what would you|is this (good|right|strong)|custom (report|dashboard)|dashboard|retention plan|why (is|are|did|does)|root cause|scenario)\b/i,
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],
     brief: DEFAULT_BRIEF,
