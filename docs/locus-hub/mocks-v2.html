@@ -1,0 +1,432 @@
+<title>Locus v2 Mocks</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Locus v2: graphite shell, one accent for chrome, semantic colours for state only, fixed channel sequence.
+   Dark first (the default the research argues for), true light theme under data-theme="light" or a light OS. */
+:root{
+  --g1:#131316; --g2:#1A1A1E; --g3:#212126; --g4:#28282E; --g5:#303038; --g6:#3A3A43; --g7:#4A4A55; --g8:#5E5E6A; --g9:#7B7B88; --g10:#8E8E9A; --g11:#B4B4BE; --g12:#F2F2F4;
+  --bg:var(--g1); --rail:#0F0F12; --card:var(--g2); --card-hi:var(--g3); --line:var(--g5); --line-strong:var(--g6);
+  --ink:var(--g12); --ink-2:var(--g11); --muted:var(--g10); --faint:var(--g8);
+  --accent:#8FB3FF; --accent-ink:#0E1420; --accent-soft:rgba(143,179,255,.14);
+  --good:#5FD292; --warn:#EBBF63; --bad:#F09182; --info:#8FB3FF;
+  --good-bg:rgba(95,210,146,.14); --warn-bg:rgba(235,191,99,.14); --bad-bg:rgba(240,145,130,.14);
+  --c-meta:#5B8DEF; --c-google:#B5761A; --c-tiktok:#27A392; --c-email:#8F72E8; --c-amazon:#E3653D; --c-else:#2F93C2;
+  --cmp:#6A6A76; --grid:#2C2C33;
+  --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  --r:10px; color-scheme:dark;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  --g1:#F6F6F7; --g2:#FFFFFF; --g3:#F3F3F5; --g4:#ECECEF; --g5:#E2E2E7; --g6:#D5D5DC; --g7:#C2C2CB; --g8:#9A9AA6; --g9:#7D7D8A; --g10:#6B6B78; --g11:#45454F; --g12:#151518;
+  --bg:var(--g1); --rail:#EDEDF0; --card:var(--g2); --card-hi:var(--g3); --line:var(--g5); --line-strong:var(--g6);
+  --ink:var(--g12); --ink-2:var(--g11); --muted:var(--g10); --faint:var(--g8);
+  --accent:#2F62D9; --accent-ink:#FFFFFF; --accent-soft:rgba(47,98,217,.12);
+  --good:#1C7A46; --warn:#8F6412; --bad:#9C3A2E; --info:#2F62D9;
+  --good-bg:#E4F2E9; --warn-bg:#F8EED6; --bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9; --c-google:#B87A14; --c-tiktok:#1E9C8C; --c-email:#7C5CE6; --c-amazon:#D95A33; --c-else:#2A86B3;
+  --cmp:#A3A3AE; --grid:#E6E6EB; color-scheme:light } }
+:root[data-theme="light"]{
+  --g1:#F6F6F7; --g2:#FFFFFF; --g3:#F3F3F5; --g4:#ECECEF; --g5:#E2E2E7; --g6:#D5D5DC; --g7:#C2C2CB; --g8:#9A9AA6; --g9:#7D7D8A; --g10:#6B6B78; --g11:#45454F; --g12:#151518;
+  --bg:var(--g1); --rail:#EDEDF0; --card:var(--g2); --card-hi:var(--g3); --line:var(--g5); --line-strong:var(--g6);
+  --ink:var(--g12); --ink-2:var(--g11); --muted:var(--g10); --faint:var(--g8);
+  --accent:#2F62D9; --accent-ink:#FFFFFF; --accent-soft:rgba(47,98,217,.12);
+  --good:#1C7A46; --warn:#8F6412; --bad:#9C3A2E; --info:#2F62D9;
+  --good-bg:#E4F2E9; --warn-bg:#F8EED6; --bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9; --c-google:#B87A14; --c-tiktok:#1E9C8C; --c-email:#7C5CE6; --c-amazon:#D95A33; --c-else:#2A86B3;
+  --cmp:#A3A3AE; --grid:#E6E6EB; color-scheme:light }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.4;font-feature-settings:"tnum" 1,"lnum" 1;-webkit-font-smoothing:antialiased;padding-inline:16px;padding-block:20px 48px}
+.note{max-width:1400px;margin:0 auto 14px;color:var(--muted);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.note b{color:var(--ink)}
+.note button{font:inherit;font-weight:600;font-size:12px;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:5px 10px;border-radius:8px;cursor:pointer}
+.note button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.frame{max-width:1400px;margin:0 auto;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg);display:grid;grid-template-columns:220px minmax(0,1fr)}
+@media (max-width:860px){.frame{grid-template-columns:1fr}.rail{display:none}}
+/* rail */
+.rail{background:var(--rail);border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:14px;min-height:100%}
+.rail .brand{display:flex;align-items:center;gap:9px;padding:4px 8px 12px;border-bottom:1px solid var(--line)}
+.rail .brand i{width:22px;height:22px;border-radius:6px;background:var(--accent);display:inline-block}
+.rail .brand b{font-size:15px;font-weight:600}
+.rail .brand small{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.rail .pick{padding:7px 9px;border:1px solid var(--line-strong);border-radius:8px;background:var(--card);display:flex;justify-content:space-between;font-weight:600}
+.rail .pick span{color:var(--muted);font-weight:400}
+.grp{display:grid;gap:1px}
+.grp h6{margin:8px 8px 4px;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.grp a{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;color:var(--ink-2);text-decoration:none;font-weight:500}
+.grp a.on{background:var(--accent-soft);color:var(--ink)}
+.grp a.sub{padding-left:26px;color:var(--muted);font-weight:400}
+.grp a.sub.on{color:var(--ink)}
+.grp a i{width:7px;height:7px;border-radius:2px;background:var(--faint);display:inline-block}
+.grp a.on i{background:var(--accent)}
+.rail .foot{margin-top:auto;display:grid;gap:6px;color:var(--muted);font-size:12px;padding:10px 8px 0;border-top:1px solid var(--line)}
+.rail .foot kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line-strong);border-radius:4px;padding:0 5px;color:var(--ink-2)}
+/* content */
+.content{min-width:0}
+.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 20px;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar .crumb{font-size:12.5px;color:var(--muted);margin-right:auto}
+.bar .crumb b{color:var(--ink);font-weight:600}
+.ctl{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--card);font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.ctl b{color:var(--ink);font-weight:600}
+.ctl.model{border-color:var(--accent);background:var(--accent-soft)}
+.ctl select{font:inherit;font-weight:600;color:var(--ink);background:transparent;border:0;padding:0}
+.main{padding:18px 20px 28px;display:grid;gap:18px}
+h2{font-size:13px;font-weight:600;margin:0;letter-spacing:0}
+.sec-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sec-h .find{font-size:13.5px;color:var(--ink);font-weight:500}
+.sec-h .cap{font-size:12px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+/* insight strip */
+.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:1000px){.strip{grid-template-columns:1fr}}
+.ins{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+.ins i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.ins .t{font-size:12.5px;line-height:1.35}
+.ins .t b{display:block;font-weight:600}
+.ins a{font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap}
+.read{font-size:14px;color:var(--ink-2);max-width:92ch}
+.read b{color:var(--ink);font-weight:600}
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
+.tile{grid-column:span 2;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;grid-template-rows:auto auto auto 1fr;gap:6px;min-height:128px;cursor:pointer;transition:border-color .12s}
+.tile:hover{border-color:var(--g7)}
+.tile.hero{grid-column:span 4;grid-row:span 1}
+.tile.c{min-height:0;grid-template-rows:auto auto;grid-column:span 3}
+@media (max-width:1200px){.tile{grid-column:span 3}.tile.hero{grid-column:span 6}}
+@media (max-width:760px){.tile,.tile.hero{grid-column:span 6}}
+.tile .l{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.tile .l em{font-style:normal;color:var(--faint);font-size:11px}
+.tile .v{font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.05;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tile.hero .v{font-size:40px;font-weight:700;letter-spacing:-.025em}
+.d{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 7px;border-radius:99px;letter-spacing:0}
+.d.up{color:var(--good);background:var(--good-bg)} .d.down{color:var(--bad);background:var(--bad-bg)} .d.flat{color:var(--muted);background:var(--g4)}
+.tile .sub{font-size:12px;color:var(--muted)}
+.spark{height:34px;width:100%;display:block}
+.bullet{display:grid;gap:4px;margin-top:4px}
+.bullet .trk{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--g5) 0 60%,var(--g4) 60% 85%,var(--g3) 85% 100%)}
+.bullet .trk i{position:absolute;left:0;top:2px;height:4px;border-radius:2px;background:var(--ink)}
+.bullet .trk i.pace{background:repeating-linear-gradient(90deg,var(--muted) 0 3px,transparent 3px 6px);opacity:.8}
+.bullet .trk b{position:absolute;top:-3px;width:2px;height:14px;background:var(--accent)}
+.bullet .lb{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+/* charts */
+.chart{position:relative}
+.chart svg{width:100%;height:auto;display:block}
+.lg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);align-items:center}
+.lg i{width:10px;height:3px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:5px}
+.lg i.dash{background:repeating-linear-gradient(90deg,var(--cmp) 0 3px,transparent 3px 5px)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;font-weight:500;padding:3px 9px;border-radius:99px;border:1px solid var(--line-strong);color:var(--ink-2);background:var(--card)}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tip{position:absolute;pointer-events:none;background:var(--g12);color:var(--g1);font-size:12px;padding:6px 9px;border-radius:7px;white-space:nowrap;display:none;z-index:3}
+:root[data-theme="light"] .tip{background:#151518;color:#fff}
+/* two-column */
+.two{display:grid;grid-template-columns:7fr 5fr;gap:12px}
+@media (max-width:1100px){.two{grid-template-columns:1fr}}
+/* tables */
+.tbl{overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left;padding-left:0}
+td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tr.tot td{font-weight:600;border-top:1px solid var(--line-strong)}
+tr.sub td{color:var(--ink-2);font-size:12.5px}
+tr.sub td:first-child{padding-left:22px}
+.sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:8px;vertical-align:0}
+.ib{position:relative;display:inline-block;min-width:110px;height:16px;vertical-align:middle}
+.ib i{position:absolute;left:0;top:4px;height:8px;border-radius:2px;background:var(--g7)}
+.ib span{position:relative;font-size:12.5px}
+.ghost{color:var(--faint)}
+.gap{font-size:12px}
+.gap.pos{color:var(--good)} .gap.neg{color:var(--bad)}
+.ex{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.ex svg{width:12px;height:12px;stroke:var(--muted);fill:none;stroke-width:2;transition:transform .15s}
+.ex.open svg{transform:rotate(90deg)}
+/* funnel */
+.funnel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+@media (max-width:760px){.funnel{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.fs{padding:8px 14px 8px 0;border-right:1px solid var(--line);margin-right:14px}
+.fs:last-child{border-right:0}
+.fs .l{font-size:12px;color:var(--muted)} .fs .v{font-size:22px;font-weight:600;letter-spacing:-.02em;margin:2px 0}
+.fs .r{font-size:12px;color:var(--ink-2)} .fs .r b{font-weight:600}
+.fs .bar2{height:6px;border-radius:3px;background:var(--g4);margin-top:8px;overflow:hidden} .fs .bar2 i{display:block;height:100%;background:var(--accent)}
+/* creative */
+.cre{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.cre{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cc{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--card)}
+.cc .th{aspect-ratio:4/5;max-width:100%;background:linear-gradient(160deg,var(--g4),var(--g2));position:relative}
+.cc .th span{position:absolute;left:8px;top:8px}
+.cc .th em{position:absolute;right:8px;bottom:8px;font-style:normal;font-size:11px;color:var(--muted);background:var(--card);padding:1px 6px;border-radius:99px}
+.cc .b{padding:10px 12px;display:grid;gap:4px}
+.cc .b b{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc .kv{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;font-size:12px;color:var(--muted)}
+.cc .kv span{color:var(--ink);text-align:right}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px}
+.tag.good{background:var(--good-bg);color:var(--good)} .tag.warn{background:var(--warn-bg);color:var(--warn)} .tag.bad{background:var(--bad-bg);color:var(--bad)} .tag.n{background:var(--g4);color:var(--ink-2)}
+.leaks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.leaks{grid-template-columns:1fr}}
+.leak{padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);display:grid;gap:4px;font-size:12.5px;box-shadow:inset 3px 0 0 var(--bad)}
+.leak b{font-size:13px;font-weight:600}
+.leak .w{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.leak.amber{box-shadow:inset 3px 0 0 var(--warn)}
+.foot{font-size:12px;color:var(--muted);line-height:1.5}
+.panel{display:none}
+.panel.on{display:grid;gap:18px}
+</style>
+
+<div class="note">
+  <b>Locus v2 mocks</b>
+  <span>Two screens in the proposed system. Switch:</span>
+  <button class="on" data-s="home">Home · Lucky Golf</button>
+  <button data-s="meta">Paid › Meta</button>
+  <span style="margin-left:auto">Theme</span>
+  <button data-t="dark" class="on">Dark</button><button data-t="light">Light</button>
+</div>
+
+<div class="frame">
+  <aside class="rail">
+    <div class="brand"><i></i><div><b>Locus</b><small>Mobius Digital</small></div></div>
+    <div class="pick">Lucky Golf <span>▾</span></div>
+    <nav class="grp"><h6>Home</h6><a id="r-home" class="on"><i></i>Overview</a></nav>
+    <nav class="grp"><h6>Paid</h6><a id="r-meta"><i></i>Meta</a><a class="sub" id="r-meta-ov">Overview</a><a class="sub">Campaigns</a><a class="sub">Creative</a><a class="sub">Tests</a><a class="sub">Changes</a><a><i></i>Google</a><a><i></i>TikTok</a><a><i></i>All channels</a></nav>
+    <nav class="grp"><h6>Email</h6><a><i></i>Klaviyo</a></nav>
+    <nav class="grp"><h6>Store</h6><a><i></i>Sales</a><a><i></i>Customers</a></nav>
+    <nav class="grp"><h6>Money</h6><a><i></i>P&amp;L</a><a><i></i>Plan</a></nav>
+    <nav class="grp"><h6>Creative</h6><a><i></i>Tests and angles</a><a><i></i>Studio</a><a><i></i>Brand</a></nav>
+    <nav class="grp"><h6>Reports</h6><a><i></i>Daily Brief</a><a><i></i>Weekly and monthly</a><a><i></i>Dashboards</a></nav>
+    <div class="foot"><span><kbd>⌘K</kbd> Ask or jump</span><span>Settings</span></div>
+  </aside>
+
+  <div class="content">
+    <div class="bar">
+      <span class="crumb" id="crumb">Home › <b>Overview</b></span>
+      <span class="ctl">Range <b>Last 30 days</b> <span style="color:var(--muted)">Sep 7 – Oct 6</span></span>
+      <span class="ctl">Compare <b>Period before</b></span>
+      <span class="ctl model">Attribution <select id="model"><option value="tw">Triple Whale · last platform click</option><option value="plat">Platform reported</option><option value="fc">Triple Whale · first click</option><option value="lin">Triple Whale · linear</option></select> <b>· 28d</b></span>
+      <span class="ctl">Strategist ▸</span>
+    </div>
+
+    <!-- ================= HOME ================= -->
+    <div class="main panel on" id="p-home">
+      <div class="strip">
+        <div class="ins"><i style="background:var(--bad)"></i><div class="t"><b>Revenue down 33% against the period before</b>First orders fell 38%; returning held. The miss is acquisition, not retention.</div><a>See why ›</a></div>
+        <div class="ins"><i style="background:var(--warn)"></i><div class="t"><b>Cost per new customer up 7% to $104</b>Meta CPA rose while spend fell. Four ads over 10 days old carry 61% of spend.</div><a>Creative ›</a></div>
+        <div class="ins"><i style="background:var(--good)"></i><div class="t"><b>Email held at 30% of revenue</b>Flows did the work: $9.1K of the $14.4K. Campaign cadence was two a week.</div><a>Klaviyo ›</a></div>
+      </div>
+      <p class="read">Lucky took <b>$48.2K</b> on <b>$24.0K</b> of ad spend, a <b>2.01x MER</b>, with <b>73%</b> of revenue from first orders. The month is running <b>45% behind plan</b>; at the current pace it lands near $62K against $112K agreed. Today: the fatigued Meta creative and the paused Google Shopping group.</p>
+
+      <div class="tiles">
+        <div class="tile hero"><div class="l">Revenue <em>Shopify total sales minus tax</em></div>
+          <div class="v">$48,207 <span class="d down">▼ 33%</span></div>
+          <div class="sub">vs $71,900 the period before · 318 orders · AOV $151.64</div>
+          <svg class="spark" id="sp-rev" viewBox="0 0 300 34" preserveAspectRatio="none"></svg>
+          <div class="bullet"><div class="trk"><i style="width:43%"></i><i class="pace" style="left:43%;width:12%"></i><b style="left:78%"></b></div><div class="lb"><span>$48.2K so far · pace to $62K</span><span>Plan $112K by now: $86.6K</span></div></div>
+        </div>
+        <div class="tile"><div class="l">MER <em>revenue ÷ all ad spend</em></div><div class="v">2.01x <span class="d down">▼ 9%</span></div><div class="sub">2.21x before · goal 2.5x</div><svg class="spark" id="sp-mer" viewBox="0 0 300 34" preserveAspectRatio="none"></svg></div>
+        <div class="tile"><div class="l">Cost per new customer</div><div class="v">$104 <span class="d down">▲ 7%</span></div><div class="sub">$24.0K ÷ 230 first orders · goal $85</div><svg class="spark" id="sp-cac" viewBox="0 0 300 34" preserveAspectRatio="none"></svg></div>
+        <div class="tile"><div class="l">New customer revenue</div><div class="v">73% <span class="d flat">▼ 2 pts</span></div><div class="sub">$35.2K new · $13.1K returning</div><svg class="spark" id="sp-new" viewBox="0 0 300 34" preserveAspectRatio="none"></svg></div>
+        <div class="tile"><div class="l">Contribution margin <em>after every variable cost</em></div><div class="v">$9.8K <span class="d down">▼ 41%</span></div><div class="sub">20% of revenue · 31% gross margin</div><svg class="spark" id="sp-cm" viewBox="0 0 300 34" preserveAspectRatio="none"></svg></div>
+      </div>
+
+      <div class="two">
+        <div class="card chart">
+          <div class="sec-h"><h2>Revenue by day</h2><span class="find">Two weak weeks from Sep 14, then a recovery that has not reached the plan line.</span></div>
+          <div class="lg" style="margin:8px 0 6px"><span><i style="background:var(--accent)"></i>This period</span><span><i class="dash"></i>Period before</span><span><i style="background:var(--warn)"></i>Plan per day</span><span style="margin-left:auto" class="chips"><span class="chip on">Revenue</span><span class="chip">Orders</span><span class="chip">MER</span><span class="chip">New share</span></span></div>
+          <svg id="ch-rev" viewBox="0 0 760 240"></svg><div class="tip" id="tip-rev"></div>
+        </div>
+        <div class="card">
+          <div class="sec-h"><h2>Site funnel</h2><span class="cap">Triple Whale pixel, this period vs before</span></div>
+          <div class="funnel" style="margin-top:12px;grid-template-columns:repeat(2,minmax(0,1fr))">
+            <div class="fs"><div class="l">Sessions</div><div class="v">61,400</div><div class="r"><b>$0.39</b> cost per session <span class="d down" style="margin-left:6px">▲ 12%</span></div><div class="bar2"><i style="width:100%"></i></div></div>
+            <div class="fs"><div class="l">Add to cart</div><div class="v">2,180</div><div class="r"><b>3.6%</b> of sessions · $11.0 each</div><div class="bar2"><i style="width:36%"></i></div></div>
+            <div class="fs"><div class="l">Checkout started</div><div class="v">904</div><div class="r"><b>41%</b> of carts</div><div class="bar2"><i style="width:15%"></i></div></div>
+            <div class="fs"><div class="l">Orders</div><div class="v">318</div><div class="r"><b>0.52%</b> conversion <span class="d down" style="margin-left:6px">▼ 0.1 pt</span></div><div class="bar2"><i style="width:5%"></i></div></div>
+          </div>
+          <p class="foot" style="margin:12px 0 0">Conversion rate fell from 0.62% to 0.52%. Sessions held, so the leak is on site, not in traffic.</p>
+        </div>
+      </div>
+
+      <div class="card tbl">
+        <div class="sec-h"><h2>Where revenue came from</h2><span class="find" id="ch-find">Meta buys 63% of the credited revenue at 1.62x; Google is the efficient dollar at 3.1x on a fifth of the spend.</span><span class="cap" style="margin-left:auto">Attribution: <b id="model-cap">Triple Whale · last platform click · 28d</b></span></div>
+        <svg id="ch-stack" viewBox="0 0 1000 110" style="margin:10px 0 2px"></svg>
+        <table id="t-ch">
+          <thead><tr><th>Channel</th><th>Spend</th><th id="h-rev">Revenue</th><th>Platform reported</th><th>Gap</th><th>Share</th><th>ROAS</th><th>New cust. orders</th><th>CPA</th><th>vs before</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="foot" style="margin:10px 0 0">Spend is each platform's own. Revenue follows the attribution switch in the top bar; the platform's own figure stays beside it and Gap is the difference. Click models let two platforms claim one order, so channels add to more than revenue; that is why MER exists.</p>
+      </div>
+
+      <div>
+        <div class="sec-h" style="margin-bottom:10px"><h2>Where it leaks</h2><span class="cap">ranked by dollars at stake</span></div>
+        <div class="leaks">
+          <div class="leak"><span class="w">Meta creative</span><b>$6.1K of spend on four ads past day 10</b><span>CPA on them $131 against $94 on the fresh set. Rotate before Friday.</span></div>
+          <div class="leak"><span class="w">Google Shopping</span><b>Product group paused since Sep 22</b><span>It had bought 41 orders at $48. Nothing replaced it.</span></div>
+          <div class="leak amber"><span class="w">Site</span><b>Conversion rate down 0.1 pt</b><span>Carts held; checkouts fell. The numbers do not say why. Check the shipping threshold.</span></div>
+        </div>
+      </div>
+      <p class="foot">Revenue, orders, AOV, first and returning orders, email, CAC and the compare deltas are Lucky Golf's live 30-day numbers. Spend by channel, funnel steps, contribution margin, plan and the creative figures are example values standing in for the stored data until the screen is built.</p>
+    </div>
+
+    <!-- ================= META ================= -->
+    <div class="main panel" id="p-meta">
+      <p class="read"><b>Spend is under plan and the cost per purchase is over goal.</b> $19.6K spent of $22.4K planned. 186 purchases at $105 against an $85 goal; ROAS 1.62x against 2.5x. The gap sits in one campaign and four ads.</p>
+      <div class="tiles" style="--span:3">
+        <div class="tile c"><div class="l">Spend <em>Meta</em></div><div class="v">$19,620 <span class="d flat">▼ 12%</span></div><div class="sub">$654 a day · budget $747</div></div>
+        <div class="tile c"><div class="l">Purchases <em id="m-src">TW last click</em></div><div class="v" id="m-pur">186 <span class="d down">▼ 31%</span></div><div class="sub" id="m-pur-g">Meta reports 213</div></div>
+        <div class="tile c"><div class="l">Revenue</div><div class="v" id="m-rev">$31,800 <span class="d down">▼ 36%</span></div><div class="sub" id="m-rev-g">Meta reports $37,900</div></div>
+        <div class="tile c"><div class="l">ROAS</div><div class="v" id="m-roas">1.62x <span class="d down">▼ 27%</span></div><div class="sub">goal 2.5x</div></div>
+        <div class="tile c"><div class="l">Cost per purchase</div><div class="v" id="m-cpa">$105 <span class="d down">▲ 28%</span></div><div class="sub">goal $85</div></div>
+        <div class="tile c"><div class="l">CPM</div><div class="v">$19.40 <span class="d down">▲ 9%</span></div><div class="sub">1.01M impressions</div></div>
+        <div class="tile c"><div class="l">CTR <em>link clicks</em></div><div class="v">1.84% <span class="d down">▼ 0.2 pt</span></div><div class="sub">18,600 link clicks · $1.05 each</div></div>
+        <div class="tile c"><div class="l">Frequency</div><div class="v">3.1 <span class="d down">▲ 0.6</span></div><div class="sub">reach 326K · fatigue line 3.0</div></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h"><h2>Funnel</h2><span class="find">The break is between click and cart: cost per add to cart rose 24%; the rest of the funnel held.</span></div>
+        <div class="funnel" style="margin-top:12px">
+          <div class="fs"><div class="l">Impressions</div><div class="v">1.01M</div><div class="r">$19.40 CPM</div><div class="bar2"><i style="width:100%"></i></div></div>
+          <div class="fs"><div class="l">Link clicks</div><div class="v">18,600</div><div class="r"><b>1.84%</b> CTR · $1.05 each</div><div class="bar2"><i style="width:40%"></i></div></div>
+          <div class="fs"><div class="l">Add to cart</div><div class="v">1,290</div><div class="r"><b>6.9%</b> of clicks · <b>$15.2</b> each <span class="d down" style="margin-left:6px">▲ 24%</span></div><div class="bar2"><i style="width:14%"></i></div></div>
+          <div class="fs"><div class="l">Purchases</div><div class="v">186</div><div class="r"><b>14.4%</b> of carts · $105 each</div><div class="bar2"><i style="width:4%"></i></div></div>
+        </div>
+      </div>
+
+      <div class="card tbl chart">
+        <div class="sec-h"><h2>Spend by campaign, by day</h2><span class="find">Sales held its share; the Muni launch doubled from Sep 24 and is where the CPA moved.</span></div>
+        <div class="lg" style="margin:8px 0 6px"><span><i style="background:var(--c-meta)"></i>Sales (always on)</span><span><i style="background:var(--c-google)"></i>Muni launch</span><span><i style="background:var(--c-tiktok)"></i>Retargeting</span><span><i style="background:var(--c-else)"></i>Tests</span></div>
+        <svg id="ch-camp" viewBox="0 0 1000 200"></svg><div class="tip" id="tip-camp"></div>
+        <table id="t-camp" style="margin-top:12px">
+          <thead><tr><th>Campaign</th><th>Spend</th><th>Purchases</th><th>Platform</th><th>Gap</th><th>Revenue</th><th>ROAS</th><th>CPA</th><th>CPM</th><th>CTR</th><th>Freq.</th><th>Hook</th><th>Hold</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="foot" style="margin:10px 0 0">Spend, impressions, clicks, CPM, CTR, frequency, hook and hold are Meta's own. Purchases, revenue, ROAS and CPA follow the attribution switch; Meta's own purchase count stays in the Platform column with the gap beside it. Click a campaign for its ad sets, an ad set for its ads, a purchases cell for the orders behind it.</p>
+      </div>
+
+      <div>
+        <div class="sec-h" style="margin-bottom:10px"><h2>Creative, by spend</h2><span class="cap">Scale / Watch / Cut against the goal CPA · hook = 3s plays ÷ impressions · hold = thruplays ÷ 3s plays</span></div>
+        <div class="cre">
+          <div class="cc"><div class="th"><span class="tag good">Scale</span><em>video</em></div><div class="b"><b>412-3 | Cut it once · demo</b><div class="kv">Spend<span>$3,140</span>CPA<span>$71</span>ROAS<span>2.4x</span>Hook<span>34%</span>Hold<span>22%</span>Age<span>6 d</span></div></div></div>
+          <div class="cc"><div class="th"><span class="tag warn">Watch</span><em>video</em></div><div class="b"><b>409-1 | Four holes in · UGC</b><div class="kv">Spend<span>$2,860</span>CPA<span>$96</span>ROAS<span>1.7x</span>Hook<span>29%</span>Hold<span>18%</span>Age<span>19 d</span></div></div></div>
+          <div class="cc"><div class="th"><span class="tag bad">Cut</span><em>static</em></div><div class="b"><b>397-2 | Tour quality · still</b><div class="kv">Spend<span>$2,210</span>CPA<span>$148</span>ROAS<span>0.9x</span>Hook<span>—</span>Hold<span>—</span>Age<span>31 d</span></div></div></div>
+          <div class="cc"><div class="th"><span class="tag bad">Cut</span><em>video</em></div><div class="b"><b>388-4 | Gold hits different</b><div class="kv">Spend<span>$1,980</span>CPA<span>$131</span>ROAS<span>1.1x</span>Hook<span>21%</span>Hold<span>12%</span>Age<span>27 d</span></div></div></div>
+        </div>
+      </div>
+      <p class="foot">Every figure on this screen is an example standing in for the stored Meta rows (spend, impressions, clicks, CPM, CTR, frequency, hook, hold, add to cart per ad per day) and the Triple Whale attribution rows (purchases and revenue per ad per model). Campaign and ad set names need the sync named in the spec.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  if (!document.documentElement.getAttribute('data-theme')) document.documentElement.setAttribute('data-theme', 'dark');
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  /* theme + screen switches */
+  document.querySelectorAll('.note [data-t]').forEach(b => b.onclick = () => { document.documentElement.setAttribute('data-theme', b.dataset.t); document.querySelectorAll('.note [data-t]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
+  const showScreen = s => { document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === 'p-' + s)); document.querySelectorAll('.note [data-s]').forEach(x => x.classList.toggle('on', x.dataset.s === s));
+    $('#crumb').innerHTML = s === 'home' ? 'Home › <b>Overview</b>' : 'Paid › Meta › <b>Overview</b>';
+    $('#r-home').classList.toggle('on', s === 'home'); $('#r-meta').classList.toggle('on', s === 'meta'); $('#r-meta-ov').classList.toggle('on', s === 'meta'); draw(); };
+  document.querySelectorAll('.note [data-s]').forEach(b => b.onclick = () => showScreen(b.dataset.s));
+  $('#r-home').onclick = () => showScreen('home'); $('#r-meta').onclick = () => showScreen('meta'); $('#r-meta-ov').onclick = () => showScreen('meta');
+
+  /* data: 30 days, seeded so it is stable. Revenue totals 48,207 (live); shape is example. */
+  const N = 30; let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const days = Array.from({ length: N }, (_, i) => { const d = new Date(2026, 8, 7 + i); return `${d.getMonth() + 1}/${d.getDate()}`; });
+  const shape = Array.from({ length: N }, (_, i) => 0.7 + 0.5 * rnd() + (i > 6 && i < 20 ? -0.25 : 0) + (i > 22 ? 0.15 : 0));
+  const sum = a => a.reduce((t, v) => t + v, 0);
+  const rev = shape.map(v => v / sum(shape) * 48207);
+  const prev = shape.map((v, i) => (v * (0.9 + 0.3 * rnd())) / sum(shape) * 71900);
+  const plan = 112000 / 31;
+  const spark = (id, vals, ghost) => { const el = $(id); if (!el) return; const w = 300, h = 34, all = vals.concat(ghost || []); const mx = Math.max(...all), mn = Math.min(...all), r = mx - mn || 1;
+    const pt = a => a.map((v, i) => `${(i / (a.length - 1) * (w - 6) + 3).toFixed(1)},${(h - 4 - (v - mn) / r * (h - 10)).toFixed(1)}`).join(' ');
+    el.innerHTML = `${ghost ? `<polyline points="${pt(ghost)}" fill="none" stroke="${css('--cmp')}" stroke-width="1.2" stroke-dasharray="3 3"/>` : ''}<polyline points="${pt(vals)}" fill="none" stroke="${css('--accent')}" stroke-width="1.8" stroke-linejoin="round"/><circle cx="${w - 3}" cy="${(h - 4 - (vals[vals.length - 1] - mn) / r * (h - 10)).toFixed(1)}" r="2.6" fill="${css('--accent')}"/>`; };
+  const mer = rev.map((v, i) => v / (800 * (0.8 + 0.4 * rnd()))), cac = rev.map((v, i) => 90 + 30 * rnd()), nsh = rev.map(() => 0.68 + 0.1 * rnd()), cm = rev.map(v => v * (0.1 + 0.2 * rnd()));
+
+  /* main line chart */
+  function lineChart() {
+    const el = $('#ch-rev'); if (!el) return; const w = 760, h = 240, pl = 44, pr = 12, pt = 14, pb = 26;
+    const mx = Math.max(...rev, ...prev, plan) * 1.1; const x = i => pl + i / (N - 1) * (w - pl - pr), y = v => pt + (1 - v / mx) * (h - pt - pb);
+    const line = a => a.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${y(mx * f).toFixed(1)}" y2="${y(mx * f).toFixed(1)}" stroke="${css('--grid')}" stroke-width="1"/><text x="${pl - 6}" y="${(y(mx * f) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="${css('--muted')}">$${(mx * f / 1000).toFixed(1)}K</text>`).join('');
+    const ticks = [0, 7, 14, 21, 29].map(i => `<text x="${x(i).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="${css('--muted')}">${days[i]}</text>`).join('');
+    el.innerHTML = `${grid}${ticks}<line x1="${pl}" x2="${w - pr}" y1="${y(plan).toFixed(1)}" y2="${y(plan).toFixed(1)}" stroke="${css('--warn')}" stroke-width="1.2" stroke-dasharray="2 4"/>
+      <polyline points="${line(prev)}" fill="none" stroke="${css('--cmp')}" stroke-width="1.5" stroke-dasharray="4 4"/>
+      <polyline points="${line(rev)}" fill="none" stroke="${css('--accent')}" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="${x(N - 1).toFixed(1)}" cy="${y(rev[N - 1]).toFixed(1)}" r="3.5" fill="${css('--accent')}"/>
+      <text x="${(x(N - 1) + 6).toFixed(1)}" y="${(y(rev[N - 1]) + 4).toFixed(1)}" font-size="11" fill="${css('--ink')}">$${Math.round(rev[N - 1]).toLocaleString()}</text>
+      <line id="gl" x1="0" x2="0" y1="${pt}" y2="${h - pb}" stroke="${css('--ink')}" stroke-width="1" opacity="0"/>`;
+    const tip = $('#tip-rev'), gl = el.querySelector('#gl');
+    const move = e => { const r = el.getBoundingClientRect(); const i = Math.max(0, Math.min(N - 1, Math.round(((e.clientX - r.left) / r.width * w - pl) / (w - pl - pr) * (N - 1)))); gl.setAttribute('x1', x(i)); gl.setAttribute('x2', x(i)); gl.setAttribute('opacity', '.5');
+      tip.style.display = 'block'; tip.style.left = Math.min(r.width - 230, (e.clientX - r.left) + 12) + 'px'; tip.style.top = (e.clientY - r.top - 50) + 'px'; const d = rev[i] / prev[i] - 1;
+      tip.innerHTML = `<b>${days[i]}</b> · $${Math.round(rev[i]).toLocaleString()} · before $${Math.round(prev[i]).toLocaleString()} · <span style="color:${d >= 0 ? css('--good') : css('--bad')}">${d >= 0 ? '+' : ''}${Math.round(d * 100)}%</span>`; };
+    el.onpointermove = move; el.onpointerdown = move; el.onpointerleave = () => { tip.style.display = 'none'; gl.setAttribute('opacity', '0'); };
+  }
+
+  /* channels: TW vs platform, gap */
+  const CH = [
+    { id: 'meta', n: 'Meta', spend: 19620, tw: 31800, plat: 37900, ord: 186, nc: 141, prev: -0.36, c: '--c-meta' },
+    { id: 'google', n: 'Google', spend: 4380, tw: 13570, plat: 11200, ord: 71, nc: 39, prev: -0.18, c: '--c-google' },
+    { id: 'email', n: 'Email and SMS', spend: null, tw: 14400, plat: 16900, ord: 112, nc: 18, prev: -0.18, c: '--c-email', note: 'Klaviyo placed orders' },
+    { id: 'else', n: 'Everything else', spend: null, tw: 8900, plat: null, ord: 58, nc: 32, prev: -0.44, c: '--c-else', note: 'organic, direct, referral, unattributed' },
+  ];
+  const fmtK = v => v == null ? '—' : '$' + (v >= 1000 ? (v / 1000).toFixed(1) + 'K' : Math.round(v));
+  function channels() {
+    const model = $('#model').value, useTw = model !== 'plat';
+    const scale = { tw: 1, plat: 1, fc: 0.92, lin: 0.86 }[model] || 1;
+    const rows = CH.map(c => ({ ...c, rev: useTw ? c.tw * scale : (c.plat ?? c.tw) }));
+    const total = sum(rows.map(r => r.rev)), mxRev = Math.max(...rows.map(r => r.rev));
+    $('#model-cap').textContent = $('#model').selectedOptions[0].textContent + (useTw ? ' · 28d' : '');
+    $('#h-rev').textContent = useTw ? 'Revenue (TW)' : 'Revenue (platform)';
+    $('#t-ch tbody').innerHTML = rows.map(r => { const gap = r.plat != null && useTw ? r.rev - r.plat : null; return `<tr>
+      <td><span class="sw" style="background:var(${r.c})"></span>${r.n}${r.note ? `<div style="font-size:11px;color:var(--muted)">${r.note}</div>` : ''}</td>
+      <td>${r.spend == null ? '<span class="ghost">no spend</span>' : fmtK(r.spend)}</td>
+      <td><span class="ib"><i style="width:${(r.rev / mxRev * 100).toFixed(0)}%;background:var(${r.c});opacity:.35"></i><span>${fmtK(r.rev)}</span></span></td>
+      <td class="ghost">${r.plat == null ? '—' : fmtK(r.plat)}</td>
+      <td class="gap ${gap == null ? '' : gap >= 0 ? 'pos' : 'neg'}">${gap == null ? '—' : (gap >= 0 ? '+' : '−') + fmtK(Math.abs(gap))}</td>
+      <td>${Math.round(r.rev / 48207 * 100)}%</td>
+      <td>${r.spend ? (r.rev / r.spend).toFixed(2) + 'x' : '—'}</td>
+      <td>${r.nc}</td>
+      <td>${r.spend ? '$' + Math.round(r.spend / r.ord) : '—'}</td>
+      <td><span class="d ${r.prev < -0.015 ? 'down' : r.prev > 0.015 ? 'up' : 'flat'}">${r.prev >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(r.prev * 100))}%</span></td></tr>`; }).join('')
+      + `<tr class="tot"><td>Credited revenue</td><td>${fmtK(sum(CH.map(c => c.spend || 0)))}</td><td>${fmtK(total)}</td><td class="ghost"></td><td></td><td>${Math.round(total / 48207 * 100)}% of $48.2K</td><td>${(sum(rows.filter(r => r.spend).map(r => r.rev)) / sum(CH.map(c => c.spend || 0))).toFixed(2)}x paid</td><td>${sum(rows.map(r => r.nc))}</td><td></td><td></td></tr>`;
+    const st = $('#ch-stack'); let xx = 0; st.innerHTML = rows.map(r => { const wdt = r.rev / total * 1000; const s = `<rect x="${xx}" y="40" width="${Math.max(0, wdt - 3)}" height="22" rx="3" fill="var(${r.c})"/><text x="${xx + 6}" y="30" font-size="11" fill="${css('--muted')}">${r.n} ${Math.round(r.rev / total * 100)}%</text>`; xx += wdt; return s; }).join('') + `<text x="0" y="90" font-size="11" fill="${css('--muted')}">Share of credited revenue, ${useTw ? 'Triple Whale' : 'platform reported'}; the bar changes with the switch, the spend column never does.</text>`;
+    /* meta tiles follow the switch too */
+    const m = rows[0]; $('#m-src').textContent = useTw ? 'TW ' + (model === 'tw' ? 'last click' : model === 'fc' ? 'first click' : 'linear') : 'Meta reported';
+    $('#m-pur').innerHTML = `${Math.round(186 * (useTw ? scale : 213 / 186))} <span class="d down">▼ 31%</span>`; $('#m-pur-g').textContent = useTw ? 'Meta reports 213' : 'Triple Whale last click 186';
+    $('#m-rev').innerHTML = `${fmtK(m.rev).replace('K', ',' + '800').replace('$31,800', '$31,800')} <span class="d down">▼ 36%</span>`; $('#m-rev').firstChild.textContent = '$' + Math.round(m.rev).toLocaleString() + ' '; $('#m-rev-g').textContent = useTw ? 'Meta reports $37,900' : 'Triple Whale last click $31,800';
+    $('#m-roas').innerHTML = `${(m.rev / m.spend).toFixed(2)}x <span class="d down">▼ 27%</span>`; $('#m-cpa').innerHTML = `$${Math.round(m.spend / (186 * (useTw ? scale : 213 / 186)))} <span class="d down">▲ 28%</span>`;
+    $('#ch-find').textContent = useTw ? 'Meta buys 63% of the credited revenue at 1.62x; Google is the efficient dollar at 3.1x on a fifth of the spend.' : 'On the platforms’ own numbers Meta reads 1.93x and Google 2.56x; both overstate against the pixel, Meta by $6.1K.';
+    campaigns(useTw, scale);
+  }
+  $('#model').onchange = channels;
+
+  /* campaigns: stacked by day + table with expand */
+  const CAMPS = [
+    { n: 'Sales (always on)', c: '--c-meta', spend: 10200, tw: 118, plat: 131, rev: 19400, cpm: 18.2, ctr: 1.9, fq: 2.8, hook: 31, hold: 19, sets: [['Broad · 25-55', 6100, 74, 12300, 92], ['Lookalike 1% buyers', 2600, 29, 4700, 118], ['Interests · golf', 1500, 15, 2400, 142]] },
+    { n: 'Muni launch', c: '--c-google', spend: 5300, tw: 38, plat: 46, rev: 6900, cpm: 21.9, ctr: 1.7, fq: 3.6, hook: 27, hold: 15, sets: [['Launch · broad', 3400, 24, 4300, 141], ['Launch · past buyers', 1900, 14, 2600, 136]] },
+    { n: 'Retargeting', c: '--c-tiktok', spend: 2700, tw: 24, plat: 29, rev: 4300, cpm: 24.5, ctr: 2.4, fq: 5.2, hook: 36, hold: 24, sets: [['Site visitors 30d', 1800, 17, 3000, 106], ['Cart abandoners 7d', 900, 7, 1300, 129]] },
+    { n: 'Tests', c: '--c-else', spend: 1420, tw: 6, plat: 7, rev: 1200, cpm: 17.0, ctr: 1.5, fq: 1.4, hook: 24, hold: 13, sets: [['#412 Cut it once', 820, 4, 760, 205], ['#414 The ratchet click', 600, 2, 440, 300]] },
+  ];
+  const open = new Set(['Muni launch']);
+  function campaigns(useTw, scale) {
+    const tb = $('#t-camp tbody'); if (!tb) return; const mx = Math.max(...CAMPS.map(c => c.spend));
+    const row = (c, sub, parent) => { const pur = useTw ? Math.round(c.tw * scale) : c.plat, rev = useTw ? c.rev * scale : c.rev * 1.19, gap = useTw ? pur - c.plat : null;
+      return `<tr class="${sub ? 'sub' : ''}" data-c="${sub ? '' : c.n}"><td>${sub ? '' : `<span class="sw" style="background:var(${c.c})"></span>`}${sub ? c.n : `<span class="ex ${open.has(c.n) ? 'open' : ''}"><svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4"/></svg>${c.n}</span>`}</td>
+      <td><span class="ib"><i style="width:${(c.spend / mx * 100).toFixed(0)}%"></i><span>$${c.spend.toLocaleString()}</span></span></td>
+      <td>${pur}</td><td class="ghost">${c.plat}</td><td class="gap ${gap == null ? '' : gap >= 0 ? 'pos' : 'neg'}">${gap == null ? '—' : (gap >= 0 ? '+' : '') + gap}</td>
+      <td>$${Math.round(rev).toLocaleString()}</td><td>${(rev / c.spend).toFixed(2)}x</td><td>$${Math.round(c.spend / pur)}</td>
+      <td>${sub ? '' : '$' + c.cpm.toFixed(2)}</td><td>${sub ? '' : c.ctr.toFixed(2) + '%'}</td><td>${sub ? '' : c.fq.toFixed(1)}</td><td>${sub ? '' : c.hook + '%'}</td><td>${sub ? '' : c.hold + '%'}</td></tr>`; };
+    tb.innerHTML = CAMPS.map(c => row(c, false) + (open.has(c.n) ? c.sets.map(s => row({ n: s[0], spend: s[1], tw: s[2], plat: Math.round(s[2] * 1.12), rev: s[3] }, true)).join('') : '')).join('')
+      + `<tr class="tot"><td>All campaigns</td><td>$19,620</td><td>${useTw ? Math.round(186 * scale) : 213}</td><td class="ghost">213</td><td></td><td>$${Math.round((useTw ? 31800 * scale : 37900)).toLocaleString()}</td><td>${((useTw ? 31800 * scale : 37900) / 19620).toFixed(2)}x</td><td>$${Math.round(19620 / (useTw ? 186 * scale : 213))}</td><td>$19.40</td><td>1.84%</td><td>3.1</td><td>30%</td><td>18%</td></tr>`;
+    tb.querySelectorAll('tr[data-c]').forEach(tr => { const n = tr.dataset.c; if (!n) return; tr.querySelector('.ex').onclick = () => { open.has(n) ? open.delete(n) : open.add(n); campaigns(useTw, scale); }; });
+    /* stacked bars */
+    const el = $('#ch-camp'); const w = 1000, h = 200, pl = 44, pr = 10, pt = 10, pb = 24; const bw = (w - pl - pr) / N;
+    const dayShares = CAMPS.map(c => c.spend / 19620); const totals = shape.map(v => v / sum(shape) * 19620);
+    const mxd = Math.max(...totals) * 1.15; const y = v => pt + (1 - v / mxd) * (h - pt - pb);
+    let out = [0.5, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${y(mxd * f).toFixed(1)}" y2="${y(mxd * f).toFixed(1)}" stroke="${css('--grid')}"/><text x="${pl - 6}" y="${(y(mxd * f) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="${css('--muted')}">$${Math.round(mxd * f)}</text>`).join('');
+    totals.forEach((t, i) => { let base = 0; CAMPS.forEach((c, k) => { const share = k === 1 ? dayShares[1] * (i > 17 ? 1.7 : 0.4) : dayShares[k]; const v = t * share; const y0 = y(base + v), y1 = y(base); out += `<rect x="${(pl + i * bw + 1).toFixed(1)}" y="${y0.toFixed(1)}" width="${(bw - 3).toFixed(1)}" height="${Math.max(0, y1 - y0 - 1).toFixed(1)}" rx="2" fill="var(${c.c})"><title>${days[i]} · ${c.n} · $${Math.round(v)}</title></rect>`; base += v; }); });
+    out += [0, 7, 14, 21, 29].map(i => `<text x="${(pl + i * bw + bw / 2).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="${css('--muted')}">${days[i]}</text>`).join('');
+    el.innerHTML = out;
+  }
+  function draw() { spark('#sp-rev', rev, prev); spark('#sp-mer', mer); spark('#sp-cac', cac); spark('#sp-new', nsh); spark('#sp-cm', cm); lineChart(); channels(); }
+  draw();
+})();
+</script>
