@@ -9424,8 +9424,11 @@ async function renderSettings() {
     const link = u => /^https?:\/\//.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : esc(u || '');
     const brands = (rep.brands || []).filter(b => S.act === 'all' || b.act_id === S.act);
     const shopBy = Object.fromEntries(((conns && conns.clients) || []).map(c => [c.act_id, c]));
-    const agOff = rep.agency.filter(a => a.state !== 'ok'), brOff = brands.flatMap(b => b.items.filter(i => i.state === 'bad' || i.state === 'warn').map(i => `${b.name}: ${i.name}`));
-    const agencyRows = rep.agency.map(a => `<div class="cn-row" data-k="${esc(a.key)}"><div class="cn-name">${esc(a.name)}</div><div>${pill(a.state)}</div><div class="tiny cn-note">${esc(a.note || '')}</div>${a.state === 'ok' ? '' : `<div class="cn-fix tiny"><b>Fix:</b> ${esc(a.fix)}</div>`}</div>`).join('');
+    /* A connection that serves one brand only (the Lucky creator app) is left out of another brand's view. */
+    const agency = rep.agency.filter(a => !a.only || S.act === 'all' || a.only === S.act);
+    const agOff = agency.filter(a => a.state !== 'ok'), brOff = brands.flatMap(b => b.items.filter(i => i.state === 'bad' || i.state === 'warn').map(i => `${b.name}: ${i.name}`));
+    const agencyRows = agency.map(a => `<div class="cn-row" data-k="${esc(a.key)}"><div class="cn-name">${esc(a.name)}</div><div>${pill(a.state)}</div><div class="tiny cn-note">${a.used_by ? `<b>Used by:</b> ${esc(a.used_by)}. ` : ''}${esc(a.note || '')}</div>${a.state === 'ok' ? '' : `<div class="cn-fix tiny"><b>Fix:</b> ${esc(a.fix)}</div>`}</div>`).join('');
+    const oneName = S.act === 'all' ? null : (S.accounts.find(a => a.act_id === S.act)?.name || 'this brand');
     /* One row per brand, every connection a chip that wraps: twelve columns of pills scrolled
        sideways at 1280, which is the one thing a settings page must not do. */
     const MARK = { ok: '✓', warn: '!', bad: '✕', off: '·' };
@@ -9439,9 +9442,9 @@ async function renderSettings() {
         ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0 0 12px">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0 0 12px">✓<div>Every agency connection is up and no brand is failing.</div></div>`}
         <p class="hint set-why" style="margin:0 0 6px">${esc(rep.how_it_works || '')}</p>
       </div>
-      <div class="card set-card"><h3>Agency-wide (connected once)</h3><p class="hint set-why">Secrets on the worker, or Cole signing in from Locus. Every brand rides on these; when one breaks, every brand feels it.</p>
+      <div class="card set-card"><h3>Mobius's own connections (made once, shared by every brand)</h3><p class="hint set-why">${oneName ? `These are the agency's, not ${esc(oneName)}'s: ` : ''}a secret on the worker, or Cole signing in from Locus. Every brand rides on them; when one breaks, every brand feels it. Clients never see this page.</p>
         <div class="set-body cn-grid">${agencyRows}</div></div>
-      <div class="card set-card"><h3>Per brand (set up at onboarding)</h3><p class="hint set-why">Tap a cell for what it is and where to fix it. New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, the Triple Whale shop and the Shopify install come from the client.</p>
+      <div class="card set-card"><h3>${oneName ? esc(oneName) + "'s own connections" : 'Each brand\'s own connections'} (set up at onboarding)</h3><p class="hint set-why">Tap a chip for what it is and where to fix it. New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, the Triple Whale shop and the Shopify install come from the client; Google Ads and Klaviyo are the client's own connections inside Triple Whale.</p>
         <div class="set-body">${table}</div></div>`;
     host.onclick = e => {
       const cell = e.target.closest('.cn-chip'); if (!cell) return;
@@ -9453,7 +9456,17 @@ async function renderSettings() {
       cell.classList.add('on'); row.hidden = false; row.dataset.k = it.key;
       const sh = it.key === 'shopify' ? shopBy[b.act_id] : null;
       const extra = sh?.install_url && it.state !== 'ok' ? `<div class="tiny" style="margin-top:6px">Install link for the client: ${link(sh.install_url)}</div>` : '';
-      row.innerHTML = `<div class="cn-det"><div><b>${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>Fix:</b> ${esc(it.fix)}</div>`}${extra}</div>`;
+      /* Older brands: the Drive folder and Frame project links are pasted here and saved on the brand. */
+      const paste = (it.key === 'drive' || it.key === 'frame') ? `<div class="row" style="margin:8px 0 0;gap:8px;flex-wrap:wrap"><input type="url" id="cnLink" placeholder="https://..." value="${/^https?:/.test(it.note) ? esc(it.note) : ''}" style="max-width:420px"><button class="btn" id="cnSave">Save link</button><span class="tiny" id="cnMsg"></span></div>` : '';
+      row.innerHTML = `<div class="cn-det"><div><b>${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>Fix:</b> ${esc(it.fix)}</div>`}${extra}${paste}</div>`;
+      const save = row.querySelector('#cnSave');
+      if (save) save.onclick = async () => {
+        const v = row.querySelector('#cnLink').value.trim(), msg = row.querySelector('#cnMsg');
+        save.disabled = true; msg.textContent = 'Saving…';
+        try { await mApi('/api/brand-links', { method: 'PUT', body: JSON.stringify({ act: b.act_id, [it.key]: v }) }); it.state = v ? 'ok' : 'off'; it.note = v || 'No link.'; cell.className = `cn-chip ${it.state} on`; cell.querySelector('.cn-mark').textContent = MARK[it.state]; msg.textContent = 'Saved.'; }
+        catch (err) { msg.textContent = err.message; }
+        save.disabled = false;
+      };
     };
   })();
 

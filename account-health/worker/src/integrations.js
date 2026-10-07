@@ -38,23 +38,26 @@ export async function integrationsReport(env, { brand = null } = {}) {
     atriaStatus(env).catch(() => ({ connected: false })), frameStatus(env).catch(() => ({ connected: false })),
     cfg('openai_key'), cfg('canva_client_id'), cfg('canva_tokens'), setting('lastDiscover'), setting('slackSendWho'),
   ]);
-  const A = (key, name, on, { warn = false, note = '', fix = '', needs = 'once' } = {}) => ({ key, name, needs, state: on ? (warn ? 'warn' : 'ok') : 'off', note, fix });
+  /* used_by says which part of Locus leans on it, so "does Dartee have Stripe?" never comes up: these
+     are Mobius's own, not a brand's. `only` names the one brand a connection serves (the Lucky app). */
+  const A = (key, name, on, { warn = false, note = '', fix = '', used_by = '', only = null } = {}) => ({ key, name, needs: 'once', state: on ? (warn ? 'warn' : 'ok') : 'off', note, fix, used_by, only });
+  const luckyAct = (await first(`SELECT act_id FROM accounts WHERE lower(name) LIKE 'lucky%' AND active = 1 LIMIT 1`))?.act_id || null;
   const agency = [
-    A('meta', 'Meta (ads)', set(env.META_TOKEN), { note: discover?.at ? `Ad accounts last discovered ${discover.at.slice(0, 10)}.` : 'The Mobius Tools system-user token.', fix: 'Set META_TOKEN on the account-health worker (Meta Business > System users > Mobius Tools, with ads_read, business_management, pages_read_engagement).' }),
-    A('tw', 'Triple Whale', set(env.TW_API_KEY), { note: 'One key for every store; each brand names its shop below.', fix: 'Set TW_API_KEY on the account-health worker (Triple Whale > Settings > API keys).' }),
-    A('asana', 'Asana', set(env.ASANA_TOKEN), { warn: set(env.ASANA_TOKEN) && !fields?.workspace, note: fields?.workspace ? 'Locus fields (Angle, Testing, Result...) are on the workspace.' : 'Token set, fields not created yet.', fix: 'Set ASANA_TOKEN (a personal access token of a Mobius admin) on the account-health worker; the fields are created when the first brand connects its project.' }),
-    A('slack', 'Slack (the Mobius Digital app)', set(env.SLACK_BOT_TOKEN), { warn: set(env.SLACK_BOT_TOKEN) && !(set(env.SLACK_SIGNING_SECRET) && set(env.SLACK_USER_TOKEN)), note: [set(env.SLACK_SIGNING_SECRET) ? 'buttons work' : 'buttons dead (no signing secret)', set(env.SLACK_USER_TOKEN) ? `client sends as ${slackWho === 'anyone' ? 'anyone' : 'Cole'}` : 'no user token (client sends fail)'].join('; ') + '.', fix: 'Secrets on the account-health worker: SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET, SLACK_USER_TOKEN (api.slack.com > the Mobius Digital app).' }),
-    A('google', 'Google (Drive, Docs)', set(env.GOOGLE_SA_KEY), { note: 'Reads Drive files and Docs as Cole or Ahsan; makes the onboarding Drive folders.', fix: 'Set GOOGLE_SA_KEY (the service-account JSON with domain-wide delegation) on the account-health worker.' }),
-    A('anthropic', 'Claude (the Strategist, briefs, reports)', set(env.ANTHROPIC_API_KEY), { fix: 'Set ANTHROPIC_API_KEY on the account-health worker.' }),
-    A('atria', 'Atria (ad library)', !!atria.connected, { note: atria.connected ? `Connected ${String(atria.since || '').slice(0, 10)}.` : 'Reference ads from Atria links are read through it.', fix: 'Locus > Studio > Connections > Connect Atria (Cole signs in once for the whole workspace).' }),
-    A('frame', 'Frame.io', !!frame.connected, { note: frame.connected ? `Connected${frame.since ? ' ' + String(frame.since).slice(0, 10) : ''}.` : 'Makes the review project for each new client.', fix: 'Locus > Settings > New client > Connect Frame (Adobe Developer Console app).' }),
-    A('studio', 'Studio image model (OpenAI)', set(openai), { note: 'Makes the static ads in Studio.', fix: 'Locus > Studio > Connections > paste the OpenAI key.' }),
-    A('canva', 'Canva', set(canvaId) && set(canvaTok), { warn: set(canvaId) && !set(canvaTok), note: set(canvaId) && !set(canvaTok) ? 'App set up, not signed in.' : 'Optional: pushes Studio ads into Canva.', fix: 'Locus > Studio > Connections > Connect Canva.' }),
-    A('gemini', 'Gemini (watches reference videos)', set(env.GEMINI_API_KEY), { note: 'The ideas pipeline reads TikToks, Reels and uploads with it.', fix: 'Set GEMINI_API_KEY on the account-health worker (Google AI Studio).' }),
-    A('downloader', 'Video downloader (ScrapeCreators)', set(env.DOWNLOADER_KEY), { note: 'Fetches TikTok and Instagram videos for the ideas pipeline.', fix: 'Set DOWNLOADER_KEY on the account-health worker.' }),
-    A('stripe', 'Stripe (client invoices)', set(env.STRIPE_SECRET_KEY), { note: 'The first invoice and autopay in New client.', fix: 'Set STRIPE_SECRET_KEY on the account-health worker.' }),
-    A('lucky_app', 'Lucky creator app', set(env.LUCKY_SUPABASE_URL) && set(env.LUCKY_SUPABASE_SERVICE_KEY), { note: 'Lucky Golf only: the ideas pipeline files creator angles into creators.luckygolf.com.', fix: 'Set LUCKY_SUPABASE_URL and LUCKY_SUPABASE_SERVICE_KEY on the account-health worker.' }),
-    A('google_login', 'Google sign-in to Locus', set(env.GOOGLE_CLIENT_ID), { fix: 'Set GOOGLE_CLIENT_ID on the account-health worker.' }),
+    A('meta', 'Meta (ads)', set(env.META_TOKEN), { used_by: 'every brand\'s ad data, the Meta tab, Test calls', note: discover?.at ? `Ad accounts last discovered ${discover.at.slice(0, 10)}.` : 'The Mobius Tools system-user token.', fix: 'Set META_TOKEN on the account-health worker (Meta Business > System users > Mobius Tools, with ads_read, business_management, pages_read_engagement).' }),
+    A('tw', 'Triple Whale', set(env.TW_API_KEY), { used_by: 'revenue, attribution, orders for every brand', note: 'One key for every store; each brand names its shop below.', fix: 'Set TW_API_KEY on the account-health worker (Triple Whale > Settings > API keys).' }),
+    A('asana', 'Asana', set(env.ASANA_TOKEN), { used_by: 'briefs, the test library, New client', warn: set(env.ASANA_TOKEN) && !fields?.workspace, note: fields?.workspace ? 'Locus fields (Angle, Testing, Result...) are on the workspace.' : 'Token set, fields not created yet.', fix: 'Set ASANA_TOKEN (a personal access token of a Mobius admin) on the account-health worker; the fields are created when the first brand connects its project.' }),
+    A('slack', 'Slack (the Mobius Digital app)', set(env.SLACK_BOT_TOKEN), { used_by: 'the Strategist, the ideas pipeline, briefs, reports, the Ledger, Pulse', warn: set(env.SLACK_BOT_TOKEN) && !(set(env.SLACK_SIGNING_SECRET) && set(env.SLACK_USER_TOKEN)), note: [set(env.SLACK_SIGNING_SECRET) ? 'buttons work' : 'buttons dead (no signing secret)', set(env.SLACK_USER_TOKEN) ? `client sends as ${slackWho === 'anyone' ? 'anyone' : 'Cole'}` : 'no user token (client sends fail)'].join('; ') + '.', fix: 'Secrets on the account-health worker: SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET, SLACK_USER_TOKEN (api.slack.com > the Mobius Digital app).' }),
+    A('google', 'Google (Drive, Docs, Gmail)', set(env.GOOGLE_SA_KEY), { used_by: 'reading briefs and Drive files, New client folders, the welcome email', note: 'Acts as Cole or Ahsan through the service account.', fix: 'Set GOOGLE_SA_KEY (the service-account JSON with domain-wide delegation) on the account-health worker.' }),
+    A('anthropic', 'Claude', set(env.ANTHROPIC_API_KEY), { used_by: 'the Strategist, briefs, reports, research, the ideas pipeline', fix: 'Set ANTHROPIC_API_KEY on the account-health worker.' }),
+    A('atria', 'Atria (ad library)', !!atria.connected, { used_by: 'the ideas pipeline, Season swipe files, the creator links', note: atria.connected ? `Connected ${String(atria.since || '').slice(0, 10)}.` : 'Reference ads from Atria links are read through it.', fix: 'Locus > Studio > Connections > Connect Atria (Cole signs in once for the whole workspace).' }),
+    A('frame', 'Frame.io', !!frame.connected, { used_by: 'New client (the review project)', note: frame.connected ? `Connected${frame.since ? ' ' + String(frame.since).slice(0, 10) : ''}.` : 'Makes the review project for each new client.', fix: 'Locus > Settings > New client > Connect Frame (Adobe Developer Console app).' }),
+    A('studio', 'Studio image model (OpenAI)', set(openai), { used_by: 'Studio', note: 'Makes the static ads in Studio.', fix: 'Locus > Studio > Connections > paste the OpenAI key.' }),
+    A('canva', 'Canva', set(canvaId) && set(canvaTok), { used_by: 'Studio (optional)', warn: set(canvaId) && !set(canvaTok), note: set(canvaId) && !set(canvaTok) ? 'App set up, not signed in.' : 'Optional: pushes Studio ads into Canva.', fix: 'Locus > Studio > Connections > Connect Canva.' }),
+    A('gemini', 'Gemini (watches reference videos)', set(env.GEMINI_API_KEY), { used_by: 'the ideas pipeline', note: 'Reads TikToks, Reels and uploads.', fix: 'Set GEMINI_API_KEY on the account-health worker (Google AI Studio).' }),
+    A('downloader', 'Video downloader (ScrapeCreators)', set(env.DOWNLOADER_KEY), { used_by: 'the ideas pipeline', note: 'Fetches TikTok and Instagram videos.', fix: 'Set DOWNLOADER_KEY on the account-health worker.' }),
+    A('stripe', 'Stripe', set(env.STRIPE_SECRET_KEY), { used_by: 'New client only (the first invoice and autopay)', note: 'Mobius\'s own Stripe; no brand connects to it.', fix: 'Set STRIPE_SECRET_KEY on the account-health worker.' }),
+    A('lucky_app', 'Lucky creator app', set(env.LUCKY_SUPABASE_URL) && set(env.LUCKY_SUPABASE_SERVICE_KEY), { used_by: 'the ideas pipeline, Lucky Golf only', only: luckyAct, note: 'Files creator angles into creators.luckygolf.com.', fix: 'Set LUCKY_SUPABASE_URL and LUCKY_SUPABASE_SERVICE_KEY on the account-health worker.' }),
+    A('google_login', 'Google sign-in to Locus', set(env.GOOGLE_CLIENT_ID), { used_by: 'the team signing in', fix: 'Set GOOGLE_CLIENT_ID on the account-health worker.' }),
   ];
 
   /* ---------------- per brand ---------------- */
@@ -64,7 +67,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
   const ids = accounts.map(a => a.act_id);
   const IN = ids.map((_, i) => `?${i + 1}`).join(',');
   const byAct = rows => Object.fromEntries(rows.map(r => [r.act_id, r]));
-  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN] = await Promise.all([
+  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs] = await Promise.all([
     q(`SELECT act_id, MAX(date) AS latest FROM daily_insights WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest FROM tw_daily WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest, COUNT(*) AS n FROM tw_orders WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
@@ -78,12 +81,18 @@ export async function integrationsReport(env, { brand = null } = {}) {
     q(`SELECT act_id, SUM(value) AS v FROM tw_daily WHERE metric = 'klaviyoPlacedOrderSales' AND date >= date('now', '-14 days') AND act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, COUNT(*) AS n FROM p_studio_batch WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, COUNT(*) AS n FROM p_amb_angle WHERE status = 'live' AND act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
+    /* Brands onboarded before New client existed: their Drive folder and Frame project live outside
+       Locus until someone pastes the links (PUT /api/brand-links -> p_br_doc key 'links'). */
+    q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'links' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
   ]);
   const C = (key, name, state, note, fix = '') => ({ key, name, state, note, fix });
   const brands = accounts.map(a => {
     const id = a.act_id, doc = asanaDocs[id], n = nc[id], hub = hubs[id], ob = onb[id], sh = shops[id];
     const steps = safeJson(n?.steps_json, {}) || {};
-    const frameUrl = steps.frame?.url || steps.frame?.project?.url || null;
+    const links = linkDocs[id] || {};
+    const frameUrl = steps.frame?.url || steps.frame?.project?.url || links.frame || null;
+    const driveUrl = n?.drive_url || links.drive || null;
+    const legacy = !n && !ob;   // a brand set up before New client and the onboarding link existed
     const metaAge = daysAgo(metaD[id]?.latest), twAge = daysAgo(twD[id]?.latest), attrAge = daysAgo(twA[id]?.latest);
     const items = [
       C('meta', 'Meta ad account', a.last_error ? 'bad' : metaAge == null ? 'off' : metaAge > 2 ? 'warn' : 'ok',
@@ -102,11 +111,13 @@ export async function integrationsReport(env, { brand = null } = {}) {
         'Settings > Brands > the brand > Team channel (the -internal channel id).'),
       C('slack_client', 'Slack client channel', set(a.brief_channel) ? 'ok' : 'off', set(a.brief_channel) ? `${a.brief_channel}: the Daily Brief and reports go here.` : 'No client channel: briefs and reports are drafted and auto-handled, never sent.',
         'Settings > Brands > the brand > Client channel. Leave empty on purpose for a brand with no client channel.'),
-      C('drive', 'Google Drive folder', set(n?.drive_url) ? 'ok' : 'off', set(n?.drive_url) ? n.drive_url : 'No folder recorded (brands onboarded before New client have one in Drive, not in Locus).',
-        'Settings > New client > Drive step makes it; older brands: paste the folder on the brand row (not built yet).'),
-      C('frame', 'Frame.io project', set(frameUrl) ? 'ok' : 'off', set(frameUrl) ? frameUrl : 'No review project recorded.', 'Settings > New client > Frame step (Frame must be connected agency-wide).'),
+      C('drive', 'Google Drive folder', set(driveUrl) ? 'ok' : 'off', set(driveUrl) ? driveUrl : legacy ? 'This brand was set up before New client existed, so its Drive folder is not recorded here. Paste the link below.' : 'No folder recorded.',
+        legacy ? 'Paste the brand\'s Drive folder link here (saved on the brand).' : 'Settings > New client > Drive step makes it.'),
+      C('frame', 'Frame.io project', set(frameUrl) ? 'ok' : 'off', set(frameUrl) ? frameUrl : legacy ? 'Set up before New client existed: its Frame project is not recorded here. Paste the link below.' : 'No review project recorded.',
+        legacy ? 'Paste the brand\'s Frame project link here (saved on the brand).' : 'Settings > New client > Frame step (Frame must be connected agency-wide).'),
       C('hub', 'Creator link', hub ? (hub.live ? 'ok' : 'warn') : 'off', hub ? `/angles/${hub.slug}, ${hubN[id]?.n || 0} live angle${hubN[id]?.n === 1 ? '' : 's'}${hub.live ? '' : ', link not live'}.` : 'No creator link (Lucky Golf uses its own creator app).', 'Ambassadors tab > set up the brand, switch Live on.'),
-      C('onboarding', 'Onboarding answers', ob ? (ob.status === 'submitted' ? 'ok' : 'warn') : 'off', ob ? `${ob.status}${ob.submitted_at ? ' ' + String(ob.submitted_at).slice(0, 10) : ''}.` : 'No onboarding link sent.', 'Brand tab > Client answers > send the onboarding link.'),
+      C('onboarding', 'Onboarding answers', ob ? (ob.status === 'submitted' ? 'ok' : 'warn') : 'off', ob ? `${ob.status}${ob.submitted_at ? ' ' + String(ob.submitted_at).slice(0, 10) : ''}.` : legacy ? 'This brand joined before the onboarding link existed: nothing was ever asked. Locus knows a lot from research, Asana and the ads already; the link fills the rest (access, offers, voice).' : 'No onboarding link sent.',
+        legacy ? 'Brand tab > Client answers > send the onboarding link anyway: Locus pre-fills what it knows from the website and research, so the client only answers the blanks.' : 'Brand tab > Client answers > send the onboarding link.'),
       C('google_ads', 'Google Ads (via Triple Whale)', (ga[id]?.v || 0) > 0 ? 'ok' : 'off', (ga[id]?.v || 0) > 0 ? `Spend in the last 14 days: ${Math.round(ga[id].v)}.` : 'No Google spend in the last 14 days (either not running, or Google Ads is not connected in the client\'s Triple Whale).', 'The client connects Google Ads inside Triple Whale (Integrations). Nothing to set in Locus.'),
       C('klaviyo', 'Klaviyo (via Triple Whale)', (kl[id]?.v || 0) > 0 ? 'ok' : 'off', (kl[id]?.v || 0) > 0 ? `Email revenue in the last 14 days: ${Math.round(kl[id].v)}.` : 'No Klaviyo revenue in the last 14 days (not connected in the client\'s Triple Whale, or no email sales).', 'The client connects Klaviyo inside Triple Whale (Integrations). Nothing to set in Locus.'),
     ];

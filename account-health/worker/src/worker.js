@@ -7051,6 +7051,19 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       return json(await integrationsReport(env, { brand: url.searchParams.get('brand') || null }));
     }
+    /* Older brands' Drive folder / Frame project links, pasted from the Connections page. */
+    if (path === '/api/brand-links' && request.method === 'PUT') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      const acct = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(String(b.act || '')).first();
+      if (!acct) return json({ error: 'unknown account' }, 404);
+      const prev = safeJson((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'links'`).bind(acct.act_id).first())?.data_json, {}) || {};
+      const next = { ...prev };
+      for (const k of ['drive', 'frame']) if (b[k] !== undefined) { const v = String(b[k] || '').trim(); if (v && !/^https?:\/\//.test(v)) return json({ error: `${k} must be a full link (https://...)` }, 400); next[k] = v || undefined; }
+      await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'links', ?2, 'approved', 'staff', datetime('now'))
+        ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(acct.act_id, JSON.stringify(next)).run();
+      return json({ ok: true, links: next });
+    }
     if (path === '/api/schedule-health' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const stale = (await env.DB.prepare(
